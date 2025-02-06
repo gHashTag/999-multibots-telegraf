@@ -26,15 +26,17 @@ export const createBots = async () => {
     const app = express()
 
     const port = 3000 + index
+    console.log('CASE: port', port)
 
     bot.on('text', ctx => {
+      console.log('CASE: text', ctx)
       const userMessage = ctx.message.text
       const botResponse = `I am bot${index + 1}, you said: ${userMessage}`
       ctx.reply(botResponse)
     })
 
     const webhookPath = `/${bot.telegram.token}`
-    const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app/${bot.telegram.token}`
+    const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app`
 
     if (NODE_ENV === 'development') {
       development(bot)
