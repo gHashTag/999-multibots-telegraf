@@ -1,0 +1,2 @@
+[webservers]
+999-multibots-u14194.vm.elestio.app ansible_user=root ansible_ssh_private_key_file=~/.ssh/id_rsa public_ip=138.199.145.157

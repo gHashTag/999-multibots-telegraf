@@ -1,0 +1,30 @@
+   - name: Deploy Nginx main config
+     template:
+       src: nginx.conf.j2
+       dest: /etc/nginx/nginx.conf
+
+   - name: Deploy bot location config
+     template:
+       src: bot1.location.j2
+       dest: /etc/nginx/conf.d/bot1.location
+
+   - name: Generate self-signed certificate
+     community.crypto.openssl_privatekey:
+       type: RSA
+       size: 4096
+       path: /etc/pki/key.pem
+
+   - name: Generate CSR
+     community.crypto.openssl_csr:
+       subject:
+         O: CoolBot
+         CN: '{{ public_ip }}'
+       privatekey_path: /etc/pki/key.pem
+       path: /etc/pki/cert.csr
+
+   - name: Generate self-signed certificate
+     community.crypto.x509_certificate:
+       privatekey_path: /etc/pki/key.pem
+       csr_path: /etc/pki/cert.csr
+       provider: selfsigned
+       path: /etc/pki/cert.crt

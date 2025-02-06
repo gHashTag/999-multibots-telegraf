@@ -1,0 +1,10 @@
+   # {{ ansible_managed }}
+
+   server {
+       listen              443 ssl;
+       server_name         {{ public_ip }};
+       ssl_certificate     /etc/pki/cert.crt;
+       ssl_certificate_key /etc/pki/key.pem;
+
+       include /etc/nginx/conf.d/*.locations;
+   }

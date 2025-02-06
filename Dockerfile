@@ -16,6 +16,18 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Устанавливаем зависимости для Ansible
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    openssh-client \
+    sshpass
+
+# Создаем виртуальное окружение и устанавливаем Ansible
+RUN python3 -m venv /opt/ansible-venv \
+    && . /opt/ansible-venv/bin/activate \
+    && pip install --no-cache-dir ansible
+
 COPY package*.json ./
 RUN npm install --production
 
