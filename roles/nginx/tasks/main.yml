@@ -7,11 +7,18 @@
   template:
     src: bot1.locations.j2
     dest: /etc/nginx/conf.d/bot1.locations
+  
 
 - name: Deploy bot2 location config
   template:
     src: bot2.locations.j2
     dest: /etc/nginx/conf.d/bot2.locations
+
+- name: Ensure /etc/pki directory exists
+  file:
+    path: /etc/pki
+    state: directory
+    mode: '0755'
 
 - name: Generate self-signed certificate
   community.crypto.openssl_privatekey:
