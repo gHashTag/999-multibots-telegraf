@@ -3,6 +3,7 @@ import { MyContext } from '@/interfaces'
 
 const production = async (
   bot: Telegraf<MyContext>,
+  port: number,
   webhookUrl: string,
   path: string
 ): Promise<void> => {
@@ -15,7 +16,7 @@ const production = async (
     bot.launch({
       webhook: {
         domain: webhookUrl,
-        port: 3000,
+        port,
         path,
         secretToken: process.env.SECRET_TOKEN,
       },

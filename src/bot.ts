@@ -25,21 +25,21 @@ export const createBots = async () => {
   bots.forEach((bot, index) => {
     const app = express()
 
+    const port = 3000 + index
+
     bot.on('text', ctx => {
       const userMessage = ctx.message.text
       const botResponse = `I am bot${index + 1}, you said: ${userMessage}`
       ctx.reply(botResponse)
     })
 
-    const webhookPath = '/webhook'
-    const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app/bot${
-      index + 1
-    }${webhookPath}`
+    const webhookPath = `/${bot.telegram.token}`
+    const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app/${bot.telegram.token}`
 
     if (NODE_ENV === 'development') {
       development(bot)
     } else {
-      production(bot, webhookUrl, webhookPath)
+      production(bot, port, webhookUrl, webhookPath)
     }
 
     app.use(webhookPath, express.json(), (req, res) => {
