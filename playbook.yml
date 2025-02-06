@@ -1,4 +1,6 @@
 - name: Configure Nginx
   hosts: webservers
+  vars:
+    - vars.yml
   roles:
     - nginx
