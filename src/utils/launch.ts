@@ -1,10 +1,8 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { createServer } from 'http'
 
 const production = async (
   bot: Telegraf<MyContext>,
-  port: number,
   webhookUrl: string,
   path: string
 ): Promise<void> => {
@@ -14,14 +12,13 @@ const production = async (
 
     await new Promise(resolve => setTimeout(resolve, 2000))
 
-    const server = createServer(
-      await bot.createWebhook({ domain: `${webhookUrl}${path}` })
-    ).listen(port)
-
-    console.log(`Webhook successfully set to ${webhookUrl}`)
-    console.log('Bot is running in webhook mode')
-    server.on('listening', () => {
-      console.log(`Bot is running on port ${port}`)
+    bot.launch({
+      webhook: {
+        domain: webhookUrl,
+        port: 3000,
+        path,
+        secretToken: process.env.SECRET_TOKEN,
+      },
     })
     return
   } catch (e) {

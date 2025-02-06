@@ -24,7 +24,6 @@ const bots = BOT_TOKENS.map(token => new Telegraf<MyContext>(token))
 export const createBots = async () => {
   bots.forEach((bot, index) => {
     const app = express()
-    const PORT = process.env.PORT || 8080
 
     bot.on('text', ctx => {
       const userMessage = ctx.message.text
@@ -40,7 +39,7 @@ export const createBots = async () => {
     if (NODE_ENV === 'development') {
       development(bot)
     } else {
-      production(bot, PORT, webhookUrl, webhookPath)
+      production(bot, webhookUrl, webhookPath)
     }
 
     app.use(webhookPath, express.json(), (req, res) => {
