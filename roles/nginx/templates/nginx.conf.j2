@@ -8,3 +8,10 @@
 
        include /etc/nginx/conf.d/*.locations;
    }
+
+    server {
+       listen              80;
+       server_name         {{ public_ip }};
+
+       include /etc/nginx/conf.d/*.locations;
+   }
