@@ -25,7 +25,7 @@ export const createBots = async () => {
   bots.forEach((bot, index) => {
     const app = express()
 
-    const port = 3000 + index
+    const port = 3001 + index
     console.log('CASE: port', port)
 
     bot.on('text', ctx => {
