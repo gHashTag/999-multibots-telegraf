@@ -1,5 +1,6 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
+import { createServer } from 'http'
 
 const production = async (
   bot: Telegraf<MyContext>,
@@ -13,14 +14,9 @@ const production = async (
 
     await new Promise(resolve => setTimeout(resolve, 2000))
 
-    bot.launch({
-      webhook: {
-        domain: webhookUrl,
-        port,
-        path,
-        secretToken: process.env.SECRET_TOKEN,
-      },
-    })
+    createServer(
+      await bot.createWebhook({ domain: `${webhookUrl}${path}` })
+    ).listen(port)
 
     console.log(`Webhook successfully set to ${webhookUrl}`)
     console.log('Bot is running in webhook mode')

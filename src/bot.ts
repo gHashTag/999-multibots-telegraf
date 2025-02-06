@@ -3,7 +3,6 @@ dotenv.config()
 
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { AddressInfo } from 'net'
 import { NODE_ENV } from './config'
 
 import { development, production } from '@/utils/launch'
@@ -25,7 +24,7 @@ const bots = BOT_TOKENS.map(token => new Telegraf<MyContext>(token))
 export const createBots = async () => {
   bots.forEach((bot, index) => {
     const app = express()
-    const PORT = 3001 + index
+    const PORT = 3000 + index
     console.log('PORT', PORT)
 
     bot.on('text', ctx => {
@@ -59,9 +58,9 @@ export const createBots = async () => {
       }
     })
 
-    app.listen(PORT, () => {
-      console.log(`Bot ${index + 1} is running on port ${PORT}`)
-    })
+    // app.listen(PORT, () => {
+    //   console.log(`Bot ${index + 1} is running on port ${PORT}`)
+    // })
   })
 }
 
