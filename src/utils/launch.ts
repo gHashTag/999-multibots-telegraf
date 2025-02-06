@@ -14,12 +14,15 @@ const production = async (
 
     await new Promise(resolve => setTimeout(resolve, 2000))
 
-    createServer(
+    const server = createServer(
       await bot.createWebhook({ domain: `${webhookUrl}${path}` })
     ).listen(port)
 
     console.log(`Webhook successfully set to ${webhookUrl}`)
     console.log('Bot is running in webhook mode')
+    server.on('listening', () => {
+      console.log(`Bot is running on port ${port}`)
+    })
     return
   } catch (e) {
     console.error('Error in production setup:', e)
