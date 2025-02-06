@@ -7,11 +7,15 @@
      template:
        src: bot1.locations.j2
        dest: /etc/nginx/conf.d/bot1.locations
+      vars:
+        - vars.yml
 
    - name: Deploy bot2 location config
      template:
        src: bot2.locations.j2
        dest: /etc/nginx/conf.d/bot2.locations
+      vars:
+        - vars.yml
 
    - name: Generate self-signed certificate
      community.crypto.openssl_privatekey:
