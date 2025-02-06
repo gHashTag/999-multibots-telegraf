@@ -1,21 +1,22 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
-import { Composer, Telegraf } from 'telegraf'
+import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { isDev } from '@/config'
-import { handleModelCallback } from './handlers'
+// import { isDev } from '@/config'
+// import { handleModelCallback } from './handlers'
 
-import { setBotCommands } from './setCommands'
-import { registerCommands, stage } from './registerCommands'
-import { handleCallback } from './handlers/handleCallback'
+// import { setBotCommands } from './setCommands'
+// import { registerCommands, stage } from './registerCommands'
+// import { handleCallback } from './handlers/handleCallback'
 
 import { NODE_ENV } from './config'
-import { handlePaymentPolicyInfo } from './handlers/paymentHandlers/handlePaymentPolicyInfo'
-import { handlePreCheckoutQuery } from './handlers/paymentHandlers/handlePreCheckoutQuery'
-import { handleTopUp } from './handlers/paymentHandlers/handleTopUp'
-import { handleSuccessfulPayment } from './handlers/paymentHandlers'
+// import { handlePaymentPolicyInfo } from './handlers/paymentHandlers/handlePaymentPolicyInfo'
+// import { handlePreCheckoutQuery } from './handlers/paymentHandlers/handlePreCheckoutQuery'
+// import { handleTopUp } from './handlers/paymentHandlers/handleTopUp'
+// import { handleSuccessfulPayment } from './handlers/paymentHandlers'
 import { development, production } from '@/utils/launch'
+import express from 'express'
 
 // Загружаем переменные окружения из .env файла
 dotenv.config()
@@ -28,31 +29,47 @@ if (!process.env.BOT_TOKEN_2) {
   throw new Error('BOT_TOKEN_2 is not set')
 }
 
-// Создаем массив токенов для ботов
 const BOT_TOKENS = [process.env.BOT_TOKEN_1, process.env.BOT_TOKEN_2]
-
-// Инициализируем ботов
 const bots = BOT_TOKENS.map(token => new Telegraf<MyContext>(token))
 
 export const createBots = async () => {
-  // Определяем логику для каждого бота
   bots.forEach((bot, index) => {
+    const app = express()
+    const PORT = 3000 + index // Уникальный порт для каждого бота
+
     bot.on('text', ctx => {
-      const userMessage = ctx.message.text // Получаем сообщение от пользователя
-      const botResponse = `I am bot${index + 1}, you said: ${userMessage}` // Формируем ответ бота
-      ctx.reply(botResponse) // Отправляем ответ пользователю
+      const userMessage = ctx.message.text
+      const botResponse = `I am bot${index + 1}, you said: ${userMessage}`
+      ctx.reply(botResponse)
+    })
+
+    const webhookPath = '/webhook'
+
+    if (NODE_ENV === 'development') {
+      development(bot)
+    } else {
+      production(bot, PORT + index)
+    }
+
+    // Обрабатываем запросы вебхука
+    app.use(webhookPath, express.json(), (req, res) => {
+      console.log('CASE: production')
+      console.log('req.query', req.query)
+
+      const token = req.query.token as string
+      const bot = bots.find(b => b.telegram.token === token)
+
+      if (bot) {
+        bot.handleUpdate(req.body, res)
+      } else {
+        res.status(404).send('Bot not found')
+      }
+    })
+
+    app.listen(PORT, () => {
+      console.log(`Bot ${index + 1} is running on port ${PORT}`)
     })
   })
-
-  console.log(`NODE_ENV: ${NODE_ENV}`) // Логирование значения NODE_ENV
-
-  if (NODE_ENV === 'development') {
-    console.log('Starting bots in development mode...')
-    await Promise.all(bots.map(bot => development(bot)))
-  } else {
-    console.log('Starting bots in production mode...')
-    await Promise.all(bots.map((bot, index) => production(bot, 3000 + index)))
-  }
 }
 
 createBots()

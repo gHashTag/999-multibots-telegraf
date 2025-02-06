@@ -17,7 +17,7 @@ const production = async (
       webhook: {
         domain: webhookUrl,
         port,
-        //path: '/api/index', // Необязательный путь, можно не указывать
+        path: '/webhook',
         secretToken: process.env.SECRET_TOKEN,
       },
     })
