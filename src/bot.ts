@@ -61,10 +61,9 @@ export const createBots = async () => {
       }
     })
 
-    const server = app.listen(0, () => {
-      const address = server.address() as AddressInfo
-      const port = address.port
-      console.log(`Server is running on port ${port}`)
+    app.listen(PORT, () => {
+      // Используем фиксированные порты
+      console.log(`Bot ${index + 1} is running on port ${PORT}`)
     })
   })
 }
