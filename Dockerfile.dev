@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+# Создаем директорию для логов с правильными правами
+RUN mkdir -p /tmp/logs && \
+    chown -R node:node /tmp/logs
+
+USER node
+
+COPY --chown=node:node . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]

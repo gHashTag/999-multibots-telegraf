@@ -1,0 +1,28 @@
+version: '3.9'
+
+services:
+  app:
+    container_name: neuro-blogger-telegram-bot
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - BOT_TOKEN=${TELEGRAM_BOT_TOKEN_PROD}
+      - LOG_DIR=/var/logs
+      - SECRET_KEY=${SECRET_KEY}
+      - CREDENTIALS=${CREDENTIALS}
+      - ORIGIN=${ORIGIN}
+      - LOG_FORMAT=${LOG_FORMAT}
+    restart: 'unless-stopped'
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
