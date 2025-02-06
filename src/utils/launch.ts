@@ -3,7 +3,9 @@ import { MyContext } from '@/interfaces'
 
 const production = async (
   bot: Telegraf<MyContext>,
-  port: number
+  port: number,
+  webhookUrl: string,
+  path: string
 ): Promise<void> => {
   try {
     await bot.telegram.deleteWebhook({ drop_pending_updates: true })
@@ -11,13 +13,11 @@ const production = async (
 
     await new Promise(resolve => setTimeout(resolve, 2000))
 
-    const webhookUrl = process.env.WEBHOOK_URL
-
     bot.launch({
       webhook: {
         domain: webhookUrl,
         port,
-        path: '/webhook',
+        path,
         secretToken: process.env.SECRET_TOKEN,
       },
     })
