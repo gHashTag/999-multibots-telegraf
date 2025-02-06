@@ -19,7 +19,6 @@ services:
       - CREDENTIALS=${CREDENTIALS}
       - ORIGIN=${ORIGIN}
       - LOG_FORMAT=${LOG_FORMAT}
-    restart: 'unless-stopped'
     networks:
       - app-network
 

@@ -9,7 +9,6 @@ import { NODE_ENV } from './config'
 import { development, production } from '@/utils/launch'
 import express from 'express'
 
-// Загружаем переменные окружения из .env файла
 dotenv.config()
 
 if (!process.env.BOT_TOKEN_1) {
@@ -46,7 +45,6 @@ export const createBots = async () => {
       production(bot, PORT, webhookUrl, webhookPath)
     }
 
-    // Обрабатываем запросы вебхука
     app.use(webhookPath, express.json(), (req, res) => {
       console.log('CASE: production')
       console.log('req.query', req.query)
@@ -62,7 +60,6 @@ export const createBots = async () => {
     })
 
     app.listen(PORT, () => {
-      // Используем фиксированные порты
       console.log(`Bot ${index + 1} is running on port ${PORT}`)
     })
   })
