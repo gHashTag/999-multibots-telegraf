@@ -1,6 +1,6 @@
 - name: Configure Nginx
   hosts: webservers
   vars_files:
-    - vars.yml
+    - vault.yml
   roles:
     - nginx
