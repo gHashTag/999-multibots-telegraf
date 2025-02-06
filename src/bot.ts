@@ -24,8 +24,7 @@ const bots = BOT_TOKENS.map(token => new Telegraf<MyContext>(token))
 export const createBots = async () => {
   bots.forEach((bot, index) => {
     const app = express()
-    const PORT = 3000
-    console.log('PORT', PORT)
+    const PORT = process.env.PORT || 8080
 
     bot.on('text', ctx => {
       const userMessage = ctx.message.text

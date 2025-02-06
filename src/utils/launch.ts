@@ -16,7 +16,7 @@ const production = async (
 
     const server = createServer(
       await bot.createWebhook({ domain: `${webhookUrl}${path}` })
-    ).listen(8080)
+    ).listen(port)
 
     console.log(`Webhook successfully set to ${webhookUrl}`)
     console.log('Bot is running in webhook mode')
