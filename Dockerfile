@@ -21,7 +21,8 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     openssh-client \
-    sshpass
+    sshpass \
+    nginx
 
 # Создаем виртуальное окружение и устанавливаем Ansible
 RUN python3 -m venv /opt/ansible-venv \
@@ -33,6 +34,8 @@ RUN npm install --production
 
 # Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
+# Копируем конфигурацию Nginx
+COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 3000
 
