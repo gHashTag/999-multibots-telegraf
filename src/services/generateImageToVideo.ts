@@ -8,7 +8,8 @@ export async function generateImageToVideo(
   videoModel: VideoModel,
   telegram_id: number,
   username: string,
-  isRu: boolean
+  isRu: boolean,
+  botName: string
 ): Promise<ImageToVideoResponse> {
   try {
     const url = `${
@@ -31,6 +32,7 @@ export async function generateImageToVideo(
         telegram_id,
         username,
         is_ru: isRu,
+        bot_name: botName,
       },
       {
         headers: {

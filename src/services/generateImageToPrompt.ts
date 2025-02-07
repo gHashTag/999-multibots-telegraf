@@ -11,7 +11,8 @@ export async function generateImageToPrompt(
   imageUrl: string,
   telegram_id: number,
   ctx: MyContext,
-  isRu: boolean
+  isRu: boolean,
+  botName: string
 ): Promise<null> {
   console.log('Starting generateImageToPrompt with:', { imageUrl, telegram_id })
 
@@ -27,6 +28,7 @@ export async function generateImageToPrompt(
         telegram_id,
         username: ctx.from?.username,
         is_ru: isRu,
+        bot_name: botName,
       },
       {
         headers: {

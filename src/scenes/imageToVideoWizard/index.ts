@@ -175,7 +175,8 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
             videoModel,
             ctx.from.id,
             ctx.from.username,
-            isRu
+            isRu,
+            ctx.botInfo?.username
           )
           ctx.session.prompt = prompt
           ctx.session.mode = 'image_to_video'

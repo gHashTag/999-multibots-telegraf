@@ -157,7 +157,8 @@ composer.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async ctx => {
         ctx.session.userModel.model_url,
         num,
         userId,
-        ctx
+        ctx,
+        ctx.botInfo?.username
       )
     } else {
       await generateTextToImage(
@@ -166,7 +167,8 @@ composer.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async ctx => {
         num,
         userId,
         isRu,
-        ctx
+        ctx,
+        ctx.botInfo?.username
       )
     }
   }

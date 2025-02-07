@@ -10,11 +10,13 @@ interface ModelTrainingRequest {
   telegram_id: string
   is_ru: boolean
   steps: number
+  botName: string
 }
 
 interface ModelTrainingResponse {
   message: string
   model_id?: string
+  bot_name?: string
 }
 
 export async function createModelTraining(
@@ -41,6 +43,7 @@ export async function createModelTraining(
     formData.append('steps', requestData.steps.toString()) // Убедитесь, что steps передается как строка
 
     formData.append('is_ru', requestData.is_ru.toString())
+    formData.append('bot_name', requestData.botName)
 
     const response: AxiosResponse<ModelTrainingResponse> = await axios.post(
       url,

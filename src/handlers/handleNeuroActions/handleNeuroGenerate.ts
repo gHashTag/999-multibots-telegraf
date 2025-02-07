@@ -61,7 +61,8 @@ export async function handleNeuroGenerate(
         promptData.model_type,
         numImages,
         ctx.from.id,
-        ctx
+        ctx,
+        ctx.botInfo?.username
       )
     } catch (error) {
       console.error('Error in generation loop:', error)

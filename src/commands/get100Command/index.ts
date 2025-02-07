@@ -23,7 +23,14 @@ async function get100Command(ctx: MyContext) {
     return
   }
 
-  await generateNeuroImage(message, model_url, 100, ctx.from.id, ctx)
+  await generateNeuroImage(
+    message,
+    model_url,
+    100,
+    ctx.from.id,
+    ctx,
+    ctx.botInfo?.username
+  )
 
   await ctx.telegram.deleteMessage(
     ctx.chat?.id || '',

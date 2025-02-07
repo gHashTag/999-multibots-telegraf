@@ -32,7 +32,8 @@ async function downloadFile(url: string, outputPath: string): Promise<void> {
 export async function generateLipSync(
   videoUrl: string,
   audioUrl: string,
-  telegram_id: string
+  telegram_id: string,
+  botName: string
 ): Promise<LipSyncResponse> {
   try {
     const videoPath = path.join(__dirname, '../../tmp', 'temp_video.mp4')
@@ -55,6 +56,7 @@ export async function generateLipSync(
     formData.append('type', 'lip-sync')
     formData.append('telegram_id', telegram_id)
     formData.append('is_ru', 'true')
+    formData.append('bot_name', botName)
     formData.append('video', fs.createReadStream(videoPath))
     formData.append('audio', fs.createReadStream(audioPath))
 

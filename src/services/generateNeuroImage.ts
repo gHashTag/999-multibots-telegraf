@@ -9,7 +9,8 @@ export async function generateNeuroImage(
   model_url: ModelUrl,
   numImages: number,
   telegram_id: number,
-  ctx: MyContext
+  ctx: MyContext,
+  botName: string
 ): Promise<{ data: string } | null> {
   if (!ctx.session.prompt) {
     throw new Error('Prompt not found')
@@ -28,6 +29,7 @@ export async function generateNeuroImage(
     model_url,
     numImages,
     telegram_id,
+    botName,
   })
 
   try {
@@ -44,6 +46,7 @@ export async function generateNeuroImage(
         telegram_id,
         username: ctx.from?.username,
         is_ru: isRussian(ctx),
+        bot_name: botName,
       },
       {
         headers: {

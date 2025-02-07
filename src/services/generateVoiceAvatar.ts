@@ -12,7 +12,8 @@ export async function generateVoiceAvatar(
   fileUrl: string,
   telegram_id: number,
   ctx: MyContext,
-  isRu: boolean
+  isRu: boolean,
+  botName: string
 ): Promise<VoiceAvatarResponse> {
   try {
     const url = `${
@@ -26,6 +27,7 @@ export async function generateVoiceAvatar(
         telegram_id,
         username: ctx.from?.username,
         is_ru: isRu,
+        bot_name: botName,
       },
       {
         headers: {

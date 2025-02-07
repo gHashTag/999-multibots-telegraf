@@ -113,7 +113,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ctx.session.userModel.model_url,
                 1,
                 ctx.from.id,
-                ctx
+                ctx,
+                ctx.botInfo?.username
               )
               break
             case 'text_to_video':
@@ -136,7 +137,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ctx.session.videoModel,
                 ctx.from.id,
                 ctx.from.username,
-                isRu
+                isRu,
+                ctx.botInfo?.username
               )
               break
             case 'text_to_image':
@@ -146,7 +148,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 1,
                 ctx.from.id,
                 isRu,
-                ctx
+                ctx,
+                ctx.botInfo?.username
               )
               break
             default:

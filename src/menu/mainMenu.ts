@@ -151,12 +151,15 @@ export async function mainMenu({
   console.log('availableLevels', availableLevels)
 
   const helpButton = isRu ? levels[103].title_ru : levels[103].title_en
+  const mainMenuButton = isRu ? levels[104].title_ru : levels[104].title_en
 
   if (availableLevels.length === 0) {
     console.warn(
       'No available levels for the current invite count and subscription status.'
     )
-    return Markup.keyboard([[Markup.button.text(helpButton)]]).resize()
+    return Markup.keyboard([
+      [Markup.button.text(helpButton), Markup.button.text(mainMenuButton)],
+    ]).resize()
   }
 
   const buttons = availableLevels.map(level =>

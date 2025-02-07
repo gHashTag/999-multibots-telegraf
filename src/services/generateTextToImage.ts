@@ -9,7 +9,8 @@ export const generateTextToImage = async (
   num_images: number,
   telegram_id: number,
   isRu: boolean,
-  ctx: MyContext
+  ctx: MyContext,
+  botName: string
 ) => {
   try {
     const url = `${
@@ -26,6 +27,7 @@ export const generateTextToImage = async (
         telegram_id,
         username: ctx.from?.username,
         is_ru: isRu,
+        bot_name: botName,
       },
       {
         headers: {

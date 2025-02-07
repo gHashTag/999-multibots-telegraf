@@ -44,6 +44,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
       steps: ctx.session.steps,
       telegram_id: ctx.session.targetUserId.toString(),
       is_ru: isRu,
+      botName: ctx.botInfo?.username,
     })
 
     await deleteFile(zipPath)

@@ -105,7 +105,8 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       await generateLipSync(
         ctx.session.videoUrl,
         ctx.session.audioUrl,
-        ctx.from.id.toString()
+        ctx.from.id.toString(),
+        ctx.botInfo?.username
       )
 
       await ctx.reply(

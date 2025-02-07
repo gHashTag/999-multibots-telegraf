@@ -52,7 +52,14 @@ export const neuroCoderScene = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
 
-        await generateNeuroImage(prompt, model_url, numImages, ctx.from.id, ctx)
+        await generateNeuroImage(
+          prompt,
+          model_url,
+          numImages,
+          ctx.from.id,
+          ctx,
+          ctx.botInfo?.username
+        )
 
         return ctx.scene.leave()
       } else {

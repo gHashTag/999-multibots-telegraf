@@ -94,7 +94,14 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
       if (model_url && trigger_word) {
         const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
-        await generateNeuroImage(fullPrompt, model_url, 1, userId || 0, ctx)
+        await generateNeuroImage(
+          fullPrompt,
+          model_url,
+          1,
+          userId || 0,
+          ctx,
+          ctx.botInfo?.username
+        )
         ctx.wizard.next()
       } else {
         await ctx.reply(isRu ? '❌ Некорректный промпт' : '❌ Invalid prompt')
@@ -136,7 +143,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
           ctx.session.userModel.model_url,
           num,
           userId,
-          ctx
+          ctx,
+          ctx.botInfo?.username
         )
       } else {
         await generateTextToImage(
@@ -145,7 +153,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
           num,
           userId,
           isRu,
-          ctx
+          ctx,
+          ctx.botInfo?.username
         )
       }
     }

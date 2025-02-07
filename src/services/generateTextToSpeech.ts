@@ -12,7 +12,8 @@ export async function generateTextToSpeech(
   voice_id: string,
   telegram_id: number,
   username: string,
-  isRu: boolean
+  isRu: boolean,
+  botName: string
 ): Promise<TextToSpeechResponse> {
   try {
     const url = `${
@@ -40,6 +41,7 @@ export async function generateTextToSpeech(
         voice_id,
         telegram_id,
         is_ru: isRu,
+        bot_name: botName,
       },
       {
         headers: {

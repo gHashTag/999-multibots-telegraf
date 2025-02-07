@@ -151,7 +151,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
           1,
           ctx.from.id,
           isRu,
-          ctx
+          ctx,
+          ctx.botInfo?.username
         )
         return ctx.scene.leave()
       }

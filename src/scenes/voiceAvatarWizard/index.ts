@@ -82,7 +82,13 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         }
 
         const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
-        await generateVoiceAvatar(fileUrl, ctx.from.id, ctx, isRu)
+        await generateVoiceAvatar(
+          fileUrl,
+          ctx.from.id,
+          ctx,
+          isRu,
+          ctx.botInfo?.username
+        )
       } catch (error) {
         console.error('Error in handleVoiceMessage:', error)
         await ctx.reply(

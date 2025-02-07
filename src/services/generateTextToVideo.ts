@@ -13,7 +13,8 @@ export async function generateTextToVideo(
   videoModel: string,
   telegram_id: number,
   username: string,
-  isRu: boolean
+  isRu: boolean,
+  botName: string
 ): Promise<TextToVideoResponse> {
   try {
     const url = `${
@@ -59,6 +60,7 @@ export async function generateTextToVideo(
         telegram_id,
         username,
         is_ru: isRu,
+        bot_name: botName,
       },
       {
         headers: {

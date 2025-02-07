@@ -68,7 +68,13 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
       const botToken = getBotToken(ctx)
       const imageUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
       if (ctx.from) {
-        await generateImageToPrompt(imageUrl, ctx.from.id, ctx, isRu)
+        await generateImageToPrompt(
+          imageUrl,
+          ctx.from.id,
+          ctx,
+          isRu,
+          ctx.botInfo?.username
+        )
       }
       return ctx.scene.leave()
     }
