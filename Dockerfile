@@ -34,12 +34,7 @@ RUN npm install --production
 
 # Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
-# Копируем конфигурацию Nginx
-# COPY nginx.conf /etc/nginx/nginx.conf
-# COPY roles/nginx/templates/bot1.locations.j2 /etc/nginx/conf.d/
-# COPY roles/nginx/templates/bot2.locations.j2 /etc/nginx/conf.d/
-# RUN chmod 644 /etc/nginx/conf.d/bot1.locations.j2
-# RUN chmod 644 /etc/nginx/conf.d/bot2.locations.j2
+
 
 EXPOSE 3000
 

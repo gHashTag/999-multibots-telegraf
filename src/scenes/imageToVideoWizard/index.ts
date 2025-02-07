@@ -1,10 +1,7 @@
 import { Scenes } from 'telegraf'
-import {
-  sendBalanceMessage,
-  validateAndCalculateVideoModelPrice,
-} from '@/price/helpers'
+import { sendBalanceMessage } from '@/price/helpers'
 import { generateImageToVideo } from '@/services/generateImageToVideo'
-import { MyContext, VIDEO_MODELS, VideoModel } from '@/interfaces'
+import { MyContext, VideoModel } from '@/interfaces'
 import {
   cancelMenu,
   createHelpCancelKeyboard,
@@ -13,9 +10,8 @@ import {
   videoModelKeyboard,
 } from '@/menu'
 import { isRussian } from '@/helpers/language'
-import { BOT_TOKEN } from '@/core/bot'
 
-import { handleHelpCancel } from '@/handlers'
+import { getBotToken, handleHelpCancel } from '@/handlers'
 import { processBalanceVideoOperation } from '@/price/helpers/processBalanceVideoOperation'
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
@@ -125,7 +121,8 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
 
-        ctx.session.imageUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`
+        const botToken = getBotToken(ctx)
+        ctx.session.imageUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`
         await ctx.reply(
           isRu
             ? 'Теперь опишите желаемое движение в видео'

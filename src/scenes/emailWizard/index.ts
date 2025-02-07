@@ -2,7 +2,7 @@ import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { saveUserEmail, setPayments } from '../../core/supabase'
 import { isRussian } from '@/helpers'
-import { calculateStars } from '@/price/helpers'
+
 import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
 import { handleHelpCancel } from '@/handlers'

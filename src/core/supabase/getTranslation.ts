@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { supabase } from '.'
-import { TELEGRAM_BOT_TOKEN_PROD } from '@/config'
+import { BOT_TOKENS } from '@/core/bot'
 
 export async function getTranslation({
   key,
@@ -29,7 +29,7 @@ export async function getTranslation({
   if (error) {
     console.error('Ошибка получения перевода с текущим токеном:', error)
 
-    const defaultToken = TELEGRAM_BOT_TOKEN_PROD
+    const defaultToken = BOT_TOKENS[0]
     ;({ data, error } = await fetchTranslation(defaultToken))
 
     if (error) {

@@ -13,7 +13,6 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - BOT_TOKEN=${TELEGRAM_BOT_TOKEN_PROD}
       - LOG_DIR=/var/logs
       - SECRET_KEY=${SECRET_KEY}
       - CREDENTIALS=${CREDENTIALS}

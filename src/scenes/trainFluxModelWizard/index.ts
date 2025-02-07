@@ -1,10 +1,10 @@
-import { Markup, Scenes } from 'telegraf'
+import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 
 import { isValidImage } from '../../helpers/images'
 import { isRussian } from '@/helpers/language'
-import { BOT_TOKEN } from '@/core/bot'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { getBotToken } from '@/handlers'
 
 export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
   'trainFluxModelWizard',
@@ -137,9 +137,10 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       }
 
       console.log('File path:', file.file_path)
+      const botToken = getBotToken(ctx)
 
       const response = await fetch(
-        `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`
+        `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
       )
       const buffer = Buffer.from(await response.arrayBuffer())
 

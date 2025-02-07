@@ -12,18 +12,10 @@ import { registerPaymentActions } from './handlers/paymentActions'
 import { registerHearsActions } from './handlers/hearsActions'
 import { registerCommands } from './registerCommands'
 import { setBotCommands } from './setCommands'
+import { BOT_TOKENS } from './core/bot'
 
 dotenv.config()
 
-if (!process.env.BOT_TOKEN_1) {
-  throw new Error('BOT_TOKEN_1 is not set')
-}
-
-if (!process.env.BOT_TOKEN_2) {
-  throw new Error('BOT_TOKEN_2 is not set')
-}
-
-const BOT_TOKENS = [process.env.BOT_TOKEN_1, process.env.BOT_TOKEN_2]
 const bots = BOT_TOKENS.map(token => new Telegraf<MyContext>(token))
 export const composer = new Composer<MyContext>()
 

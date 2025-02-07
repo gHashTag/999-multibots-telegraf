@@ -2,11 +2,11 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { imageToPromptCost, sendBalanceMessage } from '@/price/helpers'
 import { generateImageToPrompt } from '@/services/generateImageToPrompt'
-import { BOT_TOKEN } from '@/core/bot'
 
 import { createHelpCancelKeyboard } from '@/menu'
 import { getUserBalance } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { getBotToken } from '@/handlers'
 
 if (!process.env.HUGGINGFACE_TOKEN) {
   throw new Error('HUGGINGFACE_TOKEN is not set')
@@ -65,7 +65,8 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
       console.log('Getting file info for photo:', photoSize.file_id)
       const file = await ctx.telegram.getFile(photoSize.file_id)
       ctx.session.mode = 'image_to_prompt'
-      const imageUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`
+      const botToken = getBotToken(ctx)
+      const imageUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
       if (ctx.from) {
         await generateImageToPrompt(imageUrl, ctx.from.id, ctx, isRu)
       }

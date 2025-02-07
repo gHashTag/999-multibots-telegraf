@@ -8,7 +8,6 @@ import {
   subscriptionTitles,
 } from './helper'
 import { setPayments, updateUserSubscription } from '../../core/supabase'
-import { mainMenu } from '@/menu'
 import { WizardScene } from 'telegraf/scenes'
 
 const generateInvoiceStep = async (ctx: MyContext) => {

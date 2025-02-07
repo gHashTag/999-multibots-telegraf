@@ -1,23 +1,22 @@
 import dotenv from 'dotenv'
 
-// Загружаем переменные окружения из .env файла
 dotenv.config()
-import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
-import { isDev } from '@/config'
 
-if (!process.env.TELEGRAM_BOT_TOKEN_DEV) {
-  throw new Error('TELEGRAM_BOT_TOKEN_DEV is not set')
+import { NODE_ENV } from '@/config'
+
+if (!process.env.BOT_TOKEN_1) {
+  throw new Error('BOT_TOKEN_1 is not set')
 }
 
-if (!process.env.TELEGRAM_BOT_TOKEN_PROD) {
-  throw new Error('TELEGRAM_BOT_TOKEN_PROD is not set')
+if (!process.env.BOT_TOKEN_2) {
+  throw new Error('BOT_TOKEN_2 is not set')
 }
 
-export const BOT_TOKEN = isDev
-  ? process.env.TELEGRAM_BOT_TOKEN_DEV
-  : process.env.TELEGRAM_BOT_TOKEN_PROD
+const BOT_TOKENS_PROD = [process.env.BOT_TOKEN_1, process.env.BOT_TOKEN_2]
+const BOT_TOKENS_TEST = [
+  process.env.BOT_TOKEN_TEST_1,
+  process.env.BOT_TOKEN_TEST_2,
+]
 
-const bot = new Telegraf<MyContext>(BOT_TOKEN)
-
-export default bot
+export const BOT_TOKENS =
+  NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_TEST
