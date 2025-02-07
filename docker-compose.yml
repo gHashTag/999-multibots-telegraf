@@ -20,6 +20,7 @@ services:
       - LOG_FORMAT=${LOG_FORMAT}
     networks:
       - app-network
+    restart: unless-stopped
 
   nginx:
     image: nginx:latest
@@ -33,6 +34,7 @@ services:
       - /etc/pki/:/etc/pki/
     networks:
       - app-network
+    restart: unless-stopped
 
 networks:
   app-network:
