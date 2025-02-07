@@ -131,6 +131,7 @@ export async function mainMenu({
       levels[101],
       levels[102],
       levels[103],
+      levels[0],
     ],
     neurobase: Object.values(levels).slice(1),
     neuromeeting: Object.values(levels).slice(1),

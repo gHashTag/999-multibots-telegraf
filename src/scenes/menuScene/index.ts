@@ -7,6 +7,7 @@ import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
 import { handleMenu } from './handleMenu'
 import { WizardScene } from 'telegraf/scenes'
+import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -17,8 +18,8 @@ const menuCommandStep = async (ctx: MyContext) => {
     let newSubscription: Subscription = 'stars'
 
     if (isDev) {
-      newCount = 5
-      newSubscription = 'neurobase'
+      newCount = 0
+      newSubscription = 'neurophoto'
     } else {
       const { count, subscription } = await getReferalsCountAndUserData(
         telegram_id
@@ -76,8 +77,7 @@ const menuCommandStep = async (ctx: MyContext) => {
       case !hasFullAccess: {
         console.log('CASE: !hasFullAccess')
         message = getText(isRu, 'digitalAvatar')
-        const photo_url =
-          'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_sage/neuroblogger.jpg'
+        const photo_url = getPhotoUrl(ctx, 1)
         await sendReplyWithKeyboard(
           ctx,
           message,
@@ -94,6 +94,20 @@ const menuCommandStep = async (ctx: MyContext) => {
         await sendReplyWithKeyboard(ctx, message, inlineKeyboard, menu)
         break
       }
+      // TODO: Добавить аватарку и текст для первого уровня
+      // case newCount === 1: {
+      //   console.log('CASE: avatarLevel')
+      //   message = getText(isRu, 'avatarLevel', newCount)
+      //   const photo_url = getPhotoUrl(ctx, 2)
+      //   await sendReplyWithKeyboard(
+      //     ctx,
+      //     message,
+      //     inlineKeyboard,
+      //     menu,
+      //     photo_url
+      //   )
+      //   break
+      // }
 
       // case newCount > 2 && newCount <= 10: {
       //   console.log('CASE: avatarLevel')

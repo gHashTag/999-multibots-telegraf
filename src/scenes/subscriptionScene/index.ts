@@ -96,6 +96,10 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
           text: isRu ? '🤖 НейроБлогер' : '🤖 NeuroBlogger',
           callback_data: 'neuroblogger',
         },
+        {
+          text: isRu ? levels[104].title_ru : levels[104].title_en,
+          callback_data: 'mainmenu',
+        },
         // {
         //   text: isRu ? '🧠 НейроМентор' : '🧠 NeuroMentor',
         //   callback_data: 'neuromentor',
@@ -135,6 +139,9 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
         console.log('CASE: 🧠 НейроМентор')
         ctx.session.subscription = 'neuromentor'
         return ctx.scene.enter('paymentScene')
+      } else if (text === 'mainmenu') {
+        console.log('CASE: 🏠 Главное меню')
+        return ctx.scene.enter('menuScene')
       } else {
         console.warn('Unknown subscription type:', text)
         await ctx.reply(

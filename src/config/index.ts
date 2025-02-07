@@ -30,6 +30,7 @@ export const {
   RESULT_URL2,
   TELEGRAM_BOT_TOKEN_PROD,
   TELEGRAM_BOT_TOKEN_DEV,
+  BOT_TOKEN_2,
 } = process.env
 
 export const isDev = process.env.NODE_ENV === 'development'

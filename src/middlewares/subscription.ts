@@ -6,18 +6,18 @@ import {
 } from '@/core/supabase'
 import { CreateUserData, MyContext } from '@/interfaces'
 import bot from '@/core/bot'
-
+import { getSubScribeChannel } from '@/handlers'
 import { isRussian } from '@/helpers/language'
 import { getUserPhotoUrl } from './getUserPhotoUrl'
 import { verifySubscription } from './verifySubscription'
 
-const SUBSCRIBE_CHANNEL_ID = 'neuro_blogger_group'
 const BONUS_AMOUNT = 100
 
 export const subscriptionMiddleware = async (
   ctx: MyContext,
   next: () => Promise<void>
 ): Promise<void> => {
+  console.log('subscriptionMiddleware')
   const isRu = isRussian(ctx)
   try {
     if (
@@ -25,6 +25,7 @@ export const subscriptionMiddleware = async (
       !('text' in ctx.message) ||
       !ctx.message.text.startsWith('/start')
     ) {
+      console.log('CASE: 🔄 Нет текста или нет /start')
       return await next()
     }
 
@@ -50,7 +51,8 @@ export const subscriptionMiddleware = async (
     const finalUsername = username || first_name || telegram_id.toString()
 
     const existingUser = await getUserByTelegramId(ctx)
-    // console.log('existingUser', existingUser)
+
+    const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
 
     if (existingUser) {
       await verifySubscription(ctx, language_code, SUBSCRIBE_CHANNEL_ID)

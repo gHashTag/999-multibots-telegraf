@@ -16,6 +16,7 @@ export async function getUserByTelegramId(ctx: MyContext) {
 
     // Проверяем, отличается ли текущий токен от сохраненного
     if (data.token !== ctx.telegram.token) {
+      console.log('Token changed, updating...')
       const { error: updateError } = await supabase
         .from('users')
         .update({ token: ctx.telegram.token })

@@ -1,11 +1,12 @@
-import { mainMenu } from '@/menu'
 import { MyContext } from '../../interfaces'
 import { errorMessage } from '@/helpers/error'
 import { getReferalsCountAndUserData } from '@/core/supabase'
+import { getSubScribeChannel } from '@/handlers'
 
 export async function handleQuestRules(ctx: MyContext) {
   try {
     const isRu = ctx.from?.language_code === 'ru'
+    const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
     const message = isRu
       ? `🎓 <b>🌟 Добро пожаловать в наше обучение по боту "Нейроблоггер"</b>\n\n
 В этом боте вы откроете для себя мир нейросетей и научитесь использовать их для создания и управления контентом. Все взаимодействие будет происходить с помощью нашего бота, который станет вашим цифровым наставником. 🤖\n\n
@@ -17,7 +18,7 @@ export async function handleQuestRules(ctx: MyContext) {
 <b>🚀 Как начать:</b>\n
 ➕ Добавьте нашего бота в Telegram и следуйте инструкциям.\n
 ⚙️ Используйте команды бота для выполнения различных задач.\n
-❓ Задавайте вопросы и получайте помощь в чате поддержки @neuro_blogger_group.\n\n
+❓ Задавайте вопросы и получайте помощь в чате поддержки @${SUBSCRIBE_CHANNEL_ID}.\n\n
 🌟 Удачи в использовании бота! Мы уверены, что вы достигнете новых высот! 🌟`
       : `🎓 <b>🌟 Welcome to our training on the "NeuroBlogger" bot.</b>\n\n
 In this bot, you will discover the world of neural networks and learn how to use them to create and manage content. All interactions will be conducted with the help of our bot, which will be your digital mentor. 🤖\n\n
@@ -29,58 +30,11 @@ In this bot, you will discover the world of neural networks and learn how to use
 <b>🚀 How to start:</b>\n
 ➕ Add our bot to Telegram and follow the instructions.\n
 ⚙️ Use the bot's commands to perform various tasks.\n
-❓ Ask questions and get help in the support chat @neuro_blogger_group.\n\n
+❓ Ask questions and get help in the support chat @${SUBSCRIBE_CHANNEL_ID}.\n\n
 🌟 Good luck with using the bot! We are confident you will reach new heights! 🌟`
 
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
-    throw error
-  }
-}
-
-export async function handleLevel4(ctx: MyContext) {
-  try {
-    const isRu = ctx.from?.language_code === 'ru'
-    const message = isRu
-      ? `🧠 <b>Команда: Мозг аватара (Avatar Brain)</b> 🌟\n\n
-Эта команда поможет вам создать интеллектуальное ядро вашего аватара. Это "мозг" вашего аватара, который формирует его личность и профессиональные навыки. 🤖\n\n
-<b>Шаг 1: Ввод информации о компании</b> 🏢\n
-Пожалуйста, укажите название вашей компании. Например, 'NeuroBlogger'. Это поможет вашему аватару лучше понимать контекст, в котором он будет использоваться, и адаптировать свои ответы в соответствии с корпоративной культурой и ценностями.\n\n
-<b>Шаг 2: Указание вашей должности</b> 💼\n
-Введите вашу должность, например, 'Менеджер по продукту' или 'Разработчик программного обеспечения'. Это позволит вашему аватару учитывать ваши профессиональные обязанности и предоставлять более релевантные советы и рекомендации.\n\n
-<b>Шаг 3: Описание ваших навыков</b> 🛠️\n
-Перечислите ваши профессиональные навыки через запятую, например, 'управление проектами, блоггинг, анализ данных'. Это поможет вашему аватару демонстрировать ваши сильные стороны и предлагать решения, основанные на вашем опыте и компетенциях.\n\n
-<b>Завершение:</b>\n
-После того как вы предоставите всю необходимую информацию, наш бот обработает данные и создаст интеллектуальное ядро вашего аватара. Это позволит вашему аватару стать вашим цифровым помощником, который будет поддерживать вас в различных ситуациях, от профессиональных встреч до личных проектов. 🌐\n\n
-<b>Преимущества:</b>\n
-- 🎯 <b>Персонализация:</b> Ваш аватар будет адаптирован под ваши уникальные потребности и цели.\n
-- 📈 <b>Эффективность:</b> Используйте аватар для оптимизации рабочих процессов и улучшения взаимодействия с клиентами.\n
-- 🌟 <b>Инновации:</b> Внедряйте новые технологии и подходы в свою работу с помощью интеллектуального аватара.\n\n
-`
-      : `🧠 <b>Command: Avatar Brain</b> 🌟\n\n
-This command will help you create the intellectual core of your avatar. This is the "brain" of your avatar, forming its personality and professional skills. 🤖\n\n
-<b>Step 1: Enter company information</b> 🏢\n
-Please specify the name of your company. For example, 'NeuroBlogger'. This will help your avatar better understand the context in which it will be used and adapt its responses according to corporate culture and values.\n\n
-<b>Step 2: Specify your position</b> 💼\n
-Enter your position, such as 'Product Manager' or 'Software Developer'. This will allow your avatar to consider your professional responsibilities and provide more relevant advice and recommendations.\n\n
-<b>Step 3: Describe your skills</b> 🛠️\n
-List your professional skills separated by commas, such as 'project management, blogging, data analysis'. This will help your avatar showcase your strengths and offer solutions based on your experience and competencies.\n\n
-<b>Completion:</b>\n
-Once you provide all the necessary information, our bot will process the data and create the intellectual core of your avatar. This will enable your avatar to become your digital assistant, supporting you in various situations, from professional meetings to personal projects. 🌐\n\n
-<b>Benefits:</b>\n
-- 🎯 <b>Personalization:</b> Your avatar will be tailored to your unique needs and goals.\n
-- 📈 <b>Efficiency:</b> Use the avatar to optimize workflows and improve client interactions.\n
-- 🌟 <b>Innovation:</b> Implement new technologies and approaches in your work with the help of an intelligent avatar.\n\n
-`
-
-    await ctx.reply(message, { parse_mode: 'HTML' })
-  } catch (error) {
-    console.error('Error in handleLevel0:', error)
     errorMessage(
       error,
       ctx.from?.id.toString(),
@@ -247,6 +201,129 @@ Using the "Image to Prompt" function opens up new possibilities for creativity a
   }
 }
 
+export async function handleLevel4(ctx: MyContext) {
+  try {
+    const isRu = ctx.from?.language_code === 'ru'
+    const message = isRu
+      ? `🧠 <b>Команда: Мозг аватара (Avatar Brain)</b> 🌟\n\n
+Эта команда поможет вам создать интеллектуальное ядро вашего аватара. Это "мозг" вашего аватара, который формирует его личность и профессиональные навыки. 🤖\n\n
+<b>Шаг 1: Ввод информации о компании</b> 🏢\n
+Пожалуйста, укажите название вашей компании. Например, 'NeuroBlogger'. Это поможет вашему аватару лучше понимать контекст, в котором он будет использоваться, и адаптировать свои ответы в соответствии с корпоративной культурой и ценностями.\n\n
+<b>Шаг 2: Указание вашей должности</b> 💼\n
+Введите вашу должность, например, 'Менеджер по продукту' или 'Разработчик программного обеспечения'. Это позволит вашему аватару учитывать ваши профессиональные обязанности и предоставлять более релевантные советы и рекомендации.\n\n
+<b>Шаг 3: Описание ваших навыков</b> 🛠️\n
+Перечислите ваши профессиональные навыки через запятую, например, 'управление проектами, блоггинг, анализ данных'. Это поможет вашему аватару демонстрировать ваши сильные стороны и предлагать решения, основанные на вашем опыте и компетенциях.\n\n
+<b>Завершение:</b>\n
+После того как вы предоставите всю необходимую информацию, наш бот обработает данные и создаст интеллектуальное ядро вашего аватара. Это позволит вашему аватару стать вашим цифровым помощником, который будет поддерживать вас в различных ситуациях, от профессиональных встреч до личных проектов. 🌐\n\n
+<b>Преимущества:</b>\n
+- 🎯 <b>Персонализация:</b> Ваш аватар будет адаптирован под ваши уникальные потребности и цели.\n
+- 📈 <b>Эффективность:</b> Используйте аватар для оптимизации рабочих процессов и улучшения взаимодействия с клиентами.\n
+- 🌟 <b>Инновации:</b> Внедряйте новые технологии и подходы в свою работу с помощью интеллектуального аватара.\n\n
+`
+      : `🧠 <b>Command: Avatar Brain</b> 🌟\n\n
+This command will help you create the intellectual core of your avatar. This is the "brain" of your avatar, forming its personality and professional skills. 🤖\n\n
+<b>Step 1: Enter company information</b> 🏢\n
+Please specify the name of your company. For example, 'NeuroBlogger'. This will help your avatar better understand the context in which it will be used and adapt its responses according to corporate culture and values.\n\n
+<b>Step 2: Specify your position</b> 💼\n
+Enter your position, such as 'Product Manager' or 'Software Developer'. This will allow your avatar to consider your professional responsibilities and provide more relevant advice and recommendations.\n\n
+<b>Step 3: Describe your skills</b> 🛠️\n
+List your professional skills separated by commas, such as 'project management, blogging, data analysis'. This will help your avatar showcase your strengths and offer solutions based on your experience and competencies.\n\n
+<b>Completion:</b>\n
+Once you provide all the necessary information, our bot will process the data and create the intellectual core of your avatar. This will enable your avatar to become your digital assistant, supporting you in various situations, from professional meetings to personal projects. 🌐\n\n
+<b>Benefits:</b>\n
+- 🎯 <b>Personalization:</b> Your avatar will be tailored to your unique needs and goals.\n
+- 📈 <b>Efficiency:</b> Use the avatar to optimize workflows and improve client interactions.\n
+- 🌟 <b>Innovation:</b> Implement new technologies and approaches in your work with the help of an intelligent avatar.\n\n
+`
+
+    await ctx.reply(message, { parse_mode: 'HTML' })
+  } catch (error) {
+    console.error('Error in handleLevel0:', error)
+    errorMessage(
+      error,
+      ctx.from?.id.toString(),
+      ctx.from?.language_code === 'ru'
+    )
+    throw error
+  }
+}
+
+export async function handleLevel5(ctx: MyContext) {
+  try {
+    const isRu = ctx.from?.language_code === 'ru'
+    const message = isRu
+      ? `💭 <b>Команда: ЧАТ С АВАТАРОМ (Chat with Your Avatar)</b> 🌟\n\n
+Вы можете начать общение с вашим аватаром, что открывает перед вами новые горизонты для взаимодействия и персонализации. Эта функция позволяет вам вести диалог с аватаром, который способен отвечать на ваши вопросы, давать советы или просто поддерживать дружескую беседу. 🤖\n\n
+Чтобы начать, просто напишите сообщение в чат, и ваш аватар ответит вам, используя выбранную модель ИИ для генерации ответов. Это делает общение более естественным и увлекательным. Вы можете задавать вопросы на самые разные темы, делиться своими мыслями или просто вести непринужденную беседу с улучшенной версией себя. 🗨️\n\n
+Ваш аватар может быть настроен на определенный стиль общения — формальный или неформальный — в зависимости от ваших предпочтений. Это позволяет создать уникальный опыт взаимодействия, который соответствует вашему стилю и интересам. 🎨\n\n
+Общение с аватаром может быть полезным в самых разных сценариях: от обучения и развлечения до терапии. Вы можете использовать эту функцию для получения советов, изучения новых тем или просто для того, чтобы расслабиться и насладиться беседой. 📚\n\n
+Мы гордимся тем, что можем предложить вам такой инновационный инструмент, и надеемся, что он станет незаменимым помощником в вашем повседневном взаимодействии. Не стесняйтесь экспериментировать с различными стилями общения и темами, чтобы найти те, которые лучше всего подходят для ваших нужд.`
+      : `💭 <b>Command: Chat with Your Avatar</b> 🌟\n\n
+You can start chatting with your avatar, opening up new horizons for interaction and personalization. This feature allows you to have a dialogue with your avatar, which can answer your questions, give advice, or just engage in friendly conversation. 🤖\n\n
+To start, simply write a message in the chat, and your avatar will respond using the selected AI model to generate replies. This makes communication more natural and enjoyable. You can ask questions on various topics, share your thoughts, or just have a casual chat with an enhanced version of yourself. 🗨️\n\n
+Your avatar can be set to a specific communication style—formal or informal—depending on your preferences. This allows for a unique interaction experience that matches your style and interests. 🎨\n\n
+Chatting with your avatar can be useful in various scenarios: from learning and entertainment to therapy. You can use this feature to get advice, explore new topics, or simply relax and enjoy the conversation. 📚\n\n
+We are proud to offer you such an innovative tool and hope it becomes an indispensable assistant in your daily interactions. Feel free to experiment with different communication styles and topics to find what best suits your needs.`
+
+    await ctx.reply(message, { parse_mode: 'HTML' })
+  } catch (error) {
+    console.error('Error in handleLevel8:', error)
+    errorMessage(
+      error,
+      ctx.from?.id.toString(),
+      ctx.from?.language_code === 'ru'
+    )
+    throw error
+  }
+}
+
+export async function handleLevel6(ctx: MyContext) {
+  try {
+    const isRu = ctx.from?.language_code === 'ru'
+    const message = isRu
+      ? `🤖 <b>Команда: ВЫБОР МОДЕЛИ ИИ (Select AI Model)</b> 🌟\n\n
+Предоставляет вам возможность выбрать наиболее подходящую модель для выполнения различных задач. Правильный выбор модели может значительно повысить качество и точность результатов, которые вы получаете от бота. 🎯\n\n
+<b>Как это работает:</b>\n
+1️⃣ <b>Вызов команды выбора модели:</b>\n
+   - Начните с вызова команды выбора модели в интерфейсе бота. Это первый шаг для настройки вашего взаимодействия с ИИ. 🛠️\n\n
+2️⃣ <b>Ознакомление с доступными моделями:</b>\n
+   - Бот предложит вам список доступных моделей, каждая из которых обладает уникальными характеристиками и возможностями. Например, одна модель может быть оптимизирована для генерации креативного текста, в то время как другая может быть более эффективной для аналитических задач или программирования. 📜\n\n
+3️⃣ <b>Выбор модели:</b>\n
+   - Выберите модель, которая лучше всего соответствует вашим потребностям и задачам. Это позволит вам адаптировать работу бота под ваши конкретные требования. 🎨\n\n
+4️⃣ <b>Использование выбранной модели:</b>\n
+   - После выбора модели бот предоставит вам возможность использовать её для выполнения ваших задач. Это может включать в себя генерацию текста, создание изображений или видео, а также другие функции, которые поддерживает выбранная модель. 🚀\n\n
+<b>Преимущества выбора модели ИИ:</b>\n
+- 🎯 <b>Персонализация взаимодействия:</b> Выбор модели позволяет вам персонализировать взаимодействие с ботом, обеспечивая более точные и релевантные результаты.\n
+- ⚙️ <b>Оптимизация задач:</b> Использование подходящей модели для конкретных задач может значительно улучшить эффективность и качество выполнения этих задач.\n\n
+Функция "Выбор модели ИИ" открывает перед вами возможность более гибкого и эффективного использования возможностей бота, адаптируя его работу под ваши индивидуальные нужды. 🌐`
+      : `🤖 <b>Command: Select AI Model</b> 🌟\n\n
+Allows you to choose the most suitable model for performing various tasks. Choosing the right model can significantly enhance the quality and accuracy of the results you get from the bot. 🎯\n\n
+<b>How it works:</b>\n
+1️⃣ <b>Call the model selection command:</b>\n
+   - Start by calling the model selection command in the bot interface. This is the first step to setting up your interaction with AI. 🛠️\n\n
+2️⃣ <b>Familiarize yourself with available models:</b>\n
+   - The bot will offer you a list of available models, each with unique characteristics and capabilities. For example, one model may be optimized for generating creative text, while another may be more effective for analytical tasks or programming. 📜\n\n
+3️⃣ <b>Select a model:</b>\n
+   - Choose the model that best suits your needs and tasks. This will allow you to tailor the bot's work to your specific requirements. 🎨\n\n
+4️⃣ <b>Use the selected model:</b>\n
+   - After selecting a model, the bot will provide you with the opportunity to use it for your tasks. This may include generating text, creating images or videos, and other functions supported by the selected model. 🚀\n\n
+<b>Benefits of selecting an AI model:</b>\n
+- 🎯 <b>Personalization of interaction:</b> Selecting a model allows you to personalize interaction with the bot, ensuring more accurate and relevant results.\n
+- ⚙️ <b>Task optimization:</b> Using the appropriate model for specific tasks can significantly improve the efficiency and quality of performing these tasks.\n\n
+The "Select AI Model" function opens up the possibility of more flexible and efficient use of the bot's capabilities, adapting its work to your individual needs. 🌐`
+
+    await ctx.reply(message, { parse_mode: 'HTML' })
+  } catch (error) {
+    console.error('Error in handleLevel7:', error)
+    errorMessage(
+      error,
+      ctx.from?.id.toString(),
+      ctx.from?.language_code === 'ru'
+    )
+    throw error
+  }
+}
+
 export async function handleLevel7(ctx: MyContext) {
   try {
     const isRu = ctx.from?.language_code === 'ru'
@@ -348,82 +425,6 @@ The "Text to Voice" function makes your digital content more lively and expressi
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel6:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
-    throw error
-  }
-}
-
-export async function handleLevel6(ctx: MyContext) {
-  try {
-    const isRu = ctx.from?.language_code === 'ru'
-    const message = isRu
-      ? `🤖 <b>Команда: ВЫБОР МОДЕЛИ ИИ (Select AI Model)</b> 🌟\n\n
-Предоставляет вам возможность выбрать наиболее подходящую модель для выполнения различных задач. Правильный выбор модели может значительно повысить качество и точность результатов, которые вы получаете от бота. 🎯\n\n
-<b>Как это работает:</b>\n
-1️⃣ <b>Вызов команды выбора модели:</b>\n
-   - Начните с вызова команды выбора модели в интерфейсе бота. Это первый шаг для настройки вашего взаимодействия с ИИ. 🛠️\n\n
-2️⃣ <b>Ознакомление с доступными моделями:</b>\n
-   - Бот предложит вам список доступных моделей, каждая из которых обладает уникальными характеристиками и возможностями. Например, одна модель может быть оптимизирована для генерации креативного текста, в то время как другая может быть более эффективной для аналитических задач или программирования. 📜\n\n
-3️⃣ <b>Выбор модели:</b>\n
-   - Выберите модель, которая лучше всего соответствует вашим потребностям и задачам. Это позволит вам адаптировать работу бота под ваши конкретные требования. 🎨\n\n
-4️⃣ <b>Использование выбранной модели:</b>\n
-   - После выбора модели бот предоставит вам возможность использовать её для выполнения ваших задач. Это может включать в себя генерацию текста, создание изображений или видео, а также другие функции, которые поддерживает выбранная модель. 🚀\n\n
-<b>Преимущества выбора модели ИИ:</b>\n
-- 🎯 <b>Персонализация взаимодействия:</b> Выбор модели позволяет вам персонализировать взаимодействие с ботом, обеспечивая более точные и релевантные результаты.\n
-- ⚙️ <b>Оптимизация задач:</b> Использование подходящей модели для конкретных задач может значительно улучшить эффективность и качество выполнения этих задач.\n\n
-Функция "Выбор модели ИИ" открывает перед вами возможность более гибкого и эффективного использования возможностей бота, адаптируя его работу под ваши индивидуальные нужды. 🌐`
-      : `🤖 <b>Command: Select AI Model</b> 🌟\n\n
-Allows you to choose the most suitable model for performing various tasks. Choosing the right model can significantly enhance the quality and accuracy of the results you get from the bot. 🎯\n\n
-<b>How it works:</b>\n
-1️⃣ <b>Call the model selection command:</b>\n
-   - Start by calling the model selection command in the bot interface. This is the first step to setting up your interaction with AI. 🛠️\n\n
-2️⃣ <b>Familiarize yourself with available models:</b>\n
-   - The bot will offer you a list of available models, each with unique characteristics and capabilities. For example, one model may be optimized for generating creative text, while another may be more effective for analytical tasks or programming. 📜\n\n
-3️⃣ <b>Select a model:</b>\n
-   - Choose the model that best suits your needs and tasks. This will allow you to tailor the bot's work to your specific requirements. 🎨\n\n
-4️⃣ <b>Use the selected model:</b>\n
-   - After selecting a model, the bot will provide you with the opportunity to use it for your tasks. This may include generating text, creating images or videos, and other functions supported by the selected model. 🚀\n\n
-<b>Benefits of selecting an AI model:</b>\n
-- 🎯 <b>Personalization of interaction:</b> Selecting a model allows you to personalize interaction with the bot, ensuring more accurate and relevant results.\n
-- ⚙️ <b>Task optimization:</b> Using the appropriate model for specific tasks can significantly improve the efficiency and quality of performing these tasks.\n\n
-The "Select AI Model" function opens up the possibility of more flexible and efficient use of the bot's capabilities, adapting its work to your individual needs. 🌐`
-
-    await ctx.reply(message, { parse_mode: 'HTML' })
-  } catch (error) {
-    console.error('Error in handleLevel7:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
-    throw error
-  }
-}
-
-export async function handleLevel5(ctx: MyContext) {
-  try {
-    const isRu = ctx.from?.language_code === 'ru'
-    const message = isRu
-      ? `💭 <b>Команда: ЧАТ С АВАТАРОМ (Chat with Your Avatar)</b> 🌟\n\n
-Вы можете начать общение с вашим аватаром, что открывает перед вами новые горизонты для взаимодействия и персонализации. Эта функция позволяет вам вести диалог с аватаром, который способен отвечать на ваши вопросы, давать советы или просто поддерживать дружескую беседу. 🤖\n\n
-Чтобы начать, просто напишите сообщение в чат, и ваш аватар ответит вам, используя выбранную модель ИИ для генерации ответов. Это делает общение более естественным и увлекательным. Вы можете задавать вопросы на самые разные темы, делиться своими мыслями или просто вести непринужденную беседу с улучшенной версией себя. 🗨️\n\n
-Ваш аватар может быть настроен на определенный стиль общения — формальный или неформальный — в зависимости от ваших предпочтений. Это позволяет создать уникальный опыт взаимодействия, который соответствует вашему стилю и интересам. 🎨\n\n
-Общение с аватаром может быть полезным в самых разных сценариях: от обучения и развлечения до терапии. Вы можете использовать эту функцию для получения советов, изучения новых тем или просто для того, чтобы расслабиться и насладиться беседой. 📚\n\n
-Мы гордимся тем, что можем предложить вам такой инновационный инструмент, и надеемся, что он станет незаменимым помощником в вашем повседневном взаимодействии. Не стесняйтесь экспериментировать с различными стилями общения и темами, чтобы найти те, которые лучше всего подходят для ваших нужд.`
-      : `💭 <b>Command: Chat with Your Avatar</b> 🌟\n\n
-You can start chatting with your avatar, opening up new horizons for interaction and personalization. This feature allows you to have a dialogue with your avatar, which can answer your questions, give advice, or just engage in friendly conversation. 🤖\n\n
-To start, simply write a message in the chat, and your avatar will respond using the selected AI model to generate replies. This makes communication more natural and enjoyable. You can ask questions on various topics, share your thoughts, or just have a casual chat with an enhanced version of yourself. 🗨️\n\n
-Your avatar can be set to a specific communication style—formal or informal—depending on your preferences. This allows for a unique interaction experience that matches your style and interests. 🎨\n\n
-Chatting with your avatar can be useful in various scenarios: from learning and entertainment to therapy. You can use this feature to get advice, explore new topics, or simply relax and enjoy the conversation. 📚\n\n
-We are proud to offer you such an innovative tool and hope it becomes an indispensable assistant in your daily interactions. Feel free to experiment with different communication styles and topics to find what best suits your needs.`
-
-    await ctx.reply(message, { parse_mode: 'HTML' })
-  } catch (error) {
-    console.error('Error in handleLevel8:', error)
     errorMessage(
       error,
       ctx.from?.id.toString(),

@@ -117,6 +117,10 @@ export const handleMenu = async (ctx: MyContext, text: string) => {
       console.log('CASE: 🏠 Главное меню')
       await ctx.scene.enter('menuScene')
     },
+    '/start': async () => {
+      console.log('CASE: 🚀 Начать обучение')
+      await ctx.scene.enter('startScene')
+    },
   }
 
   // Выполняем действие, если оно существует, иначе переходим в главное меню
