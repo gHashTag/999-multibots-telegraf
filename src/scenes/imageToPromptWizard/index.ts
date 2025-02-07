@@ -27,7 +27,7 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
     console.log('userId', userId)
     const currentBalance = await getUserBalance(userId)
     console.log('currentBalance', currentBalance)
-    await sendBalanceMessage(userId, currentBalance, imageToPromptCost, isRu)
+    await sendBalanceMessage(ctx, currentBalance, imageToPromptCost, isRu)
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
       return ctx.scene.leave()

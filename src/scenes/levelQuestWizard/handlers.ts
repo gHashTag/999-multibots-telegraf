@@ -2,6 +2,7 @@ import { MyContext } from '../../interfaces'
 import { errorMessage } from '@/helpers/error'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { getSubScribeChannel } from '@/handlers'
+import { mainMenu } from '@/menu'
 
 export async function handleQuestRules(ctx: MyContext) {
   try {
@@ -35,11 +36,7 @@ In this bot, you will discover the world of neural networks and learn how to use
 
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -96,11 +93,7 @@ Creating a digital avatar body is an important step in personalizing your digita
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel1:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -141,11 +134,7 @@ After the process is complete, you will receive your <b>neurophoto</b>. This ima
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel2:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -192,11 +181,7 @@ Using the "Image to Prompt" function opens up new possibilities for creativity a
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel3:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -239,11 +224,7 @@ Once you provide all the necessary information, our bot will process the data an
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel0:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -268,11 +249,7 @@ We are proud to offer you such an innovative tool and hope it becomes an indispe
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel8:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -315,11 +292,7 @@ The "Select AI Model" function opens up the possibility of more flexible and eff
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel7:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -378,11 +351,7 @@ The "Voice for Avatar" function allows you to personalize your digital image, ma
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel7:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -425,11 +394,7 @@ The "Text to Voice" function makes your digital content more lively and expressi
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel6:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -468,11 +433,7 @@ The "Image to Video" function allows you to bring your ideas to life in dynamic 
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel9:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -543,11 +504,7 @@ But this is just the beginning. You can experiment with different descriptions t
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel10:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -594,11 +551,7 @@ After selecting a model, the next step is to create a text description or prompt
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel11:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -635,11 +588,7 @@ Using the "Change Size" function allows you to easily adapt your avatar images t
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel4:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -689,11 +638,7 @@ Expand the user community and open new horizons together!`
     return
   } catch (error) {
     console.error('Error in handleLevel11:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -741,11 +686,7 @@ You have successfully completed all tasks and reached the maximum level! 🌟✨
     return
   } catch (error) {
     console.error('Error in handleQuestComplete:', error)
-    errorMessage(
-      error,
-      ctx.from?.id.toString(),
-      ctx.from?.language_code === 'ru'
-    )
+    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
     throw error
   }
 }

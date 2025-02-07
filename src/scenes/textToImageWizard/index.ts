@@ -114,7 +114,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
 
       const balance = await getUserBalance(ctx.from.id)
 
-      await sendBalanceMessage(ctx.from.id, balance, price, isRu)
+      await sendBalanceMessage(ctx, balance, price, isRu)
 
       await ctx.replyWithPhoto(selectedModelInfo.previewImage, {
         caption: isRu

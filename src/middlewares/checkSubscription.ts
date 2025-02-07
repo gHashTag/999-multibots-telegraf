@@ -1,4 +1,3 @@
-import bot from '@/core/bot'
 import { MyContext } from '@/interfaces'
 
 export async function checkSubscription(
@@ -10,7 +9,7 @@ export async function checkSubscription(
       console.error('User ID is undefined')
       throw new Error('User ID is undefined')
     }
-    const chatMember = await bot.telegram.getChatMember(
+    const chatMember = await ctx.telegram.getChatMember(
       `@${telegram_channel_id}`,
       ctx.from?.id
     )

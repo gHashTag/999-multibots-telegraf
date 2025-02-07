@@ -1,12 +1,12 @@
-import bot from '@/core/bot'
 import { getUserBalance } from '@/core/supabase'
-
+import { MyContext } from '@/interfaces'
 import { VideoModel } from '@/interfaces/models.interface'
 import { BalanceOperationResult } from '@/interfaces/payments.interface'
 
 import { calculateFinalPrice } from './calculateFinalPrice'
 
 type BalanceOperationProps = {
+  ctx: MyContext
   videoModel: string
   telegram_id: number
   is_ru: boolean
@@ -42,6 +42,7 @@ export const VIDEO_MODELS: VideoModelConfig[] = [
 ]
 
 export const processBalanceVideoOperation = async ({
+  ctx,
   videoModel,
   telegram_id,
   is_ru,
@@ -54,8 +55,8 @@ export const processBalanceVideoOperation = async ({
 
     // Проверка корректности модели
     if (!videoModel || !availableModels.includes(videoModel as VideoModel)) {
-      await bot.telegram.sendMessage(
-        telegram_id,
+      await ctx.telegram.sendMessage(
+        ctx.from?.id?.toString() || '',
         is_ru
           ? 'Пожалуйста, выберите корректную модель'
           : 'Please choose a valid model'
@@ -76,7 +77,7 @@ export const processBalanceVideoOperation = async ({
       const message = is_ru
         ? 'Недостаточно средств на балансе. Пополните баланс вызвав команду /buy.'
         : 'Insufficient funds. Top up your balance by calling the /buy command.'
-      await bot.telegram.sendMessage(telegram_id, message)
+      await ctx.telegram.sendMessage(ctx.from?.id?.toString() || '', message)
       return {
         newBalance: currentBalance,
         success: false,

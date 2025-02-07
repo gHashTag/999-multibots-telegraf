@@ -26,7 +26,7 @@ export async function handleNeuroGenerate(
 
     const currentBalance = await getUserBalance(userId)
     if (currentBalance < imageNeuroGenerationCost) {
-      await sendInsufficientStarsMessage(userId, currentBalance, isRu)
+      await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
       return
     }
 

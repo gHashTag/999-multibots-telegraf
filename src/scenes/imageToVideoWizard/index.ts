@@ -52,6 +52,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       const { newBalance, success, modePrice } =
         await processBalanceVideoOperation({
+          ctx,
           videoModel,
           telegram_id: ctx.from.id,
           is_ru: isRu,
@@ -66,7 +67,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       ctx.session.videoModel = videoModel as VideoModel
       console.log('ctx.session.videoModel', ctx.session.videoModel)
 
-      await sendBalanceMessage(ctx.from.id, newBalance, modePrice, isRu)
+      await sendBalanceMessage(ctx, newBalance, modePrice, isRu)
 
       const info =
         videoModel === 'i2vgen-xl'

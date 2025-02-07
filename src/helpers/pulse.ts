@@ -1,5 +1,4 @@
 import { MyContext } from '../interfaces'
-import bot from '../core/bot'
 
 export const pulse = async (
   ctx: MyContext,
@@ -30,7 +29,7 @@ export const pulse = async (
       const imageBuffer = Buffer.from(imageToSend, 'base64')
 
       // Отправляем как InputFile
-      await bot.telegram.sendPhoto(
+      await ctx.telegram.sendPhoto(
         chatId,
         { source: imageBuffer },
         { caption } // Используем переменную caption, которая определена выше
@@ -42,7 +41,7 @@ export const pulse = async (
       } Telegram ID: ${
         ctx.from?.id
       } использовал команду: ${command} с промптом: ${truncatedPrompt}`
-      await bot.telegram.sendMessage(chatId, textMessage)
+      await ctx.telegram.sendMessage(chatId, textMessage)
     }
   } catch (error) {
     if (
@@ -60,7 +59,7 @@ export const pulse = async (
             imageToSend = image.split(',')[1]
           }
           const imageBuffer = Buffer.from(imageToSend, 'base64')
-          await bot.telegram.sendPhoto(
+          await ctx.telegram.sendPhoto(
             newChatId,
             { source: imageBuffer },
             { caption } // Используем переменную caption, которая определена выше
@@ -72,7 +71,7 @@ export const pulse = async (
           } Telegram ID: ${
             ctx.from?.id
           } использовал команду: ${command} с промптом: ${truncatedPrompt}`
-          await bot.telegram.sendMessage(newChatId, textMessage)
+          await ctx.telegram.sendMessage(newChatId, textMessage)
         }
       } catch (retryError) {
         console.error('Error retrying pulse send:', retryError)

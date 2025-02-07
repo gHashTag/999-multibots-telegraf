@@ -1,8 +1,8 @@
-import bot from '@/core/bot'
 import { getUserBalance, updateUserBalance } from '@/core/supabase'
-import { BalanceOperationResult } from '@/interfaces/payments.interface'
+import { BalanceOperationResult, MyContext } from '@/interfaces'
 
 type BalanceOperationProps = {
+  ctx: MyContext
   model?: string
   telegram_id: number
   paymentAmount: number
@@ -10,6 +10,7 @@ type BalanceOperationProps = {
 }
 
 export const processBalanceOperation = async ({
+  ctx,
   telegram_id,
   paymentAmount,
   is_ru,
@@ -22,7 +23,7 @@ export const processBalanceOperation = async ({
       const message = is_ru
         ? 'Недостаточно средств на балансе. Пополните баланс вызвав команду /buy.'
         : 'Insufficient funds. Top up your balance by calling the /buy command.'
-      await bot.telegram.sendMessage(telegram_id, message)
+      await ctx.telegram.sendMessage(telegram_id, message)
       return {
         newBalance: currentBalance,
         success: false,

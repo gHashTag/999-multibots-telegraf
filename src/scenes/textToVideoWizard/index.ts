@@ -93,7 +93,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         // Устанавливаем videoModel в сессии
         ctx.session.videoModel = videoModel as VideoModel
 
-        await sendBalanceMessage(ctx.from.id, currentBalance, price, isRu)
+        await sendBalanceMessage(ctx, currentBalance, price, isRu)
 
         await ctx.reply(
           isRu

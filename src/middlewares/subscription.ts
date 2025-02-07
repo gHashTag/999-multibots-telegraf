@@ -5,7 +5,7 @@ import {
   getReferalsCountAndUserData,
 } from '@/core/supabase'
 import { CreateUserData, MyContext } from '@/interfaces'
-import bot from '@/core/bot'
+
 import { getSubScribeChannel } from '@/handlers'
 import { isRussian } from '@/helpers/language'
 import { getUserPhotoUrl } from './getUserPhotoUrl'
@@ -73,7 +73,7 @@ export const subscriptionMiddleware = async (
 
       const newCount = count + 1
       if (ctx.session.inviteCode) {
-        await bot.telegram.sendMessage(
+        await ctx.telegram.sendMessage(
           ctx.session.inviteCode,
           isRu
             ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}.\n🆔 Уровень аватара: ${count}\n🎁. За каждого приглашенного друга вы получаете дополнительные ${BONUS_AMOUNT} звезд для генерации!\n🤑 Ваш новый баланс: ${
@@ -87,7 +87,7 @@ export const subscriptionMiddleware = async (
           telegram_id: inviteCode,
           amount: BONUS_AMOUNT,
         })
-        await bot.telegram.sendMessage(
+        await ctx.telegram.sendMessage(
           `@${SUBSCRIBE_CHANNEL_ID}`,
           `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке от: @${userData.username}.\n🆔 Уровень аватара: ${newCount}\n🎁 Получил(a) бонус в размере ${BONUS_AMOUNT}⭐️ на свой баланс.\nСпасибо за участие в нашей программе!`
         )
@@ -97,7 +97,7 @@ export const subscriptionMiddleware = async (
       const { count } = await getReferalsCountAndUserData(
         telegram_id.toString()
       )
-      await bot.telegram.sendMessage(
+      await ctx.telegram.sendMessage(
         `@${SUBSCRIBE_CHANNEL_ID}`,
         `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}.\n🆔 Уровень аватара: ${count}.`
       )

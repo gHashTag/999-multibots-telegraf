@@ -1,12 +1,12 @@
-import bot from '@/core/bot'
+import { MyContext } from '@/interfaces'
 
 export const sendCostMessage = async (
-  telegram_id: number,
+  ctx: MyContext,
   cost: number,
   isRu: boolean
 ) => {
-  await bot.telegram.sendMessage(
-    telegram_id,
+  await ctx.telegram.sendMessage(
+    ctx.from?.id?.toString() || '',
     isRu ? `Стоимость: ${cost.toFixed(2)} ⭐️` : `Cost: ${cost.toFixed(2)} ⭐️`
   )
   return

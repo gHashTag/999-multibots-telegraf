@@ -27,12 +27,12 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
     const currentBalance = await getUserBalance(ctx.from.id)
     const price = textToSpeechCost
     if (currentBalance < price) {
-      await sendInsufficientStarsMessage(ctx.from.id, currentBalance, isRu)
+      await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
       ctx.scene.leave()
       return
     }
 
-    await sendBalanceMessage(ctx.from.id, currentBalance, price, isRu)
+    await sendBalanceMessage(ctx, currentBalance, price, isRu)
 
     await ctx.reply(
       isRu

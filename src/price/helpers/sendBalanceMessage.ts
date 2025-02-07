@@ -1,13 +1,13 @@
-import bot from '@/core/bot'
+import { MyContext } from '@/interfaces'
 
 export const sendBalanceMessage = async (
-  telegram_id: number,
+  ctx: MyContext,
   newBalance: number,
   cost: number,
   isRu: boolean
 ) => {
-  await bot.telegram.sendMessage(
-    telegram_id,
+  await ctx.telegram.sendMessage(
+    ctx.from?.id?.toString() || '',
     isRu
       ? `Стоимость: ${cost.toFixed(2)} ⭐️\nВаш баланс: ${newBalance.toFixed(
           2
