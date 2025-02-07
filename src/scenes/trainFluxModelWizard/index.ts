@@ -4,6 +4,7 @@ import { MyContext } from '../../interfaces'
 import { isValidImage } from '../../helpers/images'
 import { isRussian } from '@/helpers/language'
 import { BOT_TOKEN } from '@/core/bot'
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
 export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
   'trainFluxModelWizard',
@@ -103,16 +104,8 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
     const message = ctx.message
     console.log('message', message)
-    if (
-      message &&
-      'text' in message &&
-      message.text === (isRu ? 'Отменить' : 'Cancel')
-    ) {
-      console.log('Received cancel command')
-      await ctx.reply(
-        isRu ? '❌ Обучение модели отменено' : '❌ Model training cancelled',
-        Markup.removeKeyboard()
-      )
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
       return ctx.scene.leave()
     }
 

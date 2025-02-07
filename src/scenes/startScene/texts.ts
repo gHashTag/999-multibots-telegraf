@@ -1,18 +1,4 @@
-import { getReferalsCountAndUserData } from '@/core/supabase/getReferalsCountAndUserData'
-import { MyContext } from '../../interfaces'
-import { mainMenu, startMenu } from '../../menu'
-
-export async function neuroQuestCommand(ctx: MyContext) {
-  console.log('CASE: neuroQuest')
-  const isRu = ctx.from?.language_code === 'ru'
-  console.log('🎮 Starting Neuro Quest for user:', ctx.from?.id)
-
-  // Приветствие
-  await ctx.replyWithPhoto(
-    'https://dmrooqbmxdhdyblqzswu.supabase.co/storage/v1/object/public/neuro_coder/bot/ava-16-9.jpg',
-    {
-      caption: isRu
-        ? `🎮 Привет! Я НейроБлогер - ваш персональный ассистент по созданию контента для соцсетей.
+export const ruText = `🎮 Привет! Я НейроБлогер - ваш персональный ассистент по созданию контента для соцсетей.
 
 🤖 Сначала мы начнем с создания нейрофотографий, а затем перейдем к другим возможностям ИИ.
 
@@ -46,7 +32,8 @@ export async function neuroQuestCommand(ctx: MyContext) {
 💡 Каждый уровень даст вам навыки для создания профессионального контента.
 
 Готовы стать профи в создании контента и прокачать своего цифрового аватара? Тогда нажми команду /menu`
-        : `👋 Hi! I'm NeuroBlogger - your personal assistant for social media content creation.
+
+export const enText = `👋 Hi! I'm NeuroBlogger - your personal assistant for social media content creation.
 
 🤖 First, we'll start with creating neurophotographs, then move on to other AI capabilities.
 
@@ -80,12 +67,4 @@ export async function neuroQuestCommand(ctx: MyContext) {
 
 💡 Each level will give you skills for creating professional content.
 
-Ready to become a content creation pro and upgrade your digital avatar? Then press the /menu command`,
-    }
-  )
-  const { count, subscription } = await getReferalsCountAndUserData(
-    ctx.from?.id?.toString() || ''
-  )
-  await mainMenu({ isRu, inviteCount: count, subscription })
-  return
-}
+Ready to become a content creation pro and upgrade your digital avatar? Then press the /menu command`

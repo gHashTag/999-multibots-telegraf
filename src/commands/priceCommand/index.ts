@@ -55,6 +55,6 @@ export async function priceCommand(ctx: MyContext) {
     <b>💵 Star cost:</b> ${starCost.toFixed(2)} $
     💵 Top up balance /buy
     `
-
+  //
   await ctx.reply(message, { parse_mode: 'HTML' })
 }

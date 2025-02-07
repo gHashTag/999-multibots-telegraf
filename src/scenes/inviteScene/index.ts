@@ -30,6 +30,7 @@ inviteScene.enter(async ctx => {
 
     await ctx.reply(introText, { parse_mode: 'HTML' })
     await ctx.reply(linkText, { parse_mode: 'HTML' })
+    await ctx.scene.enter('menuScene')
   } catch (error) {
     console.error('Error fetching referral count:', error)
     await ctx.reply(

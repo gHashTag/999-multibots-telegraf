@@ -7,8 +7,7 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
 
     if (text === (isRu ? 'отмена' : 'cancel')) {
       await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
-      await ctx.scene.enter('menuScene')
-      ctx.scene.leave()
+      ctx.scene.enter('menuScene')
       return true
     }
 

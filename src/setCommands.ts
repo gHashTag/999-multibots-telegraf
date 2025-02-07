@@ -8,29 +8,29 @@ export function setBotCommands(bot: Telegraf<MyContext>) {
       command: 'start',
       description: '👤 Start / Начать',
     },
-    {
-      command: 'menu',
-      description: '👤 Menu / Главное меню',
-    },
-    {
-      command: 'invite',
-      description: '👥 Invite a friend / Пригласить друга',
-    },
-    {
-      command: 'price',
-      description: '⭐️ Price / Цена',
-    },
-    {
-      command: 'buy',
-      description: '💵 Top up balance / Пополнить баланс',
-    },
-    {
-      command: 'balance',
-      description: '💰 Balance / Баланс',
-    },
-    {
-      command: 'help',
-      description: '🤖 Help / Помощь',
-    },
+    // {
+    //   command: 'menu',
+    //   description: '👤 Menu / Главное меню',
+    // },
+    // {
+    //   command: 'invite',
+    //   description: '👥 Invite a friend / Пригласить друга',
+    // },
+    // {
+    //   command: 'price',
+    //   description: '⭐️ Price / Цена',
+    // },
+    // {
+    //   command: 'buy',
+    //   description: '💵 Top up balance / Пополнить баланс',
+    // },
+    // {
+    //   command: 'balance',
+    //   description: '💰 Balance / Баланс',
+    // },
+    // {
+    //   command: 'help',
+    //   description: '🤖 Help / Помощь',
+    // },
   ])
 }

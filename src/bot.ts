@@ -1,12 +1,17 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
-import { Telegraf } from 'telegraf'
+import { Telegraf, Composer } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { NODE_ENV } from './config'
 
 import { development, production } from '@/utils/launch'
 import express from 'express'
+import { registerCallbackActions } from './handlers/сallbackActions'
+import { registerPaymentActions } from './handlers/paymentActions'
+import { registerHearsActions } from './handlers/hearsActions'
+import { registerCommands } from './registerCommands'
+import { setBotCommands } from './setCommands'
 
 dotenv.config()
 
@@ -20,6 +25,7 @@ if (!process.env.BOT_TOKEN_2) {
 
 const BOT_TOKENS = [process.env.BOT_TOKEN_1, process.env.BOT_TOKEN_2]
 const bots = BOT_TOKENS.map(token => new Telegraf<MyContext>(token))
+export const composer = new Composer<MyContext>()
 
 export const createBots = async () => {
   bots.forEach((bot, index) => {
@@ -28,12 +34,12 @@ export const createBots = async () => {
     const port = 3001 + index
     console.log('CASE: port', port)
 
-    bot.on('text', ctx => {
-      console.log('CASE: text', ctx)
-      const userMessage = ctx.message.text
-      const botResponse = `I am bot${index + 1}, you said: ${userMessage}`
-      ctx.reply(botResponse)
-    })
+    setBotCommands(bot)
+    registerCommands({ bot, composer })
+
+    registerCallbackActions(bot)
+    registerPaymentActions(bot)
+    registerHearsActions(bot)
 
     const webhookPath = `/${bot.telegram.token}`
     const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app`

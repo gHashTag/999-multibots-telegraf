@@ -1,7 +1,6 @@
 import { levels } from '@/menu/mainMenu'
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
-import { balanceCommand } from '@/commands/balanceCommand'
 import { priceCommand } from '@/commands/priceCommand'
 
 export const handleMenu = async (ctx: MyContext, text: string) => {
@@ -80,11 +79,11 @@ export const handleMenu = async (ctx: MyContext, text: string) => {
     },
     [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
       console.log('CASE: 🤑 Баланс')
-      await ctx.scene.enter('balanceCommand')
+      await ctx.scene.enter('balanceScene')
     },
     [isRu ? levels[102].title_ru : levels[102].title_en]: async () => {
       console.log('CASE: 👥 Пригласить друга')
-      await ctx.scene.enter('inviteCommand')
+      await ctx.scene.enter('inviteScene')
     },
     [isRu ? levels[103].title_ru : levels[103].title_en]: async () => {
       console.log('CASE: ❓ Помощь')
@@ -108,7 +107,7 @@ export const handleMenu = async (ctx: MyContext, text: string) => {
     },
     '/balance': async () => {
       console.log('CASE: 💰 Баланс')
-      await balanceCommand(ctx)
+      await ctx.scene.enter('balanceScene')
     },
     '/help': async () => {
       console.log('CASE: ❓ Помощь')

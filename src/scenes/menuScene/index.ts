@@ -9,7 +9,7 @@ import { handleMenu } from './handleMenu'
 import { WizardScene } from 'telegraf/scenes'
 
 const menuCommandStep = async (ctx: MyContext) => {
-  console.log('CASE: menuCommand')
+  console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
   try {
     const telegram_id = ctx.from?.id?.toString() || ''
@@ -17,8 +17,8 @@ const menuCommandStep = async (ctx: MyContext) => {
     let newSubscription: Subscription = 'stars'
 
     if (isDev) {
-      newCount = 88
-      newSubscription = 'neurophoto'
+      newCount = 5
+      newSubscription = 'neurobase'
     } else {
       const { count, subscription } = await getReferalsCountAndUserData(
         telegram_id
@@ -68,6 +68,8 @@ const menuCommandStep = async (ctx: MyContext) => {
       'neuroblogger',
       'neurotester',
     ].includes(newSubscription)
+
+    console.log('hasFullAccess', hasFullAccess)
     let message = ''
 
     switch (true) {
@@ -87,31 +89,35 @@ const menuCommandStep = async (ctx: MyContext) => {
       }
 
       case nameStep === (isRu ? levels[2].title_ru : levels[2].title_en): {
+        console.log('CASE: neurophoto')
         message = getText(isRu, 'neurophoto', newCount)
         await sendReplyWithKeyboard(ctx, message, inlineKeyboard, menu)
         break
       }
 
-      case newCount > 2 && newCount <= 10: {
-        message = getText(isRu, 'avatarLevel', newCount)
+      // case newCount > 2 && newCount <= 10: {
+      //   console.log('CASE: avatarLevel')
+      //   message = getText(isRu, 'avatarLevel', newCount)
 
-        const inlineKeyboardWithInvite = [
-          ...inlineKeyboard,
-          [{ text: getText(isRu, 'inviteLink'), callback_data: 'invite' }],
-        ]
+      //   const inlineKeyboardWithInvite = [
+      //     ...inlineKeyboard,
+      //     [{ text: getText(isRu, 'inviteLink'), callback_data: 'invite' }],
+      //   ]
 
-        await sendReplyWithKeyboard(
-          ctx,
-          message,
-          inlineKeyboardWithInvite,
-          menu
-        )
-        ctx.wizard.next()
-        return
-      }
+      //   await sendReplyWithKeyboard(
+      //     ctx,
+      //     message,
+      //     inlineKeyboardWithInvite,
+      //     menu
+      //   )
+      //   ctx.wizard.next()
+      //   return
+      // }
 
       default: {
+        console.log(`CASE: default ${newCount}`)
         const message = getText(isRu, 'mainMenu')
+        console.log('message', message)
         await ctx.reply(message, menu)
         ctx.wizard.next()
         return

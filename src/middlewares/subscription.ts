@@ -10,7 +10,6 @@ import bot from '@/core/bot'
 import { isRussian } from '@/helpers/language'
 import { getUserPhotoUrl } from './getUserPhotoUrl'
 import { verifySubscription } from './verifySubscription'
-import { neuroQuestCommand } from '@/commands/neuroQuestCommand'
 
 const SUBSCRIBE_CHANNEL_ID = 'neuro_blogger_group'
 const BONUS_AMOUNT = 100
@@ -50,12 +49,12 @@ export const subscriptionMiddleware = async (
 
     const finalUsername = username || first_name || telegram_id.toString()
 
-    const existingUser = await getUserByTelegramId(telegram_id.toString())
-    console.log('existingUser', existingUser)
+    const existingUser = await getUserByTelegramId(ctx)
+    // console.log('existingUser', existingUser)
 
     if (existingUser) {
       await verifySubscription(ctx, language_code, SUBSCRIBE_CHANNEL_ID)
-      await neuroQuestCommand(ctx)
+      ctx.scene.enter('startScene')
       return
     }
 
@@ -117,7 +116,7 @@ export const subscriptionMiddleware = async (
       aspect_ratio: '9:16',
       balance: 100,
       inviter: ctx.session.inviter || null,
-      token: ctx.telegram.token || null,
+      token: ctx.telegram.token,
     }
 
     await createUser(userData as CreateUserData)

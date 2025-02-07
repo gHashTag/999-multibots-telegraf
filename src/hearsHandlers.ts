@@ -1,6 +1,5 @@
 import { imageModelMenu } from './menu/imageModelMenu'
 
-import { balanceCommand } from './commands/balanceCommand'
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
 
@@ -107,7 +106,7 @@ composer.hears([levels[100].title_ru, levels[100].title_en], async ctx => {
 composer.hears([levels[101].title_ru, levels[101].title_en], async ctx => {
   console.log('CASE: Баланс')
   ctx.session.mode = 'balance'
-  await balanceCommand(ctx)
+  await ctx.scene.enter('balanceScene')
 })
 
 composer.hears([levels[102].title_ru, levels[102].title_en], async ctx => {

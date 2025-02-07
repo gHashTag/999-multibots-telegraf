@@ -14,19 +14,22 @@ import { handleHelpCancel } from '@/handlers'
 export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   'textToSpeechWizard',
   async ctx => {
+    console.log('CASE: textToSpeechWizard')
     const isRu = isRussian(ctx)
     if (!ctx.from) {
       await ctx.reply(
         isRu ? 'Ошибка идентификации пользователя' : 'User identification error'
       )
-      return ctx.scene.leave()
+      ctx.scene.leave()
+      return
     }
 
     const currentBalance = await getUserBalance(ctx.from.id)
     const price = textToSpeechCost
     if (currentBalance < price) {
       await sendInsufficientStarsMessage(ctx.from.id, currentBalance, isRu)
-      return ctx.scene.leave()
+      ctx.scene.leave()
+      return
     }
 
     await sendBalanceMessage(ctx.from.id, currentBalance, price, isRu)
@@ -37,10 +40,11 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         : '🎙️ Send text, to convert it to voice',
       createHelpCancelKeyboard(isRu)
     )
-
-    return ctx.wizard.next()
+    ctx.wizard.next()
+    return
   },
   async ctx => {
+    console.log('CASE: textToSpeechWizard.next', ctx.message)
     const isRu = isRussian(ctx)
     const message = ctx.message
 
@@ -53,7 +57,8 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
-      return ctx.scene.leave()
+      ctx.scene.leave()
+      return
     } else {
       try {
         const voice_id = await getVoiceId(ctx.from.id.toString())
@@ -64,7 +69,8 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
               ? '🎯 Для корректной работы обучите аватар используя 🎤 Голос для аватара в главном меню'
               : '🎯 For correct operation, train the avatar using 🎤 Voice for avatar in the main menu'
           )
-          return ctx.scene.leave()
+          ctx.scene.leave()
+          return
         }
 
         await generateTextToSpeech(
@@ -82,8 +88,8 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
             : 'Error occurred while creating voice avatar'
         )
       }
-
-      return ctx.scene.leave()
+      ctx.scene.leave()
+      return
     }
   }
 )

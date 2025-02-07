@@ -82,7 +82,7 @@ export const completeScene = new Scenes.BaseScene<MyContext>('complete')
 
 completeScene.enter(async ctx => {
   await handleQuestComplete(ctx)
-  await ctx.scene.leave()
+  await ctx.scene.enter('menuScene')
 })
 
 // Экспортируем все сцены

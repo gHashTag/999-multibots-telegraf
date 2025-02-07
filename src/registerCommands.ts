@@ -1,10 +1,6 @@
 import { Telegraf, Scenes, session, Middleware, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
 
-import { neuroQuestCommand } from './commands/neuroQuestCommand'
-
-import { balanceCommand } from './commands/balanceCommand'
-
 import {
   avatarWizard,
   textToVideoWizard,
@@ -27,7 +23,6 @@ import {
   neuroCoderScene,
   lipSyncWizard,
   startScene,
-  neuroQuestScene,
   chatWithAvatarWizard,
   helpScene,
   balanceScene,
@@ -52,7 +47,6 @@ import { get100Command } from './commands/get100Command'
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
   chatWithAvatarWizard,
-  neuroQuestScene,
   menuScene,
   getEmailWizard,
   getRuBillWizard,
@@ -91,16 +85,16 @@ export function registerCommands({
   composer: Composer<MyContext>
 }) {
   bot.use(session({ defaultSession }))
-
+  bot.use(stage.middleware())
+  bot.use(composer.middleware())
   bot.use(subscriptionMiddleware as Middleware<MyContext>)
-
   setupLevelHandlers(bot as Telegraf<MyContext>)
 
   // Регистрация команд
   composer.command('start', async ctx => {
     console.log('CASE: start')
     ctx.session = defaultSession()
-    await neuroQuestCommand(ctx)
+    await ctx.scene.enter('startScene')
   })
 
   composer.command('get100', async ctx => {
@@ -116,6 +110,7 @@ export function registerCommands({
 
   composer.command('menu', async ctx => {
     console.log('CASE: myComposer.command menu')
+    // ctx.session = defaultSession()
     ctx.session.mode = 'main_menu'
     await ctx.scene.enter('menuScene')
   })
@@ -125,7 +120,10 @@ export function registerCommands({
     await ctx.scene.enter('inviteScene')
   })
 
-  composer.command('balance', ctx => balanceCommand(ctx))
+  composer.command('balance', async ctx => {
+    console.log('CASE: balance')
+    await ctx.scene.enter('balanceScene')
+  })
 
   composer.command('help', async ctx => {
     await ctx.scene.enter('step0')
