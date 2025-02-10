@@ -1,11 +1,17 @@
 import { MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
 import { getTranslation } from '@/core/supabase'
+import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
 
 export const startScene = new Scenes.WizardScene<MyContext>(
   'startScene',
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
+    const existingUser = await getUserByTelegramId(ctx)
+    if (!existingUser) {
+      ctx.scene.leave()
+      return
+    }
     const { translation, url } = await getTranslation({
       key: isRu ? 'start_ru' : 'start_en',
       ctx,

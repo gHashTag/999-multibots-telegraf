@@ -59,7 +59,7 @@ export const subscriptionMiddleware = async (
     if (!ctx.from) {
       console.error('No user data found in context')
       await ctx.reply('Error: No user data found')
-      return
+      return await next()
     }
 
     ctx.session.inviteCode = startNumber

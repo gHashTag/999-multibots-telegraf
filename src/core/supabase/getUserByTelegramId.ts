@@ -14,12 +14,12 @@ export async function getUserByTelegramId(ctx: MyContext) {
       return null
     }
 
-    // Проверяем, отличается ли текущий токен от сохраненного
-    if (data.token !== ctx.telegram.token) {
+    // Проверяем, отличается ли текущий bot_name от сохраненного
+    if (data.bot_name !== ctx.botInfo.username) {
       console.log('Token changed, updating...')
       const { error: updateError } = await supabase
         .from('users')
-        .update({ token: ctx.telegram.token })
+        .update({ bot_name: ctx.botInfo.username })
         .eq('telegram_id', ctx.from.id.toString())
 
       if (updateError) {
