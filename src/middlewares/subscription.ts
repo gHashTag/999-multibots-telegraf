@@ -11,6 +11,7 @@ import { isRussian } from '@/helpers/language'
 import { getUserPhotoUrl } from './getUserPhotoUrl'
 import { verifySubscription } from './verifySubscription'
 
+import { handleMenu } from '@/scenes/menuScene/handleMenu'
 const BONUS_AMOUNT = 100
 
 export const subscriptionMiddleware = async (
@@ -23,9 +24,13 @@ export const subscriptionMiddleware = async (
     if (
       !ctx.message ||
       !('text' in ctx.message) ||
+      typeof ctx.message.text !== 'string' ||
       !ctx.message.text.startsWith('/start')
     ) {
       console.log('CASE: 🔄 Нет текста или нет /start')
+      if ('text' in ctx.message && typeof ctx.message.text === 'string') {
+        await handleMenu(ctx, ctx.message.text)
+      }
       return await next()
     }
 

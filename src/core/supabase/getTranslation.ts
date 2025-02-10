@@ -31,7 +31,7 @@ export async function getTranslation({
     console.error('Ошибка получения перевода с текущим токеном:', error)
 
     const defaultToken = DEFAULT_BOT_TOKEN
-    console.log('defaultToken', defaultToken)
+
     ;({ data, error } = await fetchTranslation(defaultToken))
 
     if (error) {

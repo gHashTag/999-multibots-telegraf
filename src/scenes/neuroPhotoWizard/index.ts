@@ -14,7 +14,7 @@ import { mainMenu, sendPhotoDescriptionRequest } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
 import { generateTextToImage } from '@/services/generateTextToImage'
-
+import { handleMenu } from '@/scenes/menuScene/handleMenu'
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
   console.log('CASE: neuroPhotoConversation')
   const isRu = ctx.from?.language_code === 'ru'
@@ -130,6 +130,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       await ctx.scene.enter('sizeWizard')
       return
     }
+
+    handleMenu(ctx, text)
 
     // Обработка кнопок с числами
     const numImages = parseInt(text[0])

@@ -148,8 +148,6 @@ export async function mainMenu({
     availableLevels = [levels[0]]
   }
 
-  console.log('availableLevels', availableLevels)
-
   const helpButton = isRu ? levels[103].title_ru : levels[103].title_en
   const mainMenuButton = isRu ? levels[104].title_ru : levels[104].title_en
 
@@ -165,7 +163,6 @@ export async function mainMenu({
   const buttons = availableLevels.map(level =>
     Markup.button.text(isRu ? level.title_ru : level.title_en)
   )
-  console.log('buttons', buttons)
 
   // Разбиваем кнопки на строки по две кнопки
   const buttonRows = []

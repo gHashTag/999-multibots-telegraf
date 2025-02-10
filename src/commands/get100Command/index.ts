@@ -2,7 +2,7 @@ import { MyContext } from '../../interfaces'
 
 import { generateNeuroImage } from '../../services/generateNeuroImage'
 import { models } from '../../core/replicate'
-import { newsCoderPrompt, solarPunkAngelPrompt } from './prompts'
+import { solarPunkAngelPrompt } from './prompts'
 
 async function get100Command(ctx: MyContext) {
   const model_url = models['neuro_coder'].key as `${string}/${string}:${string}`
