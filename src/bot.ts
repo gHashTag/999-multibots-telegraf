@@ -12,12 +12,24 @@ import { registerPaymentActions } from './handlers/paymentActions'
 import { registerHearsActions } from './handlers/hearsActions'
 import { registerCommands } from './registerCommands'
 import { setBotCommands } from './setCommands'
-import { BOT_TOKENS } from './core/bot'
+import { BOT_NAMES, BOT_TOKENS } from './core/bot'
 
 dotenv.config()
 
 const bots = BOT_TOKENS.map(token => new Telegraf<MyContext>(token))
 export const composer = new Composer<MyContext>()
+
+export function getBotNameByToken(token: string) {
+  console.log('CASE: getBotNameByToken', token)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)
+  if (!entry) {
+    return { error: 'Unauthorized' }
+  }
+
+  const [bot_name] = entry
+  return { bot_name }
+}
 
 export const createBots = async () => {
   bots.forEach((bot, index) => {
@@ -33,7 +45,12 @@ export const createBots = async () => {
     registerPaymentActions(bot)
     registerHearsActions(bot)
 
-    const webhookPath = `/${bot.telegram.token}`
+    const telegramToken = bot.telegram.token
+    const { bot_name } = getBotNameByToken(telegramToken)
+    console.log('CASE: bot_name', bot_name)
+
+    const webhookPath = `/${bot_name}`
+    console.log('CASE: webhookPath', webhookPath)
     const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app`
 
     if (NODE_ENV === 'development') {

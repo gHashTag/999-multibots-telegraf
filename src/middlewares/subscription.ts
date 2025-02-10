@@ -24,13 +24,36 @@ export const subscriptionMiddleware = async (
     if (
       !ctx.message ||
       !('text' in ctx.message) ||
-      typeof ctx.message.text !== 'string' ||
-      !ctx.message.text.startsWith('/start')
+      typeof ctx.message.text !== 'string'
     ) {
-      console.log('CASE: 🔄 Нет текста или нет /start')
+      console.log('CASE: 🔄 Нет текста')
       if ('text' in ctx.message && typeof ctx.message.text === 'string') {
         await handleMenu(ctx, ctx.message.text)
       }
+      return await next()
+    }
+
+    // Проверка на полную ссылку или просто команду /start
+    const botNameMatch = ctx.message.text.match(
+      /https:\/\/t\.me\/([a-zA-Z0-9_]+)\?start=(\d+)/
+    )
+    let botName = ''
+    let startNumber = ''
+
+    if (botNameMatch) {
+      botName = botNameMatch[1]
+      startNumber = botNameMatch[2]
+    } else if (ctx.message.text.startsWith('/start')) {
+      console.log(
+        'CASE: 🔄 Команда /start. botInfo.username:',
+        ctx.botInfo.username
+      )
+      // Обработка команды /start без ссылки
+      botName = ctx.botInfo.username
+      const parts = ctx.message.text.split(' ')
+      startNumber = parts.length > 1 ? parts[1] : ''
+    } else {
+      console.log('Invalid start link')
       return await next()
     }
 
@@ -40,9 +63,7 @@ export const subscriptionMiddleware = async (
       return
     }
 
-    const inviteCode = ctx.message.text.split(' ')[1]
-    console.log('inviteCode', inviteCode)
-    ctx.session.inviteCode = inviteCode
+    ctx.session.inviteCode = startNumber
 
     const {
       username,
@@ -89,7 +110,7 @@ export const subscriptionMiddleware = async (
               }⭐️`
         )
         await incrementBalance({
-          telegram_id: inviteCode,
+          telegram_id: startNumber,
           amount: BONUS_AMOUNT,
         })
         await ctx.telegram.sendMessage(
@@ -123,11 +144,12 @@ export const subscriptionMiddleware = async (
       aspect_ratio: '9:16',
       balance: 100,
       inviter: ctx.session.inviter || null,
-      token: ctx.telegram.token,
+      token: botName,
+      bot_name: botName,
     }
 
     await createUser(userData as CreateUserData)
-
+    ctx.scene.enter('startScene')
     await next()
   } catch (error) {
     console.error('Critical error in subscriptionMiddleware:', error)

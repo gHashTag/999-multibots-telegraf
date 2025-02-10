@@ -17,6 +17,7 @@ export const createUser = async (userData: CreateUserData) => {
     aspect_ratio,
     balance,
     inviter,
+    bot_name,
   } = userData
 
   let inviterUser
@@ -61,6 +62,7 @@ export const createUser = async (userData: CreateUserData) => {
       aspect_ratio,
       balance,
       ...(!existingUser.inviter && isInviter ? { inviter } : {}),
+      bot_name,
     }
 
     const { error: updateError } = await supabase
@@ -90,6 +92,7 @@ export const createUser = async (userData: CreateUserData) => {
       aspect_ratio,
       balance,
       ...(isInviter ? { inviter } : {}),
+      bot_name,
     }
 
     const { error: insertError } = await supabase

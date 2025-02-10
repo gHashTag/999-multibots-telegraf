@@ -110,6 +110,7 @@ export async function mainMenu({
   console.log('CASE: mainMenu')
   console.log('inviteCount', inviteCount)
   console.log('subscription', subscription)
+  console.log('isRu', isRu)
 
   // Определяем, имеет ли пользователь доступ ко всем уровням
   const hasFullAccess = [

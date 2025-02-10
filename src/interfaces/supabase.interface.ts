@@ -13,6 +13,7 @@ export interface CreateUserData {
   aspect_ratio: string
   balance: number
   inviter: string | null
+  bot_name: string
 }
 
 export interface ModelTraining {
