@@ -11,7 +11,7 @@ export async function verifySubscription(
   console.log('CASE: isSubscribed', isSubscribed)
   if (!isSubscribed) {
     await handleSubscriptionMessage(ctx, language_code, telegram_channel_id)
-    return false
+    return isSubscribed
   }
-  return true
+  return isSubscribed
 }
