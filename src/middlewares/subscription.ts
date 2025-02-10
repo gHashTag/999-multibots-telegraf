@@ -78,7 +78,7 @@ export const subscriptionMiddleware = async (
     const finalUsername = username || first_name || telegram_id.toString()
 
     const existingUser = await getUserByTelegramId(ctx)
-    console.log('existingUser', existingUser)
+    console.log('subscriptionMiddleware - existingUser:', existingUser)
 
     const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
 
@@ -90,6 +90,7 @@ export const subscriptionMiddleware = async (
         SUBSCRIBE_CHANNEL_ID
       )
       if (isSubscribed) {
+        console.log('CASE 1: isSubscribed', isSubscribed)
         ctx.scene.enter('startScene')
       }
       return
@@ -110,6 +111,7 @@ export const subscriptionMiddleware = async (
         language_code,
         SUBSCRIBE_CHANNEL_ID
       )
+      console.log('CASE 2: isSubscribed', isSubscribed)
       if (isSubscribed) {
         ctx.scene.enter('startScene')
       }
@@ -171,6 +173,7 @@ export const subscriptionMiddleware = async (
       language_code,
       SUBSCRIBE_CHANNEL_ID
     )
+    console.log('CASE 3: isSubscribed', isSubscribed)
     if (isSubscribed) {
       ctx.scene.enter('startScene')
     }
