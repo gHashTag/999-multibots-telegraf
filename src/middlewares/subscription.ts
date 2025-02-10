@@ -37,6 +37,7 @@ export const subscriptionMiddleware = async (
     )
     let botName = ''
     let startNumber = ''
+    console.log('startNumber', startNumber)
 
     if (botNameMatch) {
       botName = botNameMatch[1]
@@ -46,9 +47,11 @@ export const subscriptionMiddleware = async (
         'CASE: 🔄 Команда /start. botInfo.username:',
         ctx.botInfo.username
       )
+      console.log('ctx.message.text', ctx.message.text)
       // Обработка команды /start без ссылки
       botName = ctx.botInfo.username
       const parts = ctx.message.text.split(' ')
+      console.log('parts', parts)
       startNumber = parts.length > 1 ? parts[1] : ''
     } else {
       console.log('Invalid start link')
@@ -75,13 +78,20 @@ export const subscriptionMiddleware = async (
     const finalUsername = username || first_name || telegram_id.toString()
 
     const existingUser = await getUserByTelegramId(ctx)
+    console.log('existingUser', existingUser)
 
     const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
 
     if (existingUser) {
       console.log('CASE: existingUser', existingUser)
-      await verifySubscription(ctx, language_code, SUBSCRIBE_CHANNEL_ID)
-      ctx.scene.enter('startScene')
+      const isSubscribed = await verifySubscription(
+        ctx,
+        language_code,
+        SUBSCRIBE_CHANNEL_ID
+      )
+      if (isSubscribed) {
+        ctx.scene.enter('startScene')
+      }
       return
     }
     console.log('CASE: user not exists')
@@ -95,8 +105,14 @@ export const subscriptionMiddleware = async (
 
       ctx.session.inviter = userData.user_id
 
-      await verifySubscription(ctx, language_code, SUBSCRIBE_CHANNEL_ID)
-
+      const isSubscribed = await verifySubscription(
+        ctx,
+        language_code,
+        SUBSCRIBE_CHANNEL_ID
+      )
+      if (isSubscribed) {
+        ctx.scene.enter('startScene')
+      }
       const newCount = count + 1
       if (ctx.session.inviteCode) {
         await ctx.telegram.sendMessage(
@@ -120,7 +136,7 @@ export const subscriptionMiddleware = async (
       }
     } else {
       console.log('CASE: ctx.session.inviteCode not exists')
-      await verifySubscription(ctx, language_code, SUBSCRIBE_CHANNEL_ID)
+
       const { count } = await getReferalsCountAndUserData(
         telegram_id.toString()
       )
@@ -150,6 +166,14 @@ export const subscriptionMiddleware = async (
 
     await createUser(userData as CreateUserData)
     // ctx.scene.enter('startScene')
+    const isSubscribed = await verifySubscription(
+      ctx,
+      language_code,
+      SUBSCRIBE_CHANNEL_ID
+    )
+    if (isSubscribed) {
+      ctx.scene.enter('startScene')
+    }
     await next()
   } catch (error) {
     console.error('Critical error in subscriptionMiddleware:', error)
