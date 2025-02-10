@@ -11,7 +11,6 @@ import { isRussian } from '@/helpers/language'
 import { getUserPhotoUrl } from './getUserPhotoUrl'
 import { verifySubscription } from './verifySubscription'
 
-import { handleMenu } from '@/scenes/menuScene/handleMenu'
 const BONUS_AMOUNT = 100
 
 export const subscriptionMiddleware = async (
@@ -150,7 +149,7 @@ export const subscriptionMiddleware = async (
     }
 
     await createUser(userData as CreateUserData)
-    ctx.scene.enter('startScene')
+    // ctx.scene.enter('startScene')
     await next()
   } catch (error) {
     console.error('Critical error in subscriptionMiddleware:', error)
