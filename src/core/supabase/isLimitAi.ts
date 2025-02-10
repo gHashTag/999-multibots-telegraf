@@ -12,7 +12,7 @@ export async function isLimitAi(telegram_id: string): Promise<boolean> {
     .single()
 
   if (userError) {
-    console.error('Ошибка при получении user_id:', userError)
+    console.error('isLimitAi: Ошибка при получении user_id:', userError)
     return false
   }
 

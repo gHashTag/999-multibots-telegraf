@@ -156,7 +156,7 @@ const menuNextStep = async (ctx: MyContext) => {
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
     console.log('text 2', text)
-    handleMenu(ctx, text)
+    await handleMenu(ctx, text)
   } else {
     console.log('CASE: menuScene.next.else', ctx)
     ctx.scene.leave()

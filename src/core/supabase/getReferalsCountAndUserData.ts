@@ -19,7 +19,10 @@ export const getReferalsCountAndUserData = async (
       .single()
 
     if (userError || !userData) {
-      console.error('Ошибка при получении user_id:', userError)
+      console.error(
+        'getReferalsCountAndUserData: Ошибка при получении user_id:',
+        userError
+      )
       return {
         count: 0,
         subscription: 'stars',

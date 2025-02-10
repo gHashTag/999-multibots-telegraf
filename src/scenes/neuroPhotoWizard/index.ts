@@ -131,7 +131,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       return
     }
 
-    handleMenu(ctx, text)
+    await handleMenu(ctx, text)
 
     // Обработка кнопок с числами
     const numImages = parseInt(text[0])

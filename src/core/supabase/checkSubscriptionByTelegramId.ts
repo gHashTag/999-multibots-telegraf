@@ -11,7 +11,10 @@ export async function checkSubscriptionByTelegramId(
     .single()
 
   if (userError) {
-    console.error('Ошибка при получении user_id:', userError)
+    console.error(
+      'checkSubscriptionByTelegramId: Ошибка при получении user_id:',
+      userError
+    )
     return 'unsubscribed'
   }
 
