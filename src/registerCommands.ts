@@ -94,24 +94,24 @@ export function registerCommands({
   setupLevelHandlers(bot as Telegraf<MyContext>)
 
   // Регистрация команд
-  composer.command('start', async ctx => {
-    console.log('CASE: start')
-    ctx.session = defaultSession()
-    const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
-    const language_code = ctx.from?.language_code || 'en'
-    const isSubscribed = await verifySubscription(
-      ctx,
-      language_code,
-      SUBSCRIBE_CHANNEL_ID
-    )
-    if (isSubscribed) {
-      console.log('CASE 3: ctx.scene.enter(startScene)')
-      ctx.scene.enter('startScene')
-    } else {
-      console.log('CASE 4: ctx.scene.enter(subscriptionScene)')
-      ctx.scene.leave()
-    }
-  })
+  // composer.command('start', async ctx => {
+  //   console.log('CASE: start')
+  //   ctx.session = defaultSession()
+  //   const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
+  //   const language_code = ctx.from?.language_code || 'en'
+  //   const isSubscribed = await verifySubscription(
+  //     ctx,
+  //     language_code,
+  //     SUBSCRIBE_CHANNEL_ID
+  //   )
+  //   if (isSubscribed) {
+  //     console.log('CASE 3: ctx.scene.enter(startScene)')
+  //     ctx.scene.enter('startScene')
+  //   } else {
+  //     console.log('CASE 4: ctx.scene.leave()')
+  //     ctx.scene.leave()
+  //   }
+  // })
 
   composer.command('get100', async ctx => {
     console.log('CASE: get100')
