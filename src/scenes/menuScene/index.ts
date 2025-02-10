@@ -16,7 +16,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     const telegram_id = ctx.from?.id?.toString() || ''
     let newCount = 0
     let newSubscription: Subscription = 'stars'
-
+    console.log('CASE: ctx.session', ctx.session)
     if (isDev) {
       newCount = 0
       newSubscription = 'stars'

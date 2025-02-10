@@ -20,7 +20,6 @@ const bots = BOT_TOKENS.map(token => new Telegraf<MyContext>(token))
 export const composer = new Composer<MyContext>()
 
 export function getBotNameByToken(token: string) {
-  console.log('CASE: getBotNameByToken', token)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)
   if (!entry) {
@@ -50,7 +49,7 @@ export const createBots = async () => {
     console.log('CASE: bot_name', bot_name)
 
     const webhookPath = `/${bot_name}`
-    console.log('CASE: webhookPath', webhookPath)
+
     const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app`
 
     if (NODE_ENV === 'development') {

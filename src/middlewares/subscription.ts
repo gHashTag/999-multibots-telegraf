@@ -21,15 +21,14 @@ export const subscriptionMiddleware = async (
   console.log('subscriptionMiddleware')
   const isRu = isRussian(ctx)
   try {
-    if (
-      !ctx.message ||
-      !('text' in ctx.message) ||
-      typeof ctx.message.text !== 'string'
-    ) {
-      console.log('CASE: 🔄 Нет текста')
-      if ('text' in ctx.message && typeof ctx.message.text === 'string') {
-        await handleMenu(ctx, ctx.message.text)
-      }
+    await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
+    if (!ctx.message || !('text' in ctx.message)) {
+      console.log('CASE: �� Нет текста')
+      return await next()
+    }
+
+    if (typeof ctx.message.text !== 'string') {
+      console.log('CASE: 🔄 Неверный формат текста')
       return await next()
     }
 
@@ -81,14 +80,16 @@ export const subscriptionMiddleware = async (
     const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
 
     if (existingUser) {
+      console.log('CASE: existingUser', existingUser)
       await verifySubscription(ctx, language_code, SUBSCRIBE_CHANNEL_ID)
       ctx.scene.enter('startScene')
       return
     }
-
+    console.log('CASE: user not exists')
     const photo_url = await getUserPhotoUrl(ctx, telegram_id)
 
     if (ctx.session.inviteCode) {
+      console.log('CASE: ctx.session.inviteCode', ctx.session.inviteCode)
       const { count, userData } = await getReferalsCountAndUserData(
         ctx.session.inviteCode.toString()
       )
@@ -119,6 +120,7 @@ export const subscriptionMiddleware = async (
         )
       }
     } else {
+      console.log('CASE: ctx.session.inviteCode not exists')
       await verifySubscription(ctx, language_code, SUBSCRIBE_CHANNEL_ID)
       const { count } = await getReferalsCountAndUserData(
         telegram_id.toString()
@@ -144,7 +146,6 @@ export const subscriptionMiddleware = async (
       aspect_ratio: '9:16',
       balance: 100,
       inviter: ctx.session.inviter || null,
-      token: botName,
       bot_name: botName,
     }
 
