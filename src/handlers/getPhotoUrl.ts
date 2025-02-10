@@ -6,10 +6,10 @@ export function getPhotoUrl(ctx: MyContext, step: number): string {
 
   switch (botToken) {
     case BOT_TOKENS[0]:
-      return `https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_sage/levels/${step}.jpg`
+      return `https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/levels/${step}.jpg`
     case BOT_TOKENS[1]:
-      return `https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/muse_nataly/levels/${step}.jpg`
+      return `https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/MetaMuse_Manifest_bot/levels/${step}.jpg`
     default:
-      return `https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_sage/levels/${step}.jpg`
+      return `https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/levels/${step}.jpg`
   }
 }
