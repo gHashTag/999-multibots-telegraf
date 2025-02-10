@@ -7,7 +7,7 @@ export async function getLatestUserModel(
   const { data, error } = await supabase
     .from('model_trainings')
     .select('model_name, trigger_word, model_url')
-    .eq('user_id', userId)
+    .eq('telegram_id', userId)
     .eq('status', 'succeeded')
     .order('created_at', { ascending: false })
     .limit(1)

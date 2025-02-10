@@ -40,7 +40,7 @@ export async function createModelTraining(
     formData.append('zipUrl', fs.createReadStream(requestData.filePath))
     formData.append('triggerWord', requestData.triggerWord)
     formData.append('modelName', requestData.modelName)
-    formData.append('steps', requestData.steps.toString()) // Убедитесь, что steps передается как строка
+    formData.append('steps', requestData.steps.toString())
 
     formData.append('is_ru', requestData.is_ru.toString())
     formData.append('bot_name', requestData.botName)
