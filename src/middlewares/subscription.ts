@@ -127,16 +127,16 @@ export const subscriptionMiddleware = async (
           `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке от: @${userData.username}.\n🆔 Уровень аватара: ${newCount}\n🎁 Получил(a) бонус в размере ${BONUS_AMOUNT}⭐️ на свой баланс.\nСпасибо за участие в нашей программе!`
         )
 
-        const isSubscribed = await verifySubscription(
-          ctx,
-          language_code,
-          SUBSCRIBE_CHANNEL_ID
-        )
-        console.log('CASE 2: isSubscribed', isSubscribed)
-        if (isSubscribed) {
-          console.log('CASE 3: ctx.scene.enter(startScene)')
-          ctx.scene.enter('startScene')
-        }
+        // const isSubscribed = await verifySubscription(
+        //   ctx,
+        //   language_code,
+        //   SUBSCRIBE_CHANNEL_ID
+        // )
+        // console.log('CASE 2: isSubscribed', isSubscribed)
+        // if (isSubscribed) {
+        //   console.log('CASE 3: ctx.scene.enter(startScene)')
+        //   ctx.scene.enter('startScene')
+        // }
       }
     } else {
       console.log('CASE: ctx.session.inviteCode not exists')
