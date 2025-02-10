@@ -8,7 +8,7 @@ export async function verifySubscription(
   telegram_channel_id: string
 ): Promise<boolean> {
   const isSubscribed = await checkSubscription(ctx, telegram_channel_id)
-  console.log('CASE: isSubscribed', isSubscribed)
+
   if (!isSubscribed) {
     await handleSubscriptionMessage(ctx, language_code, telegram_channel_id)
     return isSubscribed
