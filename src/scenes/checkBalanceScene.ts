@@ -42,7 +42,7 @@ export type CostValue = number | ((steps: number) => number)
 export const modeCosts: Record<ModeEnum, number> = {
   // Установите стоимость как 0 для режимов, где стоимость будет рассчитана на сцене
   [ModeEnum.DigitalAvatarBody]: calculateCostInStars(0),
-  [ModeEnum.NeuroPhoto]: calculateCostInStars(0.8),
+  [ModeEnum.NeuroPhoto]: calculateCostInStars(0.08),
   [ModeEnum.ImageToPrompt]: calculateCostInStars(0.03),
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: calculateCostInStars(0),
