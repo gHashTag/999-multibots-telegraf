@@ -126,8 +126,7 @@ const menuCommandStep = async (ctx: MyContext) => {
         const message = getText(isRu, 'mainMenu')
         console.log('message', message)
         await ctx.reply(message, menu)
-        ctx.wizard.next()
-        return
+        return ctx.wizard.next()
       }
     }
   } catch (error) {
@@ -149,10 +148,9 @@ const menuNextStep = async (ctx: MyContext) => {
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
     console.log('CASE menuNextStep: text 2', text)
-    await handleMenu(ctx, text)
+    ctx.scene.enter('handleMenuScene')
   } else {
-    console.log('CASE: menuScene.next.else', ctx)
-    ctx.scene.leave()
+    console.log('CASE: menuScene.next.else')
   }
   ctx.scene.leave()
 }

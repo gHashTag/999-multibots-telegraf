@@ -1,11 +1,9 @@
 import { getPrompt, getUserBalance } from '@/core/supabase'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
 import { MyContext } from '@/interfaces'
-import {
-  imageNeuroGenerationCost,
-  sendInsufficientStarsMessage,
-} from '@/price/helpers'
+import { sendInsufficientStarsMessage } from '@/price/helpers'
 import { sendGenerationErrorMessage } from '@/menu'
+import { imageNeuroGenerationCost } from '@/scenes/checkBalanceScene'
 
 export async function handleNeuroGenerate(
   ctx: MyContext,

@@ -9,7 +9,7 @@ import {
 import { getUserInfo } from '@/handlers/getUserInfo'
 
 // Определяем перечисление для режимов
-enum Mode {
+export enum ModeEnum {
   NeuroPhoto = 'neuro_photo',
   ImageToPrompt = 'image_to_prompt',
   ImageToVideo = 'image_to_video',
@@ -35,16 +35,26 @@ export const conversionRates: ConversionRates = {
 }
 
 // Определяем стоимость для каждого режима
-const modeCosts: Record<Mode, number> = {
-  [Mode.NeuroPhoto]: calculateCostInStars(0.12),
-  [Mode.ImageToPrompt]: calculateCostInStars(0.03),
-  [Mode.ImageToVideo]: calculateCostInStars(0.99),
-  [Mode.TextToVideo]: calculateCostInStars(0.99),
-  [Mode.Speech]: calculateCostInStars(0.12),
-  [Mode.TextToSpeech]: calculateCostInStars(0.12),
-  [Mode.TextToImage]: calculateCostInStars(0.048),
-  [Mode.Voice]: calculateCostInStars(0.12),
+export const modeCosts: Record<ModeEnum, number> = {
+  [ModeEnum.NeuroPhoto]: calculateCostInStars(0.12),
+  [ModeEnum.ImageToPrompt]: calculateCostInStars(0.03),
+  [ModeEnum.ImageToVideo]: calculateCostInStars(0.99),
+  [ModeEnum.TextToVideo]: calculateCostInStars(0.99),
+  [ModeEnum.Speech]: calculateCostInStars(0.12),
+  [ModeEnum.TextToSpeech]: calculateCostInStars(0.12),
+  [ModeEnum.TextToImage]: calculateCostInStars(0.048),
+  [ModeEnum.Voice]: calculateCostInStars(0.12),
 }
+
+// Найдите минимальную и максимальную стоимость среди всех моделей
+export const minCost = Math.min(...Object.values(modeCosts))
+export const maxCost = Math.max(...Object.values(modeCosts))
+export const promptGenerationCost = modeCosts[ModeEnum.ImageToPrompt]
+export const imageNeuroGenerationCost = modeCosts[ModeEnum.NeuroPhoto]
+export const textToVideoCost = modeCosts[ModeEnum.TextToVideo]
+export const speechGenerationCost = modeCosts[ModeEnum.Speech]
+export const textToSpeechCost = modeCosts[ModeEnum.TextToSpeech]
+export const imageToVideoCost = modeCosts[ModeEnum.ImageToVideo]
 
 export const checkBalanceScene = new Scenes.BaseScene<MyContext>(
   'checkBalanceScene'
@@ -55,7 +65,7 @@ checkBalanceScene.enter(async ctx => {
   const isRu = ctx.from?.language_code === 'ru'
   const { userId } = getUserInfo(ctx)
   const currentBalance = await getUserBalance(userId)
-  const mode = ctx.session.mode as Mode
+  const mode = ctx.session.mode as ModeEnum
   const cost = modeCosts[mode] || 0 // Получаем стоимость для текущего режима
   console.log('⭐️ cost:', cost)
 
@@ -68,13 +78,22 @@ checkBalanceScene.enter(async ctx => {
 
   // Переход к соответствующей сцене в зависимости от режима
   switch (mode) {
-    case Mode.NeuroPhoto:
+    case ModeEnum.NeuroPhoto:
       return ctx.scene.enter('neuroPhotoWizard')
-    case Mode.TextToImage:
+    case ModeEnum.TextToImage:
       return ctx.scene.enter('textToImageWizard')
-    case Mode.Voice:
+    case ModeEnum.Voice:
       return ctx.scene.enter('voiceAvatarWizard')
-    // Добавьте другие случаи для других режимов
+    case ModeEnum.TextToVideo:
+      return ctx.scene.enter('textToVideoWizard')
+    case ModeEnum.ImageToVideo:
+      return ctx.scene.enter('imageToVideoWizard')
+    case ModeEnum.ImageToPrompt:
+      return ctx.scene.enter('imageToPromptWizard')
+    case ModeEnum.Speech:
+      return ctx.scene.enter('speechWizard')
+    case ModeEnum.TextToSpeech:
+      return ctx.scene.enter('textToSpeechWizard')
     default:
       return ctx.scene.leave()
   }

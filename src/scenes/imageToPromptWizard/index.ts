@@ -1,10 +1,10 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { imageToPromptCost, sendBalanceMessage } from '@/price/helpers'
+
 import { generateImageToPrompt } from '@/services/generateImageToPrompt'
 
 import { createHelpCancelKeyboard } from '@/menu'
-import { getUserBalance } from '@/core/supabase'
+
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 
@@ -17,17 +17,8 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     console.log('CASE 0: imageToPromptWizard')
     const isRu = ctx.from?.language_code === 'ru'
-    console.log('CASE: imageToPromptCommand', ctx)
-    if (!ctx.from?.id) {
-      await ctx.reply('User ID not found')
-      return ctx.scene.leave()
-    }
+    console.log('CASE: imageToPromptCommand')
 
-    const userId = ctx.from.id
-    console.log('userId', userId)
-    const currentBalance = await getUserBalance(userId)
-    console.log('currentBalance', currentBalance)
-    await sendBalanceMessage(ctx, currentBalance, imageToPromptCost, isRu)
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
       return ctx.scene.leave()
@@ -40,7 +31,8 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
         reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
       }
     )
-    return ctx.wizard.next()
+    ctx.wizard.next()
+    return
   },
   async ctx => {
     console.log('CASE 1: imageToPromptWizard')

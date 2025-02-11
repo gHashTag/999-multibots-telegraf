@@ -2,7 +2,6 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { getUserBalance, getVoiceId } from '../../core/supabase'
 import {
-  textToSpeechCost,
   sendBalanceMessage,
   sendInsufficientStarsMessage,
 } from '@/price/helpers'
@@ -16,24 +15,6 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     console.log('CASE: textToSpeechWizard')
     const isRu = isRussian(ctx)
-    if (!ctx.from) {
-      await ctx.reply(
-        isRu ? 'Ошибка идентификации пользователя' : 'User identification error'
-      )
-      ctx.scene.leave()
-      return
-    }
-
-    const currentBalance = await getUserBalance(ctx.from.id)
-    const price = textToSpeechCost
-    if (currentBalance < price) {
-      await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
-      ctx.scene.leave()
-      return
-    }
-
-    await sendBalanceMessage(ctx, currentBalance, price, isRu)
-
     await ctx.reply(
       isRu
         ? '🎙️ Отправьте текст, для преобразования его в голос'

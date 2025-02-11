@@ -1,4 +1,4 @@
-import { Telegraf, Scenes, session, Composer } from 'telegraf'
+import { Telegraf, Scenes, session, Composer, Middleware } from 'telegraf'
 import { MyContext } from './interfaces'
 
 import {
@@ -34,6 +34,7 @@ import {
   subscriptionCheckScene,
   createUserScene,
   handleMenuScene,
+  checkBalanceScene,
 } from './scenes'
 
 import { setupLevelHandlers } from './handlers/setupLevelHandlers'
@@ -43,11 +44,17 @@ import { priceCommand } from './commands/priceCommand'
 import { defaultSession } from './store'
 
 // import { handleTextMessage } from './handlers'
+import { subscriptionMiddleware } from './middlewares/subscription'
 import { get100Command } from './commands/get100Command'
 
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
+  subscriptionScene,
+  subscriptionCheckScene,
+  createUserScene,
+  checkBalanceScene,
+  handleMenuScene,
   chatWithAvatarWizard,
   menuScene,
   getEmailWizard,
@@ -73,11 +80,7 @@ export const stage = new Scenes.Stage<MyContext>([
   neuroCoderScene,
   lipSyncWizard,
   helpScene,
-  subscriptionScene,
   inviteScene,
-  subscriptionCheckScene,
-  createUserScene,
-  handleMenuScene,
   ...levelQuestWizard,
 ])
 

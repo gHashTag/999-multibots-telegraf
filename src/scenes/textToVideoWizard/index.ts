@@ -16,22 +16,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussian(ctx)
     try {
-      if (!ctx.from) {
-        throw new Error(
-          isRu
-            ? 'Не удалось определить пользователя'
-            : 'Could not identify user'
-        )
-      }
-
-      if (!ctx.from.username) {
-        throw new Error(
-          isRu
-            ? 'Не удалось определить username'
-            : 'Could not identify username'
-        )
-      }
-
       // Запрашиваем модель
       await ctx.reply(
         isRu ? 'Выберите модель для генерации:' : 'Choose generation model:',

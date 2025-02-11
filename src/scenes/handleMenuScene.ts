@@ -22,37 +22,37 @@ export const handleMenuScene = new Scenes.WizardScene<MyWizardContext>(
         [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
           console.log('CASE: 🤖 Цифровое тело')
           ctx.session.mode = 'digital_avatar_body'
-          await ctx.scene.enter('digitalAvatarBodyWizard')
+          await ctx.scene.enter('checkBalanceScene')
         },
         [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
           console.log('CASE handleMenuScene: 📸 Нейрофото')
           ctx.session.mode = 'neuro_photo'
-          await ctx.scene.enter('neuroPhotoWizard')
+          await ctx.scene.enter('checkBalanceScene')
         },
         [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
           console.log('CASE: 🔍 Промпт из фото')
           ctx.session.mode = 'image_to_prompt'
-          await ctx.scene.enter('imageToPromptWizard')
+          await ctx.scene.enter('checkBalanceScene')
         },
         [isRu ? levels[4].title_ru : levels[4].title_en]: async () => {
           console.log('CASE: 🧠 Мозг аватара')
           ctx.session.mode = 'avatar'
-          await ctx.scene.enter('avatarWizard')
+          await ctx.scene.enter('checkBalanceScene')
         },
         [isRu ? levels[5].title_ru : levels[5].title_en]: async () => {
           console.log('CASE: 💭 Чат с аватаром')
           ctx.session.mode = 'chat_with_avatar'
-          await ctx.scene.enter('chatWithAvatarWizard')
+          await ctx.scene.enter('checkBalanceScene')
         },
         [isRu ? levels[6].title_ru : levels[6].title_en]: async () => {
           console.log('CASE: 🤖 Выбор модели ИИ')
           ctx.session.mode = 'select_model'
-          await ctx.scene.enter('selectModelWizard')
+          await ctx.scene.enter('checkBalanceScene')
         },
         [isRu ? levels[7].title_ru : levels[7].title_en]: async () => {
           console.log('CASE: 🎤 Голос аватара')
           ctx.session.mode = 'voice'
-          await ctx.scene.enter('voiceAvatarWizard')
+          await ctx.scene.enter('checkBalanceScene')
         },
         [isRu ? levels[8].title_ru : levels[8].title_en]: async () => {
           console.log('CASE: 🎙️ Текст в голос')
@@ -62,17 +62,17 @@ export const handleMenuScene = new Scenes.WizardScene<MyWizardContext>(
         [isRu ? levels[9].title_ru : levels[9].title_en]: async () => {
           console.log('CASE: 🎥 Фото в видео')
           ctx.session.mode = 'image_to_video'
-          await ctx.scene.enter('imageToVideoWizard')
+          await ctx.scene.enter('checkBalanceScene')
         },
         [isRu ? levels[10].title_ru : levels[10].title_en]: async () => {
           console.log('CASE:  Видео из текста')
           ctx.session.mode = 'text_to_video'
-          await ctx.scene.enter('textToVideoWizard')
+          await ctx.scene.enter('checkBalanceScene')
         },
         [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
           console.log('CASE: 🖼️ Текст в фото')
           ctx.session.mode = 'text_to_image'
-          await ctx.scene.enter('textToImageWizard')
+          await ctx.scene.enter('checkBalanceScene')
         },
         [isRu ? levels[99].title_ru : levels[99].title_en]: async () => {
           console.log('CASE: 🎮 Начать обучение')
@@ -151,7 +151,7 @@ export const handleMenuScene = new Scenes.WizardScene<MyWizardContext>(
         await ctx.scene.enter('menuScene')
       }
 
-      return ctx.wizard.next()
+      return ctx.scene.leave()
     }
   }
 )

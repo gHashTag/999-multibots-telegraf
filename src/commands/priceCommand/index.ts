@@ -1,24 +1,20 @@
-import { imageModelPrices } from '@/price/models'
 import { starCost } from '@/price'
 import { MyContext } from '../../interfaces'
 import {
+  conversionRates,
   promptGenerationCost,
+  minCost,
+  maxCost,
   imageNeuroGenerationCost,
-  imageToVideoCost,
-  textToSpeechCost,
   textToVideoCost,
   speechGenerationCost,
-} from '@/price/helpers'
-import { conversionRates } from '@/price/helpers/calculateTrainingCost'
+  textToSpeechCost,
+  imageToVideoCost,
+} from '@/scenes/checkBalanceScene'
 
 export async function priceCommand(ctx: MyContext) {
   console.log('CASE: priceCommand')
   const isRu = ctx.from?.language_code === 'ru'
-
-  // Найдите минимальную и максимальную стоимость среди всех моделей
-  const costs = Object.values(imageModelPrices).map(model => model.costPerImage)
-  const minCost = Math.min(...costs)
-  const maxCost = Math.max(...costs)
 
   const message = isRu
     ? `
