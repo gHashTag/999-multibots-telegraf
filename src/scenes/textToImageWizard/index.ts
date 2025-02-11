@@ -14,10 +14,10 @@ import {
 import { createHelpCancelKeyboard } from '@/menu'
 
 export const textToImageWizard = new Scenes.WizardScene<MyContext>(
-  'textToImageWizard',
+  'text_to_image',
   async ctx => {
     const isRu = isRussian(ctx)
-    console.log('CASE: textToImageWizard STEP 1', ctx.from?.id)
+    console.log('CASE: text_to_image STEP 1', ctx.from?.id)
 
     if (!ctx.from || !ctx.from.id) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -68,7 +68,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussian(ctx)
     const message = ctx.message
-    console.log('CASE: textToImageWizard STEP 2', message)
+    console.log('CASE: text_to_image STEP 2', message)
 
     if (!message || !('text' in message)) {
       await sendGenericErrorMessage(ctx, isRu)

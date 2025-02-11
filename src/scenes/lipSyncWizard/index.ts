@@ -5,7 +5,7 @@ import { generateLipSync } from '../../services/generateLipSync'
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB, пример ограничения
 
 export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
-  'lipSyncWizard',
+  'lip_sync',
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
     await ctx.reply(

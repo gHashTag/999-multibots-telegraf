@@ -10,14 +10,18 @@ import { getUserInfo } from '@/handlers/getUserInfo'
 
 // Определяем перечисление для режимов
 export enum ModeEnum {
+  DigitalAvatarBody = 'digital_avatar_body',
   NeuroPhoto = 'neuro_photo',
   ImageToPrompt = 'image_to_prompt',
+  Avatar = 'avatar',
+  ChatWithAvatar = 'chat_with_avatar',
+  SelectModel = 'select_model',
+  Voice = 'voice',
+  TextToSpeech = 'text_to_speech',
   ImageToVideo = 'image_to_video',
   TextToVideo = 'text_to_video',
-  Speech = 'speech',
-  TextToSpeech = 'text_to_speech',
   TextToImage = 'text_to_image',
-  Voice = 'voice',
+  LipSync = 'lip_sync',
 }
 
 // Интерфейс для конверсий
@@ -36,25 +40,24 @@ export const conversionRates: ConversionRates = {
 
 // Определяем стоимость для каждого режима
 export const modeCosts: Record<ModeEnum, number> = {
-  [ModeEnum.NeuroPhoto]: calculateCostInStars(0.12),
+  // Установите стоимость как 0 для режимов, где стоимость будет рассчитана на сцене
+  [ModeEnum.DigitalAvatarBody]: calculateCostInStars(0),
+  [ModeEnum.NeuroPhoto]: calculateCostInStars(0.8),
   [ModeEnum.ImageToPrompt]: calculateCostInStars(0.03),
-  [ModeEnum.ImageToVideo]: calculateCostInStars(0.99),
-  [ModeEnum.TextToVideo]: calculateCostInStars(0.99),
-  [ModeEnum.Speech]: calculateCostInStars(0.12),
+  [ModeEnum.Avatar]: 0,
+  [ModeEnum.ChatWithAvatar]: calculateCostInStars(0),
+  [ModeEnum.SelectModel]: calculateCostInStars(0),
+  [ModeEnum.Voice]: calculateCostInStars(0.9),
   [ModeEnum.TextToSpeech]: calculateCostInStars(0.12),
-  [ModeEnum.TextToImage]: calculateCostInStars(0.048),
-  [ModeEnum.Voice]: calculateCostInStars(0.12),
+  [ModeEnum.ImageToVideo]: calculateCostInStars(0),
+  [ModeEnum.TextToVideo]: calculateCostInStars(0),
+  [ModeEnum.TextToImage]: calculateCostInStars(0),
+  [ModeEnum.LipSync]: calculateCostInStars(0.9),
 }
 
 // Найдите минимальную и максимальную стоимость среди всех моделей
 export const minCost = Math.min(...Object.values(modeCosts))
 export const maxCost = Math.max(...Object.values(modeCosts))
-export const promptGenerationCost = modeCosts[ModeEnum.ImageToPrompt]
-export const imageNeuroGenerationCost = modeCosts[ModeEnum.NeuroPhoto]
-export const textToVideoCost = modeCosts[ModeEnum.TextToVideo]
-export const speechGenerationCost = modeCosts[ModeEnum.Speech]
-export const textToSpeechCost = modeCosts[ModeEnum.TextToSpeech]
-export const imageToVideoCost = modeCosts[ModeEnum.ImageToVideo]
 
 export const checkBalanceScene = new Scenes.BaseScene<MyContext>(
   'checkBalanceScene'
@@ -78,22 +81,30 @@ checkBalanceScene.enter(async ctx => {
 
   // Переход к соответствующей сцене в зависимости от режима
   switch (mode) {
+    case ModeEnum.DigitalAvatarBody:
+      return ctx.scene.enter(ModeEnum.DigitalAvatarBody)
     case ModeEnum.NeuroPhoto:
-      return ctx.scene.enter('neuroPhotoWizard')
-    case ModeEnum.TextToImage:
-      return ctx.scene.enter('textToImageWizard')
-    case ModeEnum.Voice:
-      return ctx.scene.enter('voiceAvatarWizard')
-    case ModeEnum.TextToVideo:
-      return ctx.scene.enter('textToVideoWizard')
-    case ModeEnum.ImageToVideo:
-      return ctx.scene.enter('imageToVideoWizard')
+      return ctx.scene.enter(ModeEnum.NeuroPhoto)
     case ModeEnum.ImageToPrompt:
-      return ctx.scene.enter('imageToPromptWizard')
-    case ModeEnum.Speech:
-      return ctx.scene.enter('speechWizard')
+      return ctx.scene.enter(ModeEnum.ImageToPrompt)
+    case ModeEnum.Avatar:
+      return ctx.scene.enter(ModeEnum.Avatar)
+    case ModeEnum.ChatWithAvatar:
+      return ctx.scene.enter(ModeEnum.ChatWithAvatar)
+    case ModeEnum.SelectModel:
+      return ctx.scene.enter(ModeEnum.SelectModel)
+    case ModeEnum.Voice:
+      return ctx.scene.enter(ModeEnum.Voice)
     case ModeEnum.TextToSpeech:
-      return ctx.scene.enter('textToSpeechWizard')
+      return ctx.scene.enter(ModeEnum.TextToSpeech)
+    case ModeEnum.ImageToVideo:
+      return ctx.scene.enter(ModeEnum.ImageToVideo)
+    case ModeEnum.TextToVideo:
+      return ctx.scene.enter(ModeEnum.TextToVideo)
+    case ModeEnum.TextToImage:
+      return ctx.scene.enter(ModeEnum.TextToImage)
+    case ModeEnum.LipSync:
+      return ctx.scene.enter(ModeEnum.LipSync)
     default:
       return ctx.scene.leave()
   }

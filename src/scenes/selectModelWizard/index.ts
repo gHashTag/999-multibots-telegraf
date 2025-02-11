@@ -7,7 +7,7 @@ import { setModel } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'
 
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(
-  'selectModelWizard',
+  'select_model',
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
 
@@ -65,13 +65,13 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const isCancel = await handleHelpCancel(ctx)
-    console.log('CASE: selectModelWizard', isCancel)
+    console.log('CASE: select_model', isCancel)
     if (isCancel) {
-      console.log('CASE: selectModelWizard', isCancel)
+      console.log('CASE: select_model', isCancel)
       return ctx.scene.leave()
     } else {
       const model = message.text
-      console.log('CASE: selectModelWizard', model)
+      console.log('CASE: select_model', model)
       const models = await getAvailableModels()
       if (!models.includes(model)) {
         await ctx.reply(isRu ? '❌ Модель не найдена' : '❌ Model not found')

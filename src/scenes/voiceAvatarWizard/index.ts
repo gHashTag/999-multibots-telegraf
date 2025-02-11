@@ -12,7 +12,7 @@ import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 
 export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
-  'voiceAvatarWizard',
+  'voice',
   async ctx => {
     const isRu = isRussian(ctx)
     if (!ctx.from?.id) {

@@ -11,9 +11,9 @@ import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 
 export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
-  'textToSpeechWizard',
+  'text_to_speech',
   async ctx => {
-    console.log('CASE: textToSpeechWizard')
+    console.log('CASE: text_to_speech')
     const isRu = isRussian(ctx)
     await ctx.reply(
       isRu
@@ -25,7 +25,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
     return
   },
   async ctx => {
-    console.log('CASE: textToSpeechWizard.next', ctx.message)
+    console.log('CASE: text_to_speech.next', ctx.message)
     const isRu = isRussian(ctx)
     const message = ctx.message
 
@@ -63,7 +63,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
           ctx.botInfo?.username
         )
       } catch (error) {
-        console.error('Error in textToSpeechWizard:', error)
+        console.error('Error in text_to_speech:', error)
         await ctx.reply(
           isRu
             ? 'Произошла ошибка при создании голосового аватара'

@@ -6,7 +6,7 @@ import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
-  'chatWithAvatarWizard',
+  'chat_with_avatar',
   async ctx => {
     console.log('CASE: Чат с аватаром')
     const isRu = isRussian(ctx)

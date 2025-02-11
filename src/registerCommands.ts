@@ -140,9 +140,9 @@ export function registerCommands({
     await ctx.scene.enter('step0')
   })
 
-  composer.command('price', async ctx => {
-    await priceCommand(ctx)
-  })
+  // composer.command('price', async ctx => {
+  //   await priceCommand(ctx)
+  // })
 
   composer.command('neuro_coder', async ctx => {
     await ctx.scene.enter('neuroCoderScene')

@@ -13,60 +13,65 @@ export const levels: Record<number, Level> = {
     title_ru: '💫 Оформить подписку',
     title_en: '💫 Subscribe',
   },
-  // digitalAvatarBodyWizard
+  // digital_avatar_body
   1: {
     title_ru: '🤖 Цифровое тело',
     title_en: '🤖 Digital Body',
   },
-  // neuroPhotoWizard
+  // neuro_photo
   2: {
     title_ru: '📸 Нейрофото',
     title_en: '📸 NeuroPhoto',
   },
-  // imageToPromptWizard
+  // image_to_prompt
   3: {
     title_ru: '🔍 Промпт из фото',
     title_en: '🔍 Prompt from Photo',
   },
-  // avatarWizard
+  // avatar
   4: {
     title_ru: '🧠 Мозг аватара',
     title_en: '🧠 Avatar Brain',
   },
-  // chatWithAvatarWizard
+  // chat_with_avatar
   5: {
     title_ru: '💭 Чат с аватаром',
     title_en: '💭 Chat with avatar',
   },
-  // selectModelWizard
+  // select_model
   6: {
     title_ru: '🤖 Выбор модели ИИ',
     title_en: '🤖 Choose AI Model',
   },
-  // voiceAvatarWizard
+  // voice
   7: {
     title_ru: '🎤 Голос аватара',
     title_en: '🎤 Avatar Voice',
   },
-  // textToSpeechWizard
+  // text_to_speech
   8: {
     title_ru: '🎙️ Текст в голос',
     title_en: '🎙️ Text to Voice',
   },
-  // imageToVideoWizard
+  // image_to_video
   9: {
     title_ru: '🎥 Фото в видео',
     title_en: '🎥 Photo to Video',
   },
-  // textToVideoWizard
+  // text_to_video
   10: {
     title_ru: '🎥 Видео из текста',
     title_en: '🎥 Text to Video',
   },
-  // textToImageWizard
+  // text_to_image
   11: {
     title_ru: '🖼️ Текст в фото',
     title_en: '🖼️ Text to Image',
+  },
+  // lip_sync
+  12: {
+    title_ru: '🎤 Синхронизация губ',
+    title_en: '🎤 Lip Sync',
   },
   // step0
   99: {

@@ -7,7 +7,7 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { stepsCostMessageEn, stepsCostMessageRu } from './costMessage'
 
 export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
-  'digitalAvatarBodyWizard',
+  'digital_avatar_body',
   async ctx => {
     const isRu = isRussian(ctx)
 

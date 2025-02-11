@@ -13,9 +13,9 @@ if (!process.env.HUGGINGFACE_TOKEN) {
 }
 
 export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
-  'imageToPromptWizard',
+  'image_to_prompt',
   async ctx => {
-    console.log('CASE 0: imageToPromptWizard')
+    console.log('CASE 0: image_to_prompt')
     const isRu = ctx.from?.language_code === 'ru'
     console.log('CASE: imageToPromptCommand')
 
@@ -35,7 +35,7 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
     return
   },
   async ctx => {
-    console.log('CASE 1: imageToPromptWizard')
+    console.log('CASE 1: image_to_prompt')
     const isRu = ctx.from?.language_code === 'ru'
     console.log('Waiting for photo message...')
     const imageMsg = ctx.message

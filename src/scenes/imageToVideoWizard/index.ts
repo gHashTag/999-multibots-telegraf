@@ -25,7 +25,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         reply_markup: videoModelKeyboard(isRu).reply_markup,
       }
     )
-
     return ctx.wizard.next()
   },
   async ctx => {

@@ -11,7 +11,7 @@ interface WizardSessionData extends Scenes.WizardSessionData {
 }
 
 export const avatarWizard = new Scenes.WizardScene<MyContext>(
-  'avatarWizard',
+  'avatar',
   async ctx => {
     const isRu = isRussian(ctx)
     await ctx.reply(

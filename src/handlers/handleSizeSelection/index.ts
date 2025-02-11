@@ -12,9 +12,9 @@ export async function handleSizeSelection(ctx: MyContext, size: string) {
   )
   const mode = ctx.session.mode
   if (mode === 'neuro_photo') {
-    ctx.scene.enter('neuroPhotoWizard')
+    ctx.scene.enter('neuro_photo')
   } else if (mode === 'text_to_image') {
-    ctx.scene.enter('textToImageWizard')
+    ctx.scene.enter('text_to_image')
   } else {
     console.log('CASE: Неизвестный режим')
     const telegram_id = ctx.from?.id?.toString() || ''

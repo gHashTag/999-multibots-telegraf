@@ -12,7 +12,7 @@ import { VIDEO_MODELS } from '@/interfaces'
 import { handleHelpCancel } from '@/handlers'
 
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
-  'textToVideoWizard',
+  'text_to_video',
   async ctx => {
     const isRu = isRussian(ctx)
     try {
@@ -26,7 +26,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       return ctx.wizard.next()
     } catch (error: unknown) {
-      console.error('Error in textToVideoWizard:', error)
+      console.error('Error in text_to_video:', error)
       const errorMessage =
         error instanceof Error ? error.message : String(error)
       await ctx.reply(
@@ -43,16 +43,16 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     if (!message.text)
       throw new Error(
         isRu
-          ? 'textToVideoWizard: Не удалось определить модель'
-          : 'textToVideoWizard: Could not identify model'
+          ? 'text_to_video: Не удалось определить модель'
+          : 'text_to_video: Could not identify model'
       )
 
     if (message && 'text' in message) {
       if (!ctx.from)
         throw new Error(
           isRu
-            ? 'textToVideoWizard: Не удалось определить пользователя'
-            : 'textToVideoWizard: Could not identify user'
+            ? 'text_to_video: Не удалось определить пользователя'
+            : 'text_to_video: Could not identify user'
         )
       const videoModel = message.text?.toLowerCase()
       const availableModels = VIDEO_MODELS.map(model => model.name)
@@ -87,7 +87,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         return ctx.wizard.next()
       }
     } else {
-      console.log('textToVideoWizard: else')
+      console.log('text_to_video: else')
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }

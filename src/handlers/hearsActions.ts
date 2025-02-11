@@ -9,7 +9,7 @@ export function registerHearsActions(bot: Telegraf<MyContext>) {
     async (ctx: MyContext) => {
       console.log('CASE bot: 🎙️ Текст в голос')
       ctx.session.mode = 'text_to_speech'
-      await ctx.scene.enter('textToSpeechWizard')
+      await ctx.scene.enter('text_to_speech')
     }
   )
 
@@ -26,9 +26,9 @@ export function registerHearsActions(bot: Telegraf<MyContext>) {
       const mode = ctx.session.mode
       console.log('mode', mode)
       if (mode === 'text_to_video') {
-        await ctx.scene.enter('textToVideoWizard')
+        await ctx.scene.enter('text_to_video')
       } else if (mode === 'image_to_video') {
-        await ctx.scene.enter('imageToVideoWizard')
+        await ctx.scene.enter('image_to_video')
       } else {
         await ctx.reply(
           isRussian(ctx)

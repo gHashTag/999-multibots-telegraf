@@ -55,7 +55,7 @@ export const handleMenu = async (ctx: MyWizardContext) => {
       [isRu ? levels[8].title_ru : levels[8].title_en]: async () => {
         console.log('CASE: 🎙️ Текст в голос')
         ctx.session.mode = 'text_to_speech'
-        await ctx.scene.enter('textToSpeechWizard')
+        await ctx.scene.enter('checkBalanceScene')
       },
       [isRu ? levels[9].title_ru : levels[9].title_en]: async () => {
         console.log('CASE: 🎥 Фото в видео')
@@ -70,6 +70,11 @@ export const handleMenu = async (ctx: MyWizardContext) => {
       [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
         console.log('CASE: 🖼️ Текст в фото')
         ctx.session.mode = 'text_to_image'
+        await ctx.scene.enter('checkBalanceScene')
+      },
+      [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
+        console.log('CASE: 🎤 Синхронизация губ')
+        ctx.session.mode = 'lip_sync'
         await ctx.scene.enter('checkBalanceScene')
       },
       [isRu ? levels[99].title_ru : levels[99].title_en]: async () => {

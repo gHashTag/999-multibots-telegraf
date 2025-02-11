@@ -10,7 +10,7 @@ import {
 } from '../stepSelectionScene/costMessage'
 
 export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
-  'digitalAvatarBodyWizard',
+  'digital_avatar_body',
   async ctx => {
     const isRu = isRussian(ctx)
     await ctx.reply(

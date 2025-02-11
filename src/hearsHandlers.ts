@@ -13,7 +13,7 @@ import { composer } from './bot'
 composer.hears([levels[1].title_ru, levels[1].title_en], async ctx => {
   console.log('CASE: 🤖 Цифровое тело')
   ctx.session.mode = 'digital_avatar_body'
-  await ctx.scene.enter('digitalAvatarBodyWizard')
+  await ctx.scene.enter('checkBalanceScene')
 })
 
 composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
@@ -25,63 +25,62 @@ composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
 composer.hears([levels[3].title_ru, levels[3].title_en], async ctx => {
   console.log('CASE: 🔍 Промпт из фото')
   ctx.session.mode = 'image_to_prompt'
-  await ctx.scene.enter('imageToPromptWizard')
+  await ctx.scene.enter('checkBalanceScene')
 })
 
 composer.hears([levels[4].title_ru, levels[4].title_en], async ctx => {
   console.log('CASE: 🧠 Мозг аватара')
   ctx.session.mode = 'avatar'
-
-  await ctx.scene.enter('avatarWizard')
+  await ctx.scene.enter('checkBalanceScene')
 })
 
 composer.hears([levels[5].title_ru, levels[5].title_en], async ctx => {
   console.log('CASE: 💭 Чат с аватаром')
   ctx.session.mode = 'chat_with_avatar'
-  await ctx.scene.enter('chatWithAvatarWizard')
+  await ctx.scene.enter('checkBalanceScene')
 })
 
 composer.hears([levels[6].title_ru, levels[6].title_en], async ctx => {
   console.log('CASE: 🤖 Выбор модели ИИ')
   ctx.session.mode = 'select_model'
-  await ctx.scene.enter('selectModelWizard')
+  await ctx.scene.enter('checkBalanceScene')
 })
 
 composer.hears([levels[7].title_ru, levels[7].title_en], async ctx => {
   console.log('CASE: 🎤 Голос аватара')
   ctx.session.mode = 'voice'
-  await ctx.scene.enter('voiceAvatarWizard')
+  await ctx.scene.enter('checkBalanceScene')
 })
 
 composer.hears([levels[8].title_ru, levels[8].title_en], async ctx => {
   console.log('CASE: 🎙️ Текст в голос')
   ctx.session.mode = 'text_to_speech'
-  await ctx.scene.enter('textToSpeechWizard')
+  await ctx.scene.enter('checkBalanceScene')
 })
 
 composer.hears([levels[9].title_ru, levels[9].title_en], async ctx => {
   console.log('CASE: 🎥 Фото в видео')
   ctx.session.mode = 'image_to_video'
-  await ctx.scene.enter('imageToVideoWizard')
+  await ctx.scene.enter('checkBalanceScene')
 })
 
 composer.hears([levels[10].title_ru, levels[10].title_en], async ctx => {
   console.log('CASE: 🎥 Видео из текста')
   ctx.session.mode = 'text_to_video'
-  await ctx.scene.enter('textToVideoWizard')
+  await ctx.scene.enter('checkBalanceScene')
 })
 
 composer.hears([levels[11].title_ru, levels[11].title_en], async ctx => {
   console.log('CASE: 🖼️ Текст в фото')
   ctx.session.mode = 'text_to_image'
-  await ctx.scene.enter('textToImageWizard')
+  await ctx.scene.enter('checkBalanceScene')
   await imageModelMenu(ctx)
 })
 
-composer.hears(['🎤 Синхронизация губ', '🎤 Lip Sync'], async ctx => {
+composer.hears([levels[12].title_ru, levels[12].title_en], async ctx => {
   console.log('CASE: Синхронизация губ')
   ctx.session.mode = 'lip_sync'
-  await ctx.scene.enter('lipSyncWizard')
+  await ctx.scene.enter('checkBalanceScene')
 })
 
 composer.hears(['❓ Помощь', '❓ Help'], async ctx => {
@@ -128,9 +127,9 @@ composer.hears(
     const mode = ctx.session.mode
     console.log('mode', mode)
     if (mode === 'text_to_video') {
-      await ctx.scene.enter('textToVideoWizard')
+      await ctx.scene.enter('text_to_video')
     } else if (mode === 'image_to_video') {
-      await ctx.scene.enter('imageToVideoWizard')
+      await ctx.scene.enter('image_to_video')
     } else {
       await ctx.reply(
         isRussian(ctx)
