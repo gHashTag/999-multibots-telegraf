@@ -20,7 +20,7 @@ export const handleMenu = async (ctx: MyContext, text: string) => {
       await ctx.scene.enter('digitalAvatarBodyWizard')
     },
     [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
-      console.log('CASE: 📸 Нейрофото')
+      console.log('CASE handleMenu: 📸 Нейрофото')
       ctx.session.mode = 'neuro_photo'
       await ctx.scene.enter('neuroPhotoWizard')
     },

@@ -19,7 +19,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     console.log('CASE: ctx.session', ctx.session)
     if (isDev) {
       newCount = 0
-      newSubscription = 'stars'
+      newSubscription = 'neurophoto'
     } else {
       const { count, subscription } = await getReferalsCountAndUserData(
         telegram_id
@@ -155,7 +155,7 @@ const menuNextStep = async (ctx: MyContext) => {
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
-    console.log('text 2', text)
+    console.log('CASE menuNextStep: text 2', text)
     await handleMenu(ctx, text)
   } else {
     console.log('CASE: menuScene.next.else', ctx)

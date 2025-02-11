@@ -31,6 +31,8 @@ import {
   inviteScene,
   getRuBillWizard,
   getEmailWizard,
+  subscriptionCheckScene,
+  createUserScene,
 } from './scenes'
 import { subscriptionMiddleware } from '@/middlewares/subscription'
 
@@ -42,8 +44,6 @@ import { defaultSession } from './store'
 
 // import { handleTextMessage } from './handlers'
 import { get100Command } from './commands/get100Command'
-import { verifySubscription } from './middlewares/verifySubscription'
-import { getSubScribeChannel } from './handlers/getSubScribeChannel'
 
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
@@ -75,7 +75,8 @@ export const stage = new Scenes.Stage<MyContext>([
   helpScene,
   subscriptionScene,
   inviteScene,
-  inviteScene,
+  subscriptionCheckScene,
+  createUserScene,
   ...levelQuestWizard,
 ])
 
@@ -94,24 +95,10 @@ export function registerCommands({
   setupLevelHandlers(bot as Telegraf<MyContext>)
 
   // Регистрация команд
-  // composer.command('start', async ctx => {
-  //   console.log('CASE: start')
-  //   ctx.session = defaultSession()
-  //   const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
-  //   const language_code = ctx.from?.language_code || 'en'
-  //   const isSubscribed = await verifySubscription(
-  //     ctx,
-  //     language_code,
-  //     SUBSCRIBE_CHANNEL_ID
-  //   )
-  //   if (isSubscribed) {
-  //     console.log('CASE 3: ctx.scene.enter(startScene)')
-  //     ctx.scene.enter('startScene')
-  //   } else {
-  //     console.log('CASE 4: ctx.scene.leave()')
-  //     ctx.scene.leave()
-  //   }
-  // })
+  composer.command('start', async ctx => {
+    console.log('CASE: start')
+    await ctx.scene.enter('subscriptionCheckScene')
+  })
 
   composer.command('get100', async ctx => {
     console.log('CASE: get100')
