@@ -86,7 +86,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
             keyboard: [
               [
                 {
-                  text: isRu ? 'Отменить' : 'Cancel',
+                  text: isRu ? 'Отмена' : 'Cancel',
                 },
               ],
             ],
@@ -170,6 +170,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       }
 
       ctx.session.images.push({
+        // @ts-ignore
         buffer: Buffer.from(buffer),
         filename: `a_photo_of_${ctx.session.username}x${
           ctx.session.images.length + 1

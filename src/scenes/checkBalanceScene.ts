@@ -37,7 +37,7 @@ export const conversionRates: ConversionRates = {
   costPerStepInStars: 0.5,
   rublesToDollarsRate: 100,
 }
-
+export type CostValue = number | ((steps: number) => number)
 // Определяем стоимость для каждого режима
 export const modeCosts: Record<ModeEnum, number> = {
   // Установите стоимость как 0 для режимов, где стоимость будет рассчитана на сцене

@@ -26,6 +26,7 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
       const messageText = ctx.message.text
       const stepsMatch = messageText.match(/\d+/)
       console.log('stepsMatch', stepsMatch)
+
       if (stepsMatch) {
         const steps = parseInt(stepsMatch[0])
         ctx.session.steps = steps
