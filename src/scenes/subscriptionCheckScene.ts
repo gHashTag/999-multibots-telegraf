@@ -33,7 +33,11 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   }
   // Если подписка существует, то переходим к стартовой сцене
   console.log('CASE: isSubscribed', isSubscribed)
-  return ctx.scene.enter('startScene')
+  if (ctx.session.mode === 'main_menu') {
+    return ctx.scene.enter('menuScene')
+  } else {
+    return ctx.scene.enter('startScene')
+  }
 }
 
 export const subscriptionCheckScene = new WizardScene(

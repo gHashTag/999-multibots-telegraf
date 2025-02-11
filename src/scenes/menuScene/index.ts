@@ -5,7 +5,7 @@ import { getReferalsCountAndUserData } from '@/core/supabase/getReferalsCountAnd
 import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
-import { handleMenu } from './handleMenu'
+
 import { WizardScene } from 'telegraf/scenes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { checkFullAccess } from './checkFullAccess'

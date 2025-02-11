@@ -53,4 +53,6 @@ export type Mode =
   | 'lip_sync'
   | 'getRuBill'
   | 'getEmailWizard'
+  | 'price'
+
 export type ModeCosts = Required<Record<Mode, number>>

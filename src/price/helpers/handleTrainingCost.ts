@@ -2,7 +2,8 @@ import { Markup } from 'telegraf'
 
 import { MyContext } from '@/interfaces'
 import { getUserBalance } from '@/core/supabase'
-import { calculateCostInStars, conversionRates } from './calculateTrainingCost'
+import { calculateCostInStars } from './calculateTrainingCost'
+import { conversionRates } from '@/scenes/checkBalanceScene'
 
 export async function handleTrainingCost(
   ctx: MyContext,

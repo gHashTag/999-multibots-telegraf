@@ -1,9 +1,3 @@
-export const conversionRates = {
-  costPerStarInDollars: 0.016, // Стоимость одной звезды в долларах
-  costPerStepInStars: 0.5, // Стоимость за шаг в звездах
-  rublesToDollarsRate: 100, // 100 рублей = 1 доллар
-}
-
 export function calculateCostInStars(
   steps: number,
   rates: { costPerStepInStars: number }

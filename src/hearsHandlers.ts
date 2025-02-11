@@ -19,7 +19,7 @@ composer.hears([levels[1].title_ru, levels[1].title_en], async ctx => {
 composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
   console.log('CASE hearsHandler: 📸 Нейрофото')
   ctx.session.mode = 'neuro_photo'
-  await ctx.scene.enter('neuroPhotoWizard')
+  await ctx.scene.enter('checkBalanceScene')
 })
 
 composer.hears([levels[3].title_ru, levels[3].title_en], async ctx => {

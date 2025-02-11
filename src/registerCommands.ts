@@ -1,4 +1,4 @@
-import { Telegraf, Scenes, session, Middleware, Composer } from 'telegraf'
+import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
 
 import {
@@ -33,8 +33,8 @@ import {
   getEmailWizard,
   subscriptionCheckScene,
   createUserScene,
+  handleMenuScene,
 } from './scenes'
-import { subscriptionMiddleware } from '@/middlewares/subscription'
 
 import { setupLevelHandlers } from './handlers/setupLevelHandlers'
 
@@ -77,6 +77,7 @@ export const stage = new Scenes.Stage<MyContext>([
   inviteScene,
   subscriptionCheckScene,
   createUserScene,
+  handleMenuScene,
   ...levelQuestWizard,
 ])
 
@@ -102,7 +103,8 @@ export function registerCommands({
 
   bot.command('menu', async ctx => {
     console.log('CASE bot.command: menu')
-    await ctx.scene.enter('menuScene')
+    ctx.session.mode = 'main_menu'
+    await ctx.scene.enter('subscriptionCheckScene')
   })
 
   composer.command('get100', async ctx => {
