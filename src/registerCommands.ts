@@ -96,8 +96,13 @@ export function registerCommands({
 
   // Регистрация команд
   bot.command('start', async ctx => {
-    console.log('CASE: start')
+    console.log('CASE bot.command: start')
     await ctx.scene.enter('subscriptionCheckScene')
+  })
+
+  bot.command('menu', async ctx => {
+    console.log('CASE bot.command: menu')
+    await ctx.scene.enter('menuScene')
   })
 
   composer.command('get100', async ctx => {

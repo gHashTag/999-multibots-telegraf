@@ -8,6 +8,7 @@ import { getText } from './getText'
 import { handleMenu } from './handleMenu'
 import { WizardScene } from 'telegraf/scenes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
+import { checkFullAccess } from './checkFullAccess'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -61,15 +62,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     ]
 
     console.log('nameStep', nameStep)
-
-    const hasFullAccess = [
-      'neurophoto',
-      'neurobase',
-      'neuromeeting',
-      'neuroblogger',
-      'neurotester',
-    ].includes(newSubscription)
-
+    const hasFullAccess = checkFullAccess(newSubscription)
     console.log('hasFullAccess', hasFullAccess)
     let message = ''
 

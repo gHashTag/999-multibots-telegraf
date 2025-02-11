@@ -71,7 +71,8 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
     return ctx.scene.leave()
   }
   console.log('CASE: neuroPhotoConversation next')
-  ctx.wizard.next() // Переход к следующему шагу
+  ctx.wizard.next()
+  return
 }
 
 const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
