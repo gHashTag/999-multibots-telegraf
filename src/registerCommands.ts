@@ -90,12 +90,12 @@ export function registerCommands({
   bot.use(session({ defaultSession }))
   bot.use(stage.middleware())
   bot.use(composer.middleware())
-  bot.use(subscriptionMiddleware as Middleware<MyContext>)
-  composer.use(subscriptionMiddleware as Middleware<MyContext>)
+  // bot.use(subscriptionMiddleware as Middleware<MyContext>)
+  // composer.use(subscriptionMiddleware as Middleware<MyContext>)
   setupLevelHandlers(bot as Telegraf<MyContext>)
 
   // Регистрация команд
-  composer.command('start', async ctx => {
+  bot.command('start', async ctx => {
     console.log('CASE: start')
     await ctx.scene.enter('subscriptionCheckScene')
   })

@@ -1,4 +1,4 @@
-import { ModelUrl, MyContext, UserModel } from '../../interfaces'
+import { ModelUrl, UserModel } from '../../interfaces'
 import {
   imageNeuroGenerationCost,
   sendInsufficientStarsMessage,
@@ -15,8 +15,10 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
 import { generateTextToImage } from '@/services/generateTextToImage'
 import { handleMenu } from '@/scenes/menuScene/handleMenu'
-const neuroPhotoConversationStep = async (ctx: MyContext) => {
-  console.log('CASE: neuroPhotoConversation')
+import { MyWizardContext } from '@/interfaces'
+
+const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
+  console.log('CASE 1: neuroPhotoConversation')
   const isRu = ctx.from?.language_code === 'ru'
   const userId = ctx.from?.id
 
@@ -72,8 +74,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
   ctx.wizard.next() // Переход к следующему шагу
 }
 
-const neuroPhotoPromptStep = async (ctx: MyContext) => {
-  console.log('CASE: neuroPhotoPromptStep')
+const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
+  console.log('CASE 2: neuroPhotoPromptStep')
   const isRu = ctx.from?.language_code === 'ru'
   const promptMsg = ctx.message
   console.log(promptMsg, 'promptMsg')
@@ -111,8 +113,8 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
   }
 }
 
-const neuroPhotoButtonStep = async (ctx: MyContext) => {
-  console.log('CASE: neuroPhotoButtonStep')
+const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
+  console.log('CASE 3: neuroPhotoButtonStep')
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text
     console.log(`CASE: Нажата кнопка ${text}`)
@@ -172,7 +174,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
   }
 }
 
-export const neuroPhotoWizard = new WizardScene(
+export const neuroPhotoWizard = new WizardScene<MyWizardContext>(
   'neuroPhotoWizard',
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
