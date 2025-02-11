@@ -50,12 +50,13 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
 
     await sendPhotoDescriptionRequest(ctx, isRu, 'neuro_photo')
     const isCancel = await handleHelpCancel(ctx)
+    console.log('isCancel', isCancel)
     if (isCancel) {
       return ctx.scene.leave()
     }
     console.log('CASE: neuroPhotoConversation next')
-    ctx.wizard.next()
-    return
+
+    return ctx.wizard.next()
   } catch (error) {
     console.error('Error in neuroPhotoConversationStep:', error)
     await sendGenericErrorMessage(ctx, isRu, error)

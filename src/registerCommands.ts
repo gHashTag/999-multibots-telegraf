@@ -1,4 +1,4 @@
-import { Telegraf, Scenes, session, Composer, Middleware } from 'telegraf'
+import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
 
 import {
@@ -44,7 +44,7 @@ import { priceCommand } from './commands/priceCommand'
 import { defaultSession } from './store'
 
 // import { handleTextMessage } from './handlers'
-import { subscriptionMiddleware } from './middlewares/subscription'
+
 import { get100Command } from './commands/get100Command'
 
 //https://github.com/telegraf/telegraf/issues/705

@@ -7,7 +7,7 @@ import { priceCommand } from '@/commands/priceCommand'
 export const handleMenuScene = new Scenes.WizardScene<MyWizardContext>(
   'handleMenuScene',
   async (ctx: MyWizardContext) => {
-    console.log('CASE: neuroPhotoWizard')
+    console.log('CASE: handleMenuScene')
     const isRu = isRussian(ctx)
     if (ctx.message && 'text' in ctx.message) {
       const text = ctx.message.text || ''
@@ -143,10 +143,10 @@ export const handleMenuScene = new Scenes.WizardScene<MyWizardContext>(
 
       // Выполняем действие, если оно существует, иначе переходим в главное меню
       if (actions[text]) {
-        console.log('CASE: neuroPhotoWizard.handleMenuScene.if', text)
+        console.log('CASE: handleMenuScene.if', text)
         await actions[text]()
       } else {
-        console.log('CASE: neuroPhotoWizard.handleMenuScene.else', text)
+        console.log('CASE: handleMenuScene.else', text)
         ctx.session.mode = 'main_menu'
         await ctx.scene.enter('menuScene')
       }

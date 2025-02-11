@@ -1,4 +1,5 @@
 import { Subscription } from '@/interfaces/supabase.interface'
+import { checkFullAccess } from '@/scenes/menuScene/checkFullAccess'
 import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 
@@ -113,13 +114,7 @@ export async function mainMenu({
   console.log('isRu', isRu)
 
   // Определяем, имеет ли пользователь доступ ко всем уровням
-  const hasFullAccess = [
-    'neurophoto',
-    'neurobase',
-    'neuromeeting',
-    'neuroblogger',
-    'neurotester',
-  ].includes(subscription)
+  const hasFullAccess = checkFullAccess(subscription)
 
   // Определяем доступные уровни в зависимости от подписки
   const subscriptionLevelsMap = {
