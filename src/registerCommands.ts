@@ -33,7 +33,6 @@ import {
   getEmailWizard,
   subscriptionCheckScene,
   createUserScene,
-  handleMenuScene,
   checkBalanceScene,
 } from './scenes'
 
@@ -54,7 +53,6 @@ export const stage = new Scenes.Stage<MyContext>([
   subscriptionCheckScene,
   createUserScene,
   checkBalanceScene,
-  handleMenuScene,
   chatWithAvatarWizard,
   menuScene,
   getEmailWizard,

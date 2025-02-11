@@ -16,6 +16,7 @@ import { generateTextToImage } from '@/services/generateTextToImage'
 
 import { MyWizardContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
+import { handleMenu } from '@/handlers'
 
 const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
   const isRu = ctx.from?.language_code === 'ru'
@@ -123,7 +124,7 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
       return
     }
 
-    await ctx.scene.enter('handleMenuScene')
+    await handleMenu(ctx)
 
     // Обработка кнопок с числами
     const numImages = parseInt(text[0])

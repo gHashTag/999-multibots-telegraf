@@ -9,6 +9,7 @@ import { getText } from './getText'
 import { WizardScene } from 'telegraf/scenes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { checkFullAccess } from './checkFullAccess'
+import { handleMenu } from '@/handlers'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -35,7 +36,6 @@ const menuCommandStep = async (ctx: MyContext) => {
       subscription: newSubscription,
     })
 
-    console.log('menu', menu)
     const url = `https://neuro-blogger-web-u14194.vm.elestio.app/neuro_sage/1/1/1/1/1/${
       newCount + 1
     }`
@@ -126,12 +126,14 @@ const menuCommandStep = async (ctx: MyContext) => {
         const message = getText(isRu, 'mainMenu')
         console.log('message', message)
         await ctx.reply(message, menu)
-        return ctx.wizard.next()
+        ctx.wizard.next()
+        return
       }
     }
   } catch (error) {
     console.error('Error in menu command:', error)
     await sendGenericErrorMessage(ctx, isRu, error)
+    ctx.scene.leave()
     throw error
   }
 }
@@ -148,7 +150,8 @@ const menuNextStep = async (ctx: MyContext) => {
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
     console.log('CASE menuNextStep: text 2', text)
-    ctx.scene.enter('handleMenuScene')
+    await handleMenu(ctx)
+    return
   } else {
     console.log('CASE: menuScene.next.else')
   }
