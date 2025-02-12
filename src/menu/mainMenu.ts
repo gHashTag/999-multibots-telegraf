@@ -1,7 +1,9 @@
 import { Subscription } from '@/interfaces/supabase.interface'
-import { checkFullAccess } from '@/scenes/menuScene/checkFullAccess'
+
+import { checkPaymentStatus } from '@/core/supabase'
 import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import { MyContext } from '@/interfaces/telegram-bot.interface'
 
 interface Level {
   title_ru: string
@@ -108,19 +110,21 @@ export async function mainMenu({
   isRu,
   inviteCount,
   subscription = 'stars',
+  ctx,
 }: {
   isRu: boolean
   inviteCount: number
   subscription: Subscription
-}): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
+  ctx: MyContext
+}): Promise<{
+  keyboard: Markup.Markup<ReplyKeyboardMarkup>
+  hasFullAccess: boolean
+}> {
   console.log('CASE: mainMenu')
-  console.log('inviteCount', inviteCount)
-  console.log('subscription', subscription)
-  console.log('isRu', isRu)
 
-  // Определяем, имеет ли пользователь доступ ко всем уровням
-  const hasFullAccess = checkFullAccess(subscription)
+  const hasFullAccess = await checkPaymentStatus(ctx, subscription)
 
+  console.log('hasFullAccess!!!!')
   // Определяем доступные уровни в зависимости от подписки
   const subscriptionLevelsMap = {
     stars: [levels[0]],
@@ -156,9 +160,12 @@ export async function mainMenu({
     console.warn(
       'No available levels for the current invite count and subscription status.'
     )
-    return Markup.keyboard([
-      [Markup.button.text(helpButton), Markup.button.text(mainMenuButton)],
-    ]).resize()
+    return {
+      keyboard: Markup.keyboard([
+        [Markup.button.text(helpButton), Markup.button.text(mainMenuButton)],
+      ]).resize(),
+      hasFullAccess,
+    }
   }
 
   const buttons = availableLevels.map(level =>
@@ -175,5 +182,8 @@ export async function mainMenu({
   if (!hasFullAccess) {
     buttonRows.push([Markup.button.text(helpButton)])
   }
-  return Markup.keyboard(buttonRows).resize()
+  return {
+    keyboard: Markup.keyboard(buttonRows).resize(),
+    hasFullAccess,
+  }
 }

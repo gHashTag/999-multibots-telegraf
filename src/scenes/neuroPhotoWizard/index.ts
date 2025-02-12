@@ -38,7 +38,7 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
         {
           reply_markup: {
             keyboard: (
-              await mainMenu({ isRu, inviteCount: count, subscription })
+              await mainMenu({ isRu, inviteCount: count, subscription, ctx })
             ).reply_markup.keyboard,
           },
         }
@@ -160,7 +160,7 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
       const { count, subscription } = await getReferalsCountAndUserData(
         ctx.from?.id?.toString() || ''
       )
-      await mainMenu({ isRu, inviteCount: count, subscription })
+      await mainMenu({ isRu, inviteCount: count, subscription, ctx })
     }
   }
 }

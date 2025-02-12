@@ -217,7 +217,7 @@ composer.hears(/^(Отмена|отмена|Cancel|cancel)$/i, async ctx => {
   const isRu = isRussian(ctx)
   const telegram_id = ctx.from?.id?.toString() || ''
   const { count, subscription } = await getReferalsCountAndUserData(telegram_id)
-  await mainMenu({ isRu, inviteCount: count, subscription })
+  await mainMenu({ isRu, inviteCount: count, subscription, ctx })
   return ctx.scene.leave()
 })
 

@@ -8,7 +8,7 @@ import { getText } from './getText'
 
 import { WizardScene } from 'telegraf/scenes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
-import { checkFullAccess } from './checkFullAccess'
+
 import { handleMenu } from '@/handlers'
 
 const menuCommandStep = async (ctx: MyContext) => {
@@ -30,11 +30,16 @@ const menuCommandStep = async (ctx: MyContext) => {
       newSubscription = subscription
     }
 
-    const menu = await mainMenu({
+    const { keyboard, hasFullAccess } = await mainMenu({
       isRu,
       inviteCount: newCount,
       subscription: newSubscription,
+      ctx,
     })
+    if (!hasFullAccess) {
+      await ctx.scene.enter('subscriptionScene')
+      return
+    }
 
     const url = `https://neuro-blogger-web-u14194.vm.elestio.app/neuro_sage/1/1/1/1/1/${
       newCount + 1
@@ -62,7 +67,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     ]
 
     console.log('nameStep', nameStep)
-    const hasFullAccess = checkFullAccess(newSubscription)
+
     console.log('hasFullAccess', hasFullAccess)
     let message = ''
 
@@ -75,7 +80,7 @@ const menuCommandStep = async (ctx: MyContext) => {
           ctx,
           message,
           inlineKeyboard,
-          menu,
+          keyboard,
           photo_url
         )
         break
@@ -84,7 +89,7 @@ const menuCommandStep = async (ctx: MyContext) => {
       case nameStep === (isRu ? levels[2].title_ru : levels[2].title_en): {
         console.log('CASE: neurophoto')
         message = getText(isRu, 'neurophoto', newCount)
-        await sendReplyWithKeyboard(ctx, message, inlineKeyboard, menu)
+        await sendReplyWithKeyboard(ctx, message, inlineKeyboard, keyboard)
         break
       }
       // TODO: Добавить аватарку и текст для первого уровня
@@ -125,7 +130,7 @@ const menuCommandStep = async (ctx: MyContext) => {
         console.log(`CASE: default ${newCount}`)
         const message = getText(isRu, 'mainMenu')
         console.log('message', message)
-        await ctx.reply(message, menu)
+        await ctx.reply(message, keyboard)
         ctx.wizard.next()
         return
       }

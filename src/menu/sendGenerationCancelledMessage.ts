@@ -12,7 +12,7 @@ export const sendGenerationCancelledMessage = async (
   await ctx.reply(message, {
     reply_markup: {
       keyboard: (
-        await mainMenu({ isRu, inviteCount: count, subscription })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
       ).reply_markup.keyboard,
     },
   })
