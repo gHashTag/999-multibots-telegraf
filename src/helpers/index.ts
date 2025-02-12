@@ -3,7 +3,6 @@ console.log('Environment check:', {
 })
 
 export const isDev = process.env.NODE_ENV === 'development'
-console.log('isDev', isDev)
 
 export * from './pulse'
 export * from './deleteFile'

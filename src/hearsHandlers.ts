@@ -83,6 +83,12 @@ composer.hears([levels[12].title_ru, levels[12].title_en], async ctx => {
   await ctx.scene.enter('checkBalanceScene')
 })
 
+composer.hears([levels[13].title_ru, levels[13].title_en], async ctx => {
+  console.log('CASE: Видео в URL')
+  ctx.session.mode = 'video_in_url'
+  await ctx.scene.enter('uploadVideoScene')
+})
+
 composer.hears(['❓ Помощь', '❓ Help'], async ctx => {
   console.log('CASE: Помощь')
   ctx.session.mode = 'help'

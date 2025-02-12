@@ -22,6 +22,7 @@ export enum ModeEnum {
   TextToVideo = 'text_to_video',
   TextToImage = 'text_to_image',
   LipSync = 'lip_sync',
+  VideoInUrl = 'video_in_url',
 }
 
 // Интерфейс для конверсий
@@ -53,6 +54,7 @@ export const modeCosts: Record<ModeEnum, number> = {
   [ModeEnum.TextToVideo]: calculateCostInStars(0),
   [ModeEnum.TextToImage]: calculateCostInStars(0),
   [ModeEnum.LipSync]: calculateCostInStars(0.9),
+  [ModeEnum.VideoInUrl]: calculateCostInStars(0.05),
 }
 
 // Найдите минимальную и максимальную стоимость среди всех моделей
@@ -105,6 +107,8 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter(ModeEnum.TextToImage)
     case ModeEnum.LipSync:
       return ctx.scene.enter(ModeEnum.LipSync)
+    case ModeEnum.VideoInUrl:
+      return ctx.scene.enter(ModeEnum.VideoInUrl)
     default:
       return ctx.scene.leave()
   }

@@ -14,7 +14,11 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     await ctx.replyWithPhoto(url, {
       caption: translation,
       reply_markup: Markup.keyboard([
-        [Markup.button.text(isRu ? levels[0].title_ru : levels[0].title_en)],
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
       ])
         .resize()
         .oneTime().reply_markup,
@@ -22,6 +26,6 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     ctx.wizard.next()
   },
   async (ctx: MyContext) => {
-    ctx.scene.enter('menuScene')
+    await ctx.scene.enter('subscriptionScene')
   }
 )

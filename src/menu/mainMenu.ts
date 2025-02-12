@@ -75,6 +75,10 @@ export const levels: Record<number, Level> = {
     title_ru: '🎤 Синхронизация губ',
     title_en: '🎤 Lip Sync',
   },
+  13: {
+    title_ru: '🎥 Видео в URL',
+    title_en: '🎥 Video in URL',
+  },
   // step0
   99: {
     title_ru: '🎮 Начать обучение',

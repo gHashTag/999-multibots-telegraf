@@ -34,6 +34,7 @@ import {
   subscriptionCheckScene,
   createUserScene,
   checkBalanceScene,
+  uploadVideoScene,
 } from './scenes'
 
 import { setupLevelHandlers } from './handlers/setupLevelHandlers'
@@ -78,6 +79,7 @@ export const stage = new Scenes.Stage<MyContext>([
   helpScene,
   inviteScene,
   ...levelQuestWizard,
+  uploadVideoScene,
 ])
 
 export function registerCommands({
@@ -105,6 +107,12 @@ export function registerCommands({
     ctx.session.mode = 'main_menu'
     await ctx.scene.enter('subscriptionCheckScene')
   })
+  composer.command('menu', async ctx => {
+    console.log('CASE: myComposer.command menu')
+    // ctx.session = defaultSession()
+    ctx.session.mode = 'main_menu'
+    await ctx.scene.enter('subscriptionCheckScene')
+  })
 
   composer.command('get100', async ctx => {
     console.log('CASE: get100')
@@ -115,13 +123,6 @@ export function registerCommands({
     console.log('CASE: buy')
     ctx.session.subscription = 'stars'
     await ctx.scene.enter('paymentScene')
-  })
-
-  composer.command('menu', async ctx => {
-    console.log('CASE: myComposer.command menu')
-    // ctx.session = defaultSession()
-    ctx.session.mode = 'main_menu'
-    await ctx.scene.enter('menuScene')
   })
 
   composer.command('invite', async ctx => {

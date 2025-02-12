@@ -13,7 +13,7 @@ export const handleMenu = async (ctx: MyWizardContext) => {
     // Создаем объект для сопоставления текста с действиями
     const actions = {
       [isRu ? levels[0].title_ru : levels[0].title_en]: async () => {
-        console.log('CASE: 💵 Оформление подписки')
+        console.log('CASE: 💫 Оформление подписки')
         ctx.session.mode = 'subscribe'
         await ctx.scene.enter('subscriptionScene')
       },
@@ -75,6 +75,11 @@ export const handleMenu = async (ctx: MyWizardContext) => {
       [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
         console.log('CASE: 🎤 Синхронизация губ')
         ctx.session.mode = 'lip_sync'
+        await ctx.scene.enter('checkBalanceScene')
+      },
+      [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
+        console.log('CASE: 🎥 Видео в URL')
+        ctx.session.mode = 'video_in_url'
         await ctx.scene.enter('checkBalanceScene')
       },
       [isRu ? levels[99].title_ru : levels[99].title_en]: async () => {
