@@ -1,6 +1,10 @@
 import { MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
-import { getTranslation } from '@/core/supabase'
+import {
+  checkPaymentStatus,
+  getReferalsCountAndUserData,
+  getTranslation,
+} from '@/core/supabase'
 import { levels } from '@/menu/mainMenu'
 
 export const startScene = new Scenes.WizardScene<MyContext>(
@@ -11,6 +15,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       key: isRu ? 'start_ru' : 'start_en',
       ctx,
     })
+
     await ctx.replyWithPhoto(url, {
       caption: translation,
       reply_markup: Markup.keyboard([
@@ -26,6 +31,13 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     ctx.wizard.next()
   },
   async (ctx: MyContext) => {
-    await ctx.scene.enter('subscriptionScene')
+    const telegram_id = ctx.from?.id?.toString() || ''
+    const { subscription } = await getReferalsCountAndUserData(telegram_id)
+    const hasFullAccess = await checkPaymentStatus(ctx, subscription)
+    if (hasFullAccess) {
+      await ctx.scene.enter('menuScene')
+    } else {
+      await ctx.scene.enter('subscriptionScene')
+    }
   }
 )

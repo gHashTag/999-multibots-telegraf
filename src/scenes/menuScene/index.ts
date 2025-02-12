@@ -22,7 +22,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     console.log('CASE: ctx.session', ctx.session)
     if (isDev) {
       newCount = 0
-      newSubscription = 'neurobase'
+      newSubscription = 'stars'
     } else {
       const { count, subscription } = await getReferalsCountAndUserData(
         telegram_id
