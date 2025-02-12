@@ -32,7 +32,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
           (model.inputType.includes('text') &&
             model.inputType.includes('image')))
     )
-
+    console.log('filteredModels', filteredModels)
     const modelButtons = filteredModels.map(model =>
       Markup.button.text(model.shortName)
     )
@@ -62,8 +62,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         reply_markup: keyboard.reply_markup,
       }
     )
-
-    return ctx.wizard.next()
+    ctx.wizard.next()
+    return
   },
   async ctx => {
     const isRu = isRussian(ctx)
