@@ -2,7 +2,7 @@ import { MyWizardContext, Subscription } from '@/interfaces'
 import { supabase } from '.'
 import { isRussian } from '@/helpers/language'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
-
+import { isDev } from '@/config'
 export const checkPaymentStatus = async (
   ctx: MyWizardContext,
   subscription: Subscription
@@ -41,11 +41,13 @@ export const checkPaymentStatus = async (
       const isFullAccess = checkFullAccess(subscription)
       if (isFullAccess) {
         const isRu = isRussian(ctx)
-        await ctx.reply(
-          isRu
-            ? '🤑 Ваша подписка истекла. Пожалуйста, обновите подписку, чтобы продолжить использование сервиса.'
-            : '🤑Your subscription has expired. Please update your subscription to continue using the service.'
-        )
+        if (!isDev) {
+          await ctx.reply(
+            isRu
+              ? '🤑 Ваша подписка истекла. Пожалуйста, обновите подписку, чтобы продолжить использование сервиса.'
+              : '🤑Your subscription has expired. Please update your subscription to continue using the service.'
+          )
+        }
 
         return false
       }

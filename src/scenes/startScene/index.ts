@@ -1,6 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
 import { getTranslation } from '@/core/supabase'
+import { levels } from '@/menu/mainMenu'
 
 export const startScene = new Scenes.WizardScene<MyContext>(
   'startScene',
@@ -13,7 +14,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     await ctx.replyWithPhoto(url, {
       caption: translation,
       reply_markup: Markup.keyboard([
-        [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+        [Markup.button.text(isRu ? levels[0].title_ru : levels[0].title_en)],
       ])
         .resize()
         .oneTime().reply_markup,

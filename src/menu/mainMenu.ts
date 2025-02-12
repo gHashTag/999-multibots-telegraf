@@ -117,7 +117,7 @@ export async function mainMenu({
   subscription: Subscription
   ctx: MyContext
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
-  console.log('CASE: mainMenu')
+  console.log('💻 CASE: mainMenu')
 
   const hasFullAccess = await checkPaymentStatus(ctx, subscription)
 
@@ -131,7 +131,6 @@ export async function mainMenu({
       levels[100],
       levels[101],
       levels[102],
-      levels[103],
       levels[0],
     ],
     neurobase: Object.values(levels).slice(1),
