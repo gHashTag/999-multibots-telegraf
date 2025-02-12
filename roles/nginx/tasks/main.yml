@@ -14,6 +14,11 @@
     src: bot2.locations.j2
     dest: /etc/nginx/conf.d/bot2.locations
 
+- name: Deploy bot3 location config
+  template:
+    src: bot3.locations.j2
+    dest: /etc/nginx/conf.d/bot3.locations
+
 - name: Ensure /etc/pki directory exists
   file:
     path: /etc/pki

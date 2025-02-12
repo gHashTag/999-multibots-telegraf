@@ -11,7 +11,11 @@ if (!process.env.BOT_TOKEN_TEST_1)
 if (!process.env.BOT_TOKEN_TEST_2)
   throw new Error('BOT_TOKEN_TEST_2 is not set')
 
-const BOT_TOKENS_PROD = [process.env.BOT_TOKEN_1, process.env.BOT_TOKEN_2]
+const BOT_TOKENS_PROD = [
+  process.env.BOT_TOKEN_1,
+  process.env.BOT_TOKEN_2,
+  process.env.BOT_TOKEN_3,
+]
 const BOT_TOKENS_TEST = [
   process.env.BOT_TOKEN_TEST_1,
   process.env.BOT_TOKEN_TEST_2,
@@ -20,6 +24,7 @@ const BOT_TOKENS_TEST = [
 export const BOT_NAMES = {
   ['neuro_blogger_bot']: process.env.BOT_TOKEN_1,
   ['MetaMuse_Manifest_bot']: process.env.BOT_TOKEN_2,
+  ['ZavaraBot']: process.env.BOT_TOKEN_3,
   ['ai_koshey_bot']: process.env.BOT_TOKEN_TEST_1,
   ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_TEST_2,
 }
