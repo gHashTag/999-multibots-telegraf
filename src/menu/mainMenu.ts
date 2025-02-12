@@ -119,7 +119,7 @@ export async function mainMenu({
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   console.log('CASE: mainMenu')
 
-  const hasFullAccess = await checkPaymentStatus(ctx)
+  const hasFullAccess = await checkPaymentStatus(ctx, subscription)
 
   // Определяем доступные уровни в зависимости от подписки
   const subscriptionLevelsMap = {
