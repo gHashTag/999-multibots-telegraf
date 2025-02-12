@@ -11,6 +11,7 @@ import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 
 import { handleMenu } from '@/handlers'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
+
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)

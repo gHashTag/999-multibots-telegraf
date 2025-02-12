@@ -27,6 +27,8 @@ export const {
   MERCHANT_LOGIN,
   PASSWORD1,
   RESULT_URL2,
+  PINATA_JWT,
+  PINATA_GATEWAY,
 } = process.env
 
 export const isDev = process.env.NODE_ENV === 'development'

@@ -6,6 +6,7 @@ import {
   getReferalsCountAndUserData,
 } from '@/core/supabase'
 import {
+  levels,
   mainMenu,
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
@@ -96,6 +97,7 @@ const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
           ctx.botInfo?.username
         )
         ctx.wizard.next()
+        return
       } else {
         await ctx.reply(isRu ? '❌ Некорректный промпт' : '❌ Invalid prompt')
         ctx.scene.leave()
@@ -124,7 +126,13 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
       return
     }
 
-    await handleMenu(ctx)
+    if (text === levels[104].title_ru || text === levels[104].title_en) {
+      console.log('CASE: Главное меню')
+      await handleMenu(ctx)
+      return
+    }
+
+    // await handleMenu(ctx)
 
     // Обработка кнопок с числами
     const numImages = parseInt(text[0])
@@ -132,26 +140,14 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
     const userId = ctx.from?.id
 
     const generate = async (num: number) => {
-      if (ctx.session.mode === 'neuro_photo') {
-        await generateNeuroImage(
-          prompt,
-          ctx.session.userModel.model_url,
-          num,
-          userId,
-          ctx,
-          ctx.botInfo?.username
-        )
-      } else {
-        await generateTextToImage(
-          prompt,
-          ctx.session.selectedModel || '',
-          num,
-          userId,
-          isRu,
-          ctx,
-          ctx.botInfo?.username
-        )
-      }
+      await generateNeuroImage(
+        prompt,
+        ctx.session.userModel.model_url,
+        num,
+        userId,
+        ctx,
+        ctx.botInfo?.username
+      )
     }
 
     if (numImages >= 1 && numImages <= 4) {

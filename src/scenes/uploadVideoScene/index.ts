@@ -37,6 +37,7 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
 
       const videoFile = await ctx.telegram.getFile(message.video.file_id)
       const videoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${videoFile.file_path}`
+      console.log('CASE: videoUrl', videoUrl)
       ctx.session.videoUrl = videoUrl
       ctx.wizard.next()
       return
