@@ -10,7 +10,7 @@ import { WizardScene } from 'telegraf/scenes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 
 import { handleMenu } from '@/handlers'
-
+import { checkFullAccess } from '@/handlers/checkFullAccess'
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
@@ -21,7 +21,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     console.log('CASE: ctx.session', ctx.session)
     if (isDev) {
       newCount = 0
-      newSubscription = 'neurophoto'
+      newSubscription = 'stars'
     } else {
       const { count, subscription } = await getReferalsCountAndUserData(
         telegram_id
@@ -30,16 +30,12 @@ const menuCommandStep = async (ctx: MyContext) => {
       newSubscription = subscription
     }
 
-    const { keyboard, hasFullAccess } = await mainMenu({
+    const keyboard = await mainMenu({
       isRu,
       inviteCount: newCount,
       subscription: newSubscription,
       ctx,
     })
-    if (!hasFullAccess) {
-      await ctx.scene.enter('subscriptionScene')
-      return
-    }
 
     const url = `https://neuro-blogger-web-u14194.vm.elestio.app/neuro_sage/1/1/1/1/1/${
       newCount + 1
@@ -67,8 +63,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     ]
 
     console.log('nameStep', nameStep)
-
-    console.log('hasFullAccess', hasFullAccess)
+    const hasFullAccess = checkFullAccess(newSubscription)
     let message = ''
 
     switch (true) {

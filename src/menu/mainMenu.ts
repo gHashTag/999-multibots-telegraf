@@ -116,15 +116,11 @@ export async function mainMenu({
   inviteCount: number
   subscription: Subscription
   ctx: MyContext
-}): Promise<{
-  keyboard: Markup.Markup<ReplyKeyboardMarkup>
-  hasFullAccess: boolean
-}> {
+}): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   console.log('CASE: mainMenu')
 
-  const hasFullAccess = await checkPaymentStatus(ctx, subscription)
+  const hasFullAccess = await checkPaymentStatus(ctx)
 
-  console.log('hasFullAccess!!!!')
   // Определяем доступные уровни в зависимости от подписки
   const subscriptionLevelsMap = {
     stars: [levels[0]],
@@ -160,12 +156,9 @@ export async function mainMenu({
     console.warn(
       'No available levels for the current invite count and subscription status.'
     )
-    return {
-      keyboard: Markup.keyboard([
-        [Markup.button.text(helpButton), Markup.button.text(mainMenuButton)],
-      ]).resize(),
-      hasFullAccess,
-    }
+    return Markup.keyboard([
+      [Markup.button.text(helpButton), Markup.button.text(mainMenuButton)],
+    ]).resize()
   }
 
   const buttons = availableLevels.map(level =>
@@ -182,8 +175,5 @@ export async function mainMenu({
   if (!hasFullAccess) {
     buttonRows.push([Markup.button.text(helpButton)])
   }
-  return {
-    keyboard: Markup.keyboard(buttonRows).resize(),
-    hasFullAccess,
-  }
+  return Markup.keyboard(buttonRows).resize()
 }

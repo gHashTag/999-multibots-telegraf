@@ -3,8 +3,7 @@ import { supabase } from '.'
 import { isRussian } from '@/helpers/language'
 
 export const checkPaymentStatus = async (
-  ctx: MyWizardContext,
-  subscription: string
+  ctx: MyWizardContext
 ): Promise<boolean> => {
   // Проверяем, что ctx и ctx.from определены
   if (!ctx || !ctx.from || !ctx.from.id) {
@@ -32,31 +31,24 @@ export const checkPaymentStatus = async (
     const currentDate = new Date()
     const differenceInDays =
       (currentDate.getTime() - lastPaymentDate.getTime()) / (1000 * 3600 * 24)
-    const isRu = isRussian(ctx)
-    // Если прошло больше 30 дней, отправляем уведомление и возвращаем false
-    if (differenceInDays > 30) {
-      await ctx.reply(
-        isRu
-          ? '🤑 Ваша подписка истекла. Пожалуйста, обновите подписку, чтобы продолжить использование сервиса.'
-          : '🤑Your subscription has expired. Please update your subscription to continue using the service.'
-      )
+    console.log('differenceInDays', differenceInDays)
+
+    if (differenceInDays < 30) {
+      // differenceInDays > 30
+      // Обновляем уровень подписки на 'stars'
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ subscription: 'stars' })
+        .eq('telegram_id', ctx.from.id.toString())
+
+      if (updateError) {
+        console.error('Ошибка при обновлении уровня подписки:', updateError)
+      }
 
       return false
     }
 
-    // Проверяем, есть ли у пользователя полный доступ
-    const fullAccessSubscriptions = [
-      'neurophoto',
-      'neurobase',
-      'neuromeeting',
-      'neuroblogger',
-      'neurotester',
-    ]
-    const hasFullAccess = fullAccessSubscriptions.includes(subscription)
-
-    if (hasFullAccess) {
-      return true
-    }
+    return true
   } catch (error) {
     console.error('Ошибка при проверке статуса оплаты:', error)
     return false
