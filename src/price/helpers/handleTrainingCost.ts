@@ -21,7 +21,7 @@ export async function handleTrainingCost(
   if (currentBalance < trainingCostInStars) {
     const message = isRu
       ? `❌ Недостаточно звезд для обучения модели!\n\nВаш баланс: ${currentBalance}⭐️ звезд, необходимый баланс: ${trainingCostInStars}⭐️ звезд.\n\nПополните баланс вызвав команду /buy.`
-      : `❌Insufficient stars for model training!\n\nYour balance: ${currentBalance}⭐️ stars, required balance: ${trainingCostInStars}⭐️ stars.\n\nTop up your balance by calling the /buy command.`
+      : `❌ Insufficient stars for model training!\n\nYour balance: ${currentBalance}⭐️ stars, required balance: ${trainingCostInStars}⭐️ stars.\n\nTop up your balance by calling the /buy command.`
 
     await ctx.reply(message, Markup.removeKeyboard())
 

@@ -58,6 +58,7 @@ async function processPayment(
     email: ctx.session.email,
     payment_method: 'Telegram',
     subscription: 'stars',
+    bot_name: ctx.botInfo.username,
   })
 }
 
@@ -72,10 +73,10 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
 
   const subscriptionDetails = {
     neurophoto: { amount: 3000, name: 'NeuroPhoto' },
-    neurobase: { amount: 1000, name: 'NeuroBase' },
-    neuromeeting: { amount: 5000, name: 'NeuroMeeting' },
-    neuroblogger: { amount: 7500, name: 'NeuroBlogger' },
-    neuromentor: { amount: 10000, name: 'NeuroMentor' },
+    neurobase: { amount: 7000, name: 'NeuroBase' },
+    neuromeeting: { amount: 28000, name: 'NeuroMeeting' },
+    neuroblogger: { amount: 75000, name: 'NeuroBlogger' },
+    // neuromentor: { amount: 100000, name: 'NeuroMentor' },
   }
 
   if (subscriptionType in subscriptionDetails) {
@@ -105,6 +106,7 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
       email: ctx.session.email,
       payment_method: 'Telegram',
       subscription: 'stars',
+      bot_name: ctx.botInfo.username,
     })
   }
 }

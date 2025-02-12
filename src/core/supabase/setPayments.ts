@@ -11,6 +11,7 @@ type Payment = {
   status: 'COMPLETED' | 'PENDING' | 'FAILED'
   payment_method: 'Robokassa' | 'YooMoney' | 'Telegram' | 'Stripe' | 'Other'
   subscription: Subscription
+  bot_name: string
 }
 
 export const setPayments = async ({
@@ -23,6 +24,7 @@ export const setPayments = async ({
   status,
   payment_method,
   subscription,
+  bot_name,
 }: Payment) => {
   try {
     const { error } = await supabase.from('payments').insert({
@@ -36,6 +38,7 @@ export const setPayments = async ({
       stars,
       email,
       subscription,
+      bot_name,
     })
     if (error) {
       console.error('Ошибка создания платежа:', error)

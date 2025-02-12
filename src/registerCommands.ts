@@ -38,8 +38,6 @@ import {
 
 import { setupLevelHandlers } from './handlers/setupLevelHandlers'
 
-import { priceCommand } from './commands/priceCommand'
-
 import { defaultSession } from './store'
 
 // import { handleTextMessage } from './handlers'

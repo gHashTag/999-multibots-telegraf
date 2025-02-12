@@ -62,7 +62,6 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 }
 
 export interface MyContext extends Context {
-  myContextProp: string
   session: MySession
   attempts: number
   scene: Scenes.SceneContextScene<MyContext, MyWizardSession>

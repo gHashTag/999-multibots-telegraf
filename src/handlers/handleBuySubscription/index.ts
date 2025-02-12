@@ -37,9 +37,9 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
     const subscriptionStarAmounts = {
       neurophoto: 3000,
       neurobase: 7000,
-      // neuromentor: 100000,
       neuromeeting: 28000,
       neuroblogger: 75000,
+      // neuromentor: 100000,
     }
 
     const subscriptionType = ctx.session.subscription
