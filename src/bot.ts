@@ -34,7 +34,7 @@ export const createBots = async () => {
     registerHearsActions(bot)
 
     const telegramToken = bot.telegram.token
-    const bot_name = getBotNameByToken(telegramToken)
+    const { bot_name } = getBotNameByToken(telegramToken)
     console.log('CASE: bot_name', bot_name)
 
     const webhookPath = `/${bot_name}`
