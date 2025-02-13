@@ -43,11 +43,13 @@ export const checkPaymentStatus = async (
       if (isFullAccess) {
         const isRu = isRussian(ctx)
         if (!isDev) {
-          await ctx.reply(
-            isRu
-              ? '🤑 Ваша подписка истекла. Пожалуйста, обновите подписку, чтобы продолжить использование сервиса.'
-              : '🤑Your subscription has expired. Please update your subscription to continue using the service.'
-          )
+          if (subscription !== 'neurotester') {
+            await ctx.reply(
+              isRu
+                ? '🤑 Ваша подписка истекла. Пожалуйста, обновите подписку, чтобы продолжить использование сервиса.'
+                : '🤑Your subscription has expired. Please update your subscription to continue using the service.'
+            )
+          }
         }
 
         return false
