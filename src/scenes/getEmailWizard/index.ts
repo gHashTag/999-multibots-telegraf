@@ -98,7 +98,7 @@ const selectPaymentOptionStep = async (ctx: MyContext) => {
     if (selectedPayment) {
       console.log('Selected payment option:', selectedPayment)
       ctx.session.selectedPayment = selectedPayment
-      await ctx.scene.enter('getRuBill')
+      await ctx.scene.enter('getRuBillWizard')
     } else {
       console.log('Invalid payment option selected')
       await ctx.reply(
