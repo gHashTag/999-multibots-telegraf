@@ -124,8 +124,7 @@ export async function mainMenu({
   ctx: MyContext
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   console.log('💻 CASE: mainMenu')
-
-  const hasFullAccess = await checkPaymentStatus(ctx, subscription)
+  let hasFullAccess = await checkPaymentStatus(ctx, subscription)
 
   const subscriptionButton = isRu ? levels[0].title_ru : levels[0].title_en
 
@@ -143,12 +142,16 @@ export async function mainMenu({
     neurobase: Object.values(levels).slice(1),
     neuromeeting: Object.values(levels).slice(1),
     neuroblogger: Object.values(levels).slice(1),
-    neurotester: Object.values(levels).slice(1),
+    neurotester: Object.values(levels), // Полный доступ
   }
 
   let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []
 
-  if (subscription === 'stars') {
+  // Если подписка neurotester, предоставляем полный доступ
+  if (subscription === 'neurotester') {
+    hasFullAccess = true
+    availableLevels = Object.values(levels)
+  } else if (subscription === 'stars') {
     availableLevels = availableLevels.concat(
       Object.values(levels).slice(0, inviteCount + 1)
     )
@@ -157,8 +160,10 @@ export async function mainMenu({
   // Удаляем дубликаты уровней
   availableLevels = Array.from(new Set(availableLevels))
 
-  // Фильтруем уровни, чтобы показывать только текущий уровень
-  availableLevels = availableLevels.filter((_, index) => index <= level)
+  // Фильтруем уровни, чтобы показывать только текущий уровень, кроме neurotester
+  if (subscription !== 'neurotester') {
+    availableLevels = availableLevels.filter((_, index) => index <= level)
+  }
 
   if (availableLevels.length === 0) {
     console.warn(
@@ -176,7 +181,7 @@ export async function mainMenu({
     buttonRows.push(buttons.slice(i, i + 2))
   }
 
-  // Добавляем кнопку подписки в конце
+  // Добавляем кнопку подписки в конце, если нет полного доступа
   if (!hasFullAccess) {
     buttonRows.push([Markup.button.text(subscriptionButton)])
   }

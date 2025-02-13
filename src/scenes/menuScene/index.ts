@@ -26,7 +26,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (isDev) {
       newCount = 1
       newSubscription = 'neurobase'
-      newLevel = 6
+      newLevel = 4
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(
         telegram_id
@@ -51,6 +51,14 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     // Проверка условий для отправки сообщения
     if (newLevel === 3 && newSubscription === 'neurophoto') {
+      const message = getText(isRu, 'mainMenu')
+      console.log('message', message)
+      await ctx.reply(message, keyboard)
+      return
+    }
+
+    // Проверка условий для отправки сообщения
+    if (newSubscription === 'neurotester') {
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
       await ctx.reply(message, keyboard)
