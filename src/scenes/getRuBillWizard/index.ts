@@ -9,6 +9,7 @@ import {
 } from './helper'
 import { setPayments, updateUserSubscription } from '../../core/supabase'
 import { WizardScene } from 'telegraf/scenes'
+import { getBotNameByToken } from '@/core'
 
 const generateInvoiceStep = async (ctx: MyContext) => {
   console.log('CASE: generateInvoiceStep')
@@ -38,7 +39,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
         password1
       )
       console.log('Invoice URL:', invoiceURL)
-
+      const { bot_name } = getBotNameByToken(ctx.telegram.token)
       // Сохранение платежа со статусом PENDING
       await setPayments({
         user_id: userId.toString(),
@@ -50,6 +51,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
         email: email,
         payment_method: 'Telegram',
         subscription: subscription,
+        bot_name,
       })
       console.log('Payment saved with status PENDING')
 

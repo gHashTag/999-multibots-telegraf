@@ -84,7 +84,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
         await generateVoiceAvatar(
           fileUrl,
-          ctx.from.id,
+          ctx.from.id.toString(),
           ctx,
           isRu,
           ctx.botInfo?.username

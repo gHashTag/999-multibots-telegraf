@@ -39,7 +39,7 @@ export async function generateTextToSpeech(
       {
         text,
         voice_id,
-        telegram_id,
+        telegram_id: telegram_id.toString(),
         is_ru: isRu,
         bot_name: botName,
       },

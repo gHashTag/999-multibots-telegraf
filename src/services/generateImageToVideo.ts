@@ -6,7 +6,7 @@ export async function generateImageToVideo(
   imageUrl: string,
   prompt: string,
   videoModel: VideoModel,
-  telegram_id: number,
+  telegram_id: string,
   username: string,
   isRu: boolean,
   botName: string

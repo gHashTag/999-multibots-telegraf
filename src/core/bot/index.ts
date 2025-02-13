@@ -33,3 +33,16 @@ export const BOT_TOKENS =
   NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_TEST
 
 export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
+
+export const DEFAULT_BOT_NAME = 'neuro_blogger_bot'
+
+export function getBotNameByToken(token: string): { bot_name: string } {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)
+  if (!entry) {
+    return { bot_name: DEFAULT_BOT_NAME }
+  }
+
+  const [bot_name] = entry
+  return { bot_name }
+}

@@ -12,23 +12,12 @@ import { registerPaymentActions } from './handlers/paymentActions'
 import { registerHearsActions } from './handlers/hearsActions'
 import { registerCommands } from './registerCommands'
 import { setBotCommands } from './setCommands'
-import { BOT_NAMES, BOT_TOKENS } from './core/bot'
+import { BOT_TOKENS, getBotNameByToken } from './core/bot'
 
 dotenv.config()
 
 const bots = BOT_TOKENS.map(token => new Telegraf<MyContext>(token))
 export const composer = new Composer<MyContext>()
-
-export function getBotNameByToken(token: string) {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)
-  if (!entry) {
-    return { error: 'Unauthorized' }
-  }
-
-  const [bot_name] = entry
-  return { bot_name }
-}
 
 export const createBots = async () => {
   bots.forEach((bot, index) => {
@@ -45,7 +34,7 @@ export const createBots = async () => {
     registerHearsActions(bot)
 
     const telegramToken = bot.telegram.token
-    const { bot_name } = getBotNameByToken(telegramToken)
+    const bot_name = getBotNameByToken(telegramToken)
     console.log('CASE: bot_name', bot_name)
 
     const webhookPath = `/${bot_name}`

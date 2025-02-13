@@ -647,7 +647,7 @@ export async function handleQuestComplete(ctx: MyContext) {
   try {
     const isRu = ctx.from?.language_code === 'ru'
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, subscription } = await getReferalsCountAndUserData(
+    const { count, subscription, level } = await getReferalsCountAndUserData(
       telegram_id
     )
     console.log('handleQuestComplete count', count)
@@ -679,7 +679,7 @@ You have successfully completed all tasks and reached the maximum level! 🌟✨
     await ctx.reply(message, {
       reply_markup: {
         keyboard: (
-          await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+          await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         ).reply_markup.keyboard,
       },
     })

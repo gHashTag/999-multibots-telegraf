@@ -11,7 +11,7 @@ interface TextToVideoResponse {
 export async function generateTextToVideo(
   prompt: string,
   videoModel: string,
-  telegram_id: number,
+  telegram_id: string,
   username: string,
   isRu: boolean,
   botName: string

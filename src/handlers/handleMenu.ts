@@ -34,7 +34,7 @@ export const handleMenu = async (ctx: MyWizardContext) => {
       },
       [isRu ? levels[4].title_ru : levels[4].title_en]: async () => {
         console.log('CASE: 🧠 Мозг аватара')
-        ctx.session.mode = 'avatar'
+        ctx.session.mode = 'avatar_brain'
         await ctx.scene.enter('checkBalanceScene')
       },
       [isRu ? levels[5].title_ru : levels[5].title_en]: async () => {

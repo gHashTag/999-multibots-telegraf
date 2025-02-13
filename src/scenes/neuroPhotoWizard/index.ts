@@ -27,7 +27,7 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
     const { userId, telegramId } = getUserInfo(ctx)
     const userModel = await getLatestUserModel(userId)
 
-    const { count, subscription } = await getReferalsCountAndUserData(
+    const { count, subscription, level } = await getReferalsCountAndUserData(
       telegramId
     )
 
@@ -39,7 +39,13 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
         {
           reply_markup: {
             keyboard: (
-              await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+              await mainMenu({
+                isRu,
+                inviteCount: count,
+                subscription,
+                ctx,
+                level,
+              })
             ).reply_markup.keyboard,
           },
         }
@@ -92,7 +98,7 @@ const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
           fullPrompt,
           model_url,
           1,
-          userId || 0,
+          userId.toString(),
           ctx,
           ctx.botInfo?.username
         )
@@ -144,7 +150,7 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
         prompt,
         ctx.session.userModel.model_url,
         num,
-        userId,
+        userId.toString(),
         ctx,
         ctx.botInfo?.username
       )
@@ -153,10 +159,10 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
     if (numImages >= 1 && numImages <= 4) {
       await generate(numImages)
     } else {
-      const { count, subscription } = await getReferalsCountAndUserData(
+      const { count, subscription, level } = await getReferalsCountAndUserData(
         ctx.from?.id?.toString() || ''
       )
-      await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+      await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
     }
   }
 }

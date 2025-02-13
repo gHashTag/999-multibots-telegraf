@@ -62,7 +62,7 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
       if (ctx.from) {
         await generateImageToPrompt(
           imageUrl,
-          ctx.from.id,
+          ctx.from.id.toString(),
           ctx,
           isRu,
           ctx.botInfo?.username

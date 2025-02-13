@@ -1,17 +1,17 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { updateUserSoul } from '../../core/supabase'
+import { updateUserSoul } from '@/core/supabase'
 import { isRussian } from '../../helpers/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { createHelpCancelKeyboard } from '@/menu'
-
+import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 interface WizardSessionData extends Scenes.WizardSessionData {
   company?: string
   position?: string
 }
 
-export const avatarWizard = new Scenes.WizardScene<MyContext>(
-  'avatar',
+export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
+  'avatar_brain',
   async ctx => {
     const isRu = isRussian(ctx)
     await ctx.reply(
@@ -74,8 +74,19 @@ export const avatarWizard = new Scenes.WizardScene<MyContext>(
         }
       }
     }
+
+    const telegram_id = ctx.from.id
+
+    const userExists = await getUserByTelegramId(ctx)
+    if (!userExists.data) {
+      throw new Error(`User with ID ${telegram_id} does not exist.`)
+    }
+    const level = userExists.data.level
+    if (level === 3) {
+      await updateUserLevelPlusOne(telegram_id.toString(), level)
+    }
     return ctx.scene.leave()
   }
 )
 
-export default avatarWizard
+export default avatarBrainWizard

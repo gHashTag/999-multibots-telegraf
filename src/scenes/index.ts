@@ -1,4 +1,4 @@
-export * from './avatarWizard'
+export * from './avatarBrainWizard'
 export * from './imageToPromptWizard'
 export * from './emailWizard'
 export * from './improvePromptWizard'

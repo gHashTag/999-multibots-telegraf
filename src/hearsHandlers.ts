@@ -30,7 +30,7 @@ composer.hears([levels[3].title_ru, levels[3].title_en], async ctx => {
 
 composer.hears([levels[4].title_ru, levels[4].title_en], async ctx => {
   console.log('CASE: 🧠 Мозг аватара')
-  ctx.session.mode = 'avatar'
+  ctx.session.mode = 'avatar_brain'
   await ctx.scene.enter('checkBalanceScene')
 })
 
@@ -161,7 +161,7 @@ composer.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async ctx => {
         prompt,
         ctx.session.userModel.model_url,
         num,
-        userId,
+        userId.toString(),
         ctx,
         ctx.botInfo?.username
       )
@@ -170,7 +170,7 @@ composer.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async ctx => {
         prompt,
         ctx.session.selectedModel || '',
         num,
-        userId,
+        userId.toString(),
         isRu,
         ctx,
         ctx.botInfo?.username
@@ -222,8 +222,10 @@ composer.hears(/^(Отмена|отмена|Cancel|cancel)$/i, async ctx => {
   console.log('CASE: Отмена')
   const isRu = isRussian(ctx)
   const telegram_id = ctx.from?.id?.toString() || ''
-  const { count, subscription } = await getReferalsCountAndUserData(telegram_id)
-  await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+  const { count, subscription, level } = await getReferalsCountAndUserData(
+    telegram_id
+  )
+  await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
   return ctx.scene.leave()
 })
 

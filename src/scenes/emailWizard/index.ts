@@ -6,6 +6,7 @@ import { isRussian } from '@/helpers'
 import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
 import { handleHelpCancel } from '@/handlers'
+import { getBotNameByToken } from '@/core'
 
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
@@ -163,6 +164,8 @@ emailWizard.on('text', async ctx => {
         )
         const email = ctx.session.email
 
+        const { bot_name } = getBotNameByToken(ctx.telegram.token)
+
         // Сохранение платежа со статусом PENDING
         await setPayments({
           user_id: userId.toString(),
@@ -174,6 +177,7 @@ emailWizard.on('text', async ctx => {
           email: email,
           payment_method: 'Telegram',
           subscription: 'stars',
+          bot_name,
         })
         //
 

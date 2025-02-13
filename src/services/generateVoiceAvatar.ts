@@ -10,7 +10,7 @@ interface VoiceAvatarResponse {
 
 export async function generateVoiceAvatar(
   fileUrl: string,
-  telegram_id: number,
+  telegram_id: string,
   ctx: MyContext,
   isRu: boolean,
   botName: string

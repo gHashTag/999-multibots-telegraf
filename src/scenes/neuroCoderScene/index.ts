@@ -56,7 +56,7 @@ export const neuroCoderScene = new Scenes.WizardScene<MyContext>(
           prompt,
           model_url,
           numImages,
-          ctx.from.id,
+          ctx.from.id.toString(),
           ctx,
           ctx.botInfo?.username
         )

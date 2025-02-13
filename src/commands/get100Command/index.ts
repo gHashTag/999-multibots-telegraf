@@ -27,7 +27,7 @@ async function get100Command(ctx: MyContext) {
     message,
     model_url,
     100,
-    ctx.from.id,
+    ctx.from.id.toString(),
     ctx,
     ctx.botInfo?.username
   )

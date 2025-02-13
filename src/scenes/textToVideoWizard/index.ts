@@ -112,7 +112,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         await generateTextToVideo(
           prompt,
           videoModel,
-          ctx.from.id,
+          ctx.from.id.toString(),
           ctx.from.username,
           isRu,
           ctx.botInfo?.username

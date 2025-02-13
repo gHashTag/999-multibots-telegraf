@@ -112,7 +112,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ctx.session.prompt,
                 ctx.session.userModel.model_url,
                 1,
-                ctx.from.id,
+                ctx.from.id.toString(),
                 ctx,
                 ctx.botInfo?.username
               )
@@ -135,7 +135,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
               await generateTextToVideo(
                 ctx.session.prompt,
                 ctx.session.videoModel,
-                ctx.from.id,
+                ctx.from.id.toString(),
                 ctx.from.username,
                 isRu,
                 ctx.botInfo?.username
@@ -146,7 +146,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ctx.session.prompt,
                 ctx.session.selectedModel,
                 1,
-                ctx.from.id,
+                ctx.from.id.toString(),
                 isRu,
                 ctx,
                 ctx.botInfo?.username

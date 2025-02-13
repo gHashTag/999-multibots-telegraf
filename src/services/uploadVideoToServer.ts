@@ -2,7 +2,7 @@ import axios from 'axios'
 import { isDev } from '@/config'
 interface UploadVideoRequest {
   videoUrl: string
-  telegram_id: number
+  telegram_id: string
   fileName: string
 }
 

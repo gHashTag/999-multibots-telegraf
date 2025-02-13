@@ -5,6 +5,7 @@ import { sendGenericErrorMessage } from '@/menu'
 import { isRussian } from '@/helpers/language'
 import { setModel } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'
+import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(
   'select_model',
@@ -90,6 +91,17 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
           },
         }
       )
+
+      const telegram_id = ctx.from.id
+
+      const userExists = await getUserByTelegramId(ctx)
+      if (!userExists.data) {
+        throw new Error(`User with ID ${telegram_id} does not exist.`)
+      }
+      const level = userExists.data.level
+      if (level === 5) {
+        await updateUserLevelPlusOne(telegram_id.toString(), level)
+      }
 
       return ctx.scene.leave()
     }

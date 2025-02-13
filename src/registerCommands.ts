@@ -2,7 +2,7 @@ import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
 
 import {
-  avatarWizard,
+  avatarBrainWizard,
   textToVideoWizard,
   emailWizard,
   neuroPhotoWizard,
@@ -57,7 +57,7 @@ export const stage = new Scenes.Stage<MyContext>([
   getEmailWizard,
   getRuBillWizard,
   balanceScene,
-  avatarWizard,
+  avatarBrainWizard,
   imageToPromptWizard,
   emailWizard,
   textToImageWizard,

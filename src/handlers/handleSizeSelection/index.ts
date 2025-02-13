@@ -18,12 +18,11 @@ export async function handleSizeSelection(ctx: MyContext, size: string) {
   } else {
     console.log('CASE: Неизвестный режим')
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, subscription, isExist } = await getReferalsCountAndUserData(
-      telegram_id
-    )
+    const { count, subscription, level, isExist } =
+      await getReferalsCountAndUserData(telegram_id)
 
     if (isExist) {
-      await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+      await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
     } else {
       ctx.scene.enter('helpScene')
     }

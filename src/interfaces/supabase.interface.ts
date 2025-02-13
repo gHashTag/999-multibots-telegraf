@@ -63,6 +63,7 @@ export interface UserType {
   inviter?: string | null // UUID
   vip?: boolean | null
   subscription?: string | null
+  level?: number
   token?: string | null
   is_leela_start?: boolean | null
 }

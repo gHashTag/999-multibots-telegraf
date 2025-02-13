@@ -172,7 +172,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
             imageUrl,
             prompt,
             videoModel,
-            ctx.from.id,
+            ctx.from.id.toString(),
             ctx.from.username,
             isRu,
             ctx.botInfo?.username

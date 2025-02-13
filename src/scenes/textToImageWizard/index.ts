@@ -149,7 +149,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
           text,
           ctx.session.selectedModel,
           1,
-          ctx.from.id,
+          ctx.from.id.toString(),
           isRu,
           ctx,
           ctx.botInfo?.username

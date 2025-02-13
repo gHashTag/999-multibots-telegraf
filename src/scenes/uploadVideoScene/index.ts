@@ -58,7 +58,7 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
     try {
       await uploadVideoToServer({
         videoUrl: ctx.session.videoUrl,
-        telegram_id: ctx.from?.id,
+        telegram_id: ctx.from?.id.toString(),
         fileName: `video_to_url_${randomUUID()}`,
       })
       await ctx.reply(

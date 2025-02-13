@@ -114,16 +114,20 @@ export async function mainMenu({
   isRu,
   inviteCount,
   subscription = 'stars',
+  level,
   ctx,
 }: {
   isRu: boolean
   inviteCount: number
   subscription: Subscription
+  level: number
   ctx: MyContext
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   console.log('💻 CASE: mainMenu')
 
   const hasFullAccess = await checkPaymentStatus(ctx, subscription)
+
+  const subscriptionButton = isRu ? levels[0].title_ru : levels[0].title_en
 
   // Определяем доступные уровни в зависимости от подписки
   const subscriptionLevelsMap = {
@@ -135,7 +139,6 @@ export async function mainMenu({
       levels[100],
       levels[101],
       levels[102],
-      levels[0],
     ],
     neurobase: Object.values(levels).slice(1),
     neuromeeting: Object.values(levels).slice(1),
@@ -143,40 +146,40 @@ export async function mainMenu({
     neurotester: Object.values(levels).slice(1),
   }
 
-  let availableLevels
-  if (subscriptionLevelsMap[subscription]) {
-    availableLevels = subscriptionLevelsMap[subscription]
-  } else if (inviteCount === 0 && !hasFullAccess) {
-    availableLevels = [levels[0]]
-  } else {
-    availableLevels = [levels[0]]
+  let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []
+
+  if (subscription === 'stars') {
+    availableLevels = availableLevels.concat(
+      Object.values(levels).slice(0, inviteCount + 1)
+    )
   }
 
-  const helpButton = isRu ? levels[103].title_ru : levels[103].title_en
-  const mainMenuButton = isRu ? levels[104].title_ru : levels[104].title_en
+  // Удаляем дубликаты уровней
+  availableLevels = Array.from(new Set(availableLevels))
+
+  // Фильтруем уровни, чтобы показывать только текущий уровень
+  availableLevels = availableLevels.filter((_, index) => index <= level)
 
   if (availableLevels.length === 0) {
     console.warn(
       'No available levels for the current invite count and subscription status.'
     )
-    return Markup.keyboard([
-      [Markup.button.text(helpButton), Markup.button.text(mainMenuButton)],
-    ]).resize()
+    return Markup.keyboard([[Markup.button.text(subscriptionButton)]]).resize()
   }
 
   const buttons = availableLevels.map(level =>
     Markup.button.text(isRu ? level.title_ru : level.title_en)
   )
 
-  // Разбиваем кнопки на строки по две кнопки
   const buttonRows = []
   for (let i = 0; i < buttons.length; i += 2) {
     buttonRows.push(buttons.slice(i, i + 2))
   }
 
-  // Добавляем дополнительные кнопки в конце если нет доступа ко всем уровням
+  // Добавляем кнопку подписки в конце
   if (!hasFullAccess) {
-    buttonRows.push([Markup.button.text(helpButton)])
+    buttonRows.push([Markup.button.text(subscriptionButton)])
   }
+
   return Markup.keyboard(buttonRows).resize()
 }

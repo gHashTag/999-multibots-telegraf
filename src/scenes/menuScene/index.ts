@@ -1,4 +1,4 @@
-import { MyContext, Subscription } from '../../interfaces'
+import { Mode, MyContext, Subscription } from '../../interfaces'
 import { sendGenericErrorMessage } from '@/menu'
 import { levels, mainMenu } from '../../menu/mainMenu'
 import { getReferalsCountAndUserData } from '@/core/supabase/getReferalsCountAndUserData'
@@ -11,24 +11,34 @@ import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 
 import { handleMenu } from '@/handlers'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
+import { getTranslation } from '@/core'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
   try {
     const telegram_id = ctx.from?.id?.toString() || ''
+
     let newCount = 0
     let newSubscription: Subscription = 'stars'
-    console.log('CASE: ctx.session', ctx.session)
+    let newLevel: number
+
     if (isDev) {
-      newCount = 0
-      newSubscription = 'stars'
+      newCount = 1
+      newSubscription = 'neurobase'
+      newLevel = 6
     } else {
-      const { count, subscription } = await getReferalsCountAndUserData(
+      const { count, subscription, level } = await getReferalsCountAndUserData(
         telegram_id
       )
       newCount = count
       newSubscription = subscription
+      newLevel = level
+    }
+
+    // Фильтрация уровней для подписки neurophoto
+    if (newSubscription === 'neurophoto' && newLevel > 3) {
+      newLevel = 3
     }
 
     const keyboard = await mainMenu({
@@ -36,11 +46,21 @@ const menuCommandStep = async (ctx: MyContext) => {
       inviteCount: newCount,
       subscription: newSubscription,
       ctx,
+      level: newLevel - 1,
     })
+
+    // Проверка условий для отправки сообщения
+    if (newLevel === 3 && newSubscription === 'neurophoto') {
+      const message = getText(isRu, 'mainMenu')
+      console.log('message', message)
+      await ctx.reply(message, keyboard)
+      return
+    }
 
     const url = `https://neuro-blogger-web-u14194.vm.elestio.app/neuro_sage/1/1/1/1/1/${
       newCount + 1
     }`
+
     const nextLevel = levels[newCount + 1]
     const nameStep = nextLevel
       ? isRu
@@ -67,62 +87,42 @@ const menuCommandStep = async (ctx: MyContext) => {
     const hasFullAccess = checkFullAccess(newSubscription)
     let message = ''
 
-    switch (true) {
-      case !hasFullAccess: {
-        console.log('CASE: !hasFullAccess')
-        message = getText(isRu, 'digitalAvatar')
-        const photo_url = getPhotoUrl(ctx, 1)
-        await sendReplyWithKeyboard(
+    if (!hasFullAccess) {
+      console.log('CASE: !hasFullAccess - stars level')
+      message = getText(isRu, 'digitalAvatar')
+      const photo_url = getPhotoUrl(ctx, 1)
+      await sendReplyWithKeyboard(
+        ctx,
+        message,
+        inlineKeyboard,
+        keyboard,
+        photo_url
+      )
+    } else {
+      const levelKeys: { [key: number]: Mode } = {
+        0: 'subscribe',
+        1: 'digital_avatar_body',
+        2: 'neuro_photo',
+        3: 'image_to_prompt',
+        4: 'avatar_brain',
+        5: 'chat_with_avatar',
+        6: 'select_model',
+        7: 'voice',
+        8: 'text_to_speech',
+        9: 'image_to_video',
+        10: 'text_to_video',
+        11: 'text_to_image',
+      }
+
+      const key = levelKeys[newLevel]
+      if (key) {
+        console.log(`CASE ${newLevel}: ${key}`)
+        const { translation } = await getTranslation({
+          key,
           ctx,
-          message,
-          inlineKeyboard,
-          keyboard,
-          photo_url
-        )
-        break
-      }
-
-      case nameStep === (isRu ? levels[2].title_ru : levels[2].title_en): {
-        console.log('CASE: neurophoto')
-        message = getText(isRu, 'neurophoto', newCount)
-        await sendReplyWithKeyboard(ctx, message, inlineKeyboard, keyboard)
-        break
-      }
-      // TODO: Добавить аватарку и текст для первого уровня
-      // case newCount === 1: {
-      //   console.log('CASE: avatarLevel')
-      //   message = getText(isRu, 'avatarLevel', newCount)
-      //   const photo_url = getPhotoUrl(ctx, 2)
-      //   await sendReplyWithKeyboard(
-      //     ctx,
-      //     message,
-      //     inlineKeyboard,
-      //     menu,
-      //     photo_url
-      //   )
-      //   break
-      // }
-
-      // case newCount > 2 && newCount <= 10: {
-      //   console.log('CASE: avatarLevel')
-      //   message = getText(isRu, 'avatarLevel', newCount)
-
-      //   const inlineKeyboardWithInvite = [
-      //     ...inlineKeyboard,
-      //     [{ text: getText(isRu, 'inviteLink'), callback_data: 'invite' }],
-      //   ]
-
-      //   await sendReplyWithKeyboard(
-      //     ctx,
-      //     message,
-      //     inlineKeyboardWithInvite,
-      //     menu
-      //   )
-      //   ctx.wizard.next()
-      //   return
-      // }
-
-      default: {
+        })
+        await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboard)
+      } else {
         console.log(`CASE: default ${newCount}`)
         const message = getText(isRu, 'mainMenu')
         console.log('message', message)

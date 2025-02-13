@@ -9,7 +9,7 @@ if (!process.env.ELESTIO_URL) {
 
 export async function generateImageToPrompt(
   imageUrl: string,
-  telegram_id: number,
+  telegram_id: string,
   ctx: MyContext,
   isRu: boolean,
   botName: string

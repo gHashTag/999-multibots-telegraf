@@ -25,61 +25,63 @@ helpScene.enter(async ctx => {
   const mode = ctx.session.mode
   const isRu = isRussian(ctx)
   const telegram_id = ctx.from?.id?.toString() || ''
-  const { count, subscription } = await getReferalsCountAndUserData(telegram_id)
+  const { count, subscription, level } = await getReferalsCountAndUserData(
+    telegram_id
+  )
 
   try {
     switch (mode) {
       case 'digital_avatar_body':
         await handleLevel1(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'neuro_photo':
         await handleLevel2(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'image_to_prompt':
         await handleLevel3(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
-      case 'avatar':
+      case 'avatar_brain':
         await handleLevel4(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'chat_with_avatar':
         await handleLevel5(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'select_model':
         await handleLevel6(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'voice':
         await handleLevel7(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'text_to_speech':
         await handleLevel8(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'image_to_video':
         await handleLevel9(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'text_to_image':
         await handleLevel10(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'text_to_video':
         await handleLevel11(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'change_size':
         await handleLevel12(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'invite':
         await handleLevel13(ctx)
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx })
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
       case 'help':
         ctx.scene.enter('step0')
