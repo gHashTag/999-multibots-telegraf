@@ -24,8 +24,8 @@ const menuCommandStep = async (ctx: MyContext) => {
     let newLevel: number
 
     if (isDev) {
-      newCount = 1
-      newSubscription = 'neurobase'
+      newCount = 0
+      newSubscription = 'neurotester'
       newLevel = 4
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(
@@ -62,6 +62,7 @@ const menuCommandStep = async (ctx: MyContext) => {
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
       await ctx.reply(message, keyboard)
+      ctx.wizard.next()
       return
     }
 
