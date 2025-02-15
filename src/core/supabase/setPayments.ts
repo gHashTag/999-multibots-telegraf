@@ -2,7 +2,7 @@ import { supabase } from '.'
 import { Subscription } from '../../interfaces/supabase.interface'
 
 type Payment = {
-  user_id: string
+  telegram_id: string
   OutSum: string
   InvId: string
   currency: 'RUB' | 'USD' | 'EUR' | 'STARS'
@@ -12,10 +12,11 @@ type Payment = {
   payment_method: 'Robokassa' | 'YooMoney' | 'Telegram' | 'Stripe' | 'Other'
   subscription: Subscription
   bot_name: string
+  language: string
 }
 
 export const setPayments = async ({
-  user_id,
+  telegram_id,
   OutSum,
   InvId,
   currency,
@@ -25,10 +26,11 @@ export const setPayments = async ({
   payment_method,
   subscription,
   bot_name,
+  language,
 }: Payment) => {
   try {
     const { error } = await supabase.from('payments').insert({
-      user_id,
+      telegram_id,
       amount: parseFloat(OutSum),
       inv_id: InvId,
       currency,
@@ -39,6 +41,7 @@ export const setPayments = async ({
       email,
       subscription,
       bot_name,
+      language,
     })
     if (error) {
       console.error('Ошибка создания платежа:', error)

@@ -3,6 +3,8 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 import { NODE_ENV } from '@/config'
+import { Telegraf } from 'telegraf'
+import { MyContext } from '@/interfaces'
 
 if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
 if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
@@ -45,4 +47,27 @@ export function getBotNameByToken(token: string): { bot_name: string } {
 
   const [bot_name] = entry
   return { bot_name }
+}
+
+export function getTokenByBotName(botName: string): string | undefined {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const entry = Object.entries(BOT_NAMES).find(([name, _]) => name === botName)
+  if (!entry) {
+    console.warn(`Bot name ${botName} not found.`)
+    return undefined
+  }
+
+  const [, token] = entry
+  return token
+}
+
+export function createBotByName(
+  botName: string
+): Telegraf<MyContext> | undefined {
+  const token = getTokenByBotName(botName)
+  if (!token) {
+    console.error(`Token for bot name ${botName} not found.`)
+    return undefined
+  }
+  return new Telegraf<MyContext>(token)
 }

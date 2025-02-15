@@ -168,7 +168,7 @@ emailWizard.on('text', async ctx => {
 
         // Сохранение платежа со статусом PENDING
         await setPayments({
-          user_id: userId.toString(),
+          telegram_id: userId.toString(),
           OutSum: amount.toString(),
           InvId: invId.toString(),
           currency: 'STARS',
@@ -178,8 +178,8 @@ emailWizard.on('text', async ctx => {
           payment_method: 'Telegram',
           subscription: 'stars',
           bot_name,
+          language: ctx.from?.language_code,
         })
-        //
 
         console.log('invoiceURL', invoiceURL)
 

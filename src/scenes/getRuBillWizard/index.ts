@@ -42,7 +42,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       const { bot_name } = getBotNameByToken(ctx.telegram.token)
       // Сохранение платежа со статусом PENDING
       await setPayments({
-        user_id: userId.toString(),
+        telegram_id: userId.toString(),
         OutSum: stars.toString(),
         InvId: invId.toString(),
         currency: 'STARS',
@@ -52,6 +52,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
         payment_method: 'Telegram',
         subscription: subscription,
         bot_name,
+        language: ctx.from?.language_code,
       })
       console.log('Payment saved with status PENDING')
 
