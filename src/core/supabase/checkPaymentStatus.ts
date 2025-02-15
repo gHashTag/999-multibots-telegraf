@@ -19,7 +19,7 @@ export const checkPaymentStatus = async (
     const { data: paymentData, error } = await supabase
       .from('payments') // TODO: изменить на payments_history
       .select('payment_date')
-      .eq('user_id', ctx.from.id.toString())
+      .eq('telegram_id', ctx.from.id.toString())
       .order('payment_date', { ascending: false })
       .limit(1)
       .single()
