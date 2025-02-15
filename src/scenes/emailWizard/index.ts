@@ -17,7 +17,7 @@ const paymentOptions = [
   { amount: 1999, stars: '1249' },
   { amount: 5000, stars: '3125' },
   { amount: 10000, stars: '6250' },
-  { amount: 10, stars: '6' },
+  // { amount: 10, stars: '6' },
 ]
 
 const resultUrl2 = RESULT_URL2

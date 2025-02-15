@@ -45,10 +45,10 @@ paymentScene.enter(async ctx => {
 })
 
 paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
-  console.log('CASE: ⭐️ Звездами', ctx.match)
+  console.log('CASE 1: ⭐️ Звездами', ctx.match)
   const isRu = isRussian(ctx)
   const subscription = ctx.session.subscription
-  console.log('CASE: subscription', subscription)
+  console.log('CASE 1: ⭐️ Звездами: subscription', subscription)
   if (subscription) {
     if (subscription === 'neurobase') {
       await handleBuySubscription({ ctx, isRu })
@@ -79,7 +79,7 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
   console.log('CASE: 💳 Рублями', ctx.match)
 
   const subscription = ctx.session.subscription
-  console.log('CASE: subscription', subscription)
+  console.log('CASE 💳 Рублями: subscription', subscription)
 
   if (subscription === 'neurobase') {
     console.log('CASE: 📚 НейроБаза - getEmailWizard')
