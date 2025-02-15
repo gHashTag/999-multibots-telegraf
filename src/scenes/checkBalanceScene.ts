@@ -73,8 +73,9 @@ checkBalanceScene.enter(async ctx => {
   const mode = ctx.session.mode as ModeEnum
   const cost = modeCosts[mode] || 0 // Получаем стоимость для текущего режима
   console.log('⭐️ cost:', cost)
-
-  await sendBalanceMessage(ctx, currentBalance, cost, isRu)
+  if (cost !== 0) {
+    await sendBalanceMessage(ctx, currentBalance, cost, isRu)
+  }
 
   if (currentBalance < cost) {
     await sendInsufficientStarsMessage(ctx, currentBalance, isRu)

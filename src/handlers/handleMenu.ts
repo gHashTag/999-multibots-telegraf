@@ -72,21 +72,16 @@ export const handleMenu = async (ctx: MyWizardContext) => {
         ctx.session.mode = 'text_to_image'
         await ctx.scene.enter('checkBalanceScene')
       },
-      [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
-        console.log('CASE: 🎤 Синхронизация губ')
-        ctx.session.mode = 'lip_sync'
-        await ctx.scene.enter('checkBalanceScene')
-      },
-      [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
-        console.log('CASE: 🎥 Видео в URL')
-        ctx.session.mode = 'video_in_url'
-        await ctx.scene.enter('checkBalanceScene')
-      },
-      [isRu ? levels[99].title_ru : levels[99].title_en]: async () => {
-        console.log('CASE: 🎮 Начать обучение')
-        ctx.session.mode = 'start_learning'
-        await ctx.scene.enter('step0')
-      },
+      // [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
+      //   console.log('CASE: 🎤 Синхронизация губ')
+      //   ctx.session.mode = 'lip_sync'
+      //   await ctx.scene.enter('checkBalanceScene')
+      // },
+      // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
+      //   console.log('CASE: 🎥 Видео в URL')
+      //   ctx.session.mode = 'video_in_url'
+      //   await ctx.scene.enter('checkBalanceScene')
+      // },
       [isRu ? levels[100].title_ru : levels[100].title_en]: async () => {
         console.log('CASE: 💎 Пополнить баланс')
         ctx.session.mode = 'top_up_balance'

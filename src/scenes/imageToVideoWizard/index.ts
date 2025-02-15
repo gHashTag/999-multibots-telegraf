@@ -1,4 +1,4 @@
-import { Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
 import { sendBalanceMessage } from '@/price/helpers'
 import { generateImageToVideo } from '@/services/generateImageToVideo'
 import { MyContext, VideoModel } from '@/interfaces'
@@ -193,8 +193,9 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(
       isRu
-        ? 'Пожалуйста, отправьте текстовое описание движения'
-        : 'Please send a text description of the movement'
+        ? 'Пожалуйста, отправьте текстовое описание'
+        : 'Please send a text description',
+      Markup.removeKeyboard()
     )
     return undefined
   }

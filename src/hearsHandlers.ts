@@ -77,28 +77,22 @@ composer.hears([levels[11].title_ru, levels[11].title_en], async ctx => {
   await imageModelMenu(ctx)
 })
 
-composer.hears([levels[12].title_ru, levels[12].title_en], async ctx => {
-  console.log('CASE: Синхронизация губ')
-  ctx.session.mode = 'lip_sync'
-  await ctx.scene.enter('checkBalanceScene')
-})
+// composer.hears([levels[12].title_ru, levels[12].title_en], async ctx => {
+//   console.log('CASE: Синхронизация губ')
+//   ctx.session.mode = 'lip_sync'
+//   await ctx.scene.enter('checkBalanceScene')
+// })
 
-composer.hears([levels[13].title_ru, levels[13].title_en], async ctx => {
-  console.log('CASE: Видео в URL')
-  ctx.session.mode = 'video_in_url'
-  await ctx.scene.enter('uploadVideoScene')
-})
+// composer.hears([levels[13].title_ru, levels[13].title_en], async ctx => {
+//   console.log('CASE: Видео в URL')
+//   ctx.session.mode = 'video_in_url'
+//   await ctx.scene.enter('uploadVideoScene')
+// })
 
 composer.hears(['❓ Помощь', '❓ Help'], async ctx => {
   console.log('CASE: Помощь')
   ctx.session.mode = 'help'
   await ctx.scene.enter('helpScene')
-})
-
-composer.hears([levels[99].title_ru, levels[99].title_en], async ctx => {
-  console.log('CASE: Начать обучение')
-  ctx.session.mode = 'start_learning'
-  await ctx.scene.enter('step0')
 })
 
 composer.hears([levels[100].title_ru, levels[100].title_en], async ctx => {

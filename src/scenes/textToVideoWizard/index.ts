@@ -1,4 +1,4 @@
-import { Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
 import { MyContext, VideoModel } from '@/interfaces'
 import {
   sendBalanceMessage,
@@ -55,9 +55,10 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
             : 'text_to_video: Could not identify user'
         )
       const videoModel = message.text?.toLowerCase()
+      console.log('videoModel', videoModel)
       const availableModels = VIDEO_MODELS.map(model => model.name)
       const currentBalance = await getUserBalance(ctx.from.id)
-
+      console.log('currentBalance', currentBalance)
       const isCancel = await handleHelpCancel(ctx)
       if (isCancel) {
         return ctx.scene.leave()
@@ -70,6 +71,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           isRu,
           ctx
         )
+        console.log('price', price)
         if (price === null) {
           return ctx.scene.leave()
         }
@@ -82,7 +84,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(
           isRu
             ? 'Пожалуйста, отправьте текстовое описание'
-            : 'Please send a text description'
+            : 'Please send a text description',
+          Markup.removeKeyboard()
         )
         return ctx.wizard.next()
       }

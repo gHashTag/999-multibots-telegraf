@@ -25,7 +25,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     if (isDev) {
       newCount = 0
-      newSubscription = 'neurophoto'
+      newSubscription = 'neurotester'
       newLevel = 0
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(
@@ -46,7 +46,7 @@ const menuCommandStep = async (ctx: MyContext) => {
       inviteCount: newCount,
       subscription: newSubscription,
       ctx,
-      level: newLevel - 1,
+      level: newLevel,
     })
 
     // Проверка условий для отправки сообщения
@@ -123,7 +123,7 @@ const menuCommandStep = async (ctx: MyContext) => {
         11: 'text_to_image',
       }
 
-      const key = levelKeys[newLevel]
+      const key = levelKeys[newLevel + 1]
       if (key) {
         console.log(`CASE ${newLevel}: ${key}`)
         const { translation } = await getTranslation({
