@@ -17,22 +17,26 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     console.log('CASE: user not exists')
     return ctx.scene.enter('createUserScene')
   }
-
+  const subscription = existingUser.subscription
   // Получаем ID канала подписки
-  const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
-  // Проверяем подписку
-  const isSubscribed = await verifySubscription(
-    ctx,
-    language_code.toString(),
-    SUBSCRIBE_CHANNEL_ID
-  )
-  if (!isSubscribed) {
-    // Если подписка не существует, то выходим из сцены
-    console.log('CASE: not subscribed')
-    return ctx.scene.leave()
+  if (subscription !== 'stars') {
+    console.log('CASE: subscription not stars')
+    const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
+    // Проверяем подписку
+    const isSubscribed = await verifySubscription(
+      ctx,
+      language_code.toString(),
+      SUBSCRIBE_CHANNEL_ID
+    )
+    if (!isSubscribed) {
+      // Если подписка не существует, то выходим из сцены
+      console.log('CASE: not subscribed')
+      // Если подписка существует, то переходим к стартовой сцене
+      console.log('CASE: isSubscribed', isSubscribed)
+      return ctx.scene.leave()
+    }
   }
-  // Если подписка существует, то переходим к стартовой сцене
-  console.log('CASE: isSubscribed', isSubscribed)
+
   if (ctx.session.mode === 'main_menu') {
     return ctx.scene.enter('menuScene')
   } else {
