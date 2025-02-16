@@ -61,14 +61,14 @@ export async function createModelTraining(
     console.log('Model training response:', response.data)
     return response.data
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      throw new Error(
-        requestData.is_ru
-          ? 'Произошла ошибка при создании тренировки модели'
-          : 'Error occurred while creating model training'
-      )
-    }
+    // if (axios.isAxiosError(error)) {
+    //   console.error('API Error:', error.response?.data || error.message)
+    //   throw new Error(
+    //     requestData.is_ru
+    //       ? 'Произошла ошибка при создании тренировки модели'
+    //       : 'Error occurred while creating model training'
+    //   )
+    // }
     console.error('Unexpected error:', error)
     throw error
   }
