@@ -2,6 +2,8 @@ import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '@/helpers'
 import { levels } from '@/menu/mainMenu'
+import { handleMenu } from '@/handlers'
+
 const message = (isRu: boolean) =>
   isRu
     ? `<b>💫 Для получения полного доступа ко всем нейрокомандам, выберите одну из предложенных месячных подписок:</b>
@@ -115,7 +117,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    console.log('CASE: subscriptionScene.next')
+    console.log('CASE: subscriptionScene.next', ctx)
     if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
       const text = ctx.update.callback_query.data
       console.log('text', text)
@@ -149,6 +151,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
         )
       }
     } else {
+      handleMenu(ctx)
       return ctx.scene.leave()
     }
   }
