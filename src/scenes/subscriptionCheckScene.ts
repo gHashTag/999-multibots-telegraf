@@ -7,7 +7,7 @@ import { getSubScribeChannel } from '@/handlers'
 const subscriptionCheckStep = async (ctx: MyContext) => {
   console.log('CASE: subscriptionCheckStep', ctx.from)
 
-  const { id: language_code } = ctx.from
+  const { language_code } = ctx.from
   // Проверяем существует ли пользователь в базе
   const existingUser = await getUserByTelegramId(ctx)
   console.log('subscriptionCheckStep - existingUser:', existingUser)
