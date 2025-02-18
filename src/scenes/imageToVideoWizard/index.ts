@@ -15,7 +15,7 @@ import { getBotToken, handleHelpCancel } from '@/handlers'
 import { processBalanceVideoOperation } from '@/price/helpers/processBalanceVideoOperation'
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
-  'imageToVideoWizard',
+  'image_to_video',
   async ctx => {
     const isRu = isRussian(ctx)
     // Запрашиваем модель
