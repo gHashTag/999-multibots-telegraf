@@ -107,6 +107,7 @@ const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
       } else {
         await ctx.reply(isRu ? '❌ Некорректный промпт' : '❌ Invalid prompt')
         ctx.scene.leave()
+        return
       }
     }
   }
@@ -138,7 +139,7 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
       return
     }
 
-    // await handleMenu(ctx)
+    await handleMenu(ctx)
 
     // Обработка кнопок с числами
     const numImages = parseInt(text[0])

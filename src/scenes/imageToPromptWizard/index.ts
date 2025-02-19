@@ -7,7 +7,7 @@ import { createHelpCancelKeyboard } from '@/menu'
 
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
-
+import { handleMenu } from '@/handlers/handleMenu'
 if (!process.env.HUGGINGFACE_TOKEN) {
   throw new Error('HUGGINGFACE_TOKEN is not set')
 }
@@ -68,8 +68,15 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
           ctx.botInfo?.username
         )
       }
-      return ctx.scene.leave()
+      ctx.wizard.next()
+      return
     }
+  },
+  async ctx => {
+    console.log('CASE 2: image_to_prompt')
+    await handleMenu(ctx)
+    ctx.scene.leave()
+    return
   }
 )
 

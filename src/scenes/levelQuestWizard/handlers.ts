@@ -61,7 +61,6 @@ export async function handleLevel1(ctx: MyContext) {
    - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
    - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
    - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
-   - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n
 3️⃣ <b>Обучение модели:</b>\n
 После загрузки изображений бот начнет процесс обучения, который может занять от 3 до 6 часов. ⏰\n\n
 4️⃣ <b>Использование модели:</b>\n
@@ -83,7 +82,6 @@ You will need at least 10 photos that meet the following criteria:\n
    - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n
    - 🎯 <b>Face centered in the frame:</b> Ensure your face is centered in the photo.\n
    - 🚫 <b>Minimal post-processing:</b> Avoid photos with heavy post-processing.\n
-   - ⏳ <b>Variety of age periods:</b> Include photos taken at different ages.\n\n
 3️⃣ <b>Training the model:</b>\n
 After uploading the images, the bot will start the training process, which can take 3 to 6 hours. ⏰\n\n
 4️⃣ <b>Using the model:</b>\n
