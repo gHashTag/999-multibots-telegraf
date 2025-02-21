@@ -33,8 +33,8 @@ uploadTrainFluxModelScene.enter(async ctx => {
 
     await ctx.reply(
       isRu
-        ? `⏳ Начинаю обучение модели...\n\nВаша модель будет натренирована через 3-6 часов. После завершения вы сможете проверить её работу, используя раздел "Модели" в Нейрофото.`
-        : `⏳ Starting model training...\n\nYour model will be trained in 3-6 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
+        ? `⏳ Начинаю обучение модели...\n\nВаша модель будет натренирована через 1-2 часа. После завершения вы сможете проверить её работу, используя раздел "Модели" в Нейрофото.`
+        : `⏳ Starting model training...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
     )
 
     await createModelTraining({
@@ -50,7 +50,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
     await deleteFile(zipPath)
   } catch (error) {
     console.error('Error in uploadTrainFluxModelScene:', error)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    //await sendGenericErrorMessage(ctx, isRu, error)
   } finally {
     await ctx.scene.leave()
   }
