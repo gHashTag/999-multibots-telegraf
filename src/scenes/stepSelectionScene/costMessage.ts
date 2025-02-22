@@ -1,8 +1,6 @@
 import { conversionRates } from '@/scenes/checkBalanceScene'
 
-const stepOptions = [
-  1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000,
-]
+const stepOptions = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
 
 const costDetails = stepOptions.map(steps => {
   const costInRubles = calculateTrainingCostInRubles(steps)
