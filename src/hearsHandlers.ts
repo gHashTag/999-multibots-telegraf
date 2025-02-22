@@ -153,7 +153,6 @@ composer.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async ctx => {
     if (ctx.session.mode === 'neuro_photo') {
       await generateNeuroImage(
         prompt,
-        ctx.session.userModel.model_url,
         num,
         userId.toString(),
         ctx,
@@ -162,7 +161,6 @@ composer.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async ctx => {
     } else {
       await generateTextToImage(
         prompt,
-        ctx.session.selectedModel || '',
         num,
         userId.toString(),
         isRu,

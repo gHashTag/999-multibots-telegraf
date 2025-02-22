@@ -2,31 +2,24 @@ import axios, { isAxiosError } from 'axios'
 
 import { isDev, SECRET_API_KEY } from '@/config'
 import { isRussian } from '@/helpers/language'
-import { MyContext, ModelUrl } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 
 export async function generateNeuroImage(
   prompt: string,
-  model_url: ModelUrl,
   numImages: number,
   telegram_id: string,
   ctx: MyContext,
   botName: string
 ): Promise<{ data: string } | null> {
-  if (!ctx.session.prompt) {
+  if (!prompt) {
     throw new Error('Prompt not found')
   }
-
-  if (!ctx.session.userModel) {
-    throw new Error('User model not found')
-  }
-
   if (!numImages) {
     throw new Error('Num images not found')
   }
 
   console.log('Starting generateNeuroImage with:', {
     prompt,
-    model_url,
     numImages,
     telegram_id,
     botName,
@@ -41,10 +34,8 @@ export async function generateNeuroImage(
       url,
       {
         prompt,
-        model_url,
         num_images: numImages || 1,
         telegram_id,
-        username: ctx.from?.username,
         is_ru: isRussian(ctx),
         bot_name: botName,
       },

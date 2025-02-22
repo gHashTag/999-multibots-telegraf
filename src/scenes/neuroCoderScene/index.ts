@@ -54,7 +54,6 @@ export const neuroCoderScene = new Scenes.WizardScene<MyContext>(
 
         await generateNeuroImage(
           prompt,
-          model_url,
           numImages,
           ctx.from.id.toString(),
           ctx,

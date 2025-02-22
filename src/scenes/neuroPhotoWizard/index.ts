@@ -87,17 +87,16 @@ const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
       return ctx.scene.leave()
     } else {
       ctx.session.prompt = promptText
-      const model_url = ctx.session.userModel.model_url as ModelUrl
+
       const trigger_word = ctx.from.username.toUpperCase()
       console.log('trigger_word', trigger_word)
 
       const userId = ctx.from?.id
 
-      if (model_url && trigger_word) {
+      if (trigger_word) {
         const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
         await generateNeuroImage(
           fullPrompt,
-          model_url,
           1,
           userId.toString(),
           ctx,
@@ -150,7 +149,6 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
     const generate = async (num: number) => {
       await generateNeuroImage(
         prompt,
-        ctx.session.userModel.model_url,
         num,
         userId.toString(),
         ctx,

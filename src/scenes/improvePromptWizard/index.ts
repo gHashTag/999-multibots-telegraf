@@ -110,7 +110,6 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             case 'neuro_photo':
               await generateNeuroImage(
                 ctx.session.prompt,
-                ctx.session.userModel.model_url,
                 1,
                 ctx.from.id.toString(),
                 ctx,

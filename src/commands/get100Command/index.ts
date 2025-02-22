@@ -1,12 +1,9 @@
 import { MyContext } from '../../interfaces'
 
 import { generateNeuroImage } from '../../services/generateNeuroImage'
-import { models } from '../../core/replicate'
 import { solarPunkAngelPrompt } from './prompts'
 
 async function get100Command(ctx: MyContext) {
-  const model_url = models['neuro_coder'].key as `${string}/${string}:${string}`
-
   const message = solarPunkAngelPrompt
   ctx.session.prompt = message
   if (!message || !ctx.from?.id) {
@@ -25,7 +22,6 @@ async function get100Command(ctx: MyContext) {
 
   await generateNeuroImage(
     message,
-    model_url,
     100,
     ctx.from.id.toString(),
     ctx,
