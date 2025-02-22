@@ -103,7 +103,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     console.log('Scene: IMAGES')
     const isRu = isRussian(ctx)
     const message = ctx.message
-    console.log('message', message)
+
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
       return ctx.scene.leave()
@@ -136,16 +136,12 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      console.log('File path:', file.file_path)
       const botToken = getBotToken(ctx)
 
       const response = await fetch(
         `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
       )
       const buffer = Buffer.from(await response.arrayBuffer())
-
-      console.log('Buffer length:', buffer.length)
-      console.log('Buffer content:', buffer.slice(0, 20)) // Вывод первых 20 байт
 
       const isValid = await isValidImage(buffer)
       console.log('Is valid image:', isValid)
@@ -182,7 +178,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
           ? `✅ Изображение ${ctx.session.images.length} добавлено. Отправьте еще или /done для завершения`
           : `✅ Image ${ctx.session.images.length} added. Send more or /done to finish`
       )
-      console.log(`Image ${ctx.session.images.length} added`)
+      // console.log(`Image ${ctx.session.images.length} added`)
     }
   }
 )

@@ -23,7 +23,7 @@ export async function createModelTraining(
   requestData: ModelTrainingRequest
 ): Promise<ModelTrainingResponse> {
   try {
-    console.log('requestData', requestData)
+    // console.log('requestData', requestData)
     const url = `${
       isDev ? 'http://localhost:3000' : process.env.ELESTIO_URL
     }/generate/create-model-training`
@@ -58,7 +58,7 @@ export async function createModelTraining(
     )
 
     await fs.promises.unlink(requestData.filePath)
-    console.log('Model training response:', response.data)
+    // console.log('Model training response:', response.data)
     return response.data
   } catch (error) {
     // if (axios.isAxiosError(error)) {

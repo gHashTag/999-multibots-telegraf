@@ -88,7 +88,8 @@ const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
     } else {
       ctx.session.prompt = promptText
       const model_url = ctx.session.userModel.model_url as ModelUrl
-      const trigger_word = ctx.session.userModel.trigger_word as string
+      const trigger_word = ctx.from.username.toUpperCase()
+      console.log('trigger_word', trigger_word)
 
       const userId = ctx.from?.id
 
