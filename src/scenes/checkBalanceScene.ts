@@ -13,6 +13,7 @@ export enum ModeEnum {
   DigitalAvatarBody = 'digital_avatar_body',
   DigitalAvatarBody2 = 'digital_avatar_body_2',
   NeuroPhoto = 'neuro_photo',
+  NeuroPhoto2 = 'neuro_photo_2',
   ImageToPrompt = 'image_to_prompt',
   Avatar = 'avatar',
   ChatWithAvatar = 'chat_with_avatar',
@@ -47,6 +48,7 @@ export const modeCosts: Record<ModeEnum, number> = {
   [ModeEnum.DigitalAvatarBody]: calculateCostInStars(0),
   [ModeEnum.DigitalAvatarBody2]: calculateCostInStars(0),
   [ModeEnum.NeuroPhoto]: calculateCostInStars(0.08),
+  [ModeEnum.NeuroPhoto2]: calculateCostInStars(0.08),
   [ModeEnum.ImageToPrompt]: calculateCostInStars(0.03),
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: calculateCostInStars(0),
@@ -94,6 +96,8 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter(ModeEnum.DigitalAvatarBody2)
     case ModeEnum.NeuroPhoto:
       return ctx.scene.enter(ModeEnum.NeuroPhoto)
+    case ModeEnum.NeuroPhoto2:
+      return ctx.scene.enter(ModeEnum.NeuroPhoto2)
     case ModeEnum.ImageToPrompt:
       return ctx.scene.enter(ModeEnum.ImageToPrompt)
     case ModeEnum.Avatar:

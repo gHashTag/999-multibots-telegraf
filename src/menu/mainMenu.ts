@@ -179,7 +179,8 @@ export async function mainMenu({
   if (userId && adminIds.includes(userId)) {
     // Изменяем добавление кнопки для админа
     buttons.push(
-      Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2')
+      Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
+      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
     )
   }
 

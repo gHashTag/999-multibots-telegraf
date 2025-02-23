@@ -34,6 +34,7 @@ export type Mode =
   | 'digital_avatar_body'
   | 'digital_avatar_body_2'
   | 'neuro_photo'
+  | 'neuro_photo_2'
   | 'image_to_prompt'
   | 'avatar_brain'
   | 'chat_with_avatar'

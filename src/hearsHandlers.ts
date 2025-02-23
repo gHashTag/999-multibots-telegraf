@@ -22,6 +22,12 @@ composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
   await ctx.scene.enter('checkBalanceScene')
 })
 
+composer.hears(['📸 Нейрофото 2', '📸 NeuroPhoto 2'], async ctx => {
+  console.log('CASE hearsHandler: 📸 Нейрофото 2')
+  ctx.session.mode = 'neuro_photo_2'
+  await ctx.scene.enter('checkBalanceScene')
+})
+
 composer.hears([levels[3].title_ru, levels[3].title_en], async ctx => {
   console.log('CASE: 🔍 Промпт из фото')
   ctx.session.mode = 'image_to_prompt'

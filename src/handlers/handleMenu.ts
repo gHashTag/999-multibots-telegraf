@@ -9,6 +9,7 @@ export const handleMenu = async (ctx: MyWizardContext) => {
   const isRu = isRussian(ctx)
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text || ''
+    console.log('CASE: handleMenuCommand.text', text)
 
     // Создаем объект для сопоставления текста с действиями
     const actions = {
@@ -30,6 +31,11 @@ export const handleMenu = async (ctx: MyWizardContext) => {
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         console.log('CASE handleMenu: 📸 Нейрофото')
         ctx.session.mode = 'neuro_photo'
+        await ctx.scene.enter('checkBalanceScene')
+      },
+      [isRu ? '📸 Нейрофото 2' : '📸 NeuroPhoto 2']: async () => {
+        console.log('CASE: 📸 Нейрофото 2')
+        ctx.session.mode = 'neuro_photo_2'
         await ctx.scene.enter('checkBalanceScene')
       },
       [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
