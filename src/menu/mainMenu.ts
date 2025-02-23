@@ -106,6 +106,8 @@ export const levels: Record<number, Level> = {
   },
 }
 
+const adminIds = process.env.ADMIN_IDS?.split(',') || []
+
 export async function mainMenu({
   isRu,
   inviteCount,
@@ -138,7 +140,7 @@ export async function mainMenu({
     neurobase: Object.values(levels).slice(1),
     neuromeeting: Object.values(levels).slice(1),
     neuroblogger: Object.values(levels).slice(1),
-    neurotester: Object.values(levels), // Полный доступ
+    neurotester: Object.values(levels),
   }
 
   let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []
@@ -171,6 +173,15 @@ export async function mainMenu({
   const buttons = availableLevels.map(level =>
     Markup.button.text(isRu ? level.title_ru : level.title_en)
   )
+
+  const userId = ctx.from?.id?.toString()
+
+  if (userId && adminIds.includes(userId)) {
+    // Изменяем добавление кнопки для админа
+    buttons.push(
+      Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2')
+    )
+  }
 
   const buttonRows = []
   for (let i = 0; i < buttons.length; i += 2) {

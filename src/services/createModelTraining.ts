@@ -2,7 +2,7 @@ import axios, { AxiosResponse } from 'axios'
 import FormData from 'form-data'
 import fs from 'fs'
 import { isDev, SECRET_API_KEY } from '@/config'
-
+import { MyContext } from '@/interfaces'
 interface ModelTrainingRequest {
   filePath: string
   triggerWord: string
@@ -20,13 +20,23 @@ interface ModelTrainingResponse {
 }
 
 export async function createModelTraining(
-  requestData: ModelTrainingRequest
+  requestData: ModelTrainingRequest,
+  ctx: MyContext
 ): Promise<ModelTrainingResponse> {
   try {
     console.log('requestData', requestData)
-    const url = `${
-      isDev ? 'http://localhost:3000' : process.env.ELESTIO_URL
-    }/generate/create-model-training`
+    const mode = ctx.session.mode
+    console.log('mode', mode)
+    let url = ''
+    if (mode === 'digital_avatar_body_2') {
+      url = `${
+        isDev ? 'http://localhost:3000' : process.env.ELESTIO_URL
+      }/generate/create-model-training`
+    } else {
+      url = `${
+        isDev ? 'http://localhost:3000' : process.env.ELESTIO_URL
+      }/generate/create-model-training-v2`
+    }
 
     // Проверяем, что файл существует
     if (!fs.existsSync(requestData.filePath)) {

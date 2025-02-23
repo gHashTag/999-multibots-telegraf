@@ -11,6 +11,7 @@ import { getUserInfo } from '@/handlers/getUserInfo'
 // Определяем перечисление для режимов
 export enum ModeEnum {
   DigitalAvatarBody = 'digital_avatar_body',
+  DigitalAvatarBody2 = 'digital_avatar_body_2',
   NeuroPhoto = 'neuro_photo',
   ImageToPrompt = 'image_to_prompt',
   Avatar = 'avatar',
@@ -44,6 +45,7 @@ export type CostValue = number | ((steps: number) => number)
 export const modeCosts: Record<ModeEnum, number> = {
   // Установите стоимость как 0 для режимов, где стоимость будет рассчитана на сцене
   [ModeEnum.DigitalAvatarBody]: calculateCostInStars(0),
+  [ModeEnum.DigitalAvatarBody2]: calculateCostInStars(0),
   [ModeEnum.NeuroPhoto]: calculateCostInStars(0.08),
   [ModeEnum.ImageToPrompt]: calculateCostInStars(0.03),
   [ModeEnum.Avatar]: 0,
@@ -88,6 +90,8 @@ checkBalanceScene.enter(async ctx => {
   switch (mode) {
     case ModeEnum.DigitalAvatarBody:
       return ctx.scene.enter(ModeEnum.DigitalAvatarBody)
+    case ModeEnum.DigitalAvatarBody2:
+      return ctx.scene.enter(ModeEnum.DigitalAvatarBody2)
     case ModeEnum.NeuroPhoto:
       return ctx.scene.enter(ModeEnum.NeuroPhoto)
     case ModeEnum.ImageToPrompt:

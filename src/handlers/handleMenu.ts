@@ -22,6 +22,11 @@ export const handleMenu = async (ctx: MyWizardContext) => {
         ctx.session.mode = 'digital_avatar_body'
         await ctx.scene.enter('checkBalanceScene')
       },
+      [isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2']: async () => {
+        console.log('CASE: 🤖 Цифровое тело 2')
+        ctx.session.mode = 'digital_avatar_body_2'
+        await ctx.scene.enter('checkBalanceScene')
+      },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         console.log('CASE handleMenu: 📸 Нейрофото')
         ctx.session.mode = 'neuro_photo'

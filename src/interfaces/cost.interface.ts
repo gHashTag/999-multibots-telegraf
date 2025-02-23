@@ -32,6 +32,7 @@ export const VIDEO_MODELS: VideoModelConfig[] = [
 export type Mode =
   | 'subscribe'
   | 'digital_avatar_body'
+  | 'digital_avatar_body_2'
   | 'neuro_photo'
   | 'image_to_prompt'
   | 'avatar_brain'
