@@ -13,7 +13,6 @@ import {
 } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
-import { generateTextToImage } from '@/services/generateTextToImage'
 
 import { MyWizardContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
@@ -22,16 +21,17 @@ import { handleMenu } from '@/handlers'
 const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
   const isRu = ctx.from?.language_code === 'ru'
   try {
-    console.log('CASE 1: neuroPhotoConversation')
+    console.log('CASE 1: neuroPhotoConversationV2')
 
-    const { userId, telegramId } = getUserInfo(ctx)
-    const userModel = await getLatestUserModel(userId)
+    const { telegramId } = getUserInfo(ctx)
+    const userModel = await getLatestUserModel(Number(telegramId), 'bfl')
+    console.log('userModel', userModel)
 
     const { count, subscription, level } = await getReferalsCountAndUserData(
       telegramId
     )
 
-    if (!userModel || !userModel.model_url) {
+    if (!userModel || !userModel.finetune_id) {
       await ctx.reply(
         isRu
           ? '❌ У вас нет обученных моделей.\n\nИспользуйте команду "🤖 Цифровое тело аватара", в главном меню, чтобы создать свою ИИ модель для генерации нейрофото в вашим лицом. '
@@ -87,16 +87,15 @@ const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
       return ctx.scene.leave()
     } else {
       ctx.session.prompt = promptText
-      const model_url = ctx.session.userModel.model_url as ModelUrl
+
       const trigger_word = ctx.session.userModel.trigger_word as string
 
       const userId = ctx.from?.id
 
-      if (model_url && trigger_word) {
+      if (trigger_word) {
         const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
         await generateNeuroImageV2(
           fullPrompt,
-          model_url,
           1,
           userId.toString(),
           ctx,
@@ -149,7 +148,6 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
     const generate = async (num: number) => {
       await generateNeuroImageV2(
         prompt,
-        ctx.session.userModel.model_url,
         num,
         userId.toString(),
         ctx,

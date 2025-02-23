@@ -2,21 +2,28 @@ import { supabase } from '.'
 import { ModelTraining } from '@/interfaces'
 
 export async function getLatestUserModel(
-  userId: number
+  telegram_id: number,
+  api: string
 ): Promise<ModelTraining | null> {
-  const { data, error } = await supabase
-    .from('model_trainings')
-    .select('model_name, trigger_word, model_url')
-    .eq('telegram_id', userId)
-    .eq('status', 'SUCCESS')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-  console.log(data, 'getLatestUserModel')
-  if (error) {
+  try {
+    const { data, error } = await supabase
+      .from('model_trainings')
+      .select('*')
+      .eq('telegram_id', telegram_id)
+      .eq('status', 'SUCCESS')
+      .eq('api', api)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    console.log(data, 'getLatestUserModel')
+    if (error) {
+      console.error('Error getting user model:', error)
+      return null
+    }
+
+    return data as ModelTraining
+  } catch (error) {
     console.error('Error getting user model:', error)
     return null
   }
-
-  return data as ModelTraining
 }

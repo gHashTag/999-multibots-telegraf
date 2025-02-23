@@ -25,7 +25,7 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
     console.log('CASE 1: neuroPhotoConversation')
 
     const { userId, telegramId } = getUserInfo(ctx)
-    const userModel = await getLatestUserModel(userId)
+    const userModel = await getLatestUserModel(userId, 'replicate')
 
     const { count, subscription, level } = await getReferalsCountAndUserData(
       telegramId

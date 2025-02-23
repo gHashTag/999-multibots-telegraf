@@ -20,6 +20,7 @@ export interface ModelTraining {
   model_name: string
   trigger_word: string
   model_url: string
+  finetune_id: string
 }
 export type Subscription =
   | 'neurobase'
