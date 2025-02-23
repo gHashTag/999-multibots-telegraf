@@ -25,7 +25,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     if (isDev) {
       newCount = 0
-      newSubscription = 'neurotester'
+      newSubscription = 'stars'
       newLevel = 0
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(
@@ -124,6 +124,7 @@ const menuCommandStep = async (ctx: MyContext) => {
       }
 
       const key = levelKeys[newLevel + 1]
+      console.log('key', key)
       if (key) {
         console.log(`CASE ${newLevel}: ${key}`)
         const { translation } = await getTranslation({
@@ -133,9 +134,9 @@ const menuCommandStep = async (ctx: MyContext) => {
         await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboard)
       } else {
         console.log(`CASE: default ${newCount}`)
-        const message = getText(isRu, 'mainMenu')
-        console.log('message', message)
-        await ctx.reply(message, keyboard)
+        // const message = getText(isRu, 'mainMenu')
+        // console.log('message', message)
+        // await ctx.reply(message, keyboard)
         ctx.wizard.next()
         return
       }

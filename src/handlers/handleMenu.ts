@@ -150,8 +150,8 @@ export const handleMenu = async (ctx: MyWizardContext) => {
       await actions[text]()
     } else {
       console.log('CASE: handleMenuCommand.else', text)
-      ctx.session.mode = 'main_menu'
-      await ctx.scene.enter('menuScene')
+      // ctx.session.mode = 'main_menu'
+      // await ctx.scene.enter('menuScene')
     }
   }
 }
