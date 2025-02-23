@@ -28,7 +28,7 @@ export async function createModelTraining(
     const mode = ctx.session.mode
     console.log('mode', mode)
     let url = ''
-    if (mode === 'digital_avatar_body_2') {
+    if (mode === 'digital_avatar_body') {
       url = `${
         isDev ? 'http://localhost:3000' : process.env.ELESTIO_URL
       }/generate/create-model-training`
