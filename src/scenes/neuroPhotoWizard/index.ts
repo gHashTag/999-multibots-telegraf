@@ -63,8 +63,8 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
       return ctx.scene.leave()
     }
     console.log('CASE: neuroPhotoConversation next')
-
-    return ctx.wizard.next()
+    ctx.wizard.next()
+    return
   } catch (error) {
     console.error('Error in neuroPhotoConversationStep:', error)
     await sendGenericErrorMessage(ctx, isRu, error)

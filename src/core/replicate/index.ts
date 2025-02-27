@@ -157,8 +157,8 @@ export const models: Record<string, ModelConfig> = {
     price: 0.022,
   },
   neuro_coder: {
-    key: 'ghashtag/neuro_coder_flux-dev-lora:5ff9ea5918427540563f09940bf95d6efc16b8ce9600e82bb17c2b188384e355',
-    word: '',
+    key: 'ghashtag/neuro_sage:65d4aa45988460fc1966dddd91245f7838161a0eec9847ac783fd1918b704033',
+    word: 'NEURO_SAGE',
     description: {
       ru: '🎨 NeuroCoder - астрологические изображения',
       en: '🎨 NeuroCoder - astrological images',

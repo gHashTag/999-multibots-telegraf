@@ -8,10 +8,10 @@ export function setBotCommands(bot: Telegraf<MyContext>) {
       command: 'start',
       description: '👤 Start / Начать',
     },
-    // {
-    //   command: 'menu',
-    //   description: '👤 Menu / Главное меню',
-    // },
+    {
+      command: 'menu',
+      description: '👤 Menu / Главное меню',
+    },
     // {
     //   command: 'invite',
     //   description: '👥 Invite a friend / Пригласить друга',
