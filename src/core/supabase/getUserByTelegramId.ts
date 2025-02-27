@@ -16,7 +16,10 @@ export async function getUserByTelegramId(ctx: MyContext) {
 
     // Проверяем, отличается ли текущий bot_name от сохраненного
     if (data.bot_name !== ctx.botInfo.username) {
-      console.log('Token changed, updating...')
+      console.log(
+        'BOT_NAME changed, updating... bot_name:',
+        ctx.botInfo.username
+      )
       const { error: updateError } = await supabase
         .from('users')
         .update({ bot_name: ctx.botInfo.username })

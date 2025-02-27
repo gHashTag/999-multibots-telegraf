@@ -47,8 +47,6 @@ export async function getTranslation({
     }
   }
 
-  console.log('data', data)
-
   return {
     translation: data.translation,
     url: data.url,

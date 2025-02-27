@@ -13,7 +13,7 @@ export const paymentOptions: {
   stars: string
   subscription: Subscription
 }[] = [
-  { amount: 4800, stars: '3000', subscription: 'neurophoto' },
+  { amount: 1999, stars: '1250', subscription: 'neurophoto' },
   { amount: 9999, stars: '1000', subscription: 'neurobase' },
   { amount: 49999, stars: '5000', subscription: 'neuromeeting' },
   { amount: 99999, stars: '7500', subscription: 'neuroblogger' },

@@ -144,10 +144,11 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
     const numImages = parseInt(text[0])
     const prompt = ctx.session.prompt
     const userId = ctx.from?.id
-
+    const trigger_word = ctx.session.userModel.trigger_word as string
+    const fullPrompt = `Fashionable ${trigger_word}, ${prompt}`
     const generate = async (num: number) => {
       await generateNeuroImageV2(
-        prompt,
+        fullPrompt,
         num,
         userId.toString(),
         ctx,
