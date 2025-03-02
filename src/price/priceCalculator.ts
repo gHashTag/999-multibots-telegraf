@@ -10,6 +10,12 @@ export const conversionRates: ConversionRates = {
   costPerStarInDollars: 0.016,
   rublesToDollarsRate: 100,
 }
+
+export const conversionRatesV2: ConversionRates = {
+  costPerStepInStars: 2.1,
+  costPerStarInDollars: 0.016,
+  rublesToDollarsRate: 100,
+}
 export interface CostDetails {
   steps: number
   stars: number
@@ -17,18 +23,18 @@ export interface CostDetails {
   dollars: number
 }
 
-// Основная функция расчета стоимости
-export function calculateCost(steps: number): CostDetails {
-  const baseCost = steps * conversionRates.costPerStepInStars
+export function calculateCost(
+  steps: number,
+  version: 'v1' | 'v2' = 'v1'
+): CostDetails {
+  const rates = version === 'v1' ? conversionRates : conversionRatesV2
+  const baseCost = steps * rates.costPerStepInStars
 
   return {
     steps,
     stars: baseCost,
-    dollars: baseCost * conversionRates.costPerStarInDollars,
-    rubles:
-      baseCost *
-      conversionRates.costPerStarInDollars *
-      conversionRates.rublesToDollarsRate,
+    dollars: baseCost * rates.costPerStarInDollars,
+    rubles: baseCost * rates.costPerStarInDollars * rates.rublesToDollarsRate,
   }
 }
 
@@ -44,24 +50,27 @@ export function formatCost(cost: CostDetails, isRu: boolean): string {
   )}⭐ / $${cost.dollars.toFixed(2)}`
 }
 
-// Функция генерации сообщения
 export function generateCostMessage(
-  costDetails: CostDetails[],
-  isRu: boolean
+  steps: number[],
+  isRu: boolean,
+  version: 'v1' | 'v2' = 'v1'
 ): string {
   const baseMessage = isRu
     ? '🔢 Пожалуйста, выберите количество шагов для обучения модели.\n\n📈 Чем больше шагов, тем лучше качество, но это будет стоить дороже. 💰\n\n💰 Стоимость:\n'
     : '🔢 Please choose the number of steps for model training.\n\n📈 The more steps, the better the quality, but it will cost more. 💰\n\n💰 Cost:\n'
 
+  const costDetails = steps.map(steps => calculateCost(steps, version))
   return (
     baseMessage + costDetails.map(detail => formatCost(detail, isRu)).join('\n')
   )
 }
 
-// Предопределенные шаги
-export const stepOptions: number[] = [
-  1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000,
-]
+export const stepOptions = {
+  v1: [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000],
+  v2: [100, 200, 300, 400, 500, 600, 700, 800, 1000],
+}
 
-// Предварительно рассчитанные стоимости
-export const costDetails = stepOptions.map(steps => calculateCost(steps))
+export const costDetails = {
+  v1: stepOptions.v1.map(steps => calculateCost(steps, 'v1')),
+  v2: stepOptions.v2.map(steps => calculateCost(steps, 'v2')),
+}

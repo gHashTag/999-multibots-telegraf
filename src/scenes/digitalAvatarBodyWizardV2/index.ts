@@ -4,19 +4,14 @@ import { MyContext } from '../../interfaces'
 import { isRussian } from '@/helpers/language'
 import { handleTrainingCost } from '@/price/helpers'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import {
-  generateCostMessage,
-  stepOptions,
-  calculateCost,
-} from '@/price/priceCalculator'
+import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
 import { getStepSelectionMenuV2 } from '@/menu'
 
 export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
   'digital_avatar_body_2',
   async ctx => {
     const isRu = isRussian(ctx)
-    const costs = stepOptions.map(steps => calculateCost(steps))
-    const costMessage = generateCostMessage(costs, isRu)
+    const costMessage = generateCostMessage(stepOptions.v2, isRu, 'v2')
     await ctx.reply(costMessage, getStepSelectionMenuV2(isRu))
     return ctx.wizard.next()
   },
@@ -33,7 +28,7 @@ export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
         ctx.session.steps = steps
         console.log('Parsed steps:', steps)
         const { leaveScene, trainingCostInStars, currentBalance } =
-          await handleTrainingCost(ctx, steps, isRu)
+          await handleTrainingCost(ctx, steps, isRu, 'v2')
         if (leaveScene) {
           return ctx.scene.leave()
         } else {

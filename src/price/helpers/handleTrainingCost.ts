@@ -2,23 +2,24 @@ import { Markup } from 'telegraf'
 
 import { MyContext } from '@/interfaces'
 import { getUserBalance } from '@/core/supabase'
-import { calculateCostInStars } from './calculateTrainingCost'
-import { conversionRates } from '@/price/priceCalculator'
+
+import { calculateCost } from '@/price/priceCalculator'
 
 export async function handleTrainingCost(
   ctx: MyContext,
   steps: number,
-  isRu: boolean
+  isRu: boolean,
+  version: 'v1' | 'v2'
 ): Promise<{
   leaveScene: boolean
   trainingCostInStars: number
   currentBalance: number
 }> {
-  const trainingCostInStars = calculateCostInStars(steps, conversionRates)
+  const trainingCostInStars = calculateCost(steps, version)
   const currentBalance = await getUserBalance(Number(ctx.from?.id))
 
   let leaveScene = false
-  if (currentBalance < trainingCostInStars) {
+  if (currentBalance < trainingCostInStars.stars) {
     const message = isRu
       ? `❌ Недостаточно звезд для обучения модели!\n\nВаш баланс: ${currentBalance}⭐️ звезд, необходимый баланс: ${trainingCostInStars}⭐️ звезд.\n\nПополните баланс вызвав команду /buy.`
       : `❌ Insufficient stars for model training!\n\nYour balance: ${currentBalance}⭐️ stars, required balance: ${trainingCostInStars}⭐️ stars.\n\nTop up your balance by calling the /buy command.`
@@ -30,7 +31,7 @@ export async function handleTrainingCost(
 
   return {
     leaveScene,
-    trainingCostInStars,
+    trainingCostInStars: trainingCostInStars.stars,
     currentBalance,
   }
 }
