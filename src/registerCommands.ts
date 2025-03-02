@@ -37,6 +37,7 @@ import {
   createUserScene,
   checkBalanceScene,
   uploadVideoScene,
+  selectModelScene,
 } from './scenes'
 
 import { setupLevelHandlers } from './handlers/setupLevelHandlers'
@@ -82,6 +83,7 @@ export const stage = new Scenes.Stage<MyContext>([
   lipSyncWizard,
   helpScene,
   inviteScene,
+  selectModelScene,
   ...levelQuestWizard,
   uploadVideoScene,
 ])

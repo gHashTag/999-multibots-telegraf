@@ -124,8 +124,6 @@ export async function mainMenu({
   console.log('💻 CASE: mainMenu')
   let hasFullAccess = await checkPaymentStatus(ctx, subscription)
 
-  const subscriptionButton = isRu ? levels[0].title_ru : levels[0].title_en
-
   // Определяем доступные уровни в зависимости от подписки
   const subscriptionLevelsMap = {
     stars: [levels[0]],
@@ -140,7 +138,7 @@ export async function mainMenu({
     neurobase: Object.values(levels).slice(1),
     neuromeeting: Object.values(levels).slice(1),
     neuroblogger: Object.values(levels).slice(1),
-    neurotester: Object.values(levels),
+    neurotester: Object.values(levels).slice(1),
   }
 
   let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []
@@ -148,7 +146,7 @@ export async function mainMenu({
   // Если подписка neurotester, предоставляем полный доступ
   if (subscription === 'neurotester') {
     hasFullAccess = true
-    availableLevels = Object.values(levels)
+    availableLevels = Object.values(levels).slice(1)
   } else if (subscription === 'stars') {
     availableLevels = availableLevels.concat(
       Object.values(levels).slice(0, inviteCount + 1)
@@ -162,11 +160,12 @@ export async function mainMenu({
   if (subscription !== 'neurotester') {
     availableLevels = availableLevels.filter((_, index) => index <= level)
   }
-
+  const subscriptionButton = isRu ? levels[0].title_ru : levels[0].title_en
   if (availableLevels.length === 0) {
     console.warn(
       'No available levels for the current invite count and subscription status.'
     )
+
     return Markup.keyboard([[Markup.button.text(subscriptionButton)]]).resize()
   }
 

@@ -21,7 +21,7 @@ export const handleMenu = async (ctx: MyWizardContext) => {
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         console.log('CASE: 🤖 Цифровое тело')
         ctx.session.mode = 'digital_avatar_body'
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter('select_model')
       },
       [isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2']: async () => {
         console.log('CASE: 🤖 Цифровое тело 2')

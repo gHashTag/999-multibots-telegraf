@@ -13,7 +13,7 @@ import { composer } from './bot'
 composer.hears([levels[1].title_ru, levels[1].title_en], async ctx => {
   console.log('CASE: 🤖 Цифровое тело')
   ctx.session.mode = 'digital_avatar_body'
-  await ctx.scene.enter('checkBalanceScene')
+  await ctx.scene.enter('select_model')
 })
 
 composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
