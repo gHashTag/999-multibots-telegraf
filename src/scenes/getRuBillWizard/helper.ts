@@ -13,19 +13,15 @@ export const paymentOptions: {
   stars: string
   subscription: Subscription
 }[] = [
-  { amount: 1999, stars: '1250', subscription: 'neurophoto' },
-  { amount: 9999, stars: '1000', subscription: 'neurobase' },
-  { amount: 49999, stars: '5000', subscription: 'neuromeeting' },
-  { amount: 99999, stars: '7500', subscription: 'neuroblogger' },
-  //   { amount: 120000, stars: '10000', subscription: 'neuromentor' },
+  { amount: 1110, stars: '693', subscription: 'neurophoto' },
+  { amount: 1999, stars: '1250', subscription: 'neurobase' },
+  { amount: 75000, stars: '46875', subscription: 'neuroblogger' },
 ]
 
 export const subscriptionTitles = (isRu: boolean) => ({
   neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
   neurobase: isRu ? '📚 НейроБаза' : '📚 NeuroBase',
-  neuromeeting: isRu ? '🧠 НейроВстреча' : '🧠 NeuroMeeting',
   neuroblogger: isRu ? '🤖 НейроБлогер' : '🤖 NeuroBlogger',
-  //   neuromentor: isRu ? '🦸🏼‍♂️ НейроМентор' : '🦸🏼‍♂️ NeuroMentor',
 })
 
 export const resultUrl2 = RESULT_URL2
