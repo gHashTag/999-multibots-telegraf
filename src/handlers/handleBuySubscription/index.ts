@@ -11,7 +11,6 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
     const subscriptionTitles = {
       neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
       neurobase: isRu ? '📚 НейроБаза' : '📚 NeuroBase',
-      neuromeeting: isRu ? '🧠 НейроВстреча' : '🧠 NeuroMeeting',
       neuroblogger: isRu ? '🤖 НейроБлогер' : '🤖 NeuroBlogger',
       // neuromentor: isRu ? '🦸🏼‍♂️ НейроМентор' : '🦸🏼‍♂️ NeuroMentor',
     }
@@ -35,10 +34,9 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
     }
 
     const subscriptionStarAmounts = {
-      neurophoto: 1250,
-      neurobase: 7000,
-      neuromeeting: 28000,
-      neuroblogger: 75000,
+      neurophoto: 693,
+      neurobase: 1250,
+      neuroblogger: 46875,
       // neuromentor: 100000,
     }
 

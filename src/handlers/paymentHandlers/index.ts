@@ -73,11 +73,9 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
   const subscriptionType = ctx.session.subscription
 
   const subscriptionDetails = {
-    neurophoto: { amount: 3000, name: 'NeuroPhoto' },
-    neurobase: { amount: 7000, name: 'NeuroBase' },
-    neuromeeting: { amount: 28000, name: 'NeuroMeeting' },
-    neuroblogger: { amount: 75000, name: 'NeuroBlogger' },
-    // neuromentor: { amount: 100000, name: 'NeuroMentor' },
+    neurophoto: { amount: 693, name: 'NeuroPhoto' },
+    neurobase: { amount: 1250, name: 'NeuroBase' },
+    neuroblogger: { amount: 46875, name: 'NeuroBlogger' },
   }
 
   if (subscriptionType in subscriptionDetails) {
