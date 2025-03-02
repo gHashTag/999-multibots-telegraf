@@ -14,6 +14,14 @@ export const checkPaymentStatus = async (
     return false
   }
 
+  // Если подписка "нейротестер", пропускаем проверку оплаты
+  if (subscription === 'neurotester') {
+    console.log(
+      'Пользователь с подпиской "нейротестер", пропускаем проверку оплаты'
+    )
+    return true
+  }
+
   try {
     // Получаем последнюю запись оплаты для пользователя
     const { data: paymentData, error } = await supabase
