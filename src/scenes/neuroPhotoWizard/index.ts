@@ -13,7 +13,6 @@ import {
 } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
-import { generateTextToImage } from '@/services/generateTextToImage'
 
 import { MyWizardContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'

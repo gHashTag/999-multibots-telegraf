@@ -37,7 +37,7 @@ export const modeCosts: Record<ModeEnum, number> = {
   [ModeEnum.DigitalAvatarBody]: calculateCostInStars(0),
   [ModeEnum.DigitalAvatarBody2]: calculateCostInStars(0),
   [ModeEnum.NeuroPhoto]: calculateCostInStars(0.08),
-  [ModeEnum.NeuroPhoto2]: calculateCostInStars(0.08),
+  [ModeEnum.NeuroPhoto2]: calculateCostInStars(0.14),
   [ModeEnum.ImageToPrompt]: calculateCostInStars(0.03),
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: calculateCostInStars(0),

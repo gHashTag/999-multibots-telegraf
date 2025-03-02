@@ -20,23 +20,11 @@ export const handleMenu = async (ctx: MyWizardContext) => {
       },
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         console.log('CASE: 🤖 Цифровое тело')
-        ctx.session.mode = 'digital_avatar_body'
         await ctx.scene.enter('select_model')
-      },
-      [isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2']: async () => {
-        console.log('CASE: 🤖 Цифровое тело 2')
-        ctx.session.mode = 'digital_avatar_body_2'
-        await ctx.scene.enter('checkBalanceScene')
       },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         console.log('CASE handleMenu: 📸 Нейрофото')
-        ctx.session.mode = 'neuro_photo'
-        await ctx.scene.enter('checkBalanceScene')
-      },
-      [isRu ? '📸 Нейрофото 2' : '📸 NeuroPhoto 2']: async () => {
-        console.log('CASE: 📸 Нейрофото 2')
-        ctx.session.mode = 'neuro_photo_2'
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter('select_neuro_photo')
       },
       [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
         console.log('CASE: 🔍 Промпт из фото')

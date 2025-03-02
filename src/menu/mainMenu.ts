@@ -173,15 +173,15 @@ export async function mainMenu({
     Markup.button.text(isRu ? level.title_ru : level.title_en)
   )
 
-  const userId = ctx.from?.id?.toString()
+  // const userId = ctx.from?.id?.toString()
 
-  if (userId && adminIds.includes(userId)) {
-    // Изменяем добавление кнопки для админа
-    buttons.push(
-      Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
-      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
-    )
-  }
+  // if (userId && adminIds.includes(userId)) {
+  //   // Изменяем добавление кнопки для админа
+  //   buttons.push(
+  //     Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
+  //     Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
+  //   )
+  // }
 
   const buttonRows = []
   for (let i = 0; i < buttons.length; i += 2) {

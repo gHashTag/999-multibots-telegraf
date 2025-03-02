@@ -38,6 +38,7 @@ import {
   checkBalanceScene,
   uploadVideoScene,
   selectModelScene,
+  selectNeuroPhotoScene,
 } from './scenes'
 
 import { setupLevelHandlers } from './handlers/setupLevelHandlers'
@@ -84,6 +85,7 @@ export const stage = new Scenes.Stage<MyContext>([
   helpScene,
   inviteScene,
   selectModelScene,
+  selectNeuroPhotoScene,
   ...levelQuestWizard,
   uploadVideoScene,
 ])
