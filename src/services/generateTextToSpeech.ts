@@ -1,5 +1,5 @@
 import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY } from '@/config'
+import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
 
 interface TextToSpeechResponse {
   success: boolean
@@ -17,7 +17,7 @@ export async function generateTextToSpeech(
 ): Promise<TextToSpeechResponse> {
   try {
     const url = `${
-      isDev ? 'http://localhost:3000' : process.env.ELESTIO_URL
+      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
     }/generate/text-to-speech`
     if (!text) {
       throw new Error('Text is required')

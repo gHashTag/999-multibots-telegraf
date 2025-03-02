@@ -1,7 +1,7 @@
 import axios, { AxiosResponse } from 'axios'
 import FormData from 'form-data'
 import fs from 'fs'
-import { isDev, SECRET_API_KEY } from '@/config'
+import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
 import { MyContext } from '@/interfaces'
 interface ModelTrainingRequest {
   filePath: string
@@ -30,11 +30,11 @@ export async function createModelTraining(
     let url = ''
     if (mode === 'digital_avatar_body') {
       url = `${
-        isDev ? 'http://localhost:3000' : process.env.ELESTIO_URL
+        isDev ? LOCAL_SERVER_URL : ELESTIO_URL
       }/generate/create-model-training`
     } else {
       url = `${
-        isDev ? 'http://localhost:3000' : process.env.ELESTIO_URL
+        isDev ? LOCAL_SERVER_URL : ELESTIO_URL
       }/generate/create-model-training-v2`
     }
 

@@ -3,7 +3,7 @@ import { Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { getUserBalance } from '@/core/supabase'
 import { calculateCostInStars } from './calculateTrainingCost'
-import { conversionRates } from '@/scenes/checkBalanceScene'
+import { conversionRates } from '@/price/priceCalculator'
 
 export async function handleTrainingCost(
   ctx: MyContext,

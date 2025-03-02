@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { isDev } from '@/config'
+import { isDev, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
 interface UploadVideoRequest {
   videoUrl: string
   telegram_id: string
@@ -11,9 +11,7 @@ export async function uploadVideoToServer(
 ): Promise<void> {
   try {
     console.log('CASE 1: uploadVideoToServer')
-    const url = `${
-      isDev ? 'http://localhost:3000' : process.env.ELESTIO_URL
-    }/video/upload`
+    const url = `${isDev ? LOCAL_SERVER_URL : ELESTIO_URL}/video/upload`
     const response = await axios.post(url, requestData, {
       headers: {
         'Content-Type': 'application/json',

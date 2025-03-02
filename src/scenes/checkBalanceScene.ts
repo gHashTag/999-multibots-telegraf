@@ -29,18 +29,7 @@ export enum ModeEnum {
 }
 
 // Интерфейс для конверсий
-interface ConversionRates {
-  costPerStarInDollars: number
-  costPerStepInStars: number
-  rublesToDollarsRate: number
-}
 
-// Определяем конверсии
-export const conversionRates: ConversionRates = {
-  costPerStarInDollars: 0.016,
-  costPerStepInStars: 0.5,
-  rublesToDollarsRate: 100,
-}
 export type CostValue = number | ((steps: number) => number)
 // Определяем стоимость для каждого режима
 export const modeCosts: Record<ModeEnum, number> = {

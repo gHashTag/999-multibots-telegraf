@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import { ELESTIO_URL, isDev, SECRET_API_KEY } from '@/config'
+import { ELESTIO_URL, isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
 import { MyContext } from '@/interfaces'
 
 export const generateTextToImage = async (
@@ -14,7 +14,7 @@ export const generateTextToImage = async (
 ) => {
   try {
     const url = `${
-      isDev ? 'http://localhost:3000' : ELESTIO_URL
+      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
     }/generate/text-to-image`
     console.log(url, 'url')
 

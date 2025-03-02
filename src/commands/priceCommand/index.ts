@@ -1,7 +1,8 @@
 import { starCost } from '@/price'
 import { MyContext } from '../../interfaces'
-import { conversionRates, minCost, maxCost } from '@/scenes/checkBalanceScene'
+import { minCost, maxCost } from '@/scenes/checkBalanceScene'
 import { modeCosts } from '@/scenes/checkBalanceScene'
+import { conversionRates } from '@/price/priceCalculator'
 
 export async function priceCommand(ctx: MyContext) {
   console.log('CASE: priceCommand')

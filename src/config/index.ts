@@ -29,6 +29,7 @@ export const {
   RESULT_URL2,
   PINATA_JWT,
   PINATA_GATEWAY,
+  LOCAL_SERVER_URL,
 } = process.env
 
 export const isDev = process.env.NODE_ENV === 'development'
