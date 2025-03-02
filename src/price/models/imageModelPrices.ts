@@ -18,7 +18,7 @@ export const imageModelPrices: Record<string, ModelInfo> = {
     description_ru: `FLUX1.1 [pro] генерирует изображения в шесть раз быстрее, чем его предшественник, с улучшенным качеством и разнообразием. Предлагает баланс между скоростью и качеством изображения.`,
     previewImage:
       'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
-    costPerImage: calculateFinalImageCostInStars(0.04),
+    costPerImage: calculateFinalImageCostInStars(0.055),
     inputType: ['text', 'image'],
   },
   'black-forest-labs/flux-1.1-pro-ultra': {
@@ -102,15 +102,15 @@ export const imageModelPrices: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.05),
     inputType: ['text', 'image', 'dev'],
   },
-  'black-forest-labs/flux-pro': {
-    shortName: 'FLUX1.1 [pro]',
-    description_en: `FLUX.1 [pro] is a model based on a hybrid architecture of multimodal and parallel blocks of diffusion transformer, optimized for image generation from text descriptions. It offers improved performance and efficiency, including rotational positional embeddings and parallel attention layers. FLUX.1 [pro] is available for non-commercial use and supports open weights for scientific research and creative projects.`,
-    description_ru: `FLUX.1 [pro] — это модель, основанная на гибридной архитектуре мультимодальных и параллельных блоков диффузионного трансформатора, оптимизированная для генерации изображений из текстовых описаний. Она предлагает улучшенную производительность и эффективность, включая вращательные позиционные вложения и параллельные слои внимания. FLUX.1 [pro] доступна для использования в некоммерческих целях и поддерживает открытые веса для научных исследований и творческих проектов.`,
-    previewImage:
-      'https://bflapistorage.blob.core.windows.net/public/c8145aa6e5894cbd815d6ce708fea9f2/sample.jpg',
-    costPerImage: calculateFinalImageCostInStars(0.055),
-    inputType: ['text', 'image'],
-  },
+  // 'black-forest-labs/flux-pro': {
+  //   shortName: 'FLUX1.1 [pro]',
+  //   description_en: `FLUX.1 [pro] is a model based on a hybrid architecture of multimodal and parallel blocks of diffusion transformer, optimized for image generation from text descriptions. It offers improved performance and efficiency, including rotational positional embeddings and parallel attention layers. FLUX.1 [pro] is available for non-commercial use and supports open weights for scientific research and creative projects.`,
+  //   description_ru: `FLUX.1 [pro] — это модель, основанная на гибридной архитектуре мультимодальных и параллельных блоков диффузионного трансформатора, оптимизированная для генерации изображений из текстовых описаний. Она предлагает улучшенную производительность и эффективность, включая вращательные позиционные вложения и параллельные слои внимания. FLUX.1 [pro] доступна для использования в некоммерческих целях и поддерживает открытые веса для научных исследований и творческих проектов.`,
+  //   previewImage:
+  //     'https://bflapistorage.blob.core.windows.net/public/c8145aa6e5894cbd815d6ce708fea9f2/sample.jpg',
+  //   costPerImage: calculateFinalImageCostInStars(0.055),
+  //   inputType: ['text', 'image'],
+  // },
   'black-forest-labs/flux-redux-dev': {
     shortName: 'FLUX1.1 [dev] Redux',
     description_en: `FLUX.1 Redux [dev] helps you explore variations of existing images. Give it an image and a description of what you want to change, and it creates new versions that maintain the essence of the original while incorporating your changes. Perfect for iterating on designs or exploring creative directions.`,

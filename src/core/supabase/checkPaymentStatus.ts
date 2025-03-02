@@ -44,13 +44,14 @@ export const checkPaymentStatus = async (
       (currentDate.getTime() - lastPaymentDate.getTime()) / (1000 * 3600 * 24)
     console.log('differenceInDays', differenceInDays)
 
-    if (differenceInDays < 30) {
+    if (differenceInDays > 30) {
       // differenceInDays > 30
       // Обновляем уровень подписки на 'stars']
       const isFullAccess = checkFullAccess(subscription)
       if (isFullAccess) {
         const isRu = isRussian(ctx)
         if (!isDev) {
+          //@ts-ignore
           if (subscription !== 'neurotester') {
             await ctx.reply(
               isRu
