@@ -1,6 +1,6 @@
 import { Subscription } from '@/interfaces/supabase.interface'
 
-import { checkPaymentStatus } from '@/core/supabase'
+// import { checkPaymentStatus } from '@/core/supabase'
 import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
@@ -106,7 +106,7 @@ export const levels: Record<number, Level> = {
   },
 }
 
-const adminIds = process.env.ADMIN_IDS?.split(',') || []
+// const adminIds = process.env.ADMIN_IDS?.split(',') || []
 
 export async function mainMenu({
   isRu,
@@ -122,7 +122,7 @@ export async function mainMenu({
   ctx: MyContext
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   console.log('💻 CASE: mainMenu')
-  let hasFullAccess = await checkPaymentStatus(ctx, subscription)
+  // let hasFullAccess = await checkPaymentStatus(ctx, subscription)
 
   // Определяем доступные уровни в зависимости от подписки
   const subscriptionLevelsMap = {
@@ -145,7 +145,7 @@ export async function mainMenu({
 
   // Если подписка neurotester, предоставляем полный доступ
   if (subscription === 'neurotester') {
-    hasFullAccess = true
+    // hasFullAccess = true
     availableLevels = Object.values(levels).slice(1)
   } else if (subscription === 'stars') {
     availableLevels = availableLevels.concat(
@@ -160,14 +160,14 @@ export async function mainMenu({
   if (subscription !== 'neurotester') {
     availableLevels = availableLevels.filter((_, index) => index <= level)
   }
-  const subscriptionButton = isRu ? levels[0].title_ru : levels[0].title_en
-  if (availableLevels.length === 0) {
-    console.warn(
-      'No available levels for the current invite count and subscription status.'
-    )
+  // const subscriptionButton = isRu ? levels[0].title_ru : levels[0].title_en
+  // if (availableLevels.length === 0) {
+  //   console.warn(
+  //     'No available levels for the current invite count and subscription status.'
+  //   )
 
-    return Markup.keyboard([[Markup.button.text(subscriptionButton)]]).resize()
-  }
+  //   return Markup.keyboard([[Markup.button.text(subscriptionButton)]]).resize()
+  // }
 
   const buttons = availableLevels.map(level =>
     Markup.button.text(isRu ? level.title_ru : level.title_en)
@@ -188,10 +188,10 @@ export async function mainMenu({
     buttonRows.push(buttons.slice(i, i + 2))
   }
 
-  // Добавляем кнопку подписки в конце, если нет полного доступа
-  if (!hasFullAccess) {
-    buttonRows.push([Markup.button.text(subscriptionButton)])
-  }
+  // // Добавляем кнопку подписки в конце, если нет полного доступа
+  // if (!hasFullAccess) {
+  //   buttonRows.push([Markup.button.text(subscriptionButton)])
+  // }
 
   return Markup.keyboard(buttonRows).resize()
 }

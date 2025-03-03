@@ -1,13 +1,13 @@
-import { MyContext } from '../../interfaces'
 import { errorMessage } from '@/helpers/error'
 import { getReferalsCountAndUserData } from '@/core/supabase'
-import { getSubScribeChannel } from '@/handlers'
+import { getSubScribeChannel } from '@/core/supabase'
 import { mainMenu } from '@/menu'
+import { MyContext } from '@/interfaces'
 
 export async function handleQuestRules(ctx: MyContext) {
   try {
     const isRu = ctx.from?.language_code === 'ru'
-    const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
+    const SUBSCRIBE_CHANNEL_ID = await getSubScribeChannel(ctx)
     const message = isRu
       ? `🎓 <b>🌟 Добро пожаловать в наше обучение по боту "Нейроблоггер"</b>\n\n
 В этом боте вы откроете для себя мир нейросетей и научитесь использовать их для создания и управления контентом. Все взаимодействие будет происходить с помощью нашего бота, который станет вашим цифровым наставником. 🤖\n\n

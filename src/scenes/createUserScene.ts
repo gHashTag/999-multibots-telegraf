@@ -5,8 +5,8 @@ import {
   getReferalsCountAndUserData,
   incrementBalance,
 } from '@/core/supabase'
+import { getSubScribeChannel } from '@/core/supabase'
 
-import { getSubScribeChannel } from '@/handlers'
 import { isRussian } from '@/helpers/language'
 
 const BONUS_AMOUNT = 100
@@ -29,7 +29,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   const botNameMatch = ctx.message.text.match(
     /https:\/\/t\.me\/([a-zA-Z0-9_]+)\?start=(\d+)/
   )
-  console.log('botNameMatch', botNameMatch)
+
   let botName = ''
   let startNumber = ''
   console.log('botName', botName)
@@ -53,7 +53,8 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
   ctx.session.inviteCode = startNumber
 
-  const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
+  const SUBSCRIBE_CHANNEL_ID = await getSubScribeChannel(ctx)
+  console.log('SUBSCRIBE_CHANNEL_ID', SUBSCRIBE_CHANNEL_ID)
 
   if (ctx.session.inviteCode) {
     console.log('CASE: ctx.session.inviteCode', ctx.session.inviteCode)
@@ -116,7 +117,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     model: 'gpt-4-turbo',
     count: 0,
     aspect_ratio: '9:16',
-    balance: 100,
+    balance: 0,
     inviter: ctx.session.inviter || null,
     bot_name: botName,
   }

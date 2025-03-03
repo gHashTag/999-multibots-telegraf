@@ -2,7 +2,7 @@ import { MyContext } from '@/interfaces'
 import { WizardScene } from 'telegraf/scenes'
 import { getUserByTelegramId } from '@/core/supabase'
 import { verifySubscription } from '@/middlewares/verifySubscription'
-import { getSubScribeChannel } from '@/handlers'
+import { getSubScribeChannel } from '@/core/supabase'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
   console.log('CASE: subscriptionCheckStep', ctx.from)
@@ -21,7 +21,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   // Получаем ID канала подписки
   if (subscription !== 'stars') {
     console.log('CASE: subscription not stars')
-    const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
+    const SUBSCRIBE_CHANNEL_ID = await getSubScribeChannel(ctx)
     // Проверяем подписку
     const isSubscribed = await verifySubscription(
       ctx,
