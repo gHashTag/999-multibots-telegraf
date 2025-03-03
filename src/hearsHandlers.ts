@@ -2,7 +2,7 @@ import { imageModelMenu } from './menu/imageModelMenu'
 
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
-
+import { handleTechSupport } from './commands'
 import { generateNeuroImage } from './services/generateNeuroImage'
 
 import { handleSizeSelection } from './handlers'
@@ -118,6 +118,8 @@ composer.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => 
   ctx.session.mode = 'main_menu'
   await ctx.scene.enter('menuScene')
 })
+
+composer.hears([levels[105].title_ru, levels[105].title_en], handleTechSupport)
 
 composer.hears(
   ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],

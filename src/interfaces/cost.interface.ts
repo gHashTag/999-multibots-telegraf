@@ -57,5 +57,6 @@ export type Mode =
   | 'getEmailWizard'
   | 'price'
   | 'video_in_url'
+  | 'tech'
 
 export type ModeCosts = Required<Record<Mode, number>>

@@ -1,6 +1,6 @@
 import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
-
+import { handleTechSupport } from './commands'
 import {
   avatarBrainWizard,
   textToVideoWizard,
@@ -115,6 +115,19 @@ export function registerCommands({
     ctx.session.mode = 'main_menu'
     await ctx.scene.enter('subscriptionCheckScene')
   })
+
+  bot.command('tech', async ctx => {
+    console.log('CASE bot.command: tech')
+    await handleTechSupport(ctx)
+  })
+
+  composer.command('tech', async ctx => {
+    console.log('CASE bot.command: tech')
+    await handleTechSupport(ctx)
+  })
+
+  composer.hears(/^(🛠 Техподдержка|🛠 Tech Support)$/i, handleTechSupport)
+
   composer.command('menu', async ctx => {
     console.log('CASE: myComposer.command menu')
     // ctx.session = defaultSession()

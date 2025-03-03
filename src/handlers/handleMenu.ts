@@ -2,7 +2,7 @@ import { MyWizardContext } from '@/interfaces'
 import { levels } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
 import { priceCommand } from '@/commands/priceCommand'
-
+import { handleTechSupport } from '@/commands/handleTechSupport'
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyWizardContext) => {
   console.log('CASE: handleMenuCommand')
@@ -106,6 +106,11 @@ export const handleMenu = async (ctx: MyWizardContext) => {
         ctx.session.mode = 'main_menu'
         await ctx.scene.enter('menuScene')
       },
+      [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
+        console.log('CASE: 🛠 Техподдержка')
+        ctx.session.mode = 'tech'
+        await handleTechSupport(ctx)
+      },
       '/invite': async () => {
         console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = 'invite'
@@ -135,6 +140,11 @@ export const handleMenu = async (ctx: MyWizardContext) => {
         console.log('CASE: 🏠 Главное меню')
         ctx.session.mode = 'main_menu'
         await ctx.scene.enter('menuScene')
+      },
+      '/tech': async () => {
+        console.log('CASE: 🛠 Техподдержка')
+        ctx.session.mode = 'tech'
+        await handleTechSupport(ctx)
       },
       '/start': async () => {
         console.log('CASE: 🚀 Начать обучение')

@@ -1,6 +1,6 @@
 import { Subscription } from '@/interfaces/supabase.interface'
 
-// import { checkPaymentStatus } from '@/core/supabase'
+import { checkPaymentStatus } from '@/core/supabase'
 import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
@@ -104,9 +104,11 @@ export const levels: Record<number, Level> = {
     title_ru: '🏠 Главное меню',
     title_en: '🏠 Main menu',
   },
+  105: {
+    title_ru: '🛠 Техподдержка',
+    title_en: '🛠 Tech Support',
+  },
 }
-
-// const adminIds = process.env.ADMIN_IDS?.split(',') || []
 
 export async function mainMenu({
   isRu,
@@ -122,11 +124,11 @@ export async function mainMenu({
   ctx: MyContext
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   console.log('💻 CASE: mainMenu')
-  // let hasFullAccess = await checkPaymentStatus(ctx, subscription)
+  let hasFullAccess = await checkPaymentStatus(ctx, subscription)
 
   // Определяем доступные уровни в зависимости от подписки
   const subscriptionLevelsMap = {
-    stars: [levels[0]],
+    stars: [levels[0], levels[105]],
     neurophoto: [
       levels[1],
       levels[2],
@@ -134,6 +136,7 @@ export async function mainMenu({
       levels[100],
       levels[101],
       levels[102],
+      levels[105],
     ],
     neurobase: Object.values(levels).slice(1),
     neuromeeting: Object.values(levels).slice(1),
@@ -145,7 +148,7 @@ export async function mainMenu({
 
   // Если подписка neurotester, предоставляем полный доступ
   if (subscription === 'neurotester') {
-    // hasFullAccess = true
+    hasFullAccess = true
     availableLevels = Object.values(levels).slice(1)
   } else if (subscription === 'stars') {
     availableLevels = availableLevels.concat(
