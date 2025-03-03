@@ -12,7 +12,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
     const { translation, url } = await getTranslation({
-      key: isRu ? 'start_ru' : 'start_en',
+      key: 'start',
       ctx,
     })
 
