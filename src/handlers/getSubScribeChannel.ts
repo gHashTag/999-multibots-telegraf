@@ -11,6 +11,8 @@ export function getSubScribeChannel(ctx: MyContext): string {
       return 'MetaMuse_AI_Influencer'
     case BOT_TOKENS[2]:
       return 'NeuroLuna'
+    case BOT_TOKENS[3]:
+      return 'LeeSolarbot'
     default:
       return 'neuro_blogger_group'
   }

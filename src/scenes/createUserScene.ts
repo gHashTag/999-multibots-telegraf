@@ -5,7 +5,7 @@ import {
   getReferalsCountAndUserData,
   incrementBalance,
 } from '@/core/supabase'
-import { getPhotoUrl } from '@/handlers/getPhotoUrl'
+
 import { getSubScribeChannel } from '@/handlers'
 import { isRussian } from '@/helpers/language'
 
@@ -85,13 +85,22 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       )
     }
   } else {
-    console.log('CASE: ctx.session.inviteCode not exists')
+    try {
+      console.log('CASE: ctx.session.inviteCode not exists')
 
-    const { count } = await getReferalsCountAndUserData(telegram_id.toString())
-    await ctx.telegram.sendMessage(
-      `@${SUBSCRIBE_CHANNEL_ID}`,
-      `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}.\n🆔 Уровень аватара: ${count}.`
-    )
+      const { count } = await getReferalsCountAndUserData(
+        telegram_id.toString()
+      )
+      await ctx.telegram.sendMessage(
+        `@${SUBSCRIBE_CHANNEL_ID}`,
+        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}.\n🆔 Уровень аватара: ${count}.`
+      )
+    } catch (error) {
+      console.error('Ошибка в createUserStep:', error)
+      return ctx.reply(
+        'Произошла ошибка при создании аватара. Попробуйте позже.'
+      )
+    }
   }
 
   const userData = {
