@@ -59,8 +59,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
         parse_mode: 'MarkdownV2',
       }
     )
-
-    return ctx.wizard.next()
+    ctx.wizard.next()
+    return
   },
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'

@@ -1,9 +1,10 @@
 import { openai } from '.'
+import { model } from '@/core/openai'
 
 export async function getAinews({ prompt }: { prompt: string }) {
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model,
       messages: [
         {
           role: 'system',

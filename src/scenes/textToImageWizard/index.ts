@@ -129,8 +129,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
           : 'Please enter text to generate an image.',
         createHelpCancelKeyboard(isRu)
       )
-
-      return ctx.wizard.next()
+      ctx.wizard.next()
+      return
     }
   },
   async ctx => {
@@ -142,7 +142,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
 
       const isCancel = await handleHelpCancel(ctx)
       if (isCancel) {
-        return ctx.scene.leave()
+        ctx.scene.leave()
+        return
       } else {
         ctx.session.prompt = text
         await generateTextToImage(
@@ -154,11 +155,13 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
           ctx,
           ctx.botInfo?.username
         )
-        return ctx.scene.leave()
+        ctx.scene.leave()
+        return
       }
     }
 
     await ctx.reply(isRu ? '❌ Некорректный промпт' : '❌ Invalid prompt')
-    return ctx.scene.leave()
+    ctx.scene.leave()
+    return
   }
 )

@@ -1,4 +1,4 @@
-import { answerAi } from '../../core/openai/requests'
+import { answerAi, model } from '../../core/openai'
 import { getUserModel, getUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 
@@ -32,7 +32,7 @@ export async function handleTextMessage(ctx: MyContext) {
         designation: '',
         language_code: userLanguage,
       }
-      userModel = 'gpt-4o'
+      userModel = model
     }
     if (ctx.message && 'text' in ctx.message) {
       if (!ctx.message?.text) {

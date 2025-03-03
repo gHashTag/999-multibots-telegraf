@@ -1,9 +1,9 @@
-import { openai } from '.'
+import { openai, model } from '.'
 
 export async function getTriggerReel({ prompt }: { prompt: string }) {
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model,
       messages: [
         {
           role: 'system',

@@ -1,4 +1,4 @@
-import { openai } from '.'
+import { openai, model } from '.'
 
 export async function getSlides({
   prompt,
@@ -11,7 +11,7 @@ export async function getSlides({
 }) {
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model,
       messages: [
         {
           role: 'system',
