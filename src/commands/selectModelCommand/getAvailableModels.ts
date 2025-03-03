@@ -1,11 +1,7 @@
-import OpenAI from 'openai'
-import { OPENAI_API_KEY } from '@/config'
+import { openai } from '@/core/openai'
+
 export async function getAvailableModels(): Promise<string[]> {
   try {
-    const openai = new OpenAI({
-      apiKey: OPENAI_API_KEY,
-    })
-
     const models = await openai.models.list()
 
     // Фильтруем только GPT модели и сортируем их

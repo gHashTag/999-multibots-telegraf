@@ -18,6 +18,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
 
     await ctx.replyWithPhoto(url, {
       caption: translation,
+      parse_mode: 'Markdown',
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
@@ -28,6 +29,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         .resize()
         .oneTime().reply_markup,
     })
+
     ctx.wizard.next()
   },
   async (ctx: MyContext) => {

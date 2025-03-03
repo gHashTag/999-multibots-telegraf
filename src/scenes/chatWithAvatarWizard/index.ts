@@ -36,11 +36,28 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     await handleTextMessage(ctx)
 
     const telegram_id = ctx.from.id
+    console.log(telegram_id, 'telegram_id')
 
     const userExists = await getUserByTelegramId(ctx)
-    if (!userExists.data) {
-      throw new Error(`User with ID ${telegram_id} does not exist.`)
+    console.log(
+      '🟢 User data:',
+      JSON.stringify(userExists, null, 2),
+      'userExists'
+    )
+
+    if (!userExists?.data?.id) {
+      console.error('🔴 Invalid user data structure:', {
+        telegram_id,
+        data_structure: Object.keys(userExists || {}),
+      })
+      const isRu = isRussian(ctx)
+      return ctx.reply(
+        isRu
+          ? 'Произошла ошибка при обработке вашего профиля 😔'
+          : 'An error occurred while processing your profile 😔'
+      )
     }
+
     const level = userExists.data.level
     if (level === 4) {
       await updateUserLevelPlusOne(telegram_id.toString(), level)

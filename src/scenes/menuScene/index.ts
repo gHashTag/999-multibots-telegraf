@@ -11,7 +11,7 @@ import { WizardScene } from 'telegraf/scenes'
 import { handleMenu } from '@/handlers'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
-
+import { sendTutorialMessage } from '@/handlers/sendTutorialMessage'
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
@@ -24,8 +24,8 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     if (isDev) {
       newCount = 0
-      newSubscription = 'neurotester'
-      newLevel = 2
+      newSubscription = 'stars'
+      newLevel = 0
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(
         telegram_id
@@ -110,6 +110,7 @@ const menuCommandStep = async (ctx: MyContext) => {
         keyboard,
         photo_url
       )
+      await sendTutorialMessage(ctx, isRu)
     } else {
       const levelKeys: { [key: number]: Mode } = {
         0: 'subscribe',
@@ -130,6 +131,7 @@ const menuCommandStep = async (ctx: MyContext) => {
       console.log('key', key)
       if (key) {
         console.log(`CASE ${newLevel}: ${key}`)
+
         const { translation } = await getTranslation({
           key,
           ctx,

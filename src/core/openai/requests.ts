@@ -15,30 +15,35 @@ export const answerAi = async (
   languageCode: string,
   systemPrompt?: string
 ): Promise<string> => {
-  const initialPrompt = `Respond in the language: ${languageCode} You communicate with: ${JSON.stringify(
-    userData
-  )}`
+  try {
+    const initialPrompt = `Respond in the language: ${languageCode} You communicate with: ${JSON.stringify(
+      userData
+    )}`
 
-  const response = await openai.chat.completions.create({
-    model: model,
-    messages: [
-      {
-        role: 'system',
-        content: systemPrompt
-          ? systemPrompt + '\n' + initialPrompt
-          : initialPrompt,
-      },
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-  })
+    const response = await openai.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+            ? systemPrompt + '\n' + initialPrompt
+            : initialPrompt,
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    })
 
-  const content = response.choices[0].message.content
-  if (!content) {
-    throw new Error('Empty response from GPT')
+    const content = response.choices[0].message.content
+    if (!content) {
+      throw new Error('Empty response from GPT')
+    }
+
+    return content
+  } catch (error) {
+    console.error('Error:', error)
+    throw error
   }
-
-  return content
 }

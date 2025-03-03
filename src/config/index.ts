@@ -30,6 +30,7 @@ export const {
   PINATA_JWT,
   PINATA_GATEWAY,
   LOCAL_SERVER_URL,
+  DEEPSEEK_API_KEY,
 } = process.env
 
 export const isDev = process.env.NODE_ENV === 'development'
