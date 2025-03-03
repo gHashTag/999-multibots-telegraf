@@ -24,7 +24,6 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   } = ctx.from
 
   const finalUsername = username || first_name || telegram_id.toString()
-  const photo_url = getPhotoUrl(ctx, 1)
 
   // Проверка на полную ссылку или просто команду /start
   const botNameMatch = ctx.message.text.match(
@@ -102,7 +101,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     last_name: last_name || null,
     is_bot: is_bot || false,
     language_code: language_code || 'en',
-    photo_url,
+    photo_url: '',
     chat_id: ctx.chat?.id || null,
     mode: 'clean',
     model: 'gpt-4-turbo',

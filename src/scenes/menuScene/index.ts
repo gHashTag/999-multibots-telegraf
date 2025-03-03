@@ -7,7 +7,6 @@ import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
 
 import { WizardScene } from 'telegraf/scenes'
-import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 
 import { handleMenu } from '@/handlers'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
@@ -25,7 +24,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     if (isDev) {
       newCount = 0
-      newSubscription = 'neurotester'
+      newSubscription = 'stars'
       newLevel = 0
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(
@@ -98,8 +97,12 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     if (!hasFullAccess) {
       console.log('CASE: !hasFullAccess - stars level')
-      message = getText(isRu, 'digitalAvatar')
-      const photo_url = getPhotoUrl(ctx, 1)
+      const { translation, url } = await getTranslation({
+        key: 'digitalAvatar',
+        ctx,
+      })
+      message = translation
+      const photo_url = url
       await sendReplyWithKeyboard(
         ctx,
         message,
