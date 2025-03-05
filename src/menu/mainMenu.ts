@@ -138,7 +138,7 @@ export async function mainMenu({
       levels[102],
       levels[105],
     ],
-    neurobase: Object.values(levels).slice(1),
+    neurobase: Object.values(levels).slice(1), // Все уровни кроме подписки
     neuromeeting: Object.values(levels).slice(1),
     neuroblogger: Object.values(levels).slice(1),
     neurotester: Object.values(levels).slice(1),
@@ -146,8 +146,8 @@ export async function mainMenu({
 
   let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []
 
-  // Если подписка neurotester, предоставляем полный доступ
-  if (subscription === 'neurotester') {
+  // Если подписка neurotester или neurobase, предоставляем полный доступ
+  if (subscription === 'neurotester' || subscription === 'neurobase') {
     hasFullAccess = true
     availableLevels = Object.values(levels).slice(1)
   } else if (subscription === 'stars') {
@@ -159,13 +159,14 @@ export async function mainMenu({
   // Удаляем дубликаты уровней
   availableLevels = Array.from(new Set(availableLevels))
 
-  // Фильтруем уровни, чтобы показывать только текущий уровень, кроме neurotester
-  if (subscription !== 'neurotester') {
+  // Для neurotester и neurobase не фильтруем по уровню
+  if (subscription !== 'neurotester' && subscription !== 'neurobase') {
     availableLevels = availableLevels.filter((_, index) => index <= level)
   }
 
   // Общие кнопки для всех типов подписки
   const commonButtons = [
+    Markup.button.text(isRu ? levels[100].title_ru : levels[100].title_en), // Пополнить баланс
     Markup.button.text(isRu ? levels[101].title_ru : levels[101].title_en), // Баланс
     Markup.button.text(isRu ? levels[102].title_ru : levels[102].title_en), // Пригласить друга
     Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en), // Помощь
