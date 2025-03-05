@@ -12,6 +12,7 @@ import { handleMenu } from '@/handlers'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
 import { sendTutorialMessage } from '@/handlers/sendTutorialMessage'
+
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
@@ -19,12 +20,12 @@ const menuCommandStep = async (ctx: MyContext) => {
     const telegram_id = ctx.from?.id?.toString() || ''
 
     let newCount = 0
-    let newSubscription: Subscription = 'stars'
+    let newSubscription: Subscription
     let newLevel: number
 
     if (isDev) {
       newCount = 0
-      newSubscription = 'stars'
+      newSubscription = 'neurophoto'
       newLevel = 0
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(
@@ -50,6 +51,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     // Проверка условий для отправки сообщения
     if (newLevel === 3 && newSubscription === 'neurophoto') {
+      console.log('CASE: newLevel === 3 && newSubscription === neurophoto')
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
       await ctx.reply(message, keyboard)
@@ -58,6 +60,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     // Проверка условий для отправки сообщения
     if (newSubscription === 'neurotester') {
+      console.log('CASE: newSubscription === neurotester')
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
       await ctx.reply(message, keyboard)

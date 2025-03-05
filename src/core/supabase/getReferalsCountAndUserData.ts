@@ -7,7 +7,7 @@ export const getReferalsCountAndUserData = async (
 ): Promise<{
   count: number
   level: number
-  subscription: Subscription
+  subscription?: Subscription
   userData: UserType
   isExist: boolean
 }> => {
@@ -26,7 +26,6 @@ export const getReferalsCountAndUserData = async (
       )
       return {
         count: 0,
-        subscription: 'stars',
         level: 0,
         userData: null,
         isExist: false,
@@ -43,7 +42,6 @@ export const getReferalsCountAndUserData = async (
       console.error('Ошибка при получении рефералов:', error)
       return {
         count: 0,
-        subscription: 'stars',
         level: 0,
         userData: null,
         isExist: false,
@@ -53,7 +51,7 @@ export const getReferalsCountAndUserData = async (
     return {
       count: data?.length || 0,
       level: userData.level,
-      subscription: userData.subscription || 'stars',
+      subscription: userData.subscription,
       userData: userData as UserType,
       isExist: true,
     }
@@ -62,7 +60,6 @@ export const getReferalsCountAndUserData = async (
     return {
       count: 0,
       level: 0,
-      subscription: 'stars',
       userData: null,
       isExist: false,
     }

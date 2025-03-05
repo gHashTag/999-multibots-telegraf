@@ -64,14 +64,14 @@ export const checkPaymentStatus = async (
         return false
       }
     }
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ subscription: 'stars' })
-      .eq('telegram_id', ctx.from.id.toString())
+    // const { error: updateError } = await supabase
+    //   .from('users')
+    //   .update({ subscription: 'stars' })
+    //   .eq('telegram_id', ctx.from.id.toString())
 
-    if (updateError) {
-      console.error('Ошибка при обновлении уровня подписки:', updateError)
-    }
+    // if (updateError) {
+    //   console.error('Ошибка при обновлении уровня подписки:', updateError)
+    // }
 
     return true
   } catch (error) {

@@ -35,6 +35,10 @@ helpScene.enter(async ctx => {
         await handleLevel1(ctx)
         await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
         break
+      case 'digital_avatar_body_2':
+        await handleLevel1(ctx)
+        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+        break
       case 'neuro_photo':
         await handleLevel2(ctx)
         await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })

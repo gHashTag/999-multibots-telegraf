@@ -126,6 +126,13 @@ export function registerCommands({
     await ctx.scene.enter('subscriptionCheckScene')
   })
 
+  composer.command('menu', async ctx => {
+    console.log('CASE: myComposer.command menu')
+    // ctx.session = defaultSession()
+    ctx.session.mode = 'main_menu'
+    await ctx.scene.enter('subscriptionCheckScene')
+  })
+
   bot.command('tech', async ctx => {
     console.log('CASE bot.command: tech')
     await handleTechSupport(ctx)
@@ -149,13 +156,6 @@ export function registerCommands({
   })
 
   composer.hears(/^(🛠 Техподдержка|🛠 Tech Support)$/i, handleTechSupport)
-
-  composer.command('menu', async ctx => {
-    console.log('CASE: myComposer.command menu')
-    // ctx.session = defaultSession()
-    ctx.session.mode = 'main_menu'
-    await ctx.scene.enter('subscriptionCheckScene')
-  })
 
   composer.command('get100', async ctx => {
     console.log('CASE: get100')
