@@ -1,12 +1,11 @@
-import { ModelUrl, UserModel } from '../../interfaces'
-
+import { UserModel } from '../../interfaces'
+import { mainMenuButton } from '@/menu'
 import { generateNeuroImageV2 } from '@/services/generateNeuroImageV2'
 import {
   getLatestUserModel,
   getReferalsCountAndUserData,
 } from '@/core/supabase'
 import {
-  levels,
   mainMenu,
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
@@ -132,7 +131,7 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
       return
     }
 
-    if (text === levels[104].title_ru || text === levels[104].title_en) {
+    if (text === mainMenuButton.title_ru || text === mainMenuButton.title_en) {
       console.log('CASE: Главное меню')
       await handleMenu(ctx)
       return

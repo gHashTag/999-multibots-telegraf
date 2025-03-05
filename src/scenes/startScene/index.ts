@@ -5,7 +5,34 @@ import {
   getReferalsCountAndUserData,
   getTranslation,
 } from '@/core/supabase'
-import { levels } from '@/menu/mainMenu'
+import { mainMenuButton } from '@/menu/mainMenu'
+
+async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
+  const postUrl = 'https://t.me/neuro_coder_ai/1212'
+
+  console.log('📹 Отправляем видео-инструкцию... [Sending tutorial video]')
+
+  await ctx.reply(
+    isRu
+      ? '🎥 Смотри видео-инструкцию и узнай, как:\n- Создать цифрового двойника за 4 шага\n- Генерировать нейрофото из текста\n- Стать цифровым художником без навыков!'
+      : '🎥 Watch tutorial and learn how to:\n- Create a digital twin in 4 steps\n- Generate a neural photo from text\n- Become a digital artist without skills!',
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: isRu
+                ? '🎬 Посмотреть видео-инструкцию'
+                : '🎬 Watch tutorial',
+              url: postUrl,
+            },
+          ],
+        ],
+      },
+      parse_mode: 'Markdown',
+    }
+  )
+}
 
 export const startScene = new Scenes.WizardScene<MyContext>(
   'startScene',
@@ -22,13 +49,15 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? levels[104].title_ru : levels[104].title_en
+            isRu ? mainMenuButton.title_ru : mainMenuButton.title_en
           ),
         ],
       ])
         .resize()
         .oneTime().reply_markup,
     })
+
+    await sendTutorialMessage(ctx, isRu)
 
     ctx.wizard.next()
   },

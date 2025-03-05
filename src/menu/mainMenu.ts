@@ -1,6 +1,5 @@
 import { Subscription } from '@/interfaces/supabase.interface'
 
-import { checkPaymentStatus } from '@/core/supabase'
 import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
@@ -11,10 +10,6 @@ interface Level {
 }
 
 export const levels: Record<number, Level> = {
-  0: {
-    title_ru: '💫 Оформить подписку',
-    title_en: '💫 Subscribe',
-  },
   // digital_avatar_body
   1: {
     title_ru: '🤖 Цифровое тело',
@@ -101,34 +96,38 @@ export const levels: Record<number, Level> = {
     title_en: '❓ Help',
   },
   104: {
-    title_ru: '🏠 Главное меню',
-    title_en: '🏠 Main menu',
-  },
-  105: {
     title_ru: '🛠 Техподдержка',
     title_en: '🛠 Tech Support',
   },
+  105: {
+    title_ru: '💫 Оформить подписку',
+    title_en: '💫 Subscribe',
+  },
+}
+
+export const mainMenuButton = {
+  title_ru: '🏠 Главное меню',
+  title_en: '🏠 Main menu',
 }
 
 export async function mainMenu({
   isRu,
-  inviteCount,
   subscription = 'stars',
   level,
-  ctx,
+  additionalButtons = [],
 }: {
   isRu: boolean
   inviteCount: number
   subscription: Subscription
   level: number
   ctx: MyContext
+  additionalButtons?: Level[]
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   console.log('💻 CASE: mainMenu')
-  let hasFullAccess = await checkPaymentStatus(ctx, subscription)
 
-  // Определяем доступные уровни в зависимости от подписки
+  // Основная конфигурация меню
   const subscriptionLevelsMap = {
-    stars: [levels[0], levels[105]],
+    stars: [levels[105], levels[104]],
     neurophoto: [
       levels[1],
       levels[2],
@@ -136,56 +135,55 @@ export async function mainMenu({
       levels[100],
       levels[101],
       levels[102],
+      levels[103],
+      levels[104],
       levels[105],
     ],
-    neurobase: Object.values(levels).slice(1), // Все уровни кроме подписки
-    neuromeeting: Object.values(levels).slice(1),
-    neuroblogger: Object.values(levels).slice(1),
-    neurotester: Object.values(levels).slice(1),
+    neurobase: Object.values(levels),
+    neuromeeting: Object.values(levels),
+    neuroblogger: Object.values(levels),
+    neurotester: Object.values(levels),
   }
 
-  let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []
+  // Получаем основные кнопки для текущей подписки
+  let availableLevels = subscriptionLevelsMap[subscription] || []
 
-  // Если подписка neurotester или neurobase, предоставляем полный доступ
-  if (subscription === 'neurotester' || subscription === 'neurobase') {
-    hasFullAccess = true
-    availableLevels = Object.values(levels).slice(1)
-  } else if (subscription === 'stars') {
-    availableLevels = availableLevels.concat(
-      Object.values(levels).slice(0, inviteCount + 1)
-    )
+  // Для neurophoto при уровне 3 добавляем дополнительные кнопки
+  if (subscription === 'neurophoto' && level >= 3) {
+    availableLevels = [
+      ...availableLevels.filter(l => l.title_ru !== mainMenuButton.title_ru),
+      ...additionalButtons,
+    ]
   }
 
   // Удаляем дубликаты уровней
   availableLevels = Array.from(new Set(availableLevels))
 
-  // Для neurotester и neurobase не фильтруем по уровню
-  if (subscription !== 'neurotester' && subscription !== 'neurobase') {
-    availableLevels = availableLevels.filter((_, index) => index <= level)
+  // Для подписок с полным доступом не фильтруем по уровню
+  if (!['neurotester', 'neurobase'].includes(subscription)) {
+    availableLevels = availableLevels.filter(
+      l =>
+        // Оставляем кнопки, которые есть в subscriptionLevelsMap
+        subscriptionLevelsMap[subscription].includes(l) ||
+        // Или это дополнительные кнопки
+        additionalButtons.includes(l)
+    )
   }
 
-  // Общие кнопки для всех типов подписки
-  const commonButtons = [
-    Markup.button.text(isRu ? levels[100].title_ru : levels[100].title_en), // Пополнить баланс
-    Markup.button.text(isRu ? levels[101].title_ru : levels[101].title_en), // Баланс
-    Markup.button.text(isRu ? levels[102].title_ru : levels[102].title_en), // Пригласить друга
-    Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en), // Помощь
-    Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en), // Техподдержка
-  ]
-
-  // Формируем кнопки для текущей подписки
-  const subscriptionButtons = availableLevels.map(level =>
+  // Формируем кнопки
+  const buttons = availableLevels.map(level =>
     Markup.button.text(isRu ? level.title_ru : level.title_en)
   )
 
-  // Объединяем все кнопки
-  const allButtons = [...subscriptionButtons, ...commonButtons]
-
   // Разбиваем на строки по 2 кнопки
   const buttonRows = []
-  for (let i = 0; i < allButtons.length; i += 2) {
-    buttonRows.push(allButtons.slice(i, i + 2))
+  for (let i = 0; i < buttons.length; i += 2) {
+    buttonRows.push(buttons.slice(i, i + 2))
   }
 
+  console.log(
+    '👉 Available buttons:',
+    buttons.map(b => b.text)
+  )
   return Markup.keyboard(buttonRows).resize()
 }

@@ -26,8 +26,8 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (isDev) {
       console.log('CASE 🦄: isDev')
       newCount = 0
-      newSubscription = 'neurobase'
-      newLevel = 0
+      newSubscription = 'neurotester'
+      newLevel = 3
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(
         telegram_id
@@ -37,17 +37,23 @@ const menuCommandStep = async (ctx: MyContext) => {
       newLevel = level
     }
 
-    // Фильтрация уровней для подписки neurophoto
-    if (newSubscription === 'neurophoto' && newLevel > 3) {
-      newLevel = 3
-    }
-    console.log('newLevel', newLevel)
+    console.log('newSubscription', newSubscription)
+    const additionalButtons = [
+      levels[100], // Пополнить баланс
+      levels[101], // Баланс
+      levels[102], // Пригласить друга
+      levels[103], // Помощь
+      levels[104], // Техподдержка
+    ]
+
     const keyboard = await mainMenu({
       isRu,
       inviteCount: newCount,
       subscription: newSubscription,
       ctx,
       level: newLevel,
+      additionalButtons:
+        newSubscription === 'neurophoto' ? additionalButtons : [],
     })
 
     // Проверка условий для отправки сообщения

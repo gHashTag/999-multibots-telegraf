@@ -300,7 +300,7 @@ export function registerCommands({
   })
 
   composer.hears(
-    [levels[105].title_ru, levels[105].title_en],
+    [levels[104].title_ru, levels[104].title_en],
     handleTechSupport
   )
 

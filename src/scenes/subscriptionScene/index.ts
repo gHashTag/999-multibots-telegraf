@@ -1,7 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '@/helpers'
-import { levels } from '@/menu/mainMenu'
+import { mainMenuButton, levels } from '@/menu/mainMenu'
 import { handleMenu } from '@/handlers'
 
 const message = (isRu: boolean) =>
@@ -84,7 +84,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       ],
       [
         {
-          text: isRu ? levels[104].title_ru : levels[104].title_en,
+          text: isRu ? mainMenuButton.title_ru : mainMenuButton.title_en,
           callback_data: 'mainmenu',
         },
       ],

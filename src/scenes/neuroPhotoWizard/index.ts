@@ -5,12 +5,8 @@ import {
   getLatestUserModel,
   getReferalsCountAndUserData,
 } from '@/core/supabase'
-import {
-  levels,
-  mainMenu,
-  sendGenericErrorMessage,
-  sendPhotoDescriptionRequest,
-} from '@/menu'
+import { mainMenuButton, mainMenu } from '@/menu'
+import { sendGenericErrorMessage, sendPhotoDescriptionRequest } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
 
@@ -132,7 +128,7 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
       return
     }
 
-    if (text === levels[104].title_ru || text === levels[104].title_en) {
+    if (text === mainMenuButton.title_ru || text === mainMenuButton.title_en) {
       console.log('CASE: Главное меню')
       await handleMenu(ctx)
       return

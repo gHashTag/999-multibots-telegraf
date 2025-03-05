@@ -3,6 +3,7 @@ import { levels } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
 import { priceCommand } from '@/commands/priceCommand'
 import { handleTechSupport } from '@/commands/handleTechSupport'
+import { mainMenuButton } from '@/menu/mainMenu'
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyWizardContext) => {
   console.log('CASE: handleMenuCommand')
@@ -13,7 +14,7 @@ export const handleMenu = async (ctx: MyWizardContext) => {
 
     // Создаем объект для сопоставления текста с действиями
     const actions = {
-      [isRu ? levels[0].title_ru : levels[0].title_en]: async () => {
+      [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
         console.log('CASE: 💫 Оформление подписки')
         ctx.session.mode = 'subscribe'
         await ctx.scene.enter('subscriptionScene')
@@ -102,11 +103,6 @@ export const handleMenu = async (ctx: MyWizardContext) => {
         await ctx.scene.enter('helpScene')
       },
       [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
-        console.log('CASE: 🏠 Главное меню')
-        ctx.session.mode = 'main_menu'
-        await ctx.scene.enter('menuScene')
-      },
-      [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
         console.log('CASE: 🛠 Техподдержка')
         ctx.session.mode = 'tech'
         await handleTechSupport(ctx)
@@ -137,6 +133,11 @@ export const handleMenu = async (ctx: MyWizardContext) => {
         await ctx.scene.enter('helpScene')
       },
       '/menu': async () => {
+        console.log('CASE: 🏠 Главное меню')
+        ctx.session.mode = 'main_menu'
+        await ctx.scene.enter('menuScene')
+      },
+      [isRu ? mainMenuButton.title_ru : mainMenuButton.title_en]: async () => {
         console.log('CASE: 🏠 Главное меню')
         ctx.session.mode = 'main_menu'
         await ctx.scene.enter('menuScene')
