@@ -24,9 +24,10 @@ const menuCommandStep = async (ctx: MyContext) => {
     let newLevel: number
 
     if (isDev) {
+      console.log('CASE 🦄: isDev')
       newCount = 0
       newSubscription = 'neurophoto'
-      newLevel = 0
+      newLevel = 2
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(
         telegram_id
@@ -40,7 +41,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (newSubscription === 'neurophoto' && newLevel > 3) {
       newLevel = 3
     }
-
+    console.log('newLevel', newLevel)
     const keyboard = await mainMenu({
       isRu,
       inviteCount: newCount,

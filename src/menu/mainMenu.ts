@@ -163,38 +163,28 @@ export async function mainMenu({
   if (subscription !== 'neurotester') {
     availableLevels = availableLevels.filter((_, index) => index <= level)
   }
-  // const subscriptionButton = isRu ? levels[0].title_ru : levels[0].title_en
-  // if (availableLevels.length === 0) {
-  //   console.warn(
-  //     'No available levels for the current invite count and subscription status.'
-  //   )
 
-  //   return Markup.keyboard([[Markup.button.text(subscriptionButton)]]).resize()
-  // }
+  // Общие кнопки для всех типов подписки
+  const commonButtons = [
+    Markup.button.text(isRu ? levels[101].title_ru : levels[101].title_en), // Баланс
+    Markup.button.text(isRu ? levels[102].title_ru : levels[102].title_en), // Пригласить друга
+    Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en), // Помощь
+    Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en), // Техподдержка
+  ]
 
-  const buttons = availableLevels.map(level =>
+  // Формируем кнопки для текущей подписки
+  const subscriptionButtons = availableLevels.map(level =>
     Markup.button.text(isRu ? level.title_ru : level.title_en)
   )
 
-  // const userId = ctx.from?.id?.toString()
+  // Объединяем все кнопки
+  const allButtons = [...subscriptionButtons, ...commonButtons]
 
-  // if (userId && adminIds.includes(userId)) {
-  //   // Изменяем добавление кнопки для админа
-  //   buttons.push(
-  //     Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
-  //     Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
-  //   )
-  // }
-
+  // Разбиваем на строки по 2 кнопки
   const buttonRows = []
-  for (let i = 0; i < buttons.length; i += 2) {
-    buttonRows.push(buttons.slice(i, i + 2))
+  for (let i = 0; i < allButtons.length; i += 2) {
+    buttonRows.push(allButtons.slice(i, i + 2))
   }
-
-  // // Добавляем кнопку подписки в конце, если нет полного доступа
-  // if (!hasFullAccess) {
-  //   buttonRows.push([Markup.button.text(subscriptionButton)])
-  // }
 
   return Markup.keyboard(buttonRows).resize()
 }
