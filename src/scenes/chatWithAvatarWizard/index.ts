@@ -45,7 +45,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       'userExists'
     )
 
-    if (!userExists?.data?.id) {
+    if (!userExists?.id) {
       console.error('🔴 Invalid user data structure:', {
         telegram_id,
         data_structure: Object.keys(userExists || {}),
@@ -58,7 +58,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       )
     }
 
-    const level = userExists.data.level
+    const level = userExists.level
     if (level === 4) {
       await updateUserLevelPlusOne(telegram_id.toString(), level)
     }

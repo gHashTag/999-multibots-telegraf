@@ -1,5 +1,5 @@
 import { answerAi, model } from '../../core/openai'
-import { getUserData } from '../../core/supabase'
+import { getUserData, getUserModel } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 
 export async function handleTextMessage(ctx: MyContext) {
@@ -12,13 +12,12 @@ export async function handleTextMessage(ctx: MyContext) {
       return
     }
   }
-  console.log('ctx', ctx)
   try {
     const userId = ctx.from?.id.toString() || ''
     console.log('User ID:', userId)
 
-    let userModel = model
-    //await getUserModel(userId) // TODO: DEEPSEEK
+    let userModel = await getUserModel(userId) // TODO: DEEPSEEK
+    console.log('User model:', userModel)
     let userData = await getUserData(userId)
 
     // Если пользователь не найден, используем данные из контекста

@@ -63,7 +63,14 @@ export const startScene = new Scenes.WizardScene<MyContext>(
   },
   async (ctx: MyContext) => {
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { subscription } = await getReferalsCountAndUserData(telegram_id)
+    const { subscription, isExist } = await getReferalsCountAndUserData(
+      telegram_id
+    )
+    console.log('isExist', isExist)
+    if (!isExist) {
+      await ctx.scene.enter('createUserScene')
+      return
+    }
     const hasFullAccess = await checkPaymentStatus(ctx, subscription)
     if (hasFullAccess) {
       await ctx.scene.enter('menuScene')
