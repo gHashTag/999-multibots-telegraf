@@ -44,6 +44,7 @@ export type Mode =
   | 'text_to_video'
   | 'voice'
   | 'select_model'
+  | 'select_model_wizard'
   | 'invite'
   | 'help'
   | 'start_learning'

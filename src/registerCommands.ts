@@ -221,7 +221,7 @@ export function registerCommands({
 
   composer.hears([levels[6].title_ru, levels[6].title_en], async ctx => {
     console.log('CASE: 🤖 Выбор модели ИИ')
-    ctx.session.mode = 'select_model'
+    ctx.session.mode = 'select_model_wizard'
     await ctx.scene.enter('checkBalanceScene')
   })
 

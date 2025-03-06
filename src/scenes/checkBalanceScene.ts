@@ -18,6 +18,7 @@ export enum ModeEnum {
   Avatar = 'avatar',
   ChatWithAvatar = 'chat_with_avatar',
   SelectModel = 'select_model',
+  SelectModelWizard = 'select_model_wizard',
   Voice = 'voice',
   TextToSpeech = 'text_to_speech',
   ImageToVideo = 'image_to_video',
@@ -42,6 +43,7 @@ export const modeCosts: Record<ModeEnum, number> = {
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: calculateCostInStars(0),
   [ModeEnum.SelectModel]: calculateCostInStars(0),
+  [ModeEnum.SelectModelWizard]: calculateCostInStars(0),
   [ModeEnum.Voice]: calculateCostInStars(0.9),
   [ModeEnum.TextToSpeech]: calculateCostInStars(0.12),
   [ModeEnum.ImageToVideo]: calculateCostInStars(0),
@@ -95,6 +97,8 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter(ModeEnum.ChatWithAvatar)
     case ModeEnum.SelectModel:
       return ctx.scene.enter(ModeEnum.SelectModel)
+    case ModeEnum.SelectModelWizard:
+      return ctx.scene.enter(ModeEnum.SelectModelWizard)
     case ModeEnum.Voice:
       return ctx.scene.enter(ModeEnum.Voice)
     case ModeEnum.TextToSpeech:

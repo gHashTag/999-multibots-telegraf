@@ -2,9 +2,21 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
 import { handleTextMessage } from '../../handlers/handleTextMessage'
-import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+import { levels } from '@/menu'
+
+const createHelpCancelKeyboard = (isRu: boolean) => {
+  return {
+    keyboard: [
+      [{ text: isRu ? levels[6].title_ru : levels[6].title_en }],
+      [{ text: isRu ? 'Отмена' : 'Cancel' }],
+      [{ text: isRu ? 'Справка по команде' : 'Help for the command' }],
+    ],
+    resize_keyboard: true,
+    one_time_keyboard: true,
+  }
+}
 
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   'chat_with_avatar',
@@ -17,7 +29,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         ? 'Напиши мне сообщение 💭 и я отвечу на него'
         : 'Write me a message 💭 and I will answer you',
       {
-        reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+        reply_markup: createHelpCancelKeyboard(isRu),
       }
     )
     return ctx.wizard.next()
@@ -30,6 +42,16 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
       return ctx.scene.leave()
+    }
+
+    const isRu = isRussian(ctx)
+
+    const isHelp =
+      ctx.message.text === (isRu ? levels[6].title_ru : levels[6].title_en)
+    if (isHelp) {
+      ctx.session.mode = 'select_model_wizard'
+      await ctx.scene.enter('checkBalanceScene')
+      return
     }
 
     // Обработка текстового сообщения

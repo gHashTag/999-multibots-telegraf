@@ -8,12 +8,13 @@ import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(
-  'select_model',
+  'select_model_wizard',
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
 
     try {
       const models = await getAvailableModels()
+      console.log('models', models)
 
       // Создаем кнопки для каждой модели, по 3 в ряд
       const buttons: string[][] = []
@@ -95,15 +96,16 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       const telegram_id = ctx.from.id
 
       const userExists = await getUserByTelegramId(ctx)
-      if (!userExists.data) {
+
+      if (!userExists) {
         throw new Error(`User with ID ${telegram_id} does not exist.`)
       }
-      const level = userExists.data.level
+      const level = userExists.level
       if (level === 5) {
         await updateUserLevelPlusOne(telegram_id.toString(), level)
       }
-
-      return ctx.scene.leave()
+      ctx.scene.enter('chat_with_avatar')
+      return
     }
   }
 )
