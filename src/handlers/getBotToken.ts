@@ -9,6 +9,12 @@ export function getBotToken(ctx: MyContext): string {
       return BOT_TOKENS[0]
     case BOT_TOKENS[1]:
       return BOT_TOKENS[1]
+    case BOT_TOKENS[2]:
+      return BOT_TOKENS[2]
+    case BOT_TOKENS[3]:
+      return BOT_TOKENS[3]
+    case BOT_TOKENS[4]:
+      return BOT_TOKENS[4]
     default:
       return BOT_TOKENS[0]
   }
