@@ -47,7 +47,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(translation, {
       reply_markup: inlineKeyboard.reply_markup,
-      parse_mode: 'HTML',
+      parse_mode: 'Markdown',
     })
 
     return ctx.wizard.next()
