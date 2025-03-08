@@ -3,6 +3,7 @@ import { MyContext } from '../../interfaces'
 import { handleMenu } from '@/handlers'
 import { getTranslation } from '@/core/supabase'
 import { isRussian } from '@/helpers'
+
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
   'subscriptionScene',
   async ctx => {
