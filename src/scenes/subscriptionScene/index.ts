@@ -8,7 +8,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
   'subscriptionScene',
   async ctx => {
     console.log('CASE: subscriptionScene', ctx)
-
+    const isRu = isRussian(ctx)
     const { translation, buttons } = await getTranslation({
       key: 'subscriptionScene',
       ctx,
@@ -21,10 +21,14 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       if (!keyboardRows[row]) {
         keyboardRows[row] = []
       }
+      const text = `${button.text} - ${
+        isRu ? `${button.ru_price} ₽` : `${button.en_price} $`
+      }`
 
       keyboardRows[row].push({
-        text: button.text,
+        text,
         callback_data: button.callback_data,
+        remove_keyboard: true,
       })
     })
 
@@ -32,17 +36,14 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     const cleanedKeyboardRows = keyboardRows.filter(
       row => row && row.length > 0
     )
-    const isRu = isRussian(ctx)
 
-    // Если нет кнопок совсем, добавляем кнопку "Назад"
-    if (cleanedKeyboardRows.length === 0) {
-      cleanedKeyboardRows.push([
-        {
-          text: isRu ? '🏠 Главное меню' : '🏠 Main menu',
-          callback_data: 'mainmenu',
-        },
-      ])
-    }
+    cleanedKeyboardRows.push([
+      {
+        text: isRu ? '🏠 Главное меню' : '🏠 Main menu',
+        callback_data: 'mainmenu',
+        remove_keyboard: true,
+      },
+    ])
 
     const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
 
@@ -53,7 +54,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
 
     return ctx.wizard.next()
   },
-  async ctx => {
+  async (ctx: MyContext) => {
     console.log('CASE: subscriptionScene.next', ctx)
     if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
       const text = ctx.update.callback_query.data
