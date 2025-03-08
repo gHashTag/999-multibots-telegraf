@@ -23,8 +23,9 @@ export async function getTranslation({
   console.log('CASE: getTranslation:', key)
   const { language_code } = ctx.from
   const token = ctx.telegram.token
-
+  console.log('token', token)
   const botName = bot_name ? bot_name : getBotNameByToken(token).bot_name
+  console.log('botName', botName)
 
   const fetchTranslation = async (name: string) => {
     return await supabase

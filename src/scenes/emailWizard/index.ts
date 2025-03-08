@@ -60,11 +60,6 @@ async function getInvoiceId(
     password1,
   })
   try {
-    const signatureValue = md5(
-      `${merchantLogin}:${outSum}:${invId}:${password1}`
-    )
-    console.log('signatureValue', signatureValue)
-
     const response = generateRobokassaUrl(
       merchantLogin,
       outSum,
@@ -72,7 +67,6 @@ async function getInvoiceId(
       description,
       password1
     )
-    console.log('response', response)
 
     return response
   } catch (error) {

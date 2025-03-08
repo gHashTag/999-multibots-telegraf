@@ -6,7 +6,7 @@ import { getTranslation } from '@/core/supabase'
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
   'subscriptionScene',
   async ctx => {
-    console.log('CASE: subscriptionScene')
+    console.log('CASE: subscriptionScene', ctx)
 
     const { translation, buttons } = await getTranslation({
       key: 'subscriptionScene',
