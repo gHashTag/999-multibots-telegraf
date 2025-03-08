@@ -2,7 +2,7 @@ import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { handleMenu } from '@/handlers'
 import { getTranslation } from '@/core/supabase'
-
+import { isRussian } from '@/helpers'
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
   'subscriptionScene',
   async ctx => {
@@ -12,7 +12,8 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       key: 'subscriptionScene',
       ctx,
     })
-
+    console.log('buttons', buttons)
+    // Формируем клавиатуру на основе кнопок
     const keyboardRows = []
     buttons.forEach(button => {
       const row = button.row || 0
@@ -26,7 +27,23 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       })
     })
 
-    const inlineKeyboard = Markup.inlineKeyboard(keyboardRows)
+    // Очистка от пустых элементов
+    const cleanedKeyboardRows = keyboardRows.filter(
+      row => row && row.length > 0
+    )
+    const isRu = isRussian(ctx)
+
+    // Если нет кнопок совсем, добавляем кнопку "Назад"
+    if (cleanedKeyboardRows.length === 0) {
+      cleanedKeyboardRows.push([
+        {
+          text: isRu ? '🏠 Главное меню' : '🏠 Main menu',
+          callback_data: 'mainmenu',
+        },
+      ])
+    }
+
+    const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
 
     await ctx.reply(translation, {
       reply_markup: inlineKeyboard.reply_markup,

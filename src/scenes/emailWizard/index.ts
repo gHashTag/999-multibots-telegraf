@@ -177,9 +177,9 @@ emailWizard.on('text', async ctx => {
 
         await ctx.reply(
           isRu
-            ? `<b>🤑 Пополнение баланса</b>
+            ? `<b>💵 Пополнение баланса</b>
 Теперь вы можете пополнить баланс на любое количество звезд и использовать их для различных функций бота.\nПросто выберите количество звезд, которое вы хотите добавить на свой баланс.\nВ случае возникновения проблем с оплатой, пожалуйста, свяжитесь с нами @neuro_sage`
-            : `<b>🤑 Balance Top-Up</b>
+            : `<b>💵 Balance Top-Up</b>
 You can now top up your balance with any number of stars and use them for various bot features. Simply choose the number of stars you want to add to your balance.\nIn case of payment issues, please contact us @neuro_sage`,
           {
             reply_markup: {
