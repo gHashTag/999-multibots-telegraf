@@ -2,15 +2,23 @@ import axios, { isAxiosError } from 'axios'
 import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
 import { ImageToVideoResponse, VideoModel } from '@/interfaces'
 
-export async function generateImageToVideo(
-  imageUrl: string,
-  prompt: string,
-  videoModel: VideoModel,
-  telegram_id: string,
-  username: string,
-  isRu: boolean,
+export async function generateImageToVideo({
+  imageUrl,
+  prompt,
+  videoModel,
+  telegram_id,
+  username,
+  isRu,
+  botName,
+}: {
+  imageUrl: string
+  prompt: string
+  videoModel: VideoModel
+  telegram_id: string
+  username: string
+  isRu: boolean
   botName: string
-): Promise<ImageToVideoResponse> {
+}): Promise<ImageToVideoResponse> {
   try {
     const url = `${
       isDev ? LOCAL_SERVER_URL : ELESTIO_URL
@@ -21,7 +29,6 @@ export async function generateImageToVideo(
     if (!videoModel) throw new Error('Video model is required')
     if (!telegram_id) throw new Error('Telegram ID is required')
     if (!username) throw new Error('Username is required')
-    if (!isRu) throw new Error('Language is required')
 
     const response = await axios.post<ImageToVideoResponse>(
       url,

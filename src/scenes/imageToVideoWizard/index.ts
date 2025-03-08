@@ -142,8 +142,8 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     const message = ctx.message
-    const isRu = ctx.from?.language_code === 'ru'
-
+    const isRu = isRussian(ctx)
+    console.log('isRu', isRu)
     if (message && 'text' in message) {
       const isCancel = await handleHelpCancel(ctx)
       if (isCancel) {
@@ -156,7 +156,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         if (!videoModel) throw new Error('Video model is required')
         if (!imageUrl) throw new Error('Image URL is required')
         if (!ctx.from?.username) throw new Error('Username is required')
-        if (!isRu) throw new Error('Language is required')
 
         try {
           console.log('Calling generateImageToVideo with:', {
@@ -168,15 +167,15 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
             isRu,
           })
 
-          await generateImageToVideo(
+          await generateImageToVideo({
             imageUrl,
             prompt,
             videoModel,
-            ctx.from.id.toString(),
-            ctx.from.username,
+            telegram_id: ctx.from.id.toString(),
+            username: ctx.from.username,
             isRu,
-            ctx.botInfo?.username
-          )
+            botName: ctx.botInfo?.username,
+          })
           ctx.session.prompt = prompt
           ctx.session.mode = 'image_to_video'
         } catch (error) {
