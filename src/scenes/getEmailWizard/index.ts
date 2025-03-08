@@ -1,7 +1,7 @@
 import { MyContext } from '../../interfaces'
 import { isRussian } from '@/helpers'
 import { handleHelpCancel } from '@/handlers'
-import { paymentOptions } from '../getRuBillWizard/helper'
+import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { WizardScene } from 'telegraf/scenes'
 
 const selectPaymentOptionStep = async (ctx: MyContext) => {
@@ -19,7 +19,7 @@ const selectPaymentOptionStep = async (ctx: MyContext) => {
       return ctx.scene.leave()
     }
 
-    const selectedPayment = paymentOptions.find(
+    const selectedPayment = paymentOptionsPlans.find(
       option => option.subscription === subscription
     )
 

@@ -1,21 +1,56 @@
+import { isRussian } from '@/helpers'
+import { MyContext } from '@/interfaces'
+import { Markup } from 'telegraf'
+import type {
+  InlineKeyboardMarkup,
+  InlineKeyboardButton,
+} from 'telegraf/typings/core/types/typegram'
+
+interface SendReplyOptions {
+  ctx: MyContext
+  message: string
+  inlineKeyboard:
+    | Markup.Markup<InlineKeyboardMarkup>
+    | InlineKeyboardButton[][]
+    | InlineKeyboardButton[]
+  menu?: any
+  photo_url?: string
+  post_url?: string
+}
+
 export const sendReplyWithKeyboard = async ({
   ctx,
   message,
   inlineKeyboard,
-  menu,
+  menu = {},
   photo_url,
   post_url,
 }: SendReplyOptions) => {
   try {
-    // Преобразуем inlineKeyboard в массив, если он не является массивом
-    const keyboardArray = Array.isArray(inlineKeyboard)
-      ? inlineKeyboard
-      : inlineKeyboard
-      ? [inlineKeyboard]
-      : []
+    // Преобразуем различные форматы клавиатуры в массив массивов
+    let finalKeyboard: InlineKeyboardButton[][]
 
-    // Создаем финальную клавиатуру
-    const finalKeyboard = [...keyboardArray]
+    if (Array.isArray(inlineKeyboard)) {
+      // Проверяем, это массив кнопок или массив массивов кнопок
+      if (inlineKeyboard.length === 0) {
+        finalKeyboard = []
+      } else if (Array.isArray(inlineKeyboard[0])) {
+        // Это уже массив массивов кнопок
+        finalKeyboard = inlineKeyboard as InlineKeyboardButton[][]
+      } else {
+        // Это массив кнопок, обернем его в массив
+        finalKeyboard = [inlineKeyboard as InlineKeyboardButton[]]
+      }
+    } else if (
+      inlineKeyboard &&
+      typeof inlineKeyboard === 'object' &&
+      'reply_markup' in inlineKeyboard
+    ) {
+      // Это объект Markup, получаем inline_keyboard
+      finalKeyboard = inlineKeyboard.reply_markup.inline_keyboard
+    } else {
+      finalKeyboard = []
+    }
 
     // Если есть URL поста, добавляем кнопку
     if (post_url) {
@@ -28,7 +63,7 @@ export const sendReplyWithKeyboard = async ({
       ])
     }
 
-    console.log('🛠️ Final keyboard structure:', finalKeyboard)
+    console.log('🛠️ Final keyboard structure:', JSON.stringify(finalKeyboard))
 
     if (photo_url) {
       await ctx.replyWithPhoto(photo_url, {

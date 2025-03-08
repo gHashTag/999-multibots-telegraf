@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { supabase } from '.'
 import { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
-import { TranslationButton } from '@/interfaces/telegram-bot.interface'
+import { TranslationButton } from '@/interfaces/supabase.interface'
 export interface TranslationContext {
   from: { language_code: string }
   telegram: { token: string }

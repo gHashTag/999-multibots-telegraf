@@ -1,3 +1,27 @@
+import { Subscription } from '@/interfaces/supabase.interface'
+
+export const paymentOptionsPlans: {
+  amount: number
+  stars: string
+  subscription: Subscription
+}[] = [
+  { amount: 1110, stars: '476', subscription: 'neurophoto' },
+  { amount: 2999, stars: '1303', subscription: 'neurobase' },
+  { amount: 75000, stars: '32608', subscription: 'neuroblogger' },
+]
+
+export const paymentOptions: {
+  amount: number
+  stars: string
+}[] = [
+  { amount: 500, stars: '217' },
+  { amount: 1000, stars: '434' },
+  { amount: 2000, stars: '869' },
+  { amount: 5000, stars: '2173' },
+  { amount: 10000, stars: '4347' },
+  // { amount: 10, stars: '6' },
+]
+
 interface ConversionRates {
   costPerStarInDollars: number
   costPerStepInStars: number

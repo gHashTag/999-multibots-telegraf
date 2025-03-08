@@ -1,5 +1,5 @@
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
-import { Subscription } from '@/interfaces/supabase.interface'
+
 import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'
 
@@ -7,16 +7,6 @@ export const merchantLogin = MERCHANT_LOGIN
 export const password1 = PASSWORD1
 
 export const description = 'Покупка звезд'
-
-export const paymentOptions: {
-  amount: number
-  stars: string
-  subscription: Subscription
-}[] = [
-  { amount: 1110, stars: '476', subscription: 'neurophoto' },
-  { amount: 1999, stars: '750', subscription: 'neurobase' },
-  { amount: 75000, stars: '27777', subscription: 'neuroblogger' },
-]
 
 export const subscriptionTitles = (isRu: boolean) => ({
   neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,

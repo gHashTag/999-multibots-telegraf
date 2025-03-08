@@ -2,7 +2,7 @@ import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { setPayments } from '../../core/supabase'
 import { isRussian } from '@/helpers'
-
+import { paymentOptions } from '@/price/priceCalculator'
 import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
 import { handleHelpCancel } from '@/handlers'
@@ -12,15 +12,6 @@ const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
 
 const description = 'Покупка звезд'
-
-const paymentOptions = [
-  { amount: 500, stars: '217' },
-  { amount: 1000, stars: '434' },
-  { amount: 2000, stars: '869' },
-  { amount: 5000, stars: '2173' },
-  { amount: 10000, stars: '4347' },
-  // { amount: 10, stars: '6' },
-]
 
 const resultUrl2 = RESULT_URL2
 
