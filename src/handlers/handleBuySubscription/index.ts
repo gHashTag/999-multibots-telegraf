@@ -34,9 +34,9 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
     }
 
     const subscriptionStarAmounts = {
-      neurophoto: 693,
-      neurobase: 1250,
-      neuroblogger: 46875,
+      neurophoto: 476,
+      neurobase: 750,
+      neuroblogger: 27777,
       // neuromentor: 100000,
     }
 

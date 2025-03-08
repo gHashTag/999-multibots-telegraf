@@ -13,9 +13,9 @@ export const paymentOptions: {
   stars: string
   subscription: Subscription
 }[] = [
-  { amount: 1110, stars: '693', subscription: 'neurophoto' },
-  { amount: 1999, stars: '1250', subscription: 'neurobase' },
-  { amount: 75000, stars: '46875', subscription: 'neuroblogger' },
+  { amount: 1110, stars: '476', subscription: 'neurophoto' },
+  { amount: 1999, stars: '750', subscription: 'neurobase' },
+  { amount: 75000, stars: '27777', subscription: 'neuroblogger' },
 ]
 
 export const subscriptionTitles = (isRu: boolean) => ({

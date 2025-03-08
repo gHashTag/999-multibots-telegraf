@@ -8,54 +8,54 @@ const message = (isRu: boolean) =>
   isRu
     ? `<b>💫 Для получения полного доступа ко всем нейрокомандам, выберите одну из предложенных месячных подписок:</b>
 
-<b>📸 НейроФото - Цена: 693 ⭐️ - 1110 ₽</b>
+<b>📸 НейроФото - Цена: 1110 ₽</b>
 - Самостоятельное обучение по нейросетям с ИИ аватаром
 - Учитесь в удобное время
 - Включает видеоуроки, текстовые материалы
 - Поддержка и актуальные технологии
 - Доступ к чату с ментором
-- 693 звезды на баланс бота
+- 476 звезды на баланс бота
 
-<b>📚 НейроБаза - Цена: 1250 ⭐️ - 1999 ₽</b>
+<b>📚 НейроБаза - Цена: 1999 ₽</b>
 - Самостоятельное обучение по нейросетям с ИИ аватаром
 - Учитесь в удобное время
 - Включает видеоуроки, текстовые материалы
 - Поддержка и актуальные технологии
 - Доступ к чату с ментором
-- 1250 звезд на баланс бота
+- 750 звезд на баланс бота
 
-<b>🤖 НейроБлогер - Цена: 46875 ⭐️ - 75000₽</b>
+<b>🤖 НейроБлогер - Цена: 75000 ₽</b>
 - Все из тарифа НейроБаза
 - Обучение по нейросетям с ментором
 - Курс на 1 месяц с 4 онлайн уроками по 2 часа
 - Практические занятия, домашние задания и поддержка куратора
-- 46875 звезд на баланс бота
+- 27777 звезд на баланс бота
 `
     : `<b>💫 To get full access to all neurocommands, choose one of the proposed monthly subscriptions:</b>
 
-<b>📸 NeuroPhoto - Price: 693 ⭐️ - 11 $</b>
+<b>📸 NeuroPhoto - Price: 11 $</b>
 - Self-study on neural networks with AI avatar
 - Learn at your convenience
 - Includes video lessons, text materials
 - Support and up-to-date technologies
 - Access to chat with a mentor
-- 693 stars on bot balance
+- 476 stars on bot balance
 
-<b>📚 NeuroBase - Price: 1250 ⭐️ - 19.9 $</b>
+<b>📚 NeuroBase - Price: 19.9 $</b>
 - Self-study on neural networks with AI avatar
 - Learn at your convenience
 - Includes video lessons, text materials
 - Support and up-to-date technologies
 - Access to chat with a mentor
-- 1250 stars on bot balance
+- 750 stars on bot balance
 
 
-<b>🤖 NeuroBlogger - Price: 46875 ⭐️ - 750 $</b>
+<b>🤖 NeuroBlogger - Price: 750 $</b>
 - Everything from the NeuroBase plan
 - Training on neural networks with a mentor
 - 1-month course with 4 online lessons of 2 hours each
 - Practical classes, homework, and curator support
-- 46875 stars on bot balance
+-  27777 stars on bot balance
 `
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
   'subscriptionScene',

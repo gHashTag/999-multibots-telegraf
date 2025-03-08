@@ -14,7 +14,7 @@ const password1 = PASSWORD1
 const description = 'Покупка звезд'
 
 const paymentOptions = [
-  { amount: 2000, stars: '1250' },
+  { amount: 2000, stars: '750' },
   { amount: 5000, stars: '3125' },
   { amount: 10000, stars: '6250' },
   // { amount: 10, stars: '6' },
