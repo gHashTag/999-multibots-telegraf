@@ -1,6 +1,11 @@
 import { MyContext } from '@/interfaces'
 import { supabase } from '.'
 import { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
+import { TranslationButton } from '@/interfaces/telegram-bot.interface'
+export interface TranslationContext {
+  from: { language_code: string }
+  telegram: { token: string }
+}
 
 export async function getTranslation({
   key,
@@ -10,7 +15,11 @@ export async function getTranslation({
   key: string
   ctx: MyContext
   bot_name?: string
-}): Promise<{ translation: string; url: string }> {
+}): Promise<{
+  translation: string
+  url: string
+  buttons: TranslationButton[]
+}> {
   console.log('CASE: getTranslation:', key)
   const { language_code } = ctx.from
   const token = ctx.telegram.token
@@ -20,7 +29,7 @@ export async function getTranslation({
   const fetchTranslation = async (name: string) => {
     return await supabase
       .from('translations')
-      .select('translation, url')
+      .select('translation, url, buttons')
       .eq('language_code', language_code)
       .eq('key', key)
       .eq('bot_name', name)
@@ -43,6 +52,7 @@ export async function getTranslation({
       return {
         translation: 'Ошибка загрузки перевода',
         url: '',
+        buttons: [],
       }
     }
   }
@@ -50,5 +60,6 @@ export async function getTranslation({
   return {
     translation: data.translation,
     url: data.url,
+    buttons: data.buttons,
   }
 }

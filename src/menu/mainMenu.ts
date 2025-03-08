@@ -2,12 +2,7 @@ import { Subscription } from '@/interfaces/supabase.interface'
 
 import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
-import { MyContext } from '@/interfaces/telegram-bot.interface'
-
-interface Level {
-  title_ru: string
-  title_en: string
-}
+import { MyContext, Level } from '@/interfaces/telegram-bot.interface'
 
 export const levels: Record<number, Level> = {
   // digital_avatar_body

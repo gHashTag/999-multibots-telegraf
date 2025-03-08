@@ -111,6 +111,7 @@ const menuCommandStep = async (ctx: MyContext) => {
         key: 'digitalAvatar',
         ctx,
       })
+
       message = translation
       const photo_url = url
       await sendReplyWithKeyboard(

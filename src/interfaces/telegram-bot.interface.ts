@@ -5,6 +5,10 @@ import { Buffer } from 'buffer'
 import { Mode } from './cost.interface'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
+export interface Level {
+  title_ru: string
+  title_en: string
+}
 
 export interface SessionData {
   selectedModel: string

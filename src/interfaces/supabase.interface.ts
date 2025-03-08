@@ -30,6 +30,7 @@ export type Subscription =
   | 'neurophoto'
   | 'neuromentor'
   | 'stars'
+  | ''
 
 export interface UserType {
   id: bigint
@@ -67,4 +68,19 @@ export interface UserType {
   level?: number
   token?: string | null
   is_leela_start?: boolean | null
+}
+
+export interface TranslationContext {
+  from: { language_code: string }
+  telegram: { token: string }
+}
+
+export interface TranslationButton {
+  text: string
+  callback_data: string
+  description: string
+  row: number
+  en_price: number
+  ru_price: number
+  stars_price: number
 }

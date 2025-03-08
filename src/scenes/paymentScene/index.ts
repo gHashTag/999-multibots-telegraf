@@ -81,24 +81,20 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
   const subscription = ctx.session.subscription
   console.log('CASE 💳 Рублями: subscription', subscription)
 
-  if (subscription === 'neurobase') {
+  if (
+    subscription === 'neurobase' ||
+    subscription === 'neurophoto' ||
+    subscription === 'neuromentor' ||
+    subscription === 'neuromeeting' ||
+    subscription === 'neuroblogger'
+  ) {
     console.log('CASE: 📚 НейроБаза - getEmailWizard')
-    return ctx.scene.enter('getEmailWizard')
-  } else if (subscription === 'neurophoto') {
-    console.log('CASE: 📸 НейроФото - getEmailWizard')
-    return ctx.scene.enter('getEmailWizard')
-  } else if (subscription === 'neuromeeting') {
-    console.log('CASE: 🧠 НейроВстреча - getEmailWizard')
-    return ctx.scene.enter('getEmailWizard')
-  } else if (subscription === 'neuromentor') {
-    console.log('CASE: 🧠 НейроМентор - getEmailWizard')
-    return ctx.scene.enter('getEmailWizard')
-  } else if (subscription === 'neuroblogger') {
-    console.log('CASE: 🤖 НейроБлогер - getEmailWizard')
-    return ctx.scene.enter('getEmailWizard')
-  } else if (subscription === 'stars') {
-    console.log('CASE: 💳 Рублями - emailWizard')
+    ctx.scene.enter('getEmailWizard')
+    return
+  } else {
+    console.log('CASE: 💳 Рублями - menuScene')
     await ctx.scene.enter('emailWizard')
+    return
   }
 })
 

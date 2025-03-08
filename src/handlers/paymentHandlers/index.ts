@@ -2,7 +2,8 @@ import { Context, Scenes } from 'telegraf'
 import { isRussian } from '@/helpers'
 import { incrementBalance, setPayments } from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
-
+import { getTranslation } from '@/core/supabase'
+import { MyContext } from '@/interfaces'
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
   subscription: string
@@ -10,7 +11,8 @@ interface SessionData {
   email: string
 }
 
-type MyContext = Context &
+type PaymentContext = Context &
+  MyContext &
   Scenes.SceneContext & {
     session: SessionData
     message: {
@@ -26,7 +28,7 @@ async function sendNotification(ctx: MyContext, message: string) {
 }
 
 async function processPayment(
-  ctx: MyContext,
+  ctx: PaymentContext,
   amount: number,
   subscriptionName: string,
   stars: number
@@ -63,7 +65,7 @@ async function processPayment(
   })
 }
 
-export async function handleSuccessfulPayment(ctx: MyContext) {
+export async function handleSuccessfulPayment(ctx: PaymentContext) {
   if (!ctx.chat) {
     console.error('Update does not belong to a chat')
     return
@@ -72,15 +74,14 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
   const stars = ctx.message?.successful_payment?.total_amount || 0
   const subscriptionType = ctx.session.subscription
 
-  const subscriptionDetails = {
-    neurophoto: { amount: 476, name: 'NeuroPhoto' },
-    neurobase: { amount: 750, name: 'NeuroBase' },
-    neuroblogger: { amount: 27777, name: 'NeuroBlogger' },
-  }
+  const { buttons } = await getTranslation({
+    key: 'subscriptionScene',
+    ctx,
+  })
 
-  if (subscriptionType in subscriptionDetails) {
-    const { amount, name } = subscriptionDetails[subscriptionType]
-    await processPayment(ctx, amount, name, stars)
+  if (subscriptionType in buttons) {
+    const { price, text } = buttons[subscriptionType]
+    await processPayment(ctx, price, text, stars)
   } else {
     await incrementBalance({
       telegram_id: ctx.session.telegram_id.toString(),

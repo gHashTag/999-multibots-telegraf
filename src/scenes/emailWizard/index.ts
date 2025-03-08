@@ -1,6 +1,6 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { saveUserEmail, setPayments } from '../../core/supabase'
+import { setPayments } from '../../core/supabase'
 import { isRussian } from '@/helpers'
 
 import md5 from 'md5'
@@ -14,9 +14,11 @@ const password1 = PASSWORD1
 const description = 'Покупка звезд'
 
 const paymentOptions = [
-  { amount: 2000, stars: '750' },
-  { amount: 5000, stars: '3125' },
-  { amount: 10000, stars: '6250' },
+  { amount: 500, stars: '217' },
+  { amount: 1000, stars: '434' },
+  { amount: 2000, stars: '869' },
+  { amount: 5000, stars: '2173' },
+  { amount: 10000, stars: '4347' },
   // { amount: 10, stars: '6' },
 ]
 
@@ -83,52 +85,25 @@ export const emailWizard = new Scenes.BaseScene<MyContext>('emailWizard')
 
 emailWizard.enter(async ctx => {
   const isRu = isRussian(ctx)
-  await ctx.reply(
-    isRu
-      ? '👉 Для формирования счета напишите ваш E-mail.'
-      : '👉 To generate an invoice, please provide your E-mail.',
-    Markup.keyboard([Markup.button.text(isRu ? 'Отмена' : 'Cancel')]).resize()
-  )
-})
 
-emailWizard.hears(/@/, async ctx => {
-  const isRu = isRussian(ctx)
-  const email = ctx.message.text
-
-  try {
-    if (!ctx.from) {
-      throw new Error('User not found')
-    }
-    ctx.session.email = email
-    await saveUserEmail(ctx.from.id.toString(), email)
-    await ctx.reply(
-      isRu
-        ? 'Ваш e-mail успешно сохранен'
-        : 'Your e-mail has been successfully saved',
-      Markup.removeKeyboard()
-    )
-
-    const buttons = paymentOptions.map(option => [
-      isRu
-        ? `Купить ${option.stars}⭐️ за ${option.amount} р`
-        : `Buy ${option.stars}⭐️ for ${option.amount} RUB`,
-    ])
-
-    const keyboard = Markup.keyboard(buttons).resize()
-
-    await ctx.reply(
-      isRu ? 'Выберите сумму для оплаты:' : 'Choose the amount for payment:',
-      {
-        reply_markup: keyboard.reply_markup,
-      }
-    )
-  } catch (error) {
-    await ctx.reply(
-      isRu
-        ? 'Ошибка при сохранении e-mail. Пожалуйста, попробуйте снова.'
-        : 'Error saving e-mail. Please try again.'
-    )
+  if (!ctx.from) {
+    throw new Error('User not found')
   }
+
+  const buttons = paymentOptions.map(option => [
+    isRu
+      ? `Купить ${option.stars}⭐️ за ${option.amount} р`
+      : `Buy ${option.stars}⭐️ for ${option.amount} RUB`,
+  ])
+
+  const keyboard = Markup.keyboard(buttons).resize()
+
+  await ctx.reply(
+    isRu ? 'Выберите сумму для оплаты:' : 'Choose the amount for payment:',
+    {
+      reply_markup: keyboard.reply_markup,
+    }
+  )
 })
 
 emailWizard.on('text', async ctx => {

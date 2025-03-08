@@ -1,5 +1,5 @@
+import { getTranslation } from '@/core'
 import { MyContext } from '@/interfaces'
-import { levels } from '@/menu/mainMenu'
 
 interface BuyParams {
   ctx: MyContext
@@ -8,44 +8,35 @@ interface BuyParams {
 
 export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
   try {
-    const subscriptionTitles = {
-      neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
-      neurobase: isRu ? '📚 НейроБаза' : '📚 NeuroBase',
-      neuroblogger: isRu ? '🤖 НейроБлогер' : '🤖 NeuroBlogger',
-      // neuromentor: isRu ? '🦸🏼‍♂️ НейроМентор' : '🦸🏼‍♂️ NeuroMentor',
-    }
-
-    const subscriptionDescriptions = {
-      neurophoto: isRu
-        ? 'Создание фотографий с помощью нейросетей.'
-        : 'Creating photos using neural networks.',
-      neurobase: isRu
-        ? 'Самостоятельное обучение по нейросетям с ИИ аватаром.'
-        : 'Self-study on neural networks with AI avatar.',
-      neuromeeting: isRu
-        ? 'Индивидуальная встреча с экспертом.'
-        : 'Individual meeting with an expert.',
-      neuroblogger: isRu
-        ? 'Обучение по нейросетям с ментором.'
-        : 'Training on neural networks with a mentor.',
-      // neuromentor: isRu
-      //   ? 'Обучение по нейросетям с ментором.'
-      //   : 'Training on neural networks with a mentor.',
-    }
-
-    const subscriptionStarAmounts = {
-      neurophoto: 476,
-      neurobase: 750,
-      neuroblogger: 27777,
-      // neuromentor: 100000,
-    }
+    const { buttons } = await getTranslation({
+      key: 'subscriptionScene',
+      ctx,
+    })
+    console.log('🔘 buttons', buttons)
 
     const subscriptionType = ctx.session.subscription
-    const amount = subscriptionStarAmounts[subscriptionType]
+    console.log('🔔 subscriptionType', subscriptionType)
 
-    const title = subscriptionTitles[subscriptionType] || `${amount} ⭐️`
+    // Ищем элемент массива по callback_data
+    const selectedButton = buttons.find(
+      button => button.callback_data === subscriptionType
+    )
+
+    if (!selectedButton) {
+      console.error('❌ Кнопка для подписки не найдена:', subscriptionType)
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: тип подписки не найден.'
+          : 'Error: subscription type not found.'
+      )
+      return
+    }
+
+    const amount = selectedButton.stars_price
+
+    const title = selectedButton.text || `${amount} ⭐️`
     const description =
-      subscriptionDescriptions[subscriptionType] ||
+      selectedButton.description ||
       (isRu
         ? `💬 Получите ${amount} звезд.\nИспользуйте звезды для различных функций нашего бота и наслаждайтесь новыми возможностями!`
         : `💬 Get ${amount} stars.\nUse stars for various functions of our bot and enjoy new opportunities!`)
@@ -54,7 +45,7 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
       title,
       description,
       payload: `${amount}_${Date.now()}`,
-      currency: 'XTR', // Pass “XTR” for payments in Telegram Stars.
+      currency: 'XTR', // Pass "XTR" for payments in Telegram Stars.
       prices: [
         {
           label: isRu ? 'Цена' : 'Price',
@@ -63,10 +54,10 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
       ],
       provider_token: '',
     })
-
+    ctx.session.subscription = ''
     return
   } catch (error) {
-    console.error('Error in handleBuySubscription:', error)
+    console.error('❌ Error in handleBuySubscription:', error)
     throw error
   }
 }
