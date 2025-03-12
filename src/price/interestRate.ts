@@ -1,1 +1,1 @@
-export const interestRate = 0.5
+export const interestRate = 1.5

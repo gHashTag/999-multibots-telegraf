@@ -45,12 +45,6 @@ export async function generateTextToVideo(
           ? 'generateTextToVideo: Не удалось определить username'
           : 'generateTextToVideo: Could not identify username'
       )
-    if (!isRu)
-      throw new Error(
-        isRu
-          ? 'generateTextToVideo: Не удалось определить isRu'
-          : 'generateTextToVideo: Could not identify isRu'
-      )
 
     const response = await axios.post<TextToVideoResponse>(
       url,

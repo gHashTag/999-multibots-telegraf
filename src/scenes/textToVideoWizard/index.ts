@@ -8,7 +8,7 @@ import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { getUserBalance } from '@/core/supabase'
-import { VIDEO_MODELS } from '@/interfaces'
+
 import { handleHelpCancel } from '@/handlers'
 
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
@@ -20,11 +20,11 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu ? 'Выберите модель для генерации:' : 'Choose generation model:',
         {
-          reply_markup: videoModelKeyboard(isRu).reply_markup,
+          reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
         }
       )
-
-      return ctx.wizard.next()
+      ctx.wizard.next()
+      return
     } catch (error: unknown) {
       console.error('Error in text_to_video:', error)
       const errorMessage =
@@ -56,7 +56,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         )
       const videoModel = message.text?.toLowerCase()
       console.log('videoModel', videoModel)
-      const availableModels = VIDEO_MODELS.map(model => model.name)
+
       const currentBalance = await getUserBalance(ctx.from.id)
       console.log('currentBalance', currentBalance)
       const isCancel = await handleHelpCancel(ctx)
@@ -64,22 +64,24 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       } else {
         // Используем await для получения результата
-        const price = await validateAndCalculateVideoModelPrice(
-          videoModel,
-          availableModels,
-          currentBalance,
-          isRu,
-          ctx
-        )
-        console.log('price', price)
-        if (price === null) {
+        const { paymentAmount, modelId } =
+          await validateAndCalculateVideoModelPrice(
+            videoModel,
+            currentBalance,
+            isRu,
+            ctx,
+            'text'
+          )
+        console.log('paymentAmount', paymentAmount)
+        console.log('modelId', modelId)
+        if (paymentAmount === null) {
           return ctx.scene.leave()
         }
 
         // Устанавливаем videoModel в сессии
-        ctx.session.videoModel = videoModel as VideoModel
+        ctx.session.videoModel = modelId as VideoModel
 
-        await sendBalanceMessage(ctx, currentBalance, price, isRu)
+        await sendBalanceMessage(ctx, currentBalance, paymentAmount, isRu)
 
         await ctx.reply(
           isRu

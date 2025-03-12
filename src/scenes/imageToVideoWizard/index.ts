@@ -10,9 +10,10 @@ import {
   videoModelKeyboard,
 } from '@/menu'
 import { isRussian } from '@/helpers/language'
+import { getUserBalance } from '@/core/supabase'
 
 import { getBotToken, handleHelpCancel } from '@/handlers'
-import { processBalanceVideoOperation } from '@/price/helpers/processBalanceVideoOperation'
+import { validateAndCalculateVideoModelPrice } from '@/price/helpers/validateAndCalculateVideoModelPrice'
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   'image_to_video',
@@ -22,10 +23,11 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu ? 'Выберите модель для генерации:' : 'Choose generation model:',
       {
-        reply_markup: videoModelKeyboard(isRu).reply_markup,
+        reply_markup: videoModelKeyboard(isRu, 'image').reply_markup,
       }
     )
-    return ctx.wizard.next()
+    ctx.wizard.next()
+    return
   },
   async ctx => {
     const isRu = isRussian(ctx)
@@ -45,40 +47,31 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         await sendGenerationCancelledMessage(ctx, isRu)
         return ctx.scene.leave()
       }
-
+      const currentBalance = await getUserBalance(ctx.from.id)
+      console.log('currentBalance', currentBalance)
       const videoModel = messageText
       console.log('videoModel', videoModel)
 
-      const { newBalance, success, modePrice } =
-        await processBalanceVideoOperation({
-          ctx,
+      const { paymentAmount, modelId } =
+        await validateAndCalculateVideoModelPrice(
           videoModel,
-          telegram_id: ctx.from.id,
-          is_ru: isRu,
-        })
-      if (!success) {
-        console.log('price is null')
-        return ctx.scene.leave()
-      }
-      ctx.session.paymentAmount = modePrice
+          currentBalance,
+          isRu,
+          ctx,
+          'image'
+        )
+      ctx.session.paymentAmount = paymentAmount
 
       // Устанавливаем videoModel в сессии
-      ctx.session.videoModel = videoModel as VideoModel
+      ctx.session.videoModel = modelId as VideoModel
       console.log('ctx.session.videoModel', ctx.session.videoModel)
 
-      await sendBalanceMessage(ctx, newBalance, modePrice, isRu)
-
-      const info =
-        videoModel === 'i2vgen-xl'
-          ? isRu
-            ? 'Используйте горизонтальное изображение для генерации видео с этой моделью. Так как вертикальные изображения не поддерживаются.'
-            : 'Use a horizontal image for video generation with this model. Vertical images are not supported.'
-          : ''
+      await sendBalanceMessage(ctx, currentBalance, paymentAmount, isRu)
 
       await ctx.reply(
         isRu
-          ? `Вы выбрали модель для генерации: ${videoModel}. ${info}`
-          : `You have chosen the generation model: ${videoModel}. ${info}`,
+          ? `Вы выбрали модель для генерации: ${videoModel}`
+          : `You have chosen the generation model: ${videoModel}`,
         {
           reply_markup: { remove_keyboard: true },
         }
