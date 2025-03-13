@@ -19,19 +19,19 @@ export type VideoModelConfig = {
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
-  minimax: {
-    id: 'minimax',
-    title: 'Minimax',
-    inputType: ['text', 'image'],
-    description: 'Базовая модель для начального уровня',
-    basePrice: 0.5,
-    api: {
-      model: 'minimax/video-01',
-      input: {
-        prompt_optimizer: true,
-      },
-    },
-  },
+  // minimax: {
+  //   id: 'minimax',
+  //   title: 'Minimax',
+  //   inputType: ['text', 'image'],
+  //   description: 'Базовая модель для начального уровня',
+  //   basePrice: 0.5,
+  //   api: {
+  //     model: 'minimax/video-01',
+  //     input: {
+  //       prompt_optimizer: true,
+  //     },
+  //   },
+  // },
   'haiper-video-2': {
     id: 'haiper-video-2',
     title: 'Haiper Video 2',
