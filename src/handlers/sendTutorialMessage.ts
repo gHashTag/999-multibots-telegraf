@@ -2,12 +2,17 @@ import { MyContext } from '@/interfaces'
 
 export const sendTutorialMessage = async (ctx: MyContext, isRu: boolean) => {
   const botName = ctx.botInfo.username
-  console.log('botName', botName)
+  console.log('🤖 Bot name detected:', botName)
 
-  if (botName === 'neuro_blogger_bot' || botName === 'ai_koshey_bot') {
-    const postUrl = 'https://t.me/neuro_coder_ai/1212'
+  const BOT_URLS = {
+    MetaMuse_Manifest_bot: 'https://t.me/MetaMuse_manifestation/16',
+    neuro_blogger_bot: 'https://t.me/neuro_coder_ai/1212',
+    ai_koshey_bot: 'https://t.me/neuro_coder_ai/1212',
+  }
 
-    console.log('📹 Отправляем видео-инструкцию... [Sending tutorial video]')
+  if (Object.keys(BOT_URLS).includes(botName)) {
+    const postUrl = BOT_URLS[botName as keyof typeof BOT_URLS]
+    console.log('📤 Отправляем ссылку:', postUrl)
 
     await ctx.reply(
       isRu
@@ -30,6 +35,6 @@ export const sendTutorialMessage = async (ctx: MyContext, isRu: boolean) => {
       }
     )
   } else {
-    console.log('🤖 Неверный бот')
+    console.log('🚫 Бот не найден в списке разрешенных:', botName)
   }
 }
