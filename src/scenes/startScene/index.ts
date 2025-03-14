@@ -8,7 +8,16 @@ import {
 import { mainMenuButton } from '@/menu/mainMenu'
 
 async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
-  const postUrl = 'https://t.me/neuro_coder_ai/1212'
+  const botName = ctx.botInfo.username
+  let postUrl = ''
+  console.log('postUrl', postUrl)
+  if (botName === 'neuro_blogger_bot') {
+    postUrl = 'https://t.me/neuro_coder_ai/1212'
+  } else if (botName === 'MetaMuse_Manifest_bot') {
+    postUrl = 'https://t.me/MetaMuse_manifestation/16'
+  } else {
+    postUrl = 'https://t.me/neuro_coder_ai/1212'
+  }
 
   console.log('📹 Отправляем видео-инструкцию... [Sending tutorial video]')
 
