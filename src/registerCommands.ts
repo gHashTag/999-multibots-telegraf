@@ -54,7 +54,7 @@ import { getReferalsCountAndUserData } from './core/supabase'
 import { setupLevelHandlers } from './handlers/setupLevelHandlers'
 
 import { defaultSession } from './store'
-
+import { getTrainingCancelUrl } from './core/supabase'
 // import { handleTextMessage } from './handlers'
 
 import { get100Command } from './commands/get100Command'
@@ -449,6 +449,80 @@ export function registerCommands({
   composer.hears(['Справка по команде', 'Help for the command'], async ctx => {
     console.log('CASE: Справка по команде')
     await ctx.scene.enter('helpScene')
+  })
+
+  bot.action(/^cancel_train:(.+)$/, async ctx => {
+    const trainingId = ctx.match[1]
+
+    try {
+      // Получаем URL отмены из кэша/хранилища
+      const cancelUrl = await getTrainingCancelUrl(trainingId)
+
+      if (!cancelUrl) {
+        await ctx.answerCbQuery(
+          '❌ Невозможно отменить: информация об отмене недоступна'
+        )
+        return
+      }
+
+      // Отправляем запрос на отмену
+      const response = await fetch(cancelUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+        },
+      })
+
+      if (response.ok) {
+        // Обновляем сообщение (заменяем кнопку)
+        await ctx.editMessageText('🛑 Тренировка отменена по вашему запросу.', {
+          reply_markup: { inline_keyboard: [] }, // Правильный формат - пустой массив кнопок
+        })
+        await ctx.answerCbQuery('✅ Тренировка успешно отменена')
+      } else {
+        await ctx.answerCbQuery('❌ Не удалось отменить тренировку')
+      }
+    } catch (error) {
+      console.error('❌ Ошибка отмены:', error)
+      await ctx.answerCbQuery('❌ Ошибка при отмене тренировки')
+    }
+  })
+
+  composer.action(/^cancel_train:(.+)$/, async ctx => {
+    const trainingId = ctx.match[1]
+
+    try {
+      // Получаем URL отмены из кэша/хранилища
+      const cancelUrl = await getTrainingCancelUrl(trainingId)
+
+      if (!cancelUrl) {
+        await ctx.answerCbQuery(
+          '❌ Невозможно отменить: информация об отмене недоступна'
+        )
+        return
+      }
+
+      // Отправляем запрос на отмену
+      const response = await fetch(cancelUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+        },
+      })
+
+      if (response.ok) {
+        // Обновляем сообщение (заменяем кнопку)
+        await ctx.editMessageText('🛑 Тренировка отменена по вашему запросу.', {
+          reply_markup: { inline_keyboard: [] }, // Правильный формат - пустой массив кнопок
+        })
+        await ctx.answerCbQuery('✅ Тренировка успешно отменена')
+      } else {
+        await ctx.answerCbQuery('❌ Не удалось отменить тренировку')
+      }
+    } catch (error) {
+      console.error('❌ Ошибка отмены:', error)
+      await ctx.answerCbQuery('❌ Ошибка при отмене тренировки')
+    }
   })
 
   // myComposer.on('text', (ctx: MyContext) => {
