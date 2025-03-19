@@ -105,7 +105,7 @@ export async function handleTextMessage(ctx: MyContext) {
     const userId = ctx.from?.id.toString() || ''
     console.log('User ID:', userId)
 
-    let userModel = await getUserModel(userId) // TODO: DEEPSEEK
+    let userModel = model // TODO: DEEPSEEK /await getUserModel(userId)
     console.log('User model:', userModel)
     let userData = await getUserData(userId)
 

@@ -35,6 +35,7 @@ export const answerAi = async (
         },
       ],
     })
+    console.log('Response:', response)
 
     const content = response.choices[0].message.content
     if (!content) {
