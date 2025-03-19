@@ -146,7 +146,7 @@ export const models: Record<string, ModelConfig> = {
     price: 0.022,
   },
   dpbelarusx: {
-    key: 'dpbelarusx/dpbelarusx:7b7e9744c88e23c0eeccb9874c36336f73fce9d3d17992c8acabb04e67ee03b4',
+    key: 'ghashtag/neuro_sage:89260ba5e46d2439111ab85686bfed9f08ff3a1cdc684ced5c1d04c639a0270b',
     word: '',
     description: {
       ru: '🎨 DPBelarusX - астрологические изображения',

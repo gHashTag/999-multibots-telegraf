@@ -4,6 +4,7 @@ import { isRussian } from '@/helpers/language'
 import { priceCommand } from '@/commands/priceCommand'
 import { handleTechSupport } from '@/commands/handleTechSupport'
 import { mainMenuButton } from '@/menu/mainMenu'
+import { get100Command } from '@/commands'
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyWizardContext) => {
   console.log('CASE: handleMenuCommand')
@@ -159,9 +160,14 @@ export const handleMenu = async (ctx: MyWizardContext) => {
       console.log('CASE: handleMenuCommand.if', text)
       await actions[text]()
     } else {
-      console.log('CASE: handleMenuCommand.else', text)
-      // ctx.session.mode = 'main_menu'
-      // await ctx.scene.enter('menuScene')
+      if (text === '/get100') {
+        console.log('CASE: handleMenuCommand.100', text)
+        await get100Command(ctx)
+      } else {
+        console.log('CASE: handleMenuCommand.else', text)
+        // ctx.session.mode = 'main_menu'
+        // await ctx.scene.enter('menuScene')
+      }
     }
   }
 }

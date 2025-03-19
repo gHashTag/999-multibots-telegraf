@@ -1,9 +1,10 @@
 import { Context, Scenes } from 'telegraf'
 import { isRussian } from '@/helpers'
-import { incrementBalance, setPayments } from '@/core/supabase'
+import { incrementBalance, setPayments, getGroupByBotName, getTranslation } from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
-import { getTranslation } from '@/core/supabase'
+
 import { MyContext } from '@/interfaces'
+import { createBotByName } from '@/core/bot'
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
   subscription: string
@@ -24,7 +25,22 @@ type PaymentContext = Context &
   }
 
 async function sendNotification(ctx: MyContext, message: string) {
-  await ctx.telegram.sendMessage('-1476314188', message)
+  try {
+    const bot = createBotByName(ctx.botInfo.username)
+    if (!bot) {
+      console.error('Bot token not found')
+      return
+    }
+    const group = await getGroupByBotName(ctx.botInfo.username)
+    if (!group) {
+      console.error('Group not found')
+      return
+    }
+
+    await bot.telegram.sendMessage(group, message)
+  } catch (error) {
+    console.error('Error sending notification:', error)
+  }
 }
 
 async function processPayment(
@@ -66,9 +82,10 @@ async function processPayment(
 }
 
 export async function handleSuccessfulPayment(ctx: PaymentContext) {
-  if (!ctx.chat) {
-    console.error('Update does not belong to a chat')
-    return
+  try {
+    if (!ctx.chat) {
+      console.error('Update does not belong to a chat')
+      return
   }
   const isRu = isRussian(ctx)
   const stars = ctx.message?.successful_payment?.total_amount || 0
@@ -109,5 +126,8 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       bot_name: ctx.botInfo.username,
       language: ctx.from?.language_code,
     })
+  }
+  } catch (error) {
+    console.error('Error processing payment:', error)
   }
 }

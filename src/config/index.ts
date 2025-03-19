@@ -31,6 +31,9 @@ export const {
   PINATA_GATEWAY,
   LOCAL_SERVER_URL,
   DEEPSEEK_API_KEY,
+  INNGEST_EVENT_KEY,
+  INNGEST_API_KEY,
+  INNGEST_URL,
 } = process.env
 
 export const isDev = process.env.NODE_ENV === 'development'

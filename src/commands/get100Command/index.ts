@@ -2,12 +2,12 @@ import { MyContext } from '../../interfaces'
 
 import { generateNeuroImage } from '../../services/generateNeuroImage'
 import { models } from '../../core/replicate'
-import { solarPunkAngelPrompt } from './prompts'
+import { liquidPunkPrompt } from './prompts'
 
 async function get100Command(ctx: MyContext) {
-  const model_url = models['neuro_coder'].key as `${string}/${string}:${string}`
-
-  const message = solarPunkAngelPrompt
+  const model_url = models['dpbelarusx'].key as `${string}/${string}:${string}`
+  console.log('model_url', model_url)
+  const message = liquidPunkPrompt
   ctx.session.prompt = message
   if (!message || !ctx.from?.id) {
     await ctx.reply(
@@ -15,8 +15,6 @@ async function get100Command(ctx: MyContext) {
     )
     throw new Error('Message or user id not found')
   }
-
-  const generatingMessage = await ctx.reply('Генерация изображения началась...')
 
   if (!ctx?.chat?.id) {
     await ctx.reply('Ошибка при генерации ')
@@ -26,16 +24,12 @@ async function get100Command(ctx: MyContext) {
   await generateNeuroImage(
     message,
     model_url,
-    100,
+    50,
     ctx.from.id.toString(),
     ctx,
     ctx.botInfo?.username
   )
 
-  await ctx.telegram.deleteMessage(
-    ctx.chat?.id || '',
-    generatingMessage.message_id
-  )
   return
 }
 

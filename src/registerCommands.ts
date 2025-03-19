@@ -304,6 +304,11 @@ export function registerCommands({
     handleTechSupport
   )
 
+  bot.hears(['/get100'], async ctx => {
+    console.log('CASE: get100')
+    await get100Command(ctx)
+  })
+
   composer.hears(
     ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
     async ctx => {
