@@ -19,7 +19,7 @@ export const incrementBalance = async ({
       throw new Error('Не удалось получить текущий баланс')
     }
 
-    console.log('data.balance', data.balance)
+    console.log('data', data)
 
     const newBalance = data.balance + amount
     console.log('newBalance', newBalance)

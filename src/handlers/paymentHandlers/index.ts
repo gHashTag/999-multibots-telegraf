@@ -110,7 +110,7 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
     } else {
       console.log('CASE: subscriptionType not in buttons')
       await incrementBalance({
-        telegram_id: ctx.session.telegram_id.toString(),
+        telegram_id: ctx.from.id.toString(),
         amount: stars,
       })
       await ctx.reply(
