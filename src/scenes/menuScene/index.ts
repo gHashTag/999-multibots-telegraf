@@ -26,8 +26,8 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (isDev) {
       console.log('CASE 🦄: isDev')
       newCount = 0
-      newSubscription = 'neurobase'
-      newLevel = 11
+      newSubscription = 'neurophoto'
+      newLevel = 3
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(
         telegram_id
@@ -62,7 +62,6 @@ const menuCommandStep = async (ctx: MyContext) => {
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
       await ctx.reply(message, keyboard)
-      return
     }
 
     // Проверка условий для отправки сообщения
@@ -150,9 +149,9 @@ const menuCommandStep = async (ctx: MyContext) => {
         await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboard)
       } else {
         console.log(`CASE: default ${newCount}`)
-        const message = getText(isRu, 'mainMenu')
-        console.log('message', message)
-        await ctx.reply(message, keyboard)
+        // const message = getText(isRu, 'mainMenu')
+        // console.log('message', message)
+        // await ctx.reply(message, keyboard)
         ctx.wizard.next()
         return
       }

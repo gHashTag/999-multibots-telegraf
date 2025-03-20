@@ -13,6 +13,7 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
     const selectedButton = ctx.session.buttons.find(
       button => button.callback_data === ctx.session.subscription
     )
+    console.log('🔔 selectedButton', selectedButton)
 
     if (!selectedButton) {
       console.error('❌ Кнопка для подписки не найдена:', subscriptionType)
@@ -25,6 +26,7 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
     }
 
     const amount = selectedButton.stars_price
+    console.log('🔔 amount', amount)
 
     const title = selectedButton.text || `${amount} ⭐️`
     const description =
@@ -46,8 +48,7 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
       ],
       provider_token: '',
     })
-    ctx.session.subscription = ''
-    ctx.session.buttons = []
+
     return
   } catch (error) {
     console.error('❌ Error in handleBuySubscription:', error)

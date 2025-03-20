@@ -9,6 +9,7 @@ import {
 import { Message } from 'telegraf/typings/core/types/typegram'
 import { updateUserSubscription } from '@/core/supabase/updateUserSubscription'
 import { MyContext } from '@/interfaces'
+
 import { createBotByName } from '@/core/bot'
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
@@ -61,6 +62,10 @@ async function processPayment(
   console.log('CASE: userId', userId)
   const username = ctx.from?.username
   console.log('CASE: username', username)
+  console.log(
+    'CASE: ctx.message?.successful_payment',
+    ctx.message?.successful_payment
+  )
   const payload = ctx.message?.successful_payment?.invoice_payload
   console.log('CASE: payload', payload)
 
@@ -81,14 +86,34 @@ async function processPayment(
   })
 
   await incrementBalance({
-    telegram_id: ctx.session.telegram_id.toString(),
+    telegram_id: userId,
     amount,
   })
 
   await sendNotification(
     ctx,
-    `💫 Пользователь @${username} (ID: ${userId}) купил ${subscriptionName}!\n\nПополнил баланс на ${amount} звезд\n\n💳 Платежный ID: ${payload}`
+    `💫 Пользователь: @${username} (ID: ${userId})\n` +
+      `📦 Купил: ${subscriptionName}\n и получил ${stars} звезд 🌟`
   )
+  const isRu = isRussian(ctx)
+  await ctx.reply(
+    isRu
+      ? `✅ **Спасибо за покупку! На ваш баланс добавлено ${stars} ⭐️!**\n` +
+          `✨ Теперь вы можете использовать свою подписку. Для этого перейдите в главное меню, нажав на кнопку ниже:\n` +
+          `🏠 /menu\n` +
+          `❓ Если у вас есть вопросы, не стесняйтесь обращаться за помощью /tech\n` +
+          `Мы всегда рады помочь!`
+      : `✅ **Thank you for your purchase! ${stars} stars added to your balance!**\n` +
+          `✨ Now you can use your subscription. To do this, go to the main menu by clicking the button below:\n` +
+          `🏠 /menu\n` +
+          `❓ If you have any questions, feel free to ask for help /tech\n` +
+          `We're always here to assist you!`,
+    {
+      parse_mode: 'Markdown',
+    }
+  )
+  ctx.session.subscription = ''
+  ctx.session.buttons = []
 }
 
 export async function handleSuccessfulPayment(ctx: PaymentContext) {
@@ -100,19 +125,24 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
     const isRu = isRussian(ctx)
     const stars = ctx.message?.successful_payment?.total_amount || 0
     const subscriptionType = ctx.session.subscription
-
+    console.log('CASE: subscriptionType', subscriptionType)
     const { buttons } = await getTranslation({
       key: 'subscriptionScene',
       ctx,
     })
     console.log('CASE: buttons', buttons)
 
-    if (subscriptionType in buttons) {
-      console.log('CASE: subscriptionType in buttons')
-      const { stars_price, text } = buttons[subscriptionType]
-      await processPayment(ctx, stars_price, text, stars)
+    const selectedButton = buttons.find(
+      button => button.callback_data === subscriptionType
+    )
+    console.log('CASE: selectedButton', selectedButton)
+
+    if (selectedButton) {
+      console.log('CASE: subscriptionType in buttons', selectedButton)
+      const { stars_price, callback_data } = selectedButton
+      await processPayment(ctx, stars_price, callback_data, stars)
     } else {
-      console.log('CASE: subscriptionType not in buttons')
+      console.log('CASE: subscriptionType not in buttons', selectedButton)
       await incrementBalance({
         telegram_id: ctx.from.id.toString(),
         amount: stars,
@@ -139,6 +169,8 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
         bot_name: ctx.botInfo.username,
         language: ctx.from?.language_code,
       })
+      ctx.session.subscription = ''
+      ctx.session.buttons = []
     }
   } catch (error) {
     console.error('Error processing payment:', error)

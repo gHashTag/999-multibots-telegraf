@@ -8,28 +8,33 @@ export const incrementBalance = async ({
   amount: number
 }) => {
   try {
-    console.log('CASE: incrementBalance')
+    console.log('CASE: incrementBalance', telegram_id, amount)
     const { data, error } = await supabase
       .from('users')
       .select('balance')
       .eq('telegram_id', telegram_id)
       .single()
 
-    if (error || !data) {
+    if (error) {
+      console.error('Error fetching balance:', error)
       throw new Error('Не удалось получить текущий баланс')
     }
 
-    console.log('data', data)
+    if (!data) {
+      console.error('No user found with telegram_id:', telegram_id)
+      throw new Error('Пользователь не найден')
+    }
 
     const newBalance = data.balance + amount
-    console.log('newBalance', newBalance)
+    console.log('New balance:', newBalance)
 
     const { error: updateError } = await supabase
       .from('users')
       .update({ balance: newBalance })
-      .eq('telegram_id', telegram_id.toString())
+      .eq('telegram_id', telegram_id)
 
     if (updateError) {
+      console.error('Error updating balance:', updateError)
       throw new Error('Не удалось обновить баланс')
     }
   } catch (error) {
