@@ -36,7 +36,10 @@ async function sendNotification(ctx: MyContext, message: string) {
       console.error('Bot token not found')
       return
     }
+    console.log('CASE: ctx.botInfo', ctx.botInfo)
+    console.log('CASE: ctx.botInfo.username', ctx.botInfo.username)
     const group = await getGroupByBotName(ctx.botInfo.username)
+    console.log('CASE: group', group)
     if (!group) {
       console.error('Group not found')
       return
