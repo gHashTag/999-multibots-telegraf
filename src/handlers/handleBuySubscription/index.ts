@@ -1,4 +1,3 @@
-import { getTranslation } from '@/core'
 import { MyContext } from '@/interfaces'
 
 interface BuyParams {

@@ -7,7 +7,7 @@ import {
   getTranslation,
 } from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
-
+import { updateUserSubscription } from '@/core/supabase/updateUserSubscription'
 import { MyContext } from '@/interfaces'
 import { createBotByName } from '@/core/bot'
 // Используйте SessionFlavor для добавления сессий
@@ -55,22 +55,14 @@ async function processPayment(
   stars: number
 ) {
   const userId = ctx.from?.id.toString()
+  console.log('CASE: userId', userId)
   const username = ctx.from?.username
+  console.log('CASE: username', username)
   const payload = ctx.message?.successful_payment?.invoice_payload
+  console.log('CASE: payload', payload)
 
-  await incrementBalance({
-    telegram_id: ctx.session.telegram_id.toString(),
-    amount,
-  })
+  await updateUserSubscription(userId, subscriptionName)
 
-  await sendNotification(
-    ctx,
-    `💫 Пользователь @${username} (ID: ${userId}) купил ${subscriptionName}!`
-  )
-  await sendNotification(
-    ctx,
-    `💫 Пользователь @${username} (ID: ${userId}) пополнил баланс на ${amount} звезд!`
-  )
   await setPayments({
     telegram_id: userId,
     OutSum: amount.toString(),
@@ -84,6 +76,16 @@ async function processPayment(
     bot_name: ctx.botInfo.username,
     language: ctx.from?.language_code,
   })
+
+  await incrementBalance({
+    telegram_id: ctx.session.telegram_id.toString(),
+    amount,
+  })
+
+  await sendNotification(
+    ctx,
+    `💫 Пользователь @${username} (ID: ${userId}) купил ${subscriptionName}!\n\nПополнил баланс на ${amount} звезд\n\n💳 Платежный ID: ${payload}`
+  )
 }
 
 export async function handleSuccessfulPayment(ctx: PaymentContext) {
@@ -102,9 +104,11 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
     })
 
     if (subscriptionType in buttons) {
+      console.log('CASE: subscriptionType in buttons')
       const { price, text } = buttons[subscriptionType]
       await processPayment(ctx, price, text, stars)
     } else {
+      console.log('CASE: subscriptionType not in buttons')
       await incrementBalance({
         telegram_id: ctx.session.telegram_id.toString(),
         amount: stars,
