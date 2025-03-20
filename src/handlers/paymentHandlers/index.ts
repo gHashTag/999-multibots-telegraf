@@ -45,7 +45,7 @@ async function sendNotification(ctx: MyContext, message: string) {
       return
     }
 
-    await bot.telegram.sendMessage(group, message)
+    await bot.telegram.sendMessage(`@${group}`, message)
   } catch (error) {
     console.error('Error sending notification:', error)
   }
@@ -105,11 +105,12 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       key: 'subscriptionScene',
       ctx,
     })
+    console.log('CASE: buttons', buttons)
 
     if (subscriptionType in buttons) {
       console.log('CASE: subscriptionType in buttons')
-      const { price, text } = buttons[subscriptionType]
-      await processPayment(ctx, price, text, stars)
+      const { stars_price, text } = buttons[subscriptionType]
+      await processPayment(ctx, stars_price, text, stars)
     } else {
       console.log('CASE: subscriptionType not in buttons')
       await incrementBalance({
