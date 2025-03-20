@@ -8,18 +8,11 @@ interface BuyParams {
 
 export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
   try {
-    const { buttons } = await getTranslation({
-      key: 'subscriptionScene',
-      ctx,
-    })
-    console.log('🔘 buttons', buttons)
-
     const subscriptionType = ctx.session.subscription
     console.log('🔔 subscriptionType', subscriptionType)
 
-    // Ищем элемент массива по callback_data
-    const selectedButton = buttons.find(
-      button => button.callback_data === subscriptionType
+    const selectedButton = ctx.session.buttons.find(
+      button => button.callback_data === ctx.session.subscription
     )
 
     if (!selectedButton) {
@@ -55,6 +48,7 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
       provider_token: '',
     })
     ctx.session.subscription = ''
+    ctx.session.buttons = []
     return
   } catch (error) {
     console.error('❌ Error in handleBuySubscription:', error)

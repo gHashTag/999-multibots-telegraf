@@ -13,7 +13,28 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       key: 'subscriptionScene',
       ctx,
     })
-    console.log('buttons', buttons)
+    console.log('buttons!!!', buttons)
+
+    // Проверяем, является ли пользователь администратором
+    const adminIds = process.env.ADMIN_IDS
+      ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id, 10))
+      : []
+
+    // Добавляем тестовый план для администраторов
+    if (adminIds.includes(ctx.from.id)) {
+      buttons.push({
+        row: 4, // Укажите номер строки, где хотите разместить тестовый план
+        text: '🧪 Тест', // Название тестового плана
+        en_price: 1, // Тестовая цена в долларах
+        ru_price: 1, // Тестовая цена в рублях
+        description: 'Тестовый план для проверки функционала.',
+        stars_price: 1, // Количество звезд для тестового плана
+        callback_data: 'neurotester', // Уникальный идентификатор для тестового плана
+      })
+    }
+
+    ctx.session.buttons = buttons
+
     // Формируем клавиатуру на основе кнопок
     const keyboardRows = []
     buttons.forEach(button => {
@@ -78,6 +99,10 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       } else if (text === 'neuromentor') {
         console.log('CASE: 🧠 НейроМентор')
         ctx.session.subscription = 'neuromentor'
+        return ctx.scene.enter('paymentScene')
+      } else if (text === 'neurotester') {
+        console.log('CASE: 🧪 Тестовый план')
+        ctx.session.subscription = 'neurotester'
         return ctx.scene.enter('paymentScene')
       } else if (text === 'mainmenu') {
         console.log('CASE: 🏠 Главное меню')

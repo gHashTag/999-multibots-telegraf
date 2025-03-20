@@ -8,6 +8,7 @@ export const paymentOptionsPlans: {
   { amount: 1110, stars: '476', subscription: 'neurophoto' },
   { amount: 2999, stars: '1303', subscription: 'neurobase' },
   { amount: 75000, stars: '32608', subscription: 'neuroblogger' },
+  { amount: 5, stars: '5', subscription: 'neurotester' },
 ]
 
 export const paymentOptions: {

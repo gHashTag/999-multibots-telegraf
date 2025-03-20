@@ -59,6 +59,9 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
     } else if (subscription === 'neuroblogger') {
       await handleBuySubscription({ ctx, isRu })
       await ctx.scene.leave()
+    } else if (subscription === 'neurotester') {
+      await handleBuySubscription({ ctx, isRu })
+      await ctx.scene.leave()
     } else if (subscription === 'neurophoto') {
       await handleBuySubscription({ ctx, isRu })
       await ctx.scene.leave()

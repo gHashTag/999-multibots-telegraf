@@ -1,6 +1,11 @@
 import { Context, Scenes } from 'telegraf'
 import { isRussian } from '@/helpers'
-import { incrementBalance, setPayments, getGroupByBotName, getTranslation } from '@/core/supabase'
+import {
+  incrementBalance,
+  setPayments,
+  getGroupByBotName,
+  getTranslation,
+} from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
 
 import { MyContext } from '@/interfaces'
@@ -86,47 +91,47 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
     if (!ctx.chat) {
       console.error('Update does not belong to a chat')
       return
-  }
-  const isRu = isRussian(ctx)
-  const stars = ctx.message?.successful_payment?.total_amount || 0
-  const subscriptionType = ctx.session.subscription
+    }
+    const isRu = isRussian(ctx)
+    const stars = ctx.message?.successful_payment?.total_amount || 0
+    const subscriptionType = ctx.session.subscription
 
-  const { buttons } = await getTranslation({
-    key: 'subscriptionScene',
-    ctx,
-  })
-
-  if (subscriptionType in buttons) {
-    const { price, text } = buttons[subscriptionType]
-    await processPayment(ctx, price, text, stars)
-  } else {
-    await incrementBalance({
-      telegram_id: ctx.session.telegram_id.toString(),
-      amount: stars,
-    })
-    await ctx.reply(
-      isRu
-        ? `💫 Ваш баланс пополнен на ${stars}⭐️ звезд!`
-        : `💫 Your balance has been replenished by ${stars}⭐️ stars!`
-    )
-    await sendNotification(
+    const { buttons } = await getTranslation({
+      key: 'subscriptionScene',
       ctx,
-      `💫 Пользователь @${ctx.from.username} (ID: ${ctx.from.id}) пополнил баланс на ${stars} звезд!`
-    )
-    await setPayments({
-      telegram_id: ctx.from.id.toString(),
-      OutSum: stars.toString(),
-      InvId: ctx.message?.successful_payment?.invoice_payload || '',
-      currency: 'STARS',
-      stars,
-      status: 'COMPLETED',
-      email: ctx.session.email,
-      payment_method: 'Telegram',
-      subscription: 'stars',
-      bot_name: ctx.botInfo.username,
-      language: ctx.from?.language_code,
     })
-  }
+
+    if (subscriptionType in buttons) {
+      const { price, text } = buttons[subscriptionType]
+      await processPayment(ctx, price, text, stars)
+    } else {
+      await incrementBalance({
+        telegram_id: ctx.session.telegram_id.toString(),
+        amount: stars,
+      })
+      await ctx.reply(
+        isRu
+          ? `💫 Ваш баланс пополнен на ${stars}⭐️ звезд!`
+          : `💫 Your balance has been replenished by ${stars}⭐️ stars!`
+      )
+      await sendNotification(
+        ctx,
+        `💫 Пользователь @${ctx.from.username} (ID: ${ctx.from.id}) пополнил баланс на ${stars} звезд!`
+      )
+      await setPayments({
+        telegram_id: ctx.from.id.toString(),
+        OutSum: stars.toString(),
+        InvId: ctx.message?.successful_payment?.invoice_payload || '',
+        currency: 'STARS',
+        stars,
+        status: 'COMPLETED',
+        email: ctx.session.email,
+        payment_method: 'Telegram',
+        subscription: 'stars',
+        bot_name: ctx.botInfo.username,
+        language: ctx.from?.language_code,
+      })
+    }
   } catch (error) {
     console.error('Error processing payment:', error)
   }

@@ -33,6 +33,16 @@ export interface MyWizardSession extends Scenes.WizardSessionData {
   data: string
 }
 
+export interface Button {
+  text: string
+  callback_data: string
+  row: number
+  en_price: number
+  ru_price: number
+  stars_price: number
+  description: string
+}
+
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   email: string
   selectedModel: string
@@ -58,6 +68,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   inviter: string
   inviteCode: string
   invoiceURL: string
+  buttons: Button[]
   selectedPayment: {
     amount: number
     stars: string
