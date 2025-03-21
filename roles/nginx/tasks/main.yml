@@ -23,6 +23,21 @@
     src: bot4.locations.j2
     dest: /etc/nginx/conf.d/bot4.locations
 
+- name: Deploy bot5 location config
+  template:
+    src: bot5.locations.j2
+    dest: /etc/nginx/conf.d/bot5.locations
+
+- name: Deploy bot6 location config
+  template:
+    src: bot6.locations.j2
+    dest: /etc/nginx/conf.d/bot6.locations
+
+- name: Deploy bot7 location config
+  template:
+    src: bot7.locations.j2
+    dest: /etc/nginx/conf.d/bot7.locations
+
 - name: Ensure /etc/pki directory exists
   file:
     path: /etc/pki

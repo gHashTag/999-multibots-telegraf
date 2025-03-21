@@ -6,17 +6,16 @@ import {
   getTranslation,
 } from '@/core/supabase'
 import { mainMenuButton } from '@/menu/mainMenu'
+import { BOT_URLS } from '@/core/bot'
 
 async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
   const botName = ctx.botInfo.username
   let postUrl = ''
   console.log('postUrl', postUrl)
-  if (botName === 'neuro_blogger_bot') {
-    postUrl = 'https://t.me/neuro_coder_ai/1212'
-  } else if (botName === 'MetaMuse_Manifest_bot') {
-    postUrl = 'https://t.me/MetaMuse_manifestation/16'
+  if (Object.keys(BOT_URLS).includes(botName)) {
+    postUrl = BOT_URLS[botName as keyof typeof BOT_URLS]
   } else {
-    postUrl = 'https://t.me/neuro_coder_ai/1212'
+    postUrl = BOT_URLS.neuro_blogger_bot
   }
 
   console.log('📹 Отправляем видео-инструкцию... [Sending tutorial video]')

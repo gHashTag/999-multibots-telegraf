@@ -1,17 +1,12 @@
 import { MyContext } from '@/interfaces'
-
+import { BOT_URLS } from '@/core/bot'
 export const sendTutorialMessage = async (ctx: MyContext, isRu: boolean) => {
   const botName = ctx.botInfo.username
   console.log('🤖 Bot name detected:', botName)
 
-  const BOT_URLS = {
-    MetaMuse_Manifest_bot: 'https://t.me/MetaMuse_manifestation/16',
-    neuro_blogger_bot: 'https://t.me/neuro_coder_ai/1212',
-    ai_koshey_bot: 'https://t.me/neuro_coder_ai/1212',
-  }
-
   if (Object.keys(BOT_URLS).includes(botName)) {
-    const postUrl = BOT_URLS[botName as keyof typeof BOT_URLS]
+    const postUrl =
+      BOT_URLS[botName as keyof typeof BOT_URLS] || BOT_URLS.neuro_blogger_bot
     console.log('📤 Отправляем ссылку:', postUrl)
 
     await ctx.reply(

@@ -10,6 +10,9 @@ if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
 if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
 if (!process.env.BOT_TOKEN_3) throw new Error('BOT_TOKEN_3 is not set')
 if (!process.env.BOT_TOKEN_4) throw new Error('BOT_TOKEN_4 is not set')
+if (!process.env.BOT_TOKEN_5) throw new Error('BOT_TOKEN_5 is not set')
+if (!process.env.BOT_TOKEN_6) throw new Error('BOT_TOKEN_6 is not set')
+if (!process.env.BOT_TOKEN_7) throw new Error('BOT_TOKEN_7 is not set')
 
 if (!process.env.BOT_TOKEN_TEST_1)
   throw new Error('BOT_TOKEN_TEST_1 is not set')
@@ -21,6 +24,9 @@ const BOT_TOKENS_PROD = [
   process.env.BOT_TOKEN_2,
   process.env.BOT_TOKEN_3,
   process.env.BOT_TOKEN_4,
+  process.env.BOT_TOKEN_5,
+  process.env.BOT_TOKEN_6,
+  process.env.BOT_TOKEN_7,
 ]
 const BOT_TOKENS_TEST = [
   process.env.BOT_TOKEN_TEST_1,
@@ -32,8 +38,18 @@ export const BOT_NAMES = {
   ['MetaMuse_Manifest_bot']: process.env.BOT_TOKEN_2,
   ['ZavaraBot']: process.env.BOT_TOKEN_3,
   ['LeeSolarbot']: process.env.BOT_TOKEN_4,
+  ['NeuroLenaAssistant_bot']: process.env.BOT_TOKEN_5,
+  ['NeurostylistShtogrina_bot']: process.env.BOT_TOKEN_6,
+  ['Gaia_Kamskaia_bot']: process.env.BOT_TOKEN_7,
   ['ai_koshey_bot']: process.env.BOT_TOKEN_TEST_1,
   ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_TEST_2,
+}
+
+// Tutorial URLs
+export const BOT_URLS = {
+  MetaMuse_Manifest_bot: 'https://t.me/MetaMuse_manifestation/16',
+  neuro_blogger_bot: 'https://t.me/neuro_coder_ai/1212',
+  ai_koshey_bot: 'https://t.me/neuro_coder_ai/1212',
 }
 
 export const BOT_TOKENS =
