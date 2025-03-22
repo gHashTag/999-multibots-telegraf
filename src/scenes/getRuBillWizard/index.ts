@@ -79,9 +79,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
                   : `Buy ${
                       subscriptionTitles(isRu)[subscription]
                     } for ${stars} RUB.`,
-                web_app: {
-                  url: invoiceURL,
-                },
+                url: invoiceURL,
               },
             ],
           ]

@@ -149,9 +149,7 @@ emailWizard.on('text', async ctx => {
               text: isRu
                 ? `Купить ${stars}⭐️ за ${amount} р`
                 : `Buy ${stars}⭐️ for ${amount} RUB`,
-              web_app: {
-                url: invoiceURL,
-              },
+              url: invoiceURL,
             },
           ],
           [
