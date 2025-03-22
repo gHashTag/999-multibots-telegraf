@@ -26,7 +26,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (isDev) {
       console.log('CASE 🦄: isDev')
       newCount = 0
-      newSubscription = 'neurophoto'
+      newSubscription = 'neurotester'
       newLevel = 3
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(

@@ -69,32 +69,23 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       await ctx.telegram.sendMessage(
         ctx.session.inviteCode,
         isRussian(ctx)
-          ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}.\n🆔 Уровень аватара: ${count}\n🎁 За каждого приглашенного друга вы получаете дополнительные ${BONUS_AMOUNT} звезд для генерации!\n🤑 Ваш новый баланс: ${
-              userData.balance + BONUS_AMOUNT
-            }⭐️ `
-          : `🔗 New user registered through your link: @${finalUsername}.🆔 Avatar level: ${count}\n🎁 For each friend you invite, you get additional ${BONUS_AMOUNT} stars for generation!\n🤑 Your new balance: ${
-              userData.balance + BONUS_AMOUNT
-            }⭐️`
+          ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}.`
+          : `🔗 New user registered through your link: @${finalUsername}.`
       )
-      await incrementBalance({
-        telegram_id: ctx.session.inviteCode,
-        amount: BONUS_AMOUNT,
-      })
+      // await incrementBalance({
+      //   telegram_id: ctx.session.inviteCode,
+      //   amount: BONUS_AMOUNT,
+      // })
       await ctx.telegram.sendMessage(
         `@${SUBSCRIBE_CHANNEL_ID}`,
-        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке от: @${userData.username}.\n🆔 Уровень аватара: ${newCount}\n🎁 Получил(a) бонус в размере ${BONUS_AMOUNT}⭐️ на свой баланс.\nСпасибо за участие в нашей программе!`
+        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}`
       )
     }
   } else {
     try {
-      console.log('CASE: ctx.session.inviteCode not exists')
-
-      const { count } = await getReferalsCountAndUserData(
-        telegram_id.toString()
-      )
       await ctx.telegram.sendMessage(
         `@${SUBSCRIBE_CHANNEL_ID}`,
-        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}.\n🆔 Уровень аватара: ${count}.`
+        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}.`
       )
     } catch (error) {
       console.error('Ошибка в createUserStep:', error)
