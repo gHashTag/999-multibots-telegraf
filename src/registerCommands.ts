@@ -1,6 +1,7 @@
 import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
-import { handleTechSupport } from './commands'
+import { handleTechSupport, getStatsCommand } from './commands'
+
 import {
   avatarBrainWizard,
   textToVideoWizard,
@@ -118,6 +119,11 @@ export function registerCommands({
   bot.command('start', async ctx => {
     console.log('CASE bot.command: start')
     await ctx.scene.enter('subscriptionCheckScene')
+  })
+
+  bot.command('stats', async ctx => {
+    console.log('CASE bot.command: stats')
+    await getStatsCommand(ctx)
   })
 
   bot.command('menu', async ctx => {
