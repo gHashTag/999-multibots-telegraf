@@ -2,6 +2,7 @@ import { MyContext } from '../../interfaces'
 import { getRevenueStatistics, isOwner } from '@/core/supabase'
 import { isRussian } from '@/helpers'
 import { isDev } from '@/config'
+
 const getStatsCommand = async (ctx: MyContext): Promise<void> => {
   const userId = ctx.from?.id
 
