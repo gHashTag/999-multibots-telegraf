@@ -2,7 +2,7 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 import { Telegraf, Composer } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext, MyTextMessageContext } from '@/interfaces'
 import { NODE_ENV } from './config'
 
 import { development, production } from '@/utils/launch'
@@ -19,6 +19,8 @@ dotenv.config()
 
 const bots = BOT_TOKENS.map(token => new Telegraf<MyContext>(token))
 export const composer = new Composer<MyContext>()
+
+type NextFunction = (err?: Error) => void
 
 export const createBots = async () => {
   startApiServer()
@@ -50,6 +52,17 @@ export const createBots = async () => {
     } else {
       production(bot, port, webhookUrl, webhookPath)
     }
+
+    bot.use((ctx: MyTextMessageContext, next: NextFunction) => {
+      console.log('🔍 Получено сообщение/команда:', {
+        text: ctx.message?.text,
+        from: ctx.from?.id,
+        chat: ctx.chat?.id,
+        bot: ctx.botInfo?.username,
+        timestamp: new Date().toISOString()
+      })
+      return next()  
+    })
 
     app.use(webhookPath, express.json(), (req, res) => {
       console.log('CASE: production')
