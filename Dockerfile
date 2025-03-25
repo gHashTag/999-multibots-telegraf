@@ -35,7 +35,7 @@ RUN npm install --omit=dev
 # Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
 
-
-EXPOSE 3000
+# Экспортируем порт для API и боты
+EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 
 CMD ["node", "dist/bot.js"]

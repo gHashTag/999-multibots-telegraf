@@ -13,6 +13,7 @@ import { registerHearsActions } from './handlers/hearsActions'
 import { registerCommands } from './registerCommands'
 import { setBotCommands } from './setCommands'
 import { BOT_TOKENS, getBotNameByToken } from './core/bot'
+import startApiServer from './api'
 
 dotenv.config()
 
@@ -20,6 +21,9 @@ const bots = BOT_TOKENS.map(token => new Telegraf<MyContext>(token))
 export const composer = new Composer<MyContext>()
 
 export const createBots = async () => {
+  startApiServer()
+  console.log('🚀 Запущен публичный API сервер')
+
   bots.forEach((bot, index) => {
     const app = express()
 
