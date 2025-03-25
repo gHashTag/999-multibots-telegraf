@@ -64,3 +64,14 @@
     csr_path: /etc/pki/cert.csr
     provider: selfsigned
     path: /etc/pki/cert.crt
+
+- name: Copy API location configuration
+  template:
+    src: api.locations.j2
+    dest: /etc/nginx/conf.d/api.locations
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Reload nginx
+  shell: docker exec nginx-proxy nginx -s reload

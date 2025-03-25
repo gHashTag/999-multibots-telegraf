@@ -1,7 +1,10 @@
 import express from 'express'
 import cors from 'cors'
-import { PORT } from '@/config'
+
 import dotenv from 'dotenv'
+import { serve } from 'inngest/express'
+import { inngest } from './services/inngest.service'
+import { functions } from './inngest/functions'
 
 dotenv.config()
 
@@ -29,6 +32,15 @@ app.get('/api/status', (req, res) => {
     timestamp: new Date().toISOString(),
   })
 })
+
+// Эндпоинт для Inngest
+app.use(
+  '/api/inngest',
+  serve({
+    client: inngest,
+    functions,
+  })
+)
 
 // Обработка ошибки 404
 app.use((req, res) => {

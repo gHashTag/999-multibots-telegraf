@@ -60,7 +60,7 @@ import { getTrainingCancelUrl } from './core/supabase'
 // import { handleTextMessage } from './handlers'
 
 import { get100Command } from './commands/get100Command'
-// import { inngestCommand } from '@/commands/inngest'
+import { composer as inngestCommand } from './commands/inngest'
 
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
@@ -561,5 +561,7 @@ export function registerCommands({
   //   handleTextMessage(ctx)
   // })
 
-  // composer.use(inngestCommand)
+
+
+  bot.use(inngestCommand)
 }
