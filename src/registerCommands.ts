@@ -562,6 +562,6 @@ export function registerCommands({
   // })
 
 
-
+  composer.use(inngestCommand)
   bot.use(inngestCommand)
 }
