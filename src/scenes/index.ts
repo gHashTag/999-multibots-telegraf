@@ -1,3 +1,7 @@
+// Экспортируем broadcastWizard через export *
+export * from './broadcastWizard'
+
+// Существующие экспорты
 export * from './avatarBrainWizard'
 export * from './imageToPromptWizard'
 export * from './emailWizard'

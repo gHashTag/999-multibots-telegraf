@@ -6,6 +6,7 @@ import {
   avatarBrainWizard,
   textToVideoWizard,
   emailWizard,
+  broadcastWizard,
   neuroPhotoWizard,
   neuroPhotoWizardV2,
   imageToPromptWizard,
@@ -59,6 +60,7 @@ import { getTrainingCancelUrl } from './core/supabase'
 // import { handleTextMessage } from './handlers'
 
 import { get100Command } from './commands/get100Command'
+// import { inngestCommand } from '@/commands/inngest'
 
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
@@ -97,6 +99,7 @@ export const stage = new Scenes.Stage<MyContext>([
   inviteScene,
   selectModelScene,
   selectNeuroPhotoScene,
+  broadcastWizard,
   ...levelQuestWizard,
   uploadVideoScene,
 ])
@@ -124,6 +127,17 @@ export function registerCommands({
   bot.command('stats', async ctx => {
     console.log('CASE bot.command: stats')
     await getStatsCommand(ctx)
+  })
+
+  // Команда для запуска рассылки
+  bot.command('broadcast', async ctx => {
+    console.log('CASE bot.command: broadcast')
+    await ctx.scene.enter('broadcast_wizard')
+  })
+
+  composer.command('broadcast', async ctx => {
+    console.log('CASE bot.command: broadcast')
+    await ctx.scene.enter('broadcast_wizard')
   })
 
   bot.command('menu', async ctx => {
@@ -540,4 +554,6 @@ export function registerCommands({
   //   console.log('CASE: text')
   //   handleTextMessage(ctx)
   // })
+
+  // composer.use(inngestCommand)
 }
