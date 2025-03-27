@@ -5,6 +5,7 @@ import {
   getStatsCommand,
   priceCommand,
   glamaMcpCommand,
+  httpRequestCommand,
 } from './commands'
 import { privateChat } from './middlewares/privateChat'
 
@@ -128,6 +129,10 @@ export function registerCommands({
   // Добавляем команды для работы с Glama MCP
   bot.use(glamaMcpCommand.middleware())
   composer.use(glamaMcpCommand.middleware())
+
+  // Добавляем команду для HTTP-запросов
+  bot.use(httpRequestCommand.middleware())
+  composer.use(httpRequestCommand.middleware())
 
   // Регистрация команд
   bot.command('start', async ctx => {
