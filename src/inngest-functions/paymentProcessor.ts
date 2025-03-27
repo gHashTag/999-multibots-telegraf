@@ -62,6 +62,8 @@ async function safeSendMessage(
   }
 }
 
+// Определяем два отдельных интерфейса для успешного и неуспешного результата
+
 /**
  * Функция Inngest для обработки платежей с шагами
  */
@@ -278,89 +280,51 @@ export const paymentProcessor = inngest.createFunction(
       }
 
       // ШАГ 4: Если это списание (outcome), проверяем достаточность средств
-      let fundsResult: {
-        hasSufficientFunds: boolean
-        currentBalance?: number
-        paymentAmountNumber?: number
-        errorResult?: {
-          newBalance: number
-          success: boolean
-          error: string
-          modePrice: number
-        }
-      } = { hasSufficientFunds: true }
-
-      if (type === 'outcome') {
-        fundsResult = await step.run('check-funds', async () => {
-          logger.info('💵 ШАГ 4: Проверка достаточности средств', {
-            description: 'Step 4: Checking sufficient funds',
-            telegram_id,
-            paymentAmount: Number(paymentAmount),
+      const fundsResult = await step.run('check-funds', async () => {
+        if (type !== 'outcome') {
+          return {
+            hasSufficientFunds: true as const,
             currentBalance: balanceResult.currentBalance,
-          })
+            paymentAmountNumber: Number(paymentAmount),
+          }
+        }
 
-          const paymentAmountNumber = Number(paymentAmount)
-          const currentBalance = balanceResult.currentBalance
+        const paymentAmountNumber = Number(paymentAmount)
+        const currentBalance = balanceResult.currentBalance
 
-          // Проверяем, достаточно ли средств для списания
-          if (currentBalance < paymentAmountNumber) {
-            logger.error('❌ Недостаточно средств на балансе:', {
-              description: 'Insufficient funds',
-              telegram_id,
-              currentBalance,
-              requiredAmount: paymentAmountNumber,
-              difference: paymentAmountNumber - currentBalance,
-            })
-
-            // Отправляем сообщение о недостатке средств
-            const errorMessage = is_ru
-              ? `❌ Недостаточно средств. Требуется: ${paymentAmountNumber.toFixed(
-                  2
-                )} ⭐️, на вашем балансе: ${currentBalance.toFixed(2)} ⭐️`
-              : `❌ Insufficient funds. Required: ${paymentAmountNumber.toFixed(
-                  2
-                )} ⭐️, your balance: ${currentBalance.toFixed(2)} ⭐️`
-
-            if (bot) {
-              await safeSendMessage(bot, telegram_id, errorMessage)
-            }
-
-            const errorResult = {
+        if (currentBalance < paymentAmountNumber) {
+          return {
+            hasSufficientFunds: false as const,
+            errorResult: {
               newBalance: currentBalance,
               success: false,
               error: 'Insufficient funds',
               modePrice: paymentAmountNumber,
-            }
-            processedPayments.set(initResult.opId, errorResult)
-            return { hasSufficientFunds: false, errorResult }
+            },
           }
+        }
 
-          logger.info('✅ Достаточно средств на балансе', {
-            description: 'Sufficient funds available',
-            telegram_id,
-            currentBalance,
-            paymentAmount: paymentAmountNumber,
-            remainingBalance: (currentBalance - paymentAmountNumber).toFixed(2),
-          })
+        return {
+          hasSufficientFunds: true as const,
+          currentBalance,
+          paymentAmountNumber,
+        }
+      })
 
-          return {
-            hasSufficientFunds: true,
-            currentBalance,
-            paymentAmountNumber,
-          }
+      if (!fundsResult.hasSufficientFunds) {
+        logger.error('❌ Недостаточно средств для операции', {
+          description: 'Insufficient funds for operation',
+          telegram_id,
+          operation_id: initResult.opId,
         })
-
-        if (
-          !fundsResult.hasSufficientFunds &&
-          'errorResult' in fundsResult &&
-          fundsResult.errorResult
-        ) {
-          logger.error('❌ Недостаточно средств для операции', {
-            description: 'Insufficient funds for operation',
-            telegram_id,
-            operation_id: initResult.opId,
-          })
+        if ('errorResult' in fundsResult) {
           return fundsResult.errorResult
+        }
+        return {
+          newBalance: 0,
+          success: false,
+          error: 'Unknown error',
+          modePrice: 0,
         }
       }
 

@@ -2,7 +2,7 @@ import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 
 // models.config.ts
-export type VideoModelConfig = {
+type VideoModelConfig = {
   id: string
   title: string
   description: string
@@ -16,22 +16,23 @@ export type VideoModelConfig = {
     minBalance?: number
     maxDuration?: number
   }
+  imageKey?: string
 }
-
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
-  // minimax: {
-  //   id: 'minimax',
-  //   title: 'Minimax',
-  //   inputType: ['text', 'image'],
-  //   description: 'Базовая модель для начального уровня',
-  //   basePrice: 0.5,
-  //   api: {
-  //     model: 'minimax/video-01',
-  //     input: {
-  //       prompt_optimizer: true,
-  //     },
-  //   },
-  // },
+  minimax: {
+    id: 'minimax',
+    title: 'Minimax',
+    inputType: ['text', 'image'],
+    description: 'Базовая модель для начального уровня',
+    basePrice: 0.5,
+    api: {
+      model: 'minimax/video-01',
+      input: {
+        prompt_optimizer: true,
+      },
+    },
+    imageKey: 'first_frame_image',
+  },
   'haiper-video-2': {
     id: 'haiper-video-2',
     title: 'Haiper Video 2',
@@ -42,10 +43,12 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       model: 'haiper-ai/haiper-video-2',
       input: {
         duration: 6,
-        aspect_ratio: '16:9',
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9',
         use_prompt_enhancer: true,
       },
     },
+    imageKey: 'frame_image_url',
   },
   'ray-v2': {
     id: 'ray-v2',
@@ -57,6 +60,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       model: 'luma/ray-2-720p',
       input: {},
     },
+    imageKey: 'start_image_url',
   },
   'wan-image-to-video': {
     id: 'wan-image-to-video',
@@ -73,8 +77,10 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
         sample_steps: 30,
         frames_per_second: 16,
         sample_guide_scale: 5,
+        max_area: '720x1280',
       },
     },
+    imageKey: 'image',
   },
   'wan-text-to-video': {
     id: 'wan-text-to-video',
@@ -91,6 +97,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
         sample_steps: 30,
         frames_per_second: 16,
         sample_guide_scale: 5,
+        max_area: '720x1280',
       },
     },
   },
@@ -107,6 +114,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
         cfg_scale: 0.5,
       },
     },
+    imageKey: 'start_image',
   },
   'hunyuan-video-fast': {
     id: 'hunyuan-video-fast',
@@ -122,7 +130,6 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     },
   },
 }
-
 export const findModelByTitle = (
   title: string,
   type: 'image' | 'text'

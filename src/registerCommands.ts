@@ -1,6 +1,7 @@
 import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
-import { handleTechSupport, getStatsCommand } from './commands'
+import { handleTechSupport, getStatsCommand, priceCommand } from './commands'
+import { privateChat } from './middlewares/privateChat'
 
 import {
   avatarBrainWizard,
@@ -114,6 +115,7 @@ export function registerCommands({
   bot.use(session({ defaultSession }))
   bot.use(stage.middleware())
   bot.use(composer.middleware())
+  bot.use(privateChat)
   // bot.use(subscriptionMiddleware as Middleware<MyContext>)
   // composer.use(subscriptionMiddleware as Middleware<MyContext>)
   setupLevelHandlers(bot as Telegraf<MyContext>)
@@ -127,6 +129,11 @@ export function registerCommands({
   bot.command('stats', async ctx => {
     console.log('CASE bot.command: stats')
     await getStatsCommand(ctx)
+  })
+
+  bot.command('price', async ctx => {
+    console.log('CASE bot.command: price')
+    await priceCommand(ctx)
   })
 
   // Команда для запуска рассылки

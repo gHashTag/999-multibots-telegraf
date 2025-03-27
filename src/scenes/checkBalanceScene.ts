@@ -4,72 +4,39 @@ import { getUserBalance } from '@/core/supabase'
 import {
   sendInsufficientStarsMessage,
   sendBalanceMessage,
-  calculateCostInStars,
+  calculateModeCost,
+  ModeEnum,
 } from '@/price/helpers'
 import { getUserInfo } from '@/handlers/getUserInfo'
-
-// Определяем перечисление для режимов
-export enum ModeEnum {
-  DigitalAvatarBody = 'digital_avatar_body',
-  DigitalAvatarBody2 = 'digital_avatar_body_2',
-  NeuroPhoto = 'neuro_photo',
-  NeuroPhoto2 = 'neuro_photo_2',
-  ImageToPrompt = 'image_to_prompt',
-  Avatar = 'avatar',
-  ChatWithAvatar = 'chat_with_avatar',
-  SelectModel = 'select_model',
-  SelectModelWizard = 'select_model_wizard',
-  Voice = 'voice',
-  TextToSpeech = 'text_to_speech',
-  ImageToVideo = 'image_to_video',
-  TextToVideo = 'text_to_video',
-  TextToImage = 'text_to_image',
-  LipSync = 'lip_sync',
-  VideoInUrl = 'video_in_url',
-  AvatarBrain = 'avatar_brain',
-}
-
-// Интерфейс для конверсий
-
-export type CostValue = number | ((steps: number) => number)
-// Определяем стоимость для каждого режима
-export const modeCosts: Record<ModeEnum, number> = {
-  // Установите стоимость как 0 для режимов, где стоимость будет рассчитана на сцене
-  [ModeEnum.DigitalAvatarBody]: calculateCostInStars(0),
-  [ModeEnum.DigitalAvatarBody2]: calculateCostInStars(0),
-  [ModeEnum.NeuroPhoto]: calculateCostInStars(0.08),
-  [ModeEnum.NeuroPhoto2]: calculateCostInStars(0.14),
-  [ModeEnum.ImageToPrompt]: calculateCostInStars(0.03),
-  [ModeEnum.Avatar]: 0,
-  [ModeEnum.ChatWithAvatar]: calculateCostInStars(0),
-  [ModeEnum.SelectModel]: calculateCostInStars(0),
-  [ModeEnum.SelectModelWizard]: calculateCostInStars(0),
-  [ModeEnum.Voice]: calculateCostInStars(0.9),
-  [ModeEnum.TextToSpeech]: calculateCostInStars(0.12),
-  [ModeEnum.ImageToVideo]: calculateCostInStars(0),
-  [ModeEnum.TextToVideo]: calculateCostInStars(0),
-  [ModeEnum.TextToImage]: calculateCostInStars(0),
-  [ModeEnum.LipSync]: calculateCostInStars(0.9),
-  [ModeEnum.VideoInUrl]: calculateCostInStars(0.05),
-  [ModeEnum.AvatarBrain]: calculateCostInStars(0),
-}
-
-// Найдите минимальную и максимальную стоимость среди всех моделей
-export const minCost = Math.min(...Object.values(modeCosts))
-export const maxCost = Math.max(...Object.values(modeCosts))
+import { logger } from '@/utils/logger'
 
 export const checkBalanceScene = new Scenes.BaseScene<MyContext>(
   'checkBalanceScene'
 )
 
 checkBalanceScene.enter(async ctx => {
-  console.log('💵 CASE: checkBalanceScene')
+  logger.info('💵 Проверка баланса', {
+    description: 'Entering balance check scene',
+    telegram_id: ctx.from?.id,
+  })
+
   const isRu = ctx.from?.language_code === 'ru'
   const { userId } = getUserInfo(ctx)
   const currentBalance = await getUserBalance(userId)
   const mode = ctx.session.mode as ModeEnum
-  const cost = modeCosts[mode] || 0 // Получаем стоимость для текущего режима
-  console.log('⭐️ cost:', cost)
+
+  // Используем единую функцию расчета стоимости
+  const costResult = calculateModeCost({ mode })
+  const cost = costResult.stars
+
+  logger.info('💰 Расчет стоимости операции', {
+    description: 'Cost calculation in balance check scene',
+    mode,
+    cost,
+    currentBalance,
+    telegram_id: ctx.from?.id,
+  })
+
   if (cost !== 0) {
     await sendBalanceMessage(ctx, currentBalance, cost, isRu)
   }
@@ -83,12 +50,12 @@ checkBalanceScene.enter(async ctx => {
   switch (mode) {
     case ModeEnum.DigitalAvatarBody:
       return ctx.scene.enter(ModeEnum.DigitalAvatarBody)
-    case ModeEnum.DigitalAvatarBody2:
-      return ctx.scene.enter(ModeEnum.DigitalAvatarBody2)
+    case ModeEnum.DigitalAvatarBodyV2:
+      return ctx.scene.enter(ModeEnum.DigitalAvatarBodyV2)
     case ModeEnum.NeuroPhoto:
       return ctx.scene.enter(ModeEnum.NeuroPhoto)
-    case ModeEnum.NeuroPhoto2:
-      return ctx.scene.enter(ModeEnum.NeuroPhoto2)
+    case ModeEnum.NeuroPhotoV2:
+      return ctx.scene.enter(ModeEnum.NeuroPhotoV2)
     case ModeEnum.ImageToPrompt:
       return ctx.scene.enter(ModeEnum.ImageToPrompt)
     case ModeEnum.Avatar:
@@ -97,8 +64,6 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter(ModeEnum.ChatWithAvatar)
     case ModeEnum.SelectModel:
       return ctx.scene.enter(ModeEnum.SelectModel)
-    case ModeEnum.SelectModelWizard:
-      return ctx.scene.enter(ModeEnum.SelectModelWizard)
     case ModeEnum.Voice:
       return ctx.scene.enter(ModeEnum.Voice)
     case ModeEnum.TextToSpeech:
@@ -111,11 +76,12 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter(ModeEnum.TextToImage)
     case ModeEnum.LipSync:
       return ctx.scene.enter(ModeEnum.LipSync)
-    case ModeEnum.VideoInUrl:
-      return ctx.scene.enter(ModeEnum.VideoInUrl)
-    case ModeEnum.AvatarBrain:
-      return ctx.scene.enter(ModeEnum.AvatarBrain)
     default:
+      logger.warn('⚠️ Неизвестный режим', {
+        description: 'Unknown mode in balance check scene',
+        mode,
+        telegram_id: ctx.from?.id,
+      })
       return ctx.scene.leave()
   }
 })

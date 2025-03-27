@@ -10,7 +10,7 @@ import { processApiResponse } from '@/helpers/processApiResponse'
 
 import { saveFileLocally } from '@/helpers'
 import { pulse } from '@/helpers/pulse'
-import { modeCosts, ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum, calculateModeCost } from '@/price/helpers'
 import path from 'path'
 import { API_URL } from '@/config'
 import fs from 'fs'
@@ -151,49 +151,23 @@ export const neuroImageGeneration = inngest.createFunction(
           mode: ModeEnum.NeuroPhoto,
         })
 
-        // Дополнительное логирование типов и значений
-        const rawCost = modeCosts[ModeEnum.NeuroPhoto]
-        logger.info('🔍 Детали расчета стоимости', {
-          description: 'Cost calculation details',
-          rawCost,
-          rawCostType: typeof rawCost,
-          rawCostValue: String(rawCost),
+        const cost = calculateModeCost({
+          mode: ModeEnum.NeuroPhoto,
+          numImages: validNumImages,
         })
-
-        // Используем фиксированную стоимость вместо функции и корректно обрабатываем умножение
-        const costPerImage = parseFloat(
-          Number(modeCosts[ModeEnum.NeuroPhoto]).toFixed(2)
-        )
-
-        // Проверка на корректность рассчитанной стоимости
-        if (isNaN(costPerImage)) {
-          logger.error('❌ Некорректная стоимость изображения', {
-            description: 'Invalid image cost calculation',
-            costPerImage,
-            costPerImageType: typeof costPerImage,
-            mode: ModeEnum.NeuroPhoto,
-            num_images: validNumImages,
-          })
-          throw new Error('Invalid cost calculation')
-        }
-
-        // Для обратной совместимости с предыдущей реализацией
-        const totalCost = parseFloat(
-          (costPerImage * Number(validNumImages)).toFixed(2)
-        )
 
         logger.info('💸 Calculated image cost', {
           description: 'Image cost calculated successfully',
-          costPerImage,
-          costPerImageType: typeof costPerImage,
+          costPerImage: cost.stars,
+          costPerImageType: typeof cost.stars,
           num_images: validNumImages,
           num_imagesType: typeof validNumImages,
-          totalCost,
-          totalCostType: typeof totalCost,
+          totalCost: cost.stars,
+          totalCostType: typeof cost.stars,
           telegram_id,
         })
 
-        return costPerImage
+        return cost.stars
       })
 
       const balanceCheck = await step.run('process-payment', async () => {

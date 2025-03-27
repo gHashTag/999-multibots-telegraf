@@ -1,12 +1,10 @@
 import { replicate } from '@/core/replicate'
 import {
-  getUserByTelegramIdString,
-  updateUserBalance,
-  updateUserLevelPlusOne,
-  getUserBalance,
   createModelTraining,
   updateLatestModelTraining,
   supabase,
+  getUserByTelegramIdString,
+  updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
 import { modeCosts, ModeEnum } from '@/price/helpers/modelsCost'
@@ -653,32 +651,32 @@ export const generateModelTraining = inngest.createFunction(
       const chargeResult = await step.run('charge-user-balance', async () => {
         const newBalance = balanceCheck.currentBalance - paymentAmount
 
-        // Обновляем баланс напрямую
-        const current = await getUserBalance(Number(eventData.telegram_id))
-
-        if (current === null) {
-          throw new Error('User not found')
-        }
-
-        await updateUserBalance(
-          eventData.telegram_id,
-          paymentAmount,
-          'outcome',
-          `Оплата тренировки модели ${modelName} (шагов: ${steps})`,
-          {
-            stars: 0,
-            payment_method: 'Training',
+        // Обновляем баланс через Inngest
+        await inngest.send({
+          name: 'payment/process',
+          data: {
+            telegram_id: eventData.telegram_id,
+            paymentAmount: paymentAmount,
+            type: 'outcome',
+            description: `Оплата тренировки модели ${modelName} (шагов: ${steps})`,
+            metadata: {
+              stars: 0,
+              payment_method: 'Training',
+              bot_name: eventData.bot_name,
+              language:
+                eventData.is_ru === true || eventData.is_ru === 'true'
+                  ? 'ru'
+                  : 'en',
+            },
             bot_name: eventData.bot_name,
-            language:
-              eventData.is_ru === true || eventData.is_ru === 'true'
-                ? 'ru'
-                : 'en',
-          }
-        )
+            operation_id: `train-${eventData.telegram_id}-${Date.now()}`,
+            bot: bot,
+          },
+        })
 
         return {
           success: true,
-          oldBalance: current,
+          oldBalance: balanceCheck.currentBalance,
           newBalance,
           paymentAmount,
         }
@@ -839,20 +837,15 @@ export const generateModelTraining = inngest.createFunction(
           modelName: eventData.modelName,
         })
 
-        // Выполняем возврат в отдельном шаге
-        const refundResult = await step.run('refund-user-balance', async () => {
-          const current = await getUserBalance(Number(eventData.telegram_id))
-
-          if (current === null) {
-            throw new Error('User not found')
-          }
-
-          await updateUserBalance(
-            eventData.telegram_id,
-            paymentAmount,
-            'income',
-            `Возврат средств за неудавшуюся тренировку модели ${eventData.modelName}`,
-            {
+        // Возврат средств через Inngest
+        const refundResult = await inngest.send({
+          name: 'payment/process',
+          data: {
+            telegram_id: eventData.telegram_id,
+            paymentAmount: paymentAmount,
+            type: 'income',
+            description: `Возврат средств за неудавшуюся тренировку модели ${eventData.modelName}`,
+            metadata: {
               stars: 0,
               payment_method: 'Refund',
               bot_name: eventData.bot_name,
@@ -860,15 +853,11 @@ export const generateModelTraining = inngest.createFunction(
                 eventData.is_ru === true || eventData.is_ru === 'true'
                   ? 'ru'
                   : 'en',
-            }
-          )
-
-          return {
-            success: true,
-            oldBalance: current,
-            newBalance: balanceCheck.currentBalance,
-            refundAmount: paymentAmount,
-          }
+            },
+            bot_name: eventData.bot_name,
+            operation_id: `refund-${eventData.telegram_id}-${Date.now()}`,
+            bot: bot,
+          },
         })
 
         logger.info({

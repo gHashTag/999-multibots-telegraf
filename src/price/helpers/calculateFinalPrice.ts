@@ -1,11 +1,4 @@
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
-import { starCost, interestRate } from '@/price'
-
-export const SYSTEM_CONFIG = {
-  starCost, // Стоимость 1 звезды в USD
-  interestRate, // Процент наценки
-  currency: 'RUB', // Базовая валюта
-}
 
 export const calculateFinalPrice = (modelId: string): number => {
   try {

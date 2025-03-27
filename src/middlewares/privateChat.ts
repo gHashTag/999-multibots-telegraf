@@ -1,0 +1,26 @@
+import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/logger'
+import { isRussian } from '@/helpers/language'
+
+export const privateChat = async (
+  ctx: MyContext,
+  next: () => Promise<void>
+) => {
+  if (ctx.chat?.type !== 'private') {
+    logger.info('❌ Попытка использования команды в групповом чате:', {
+      description: 'Command usage attempt in group chat',
+      chat_type: ctx.chat?.type,
+      chat_id: ctx.chat?.id,
+      user_id: ctx.from?.id,
+    })
+
+    await ctx.reply(
+      isRussian(ctx)
+        ? '⚠️ Этот бот работает только в личных сообщениях'
+        : '⚠️ This bot only works in private messages'
+    )
+    return
+  }
+
+  return next()
+}

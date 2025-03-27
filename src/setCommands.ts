@@ -21,14 +21,15 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
         command: 'tech',
         description: '🛠 Tech Support / Техподдержка',
       },
+      {
+        command: 'price',
+        description: '⭐️ Price / Цена',
+      },
       // {
       //   command: 'invite',
       //   description: '👥 Invite a friend / Пригласить друга',
       // },
-      // {
-      //   command: 'price',
-      //   description: '⭐️ Price / Цена',
-      // },
+
       // {
       //   command: 'buy',
       //   description: '💵 Top up balance / Пополнить баланс',
