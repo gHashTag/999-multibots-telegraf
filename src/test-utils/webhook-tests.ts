@@ -1,11 +1,10 @@
 import axios from 'axios'
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
-import { supabase } from '@/core/supabase'
-import { TrainingWithUser } from '@/core/supabase/getTrainingWithUser'
+import { testSupabase } from './test-env'
 
 /**
- * Интерфейс для результатов тестирования
+ * Интерфейс для результатов теста
  */
 interface TestResult {
   testName: string
@@ -17,150 +16,99 @@ interface TestResult {
 }
 
 /**
- * Класс для тестирования веб-хуков Replicate
+ * Класс для тестирования вебхуков Replicate
  */
 export class ReplicateWebhookTester {
-  private apiUrl: string
-  private webhookPath: string
-
-  constructor() {
-    this.apiUrl = TEST_CONFIG.server.apiUrl
-    this.webhookPath = TEST_CONFIG.server.webhookPath
-  }
-
   /**
-   * Отправляет тестовый веб-хук на сервер
+   * Отправляет вебхук и проверяет результат
    */
-  async sendWebhook(config: any): Promise<TestResult> {
+  async sendWebhook(
+    payload: any,
+    options = { checkDatabase: true }
+  ): Promise<TestResult> {
     const startTime = Date.now()
-    const testName = `Webhook test: ${config.status} status for training ${config.id}`
+    const testName = `Webhook test: ${payload.status}`
 
     try {
       logger.info({
-        message: '🧪 Запуск теста веб-хука',
-        description: 'Starting webhook test',
-        testName,
-        config,
+        message: '🧪 Тест отправки вебхука',
+        description: 'Webhook send test',
+        status: payload.status,
+        trainingId: payload.id,
       })
 
-      // Проверяем существование тренировки в базе перед тестом
-      let trainingBefore: TrainingWithUser | null = null
-      try {
-        const { data, error } = await supabase
-          .from('model_trainings')
-          .select('*')
-          .eq('replicate_training_id', config.id)
-          .limit(1)
-          .single()
+      // Проверяем статус тренировки в базе перед запросом, если нужно
+      let beforeStatus: string | null = null
+      if (options.checkDatabase) {
+        try {
+          const { data } = await testSupabase
+            .from('model_trainings')
+            .select('status')
+            .eq('replicate_training_id', payload.id)
+            .limit(1)
+            .single()
 
-        if (!error && data) {
-          trainingBefore = data as unknown as TrainingWithUser
-          logger.info({
-            message: '🔍 Тренировка найдена в базе перед тестом',
-            description: 'Found training in database before test',
-            trainingId: config.id,
-            status: trainingBefore.status,
-          })
-        } else {
+          beforeStatus = data?.status || null
+        } catch (error) {
           logger.warn({
-            message: '⚠️ Тренировка не найдена в базе перед тестом',
-            description: 'Training not found in database before test',
-            trainingId: config.id,
-            error: error?.message,
+            message: '⚠️ Не удалось получить статус тренировки до теста',
+            description: 'Failed to get training status before test',
+            error: error.message,
           })
         }
-      } catch (dbError) {
-        logger.error({
-          message: '❌ Ошибка при проверке базы перед тестом',
-          description: 'Error checking database before test',
-          error: dbError.message,
-        })
       }
 
-      // Отправляем запрос на веб-хук
-      const response = await axios.post(
-        `${this.apiUrl}${this.webhookPath}`,
-        config,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      )
+      // Формируем URL для запроса
+      const webhookUrl = `${TEST_CONFIG.server.apiUrl}${TEST_CONFIG.server.webhookPath}`
 
-      logger.info({
-        message: '📤 Отправлен тестовый веб-хук',
-        description: 'Webhook test sent',
-        status: response.status,
-        responseData: response.data,
+      // Отправляем вебхук
+      const response = await axios.post(webhookUrl, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
       })
 
-      // Даем время для обработки и обновления базы данных
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Проверяем статус ответа
+      if (response.status !== 200) {
+        throw new Error(`Unexpected status code: ${response.status}`)
+      }
 
-      // Проверяем обновление статуса в базе данных
-      let trainingAfter: TrainingWithUser | null = null
-      let statusUpdated = false
-      try {
-        const { data, error } = await supabase
-          .from('model_trainings')
-          .select('*')
-          .eq('replicate_training_id', config.id)
-          .limit(1)
-          .single()
+      // Если нужно проверить базу данных, ждем некоторое время для обработки запроса
+      let afterStatus: string | null = null
+      if (options.checkDatabase) {
+        // Ждем, чтобы изменения успели примениться
+        await new Promise(resolve => setTimeout(resolve, 1000))
 
-        if (!error && data) {
-          trainingAfter = data as unknown as TrainingWithUser
+        try {
+          const { data } = await testSupabase
+            .from('model_trainings')
+            .select('status')
+            .eq('replicate_training_id', payload.id)
+            .limit(1)
+            .single()
 
-          // Проверяем обновился ли статус
-          if (
-            trainingBefore &&
-            trainingBefore.status !== trainingAfter.status
-          ) {
-            statusUpdated = true
-            logger.info({
-              message: '✅ Статус в базе данных обновлен',
-              description: 'Database status updated',
-              trainingId: config.id,
-              oldStatus: trainingBefore.status,
-              newStatus: trainingAfter.status,
-            })
-          } else {
-            logger.warn({
-              message: '⚠️ Статус в базе данных не изменился',
-              description: 'Database status not changed',
-              trainingId: config.id,
-              status: trainingAfter.status,
-            })
-          }
+          afterStatus = data?.status || null
+        } catch (error) {
+          logger.warn({
+            message: '⚠️ Не удалось получить статус тренировки после теста',
+            description: 'Failed to get training status after test',
+            error: error.message,
+          })
         }
-      } catch (dbError) {
-        logger.error({
-          message: '❌ Ошибка при проверке базы после теста',
-          description: 'Error checking database after test',
-          error: dbError.message,
-        })
       }
 
       const duration = Date.now() - startTime
       return {
         testName,
-        success: response.status === 200,
-        message: `Вебхук успешно обработан за ${duration}мс`,
+        success: true,
+        message: `Вебхук успешно отправлен за ${duration}мс`,
         details: {
-          response: response.data,
-          statusCode: response.status,
-          statusUpdated,
-          trainingBefore: trainingBefore
+          responseData: response.data,
+          databaseCheck: options.checkDatabase
             ? {
-                id: trainingBefore.id,
-                status: trainingBefore.status,
-              }
-            : null,
-          trainingAfter: trainingAfter
-            ? {
-                id: trainingAfter.id,
-                status: trainingAfter.status,
+                beforeStatus,
+                afterStatus,
+                changed: beforeStatus !== afterStatus,
               }
             : null,
         },
@@ -169,16 +117,16 @@ export class ReplicateWebhookTester {
     } catch (error) {
       const duration = Date.now() - startTime
       logger.error({
-        message: '❌ Ошибка при тестировании веб-хука',
+        message: '❌ Ошибка при отправке вебхука',
         description: 'Error during webhook test',
         error: error.message,
-        testName,
+        payload,
       })
 
       return {
         testName,
         success: false,
-        message: 'Ошибка при отправке тестового вебхука',
+        message: 'Ошибка при отправке вебхука',
         error: error.message,
         duration,
       }
@@ -186,86 +134,153 @@ export class ReplicateWebhookTester {
   }
 
   /**
-   * Запускает тест успешного завершения тренировки
+   * Тестирует успешное завершение тренировки
    */
-  async testSucceededTraining(): Promise<TestResult> {
-    const sample = TEST_CONFIG.modelTraining.samples[0]
+  async testSuccessfulTraining(): Promise<TestResult> {
+    const sample = TEST_CONFIG.modelTraining.samples.find(
+      s => s.status === 'succeeded'
+    )
+
+    if (!sample) {
+      return {
+        testName: 'Successful training webhook test',
+        success: false,
+        message: 'Нет примера успешной тренировки в конфигурации',
+        error: 'No sample found',
+      }
+    }
+
+    logger.info({
+      message: '🧪 Тест вебхука успешной тренировки',
+      description: 'Successful training webhook test',
+      sample,
+    })
+
+    // Формируем правильную структуру пейлоада для вебхука
     const payload = {
       id: sample.trainingId,
       model: 'ostris/flux-dev-lora-trainer',
       version:
         'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
-      status: sample.status,
-      output: sample.output,
-      metrics: sample.metrics,
+      status: 'succeeded',
+      output: {
+        uri: sample.outputUrl,
+        version: sample.version,
+      },
+      metrics: {
+        predict_time: sample.metrics.predict_time,
+      },
     }
 
     return this.sendWebhook(payload)
   }
 
   /**
-   * Запускает тест ошибки тренировки
+   * Тестирует неудачное завершение тренировки
    */
   async testFailedTraining(): Promise<TestResult> {
-    const sample = TEST_CONFIG.modelTraining.samples[1]
+    const sample = TEST_CONFIG.modelTraining.samples.find(
+      s => s.status === 'failed'
+    )
+
+    if (!sample) {
+      return {
+        testName: 'Failed training webhook test',
+        success: false,
+        message: 'Нет примера неудачной тренировки в конфигурации',
+        error: 'No sample found',
+      }
+    }
+
+    logger.info({
+      message: '🧪 Тест вебхука неудачной тренировки',
+      description: 'Failed training webhook test',
+      sample,
+    })
+
+    // Формируем правильную структуру пейлоада для вебхука
     const payload = {
       id: sample.trainingId,
       model: 'ostris/flux-dev-lora-trainer',
       version:
         'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
-      status: sample.status,
-      error: sample.error,
-      logs: sample.logs,
+      status: 'failed',
+      error: sample.error || 'Unknown error occurred during training',
+      metrics: {
+        predict_time: sample.metrics.predict_time,
+      },
     }
 
     return this.sendWebhook(payload)
   }
 
   /**
-   * Запускает тест отмены тренировки
+   * Тестирует отмену тренировки
    */
   async testCanceledTraining(): Promise<TestResult> {
-    const sample = TEST_CONFIG.modelTraining.samples[2]
+    const sample = TEST_CONFIG.modelTraining.samples.find(
+      s => s.status === 'canceled'
+    )
+
+    if (!sample) {
+      return {
+        testName: 'Canceled training webhook test',
+        success: false,
+        message: 'Нет примера отмененной тренировки в конфигурации',
+        error: 'No sample found',
+      }
+    }
+
+    logger.info({
+      message: '🧪 Тест вебхука отмененной тренировки',
+      description: 'Canceled training webhook test',
+      sample,
+    })
+
+    // Формируем правильную структуру пейлоада для вебхука
     const payload = {
       id: sample.trainingId,
       model: 'ostris/flux-dev-lora-trainer',
       version:
         'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
-      status: sample.status,
+      status: 'canceled',
+      metrics: {
+        predict_time: sample.metrics.predict_time,
+      },
     }
 
     return this.sendWebhook(payload)
   }
 
   /**
-   * Запускает все тесты веб-хуков
+   * Запускает все тесты вебхуков
    */
   async runAllTests(): Promise<TestResult[]> {
     const results: TestResult[] = []
     logger.info({
-      message: '🧪 Запуск всех тестов веб-хуков',
+      message: '🧪 Запуск всех тестов вебхуков',
       description: 'Running all webhook tests',
     })
 
     try {
-      // Тест успешного завершения
-      const successResult = await this.testSucceededTraining()
+      // Тест успешного завершения тренировки
+      const successResult = await this.testSuccessfulTraining()
       results.push(successResult)
 
-      // Тест ошибки
-      const failureResult = await this.testFailedTraining()
-      results.push(failureResult)
+      // Тест неудачного завершения тренировки
+      const failedResult = await this.testFailedTraining()
+      results.push(failedResult)
 
-      // Тест отмены
-      const cancelResult = await this.testCanceledTraining()
-      results.push(cancelResult)
+      // Тест отмены тренировки
+      const canceledResult = await this.testCanceledTraining()
+      results.push(canceledResult)
 
       // Считаем общую статистику
       const successful = results.filter(r => r.success).length
       const total = results.length
 
       logger.info({
-        message: `🏁 Тесты веб-хуков завершены: ${successful}/${total} успешно`,
+        message: `🏁 Тесты вебхуков завершены: ${successful}/${total} успешно`,
         description: 'Webhook tests completed',
         successCount: successful,
         totalCount: total,
@@ -274,7 +289,7 @@ export class ReplicateWebhookTester {
       return results
     } catch (error) {
       logger.error({
-        message: '❌ Критическая ошибка при выполнении тестов веб-хуков',
+        message: '❌ Критическая ошибка при выполнении тестов вебхуков',
         description: 'Critical error during webhook tests',
         error: error.message,
       })

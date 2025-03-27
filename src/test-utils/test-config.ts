@@ -5,7 +5,7 @@
 export const TEST_CONFIG = {
   // Базовая конфигурация
   server: {
-    apiUrl: process.env.API_URL || 'http://localhost:2999',
+    apiUrl: 'http://localhost:2999',
     webhookPath: '/webhooks/replicate',
   },
 
@@ -13,7 +13,7 @@ export const TEST_CONFIG = {
   users: {
     main: {
       telegramId: '144022504', // ID тестового пользователя
-      botName: 'ai_koshey_bot',
+      botName: 'neuro_blogger_bot',
       isRussian: true,
     },
   },
@@ -22,41 +22,41 @@ export const TEST_CONFIG = {
   modelTraining: {
     samples: [
       {
-        // Действующая тренировка - тест успешного завершения
         trainingId: 'kvb60ecsf9rme0cntzqrhca1y4',
-        modelName: 'neuro_sage',
+        modelName: 'test_model_1',
         status: 'succeeded',
-        output: {
-          uri: 'https://replicate.delivery/xezq/output-model/trained_model.tar',
-          version: 'ghashtag/neuro_sage:abcdef123456789',
-          weights: 'https://replicate.delivery/weights/example.tar',
-        },
+        outputUrl:
+          'https://replicate.delivery/xezq/output-model/trained_model.tar',
+        version: 'ghashtag/neuro_sage:af5678e9a7b6552f3f8c6875e5e9f1c3f7d5f1e8',
         metrics: {
           predict_time: 7230.5,
         },
       },
       {
-        // Тест ошибки тренировки
-        trainingId: 'error-test-training-id',
-        modelName: 'error_test_model',
+        trainingId: 'failed-training-id',
+        modelName: 'test_model_2',
         status: 'failed',
-        error: 'Training failed due to insufficient data quality',
-        logs: 'Error at step 150: Unable to continue training. Check your dataset.',
+        error: 'Not enough training images',
+        metrics: {
+          predict_time: 120.5,
+        },
       },
       {
-        // Тест отмены тренировки
-        trainingId: 'cancel-test-training-id',
-        modelName: 'canceled_test_model',
+        trainingId: 'canceled-training-id',
+        modelName: 'test_model_3',
         status: 'canceled',
+        metrics: {
+          predict_time: 45.2,
+        },
       },
     ],
   },
 
   // Настройки для инструментов тестирования
-  testOptions: {
+  options: {
     logResults: true,
     saveResults: false,
     resultsPath: './test-results',
-    timeoutMs: 5000,
+    timeout: 5000,
   },
 }
