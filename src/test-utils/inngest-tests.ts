@@ -1,9 +1,6 @@
 import axios from 'axios'
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
-import fs from 'fs'
-import path from 'path'
-import { bot } from '@/bot'
 
 /**
  * Интерфейс для результатов теста
@@ -503,52 +500,6 @@ export class InngestTester {
           error: error.message,
         },
       ]
-    }
-  }
-
-  async sendNeuroPhotoV2(imageLocalPath: string): Promise<TestResult> {
-    const startTime = Date.now()
-    const testName = 'NeuroPhoto V2 send test'
-
-    try {
-      logger.info({
-        message: '🧪 Тест отправки нейрофото V2',
-        description: 'NeuroPhoto V2 send test',
-        imageLocalPath,
-      })
-
-      await bot.telegram.sendPhoto(
-        '@neuro_blogger_pulse',
-        { source: fs.createReadStream(imageLocalPath) },
-        { caption: '...' }
-      )
-
-      const duration = Date.now() - startTime
-      return {
-        testName,
-        success: true,
-        message: `Нейрофото V2 успешно отправлено за ${duration}мс`,
-        details: {
-          imageLocalPath,
-        },
-        duration,
-      }
-    } catch (error) {
-      const duration = Date.now() - startTime
-      logger.error({
-        message: '❌ Ошибка при отправке нейрофото V2',
-        description: 'Error during NeuroPhoto V2 send test',
-        error: error.message,
-        imageLocalPath,
-      })
-
-      return {
-        testName,
-        success: false,
-        message: `Ошибка при отправке нейрофото V2`,
-        error: error.message,
-        duration,
-      }
     }
   }
 }

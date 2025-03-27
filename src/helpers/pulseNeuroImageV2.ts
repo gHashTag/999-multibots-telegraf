@@ -1,7 +1,9 @@
 import { pulseBot } from '@/core/bot'
+import * as fs from 'fs'
+import { logger } from '@/utils/logger'
 
 export const pulseNeuroImageV2 = async (
-  image: string,
+  imagePath: string,
   prompt: string,
   command: string,
   telegram_id: string,
@@ -11,13 +13,24 @@ export const pulseNeuroImageV2 = async (
   try {
     // if (process.env.NODE_ENV === 'development') return
 
-    if (!image) {
+    if (!imagePath) {
       throw new Error('Invalid data received in pulseNeuroImageV2')
     }
 
     if (!prompt) {
       throw new Error('Invalid prompt received in pulseNeuroImageV2')
     }
+
+    // Проверяем - получаем ли мы URL или путь к файлу
+    const isLocalFile =
+      !imagePath.startsWith('http') && fs.existsSync(imagePath)
+
+    logger.info({
+      message: '📤 Отправка изображения в пульс',
+      description: 'Sending image to pulse channel',
+      isLocalFile,
+      imagePath: imagePath.substring(0, 50) + '...',
+    })
 
     const truncatedPrompt = prompt.length > 800 ? prompt.slice(0, 800) : prompt
     const caption = is_ru
@@ -30,9 +43,30 @@ export const pulseNeuroImageV2 = async (
 
     const chatId = '@neuro_blogger_pulse'
 
-    await pulseBot.telegram.sendPhoto(chatId, image, { caption })
+    // Используем локальный файл если это возможно
+    if (isLocalFile) {
+      await pulseBot.telegram.sendPhoto(
+        chatId,
+        { source: fs.createReadStream(imagePath) },
+        { caption }
+      )
+    } else {
+      // Fallback на URL, хотя скорее всего не сработает
+      await pulseBot.telegram.sendPhoto(chatId, imagePath, { caption })
+    }
+
+    logger.info({
+      message: '✅ Изображение успешно отправлено в пульс',
+      description: 'Image successfully sent to pulse channel',
+      telegram_id,
+    })
   } catch (error) {
-    console.error('Error sending pulse:', error)
+    logger.error({
+      message: '❌ Ошибка отправки в пульс',
+      description: 'Error sending to pulse channel',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : null,
+    })
     throw new Error('Error sending pulse')
   }
 }

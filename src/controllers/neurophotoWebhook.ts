@@ -420,7 +420,7 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
       // Отправляем изображение в pulse
       try {
         await pulseNeuroImageV2(
-          imageUrl,
+          imageLocalPath,
           prompt,
           'neurophoto V2',
           telegram_id,
