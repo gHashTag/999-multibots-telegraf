@@ -2,11 +2,17 @@ import { MyContext } from '../../interfaces'
 import { getRevenueStatistics, isOwner } from '@/core/supabase'
 import { isRussian } from '@/helpers'
 import { isDev } from '@/config'
+import { logger } from '@/utils/logger'
 
 const getStatsCommand = async (ctx: MyContext): Promise<void> => {
   const userId = ctx.from?.id
 
-  const botName = isDev ? 'neuro_blogger_bot' : ctx.botInfo?.username
+  const botName = isDev ? 'neuro_blogger_bot' : ctx.botInfo.username
+
+  logger.info({
+    message: '🔍 Получение статистики',
+    botName,
+  })
 
   // Проверка, является ли пользователь владельцем бота
   if (!(await isOwner(userId, botName))) {
@@ -76,7 +82,9 @@ const getStatsCommand = async (ctx: MyContext): Promise<void> => {
       `💳 Average income per transaction: ${revenueStatistics.average_income_per_transaction} ₽\n` +
       `🔄 Total transactions: ${revenueStatistics.total_payments}`
 
-  await ctx.replyWithMarkdown(message)
+  await ctx.reply(message, {
+    parse_mode: 'Markdown',
+  })
 }
 
 export { getStatsCommand }
