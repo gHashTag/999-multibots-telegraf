@@ -59,10 +59,16 @@ export async function createModelTraining(
       zipUrlLength: zipUrl.length,
     })
 
+    // Определяем имя события в зависимости от режима
+    let eventName = 'model-training/start'
+    if (ctx.session.mode === 'digital_avatar_body_2') {
+      eventName = 'model-training/v2/requested'
+    }
+
     // Отправляем событие в Inngest для асинхронной обработки
     // Передаем только самое необходимое для уменьшения размера запроса
     const eventId = await inngest.send({
-      name: 'model-training/start',
+      name: eventName,
       data: {
         zipUrl,
         triggerWord: requestData.triggerWord,
