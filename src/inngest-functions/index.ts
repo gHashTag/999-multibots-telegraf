@@ -4,3 +4,5 @@ export * from './neuroImageGeneration'
 export * from './broadcastMessage'
 export * from './functions'
 export * from './paymentProcessor'
+
+export { generateModelTraining } from './generateModelTraining'

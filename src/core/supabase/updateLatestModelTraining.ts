@@ -5,6 +5,8 @@ export type UpdateLatestModelTraining = {
   status?: string
   error?: string
   model_url?: string
+  output_url?: string | null
+  weights?: string | null
   replicate_training_id?: string
 }
 

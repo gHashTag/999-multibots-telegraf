@@ -1,13 +1,20 @@
-import { Inngest } from 'inngest'
 import { INNGEST_EVENT_KEY } from '@/config'
 import { supabase } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/core/inngest/clients'
+import {
+  BroadcastOptions,
+  BroadcastResult,
+  FetchUsersOptions,
+} from './broadcast.service'
 
 // Функция проверки является ли пользователь владельцем аватара
 // Заменяет неработающий импорт avatarService
-const isAvatarOwner = async (telegram_id: string, bot_name: string): Promise<boolean> => {
+const isAvatarOwner = async (
+  telegram_id: string,
+  bot_name: string
+): Promise<boolean> => {
   try {
     // Проверяем, есть ли пользователь в таблице users
     const { data, error } = await supabase
@@ -16,17 +23,17 @@ const isAvatarOwner = async (telegram_id: string, bot_name: string): Promise<boo
       .eq('telegram_id', telegram_id)
       .eq('bot_name', bot_name)
       .single()
-    
+
     if (error || !data) {
       logger.error('❌ Ошибка при проверке прав пользователя:', {
         description: 'Error checking user permissions',
         error: error?.message || 'User not found',
         telegram_id,
-        bot_name
+        bot_name,
       })
       return false
     }
-    
+
     // Если нашли пользователя с указанным telegram_id и bot_name, считаем его владельцем
     return true
   } catch (error) {
@@ -34,38 +41,10 @@ const isAvatarOwner = async (telegram_id: string, bot_name: string): Promise<boo
       description: 'Exception checking avatar owner',
       telegram_id,
       bot_name,
-      error: error?.message || 'Unknown error'
+      error: error?.message || 'Unknown error',
     })
     return false
   }
-}
-
-
-
-export interface BroadcastResult {
-  successCount: number
-  errorCount: number
-  reason?: string
-  success?: boolean
-  users?: any[]
-}
-
-export interface BroadcastOptions {
-  bot_name?: string // Если указан, рассылка будет только для пользователей этого бота
-  sender_telegram_id?: string // Telegram ID отправителя для проверки прав
-  test_mode?: boolean // Режим тестирования - отправка только отправителю
-  test_telegram_id?: string // ID для тестовой отправки
-  contentType?: 'photo' | 'video' | 'post_link' // Тип контента
-  postLink?: string // Ссылка на пост для типа 'post_link'
-  videoFileId?: string // ID видео файла для типа 'video'
-  textEn?: string // Текст на английском
-}
-
-export interface FetchUsersOptions {
-  bot_name?: string
-  test_mode?: boolean
-  test_telegram_id?: string
-  sender_telegram_id?: string
 }
 
 /**
@@ -169,7 +148,7 @@ export class InngestService {
       throw error
     }
   }
-  
+
   /**
    * Отправляет событие начала массовой рассылки через Inngest
    * @param imageUrl URL изображения
@@ -183,7 +162,7 @@ export class InngestService {
   ) {
     try {
       console.log('🔄 Запускаем массовую рассылку через Inngest')
-      
+
       // Проверки и валидация
       if (options.bot_name && options.sender_telegram_id) {
         const isOwner = await isAvatarOwner(
@@ -199,7 +178,7 @@ export class InngestService {
           throw new Error('Нет прав на рассылку для данного бота')
         }
       }
-      
+
       // Отправляем событие broadcast.start в Inngest
       return await InngestService.sendEvent('broadcast.start', {
         imageUrl,
@@ -252,7 +231,9 @@ export class InngestService {
   /**
    * Получает список пользователей для рассылки
    */
-  static async fetchUsers(options: FetchUsersOptions): Promise<BroadcastResult> {
+  static async fetchUsers(
+    options: FetchUsersOptions
+  ): Promise<BroadcastResult> {
     const { bot_name, test_mode, test_telegram_id, sender_telegram_id } =
       options
 
@@ -325,7 +306,3 @@ export class InngestService {
     }
   }
 }
-
-
-
-

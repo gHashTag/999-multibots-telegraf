@@ -478,7 +478,7 @@ export const broadcastService = {
         totalSent: successCount,
         totalFailed: failCount,
         successCount: successCount,
-        errorCount: failCount
+        errorCount: failCount,
       }
     } catch (error) {
       logger.error('Ошибка при отправке рассылки напрямую:', {
@@ -492,7 +492,7 @@ export const broadcastService = {
         totalSent: 0,
         totalFailed: userIds.length,
         successCount: 0,
-        errorCount: userIds.length
+        errorCount: userIds.length,
       }
     }
   },
@@ -562,7 +562,7 @@ export const broadcastService = {
         totalSent: response.data.totalSent || 0,
         totalFailed: response.data.totalFailed || 0,
         successCount: response.data.totalSent || 0,
-        errorCount: response.data.totalFailed || 0
+        errorCount: response.data.totalFailed || 0,
       }
     } catch (error) {
       logger.error('Ошибка при отправке рассылки через API сервер ❌:', {
@@ -578,7 +578,7 @@ export const broadcastService = {
         totalSent: 0,
         totalFailed: 0,
         successCount: 0,
-        errorCount: 0
+        errorCount: 0,
       }
     }
   },

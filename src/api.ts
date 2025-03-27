@@ -1,6 +1,5 @@
 import express from 'express'
 import cors from 'cors'
-import path from 'path'
 import dotenv from 'dotenv'
 import { serve } from 'inngest/express'
 import { inngest } from './core/inngest/clients'
@@ -12,6 +11,7 @@ import {
   paymentProcessor,
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
+import { handleReplicateWebhook } from './controllers/replicateWebhook'
 import { UPLOAD_DIR } from './config'
 
 dotenv.config()
@@ -49,6 +49,9 @@ app.get('/api/status', (req, res) => {
 
 // Маршрут для загрузки zip файлов
 app.post('/generate/upload-zip-file', uploadZipFile)
+
+// Маршрут для обработки веб-хуков от Replicate
+app.post('/webhooks/replicate', handleReplicateWebhook)
 
 // Эндпоинт для Inngest
 app.use(
