@@ -36,7 +36,9 @@ export async function generateNeuroImage(
   try {
     // Отправляем событие в Inngest для асинхронной обработки
     await inngest.send({
-      id: `neuro-photo-generate-${telegram_id}-${prompt}-${Date.now()}`,
+      id: `neuro-photo-generate-${telegram_id}-${prompt}-${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 10)}`,
       name: 'neuro/photo.generate',
       data: {
         prompt,

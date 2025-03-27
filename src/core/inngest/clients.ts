@@ -11,14 +11,12 @@ if (INNGEST_EVENT_KEY) {
   )
 }
 
-
-
 // Создаем экземпляр Inngest
 export const inngest = new Inngest({
-    id: 'neuro-blogger',
-    eventKey: INNGEST_EVENT_KEY 
-  })
-  
+  id: 'neuro-blogger',
+  eventKey: INNGEST_EVENT_KEY,
+})
+
 // Проверка экспорта
 console.log('✅ Inngest client created:', !!inngest)
 
