@@ -21,12 +21,10 @@ export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
     if (ctx.message && 'text' in ctx.message) {
       const messageText = ctx.message.text
       const stepsMatch = messageText.match(/\d+/)
-      console.log('stepsMatch', stepsMatch)
 
       if (stepsMatch) {
         const steps = parseInt(stepsMatch[0])
         ctx.session.steps = steps
-        console.log('Parsed steps:', steps)
         const { leaveScene, trainingCostInStars, currentBalance } =
           await handleTrainingCost(ctx, steps, isRu, 'v2')
         if (leaveScene) {

@@ -38,6 +38,7 @@ export const {
   INNGEST_EVENT_KEY,
   INNGEST_API_KEY,
   INNGEST_URL,
+  GLAMA_API_KEY,
 } = process.env
 
 export const API_URL = isDev ? process.env.LOCAL_SERVER_URL : process.env.ORIGIN

@@ -1,6 +1,11 @@
 import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
-import { handleTechSupport, getStatsCommand, priceCommand } from './commands'
+import {
+  handleTechSupport,
+  getStatsCommand,
+  priceCommand,
+  glamaMcpCommand,
+} from './commands'
 import { privateChat } from './middlewares/privateChat'
 
 import {
@@ -119,6 +124,10 @@ export function registerCommands({
   // bot.use(subscriptionMiddleware as Middleware<MyContext>)
   // composer.use(subscriptionMiddleware as Middleware<MyContext>)
   setupLevelHandlers(bot as Telegraf<MyContext>)
+
+  // Добавляем команды для работы с Glama MCP
+  bot.use(glamaMcpCommand.middleware())
+  composer.use(glamaMcpCommand.middleware())
 
   // Регистрация команд
   bot.command('start', async ctx => {
