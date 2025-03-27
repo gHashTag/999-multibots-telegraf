@@ -1,10 +1,11 @@
 import { config } from 'dotenv'
+import path from 'path'
 config({ path: `.env.${process.env.NODE_ENV || 'development'}.local` })
 
 export const CREDENTIALS = process.env.CREDENTIALS === 'true'
 export const isDev = process.env.NODE_ENV === 'development'
-
-
+export const UPLOAD_DIR =
+  process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
 
 export const {
   NODE_ENV,
@@ -22,7 +23,7 @@ export const {
   RUNWAY_API_KEY,
   ELEVENLABS_API_KEY,
   ELESTIO_URL,
-  NGROK_URL,
+  LOCAL_SERVER_URL,
   PIXEL_API_KEY,
   HUGGINGFACE_TOKEN,
   WEBHOOK_URL,
@@ -40,6 +41,4 @@ export const {
   INNGEST_URL,
 } = process.env
 
-export const API_URL = isDev ? process.env.NGROK_URL : ORIGIN
-
-
+export const API_URL = isDev ? process.env.LOCAL_SERVER_URL : process.env.ORIGIN

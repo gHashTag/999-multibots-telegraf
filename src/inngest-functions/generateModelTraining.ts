@@ -183,12 +183,30 @@ const TRAINING_MESSAGES = {
   },
 }
 
+// Получаем полный URL из относительного пути
+function getFullUrlFromRelative(relativePath: string): string {
+  // Убираем ведущий слеш, если есть
+  const normalizedPath = relativePath.startsWith('/')
+    ? relativePath.substring(1)
+    : relativePath
+
+  // Проверяем, является ли путь уже полным URL
+  if (
+    normalizedPath.startsWith('http://') ||
+    normalizedPath.startsWith('https://')
+  ) {
+    return normalizedPath
+  }
+
+  // Формируем полный URL
+  return `${API_URL}/${normalizedPath}`
+}
+
 // Определяем функцию с правильной идемпотентностью
 export const generateModelTraining = inngest.createFunction(
   {
     id: 'model-training',
     concurrency: 2,
-    idempotency: 'event.data.telegram_id + "-" + event.data.modelName',
   },
   { event: 'model-training/start' },
   async ({ event, step }) => {
@@ -526,34 +544,105 @@ export const generateModelTraining = inngest.createFunction(
             '❌ Отсутствуют обязательные параметры: zipUrl или triggerWord'
           )
         }
-        const training: Prediction = await replicate.trainings.create(
-          'ostris',
-          'flux-dev-lora-trainer',
-          'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
-          {
-            destination: destination as `${string}/${string}`,
-            input: {
-              input_images: eventData.zipUrl,
-              trigger_word: eventData.triggerWord,
-              steps: Number(eventData.steps), // Преобразуем в число
-              lora_rank: 128,
-              optimizer: 'adamw8bit',
-              batch_size: 1,
-              resolution: '512,768,1024',
-              learning_rate: 0.0001,
-              wandb_project: 'flux_train_replicate',
-            },
-            webhook: `${API_URL}/webhooks/replicate`,
-            webhook_events_filter: ['completed'],
-          }
-        )
+
+        // Преобразуем относительный путь в полный URL
+        const fullImageUrl = getFullUrlFromRelative(eventData.zipUrl)
 
         logger.info({
-          message: '🚀 Training ID:',
-          id: training.id,
+          message: '🔗 Преобразуем URL для изображений',
+          originalUrl: eventData.zipUrl,
+          fullImageUrl,
         })
-        trainingSteps.registerCancelHandler(eventData.telegram_id, training.id)
-        return training
+
+        // Доп. проверка на корректность URL
+        if (!fullImageUrl || !fullImageUrl.startsWith('http')) {
+          logger.error({
+            message: '❌ Некорректный URL изображений после преобразования',
+            fullImageUrl,
+          })
+
+          const isRussian =
+            eventData.is_ru === true || eventData.is_ru === 'true'
+          const errorMessage = isRussian
+            ? 'Ошибка URL изображений. Проверьте доступность архива.'
+            : 'Invalid image URL. Please check archive accessibility.'
+
+          await helpers.sendMessage(
+            TRAINING_MESSAGES.error(errorMessage)[isRussian ? 'ru' : 'en']
+          )
+
+          throw new Error(`Ошибка URL: ${fullImageUrl}`)
+        }
+
+        try {
+          const training: Prediction = await replicate.trainings.create(
+            'ostris',
+            'flux-dev-lora-trainer',
+            'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
+            {
+              destination: destination as `${string}/${string}`,
+              input: {
+                input_images: fullImageUrl,
+                trigger_word: eventData.triggerWord,
+                steps: Number(eventData.steps), // Преобразуем в число
+                lora_rank: 128,
+                optimizer: 'adamw8bit',
+                batch_size: 1,
+                resolution: '512,768,1024',
+                learning_rate: 0.0001,
+                wandb_project: 'flux_train_replicate',
+              },
+              webhook: `${API_URL}/webhooks/replicate`,
+              webhook_events_filter: ['completed'],
+            }
+          )
+
+          logger.info({
+            message: '🚀 Training ID:',
+            id: training.id,
+          })
+          trainingSteps.registerCancelHandler(
+            eventData.telegram_id,
+            training.id
+          )
+          return training
+        } catch (error) {
+          // Детально логируем ошибку
+          logger.error({
+            message: '❌ Ошибка запуска тренировки в Replicate',
+            error: error.message,
+            stack: error.stack,
+            inputs: {
+              destination,
+              imageUrl: fullImageUrl,
+              triggerWord: eventData.triggerWord,
+              steps: Number(eventData.steps),
+            },
+          })
+
+          // Обрабатываем ошибку для пользователя
+          const isRussian =
+            eventData.is_ru === true || eventData.is_ru === 'true'
+          let errorMessage = error.message
+
+          // Распознаем конкретные ошибки и даем понятные пояснения
+          if (errorMessage.includes('is not a valid URL scheme')) {
+            errorMessage = isRussian
+              ? 'Ошибка URL изображений. Проверьте, что загруженный архив доступен по HTTPS.'
+              : 'Invalid image URL. Please ensure the uploaded ZIP file is accessible via HTTPS.'
+          } else if (errorMessage.includes('validation')) {
+            errorMessage = isRussian
+              ? 'Ошибка валидации данных. Проверьте формат и содержимое архива.'
+              : 'Data validation error. Please check the format and content of your ZIP archive.'
+          }
+
+          await helpers.sendMessage(
+            TRAINING_MESSAGES.error(errorMessage)[isRussian ? 'ru' : 'en']
+          )
+
+          // Пробрасываем ошибку дальше
+          throw new Error(`Ошибка запуска тренировки: ${errorMessage}`)
+        }
       },
     }
     let balanceCheck: { success?: boolean; currentBalance?: number } | null =

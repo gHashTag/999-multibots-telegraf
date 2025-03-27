@@ -30,3 +30,14 @@ export function calculateCostInRubles(
     rates.rublesToDollarsRate
   return parseFloat(totalCostInRubles.toFixed(2))
 }
+
+export function calculateTrainingCost(
+  steps: number,
+  version: 'v1' | 'v2'
+): number {
+  // Базовая стоимость за шаг
+  const baseStepCost = version === 'v1' ? 0.25 : 0.35 // v1 = 0.25 звезд за шаг, v2 = 0.35 звезд за шаг
+
+  // Расчет общей стоимости
+  return Math.round(steps * baseStepCost)
+}

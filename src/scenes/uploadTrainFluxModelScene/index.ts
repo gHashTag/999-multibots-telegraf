@@ -5,7 +5,6 @@ import { ensureSupabaseAuth } from '../../core/supabase'
 import { createModelTraining } from '@/services/createModelTraining'
 import { isRussian } from '@/helpers/language'
 import { deleteFile } from '@/helpers'
-import { sendGenericErrorMessage } from '@/menu'
 
 export const uploadTrainFluxModelScene = new Scenes.BaseScene<MyContext>(
   'uploadTrainFluxModelScene'
@@ -37,18 +36,15 @@ uploadTrainFluxModelScene.enter(async ctx => {
         : `⏳ Starting model training...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
     )
 
-    await createModelTraining(
-      {
-        filePath: zipPath,
-        triggerWord,
-        modelName: ctx.session.modelName,
-        steps: ctx.session.steps,
-        telegram_id: ctx.session.targetUserId.toString(),
-        is_ru: isRu,
-        botName: ctx.botInfo?.username,
-      },
-      ctx
-    )
+    await createModelTraining({
+      filePath: zipPath,
+      triggerWord,
+      modelName: ctx.session.modelName,
+      steps: ctx.session.steps,
+      telegram_id: ctx.session.targetUserId.toString(),
+      is_ru: isRu,
+      botName: ctx.botInfo?.username,
+    })
 
     await deleteFile(zipPath)
   } catch (error) {

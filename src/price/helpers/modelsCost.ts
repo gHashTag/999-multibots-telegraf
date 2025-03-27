@@ -83,7 +83,7 @@ export function calculateModeCost(
   params: CostCalculationParams
 ): CostCalculationResult {
   const { mode, steps, numImages = 1 } = params
-  let stars: number
+  let stars = 0
 
   // Логируем входные параметры
   logger.info('💰 Расчет стоимости операции', {

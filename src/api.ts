@@ -1,10 +1,18 @@
 import express from 'express'
 import cors from 'cors'
-
+import path from 'path'
 import dotenv from 'dotenv'
 import { serve } from 'inngest/express'
 import { inngest } from './core/inngest/clients'
-import { neuroImageGeneration, generateModelTraining, modelTrainingV2, broadcastMessage, paymentProcessor } from './inngest-functions'
+import {
+  neuroImageGeneration,
+  generateModelTraining,
+  modelTrainingV2,
+  broadcastMessage,
+  paymentProcessor,
+} from './inngest-functions'
+import { uploadZipFile } from './controllers/uploadZipFile'
+import { UPLOAD_DIR } from './config'
 
 dotenv.config()
 
@@ -12,7 +20,13 @@ const app = express()
 
 // Middleware
 app.use(cors())
-app.use(express.json())
+// Увеличиваем лимит размера JSON запросов до 50 МБ
+app.use(express.json({ limit: '50mb' }))
+// Увеличиваем лимит для данных формы
+app.use(express.urlencoded({ extended: true, limit: '50mb' }))
+
+// Обслуживание статических файлов из директории загрузок
+app.use('/uploads', express.static(UPLOAD_DIR))
 
 // Маршруты API
 app.get('/api', (req, res) => {
@@ -32,6 +46,9 @@ app.get('/api/status', (req, res) => {
     timestamp: new Date().toISOString(),
   })
 })
+
+// Маршрут для загрузки zip файлов
+app.post('/generate/upload-zip-file', uploadZipFile)
 
 // Эндпоинт для Inngest
 app.use(

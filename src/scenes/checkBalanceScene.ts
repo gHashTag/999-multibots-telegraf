@@ -37,7 +37,8 @@ checkBalanceScene.enter(async ctx => {
     telegram_id: ctx.from?.id,
   })
 
-  if (cost !== 0) {
+  // Отправляем сообщение о балансе только если стоимость определена и не равна 0
+  if (cost !== 0 && !isNaN(cost)) {
     await sendBalanceMessage(ctx, currentBalance, cost, isRu)
   }
 
