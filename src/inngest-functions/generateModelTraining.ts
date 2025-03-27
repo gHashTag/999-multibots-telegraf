@@ -462,10 +462,16 @@ export const generateModelTraining = inngest.createFunction(
 
         try {
           const existing = await replicate.models.get(username, modelName)
-          logger.info('🔵 Существующая модель:', existing.url)
+          logger.info({
+            message: '🔵 Существующая модель:',
+            url: existing.url,
+          })
           return `${username}/${modelName}`
         } catch (error) {
-          logger.info('🏗️ Создание новой модели...')
+          logger.info({
+            message: '🏗️ Создание новой модели...',
+            error: error.message,
+          })
           try {
             const newModel = await replicate.models.create(
               username,
@@ -476,11 +482,17 @@ export const generateModelTraining = inngest.createFunction(
                 hardware: 'gpu-t4',
               }
             )
-            logger.info('✅ Модель создана:', newModel.latest_version?.id)
+            logger.info({
+              message: '✅ Модель создана:',
+              id: newModel.latest_version?.id,
+            })
             await new Promise(resolve => setTimeout(resolve, 5000))
             return `${username}/${modelName}`
           } catch (createError) {
-            logger.error('❌ Ошибка создания модели:', createError)
+            logger.error({
+              message: '❌ Ошибка создания модели:',
+              error: createError,
+            })
             throw new Error('Failed to create model')
           }
         }
@@ -491,15 +503,23 @@ export const generateModelTraining = inngest.createFunction(
           cancel: async () => {
             try {
               await replicate.trainings.cancel(trainingId)
-              logger.info(`❌ Training ${trainingId} canceled`)
+              logger.info({
+                message: `❌ Training ${trainingId} canceled`,
+              })
             } catch (error) {
-              logger.error('Cancel error:', error)
+              logger.error({
+                message: 'Cancel error:',
+                error: error,
+              })
             }
             activeTrainings.delete(telegram_id)
           },
         }
         activeTrainings.set(telegram_id, cancelProcess)
-        logger.info('🛑 Cancel handler registered for:', telegram_id)
+        logger.info({
+          message: '🛑 Cancel handler registered for:',
+          telegram_id,
+        })
       },
 
       startTraining: async (destination: string) => {
@@ -530,7 +550,10 @@ export const generateModelTraining = inngest.createFunction(
           }
         )
 
-        logger.info('🚀 Training ID:', training.id)
+        logger.info({
+          message: '🚀 Training ID:',
+          id: training.id,
+        })
         trainingSteps.registerCancelHandler(eventData.telegram_id, training.id)
         return training
       },
@@ -639,7 +662,6 @@ export const generateModelTraining = inngest.createFunction(
 
         await updateUserBalance(
           eventData.telegram_id,
-          newBalance,
           paymentAmount,
           'outcome',
           `Оплата тренировки модели ${modelName} (шагов: ${steps})`,
@@ -677,10 +699,16 @@ export const generateModelTraining = inngest.createFunction(
           logger.info('🔍 Проверка существования модели', { modelName })
           try {
             const existing = await replicate.models.get(username, modelName)
-            logger.info('🔵 Существующая модель найдена:', existing.url)
+            logger.info({
+              message: '🔵 Существующая модель найдена:',
+              url: existing.url,
+            })
             return `${username}/${modelName}`
           } catch (error) {
-            logger.info('🏗️ Создание новой модели...')
+            logger.info({
+              message: '🏗️ Создание новой модели...',
+              error: error.message,
+            })
             const newModel = await replicate.models.create(
               username,
               modelName,
@@ -690,16 +718,25 @@ export const generateModelTraining = inngest.createFunction(
                 hardware: 'gpu-t4',
               }
             )
-            logger.info('✅ Новая модель создана:', newModel.url)
+            logger.info({
+              message: '✅ Новая модель создана:',
+              url: newModel.url,
+            })
             return `${username}/${modelName}`
           }
         } catch (error) {
-          logger.error('❌ Ошибка создания/проверки модели:', error)
+          logger.error({
+            message: '❌ Ошибка создания/проверки модели:',
+            error: error.message,
+          })
           throw error
         }
       })
 
-      logger.info('🎯 Модель определена:', destination)
+      logger.info({
+        message: '🎯 Модель определена:',
+        destination,
+      })
 
       // Запуск тренировки с Replicate
       const trainingResult = await step.run(
@@ -758,7 +795,10 @@ export const generateModelTraining = inngest.createFunction(
         }
       )
 
-      logger.info('🚀 Тренировка создана:', trainingResult.training.id)
+      logger.info({
+        message: '🚀 Тренировка создана:',
+        id: trainingResult.training.id,
+      })
 
       // Обновляем статус в кэше
       updateTrainingStatus(
@@ -809,7 +849,6 @@ export const generateModelTraining = inngest.createFunction(
 
           await updateUserBalance(
             eventData.telegram_id,
-            balanceCheck.currentBalance,
             paymentAmount,
             'income',
             `Возврат средств за неудавшуюся тренировку модели ${eventData.modelName}`,

@@ -115,344 +115,404 @@ export const modelTrainingV2 = inngest.createFunction(
     const bot = botData.bot
 
     // Проверяем баланс и рассчитываем стоимость
-    const balanceInfo = await step.run(
-      'check-balance',
-      async () => {
-        logger.info({
-          message: '💰 Checking user balance',
-          telegramId: telegram_id,
-          step: 'check-balance',
-        })
-
-        const currentBalance = await getUserBalance(telegram_id)
-
-        logger.info({
-          message: '💲 Current user balance',
-          telegramId: telegram_id,
-          balance: currentBalance,
-          step: 'check-balance',
-        })
-
-        const trainingCost = (
-          modeCosts[ModeEnum.DigitalAvatarBodyV2] as (steps: number) => number
-        )(steps)
-
-        logger.info({
-          message: '🧮 Calculated training cost',
-          telegramId: telegram_id,
-          trainingCost: trainingCost,
-          trainingSteps: steps,
-          step: 'check-balance',
-        })
-
-        // Проверяем достаточность средств
-        if (currentBalance < trainingCost) {
-          logger.info('Недостаточно средств для обучения модели', {
-            userId: telegram_id,
-            balance: currentBalance,
-            trainingCost,
-          })
-
-          // Формируем сообщение о недостатке средств
-          const message = is_ru
-            ? `Недостаточно средств для обучения модели. Необходимо: ${trainingCost} ⭐️, на балансе: ${currentBalance} ⭐️.`
-            : `Insufficient funds to train the model. Required: ${trainingCost} ⭐️, balance: ${currentBalance} ⭐️.`
-
-          await bot.telegram.sendMessage(telegram_id, message, {
-            parse_mode: 'Markdown',
-          })
-
-          throw new Error('Insufficient funds for model training')
-        }
-
-        // Вместо processBalanceOperation будем использовать событие payment/process
-        await inngest.send({
-          name: 'payment/process',
-          data: {
-            telegram_id,
-            paymentAmount: trainingCost,
-            is_ru,
-            bot_name,
-            bot,
-            description: `Payment for training model: ${modelName}`,
-            operation_id: `${telegram_id}-${Date.now()}-training-${modelName.substring(0, 10)}`
-          }
-        });
-
-        // Получаем актуальный баланс после списания
-        const updatedUser = await getUserByTelegramIdString(telegram_id)
-        
-        logger.info({
-          message: '✅ Balance check successful',
-          telegramId: telegram_id,
-          initialBalance: currentBalance,
-          newBalance: updatedUser.balance,
-          trainingCost: trainingCost,
-          step: 'check-balance',
-        })
-        
-        return {
-          success: true,
-          newBalance: updatedUser.balance,
-          prevBalance: currentBalance,
-          trainingCost
-        }
-      }
-    )
-
-    try {
-      // Кодируем ZIP файл в base64
-      const encodedZip = await step.run('encode-zip', async () => {
-        logger.info({
-          message: '📦 Encoding ZIP file to base64',
-          zipUrl: zipUrl,
-          step: 'encode-zip',
-        })
-
-        const result = await encodeFileToBase64(zipUrl)
-
-        logger.info({
-          message: '✅ ZIP file encoded successfully',
-          zipUrl: zipUrl,
-          step: 'encode-zip',
-        })
-
-        return result
+    const balanceInfo = await step.run('check-balance', async () => {
+      logger.info({
+        message: '💰 Checking user balance',
+        telegramId: telegram_id,
+        step: 'check-balance',
       })
 
-      // Отправляем запрос на API для создания модели
-      const training = await step.run('create-training', async () => {
-        logger.info({
-          message: '🔍 Checking environment variables',
-          step: 'create-training',
+      const currentBalance = await getUserBalance(telegram_id)
+
+      logger.info({
+        message: '💲 Current user balance',
+        telegramId: telegram_id,
+        balance: currentBalance,
+        step: 'check-balance',
+      })
+
+      const trainingCost = (
+        modeCosts[ModeEnum.DigitalAvatarBodyV2] as (steps: number) => number
+      )(steps)
+
+      logger.info({
+        message: '🧮 Calculated training cost',
+        telegramId: telegram_id,
+        trainingCost: trainingCost,
+        trainingSteps: steps,
+        step: 'check-balance',
+      })
+
+      // Проверяем достаточность средств
+      if (currentBalance < trainingCost) {
+        logger.info('Недостаточно средств для обучения модели', {
+          userId: telegram_id,
+          balance: currentBalance,
+          trainingCost,
         })
 
-        if (!process.env.BFL_API_KEY) {
-          logger.error({
-            message: '🚫 Missing required environment variable',
-            variable: 'BFL_API_KEY',
+        // Формируем сообщение о недостатке средств
+        const message = is_ru
+          ? `Недостаточно средств для обучения модели. Необходимо: ${trainingCost} ⭐️, на балансе: ${currentBalance} ⭐️.`
+          : `Insufficient funds to train the model. Required: ${trainingCost} ⭐️, balance: ${currentBalance} ⭐️.`
+
+        await bot.telegram.sendMessage(telegram_id, message, {
+          parse_mode: 'Markdown',
+        })
+
+        throw new Error('Insufficient funds for model training')
+      }
+
+      // Начисление или снятие средств
+      const walletOperation = await step.run('payment-processing', async () => {
+        try {
+          logger.info('💰 Обработка платежа для тренировки модели', {
+            description: 'Processing payment for model training',
+            training_id: training.finetune_id,
+            telegram_id,
+            cost: trainingCost,
+            is_ru,
+          })
+
+          // Генерируем идентификатор операции
+          const payment_operation_id = `training-${
+            training.finetune_id
+          }-${telegram_id}-${Date.now()}`
+
+          // Отправляем событие для обработки платежа с типом outcome
+          const paymentResult = await inngest.send({
+            id: payment_operation_id,
+            name: 'payment/process',
+            data: {
+              telegram_id,
+              paymentAmount: trainingCost,
+              is_ru,
+              bot_name,
+              bot,
+              type: 'outcome', // Указываем что это списание средств
+              description: `Payment for training model ${modelName}`,
+              operation_id: payment_operation_id,
+              metadata: {
+                service_type: 'Training',
+                bot_name,
+                language: is_ru ? 'ru' : 'en',
+                training_id: training.finetune_id,
+                model_name: modelName,
+                training_cost: trainingCost,
+              },
+            },
+          })
+
+          logger.info('💸 Платеж отправлен на обработку', {
+            description: 'Payment sent for processing',
+            telegram_id,
+            payment_operation_id,
+            paymentAmount: trainingCost,
+            payment_event_id: paymentResult.ids?.[0] || 'unknown',
+          })
+
+          // Даем время на обработку платежа
+          await new Promise(resolve => setTimeout(resolve, 500))
+
+          // Получаем актуальный баланс пользователя
+          const newBalance = await getUserBalance(telegram_id)
+
+          return {
+            success: true,
+            newBalance,
+            payment_operation_id,
+          }
+        } catch (error) {
+          logger.error('❌ Ошибка при обработке платежа', {
+            description: 'Error processing payment',
+            telegram_id,
+            training_id: training.finetune_id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+
+          // Отправляем сообщение об ошибке пользователю
+          if (bot && telegram_id) {
+            try {
+              const errorMessage = is_ru
+                ? '❌ Произошла ошибка при обработке платежа. Пожалуйста, попробуйте позже или обратитесь в поддержку.'
+                : '❌ An error occurred while processing your payment. Please try again later or contact support.'
+
+              if (typeof bot.telegram?.sendMessage === 'function') {
+                await bot.telegram.sendMessage(telegram_id, errorMessage)
+              } else if (typeof bot.sendMessage === 'function') {
+                await bot.sendMessage(telegram_id, errorMessage)
+              }
+            } catch (sendError) {
+              logger.error('❌ Ошибка при отправке сообщения об ошибке', {
+                description: 'Error sending error message',
+                telegram_id,
+                error:
+                  sendError instanceof Error
+                    ? sendError.message
+                    : 'Unknown error',
+              })
+            }
+          }
+
+          throw error
+        }
+      })
+
+      try {
+        // Кодируем ZIP файл в base64
+        const encodedZip = await step.run('encode-zip', async () => {
+          logger.info({
+            message: '📦 Encoding ZIP file to base64',
+            zipUrl: zipUrl,
+            step: 'encode-zip',
+          })
+
+          const result = await encodeFileToBase64(zipUrl)
+
+          logger.info({
+            message: '✅ ZIP file encoded successfully',
+            zipUrl: zipUrl,
+            step: 'encode-zip',
+          })
+
+          return result
+        })
+
+        // Отправляем запрос на API для создания модели
+        const training = await step.run('create-training', async () => {
+          logger.info({
+            message: '🔍 Checking environment variables',
             step: 'create-training',
           })
 
-          throw new Error('BFL_API_KEY is not set')
-        }
-        if (!process.env.BFL_WEBHOOK_URL) {
-          logger.error({
-            message: '🚫 Missing required environment variable',
-            variable: 'BFL_WEBHOOK_URL',
+          if (!process.env.BFL_API_KEY) {
+            logger.error({
+              message: '🚫 Missing required environment variable',
+              variable: 'BFL_API_KEY',
+              step: 'create-training',
+            })
+
+            throw new Error('BFL_API_KEY is not set')
+          }
+          if (!process.env.BFL_WEBHOOK_URL) {
+            logger.error({
+              message: '🚫 Missing required environment variable',
+              variable: 'BFL_WEBHOOK_URL',
+              step: 'create-training',
+            })
+
+            throw new Error('BFL_WEBHOOK_URL is not set')
+          }
+          if (!process.env.REPLICATE_USERNAME) {
+            logger.error({
+              message: '🚫 Missing required environment variable',
+              variable: 'REPLICATE_USERNAME',
+              step: 'create-training',
+            })
+
+            throw new Error('REPLICATE_USERNAME is not set')
+          }
+
+          logger.info({
+            message: '🌐 Sending request to BFL API for model creation',
+            telegramId: telegram_id,
+            triggerWord: triggerWord,
+            modelName: modelName,
+            steps: steps,
             step: 'create-training',
           })
 
-          throw new Error('BFL_WEBHOOK_URL is not set')
-        }
-        if (!process.env.REPLICATE_USERNAME) {
-          logger.error({
-            message: '🚫 Missing required environment variable',
-            variable: 'REPLICATE_USERNAME',
-            step: 'create-training',
+          const response = await fetch('https://api.us1.bfl.ai/v1/finetune', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Key': process.env.BFL_API_KEY,
+            },
+            body: JSON.stringify({
+              file_data: encodedZip,
+              finetune_comment: telegram_id,
+              trigger_word: triggerWord,
+              mode: 'character',
+              iterations: steps,
+              learning_rate: 0.000001,
+              captioning: true,
+              priority: 'high_res_only',
+              finetune_type: 'full',
+              lora_rank: 32,
+              webhook_url: process.env.BFL_WEBHOOK_URL,
+              webhook_secret: process.env.BFL_WEBHOOK_SECRET,
+            }),
           })
 
-          throw new Error('REPLICATE_USERNAME is not set')
-        }
-
-        logger.info({
-          message: '🌐 Sending request to BFL API for model creation',
-          telegramId: telegram_id,
-          triggerWord: triggerWord,
-          modelName: modelName,
-          steps: steps,
-          step: 'create-training',
-        })
-
-        const response = await fetch('https://api.us1.bfl.ai/v1/finetune', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Key': process.env.BFL_API_KEY,
-          },
-          body: JSON.stringify({
-            file_data: encodedZip,
-            finetune_comment: telegram_id,
-            trigger_word: triggerWord,
-            mode: 'character',
-            iterations: steps,
-            learning_rate: 0.000001,
-            captioning: true,
-            priority: 'high_res_only',
-            finetune_type: 'full',
-            lora_rank: 32,
-            webhook_url: process.env.BFL_WEBHOOK_URL,
-            webhook_secret: process.env.BFL_WEBHOOK_SECRET,
-          }),
-        })
-
-        logger.info({
-          message: '📡 Received response from BFL API',
-          statusCode: response.status,
-          step: 'create-training',
-        })
-
-        if (!response.ok) {
-          logger.error({
-            message: '❌ Failed to create model training',
+          logger.info({
+            message: '📡 Received response from BFL API',
             statusCode: response.status,
             step: 'create-training',
           })
 
-          throw new Error(
-            `Failed to initiate training with new API. Status: ${response.status}`
-          )
-        }
+          if (!response.ok) {
+            logger.error({
+              message: '❌ Failed to create model training',
+              statusCode: response.status,
+              step: 'create-training',
+            })
 
-        const jsonResponse = (await response.json()) as TrainingResponse
+            throw new Error(
+              `Failed to initiate training with new API. Status: ${response.status}`
+            )
+          }
 
-        logger.info({
-          message: '🎉 Model training initiated successfully',
-          finetune_id: jsonResponse.finetune_id,
-          telegramId: telegram_id,
-          modelName: modelName,
-          step: 'create-training',
+          const jsonResponse = (await response.json()) as TrainingResponse
+
+          logger.info({
+            message: '🎉 Model training initiated successfully',
+            finetune_id: jsonResponse.finetune_id,
+            telegramId: telegram_id,
+            modelName: modelName,
+            step: 'create-training',
+          })
+
+          return jsonResponse
         })
 
-        return jsonResponse
-      })
+        // Сохраняем информацию о тренировке в базу данных
+        await step.run('save-training-to-db', async () => {
+          logger.info({
+            message: '💾 Saving training information to database',
+            finetune_id: training.finetune_id,
+            telegramId: telegram_id,
+            modelName: modelName,
+            step: 'save-training-to-db',
+          })
 
-      // Сохраняем информацию о тренировке в базу данных
-      await step.run('save-training-to-db', async () => {
-        logger.info({
-          message: '💾 Saving training information to database',
-          finetune_id: training.finetune_id,
-          telegramId: telegram_id,
-          modelName: modelName,
-          step: 'save-training-to-db',
-        })
+          await createModelTrainingV2({
+            finetune_id: training.finetune_id,
+            telegram_id: telegram_id,
+            model_name: modelName,
+            trigger_word: triggerWord,
+            zip_url: zipUrl,
+            steps,
+            api: 'bfl',
+          })
 
-        await createModelTrainingV2({
-          finetune_id: training.finetune_id,
-          telegram_id: telegram_id,
-          model_name: modelName,
-          trigger_word: triggerWord,
-          zip_url: zipUrl,
-          steps,
-          api: 'bfl',
-        })
-
-        logger.info({
-          message: '✅ Training information saved successfully',
-          finetune_id: training.finetune_id,
-          telegramId: telegram_id,
-          modelName: modelName,
-          step: 'save-training-to-db',
-        })
-      })
-
-      // Отправляем уведомление пользователю
-      await step.run('notify-user', async () => {
-        logger.info({
-          message: '📩 Sending notification to user',
-          telegramId: telegram_id,
-          modelName: modelName,
-          step: 'notify-user',
-        })
-
-        await bot.telegram.sendMessage(
-          telegram_id,
-          is_ru
-            ? `✅ Обучение вашей модели "${modelName}" началось! Мы уведомим вас, когда модель будет готова.`
-            : `✅ Your model "${modelName}" training has started! We'll notify you when it's ready.`
-        )
-
-        logger.info({
-          message: '📨 Notification sent successfully',
-          telegramId: telegram_id,
-          step: 'notify-user',
-        })
-      })
-
-      logger.info({
-        message: '🏁 Model training process completed successfully',
-        telegramId: telegram_id,
-        modelName: modelName,
-        finetune_id: training.finetune_id,
-      })
-
-      return {
-        success: true,
-        message: `Training initiated successfully: ${JSON.stringify(training)}`,
-      }
-    } catch (error) {
-      // В случае ошибки возвращаем списанные средства
-      await step.run('refund-balance', async () => {
-        logger.info({
-          message: '♻️ Refunding payment due to error',
-          telegramId: telegram_id,
-          amount: balanceInfo.trainingCost,
-          prevBalance: balanceInfo.prevBalance,
-          newBalance: balanceInfo.prevBalance,
-          step: 'refund-balance',
-        })
-
-        await updateUserBalance(
-          telegram_id,
-          balanceInfo.prevBalance,
-          balanceInfo.trainingCost,
-          'income',
-          `Refund for model training ${modelName} (steps: ${steps})`
-        )
-
-        logger.info({
-          message: '✅ Payment refunded successfully',
-          telegramId: telegram_id,
-          newBalance: balanceInfo.prevBalance,
-          step: 'refund-balance',
-        })
-      })
-
-      // Логируем ошибку и отправляем уведомления
-      await step.run('handle-error', async () => {
-        logger.error({
-          message: '🚨 Error during model training',
-          error: error.message,
-          stack: error.stack,
-          telegramId: telegram_id,
-          modelName: modelName,
-          triggerWord: triggerWord,
-          step: 'handle-error',
+          logger.info({
+            message: '✅ Training information saved successfully',
+            finetune_id: training.finetune_id,
+            telegramId: telegram_id,
+            modelName: modelName,
+            step: 'save-training-to-db',
+          })
         })
 
         // Отправляем уведомление пользователю
-        logger.info({
-          message: '📱 Sending error notification to user',
-          telegramId: telegram_id,
-          step: 'handle-error',
+        await step.run('notify-user', async () => {
+          logger.info({
+            message: '📩 Sending notification to user',
+            telegramId: telegram_id,
+            modelName: modelName,
+            step: 'notify-user',
+          })
+
+          await bot.telegram.sendMessage(
+            telegram_id,
+            is_ru
+              ? `✅ Обучение вашей модели "${modelName}" началось! Мы уведомим вас, когда модель будет готова.`
+              : `✅ Your model "${modelName}" training has started! We'll notify you when it's ready.`
+          )
+
+          logger.info({
+            message: '📨 Notification sent successfully',
+            telegramId: telegram_id,
+            step: 'notify-user',
+          })
         })
 
-        await bot.telegram.sendMessage(
-          telegram_id,
-          is_ru
-            ? `❌ Произошла ошибка при генерации модели. Попробуйте еще раз.\n\nОшибка: ${error.message}`
-            : `❌ An error occurred during model generation. Please try again.\n\nError: ${error.message}`
-        )
-
-        // Отправляем уведомление администратору
         logger.info({
-          message: '👨‍💼 Sending error notification to admin',
+          message: '🏁 Model training process completed successfully',
           telegramId: telegram_id,
+          modelName: modelName,
+          finetune_id: training.finetune_id,
+        })
+
+        return {
+          success: true,
+          message: `Training initiated successfully: ${JSON.stringify(
+            training
+          )}`,
+        }
+      } catch (error) {
+        // В случае ошибки возвращаем списанные средства
+        await step.run('refund-balance', async () => {
+          logger.info({
+            message: '♻️ Refunding payment due to error',
+            telegramId: telegram_id,
+            amount: balanceInfo.trainingCost,
+            prevBalance: balanceInfo.prevBalance,
+            newBalance: balanceInfo.prevBalance,
+            step: 'refund-balance',
+          })
+
+          await updateUserBalance(
+            telegram_id,
+            balanceInfo.trainingCost,
+            'income',
+            `Refund for model training ${modelName} (steps: ${steps})`
+          )
+
+          logger.info({
+            message: '✅ Payment refunded successfully',
+            telegramId: telegram_id,
+            newBalance: balanceInfo.prevBalance,
+            step: 'refund-balance',
+          })
+        })
+
+        // Логируем ошибку и отправляем уведомления
+        await step.run('handle-error', async () => {
+          logger.error({
+            message: '🚨 Error during model training',
+            error: error.message,
+            stack: error.stack,
+            telegramId: telegram_id,
+            modelName: modelName,
+            triggerWord: triggerWord,
+            step: 'handle-error',
+          })
+
+          // Отправляем уведомление пользователю
+          logger.info({
+            message: '📱 Sending error notification to user',
+            telegramId: telegram_id,
+            step: 'handle-error',
+          })
+
+          await bot.telegram.sendMessage(
+            telegram_id,
+            is_ru
+              ? `❌ Произошла ошибка при генерации модели. Попробуйте еще раз.\n\nОшибка: ${error.message}`
+              : `❌ An error occurred during model generation. Please try again.\n\nError: ${error.message}`
+          )
+
+          // Отправляем уведомление администратору
+          logger.info({
+            message: '👨‍💼 Sending error notification to admin',
+            telegramId: telegram_id,
+            error: error.message,
+            step: 'handle-error',
+          })
+
+          errorMessageAdmin(error as Error)
+        })
+
+        logger.error({
+          message: '🛑 Model training process failed',
+          telegramId: telegram_id,
+          modelName: modelName,
           error: error.message,
-          step: 'handle-error',
         })
 
-        errorMessageAdmin(error as Error)
-      })
-
-      logger.error({
-        message: '🛑 Model training process failed',
-        telegramId: telegram_id,
-        modelName: modelName,
-        error: error.message,
-      })
-
-      throw error
-    }
+        throw error
+      }
+    })
   }
 )

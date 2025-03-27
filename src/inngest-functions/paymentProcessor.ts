@@ -83,7 +83,8 @@ export const paymentProcessor = inngest.createFunction(
         description,
         operation_id,
         bot,
-        metadata,
+        metadata = {},
+        type = 'outcome', // По умолчанию outcome, если не указано иное
       } = event.data
 
       // ШАГ 1: Инициализация операции и проверка кеша
@@ -99,6 +100,7 @@ export const paymentProcessor = inngest.createFunction(
           paymentAmount,
           operation_id: opId,
           bot_name,
+          payment_type: type,
         })
 
         // Проверяем, не обрабатывали ли мы уже такую операцию
@@ -209,7 +211,7 @@ export const paymentProcessor = inngest.createFunction(
         })
 
         // Получаем текущий баланс
-        const currentBalance = await getUserBalance(telegram_id)
+        const currentBalance = await getUserBalance(telegram_id, bot_name)
 
         // Подробное логирование полученного баланса
         logger.info('💰 Получен баланс пользователя:', {
@@ -250,128 +252,160 @@ export const paymentProcessor = inngest.createFunction(
             modePrice: paymentAmount,
           }
           processedPayments.set(initResult.opId, errorResult)
-          return { success: false, errorResult }
+          return { hasValidBalance: false, errorResult, currentBalance: 0 }
         }
 
-        // Преобразуем баланс в число для надежности
-        const safeCurrentBalance = Number(currentBalance)
-
-        logger.info('✅ Баланс успешно получен и преобразован:', {
-          description: 'Balance successfully retrieved and converted',
+        logger.info('✅ Баланс получен успешно', {
+          description: 'Balance retrieved successfully',
           telegram_id,
-          originalBalance: currentBalance,
-          safeCurrentBalance,
-          safeCurrentBalance_type: typeof safeCurrentBalance,
+          currentBalance,
         })
 
-        return { success: true, currentBalance: safeCurrentBalance }
+        return { hasValidBalance: true, currentBalance }
       })
 
       if (
-        !balanceResult.success &&
+        !balanceResult.hasValidBalance &&
         'errorResult' in balanceResult &&
         balanceResult.errorResult
       ) {
-        logger.error('❌ Проверка баланса не пройдена', {
-          description: 'Balance check failed',
+        logger.error('❌ Проблема с балансом пользователя', {
+          description: 'User balance issue',
           telegram_id,
           operation_id: initResult.opId,
         })
         return balanceResult.errorResult
       }
 
-      // Используем защитное программирование для доступа к currentBalance
-      const currentBalance =
-        balanceResult.success && 'currentBalance' in balanceResult
-          ? balanceResult.currentBalance
-          : 0
+      // ШАГ 4: Если это списание (outcome), проверяем достаточность средств
+      let fundsResult: {
+        hasSufficientFunds: boolean
+        currentBalance?: number
+        paymentAmountNumber?: number
+        errorResult?: {
+          newBalance: number
+          success: boolean
+          error: string
+          modePrice: number
+        }
+      } = { hasSufficientFunds: true }
 
-      // ШАГ 4: Проверка достаточности средств
-      const fundsResult = await step.run('check-funds', async () => {
-        logger.info('🧮 ШАГ 4: Проверка достаточности средств', {
-          description: 'Step 4: Checking sufficient funds',
-          telegram_id,
-          currentBalance: currentBalance,
-          requiredAmount: paymentAmount,
-        })
-
-        // Проверяем достаточно ли средств
-        if (currentBalance < Number(paymentAmount)) {
-          const message = is_ru
-            ? 'Недостаточно средств на балансе. Пополните баланс вызвав команду /buy.'
-            : 'Insufficient funds. Top up your balance by calling the /buy command.'
-
-          // Отправляем сообщение
-          if (bot) {
-            await safeSendMessage(bot, telegram_id, message)
-          }
-
-          logger.info('💸 Недостаточно средств:', {
-            description: 'Insufficient funds',
+      if (type === 'outcome') {
+        fundsResult = await step.run('check-funds', async () => {
+          logger.info('💵 ШАГ 4: Проверка достаточности средств', {
+            description: 'Step 4: Checking sufficient funds',
             telegram_id,
-            currentBalance: currentBalance,
-            requiredAmount: paymentAmount,
+            paymentAmount: Number(paymentAmount),
+            currentBalance: balanceResult.currentBalance,
           })
 
-          const errorResult = {
-            newBalance: currentBalance,
-            success: false,
-            error: message,
-            modePrice: paymentAmount,
+          const paymentAmountNumber = Number(paymentAmount)
+          const currentBalance = balanceResult.currentBalance
+
+          // Проверяем, достаточно ли средств для списания
+          if (currentBalance < paymentAmountNumber) {
+            logger.error('❌ Недостаточно средств на балансе:', {
+              description: 'Insufficient funds',
+              telegram_id,
+              currentBalance,
+              requiredAmount: paymentAmountNumber,
+              difference: paymentAmountNumber - currentBalance,
+            })
+
+            // Отправляем сообщение о недостатке средств
+            const errorMessage = is_ru
+              ? `❌ Недостаточно средств. Требуется: ${paymentAmountNumber.toFixed(
+                  2
+                )} ⭐️, на вашем балансе: ${currentBalance.toFixed(2)} ⭐️`
+              : `❌ Insufficient funds. Required: ${paymentAmountNumber.toFixed(
+                  2
+                )} ⭐️, your balance: ${currentBalance.toFixed(2)} ⭐️`
+
+            if (bot) {
+              await safeSendMessage(bot, telegram_id, errorMessage)
+            }
+
+            const errorResult = {
+              newBalance: currentBalance,
+              success: false,
+              error: 'Insufficient funds',
+              modePrice: paymentAmountNumber,
+            }
+            processedPayments.set(initResult.opId, errorResult)
+            return { hasSufficientFunds: false, errorResult }
           }
-          processedPayments.set(initResult.opId, errorResult)
-          return { sufficient: false, errorResult }
+
+          logger.info('✅ Достаточно средств на балансе', {
+            description: 'Sufficient funds available',
+            telegram_id,
+            currentBalance,
+            paymentAmount: paymentAmountNumber,
+            remainingBalance: (currentBalance - paymentAmountNumber).toFixed(2),
+          })
+
+          return {
+            hasSufficientFunds: true,
+            currentBalance,
+            paymentAmountNumber,
+          }
+        })
+
+        if (
+          !fundsResult.hasSufficientFunds &&
+          'errorResult' in fundsResult &&
+          fundsResult.errorResult
+        ) {
+          logger.error('❌ Недостаточно средств для операции', {
+            description: 'Insufficient funds for operation',
+            telegram_id,
+            operation_id: initResult.opId,
+          })
+          return fundsResult.errorResult
         }
-
-        logger.info('✅ Средств достаточно для выполнения операции', {
-          description: 'Sufficient funds for operation',
-          telegram_id,
-          currentBalance: currentBalance,
-          requiredAmount: paymentAmount,
-          remaining: currentBalance - Number(paymentAmount),
-        })
-
-        return { sufficient: true }
-      })
-
-      if (
-        !fundsResult.sufficient &&
-        'errorResult' in fundsResult &&
-        fundsResult.errorResult
-      ) {
-        logger.error('❌ Недостаточно средств', {
-          description: 'Insufficient funds',
-          telegram_id,
-          operation_id: initResult.opId,
-        })
-        return fundsResult.errorResult
       }
 
-      // ШАГ 5: Расчет нового баланса
+      // ШАГ 5: Расчет нового баланса (в зависимости от типа операции)
       const balanceData = await step.run('calculate-balance', async () => {
         logger.info('🧮 ШАГ 5: Расчет нового баланса', {
           description: 'Step 5: Calculating new balance',
           telegram_id,
-          currentBalance: currentBalance,
-          paymentAmount,
+          currentBalance: balanceResult.currentBalance,
+          paymentAmount: Number(paymentAmount),
+          operationType: type,
         })
 
-        // Рассчитываем новый баланс
         const paymentAmountNumber = Number(paymentAmount)
-        const newBalance = parseFloat(
-          (currentBalance - paymentAmountNumber).toFixed(2)
-        )
+        const currentBalance = balanceResult.currentBalance
 
-        logger.info('✅ Новый баланс рассчитан:', {
-          description: 'New balance calculated',
-          telegram_id,
-          currentBalance: currentBalance,
-          paymentAmount: paymentAmountNumber,
+        // Рассчитываем новый баланс в зависимости от типа операции
+        let newBalance
+        if (type === 'income') {
+          newBalance = currentBalance + paymentAmountNumber
+        } else {
+          newBalance = currentBalance - paymentAmountNumber
+        }
+
+        // Округляем до 2 знаков после запятой
+        newBalance = parseFloat(newBalance.toFixed(2))
+
+        // Проверяем, что баланс не стал отрицательным
+        if (newBalance < 0) {
+          logger.warn('⚠️ Расчетный баланс отрицательный, корректируем до 0', {
+            description: 'Calculated balance is negative, adjusting to 0',
+            telegram_id,
+            initialBalance: currentBalance,
+            calculatedBalance: newBalance,
+            correctedBalance: 0,
+          })
+          newBalance = 0
+        }
+
+        return {
           newBalance,
-          newBalance_type: typeof newBalance,
-        })
-
-        return { newBalance, paymentAmountNumber }
+          currentBalance,
+          paymentAmountNumber,
+          operation_type: type,
+        }
       })
 
       // ШАГ 6: Обновление баланса в базе данных
@@ -379,9 +413,10 @@ export const paymentProcessor = inngest.createFunction(
         logger.info('💾 ШАГ 6: Обновление баланса в БД', {
           description: 'Step 6: Updating balance in database',
           telegram_id,
-          currentBalance: currentBalance,
+          currentBalance: balanceData.currentBalance,
           newBalance: balanceData.newBalance,
           paymentAmount: balanceData.paymentAmountNumber,
+          operation_type: balanceData.operation_type,
         })
 
         try {
@@ -397,174 +432,226 @@ export const paymentProcessor = inngest.createFunction(
               descLower.includes('картин')
             ) {
               serviceType = 'NeuroPhoto'
-            } else if (descLower.includes('video')) {
-              serviceType = 'Image to video'
             } else if (
-              descLower.includes('voice') ||
               descLower.includes('speech') ||
               descLower.includes('голос')
             ) {
               serviceType = 'Text to speech'
             } else if (
-              descLower.includes('train') ||
-              descLower.includes('модел')
+              descLower.includes('training') ||
+              descLower.includes('обучени')
             ) {
               serviceType = 'Training'
-            } else if (
-              descLower.includes('refund') ||
-              descLower.includes('возврат')
-            ) {
+            } else if (descLower.includes('refund')) {
               serviceType = 'Refund'
             }
           }
 
-          // Если есть явно указанный тип в метаданных, используем его
-          if (metadata?.service_type) {
-            serviceType = metadata.service_type
+          // Если сервис не удалось определить по описанию, проверяем метаданные
+          if (
+            serviceType === 'System' &&
+            metadata &&
+            typeof metadata === 'object' &&
+            'service_type' in metadata
+          ) {
+            serviceType = metadata.service_type as PaymentService
           }
 
-          // Детализированное логирование перед обновлением
-          logger.info('📊 Параметры перед вызовом updateUserBalance:', {
-            description: 'Parameters before calling updateUserBalance',
+          logger.info('🛎️ Определен тип сервиса', {
+            description: 'Service type determined',
             telegram_id,
-            telegram_id_type: typeof telegram_id,
-            telegram_id_as_string: String(telegram_id),
-            newBalance: balanceData.newBalance,
-            newBalance_type: typeof balanceData.newBalance,
-            paymentAmount: balanceData.paymentAmountNumber,
-            paymentAmount_type: typeof balanceData.paymentAmountNumber,
-            operation_type: 'outcome',
-            payment_description: description || 'Payment for service',
-            payment_bot_name: bot_name || 'system',
+            serviceType,
+            originalDescription: description,
+          })
+
+          // Создаем объединенные метаданные
+          const combinedMetadata = {
+            ...metadata,
+            operation_id: initResult.opId,
             service_type: serviceType,
-          })
+          }
 
-          // Обновляем баланс в БД
-          const updateResult = await updateUserBalance(
-            String(telegram_id),
-            balanceData.newBalance,
-            'outcome',
-            description || 'Payment for service',
-            {
-              bot_name: bot_name || 'system',
-              language: is_ru ? 'ru' : 'en',
-              payment_method: serviceType as PaymentService,
-            }
-          )
-
-          logger.info('📝 Результат обновления баланса:', {
-            description: 'Balance update result',
-            updateResult,
+          // Вызываем функцию обновления баланса
+          const result = await updateUserBalance({
             telegram_id,
+            amount: balanceData.paymentAmountNumber,
+            type: balanceData.operation_type,
+            operation_description:
+              description ||
+              `${balanceData.operation_type} operation via payment/process`,
+            metadata: combinedMetadata,
+            bot_name,
           })
 
-          if (!updateResult) {
-            logger.error('❌ Не удалось обновить баланс в БД:', {
-              description: 'Failed to update balance in DB',
+          logger.info('💰 Результат обновления баланса:', {
+            description: 'Balance update result',
+            telegram_id,
+            success: result.success,
+            newBalance: result.newBalance,
+            operation_id: initResult.opId,
+          })
+
+          if (!result.success) {
+            logger.error('❌ Ошибка при обновлении баланса:', {
+              description: 'Balance update failed',
               telegram_id,
-              currentBalance: currentBalance,
-              newBalance: balanceData.newBalance,
+              error: 'Failed to update balance',
             })
 
             const errorResult = {
-              newBalance: currentBalance,
+              newBalance: balanceData.currentBalance,
               success: false,
-              error: 'Database error while updating balance',
+              error: 'Failed to update balance',
               modePrice: balanceData.paymentAmountNumber,
-              prevBalance: currentBalance,
             }
             processedPayments.set(initResult.opId, errorResult)
-            return { success: false, result: errorResult }
+            return { updateSuccess: false, errorResult }
           }
 
-          logger.info('✅ Баланс успешно обновлен:', {
-            description: 'Balance successfully updated',
-            telegram_id,
-            oldBalance: currentBalance,
-            newBalance: balanceData.newBalance,
-            difference: balanceData.paymentAmountNumber,
-          })
+          // Отправляем сообщение об успешной операции, если это не внутренняя системная операция
+          const shouldNotifyUser = !description?.includes('internal') && bot
 
-          // Сохраняем результат в кеш для предотвращения дублирования
+          if (shouldNotifyUser) {
+            const successMessage = is_ru
+              ? `✅ Операция выполнена успешно!\n${
+                  balanceData.operation_type === 'income'
+                    ? 'Пополнение'
+                    : 'Списание'
+                }: ${balanceData.paymentAmountNumber.toFixed(
+                  2
+                )} ⭐️\nВаш баланс: ${result.newBalance} ⭐️`
+              : `✅ Operation completed successfully!\n${
+                  balanceData.operation_type === 'income' ? 'Added' : 'Charged'
+                }: ${balanceData.paymentAmountNumber.toFixed(
+                  2
+                )} ⭐️\nYour balance: ${result.newBalance} ⭐️`
+
+            try {
+              await safeSendMessage(bot, telegram_id, successMessage)
+            } catch (notifyError) {
+              logger.warn('⚠️ Не удалось отправить уведомление:', {
+                description: 'Failed to send notification',
+                telegram_id,
+                error:
+                  notifyError instanceof Error
+                    ? notifyError.message
+                    : 'Unknown error',
+              })
+            }
+          }
+
+          // Сохраняем результат в кеш
           const successResult = {
-            newBalance: balanceData.newBalance,
+            newBalance: result.newBalance,
             success: true,
             modePrice: balanceData.paymentAmountNumber,
-            prevBalance: currentBalance,
           }
           processedPayments.set(initResult.opId, successResult)
 
-          return { success: true, result: successResult }
-        } catch (dbError) {
-          logger.error('❌ Ошибка при обновлении баланса в БД:', {
-            description: 'Error updating balance in DB',
-            error: dbError instanceof Error ? dbError.message : 'Unknown error',
-            stack: dbError instanceof Error ? dbError.stack : undefined,
+          return {
+            updateSuccess: true,
+            result: successResult,
+            finalBalance: result.newBalance,
+          }
+        } catch (updateError) {
+          logger.error('❌ Исключение при обновлении баланса:', {
+            description: 'Exception during balance update',
             telegram_id,
-            currentBalance: currentBalance,
-            newBalance: balanceData.newBalance,
+            error:
+              updateError instanceof Error
+                ? updateError.message
+                : 'Unknown error',
+            stack: updateError instanceof Error ? updateError.stack : undefined,
           })
 
           const errorResult = {
-            newBalance: currentBalance,
+            newBalance: balanceData.currentBalance,
             success: false,
-            error: 'Database error while updating balance',
+            error:
+              updateError instanceof Error
+                ? updateError.message
+                : 'Unknown error',
             modePrice: balanceData.paymentAmountNumber,
           }
           processedPayments.set(initResult.opId, errorResult)
-          return { success: false, result: errorResult }
+          return { updateSuccess: false, errorResult }
         }
       })
 
-      // ШАГ 7: Очистка кеша если нужно
-      await step.run('cleanup-cache', async () => {
-        logger.info('🧹 ШАГ 7: Очистка кеша если нужно', {
-          description: 'Step 7: Cleanup cache if needed',
-          cacheSize: processedPayments.size,
+      // Возвращаем результат операции
+      if (
+        !updateResult.updateSuccess &&
+        'errorResult' in updateResult &&
+        updateResult.errorResult
+      ) {
+        logger.error('❌ Ошибка в процессе обновления баланса', {
+          description: 'Error in balance update process',
+          telegram_id,
+          operation_id: initResult.opId,
         })
+        return updateResult.errorResult
+      }
 
-        // Кеш не должен расти бесконечно, удаляем старые записи
-        if (processedPayments.size > 1000) {
-          const keysToDelete = Array.from(processedPayments.keys()).slice(
-            0,
-            200
-          )
-          logger.info('🗑️ Удаление старых записей из кеша:', {
-            description: 'Deleting old records from cache',
-            numberOfRecordsToDelete: keysToDelete.length,
+      // Очистка старых записей из кеша (каждые 100 операций)
+      await step.run('cleanup-cache', async () => {
+        if (processedPayments.size > 100) {
+          logger.info('🧹 Очистка кеша устаревших операций', {
+            description: 'Cleaning up old operations cache',
+            cache_size_before: processedPayments.size,
           })
 
-          keysToDelete.forEach(key => processedPayments.delete(key))
+          // Получаем все ключи и сортируем их по времени (последняя часть ключа)
+          const keys = Array.from(processedPayments.keys())
+          const keysToRemove = keys
+            .sort((a, b) => {
+              const timeA = Number(a.split('-')[1]) || 0
+              const timeB = Number(b.split('-')[1]) || 0
+              return timeA - timeB
+            })
+            .slice(0, 50) // Удаляем самые старые 50 записей
 
-          logger.info('✅ Кеш очищен:', {
-            description: 'Cache cleaned',
-            newCacheSize: processedPayments.size,
+          // Удаляем старые записи
+          keysToRemove.forEach(key => {
+            processedPayments.delete(key)
           })
-        } else {
-          logger.info('✅ Очистка кеша не требуется', {
-            description: 'Cache cleanup not required',
-            cacheSize: processedPayments.size,
+
+          logger.info('✅ Кеш очищен', {
+            description: 'Cache cleaned up',
+            removed_count: keysToRemove.length,
+            cache_size_after: processedPayments.size,
           })
         }
       })
 
-      logger.info('🟢 Завершение процесса обработки платежа', {
-        description: 'Payment processing completed',
+      logger.info('✅ Операция с балансом успешно выполнена', {
+        description: 'Balance operation successfully completed',
         telegram_id,
         operation_id: initResult.opId,
-        success: updateResult.success,
+        newBalance:
+          'finalBalance' in updateResult ? updateResult.finalBalance : 0,
       })
 
-      // Отправляем успешный результат
-      return updateResult.result
+      // Проверяем наличие result в объекте updateResult
+      if ('result' in updateResult && updateResult.result) {
+        return updateResult.result
+      }
+
+      // Если по какой-то причине result отсутствует, возвращаем запасной объект
+      return {
+        newBalance:
+          'finalBalance' in updateResult ? updateResult.finalBalance : 0,
+        success: true,
+        modePrice: Number(paymentAmount) || 0,
+      }
     } catch (error) {
-      logger.error('❌ Непредвиденная ошибка в функции processPayment:', {
-        description: 'Unexpected error in processPayment function',
+      logger.error('❌ Общая ошибка в обработке платежа:', {
+        description: 'General error in payment processing',
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
+        event_data: event.data,
       })
 
-      // Отправляем событие об ошибке
+      // Отправляем событие о неудачной обработке платежа
       await inngest.send({
         name: 'payment/process.failed',
         data: {
@@ -573,7 +660,13 @@ export const paymentProcessor = inngest.createFunction(
         },
       })
 
-      throw error
+      // Возвращаем информацию об ошибке
+      return {
+        newBalance: 0,
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        modePrice: Number(event.data.paymentAmount) || 0,
+      }
     }
   }
 )
