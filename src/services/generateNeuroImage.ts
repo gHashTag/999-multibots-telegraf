@@ -1,8 +1,7 @@
-import axios, { isAxiosError } from 'axios'
-
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import { inngest } from '@/core/inngest/clients'
 import { isRussian } from '@/helpers/language'
 import { MyContext, ModelUrl } from '@/interfaces'
+import { logger } from '@/utils/logger'
 
 export async function generateNeuroImage(
   prompt: string,
@@ -11,7 +10,8 @@ export async function generateNeuroImage(
   telegram_id: string,
   ctx: MyContext,
   botName: string
-): Promise<{ data: string } | null> {
+): Promise<void> {
+  // Валидация входных данных
   if (!ctx.session.prompt) {
     throw new Error('Prompt not found')
   }
@@ -24,7 +24,8 @@ export async function generateNeuroImage(
     throw new Error('Num images not found')
   }
 
-  console.log('Starting generateNeuroImage with:', {
+  logger.info('🚀 Запуск генерации изображения через Inngest:', {
+    description: 'Starting neuro image generation via Inngest',
     prompt,
     model_url,
     numImages,
@@ -33,43 +34,39 @@ export async function generateNeuroImage(
   })
 
   try {
-    const url = `${isDev ? LOCAL_SERVER_URL : ELESTIO_URL}/generate/neuro-photo`
-
-    const response = await axios.post(
-      url,
-      {
+    // Отправляем событие в Inngest для асинхронной обработки
+    await inngest.send({
+      id: `neuro-photo-generate-${telegram_id}-${prompt}-${Date.now()}`,
+      name: 'neuro/photo.generate', 
+      data: {
         prompt,
         model_url,
-        num_images: numImages || 1,
+        numImages: numImages || 1,
         telegram_id,
         username: ctx.from?.username,
         is_ru: isRussian(ctx),
         bot_name: botName,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
+        chat_id: ctx.chat?.id, // Добавляем chat_id для отправки результата
+        message_id: ctx.message?.message_id, // Можно использовать для ответа на сообщение
       }
+    })
+
+    // Отправляем пользователю сообщение о том, что запрос принят
+    await ctx.reply(
+      isRussian(ctx)
+        ? '🚀 Ваш запрос на генерацию изображения принят! Результат будет отправлен в этот чат в ближайшее время.'
+        : '🚀 Your image generation request has been accepted! The result will be sent to this chat shortly.'
     )
-    console.log(response.data, 'response.data')
-    return response.data
   } catch (error) {
-    if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      if (error.response?.data?.error?.includes('NSFW')) {
-        await ctx.reply(
-          'Извините, генерация изображения не удалась из-за обнаружения неподходящего контента.'
-        )
-      } else {
-        await ctx.reply(
-          'Произошла ошибка при генерации изображения. Пожалуйста, попробуйте позже.'
-        )
-      }
-    } else {
-      console.error('Error generating image:', error)
-    }
-    return null
+    logger.error('❌ Ошибка при отправке события в Inngest:', {
+      description: 'Error sending event to Inngest',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
+    
+    await ctx.reply(
+      isRussian(ctx)
+        ? '😔 Произошла ошибка при отправке запроса на генерацию. Пожалуйста, попробуйте позже.'
+        : '😔 An error occurred while sending the generation request. Please try again later.'
+    )
   }
 }

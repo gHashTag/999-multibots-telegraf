@@ -3,8 +3,8 @@ import cors from 'cors'
 
 import dotenv from 'dotenv'
 import { serve } from 'inngest/express'
-import { inngest } from './services/inngest.service'
-import { functions } from './inngest/functions'
+import { inngest } from './core/inngest/clients'
+import { neuroImageGeneration, generateModelTraining, modelTrainingV2, broadcastMessage, paymentProcessor } from './inngest-functions'
 
 dotenv.config()
 
@@ -38,7 +38,13 @@ app.use(
   '/api/inngest',
   serve({
     client: inngest,
-    functions,
+    functions: [
+      neuroImageGeneration,
+      generateModelTraining,
+      modelTrainingV2,
+      broadcastMessage,
+      paymentProcessor,
+    ],
   })
 )
 

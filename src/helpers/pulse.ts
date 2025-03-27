@@ -1,85 +1,37 @@
-import { MyContext } from '../interfaces'
+import { pulseBot } from '@/core/bot'
+import fs from 'fs'
 
 export const pulse = async (
-  ctx: MyContext,
-  image: string | null,
+  image: string,
   prompt: string,
-  command: string
+  command: string,
+  telegram_id: string,
+  username: string,
+  is_ru: boolean,
+  bot_name?: string
 ) => {
-  const truncatedPrompt = prompt.length > 800 ? prompt.slice(0, 800) : prompt
-  const caption = `@${
-    ctx.from?.username || 'Пользователь без username'
-  } Telegram ID: ${
-    ctx.from?.id
-  } сгенерировал изображение с промптом: ${truncatedPrompt} \n\n Команда: ${command}`
-
   try {
     if (process.env.NODE_ENV === 'development') return
 
-    const chatId = '-4166575919' // Изначальный идентификатор чата
+    const truncatedPrompt = prompt.length > 800 ? prompt.slice(0, 800) : prompt
+    const caption = is_ru
+      ? `@${
+          username || 'Пользователь без username'
+        } Telegram ID: ${telegram_id} сгенерировал изображение с промптом: ${truncatedPrompt} \n\n Команда: ${command} \n\n Bot: @${bot_name}`
+      : `@${
+          username || 'User without username'
+        } Telegram ID: ${telegram_id} generated an image with a prompt: ${truncatedPrompt} \n\n Command: ${command} \n\n Bot: @${bot_name}`
 
-    if (image) {
-      // Если изображение начинается с data:image/, нужно получить только base64
-      let imageToSend = image
-      if (image.startsWith('data:image/')) {
-        imageToSend = image.split(',')[1]
-      }
+    const chatId = '@neuro_blogger_pulse'
 
-      // Преобразуем base64 в буфер
-      const imageBuffer = Buffer.from(imageToSend, 'base64')
-
-      // Отправляем как InputFile
-      await ctx.telegram.sendPhoto(
-        chatId,
-        { source: imageBuffer },
-        { caption } // Используем переменную caption, которая определена выше
-      )
-    } else {
-      // Отправляем текст, если изображения нет
-      const textMessage = `@${
-        ctx.from?.username || 'Пользователь без username'
-      } Telegram ID: ${
-        ctx.from?.id
-      } использовал команду: ${command} с промптом: ${truncatedPrompt}`
-      await ctx.telegram.sendMessage(chatId, textMessage)
-    }
+    // send image as buffer
+    await pulseBot.telegram.sendPhoto(
+      chatId,
+      { source: fs.createReadStream(image) },
+      { caption }
+    )
   } catch (error) {
-    if (
-      error.response &&
-      error.response.parameters &&
-      error.response.parameters.migrate_to_chat_id
-    ) {
-      // Обновляем chatId на новый идентификатор супергруппы
-      const newChatId = error.response.parameters.migrate_to_chat_id
-      try {
-        if (image) {
-          // Повторяем попытку отправки изображения с новым chatId
-          let imageToSend = image
-          if (image.startsWith('data:image/')) {
-            imageToSend = image.split(',')[1]
-          }
-          const imageBuffer = Buffer.from(imageToSend, 'base64')
-          await ctx.telegram.sendPhoto(
-            newChatId,
-            { source: imageBuffer },
-            { caption } // Используем переменную caption, которая определена выше
-          )
-        } else {
-          // Повторяем попытку отправки текста с новым chatId
-          const textMessage = `@${
-            ctx.from?.username || 'Пользователь без username'
-          } Telegram ID: ${
-            ctx.from?.id
-          } использовал команду: ${command} с промптом: ${truncatedPrompt}`
-          await ctx.telegram.sendMessage(newChatId, textMessage)
-        }
-      } catch (retryError) {
-        console.error('Error retrying pulse send:', retryError)
-        throw new Error('Ошибка при повторной отправке пульса')
-      }
-    } else {
-      console.error('Error sending pulse:', error)
-      throw new Error('Ошибка при отправке пульса')
-    }
+    console.error('Error sending pulse:', error)
+    throw new Error('Error sending pulse')
   }
 }

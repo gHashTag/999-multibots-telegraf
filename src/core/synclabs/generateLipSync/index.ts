@@ -6,8 +6,8 @@ if (!process.env.SYNC_LABS_API_KEY) {
   throw new Error('SYNC_LABS_API_KEY is not set')
 }
 
-if (!process.env.NGROK) {
-  throw new Error('NGROK is not set')
+if (!process.env.NGROK_URL) {
+  throw new Error('NGROK_URL is not set')
 }
 
 export async function generateLipSync(
@@ -25,8 +25,8 @@ export async function generateLipSync(
   }
 
   const webhookUrl = isDev
-    ? `${process.env.NGROK}/api/synclabs-webhook`
-    : `${process.env.ELESTIO_URL}/api/synclabs-webhook`
+    ? `${process.env.NGROK_URL}/api/synclabs-webhook`
+    : `${process.env.ORIGIN}/api/synclabs-webhook`
   console.log(webhookUrl, 'webhookUrl')
 
   try {

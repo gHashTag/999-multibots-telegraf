@@ -2,6 +2,10 @@ import { config } from 'dotenv'
 config({ path: `.env.${process.env.NODE_ENV || 'development'}.local` })
 
 export const CREDENTIALS = process.env.CREDENTIALS === 'true'
+export const isDev = process.env.NODE_ENV === 'development'
+
+
+
 export const {
   NODE_ENV,
   PORT,
@@ -18,7 +22,7 @@ export const {
   RUNWAY_API_KEY,
   ELEVENLABS_API_KEY,
   ELESTIO_URL,
-  NGROK,
+  NGROK_URL,
   PIXEL_API_KEY,
   HUGGINGFACE_TOKEN,
   WEBHOOK_URL,
@@ -36,4 +40,6 @@ export const {
   INNGEST_URL,
 } = process.env
 
-export const isDev = process.env.NODE_ENV === 'development'
+export const API_URL = isDev ? process.env.NGROK_URL : ORIGIN
+
+

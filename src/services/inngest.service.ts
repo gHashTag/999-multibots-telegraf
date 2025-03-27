@@ -1,20 +1,72 @@
 import { Inngest } from 'inngest'
 import { INNGEST_EVENT_KEY } from '@/config'
+import { supabase } from '@/core/supabase'
+import { getBotByName } from '@/core/bot'
+import { logger } from '@/utils/logger'
+import { inngest } from '@/core/inngest/clients'
 
-console.log('📚 Initializing Inngest Service')
-console.log('🔑 INNGEST_EVENT_KEY available:', !!INNGEST_EVENT_KEY)
-if (INNGEST_EVENT_KEY) {
-  console.log(
-    '🔑 INNGEST_EVENT_KEY first 10 chars:',
-    INNGEST_EVENT_KEY.substring(0, 10) + '...'
-  )
+// Функция проверки является ли пользователь владельцем аватара
+// Заменяет неработающий импорт avatarService
+const isAvatarOwner = async (telegram_id: string, bot_name: string): Promise<boolean> => {
+  try {
+    // Проверяем, есть ли пользователь в таблице users
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, telegram_id, bot_name')
+      .eq('telegram_id', telegram_id)
+      .eq('bot_name', bot_name)
+      .single()
+    
+    if (error || !data) {
+      logger.error('❌ Ошибка при проверке прав пользователя:', {
+        description: 'Error checking user permissions',
+        error: error?.message || 'User not found',
+        telegram_id,
+        bot_name
+      })
+      return false
+    }
+    
+    // Если нашли пользователя с указанным telegram_id и bot_name, считаем его владельцем
+    return true
+  } catch (error) {
+    logger.error('❌ Исключение при проверке владельца аватара:', {
+      description: 'Exception checking avatar owner',
+      telegram_id,
+      bot_name,
+      error: error?.message || 'Unknown error'
+    })
+    return false
+  }
 }
 
-// Создаем экземпляр Inngest
-const inngestInstance = new Inngest({
-  id: 'neuro-blogger',
-  eventKey: INNGEST_EVENT_KEY || '',
-})
+
+
+export interface BroadcastResult {
+  successCount: number
+  errorCount: number
+  reason?: string
+  success?: boolean
+  users?: any[]
+}
+
+export interface BroadcastOptions {
+  bot_name?: string // Если указан, рассылка будет только для пользователей этого бота
+  sender_telegram_id?: string // Telegram ID отправителя для проверки прав
+  test_mode?: boolean // Режим тестирования - отправка только отправителю
+  test_telegram_id?: string // ID для тестовой отправки
+  contentType?: 'photo' | 'video' | 'post_link' // Тип контента
+  postLink?: string // Ссылка на пост для типа 'post_link'
+  videoFileId?: string // ID видео файла для типа 'video'
+  textEn?: string // Текст на английском
+}
+
+export interface FetchUsersOptions {
+  bot_name?: string
+  test_mode?: boolean
+  test_telegram_id?: string
+  sender_telegram_id?: string
+}
 
 /**
  * Сервис для работы с Inngest
@@ -44,7 +96,7 @@ export class InngestService {
       console.log('📊 Данные события:', JSON.stringify(data, null, 2))
 
       try {
-        const result = await inngestInstance.send({
+        const result = await inngest.send({
           name: 'test/hello.world',
           data: {
             message: 'Hello from Telegram Bot!',
@@ -96,7 +148,7 @@ export class InngestService {
       console.log('📊 Данные события:', JSON.stringify(data, null, 2))
 
       try {
-        const result = await inngestInstance.send({
+        const result = await inngest.send({
           name: eventName,
           data: {
             timestamp: new Date().toISOString(),
@@ -117,7 +169,163 @@ export class InngestService {
       throw error
     }
   }
+  
+  /**
+   * Отправляет событие начала массовой рассылки через Inngest
+   * @param imageUrl URL изображения
+   * @param textRu Текст на русском
+   * @param options Опции рассылки
+   */
+  static async startBroadcast(
+    imageUrl: string | undefined,
+    textRu: string,
+    options: BroadcastOptions = {}
+  ) {
+    try {
+      console.log('🔄 Запускаем массовую рассылку через Inngest')
+      
+      // Проверки и валидация
+      if (options.bot_name && options.sender_telegram_id) {
+        const isOwner = await isAvatarOwner(
+          options.sender_telegram_id,
+          options.bot_name
+        )
+        if (!isOwner) {
+          logger.warn('⚠️ Попытка неавторизованной рассылки:', {
+            description: 'Unauthorized broadcast attempt',
+            sender_telegram_id: options.sender_telegram_id,
+            bot_name: options.bot_name,
+          })
+          throw new Error('Нет прав на рассылку для данного бота')
+        }
+      }
+      
+      // Отправляем событие broadcast.start в Inngest
+      return await InngestService.sendEvent('broadcast.start', {
+        imageUrl,
+        textRu,
+        options,
+      })
+    } catch (error) {
+      console.error('❌ Ошибка при запуске рассылки:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Проверяет права пользователя на отправку рассылки
+   */
+  static async checkOwnerPermissions(
+    telegram_id: string,
+    bot_name: string
+  ): Promise<BroadcastResult> {
+    try {
+      const isOwner = await isAvatarOwner(telegram_id, bot_name)
+      if (!isOwner) {
+        logger.warn('⚠️ Попытка неавторизованной рассылки:', {
+          description: 'Unauthorized broadcast attempt',
+          telegram_id,
+          bot_name,
+        })
+        return {
+          success: false,
+          successCount: 0,
+          errorCount: 0,
+          reason: 'unauthorized',
+        }
+      }
+      return { success: true, successCount: 0, errorCount: 0 }
+    } catch (error) {
+      logger.error('❌ Ошибка при проверке прав:', {
+        description: 'Error checking permissions',
+        error: error?.message || 'Unknown error',
+      })
+      return {
+        success: false,
+        successCount: 0,
+        errorCount: 0,
+        reason: 'permission_check_error',
+      }
+    }
+  }
+
+  /**
+   * Получает список пользователей для рассылки
+   */
+  static async fetchUsers(options: FetchUsersOptions): Promise<BroadcastResult> {
+    const { bot_name, test_mode, test_telegram_id, sender_telegram_id } =
+      options
+
+    try {
+      if (test_mode) {
+        const testId = test_telegram_id || sender_telegram_id || '144022504'
+        const users = bot_name
+          ? [{ telegram_id: testId, bot_name }]
+          : await supabase
+              .from('users')
+              .select('telegram_id, bot_name')
+              .eq('telegram_id', testId)
+              .single()
+              .then(({ data }) => (data ? [data] : []))
+
+        return { success: true, successCount: 0, errorCount: 0, users }
+      }
+
+      let query = supabase.from('users').select('telegram_id, bot_name')
+      if (bot_name) {
+        query = query.eq('bot_name', bot_name)
+      }
+
+      const { data: users, error } = await query
+      if (error) {
+        throw error
+      }
+
+      return {
+        success: true,
+        successCount: 0,
+        errorCount: 0,
+        users: users || [],
+      }
+    } catch (error) {
+      logger.error('❌ Ошибка при получении пользователей:', {
+        description: 'Error fetching users',
+        error: error?.message || 'Unknown error',
+      })
+      return {
+        success: false,
+        successCount: 0,
+        errorCount: 0,
+        reason: 'fetch_users_error',
+        users: [],
+      }
+    }
+  }
+
+  /**
+   * Получает экземпляр бота по имени
+   */
+  static async getBotInstance(botName: string) {
+    try {
+      const result = getBotByName(botName)
+      if (!result || !result.bot) {
+        logger.error(`❌ Бот не найден: ${botName}`, {
+          description: `Bot not found: ${botName}`,
+        })
+        return null
+      }
+      return result.bot
+    } catch (error) {
+      logger.error('❌ Ошибка при получении бота:', {
+        description: 'Error getting bot instance',
+        error: error?.message || 'Unknown error',
+        botName,
+      })
+      return null
+    }
+  }
 }
 
-// Экспортируем экземпляр для использования в других модулях
-export const inngest = inngestInstance
+
+
+
