@@ -2,7 +2,10 @@ import { inngest } from '@/core/inngest/clients'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import { savePrompt } from '@/core/supabase/savePrompt'
-import { getUserByTelegramIdString, updateUserLevelPlusOne } from '@/core/supabase'
+import {
+  getUserByTelegramIdString,
+  updateUserLevelPlusOne,
+} from '@/core/supabase'
 import { processApiResponse } from '@/helpers/processApiResponse'
 
 import { saveFileLocally } from '@/helpers'
@@ -13,12 +16,12 @@ import { API_URL } from '@/config'
 import fs from 'fs'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
-import { supabase } from '@/core/supabase'
+
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 
 export const neuroImageGeneration = inngest.createFunction(
   {
-    id: `neuro-image-generation`, 
+    id: `neuro-image-generation`,
     // Включаю идемпотентность на основе telegram_id и промпта
     idempotency: 'event.data.telegram_id + "-" + event.data.prompt',
     retries: 3,
@@ -36,14 +39,14 @@ export const neuroImageGeneration = inngest.createFunction(
         bot_name,
       } = event.data
 
-      const validNumImages = num_images ? parseInt(String(num_images), 10) : 1;
-      
+      const validNumImages = num_images ? parseInt(String(num_images), 10) : 1
+
       logger.info({
         message: '🎨 Starting neuro image generation',
         telegram_id,
         prompt: prompt.substring(0, 50) + '...',
         model_url,
-        num_images: validNumImages
+        num_images: validNumImages,
       })
 
       const botData = (await step.run('get-bot', async () => {
@@ -84,7 +87,7 @@ export const neuroImageGeneration = inngest.createFunction(
             telegram_id: telegram_id,
             bot_name,
           })
-          
+
           if (bot && bot.telegram) {
             try {
               await bot.telegram.sendMessage(
@@ -96,22 +99,25 @@ export const neuroImageGeneration = inngest.createFunction(
             } catch (sendError) {
               logger.error({
                 message: '❌ Failed to send error message to user',
-                error: sendError instanceof Error ? sendError.message : 'Unknown error',
+                error:
+                  sendError instanceof Error
+                    ? sendError.message
+                    : 'Unknown error',
                 telegram_id,
               })
             }
           }
-          
+
           throw new Error(`User with ID ${telegram_id} not found in database`)
         }
-        
+
         logger.info({
           message: '✅ User found in database',
           telegram_id,
           user_id: user.id,
           bot_name: user.bot_name,
         })
-        
+
         return user
       })
 
@@ -132,22 +138,24 @@ export const neuroImageGeneration = inngest.createFunction(
           message: '💰 Расчет стоимости',
           description: 'Calculating cost per image',
           num_images: validNumImages,
-          mode: ModeEnum.NeuroPhoto
+          mode: ModeEnum.NeuroPhoto,
         })
-        
+
         // Дополнительное логирование типов и значений
-        const rawCost = modeCosts[ModeEnum.NeuroPhoto];
+        const rawCost = modeCosts[ModeEnum.NeuroPhoto]
         logger.info({
           message: '🔍 Детали расчета стоимости',
           description: 'Cost calculation details',
           rawCost,
           rawCostType: typeof rawCost,
-          rawCostValue: String(rawCost)
-        });
-        
+          rawCostValue: String(rawCost),
+        })
+
         // Используем фиксированную стоимость вместо функции и корректно обрабатываем умножение
-        const costPerImage = parseFloat(Number(modeCosts[ModeEnum.NeuroPhoto]).toFixed(2));
-        
+        const costPerImage = parseFloat(
+          Number(modeCosts[ModeEnum.NeuroPhoto]).toFixed(2)
+        )
+
         // Проверка на корректность рассчитанной стоимости
         if (isNaN(costPerImage)) {
           logger.error({
@@ -156,13 +164,13 @@ export const neuroImageGeneration = inngest.createFunction(
             costPerImage,
             costPerImageType: typeof costPerImage,
             mode: ModeEnum.NeuroPhoto,
-            num_images: validNumImages
+            num_images: validNumImages,
           })
           throw new Error('Invalid cost calculation')
         }
 
         // Для обратной совместимости с предыдущей реализацией
-        const totalCost = parseFloat((costPerImage * validNumImages).toFixed(2));
+        const totalCost = parseFloat((costPerImage * validNumImages).toFixed(2))
 
         logger.info({
           message: '💸 Calculated image cost',
@@ -173,9 +181,9 @@ export const neuroImageGeneration = inngest.createFunction(
           num_imagesType: typeof validNumImages,
           totalCost,
           totalCostType: typeof totalCost,
-          telegram_id
+          telegram_id,
         })
-        
+
         return costPerImage
       })
 
@@ -184,7 +192,7 @@ export const neuroImageGeneration = inngest.createFunction(
         if (!telegram_id) {
           logger.error({
             message: '❌ Отсутствует telegram_id',
-            description: 'Missing telegram_id for payment processing'
+            description: 'Missing telegram_id for payment processing',
           })
           throw new Error('Missing telegram_id')
         }
@@ -194,7 +202,7 @@ export const neuroImageGeneration = inngest.createFunction(
             message: '❌ Некорректная стоимость изображения',
             description: 'Invalid cost per image for payment processing',
             costPerImage,
-            telegram_id
+            telegram_id,
           })
           throw new Error('Invalid cost per image')
         }
@@ -204,12 +212,14 @@ export const neuroImageGeneration = inngest.createFunction(
             message: '❌ Некорректное количество изображений',
             description: 'Invalid number of images for payment processing',
             num_images: validNumImages,
-            telegram_id
+            telegram_id,
           })
           throw new Error('Invalid number of images')
         }
 
-        const paymentAmount = parseFloat((Number(costPerImage) * validNumImages).toFixed(2));
+        const paymentAmount = parseFloat(
+          (Number(costPerImage) * validNumImages).toFixed(2)
+        )
 
         logger.info({
           message: '💰 Списание средств',
@@ -219,7 +229,7 @@ export const neuroImageGeneration = inngest.createFunction(
           num_images: validNumImages,
           totalAmount: paymentAmount,
           bot_name,
-          operation_id: `${telegram_id}-${Date.now()}`  // Добавляем уникальный идентификатор операции
+          operation_id: `${telegram_id}-${Date.now()}`, // Добавляем уникальный идентификатор операции
         })
 
         // Отправляем событие для обработки платежа с помощью processPaymentFunction
@@ -235,49 +245,58 @@ export const neuroImageGeneration = inngest.createFunction(
             description: `Payment for generating ${validNumImages} image${
               validNumImages === 1 ? '' : 's'
             } with prompt: ${prompt.substring(0, 30)}...`,
-            operation_id: `${telegram_id}-${Date.now()}-${prompt.substring(0, 10)}`,
+            operation_id: `${telegram_id}-${Date.now()}-${prompt.substring(
+              0,
+              10
+            )}`,
             metadata: {
-              service_type: 'NeuroPhoto'
-            }
-          }
-        });
-        
+              service_type: 'NeuroPhoto',
+            },
+          },
+        })
+
         logger.info({
           message: '💸 Платеж отправлен на обработку',
           description: 'Payment sent for processing',
           telegram_id,
           paymentAmount,
-          operation_id: `${telegram_id}-${Date.now()}-${prompt.substring(0, 10)}`
-        });
-        
+          operation_id: `${telegram_id}-${Date.now()}-${prompt.substring(
+            0,
+            10
+          )}`,
+        })
+
         // Даем время на обработку платежа
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
+        await new Promise(resolve => setTimeout(resolve, 500))
+
         // Получаем актуальный баланс пользователя напрямую из функции getUserBalance
-        const newBalance = await getUserBalance(telegram_id);
-        
+        const newBalance = await getUserBalance(telegram_id)
+
         if (newBalance === null || newBalance === undefined) {
           logger.error({
             message: '❌ Ошибка при получении баланса пользователя',
             description: 'Error fetching user balance',
-            telegram_id
-          });
-          throw new Error(`Error fetching user balance for user: ${telegram_id}`);
+            telegram_id,
+          })
+          throw new Error(
+            `Error fetching user balance for user: ${telegram_id}`
+          )
         }
-        
+
         logger.info({
           message: '✅ Платеж обработан, новый баланс из payments:',
-          description: 'Payment processed, new balance calculated from payments:',
+          description:
+            'Payment processed, new balance calculated from payments:',
           telegram_id,
           newBalance,
-          paymentAmount
-        });
+          paymentAmount,
+        })
 
         return {
           success: true,
           newBalance,
-          event: paymentResult
-        };
+          event: paymentResult,
+        }
       })
 
       const aspect_ratio = await step.run('get-aspect-ratio', async () => {
@@ -382,37 +401,102 @@ export const neuroImageGeneration = inngest.createFunction(
         generatedImages.push(generationResult.url)
       }
 
+      // Отдельный шаг для проверки баланса
+      const userBalance = await step.run('check-balance', async () => {
+        try {
+          // Получаем актуальный баланс пользователя напрямую из функции getUserBalance
+          let actualBalance
+          try {
+            actualBalance = await getUserBalance(telegram_id)
+            logger.info({
+              message: '💰 Получен баланс пользователя',
+              description: 'User balance retrieved',
+              telegram_id,
+              actualBalance,
+              actualBalanceType: typeof actualBalance,
+              actualBalanceIsNull: actualBalance === null,
+            })
+          } catch (balanceError) {
+            logger.error({
+              message: '❌ Ошибка при получении баланса',
+              description: 'Error while getting user balance',
+              telegram_id,
+              error:
+                balanceError instanceof Error
+                  ? balanceError.message
+                  : 'Unknown error',
+            })
+            actualBalance = 0 // Устанавливаем значение по умолчанию
+          }
+
+          // Логируем для сравнения
+          logger.info({
+            message: '💵 Проверка баланса после операций',
+            description: 'Balance check after operations',
+            telegram_id,
+            balanceFromOperation: balanceCheck?.newBalance || 'unknown',
+            balanceFromPayments: actualBalance,
+            costTotal: (costPerImage * validNumImages).toFixed(2),
+          })
+
+          // Безопасно форматируем баланс
+          const formattedBalance =
+            actualBalance !== null && actualBalance !== undefined
+              ? Number(actualBalance).toFixed(2)
+              : '0.00'
+
+          return {
+            rawBalance: actualBalance,
+            formattedBalance,
+            balanceFromOperation: balanceCheck?.newBalance,
+          }
+        } catch (error) {
+          logger.error({
+            message: '❌ Ошибка в шаге проверки баланса',
+            description: 'Error in balance check step',
+            telegram_id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+          return {
+            rawBalance: 0,
+            formattedBalance: '0.00',
+            balanceFromOperation: 'unknown',
+          }
+        }
+      })
+
       await step.run('final-notification', async () => {
-        const { bot } = getBotByName(bot_name)
-        
-        // Получаем актуальный баланс пользователя напрямую из функции getUserBalance, 
-        // которая теперь рассчитывает баланс на основе платежей
-        const actualBalance = await getUserBalance(telegram_id);
-        
-        // Логируем для сравнения
-        logger.info({
-          message: '💵 Проверка баланса перед отправкой сообщения',
-          description: 'Balance verification before sending notification',
-          telegram_id,
-          balanceFromOperation: balanceCheck.newBalance,
-          balanceFromPayments: actualBalance,
-          costTotal: (costPerImage * validNumImages).toFixed(2)
-        });
-        
-        await bot.telegram.sendMessage(
-          telegram_id,
-          is_ru
+        try {
+          // Безопасное получение бота
+          const botResult = getBotByName(bot_name)
+          if (!botResult || !botResult.bot) {
+            logger.error({
+              message: '❌ Не удалось получить экземпляр бота',
+              description: 'Failed to get bot instance',
+              bot_name,
+              telegram_id,
+              botResult: JSON.stringify(botResult),
+            })
+            return // Прерываем выполнение шага, если бот не получен
+          }
+
+          const { bot } = botResult
+
+          // Формируем сообщение для отправки, используя результат из шага check-balance
+          const message = is_ru
             ? `Ваши изображения сгенерированы! Стоимость: ${(
                 costPerImage * validNumImages
-              ).toFixed(
-                2
-              )} ⭐️\nНовый баланс: ${actualBalance.toFixed(2)} ⭐️`
+              ).toFixed(2)} ⭐️\nНовый баланс: ${
+                userBalance.formattedBalance
+              } ⭐️`
             : `Your images generated! Cost: ${(
                 costPerImage * validNumImages
-              ).toFixed(2)} ⭐️\nNew balance: ${actualBalance.toFixed(
-                2
-              )} ⭐️`,
-          {
+              ).toFixed(2)} ⭐️\nNew balance: ${
+                userBalance.formattedBalance
+              } ⭐️`
+
+          // Клавиатура для ответа
+          const keyboard = {
             reply_markup: {
               keyboard: [
                 [
@@ -431,7 +515,42 @@ export const neuroImageGeneration = inngest.createFunction(
               one_time_keyboard: false,
             },
           }
-        )
+
+          // Отправка сообщения с защитой от ошибок
+          try {
+            await bot.telegram.sendMessage(telegram_id, message, keyboard)
+            logger.info({
+              message: '✅ Отправлено финальное сообщение пользователю',
+              description: 'Final message sent to user',
+              telegram_id,
+            })
+          } catch (sendError) {
+            logger.error({
+              message: '❌ Ошибка при отправке сообщения',
+              description: 'Error sending message to user',
+              telegram_id,
+              error:
+                sendError instanceof Error
+                  ? sendError.message
+                  : 'Unknown error',
+            })
+          }
+        } catch (finalStepError) {
+          // Общий обработчик ошибок для всего шага
+          logger.error({
+            message: '❌ Общая ошибка в шаге final-notification',
+            description: 'General error in final-notification step',
+            telegram_id,
+            error:
+              finalStepError instanceof Error
+                ? finalStepError.message
+                : 'Unknown error',
+            stack:
+              finalStepError instanceof Error
+                ? finalStepError.stack
+                : undefined,
+          })
+        }
       })
 
       logger.info({

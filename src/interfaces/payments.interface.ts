@@ -9,3 +9,14 @@ export interface Payment {
   amount: number
   date: string
 }
+export type PaymentService =
+  | 'NeuroPhoto'
+  | 'Text to speech'
+  | 'Image to video'
+  | 'Text to image'
+  | 'Training'
+  | 'Refund'
+  | 'System'
+  | 'Telegram'
+  | 'Robokassa'
+  | 'Unknown'

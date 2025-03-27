@@ -37,7 +37,7 @@ export async function generateNeuroImage(
     // Отправляем событие в Inngest для асинхронной обработки
     await inngest.send({
       id: `neuro-photo-generate-${telegram_id}-${prompt}-${Date.now()}`,
-      name: 'neuro/photo.generate', 
+      name: 'neuro/photo.generate',
       data: {
         prompt,
         model_url,
@@ -48,7 +48,7 @@ export async function generateNeuroImage(
         bot_name: botName,
         chat_id: ctx.chat?.id, // Добавляем chat_id для отправки результата
         message_id: ctx.message?.message_id, // Можно использовать для ответа на сообщение
-      }
+      },
     })
 
     // Отправляем пользователю сообщение о том, что запрос принят
@@ -62,7 +62,7 @@ export async function generateNeuroImage(
       description: 'Error sending event to Inngest',
       error: error instanceof Error ? error.message : 'Unknown error',
     })
-    
+
     await ctx.reply(
       isRussian(ctx)
         ? '😔 Произошла ошибка при отправке запроса на генерацию. Пожалуйста, попробуйте позже.'

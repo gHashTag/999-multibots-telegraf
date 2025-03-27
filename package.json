@@ -11,7 +11,8 @@
     "build:tsc": "tsc && tsc-alias",
     "test": "jest --forceExit --detectOpenHandles",
     "lint": "eslint --ignore-path .gitignore --ext .ts src",
-    "lint:fix": "npm run lint -- --fix"
+    "lint:fix": "npm run lint -- --fix",
+    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.10",
