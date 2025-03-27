@@ -167,7 +167,7 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
 }
 
 export const neuroPhotoWizardV2 = new WizardScene<MyWizardContext>(
-  'neuro_photo_2',
+  'neuro_photo_v2',
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
   neuroPhotoButtonStep

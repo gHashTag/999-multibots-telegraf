@@ -1,8 +1,9 @@
-import axios, { isAxiosError } from 'axios'
+import { v4 as uuidv4 } from 'uuid'
+import { inngest } from '@/core/inngest/clients'
 
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
 import { isRussian } from '@/helpers/language'
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/logger'
 
 export async function generateNeuroImageV2(
   prompt: string,
@@ -23,51 +24,56 @@ export async function generateNeuroImageV2(
     throw new Error('Num images not found')
   }
 
-  console.log('Starting generateNeuroImage with:', {
-    prompt,
+  logger.info({
+    message: '🚀 Начало генерации NeurophotoV2',
+    description: 'Starting NeurophotoV2 generation',
+    prompt: prompt.substring(0, 50) + '...',
     numImages,
     telegram_id,
     botName,
   })
 
   try {
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
-    }/generate/neuro-photo-v2`
+    // Создаем уникальный идентификатор для события
+    const uniqueId = `neuro-photo-v2-${uuidv4()}`
 
-    const response = await axios.post(
-      url,
-      {
+    // Отправляем событие в Inngest для асинхронной обработки
+    const response = await inngest.send({
+      id: uniqueId,
+      name: 'neuro/photo-v2.generate',
+      data: {
         prompt,
         num_images: numImages || 1,
         telegram_id,
         is_ru: isRussian(ctx),
         bot_name: botName,
+        username: ctx.from?.username,
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
+    })
+
+    logger.info({
+      message: '✅ Событие успешно отправлено в Inngest',
+      description: 'Event successfully sent to Inngest',
+      event_id: uniqueId,
+      response: JSON.stringify(response),
+    })
+
+    // Отправляем пользователю сообщение о том, что запрос принят
+    await ctx.reply(
+      isRussian(ctx)
+        ? '🚀 Ваш запрос на генерацию изображения принят! Результат будет отправлен в этот чат в ближайшее время.'
+        : '🚀 Your image generation request has been accepted! The result will be sent to this chat shortly.'
     )
-    console.log(response.data, 'response.data')
-    return response.data
+
+    return { data: 'Processing started' }
   } catch (error) {
-    if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      if (error.response?.data?.error?.includes('NSFW')) {
-        await ctx.reply(
-          'Извините, генерация изображения не удалась из-за обнаружения неподходящего контента.'
-        )
-      } else {
-        await ctx.reply(
-          'Произошла ошибка при генерации изображения. Пожалуйста, попробуйте позже.'
-        )
-      }
-    } else {
-      console.error('Error generating image:', error)
-    }
+    logger.error({
+      message: '❌ Ошибка при отправке события в Inngest',
+      description: 'Error sending event to Inngest',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+
     return null
   }
 }

@@ -6,6 +6,8 @@ import { NODE_ENV } from '@/config'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
+import { createMockBot } from '@/test-utils/mocks/botMock'
+
 if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
 if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
 if (!process.env.BOT_TOKEN_3) throw new Error('BOT_TOKEN_3 is not set')
@@ -94,7 +96,6 @@ export function createBotByName(
   return new Telegraf<MyContext>(token)
 }
 
-
 export const bots = Object.values(BOT_NAMES).map(
   token => new Telegraf<MyContext>(token)
 )
@@ -103,15 +104,28 @@ export function getBotByName(bot_name: string): {
   bot?: Telegraf<MyContext>
   error?: string | null
 } {
-  logger.info('🔎 getBotByName запрошен для:', {
+  logger.info({
+    message: '🔎 getBotByName запрошен для',
     description: 'getBotByName requested for',
     bot_name,
   })
 
+  // Проверяем, находимся ли мы в тестовом окружении
+  if (process.env.NODE_ENV === 'test' || process.env.IS_TESTING === 'true') {
+    logger.info({
+      message: '🧪 Тестовое окружение, возвращаем мок-бота',
+      description: 'Test environment, returning mock bot',
+      bot_name,
+    })
+    // Возвращаем мок-бот для тестирования
+    return { bot: createMockBot(bot_name) as unknown as Telegraf<MyContext> }
+  }
+
   // Проверяем наличие бота в конфигурации
   const token = BOT_NAMES[bot_name]
   if (!token) {
-    logger.error('❌ Токен бота не найден в конфигурации', {
+    logger.error({
+      message: '❌ Токен бота не найден в конфигурации',
       description: 'Bot token not found in configuration',
       bot_name,
       availableBots: Object.keys(BOT_NAMES),
@@ -119,7 +133,8 @@ export function getBotByName(bot_name: string): {
     return { error: 'Bot not found in configuration' }
   }
 
-  logger.info('🔑 Токен бота получен из конфигурации', {
+  logger.info({
+    message: '🔑 Токен бота получен из конфигурации',
     description: 'Bot token retrieved from configuration',
     bot_name,
     tokenLength: token.length,
@@ -129,7 +144,8 @@ export function getBotByName(bot_name: string): {
   const bot = bots.find(bot => bot.telegram.token === token)
 
   if (!bot) {
-    logger.error('❌ Экземпляр бота не найден', {
+    logger.error({
+      message: '❌ Экземпляр бота не найден',
       description: 'Bot instance not found',
       bot_name,
       availableBots: bots.map(bot => ({
@@ -142,19 +158,18 @@ export function getBotByName(bot_name: string): {
 
   // Проверка наличия необходимых методов
   if (!bot.telegram || typeof bot.telegram.sendPhoto !== 'function') {
-    logger.error(
-      '❌ Экземпляр бота найден, но отсутствуют необходимые методы',
-      {
-        description: 'Bot instance found but missing required methods',
-        bot_name,
-        hasTelegram: !!bot.telegram,
-        methods: bot.telegram ? Object.keys(bot.telegram) : [],
-      }
-    )
+    logger.error({
+      message: '❌ Экземпляр бота найден, но отсутствуют необходимые методы',
+      description: 'Bot instance found but missing required methods',
+      bot_name,
+      hasTelegram: !!bot.telegram,
+      methods: bot.telegram ? Object.keys(bot.telegram) : [],
+    })
     return { error: 'Bot instance is invalid' }
   }
 
-  logger.info('✅ Бот успешно получен', {
+  logger.info({
+    message: '✅ Бот успешно получен',
     description: 'Bot successfully retrieved',
     bot_name,
     hasTelegram: !!bot.telegram,
@@ -167,8 +182,6 @@ export function getBotByName(bot_name: string): {
 export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1
 
 export const pulseBot = new Telegraf<MyContext>(PULSE_BOT_TOKEN)
-
-
 
 export const supportRequest = async (title: string, data: any) => {
   try {

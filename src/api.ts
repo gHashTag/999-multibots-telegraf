@@ -9,11 +9,17 @@ import {
   modelTrainingV2,
   broadcastMessage,
   paymentProcessor,
+  neuroPhotoV2Generation,
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
 import { handleReplicateWebhook } from './controllers/replicateWebhook'
 import { handleBFLWebhook } from './controllers/bflWebhook'
+import {
+  handleWebhookNeurophoto,
+  handleWebhookNeurophotoDebug,
+} from './controllers/neurophotoWebhook'
 import { UPLOAD_DIR } from './config'
+import { logger } from './utils/logger'
 
 dotenv.config()
 
@@ -31,7 +37,10 @@ app.use('/uploads', express.static(UPLOAD_DIR))
 
 // Маршруты API
 app.get('/api', (req, res) => {
-  console.log('🚀 API запрос получен!') // Emoji в логах как запрошено
+  logger.info({
+    message: '🚀 API запрос получен!',
+    description: 'API request received!',
+  })
   res.json({
     message: 'Hello World API!',
     status: 'success',
@@ -41,7 +50,10 @@ app.get('/api', (req, res) => {
 
 // Проверка статуса сервера
 app.get('/api/status', (req, res) => {
-  console.log('🔍 Проверка статуса сервера') // Emoji в логах
+  logger.info({
+    message: '🔍 Проверка статуса сервера',
+    description: 'Server status check',
+  })
   res.json({
     status: 'online',
     timestamp: new Date().toISOString(),
@@ -57,6 +69,10 @@ app.post('/webhooks/replicate', handleReplicateWebhook)
 // Маршрут для обработки веб-хуков от BFL (Brain Force Labs)
 app.post('/webhooks/bfl', handleBFLWebhook)
 
+// Маршрут для обработки веб-хуков от сервиса нейрофото
+app.post('/webhooks/neurophoto', handleWebhookNeurophoto)
+app.post('/webhooks/neurophoto-debug', handleWebhookNeurophotoDebug)
+
 // Эндпоинт для Inngest
 app.use(
   '/api/inngest',
@@ -68,13 +84,19 @@ app.use(
       modelTrainingV2,
       broadcastMessage,
       paymentProcessor,
+      neuroPhotoV2Generation,
     ],
   })
 )
 
 // Обработка ошибки 404
 app.use((req, res) => {
-  console.log('⚠️ Маршрут не найден: ' + req.originalUrl) // Emoji в логах
+  logger.warn({
+    message: '⚠️ Маршрут не найден',
+    description: 'Route not found',
+    path: req.originalUrl,
+    method: req.method,
+  })
   res.status(404).json({
     message: 'Route not found',
     status: 'error',
@@ -86,7 +108,10 @@ const startApiServer = () => {
   const apiPort = process.env.API_PORT || 2999
 
   app.listen(apiPort, () => {
-    console.log(`🌐 API сервер запущен на порту ${apiPort}`) // Emoji в логах
+    logger.info({
+      message: `🌐 API сервер запущен на порту ${apiPort}`,
+      description: `API server started on port ${apiPort}`,
+    })
   })
 }
 

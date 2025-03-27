@@ -8,6 +8,7 @@ export const TEST_CONFIG = {
     apiUrl: 'http://localhost:2999',
     webhookPath: '/webhooks/replicate',
     bflWebhookPath: '/webhooks/bfl',
+    neurophotoWebhookPath: '/webhooks/neurophoto',
   },
 
   // Тестовые данные пользователей
@@ -17,6 +18,15 @@ export const TEST_CONFIG = {
       botName: 'neuro_blogger_bot',
       isRussian: true,
     },
+    default: {
+      telegram_id: '144022504', // ID тестового пользователя
+      username: 'testuser',
+    },
+  },
+
+  // Тестовые данные для бота
+  bots: {
+    default: 'neuro_blogger_bot',
   },
 
   // Тестовые данные для тренировки моделей
@@ -77,6 +87,29 @@ export const TEST_CONFIG = {
         task_id: 'bfl-task-pending',
         status: 'PENDING',
         result: null,
+      },
+    ],
+  },
+
+  // Тестовые данные для нейрофото
+  neurophoto: {
+    samples: [
+      {
+        task_id: 'neurophoto-success-test',
+        status: 'SUCCESS',
+        result: {
+          sample: 'https://example.com/test-image.jpg',
+          seed: 123456,
+          prompt: 'Тестовый промпт для нейрофото',
+        },
+      },
+      {
+        task_id: 'neurophoto-processing-test',
+        status: 'processing',
+      },
+      {
+        task_id: 'neurophoto-moderated-test',
+        status: 'Content Moderated',
       },
     ],
   },

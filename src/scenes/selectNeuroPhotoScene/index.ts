@@ -55,7 +55,7 @@ export const selectNeuroPhotoScene = new Scenes.WizardScene<MyContext>(
       const photoChoice = ctx.message.text.toLowerCase()
 
       if (photoChoice.includes('flux pro') || photoChoice.includes('pro')) {
-        ctx.session.mode = 'neuro_photo_2'
+        ctx.session.mode = 'neuro_photo_v2'
         await ctx.scene.enter('checkBalanceScene')
         return
       } else if (photoChoice.includes('flux')) {

@@ -37,7 +37,7 @@ export enum ModeEnum {
 
 // Интерфейс для параметров расчета стоимости
 export interface CostCalculationParams {
-  mode: ModeEnum
+  mode: ModeEnum | string // Позволяем передавать строку для обратной совместимости
   steps?: number
   numImages?: number
 }
@@ -53,6 +53,7 @@ export interface CostCalculationResult {
 const BASE_COSTS = {
   [ModeEnum.NeuroPhoto]: 0.08,
   [ModeEnum.NeuroPhotoV2]: 0.14,
+  neuro_photo_2: 0.14, // Алиас для обратной совместимости
   [ModeEnum.ImageToPrompt]: 0.03,
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: 0,
@@ -86,7 +87,8 @@ export function calculateModeCost(
   let stars = 0
 
   // Логируем входные параметры
-  logger.info('💰 Расчет стоимости операции', {
+  logger.info({
+    message: '💰 Расчет стоимости операции',
     description: 'Calculating operation cost',
     mode,
     steps,
@@ -102,9 +104,33 @@ export function calculateModeCost(
       const cost = calculateCost(steps, 'v2')
       stars = cost.stars
     } else {
-      // Для остальных режимов
-      const baseCostInDollars = BASE_COSTS[mode]
-      stars = (baseCostInDollars / starCost) * numImages
+      // Обработка алиасов режимов для обратной совместимости
+      let normalizedMode = mode
+      if (mode === 'neuro_photo_2') {
+        normalizedMode = ModeEnum.NeuroPhotoV2
+        logger.info({
+          message: '🔄 Использован алиас режима',
+          description: 'Mode alias used',
+          originalMode: mode,
+          normalizedMode,
+        })
+      }
+
+      // Получаем базовую стоимость для режима
+      const baseCostInDollars = BASE_COSTS[normalizedMode as string]
+
+      if (baseCostInDollars === undefined) {
+        logger.error({
+          message: '❌ Неизвестный режим',
+          description: 'Unknown mode in cost calculation',
+          mode,
+          normalizedMode,
+        })
+        // Возвращаем нулевую стоимость для неизвестных режимов
+        stars = 0
+      } else {
+        stars = (baseCostInDollars / starCost) * numImages
+      }
     }
 
     // Округляем до 2 знаков после запятой
@@ -112,7 +138,8 @@ export function calculateModeCost(
     const dollars = parseFloat((stars * starCost).toFixed(2))
     const rubles = parseFloat((dollars * interestRate).toFixed(2))
 
-    logger.info('✅ Стоимость рассчитана', {
+    logger.info({
+      message: '✅ Стоимость рассчитана',
       description: 'Cost calculation completed',
       mode,
       stars,
@@ -122,7 +149,8 @@ export function calculateModeCost(
 
     return { stars, dollars, rubles }
   } catch (error) {
-    logger.error('❌ Ошибка при расчете стоимости', {
+    logger.error({
+      message: '❌ Ошибка при расчете стоимости',
       description: 'Error during cost calculation',
       error: error instanceof Error ? error.message : 'Unknown error',
       mode,
@@ -134,7 +162,7 @@ export function calculateModeCost(
 }
 
 // Для обратной совместимости
-export const modeCosts: Record<ModeEnum, number | ((param?: any) => number)> = {
+export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.DigitalAvatarBody]: (steps: number) =>
     calculateModeCost({ mode: ModeEnum.DigitalAvatarBody, steps }).stars,
   [ModeEnum.DigitalAvatarBodyV2]: (steps: number) =>
@@ -142,6 +170,7 @@ export const modeCosts: Record<ModeEnum, number | ((param?: any) => number)> = {
   [ModeEnum.NeuroPhoto]: calculateModeCost({ mode: ModeEnum.NeuroPhoto }).stars,
   [ModeEnum.NeuroPhotoV2]: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 })
     .stars,
+  neuro_photo_2: calculateModeCost({ mode: 'neuro_photo_2' }).stars, // Алиас для обратной совместимости
   [ModeEnum.ImageToPrompt]: calculateModeCost({ mode: ModeEnum.ImageToPrompt })
     .stars,
   [ModeEnum.Avatar]: calculateModeCost({ mode: ModeEnum.Avatar }).stars,

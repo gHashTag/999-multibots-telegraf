@@ -10,7 +10,11 @@
  *   ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts all
  */
 
-import { ReplicateWebhookTester, BFLWebhookTester } from './webhook-tests'
+import {
+  ReplicateWebhookTester,
+  BFLWebhookTester,
+  NeurophotoWebhookTester,
+} from './webhook-tests'
 import { DatabaseTester } from './database-tests'
 import { InngestTester } from './inngest-tests'
 import { logger } from '@/utils/logger'
@@ -136,18 +140,29 @@ ${colors.bright}${colors.blue}СКРИПТ ЗАПУСКА ТЕСТОВ${colors.r
 ${colors.bright}Доступные типы тестов:${colors.reset}
   ${colors.cyan}webhook${colors.reset}    - Тесты вебхуков Replicate
   ${colors.cyan}bfl-webhook${colors.reset} - Тесты вебхуков BFL
+  ${colors.cyan}neurophoto-webhook${colors.reset} - Тесты вебхуков нейрофото
   ${colors.cyan}database${colors.reset}   - Тесты базы данных
   ${colors.cyan}inngest${colors.reset}    - Тесты Inngest функций
   ${colors.cyan}neuro${colors.reset}      - Тесты генерации изображений
+  ${colors.cyan}neurophoto-v2${colors.reset} - Тесты генерации нейрофото V2
   ${colors.cyan}function${colors.reset}   - Тесты конкретных Inngest функций (требуется указать имя функции)
   ${colors.cyan}all${colors.reset}        - Все тесты
+
+${colors.bright}Параметры:${colors.reset}
+  ${colors.cyan}--dry-run${colors.reset}        - Запуск без проверки базы данных (только для некоторых тестов)
+  ${colors.cyan}--debug-endpoint${colors.reset}  - Использовать отладочный эндпоинт (для нейрофото)
 
 ${colors.bright}Примеры:${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts webhook${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts bfl-webhook${colors.reset}
+  ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts neurophoto-webhook${colors.reset}
+  ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts neurophoto-webhook --dry-run${colors.reset}
+  ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts neurophoto-webhook --debug-endpoint${colors.reset}
+  ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts neurophoto-webhook --dry-run --debug-endpoint${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts database${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts inngest${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts neuro${colors.reset}
+  ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts neurophoto-v2${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts function hello-world${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts all${colors.reset}
 
@@ -158,6 +173,7 @@ ${colors.bright}Доступные Inngest функции для тестиро�
   ${colors.cyan}model-training${colors.reset}    - Функция тренировки моделей
   ${colors.cyan}model-training-v2${colors.reset} - Функция тренировки моделей v2
   ${colors.cyan}neuro${colors.reset}             - Функция генерации изображений
+  ${colors.cyan}neurophoto-v2${colors.reset}     - Функция генерации нейрофото V2
   `)
 }
 
@@ -168,10 +184,27 @@ async function main() {
   const args = process.argv.slice(2)
   const testType = args[0]?.toLowerCase() || 'all'
 
+  // Переменная для отслеживания общего результата тестов
+  let allSuccessful = true
+
+  // Проверяем наличие флагов
+  const dryRun = args.includes('--dry-run')
+  const useDebugEndpoint = args.includes('--debug-endpoint')
+
   console.log(
     `\n${colors.bright}${colors.blue}🧪 ЗАПУСК ТЕСТОВ${colors.reset}\n`
   )
   console.log(`Тип тестов: ${colors.cyan}${testType}${colors.reset}`)
+  if (dryRun) {
+    console.log(
+      `${colors.yellow}Режим: dry run (без проверки базы данных)${colors.reset}`
+    )
+  }
+  if (useDebugEndpoint) {
+    console.log(
+      `${colors.yellow}Режим: использование отладочного эндпоинта${colors.reset}`
+    )
+  }
   console.log(
     `URL API: ${colors.cyan}${TEST_CONFIG.server.apiUrl}${colors.reset}`
   )
@@ -185,6 +218,12 @@ async function main() {
   if (['bfl-webhook', 'all'].includes(testType)) {
     console.log(
       `Путь вебхука BFL: ${colors.cyan}${TEST_CONFIG.server.bflWebhookPath}${colors.reset}\n`
+    )
+  }
+
+  if (['neurophoto-webhook', 'all'].includes(testType)) {
+    console.log(
+      `Путь вебхука нейрофото: ${colors.cyan}${TEST_CONFIG.server.neurophotoWebhookPath}${colors.reset}\n`
     )
   }
 
@@ -221,6 +260,27 @@ async function main() {
       formatResults(bflWebhookResults, 'вебхуков BFL')
     }
 
+    if (testType === 'neurophoto-webhook' || testType === 'all') {
+      logger.info({
+        message: '🧪 Запуск тестов вебхуков нейрофото',
+        description: 'Starting neurophoto webhook tests',
+        dryRun,
+        useDebugEndpoint,
+      })
+
+      const neurophotoWebhookTester = new NeurophotoWebhookTester()
+      const neurophotoWebhookResults =
+        await neurophotoWebhookTester.runAllTests({
+          checkDatabase: !dryRun,
+          useDebugEndpoint,
+        })
+      const { successful, total } = formatResults(
+        neurophotoWebhookResults,
+        'вебхуков нейрофото'
+      )
+      allSuccessful = allSuccessful && successful === total
+    }
+
     if (testType === 'database' || testType === 'all') {
       logger.info({
         message: '🧪 Запуск тестов базы данных',
@@ -251,7 +311,33 @@ async function main() {
 
       const inngestTester = new InngestTester()
       const neuroResults = await inngestTester.runImageGenerationTests()
-      formatResults(neuroResults, 'генерации изображений')
+
+      // Также запускаем тесты NeuroPhoto V2 при запуске тестов neuro
+      logger.info({
+        message: '🧪 Запуск тестов генерации нейрофото V2',
+        description: 'Starting NeuroPhoto V2 generation tests',
+      })
+
+      // Добавляем результаты тестов NeuroPhoto V2 к результатам обычных тестов
+      const neuroPhotoV2Results = await inngestTester.runSpecificFunctionTests(
+        'neurophoto-v2'
+      )
+      const allNeuroResults = [...neuroResults, ...neuroPhotoV2Results]
+
+      formatResults(allNeuroResults, 'генерации изображений')
+    }
+
+    if (testType === 'neurophoto-v2') {
+      logger.info({
+        message: '🧪 Запуск тестов генерации нейрофото V2',
+        description: 'Starting NeuroPhoto V2 generation tests',
+      })
+
+      const inngestTester = new InngestTester()
+      const neuroPhotoV2Results = await inngestTester.runSpecificFunctionTests(
+        'neurophoto-v2'
+      )
+      formatResults(neuroPhotoV2Results, 'генерации нейрофото V2')
     }
 
     if (testType === 'function') {
@@ -266,7 +352,7 @@ async function main() {
           `${colors.red}Необходимо указать имя функции для тестирования!${colors.reset}\n`
         )
         console.log(
-          `${colors.cyan}Доступные функции: hello-world, broadcast, payment, model-training, model-training-v2, neuro${colors.reset}\n`
+          `${colors.cyan}Доступные функции: hello-world, broadcast, payment, model-training, model-training-v2, neuro, neurophoto-v2${colors.reset}\n`
         )
         console.log(
           `${colors.cyan}Пример: ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts function hello-world${colors.reset}\n`
@@ -290,9 +376,11 @@ async function main() {
       ![
         'webhook',
         'bfl-webhook',
+        'neurophoto-webhook',
         'database',
         'inngest',
         'neuro',
+        'neurophoto-v2',
         'function',
         'all',
         'help',

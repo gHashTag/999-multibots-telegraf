@@ -512,3 +512,388 @@ export class BFLWebhookTester {
     return results
   }
 }
+
+/**
+ * Класс для тестирования вебхуков нейрофото
+ */
+export class NeurophotoWebhookTester {
+  /**
+   * Отправляет вебхук для тестирования нейрофото и проверяет результат
+   * @param payload Данные для отправки
+   * @param options Опции отправки
+   */
+  async sendWebhook(
+    payload: any,
+    options = { checkDatabase: true, useDebugEndpoint: false }
+  ): Promise<TestResult> {
+    const startTime = Date.now()
+    const testName = `Neurophoto webhook test: ${payload.status}`
+
+    try {
+      logger.info({
+        message: '🧪 Тест отправки вебхука нейрофото',
+        description: 'Neurophoto webhook send test',
+        status: payload.status,
+        taskId: payload.task_id,
+        useDebugEndpoint: options.useDebugEndpoint,
+      })
+
+      // Проверяем данные в базе перед запросом, если нужно
+      let beforeData: any = null
+      if (options.checkDatabase) {
+        try {
+          const { data } = await testSupabase
+            .from('prompt_history')
+            .select('*')
+            .eq('task_id', payload.task_id)
+            .limit(1)
+            .single()
+
+          beforeData = data || null
+        } catch (error) {
+          logger.warn({
+            message: '⚠️ Не удалось получить данные промпта до теста',
+            description: 'Failed to get prompt data before test',
+            error: error.message,
+          })
+        }
+      }
+
+      // Формируем URL для запроса
+      const endpoint = options.useDebugEndpoint
+        ? '/webhooks/neurophoto-debug'
+        : TEST_CONFIG.server.neurophotoWebhookPath
+      const webhookUrl = `${TEST_CONFIG.server.apiUrl}${endpoint}`
+
+      // Отправляем вебхук
+      const response = await axios.post(webhookUrl, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      // Проверяем статус ответа
+      if (response.status !== 200) {
+        throw new Error(`Unexpected status code: ${response.status}`)
+      }
+
+      // Если нужно проверить базу данных, ждем некоторое время для обработки запроса
+      let afterData: any = null
+      if (options.checkDatabase) {
+        // Ждем, чтобы изменения успели примениться
+        await new Promise(resolve => setTimeout(resolve, 1000))
+
+        try {
+          const { data } = await testSupabase
+            .from('prompt_history')
+            .select('*')
+            .eq('task_id', payload.task_id)
+            .limit(1)
+            .single()
+
+          afterData = data || null
+        } catch (error) {
+          logger.warn({
+            message: '⚠️ Не удалось получить данные промпта после теста',
+            description: 'Failed to get prompt data after test',
+            error: error.message,
+          })
+        }
+      }
+
+      const duration = Date.now() - startTime
+      return {
+        testName,
+        success: true,
+        message: `Вебхук нейрофото успешно отправлен за ${duration}мс`,
+        details: {
+          responseData: response.data,
+          databaseCheck: options.checkDatabase
+            ? {
+                beforeData,
+                afterData,
+                changed:
+                  JSON.stringify(beforeData) !== JSON.stringify(afterData),
+              }
+            : null,
+        },
+        duration,
+      }
+    } catch (error) {
+      const duration = Date.now() - startTime
+      logger.error({
+        message: '❌ Ошибка при отправке вебхука нейрофото',
+        description: 'Error during neurophoto webhook test',
+        error: error.message,
+        payload,
+      })
+
+      return {
+        testName,
+        success: false,
+        message: 'Ошибка при отправке вебхука нейрофото',
+        error: error.message,
+        duration,
+      }
+    }
+  }
+
+  /**
+   * Тестирует успешное завершение генерации изображения
+   */
+  async testSuccessfulGeneration(): Promise<TestResult> {
+    // Используем предустановленный пример из конфигурации
+    const sample = TEST_CONFIG.neurophoto.samples.find(
+      s => s.status === 'SUCCESS'
+    )
+
+    if (!sample) {
+      return {
+        testName: 'Successful neurophoto generation webhook test',
+        success: false,
+        message: 'Нет примера успешной генерации нейрофото в конфигурации',
+        error: 'No sample found',
+      }
+    }
+
+    // Создаем уникальный task_id для теста
+    const taskId = `${sample.task_id}-${Date.now()}`
+
+    // Сначала добавим запись в базу данных для тестирования
+    try {
+      const { error } = await testSupabase.from('prompt_history').insert({
+        task_id: taskId,
+        telegram_id: TEST_CONFIG.users.default.telegram_id,
+        username: TEST_CONFIG.users.default.username,
+        bot_name: TEST_CONFIG.bots.default,
+        language_code: 'ru',
+        prompt: 'Тестовый промпт для нейрофото',
+        status: 'processing',
+      })
+
+      if (error) {
+        logger.error({
+          message: '❌ Ошибка при создании тестовой записи',
+          description: 'Error creating test record',
+          error: error.message,
+        })
+
+        return {
+          testName: 'Successful neurophoto generation webhook test',
+          success: false,
+          message: 'Не удалось создать тестовую запись в базе данных',
+          error: error.message,
+        }
+      }
+    } catch (error) {
+      return {
+        testName: 'Successful neurophoto generation webhook test',
+        success: false,
+        message: 'Не удалось создать тестовую запись в базе данных',
+        error: error.message,
+      }
+    }
+
+    logger.info({
+      message: '🧪 Тест вебхука успешной генерации изображения',
+      description: 'Successful neurophoto generation webhook test',
+      taskId,
+    })
+
+    // Формируем пейлоад для успешного вебхука
+    const payload = {
+      task_id: taskId,
+      status: sample.status,
+      result: sample.result,
+    }
+
+    return this.sendWebhook(payload)
+  }
+
+  /**
+   * Тестирует обработку задачи в процессе выполнения
+   */
+  async testProcessingStatus(): Promise<TestResult> {
+    // Используем предустановленный пример из конфигурации
+    const sample = TEST_CONFIG.neurophoto.samples.find(
+      s => s.status === 'processing'
+    )
+
+    if (!sample) {
+      return {
+        testName: 'Processing neurophoto webhook test',
+        success: false,
+        message: 'Нет примера processing статуса в конфигурации',
+        error: 'No sample found',
+      }
+    }
+
+    // Создаем уникальный task_id для теста
+    const taskId = `${sample.task_id}-${Date.now()}`
+
+    // Сначала добавим запись в базу данных для тестирования
+    try {
+      const { error } = await testSupabase.from('prompt_history').insert({
+        task_id: taskId,
+        telegram_id: TEST_CONFIG.users.default.telegram_id,
+        username: TEST_CONFIG.users.default.username,
+        bot_name: TEST_CONFIG.bots.default,
+        language_code: 'ru',
+        prompt: 'Тестовый промпт для нейрофото в обработке',
+        status: 'created',
+      })
+
+      if (error) {
+        return {
+          testName: 'Processing neurophoto webhook test',
+          success: false,
+          message: 'Не удалось создать тестовую запись в базе данных',
+          error: error.message,
+        }
+      }
+    } catch (error) {
+      return {
+        testName: 'Processing neurophoto webhook test',
+        success: false,
+        message: 'Не удалось создать тестовую запись в базе данных',
+        error: error.message,
+      }
+    }
+
+    logger.info({
+      message: '🧪 Тест вебхука нейрофото со статусом processing',
+      description: 'Processing neurophoto webhook test',
+      taskId,
+    })
+
+    // Формируем пейлоад для вебхука со статусом processing
+    const payload = {
+      task_id: taskId,
+      status: sample.status,
+    }
+
+    return this.sendWebhook(payload)
+  }
+
+  /**
+   * Тестирует обработку модерации контента
+   */
+  async testContentModeration(): Promise<TestResult> {
+    // Используем предустановленный пример из конфигурации
+    const sample = TEST_CONFIG.neurophoto.samples.find(
+      s => s.status === 'Content Moderated'
+    )
+
+    if (!sample) {
+      return {
+        testName: 'Content moderation neurophoto webhook test',
+        success: false,
+        message: 'Нет примера модерации в конфигурации',
+        error: 'No sample found',
+      }
+    }
+
+    // Создаем уникальный task_id для теста
+    const taskId = `${sample.task_id}-${Date.now()}`
+
+    // Сначала добавим запись в базу данных для тестирования
+    try {
+      const { error } = await testSupabase.from('prompt_history').insert({
+        task_id: taskId,
+        telegram_id: TEST_CONFIG.users.default.telegram_id,
+        username: TEST_CONFIG.users.default.username,
+        bot_name: TEST_CONFIG.bots.default,
+        language_code: 'ru',
+        prompt: 'Тестовый промпт для модерации нейрофото',
+        status: 'processing',
+      })
+
+      if (error) {
+        return {
+          testName: 'Content moderation neurophoto webhook test',
+          success: false,
+          message: 'Не удалось создать тестовую запись в базе данных',
+          error: error.message,
+        }
+      }
+    } catch (error) {
+      return {
+        testName: 'Content moderation neurophoto webhook test',
+        success: false,
+        message: 'Не удалось создать тестовую запись в базе данных',
+        error: error.message,
+      }
+    }
+
+    logger.info({
+      message: '🧪 Тест вебхука нейрофото с модерацией контента',
+      description: 'Content moderation neurophoto webhook test',
+      taskId,
+    })
+
+    // Формируем пейлоад для вебхука с модерацией
+    const payload = {
+      task_id: taskId,
+      status: sample.status,
+    }
+
+    return this.sendWebhook(payload)
+  }
+
+  /**
+   * Запускает все тесты вебхуков нейрофото
+   * @param options Параметры запуска тестов
+   */
+  async runAllTests(
+    options = { checkDatabase: true, useDebugEndpoint: false }
+  ): Promise<TestResult[]> {
+    logger.info({
+      message: '🧪 Запуск всех тестов вебхуков нейрофото',
+      description: 'Running all neurophoto webhook tests',
+      options,
+    })
+
+    const results: TestResult[] = []
+
+    if (options.checkDatabase) {
+      // Выполняем тесты с проверкой базы данных
+      results.push(await this.testSuccessfulGeneration())
+      results.push(await this.testProcessingStatus())
+      results.push(await this.testContentModeration())
+    } else {
+      // Выполняем тесты без создания записей в базе данных
+      // и без проверки данных в базе (dry run)
+      logger.info({
+        message: '🧪 Запуск тестов в режиме dry run (без проверки базы данных)',
+        description: 'Running neurophoto webhook tests in dry run mode',
+        useDebugEndpoint: options.useDebugEndpoint,
+      })
+
+      // Используем примеры из конфигурации напрямую
+      for (const sample of TEST_CONFIG.neurophoto.samples) {
+        const taskId = `test-dryrun-${sample.task_id}-${Date.now()}`
+        const payload = {
+          task_id: taskId,
+          status: sample.status,
+          result: sample.result,
+        }
+
+        results.push(
+          await this.sendWebhook(payload, {
+            checkDatabase: false,
+            useDebugEndpoint: options.useDebugEndpoint,
+          })
+        )
+      }
+    }
+
+    logger.info({
+      message: '✅ Все тесты вебхуков нейрофото выполнены',
+      description: 'All neurophoto webhook tests completed',
+      totalTests: results.length,
+      successfulTests: results.filter(r => r.success).length,
+    })
+
+    return results
+  }
+}
