@@ -593,8 +593,7 @@ export const generateModelTraining = inngest.createFunction(
                 wandb_project: 'flux_train_replicate',
               },
               webhook: `${API_URL}/webhooks/replicate`,
-              // @ts-ignore - API поддерживает event 'failed', хотя тип не включает его
-              webhook_events_filter: ['completed', 'failed'],
+              webhook_events_filter: ['completed'],
             }
           )
 

@@ -32,7 +32,7 @@ export class DatabaseTester {
       })
 
       // Делаем простой запрос к базе данных
-      const { data, error, count } = await testSupabase
+      const { error, count } = await testSupabase
         .from('users')
         .select('*', { count: 'exact', head: true })
         .limit(1)
