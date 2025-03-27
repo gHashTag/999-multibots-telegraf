@@ -192,7 +192,7 @@ export const generateModelTraining = inngest.createFunction(
     concurrency: 2,
     idempotency: 'event.data.telegram_id + "-" + event.data.modelName',
   },
-  { event: 'model/training.start' },
+  { event: 'model-training/start' },
   async ({ event, step }) => {
     // Добавляем информативный лог о входящем событии
     logger.info({

@@ -33,7 +33,7 @@ export const modelTrainingV2 = inngest.createFunction(
   {
     id: 'model-training-v2',
   },
-  { event: 'model/training.v2.requested' },
+  { event: 'model-training/v2/requested' },
   async ({ event, step }) => {
     logger.info({
       message: '🚀 Model training initiated',
