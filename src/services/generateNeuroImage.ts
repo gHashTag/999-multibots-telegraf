@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 export async function generateNeuroImage(
   prompt: string,
   model_url: ModelUrl,
-  numImages: number,
+  numImages: number | string,
   telegram_id: string,
   ctx: MyContext,
   botName: string
@@ -21,8 +21,17 @@ export async function generateNeuroImage(
     throw new Error('Model URL not found')
   }
 
-  if (!numImages) {
-    numImages = 1 // Устанавливаем значение по умолчанию
+  // Преобразуем numImages в число, даже если это строка
+  const validNumImages = numImages ? parseInt(String(numImages), 10) : 1
+
+  if (isNaN(validNumImages)) {
+    logger.error('❌ Некорректное значение numImages:', {
+      description: 'Invalid numImages value',
+      received_value: numImages,
+      received_type: typeof numImages,
+    })
+    // Устанавливаем значение по умолчанию
+    numImages = 1
   }
 
   const chatId = ctx.chat?.id
@@ -32,7 +41,10 @@ export async function generateNeuroImage(
     description: 'Starting neuro image generation via Inngest',
     prompt,
     model_url,
-    numImages,
+    numImages: validNumImages,
+    numImages_type: typeof validNumImages,
+    original_numImages: numImages,
+    original_numImages_type: typeof numImages,
     telegram_id,
     botName,
     chat_id: chatId,
@@ -54,7 +66,7 @@ export async function generateNeuroImage(
     const eventData = {
       prompt,
       model_url,
-      numImages: numImages || 1,
+      numImages: validNumImages,
       telegram_id,
       username: ctx.from?.username,
       is_ru: isRussian(ctx),
@@ -112,7 +124,7 @@ export async function generateNeuroImage(
         data: {
           prompt,
           model_url,
-          numImages: numImages || 1,
+          numImages: validNumImages,
           telegram_id,
           username: ctx.from?.username,
           is_ru: isRussian(ctx),

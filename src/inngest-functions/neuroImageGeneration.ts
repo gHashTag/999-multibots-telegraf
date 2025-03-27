@@ -39,14 +39,15 @@ export const neuroImageGeneration = inngest.createFunction(
       const {
         prompt,
         model_url,
-        num_images = 1,
+        numImages,
         telegram_id,
         username,
         is_ru,
         bot_name,
       } = event.data
 
-      const validNumImages = num_images ? parseInt(String(num_images), 10) : 1
+      // Гарантируем, что numImages будет числом
+      const validNumImages = numImages ? parseInt(String(numImages), 10) : 1
 
       logger.info('🎨 Starting neuro image generation', {
         description: 'Starting neuro image generation process',
@@ -54,6 +55,8 @@ export const neuroImageGeneration = inngest.createFunction(
         prompt: prompt.substring(0, 50) + '...',
         model_url,
         num_images: validNumImages,
+        original_numImages: numImages,
+        original_numImages_type: typeof numImages,
       })
 
       const botData = (await step.run('get-bot', async () => {
@@ -175,7 +178,9 @@ export const neuroImageGeneration = inngest.createFunction(
         }
 
         // Для обратной совместимости с предыдущей реализацией
-        const totalCost = parseFloat((costPerImage * validNumImages).toFixed(2))
+        const totalCost = parseFloat(
+          (costPerImage * Number(validNumImages)).toFixed(2)
+        )
 
         logger.info('💸 Calculated image cost', {
           description: 'Image cost calculated successfully',
@@ -213,13 +218,17 @@ export const neuroImageGeneration = inngest.createFunction(
           logger.error('❌ Некорректное количество изображений', {
             description: 'Invalid number of images for payment processing',
             num_images: validNumImages,
+            original_numImages: numImages,
             telegram_id,
           })
           throw new Error('Invalid number of images')
         }
 
+        // Явно преобразуем в число перед использованием
+        const validNumImagesAsNumber = Number(validNumImages)
+
         const paymentAmount = parseFloat(
-          (Number(costPerImage) * validNumImages).toFixed(2)
+          (Number(costPerImage) * validNumImagesAsNumber).toFixed(2)
         )
 
         logger.info('💰 Списание средств', {
@@ -316,7 +325,10 @@ export const neuroImageGeneration = inngest.createFunction(
 
       const generatedImages = []
 
-      for (let i = 0; i < validNumImages; i++) {
+      // Преобразуем в число перед использованием в цикле
+      const numImagesToGenerate = Number(validNumImages)
+
+      for (let i = 0; i < numImagesToGenerate; i++) {
         const generationResult = await step.run(
           `generate-image-${i}`,
           async () => {
@@ -324,8 +336,8 @@ export const neuroImageGeneration = inngest.createFunction(
             await bot.telegram.sendMessage(
               telegram_id,
               is_ru
-                ? `⏳ Генерация изображения ${i + 1} из ${validNumImages}`
-                : `⏳ Generating image ${i + 1} of ${validNumImages}`
+                ? `⏳ Генерация изображения ${i + 1} из ${numImagesToGenerate}`
+                : `⏳ Generating image ${i + 1} of ${numImagesToGenerate}`
             )
 
             const input = {
@@ -545,12 +557,12 @@ export const neuroImageGeneration = inngest.createFunction(
           // Формируем сообщение для отправки, используя результат из шага check-balance
           const message = is_ru
             ? `Ваши изображения сгенерированы! Стоимость: ${(
-                costPerImage * validNumImages
+                costPerImage * Number(validNumImages)
               ).toFixed(2)} ⭐️\nНовый баланс: ${
                 userBalance.formattedBalance
               } ⭐️`
             : `Your images generated! Cost: ${(
-                costPerImage * validNumImages
+                costPerImage * Number(validNumImages)
               ).toFixed(2)} ⭐️\nNew balance: ${
                 userBalance.formattedBalance
               } ⭐️`

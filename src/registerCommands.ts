@@ -362,10 +362,33 @@ export function registerCommands({
     const prompt = ctx.session.prompt
     const userId = ctx.from.id
     const numImages = parseInt(text[0])
+
     console.log('ctx.session.mode', ctx.session.mode)
-    // ctx.session.mode = 'text_to_image'
+    console.log('ctx.session.prompt', ctx.session.prompt)
+    console.log('ctx.session.userModel', ctx.session.userModel)
+    console.log('ctx.session.selectedModel', ctx.session.selectedModel)
+
+    // Проверяем наличие необходимых данных
+    if (!prompt) {
+      await ctx.reply(
+        isRu
+          ? '⚠️ Ошибка: промпт отсутствует. Пожалуйста, начните сначала.'
+          : '⚠️ Error: prompt is missing. Please start over.'
+      )
+      return
+    }
+
     const generate = async (num: number) => {
       if (ctx.session.mode === 'neuro_photo') {
+        if (!ctx.session.userModel?.model_url) {
+          await ctx.reply(
+            isRu
+              ? '⚠️ Ошибка: модель не выбрана. Пожалуйста, начните сначала.'
+              : '⚠️ Error: model not selected. Please start over.'
+          )
+          return
+        }
+
         await generateNeuroImage(
           prompt,
           ctx.session.userModel.model_url,
@@ -375,6 +398,24 @@ export function registerCommands({
           ctx.botInfo?.username
         )
       } else {
+        if (!ctx.session.selectedModel) {
+          await ctx.reply(
+            isRu
+              ? '⚠️ Ошибка: модель не выбрана. Пожалуйста, начните сначала.'
+              : '⚠️ Error: model not selected. Please start over.'
+          )
+          return
+        }
+
+        console.log('Вызов generateTextToImage с параметрами:', {
+          prompt,
+          model: ctx.session.selectedModel,
+          numImages: num,
+          userId: userId.toString(),
+          isRu,
+          botName: ctx.botInfo?.username,
+        })
+
         await generateTextToImage(
           prompt,
           ctx.session.selectedModel || '',
@@ -401,10 +442,33 @@ export function registerCommands({
     const prompt = ctx.session.prompt
     const userId = ctx.from.id
     const numImages = parseInt(text[0])
+
     console.log('ctx.session.mode', ctx.session.mode)
-    // ctx.session.mode = 'text_to_image'
+    console.log('ctx.session.prompt', ctx.session.prompt)
+    console.log('ctx.session.userModel', ctx.session.userModel)
+    console.log('ctx.session.selectedModel', ctx.session.selectedModel)
+
+    // Проверяем наличие необходимых данных
+    if (!prompt) {
+      await ctx.reply(
+        isRu
+          ? '⚠️ Ошибка: промпт отсутствует. Пожалуйста, начните сначала.'
+          : '⚠️ Error: prompt is missing. Please start over.'
+      )
+      return
+    }
+
     const generate = async (num: number) => {
       if (ctx.session.mode === 'neuro_photo') {
+        if (!ctx.session.userModel?.model_url) {
+          await ctx.reply(
+            isRu
+              ? '⚠️ Ошибка: модель не выбрана. Пожалуйста, начните сначала.'
+              : '⚠️ Error: model not selected. Please start over.'
+          )
+          return
+        }
+
         await generateNeuroImage(
           prompt,
           ctx.session.userModel.model_url,
@@ -414,6 +478,24 @@ export function registerCommands({
           ctx.botInfo?.username
         )
       } else {
+        if (!ctx.session.selectedModel) {
+          await ctx.reply(
+            isRu
+              ? '⚠️ Ошибка: модель не выбрана. Пожалуйста, начните сначала.'
+              : '⚠️ Error: model not selected. Please start over.'
+          )
+          return
+        }
+
+        console.log('Вызов generateTextToImage с параметрами:', {
+          prompt,
+          model: ctx.session.selectedModel,
+          numImages: num,
+          userId: userId.toString(),
+          isRu,
+          botName: ctx.botInfo?.username,
+        })
+
         await generateTextToImage(
           prompt,
           ctx.session.selectedModel || '',
@@ -560,7 +642,6 @@ export function registerCommands({
   //   console.log('CASE: text')
   //   handleTextMessage(ctx)
   // })
-
 
   composer.use(inngestCommand)
   bot.use(inngestCommand)
