@@ -18,7 +18,6 @@ import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
 
 import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 
 // Тестирование логов
 console.log('🧪 ТЕСТ ЛОГОВ: прямой console.log')
@@ -32,8 +31,6 @@ logger.info({
 export const neuroImageGeneration = inngest.createFunction(
   {
     id: `neuro-image-generation`,
-    // Включаю идемпотентность на основе telegram_id и промпта
-    idempotency: 'event.data.telegram_id + "-" + event.data.prompt',
     retries: 3,
   },
   { event: 'neuro/photo.generate' },

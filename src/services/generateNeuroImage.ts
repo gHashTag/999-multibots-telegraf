@@ -2,6 +2,7 @@ import { inngest } from '@/core/inngest/clients'
 import { isRussian } from '@/helpers/language'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 export async function generateNeuroImage(
   prompt: string,
@@ -12,17 +13,20 @@ export async function generateNeuroImage(
   botName: string
 ): Promise<void> {
   // Валидация входных данных
-  if (!ctx.session.prompt) {
+  if (!prompt) {
     throw new Error('Prompt not found')
   }
 
-  if (!ctx.session.userModel) {
-    throw new Error('User model not found')
+  if (!model_url) {
+    throw new Error('Model URL not found')
   }
 
   if (!numImages) {
-    throw new Error('Num images not found')
+    numImages = 1 // Устанавливаем значение по умолчанию
   }
+
+  const chatId = ctx.chat?.id
+  const messageId = ctx.message?.message_id
 
   logger.info('🚀 Запуск генерации изображения через Inngest:', {
     description: 'Starting neuro image generation via Inngest',
@@ -31,26 +35,50 @@ export async function generateNeuroImage(
     numImages,
     telegram_id,
     botName,
+    chat_id: chatId,
+    message_id: messageId,
   })
 
   try {
+    // Создаем уникальный идентификатор с использованием UUID
+    const uniqueId = `neuro-photo-${uuidv4()}`
+
+    logger.info('📝 Создаем событие с ID:', {
+      description: 'Creating event with ID',
+      event_id: uniqueId,
+      prompt_preview: prompt.substring(0, 30),
+      timestamp: new Date().toISOString(),
+    })
+
+    // Подготавливаем данные события
+    const eventData = {
+      prompt,
+      model_url,
+      numImages: numImages || 1,
+      telegram_id,
+      username: ctx.from?.username,
+      is_ru: isRussian(ctx),
+      bot_name: botName,
+      chat_id: chatId,
+      message_id: messageId,
+    }
+
+    logger.info('📦 Данные события:', {
+      description: 'Event data prepared',
+      event_data: JSON.stringify(eventData),
+    })
+
     // Отправляем событие в Inngest для асинхронной обработки
-    await inngest.send({
-      id: `neuro-photo-generate-${telegram_id}-${prompt}-${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(2, 10)}`,
+    const response = await inngest.send({
+      id: uniqueId,
       name: 'neuro/photo.generate',
-      data: {
-        prompt,
-        model_url,
-        numImages: numImages || 1,
-        telegram_id,
-        username: ctx.from?.username,
-        is_ru: isRussian(ctx),
-        bot_name: botName,
-        chat_id: ctx.chat?.id, // Добавляем chat_id для отправки результата
-        message_id: ctx.message?.message_id, // Можно использовать для ответа на сообщение
-      },
+      data: eventData,
+    })
+
+    logger.info('✅ Событие успешно отправлено в Inngest:', {
+      description: 'Event successfully sent to Inngest',
+      event_id: uniqueId,
+      response: JSON.stringify(response),
     })
 
     // Отправляем пользователю сообщение о том, что запрос принят
@@ -63,7 +91,59 @@ export async function generateNeuroImage(
     logger.error('❌ Ошибка при отправке события в Inngest:', {
       description: 'Error sending event to Inngest',
       error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : null,
+      telegram_id,
+      chat_id: chatId,
+      prompt_preview: prompt.substring(0, 30),
+      timestamp: new Date().toISOString(),
     })
+
+    try {
+      // Повторная попытка с другим идентификатором
+      const retryId = `neuro-photo-retry-${uuidv4()}`
+      logger.info('🔄 Повторная попытка отправки события:', {
+        description: 'Retrying event sending',
+        retry_id: retryId,
+      })
+
+      await inngest.send({
+        id: retryId,
+        name: 'neuro/photo.generate',
+        data: {
+          prompt,
+          model_url,
+          numImages: numImages || 1,
+          telegram_id,
+          username: ctx.from?.username,
+          is_ru: isRussian(ctx),
+          bot_name: botName,
+          chat_id: chatId,
+          message_id: messageId,
+          is_retry: true,
+        },
+      })
+
+      logger.info('✅ Повторная отправка успешна:', {
+        description: 'Retry successful',
+        retry_id: retryId,
+      })
+
+      await ctx.reply(
+        isRussian(ctx)
+          ? '🚀 Ваш запрос на генерацию изображения принят! Результат будет отправлен в этот чат в ближайшее время.'
+          : '🚀 Your image generation request has been accepted! The result will be sent to this chat shortly.'
+      )
+      return
+    } catch (retryError) {
+      logger.error('❌ Ошибка при повторной отправке:', {
+        description: 'Retry error',
+        error:
+          retryError instanceof Error
+            ? retryError.message
+            : 'Unknown retry error',
+        stack: retryError instanceof Error ? retryError.stack : null,
+      })
+    }
 
     await ctx.reply(
       isRussian(ctx)
