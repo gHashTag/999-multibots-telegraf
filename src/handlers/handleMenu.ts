@@ -5,6 +5,7 @@ import { priceCommand } from '@/commands/priceCommand'
 import { handleTechSupport } from '@/commands/handleTechSupport'
 import { mainMenuButton } from '@/menu/mainMenu'
 import { get100Command } from '@/commands'
+import { getStatsCommand } from '@/commands/stats'
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyWizardContext) => {
   console.log('CASE: handleMenuCommand')
@@ -152,6 +153,11 @@ export const handleMenu = async (ctx: MyWizardContext) => {
         console.log('CASE: 🚀 Начать обучение')
 
         await ctx.scene.enter('startScene')
+      },
+      '/stats': async () => {
+        console.log('CASE: 🔍 Получение информации о сервере Glama MCP')
+        ctx.session.mode = 'stats'
+        await getStatsCommand(ctx)
       },
     }
 

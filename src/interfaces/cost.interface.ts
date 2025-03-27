@@ -59,5 +59,5 @@ export type Mode =
   | 'price'
   | 'video_in_url'
   | 'tech'
-
+  | 'stats'
 export type ModeCosts = Required<Record<Mode, number>>
