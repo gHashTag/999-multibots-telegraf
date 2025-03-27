@@ -41,5 +41,6 @@ export const TEST_ENV = {
   api: {
     url: process.env.API_URL || 'http://localhost:2999',
     webhookPath: '/webhooks/replicate',
+    bflWebhookPath: '/webhooks/bfl',
   },
 }

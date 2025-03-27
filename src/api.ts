@@ -12,6 +12,7 @@ import {
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
 import { handleReplicateWebhook } from './controllers/replicateWebhook'
+import { handleBFLWebhook } from './controllers/bflWebhook'
 import { UPLOAD_DIR } from './config'
 
 dotenv.config()
@@ -52,6 +53,9 @@ app.post('/generate/upload-zip-file', uploadZipFile)
 
 // Маршрут для обработки веб-хуков от Replicate
 app.post('/webhooks/replicate', handleReplicateWebhook)
+
+// Маршрут для обработки веб-хуков от BFL (Brain Force Labs)
+app.post('/webhooks/bfl', handleBFLWebhook)
 
 // Эндпоинт для Inngest
 app.use(

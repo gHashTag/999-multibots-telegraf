@@ -10,7 +10,7 @@
  *   ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts all
  */
 
-import { ReplicateWebhookTester } from './webhook-tests'
+import { ReplicateWebhookTester, BFLWebhookTester } from './webhook-tests'
 import { DatabaseTester } from './database-tests'
 import { InngestTester } from './inngest-tests'
 import { logger } from '@/utils/logger'
@@ -135,6 +135,7 @@ ${colors.bright}${colors.blue}СКРИПТ ЗАПУСКА ТЕСТОВ${colors.r
 
 ${colors.bright}Доступные типы тестов:${colors.reset}
   ${colors.cyan}webhook${colors.reset}    - Тесты вебхуков Replicate
+  ${colors.cyan}bfl-webhook${colors.reset} - Тесты вебхуков BFL
   ${colors.cyan}database${colors.reset}   - Тесты базы данных
   ${colors.cyan}inngest${colors.reset}    - Тесты Inngest функций
   ${colors.cyan}neuro${colors.reset}      - Тесты генерации изображений
@@ -143,6 +144,7 @@ ${colors.bright}Доступные типы тестов:${colors.reset}
 
 ${colors.bright}Примеры:${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts webhook${colors.reset}
+  ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts bfl-webhook${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts database${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts inngest${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts neuro${colors.reset}
@@ -173,9 +175,18 @@ async function main() {
   console.log(
     `URL API: ${colors.cyan}${TEST_CONFIG.server.apiUrl}${colors.reset}`
   )
-  console.log(
-    `Путь вебхука: ${colors.cyan}${TEST_CONFIG.server.webhookPath}${colors.reset}\n`
-  )
+
+  if (['webhook', 'all'].includes(testType)) {
+    console.log(
+      `Путь вебхука Replicate: ${colors.cyan}${TEST_CONFIG.server.webhookPath}${colors.reset}\n`
+    )
+  }
+
+  if (['bfl-webhook', 'all'].includes(testType)) {
+    console.log(
+      `Путь вебхука BFL: ${colors.cyan}${TEST_CONFIG.server.bflWebhookPath}${colors.reset}\n`
+    )
+  }
 
   if (['inngest', 'neuro', 'all'].includes(testType)) {
     const inngestUrl = process.env.INNGEST_DEV_URL || 'http://localhost:8288'
@@ -190,13 +201,24 @@ async function main() {
     // Проверяем, какие тесты запускать
     if (testType === 'webhook' || testType === 'all') {
       logger.info({
-        message: '🧪 Запуск тестов вебхуков',
-        description: 'Starting webhook tests',
+        message: '🧪 Запуск тестов вебхуков Replicate',
+        description: 'Starting Replicate webhook tests',
       })
 
       const webhookTester = new ReplicateWebhookTester()
       const webhookResults = await webhookTester.runAllTests()
-      formatResults(webhookResults, 'вебхуков')
+      formatResults(webhookResults, 'вебхуков Replicate')
+    }
+
+    if (testType === 'bfl-webhook' || testType === 'all') {
+      logger.info({
+        message: '🧪 Запуск тестов вебхуков BFL',
+        description: 'Starting BFL webhook tests',
+      })
+
+      const bflWebhookTester = new BFLWebhookTester()
+      const bflWebhookResults = await bflWebhookTester.runAllTests()
+      formatResults(bflWebhookResults, 'вебхуков BFL')
     }
 
     if (testType === 'database' || testType === 'all') {
@@ -249,6 +271,7 @@ async function main() {
         console.log(
           `${colors.cyan}Пример: ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts function hello-world${colors.reset}\n`
         )
+        printHelp()
         process.exit(1)
       }
 
@@ -259,35 +282,48 @@ async function main() {
       formatResults(functionResults, `Inngest функции "${functionName}"`)
     }
 
+    if (testType === 'help' || testType === '--help' || testType === '-h') {
+      printHelp()
+    }
+
     if (
-      !['webhook', 'database', 'inngest', 'neuro', 'function', 'all'].includes(
-        testType
-      )
+      ![
+        'webhook',
+        'bfl-webhook',
+        'database',
+        'inngest',
+        'neuro',
+        'function',
+        'all',
+        'help',
+        '--help',
+        '-h',
+      ].includes(testType)
     ) {
       console.log(
         `${colors.red}Неизвестный тип тестов: ${testType}${colors.reset}\n`
       )
       printHelp()
-      process.exit(1)
     }
-
-    console.log(
-      `\n${colors.bright}${colors.green}🏁 Все тесты завершены${colors.reset}\n`
-    )
   } catch (error) {
-    console.error(
-      `\n${colors.red}❌ Критическая ошибка: ${error.message}${colors.reset}\n`
-    )
     logger.error({
-      message: '❌ Критическая ошибка при выполнении тестов',
-      description: 'Critical error during tests',
+      message: '❌ Ошибка при запуске тестов',
+      description: 'Error running tests',
       error: error.message,
       stack: error.stack,
     })
 
+    console.log(
+      `\n${colors.red}${colors.bright}ОШИБКА: ${error.message}${colors.reset}\n`
+    )
     process.exit(1)
   }
 }
 
-// Запускаем тесты
-main()
+// Запускаем основную функцию, если файл запущен напрямую
+if (require.main === module) {
+  main().catch(error => {
+    console.error(`Critical error: ${error.message}`)
+    process.exit(1)
+  })
+}

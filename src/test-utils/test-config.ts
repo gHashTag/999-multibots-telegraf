@@ -7,6 +7,7 @@ export const TEST_CONFIG = {
   server: {
     apiUrl: 'http://localhost:2999',
     webhookPath: '/webhooks/replicate',
+    bflWebhookPath: '/webhooks/bfl',
   },
 
   // Тестовые данные пользователей
@@ -48,6 +49,34 @@ export const TEST_CONFIG = {
         metrics: {
           predict_time: 45.2,
         },
+      },
+    ],
+  },
+
+  // Тестовые данные для BFL тренировок
+  bflTraining: {
+    samples: [
+      {
+        task_id: 'bfl-task-123456',
+        status: 'SUCCESS',
+        result: JSON.stringify({
+          model_id: 'bfl-model-123',
+          model_name: 'test_bfl_model',
+          version: '1.0.0',
+        }),
+      },
+      {
+        task_id: 'bfl-task-error',
+        status: 'ERROR',
+        result: JSON.stringify({
+          error: 'Training failed due to insufficient data',
+          details: 'Minimum of 10 samples required',
+        }),
+      },
+      {
+        task_id: 'bfl-task-pending',
+        status: 'PENDING',
+        result: null,
       },
     ],
   },

@@ -297,3 +297,218 @@ export class ReplicateWebhookTester {
     }
   }
 }
+
+/**
+ * Класс для тестирования вебхуков BFL
+ */
+export class BFLWebhookTester {
+  /**
+   * Отправляет вебхук и проверяет результат
+   */
+  async sendWebhook(
+    payload: any,
+    options = { checkDatabase: true }
+  ): Promise<TestResult> {
+    const startTime = Date.now()
+    const testName = `BFL Webhook test: ${payload.status}`
+
+    try {
+      logger.info({
+        message: '🧪 Тест отправки BFL вебхука',
+        description: 'BFL webhook send test',
+        status: payload.status,
+        task_id: payload.task_id,
+      })
+
+      // Проверяем статус тренировки в базе перед запросом, если нужно
+      let beforeStatus: string | null = null
+      if (options.checkDatabase) {
+        try {
+          const { data } = await testSupabase
+            .from('model_trainings')
+            .select('status')
+            .eq('finetune_id', payload.task_id)
+            .limit(1)
+            .single()
+
+          beforeStatus = data?.status || null
+        } catch (error) {
+          logger.warn({
+            message: '⚠️ Не удалось получить статус BFL тренировки до теста',
+            description: 'Failed to get BFL training status before test',
+            error: error.message,
+          })
+        }
+      }
+
+      // Формируем URL для запроса
+      const webhookUrl = `${TEST_CONFIG.server.apiUrl}${TEST_CONFIG.server.bflWebhookPath}`
+
+      // Отправляем вебхук
+      const response = await axios.post(webhookUrl, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      // Проверяем статус ответа
+      if (response.status !== 200) {
+        throw new Error(`Unexpected status code: ${response.status}`)
+      }
+
+      // Если нужно проверить базу данных, ждем некоторое время для обработки запроса
+      let afterStatus: string | null = null
+      if (options.checkDatabase) {
+        // Ждем, чтобы изменения успели примениться
+        await new Promise(resolve => setTimeout(resolve, 1000))
+
+        try {
+          const { data } = await testSupabase
+            .from('model_trainings')
+            .select('status')
+            .eq('finetune_id', payload.task_id)
+            .limit(1)
+            .single()
+
+          afterStatus = data?.status || null
+        } catch (error) {
+          logger.warn({
+            message: '⚠️ Не удалось получить статус BFL тренировки после теста',
+            description: 'Failed to get BFL training status after test',
+            error: error.message,
+          })
+        }
+      }
+
+      const duration = Date.now() - startTime
+      return {
+        testName,
+        success: true,
+        message: `BFL вебхук успешно отправлен за ${duration}мс`,
+        details: {
+          responseData: response.data,
+          databaseCheck: options.checkDatabase
+            ? {
+                beforeStatus,
+                afterStatus,
+                changed: beforeStatus !== afterStatus,
+              }
+            : null,
+        },
+        duration,
+      }
+    } catch (error) {
+      const duration = Date.now() - startTime
+      logger.error({
+        message: '❌ Ошибка при отправке BFL вебхука',
+        description: 'Error during BFL webhook test',
+        error: error.message,
+        payload,
+      })
+
+      return {
+        testName,
+        success: false,
+        message: 'Ошибка при отправке BFL вебхука',
+        error: error.message,
+        duration,
+      }
+    }
+  }
+
+  /**
+   * Тестирует успешное завершение тренировки в BFL
+   */
+  async testSuccessfulTraining(): Promise<TestResult> {
+    const sample = TEST_CONFIG.bflTraining.samples.find(
+      s => s.status === 'SUCCESS'
+    )
+
+    if (!sample) {
+      return {
+        testName: 'BFL successful training webhook test',
+        success: false,
+        message: 'Нет примера успешной BFL тренировки в конфигурации',
+        error: 'No sample found',
+      }
+    }
+
+    logger.info({
+      message: '🧪 Тест вебхука успешной BFL тренировки',
+      description: 'BFL successful training webhook test',
+      sample,
+    })
+
+    return this.sendWebhook(sample)
+  }
+
+  /**
+   * Тестирует ошибку при тренировке в BFL
+   */
+  async testErrorTraining(): Promise<TestResult> {
+    const sample = TEST_CONFIG.bflTraining.samples.find(
+      s => s.status === 'ERROR'
+    )
+
+    if (!sample) {
+      return {
+        testName: 'BFL error training webhook test',
+        success: false,
+        message: 'Нет примера ошибочной BFL тренировки в конфигурации',
+        error: 'No sample found',
+      }
+    }
+
+    logger.info({
+      message: '🧪 Тест вебхука ошибочной BFL тренировки',
+      description: 'BFL error training webhook test',
+      sample,
+    })
+
+    return this.sendWebhook(sample)
+  }
+
+  /**
+   * Тестирует в процессе тренировки в BFL
+   */
+  async testPendingTraining(): Promise<TestResult> {
+    const sample = TEST_CONFIG.bflTraining.samples.find(
+      s => s.status === 'PENDING'
+    )
+
+    if (!sample) {
+      return {
+        testName: 'BFL pending training webhook test',
+        success: false,
+        message: 'Нет примера ожидающей BFL тренировки в конфигурации',
+        error: 'No sample found',
+      }
+    }
+
+    logger.info({
+      message: '🧪 Тест вебхука ожидающей BFL тренировки',
+      description: 'BFL pending training webhook test',
+      sample,
+    })
+
+    return this.sendWebhook(sample)
+  }
+
+  /**
+   * Запускает все тесты последовательно
+   */
+  async runAllTests(): Promise<TestResult[]> {
+    const results: TestResult[] = []
+
+    // Успешная тренировка
+    results.push(await this.testSuccessfulTraining())
+
+    // Ошибочная тренировка
+    results.push(await this.testErrorTraining())
+
+    // Ожидающая тренировка
+    results.push(await this.testPendingTraining())
+
+    return results
+  }
+}
