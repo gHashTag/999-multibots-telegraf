@@ -1,6 +1,5 @@
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import { isRussian } from '@/helpers/language'
 
 export const privateChat = async (
   ctx: MyContext,
@@ -14,12 +13,7 @@ export const privateChat = async (
       user_id: ctx.from?.id,
     })
 
-    await ctx.reply(
-      isRussian(ctx)
-        ? '⚠️ Этот бот работает только в личных сообщениях'
-        : '⚠️ This bot only works in private messages'
-    )
-    return
+    return next()
   }
 
   return next()
