@@ -5,7 +5,6 @@ import { isRussian } from '@/helpers/language'
 import { getUserBalance } from '@/core/supabase'
 import {
   sendInsufficientStarsMessage,
-  sendBalanceMessage,
   voiceConversationCost,
 } from '@/price/helpers'
 import { createHelpCancelKeyboard } from '@/menu'
@@ -23,13 +22,11 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const currentBalance = await getUserBalance(ctx.from.id)
-    const price = voiceConversationCost
+    const price = voiceConversationCost || 0
     if (currentBalance < price) {
       await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
       return ctx.scene.leave()
     }
-
-    await sendBalanceMessage(ctx, currentBalance, price, isRu)
 
     await ctx.reply(
       isRu

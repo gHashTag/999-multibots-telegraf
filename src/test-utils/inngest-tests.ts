@@ -372,6 +372,54 @@ export class InngestTester {
   }
 
   /**
+   * Тестирует функцию создания голосового аватара через ElevenLabs
+   */
+  async testVoiceAvatarCreation(): Promise<TestResult> {
+    const voiceAvatarData = {
+      fileUrl: 'https://example.com/voice-message.oga',
+      telegram_id: TEST_CONFIG.users.main.telegramId,
+      username: 'test_user',
+      is_ru: TEST_CONFIG.users.main.isRussian,
+      bot_name: TEST_CONFIG.users.main.botName,
+    }
+
+    logger.info({
+      message: '🧪 Тест функции создания голосового аватара',
+      description: 'Voice avatar creation function test',
+      voiceAvatarData: {
+        ...voiceAvatarData,
+        fileUrl: 'https://example.com/voice-message.oga',
+      },
+    })
+
+    return this.sendEvent('voice-avatar.requested', voiceAvatarData)
+  }
+
+  /**
+   * Напрямую вызывает функцию создания голосового аватара через ElevenLabs
+   */
+  async testVoiceAvatarDirectInvoke(): Promise<TestResult> {
+    const voiceAvatarData = {
+      fileUrl: 'https://example.com/voice-message.oga',
+      telegram_id: TEST_CONFIG.users.main.telegramId,
+      username: 'test_user',
+      is_ru: TEST_CONFIG.users.main.isRussian,
+      bot_name: TEST_CONFIG.users.main.botName,
+    }
+
+    logger.info({
+      message: '🧪 Тест прямого вызова функции создания голосового аватара',
+      description: 'Direct invocation of voice avatar creation function test',
+      voiceAvatarData: {
+        ...voiceAvatarData,
+        fileUrl: 'https://example.com/voice-message.oga',
+      },
+    })
+
+    return this.invokeFunction('voice-avatar-creation', voiceAvatarData)
+  }
+
+  /**
    * Запускает все тесты
    */
   async runAllTests(): Promise<TestResult[]> {
@@ -415,6 +463,15 @@ export class InngestTester {
       const directInvokeTextToImageResult =
         await this.testTextToImageDirectInvoke()
       results.push(directInvokeTextToImageResult)
+
+      // Тест создания голосового аватара
+      const voiceAvatarResult = await this.testVoiceAvatarCreation()
+      results.push(voiceAvatarResult)
+
+      // Прямой вызов функции создания голосового аватара
+      const directInvokeVoiceAvatarResult =
+        await this.testVoiceAvatarDirectInvoke()
+      results.push(directInvokeVoiceAvatarResult)
 
       return results
     } catch (error) {
@@ -481,6 +538,33 @@ export class InngestTester {
 
       return results
     }
+  }
+
+  /**
+   * Запускает тесты функции создания голосового аватара
+   */
+  async runVoiceAvatarTests(): Promise<TestResult[]> {
+    const results: TestResult[] = []
+
+    // Отправляем событие для запуска создания голосового аватара
+    const voiceAvatarResult = await this.testVoiceAvatarCreation()
+    results.push(voiceAvatarResult)
+
+    // Прямой вызов функции создания голосового аватара
+    const directInvokeResult = await this.testVoiceAvatarDirectInvoke()
+    results.push(directInvokeResult)
+
+    logger.info({
+      message: '✅ Завершены тесты голосового аватара',
+      description: 'Voice avatar tests completed',
+      results: results.map(r => ({
+        testName: r.testName,
+        success: r.success,
+        message: r.message,
+      })),
+    })
+
+    return results
   }
 
   /**
@@ -566,6 +650,11 @@ export class InngestTester {
 
         case 'text-to-image':
           directInvokeResult = await this.testTextToImageDirectInvoke()
+          results.push(directInvokeResult)
+          break
+
+        case 'voice-avatar':
+          directInvokeResult = await this.testVoiceAvatarCreation()
           results.push(directInvokeResult)
           break
 

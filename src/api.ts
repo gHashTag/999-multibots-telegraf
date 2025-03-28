@@ -11,6 +11,7 @@ import {
   paymentProcessor,
   neuroPhotoV2Generation,
   textToImageFunction,
+  createVoiceAvatarFunction,
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
 import { handleReplicateWebhook } from './controllers/replicateWebhook'
@@ -87,6 +88,7 @@ app.use(
       broadcastMessage,
       paymentProcessor,
       neuroPhotoV2Generation,
+      createVoiceAvatarFunction,
     ],
   })
 )

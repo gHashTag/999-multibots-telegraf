@@ -6,5 +6,6 @@ export * from './broadcastMessage'
 export * from './functions'
 export * from './paymentProcessor'
 export * from './textToImage.inngest'
+export * from './createVoiceAvatar.inngest'
 
 export { generateModelTraining } from './generateModelTraining'

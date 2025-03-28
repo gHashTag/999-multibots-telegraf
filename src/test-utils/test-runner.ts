@@ -146,6 +146,7 @@ ${colors.bright}Доступные типы тестов:${colors.reset}
   ${colors.cyan}neuro${colors.reset}      - Тесты генерации изображений
   ${colors.cyan}neurophoto-v2${colors.reset} - Тесты генерации нейрофото V2
   ${colors.cyan}function${colors.reset}   - Тесты конкретных Inngest функций (требуется указать имя функции)
+  ${colors.cyan}voice-avatar${colors.reset} - Тесты генерации голосового аватара
   ${colors.cyan}all${colors.reset}        - Все тесты
 
 ${colors.bright}Параметры:${colors.reset}
@@ -174,6 +175,7 @@ ${colors.bright}Доступные Inngest функции для тестиро�
   ${colors.cyan}model-training-v2${colors.reset} - Функция тренировки моделей v2
   ${colors.cyan}neuro${colors.reset}             - Функция генерации изображений
   ${colors.cyan}neurophoto-v2${colors.reset}     - Функция генерации нейрофото V2
+  ${colors.cyan}voice-avatar${colors.reset}       - Функция генерации голосового аватара
   `)
 }
 
@@ -352,7 +354,7 @@ async function main() {
           `${colors.red}Необходимо указать имя функции для тестирования!${colors.reset}\n`
         )
         console.log(
-          `${colors.cyan}Доступные функции: hello-world, broadcast, payment, model-training, model-training-v2, neuro, neurophoto-v2${colors.reset}\n`
+          `${colors.cyan}Доступные функции: hello-world, broadcast, payment, model-training, model-training-v2, neuro, neurophoto-v2, voice-avatar${colors.reset}\n`
         )
         console.log(
           `${colors.cyan}Пример: ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts function hello-world${colors.reset}\n`
@@ -366,6 +368,17 @@ async function main() {
         functionName
       )
       formatResults(functionResults, `Inngest функции "${functionName}"`)
+    }
+
+    if (testType === 'voice-avatar') {
+      logger.info({
+        message: '🧪 Запуск тестов генерации голосового аватара',
+        description: 'Starting voice avatar tests',
+      })
+
+      const inngestTester = new InngestTester()
+      const voiceAvatarResults = await inngestTester.runVoiceAvatarTests()
+      formatResults(voiceAvatarResults, 'генерации голосового аватара')
     }
 
     if (testType === 'help' || testType === '--help' || testType === '-h') {
@@ -382,6 +395,7 @@ async function main() {
         'neuro',
         'neurophoto-v2',
         'function',
+        'voice-avatar',
         'all',
         'help',
         '--help',

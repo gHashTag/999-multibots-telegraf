@@ -1,6 +1,5 @@
-import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
 import { MyContext } from '@/interfaces'
+import { inngest } from '@/core/inngest/clients'
 import { sendGenericErrorMessage } from '@/menu'
 
 interface VoiceAvatarResponse {
@@ -16,35 +15,46 @@ export async function generateVoiceAvatar(
   botName: string
 ): Promise<VoiceAvatarResponse> {
   try {
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
-    }/generate/create-avatar-voice`
+    console.log('📣 Запуск создания голосового аватара:', {
+      description: 'Starting voice avatar creation',
+      telegram_id,
+      username: ctx.from?.username,
+    })
 
-    const response = await axios.post<VoiceAvatarResponse>(
-      url,
-      {
+    // Отправляем событие в Inngest вместо API-запроса
+    await inngest.send({
+      name: 'voice-avatar.requested',
+      data: {
         fileUrl,
         telegram_id,
-        username: ctx.from?.username,
+        username: ctx.from?.username || telegram_id,
         is_ru: isRu,
         bot_name: botName,
       },
+    })
+
+    console.log(
+      '📤 Событие для создания голосового аватара отправлено в Inngest',
       {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
+        description: 'Voice avatar creation event sent to Inngest',
+        telegram_id,
       }
     )
 
-    console.log('Voice avatar creation response:', response.data)
-    return response.data
-  } catch (error) {
-    if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      await sendGenericErrorMessage(ctx, isRu, error)
+    return {
+      success: true,
+      message: isRu
+        ? 'Запрос на создание голосового аватара принят в обработку'
+        : 'Voice avatar creation request has been accepted for processing',
     }
-    console.error('Unexpected error:', error)
+  } catch (error) {
+    console.error('🔥 Ошибка при отправке события в Inngest:', {
+      description: 'Error sending event to Inngest',
+      error,
+    })
+
+    await sendGenericErrorMessage(ctx, isRu, error)
+
     throw error
   }
 }
