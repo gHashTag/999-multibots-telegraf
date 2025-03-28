@@ -10,6 +10,7 @@ import {
   broadcastMessage,
   paymentProcessor,
   neuroPhotoV2Generation,
+  textToImageFunction,
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
 import { handleReplicateWebhook } from './controllers/replicateWebhook'
@@ -79,6 +80,7 @@ app.use(
   serve({
     client: inngest,
     functions: [
+      textToImageFunction,
       neuroImageGeneration,
       generateModelTraining,
       modelTrainingV2,

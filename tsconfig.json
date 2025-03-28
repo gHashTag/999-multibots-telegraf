@@ -38,7 +38,7 @@
       "@store/*": ["store/*"],
       "@handlers/*": ["handlers/*"],
       "@helpers/*": ["helpers/*"],
-      "@commands/*": ["commands/*"],
+      "@commands/*": ["commands/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.json", ".env"],

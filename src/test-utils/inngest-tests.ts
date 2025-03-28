@@ -161,6 +161,32 @@ export class InngestTester {
   }
 
   /**
+   * Тестирует функцию генерации текст-в-изображение
+   */
+  async testTextToImage(): Promise<TestResult> {
+    const generationData = {
+      prompt: 'A beautiful sunset over mountains with a lake',
+      model: 'stable-diffusion-xl',
+      num_images: 1,
+      telegram_id: TEST_CONFIG.users.main.telegramId,
+      username: 'test_user',
+      is_ru: TEST_CONFIG.users.main.isRussian,
+      bot_name: TEST_CONFIG.users.main.botName,
+    }
+
+    logger.info({
+      message: '🧪 Тест функции генерации текст-в-изображение',
+      description: 'Text to image generation function test',
+      generationData: {
+        ...generationData,
+        prompt: generationData.prompt.substring(0, 20) + '...',
+      },
+    })
+
+    return this.sendEvent('text-to-image.requested', generationData)
+  }
+
+  /**
    * Напрямую вызывает функцию через Inngest Dev Server
    */
   async invokeFunction(
@@ -320,83 +346,141 @@ export class InngestTester {
   }
 
   /**
-   * Запускает все тесты Inngest функций
+   * Напрямую вызывает функцию текст-в-изображение
+   */
+  async testTextToImageDirectInvoke(): Promise<TestResult> {
+    const generationData = {
+      prompt: 'A beautiful sunset over mountains with a lake',
+      model: 'stable-diffusion-xl',
+      num_images: 1,
+      telegram_id: TEST_CONFIG.users.main.telegramId,
+      username: 'test_user',
+      is_ru: TEST_CONFIG.users.main.isRussian,
+      bot_name: TEST_CONFIG.users.main.botName,
+    }
+
+    logger.info({
+      message: '🧪 Прямой вызов функции текст-в-изображение',
+      description: 'Text to image direct invocation test',
+      generationData: {
+        ...generationData,
+        prompt: generationData.prompt.substring(0, 20) + '...',
+      },
+    })
+
+    return this.invokeFunction('text-to-image', generationData)
+  }
+
+  /**
+   * Запускает все тесты
    */
   async runAllTests(): Promise<TestResult[]> {
-    logger.info({
-      message: '🧪 Запуск всех тестов Inngest функций',
-      description: 'Running all Inngest function tests',
-    })
-
     const results: TestResult[] = []
 
-    // Тест hello-world функции
-    logger.info({
-      message: '🧪 Запуск тестов hello-world функции',
-      description: 'Running hello-world function tests',
-    })
-    const helloWorldResult = await this.sendEvent('hello-world/greeting', {
-      message: 'Hello from Test Runner!',
-    })
-    results.push(helloWorldResult)
+    try {
+      // Тест отправки события тренировки модели
+      const modelTrainingResult = await this.testModelTraining()
+      results.push(modelTrainingResult)
 
-    // Тест функции тренировки модели
-    logger.info({
-      message: '🧪 Запуск тестов функции тренировки модели',
-      description: 'Running model training function tests',
-    })
-    const modelTrainingResult = await this.testModelTraining()
-    results.push(modelTrainingResult)
+      // Тест отправки события тренировки модели V2
+      const modelTrainingV2Result = await this.testModelTrainingV2()
+      results.push(modelTrainingV2Result)
 
-    // Тест функции тренировки модели V2
-    logger.info({
-      message: '🧪 Запуск тестов функции тренировки модели V2',
-      description: 'Running model training V2 function tests',
-    })
-    const modelTrainingV2Result = await this.testModelTrainingV2()
-    results.push(modelTrainingV2Result)
+      // Тест отправки события генерации изображения
+      const neuroImageResult = await this.testNeuroImageGeneration()
+      results.push(neuroImageResult)
 
-    // Тест функции генерации NeuroPhoto V2
-    logger.info({
-      message: '🧪 Запуск тестов функции генерации NeuroPhoto V2',
-      description: 'Running NeuroPhoto V2 generation tests',
-    })
-    const neuroPhotoV2Result = await this.testNeuroPhotoV2Generation()
-    results.push(neuroPhotoV2Result)
+      // Тест отправки события генерации нейрофото V2
+      const neuroPhotoV2Result = await this.testNeuroPhotoV2Generation()
+      results.push(neuroPhotoV2Result)
 
-    return results
+      // Тест отправки события генерации текст-в-изображение
+      const textToImageResult = await this.testTextToImage()
+      results.push(textToImageResult)
+
+      // Прямой вызов функции тренировки модели
+      const directInvokeResult = await this.testModelTrainingDirectInvoke()
+      results.push(directInvokeResult)
+
+      // Прямой вызов функции тренировки модели V2
+      const directInvokeV2Result = await this.testModelTrainingV2DirectInvoke()
+      results.push(directInvokeV2Result)
+
+      // Прямой вызов функции нейрофото V2
+      const directInvokeNeuroPhotoV2Result =
+        await this.testNeuroPhotoV2DirectInvoke()
+      results.push(directInvokeNeuroPhotoV2Result)
+
+      // Прямой вызов функции текст-в-изображение
+      const directInvokeTextToImageResult =
+        await this.testTextToImageDirectInvoke()
+      results.push(directInvokeTextToImageResult)
+
+      return results
+    } catch (error) {
+      logger.error({
+        message: '❌ Ошибка при выполнении всех тестов',
+        description: 'Error running all tests',
+        error: error.message,
+      })
+
+      results.push({
+        testName: 'Error in runAllTests',
+        success: false,
+        message: 'Произошла ошибка при выполнении всех тестов',
+        error: error.message,
+      })
+
+      return results
+    }
   }
 
   /**
    * Запускает тесты генерации изображений
    */
   async runImageGenerationTests(): Promise<TestResult[]> {
-    logger.info({
-      message: '🧪 Запуск тестов генерации изображений',
-      description: 'Running image generation tests',
-    })
-
     const results: TestResult[] = []
 
-    // Тест стандартной генерации
-    const standardGeneration = await this.testNeuroImageGeneration()
-    results.push(standardGeneration)
+    try {
+      // Тест отправки события генерации изображения
+      const neuroImageResult = await this.testNeuroImageGeneration()
+      results.push(neuroImageResult)
 
-    // Тест генерации нейрофото V2
-    logger.info({
-      message: '🧪 Тест генерации нейрофото V2',
-      description: 'NeuroPhoto V2 generation test',
-    })
-    const neuroPhotoV2Generation = await this.testNeuroPhotoV2Generation()
-    results.push(neuroPhotoV2Generation)
+      // Тест отправки события генерации нейрофото V2
+      const neuroPhotoV2Result = await this.testNeuroPhotoV2Generation()
+      results.push(neuroPhotoV2Result)
 
-    logger.info({
-      message: '🏁 Тесты генерации изображений завершены',
-      description: 'Image generation tests completed',
-      testsCount: results.length,
-    })
+      // Тест отправки события генерации текст-в-изображение
+      const textToImageResult = await this.testTextToImage()
+      results.push(textToImageResult)
 
-    return results
+      // Прямой вызов функции нейрофото V2
+      const directInvokeNeuroPhotoV2Result =
+        await this.testNeuroPhotoV2DirectInvoke()
+      results.push(directInvokeNeuroPhotoV2Result)
+
+      // Прямой вызов функции текст-в-изображение
+      const directInvokeTextToImageResult =
+        await this.testTextToImageDirectInvoke()
+      results.push(directInvokeTextToImageResult)
+
+      return results
+    } catch (error) {
+      logger.error({
+        message: '❌ Ошибка при выполнении тестов генерации изображений',
+        description: 'Error running image generation tests',
+        error: error.message,
+      })
+
+      results.push({
+        testName: 'Error in runImageGenerationTests',
+        success: false,
+        message: 'Произошла ошибка при выполнении тестов генерации изображений',
+        error: error.message,
+      })
+
+      return results
+    }
   }
 
   /**
@@ -478,6 +562,11 @@ export class InngestTester {
           directInvokeNeuroPhotoV2Result =
             await this.testNeuroPhotoV2DirectInvoke()
           results.push(directInvokeNeuroPhotoV2Result)
+          break
+
+        case 'text-to-image':
+          directInvokeResult = await this.testTextToImageDirectInvoke()
+          results.push(directInvokeResult)
           break
 
         default:

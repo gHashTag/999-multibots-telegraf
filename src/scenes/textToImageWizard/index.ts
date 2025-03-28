@@ -12,6 +12,7 @@ import {
 } from '@/price/helpers'
 
 import { createHelpCancelKeyboard } from '@/menu'
+import { InngestService } from '@/services/inngest.service'
 
 export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   'text_to_image',
@@ -146,15 +147,25 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         return
       } else {
         ctx.session.prompt = text
-        await generateTextToImage(
-          text,
-          ctx.session.selectedModel,
-          1,
-          ctx.from.id.toString(),
-          isRu,
-          ctx,
-          ctx.botInfo?.username
+
+        // Отправляем уведомление пользователю
+        await ctx.reply(
+          isRu
+            ? '⏳ Запрос на генерацию изображения отправлен! Результат придёт в этот чат в ближайшее время.'
+            : '⏳ Image generation request sent! The result will be sent to this chat shortly.'
         )
+
+        // Отправляем событие в Inngest вместо прямого вызова API
+        await InngestService.sendEvent('text-to-image.requested', {
+          prompt: text,
+          model: ctx.session.selectedModel,
+          num_images: 1,
+          telegram_id: ctx.from.id.toString(),
+          username: ctx.from?.username,
+          is_ru: isRu,
+          bot_name: ctx.botInfo?.username,
+        })
+
         ctx.scene.leave()
         return
       }

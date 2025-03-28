@@ -5,5 +5,6 @@ export * from './neuroPhotoV2Generation'
 export * from './broadcastMessage'
 export * from './functions'
 export * from './paymentProcessor'
+export * from './textToImage.inngest'
 
 export { generateModelTraining } from './generateModelTraining'

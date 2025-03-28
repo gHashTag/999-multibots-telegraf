@@ -1,8 +1,9 @@
 import { calculateCost } from './calculateCost'
 import { logger } from '@/utils/logger'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
+import { interestRate } from '../interestRate'
 // Процент наценки
-export const interestRate = 1.5
+
 // Стоимость звезды
 export const starCost = 0.016
 
