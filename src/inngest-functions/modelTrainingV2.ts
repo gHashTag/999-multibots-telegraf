@@ -8,11 +8,11 @@ import {
   createModelTrainingV2,
 } from '@/core/supabase'
 import { modeCosts, ModeEnum } from '@/price/helpers/modelsCost'
-import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
+
 import { errorMessageAdmin } from '@/helpers/errorMessageAdmin'
 import axios from 'axios'
 import { logger } from '@/utils/logger'
-
+import { v4 as uuidv4 } from 'uuid'
 // Создаем простой интерфейс ApiError для временного использования
 interface ApiError extends Error {
   response?: {
@@ -160,6 +160,7 @@ export const modelTrainingV2 = inngest.createFunction(
       // Проверяем и обрабатываем операцию с балансом через Inngest события
       // Так как processBalanceOperation был перенесен в paymentProcessor
       await inngest.send({
+        id: `train-${telegram_id}-${Date.now()}-${modelName}-${uuidv4()}`,
         name: 'payment/process',
         data: {
           telegram_id,

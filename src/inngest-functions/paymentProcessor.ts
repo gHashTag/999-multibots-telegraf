@@ -2,6 +2,7 @@ import { inngest } from '@/core/inngest/clients'
 import { BalanceOperationResult, PaymentService } from '@/interfaces'
 import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import { logger } from '@/utils/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 // Кеш для хранения информации об обработанных платежах, чтобы избежать дублирования
 const processedPayments = new Map<string, BalanceOperationResult>()
@@ -70,8 +71,6 @@ async function safeSendMessage(
 export const paymentProcessor = inngest.createFunction(
   {
     id: `payment-processor`,
-    idempotency:
-      'event.data.telegram_id + "-" + event.data.paymentAmount + "-" + event.data.operation_id',
     retries: 3,
   },
   { event: 'payment/process' },
@@ -617,6 +616,7 @@ export const paymentProcessor = inngest.createFunction(
 
       // Отправляем событие о неудачной обработке платежа
       await inngest.send({
+        id: `payment-process-failed-${Date.now()}-${uuidv4()}`,
         name: 'payment/process.failed',
         data: {
           ...event.data,

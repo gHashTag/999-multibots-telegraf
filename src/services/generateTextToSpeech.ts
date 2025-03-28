@@ -1,5 +1,5 @@
-import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import { inngest } from '@/core/inngest/clients'
+import { v4 as uuidv4 } from 'uuid'
 
 interface TextToSpeechResponse {
   success: boolean
@@ -16,9 +16,7 @@ export async function generateTextToSpeech(
   botName: string
 ): Promise<TextToSpeechResponse> {
   try {
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
-    }/generate/text-to-speech`
+    // Валидация входных параметров
     if (!text) {
       throw new Error('Text is required')
     }
@@ -31,38 +29,62 @@ export async function generateTextToSpeech(
     if (!voice_id) {
       throw new Error('Voice ID is required')
     }
-    if (!isRu) {
-      throw new Error('Language is required')
-    }
-    const response = await axios.post<TextToSpeechResponse>(
-      url,
-      {
+
+    // Логирование перед отправкой события
+    console.log('📣 Отправка события text-to-speech.requested:', {
+      description: 'Sending text-to-speech.requested event',
+      telegram_id,
+      voice_id,
+      text_length: text.length,
+      username,
+      is_ru: isRu,
+      bot_name: botName,
+    })
+
+    // Создаем уникальный ID для события
+    const eventId = `tts-${telegram_id}-${Date.now()}-${uuidv4().substring(
+      0,
+      8
+    )}`
+
+    // Отправляем событие в Inngest для обработки
+    await inngest.send({
+      id: eventId,
+      name: 'text-to-speech.requested',
+      data: {
         text,
         voice_id,
         telegram_id: telegram_id.toString(),
+        username,
         is_ru: isRu,
         bot_name: botName,
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
-    )
+    })
 
-    console.log('Text to speech response:', response.data)
-    return response.data
-  } catch (error) {
-    if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      throw new Error(
-        isRu
-          ? 'Произошла ошибка при преобразовании текста в речь'
-          : 'Error occurred while converting text to speech'
-      )
+    console.log('✅ Событие успешно отправлено:', {
+      description: 'Event successfully sent',
+      event_id: eventId,
+      telegram_id,
+    })
+
+    // Возвращаем предварительный ответ
+    return {
+      success: true,
+      message: isRu
+        ? 'Запрос на генерацию речи отправлен, ожидайте результат'
+        : 'Speech generation request sent, please wait for the result',
     }
-    console.error('Unexpected error:', error)
-    throw error
+  } catch (error) {
+    console.error('❌ Ошибка при отправке события text-to-speech:', {
+      description: 'Error sending text-to-speech event',
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+
+    throw new Error(
+      isRu
+        ? 'Произошла ошибка при преобразовании текста в речь'
+        : 'Error occurred while converting text to speech'
+    )
   }
 }

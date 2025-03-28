@@ -12,6 +12,7 @@ import {
   neuroPhotoV2Generation,
   textToImageFunction,
   createVoiceAvatarFunction,
+  textToSpeechFunction,
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
 import { handleReplicateWebhook } from './controllers/replicateWebhook'
@@ -82,6 +83,7 @@ app.use(
     client: inngest,
     functions: [
       textToImageFunction,
+      textToSpeechFunction,
       neuroImageGeneration,
       generateModelTraining,
       modelTrainingV2,

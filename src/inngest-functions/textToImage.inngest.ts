@@ -1,6 +1,6 @@
 import { GenerationResult } from '@/interfaces'
 import { getBotByName } from '@/core/bot'
-import { processBalanceOperation } from '@/price/helpers/processBalanceOperation'
+import { v4 as uuidv4 } from 'uuid'
 import {
   updateUserLevelPlusOne,
   getAspectRatio,
@@ -116,13 +116,34 @@ export const textToImageFunction = inngest.createFunction(
         const modelConfig = IMAGES_MODELS[validatedParams.model.toLowerCase()]
         if (!modelConfig) throw new Error('Unsupported model')
 
-        return processBalanceOperation({
-          telegram_id: Number(validatedParams.telegram_id),
-          paymentAmount: modelConfig.costPerImage * validatedParams.num_images,
-          is_ru: validatedParams.is_ru,
-          bot: getBotByName(validatedParams.bot_name).bot,
-          bot_name: validatedParams.bot_name,
-          description: `Payment for ${validatedParams.num_images} images`,
+        console.log('💰 Обработка платежа за изображения:', {
+          description: 'Processing payment for images',
+          telegram_id: validatedParams.telegram_id,
+          model: validatedParams.model,
+          num_images: validatedParams.num_images,
+          cost: modelConfig.costPerImage * validatedParams.num_images,
+        })
+
+        // Отправляем событие payment/process для обработки платежа
+        await inngest.send({
+          id: `payment-${validatedParams.telegram_id}-${Date.now()}-${
+            validatedParams.num_images
+          }-${uuidv4()}`,
+          name: 'payment/process',
+          data: {
+            telegram_id: validatedParams.telegram_id,
+            mode: ModeEnum.TextToImage,
+            is_ru: validatedParams.is_ru,
+            bot_name: validatedParams.bot_name,
+            description: `Payment for ${validatedParams.num_images} images`,
+            paymentAmount:
+              modelConfig.costPerImage * validatedParams.num_images,
+            additional_info: {
+              model: validatedParams.model,
+              num_images: validatedParams.num_images,
+              prompt: validatedParams.prompt.substring(0, 100), // Ограничиваем длину подсказки
+            },
+          },
         })
       })
 

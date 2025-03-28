@@ -12,7 +12,7 @@ import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
-
+import { v4 as uuidv4 } from 'uuid'
 /**
  * Inngest функция для генерации нейрофото V2
  */
@@ -171,6 +171,7 @@ export const neuroPhotoV2Generation = inngest.createFunction(
 
         // Отправляем событие для обработки платежа
         return await inngest.send({
+          id: `payment-${telegram_id}-${Date.now()}-${numImagesToGenerate}-${uuidv4()}`,
           name: 'payment/process',
           data: {
             telegram_id,

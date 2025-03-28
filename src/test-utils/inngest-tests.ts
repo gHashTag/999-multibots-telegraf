@@ -420,6 +420,56 @@ export class InngestTester {
   }
 
   /**
+   * Тестирует функцию преобразования текста в речь
+   */
+  async testTextToSpeech(): Promise<TestResult> {
+    const textToSpeechData = {
+      text: 'Это тестовый текст для преобразования в речь. Проверка работы функции text-to-speech.',
+      voice_id: 'Adam', // Используем стандартный голос из ElevenLabs
+      telegram_id: TEST_CONFIG.users.main.telegramId,
+      username: 'test_user',
+      is_ru: TEST_CONFIG.users.main.isRussian,
+      bot_name: TEST_CONFIG.users.main.botName,
+    }
+
+    logger.info({
+      message: '🧪 Тест функции преобразования текст-в-речь',
+      description: 'Text to speech function test',
+      textToSpeechData: {
+        ...textToSpeechData,
+        text: textToSpeechData.text.substring(0, 20) + '...',
+      },
+    })
+
+    return this.sendEvent('text-to-speech.requested', textToSpeechData)
+  }
+
+  /**
+   * Напрямую вызывает функцию преобразования текста в речь
+   */
+  async testTextToSpeechDirectInvoke(): Promise<TestResult> {
+    const textToSpeechData = {
+      text: 'Это тестовый текст для прямого вызова функции преобразования в речь.',
+      voice_id: 'Adam', // Используем стандартный голос из ElevenLabs
+      telegram_id: TEST_CONFIG.users.main.telegramId,
+      username: 'test_user',
+      is_ru: TEST_CONFIG.users.main.isRussian,
+      bot_name: TEST_CONFIG.users.main.botName,
+    }
+
+    logger.info({
+      message: '🧪 Прямой вызов функции текст-в-речь',
+      description: 'Text to speech direct invocation test',
+      textToSpeechData: {
+        ...textToSpeechData,
+        text: textToSpeechData.text.substring(0, 20) + '...',
+      },
+    })
+
+    return this.invokeFunction('text-to-speech', textToSpeechData)
+  }
+
+  /**
    * Запускает все тесты
    */
   async runAllTests(): Promise<TestResult[]> {
@@ -472,6 +522,15 @@ export class InngestTester {
       const directInvokeVoiceAvatarResult =
         await this.testVoiceAvatarDirectInvoke()
       results.push(directInvokeVoiceAvatarResult)
+
+      // Тест функции text-to-speech
+      const textToSpeechResult = await this.testTextToSpeech()
+      results.push(textToSpeechResult)
+
+      // Прямой вызов функции text-to-speech
+      const directInvokeTextToSpeechResult =
+        await this.testTextToSpeechDirectInvoke()
+      results.push(directInvokeTextToSpeechResult)
 
       return results
     } catch (error) {
@@ -568,6 +627,33 @@ export class InngestTester {
   }
 
   /**
+   * Запускает тесты функции преобразования текста в речь
+   */
+  async runTextToSpeechTests(): Promise<TestResult[]> {
+    const results: TestResult[] = []
+
+    // Отправляем событие для запуска преобразования текста в речь
+    const textToSpeechResult = await this.testTextToSpeech()
+    results.push(textToSpeechResult)
+
+    // Прямой вызов функции преобразования текста в речь
+    const directInvokeResult = await this.testTextToSpeechDirectInvoke()
+    results.push(directInvokeResult)
+
+    logger.info({
+      message: '✅ Завершены тесты текст-в-речь',
+      description: 'Text to speech tests completed',
+      results: results.map(r => ({
+        testName: r.testName,
+        success: r.success,
+        message: r.message,
+      })),
+    })
+
+    return results
+  }
+
+  /**
    * Запускает тесты конкретной функции Inngest
    */
   async runSpecificFunctionTests(functionName: string): Promise<TestResult[]> {
@@ -590,6 +676,8 @@ export class InngestTester {
       let neuroResult: TestResult
       let neuroPhotoV2Result: TestResult
       let directInvokeNeuroPhotoV2Result: TestResult
+      let textToSpeechResult: TestResult
+      let directInvokeTextToSpeechResult: TestResult
 
       switch (functionName) {
         case 'hello-world':
@@ -656,6 +744,15 @@ export class InngestTester {
         case 'voice-avatar':
           directInvokeResult = await this.testVoiceAvatarCreation()
           results.push(directInvokeResult)
+          break
+
+        case 'text-to-speech':
+          textToSpeechResult = await this.testTextToSpeech()
+          results.push(textToSpeechResult)
+
+          directInvokeTextToSpeechResult =
+            await this.testTextToSpeechDirectInvoke()
+          results.push(directInvokeTextToSpeechResult)
           break
 
         default:

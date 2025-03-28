@@ -12,6 +12,7 @@ import { inngest } from '@/core/inngest/clients'
 import { API_URL } from '@/config'
 import { BalanceHelper } from '@/helpers/inngest/balanceHelpers'
 import { logger } from '@utils/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 import type { Prediction } from 'replicate'
 
@@ -742,6 +743,9 @@ export const generateModelTraining = inngest.createFunction(
 
         // Обновляем баланс через Inngest
         await inngest.send({
+          id: `train-${
+            eventData.telegram_id
+          }-${Date.now()}-${modelName}-${steps}-${uuidv4()}`,
           name: 'payment/process',
           data: {
             telegram_id: eventData.telegram_id,

@@ -7,5 +7,5 @@ export * from './functions'
 export * from './paymentProcessor'
 export * from './textToImage.inngest'
 export * from './createVoiceAvatar.inngest'
-
+export * from './textToSpeech.inngest'
 export { generateModelTraining } from './generateModelTraining'

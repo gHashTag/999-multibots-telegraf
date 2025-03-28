@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { inngest } from '@/core/inngest/clients'
 import { sendGenericErrorMessage } from '@/menu'
-
+import { logger } from '@/utils/logger'
 interface VoiceAvatarResponse {
   success: boolean
   message: string
@@ -15,7 +15,7 @@ export async function generateVoiceAvatar(
   botName: string
 ): Promise<VoiceAvatarResponse> {
   try {
-    console.log('📣 Запуск создания голосового аватара:', {
+    logger.info('📣 Запуск создания голосового аватара:', {
       description: 'Starting voice avatar creation',
       telegram_id,
       username: ctx.from?.username,

@@ -147,6 +147,7 @@ ${colors.bright}Доступные типы тестов:${colors.reset}
   ${colors.cyan}neurophoto-v2${colors.reset} - Тесты генерации нейрофото V2
   ${colors.cyan}function${colors.reset}   - Тесты конкретных Inngest функций (требуется указать имя функции)
   ${colors.cyan}voice-avatar${colors.reset} - Тесты генерации голосового аватара
+  ${colors.cyan}text-to-speech${colors.reset} - Тесты преобразования текста в речь
   ${colors.cyan}all${colors.reset}        - Все тесты
 
 ${colors.bright}Параметры:${colors.reset}
@@ -165,6 +166,7 @@ ${colors.bright}Примеры:${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts neuro${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts neurophoto-v2${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts function hello-world${colors.reset}
+  ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts text-to-speech${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts all${colors.reset}
 
 ${colors.bright}Доступные Inngest функции для тестирования:${colors.reset}
@@ -176,6 +178,7 @@ ${colors.bright}Доступные Inngest функции для тестиро�
   ${colors.cyan}neuro${colors.reset}             - Функция генерации изображений
   ${colors.cyan}neurophoto-v2${colors.reset}     - Функция генерации нейрофото V2
   ${colors.cyan}voice-avatar${colors.reset}       - Функция генерации голосового аватара
+  ${colors.cyan}text-to-speech${colors.reset}    - Функция преобразования текста в речь
   `)
 }
 
@@ -381,6 +384,24 @@ async function main() {
       formatResults(voiceAvatarResults, 'генерации голосового аватара')
     }
 
+    if (testType === 'text-to-speech') {
+      logger.info({
+        message: '🧪 Запуск тестов преобразования текста в речь',
+        description: 'Starting text-to-speech tests',
+      })
+
+      const inngestTester = new InngestTester()
+      const textToSpeechResults = await inngestTester.runTextToSpeechTests()
+      const { successful, total } = formatResults(
+        textToSpeechResults,
+        'Текст-в-речь'
+      )
+
+      if (successful < total) {
+        allSuccessful = false
+      }
+    }
+
     if (testType === 'help' || testType === '--help' || testType === '-h') {
       printHelp()
     }
@@ -396,6 +417,7 @@ async function main() {
         'neurophoto-v2',
         'function',
         'voice-avatar',
+        'text-to-speech',
         'all',
         'help',
         '--help',
@@ -406,6 +428,26 @@ async function main() {
         `${colors.red}Неизвестный тип тестов: ${testType}${colors.reset}\n`
       )
       printHelp()
+    }
+
+    // Добавляем текст-в-речь тесты в общие тесты
+    if (testType === 'all') {
+      // Тесты текст-в-речь
+      logger.info({
+        message: '🧪 Запуск тестов преобразования текста в речь',
+        description: 'Starting text-to-speech tests',
+      })
+
+      const inngestTester = new InngestTester()
+      const textToSpeechResults = await inngestTester.runTextToSpeechTests()
+      const textToSpeechStats = formatResults(
+        textToSpeechResults,
+        'Текст-в-речь'
+      )
+
+      if (textToSpeechStats.successful < textToSpeechStats.total) {
+        allSuccessful = false
+      }
     }
   } catch (error) {
     logger.error({

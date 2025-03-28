@@ -7,6 +7,8 @@ import { supabase } from '@/core/supabase'
 import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { getBotByName } from '@/core/bot'
+import { ModeEnum } from '@/price/helpers/modelsCost'
+import { v4 as uuidv4 } from 'uuid'
 
 interface CreateVoiceAvatarEvent {
   data: {
@@ -66,6 +68,36 @@ export const createVoiceAvatarFunction = inngest.createFunction(
           await updateUserLevelPlusOne(user.telegram_id, user.level)
         }
         return user
+      })
+
+      // Обработка платежа с помощью PaymentProcessor
+      await step.run('process-payment', async () => {
+        console.log('💰 Обработка платежа за голосовой аватар:', {
+          description: 'Processing payment for voice avatar',
+          telegram_id: validatedParams.telegram_id,
+          username: validatedParams.username,
+        })
+
+        // Отправляем событие payment/process для обработки платежа
+        return await inngest.send({
+          id: `payment-${validatedParams.telegram_id}-${Date.now()}-${
+            ModeEnum.Voice
+          }-${uuidv4()}`,
+          name: 'payment/process',
+          data: {
+            telegram_id: validatedParams.telegram_id,
+            mode: ModeEnum.Voice,
+            is_ru: validatedParams.is_ru,
+            bot_name: validatedParams.bot_name,
+            description: `Payment for voice avatar creation`,
+            additional_info: {
+              username: validatedParams.username,
+            },
+            operation_id: `voice-avatar-${
+              validatedParams.telegram_id
+            }-${Date.now()}`,
+          },
+        })
       })
 
       // Отправляем уведомление о начале создания голоса
