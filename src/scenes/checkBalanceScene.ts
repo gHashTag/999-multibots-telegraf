@@ -81,6 +81,8 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter('text_to_image')
     case 'lip_sync':
       return ctx.scene.enter('lip_sync')
+    case 'select_model_wizard':
+      return ctx.scene.enter('select_model_wizard')
     default:
       logger.warn({
         message: '⚠️ Неизвестный режим',

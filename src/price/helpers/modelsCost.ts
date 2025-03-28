@@ -28,6 +28,7 @@ export enum ModeEnum {
   Avatar = 'avatar',
   ChatWithAvatar = 'chat_with_avatar',
   SelectModel = 'select_model',
+  SelectModelWizard = 'select_model_wizard',
   Voice = 'voice',
   TextToSpeech = 'text_to_speech',
   ImageToVideo = 'image_to_video',
@@ -59,6 +60,7 @@ const BASE_COSTS = {
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: 0,
   [ModeEnum.SelectModel]: 0,
+  [ModeEnum.SelectModelWizard]: 0,
   [ModeEnum.Voice]: 0.9,
   [ModeEnum.TextToSpeech]: 0.12,
   // Берем средние цены из VIDEO_MODELS_CONFIG
@@ -180,6 +182,9 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   }).stars,
   [ModeEnum.SelectModel]: calculateModeCost({ mode: ModeEnum.SelectModel })
     .stars,
+  [ModeEnum.SelectModelWizard]: calculateModeCost({
+    mode: ModeEnum.SelectModelWizard,
+  }).stars,
   [ModeEnum.Voice]: calculateModeCost({ mode: ModeEnum.Voice }).stars,
   [ModeEnum.TextToSpeech]: calculateModeCost({ mode: ModeEnum.TextToSpeech })
     .stars,
