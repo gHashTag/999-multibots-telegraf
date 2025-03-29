@@ -5,14 +5,16 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
-import { createWriteStream } from 'fs'
-import path from 'path'
-import os from 'os'
-import { elevenlabs } from '@/core/elevenlabs'
 import { InputFile } from 'telegraf/typings/core/types/typegram'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { sendBalanceMessage } from '@/price/helpers'
 import { v4 as uuidv4 } from 'uuid'
+import { elevenlabs } from '@/core/elevenlabs'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
+import { supabase } from '@/core/supabase'
+import { createWriteStream } from 'fs'
+import * as path from 'path'
+import * as os from 'os'
 
 interface TextToSpeechEvent {
   data: {
@@ -25,8 +27,13 @@ interface TextToSpeechEvent {
   }
 }
 
+interface BufferLike {
+  data: number[]
+  type: string
+}
+
 type SpeechResult =
-  | { success: true; audioUrl: string }
+  | { success: true; audioBuffer: Buffer | BufferLike }
   | { success: false; error: Error }
 
 export const textToSpeechFunction = inngest.createFunction(
@@ -78,28 +85,6 @@ export const textToSpeechFunction = inngest.createFunction(
         return user
       })
 
-      // Обработка оплаты с помощью PaymentProcessor
-      const paymentResult = await step.run('process-payment', async () => {
-        // Отправляем событие 'payment/process' для обработки платежа
-        return await inngest.send({
-          id: `payment-${validatedParams.telegram_id}-${Date.now()}-${
-            validatedParams.text.length
-          }-${uuidv4()}`,
-          name: 'payment/process',
-          data: {
-            telegram_id: validatedParams.telegram_id,
-            mode: ModeEnum.TextToSpeech,
-            is_ru: validatedParams.is_ru,
-            bot_name: validatedParams.bot_name,
-            description: `Payment for text to speech`,
-            metadata: {
-              service_type: ModeEnum.TextToSpeech,
-              text_length: validatedParams.text.length,
-            },
-          },
-        })
-      })
-
       // Отправляем уведомление о начале генерации
       await step.run('send-generating-notification', async () => {
         const { bot } = getBotByName(validatedParams.bot_name)
@@ -129,41 +114,86 @@ export const textToSpeechFunction = inngest.createFunction(
             throw new Error('ELEVENLABS_API_KEY отсутствует')
           }
 
+          console.log('🎯 Запрос к ElevenLabs API:', {
+            description: 'Making request to ElevenLabs API',
+            voice_id: validatedParams.voice_id,
+            model: 'eleven_turbo_v2_5',
+            text_length: validatedParams.text.length,
+          })
+
           const audioStream = await elevenlabs.generate({
             voice: validatedParams.voice_id,
             model_id: 'eleven_turbo_v2_5',
             text: validatedParams.text,
           })
 
-          const audioUrl = path.join(os.tmpdir(), `audio_${Date.now()}.mp3`)
-          const writeStream = createWriteStream(audioUrl)
+          console.log('✅ Получен ответ от ElevenLabs API:', {
+            description: 'Received response from ElevenLabs API',
+            stream_received: !!audioStream,
+          })
 
           return new Promise<SpeechResult>((resolve, reject) => {
-            audioStream.pipe(writeStream)
+            if (!audioStream) {
+              reject(new Error('Audio stream is null'))
+              return
+            }
 
-            writeStream.on('finish', () => {
-              console.log('✅ Аудио успешно сгенерировано:', {
-                description: 'Audio successfully generated',
-                audioUrl,
-              })
-              resolve({
-                success: true,
-                audioUrl,
-              })
+            const audioUrl = path.join(os.tmpdir(), `audio_${Date.now()}.mp3`)
+            const writeStream = createWriteStream(audioUrl)
+
+            console.log('📝 Создание временного файла:', {
+              description: 'Creating temporary file',
+              path: audioUrl,
             })
 
+            audioStream.pipe(writeStream)
+
             writeStream.on('error', error => {
-              console.error('🔥 Ошибка при записи аудио файла:', {
-                description: 'Error writing audio file',
-                error: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+              console.error('🔥 Ошибка записи файла:', {
+                description: 'File write error',
+                error: error.message,
+                path: audioUrl,
               })
-              resolve({
-                success: false,
-                error:
-                  error instanceof Error
-                    ? error
-                    : new Error(JSON.stringify(error)),
-              })
+              reject(error)
+            })
+
+            writeStream.on('finish', () => {
+              try {
+                console.log('✅ Аудио файл создан:', {
+                  description: 'Audio file created',
+                  path: audioUrl,
+                })
+
+                // Читаем файл в буфер для отправки
+                const audioBuffer = require('fs').readFileSync(audioUrl)
+
+                console.log('📦 Аудио буфер создан:', {
+                  description: 'Audio buffer created',
+                  buffer_size: audioBuffer.length,
+                  buffer_type: typeof audioBuffer,
+                  is_buffer: Buffer.isBuffer(audioBuffer),
+                })
+
+                // Проверяем, что у нас действительно есть буфер
+                if (!Buffer.isBuffer(audioBuffer)) {
+                  throw new Error('Invalid audio buffer type')
+                }
+
+                // Удаляем временный файл
+                require('fs').unlinkSync(audioUrl)
+
+                resolve({
+                  success: true,
+                  audioBuffer,
+                })
+              } catch (error) {
+                console.error('🔥 Ошибка при обработке аудио файла:', {
+                  description: 'Error processing audio file',
+                  error: error instanceof Error ? error.message : String(error),
+                  stack: error instanceof Error ? error.stack : undefined,
+                })
+                reject(error)
+              }
             })
           })
         } catch (error) {
@@ -186,33 +216,150 @@ export const textToSpeechFunction = inngest.createFunction(
         throw typedResult.error
       }
 
+      // Обработка оплаты с помощью PaymentProcessor
+      const paymentResult = await step.run('process-payment', async () => {
+        const eventId = `payment-${validatedParams.telegram_id}-${Date.now()}-${
+          validatedParams.text.length
+        }-${uuidv4()}`
+
+        console.log('💰 Отправка платежа на обработку:', {
+          description: 'Sending payment for processing',
+          eventId,
+          telegram_id: validatedParams.telegram_id,
+          amount: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
+        })
+
+        // Отправляем событие 'payment/process' для обработки платежа
+        const result = await inngest.send({
+          id: eventId,
+          name: 'payment/process',
+          data: {
+            telegram_id: validatedParams.telegram_id,
+            mode: ModeEnum.TextToSpeech,
+            is_ru: validatedParams.is_ru,
+            bot_name: validatedParams.bot_name,
+            description: `Payment for text to speech`,
+            type: 'outcome',
+            paymentAmount: calculateModeCost({ mode: ModeEnum.TextToSpeech })
+              .stars,
+            metadata: {
+              service_type: ModeEnum.TextToSpeech,
+              text_length: validatedParams.text.length,
+            },
+          },
+        })
+      })
+
       // Отправляем аудио пользователю
       await step.run('send-audio', async () => {
         const { bot } = getBotByName(validatedParams.bot_name)
 
-        await bot.telegram.sendAudio(
-          validatedParams.telegram_id,
-          { source: speechResult.audioUrl } as InputFile,
-          {
-            reply_markup: {
-              keyboard: [
-                [
-                  {
-                    text: validatedParams.is_ru
-                      ? '🎙️ Текст в голос'
-                      : '🎙️ Text to speech',
-                  },
-                  {
-                    text: validatedParams.is_ru
-                      ? '🏠 Главное меню'
-                      : '🏠 Main menu',
-                  },
+        if (!speechResult?.audioBuffer) {
+          console.error('❌ Отсутствует аудио буфер:', {
+            description: 'Audio buffer is missing',
+            speechResult,
+          })
+          throw new Error('Audio buffer is missing')
+        }
+
+        console.log('📤 Подготовка к отправке аудио:', {
+          description: 'Preparing to send audio',
+          buffer_type: typeof speechResult.audioBuffer,
+          is_buffer: Buffer.isBuffer(speechResult.audioBuffer),
+          has_data: 'data' in speechResult.audioBuffer,
+          buffer_size: Buffer.isBuffer(speechResult.audioBuffer)
+            ? speechResult.audioBuffer.length
+            : (speechResult.audioBuffer as BufferLike).data.length,
+        })
+
+        // Создаем правильный Buffer из данных
+        const audioBuffer = Buffer.isBuffer(speechResult.audioBuffer)
+          ? speechResult.audioBuffer
+          : Buffer.from((speechResult.audioBuffer as BufferLike).data)
+
+        console.log('📦 Преобразованный буфер:', {
+          description: 'Converted buffer',
+          buffer_size: audioBuffer.length,
+          is_buffer: Buffer.isBuffer(audioBuffer),
+        })
+
+        // Создаем временный файл
+        const tempFilePath = path.join(os.tmpdir(), `voice_${Date.now()}.mp3`)
+
+        try {
+          require('fs').writeFileSync(tempFilePath, audioBuffer)
+
+          console.log('💾 Временный файл создан:', {
+            description: 'Temporary file created',
+            path: tempFilePath,
+            size: require('fs').statSync(tempFilePath).size,
+          })
+
+          const fileStats = require('fs').statSync(tempFilePath)
+          console.log('📊 Статистика файла:', {
+            description: 'File statistics',
+            size: fileStats.size,
+            path: tempFilePath,
+          })
+
+          await bot.telegram.sendAudio(
+            validatedParams.telegram_id,
+            {
+              source: tempFilePath,
+              filename: `voice_${Date.now()}.mp3`,
+            } as InputFile,
+            {
+              caption: validatedParams.is_ru
+                ? 'Ваше аудио готово 🎵'
+                : 'Your audio is ready 🎵',
+              reply_markup: {
+                keyboard: [
+                  [
+                    {
+                      text: validatedParams.is_ru
+                        ? '🎙️ Текст в голос'
+                        : '🎙️ Text to speech',
+                    },
+                    {
+                      text: validatedParams.is_ru
+                        ? '🏠 Главное меню'
+                        : '🏠 Main menu',
+                    },
+                  ],
                 ],
-              ],
-              resize_keyboard: true,
-            },
+                resize_keyboard: true,
+              },
+            }
+          )
+
+          console.log('✅ Аудио успешно отправлено:', {
+            description: 'Audio successfully sent',
+            telegram_id: validatedParams.telegram_id,
+          })
+        } catch (error) {
+          console.error('❌ Ошибка при работе с аудио:', {
+            description: 'Error processing audio',
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          })
+          throw error
+        } finally {
+          // Удаляем временный файл
+          try {
+            if (require('fs').existsSync(tempFilePath)) {
+              require('fs').unlinkSync(tempFilePath)
+              console.log('🗑️ Временный файл удален:', {
+                description: 'Temporary file deleted',
+                path: tempFilePath,
+              })
+            }
+          } catch (error) {
+            console.error('⚠️ Ошибка при удалении временного файла:', {
+              description: 'Error deleting temporary file',
+              error: error instanceof Error ? error.message : String(error),
+            })
           }
-        )
+        }
 
         // Отправляем сообщение о балансе после оплаты
         const paymentData = paymentResult?.data
@@ -232,7 +379,7 @@ export const textToSpeechFunction = inngest.createFunction(
         return { sent: true }
       })
 
-      return { success: true, audioUrl: speechResult.audioUrl }
+      return { success: true, audioBuffer: speechResult.audioBuffer }
     } catch (error) {
       await step.run('error-handler', async () => {
         console.error('🔥 Глобальная ошибка при генерации речи:', {
@@ -241,6 +388,38 @@ export const textToSpeechFunction = inngest.createFunction(
         })
 
         if (validatedParams) {
+          // Отправляем событие для возврата средств
+          const refundEventId = `refund-${
+            validatedParams.telegram_id
+          }-${Date.now()}-${uuidv4()}`
+
+          console.log('💰 Отправка запроса на возврат средств:', {
+            description: 'Sending refund request',
+            eventId: refundEventId,
+            telegram_id: validatedParams.telegram_id,
+            amount: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
+          })
+
+          await inngest.send({
+            id: refundEventId,
+            name: 'payment/refund',
+            data: {
+              telegram_id: validatedParams.telegram_id,
+              mode: ModeEnum.TextToSpeech,
+              is_ru: validatedParams.is_ru,
+              bot_name: validatedParams.bot_name,
+              description: `Refund for failed text to speech generation`,
+              type: 'income',
+              paymentAmount: calculateModeCost({ mode: ModeEnum.TextToSpeech })
+                .stars,
+              metadata: {
+                service_type: ModeEnum.TextToSpeech,
+                text_length: validatedParams.text.length,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            },
+          })
+
           // Отправляем сообщение об ошибке пользователю
           errorMessage(
             error as Error,
@@ -251,13 +430,13 @@ export const textToSpeechFunction = inngest.createFunction(
           // Отправляем сообщение об ошибке администратору
           errorMessageAdmin(error as Error)
 
-          // Отправляем уведомление пользователю об ошибке
+          // Отправляем уведомление пользователю об ошибке и возврате средств
           const { bot } = getBotByName(validatedParams.bot_name)
           await bot.telegram.sendMessage(
             validatedParams.telegram_id,
             validatedParams.is_ru
-              ? '❌ Произошла ошибка при генерации аудио. Пожалуйста, попробуйте еще раз.'
-              : '❌ An error occurred while generating audio. Please try again.'
+              ? '❌ Произошла ошибка при генерации аудио. Средства были возвращены на ваш баланс. Пожалуйста, попробуйте еще раз.'
+              : '❌ An error occurred while generating audio. The funds have been returned to your balance. Please try again.'
           )
         }
       })

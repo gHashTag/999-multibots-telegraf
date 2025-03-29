@@ -129,7 +129,7 @@ export const textToImageFunction = inngest.createFunction(
           id: `payment-${validatedParams.telegram_id}-${Date.now()}-${
             validatedParams.num_images
           }-${uuidv4()}`,
-          name: 'payment/process',
+
           data: {
             telegram_id: validatedParams.telegram_id,
             mode: ModeEnum.TextToImage,
