@@ -15,7 +15,12 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
   // Возвращаем средства пользователю
   const newBalance = balance + paymentAmount
   console.log('newBalance', newBalance)
-  await updateUserBalance(ctx.from.id, newBalance)
+  await updateUserBalance({
+    telegram_id: ctx.from.id,
+    amount: paymentAmount,
+    type: 'income',
+    operation_description: 'Refund',
+  })
 
   // Отправляем сообщение пользователю
   const isRu = ctx.from.language_code === 'ru'

@@ -158,6 +158,22 @@ export const updateUserBalance = async ({
       difference: Math.abs(currentBalance - newBalance),
     })
 
+    const { data: updateData, error: updateError } = await supabase
+      .from('users')
+      .update({ balance: newBalance })
+      .eq('telegram_id', telegram_id)
+
+    if (updateError) {
+      logger.error({
+        message: '❌ Ошибка при обновлении баланса',
+        description: 'Error updating balance',
+        error: updateError.message,
+        telegram_id,
+        data: updateData,
+      })
+      throw updateError
+    }
+
     return {
       success: true,
       newBalance,

@@ -1,7 +1,7 @@
 import path from 'path'
 import os from 'os'
 import { createWriteStream } from 'fs'
-import { elevenlabs } from '.'
+import elevenlabs from '.'
 
 export const createAudioFileFromText = async ({
   text,

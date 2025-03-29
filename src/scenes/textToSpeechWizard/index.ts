@@ -60,7 +60,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
           ctx.from.id,
           ctx.from.username || '',
           isRu,
-          ctx.botInfo?.username
+          ctx.botInfo?.username || ''
         )
       } catch (error) {
         console.error('Error in text_to_speech:', error)

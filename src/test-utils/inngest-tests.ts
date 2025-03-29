@@ -1,8 +1,14 @@
-import axios from 'axios'
-import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
-import { elevenlabs } from '@/core/elevenlabs'
-import { generateAudioBuffer } from '@/inngest-functions/textToSpeech.inngest'
+import { TEST_CONFIG } from './test-config'
+import axios from 'axios'
+import elevenlabs from '@/core/elevenlabs'
+import { Readable } from 'stream'
+import path from 'path'
+import os from 'os'
+import fs from 'fs'
+import { createWriteStream } from 'fs'
+import { inngest } from '@/core/inngest/clients'
+import { getBotByName } from '@/core/bot'
 
 /**
  * Интерфейс для результатов теста
@@ -908,19 +914,23 @@ export class InngestTester {
 
     try {
       const startTime = Date.now()
-      const audioBuffer = await generateAudioBuffer(text, voice_id)
+      const audioStream = await elevenlabs.generate({
+        voice: voice_id,
+        model_id: 'eleven_turbo_v2_5',
+        text: text,
+      })
       const duration = Date.now() - startTime
 
-      if (!audioBuffer || !Buffer.isBuffer(audioBuffer)) {
+      if (!isReadableStream(audioStream)) {
         logger.error({
-          message: '❌ Аудио буфер не получен или неверного формата',
-          description: 'Audio buffer not received or invalid format',
-          bufferType: typeof audioBuffer,
-          isBuffer: Buffer.isBuffer(audioBuffer),
+          message: '❌ Аудио поток не получен или неверного формата',
+          description: 'Audio stream not received or invalid format',
+          streamType: typeof audioStream,
+          isStream: isReadableStream(audioStream),
         })
         return {
           success: false,
-          message: 'Ошибка: аудио буфер не получен или неверного формата',
+          message: 'Ошибка: аудио поток не получен или неверного формата',
           duration,
         }
       }
@@ -928,13 +938,13 @@ export class InngestTester {
       logger.info({
         message: '✅ Аудио успешно сгенерировано',
         description: 'Audio successfully generated',
-        bufferSize: audioBuffer.length,
+        streamType: typeof audioStream,
         duration,
       })
 
       return {
         success: true,
-        message: `Аудио успешно сгенерировано за ${duration}мс`,
+        message: `Аудио поток успешно получен за ${duration}мс`,
         duration,
       }
     } catch (error) {
@@ -952,4 +962,104 @@ export class InngestTester {
       }
     }
   }
+
+  async testAudioSending({
+    text,
+    voice_id,
+    telegram_id,
+    is_ru,
+    bot_name,
+  }: {
+    text: string
+    voice_id: string
+    telegram_id: string
+    is_ru: boolean
+    bot_name: string
+  }): Promise<TestResult> {
+    const testName = 'audio-sending-test'
+
+    logger.info({
+      message: '🧪 Тест отправки аудио в Telegram',
+      description: 'Testing audio sending to Telegram',
+      telegram_id,
+      text_length: text.length,
+    })
+
+    try {
+      // Генерируем аудио
+      const audioStream = await elevenlabs.generate({
+        voice: voice_id,
+        model_id: 'eleven_turbo_v2_5',
+        text,
+      })
+
+      // Получаем бота
+      const { bot } = getBotByName(bot_name)
+      if (!bot) {
+        throw new Error(`Bot ${bot_name} not found`)
+      }
+
+      // Создаем временный файл
+      const audioUrl = path.join(os.tmpdir(), `test_audio_${Date.now()}.mp3`)
+      const writeStream = createWriteStream(audioUrl)
+
+      // Записываем аудио во временный файл
+      await new Promise<void>((resolve, reject) => {
+        audioStream.pipe(writeStream)
+        writeStream.on('finish', resolve)
+        writeStream.on('error', reject)
+      })
+
+      // Отправляем аудио в Telegram
+      await bot.telegram.sendAudio(
+        telegram_id,
+        { source: audioUrl },
+        {
+          reply_markup: {
+            keyboard: [
+              [
+                {
+                  text: is_ru ? '🎙️ Текст в голос' : '🎙️ Text to voice',
+                },
+                { text: is_ru ? '🏠 Главное меню' : '🏠 Main menu' },
+              ],
+            ],
+          },
+        }
+      )
+
+      // Удаляем временный файл
+      fs.unlinkSync(audioUrl)
+
+      logger.info({
+        message: '✅ Тест отправки аудио успешно завершен',
+        description: 'Audio sending test completed successfully',
+        telegram_id,
+      })
+
+      return {
+        success: true,
+        message: 'Audio sent successfully',
+        testName,
+      }
+    } catch (error) {
+      logger.error({
+        message: '❌ Ошибка в тесте отправки аудио',
+        description: 'Error in audio sending test',
+        telegram_id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : String(error),
+        testName,
+      }
+    }
+  }
+}
+
+// Функция для проверки, является ли объект потоком
+function isReadableStream(obj: any): obj is Readable {
+  return obj && typeof obj.pipe === 'function' && typeof obj.read === 'function'
 }

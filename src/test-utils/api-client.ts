@@ -13,7 +13,7 @@ export class ApiClient {
     this.baseUrl = TEST_CONFIG.server.apiUrl
     this.client = axios.create({
       baseURL: this.baseUrl,
-      timeout: TEST_CONFIG.testOptions.timeoutMs,
+      timeout: TEST_CONFIG.options.timeout,
       headers: {
         'Content-Type': 'application/json',
       },

@@ -21,6 +21,13 @@ import { logger } from '@/utils/logger'
 import { TEST_CONFIG } from './test-config'
 import fs from 'fs'
 import path from 'path'
+import { testSpeechGeneration } from './audio-tests'
+import { TestResult } from './types'
+import { generateSpeech } from '@/core/generateSpeech'
+import { getBotByName } from '@/core/bot'
+import elevenlabs from '@/core/elevenlabs'
+import { createWriteStream } from 'fs'
+import os from 'os'
 
 // Цвета для вывода в консоль
 const colors = {
@@ -251,7 +258,13 @@ async function main() {
 
       const webhookTester = new ReplicateWebhookTester()
       const webhookResults = await webhookTester.runAllTests()
-      formatResults(webhookResults, 'вебхуков Replicate')
+      const { successful, total } = formatResults(
+        webhookResults,
+        'вебхуков Replicate'
+      )
+      if (successful < total) {
+        allSuccessful = false
+      }
     }
 
     if (testType === 'bfl-webhook' || testType === 'all') {
@@ -449,6 +462,34 @@ async function main() {
         allSuccessful = false
       }
     }
+
+    // Запуск тестов
+    const speechResults = await runSpeechGenerationTest()
+
+    if (speechResults.success) {
+      logger.info({
+        message: '🎉 Все тесты пройдены успешно',
+        description: 'All tests passed successfully',
+        duration: speechResults.duration,
+        testName: speechResults.testName,
+        details: speechResults.message,
+      })
+    } else {
+      logger.error({
+        message: '❌ Тесты завершились с ошибками',
+        description: 'Tests failed',
+        error: speechResults.error,
+        duration: speechResults.duration,
+        testName: speechResults.testName,
+        details: speechResults.message,
+      })
+      allSuccessful = false
+      process.exit(1)
+    }
+
+    if (!allSuccessful) {
+      process.exit(1)
+    }
   } catch (error) {
     logger.error({
       message: '❌ Ошибка при запуске тестов',
@@ -470,4 +511,106 @@ if (require.main === module) {
     console.error(`Critical error: ${error.message}`)
     process.exit(1)
   })
+}
+
+async function runSpeechGenerationTest(): Promise<TestResult> {
+  logger.info({
+    message: '🎯 Запуск теста генерации речи',
+    description: 'Starting speech generation test',
+  })
+
+  const testCases = [
+    {
+      name: 'Короткий текст через generateSpeech',
+      text: 'Привет, это тестовое сообщение!',
+    },
+    {
+      name: 'Длинный текст через generateSpeech',
+      text: 'Это длинный тестовый текст для проверки работы функции преобразования текста в речь. Он содержит несколько предложений.',
+    },
+  ]
+
+  try {
+    const results: TestResult[] = []
+
+    for (const testCase of testCases) {
+      logger.info({
+        message: `🧪 Тест кейс: ${testCase.name}`,
+        description: `Testing case: ${testCase.name}`,
+        text_length: testCase.text.length,
+      })
+
+      // Получаем бота
+      const botData = await getBotByName(TEST_CONFIG.users.main.botName)
+
+      if (!botData?.bot) {
+        throw new Error('Bot instance not found')
+      }
+
+      logger.info({
+        message: '🔄 Запуск generateSpeech',
+        description: 'Starting generateSpeech function',
+        text: testCase.text,
+        telegram_id: TEST_CONFIG.users.main.telegramId,
+      })
+
+      // Используем реальную функцию generateSpeech
+      const result = await generateSpeech({
+        text: testCase.text,
+        voice_id: 'ljyyJh982fsUinaSQPvv',
+        telegram_id: TEST_CONFIG.users.main.telegramId,
+        is_ru: TEST_CONFIG.users.main.isRussian,
+        bot: botData.bot,
+        bot_name: TEST_CONFIG.users.main.botName,
+      })
+
+      if (!result) {
+        throw new Error('Failed to generate speech')
+      }
+
+      logger.info({
+        message: '✅ Аудио успешно сгенерировано',
+        description: 'Audio successfully generated',
+        result_type: typeof result,
+      })
+
+      results.push({
+        success: true,
+        testName: `Генерация речи - ${testCase.name}`,
+        message: `Аудио успешно сгенерировано и отправлено для теста "${testCase.name}"`,
+        duration: 0,
+      })
+
+      logger.info({
+        message: `✅ Тест "${testCase.name}" успешно завершен`,
+        description: `Test "${testCase.name}" completed successfully`,
+      })
+
+      // Пауза между тестами
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+
+    // Возвращаем общий результат
+    return {
+      success: true,
+      testName: 'Генерация речи',
+      message: `Успешно выполнено ${results.length} тестов генерации речи`,
+      duration: 0,
+    }
+  } catch (error) {
+    logger.error({
+      message: '❌ Ошибка в тесте генерации речи',
+      description: 'Error in speech generation test',
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      testName: 'Генерация речи',
+      duration: 0,
+      message: 'Ошибка при генерации речи',
+    }
+  }
 }

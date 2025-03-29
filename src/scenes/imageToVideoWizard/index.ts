@@ -66,7 +66,13 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       ctx.session.videoModel = modelId as VideoModel
       console.log('ctx.session.videoModel', ctx.session.videoModel)
 
-      await sendBalanceMessage(ctx, currentBalance, paymentAmount, isRu)
+      await sendBalanceMessage(
+        ctx.from.id.toString(),
+        currentBalance,
+        paymentAmount,
+        isRu,
+        ctx.telegram
+      )
 
       await ctx.reply(
         isRu

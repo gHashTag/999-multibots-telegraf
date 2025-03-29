@@ -1,4 +1,4 @@
-import { inngest } from '../core/inngest/clients'
+import { inngest } from '@/core/inngest/clients'
 import { getBotByName } from '@/core/bot'
 import {
   getUserByTelegramId,
@@ -7,8 +7,11 @@ import {
   getUserBalance,
   createModelTrainingV2,
 } from '@/core/supabase'
-import { modeCosts, ModeEnum } from '@/price/helpers/modelsCost'
-
+import {
+  modeCosts,
+  ModeEnum,
+  calculateModeCost,
+} from '@/price/helpers/modelsCost'
 import { errorMessageAdmin } from '@/helpers/errorMessageAdmin'
 import axios from 'axios'
 import { logger } from '@/utils/logger'
@@ -145,9 +148,10 @@ export const modelTrainingV2 = inngest.createFunction(
 
       // Получаем текущий баланс и рассчитываем стоимость
       const currentBalance = await getUserBalance(telegram_id)
-      const paymentAmount = (
-        modeCosts[ModeEnum.DigitalAvatarBodyV2] as (steps: number) => number
-      )(steps)
+      const paymentAmount = calculateModeCost({
+        mode: ModeEnum.DigitalAvatarBodyV2,
+        steps,
+      }).stars
 
       logger.info({
         message: '💲 Balance information',
@@ -156,6 +160,7 @@ export const modelTrainingV2 = inngest.createFunction(
         paymentAmount,
         step: 'process-balance',
       })
+      //
 
       // Проверяем и обрабатываем операцию с балансом через Inngest события
       // Так как processBalanceOperation был перенесен в paymentProcessor

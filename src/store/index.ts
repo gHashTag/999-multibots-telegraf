@@ -34,4 +34,5 @@ export const defaultSession: () => MySession = () => ({
     stars: '',
     subscription: 'stars',
   },
+  buttons: [],
 })

@@ -153,7 +153,7 @@ export const neuroImageGeneration = inngest.createFunction(
 
         const cost = calculateModeCost({
           mode: ModeEnum.NeuroPhoto,
-          numImages: validNumImages,
+          steps: validNumImages,
         })
 
         logger.info('💸 Calculated image cost', {

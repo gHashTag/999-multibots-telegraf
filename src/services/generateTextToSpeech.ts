@@ -1,5 +1,5 @@
-import { inngest } from '@/core/inngest/clients'
-import { v4 as uuidv4 } from 'uuid'
+import { generateSpeech } from '../core/generateSpeech'
+import { getBotByName } from '../core/bot'
 
 interface TextToSpeechResponse {
   success: boolean
@@ -41,29 +41,18 @@ export async function generateTextToSpeech(
       bot_name: botName,
     })
 
-    // Создаем уникальный ID для события
-    const eventId = `tts-${telegram_id}-${Date.now()}-${uuidv4().substring(
-      0,
-      8
-    )}`
-
-    // Отправляем событие в Inngest для обработки
-    await inngest.send({
-      id: eventId,
-      name: 'text-to-speech.requested',
-      data: {
-        text,
-        voice_id,
-        telegram_id: telegram_id.toString(),
-        username,
-        is_ru: isRu,
-        bot_name: botName,
-      },
+    const { bot } = getBotByName(botName)
+    await generateSpeech({
+      text,
+      voice_id,
+      telegram_id: telegram_id.toString(),
+      is_ru: isRu,
+      bot,
+      bot_name: botName,
     })
 
     console.log('✅ Событие успешно отправлено:', {
       description: 'Event successfully sent',
-      event_id: eventId,
       telegram_id,
     })
 

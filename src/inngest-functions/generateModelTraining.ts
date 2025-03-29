@@ -7,7 +7,11 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
-import { modeCosts, ModeEnum } from '@/price/helpers/modelsCost'
+import {
+  modeCosts,
+  ModeEnum,
+  calculateModeCost,
+} from '@/price/helpers/modelsCost'
 import { inngest } from '@/core/inngest/clients'
 import { API_URL } from '@/config'
 import { BalanceHelper } from '@/helpers/inngest/balanceHelpers'
@@ -648,7 +652,7 @@ export const generateModelTraining = inngest.createFunction(
     }
     let balanceCheck: { success?: boolean; currentBalance?: number } | null =
       null
-    let paymentAmount: number | null = null
+    const paymentAmount: number | null = null
     // 🚀 Основной процесс
     try {
       // Преобразуем is_ru к булевому типу если это строка
@@ -681,9 +685,11 @@ export const generateModelTraining = inngest.createFunction(
       }
 
       // 4. Расчет стоимости
-      paymentAmount = (
-        modeCosts[ModeEnum.DigitalAvatarBody] as (steps: number) => number
-      )(steps)
+      const cost = calculateModeCost({
+        mode: ModeEnum.DigitalAvatarBody,
+        steps: steps,
+      })
+      const paymentAmount = Number(cost)
 
       logger.info({
         message: 'Рассчитана стоимость тренировки',
@@ -693,36 +699,42 @@ export const generateModelTraining = inngest.createFunction(
       })
 
       // 5. Проверка баланса
-      balanceCheck = await step.run('balance-check', async () => {
+      balanceCheck = await step.run('check-user-balance', async () => {
         const result = await BalanceHelper.checkBalance(
           eventData.telegram_id,
           paymentAmount,
           {
             notifyUser: true,
-            botInstance: bot,
-            isRu: isRussian,
+            isRu:
+              typeof eventData.is_ru === 'string'
+                ? eventData.is_ru === 'true'
+                : Boolean(eventData.is_ru),
           }
         )
-        logger.info({
-          message: 'Результат проверки баланса',
-          result,
-          telegram_id: eventData.telegram_id,
-        })
 
-        return {
-          success: result.success,
-          currentBalance: result.currentBalance,
+        if (!result.success) {
+          logger.error({
+            message: 'Недостаточно средств',
+            currentBalance: result?.currentBalance,
+            requiredAmount: paymentAmount,
+            telegram_id: eventData.telegram_id,
+          })
         }
+
+        return result
       })
 
       if (!balanceCheck?.success) {
-        logger.warn({
-          message: 'Недостаточно средств',
-          currentBalance: balanceCheck?.currentBalance,
-          requiredAmount: paymentAmount,
+        return {
+          success: false,
+          error: 'Insufficient funds',
           telegram_id: eventData.telegram_id,
-        })
-        throw new Error('Insufficient balance')
+          currentBalance: balanceCheck.currentBalance,
+          paymentAmount,
+          newBalance: Number(balanceCheck.currentBalance) - paymentAmount,
+          modelName,
+          steps,
+        }
       }
 
       // 6. Списание средств
@@ -925,34 +937,16 @@ export const generateModelTraining = inngest.createFunction(
           modelName: eventData.modelName,
         })
 
-        // Возврат средств через Inngest
-        const refundResult = await inngest.send({
+        // Затем выполняем возврат через Inngest
+        await inngest.send({
           name: 'payment/process',
           data: {
             telegram_id: eventData.telegram_id,
-            paymentAmount: paymentAmount,
+            paymentAmount,
             type: 'income',
             description: `Возврат средств за неудавшуюся тренировку модели ${eventData.modelName}`,
-            metadata: {
-              stars: 0,
-              payment_method: 'Refund',
-              bot_name: eventData.bot_name,
-              language:
-                eventData.is_ru === true || eventData.is_ru === 'true'
-                  ? 'ru'
-                  : 'en',
-            },
             bot_name: eventData.bot_name,
-            operation_id: `refund-${eventData.telegram_id}-${Date.now()}`,
-            bot: bot,
           },
-        })
-
-        logger.info({
-          message: '✅ Средства успешно возвращены',
-          refundResult,
-          telegram_id: eventData.telegram_id,
-          error: error.message,
         })
       }
 

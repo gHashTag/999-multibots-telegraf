@@ -7,7 +7,11 @@ import {
   getAspectRatio,
 } from '@/core/supabase'
 import { API_URL } from '@/config'
-import { modeCosts, ModeEnum } from '@/price/helpers/modelsCost'
+import {
+  modeCosts,
+  ModeEnum,
+  calculateModeCost,
+} from '@/price/helpers/modelsCost'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
@@ -140,14 +144,11 @@ export const neuroPhotoV2Generation = inngest.createFunction(
           mode: ModeEnum.NeuroPhotoV2,
         })
 
-        let costPerImage: number
-        if (typeof modeCosts[ModeEnum.NeuroPhotoV2] === 'function') {
-          costPerImage = modeCosts[ModeEnum.NeuroPhotoV2](numImagesToGenerate)
-        } else {
-          costPerImage = modeCosts[ModeEnum.NeuroPhotoV2]
-        }
-
-        const totalCost = costPerImage * numImagesToGenerate
+        const costPerImage = calculateModeCost({
+          mode: ModeEnum.NeuroPhotoV2,
+          steps: numImagesToGenerate,
+        })
+        const totalCost = Number(costPerImage) * numImagesToGenerate
 
         logger.info({
           message: '💸 Рассчитана стоимость генерации',
