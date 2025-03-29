@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { inngest } from '@/core/inngest/clients'
-
+import { v4 as uuidv4 } from 'uuid'
 export class TextToSpeechController {
   public textToSpeech = async (
     req: Request,
@@ -34,6 +34,7 @@ export class TextToSpeechController {
 
       // Отправляем событие в Inngest
       await inngest.send({
+        id: `tts-${telegram_id}-${Date.now()}-${uuidv4().substring(0, 8)}`,
         name: 'text-to-speech.requested',
         data: {
           text,

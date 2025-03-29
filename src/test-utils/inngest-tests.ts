@@ -1,6 +1,8 @@
 import axios from 'axios'
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
+import { elevenlabs } from '@/core/elevenlabs'
+import { generateAudioBuffer } from '@/inngest-functions/textToSpeech.inngest'
 
 /**
  * Интерфейс для результатов теста
@@ -12,6 +14,18 @@ interface TestResult {
   details?: any
   error?: string
   duration?: number
+}
+
+/**
+ * Интерфейс для параметров text-to-speech
+ */
+interface TextToSpeechParams {
+  text: string
+  voice_id: string
+  telegram_id: string
+  is_ru: boolean
+  bot_name: string
+  username?: string
 }
 
 /**
@@ -420,16 +434,146 @@ export class InngestTester {
   }
 
   /**
+   * Запускает тесты функции преобразования текста в речь
+   */
+  async runTextToSpeechTests(): Promise<TestResult[]> {
+    const results: TestResult[] = []
+
+    logger.info({
+      message: '🧪 Запуск тестов text-to-speech',
+      description: 'Starting text-to-speech tests',
+    })
+
+    try {
+      // Тест 1: Короткий текст
+      const shortTextResult = await this.testTextToSpeech({
+        text: 'Привет!',
+        voice_id: 'ljyyJh982fsUinaSQPvv',
+        telegram_id: TEST_CONFIG.users.main.telegramId,
+        username: 'test_user',
+        is_ru: TEST_CONFIG.users.main.isRussian,
+        bot_name: TEST_CONFIG.users.main.botName,
+      })
+      results.push({
+        ...shortTextResult,
+        testName: 'Text-to-speech short text test',
+      })
+
+      // Тест 2: Длинный текст
+      const longTextResult = await this.testTextToSpeech({
+        text: 'Это длинный тестовый текст для проверки работы функции преобразования текста в речь. Он содержит несколько предложений, чтобы проверить обработку длинных текстов.',
+        voice_id: 'ljyyJh982fsUinaSQPvv',
+        telegram_id: TEST_CONFIG.users.main.telegramId,
+        username: 'test_user',
+        is_ru: TEST_CONFIG.users.main.isRussian,
+        bot_name: TEST_CONFIG.users.main.botName,
+      })
+      results.push({
+        ...longTextResult,
+        testName: 'Text-to-speech long text test',
+      })
+
+      // Тест 3: Неправильный ID голоса
+      const invalidVoiceResult = await this.testTextToSpeech({
+        text: 'Тест с неправильным ID голоса',
+        voice_id: 'invalid_voice_id',
+        telegram_id: TEST_CONFIG.users.main.telegramId,
+        username: 'test_user',
+        is_ru: TEST_CONFIG.users.main.isRussian,
+        bot_name: TEST_CONFIG.users.main.botName,
+      })
+      results.push({
+        ...invalidVoiceResult,
+        testName: 'Text-to-speech invalid voice ID test',
+      })
+
+      // Тест 4: Прямой вызов функции
+      const directInvokeResult = await this.testTextToSpeechDirectInvoke()
+      results.push({
+        ...directInvokeResult,
+        testName: 'Text-to-speech direct invocation test',
+      })
+
+      // Тесты реальной генерации аудио
+      logger.info({
+        message: '🧪 Запуск тестов генерации аудио',
+        description: 'Starting audio generation tests',
+      })
+
+      // Тест короткого текста
+      const shortTextAudioResult = await this.testAudioGeneration(
+        'Привет! Это тестовое сообщение.',
+        'ljyyJh982fsUinaSQPvv'
+      )
+      results.push({
+        testName: 'Audio generation - short text',
+        ...shortTextAudioResult,
+      })
+
+      // Тест длинного текста
+      const longTextAudioResult = await this.testAudioGeneration(
+        'Это длинный тестовый текст, который должен быть преобразован в аудио. Проверяем работу с большими текстами и таймауты.'.repeat(
+          3
+        ),
+        'ljyyJh982fsUinaSQPvv'
+      )
+      results.push({
+        testName: 'Audio generation - long text',
+        ...longTextAudioResult,
+      })
+
+      // Тест с неправильным voice_id
+      const invalidVoiceAudioResult = await this.testAudioGeneration(
+        'Тест с неправильным ID голоса',
+        'invalid_voice_id'
+      )
+      results.push({
+        testName: 'Audio generation - invalid voice ID',
+        ...invalidVoiceAudioResult,
+      })
+
+      logger.info({
+        message: '✅ Завершены тесты text-to-speech',
+        description: 'Text-to-speech tests completed',
+        results: results.map(r => ({
+          testName: r.testName,
+          success: r.success,
+          message: r.message,
+        })),
+      })
+
+      return results
+    } catch (error) {
+      logger.error({
+        message: '❌ Ошибка при выполнении тестов text-to-speech',
+        description: 'Error in text-to-speech tests',
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      results.push({
+        testName: 'Text-to-speech tests error',
+        success: false,
+        message: 'Произошла ошибка при выполнении тестов text-to-speech',
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      return results
+    }
+  }
+
+  /**
    * Тестирует функцию преобразования текста в речь
    */
-  async testTextToSpeech(): Promise<TestResult> {
+  private async testTextToSpeech(
+    data?: Partial<TextToSpeechParams>
+  ): Promise<TestResult> {
     const textToSpeechData = {
-      text: 'Это тестовый текст для преобразования в речь. Проверка работы функции text-to-speech.',
-      voice_id: 'Adam', // Используем стандартный голос из ElevenLabs
-      telegram_id: TEST_CONFIG.users.main.telegramId,
-      username: 'test_user',
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      text: data?.text || 'Это тестовый текст для преобразования в речь.',
+      voice_id: data?.voice_id || 'ljyyJh982fsUinaSQPvv',
+      telegram_id: data?.telegram_id || TEST_CONFIG.users.main.telegramId,
+      username: data?.username || 'test_user',
+      is_ru: data?.is_ru ?? TEST_CONFIG.users.main.isRussian,
+      bot_name: data?.bot_name || TEST_CONFIG.users.main.botName,
     }
 
     logger.info({
@@ -450,7 +594,7 @@ export class InngestTester {
   async testTextToSpeechDirectInvoke(): Promise<TestResult> {
     const textToSpeechData = {
       text: 'Это тестовый текст для прямого вызова функции преобразования в речь.',
-      voice_id: 'Adam', // Используем стандартный голос из ElevenLabs
+      voice_id: 'ljyyJh982fsUinaSQPvv',
       telegram_id: TEST_CONFIG.users.main.telegramId,
       username: 'test_user',
       is_ru: TEST_CONFIG.users.main.isRussian,
@@ -627,33 +771,6 @@ export class InngestTester {
   }
 
   /**
-   * Запускает тесты функции преобразования текста в речь
-   */
-  async runTextToSpeechTests(): Promise<TestResult[]> {
-    const results: TestResult[] = []
-
-    // Отправляем событие для запуска преобразования текста в речь
-    const textToSpeechResult = await this.testTextToSpeech()
-    results.push(textToSpeechResult)
-
-    // Прямой вызов функции преобразования текста в речь
-    const directInvokeResult = await this.testTextToSpeechDirectInvoke()
-    results.push(directInvokeResult)
-
-    logger.info({
-      message: '✅ Завершены тесты текст-в-речь',
-      description: 'Text to speech tests completed',
-      results: results.map(r => ({
-        testName: r.testName,
-        success: r.success,
-        message: r.message,
-      })),
-    })
-
-    return results
-  }
-
-  /**
    * Запускает тесты конкретной функции Inngest
    */
   async runSpecificFunctionTests(functionName: string): Promise<TestResult[]> {
@@ -775,6 +892,64 @@ export class InngestTester {
           error: error.message,
         },
       ]
+    }
+  }
+
+  async testAudioGeneration(
+    text: string,
+    voice_id: string
+  ): Promise<Omit<TestResult, 'testName'>> {
+    logger.info({
+      message: '🎯 Тест генерации аудио',
+      description: 'Testing audio generation',
+      text,
+      voice_id,
+    })
+
+    try {
+      const startTime = Date.now()
+      const audioBuffer = await generateAudioBuffer(text, voice_id)
+      const duration = Date.now() - startTime
+
+      if (!audioBuffer || !Buffer.isBuffer(audioBuffer)) {
+        logger.error({
+          message: '❌ Аудио буфер не получен или неверного формата',
+          description: 'Audio buffer not received or invalid format',
+          bufferType: typeof audioBuffer,
+          isBuffer: Buffer.isBuffer(audioBuffer),
+        })
+        return {
+          success: false,
+          message: 'Ошибка: аудио буфер не получен или неверного формата',
+          duration,
+        }
+      }
+
+      logger.info({
+        message: '✅ Аудио успешно сгенерировано',
+        description: 'Audio successfully generated',
+        bufferSize: audioBuffer.length,
+        duration,
+      })
+
+      return {
+        success: true,
+        message: `Аудио успешно сгенерировано за ${duration}мс`,
+        duration,
+      }
+    } catch (error) {
+      logger.error({
+        message: '❌ Ошибка при генерации аудио',
+        description: 'Error generating audio',
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return {
+        success: false,
+        message: `Ошибка: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        duration: 0,
+      }
     }
   }
 }
