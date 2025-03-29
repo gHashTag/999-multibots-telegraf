@@ -166,13 +166,13 @@ export const modelTrainingV2 = inngest.createFunction(
           telegram_id,
           paymentAmount,
           is_ru,
-          bot,
           bot_name,
           description: `Payment for model training ${modelName} (steps: ${steps})`,
           type: 'outcome',
           metadata: {
-            payment_method: 'Training',
-            language: is_ru ? 'ru' : 'en',
+            service_type: ModeEnum.DigitalAvatarBodyV2,
+            model_name: modelName,
+            steps: steps,
           },
         },
       })
@@ -380,6 +380,7 @@ export const modelTrainingV2 = inngest.createFunction(
             payment_method: 'Training',
             bot_name,
             language: is_ru ? 'ru' : 'en',
+            service_type: 'ModelTraining',
           },
         })
 

@@ -1,6 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { Scenes } from 'telegraf'
 import { getUserBalance, supabase } from '@/core/supabase'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const balanceScene = new Scenes.WizardScene<MyContext>(
   'balanceScene',
@@ -105,16 +106,21 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 // Helper function to get emoji for service
 function getServiceEmoji(service: string): string {
   const emojis: Record<string, string> = {
-    NeuroPhoto: '📸',
-    TextToImage: '🎨',
-    TextToSpeech: '🔊',
-    Voice: '🗣',
-    ImageToVideo: '🎬',
-    TextToVideo: '📽',
-    LipSync: '👄',
-    VideoInUrl: '🎥',
-    ChatWithAvatar: '💭',
-    AvatarBrain: '🧠',
+    [ModeEnum.NeuroPhoto]: '📸',
+    [ModeEnum.NeuroPhotoV2]: '📸',
+    [ModeEnum.TextToImage]: '🎨',
+    [ModeEnum.TextToSpeech]: '🔊',
+    [ModeEnum.Voice]: '🗣',
+    [ModeEnum.ImageToVideo]: '🎬',
+    [ModeEnum.TextToVideo]: '📽',
+    [ModeEnum.LipSync]: '👄',
+    [ModeEnum.ChatWithAvatar]: '💭',
+    [ModeEnum.DigitalAvatarBody]: '🤖',
+    [ModeEnum.DigitalAvatarBodyV2]: '🤖',
+    [ModeEnum.Avatar]: '👤',
+    [ModeEnum.ImageToPrompt]: '🔍',
+    [ModeEnum.SelectModel]: '📋',
+    [ModeEnum.SelectModelWizard]: '🧙‍♂️',
   }
   return emojis[service] || '⭐️'
 }
@@ -122,16 +128,24 @@ function getServiceEmoji(service: string): string {
 // Helper function to get service name
 function getServiceName(service: string, isRu: boolean): string {
   const names: Record<string, [string, string]> = {
-    NeuroPhoto: ['Нейрофото', 'Neuro Photo'],
-    TextToImage: ['Текст в изображение', 'Text to Image'],
-    TextToSpeech: ['Текст в речь', 'Text to Speech'],
-    Voice: ['Голос', 'Voice'],
-    ImageToVideo: ['Изображение в видео', 'Image to Video'],
-    TextToVideo: ['Текст в видео', 'Text to Video'],
-    LipSync: ['Синхронизация губ', 'Lip Sync'],
-    VideoInUrl: ['Видео по ссылке', 'Video from URL'],
-    ChatWithAvatar: ['Чат с аватаром', 'Avatar Chat'],
-    AvatarBrain: ['Мозг аватара', 'Avatar Brain'],
+    [ModeEnum.NeuroPhoto]: ['Нейрофото', 'Neuro Photo'],
+    [ModeEnum.NeuroPhotoV2]: ['Нейрофото V2', 'Neuro Photo V2'],
+    [ModeEnum.TextToImage]: ['Текст в изображение', 'Text to Image'],
+    [ModeEnum.TextToSpeech]: ['Текст в речь', 'Text to Speech'],
+    [ModeEnum.Voice]: ['Голос', 'Voice'],
+    [ModeEnum.ImageToVideo]: ['Изображение в видео', 'Image to Video'],
+    [ModeEnum.TextToVideo]: ['Текст в видео', 'Text to Video'],
+    [ModeEnum.LipSync]: ['Синхронизация губ', 'Lip Sync'],
+    [ModeEnum.ChatWithAvatar]: ['Чат с аватаром', 'Chat with Avatar'],
+    [ModeEnum.DigitalAvatarBody]: ['Цифровой аватар', 'Digital Avatar'],
+    [ModeEnum.DigitalAvatarBodyV2]: ['Цифровой аватар V2', 'Digital Avatar V2'],
+    [ModeEnum.Avatar]: ['Аватар', 'Avatar'],
+    [ModeEnum.ImageToPrompt]: ['Анализ изображения', 'Image Analysis'],
+    [ModeEnum.SelectModel]: ['Выбор модели', 'Model Selection'],
+    [ModeEnum.SelectModelWizard]: [
+      'Мастер выбора модели',
+      'Model Selection Wizard',
+    ],
   }
   return names[service]
     ? isRu

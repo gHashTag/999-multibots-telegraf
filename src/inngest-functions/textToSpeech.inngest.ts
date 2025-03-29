@@ -92,7 +92,8 @@ export const textToSpeechFunction = inngest.createFunction(
             is_ru: validatedParams.is_ru,
             bot_name: validatedParams.bot_name,
             description: `Payment for text to speech`,
-            additional_info: {
+            metadata: {
+              service_type: ModeEnum.TextToSpeech,
               text_length: validatedParams.text.length,
             },
           },

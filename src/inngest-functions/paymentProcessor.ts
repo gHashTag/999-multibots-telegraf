@@ -444,6 +444,7 @@ export const paymentProcessor = inngest.createFunction(
               `${balanceData.operation_type} operation via payment/process`,
             metadata: combinedMetadata,
             bot_name,
+            payment_method: metadata?.service_type || serviceType || 'System',
           })
 
           logger.info('💰 Результат обновления баланса:', {

@@ -181,9 +181,8 @@ export const neuroPhotoV2Generation = inngest.createFunction(
             description: `Payment for generating ${numImagesToGenerate} image${
               numImagesToGenerate === 1 ? '' : 's'
             } with prompt: ${prompt.substring(0, 30)}...`,
-            type: 'NeuroPhotoV2',
             metadata: {
-              prompt,
+              service_type: ModeEnum.NeuroPhotoV2,
               num_images: numImagesToGenerate,
             },
           },

@@ -90,12 +90,11 @@ export const createVoiceAvatarFunction = inngest.createFunction(
             is_ru: validatedParams.is_ru,
             bot_name: validatedParams.bot_name,
             description: `Payment for voice avatar creation`,
-            additional_info: {
-              username: validatedParams.username,
+            type: 'outcome',
+            metadata: {
+              service_type: ModeEnum.Voice,
+              voice_name: validatedParams.username,
             },
-            operation_id: `voice-avatar-${
-              validatedParams.telegram_id
-            }-${Date.now()}`,
           },
         })
       })

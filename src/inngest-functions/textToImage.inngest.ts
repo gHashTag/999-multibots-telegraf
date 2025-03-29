@@ -138,10 +138,10 @@ export const textToImageFunction = inngest.createFunction(
             description: `Payment for ${validatedParams.num_images} images`,
             paymentAmount:
               modelConfig.costPerImage * validatedParams.num_images,
-            additional_info: {
-              model: validatedParams.model,
-              num_images: validatedParams.num_images,
-              prompt: validatedParams.prompt.substring(0, 100), // Ограничиваем длину подсказки
+            type: 'outcome',
+            metadata: {
+              service_type: ModeEnum.TextToImage,
+              prompt: validatedParams.prompt,
             },
           },
         })

@@ -750,20 +750,15 @@ export const generateModelTraining = inngest.createFunction(
           data: {
             telegram_id: eventData.telegram_id,
             paymentAmount: paymentAmount,
-            type: 'outcome',
-            description: `Оплата тренировки модели ${modelName} (шагов: ${steps})`,
-            metadata: {
-              stars: 0,
-              payment_method: 'Training',
-              bot_name: eventData.bot_name,
-              language:
-                eventData.is_ru === true || eventData.is_ru === 'true'
-                  ? 'ru'
-                  : 'en',
-            },
+            is_ru: eventData.is_ru,
             bot_name: eventData.bot_name,
-            operation_id: `train-${eventData.telegram_id}-${Date.now()}`,
-            bot: bot,
+            type: 'outcome',
+            description: `Payment for model training`,
+            metadata: {
+              service_type: ModeEnum.DigitalAvatarBody,
+              model_name: modelName,
+              steps: steps,
+            },
           },
         })
 

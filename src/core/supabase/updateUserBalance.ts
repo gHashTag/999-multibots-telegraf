@@ -9,6 +9,7 @@ interface UpdateUserBalanceParams {
   operation_description?: string
   metadata?: Record<string, any>
   bot_name?: string
+  payment_method?: string
 }
 
 /**
@@ -22,6 +23,7 @@ export const updateUserBalance = async ({
   operation_description = '',
   metadata = {},
   bot_name,
+  payment_method = 'System',
 }: UpdateUserBalanceParams): Promise<{
   success: boolean
   newBalance: number | null
@@ -94,6 +96,8 @@ export const updateUserBalance = async ({
         status: 'COMPLETED',
         description: operation_description || `${type} operation`,
         metadata,
+        payment_method,
+        bot_name,
       },
     ])
 
