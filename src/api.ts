@@ -214,7 +214,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     }
 
     // Извлекаем нужные поля
-    const { inv_id, IncSum, OutSum, out_summ } = parsedBody
+    const { inv_id, IncSum } = parsedBody
 
     // Проверяем наличие обязательных полей
     if (!inv_id) {
@@ -227,7 +227,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     }
 
     // Robokassa может прислать сумму в разных полях
-    const amount = IncSum || OutSum || out_summ
+    const amount = IncSum
     if (!amount) {
       logger.error({
         message: '❌ Отсутствует сумма платежа',
