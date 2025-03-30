@@ -10,6 +10,7 @@ export * from './refundUser'
 export * from './validateAndCalculateVideoModelPrice'
 export * from './validateAndCalculateImageModelPrice'
 export * from './handleTrainingCost'
+export * from './sendPaymentNotificationWithBot'
 export { starAmounts } from './starAmounts'
 export { voiceConversationCost } from './voiceConversationCost'
 

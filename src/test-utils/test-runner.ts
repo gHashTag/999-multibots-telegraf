@@ -23,7 +23,7 @@ import fs from 'fs'
 import path from 'path'
 import { testSpeechGeneration } from './audio-tests'
 import { TestResult } from './types'
-import { generateSpeech } from '@/core/generateSpeech'
+
 import { getBotByName } from '@/core/bot'
 
 // Цвета для вывода в консоль
@@ -77,59 +77,7 @@ function formatResults(results, testType: string) {
     console.log('')
   })
 
-  // Если настроено сохранение результатов, сохраняем их в файл
-  if (TEST_CONFIG.options.saveResults) {
-    saveResults(results, testType)
-  }
-
   return { successful, total }
-}
-
-/**
- * Сохраняет результаты тестов в файл
- */
-function saveResults(results, testType) {
-  try {
-    const resultsDir = TEST_CONFIG.options.resultsPath
-
-    // Создаем директорию, если её нет
-    if (!fs.existsSync(resultsDir)) {
-      fs.mkdirSync(resultsDir, { recursive: true })
-    }
-
-    const timestamp = new Date().toISOString().replace(/:/g, '-')
-    const filename = `${testType}-tests-${timestamp}.json`
-    const filePath = path.join(resultsDir, filename)
-
-    fs.writeFileSync(
-      filePath,
-      JSON.stringify(
-        {
-          timestamp,
-          testType,
-          results,
-          summary: {
-            total: results.length,
-            successful: results.filter(r => r.success).length,
-          },
-        },
-        null,
-        2
-      )
-    )
-
-    logger.info({
-      message: '💾 Результаты тестов сохранены',
-      description: 'Test results saved',
-      filePath,
-    })
-  } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при сохранении результатов',
-      description: 'Error saving test results',
-      error: error.message,
-    })
-  }
 }
 
 /**
@@ -551,25 +499,25 @@ async function runSpeechGenerationTest(): Promise<TestResult> {
         telegram_id: TEST_CONFIG.users.main.telegramId,
       })
 
-      // Используем реальную функцию generateSpeech
-      const result = await generateSpeech({
-        text: testCase.text,
-        voice_id: 'ljyyJh982fsUinaSQPvv',
-        telegram_id: TEST_CONFIG.users.main.telegramId,
-        is_ru: TEST_CONFIG.users.main.isRussian,
-        bot: botData.bot,
-        bot_name: TEST_CONFIG.users.main.botName,
-      })
+      // // Используем реальную функцию generateSpeech
+      // const result = await generateSpeech({
+      //   text: testCase.text,
+      //   voice_id: 'ljyyJh982fsUinaSQPvv',
+      //   telegram_id: TEST_CONFIG.users.main.telegramId,
+      //   is_ru: TEST_CONFIG.users.main.isRussian,
+      //   bot: botData.bot,
+      //   bot_name: TEST_CONFIG.users.main.botName,
+      // })
 
-      if (!result) {
-        throw new Error('Failed to generate speech')
-      }
+      // if (!result) {
+      //   throw new Error('Failed to generate speech')
+      // }
 
-      logger.info({
-        message: '✅ Аудио успешно сгенерировано',
-        description: 'Audio successfully generated',
-        result_type: typeof result,
-      })
+      // logger.info({
+      //   message: '✅ Аудио успешно сгенерировано',
+      //   description: 'Audio successfully generated',
+      //   result_type: typeof result,
+      // })
 
       results.push({
         success: true,

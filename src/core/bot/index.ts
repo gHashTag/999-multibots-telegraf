@@ -85,15 +85,30 @@ export function getTokenByBotName(botName: string): string | undefined {
   return token
 }
 
+export const AVATARS_GROUP_ID = {
+  ['neuro_blogger_bot']: '@neuro_blogger_group',
+  ['MetaMuse_Manifest_bot']: '@MetaMuse_AI_Influencer',
+  ['ZavaraBot']: '@NeuroLuna',
+  ['LeeSolarbot']: '@SolarNeuroBlogger1',
+  ['NeuroLenaAssistant_bot']: '@neuroLenka',
+  ['NeurostylistShtogrina_bot']: '@neirostylist',
+  ['Gaia_Kamskaia_bot']: '@neuromeets',
+  ['ai_koshey_bot']: '@neuro_blogger_group',
+}
+
 export function createBotByName(
   botName: string
-): Telegraf<MyContext> | undefined {
+): { token: string; groupId: string } | undefined {
   const token = getTokenByBotName(botName)
   if (!token) {
     console.error(`Token for bot name ${botName} not found.`)
     return undefined
   }
-  return new Telegraf<MyContext>(token)
+  const groupId = AVATARS_GROUP_ID[botName]
+  return {
+    token,
+    groupId,
+  }
 }
 
 export const bots = Object.values(BOT_NAMES).map(

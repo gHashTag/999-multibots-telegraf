@@ -13,6 +13,7 @@ import {
   textToImageFunction,
   createVoiceAvatarFunction,
   textToSpeechFunction,
+  ruPaymentProcessPayment,
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
 import { handleReplicateWebhook } from './controllers/replicateWebhook'
@@ -28,12 +29,17 @@ dotenv.config()
 
 const app = express()
 
+const port = 2999
+
 // Middleware
 app.use(cors())
 // Увеличиваем лимит размера JSON запросов до 50 МБ
 app.use(express.json({ limit: '50mb' }))
 // Увеличиваем лимит для данных формы
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
+
+// Добавляем парсинг raw body для веб-хуков
+app.use('/payment-success', express.raw({ type: '*/*' }))
 
 // Обслуживание статических файлов из директории загрузок
 app.use('/uploads', express.static(UPLOAD_DIR))
@@ -76,7 +82,42 @@ app.post('/webhooks/bfl', handleBFLWebhook)
 app.post('/webhooks/neurophoto', handleWebhookNeurophoto)
 app.post('/webhooks/neurophoto-debug', handleWebhookNeurophotoDebug)
 
-// Эндпоинт для Inngest
+// Маршрут для обработки веб-хуков от Robokassa
+app.post('/payment-success', async (req, res) => {
+  try {
+    const { body } = req // Получаем тело запроса
+    logger.info('Received body:', body)
+
+    const { inv_id, IncSum } = body
+
+    const roundedIncSum = Number(IncSum)
+    console.log('💰 processPayment: округленная сумма', roundedIncSum)
+    // Ответ Robokassa
+
+    // Отправляем событие в Inngest для асинхронной обработки
+    await inngest.send({
+      name: 'ru-payment/process-payment',
+      data: {
+        IncSum: Math.round(Number(roundedIncSum)),
+        inv_id,
+      },
+    })
+    // Отвечаем OK, даже если была ошибка обработки
+    // Robokassa будет повторять запросы, пока не получит OK
+    return res.send('OK')
+  } catch (error) {
+    logger.error('❌ Ошибка обработки платежного веб-хука', {
+      description: 'Error processing payment webhook',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
+
+    // Всегда отвечаем OK, чтобы Robokassa не повторял запросы
+    // Платеж будет обработан асинхронно через Inngest
+    return res.send('OK')
+  }
+})
+
+// Настраиваем Inngest middleware
 app.use(
   '/api/inngest',
   serve({
@@ -91,6 +132,7 @@ app.use(
       paymentProcessor,
       neuroPhotoV2Generation,
       createVoiceAvatarFunction,
+      ruPaymentProcessPayment,
     ],
   })
 )
@@ -111,12 +153,10 @@ app.use((req, res) => {
 
 // Запуск сервера API
 const startApiServer = () => {
-  const apiPort = process.env.API_PORT || 2999
-
-  app.listen(apiPort, () => {
-    logger.info({
-      message: `🌐 API сервер запущен на порту ${apiPort}`,
-      description: `API server started on port ${apiPort}`,
+  app.listen(port, () => {
+    logger.info('🚀 API сервер запущен', {
+      description: 'API server is running',
+      port,
     })
   })
 }

@@ -14,13 +14,16 @@ export const TEST_CONFIG = {
   // Тестовые данные пользователей
   users: {
     main: {
-      telegramId: '144022504', // ID тестового пользователя
-      botName: 'neuro_blogger_bot',
+      telegramId: '144022504',
+      voiceId: 'test-voice-id',
       isRussian: true,
+      botName: 'test_bot',
     },
     default: {
-      telegram_id: '144022504', // ID тестового пользователя
-      username: 'testuser',
+      telegramId: '144022504',
+      voiceId: 'test-voice-id',
+      isRussian: true,
+      botName: 'test_bot',
     },
   },
 
@@ -116,9 +119,11 @@ export const TEST_CONFIG = {
 
   // Настройки для инструментов тестирования
   options: {
-    logResults: true,
-    saveResults: false,
-    resultsPath: './test-results',
+    retryAttempts: 3,
+    retryDelay: 1000,
     timeout: 5000,
   },
+
+  TEST_USER_ID: '144022504',
+  TEST_BOT_NAME: 'test_bot',
 }

@@ -32,11 +32,12 @@ type PaymentContext = Context &
 
 async function sendNotification(ctx: MyContext, message: string) {
   try {
-    const bot = createBotByName(ctx.botInfo.username)
-    if (!bot) {
+    const botData = createBotByName(ctx.botInfo.username)
+    if (!botData) {
       console.error('Bot token not found')
       return
     }
+    const { bot, groupId } = botData
     console.log('CASE: ctx.botInfo', ctx.botInfo)
     console.log('CASE: ctx.botInfo.username', ctx.botInfo.username)
     const group = await getGroupByBotName(ctx.botInfo.username)
@@ -46,7 +47,7 @@ async function sendNotification(ctx: MyContext, message: string) {
       return
     }
 
-    await bot.telegram.sendMessage(`@${group}`, message)
+    await bot.telegram.sendMessage(`@${groupId}`, message)
   } catch (error) {
     console.error('Error sending notification:', error)
   }
