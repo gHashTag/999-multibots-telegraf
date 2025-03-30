@@ -5,10 +5,11 @@ import {
   sendBalanceMessage,
   sendInsufficientStarsMessage,
 } from '@/price/helpers'
-import { generateTextToSpeech } from '../../services/generateTextToSpeech'
+import { inngest } from '@/core/inngest/clients'
 import { isRussian } from '@/helpers'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
+import { v4 as uuidv4 } from 'uuid'
 
 export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   'text_to_speech',
@@ -54,14 +55,17 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
           return
         }
 
-        await generateTextToSpeech(
-          message.text,
-          voice_id,
-          ctx.from.id,
-          ctx.from.username || '',
-          isRu,
-          ctx.botInfo?.username || ''
-        )
+        await inngest.send({
+          id: `tts-${ctx.from.id}-${Date.now()}-${uuidv4().substring(0, 8)}`,
+          name: 'text-to-speech.requested',
+          data: {
+            text: message.text,
+            voice_id,
+            telegram_id: ctx.from.id.toString(),
+            is_ru: isRu,
+            bot_name: ctx.botInfo?.username,
+          },
+        })
       } catch (error) {
         console.error('Error in text_to_speech:', error)
         await ctx.reply(

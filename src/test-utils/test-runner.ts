@@ -25,9 +25,6 @@ import { testSpeechGeneration } from './audio-tests'
 import { TestResult } from './types'
 import { generateSpeech } from '@/core/generateSpeech'
 import { getBotByName } from '@/core/bot'
-import elevenlabs from '@/core/elevenlabs'
-import { createWriteStream } from 'fs'
-import os from 'os'
 
 // Цвета для вывода в консоль
 const colors = {

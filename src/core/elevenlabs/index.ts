@@ -1,4 +1,4 @@
-import { logger } from '../../utils/logger'
+import { logger } from '@/utils/logger'
 import { Readable } from 'stream'
 
 interface GenerateOptions {
@@ -7,12 +7,72 @@ interface GenerateOptions {
   text: string
 }
 
+interface Voice {
+  voice_id: string
+  name: string
+}
+
 class ElevenLabsClient {
   private apiKey: string
   private baseUrl = 'https://api.elevenlabs.io/v1'
+  private defaultVoiceId = 'EXAVITQu4vr4xnSDxMaL' // Rachel voice
 
   constructor(apiKey: string) {
     this.apiKey = apiKey
+  }
+
+  private async getVoices(): Promise<Voice[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/voices`, {
+        headers: {
+          'xi-api-key': this.apiKey,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to get voices: ${response.status} ${response.statusText}`
+        )
+      }
+
+      const data = await response.json()
+      return data.voices || []
+    } catch (error) {
+      logger.error({
+        message: '❌ Ошибка получения списка голосов',
+        description: 'Error getting voices list',
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return []
+    }
+  }
+
+  private async validateVoice(voiceId: string): Promise<string> {
+    try {
+      const voices = await this.getVoices()
+      const voiceExists = voices.some(voice => voice.voice_id === voiceId)
+
+      if (!voiceExists) {
+        logger.warn({
+          message: '⚠️ Голос не найден, используем голос по умолчанию',
+          description: 'Voice not found, using default voice',
+          requested_voice: voiceId,
+          default_voice: this.defaultVoiceId,
+        })
+        return this.defaultVoiceId
+      }
+
+      return voiceId
+    } catch (error) {
+      logger.warn({
+        message: '⚠️ Ошибка проверки голоса, используем голос по умолчанию',
+        description: 'Voice validation error, using default voice',
+        error: error instanceof Error ? error.message : String(error),
+        requested_voice: voiceId,
+        default_voice: this.defaultVoiceId,
+      })
+      return this.defaultVoiceId
+    }
   }
 
   async generate({
@@ -37,16 +97,10 @@ class ElevenLabsClient {
       throw new Error('ElevenLabs API key is missing')
     }
 
-    // Проверяем voice_id
-    if (!voice) {
-      logger.error({
-        message: '❌ Отсутствует voice_id',
-        description: 'Missing voice_id',
-      })
-      throw new Error('Voice ID is missing')
-    }
+    // Проверяем и валидируем voice_id
+    const validatedVoice = await this.validateVoice(voice)
 
-    const url = `${this.baseUrl}/text-to-speech/${voice}`
+    const url = `${this.baseUrl}/text-to-speech/${validatedVoice}`
 
     try {
       const response = await fetch(url, {
@@ -92,7 +146,7 @@ class ElevenLabsClient {
           status: response.status,
           statusText: response.statusText,
           errorDetails,
-          voice,
+          voice: validatedVoice,
           model_id,
         })
 
@@ -119,6 +173,7 @@ class ElevenLabsClient {
         message: '✅ Получен ответ от API',
         description: 'Response received from API',
         status: response.status,
+        voice: validatedVoice,
       })
 
       const reader = response.body.getReader()
@@ -148,7 +203,7 @@ class ElevenLabsClient {
         message: '❌ Ошибка запроса к API',
         description: 'API request error',
         error: error instanceof Error ? error.message : String(error),
-        voice,
+        voice: validatedVoice,
         model_id,
       })
       throw error
