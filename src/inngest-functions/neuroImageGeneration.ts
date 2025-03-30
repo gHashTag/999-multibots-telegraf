@@ -19,15 +19,6 @@ import { getBotByName } from '@/core/bot'
 
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 
-// Тестирование логов
-console.log('🧪 ТЕСТ ЛОГОВ: прямой console.log')
-logger.info('🧪 ТЕСТ ЛОГОВ: logger.info с сообщением в первом параметре', {
-  description: 'Test log description',
-})
-logger.info({
-  message: '🧪 ТЕСТ ЛОГОВ: logger.info с объектом, содержащим message',
-})
-
 export const neuroImageGeneration = inngest.createFunction(
   {
     id: `neuro-image-generation`,

@@ -3,13 +3,12 @@ import { MyContext } from '@/interfaces'
 import { sendPaymentNotificationWithBot } from '@/price/helpers/sendPaymentNotificationWithBot'
 import { sendPaymentNotificationToUser } from '@/price/helpers/sendPaymentNotificationToUser'
 import { inngest } from '@/core/inngest/clients'
-import { updateUserBalance, updateUserSubscription } from '@/core/supabase'
+import { updateUserSubscription } from '@/core/supabase'
 import { updatePaymentStatus } from '@/core/supabase/updatePaymentStatus'
 import { logger } from '@/utils/logger'
 import { errorMessage, errorMessageAdmin } from '@/helpers/errorMessage'
 import { getTelegramIdFromInvId } from '@/helpers/getTelegramIdFromInvId'
 import { AVATARS_GROUP_ID, createBotByName } from '@/core/bot'
-import { supabase } from '@/core/supabase'
 
 // Константы для вариантов оплаты
 const PAYMENT_OPTIONS = [
@@ -49,6 +48,15 @@ const SUBSCRIPTION_PLANS = [
     description: 'Training on neural networks with a mentor.',
     stars_price: 32608,
     callback_data: 'neuroblogger',
+  },
+  {
+    row: 3, // Укажите номер строки, где хотите разместить тестовый план
+    text: '🧪 Тест', // Название тестового плана
+    en_price: 1, // Тестовая цена в долларах
+    ru_price: 1, // Тестовая цена в рублях
+    description: 'Тестовый план для проверки функционала.',
+    stars_price: 1, // Количество звезд для тестового плана
+    callback_data: 'neurotester', // Уникальный идентификатор для тестового плана
   },
 ]
 
