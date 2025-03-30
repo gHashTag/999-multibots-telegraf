@@ -92,14 +92,22 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
         : typeof req.body === 'string'
         ? req.body
         : JSON.stringify(req.body)
-    const contentType = req.headers['content-type'] || ''
-    const query = req.query || {}
 
     // Проверяем, не является ли тело JWT токеном
     if (rawBody.startsWith('eyJ')) {
-      // Это JWT токен, просто отвечаем OK без логирования ошибок
+      logger.info({
+        message: '🔄 Пропускаем JWT токен',
+        description: 'Skipping JWT token',
+        bodyType: typeof req.body,
+        isBuffer: req.body instanceof Buffer,
+        method: req.method,
+        url: req.url,
+      })
       return res.send('OK')
     }
+
+    const contentType = req.headers['content-type'] || ''
+    const query = req.query || {}
 
     logger.info({
       message: '🔍 Получен webhook от Robokassa',
@@ -144,15 +152,19 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
         })
       } catch (jsonError) {
         // Если не получилось как JSON, пробуем как form-urlencoded
-        parsedBody = Object.fromEntries(
-          new URLSearchParams(rawBody)
-        ) as RobokassaWebhookData
+        if (rawBody.includes('=')) {
+          parsedBody = Object.fromEntries(
+            new URLSearchParams(rawBody)
+          ) as RobokassaWebhookData
 
-        logger.info({
-          message: '📦 Распарсили form-urlencoded',
-          description: 'Parsed form-urlencoded body',
-          parsedBody,
-        })
+          logger.info({
+            message: '📦 Распарсили form-urlencoded',
+            description: 'Parsed form-urlencoded body',
+            parsedBody,
+          })
+        } else {
+          throw new Error('Неподдерживаемый формат данных')
+        }
       }
 
       // Проверяем наличие данных в URL
@@ -183,7 +195,12 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     } catch (parseError) {
       // Проверяем, не является ли ошибка связана с JWT токеном
       if (rawBody.startsWith('eyJ')) {
-        // Это JWT токен, просто отвечаем OK без логирования ошибок
+        logger.info({
+          message: '🔄 Пропускаем JWT токен после ошибки парсинга',
+          description: 'Skipping JWT token after parse error',
+          bodyType: typeof req.body,
+          isBuffer: req.body instanceof Buffer,
+        })
         return res.send('OK')
       }
 
@@ -195,6 +212,8 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
         rawBody,
         contentType,
         query,
+        bodyType: typeof req.body,
+        isBuffer: req.body instanceof Buffer,
       })
       // Даже при ошибке парсинга отвечаем OK
       return res.send('OK')
