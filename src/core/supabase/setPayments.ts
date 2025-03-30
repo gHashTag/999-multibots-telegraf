@@ -13,6 +13,7 @@ type Payment = {
   subscription: Subscription
   bot_name: string
   language: string
+  invoice_url?: string
 }
 
 export const setPayments = async ({
@@ -27,6 +28,7 @@ export const setPayments = async ({
   subscription,
   bot_name,
   language,
+  invoice_url,
 }: Payment) => {
   try {
     const { error } = await supabase.from('payments').insert({
@@ -42,6 +44,7 @@ export const setPayments = async ({
       subscription,
       bot_name,
       language,
+      invoice_url,
     })
     if (error) {
       console.error('Ошибка создания платежа:', error)

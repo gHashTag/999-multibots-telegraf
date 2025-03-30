@@ -56,6 +56,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
         subscription: subscription,
         bot_name,
         language: ctx.from?.language_code,
+        invoice_url: invoiceURL,
       })
       console.log('💾 Payment saved with status PENDING')
 
