@@ -139,6 +139,7 @@ emailWizard.on('text', async ctx => {
           subscription: 'stars',
           bot_name,
           language: ctx.from?.language_code,
+          invoice_url: invoiceURL,
         })
 
         console.log('invoiceURL', invoiceURL)

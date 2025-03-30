@@ -27,9 +27,7 @@ export const generateSignature = (
   console.log('InvId:', invId)
   console.log('ResultUrl2:', resultUrl2)
 
-  const signatureString = `${merchantLogin}:${outSum}:${invId}:${encodeURIComponent(
-    resultUrl2
-  )}:${password1}`
+  const signatureString = `${merchantLogin}:${outSum}:${invId}:${resultUrl2}:${password1}`
   console.log('Signature string:', signatureString)
 
   const signature = md5(signatureString).toUpperCase()
