@@ -20,7 +20,7 @@ export const paymentOptions: {
   { amount: 2000, stars: '869' },
   { amount: 5000, stars: '2173' },
   { amount: 10000, stars: '4347' },
-  { amount: 1, stars: '9' },
+  { amount: 1, stars: '1' },
   // { amount: 10, stars: '6' },
 ]
 
