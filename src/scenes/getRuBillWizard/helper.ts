@@ -33,7 +33,6 @@ export function generateRobokassaUrl(
   )}&SignatureValue=${signatureValue}&ResultUrl2=${encodeURIComponent(
     resultUrl2
   )}`
-  console.log('url', url)
 
   return url
 }

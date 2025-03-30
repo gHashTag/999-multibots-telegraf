@@ -1,12 +1,18 @@
+import 'dotenv/config'
 import { config } from 'dotenv'
 import path from 'path'
-config({ path: `.env.${process.env.NODE_ENV || 'development'}.local` })
+import { logger } from '@/utils/logger'
 
-export const CREDENTIALS = process.env.CREDENTIALS === 'true'
-export const isDev = process.env.NODE_ENV === 'development'
-export const UPLOAD_DIR =
-  process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+// Загружаем переменные окружения
+config()
 
+logger.info('🔍 Переменные окружения в config/index.ts:', {
+  description: 'Environment variables in config/index.ts',
+  SUPABASE_URL: process.env.SUPABASE_URL,
+  NODE_ENV: process.env.NODE_ENV,
+})
+
+// Экспортируем переменные окружения
 export const {
   NODE_ENV,
   PORT,
@@ -40,5 +46,9 @@ export const {
   INNGEST_URL,
   GLAMA_API_KEY,
 } = process.env
-
+// Дополнительные константы
+export const CREDENTIALS = process.env.CREDENTIALS === 'true'
+export const isDev = process.env.NODE_ENV === 'development'
+export const UPLOAD_DIR =
+  process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
 export const API_URL = isDev ? process.env.LOCAL_SERVER_URL : process.env.ORIGIN

@@ -59,9 +59,9 @@ export const createBots = async () => {
         from: ctx.from?.id,
         chat: ctx.chat?.id,
         bot: ctx.botInfo?.username,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       })
-      return next()  
+      return next()
     })
 
     app.use(webhookPath, express.json(), (req, res) => {
