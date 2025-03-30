@@ -72,11 +72,6 @@ export const ruPaymentProcessPayment = inngest.createFunction(
     id: 'ru-payment-processing',
     name: 'ru-payment-processing',
     retries: 3, // Автоматические повторы при сбоях
-    onFailure: async ({ error }) => {
-      console.log('❌ Ошибка обработки платежа:', error)
-      errorMessageAdmin(error)
-      return { error: error.message }
-    },
   },
   { event: 'ru-payment/process-payment' }, // Триггерное событие
   async ({ event, step }) => {
@@ -272,11 +267,11 @@ export const ruPaymentProcessPayment = inngest.createFunction(
     } catch (error) {
       // Получаем информацию о пользователе для отправки уведомления об ошибке
       try {
-        const { telegram_id, language_code } = await getTelegramIdFromInvId(
-          inv_id
-        )
-        errorMessage(error as Error, telegram_id, language_code === 'ru')
-        errorMessageAdmin(error as Error)
+        // const { telegram_id, language_code } = await getTelegramIdFromInvId(
+        //   inv_id
+        // )
+        // errorMessage(error as Error, telegram_id, language_code === 'ru')
+        // errorMessageAdmin(error as Error)
       } catch (innerError) {
         console.log(
           '❌ processPayment: ошибка при получении telegram_id',

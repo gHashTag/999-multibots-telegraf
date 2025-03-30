@@ -15,6 +15,26 @@ location /payment-success {
     proxy_set_header Connection 'upgrade';
     proxy_set_header Host $host;
     proxy_cache_bypass $http_upgrade;
-    # Для обработки raw body
+    
+    # Для обработки raw body и разных типов контента
     proxy_set_header Content-Type $http_content_type;
+    proxy_set_header Accept $http_accept;
+    
+    # Увеличиваем буфер для больших запросов
+    client_max_body_size 10m;
+    client_body_buffer_size 128k;
+    proxy_buffer_size 4k;
+    proxy_buffers 4 32k;
+    proxy_busy_buffers_size 64k;
+    
+    # Отключаем буферизацию для стриминга
+    proxy_buffering off;
+    
+    # Добавляем заголовки для отладки
+    add_header X-Debug-Original-Content-Type $http_content_type;
+    add_header X-Debug-Forwarded-Content-Type $upstream_http_content_type;
+    
+    # Логируем тип контента для отладки
+    access_log /var/log/nginx/payment-success.log combined buffer=32k
+        flush=5s if=$http_content_type;
 }
