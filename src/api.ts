@@ -95,6 +95,12 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     const contentType = req.headers['content-type'] || ''
     const query = req.query || {}
 
+    // Проверяем, не является ли тело JWT токеном
+    if (rawBody.startsWith('eyJ')) {
+      // Это JWT токен, просто отвечаем OK без логирования ошибок
+      return res.send('OK')
+    }
+
     logger.info({
       message: '🔍 Получен webhook от Robokassa',
       description: 'Received webhook from Robokassa',
@@ -128,86 +134,25 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     let parsedBody: RobokassaWebhookData = {}
 
     try {
-      if (contentType.includes('application/json')) {
-        try {
-          parsedBody = JSON.parse(rawBody)
-          logger.info({
-            message: '📦 Распарсили JSON',
-            description: 'Parsed JSON body',
-            parsedBody,
-          })
-        } catch (jsonError) {
-          logger.error({
-            message: '❌ Ошибка парсинга JSON',
-            description: 'JSON parse error',
-            error:
-              jsonError instanceof Error ? jsonError.message : 'Unknown error',
-            rawBody,
-          })
-        }
-      } else if (contentType.includes('application/x-www-form-urlencoded')) {
-        try {
-          // Для form-urlencoded сначала пробуем распарсить как JSON строку
-          try {
-            parsedBody = JSON.parse(rawBody)
-            logger.info({
-              message: '📦 Распарсили JSON из form-urlencoded',
-              description: 'Parsed JSON from form-urlencoded',
-              parsedBody,
-            })
-          } catch (jsonError) {
-            // Если не получилось как JSON, пробуем как form-urlencoded
-            parsedBody = Object.fromEntries(
-              new URLSearchParams(rawBody)
-            ) as RobokassaWebhookData
+      // Для form-urlencoded сначала пробуем распарсить как JSON строку
+      try {
+        parsedBody = JSON.parse(rawBody)
+        logger.info({
+          message: '📦 Распарсили JSON из form-urlencoded',
+          description: 'Parsed JSON from form-urlencoded',
+          parsedBody,
+        })
+      } catch (jsonError) {
+        // Если не получилось как JSON, пробуем как form-urlencoded
+        parsedBody = Object.fromEntries(
+          new URLSearchParams(rawBody)
+        ) as RobokassaWebhookData
 
-            logger.info({
-              message: '📦 Распарсили form-urlencoded',
-              description: 'Parsed form-urlencoded body',
-              parsedBody,
-            })
-          }
-        } catch (formError) {
-          logger.error({
-            message: '❌ Ошибка парсинга form-urlencoded',
-            description: 'Form-urlencoded parse error',
-            error:
-              formError instanceof Error ? formError.message : 'Unknown error',
-            rawBody,
-          })
-        }
-      } else {
-        // Для всех остальных типов пробуем сначала как JSON, потом как form-urlencoded
-        try {
-          try {
-            parsedBody = JSON.parse(rawBody)
-            logger.info({
-              message: '📦 Распарсили как JSON',
-              description: 'Parsed as JSON',
-              parsedBody,
-            })
-          } catch (jsonError) {
-            parsedBody = Object.fromEntries(
-              new URLSearchParams(rawBody)
-            ) as RobokassaWebhookData
-
-            logger.info({
-              message: '📦 Распарсили как form-urlencoded',
-              description: 'Parsed as form-urlencoded',
-              parsedBody,
-            })
-          }
-        } catch (defaultError) {
-          logger.error({
-            message: '❌ Ошибка парсинга unknown content-type',
-            description: 'Unknown content-type parse error',
-            error:
-              defaultError instanceof Error
-                ? defaultError.message
-                : 'Unknown error',
-            rawBody,
-          })
-        }
+        logger.info({
+          message: '📦 Распарсили form-urlencoded',
+          description: 'Parsed form-urlencoded body',
+          parsedBody,
+        })
       }
 
       // Проверяем наличие данных в URL
@@ -236,6 +181,12 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
         parsedBody,
       })
     } catch (parseError) {
+      // Проверяем, не является ли ошибка связана с JWT токеном
+      if (rawBody.startsWith('eyJ')) {
+        // Это JWT токен, просто отвечаем OK без логирования ошибок
+        return res.send('OK')
+      }
+
       logger.error({
         message: '❌ Ошибка получения данных',
         description: 'Data retrieval error',
@@ -312,6 +263,15 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     // Отвечаем OK
     return res.send('OK')
   } catch (error) {
+    // Проверяем, не является ли ошибка связана с JWT токеном
+    if (
+      req.body instanceof Buffer &&
+      req.body.toString('utf8').startsWith('eyJ')
+    ) {
+      // Это JWT токен, просто отвечаем OK без логирования ошибок
+      return res.send('OK')
+    }
+
     logger.error({
       message: '❌ Ошибка обработки платежного веб-хука',
       description: 'Error processing payment webhook',
