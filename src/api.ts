@@ -86,7 +86,12 @@ app.post('/webhooks/neurophoto-debug', handleWebhookNeurophotoDebug)
 app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
   try {
     // Получаем сырые данные
-    const rawBody = req.body?.toString() || ''
+    const rawBody =
+      req.body instanceof Buffer
+        ? req.body.toString('utf8')
+        : typeof req.body === 'string'
+        ? req.body
+        : JSON.stringify(req.body)
     const contentType = req.headers['content-type'] || ''
     const query = req.query || {}
 
@@ -96,6 +101,8 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
       headers: req.headers,
       contentType,
       rawBody,
+      bodyType: typeof req.body,
+      isBuffer: req.body instanceof Buffer,
       query,
       method: req.method,
       url: req.url,
@@ -133,13 +140,16 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
         }
       } else if (contentType.includes('application/x-www-form-urlencoded')) {
         try {
+          // Для form-urlencoded используем rawBody напрямую
           parsedBody = Object.fromEntries(
             new URLSearchParams(rawBody)
           ) as RobokassaWebhookData
+
           logger.info({
             message: '📦 Распарсили form-urlencoded',
             description: 'Parsed form-urlencoded body',
             parsedBody,
+            rawBody,
           })
         } catch (formError) {
           logger.error({
@@ -156,10 +166,12 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
           parsedBody = Object.fromEntries(
             new URLSearchParams(rawBody)
           ) as RobokassaWebhookData
+
           logger.info({
             message: '📦 Распарсили как form-urlencoded',
             description: 'Parsed as form-urlencoded',
             parsedBody,
+            rawBody,
           })
         } catch (defaultError) {
           logger.error({
@@ -214,7 +226,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     }
 
     // Извлекаем нужные поля
-    const { inv_id, IncSum } = parsedBody
+    const { inv_id, IncSum, OutSum, out_summ } = parsedBody
 
     // Проверяем наличие обязательных полей
     if (!inv_id) {
@@ -227,7 +239,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     }
 
     // Robokassa может прислать сумму в разных полях
-    const amount = IncSum
+    const amount = IncSum || OutSum || out_summ
     if (!amount) {
       logger.error({
         message: '❌ Отсутствует сумма платежа',
@@ -280,7 +292,9 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
       description: 'Error processing payment webhook',
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
-      body: req.body?.toString(),
+      body: req.body instanceof Buffer ? req.body.toString('utf8') : req.body,
+      bodyType: typeof req.body,
+      isBuffer: req.body instanceof Buffer,
       headers: req.headers,
       query: req.query,
       method: req.method,
