@@ -108,8 +108,8 @@ export function sendBalanceMessage(
 ) {
   if (typeof newBalance === 'number') {
     const message = is_ru
-      ? `⭐️ Списано: ${amount} звезд\n💫 Баланс: ${newBalance} звезд`
-      : `⭐️ Charged: ${amount} stars\n💫 Balance: ${newBalance} stars`
+      ? `⭐️ Цена: ${amount} звезд\n💫 Баланс: ${newBalance} звезд`
+      : `⭐️ Price: ${amount} stars\n💫 Balance: ${newBalance} stars`
 
     bot.sendMessage(telegram_id, message)
   }
