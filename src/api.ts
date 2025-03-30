@@ -83,69 +83,184 @@ app.post('/webhooks/neurophoto', handleWebhookNeurophoto)
 app.post('/webhooks/neurophoto-debug', handleWebhookNeurophotoDebug)
 
 // Маршрут для обработки веб-хуков от Robokassa
-app.post('/payment-success', async (req, res) => {
+app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
   try {
+    // Получаем сырые данные
+    const rawBody = req.body?.toString() || ''
+    const contentType = req.headers['content-type'] || ''
+    const query = req.query || {}
+
     logger.info({
       message: '🔍 Получен webhook от Robokassa',
       description: 'Received webhook from Robokassa',
       headers: req.headers,
-      contentType: req.headers['content-type'],
-      body: req.body?.toString(),
+      contentType,
+      rawBody,
+      query,
+      method: req.method,
+      url: req.url,
     })
 
+    // Определяем интерфейс для данных от Robokassa
+    interface RobokassaWebhookData {
+      inv_id?: string
+      IncSum?: string
+      OutSum?: string
+      out_summ?: string
+      [key: string]: string | undefined
+    }
+
     // Пытаемся распарсить тело запроса в зависимости от Content-Type
-    let parsedBody
-    const contentType = req.headers['content-type'] || ''
-    const rawBody = req.body?.toString() || ''
+    let parsedBody: RobokassaWebhookData = {}
 
     try {
       if (contentType.includes('application/json')) {
-        parsedBody = JSON.parse(rawBody)
+        try {
+          parsedBody = JSON.parse(rawBody)
+          logger.info({
+            message: '📦 Распарсили JSON',
+            description: 'Parsed JSON body',
+            parsedBody,
+          })
+        } catch (jsonError) {
+          logger.error({
+            message: '❌ Ошибка парсинга JSON',
+            description: 'JSON parse error',
+            error:
+              jsonError instanceof Error ? jsonError.message : 'Unknown error',
+            rawBody,
+          })
+        }
       } else if (contentType.includes('application/x-www-form-urlencoded')) {
-        parsedBody = Object.fromEntries(new URLSearchParams(rawBody))
+        try {
+          parsedBody = Object.fromEntries(
+            new URLSearchParams(rawBody)
+          ) as RobokassaWebhookData
+          logger.info({
+            message: '📦 Распарсили form-urlencoded',
+            description: 'Parsed form-urlencoded body',
+            parsedBody,
+          })
+        } catch (formError) {
+          logger.error({
+            message: '❌ Ошибка парсинга form-urlencoded',
+            description: 'Form-urlencoded parse error',
+            error:
+              formError instanceof Error ? formError.message : 'Unknown error',
+            rawBody,
+          })
+        }
       } else {
         // Для всех остальных типов пробуем как form-urlencoded
-        parsedBody = Object.fromEntries(new URLSearchParams(rawBody))
+        try {
+          parsedBody = Object.fromEntries(
+            new URLSearchParams(rawBody)
+          ) as RobokassaWebhookData
+          logger.info({
+            message: '📦 Распарсили как form-urlencoded',
+            description: 'Parsed as form-urlencoded',
+            parsedBody,
+          })
+        } catch (defaultError) {
+          logger.error({
+            message: '❌ Ошибка парсинга unknown content-type',
+            description: 'Unknown content-type parse error',
+            error:
+              defaultError instanceof Error
+                ? defaultError.message
+                : 'Unknown error',
+            rawBody,
+          })
+        }
+      }
+
+      // Проверяем наличие данных в URL
+      if (
+        Object.keys(parsedBody).length === 0 &&
+        Object.keys(query).length > 0
+      ) {
+        parsedBody = query as unknown as RobokassaWebhookData
+        logger.info({
+          message: '📦 Используем параметры из URL',
+          description: 'Using URL parameters',
+          parsedBody,
+        })
+      }
+
+      // Проверяем результат парсинга
+      if (Object.keys(parsedBody).length === 0) {
+        throw new Error(
+          'Не удалось получить данные ни из тела запроса, ни из URL'
+        )
       }
 
       logger.info({
-        message: '✅ Тело запроса успешно распарсено',
-        description: 'Request body parsed successfully',
+        message: '✅ Данные успешно получены',
+        description: 'Data successfully retrieved',
         parsedBody,
       })
     } catch (parseError) {
       logger.error({
-        message: '❌ Ошибка парсинга тела запроса',
-        description: 'Error parsing request body',
+        message: '❌ Ошибка получения данных',
+        description: 'Data retrieval error',
         error:
           parseError instanceof Error ? parseError.message : 'Unknown error',
         rawBody,
         contentType,
+        query,
       })
-      // Даже при ошибке парсинга пытаемся извлечь параметры из URL
-      parsedBody = Object.fromEntries(
-        new URLSearchParams(req.url.split('?')[1] || '')
-      )
+      // Даже при ошибке парсинга отвечаем OK
+      return res.send('OK')
     }
 
+    // Извлекаем нужные поля
     const { inv_id, IncSum, OutSum, out_summ } = parsedBody
+
+    // Проверяем наличие обязательных полей
+    if (!inv_id) {
+      logger.error({
+        message: '❌ Отсутствует inv_id',
+        description: 'Missing inv_id',
+        parsedBody,
+      })
+      return res.send('OK')
+    }
 
     // Robokassa может прислать сумму в разных полях
     const amount = IncSum || OutSum || out_summ
+    if (!amount) {
+      logger.error({
+        message: '❌ Отсутствует сумма платежа',
+        description: 'Missing payment amount',
+        parsedBody,
+      })
+      return res.send('OK')
+    }
+
     const roundedIncSum = Number(amount)
+    if (isNaN(roundedIncSum)) {
+      logger.error({
+        message: '❌ Некорректная сумма платежа',
+        description: 'Invalid payment amount',
+        amount,
+        parsedBody,
+      })
+      return res.send('OK')
+    }
 
     logger.info({
       message: '💰 Данные платежа получены',
       description: 'Payment data received',
       inv_id,
       amount: roundedIncSum,
+      originalAmount: amount,
     })
 
     // Отправляем событие в Inngest для асинхронной обработки
     await inngest.send({
       name: 'ru-payment/process-payment',
       data: {
-        IncSum: Math.round(Number(roundedIncSum)),
+        IncSum: Math.round(roundedIncSum),
         inv_id,
       },
     })
@@ -157,15 +272,19 @@ app.post('/payment-success', async (req, res) => {
       amount: roundedIncSum,
     })
 
-    // Отвечаем OK, даже если была ошибка обработки
+    // Отвечаем OK
     return res.send('OK')
   } catch (error) {
     logger.error({
       message: '❌ Ошибка обработки платежного веб-хука',
       description: 'Error processing payment webhook',
       error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
       body: req.body?.toString(),
       headers: req.headers,
+      query: req.query,
+      method: req.method,
+      url: req.url,
     })
 
     // Всегда отвечаем OK, чтобы Robokassa не повторял запросы
