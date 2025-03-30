@@ -1,26 +1,67 @@
 import { supabase } from '.'
+import { logger } from '../../utils/logger'
 
 export async function isOwner(
   userId: number,
   botName: string
 ): Promise<boolean> {
   try {
-    console.log('CASE botName', botName)
+    logger.info({
+      message: '🔍 Проверка владельца бота',
+      description: 'Checking bot owner',
+      user_id: userId,
+      bot_name: botName,
+    })
+
     const { data, error } = await supabase
       .from('avatars')
       .select('telegram_id')
       .eq('bot_name', botName)
-      .single() // Получаем только одну запись
+      .single()
 
     if (error) {
-      console.error('Ошибка при проверке владельца:', error)
-      return false // Если произошла ошибка, возвращаем false
+      logger.error({
+        message: '❌ Ошибка при проверке владельца',
+        description: 'Error checking owner',
+        error: error.message,
+        user_id: userId,
+        bot_name: botName,
+      })
+      return false
     }
 
-    // Проверяем, совпадает ли telegram_id с userId
-    return data && data.telegram_id === userId
+    if (!data) {
+      logger.warn({
+        message: '⚠️ Бот не найден',
+        description: 'Bot not found',
+        bot_name: botName,
+      })
+      return false
+    }
+
+    // Преобразуем telegram_id в число для сравнения
+    const ownerTelegramId = parseInt(data.telegram_id)
+    const isOwnerResult = !isNaN(ownerTelegramId) && ownerTelegramId === userId
+
+    logger.info({
+      message: isOwnerResult
+        ? '✅ Пользователь является владельцем'
+        : '❌ Пользователь не является владельцем',
+      description: isOwnerResult ? 'User is owner' : 'User is not owner',
+      user_id: userId,
+      owner_id: ownerTelegramId,
+      bot_name: botName,
+    })
+
+    return isOwnerResult
   } catch (error) {
-    console.error('Ошибка при выполнении запроса:', error)
-    return false // Если произошла ошибка, возвращаем false
+    logger.error({
+      message: '❌ Ошибка при выполнении запроса',
+      description: 'Query execution error',
+      error: error instanceof Error ? error.message : String(error),
+      user_id: userId,
+      bot_name: botName,
+    })
+    return false
   }
 }
