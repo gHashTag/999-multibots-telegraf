@@ -111,9 +111,16 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     // Определяем интерфейс для данных от Robokassa
     interface RobokassaWebhookData {
       inv_id?: string
+      InvId?: string
       IncSum?: string
       OutSum?: string
       out_summ?: string
+      SignatureValue?: string
+      crc?: string
+      PaymentMethod?: string
+      IncCurrLabel?: string
+      EMail?: string
+      Fee?: string
       [key: string]: string | undefined
     }
 
@@ -140,17 +147,26 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
         }
       } else if (contentType.includes('application/x-www-form-urlencoded')) {
         try {
-          // Для form-urlencoded используем rawBody напрямую
-          parsedBody = Object.fromEntries(
-            new URLSearchParams(rawBody)
-          ) as RobokassaWebhookData
+          // Для form-urlencoded сначала пробуем распарсить как JSON строку
+          try {
+            parsedBody = JSON.parse(rawBody)
+            logger.info({
+              message: '📦 Распарсили JSON из form-urlencoded',
+              description: 'Parsed JSON from form-urlencoded',
+              parsedBody,
+            })
+          } catch (jsonError) {
+            // Если не получилось как JSON, пробуем как form-urlencoded
+            parsedBody = Object.fromEntries(
+              new URLSearchParams(rawBody)
+            ) as RobokassaWebhookData
 
-          logger.info({
-            message: '📦 Распарсили form-urlencoded',
-            description: 'Parsed form-urlencoded body',
-            parsedBody,
-            rawBody,
-          })
+            logger.info({
+              message: '📦 Распарсили form-urlencoded',
+              description: 'Parsed form-urlencoded body',
+              parsedBody,
+            })
+          }
         } catch (formError) {
           logger.error({
             message: '❌ Ошибка парсинга form-urlencoded',
@@ -161,18 +177,26 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
           })
         }
       } else {
-        // Для всех остальных типов пробуем как form-urlencoded
+        // Для всех остальных типов пробуем сначала как JSON, потом как form-urlencoded
         try {
-          parsedBody = Object.fromEntries(
-            new URLSearchParams(rawBody)
-          ) as RobokassaWebhookData
+          try {
+            parsedBody = JSON.parse(rawBody)
+            logger.info({
+              message: '📦 Распарсили как JSON',
+              description: 'Parsed as JSON',
+              parsedBody,
+            })
+          } catch (jsonError) {
+            parsedBody = Object.fromEntries(
+              new URLSearchParams(rawBody)
+            ) as RobokassaWebhookData
 
-          logger.info({
-            message: '📦 Распарсили как form-urlencoded',
-            description: 'Parsed as form-urlencoded',
-            parsedBody,
-            rawBody,
-          })
+            logger.info({
+              message: '📦 Распарсили как form-urlencoded',
+              description: 'Parsed as form-urlencoded',
+              parsedBody,
+            })
+          }
         } catch (defaultError) {
           logger.error({
             message: '❌ Ошибка парсинга unknown content-type',
@@ -226,10 +250,11 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     }
 
     // Извлекаем нужные поля
-    const { inv_id, IncSum, OutSum, out_summ } = parsedBody
+    const { inv_id, InvId, IncSum, OutSum, out_summ } = parsedBody
 
     // Проверяем наличие обязательных полей
-    if (!inv_id) {
+    const invoiceId = inv_id || InvId
+    if (!invoiceId) {
       logger.error({
         message: '❌ Отсутствует inv_id',
         description: 'Missing inv_id',
@@ -263,7 +288,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     logger.info({
       message: '💰 Данные платежа получены',
       description: 'Payment data received',
-      inv_id,
+      invoiceId,
       amount: roundedIncSum,
       originalAmount: amount,
     })
@@ -273,14 +298,14 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
       name: 'ru-payment/process-payment',
       data: {
         IncSum: Math.round(roundedIncSum),
-        inv_id,
+        inv_id: invoiceId,
       },
     })
 
     logger.info({
       message: '✅ Событие платежа отправлено в Inngest',
       description: 'Payment event sent to Inngest',
-      inv_id,
+      invoiceId,
       amount: roundedIncSum,
     })
 
