@@ -80,7 +80,7 @@ export const broadcastMessage = inngest.createFunction(
       })
 
       // Шаг 4: Подготовка ботов
-      const bots = await step.run('prepare-bots', async () => {
+      await step.run('prepare-bots', async () => {
         const uniqueBotNames = [...new Set(users.map(u => u.bot_name))]
         const botResults = {}
 

@@ -62,6 +62,49 @@ export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
 export const DEFAULT_BOT_NAME = 'neuro_blogger_bot'
 export const defaultBot = new Telegraf<MyContext>(DEFAULT_BOT_TOKEN)
 
+logger.info('🤖 Инициализация defaultBot:', {
+  description: 'DefaultBot initialization',
+  tokenLength: DEFAULT_BOT_TOKEN.length,
+})
+
+// Инициализируем ботов при старте приложения
+export const bots = Object.entries(BOT_NAMES)
+  .filter(([_, token]) => token) // Фильтруем undefined токены
+  .map(([name, token]) => {
+    // Если это defaultBot, используем существующий экземпляр
+    if (name === DEFAULT_BOT_NAME) {
+      logger.info('🤖 Использование существующего defaultBot:', {
+        description: 'Using existing defaultBot',
+        bot_name: name,
+      })
+      return defaultBot
+    }
+
+    const bot = new Telegraf<MyContext>(token)
+
+    logger.info('🤖 Инициализация бота:', {
+      description: 'Bot initialization',
+      bot_name: name,
+      tokenLength: token.length,
+    })
+
+    return bot
+  })
+
+logger.info('🌟 Инициализировано ботов:', {
+  description: 'Bots initialized',
+  count: bots.length,
+  bot_names: Object.keys(BOT_NAMES),
+})
+
+export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1
+export const pulseBot = new Telegraf<MyContext>(PULSE_BOT_TOKEN)
+
+logger.info('🤖 Инициализация pulseBot:', {
+  description: 'PulseBot initialization',
+  tokenLength: PULSE_BOT_TOKEN.length,
+})
+
 export function getBotNameByToken(token: string): { bot_name: string } {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)
@@ -92,21 +135,35 @@ export async function createBotByName(
 > {
   const token = getTokenByBotName(botName)
   if (!token) {
-    console.error(`Token for bot name ${botName} not found.`)
+    logger.error('❌ Токен для бота не найден:', {
+      description: 'Token not found for bot',
+      botName,
+    })
     return undefined
   }
+
   const groupId = await getBotGroupFromAvatars(botName)
-  const bot = bots.find(bot => bot.telegram.token === token)
+
+  // Ищем бота в массиве bots
+  const botIndex = Object.keys(BOT_NAMES).indexOf(botName)
+  const bot = bots[botIndex]
+
+  if (!bot) {
+    logger.error('❌ Экземпляр бота не найден:', {
+      description: 'Bot instance not found',
+      botName,
+      botIndex,
+      availableBots: Object.keys(BOT_NAMES),
+    })
+    return undefined
+  }
+
   return {
     token,
     groupId,
     bot,
   }
 }
-
-export const bots = Object.values(BOT_NAMES).map(
-  token => new Telegraf<MyContext>(token)
-)
 
 export function getBotByName(bot_name: string): {
   bot?: Telegraf<MyContext>
@@ -117,19 +174,6 @@ export function getBotByName(bot_name: string): {
     description: 'getBotByName requested for',
     bot_name,
   })
-
-  // Проверяем, находимся ли мы в тестовом окружении
-  if (process.env.NODE_ENV === 'test' || process.env.IS_TESTING === 'true') {
-    logger.info({
-      message: '🧪 Тестовое окружение, возвращаем мок-бота',
-      description: 'Test environment, returning mock bot',
-      bot_name,
-    })
-    const bot = bots.find(bot => bot.telegram.token === token)
-
-    return { bot }
-  }
-  //
 
   // Проверяем наличие бота в конфигурации
   const token = BOT_NAMES[bot_name]
@@ -150,48 +194,29 @@ export function getBotByName(bot_name: string): {
     tokenLength: token.length,
   })
 
-  // Ищем экземпляр бота в массиве
-  const bot = bots.find(bot => bot.telegram.token === token)
+  // Ищем бота в массиве bots
+  const botIndex = Object.keys(BOT_NAMES).indexOf(bot_name)
+  const bot = bots[botIndex]
 
   if (!bot) {
     logger.error({
       message: '❌ Экземпляр бота не найден',
       description: 'Bot instance not found',
       bot_name,
-      availableBots: bots.map(bot => ({
-        token: bot.telegram.token.substring(0, 5) + '...',
-        hasBot: !!bot,
-      })),
+      botIndex,
+      availableBots: Object.keys(BOT_NAMES),
     })
     return { error: 'Bot instance not found' }
-  }
-
-  // Проверка наличия необходимых методов
-  if (!bot.telegram || typeof bot.telegram.sendPhoto !== 'function') {
-    logger.error({
-      message: '❌ Экземпляр бота найден, но отсутствуют необходимые методы',
-      description: 'Bot instance found but missing required methods',
-      bot_name,
-      hasTelegram: !!bot.telegram,
-      methods: bot.telegram ? Object.keys(bot.telegram) : [],
-    })
-    return { error: 'Bot instance is invalid' }
   }
 
   logger.info({
     message: '✅ Бот успешно получен',
     description: 'Bot successfully retrieved',
     bot_name,
-    hasTelegram: !!bot.telegram,
-    methodsCount: bot.telegram ? Object.keys(bot.telegram).length : 0,
   })
 
   return { bot }
 }
-
-export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1
-
-export const pulseBot = new Telegraf<MyContext>(PULSE_BOT_TOKEN)
 
 export const supportRequest = async (title: string, data: any) => {
   try {

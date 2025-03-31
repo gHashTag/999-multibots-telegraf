@@ -18,6 +18,20 @@ export async function sendPaymentNotificationToUser({
   bot,
 }: SendPaymentNotificationToUserProps) {
   try {
+    // Проверяем наличие telegram клиента и его методов
+    if (!bot.telegram || typeof bot.telegram.sendMessage !== 'function') {
+      logger.error(
+        '❌ Telegram клиент не инициализирован или отсутствует метод sendMessage:',
+        {
+          description:
+            'Telegram client not initialized or missing sendMessage method',
+          hasTelegram: !!bot.telegram,
+          methods: bot.telegram ? Object.keys(bot.telegram) : [],
+        }
+      )
+      throw new Error('Telegram client not properly initialized')
+    }
+
     const isRussian = language_code === 'ru'
 
     const message = isRussian

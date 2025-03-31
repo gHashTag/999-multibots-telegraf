@@ -6,10 +6,10 @@ import { updatePaymentStatus } from '@/core/supabase/updatePaymentStatus'
 import { logger } from '@/utils/logger'
 import { errorMessageAdmin } from '@/helpers/errorMessage'
 import { getTelegramIdFromInvId } from '@/helpers/getTelegramIdFromInvId'
-import { createBotByName } from '@/core/bot'
-import { getBotByName } from '@/core/bot'
-import { getBotGroupFromAvatars } from '@/core/supabase'
 
+import { Telegraf } from 'telegraf'
+import { MyContext } from '@/interfaces'
+import { createBotByName } from '@/core/bot'
 // Константы для вариантов оплаты
 const PAYMENT_OPTIONS = [
   { amount: 500, stars: 217 },
@@ -161,28 +161,14 @@ export const ruPaymentProcessPayment = inngest.createFunction(
       })
 
       if (stars > 0) {
-        const botConfig = await step.run('get-bot-config', async () => {
-          // Проверяем существование бота в Avatars
-          const groupId = await getBotGroupFromAvatars(bot_name)
-          if (!groupId) {
-            throw new Error(
-              `Неизвестное имя бота или группа не найдена: ${bot_name}`
-            )
-          }
-
-          // Получаем токен бота
-          const botToken = createBotByName(bot_name)
-
-          logger.info('🤖 Конфигурация бота получена', {
-            description: 'Bot configuration retrieved',
-            bot_name,
-            group_id: groupId,
-          })
-
-          return {
-            token: botToken?.token,
-            groupId: botToken?.groupId,
-          }
+        const botConfig = await createBotByName(bot_name)
+        // Отправляем уведомление о платеже
+        await sendPaymentNotificationToUser({
+          amount: stars.toString(),
+          stars,
+          telegramId: telegram_id,
+          language_code: language_code === 'ru' ? 'ru' : 'en',
+          bot: botConfig.bot as Telegraf<MyContext>,
         })
 
         // 6. Отправляем уведомление о платеже - отдельный шаг
@@ -196,8 +182,7 @@ export const ruPaymentProcessPayment = inngest.createFunction(
               stars,
             })
 
-            const { bot } = getBotByName(bot_name)
-            if (!bot) {
+            if (!botConfig.bot) {
               throw new Error(`❌ Бот ${bot_name} не найден`)
             }
 
@@ -220,7 +205,7 @@ export const ruPaymentProcessPayment = inngest.createFunction(
                 stars,
                 telegramId: telegram_id.toString(),
                 language_code,
-                bot,
+                bot: botConfig.bot as Telegraf<MyContext>,
               })
 
               console.log('✅ Личное уведомление отправлено:', {
@@ -251,14 +236,19 @@ export const ruPaymentProcessPayment = inngest.createFunction(
             let groupNotificationSent = false
             try {
               await sendPaymentNotificationWithBot({
+                bot: botConfig.bot,
+                groupId: botConfig.groupId,
+                telegram_id: telegram_id,
+                username: username || 'Пользователь без username',
                 amount: roundedIncSum.toString(),
                 stars,
-                telegramId: telegram_id.toString(),
-                language_code,
-                username,
-                groupId: botConfig.groupId,
-                bot,
               })
+
+              logger.info('✅ Уведомление отправлено в группу:', {
+                description: 'Group notification sent',
+                telegram_id,
+              })
+
               groupNotificationSent = true
             } catch (error) {
               console.error('❌ Ошибка отправки уведомления в группу:', {

@@ -1,36 +1,59 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/logger'
 
-export const sendPaymentNotificationWithBot = async ({
+export async function sendPaymentNotificationWithBot({
+  bot,
+  groupId,
+  telegram_id,
+  username,
   amount,
   stars,
-  telegramId,
-  language_code,
-  username,
-  groupId,
-  bot,
 }: {
+  bot: Telegraf<MyContext>
+  groupId: string
+  telegram_id: string
+  username: string
   amount: string
   stars: number
-  telegramId: string
-  language_code: string
-  username: string
-  groupId: string
-  bot: Telegraf<MyContext>
-}) => {
+}) {
   try {
-    const caption =
-      language_code === 'ru'
-        ? `💸 Пользователь @${
-            username || 'Пользователь без username'
-          } (Telegram ID: ${telegramId.toString()}) оплатил ${amount} рублей и получил ${stars} звезд.`
-        : `💸 User @${
-            username || 'User without username'
-          } (Telegram ID: ${telegramId.toString()}) paid ${amount} RUB and received ${stars} stars.`
+    // Проверяем, что у бота есть метод sendMessage
+    if (!bot.telegram?.sendMessage) {
+      logger.error(
+        '❌ Telegram клиент не инициализирован или отсутствует метод sendMessage:',
+        {
+          description:
+            'Telegram client not initialized or missing sendMessage method',
+          hasTelegram: !!bot.telegram,
+          methods: bot.telegram ? Object.keys(bot.telegram) : [],
+        }
+      )
+      throw new Error('Telegram client not properly initialized')
+    }
 
-    await bot.telegram.sendMessage(groupId, caption)
-  } catch (error) {
-    console.error('Ошибка при отправке уведомления об оплате:', error)
+    // Отправляем уведомление в группу
+    // Добавляем @ к groupId, если его нет
+    const formattedGroupId = groupId.startsWith('@') ? groupId : `@${groupId}`
+
+    await bot.telegram.sendMessage(
+      formattedGroupId,
+      `💸 Пользователь @${username} (Telegram ID: ${telegram_id}) оплатил ${amount} рублей и получил ${stars} звезд.`
+    )
+
+    logger.info('✅ Уведомление отправлено в группу:', {
+      description: 'Group notification sent',
+      groupId: formattedGroupId,
+    })
+
+    return true
+  } catch (error: any) {
+    logger.error('❌ Ошибка при отправке уведомления об оплате:', {
+      description: 'Error sending payment notification',
+      error: error?.message || error,
+      response: error?.response,
+      groupId,
+    })
     throw new Error('Ошибка при отправке уведомления об оплате')
   }
 }

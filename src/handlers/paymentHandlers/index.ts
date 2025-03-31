@@ -1,15 +1,10 @@
 import { Context, Scenes } from 'telegraf'
 import { isRussian } from '@/helpers'
-import {
-  incrementBalance,
-  setPayments,
-  getGroupByBotName,
-  getTranslation,
-} from '@/core/supabase'
+import { incrementBalance, setPayments, getTranslation } from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
 import { updateUserSubscription } from '@/core/supabase/updateUserSubscription'
 import { MyContext } from '@/interfaces'
-import { Telegraf } from 'telegraf'
+
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
@@ -65,7 +60,7 @@ async function getBotOwners(botName: string): Promise<string[]> {
 
 async function sendNotification(ctx: MyContext, message: string) {
   try {
-    const botData = createBotByName(ctx.botInfo.username)
+    const botData = await createBotByName(ctx.botInfo.username)
     if (!botData) {
       logger.error('❌ Токен бота не найден', {
         description: 'Bot token not found',
@@ -74,7 +69,7 @@ async function sendNotification(ctx: MyContext, message: string) {
       return
     }
 
-    const { groupId, bot } = await botData
+    const { groupId, bot } = botData
 
     // Проверяем groupId
     if (!groupId) {
