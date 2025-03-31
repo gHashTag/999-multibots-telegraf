@@ -54,8 +54,9 @@ export const getUserBalance = async (
         // Проверяем записи для этого пользователя напрямую
         const { data: userPayments, error: userPaymentsError } = await supabase
           .from('payments')
-          .select('amount, stars, type, status')
+          .select('amount, stars, type, status, description')
           .eq('telegram_id', id)
+          .order('created_at', { ascending: false })
           .limit(10)
 
         logger.info('🧪 ДИАГНОСТИКА - записи пользователя в payments:', {
@@ -78,6 +79,9 @@ export const getUserBalance = async (
             stars_type: typeof firstPayment.stars,
             amount_value: firstPayment.amount,
             stars_value: firstPayment.stars,
+            payment_type: firstPayment.type,
+            payment_status: firstPayment.status,
+            payment_description: firstPayment.description,
             bot_name,
           })
         }

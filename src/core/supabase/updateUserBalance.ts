@@ -86,98 +86,50 @@ export const updateUserBalance = async ({
     })
 
     // Создаем новую запись в таблице payments
-    const { data, error } = await supabase.from('payments').insert([
-      {
-        telegram_id,
-        amount: operationAmount,
-        stars: operationAmount,
-        inv_id,
-        type,
-        status: 'COMPLETED',
-        description: operation_description || `${type} operation`,
-        metadata,
-        payment_method,
-        bot_name,
-      },
-    ])
+    const { data, error } = await supabase
+      .from('payments')
+      .insert([
+        {
+          telegram_id,
+          amount: operationAmount,
+          stars: operationAmount,
+          inv_id,
+          type,
+          status: 'COMPLETED',
+          description: operation_description || `${type} operation`,
+          metadata,
+          payment_method,
+          bot_name,
+        },
+      ])
+      .select()
 
     if (error) {
-      logger.error('❌ Ошибка при создании записи о транзакции:', {
-        description: 'Error creating transaction record',
-        telegram_id,
+      logger.error('❌ Ошибка при создании записи в payments:', {
+        description: 'Error creating payment record',
         error: error.message,
-        error_details: error,
+        telegram_id,
+        operationAmount,
+        type,
+        inv_id,
       })
       return { success: false, newBalance: null }
     }
 
-    logger.info('✅ Транзакция успешно создана:', {
-      description: 'Transaction successfully created',
-      telegram_id,
-      amount: operationAmount,
-      type,
-    })
+    // Получаем обновленный баланс
+    const newBalance = await getUserBalance(telegram_id, bot_name)
 
-    // Рассчитываем новый баланс
-    let newBalance
-
-    if (type === 'income') {
-      newBalance = currentBalance + operationAmount
-    } else {
-      newBalance = currentBalance - operationAmount
-    }
-
-    // Округляем до 2 знаков после запятой
-    newBalance = parseFloat(newBalance.toFixed(2))
-
-    // Проверяем, что баланс не стал отрицательным
-    if (newBalance < 0) {
-      logger.warn('⚠️ Баланс стал отрицательным:', {
-        description: 'Balance became negative',
-        telegram_id,
-        oldBalance: currentBalance,
-        newBalance,
-        amount: operationAmount,
-        type,
-      })
-      // Корректируем до 0
-      newBalance = 0
-    }
-
-    logger.info('📝 Результат обновления баланса:', {
+    logger.info('💰 Результат обновления баланса:', {
       description: 'Balance update result',
-      updateResult: true,
       telegram_id,
+      operationAmount,
+      type,
+      inv_id,
+      newBalance,
+      payment_record: data && data.length > 0 ? data[0] : null,
     })
 
-    logger.info('✅ Баланс успешно обновлен:', {
-      description: 'Balance successfully updated',
-      telegram_id,
-      oldBalance: currentBalance,
-      newBalance,
-      difference: Math.abs(currentBalance - newBalance),
-    })
-
-    const { data: updateData, error: updateError } = await supabase
-      .from('users')
-      .update({ balance: newBalance })
-      .eq('telegram_id', telegram_id)
-
-    if (updateError) {
-      logger.error({
-        message: '❌ Ошибка при обновлении баланса',
-        description: 'Error updating balance',
-        error: updateError.message,
-        telegram_id,
-        data: updateData,
-      })
-      throw updateError
-    }
-
-    return {
-      success: true,
-      newBalance,
-    }
+    return { success: true, newBalance }
   } catch (error) {
     logger.error('❌ Ошибка при обновлении баланса пользователя:', {
       description: 'Error updating user balance',
