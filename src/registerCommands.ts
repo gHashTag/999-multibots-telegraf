@@ -203,17 +203,17 @@ export function registerCommands({
     await get100Command(ctx)
   })
 
-  // bot.command('buy', async ctx => {
-  //   console.log('CASE: buy')
-  //   ctx.session.subscription = 'stars'
-  //   await ctx.scene.enter('paymentScene')
-  // })
+  bot.command('buy', async ctx => {
+    console.log('CASE: buy')
+    ctx.session.subscription = 'stars'
+    await ctx.scene.enter('paymentScene')
+  })
 
-  // composer.command('buy', async ctx => {
-  //   console.log('CASE: buy')
-  //   ctx.session.subscription = 'stars'
-  //   await ctx.scene.enter('paymentScene')
-  // })
+  composer.command('buy', async ctx => {
+    console.log('CASE: buy')
+    ctx.session.subscription = 'stars'
+    await ctx.scene.enter('paymentScene')
+  })
 
   composer.command('invite', async ctx => {
     console.log('CASE: invite')
