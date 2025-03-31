@@ -27,15 +27,17 @@ export const updateUserBalance = async ({
 }: UpdateUserBalanceParams): Promise<{
   success: boolean
   newBalance: number | null
+  error?: string
 }> => {
   try {
     // Проверяем, что ID пользователя указан
     if (!telegram_id) {
-      logger.error('❌ Не указан ID пользователя', {
+      const error = '❌ Не указан ID пользователя'
+      logger.error(error, {
         description: 'User ID not specified',
         telegram_id,
       })
-      return { success: false, newBalance: null }
+      return { success: false, newBalance: null, error }
     }
 
     // Логирование входных данных для диагностики
@@ -49,28 +51,33 @@ export const updateUserBalance = async ({
       metadata: JSON.stringify(metadata),
     })
 
-    // Проверка на корректность суммы - должна быть положительным числом
-    // или в случае корректировки баланса - новым значением баланса
-    let operationAmount = amount
-
-    // Обработка случая передачи нового баланса (для outcome) вместо суммы операции
-    if (type === 'outcome' && amount > 100) {
-      // Вероятно, передан новый баланс вместо суммы операции
-      logger.warn(
-        '⚠️ ⚠️ Не могу определить сумму операции, устанавливаю значение по умолчанию 5:',
-        {
-          description:
-            'Cannot determine operation amount, setting default value of 5',
-          telegram_id,
-          original_amount: amount,
-        }
-      )
-
-      operationAmount = 5 // Устанавливаем разумное значение по умолчанию для outcome-операции
+    // Валидация суммы
+    if (isNaN(amount) || amount <= 0) {
+      const error = '❌ Некорректная сумма операции'
+      logger.error(error, {
+        description: 'Invalid operation amount',
+        telegram_id,
+        amount,
+        type,
+      })
+      return { success: false, newBalance: null, error }
     }
 
-    // Получаем текущий баланс пользователя
-    const currentBalance = await getUserBalance(telegram_id, bot_name)
+    // Проверяем достаточность средств для outcome-операций
+    if (type === 'outcome') {
+      const currentBalance = await getUserBalance(telegram_id, bot_name)
+      if (currentBalance === null || currentBalance < amount) {
+        const error = '❌ Недостаточно средств'
+        logger.error(error, {
+          description: 'Insufficient funds',
+          telegram_id,
+          current_balance: currentBalance,
+          required_amount: amount,
+          type,
+        })
+        return { success: false, newBalance: null, error }
+      }
+    }
 
     // Генерируем уникальный идентификатор для транзакции
     const inv_id = `${Date.now()}-${Math.floor(
@@ -81,7 +88,7 @@ export const updateUserBalance = async ({
       description: 'Creating new transaction record',
       telegram_id,
       inv_id,
-      transaction_amount: operationAmount,
+      transaction_amount: amount,
       type,
     })
 
@@ -91,8 +98,8 @@ export const updateUserBalance = async ({
       .insert([
         {
           telegram_id,
-          amount: operationAmount,
-          stars: operationAmount,
+          amount,
+          stars: amount,
           inv_id,
           type,
           status: 'COMPLETED',
@@ -105,15 +112,16 @@ export const updateUserBalance = async ({
       .select()
 
     if (error) {
-      logger.error('❌ Ошибка при создании записи в payments:', {
+      const errorMessage = '❌ Ошибка при создании записи в payments'
+      logger.error(errorMessage, {
         description: 'Error creating payment record',
         error: error.message,
         telegram_id,
-        operationAmount,
+        amount,
         type,
         inv_id,
       })
-      return { success: false, newBalance: null }
+      return { success: false, newBalance: null, error: errorMessage }
     }
 
     // Получаем обновленный баланс
@@ -122,7 +130,7 @@ export const updateUserBalance = async ({
     logger.info('💰 Результат обновления баланса:', {
       description: 'Balance update result',
       telegram_id,
-      operationAmount,
+      amount,
       type,
       inv_id,
       newBalance,
@@ -131,12 +139,13 @@ export const updateUserBalance = async ({
 
     return { success: true, newBalance }
   } catch (error) {
-    logger.error('❌ Ошибка при обновлении баланса пользователя:', {
+    const errorMessage = '❌ Ошибка при обновлении баланса пользователя'
+    logger.error(errorMessage, {
       description: 'Error updating user balance',
       telegram_id,
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     })
-    return { success: false, newBalance: null }
+    return { success: false, newBalance: null, error: errorMessage }
   }
 }

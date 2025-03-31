@@ -15,15 +15,9 @@ export { starAmounts } from './starAmounts'
 export { voiceConversationCost } from './voiceConversationCost'
 
 import { Telegraf, Telegram } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext, BalanceOperationResult } from '../../interfaces'
 import { logger } from '../../utils/logger'
 import { getUserByTelegramId, updateUserBalance } from '../../core/supabase'
-
-export interface BalanceOperationResult {
-  success: boolean
-  error?: string
-  newBalance?: number
-}
 
 export async function processBalanceOperation({
   telegram_id,
@@ -58,6 +52,8 @@ export async function processBalanceOperation({
       return {
         success: false,
         error: 'Insufficient funds',
+        newBalance: currentBalance,
+        modePrice: paymentAmount,
       }
     }
 
@@ -83,6 +79,7 @@ export async function processBalanceOperation({
     return {
       success: true,
       newBalance,
+      modePrice: paymentAmount,
     }
   } catch (error) {
     logger.error({
@@ -96,6 +93,8 @@ export async function processBalanceOperation({
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
+      newBalance: 0,
+      modePrice: paymentAmount,
     }
   }
 }

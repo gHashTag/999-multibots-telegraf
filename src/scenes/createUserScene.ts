@@ -72,13 +72,10 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}.`
           : `🔗 New user registered through your link: @${finalUsername}.`
       )
-      // await incrementBalance({
-      //   telegram_id: ctx.session.inviteCode,
-      //   amount: BONUS_AMOUNT,
-      // })
+
       await ctx.telegram.sendMessage(
         `@${SUBSCRIBE_CHANNEL_ID}`,
-        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}`
+        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке: @${ctx.session.inviteCode}`
       )
     }
   } else {

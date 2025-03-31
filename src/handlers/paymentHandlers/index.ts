@@ -1,6 +1,6 @@
 import { Context, Scenes } from 'telegraf'
 import { isRussian } from '@/helpers'
-import { incrementBalance, setPayments, getTranslation } from '@/core/supabase'
+import { setPayments, getTranslation } from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
 import { updateUserSubscription } from '@/core/supabase/updateUserSubscription'
 import { MyContext } from '@/interfaces'
@@ -212,11 +212,6 @@ async function processPayment(
     language: ctx.from?.language_code,
   })
 
-  await incrementBalance({
-    telegram_id: userId,
-    amount,
-  })
-
   await sendNotification(
     ctx,
     `💫 Пользователь: @${username} (ID: ${userId})\n` +
@@ -270,19 +265,6 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       await processPayment(ctx, stars_price, callback_data, stars)
     } else {
       console.log('CASE: subscriptionType not in buttons', selectedButton)
-      await incrementBalance({
-        telegram_id: ctx.from.id.toString(),
-        amount: stars,
-      })
-      await ctx.reply(
-        isRu
-          ? `💫 Ваш баланс пополнен на ${stars}⭐️ звезд!`
-          : `💫 Your balance has been replenished by ${stars}⭐️ stars!`
-      )
-      await sendNotification(
-        ctx,
-        `💫 Пользователь @${ctx.from.username} (ID: ${ctx.from.id}) пополнил баланс на ${stars} звезд!`
-      )
       await setPayments({
         telegram_id: ctx.from.id.toString(),
         OutSum: stars.toString(),
@@ -296,6 +278,15 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
         bot_name: ctx.botInfo.username,
         language: ctx.from?.language_code,
       })
+      await ctx.reply(
+        isRu
+          ? `💫 Ваш баланс пополнен на ${stars}⭐️ звезд!`
+          : `💫 Your balance has been replenished by ${stars}⭐️ stars!`
+      )
+      await sendNotification(
+        ctx,
+        `💫 Пользователь @${ctx.from.username} (ID: ${ctx.from.id}) пополнил баланс на ${stars} звезд!`
+      )
       ctx.session.subscription = ''
       ctx.session.buttons = []
     }
