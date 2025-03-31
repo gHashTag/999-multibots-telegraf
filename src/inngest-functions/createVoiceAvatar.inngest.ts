@@ -7,8 +7,9 @@ import { supabase } from '@/core/supabase'
 import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { getBotByName } from '@/core/bot'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/utils/logger'
 
 interface CreateVoiceAvatarEvent {
   data: {
@@ -186,33 +187,80 @@ export const createVoiceAvatarFunction = inngest.createFunction(
 
       return { success: true, voiceId: voiceResult.voiceId }
     } catch (error) {
-      await step.run('error-handler', async () => {
-        console.error('🔥 Глобальная ошибка при создании голоса:', {
-          description: 'Global error in voice creation',
-          error: JSON.stringify(error, Object.getOwnPropertyNames(error)),
-        })
-
-        if (validatedParams) {
-          // Отправляем сообщение об ошибке пользователю
-          errorMessage(
-            error as Error,
-            validatedParams.telegram_id,
-            validatedParams.is_ru
-          )
-
-          // Отправляем сообщение об ошибке администратору
-          errorMessageAdmin(error as Error)
-
-          // Отправляем уведомление пользователю об ошибке
-          const { bot } = getBotByName(validatedParams.bot_name)
-          await bot.telegram.sendMessage(
-            validatedParams.telegram_id,
-            validatedParams.is_ru
-              ? '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте еще раз.'
-              : '❌ An error occurred while creating your voice avatar. Please try again.'
-          )
-        }
+      logger.error({
+        message: '❌ Ошибка при создании голосового аватара',
+        description: 'Error during voice avatar creation',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        params: validatedParams,
       })
+
+      // Обработка возврата средств
+      if (validatedParams) {
+        try {
+          const refundAmount = calculateModeCost({
+            mode: ModeEnum.Voice,
+          }).stars
+
+          logger.info({
+            message: '💸 Начало процесса возврата средств',
+            description:
+              'Starting refund process due to voice avatar creation error',
+            telegram_id: validatedParams.telegram_id,
+            refundAmount,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+
+          // Отправляем событие возврата средств
+          await inngest.send({
+            id: `refund-${
+              validatedParams.telegram_id
+            }-${Date.now()}-${uuidv4()}`,
+            name: 'payment/process',
+            data: {
+              telegram_id: validatedParams.telegram_id,
+              amount: refundAmount, // положительное значение для возврата
+              type: 'refund',
+              description: `Возврат средств за неудачное создание голосового аватара`,
+              bot_name: validatedParams.bot_name,
+              metadata: {
+                service_type: ModeEnum.Voice,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                voice_name: validatedParams.username,
+              },
+            },
+          })
+
+          logger.info({
+            message: '✅ Возврат средств выполнен',
+            description: 'Refund processed successfully',
+            telegram_id: validatedParams.telegram_id,
+            refundAmount,
+          })
+
+          // Отправляем уведомление пользователю
+          const { bot } = getBotByName(validatedParams.bot_name)
+          if (bot) {
+            const message = validatedParams.is_ru
+              ? `❌ Произошла ошибка при создании голосового аватара. ${refundAmount} ⭐️ возвращены на ваш баланс.`
+              : `❌ An error occurred during voice avatar creation. ${refundAmount} ⭐️ have been refunded to your balance.`
+
+            await bot.telegram.sendMessage(validatedParams.telegram_id, message)
+          }
+        } catch (refundError) {
+          logger.error({
+            message: '🚨 Ошибка при попытке возврата средств',
+            description: 'Error during refund process',
+            error:
+              refundError instanceof Error
+                ? refundError.message
+                : 'Unknown error',
+            originalError:
+              error instanceof Error ? error.message : 'Unknown error',
+            telegram_id: validatedParams.telegram_id,
+          })
+        }
+      }
 
       throw error
     }

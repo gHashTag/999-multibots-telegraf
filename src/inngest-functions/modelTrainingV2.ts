@@ -362,80 +362,87 @@ export const modelTrainingV2 = inngest.createFunction(
         message: `Training initiated successfully: ${JSON.stringify(training)}`,
       }
     } catch (error) {
-      // Возвращаем средства в случае ошибки
-      await step.run('refund-balance', async () => {
-        const currentBalance = balanceOperation.currentBalance as number
-        const paymentAmount = balanceOperation.paymentAmount as number
+      logger.error({
+        message: '❌ Ошибка при тренировке модели',
+        description: 'Error during model training',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        params: event.data,
+      })
+
+      const { telegram_id, bot_name, is_ru, modelName, steps } = event.data
+
+      // Обработка возврата средств
+      try {
+        const refundAmount = calculateModeCost({
+          mode: ModeEnum.DigitalAvatarBodyV2,
+          steps: Number(steps),
+        }).stars
 
         logger.info({
-          message: '♻️ Refunding payment due to error',
-          telegramId: telegram_id,
-          amount: paymentAmount,
-          currentBalance,
-          step: 'refund-balance',
+          message: '💸 Начало процесса возврата средств',
+          description: 'Starting refund process due to training error',
+          telegram_id,
+          refundAmount,
+          error: error instanceof Error ? error.message : 'Unknown error',
         })
 
-        // Используем новую сигнатуру функции updateUserBalance
-        await updateUserBalance({
-          telegram_id,
-          amount: paymentAmount,
-          type: 'income',
-          operation_description: `Refund for model training ${modelName} (steps: ${steps})`,
-          metadata: {
-            payment_method: 'Training',
+        // Отправляем событие возврата средств
+        await inngest.send({
+          id: `refund-${telegram_id}-${Date.now()}-${uuidv4()}`,
+          name: 'payment/process',
+          data: {
+            telegram_id,
+            amount: refundAmount, // положительное значение для возврата
+            type: 'refund',
+            description: `Возврат средств за неудачную тренировку модели ${modelName}`,
             bot_name,
-            language: is_ru ? 'ru' : 'en',
-            service_type: 'ModelTraining',
+            metadata: {
+              service_type: ModeEnum.DigitalAvatarBodyV2,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              model_name: modelName,
+              steps: Number(steps),
+            },
           },
         })
 
         logger.info({
-          message: '✅ Payment refunded successfully',
-          telegramId: telegram_id,
-          newBalance: currentBalance + paymentAmount,
-          step: 'refund-balance',
-        })
-      })
-
-      // Логируем ошибку и отправляем уведомления
-      await step.run('handle-error', async () => {
-        logger.error({
-          message: '🚨 Error during model training',
-          error: error.message,
-          stack: error.stack,
-          telegramId: telegram_id,
-          modelName,
-          triggerWord,
-          step: 'handle-error',
+          message: '✅ Возврат средств выполнен',
+          description: 'Refund processed successfully',
+          telegram_id,
+          refundAmount,
         })
 
         // Отправляем уведомление пользователю
-        await bot.telegram.sendMessage(
-          telegram_id,
-          is_ru
-            ? `❌ Произошла ошибка при генерации модели. Попробуйте еще раз.\n\nОшибка: ${error.message}`
-            : `❌ An error occurred during model generation. Please try again.\n\nError: ${error.message}`
-        )
+        const { bot } = getBotByName(bot_name)
+        if (bot) {
+          const message = is_ru
+            ? `❌ Произошла ошибка при тренировке модели. ${refundAmount} ⭐️ возвращены на ваш баланс.`
+            : `❌ An error occurred during model training. ${refundAmount} ⭐️ have been refunded to your balance.`
 
-        // Отправляем уведомление администратору
-        errorMessageAdmin(error as Error)
-
-        // Проверка на специфичные ошибки
-        if ((error as ApiError).response?.status === 404) {
-          throw new Error(
-            `Ошибка при создании или доступе к модели. Проверьте REPLICATE_USERNAME (${process.env.REPLICATE_USERNAME}) и права доступа.`
-          )
+          await bot.telegram.sendMessage(telegram_id, message)
         }
-      })
+      } catch (refundError) {
+        logger.error({
+          message: '🚨 Ошибка при попытке возврата средств',
+          description: 'Error during refund process',
+          error:
+            refundError instanceof Error
+              ? refundError.message
+              : 'Unknown error',
+          originalError:
+            error instanceof Error ? error.message : 'Unknown error',
+          telegram_id,
+        })
+      }
 
-      // Удаляем процесс из активных
-      activeTrainings.delete(telegram_id)
-
-      logger.error({
-        message: '🛑 Model training process failed',
-        telegramId: telegram_id,
-        modelName,
-        error: error.message,
+      // Отправляем событие о неудаче
+      await inngest.send({
+        name: 'model-training-v2/failed',
+        data: {
+          ...event.data,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
       })
 
       throw error

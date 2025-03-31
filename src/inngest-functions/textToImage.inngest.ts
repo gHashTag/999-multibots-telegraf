@@ -12,8 +12,6 @@ import {
   processApiResponse,
   pulse,
   saveFileLocally,
-  errorMessage,
-  errorMessageAdmin,
 } from '@/helpers'
 import { replicate } from '@/core/replicate'
 import { ModeEnum } from '@/price/helpers/modelsCost'
@@ -22,6 +20,7 @@ import path from 'path'
 import fs from 'fs'
 import { inngest } from '@/core/inngest/clients'
 import { IMAGES_MODELS } from '@/price/models/IMAGES_MODELS'
+import { logger } from '@/utils/logger'
 
 interface TextToImageEvent {
   data: {
@@ -276,17 +275,87 @@ export const textToImageFunction = inngest.createFunction(
 
       return { success: true, results }
     } catch (error) {
-      await step.run('global-error-handler', async () => {
-        console.error('🔥 Глобальная ошибка:', error)
-        if (validatedParams) {
-          errorMessage(
-            error as Error,
-            validatedParams.telegram_id,
-            validatedParams.is_ru
-          )
-        }
-        errorMessageAdmin(error as Error)
+      logger.error({
+        message: '❌ Ошибка при генерации изображения',
+        description: 'Error during image generation',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        params: validatedParams,
       })
+
+      // Обработка возврата средств
+      if (validatedParams) {
+        try {
+          const modelConfig = IMAGES_MODELS[validatedParams.model.toLowerCase()]
+          if (modelConfig) {
+            const refundAmount =
+              modelConfig.costPerImage * validatedParams.num_images
+
+            logger.info({
+              message: '💸 Начало процесса возврата средств',
+              description: 'Starting refund process due to generation error',
+              telegram_id: validatedParams.telegram_id,
+              refundAmount,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            })
+
+            // Отправляем событие возврата средств
+            await inngest.send({
+              id: `refund-${
+                validatedParams.telegram_id
+              }-${Date.now()}-${uuidv4()}`,
+              name: 'payment/process',
+              data: {
+                telegram_id: validatedParams.telegram_id,
+                amount: refundAmount, // положительное значение для возврата
+                type: 'refund',
+                description: `Возврат средств за неудачную генерацию ${validatedParams.num_images} изображений`,
+                bot_name: validatedParams.bot_name,
+                metadata: {
+                  service_type: ModeEnum.TextToImage,
+                  error:
+                    error instanceof Error ? error.message : 'Unknown error',
+                  num_images: validatedParams.num_images,
+                  model: validatedParams.model,
+                },
+              },
+            })
+
+            logger.info({
+              message: '✅ Возврат средств выполнен',
+              description: 'Refund processed successfully',
+              telegram_id: validatedParams.telegram_id,
+              refundAmount,
+            })
+
+            // Отправляем уведомление пользователю
+            const { bot } = getBotByName(validatedParams.bot_name)
+            if (bot) {
+              const message = validatedParams.is_ru
+                ? `❌ Произошла ошибка при генерации изображений. ${refundAmount} ⭐️ возвращены на ваш баланс.`
+                : `❌ An error occurred during image generation. ${refundAmount} ⭐️ have been refunded to your balance.`
+
+              await bot.telegram.sendMessage(
+                validatedParams.telegram_id,
+                message
+              )
+            }
+          }
+        } catch (refundError) {
+          logger.error({
+            message: '🚨 Ошибка при попытке возврата средств',
+            description: 'Error during refund process',
+            error:
+              refundError instanceof Error
+                ? refundError.message
+                : 'Unknown error',
+            originalError:
+              error instanceof Error ? error.message : 'Unknown error',
+            telegram_id: validatedParams.telegram_id,
+          })
+        }
+      }
+
       throw error
     }
   }
