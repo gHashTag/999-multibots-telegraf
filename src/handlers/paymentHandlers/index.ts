@@ -9,6 +9,9 @@ import {
 import { Message } from 'telegraf/typings/core/types/typegram'
 import { updateUserSubscription } from '@/core/supabase/updateUserSubscription'
 import { MyContext } from '@/interfaces'
+import { Telegraf } from 'telegraf'
+import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/logger'
 
 import { createBotByName } from '@/core/bot'
 // Используйте SessionFlavor для добавления сессий
@@ -30,26 +33,113 @@ type PaymentContext = Context &
     } & Message
   }
 
+/**
+ * Получает список владельцев бота из таблицы avatars
+ */
+async function getBotOwners(botName: string): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('avatars')
+      .select('telegram_id')
+      .eq('bot_name', botName)
+
+    if (error) {
+      logger.error('❌ Ошибка при получении владельцев бота:', {
+        description: 'Error fetching bot owners',
+        error,
+        botName,
+      })
+      return []
+    }
+
+    return data.map(owner => owner.telegram_id.toString())
+  } catch (error) {
+    logger.error('❌ Непредвиденная ошибка при получении владельцев бота:', {
+      description: 'Unexpected error fetching bot owners',
+      error,
+      botName,
+    })
+    return []
+  }
+}
+
 async function sendNotification(ctx: MyContext, message: string) {
   try {
     const botData = createBotByName(ctx.botInfo.username)
     if (!botData) {
-      console.error('Bot token not found')
-      return
-    }
-    const { bot, groupId } = botData
-    console.log('CASE: ctx.botInfo', ctx.botInfo)
-    console.log('CASE: ctx.botInfo.username', ctx.botInfo.username)
-    const group = await getGroupByBotName(ctx.botInfo.username)
-    console.log('CASE: group', group)
-    if (!group) {
-      console.error('Group not found')
+      logger.error('❌ Токен бота не найден', {
+        description: 'Bot token not found',
+        botName: ctx.botInfo.username,
+      })
       return
     }
 
-    await bot.telegram.sendMessage(`@${groupId}`, message)
+    const { token, groupId } = botData
+    const bot = new Telegraf(token)
+
+    // Проверяем groupId
+    if (!groupId) {
+      logger.error('❌ ID группы не найден', {
+        description: 'Group ID not found',
+        botName: ctx.botInfo.username,
+      })
+      return
+    }
+
+    // Отправляем сообщение в группу
+    try {
+      logger.info('🚀 Отправка уведомления в группу', {
+        description: 'Sending notification to group',
+        groupId,
+        botName: ctx.botInfo.username,
+      })
+      await bot.telegram.sendMessage(`@${groupId}`, message)
+    } catch (error) {
+      logger.error('❌ Ошибка при отправке уведомления в группу:', {
+        description: 'Error sending notification to group',
+        error,
+        groupId,
+        botName: ctx.botInfo.username,
+      })
+    }
+
+    // Получаем список владельцев бота
+    const owners = await getBotOwners(ctx.botInfo.username)
+
+    if (owners.length === 0) {
+      logger.warn('⚠️ Не найдены владельцы бота', {
+        description: 'No bot owners found',
+        botName: ctx.botInfo.username,
+      })
+    }
+
+    // Отправляем уведомление каждому владельцу
+    for (const ownerId of owners) {
+      try {
+        await bot.telegram.sendMessage(
+          ownerId,
+          `🔔 Уведомление о платеже\n\n${message}`
+        )
+        logger.info('✅ Уведомление отправлено владельцу', {
+          description: 'Payment notification sent to owner',
+          ownerId,
+          botName: ctx.botInfo.username,
+        })
+      } catch (error) {
+        logger.error('❌ Ошибка при отправке уведомления владельцу:', {
+          description: 'Error sending notification to owner',
+          error,
+          ownerId,
+          botName: ctx.botInfo.username,
+        })
+      }
+    }
   } catch (error) {
-    console.error('Error sending notification:', error)
+    logger.error('❌ Ошибка при отправке уведомлений:', {
+      description: 'Error sending notifications',
+      error,
+      botName: ctx.botInfo.username,
+    })
   }
 }
 

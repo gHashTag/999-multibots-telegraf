@@ -98,16 +98,18 @@ export const AVATARS_GROUP_ID = {
 
 export function createBotByName(
   botName: string
-): { token: string; groupId: string } | undefined {
+): { token: string; groupId: string; bot: Telegraf<MyContext> } | undefined {
   const token = getTokenByBotName(botName)
   if (!token) {
     console.error(`Token for bot name ${botName} not found.`)
     return undefined
   }
   const groupId = AVATARS_GROUP_ID[botName]
+  const bot = bots.find(bot => bot.telegram.token === token)
   return {
     token,
     groupId,
+    bot,
   }
 }
 
