@@ -263,6 +263,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
 
     // Отправляем событие в Inngest для асинхронной обработки
     await inngest.send({
+      id: `ru-payment-processing-${invoiceId}`,
       name: 'ru-payment/process-payment',
       data: {
         IncSum: Math.round(roundedIncSum),
