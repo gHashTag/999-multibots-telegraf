@@ -1,0 +1,63 @@
+# Git Commit Message Rules
+
+## Structure
+1. Title (First Line):
+   - Must be in English
+   - Max 50 characters
+   - Format: `type: short description`
+   - Types:
+     * fix: bug fixes
+     * feat: new features
+     * refactor: code changes
+     * docs: documentation
+     * style: formatting
+     * perf: performance
+     * test: testing
+     * chore: maintenance
+
+2. Description (Body):
+   - Must be in English
+   - Separate from title with blank line
+   - Use bullet points for multiple changes
+   - Explain WHAT and WHY (not HOW)
+   - Max 72 characters per line
+
+## Examples
+```
+feat: add payment gateway integration
+
+- Implement Stripe payment processing
+- Add webhook handlers for payment events
+- Update user balance after successful payment
+- Add payment status tracking
+```
+
+```
+fix: resolve balance calculation issue
+
+- Fix incorrect balance updates in payment processor
+- Add validation for negative amounts
+- Improve error handling and logging
+```
+
+## Rules
+- ❌ NO Russian language
+- ❌ NO implementation details
+- ❌ NO line breaks in title
+- ✅ Use present tense ("add" not "added")
+- ✅ Use imperative mood ("change" not "changes")
+- ✅ Reference issues when relevant (#123)
+
+## Special Notes
+- `BREAKING CHANGE:` in footer for critical changes
+- `Closes #123` for closing issues
+- `See: #123` for linking to issues
+
+## For MCP Services
+Add MCP prefix when working with MCP services:
+
+```
+🔧 [MCP] fix: Исправлена обработка stdio в sequential-thinking
+
+✨ [MCP] feat: Добавлен новый обработчик в docker-tools
+``` 
