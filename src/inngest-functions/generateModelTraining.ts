@@ -824,12 +824,10 @@ export const generateModelTraining = inngest.createFunction(
         modelName,
         steps,
       })
-      ///
-      // Затем выполняем списание в отдельном шаге
-      const chargeResult = await step.run('charge-user-balance', async () => {
-        const newBalance = balanceCheck.currentBalance - paymentAmount
 
-        // Обновляем баланс через Inngest
+      // Затем выполняем списание через payment/process
+      const chargeResult = await step.run('charge-user-balance', async () => {
+        // Отправляем событие списания средств
         await inngest.send({
           id: `train-${
             eventData.telegram_id
@@ -837,11 +835,10 @@ export const generateModelTraining = inngest.createFunction(
           name: 'payment/process',
           data: {
             telegram_id: eventData.telegram_id,
-            paymentAmount: paymentAmount,
-            is_ru: eventData.is_ru,
-            bot_name: eventData.bot_name,
+            amount: -paymentAmount, // отрицательное значение для списания
             type: 'outcome',
-            description: `Payment for model training`,
+            description: `Оплата тренировки модели ${modelName} (${steps} шагов)`,
+            bot_name: eventData.bot_name,
             metadata: {
               service_type: ModeEnum.DigitalAvatarBody,
               model_name: modelName,
@@ -853,7 +850,7 @@ export const generateModelTraining = inngest.createFunction(
         return {
           success: true,
           oldBalance: balanceCheck.currentBalance,
-          newBalance,
+          newBalance: Number(balanceCheck.currentBalance) - paymentAmount,
           paymentAmount,
         }
       })
@@ -1013,15 +1010,21 @@ export const generateModelTraining = inngest.createFunction(
           modelName: eventData.modelName,
         })
 
-        // Затем выполняем возврат через Inngest
+        // Выполняем возврат через payment/process
         await inngest.send({
           name: 'payment/process',
           data: {
             telegram_id: eventData.telegram_id,
-            paymentAmount,
-            type: 'income',
+            amount: paymentAmount, // положительное значение для возврата
+            type: 'refund',
             description: `Возврат средств за неудавшуюся тренировку модели ${eventData.modelName}`,
             bot_name: eventData.bot_name,
+            metadata: {
+              service_type: ModeEnum.DigitalAvatarBody,
+              model_name: eventData.modelName,
+              steps: Number(eventData.steps),
+              error: error.message,
+            },
           },
         })
       }
