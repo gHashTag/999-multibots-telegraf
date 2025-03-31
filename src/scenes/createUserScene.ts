@@ -3,7 +3,7 @@ import { WizardScene } from 'telegraf/scenes'
 import {
   createUser,
   getReferalsCountAndUserData,
-  incrementBalance,
+  getUserByTelegramIdString,
 } from '@/core/supabase'
 import { getSubScribeChannel } from '@/core/supabase'
 
@@ -69,20 +69,23 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       await ctx.telegram.sendMessage(
         ctx.session.inviteCode,
         isRussian(ctx)
-          ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}.`
-          : `🔗 New user registered through your link: @${finalUsername}.`
+          ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: ${finalUsername}.`
+          : `🔗 New user registered through your link: ${finalUsername}.`
       )
+
+      const user = await getUserByTelegramIdString(ctx.session.inviteCode)
+      console.log('user', user)
 
       await ctx.telegram.sendMessage(
         `@${SUBSCRIBE_CHANNEL_ID}`,
-        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке: @${ctx.session.inviteCode}`
+        `🔗 Новый пользователь зарегистрировался в боте: ${finalUsername}. По реферальной ссылке: @${user.username}`
       )
     }
   } else {
     try {
       await ctx.telegram.sendMessage(
         `@${SUBSCRIBE_CHANNEL_ID}`,
-        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}.`
+        `🔗 Новый пользователь зарегистрировался в боте: ${finalUsername}.`
       )
     } catch (error) {
       console.error('Ошибка в createUserStep:', error)
