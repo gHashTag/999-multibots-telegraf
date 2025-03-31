@@ -6,8 +6,8 @@ import { NODE_ENV } from '@/config'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import { createMockBot } from '@/test-utils/mocks/botMock'
 
+import { getBotGroupFromAvatars } from '@/core/supabase'
 if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
 if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
 if (!process.env.BOT_TOKEN_3) throw new Error('BOT_TOKEN_3 is not set')
@@ -85,26 +85,17 @@ export function getTokenByBotName(botName: string): string | undefined {
   return token
 }
 
-export const AVATARS_GROUP_ID = {
-  ['neuro_blogger_bot']: '@neuro_blogger_group',
-  ['MetaMuse_Manifest_bot']: '@MetaMuse_AI_Influencer',
-  ['ZavaraBot']: '@NeuroLuna',
-  ['LeeSolarbot']: '@SolarNeuroBlogger1',
-  ['NeuroLenaAssistant_bot']: '@neuroLenka',
-  ['NeurostylistShtogrina_bot']: '@neirostylist',
-  ['Gaia_Kamskaia_bot']: '@neuromeets',
-  ['ai_koshey_bot']: '@neuro_blogger_group',
-}
-
-export function createBotByName(
+export async function createBotByName(
   botName: string
-): { token: string; groupId: string; bot: Telegraf<MyContext> } | undefined {
+): Promise<
+  { token: string; groupId: string; bot: Telegraf<MyContext> } | undefined
+> {
   const token = getTokenByBotName(botName)
   if (!token) {
     console.error(`Token for bot name ${botName} not found.`)
     return undefined
   }
-  const groupId = AVATARS_GROUP_ID[botName]
+  const groupId = await getBotGroupFromAvatars(botName)
   const bot = bots.find(bot => bot.telegram.token === token)
   return {
     token,

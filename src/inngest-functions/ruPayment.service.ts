@@ -6,8 +6,9 @@ import { updatePaymentStatus } from '@/core/supabase/updatePaymentStatus'
 import { logger } from '@/utils/logger'
 import { errorMessageAdmin } from '@/helpers/errorMessage'
 import { getTelegramIdFromInvId } from '@/helpers/getTelegramIdFromInvId'
-import { AVATARS_GROUP_ID, createBotByName } from '@/core/bot'
+import { createBotByName } from '@/core/bot'
 import { getBotByName } from '@/core/bot'
+import { getBotGroupFromAvatars } from '@/core/supabase'
 
 // Константы для вариантов оплаты
 const PAYMENT_OPTIONS = [
@@ -63,6 +64,8 @@ const SUBSCRIPTION_AMOUNTS = SUBSCRIPTION_PLANS.reduce((acc, plan) => {
   acc[plan.ru_price] = plan.callback_data
   return acc
 }, {})
+
+// Получаем данные бота из Supabase
 
 // Функция Inngest для обработки платежей
 export const ruPaymentProcessPayment = inngest.createFunction(
@@ -159,22 +162,16 @@ export const ruPaymentProcessPayment = inngest.createFunction(
 
       if (stars > 0) {
         const botConfig = await step.run('get-bot-config', async () => {
-          // Проверяем, что bot_name является допустимым ключом AVATARS_GROUP_ID
-          if (!(bot_name in AVATARS_GROUP_ID)) {
-            throw new Error(`Неизвестное имя бота: ${bot_name}`)
+          // Проверяем существование бота в Avatars
+          const groupId = await getBotGroupFromAvatars(bot_name)
+          if (!groupId) {
+            throw new Error(
+              `Неизвестное имя бота или группа не найдена: ${bot_name}`
+            )
           }
 
           // Получаем токен бота
           const botToken = createBotByName(bot_name)
-
-          // Получаем ID группы из константы
-          const groupId =
-            AVATARS_GROUP_ID[bot_name as keyof typeof AVATARS_GROUP_ID]
-          if (!groupId) {
-            throw new Error(
-              `ID группы не найден для ${bot_name} в AVATARS_GROUP_ID`
-            )
-          }
 
           logger.info('🤖 Конфигурация бота получена', {
             description: 'Bot configuration retrieved',

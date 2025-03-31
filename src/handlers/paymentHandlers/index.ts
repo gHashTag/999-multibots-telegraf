@@ -74,8 +74,7 @@ async function sendNotification(ctx: MyContext, message: string) {
       return
     }
 
-    const { token, groupId } = botData
-    const bot = new Telegraf(token)
+    const { groupId, bot } = await botData
 
     // Проверяем groupId
     if (!groupId) {
@@ -83,24 +82,40 @@ async function sendNotification(ctx: MyContext, message: string) {
         description: 'Group ID not found',
         botName: ctx.botInfo.username,
       })
-      return
-    }
-
-    // Отправляем сообщение в группу
-    try {
-      logger.info('🚀 Отправка уведомления в группу', {
-        description: 'Sending notification to group',
-        groupId,
-        botName: ctx.botInfo.username,
-      })
-      await bot.telegram.sendMessage(`@${groupId}`, message)
-    } catch (error) {
-      logger.error('❌ Ошибка при отправке уведомления в группу:', {
-        description: 'Error sending notification to group',
-        error,
-        groupId,
-        botName: ctx.botInfo.username,
-      })
+    } else {
+      // Отправляем сообщение в группу
+      try {
+        logger.info('🚀 Отправка уведомления в группу', {
+          description: 'Sending notification to group',
+          groupId,
+          botName: ctx.botInfo.username,
+        })
+        await bot.telegram.sendMessage(`@${groupId}`, message)
+        logger.info('✅ Уведомление отправлено в группу', {
+          description: 'Notification sent to group successfully',
+          groupId,
+          botName: ctx.botInfo.username,
+        })
+      } catch (error: any) {
+        // Проверяем специфические ошибки Telegram
+        if (error?.response?.error_code === 403) {
+          logger.error('❌ Бот исключен из группы:', {
+            description: 'Bot was kicked from the group',
+            error: error?.response?.description || error.message,
+            groupId,
+            botName: ctx.botInfo.username,
+            solution: 'Need to add bot back to the group',
+          })
+        } else {
+          logger.error('❌ Ошибка при отправке уведомления в группу:', {
+            description: 'Error sending notification to group',
+            error: error?.response?.description || error.message,
+            errorCode: error?.response?.error_code,
+            groupId,
+            botName: ctx.botInfo.username,
+          })
+        }
+      }
     }
 
     // Получаем список владельцев бота
@@ -113,6 +128,9 @@ async function sendNotification(ctx: MyContext, message: string) {
       })
     }
 
+    let successfulNotifications = 0
+    let failedNotifications = 0
+
     // Отправляем уведомление каждому владельцу
     for (const ownerId of owners) {
       try {
@@ -120,24 +138,47 @@ async function sendNotification(ctx: MyContext, message: string) {
           ownerId,
           `🔔 Уведомление о платеже\n\n${message}`
         )
+        successfulNotifications++
         logger.info('✅ Уведомление отправлено владельцу', {
           description: 'Payment notification sent to owner',
           ownerId,
           botName: ctx.botInfo.username,
         })
-      } catch (error) {
-        logger.error('❌ Ошибка при отправке уведомления владельцу:', {
-          description: 'Error sending notification to owner',
-          error,
-          ownerId,
-          botName: ctx.botInfo.username,
-        })
+      } catch (error: any) {
+        failedNotifications++
+        // Проверяем специфические ошибки Telegram
+        if (error?.response?.error_code === 403) {
+          logger.error('❌ Владелец заблокировал бота:', {
+            description: 'Owner blocked the bot',
+            error: error?.response?.description || error.message,
+            ownerId,
+            botName: ctx.botInfo.username,
+            solution: 'Owner needs to unblock and restart the bot',
+          })
+        } else {
+          logger.error('❌ Ошибка при отправке уведомления владельцу:', {
+            description: 'Error sending notification to owner',
+            error: error?.response?.description || error.message,
+            errorCode: error?.response?.error_code,
+            ownerId,
+            botName: ctx.botInfo.username,
+          })
+        }
       }
     }
-  } catch (error) {
-    logger.error('❌ Ошибка при отправке уведомлений:', {
-      description: 'Error sending notifications',
-      error,
+
+    // Логируем общую статистику отправки
+    logger.info('📊 Статистика отправки уведомлений:', {
+      description: 'Notification sending statistics',
+      totalOwners: owners.length,
+      successfulNotifications,
+      failedNotifications,
+      botName: ctx.botInfo.username,
+    })
+  } catch (error: any) {
+    logger.error('❌ Критическая ошибка при отправке уведомлений:', {
+      description: 'Critical error while sending notifications',
+      error: error?.message || 'Unknown error',
       botName: ctx.botInfo.username,
     })
   }
