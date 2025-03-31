@@ -1,14 +1,13 @@
-import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
 import { sendPaymentNotificationWithBot } from '@/price/helpers/sendPaymentNotificationWithBot'
 import { sendPaymentNotificationToUser } from '@/price/helpers/sendPaymentNotificationToUser'
 import { inngest } from '@/core/inngest/clients'
 import { updateUserSubscription } from '@/core/supabase'
 import { updatePaymentStatus } from '@/core/supabase/updatePaymentStatus'
 import { logger } from '@/utils/logger'
-import { errorMessage, errorMessageAdmin } from '@/helpers/errorMessage'
+import { errorMessageAdmin } from '@/helpers/errorMessage'
 import { getTelegramIdFromInvId } from '@/helpers/getTelegramIdFromInvId'
 import { AVATARS_GROUP_ID, createBotByName } from '@/core/bot'
+import { getBotByName } from '@/core/bot'
 
 // Константы для вариантов оплаты
 const PAYMENT_OPTIONS = [
@@ -17,7 +16,6 @@ const PAYMENT_OPTIONS = [
   { amount: 2000, stars: 869 },
   { amount: 5000, stars: 2173 },
   { amount: 10000, stars: 4347 },
-  { amount: 10, stars: 6 },
 ]
 
 // Константы для тарифов
@@ -192,30 +190,107 @@ export const ruPaymentProcessPayment = inngest.createFunction(
 
         // 6. Отправляем уведомление о платеже - отдельный шаг
         await step.run('send-notification', async () => {
-          const bot = new Telegraf<MyContext>(botConfig.token)
+          try {
+            console.log('🚀 Начало отправки уведомлений:', {
+              description: 'Starting notifications sending',
+              bot_name,
+              telegram_id,
+              roundedIncSum,
+              stars,
+            })
 
-          // Отправляем уведомление в группу
-          await sendPaymentNotificationWithBot({
-            amount: roundedIncSum.toString(),
-            stars,
-            telegramId: telegram_id.toString(),
-            language_code,
-            username,
-            groupId: botConfig.groupId,
-            bot,
-          })
+            const { bot } = getBotByName(bot_name)
+            if (!bot) {
+              throw new Error(`❌ Бот ${bot_name} не найден`)
+            }
 
-          // Отправляем личное уведомление пользователю
-          await sendPaymentNotificationToUser({
-            amount: roundedIncSum.toString(),
-            stars,
-            telegramId: telegram_id.toString(),
-            language_code,
-            bot,
-          })
+            console.log('✅ Бот получен:', {
+              description: 'Bot retrieved',
+              bot_name,
+            })
 
-          console.log('📨 processPayment: уведомления отправлены')
-          return { success: true }
+            // Проверяем входные параметры
+            if (!telegram_id || !roundedIncSum || !stars) {
+              throw new Error(
+                '❌ Отсутствуют обязательные параметры для отправки уведомлений'
+              )
+            }
+
+            // Отправляем личное уведомление пользователю
+            try {
+              await sendPaymentNotificationToUser({
+                amount: roundedIncSum.toString(),
+                stars,
+                telegramId: telegram_id.toString(),
+                language_code,
+                bot,
+              })
+
+              console.log('✅ Личное уведомление отправлено:', {
+                description: 'Personal notification sent',
+                telegram_id,
+              })
+            } catch (error) {
+              console.error('❌ Ошибка отправки личного уведомления:', {
+                description: 'Error sending personal notification',
+                error: error instanceof Error ? error.message : 'Unknown error',
+              })
+              throw error
+            }
+
+            // Проверяем наличие groupId
+            if (!botConfig.groupId) {
+              console.warn(
+                '⚠️ groupId не настроен, пропускаем отправку в группу'
+              )
+              return {
+                success: true,
+                personalNotification: true,
+                groupNotification: false,
+              }
+            }
+
+            // Отправляем уведомление в группу
+            let groupNotificationSent = false
+            try {
+              await sendPaymentNotificationWithBot({
+                amount: roundedIncSum.toString(),
+                stars,
+                telegramId: telegram_id.toString(),
+                language_code,
+                username,
+                groupId: botConfig.groupId,
+                bot,
+              })
+              groupNotificationSent = true
+            } catch (error) {
+              console.error('❌ Ошибка отправки уведомления в группу:', {
+                description: 'Error sending group notification',
+                error: error instanceof Error ? error.message : 'Unknown error',
+              })
+              // Не выбрасываем ошибку, так как личное уведомление уже отправлено
+            }
+
+            console.log('📨 Статус отправки уведомлений:', {
+              description: 'Notifications status',
+              personalNotification: true,
+              groupNotification: groupNotificationSent,
+            })
+
+            return {
+              success: true,
+              personalNotification: true,
+              groupNotification: groupNotificationSent,
+            }
+          } catch (error) {
+            console.error('❌ Ошибка при отправке уведомлений:', {
+              description: 'Error in notifications sending',
+              error: error instanceof Error ? error.message : 'Unknown error',
+              bot_name,
+              telegram_id,
+            })
+            throw error // Пробрасываем ошибку для обработки в Inngest
+          }
         })
 
         // 7. Обновляем подписку только если платеж соответствует тарифу - отдельный шаг

@@ -132,9 +132,11 @@ export function getBotByName(bot_name: string): {
       description: 'Test environment, returning mock bot',
       bot_name,
     })
-    // Возвращаем мок-бот для тестирования
-    return { bot: createMockBot(bot_name) as unknown as Telegraf<MyContext> }
+    const bot = bots.find(bot => bot.telegram.token === token)
+
+    return { bot }
   }
+  //
 
   // Проверяем наличие бота в конфигурации
   const token = BOT_NAMES[bot_name]

@@ -138,33 +138,31 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
       [key: string]: string | undefined
     }
 
-    // Пытаемся распарсить тело запроса в зависимости от Content-Type
+    // Пытаемся распарсить тело запроса
     let parsedBody: RobokassaWebhookData = {}
 
     try {
-      // Для form-urlencoded сначала пробуем распарсить как JSON строку
-      try {
+      // Проверяем формат данных
+      if (rawBody.startsWith('{')) {
+        // Это JSON
         parsedBody = JSON.parse(rawBody)
         logger.info({
-          message: '📦 Распарсили JSON из form-urlencoded',
-          description: 'Parsed JSON from form-urlencoded',
+          message: '📦 Распарсили JSON',
+          description: 'Parsed JSON data',
           parsedBody,
         })
-      } catch (jsonError) {
-        // Если не получилось как JSON, пробуем как form-urlencoded
-        if (rawBody.includes('=')) {
-          parsedBody = Object.fromEntries(
-            new URLSearchParams(rawBody)
-          ) as RobokassaWebhookData
-
-          logger.info({
-            message: '📦 Распарсили form-urlencoded',
-            description: 'Parsed form-urlencoded body',
-            parsedBody,
-          })
-        } else {
-          throw new Error('Неподдерживаемый формат данных')
-        }
+      } else if (rawBody.includes('=')) {
+        // Это form-urlencoded
+        parsedBody = Object.fromEntries(
+          new URLSearchParams(rawBody)
+        ) as RobokassaWebhookData
+        logger.info({
+          message: '📦 Распарсили form-urlencoded',
+          description: 'Parsed form-urlencoded data',
+          parsedBody,
+        })
+      } else {
+        throw new Error('Неподдерживаемый формат данных')
       }
 
       // Проверяем наличие данных в URL
@@ -283,11 +281,15 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     return res.send('OK')
   } catch (error) {
     // Проверяем, не является ли ошибка связана с JWT токеном
-    if (
-      req.body instanceof Buffer &&
-      req.body.toString('utf8').startsWith('eyJ')
-    ) {
-      // Это JWT токен, просто отвечаем OK без логирования ошибок
+    const rawBody =
+      req.body instanceof Buffer ? req.body.toString('utf8') : req.body
+    if (typeof rawBody === 'string' && rawBody.startsWith('eyJ')) {
+      logger.info({
+        message: '🔄 Пропускаем JWT токен из-за ошибки',
+        description: 'Skipping JWT token due to error',
+        bodyType: typeof req.body,
+        isBuffer: req.body instanceof Buffer,
+      })
       return res.send('OK')
     }
 
