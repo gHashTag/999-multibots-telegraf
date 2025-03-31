@@ -56,7 +56,7 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
       scope: { type: 'all_chat_administrators' },
     })
 
-    // Устанавливаем команды только для владельца бота
+    // Устанавливаем команды только для приватных чатов
     await bot.telegram.setMyCommands(
       [
         {
@@ -78,15 +78,13 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
       ],
       {
         scope: {
-          type: 'chat',
-          chat_id: 11111111,
+          type: 'all_private_chats',
         },
       }
     )
 
-    console.log('✅ Команды для владельца бота успешно установлены:', {
-      description: 'Owner commands set successfully',
-      ownerTelegramId,
+    console.log('✅ Команды бота успешно установлены:', {
+      description: 'Bot commands set successfully for private chats',
       botName,
     })
   } catch (error) {
