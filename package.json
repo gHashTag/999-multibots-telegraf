@@ -17,7 +17,7 @@
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.47.10",
+    "@supabase/supabase-js": "^2.49.4",
     "archiver": "^7.0.1",
     "axios": "^1.7.9",
     "bcrypt": "^5.0.1",
