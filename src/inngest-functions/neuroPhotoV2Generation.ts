@@ -391,7 +391,64 @@ export const neuroPhotoV2Generation = inngest.createFunction(
         data: event.data,
       })
 
-      const { telegram_id, bot_name, is_ru } = event.data
+      const { telegram_id, bot_name, is_ru, num_images } = event.data
+      const numImagesToGenerate = num_images
+        ? parseInt(String(num_images), 10)
+        : 1
+
+      // Обработка возврата средств
+      try {
+        // Расчет суммы для возврата
+        const refundAmount = calculateModeCost({
+          mode: ModeEnum.NeuroPhotoV2,
+          steps: numImagesToGenerate,
+        }).stars
+
+        logger.info({
+          message: '💸 Начало процесса возврата средств',
+          description: 'Starting refund process due to generation error',
+          telegram_id,
+          refundAmount,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+
+        // Отправляем событие возврата средств
+        await inngest.send({
+          id: `refund-${telegram_id}-${Date.now()}-${uuidv4()}`,
+          name: 'payment/process',
+          data: {
+            telegram_id,
+            amount: refundAmount, // положительное значение для возврата
+            type: 'refund',
+            description: `Возврат средств за неудачную генерацию ${numImagesToGenerate} изображений V2`,
+            bot_name,
+            metadata: {
+              service_type: ModeEnum.NeuroPhotoV2,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              num_images: numImagesToGenerate,
+            },
+          },
+        })
+
+        logger.info({
+          message: '✅ Возврат средств выполнен',
+          description: 'Refund processed successfully',
+          telegram_id,
+          refundAmount,
+        })
+      } catch (refundError) {
+        logger.error({
+          message: '🚨 Ошибка при попытке возврата средств',
+          description: 'Error during refund process',
+          error:
+            refundError instanceof Error
+              ? refundError.message
+              : 'Unknown error',
+          originalError:
+            error instanceof Error ? error.message : 'Unknown error',
+          telegram_id,
+        })
+      }
 
       try {
         // Пытаемся отправить сообщение об ошибке пользователю
@@ -410,25 +467,23 @@ export const neuroPhotoV2Generation = inngest.createFunction(
 
         const bot = botResult.bot as Telegraf<MyContext>
 
-        let errorMessageToUser = '❌ Произошла ошибка.'
+        let errorMessageToUser = is_ru
+          ? '❌ Произошла ошибка. Средства возвращены на ваш баланс.'
+          : '❌ An error occurred. Funds have been returned to your balance.'
 
         if (
           error instanceof Error &&
           error.message.includes('NSFW content detected')
         ) {
           errorMessageToUser = is_ru
-            ? '❌ Обнаружен NSFW контент. Пожалуйста, попробуйте другой запрос.'
-            : '❌ NSFW content detected. Please try another prompt.'
+            ? '❌ Обнаружен NSFW контент. Пожалуйста, попробуйте другой запрос. Средства возвращены на ваш баланс.'
+            : '❌ NSFW content detected. Please try another prompt. Funds have been returned to your balance.'
         } else if (error instanceof Error) {
           const match = error.message.match(/{"detail":"(.*?)"/)
           if (match && match[1]) {
             errorMessageToUser = is_ru
-              ? `❌ Ошибка: ${match[1]}`
-              : `❌ Error: ${match[1]}`
-          } else {
-            errorMessageToUser = is_ru
-              ? '❌ Произошла ошибка. Попробуйте еще раз.'
-              : '❌ An error occurred. Please try again.'
+              ? `❌ Ошибка: ${match[1]}. Средства возвращены на ваш баланс.`
+              : `❌ Error: ${match[1]}. Funds have been returned to your balance.`
           }
         }
 
@@ -452,6 +507,15 @@ export const neuroPhotoV2Generation = inngest.createFunction(
           telegram_id,
         })
       }
+
+      // Отправляем событие о неудаче
+      await inngest.send({
+        name: 'neuro/photo-v2.failed',
+        data: {
+          ...event.data,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      })
 
       throw error
     }
