@@ -1,21 +1,4 @@
-interface ConversionRates {
-  costPerStarInDollars: number
-  costPerStepInStars: number
-  rublesToDollarsRate: number
-}
-
-// Определяем конверсии
-export const conversionRates: ConversionRates = {
-  costPerStepInStars: 0.25,
-  costPerStarInDollars: 0.016,
-  rublesToDollarsRate: 100,
-}
-
-export const conversionRatesV2: ConversionRates = {
-  costPerStepInStars: 0.5,
-  costPerStarInDollars: 0.016,
-  rublesToDollarsRate: 100,
-}
+import { conversionRates, conversionRatesV2 } from '../priceCalculator'
 
 export function calculateCostInStars(
   steps: number,
@@ -72,8 +55,9 @@ export function calculateCost(
   version: 'v1' | 'v2' = 'v1'
 ): CostDetails {
   const rates = version === 'v1' ? conversionRates : conversionRatesV2
+  console.log('rates', rates)
   const baseCost = steps * rates.costPerStepInStars
-
+  console.log('baseCost', baseCost)
   return {
     steps,
     stars: parseFloat(baseCost.toFixed(2)),

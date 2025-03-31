@@ -1,5 +1,15 @@
 import { Subscription } from '@/interfaces/supabase.interface'
 
+// Базовые константы
+const COST_PER_STEP_IN_STARS = 0.22
+const COST_PER_STEP_IN_STARS_V2 = 0.5
+const RUBLES_TO_DOLLARS_RATE = 80
+const STAR_COST = 0.016 // Стоимость одной звезды в долларах
+
+// Стоимость шага в долларах и рублях
+export const stepCostInDollars = STAR_COST * COST_PER_STEP_IN_STARS
+export const stepCostInRubles = stepCostInDollars * RUBLES_TO_DOLLARS_RATE
+
 export const paymentOptionsPlans: {
   amount: number
   stars: string
@@ -32,16 +42,17 @@ interface ConversionRates {
 
 // Определяем конверсии
 export const conversionRates: ConversionRates = {
-  costPerStepInStars: 0.25,
-  costPerStarInDollars: 0.016,
-  rublesToDollarsRate: 100,
+  costPerStepInStars: COST_PER_STEP_IN_STARS,
+  costPerStarInDollars: STAR_COST,
+  rublesToDollarsRate: RUBLES_TO_DOLLARS_RATE,
 }
 
 export const conversionRatesV2: ConversionRates = {
-  costPerStepInStars: 2.1,
-  costPerStarInDollars: 0.016,
-  rublesToDollarsRate: 100,
+  costPerStepInStars: COST_PER_STEP_IN_STARS_V2,
+  costPerStarInDollars: STAR_COST,
+  rublesToDollarsRate: RUBLES_TO_DOLLARS_RATE,
 }
+
 export interface CostDetails {
   steps: number
   stars: number
@@ -54,13 +65,21 @@ export function calculateCost(
   version: 'v1' | 'v2' = 'v1'
 ): CostDetails {
   const rates = version === 'v1' ? conversionRates : conversionRatesV2
-  const baseCost = steps * rates.costPerStepInStars
+  const stars = steps * rates.costPerStepInStars
+  const dollars = stars * rates.costPerStarInDollars
+  const rubles = dollars * rates.rublesToDollarsRate
+
+  console.log('steps', steps)
+  console.log('rates', rates)
+  console.log('stars', stars)
+  console.log('dollars', dollars)
+  console.log('rubles', rubles)
 
   return {
     steps,
-    stars: baseCost,
-    dollars: baseCost * rates.costPerStarInDollars,
-    rubles: baseCost * rates.costPerStarInDollars * rates.rublesToDollarsRate,
+    stars: parseFloat(stars.toFixed(2)),
+    dollars: parseFloat(dollars.toFixed(2)),
+    rubles: parseFloat(rubles.toFixed(2)),
   }
 }
 
