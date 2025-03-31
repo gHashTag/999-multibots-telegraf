@@ -163,11 +163,30 @@ export const videoModelKeyboard = (
   isRu: boolean,
   inputType: 'text' | 'image'
 ): Markup.Markup<ReplyKeyboardMarkup> => {
+  console.log('🎹 Создание клавиатуры для видео-моделей:', {
+    description: 'Creating video models keyboard',
+    isRu,
+    inputType,
+  })
+
   // Фильтруем модели по типу ввода
   const filteredModels = Object.values(VIDEO_MODELS_CONFIG).filter(model => {
     const include = model.inputType.includes(inputType)
-    console.log(`🔘 Модель ${model.title} (${model.inputType}):`, include)
+    console.log(`🔘 Проверка модели:`, {
+      description: 'Checking model',
+      modelTitle: model.title,
+      modelInputTypes: model.inputType,
+      matchesInputType: include,
+    })
     return include
+  })
+
+  console.log('📋 Отфильтрованные модели:', {
+    description: 'Filtered models',
+    models: filteredModels.map(m => ({
+      title: m.title,
+      inputTypes: m.inputType,
+    })),
   })
 
   // Формируем ряды кнопок по 2 в ряд
@@ -190,6 +209,11 @@ export const videoModelKeyboard = (
     Markup.button.text(isRu ? 'Справка по команде' : 'Help for the command'),
     Markup.button.text(isRu ? 'Отмена' : 'Cancel'),
   ])
+
+  console.log('⌨️ Итоговая клавиатура:', {
+    description: 'Final keyboard',
+    buttons: modelButtons,
+  })
 
   return Markup.keyboard(modelButtons).resize()
 }

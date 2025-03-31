@@ -5,6 +5,7 @@ import fs from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
 import { UPLOAD_DIR } from '@/config'
+import { API_URL } from '@/config'
 
 // Типы для multer
 interface MulterFile {
@@ -99,9 +100,7 @@ export const uploadZipFile = async (req: Request, res: Response) => {
       }
 
       // Создаем URL для доступа к файлу
-      const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${
-        multerReq.file.filename
-      }`
+      const fileUrl = `${API_URL}/uploads/${multerReq.file.filename}`
 
       logger.info({
         message: '✅ Файл успешно загружен',
