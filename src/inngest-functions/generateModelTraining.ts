@@ -7,13 +7,9 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
-import {
-  modeCosts,
-  ModeEnum,
-  calculateModeCost,
-} from '@/price/helpers/modelsCost'
+import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { inngest } from '@/core/inngest/clients'
-import { API_URL } from '@/config'
+import { API_URL, isDev } from '@/config'
 import { BalanceHelper } from '@/helpers/inngest/balanceHelpers'
 import { logger } from '@utils/logger'
 import { v4 as uuidv4 } from 'uuid'
@@ -190,21 +186,52 @@ const TRAINING_MESSAGES = {
 
 // Получаем полный URL из относительного пути
 function getFullUrlFromRelative(relativePath: string): string {
-  // Убираем ведущий слеш, если есть
+  logger.info({
+    message: '🔍 Начало преобразования URL',
+    originalPath: relativePath,
+    API_URL,
+  })
+
+  // Проверяем входные данные
+  if (!relativePath) {
+    logger.error({
+      message: '❌ Получен пустой путь',
+      relativePath,
+    })
+    throw new Error('URL не может быть пустым')
+  }
+
   const normalizedPath = relativePath.startsWith('/')
     ? relativePath.substring(1)
     : relativePath
 
-  // Проверяем, является ли путь уже полным URL
+  logger.info({
+    message: '🔄 Нормализация пути',
+    originalPath: relativePath,
+    normalizedPath,
+  })
+
   if (
     normalizedPath.startsWith('http://') ||
     normalizedPath.startsWith('https://')
   ) {
+    logger.info({
+      message: '✅ Обнаружен полный URL, возвращаем как есть',
+      fullUrl: normalizedPath,
+    })
     return normalizedPath
   }
 
-  // Формируем полный URL
-  return `${API_URL}/${normalizedPath}`
+  const fullUrl = `${API_URL}/${normalizedPath}`
+
+  logger.info({
+    message: '✅ Сформирован полный URL',
+    API_URL,
+    normalizedPath,
+    fullUrl,
+  })
+
+  return fullUrl
 }
 
 // Определяем функцию с правильной идемпотентностью
@@ -215,6 +242,23 @@ export const generateModelTraining = inngest.createFunction(
   },
   { event: 'model-training/start' },
   async ({ event, step }) => {
+    // Проверяем API_URL
+    if (!API_URL) {
+      logger.error({
+        message: '❌ API_URL не определен',
+        isDev,
+        LOCAL_SERVER_URL: process.env.LOCAL_SERVER_URL,
+        ORIGIN: process.env.ORIGIN,
+      })
+      throw new Error('API_URL не настроен в конфигурации')
+    }
+
+    logger.info({
+      message: '🌐 Используемый API_URL',
+      API_URL,
+      isDev,
+    })
+
     // Добавляем информативный лог о входящем событии
     logger.info({
       message: 'Получено событие тренировки модели',
@@ -557,7 +601,24 @@ export const generateModelTraining = inngest.createFunction(
           message: '🔗 Преобразуем URL для изображений',
           originalUrl: eventData.zipUrl,
           fullImageUrl,
+          API_URL,
+          isDev,
         })
+
+        // Расширенная проверка URL
+        try {
+          const url = new URL(fullImageUrl)
+          if (!url.protocol || !['http:', 'https:'].includes(url.protocol)) {
+            throw new Error('Неверный протокол URL')
+          }
+        } catch (error) {
+          logger.error({
+            message: '❌ Некорректный формат URL',
+            fullImageUrl,
+            error: error.message,
+          })
+          throw new Error(`Некорректный формат URL: ${error.message}`)
+        }
 
         // Доп. проверка на корректность URL
         if (!fullImageUrl || !fullImageUrl.startsWith('http')) {
@@ -685,21 +746,36 @@ export const generateModelTraining = inngest.createFunction(
       }
 
       // 4. Расчет стоимости
-      const cost = calculateModeCost({
+      const costResult = calculateModeCost({
         mode: ModeEnum.DigitalAvatarBody,
         steps: steps,
       })
-      const paymentAmount = Number(cost)
+
+      // Используем значение в звездах для оплаты
+      const paymentAmount = costResult.stars
 
       logger.info({
         message: 'Рассчитана стоимость тренировки',
         steps,
+        costInStars: costResult.stars,
+        costInDollars: costResult.dollars,
+        costInRubles: costResult.rubles,
         paymentAmount,
         telegram_id: eventData.telegram_id,
       })
 
       // 5. Проверка баланса
       balanceCheck = await step.run('check-user-balance', async () => {
+        if (typeof paymentAmount !== 'number' || isNaN(paymentAmount)) {
+          logger.error({
+            message: '❌ Ошибка расчета стоимости',
+            costResult,
+            paymentAmount,
+            telegram_id: eventData.telegram_id,
+          })
+          throw new Error('Ошибка расчета стоимости тренировки')
+        }
+
         const result = await BalanceHelper.checkBalance(
           eventData.telegram_id,
           paymentAmount,
@@ -744,11 +820,11 @@ export const generateModelTraining = inngest.createFunction(
         telegram_id: eventData.telegram_id,
         currentBalance: balanceCheck.currentBalance,
         paymentAmount,
-        newBalance: balanceCheck.currentBalance - paymentAmount,
+        newBalance: Number(balanceCheck.currentBalance) - paymentAmount,
         modelName,
         steps,
       })
-
+      ///
       // Затем выполняем списание в отдельном шаге
       const chargeResult = await step.run('charge-user-balance', async () => {
         const newBalance = balanceCheck.currentBalance - paymentAmount
