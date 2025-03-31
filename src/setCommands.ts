@@ -6,46 +6,6 @@ import { supabase } from './core/supabase'
 const FALLBACK_OWNER_ID = '144022504'
 
 export async function setBotCommands(bot: Telegraf<MyContext>) {
-  // Общие команды для всех пользователей
-  await bot.telegram.setMyCommands(
-    [
-      {
-        command: 'start',
-        description: '👤 Start / Начать',
-      },
-      {
-        command: 'menu',
-        description: '📟 Menu / Главное меню',
-      },
-      {
-        command: 'tech',
-        description: '🛠 Tech Support / Техподдержка',
-      },
-      {
-        command: 'price',
-        description: '⭐️ Price / Цена',
-      },
-      // {
-      //   command: 'invite',
-      //   description: '👥 Invite a friend / Пригласить друга',
-      // },
-
-      // {
-      //   command: 'buy',
-      //   description: '💵 Top up balance / Пополнить баланс',
-      // },
-      // {
-      //   command: 'balance',
-      //   description: '💰 Balance / Баланс',
-      // },
-      // {
-      //   command: 'help',
-      //   description: '🤖 Help / Помощь',
-      // },
-    ],
-    { scope: { type: 'all_private_chats' } }
-  )
-
   try {
     // Получаем информацию о боте
     const botInfo = await bot.telegram.getMe()
@@ -86,7 +46,17 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
       })
     }
 
-    // Устанавливаем специальные команды для владельца бота (настоящего или тестового)
+    // Сначала удаляем все команды для всех областей видимости
+    await bot.telegram.deleteMyCommands()
+    await bot.telegram.deleteMyCommands({
+      scope: { type: 'all_private_chats' },
+    })
+    await bot.telegram.deleteMyCommands({ scope: { type: 'all_group_chats' } })
+    await bot.telegram.deleteMyCommands({
+      scope: { type: 'all_chat_administrators' },
+    })
+
+    // Устанавливаем команды только для владельца бота
     await bot.telegram.setMyCommands(
       [
         {
@@ -101,19 +71,15 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
           command: 'tech',
           description: '🛠 Tech Support / Техподдержка',
         },
-        // {
-        //   command: 'broadcast',
-        //   description: '📢 Broadcast / Рассылка сообщений',
-        // },
-        // {
-        //   command: 'stats',
-        //   description: '📊 Statistics / Статистика',
-        // },
+        {
+          command: 'price',
+          description: '⭐️ Price / Цена',
+        },
       ],
       {
         scope: {
           type: 'chat',
-          chat_id: parseInt(ownerTelegramId),
+          chat_id: 11111111,
         },
       }
     )
