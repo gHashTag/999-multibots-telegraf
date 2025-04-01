@@ -350,7 +350,7 @@ export const neuroImageGeneration = inngest.createFunction(
                 ModeEnum.NeuroPhoto,
                 imageUrl,
                 telegram_id,
-                'SUCCESS'
+                'COMPLETED'
               )
 
               if (!prompt_id) {

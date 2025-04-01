@@ -145,7 +145,7 @@ export const ruPaymentProcessPayment = inngest.createFunction(
       await step.run('update-payment-status', async () => {
         await updatePaymentStatus({
           inv_id,
-          status: 'SUCCESS',
+          status: 'COMPLETED',
           stars,
           description: `Пополнение баланса ${roundedIncSum} руб.`,
           metadata: {

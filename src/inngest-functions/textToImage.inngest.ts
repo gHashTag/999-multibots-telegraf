@@ -239,7 +239,7 @@ export const textToImageFunction = inngest.createFunction(
               validatedParams.telegram_id
             }/text-to-image/${path.basename(localPath)}`,
             validatedParams.telegram_id,
-            'SUCCESS'
+            'COMPLETED'
           )
 
           return { localPath, promptId }
