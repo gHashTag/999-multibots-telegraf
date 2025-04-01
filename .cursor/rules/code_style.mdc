@@ -1,0 +1,89 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Code Style Rules 🎨
+
+## Language Rules 🌐
+
+1. Comments Language
+   - All code comments MUST be in English
+   - Exception: User-facing text strings can be in Russian/English
+   - Documentation in markdown files can be bilingual
+
+2. Variable Naming 📝
+   - Use English for all variable, function, and class names
+   - Follow camelCase for variables and functions
+   - Follow PascalCase for classes and interfaces
+   - Use UPPER_SNAKE_CASE for constants
+
+3. File Structure 📂
+   - Use English for file and directory names
+   - Follow kebab-case for file names
+   - Group related files in descriptive directories
+
+## Comment Style 💭
+
+1. Function Comments
+   ```typescript
+   /**
+    * Description of what the function does
+    * @param {Type} paramName - Parameter description
+    * @returns {Type} Description of return value
+    */
+   ```
+
+2. Class Comments
+   ```typescript
+   /**
+    * Description of what the class represents
+    * @class
+    */
+   ```
+
+3. Interface Comments
+   ```typescript
+   /**
+    * Description of what the interface represents
+    * @interface
+    */
+   ```
+
+4. Variable Comments
+   ```typescript
+   // Single line description of the variable's purpose
+   ```
+
+## Code Organization 📋
+
+1. Import Order
+   - Node.js built-in modules
+   - External dependencies
+   - Internal modules (@/ imports)
+   - Relative imports (./ imports)
+
+2. Function Order
+   - Public methods first
+   - Private methods last
+   - Group related functions together
+
+3. Type Definitions
+   - Place types/interfaces at the top of file
+   - Group related types together
+
+## Error Messages 🚨
+
+1. Language Rules
+   - User-facing errors: Both Russian and English
+   - Log messages: English with emoji
+   - Debug messages: English only
+
+2. Format
+   ```typescript
+   logger.error({
+     message: '❌ Ошибка на русском',
+     description: 'Error description in English',
+     // ... additional context
+   })
+   ```

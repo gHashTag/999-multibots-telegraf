@@ -5,6 +5,8 @@ alwaysApply: false
 ---
 # Pattern Management Rules 🎯
 
+> ⚠️ For code style rules including language requirements, see [Code Style Rules](mdc:.cursor/rules/code_style.mdc)
+
 ## Pattern Detection 🔍
 
 1. Monitoring Criteria
@@ -145,6 +147,113 @@ alwaysApply: false
   ```
 - Дата: 2024-03-31
 
+### Status Pattern 🔄
+- Описание: Унифицированные статусы в верхнем регистре
+- Применение: Все статусы в системе
+- Преимущества:
+  - Единый формат
+  - Предсказуемость
+  - Легкое сравнение
+- Пример:
+  ```typescript
+  // Статусы для Replicate
+  type Status =
+    | 'STARTING'
+    | 'PROCESSING'
+    | 'QUEUED'
+    | 'SUCCESS'
+    | 'FAILED'
+    | 'CANCELED'
+  ```
+- Дата: 2024-03-31
+
+# SQL Database Access Patterns
+
+## Detect SQL DDL Operations
+
+When you see SQL queries that try to modify database structure (DDL operations), suggest using migrations instead:
+
+```pattern
+{
+  "name": "sql-ddl-operations",
+  "description": "Detect attempts to modify database structure through MCP",
+  "pattern": {
+    "content": "(CREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:TYPE|FUNCTION|TABLE|INDEX)|ALTER\\s+TABLE|DROP\\s+)",
+    "isRegex": true,
+    "caseSensitive": false
+  },
+  "message": "❌ MCP имеет только READ доступ к базе данных\n\n📝 Правильное решение:\n1. Создайте файл миграции в src/db/migrations/\n2. Добавьте ваш SQL-код в файл миграции\n3. Примените миграцию через администратора БД\n\nПодробные правила: src/db/README.md"
+}
+```
+
+## Detect Read-Only Transaction Errors
+
+When you see errors about read-only transactions, provide guidance:
+
+```pattern
+{
+  "name": "read-only-transaction-error",
+  "description": "Detect read-only transaction errors from database",
+  "pattern": {
+    "content": "cannot execute .+ in a read-only transaction",
+    "isRegex": true,
+    "caseSensitive": false
+  },
+  "message": "❌ Ошибка: MCP имеет только READ доступ к базе данных\n\n📝 Как это исправить:\n1. Все изменения структуры БД должны быть через миграции\n2. Создайте файл в src/db/migrations/\n3. Следуйте инструкциям в src/db/README.md"
+}
+```
+
+## SQL Migration Template
+
+When creating a new SQL migration file, use this template:
+
+```pattern
+{
+  "name": "sql-migration-template",
+  "description": "Template for SQL migration files",
+  "pattern": {
+    "content": "migrations/.+\\.sql$",
+    "isRegex": true,
+    "caseSensitive": false
+  },
+  "template": "-- Описание миграции\n-- Дата: {date}\n-- Автор: {author}\n\n-- Проверяем существование объекта\nDO $$ \nBEGIN\n    -- Ваш SQL код здесь\n    \nEND $$;\n"
+}
+```
+
+## SQL Function Template
+
+When creating a new SQL function in a migration, use this template:
+
+```pattern
+{
+  "name": "sql-function-template",
+  "description": "Template for SQL functions in migrations",
+  "pattern": {
+    "content": "CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION",
+    "isRegex": true,
+    "caseSensitive": false
+  },
+  "template": "CREATE OR REPLACE FUNCTION public.{function_name}(\n    p_param1 type1,\n    p_param2 type2\n) RETURNS return_type AS $$\nBEGIN\n    -- Ваш код здесь\n    \nEND;\n$$ LANGUAGE plpgsql;"
+}
+```
+
+## SQL Type Template
+
+When creating a new SQL type in a migration, use this template:
+
+```pattern
+{
+  "name": "sql-type-template",
+  "description": "Template for SQL types in migrations",
+  "pattern": {
+    "content": "CREATE\\s+TYPE",
+    "isRegex": true,
+    "caseSensitive": false
+  },
+  "template": "DO $$ \nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{type_name}') THEN\n        CREATE TYPE {type_name} AS ENUM (\n            'value1',\n            'value2'\n        );\n    END IF;\nEND $$;"
+}
+```
+
 ## Pattern Review Schedule 📅
 
 1. Еженедельно
@@ -281,6 +390,11 @@ alwaysApply: false
      * OpenAI интеграции
      * ElevenLabs генерация
    - Высокий:
+     * Replicate модели
+     * SyncLabs операции
+   - Средний:
+     * Тестовые запросы
+     * Эксперименты 
      * Replicate модели
      * SyncLabs операции
    - Средний:
