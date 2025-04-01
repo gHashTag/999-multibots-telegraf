@@ -138,7 +138,7 @@ export class ReplicateWebhookTester {
    */
   async testSuccessfulTraining(): Promise<TestResult> {
     const sample = TEST_CONFIG.modelTraining.samples.find(
-      s => s.status === 'succeeded'
+      s => s.status === 'SUCCESS'
     )
 
     if (!sample) {
@@ -162,7 +162,7 @@ export class ReplicateWebhookTester {
       model: 'ostris/flux-dev-lora-trainer',
       version:
         'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
-      status: 'succeeded',
+      status: 'SUCCESS',
       output: {
         uri: sample.outputUrl,
         version: sample.version,
@@ -421,7 +421,7 @@ export class BFLWebhookTester {
    */
   async testSuccessfulTraining(): Promise<TestResult> {
     const sample = TEST_CONFIG.bflTraining.samples.find(
-      s => s.status === 'SUCCESS'
+      s => s.status === 'COMPLETED'
     )
 
     if (!sample) {
@@ -644,7 +644,7 @@ export class NeurophotoWebhookTester {
   async testSuccessfulGeneration(): Promise<TestResult> {
     // Используем предустановленный пример из конфигурации
     const sample = TEST_CONFIG.neurophoto.samples.find(
-      s => s.status === 'SUCCESS'
+      s => s.status === 'COMPLETED'
     )
 
     if (!sample) {

@@ -38,7 +38,7 @@ export const TEST_CONFIG = {
       {
         trainingId: 'kvb60ecsf9rme0cntzqrhca1y4',
         modelName: 'test_model_1',
-        status: 'succeeded',
+        status: 'SUCCESS',
         outputUrl:
           'https://replicate.delivery/xezq/output-model/trained_model.tar',
         version: 'ghashtag/neuro_sage:af5678e9a7b6552f3f8c6875e5e9f1c3f7d5f1e8',
@@ -71,7 +71,7 @@ export const TEST_CONFIG = {
     samples: [
       {
         task_id: 'bfl-task-123456',
-        status: 'SUCCESS',
+        status: 'COMPLETED',
         result: JSON.stringify({
           model_id: 'bfl-model-123',
           model_name: 'test_bfl_model',
@@ -99,7 +99,7 @@ export const TEST_CONFIG = {
     samples: [
       {
         task_id: 'neurophoto-success-test',
-        status: 'SUCCESS',
+        status: 'COMPLETED',
         result: {
           sample: 'https://example.com/test-image.jpg',
           seed: 123456,
