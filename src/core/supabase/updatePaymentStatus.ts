@@ -3,7 +3,7 @@ import { logger } from '@/utils/logger'
 
 interface UpdatePaymentStatusProps {
   inv_id: string
-  status: 'PENDING' | 'SUCCESS' | 'FAILED'
+  status: 'PENDING' | 'COMPLETED' | 'FAILED'
   stars?: number
   description?: string
   metadata?: Record<string, any>

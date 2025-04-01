@@ -8,7 +8,7 @@ export async function getFineTuneIdByTelegramId(telegramId: string) {
       .from('model_trainings')
       .select('finetune_id')
       .eq('telegram_id', telegramId.toString())
-      .eq('status', 'SUCCESS')
+      .eq('status', 'COMPLETED')
       .eq('api', 'bfl')
       .order('created_at', { ascending: false })
       .limit(1)

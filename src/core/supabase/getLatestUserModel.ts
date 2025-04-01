@@ -10,7 +10,7 @@ export async function getLatestUserModel(
       .from('model_trainings')
       .select('*')
       .eq('telegram_id', telegram_id)
-      .eq('status', 'SUCCESS')
+      .eq('status', 'COMPLETED')
       .eq('api', api)
       .order('created_at', { ascending: false })
       .limit(1)
