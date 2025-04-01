@@ -5,6 +5,9 @@ import * as fs from 'fs/promises'
 import { BufferType } from '../../interfaces'
 import { API_URL } from '@/config'
 
+const isDev = process.env.NODE_ENV === 'development'
+const PORT = process.env.PORT || 2999
+
 export async function createImagesZip(images: BufferType): Promise<string> {
   const tmpDir = path.join(process.cwd(), 'tmp')
   const timestamp = Date.now()
@@ -48,8 +51,13 @@ export async function createImagesZip(images: BufferType): Promise<string> {
             path.basename(zipPath)
           )
 
-          const uploadUrl = `${API_URL}/uploads`
+          // В режиме разработки используем локальный сервер напрямую
+          const uploadUrl = isDev
+            ? `http://localhost:${PORT}/generate/upload-zip-file`
+            : `${API_URL}/uploads`
+
           console.log('🔗 URL загрузки:', uploadUrl)
+          console.log('🔧 Режим:', isDev ? 'Разработка' : 'Продакшн')
 
           const response = await fetch(uploadUrl, {
             method: 'POST',
