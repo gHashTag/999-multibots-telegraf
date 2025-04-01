@@ -12,14 +12,15 @@ interface Prediction {
     [key: string]: any
   }
   status:
-    | 'starting'
-    | 'processing'
-    | 'queued'
-    | 'succeeded'
-    | 'failed'
-    | 'canceled'
+    | 'STARTING'
+    | 'PROCESSING'
+    | 'QUEUED'
+    | 'SUCCESS'
+    | 'FAILED'
+    | 'CANCELED'
   [key: string]: any
 }
+
 export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
   'cancelPredictionsWizard',
   async ctx => {
@@ -34,7 +35,10 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      const predictions = response.data.results
+      const predictions = response.data.results.map((pred: any) => ({
+        ...pred,
+        status: pred.status.toUpperCase(),
+      }))
       console.log('predictions', predictions)
 
       const predictionsToCancel = predictions.filter(
@@ -42,9 +46,9 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
           const isMatchingPrompt =
             prediction.input.prompt === ctx.session.prompt
           const isCancelableStatus = [
-            'starting',
-            'processing',
-            'queued',
+            'STARTING',
+            'PROCESSING',
+            'QUEUED',
           ].includes(prediction.status)
           return isMatchingPrompt && isCancelableStatus
         }

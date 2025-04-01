@@ -76,12 +76,12 @@ export const handleReplicateWebhook = async (req: Request, res: Response) => {
       // Определяем новый статус
       const newStatus =
         payload.status === 'succeeded'
-          ? 'completed'
+          ? 'SUCCESS'
           : payload.status === 'failed'
-          ? 'failed'
+          ? 'FAILED'
           : payload.status === 'canceled'
-          ? 'canceled'
-          : 'processing'
+          ? 'CANCELED'
+          : 'PROCESSING'
 
       // Обновляем статус в базе данных и кэше
       await updateLatestModelTraining(
