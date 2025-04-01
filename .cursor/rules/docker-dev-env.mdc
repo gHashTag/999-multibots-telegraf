@@ -1,0 +1,175 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Docker Development Environment Rules 🐳
+
+## Key Files and Environment Variables 📝
+
+1. Configuration Files
+   - `docker-compose.dev.yml` (NOT docker-compose.yml)
+   - `.env` for environment variables
+   - `Dockerfile.dev` for development build
+
+2. Environment Variables
+   ```bash
+   # Core
+   NODE_ENV=development
+   PORT=3000
+   API_PORT=2999
+
+   # Docker Settings
+   DOCKER_SOCKET=/var/run/docker.sock
+   ALLOWED_DIR=/workspace
+   ALLOWED_COMMANDS=ls,cat,pwd,echo,docker,git,which,systemctl,service,ps,netstat
+   ALLOWED_FLAGS=all
+   MAX_COMMAND_LENGTH=1024
+   COMMAND_TIMEOUT=60
+
+   # MCP Services
+   INNGEST_DEV=1
+   INNGEST_BASE_URL=http://inngest:8288
+   ```
+
+## Docker Services Configuration 🔧
+
+1. Main Application
+   ```yaml
+   app:
+     container_name: neuro-blogger-telegram-bot
+     build:
+       context: ./
+       dockerfile: Dockerfile.dev
+     ports: ['3000:3000']
+     volumes:
+       - .:/app
+       - /app/node_modules
+     environment:
+       - NODE_ENV=development
+       - PORT=3000
+       - LOG_DIR=/tmp/logs
+   ```
+
+2. MCP Services
+   ```yaml
+   cli-mcp:
+     container_name: cli-mcp
+     image: node:18-alpine
+     command: >
+       sh -c "npm install -g uvx && ALLOWED_DIR=/workspace ALLOWED_COMMANDS=... uvx cli-mcp-server"
+     volumes:
+       - .:/workspace
+
+   git-mcp:
+     container_name: git-mcp
+     image: node:18-alpine
+     command: >
+       sh -c "npm install -g git-mcp-server && npx git-mcp-server --repository ..."
+     volumes:
+       - .:/workspace
+
+   browser-tools-mcp:
+     container_name: browser-tools-mcp
+     image: node:18-alpine
+     command: >
+       sh -c "npm install -g @agentdeskai/browser-tools-mcp@1.0.11 && npx @agentdeskai/browser-tools-mcp"
+     volumes:
+       - .:/workspace
+   ```
+
+## Docker Commands 🛠
+
+Always use with dev configuration:
+```bash
+docker compose -f docker-compose.dev.yml [command]
+```
+
+1. Basic Commands
+   ```bash
+   # Start services
+   docker compose -f docker-compose.dev.yml up -d
+
+   # Stop services
+   docker compose -f docker-compose.dev.yml down
+
+   # View logs
+   docker compose -f docker-compose.dev.yml logs -f
+
+   # Restart specific service
+   docker compose -f docker-compose.dev.yml restart [service_name]
+   ```
+
+2. Service Groups
+   ```bash
+   # Core services
+   docker compose -f docker-compose.dev.yml up -d app proxy inngest
+
+   # MCP services
+   docker compose -f docker-compose.dev.yml up -d cli-mcp git-mcp browser-tools-mcp
+   ```
+
+## Volume Mounts 📁
+
+1. Application Code
+   ```yaml
+   volumes:
+     - .:/app              # Source code
+     - /app/node_modules   # Node modules
+   ```
+
+2. MCP Services
+   ```yaml
+   volumes:
+     - .:/workspace        # Workspace access
+     - /var/run/docker.sock:/var/run/docker.sock  # Docker socket
+   ```
+
+## Network Configuration 🌐
+
+1. Exposed Ports
+   - 3000: Main application
+   - 8288: Inngest Dev Server
+   - 80: Nginx proxy
+
+2. Internal Communication
+   - Services can communicate using container names
+   - Example: http://inngest:8288
+
+## Development Workflow 🔄
+
+1. Starting Development
+   ```bash
+   # 1. Start core services
+   docker compose -f docker-compose.dev.yml up -d app proxy inngest
+
+   # 2. Start MCP services
+   docker compose -f docker-compose.dev.yml up -d cli-mcp git-mcp browser-tools-mcp
+
+   # 3. View logs
+   docker compose -f docker-compose.dev.yml logs -f
+   ```
+
+2. Making Changes
+   - Hot reload enabled for application code
+   - Node modules are preserved in volume
+   - Logs are available in real-time
+
+## Troubleshooting 🔧
+
+1. Common Issues
+   - Port conflicts: Check if ports are already in use
+   - Volume permissions: Ensure correct user permissions
+   - Network issues: Check container communication
+
+2. Debug Commands
+   ```bash
+   # Check container status
+   docker compose -f docker-compose.dev.yml ps
+
+   # View specific service logs
+   docker compose -f docker-compose.dev.yml logs [service_name]
+
+   # Restart problematic service
+   docker compose -f docker-compose.dev.yml restart [service_name]
+   ``` 
