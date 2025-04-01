@@ -15,6 +15,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
   console.log('Scene: ZIP')
   try {
     await ctx.reply(isRu ? '⏳ Создаю архив...' : '⏳ Creating archive...')
+    console.log('🎯 Starting ZIP creation process')
     const zipPath = await createImagesZip(ctx.session.images)
     console.log('ZIP created at:', zipPath)
 
@@ -29,6 +30,12 @@ uploadTrainFluxModelScene.enter(async ctx => {
       )
       return ctx.scene.leave()
     }
+
+    await ctx.reply(
+      isRu
+        ? '✅ Архив успешно загружен! Начинаю обучение модели...'
+        : '✅ Archive uploaded successfully! Starting model training...'
+    )
 
     await ctx.reply(
       isRu
@@ -49,7 +56,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
       ctx
     )
 
-    await deleteFile(zipPath)
+    // await deleteFile(zipPath)
   } catch (error) {
     console.error('Error in uploadTrainFluxModelScene:', error)
     //await sendGenericErrorMessage(ctx, isRu, error)

@@ -51,4 +51,5 @@ export const CREDENTIALS = process.env.CREDENTIALS === 'true'
 export const isDev = process.env.NODE_ENV === 'development'
 export const UPLOAD_DIR =
   process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+
 export const API_URL = isDev ? process.env.LOCAL_SERVER_URL : process.env.ORIGIN
