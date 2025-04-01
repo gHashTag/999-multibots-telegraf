@@ -15,7 +15,7 @@ export class WebhookBFLController {
       })
 
       if (status === 'SUCCESS') {
-        await notifyTrainingSuccess(task_id, status, result)
+        await notifyTrainingSuccess(task_id, 'COMPLETED', result)
       }
 
       res.status(200).json({ message: 'Webhook processed successfully' })

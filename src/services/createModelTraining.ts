@@ -1,19 +1,10 @@
-import axios, { AxiosError, AxiosResponse } from 'axios'
-import FormData from 'form-data'
 import fs from 'fs'
 import path from 'path'
-import {
-  isDev,
-  SECRET_API_KEY,
-  ELESTIO_URL,
-  LOCAL_SERVER_URL,
-  UPLOAD_DIR,
-  API_URL,
-} from '@/config'
+import { UPLOAD_DIR, API_URL } from '@/config'
 import { MyContext } from '@/interfaces'
 import { inngest } from '@/core/inngest/clients'
 import { logger } from '@/utils/logger'
-
+import { v4 as uuidv4 } from 'uuid'
 interface ModelTrainingRequest {
   filePath: string
   triggerWord: string
@@ -68,6 +59,9 @@ export async function createModelTraining(
     // Отправляем событие в Inngest для асинхронной обработки
     // Передаем только самое необходимое для уменьшения размера запроса
     const eventId = await inngest.send({
+      id: `train:${requestData.telegram_id}:${
+        requestData.modelName
+      }:${uuidv4()}`,
       name: eventName,
       data: {
         zipUrl,

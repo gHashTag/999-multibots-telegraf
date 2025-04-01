@@ -279,8 +279,8 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
         .json({ message: 'Webhook processed successfully: content moderated' })
     }
 
-    // Если данные задачи не найдены и статус SUCCESS, пытаемся продолжить с минимальными данными
-    if (!taskData && status === 'SUCCESS') {
+    // Если данные задачи не найдены и статус COMPLETED, пытаемся продолжить с минимальными данными
+    if (!taskData && status === 'COMPLETED') {
       logger.warn({
         message:
           '⚠️ Данные задачи не найдены, продолжаем с минимальными данными',
@@ -326,7 +326,7 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
 
     const { bot } = getBotByName(bot_name)
 
-    if (status === 'SUCCESS') {
+    if (status === 'COMPLETED') {
       if (!result?.sample) {
         logger.error({
           message: '❌ Некорректный результат: отсутствует sample',
@@ -364,7 +364,7 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
       )}`
 
       // Сохраняем URL в базу данных
-      await updatePrompt(task_id, imageUrl, 'SUCCESS')
+      await updatePrompt(task_id, imageUrl, 'COMPLETED')
 
       logger.info({
         message: '💾 Изображение сохранено',
