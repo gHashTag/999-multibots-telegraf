@@ -196,23 +196,36 @@ export function getBotByName(bot_name: string): {
 
   // Ищем бота в массиве bots
   const botIndex = Object.keys(BOT_NAMES).indexOf(bot_name)
-  const bot = bots[botIndex]
+  let bot = bots[botIndex]
 
-  if (!bot) {
-    logger.error({
-      message: '❌ Экземпляр бота не найден',
-      description: 'Bot instance not found',
+  // Если бот не найден в массиве или не имеет необходимых методов, создаем новый экземпляр
+  if (!bot || !bot.telegram?.sendMessage) {
+    logger.info({
+      message: '🔄 Создание нового экземпляра бота',
+      description: 'Creating new bot instance',
       bot_name,
-      botIndex,
-      availableBots: Object.keys(BOT_NAMES),
     })
-    return { error: 'Bot instance not found' }
+    bot = new Telegraf<MyContext>(token)
+    // Проверяем, что бот создан корректно
+    if (!bot.telegram?.sendMessage) {
+      logger.error({
+        message: '❌ Ошибка инициализации бота',
+        description: 'Bot initialization error',
+        bot_name,
+        hasTelegram: !!bot.telegram,
+        methods: bot.telegram ? Object.keys(bot.telegram) : [],
+      })
+      return { error: 'Bot initialization failed' }
+    }
+    // Заменяем бота в массиве
+    bots[botIndex] = bot
   }
 
   logger.info({
     message: '✅ Бот успешно получен',
     description: 'Bot successfully retrieved',
     bot_name,
+    hasSendMessage: typeof bot.telegram?.sendMessage === 'function',
   })
 
   return { bot }
