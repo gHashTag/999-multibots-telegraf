@@ -24,6 +24,8 @@ import {
 } from './controllers/neurophotoWebhook'
 import { UPLOAD_DIR } from './config'
 import { logger } from './utils/logger'
+import multer from 'multer'
+import path from 'path'
 
 dotenv.config()
 
@@ -41,8 +43,62 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 // Добавляем парсинг raw body для веб-хуков
 app.use('/payment-success', express.raw({ type: '*/*' }))
 
-// Обслуживание статических файлов из директории загрузок
-app.use('/uploads', express.static(UPLOAD_DIR))
+// Расширяем тип Request для поддержки файлов
+// Настройка multer для загрузки файлов
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, UPLOAD_DIR)
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.originalname)
+  },
+})
+
+const upload = multer({ storage: storage })
+
+// Добавляем обработчик POST запросов для /uploads
+app.post('/uploads', upload.single('file'), (req, res) => {
+  try {
+    logger.info('📤 Получен файл для загрузки', {
+      description: 'File upload received',
+      filename: req.file?.originalname,
+      size: req.file?.size,
+    })
+
+    if (!req.file) {
+      logger.error('❌ Файл не найден в запросе', {
+        description: 'No file in request',
+      })
+      return res.status(400).json({
+        message: 'No file uploaded',
+        status: 'error',
+      })
+    }
+
+    const filePath = path.join('/uploads', req.file.filename)
+
+    logger.info('✅ Файл успешно загружен', {
+      description: 'File uploaded successfully',
+      filename: req.file.originalname,
+      path: filePath,
+    })
+
+    res.json({
+      message: 'File uploaded successfully',
+      status: 'success',
+      path: filePath,
+    })
+  } catch (error) {
+    logger.error('❌ Ошибка при загрузке файла', {
+      description: 'File upload error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
+    res.status(500).json({
+      message: 'Error uploading file',
+      status: 'error',
+    })
+  }
+})
 
 // Маршруты API
 app.get('/api', (req, res) => {
