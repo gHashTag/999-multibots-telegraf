@@ -26,6 +26,7 @@ import { UPLOAD_DIR } from './config'
 import { logger } from './utils/logger'
 import multer from 'multer'
 import path from 'path'
+import fs from 'fs'
 
 dotenv.config()
 
@@ -43,20 +44,38 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 // Добавляем парсинг raw body для веб-хуков
 app.use('/payment-success', express.raw({ type: '*/*' }))
 
-// Расширяем тип Request для поддержки файлов
+// Создаем директорию для загрузок, если она не существует
+if (!fs.existsSync(UPLOAD_DIR)) {
+  logger.info('📁 Создание директории для загрузок', {
+    description: 'Creating uploads directory',
+    path: UPLOAD_DIR,
+  })
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true })
+}
+
 // Настройка multer для загрузки файлов
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
+    // Создаем директорию для загрузок, если она не существует
+    if (!fs.existsSync(UPLOAD_DIR)) {
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true })
+    }
     cb(null, UPLOAD_DIR)
   },
   filename: function (req, file, cb) {
+    // Сохраняем оригинальное имя файла
     cb(null, file.originalname)
   },
 })
 
-const upload = multer({ storage: storage })
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB лимит
+  },
+})
 
-// Добавляем обработчик POST запросов для /uploads
+// Обработка загрузки файлов
 app.post('/uploads', upload.single('file'), (req, res) => {
   try {
     logger.info('📤 Получен файл для загрузки', {
@@ -75,18 +94,21 @@ app.post('/uploads', upload.single('file'), (req, res) => {
       })
     }
 
-    const filePath = path.join('/uploads', req.file.filename)
+    // Формируем URL для доступа к файлу
+    const fileUrl = `/uploads/${req.file.filename}`
 
     logger.info('✅ Файл успешно загружен', {
       description: 'File uploaded successfully',
       filename: req.file.originalname,
-      path: filePath,
+      path: fileUrl,
+      fullPath: path.join(UPLOAD_DIR, req.file.filename),
     })
 
     res.json({
       message: 'File uploaded successfully',
       status: 'success',
-      path: filePath,
+      url: fileUrl,
+      path: req.file.path,
     })
   } catch (error) {
     logger.error('❌ Ошибка при загрузке файла', {
@@ -99,6 +121,9 @@ app.post('/uploads', upload.single('file'), (req, res) => {
     })
   }
 })
+
+// Обслуживание статических файлов из директории загрузок
+app.use('/uploads', express.static(UPLOAD_DIR))
 
 // Маршруты API
 app.get('/api', (req, res) => {
