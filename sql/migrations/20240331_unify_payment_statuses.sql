@@ -1,3 +1,23 @@
+-- Создаем бэкап текущих статусов
+CREATE TABLE IF NOT EXISTS payments_status_backup AS
+SELECT payment_id, status FROM payments;
+
+-- Проверяем, что все статусы валидны
+DO $$ 
+DECLARE 
+    invalid_count INTEGER;
+    invalid_statuses TEXT;
+BEGIN
+    SELECT COUNT(*), STRING_AGG(DISTINCT status, ', ')
+    INTO invalid_count, invalid_statuses
+    FROM payments 
+    WHERE status NOT IN ('PENDING', 'COMPLETED', 'FAILED');
+
+    IF invalid_count > 0 THEN
+        RAISE EXCEPTION 'Найдены невалидные статусы: %', invalid_statuses;
+    END IF;
+END $$;
+
 -- Создаем тип для статусов платежей
 DO $$ BEGIN
     CREATE TYPE payment_status AS ENUM ('PENDING', 'COMPLETED', 'FAILED');
@@ -5,29 +25,20 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- Проверяем и конвертируем существующие статусы
-UPDATE payments
-SET status = CASE 
-    WHEN status = 'completed' THEN 'COMPLETED'
-    WHEN status = 'pending' THEN 'PENDING'
-    WHEN status = 'failed' THEN 'FAILED'
-    ELSE status 
-END;
-
--- Добавляем ограничение на столбец status
+-- Меняем тип колонки на ENUM
 ALTER TABLE payments 
     ALTER COLUMN status TYPE payment_status 
     USING status::payment_status;
 
--- Добавляем NOT NULL ограничение
-ALTER TABLE payments 
-    ALTER COLUMN status SET NOT NULL;
-
--- Добавляем комментарий к столбцу
-COMMENT ON COLUMN payments.status IS 'Статус платежа: PENDING (в обработке), COMPLETED (завершен), FAILED (ошибка)';
-
--- Создаем индекс для быстрого поиска по статусу
-CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
+-- Создаем таблицу для логирования изменений статуса
+CREATE TABLE IF NOT EXISTS payment_status_logs (
+    id BIGSERIAL PRIMARY KEY,
+    payment_id INTEGER REFERENCES payments(payment_id),
+    old_status payment_status,
+    new_status payment_status,
+    changed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- Добавляем триггер для логирования изменений статуса
 CREATE OR REPLACE FUNCTION log_payment_status_change()
@@ -40,7 +51,7 @@ BEGIN
             new_status,
             changed_at
         ) VALUES (
-            NEW.id,
+            NEW.payment_id,
             OLD.status,
             NEW.status,
             NOW()
@@ -50,16 +61,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Создаем таблицу для логирования изменений статуса
-CREATE TABLE IF NOT EXISTS payment_status_logs (
-    id BIGSERIAL PRIMARY KEY,
-    payment_id UUID REFERENCES payments(id),
-    old_status payment_status,
-    new_status payment_status,
-    changed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
 -- Создаем триггер
 DROP TRIGGER IF EXISTS payment_status_change_trigger ON payments;
 CREATE TRIGGER payment_status_change_trigger
@@ -67,13 +68,27 @@ CREATE TRIGGER payment_status_change_trigger
     FOR EACH ROW
     EXECUTE FUNCTION log_payment_status_change();
 
--- Добавляем индексы для таблицы логов
+-- Добавляем индексы
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 CREATE INDEX IF NOT EXISTS idx_payment_status_logs_payment_id ON payment_status_logs(payment_id);
 CREATE INDEX IF NOT EXISTS idx_payment_status_logs_changed_at ON payment_status_logs(changed_at);
 
--- Добавляем комментарии к таблице логов
-COMMENT ON TABLE payment_status_logs IS 'История изменений статусов платежей';
-COMMENT ON COLUMN payment_status_logs.payment_id IS 'ID платежа';
-COMMENT ON COLUMN payment_status_logs.old_status IS 'Предыдущий статус';
-COMMENT ON COLUMN payment_status_logs.new_status IS 'Новый статус';
-COMMENT ON COLUMN payment_status_logs.changed_at IS 'Время изменения статуса'; 
+-- Проверяем, что все данные сконвертировались правильно
+DO $$ 
+DECLARE 
+    original_count INTEGER;
+    new_count INTEGER;
+    diff INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO original_count FROM payments_status_backup;
+    SELECT COUNT(*) INTO new_count 
+    FROM payments p
+    JOIN payments_status_backup b ON p.payment_id = b.payment_id 
+    WHERE p.status::text = b.status;
+    
+    diff := original_count - new_count;
+    
+    IF diff != 0 THEN
+        RAISE EXCEPTION 'Ошибка конвертации: % записей не совпадают', diff;
+    END IF;
+END $$; 
