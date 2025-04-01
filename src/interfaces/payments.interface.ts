@@ -4,11 +4,7 @@ export interface BalanceOperationResult {
   modePrice: number
   error?: string
 }
-export interface Payment {
-  id: string
-  amount: number
-  date: string
-}
+
 export type PaymentService =
   | 'NeuroPhoto'
   | 'Text to speech'

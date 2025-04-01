@@ -145,8 +145,17 @@ export function registerCommands({
     await getStatsCommand(ctx)
   })
 
+  composer.command('stats', async ctx => {
+    console.log('CASE composer.command: stats')
+    await getStatsCommand(ctx)
+  })
+
   bot.command('price', async ctx => {
     console.log('CASE bot.command: price')
+    await priceCommand(ctx)
+  })
+
+  composer.command('price', async ctx => {
     await priceCommand(ctx)
   })
 
@@ -228,10 +237,6 @@ export function registerCommands({
   composer.command('help', async ctx => {
     await ctx.scene.enter('step0')
   })
-
-  // composer.command('price', async ctx => {
-  //   await priceCommand(ctx)
-  // })
 
   composer.command('neuro_coder', async ctx => {
     await ctx.scene.enter('neuroCoderScene')
