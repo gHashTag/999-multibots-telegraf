@@ -2,6 +2,8 @@
  * Конфигурация для тестирования различных компонентов системы
  */
 
+import { PaymentStatus } from '@/core/supabase/updatePaymentStatus'
+
 export const TEST_CONFIG = {
   // Базовая конфигурация
   server: {
@@ -126,4 +128,10 @@ export const TEST_CONFIG = {
 
   TEST_USER_ID: '144022504',
   TEST_BOT_NAME: 'test_bot',
+
+  PAYMENT_STATUS: {
+    PENDING: 'PENDING' as PaymentStatus,
+    COMPLETED: 'COMPLETED' as PaymentStatus,
+    FAILED: 'FAILED' as PaymentStatus,
+  },
 }

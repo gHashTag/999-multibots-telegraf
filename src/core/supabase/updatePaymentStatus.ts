@@ -1,9 +1,14 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
+/**
+ * 🔄 Обновляет статус платежа
+ */
+export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED'
+
 interface UpdatePaymentStatusProps {
   inv_id: string
-  status: 'PENDING' | 'COMPLETED' | 'FAILED'
+  status: PaymentStatus
   stars?: number
   description?: string
   metadata?: Record<string, any>

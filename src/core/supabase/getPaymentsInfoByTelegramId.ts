@@ -1,6 +1,6 @@
 import { supabase } from '.'
 
-export interface Payment {
+interface Payment {
   id: string
   amount: number
   date: string

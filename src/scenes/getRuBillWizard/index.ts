@@ -48,7 +48,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
         telegram_id: userId.toString(),
         OutSum: stars.toString(),
         InvId: invId.toString(),
-        currency: 'STARS',
+        currency: 'RUB',
         stars: Number(selectedPayment.stars),
         status: 'PENDING',
         email: email,

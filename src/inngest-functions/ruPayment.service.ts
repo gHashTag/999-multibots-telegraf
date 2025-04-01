@@ -6,6 +6,7 @@ import { updatePaymentStatus } from '@/core/supabase/updatePaymentStatus'
 import { logger } from '@/utils/logger'
 import { errorMessageAdmin } from '@/helpers/errorMessage'
 import { getTelegramIdFromInvId } from '@/helpers/getTelegramIdFromInvId'
+import { PaymentStatus } from '@/core/supabase/updatePaymentStatus'
 
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
@@ -145,7 +146,7 @@ export const ruPaymentProcessPayment = inngest.createFunction(
       await step.run('update-payment-status', async () => {
         await updatePaymentStatus({
           inv_id,
-          status: 'COMPLETED',
+          status: 'COMPLETED' as PaymentStatus,
           stars,
           description: `Пополнение баланса ${roundedIncSum} руб.`,
           metadata: {

@@ -1,21 +1,30 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 import { Subscription } from '../../interfaces/supabase.interface'
+import { PaymentStatus } from './updatePaymentStatus'
+import { logger } from '@/utils/logger'
 
-type Payment = {
+type PaymentMethod = 'Robokassa' | 'YooMoney' | 'Telegram' | 'Stripe' | 'Other'
+type Currency = 'RUB' | 'USD' | 'EUR' | 'STARS'
+
+export interface Payment {
   telegram_id: string
   OutSum: string
   InvId: string
-  currency: 'RUB' | 'USD' | 'EUR' | 'STARS'
+  currency: Currency
   stars: number
   email: string
-  status: 'COMPLETED' | 'PENDING' | 'FAILED'
-  payment_method: 'Robokassa' | 'YooMoney' | 'Telegram' | 'Stripe' | 'Other'
+  status: PaymentStatus
+  payment_method: PaymentMethod
   subscription: Subscription
   bot_name: string
   language: string
   invoice_url?: string
 }
 
+/**
+ * 💰 Создает новый платеж в базе данных
+ * @param payment - Данные платежа
+ */
 export const setPayments = async ({
   telegram_id,
   OutSum,
@@ -31,7 +40,7 @@ export const setPayments = async ({
   invoice_url,
 }: Payment) => {
   try {
-    const { error } = await supabase.from('payments').insert({
+    const { data, error } = await supabase.from('payments').insert({
       telegram_id,
       amount: parseFloat(OutSum),
       inv_id: InvId,
@@ -46,12 +55,30 @@ export const setPayments = async ({
       language,
       invoice_url,
     })
+
     if (error) {
-      console.error('Ошибка создания платежа:', error)
+      logger.error('❌ Ошибка создания платежа:', {
+        description: 'Error creating payment',
+        error: error.message,
+        telegram_id,
+      })
       throw error
     }
+
+    logger.info('✅ Платеж успешно создан', {
+      description: 'Payment created successfully',
+      telegram_id,
+      amount: parseFloat(OutSum),
+      status,
+    })
+
+    return data
   } catch (error) {
-    console.error('Ошибка создания платежа:', error)
+    logger.error('❌ Ошибка в setPayments:', {
+      description: 'Error in setPayments function',
+      error: error.message,
+      telegram_id,
+    })
     throw error
   }
 }

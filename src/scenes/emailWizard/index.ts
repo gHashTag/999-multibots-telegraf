@@ -131,7 +131,7 @@ emailWizard.on('text', async ctx => {
           telegram_id: userId.toString(),
           OutSum: amount.toString(),
           InvId: invId.toString(),
-          currency: 'STARS',
+          currency: 'RUB',
           stars,
           status: 'PENDING',
           email: email,
