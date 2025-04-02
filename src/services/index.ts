@@ -1,6 +1,5 @@
 export * from './createModelTraining'
 export * from './NotificationService'
-export * from './generateImageToPrompt'
 export * from './generateImageToVideo'
 export * from './generateNeuroImage'
 export * from './generateTextToImage'

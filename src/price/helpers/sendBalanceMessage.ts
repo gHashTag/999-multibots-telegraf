@@ -1,12 +1,12 @@
 import { MyContext } from '@/interfaces'
-import { Telegraf } from 'telegraf'
+import { Telegram } from 'telegraf/typings/telegram'
 
 export const sendBalanceMessage = async (
   ctxOrTelegramId: MyContext | string,
   newBalance: number,
   cost: number,
   isRu: boolean,
-  bot?: Telegraf<MyContext>
+  bot?: Telegram
 ) => {
   if (typeof ctxOrTelegramId === 'string') {
     // Вариант с telegram_id
@@ -19,16 +19,15 @@ export const sendBalanceMessage = async (
       return
     }
 
-    await bot.telegram.sendMessage(
-      telegramId,
-      isRu
-        ? `Стоимость: ${cost.toFixed(2)} ⭐️\nВаш баланс: ${newBalance.toFixed(
-            2
-          )} ⭐️`
-        : `Cost: ${cost.toFixed(2)} ⭐️\nYour balance: ${newBalance.toFixed(
-            2
-          )} ⭐️`
-    )
+    const messageText = isRu
+      ? `Стоимость: ${cost.toFixed(2)} ⭐️\nВаш баланс: ${newBalance.toFixed(
+          2
+        )} ⭐️`
+      : `Cost: ${cost.toFixed(2)} ⭐️\nYour balance: ${newBalance.toFixed(
+          2
+        )} ⭐️`
+
+    await bot.sendMessage(telegramId, messageText)
   } else {
     // Оригинальный вариант с MyContext
     const ctx = ctxOrTelegramId

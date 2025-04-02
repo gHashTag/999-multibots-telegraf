@@ -368,7 +368,7 @@ export const textToSpeechFunction = inngest.createFunction(
           paymentData?.newBalance !== undefined &&
           paymentData?.amount !== undefined
         ) {
-          sendBalanceMessage(
+          await sendBalanceMessage(
             validatedParams.telegram_id,
             paymentData.newBalance,
             paymentData.amount,

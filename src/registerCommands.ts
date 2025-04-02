@@ -250,7 +250,7 @@ export function registerCommands({
 
   composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
     console.log('CASE hearsHandler: 📸 Нейрофото')
-    await ctx.scene.enter('select_neuro_photo')
+    await ctx.scene.enter('neuro_photo')
   })
 
   composer.hears([levels[3].title_ru, levels[3].title_en], async ctx => {

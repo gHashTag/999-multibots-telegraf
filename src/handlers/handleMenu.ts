@@ -27,7 +27,7 @@ export const handleMenu = async (ctx: MyWizardContext) => {
       },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         console.log('CASE handleMenu: 📸 Нейрофото')
-        await ctx.scene.enter('select_neuro_photo')
+        await ctx.scene.enter('neuro_photo')
       },
       [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
         console.log('CASE: 🔍 Промпт из фото')

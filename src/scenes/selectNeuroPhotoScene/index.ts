@@ -1,12 +1,18 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { logger } from '@/utils/logger'
+import { handleHelpCancel } from '@/handlers'
 
 export const selectNeuroPhotoScene = new Scenes.WizardScene<MyContext>(
-  'select_neuro_photo',
+  'neuro_photo',
   async ctx => {
     const isRu = isRussian(ctx)
+    logger.info({
+      message: '🎨 Вход в сцену выбора версии нейрофото',
+      description: 'Entering neuro photo version selection scene',
+      telegram_id: ctx.from?.id,
+    })
 
     const message = isRu
       ? '📸 Какую версию Нейрофото вы хотите использовать?\n\n' +
@@ -46,35 +52,72 @@ export const selectNeuroPhotoScene = new Scenes.WizardScene<MyContext>(
         .oneTime()
         .resize()
     )
+
     return ctx.wizard.next()
   },
   async ctx => {
     const isRu = isRussian(ctx)
+    const message = ctx.message
 
-    if (ctx.message && 'text' in ctx.message) {
-      const photoChoice = ctx.message.text.toLowerCase()
+    logger.info({
+      message: '🔄 Обработка выбора версии нейрофото',
+      description: 'Processing neuro photo version selection',
+      telegram_id: ctx.from?.id,
+    })
 
-      if (photoChoice.includes('flux pro') || photoChoice.includes('pro')) {
-        ctx.session.mode = 'neuro_photo_v2'
-        await ctx.scene.enter('checkBalanceScene')
-        return
-      } else if (photoChoice.includes('flux')) {
-        ctx.session.mode = 'neuro_photo'
-        await ctx.scene.enter('checkBalanceScene')
-        return
-      }
+    if (!message || !('text' in message)) {
+      logger.warn({
+        message: '⚠️ Получено сообщение без текста',
+        description: 'Received message without text',
+        telegram_id: ctx.from?.id,
+      })
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, выберите версию, используя кнопки'
+          : 'Please select a version using the buttons'
+      )
+      return ctx.wizard.back()
     }
 
     const isCancel = await handleHelpCancel(ctx)
-
-    if (!isCancel) {
-      await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, выберите версию (Нейрофото Flux или Нейрофото Flux Pro)'
-          : '❌ Please select a version (Neuro Photo Flux or Neuro Photo Flux Pro)'
-      )
+    if (isCancel) {
+      return ctx.scene.leave()
     }
 
-    return ctx.scene.leave()
+    const text = message.text.toLowerCase()
+
+    if (text.includes('flux pro') || text.includes('pro')) {
+      logger.info({
+        message: '✨ Выбрана версия Flux Pro',
+        description: 'Selected Flux Pro version',
+        telegram_id: ctx.from?.id,
+      })
+      ctx.session.mode = 'neuro_photo_v2'
+      await ctx.scene.enter('checkBalanceScene')
+      return
+    } else if (text.includes('flux')) {
+      logger.info({
+        message: '✨ Выбрана версия Flux',
+        description: 'Selected Flux version',
+        telegram_id: ctx.from?.id,
+      })
+      ctx.session.mode = 'neuro_photo'
+      await ctx.scene.enter('checkBalanceScene')
+      return
+    }
+
+    logger.warn({
+      message: '⚠️ Неверный выбор версии',
+      description: 'Invalid version selection',
+      telegram_id: ctx.from?.id,
+      text: text,
+    })
+
+    await ctx.reply(
+      isRu
+        ? '❌ Пожалуйста, выберите версию (Нейрофото Flux или Нейрофото Flux Pro)'
+        : '❌ Please select a version (Neuro Photo Flux or Neuro Photo Flux Pro)'
+    )
+    return ctx.wizard.back()
   }
 )

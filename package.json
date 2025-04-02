@@ -5,8 +5,9 @@
   "author": "",
   "license": "ISC",
   "scripts": {
+    "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
     "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
-    "dev": "cross-env NODE_ENV=development nodemon src/bot.ts",
+    "bots": "cross-env NODE_ENV=development nodemon src/bot.ts",
     "build": "swc src -d dist --source-maps --copy-files",
     "build:tsc": "tsc && tsc-alias",
     "test": "jest --forceExit --detectOpenHandles",
@@ -14,11 +15,7 @@
     "lint:fix": "npm run lint -- --fix",
     "ngrok": "ngrok http 2999",
     "tunnel": "ssh -R 80:localhost:2999 localhost.run",
-    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
-    "dev:all": "concurrently \"npm run dev\" \"npm run dev:inngest\"",
-    "mcp": "node dist/mcp.js",
-    "sign-in": "node dist/mcp.js sign-in",
-    "logout": "node dist/mcp.js logout"
+    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest"
   },
   "dependencies": {
     "@mtproto/core": "^6.3.0",

@@ -3,13 +3,14 @@ import { isRussian } from '@/helpers/language'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
+import { Context } from 'telegraf'
 
 export async function generateNeuroImage(
   prompt: string,
   model_url: ModelUrl,
   numImages: number | string,
   telegram_id: string,
-  ctx: MyContext,
+  ctx: Context,
   botName: string
 ): Promise<void> {
   // Валидация входных данных
@@ -34,7 +35,7 @@ export async function generateNeuroImage(
     numImages = 1
   }
 
-  const chatId = ctx.chat?.id
+  const chatId = ctx.message?.chat?.id
   const messageId = ctx.message?.message_id
 
   logger.info('🚀 Запуск генерации изображения через Inngest:', {
@@ -68,7 +69,7 @@ export async function generateNeuroImage(
       model_url,
       numImages: validNumImages,
       telegram_id,
-      username: ctx.from?.username,
+      username: ctx.message?.from?.username,
       is_ru: isRussian(ctx),
       bot_name: botName,
       chat_id: chatId,
@@ -82,7 +83,7 @@ export async function generateNeuroImage(
 
     // Отправляем событие в Inngest для асинхронной обработки
     const response = await inngest.send({
-      id: uniqueId,
+      id: `neuro-photo-${botName}-${uuidv4()}`,
       name: 'neuro/photo.generate',
       data: eventData,
     })
@@ -126,7 +127,7 @@ export async function generateNeuroImage(
           model_url,
           numImages: validNumImages,
           telegram_id,
-          username: ctx.from?.username,
+          username: ctx.message?.from?.username,
           is_ru: isRussian(ctx),
           bot_name: botName,
           chat_id: chatId,

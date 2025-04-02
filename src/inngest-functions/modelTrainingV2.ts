@@ -163,7 +163,7 @@ export const modelTrainingV2 = inngest.createFunction(
       //
 
       // Проверяем и обрабатываем операцию с балансом через Inngest события
-      // Так как processBalanceOperation был перенесен в paymentProcessor
+
       await inngest.send({
         id: `train-${telegram_id}-${Date.now()}-${modelName}-${uuidv4()}`,
         name: 'payment/process',

@@ -99,7 +99,7 @@ export async function processBalanceOperation({
   }
 }
 
-export function sendBalanceMessage(
+export async function sendBalanceMessage(
   telegram_id: string,
   newBalance: number | undefined,
   amount: number,

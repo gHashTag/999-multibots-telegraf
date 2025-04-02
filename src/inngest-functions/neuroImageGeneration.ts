@@ -162,7 +162,6 @@ export const neuroImageGeneration = inngest.createFunction(
       })
 
       const balanceCheck = await step.run('process-payment', async () => {
-        // Убедимся, что все параметры корректны перед вызовом processBalanceOperation
         if (!telegram_id) {
           logger.error('❌ Отсутствует telegram_id', {
             description: 'Missing telegram_id for payment processing',
