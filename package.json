@@ -15,6 +15,7 @@
     "ngrok": "ngrok http 2999",
     "tunnel": "ssh -R 80:localhost:2999 localhost.run",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:inngest\"",
     "mcp": "node dist/mcp.js",
     "sign-in": "node dist/mcp.js sign-in",
     "logout": "node dist/mcp.js logout"
@@ -48,7 +49,6 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
-   
     "@swc/cli": "^0.1.57",
     "@swc/core": "^1.2.220",
     "@types/bcrypt": "^5.0.0",
@@ -67,6 +67,7 @@
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.29.0",
+    "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "eslint": "^8.20.0",
     "eslint-config-prettier": "^8.5.0",
