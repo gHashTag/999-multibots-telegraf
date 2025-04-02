@@ -9,7 +9,7 @@ import { InputFile } from 'telegraf/typings/core/types/typegram'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { sendBalanceMessage } from '@/price/helpers'
 import { v4 as uuidv4 } from 'uuid'
-import elevenLabsClient from '@/core/elevenlabs'
+import { elevenlabs } from '@/core/elevenlabs'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 
 import { createWriteStream } from 'fs'
@@ -121,7 +121,7 @@ export const textToSpeechFunction = inngest.createFunction(
             text_length: validatedParams.text.length,
           })
 
-          const audioStream = await elevenLabsClient.generate({
+          const audioStream = await elevenlabs.generate({
             voice: validatedParams.voice_id,
             model_id: 'eleven_turbo_v2_5',
             text: validatedParams.text,
