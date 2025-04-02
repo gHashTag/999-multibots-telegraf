@@ -11,7 +11,7 @@ import { sendBalanceMessage } from '@/price/helpers'
 import { v4 as uuidv4 } from 'uuid'
 import elevenLabsClient from '@/core/elevenlabs'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
-import { supabase } from '@/core/supabase'
+
 import { createWriteStream } from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -230,7 +230,7 @@ export const textToSpeechFunction = inngest.createFunction(
         })
 
         // Отправляем событие 'payment/process' для обработки платежа
-        const result = await inngest.send({
+        await inngest.send({
           id: eventId,
           name: 'payment/process',
           data: {

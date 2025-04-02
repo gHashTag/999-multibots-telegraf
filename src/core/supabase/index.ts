@@ -68,3 +68,5 @@ export * from './getFineTuneIdByTelegramId'
 export * from './getUserByTaskId'
 export * from './getTelegramIdFromInvId'
 export * from './getBotGroupFromAvatars'
+
+export * from './getAllUsersData'

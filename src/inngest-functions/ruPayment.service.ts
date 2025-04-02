@@ -4,7 +4,7 @@ import { inngest } from '@/core/inngest/clients'
 import { updateUserSubscription } from '@/core/supabase'
 import { updatePaymentStatus } from '@/core/supabase/updatePaymentStatus'
 import { logger } from '@/utils/logger'
-import { errorMessageAdmin } from '@/helpers/errorMessage'
+import { errorMessageAdmin } from '@/helpers/error/errorMessage'
 import { getTelegramIdFromInvId } from '@/helpers/getTelegramIdFromInvId'
 import { PaymentStatus } from '@/core/supabase/updatePaymentStatus'
 

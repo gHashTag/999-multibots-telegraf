@@ -53,8 +53,8 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
   ctx.session.inviteCode = startNumber
 
-  const SUBSCRIBE_CHANNEL_ID = await getSubScribeChannel(ctx)
-  console.log('SUBSCRIBE_CHANNEL_ID', SUBSCRIBE_CHANNEL_ID)
+  // const SUBSCRIBE_CHANNEL_ID = await getSubScribeChannel(ctx)
+  // console.log('SUBSCRIBE_CHANNEL_ID', SUBSCRIBE_CHANNEL_ID)
 
   if (ctx.session.inviteCode) {
     console.log('CASE: ctx.session.inviteCode', ctx.session.inviteCode)
@@ -77,14 +77,14 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       console.log('user', user)
 
       await ctx.telegram.sendMessage(
-        `@${SUBSCRIBE_CHANNEL_ID}`,
+        `@neuro_blogger_pulse`,
         `🔗 Новый пользователь зарегистрировался в боте: ${finalUsername}. По реферальной ссылке: @${user.username}`
       )
     }
   } else {
     try {
       await ctx.telegram.sendMessage(
-        `@${SUBSCRIBE_CHANNEL_ID}`,
+        `@neuro_blogger_pulse`,
         `🔗 Новый пользователь зарегистрировался в боте: ${finalUsername}.`
       )
     } catch (error) {

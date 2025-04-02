@@ -10,7 +10,7 @@ import { PostgrestError } from '@supabase/supabase-js'
 const getStatsCommand = async (ctx: MyContext): Promise<void> => {
   // В режиме разработки используем конфигурацию для дебага
   const { userId, botName } = isDev
-    ? DEBUG_BOTS[6]
+    ? DEBUG_BOTS[1]
     : {
         userId: ctx.from?.id,
         botName: ctx.botInfo.username,

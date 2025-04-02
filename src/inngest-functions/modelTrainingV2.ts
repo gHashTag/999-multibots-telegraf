@@ -12,7 +12,7 @@ import {
   ModeEnum,
   calculateModeCost,
 } from '@/price/helpers/modelsCost'
-import { errorMessageAdmin } from '@/helpers/errorMessageAdmin'
+import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
 import axios from 'axios'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
