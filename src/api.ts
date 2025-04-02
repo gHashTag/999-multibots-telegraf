@@ -14,6 +14,7 @@ import {
   createVoiceAvatarFunction,
   textToSpeechFunction,
   ruPaymentProcessPayment,
+  imageToPromptFunction,
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
 import { handleReplicateWebhook } from './controllers/replicateWebhook'
@@ -410,6 +411,7 @@ app.use(
       neuroPhotoV2Generation,
       createVoiceAvatarFunction,
       ruPaymentProcessPayment,
+      imageToPromptFunction,
     ],
   })
 )
