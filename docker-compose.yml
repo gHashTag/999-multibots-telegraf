@@ -24,6 +24,11 @@ services:
       - CREDENTIALS=${CREDENTIALS}
       - ORIGIN=${ORIGIN}
       - LOG_FORMAT=${LOG_FORMAT}
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    extra_hosts:
+      - "api.elevenlabs.io:127.0.0.1"
     networks:
       - app-network
     restart: unless-stopped
@@ -45,3 +50,6 @@ services:
 networks:
   app-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.27.0.0/16
