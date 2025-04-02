@@ -81,10 +81,6 @@ export const ruPaymentProcessPayment = inngest.createFunction(
     // Преобразуем строку в число и округляем до целого
     const roundedIncSum = Math.round(Number(IncSum))
 
-    console.log('🚀 processPayment: начало обработки платежа')
-    console.log('💰 processPayment: исходная сумма', IncSum)
-    console.log('💰 processPayment: округленная сумма', roundedIncSum)
-    console.log('📝 processPayment: инвойс ID', inv_id)
 
     try {
       let stars = 0
@@ -97,10 +93,7 @@ export const ruPaymentProcessPayment = inngest.createFunction(
 
       const { telegram_id, username, language_code, bot_name } = userData
 
-      console.log('👤 processPayment: telegram_id', telegram_id)
-      console.log('👤 processPayment: username', username)
-      console.log('🌐 processPayment: language_code', language_code)
-      console.log('🤖 processPayment: bot_name', bot_name)
+   
 
       // 2. Проверяем, соответствует ли сумма одному из тарифов
       const checkSubscriptionStep = await step.run(
@@ -237,8 +230,6 @@ export const ruPaymentProcessPayment = inngest.createFunction(
             let groupNotificationSent = false
             try {
               await sendPaymentNotificationWithBot({
-                bot: botConfig.bot,
-                groupId: botConfig.groupId,
                 telegram_id: telegram_id,
                 username: username || 'Пользователь без username',
                 amount: roundedIncSum.toString(),
