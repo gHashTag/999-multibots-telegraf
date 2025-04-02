@@ -14,9 +14,14 @@
     "lint:fix": "npm run lint -- --fix",
     "ngrok": "ngrok http 2999",
     "tunnel": "ssh -R 80:localhost:2999 localhost.run",
-    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest"
+    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
+    "mcp": "node dist/mcp.js",
+    "sign-in": "node dist/mcp.js sign-in",
+    "logout": "node dist/mcp.js logout"
   },
   "dependencies": {
+    "@mtproto/core": "^6.3.0",
+    "@supabase/supabase-js": "^2.49.4",
     "@types/multer": "^1.4.12",
     "archiver": "^7.0.1",
     "axios": "^1.7.9",
@@ -25,6 +30,7 @@
     "dotenv": "^16.4.7",
     "elevenlabs": "^0.16.1",
     "envalid": "^7.3.1",
+    "esbuild": "^0.25.2",
     "express": "^4.21.2",
     "form-data": "^4.0.1",
     "inngest": "^3.32.7",
@@ -42,7 +48,7 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
-    "@supabase/supabase-js": "^2.49.4",
+   
     "@swc/cli": "^0.1.57",
     "@swc/core": "^1.2.220",
     "@types/bcrypt": "^5.0.0",
