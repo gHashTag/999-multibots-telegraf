@@ -10,19 +10,19 @@ import { processApiResponse } from '@/helpers/processApiResponse'
 
 import { saveFileLocally } from '@/helpers'
 import { pulse } from '@/helpers/pulse'
-import { ModeEnum, calculateModeCost } from '@/price/helpers'
+import { ModeEnum, calculateModeCost } from '@/price'
 import path from 'path'
-import { API_URL } from '@/config'
+import { API_URL } from '@config'
 import fs from 'fs'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
-
+import { checkUserBalance } from '@/utils/checkUserBalance'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 
 export const neuroImageGeneration = inngest.createFunction(
   {
     id: `neuro-image-generation`,
-    retries: 3,
+    retries: 1,
   },
   { event: 'neuro/photo.generate' },
   async ({ event, step }) => {
@@ -194,6 +194,15 @@ export const neuroImageGeneration = inngest.createFunction(
         const paymentAmount = parseFloat(
           (Number(costPerImage) * validNumImagesAsNumber).toFixed(2)
         )
+
+        // Проверяем баланс пользователя
+        await checkUserBalance({
+          telegram_id,
+          bot_name,
+          required_amount: paymentAmount,
+          is_ru,
+          operation_type: ModeEnum.NeuroPhoto,
+        })
 
         logger.info('💰 Списание средств', {
           description: 'Processing payment',
