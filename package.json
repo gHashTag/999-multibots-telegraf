@@ -7,15 +7,22 @@
   "scripts": {
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
     "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
-    "bots": "cross-env NODE_ENV=development nodemon src/bot.ts",
+    "bots": "ts-node -r tsconfig-paths/register src/bot.ts",
     "build": "swc src -d dist --source-maps --copy-files",
     "build:tsc": "tsc && tsc-alias",
-    "test": "jest --forceExit --detectOpenHandles",
+    "test:custom": "ts-node -r tsconfig-paths/register src/test-utils/index.test.ts",
     "lint": "eslint --ignore-path .gitignore --ext .ts src",
     "lint:fix": "npm run lint -- --fix",
     "ngrok": "ngrok http 2999",
     "tunnel": "ssh -R 80:localhost:2999 localhost.run",
-    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest"
+    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
+    "test:inngest": "npx inngest-cli@latest dev -u http://localhost:8288",
+    "test:docker": "docker-compose -f docker-compose.test.yml up --build",
+    "test:docker:down": "docker-compose -f docker-compose.test.yml down",
+    "db:migrate": "supabase db push",
+    "db:reset": "supabase db reset",
+    "db:status": "supabase db status",
+    "db:diff": "supabase db diff"
   },
   "dependencies": {
     "@mtproto/core": "^6.3.0",
@@ -77,6 +84,7 @@
     "nodemon": "^2.0.19",
     "pm2": "^5.2.0",
     "prettier": "^2.7.1",
+    "supabase": "^2.20.5",
     "supertest": "^6.2.4",
     "ts-jest": "^28.0.8",
     "ts-node": "^10.9.2",

@@ -21,7 +21,8 @@
     "baseUrl": "src",
     "paths": {
       "@/*": ["*"],
-      "@config": ["config"],
+      "@config/*": ["config/*"],
+      "@config": ["config/index"],
       "@controllers/*": ["controllers/*"],
       "@dtos/*": ["dtos/*"],
       "@exceptions/*": ["exceptions/*"],
@@ -30,7 +31,15 @@
       "@models/*": ["models/*"],
       "@routes/*": ["routes/*"],
       "@services/*": ["services/*"],
-      "@utils/*": ["utils/*"]
+      "@utils/*": ["utils/*"],
+      "@core/*": ["core/*"],
+      "@axios/*": ["axios/*"],
+      "@price/*": ["price/*"],
+      "@store/*": ["store/*"],
+      "@handlers/*": ["handlers/*"],
+      "@helpers/*": ["helpers/*"],
+      "@commands/*": ["commands/*"],
+      "@inngest-functions/*": ["inngest-functions/*"]
     }
   },
   "module": {
