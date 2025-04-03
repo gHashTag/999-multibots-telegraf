@@ -1,7 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/interfaces'
 import { handleMenu } from '@/handlers'
-import { getTranslation } from '@/core/supabase'
+import { getTranslation } from '@/core'
 import { isRussian } from '@/helpers'
 
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(

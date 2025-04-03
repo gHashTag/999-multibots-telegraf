@@ -4,25 +4,11 @@ import path from 'path'
 import fs from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
-import { UPLOAD_DIR } from '@/config'
-import { API_URL } from '@/config'
-
-// Типы для multer
-interface MulterFile {
-  fieldname: string
-  originalname: string
-  encoding: string
-  mimetype: string
-  size: number
-  destination: string
-  filename: string
-  path: string
-  buffer: Buffer
-}
+import { UPLOAD_DIR, API_URL } from '@config'
 
 // Расширяем тип Request для поддержки файлов от multer
 interface MulterRequest extends Request {
-  file?: MulterFile
+  file?: Express.Multer.File
 }
 
 // Убедимся, что директория для загрузок существует
