@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { ModeEnum, calculateModeCost } from '@/price/helpers'
+import { ModeEnum, calculateModeCost } from '@/price'
 import { logger } from '@/utils/logger'
 
 export async function priceCommand(ctx: MyContext) {
