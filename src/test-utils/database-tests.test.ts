@@ -1,18 +1,7 @@
 import { testSupabase } from './test-env'
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
-
-/**
- * Интерфейс для результатов тестирования
- */
-interface TestResult {
-  testName: string
-  success: boolean
-  message: string
-  details?: any
-  error?: string
-  duration?: number
-}
+import { TestResult } from './types'
 
 /**
  * Класс для тестирования базы данных
@@ -43,10 +32,11 @@ export class DatabaseTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
+        passed: true,
         success: true,
         message: `Соединение с базой данных установлено за ${duration}мс`,
-        details: { count },
+        details: [`Count: ${count}`],
         duration,
       }
     } catch (error) {
@@ -58,7 +48,8 @@ export class DatabaseTester {
       })
 
       return {
-        testName,
+        name: testName,
+        passed: false,
         success: false,
         message: 'Ошибка при соединении с базой данных',
         error: error.message,
@@ -94,10 +85,11 @@ export class DatabaseTester {
           // Код ошибки, когда запись не найдена
           const duration = Date.now() - startTime
           return {
-            testName,
+            name: testName,
+            passed: false,
             success: false,
             message: `Тренировка ${trainingId} не найдена в базе данных`,
-            details: { error },
+            details: [`Error: ${error.message}`],
             duration,
           }
         }
@@ -106,17 +98,16 @@ export class DatabaseTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
+        passed: true,
         success: true,
         message: `Тренировка ${trainingId} найдена в базе данных`,
-        details: {
-          training: {
-            id: data.id,
-            modelName: data.model_name,
-            status: data.status,
-            createdAt: data.created_at,
-          },
-        },
+        details: [
+          `ID: ${data.id}`,
+          `Model Name: ${data.model_name}`,
+          `Status: ${data.status}`,
+          `Created At: ${data.created_at}`,
+        ],
         duration,
       }
     } catch (error) {
@@ -129,7 +120,8 @@ export class DatabaseTester {
       })
 
       return {
-        testName,
+        name: testName,
+        passed: false,
         success: false,
         message: 'Ошибка при поиске тренировки',
         error: error.message,
@@ -168,17 +160,14 @@ export class DatabaseTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
+        passed: true,
         success: true,
         message: `Найдено ${trainingsCount} тренировок пользователя ${telegramId}`,
-        details: {
-          trainings: data.map(t => ({
-            id: t.id,
-            modelName: t.model_name,
-            status: t.status,
-            createdAt: t.created_at,
-          })),
-        },
+        details: data.map(
+          t =>
+            `Training: ID=${t.id}, Model=${t.model_name}, Status=${t.status}, Created=${t.created_at}`
+        ),
         duration,
       }
     } catch (error) {
@@ -191,7 +180,8 @@ export class DatabaseTester {
       })
 
       return {
-        testName,
+        name: testName,
+        passed: false,
         success: false,
         message: 'Ошибка при получении тренировок пользователя',
         error: error.message,
@@ -226,12 +216,12 @@ export class DatabaseTester {
       }
 
       // Тест наличия тренировки из конфигурации
-      const trainingId = TEST_CONFIG.modelTraining.samples[0].trainingId
+      const trainingId = TEST_CONFIG.bflTraining.samples[0].task_id
       const trainingResult = await this.testTrainingExists(trainingId)
       results.push(trainingResult)
 
       // Тест тренировок пользователя
-      const telegramId = TEST_CONFIG.users.main.telegramId
+      const telegramId = TEST_CONFIG.user.telegramId
       const userTrainingsResult = await this.testUserTrainings(telegramId)
       results.push(userTrainingsResult)
 

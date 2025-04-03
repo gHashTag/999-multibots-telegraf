@@ -109,11 +109,11 @@ export class InngestTester {
    */
   async testModelTraining(): Promise<TestResult> {
     const trainingData = {
-      bot_name: TEST_CONFIG.users.main.botName,
-      is_ru: TEST_CONFIG.users.main.isRussian,
+      bot_name: TEST_CONFIG.user.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
       modelName: 'test_training_model',
       steps: 1500,
-      telegram_id: TEST_CONFIG.users.main.telegramId,
+      telegram_id: TEST_CONFIG.user.telegramId,
       triggerWord: 'person_test',
       zipUrl: 'https://example.com/training-images.zip',
     }
@@ -136,10 +136,10 @@ export class InngestTester {
       model_url:
         'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b',
       numImages: 1,
-      telegram_id: TEST_CONFIG.users.main.telegramId,
+      telegram_id: TEST_CONFIG.user.telegramId,
       username: 'test_user',
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      bot_name: TEST_CONFIG.user.botName,
     }
 
     logger.info({
@@ -161,10 +161,10 @@ export class InngestTester {
     const generationData = {
       prompt: 'Stylish portrait in evening urban setting with neon lights',
       num_images: 1,
-      telegram_id: TEST_CONFIG.users.main.telegramId,
+      telegram_id: TEST_CONFIG.user.telegramId,
       username: 'test_user',
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      bot_name: TEST_CONFIG.user.botName,
     }
 
     logger.info({
@@ -187,10 +187,10 @@ export class InngestTester {
       prompt: 'A beautiful sunset over mountains with a lake',
       model: 'stable-diffusion-xl',
       num_images: 1,
-      telegram_id: TEST_CONFIG.users.main.telegramId,
+      telegram_id: TEST_CONFIG.user.telegramId,
       username: 'test_user',
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      bot_name: TEST_CONFIG.user.botName,
     }
 
     logger.info({
@@ -210,12 +210,13 @@ export class InngestTester {
    */
   async testTextToVideo(): Promise<TestResult> {
     const generationData = {
-      prompt: 'A beautiful sunset over the ocean with waves',
-      videoModel: 'wan-text-to-video',
-      telegram_id: TEST_CONFIG.users.main.telegramId,
+      prompt: 'A beautiful sunset over mountains with a lake',
+      model: 'zeroscope_v2_xl',
+      num_images: 1,
+      telegram_id: TEST_CONFIG.user.telegramId,
       username: 'test_user',
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      bot_name: TEST_CONFIG.user.botName,
     }
 
     logger.info({
@@ -235,12 +236,13 @@ export class InngestTester {
    */
   async testTextToVideoDirectInvoke(): Promise<TestResult> {
     const generationData = {
-      prompt: 'A beautiful sunset over the ocean with waves',
-      videoModel: 'wan-text-to-video',
-      telegram_id: TEST_CONFIG.users.main.telegramId,
+      prompt: 'A beautiful sunset over mountains with a lake',
+      model: 'zeroscope_v2_xl',
+      num_images: 1,
+      telegram_id: TEST_CONFIG.user.telegramId,
       username: 'test_user',
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      bot_name: TEST_CONFIG.user.botName,
     }
 
     logger.info({
@@ -322,13 +324,13 @@ export class InngestTester {
    */
   async testModelTrainingV2(): Promise<TestResult> {
     const trainingData = {
-      bot_name: TEST_CONFIG.users.main.botName,
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      modelName: 'test_training_model_v2',
+      bot_name: TEST_CONFIG.user.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      modelName: 'test_training_model',
       steps: 1500,
-      telegram_id: TEST_CONFIG.users.main.telegramId,
-      triggerWord: 'person_test_v2',
-      zipUrl: 'https://example.com/training-images-v2.zip',
+      telegram_id: TEST_CONFIG.user.telegramId,
+      triggerWord: 'person_test',
+      zipUrl: 'https://example.com/training-images.zip',
     }
 
     logger.info({
@@ -345,13 +347,13 @@ export class InngestTester {
    */
   async testModelTrainingDirectInvoke(): Promise<TestResult> {
     const trainingData = {
-      bot_name: TEST_CONFIG.users.main.botName,
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      modelName: 'test_training_model_direct',
+      bot_name: TEST_CONFIG.user.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      modelName: 'test_training_model',
       steps: 1500,
-      telegram_id: TEST_CONFIG.users.main.telegramId,
-      triggerWord: 'person_test_direct',
-      zipUrl: 'https://example.com/training-images-direct.zip',
+      telegram_id: TEST_CONFIG.user.telegramId,
+      triggerWord: 'person_test',
+      zipUrl: 'https://example.com/training-images.zip',
     }
 
     logger.info({
@@ -368,13 +370,13 @@ export class InngestTester {
    */
   async testModelTrainingV2DirectInvoke(): Promise<TestResult> {
     const trainingData = {
-      bot_name: TEST_CONFIG.users.main.botName,
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      modelName: 'test_training_model_v2_direct',
+      bot_name: TEST_CONFIG.user.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      modelName: 'test_training_model',
       steps: 1500,
-      telegram_id: TEST_CONFIG.users.main.telegramId,
-      triggerWord: 'person_test_v2_direct',
-      zipUrl: 'https://example.com/training-images-v2-direct.zip',
+      telegram_id: TEST_CONFIG.user.telegramId,
+      triggerWord: 'person_test',
+      zipUrl: 'https://example.com/training-images.zip',
     }
 
     logger.info({
@@ -391,12 +393,12 @@ export class InngestTester {
    */
   async testNeuroPhotoV2DirectInvoke(): Promise<TestResult> {
     const generationData = {
-      prompt: 'Professional portrait in natural light with bokeh effect',
+      prompt: 'Stylish portrait in evening urban setting with neon lights',
       num_images: 1,
-      telegram_id: TEST_CONFIG.users.main.telegramId,
-      username: 'test_user_direct',
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      telegram_id: TEST_CONFIG.user.telegramId,
+      username: 'test_user',
+      is_ru: TEST_CONFIG.user.isRussian,
+      bot_name: TEST_CONFIG.user.botName,
     }
 
     logger.info({
@@ -422,10 +424,10 @@ export class InngestTester {
       prompt: 'A beautiful sunset over mountains with a lake',
       model: 'stable-diffusion-xl',
       num_images: 1,
-      telegram_id: TEST_CONFIG.users.main.telegramId,
+      telegram_id: TEST_CONFIG.user.telegramId,
       username: 'test_user',
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      bot_name: TEST_CONFIG.user.botName,
     }
 
     logger.info({
@@ -444,48 +446,52 @@ export class InngestTester {
    * Тестирует функцию создания голосового аватара через ElevenLabs
    */
   async testVoiceAvatarCreation(): Promise<TestResult> {
-    const voiceAvatarData = {
-      fileUrl: 'https://example.com/voice-message.oga',
-      telegram_id: TEST_CONFIG.users.main.telegramId,
+    const generationData = {
+      prompt: 'A beautiful sunset over mountains with a lake',
+      model: 'stable-diffusion-xl',
+      num_images: 1,
+      telegram_id: TEST_CONFIG.user.telegramId,
       username: 'test_user',
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      bot_name: TEST_CONFIG.user.botName,
     }
 
     logger.info({
       message: '🧪 Тест функции создания голосового аватара',
       description: 'Voice avatar creation function test',
       voiceAvatarData: {
-        ...voiceAvatarData,
-        fileUrl: 'https://example.com/voice-message.oga',
+        ...generationData,
+        prompt: 'A beautiful sunset over mountains with a lake',
       },
     })
 
-    return this.sendEvent('voice-avatar.requested', voiceAvatarData)
+    return this.sendEvent('voice-avatar.requested', generationData)
   }
 
   /**
    * Напрямую вызывает функцию создания голосового аватара через ElevenLabs
    */
   async testVoiceAvatarDirectInvoke(): Promise<TestResult> {
-    const voiceAvatarData = {
-      fileUrl: 'https://example.com/voice-message.oga',
-      telegram_id: TEST_CONFIG.users.main.telegramId,
+    const generationData = {
+      prompt: 'A beautiful sunset over mountains with a lake',
+      model: 'stable-diffusion-xl',
+      num_images: 1,
+      telegram_id: TEST_CONFIG.user.telegramId,
       username: 'test_user',
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      bot_name: TEST_CONFIG.user.botName,
     }
 
     logger.info({
       message: '🧪 Тест прямого вызова функции создания голосового аватара',
       description: 'Direct invocation of voice avatar creation function test',
       voiceAvatarData: {
-        ...voiceAvatarData,
-        fileUrl: 'https://example.com/voice-message.oga',
+        ...generationData,
+        prompt: 'A beautiful sunset over mountains with a lake',
       },
     })
 
-    return this.invokeFunction('voice-avatar-creation', voiceAvatarData)
+    return this.invokeFunction('voice-avatar-creation', generationData)
   }
 
   /**
@@ -504,10 +510,10 @@ export class InngestTester {
       const shortTextResult = await this.testTextToSpeech({
         text: 'Привет!',
         voice_id: 'ljyyJh982fsUinaSQPvv',
-        telegram_id: TEST_CONFIG.users.main.telegramId,
+        telegram_id: TEST_CONFIG.user.telegramId,
         username: 'test_user',
-        is_ru: TEST_CONFIG.users.main.isRussian,
-        bot_name: TEST_CONFIG.users.main.botName,
+        is_ru: TEST_CONFIG.user.isRussian,
+        bot_name: TEST_CONFIG.user.botName,
       })
       results.push({
         ...shortTextResult,
@@ -518,10 +524,10 @@ export class InngestTester {
       const longTextResult = await this.testTextToSpeech({
         text: 'Это длинный тестовый текст для проверки работы функции преобразования текста в речь. Он содержит несколько предложений, чтобы проверить обработку длинных текстов.',
         voice_id: 'ljyyJh982fsUinaSQPvv',
-        telegram_id: TEST_CONFIG.users.main.telegramId,
+        telegram_id: TEST_CONFIG.user.telegramId,
         username: 'test_user',
-        is_ru: TEST_CONFIG.users.main.isRussian,
-        bot_name: TEST_CONFIG.users.main.botName,
+        is_ru: TEST_CONFIG.user.isRussian,
+        bot_name: TEST_CONFIG.user.botName,
       })
       results.push({
         ...longTextResult,
@@ -532,10 +538,10 @@ export class InngestTester {
       const invalidVoiceResult = await this.testTextToSpeech({
         text: 'Тест с неправильным ID голоса',
         voice_id: 'invalid_voice_id',
-        telegram_id: TEST_CONFIG.users.main.telegramId,
+        telegram_id: TEST_CONFIG.user.telegramId,
         username: 'test_user',
-        is_ru: TEST_CONFIG.users.main.isRussian,
-        bot_name: TEST_CONFIG.users.main.botName,
+        is_ru: TEST_CONFIG.user.isRussian,
+        bot_name: TEST_CONFIG.user.botName,
       })
       results.push({
         ...invalidVoiceResult,
@@ -625,10 +631,10 @@ export class InngestTester {
     const textToSpeechData = {
       text: data?.text || 'Это тестовый текст для преобразования в речь.',
       voice_id: data?.voice_id || 'ljyyJh982fsUinaSQPvv',
-      telegram_id: data?.telegram_id || TEST_CONFIG.users.main.telegramId,
+      telegram_id: data?.telegram_id || TEST_CONFIG.user.telegramId,
       username: data?.username || 'test_user',
-      is_ru: data?.is_ru ?? TEST_CONFIG.users.main.isRussian,
-      bot_name: data?.bot_name || TEST_CONFIG.users.main.botName,
+      is_ru: data?.is_ru ?? TEST_CONFIG.user.isRussian,
+      bot_name: data?.bot_name || TEST_CONFIG.user.botName,
     }
 
     logger.info({
@@ -650,10 +656,10 @@ export class InngestTester {
     const textToSpeechData = {
       text: 'Это тестовый текст для прямого вызова функции преобразования в речь.',
       voice_id: 'ljyyJh982fsUinaSQPvv',
-      telegram_id: TEST_CONFIG.users.main.telegramId,
+      telegram_id: TEST_CONFIG.user.telegramId,
       username: 'test_user',
-      is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      is_ru: TEST_CONFIG.user.isRussian,
+      bot_name: TEST_CONFIG.user.botName,
     }
 
     logger.info({
@@ -820,8 +826,8 @@ export class InngestTester {
         case 'broadcast':
           broadcastResult = await this.sendEvent('broadcast/send', {
             message: 'Test broadcast message',
-            telegram_ids: [TEST_CONFIG.users.main.telegramId],
-            bot_name: TEST_CONFIG.users.main.botName,
+            telegram_ids: [TEST_CONFIG.user.telegramId],
+            bot_name: TEST_CONFIG.user.botName,
           })
           results.push(broadcastResult)
           break
@@ -829,9 +835,9 @@ export class InngestTester {
         case 'payment':
           paymentResult = await this.sendEvent('payment/process', {
             amount: 100,
-            telegram_id: TEST_CONFIG.users.main.telegramId,
+            telegram_id: TEST_CONFIG.user.telegramId,
             username: 'test_user',
-            bot_name: TEST_CONFIG.users.main.botName,
+            bot_name: TEST_CONFIG.user.botName,
           })
           results.push(paymentResult)
           break
@@ -1083,10 +1089,10 @@ export class InngestTester {
       await this.sendEvent('text-to-video/generate', {
         prompt: '',
         videoModel: 'wan-text-to-video',
-        telegram_id: TEST_CONFIG.users.main.telegramId,
+        telegram_id: TEST_CONFIG.user.telegramId,
         username: 'test_user',
-        is_ru: TEST_CONFIG.users.main.isRussian,
-        bot_name: TEST_CONFIG.users.main.botName,
+        is_ru: TEST_CONFIG.user.isRussian,
+        bot_name: TEST_CONFIG.user.botName,
       })
     )
 
@@ -1095,10 +1101,10 @@ export class InngestTester {
       await this.sendEvent('text-to-video/generate', {
         prompt: 'Test prompt',
         videoModel: 'non-existent-model',
-        telegram_id: TEST_CONFIG.users.main.telegramId,
+        telegram_id: TEST_CONFIG.user.telegramId,
         username: 'test_user',
-        is_ru: TEST_CONFIG.users.main.isRussian,
-        bot_name: TEST_CONFIG.users.main.botName,
+        is_ru: TEST_CONFIG.user.isRussian,
+        bot_name: TEST_CONFIG.user.botName,
       })
     )
 

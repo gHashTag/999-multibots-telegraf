@@ -3,21 +3,9 @@ import { Buffer } from 'buffer'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
-import { Telegraf } from 'telegraf'
-import { MyContext } from '../interfaces'
-import { generateSpeech } from '../core/generateSpeech'
+import { TestResult } from './types'
 
-/**
- * Интерфейс для результатов теста
- */
-export interface TestResult {
-  success: boolean
-  error?: string
-  duration?: number
-  testName: string
-  message?: string
-  details?: string
-}
+import { createAudioFileFromText } from '@/core/elevenlabs/createAudioFileFromText'
 
 export async function generateAudioBuffer(
   text: string,
@@ -172,10 +160,13 @@ export async function testAudioGeneration(): Promise<TestResult> {
     })
 
     return {
+      name: testName,
+      passed: true,
       success: true,
       duration: Date.now() - startTime,
-      testName,
       message: 'Аудио успешно сгенерировано и сохранено',
+      testName: 'AudioGenerationTest',
+      details: [`Buffer size: ${audioBuffer.length}`, `Saved to: ${tempFile}`],
     }
   } catch (error) {
     logger.error({
@@ -185,36 +176,18 @@ export async function testAudioGeneration(): Promise<TestResult> {
     })
 
     return {
+      name: testName,
+      passed: false,
       success: false,
       error: error instanceof Error ? error.message : String(error),
       duration: Date.now() - startTime,
-      testName,
       message: 'Ошибка при генерации аудио',
+      testName: 'AudioGenerationTest',
+      details: {
+        error: error instanceof Error ? error.message : String(error),
+      },
     }
   }
-}
-
-async function mockBot() {
-  const bot = new Telegraf<MyContext>(process.env.BOT_TOKEN || 'mock-token')
-
-  // Мокаем методы бота
-  bot.telegram.sendMessage = async () => {
-    logger.info({
-      message: '📤 Отправка сообщения в Telegram',
-      description: 'Sending message to Telegram (mocked)',
-    })
-    return {} as any
-  }
-
-  bot.telegram.sendAudio = async () => {
-    logger.info({
-      message: '🎵 Отправка аудио в Telegram',
-      description: 'Sending audio to Telegram (mocked)',
-    })
-    return {} as any
-  }
-
-  return bot
 }
 
 // Мокаем переменные окружения для тестов
@@ -233,26 +206,20 @@ export async function testSpeechGeneration(): Promise<TestResult> {
     // Тестовые данные
     const testText = 'Hello, this is a test.'
     const testVoiceId = 'ljyyJh982fsUinaSQPvv'
-    const testTelegramId = '123456789'
-    const bot = await mockBot()
 
     // Генерируем аудио
-    const result = await generateSpeech({
+    const audioUrl = await createAudioFileFromText({
       text: testText,
       voice_id: testVoiceId,
-      telegram_id: testTelegramId,
-      is_ru: false,
-      bot,
-      bot_name: 'test_bot',
     })
 
     // Проверяем, что файл создан
-    if (!fs.existsSync(result.audioUrl)) {
+    if (!fs.existsSync(audioUrl)) {
       throw new Error('Аудио файл не создан')
     }
 
     // Проверяем размер файла
-    const stats = fs.statSync(result.audioUrl)
+    const stats = fs.statSync(audioUrl)
     if (stats.size === 0) {
       throw new Error('Аудио файл пустой')
     }
@@ -260,18 +227,21 @@ export async function testSpeechGeneration(): Promise<TestResult> {
     logger.info({
       message: '✅ Тест успешно завершен',
       description: 'Test completed successfully',
-      audioUrl: result.audioUrl,
+      audioUrl,
       fileSize: stats.size,
     })
 
     // Удаляем временный файл
-    fs.unlinkSync(result.audioUrl)
+    fs.unlinkSync(audioUrl)
 
     return {
+      name: testName,
+      passed: true,
       success: true,
       duration: Date.now() - startTime,
-      testName,
-      message: 'Аудио успешно сгенерировано и отправлено',
+      message: 'Аудио успешно сгенерировано',
+      testName: 'SpeechGenerationTest',
+      details: { audioUrl, fileSize: stats.size },
     }
   } catch (error) {
     logger.error({
@@ -281,11 +251,16 @@ export async function testSpeechGeneration(): Promise<TestResult> {
     })
 
     return {
+      name: testName,
+      passed: false,
       success: false,
       error: error instanceof Error ? error.message : String(error),
       duration: Date.now() - startTime,
-      testName,
       message: 'Ошибка при генерации речи',
+      testName: 'SpeechGenerationTest',
+      details: {
+        error: error instanceof Error ? error.message : String(error),
+      },
     }
   }
 }

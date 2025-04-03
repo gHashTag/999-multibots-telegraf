@@ -1,3 +1,11 @@
+import { Telegraf } from 'telegraf'
+import { MyContext, BalanceOperationResult } from '../../interfaces'
+import { supabase } from '../../core/supabase'
+import { inngest } from '../../core/inngest/clients'
+import { v4 as uuidv4 } from 'uuid'
+import { logger } from '../../utils/logger'
+import { Telegram } from 'telegraf'
+
 export * from './modelsCost'
 export * from './calculateFinalPrice'
 export * from './calculateStars'
@@ -14,19 +22,15 @@ export * from './sendPaymentNotificationWithBot'
 export { starAmounts } from './starAmounts'
 export { voiceConversationCost } from './voiceConversationCost'
 
-import { Telegraf, Telegram } from 'telegraf'
-import { MyContext, BalanceOperationResult } from '../../interfaces'
-import { logger } from '../../utils/logger'
-import { getUserByTelegramId, updateUserBalance } from '../../core/supabase'
-
-export async function processBalanceOperation({
+export async function processBalanceViaInngest({
   telegram_id,
   paymentAmount,
   is_ru,
   bot,
   bot_name,
-  description,
   type,
+  description,
+  metadata = {},
 }: {
   telegram_id: string
   paymentAmount: number
@@ -35,55 +39,57 @@ export async function processBalanceOperation({
   bot_name: string
   description: string
   type: string
+  metadata?: Record<string, any>
 }): Promise<BalanceOperationResult> {
   try {
-    const user = await getUserByTelegramId(telegram_id)
-    if (!user) {
-      throw new Error(`User with ID ${telegram_id} not found`)
-    }
+    const operationId = `balance-${telegram_id}-${Date.now()}-${uuidv4()}`
 
-    const currentBalance = user.balance || 0
-    if (currentBalance < paymentAmount) {
-      const message = is_ru
-        ? `❌ Недостаточно средств. Необходимо: ${paymentAmount} руб.`
-        : `❌ Insufficient funds. Required: ${paymentAmount} RUB`
-
-      bot.telegram.sendMessage(telegram_id, message)
-      return {
-        success: false,
-        error: 'Insufficient funds',
-        newBalance: currentBalance,
-        modePrice: paymentAmount,
-      }
-    }
-
-    const newBalance = currentBalance - paymentAmount
-    await updateUserBalance({
+    logger.info('🚀 Отправка платежной операции в обработку', {
+      description: 'Sending payment operation for processing',
       telegram_id,
-      amount: paymentAmount,
-      type: 'outcome',
-      operation_description: description,
-      bot_name,
-    })
-
-    logger.info({
-      message: '💰 Операция с балансом выполнена',
-      description: 'Balance operation completed',
-      telegram_id,
+      paymentAmount,
       type,
-      amount: paymentAmount,
-      oldBalance: currentBalance,
-      newBalance,
+      operationId,
     })
+
+    await inngest.send({
+      id: operationId,
+      name: 'payment/process',
+      data: {
+        telegram_id,
+        paymentAmount,
+        type,
+        description,
+        bot_name,
+        is_ru,
+        metadata: {
+          ...metadata,
+          operation_id: operationId,
+        },
+      },
+    })
+
+    // Даем время на обработку платежа
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    // Получаем результат из кеша обработанных платежей
+    const result = await supabase
+      .from('payments')
+      .select('amount, status, stars')
+      .eq('inv_id', operationId)
+      .single()
+
+    if (!result.data) {
+      throw new Error('Payment processing failed')
+    }
 
     return {
       success: true,
-      newBalance,
+      newBalance: result.data.stars,
       modePrice: paymentAmount,
     }
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при обработке платежа',
+    logger.error('❌ Ошибка при обработке платежа', {
       description: 'Payment processing error',
       error: error instanceof Error ? error.message : String(error),
       telegram_id,
@@ -111,6 +117,6 @@ export async function sendBalanceMessage(
       ? `⭐️ Цена: ${amount} звезд\n💫 Баланс: ${newBalance} звезд`
       : `⭐️ Price: ${amount} stars\n💫 Balance: ${newBalance} stars`
 
-    bot.sendMessage(telegram_id, message)
+    await bot.sendMessage(telegram_id, message)
   }
 }

@@ -14,17 +14,12 @@ import {
   ReplicateWebhookTester,
   BFLWebhookTester,
   NeurophotoWebhookTester,
-} from './webhook-tests'
+} from './webhook.test'
 import { DatabaseTester } from './database-tests.test'
-import { InngestTester } from './inngest-tests.test'
-import { logger } from '@/utils/logger'
-import { TEST_CONFIG } from './test-config'
-import fs from 'fs'
-import path from 'path'
 import { testSpeechGeneration } from './audio-tests.test'
 import { TestResult } from './types'
-
-import { getBotByName } from '@/core/bot'
+import { runPaymentTests } from './payment/paymentProcessor.test'
+import { logger } from '../utils/logger'
 
 // Цвета для вывода в консоль
 const colors = {
@@ -37,47 +32,52 @@ const colors = {
   blue: '\x1b[34m',
   magenta: '\x1b[35m',
   cyan: '\x1b[36m',
+  white: '\x1b[37m',
 }
 
 /**
  * Форматирует результаты тестов для вывода в консоль
  */
-function formatResults(results, testType: string) {
-  console.log(
-    `\n${colors.bright}${colors.blue}=== Результаты тестов ${testType} ===${colors.reset}\n`
-  )
-
-  const successful = results.filter(r => r.success).length
+function formatResults(results: TestResult[]): void {
+  const successful = results.filter(r => r.passed || r.success).length
   const total = results.length
+  const successRate = ((successful / total) * 100).toFixed(1)
 
+  console.log('\n' + colors.bright + '📊 Test Results Summary:' + colors.reset)
   console.log(
-    `${colors.bright}Выполнено: ${total} | Успешно: ${
-      successful === total ? colors.green : colors.yellow
-    }${successful}${colors.reset}/${total} | Ошибок: ${
-      total - successful > 0 ? colors.red : colors.green
-    }${total - successful}${colors.reset}\n`
+    colors.dim + '----------------------------------------' + colors.reset
+  )
+  console.log(`Total Tests: ${colors.bright}${total}${colors.reset}`)
+  console.log(`Successful: ${colors.bright}${successful}${colors.reset}`)
+  console.log(`Success Rate: ${colors.bright}${successRate}%${colors.reset}`)
+  console.log(
+    colors.dim + '----------------------------------------' + colors.reset
   )
 
-  results.forEach((result, index) => {
-    const statusColor = result.success ? colors.green : colors.red
-    const status = result.success ? '✅ УСПЕХ' : '❌ ОШИБКА'
-    const duration = result.duration ? `(${result.duration}мс)` : ''
-
-    console.log(
-      `${index + 1}. ${statusColor}${status}${colors.reset} ${colors.bright}${
-        result.testName
-      }${colors.reset} ${colors.yellow}${duration}${colors.reset}`
-    )
-    console.log(`   ${result.message}`)
-
-    if (!result.success && result.error) {
-      console.log(`   ${colors.red}Ошибка: ${result.error}${colors.reset}`)
+  results.forEach(result => {
+    const status =
+      result.passed || result.success ? colors.green + '✅' : colors.red + '❌'
+    const name = result.name || result.testName || 'Unknown Test'
+    console.log(`${status} ${colors.bright}${name}${colors.reset}`)
+    if (result.duration) {
+      console.log(
+        colors.dim + `  Duration: ${result.duration}ms` + colors.reset
+      )
     }
-
-    console.log('')
+    if (result.error) {
+      console.log(colors.red + `  Error: ${result.error}` + colors.reset)
+    }
+    if (result.details) {
+      console.log(colors.dim + '  Details:' + colors.reset)
+      if (Array.isArray(result.details)) {
+        result.details.forEach(detail => {
+          console.log(colors.dim + `    - ${detail}` + colors.reset)
+        })
+      } else {
+        console.log(colors.dim + `    - ${result.details}` + colors.reset)
+      }
+    }
   })
-
-  return { successful, total }
 }
 
 /**
@@ -139,312 +139,56 @@ ${colors.bright}Доступные Inngest функции для тестиро�
  */
 async function main() {
   const args = process.argv.slice(2)
-  const testType = args[0]?.toLowerCase() || 'all'
+  const testType = args[0] || 'all'
 
-  // Переменная для отслеживания общего результата тестов
-  let allSuccessful = true
-
-  // Проверяем наличие флагов
-  const dryRun = args.includes('--dry-run')
-  const useDebugEndpoint = args.includes('--debug-endpoint')
-
-  console.log(
-    `\n${colors.bright}${colors.blue}🧪 ЗАПУСК ТЕСТОВ${colors.reset}\n`
-  )
-  console.log(`Тип тестов: ${colors.cyan}${testType}${colors.reset}`)
-  if (dryRun) {
-    console.log(
-      `${colors.yellow}Режим: dry run (без проверки базы данных)${colors.reset}`
-    )
+  if (testType === '--help' || testType === '-h') {
+    printHelp()
+    return
   }
-  if (useDebugEndpoint) {
-    console.log(
-      `${colors.yellow}Режим: использование отладочного эндпоинта${colors.reset}`
-    )
-  }
-  console.log(
-    `URL API: ${colors.cyan}${TEST_CONFIG.server.apiUrl}${colors.reset}`
-  )
-
-  if (['webhook', 'all'].includes(testType)) {
-    console.log(
-      `Путь вебхука Replicate: ${colors.cyan}${TEST_CONFIG.server.webhookPath}${colors.reset}\n`
-    )
-  }
-
-  if (['bfl-webhook', 'all'].includes(testType)) {
-    console.log(
-      `Путь вебхука BFL: ${colors.cyan}${TEST_CONFIG.server.bflWebhookPath}${colors.reset}\n`
-    )
-  }
-
-  if (['neurophoto-webhook', 'all'].includes(testType)) {
-    console.log(
-      `Путь вебхука нейрофото: ${colors.cyan}${TEST_CONFIG.server.neurophotoWebhookPath}${colors.reset}\n`
-    )
-  }
-
-  if (['inngest', 'neuro', 'all'].includes(testType)) {
-    const inngestUrl = process.env.INNGEST_DEV_URL || 'http://localhost:8288'
-    console.log(
-      `URL Inngest Dev Server: ${colors.cyan}${inngestUrl}${colors.reset}`
-    )
-  }
-
-  console.log('')
 
   try {
-    // Проверяем, какие тесты запускать
-    if (testType === 'webhook' || testType === 'all') {
-      logger.info({
-        message: '🧪 Запуск тестов вебхуков Replicate',
-        description: 'Starting Replicate webhook tests',
-      })
+    let results: TestResult[] = []
 
-      const webhookTester = new ReplicateWebhookTester()
-      const webhookResults = await webhookTester.runAllTests()
-      const { successful, total } = formatResults(
-        webhookResults,
-        'вебхуков Replicate'
-      )
-      if (successful < total) {
-        allSuccessful = false
-      }
-    }
-
-    if (testType === 'bfl-webhook' || testType === 'all') {
-      logger.info({
-        message: '🧪 Запуск тестов вебхуков BFL',
-        description: 'Starting BFL webhook tests',
-      })
-
-      const bflWebhookTester = new BFLWebhookTester()
-      const bflWebhookResults = await bflWebhookTester.runAllTests()
-      formatResults(bflWebhookResults, 'вебхуков BFL')
-    }
-
-    if (testType === 'neurophoto-webhook' || testType === 'all') {
-      logger.info({
-        message: '🧪 Запуск тестов вебхуков нейрофото',
-        description: 'Starting neurophoto webhook tests',
-        dryRun,
-        useDebugEndpoint,
-      })
-
-      const neurophotoWebhookTester = new NeurophotoWebhookTester()
-      const neurophotoWebhookResults =
-        await neurophotoWebhookTester.runAllTests({
-          checkDatabase: !dryRun,
-          useDebugEndpoint,
-        })
-      const { successful, total } = formatResults(
-        neurophotoWebhookResults,
-        'вебхуков нейрофото'
-      )
-      allSuccessful = allSuccessful && successful === total
-    }
-
-    if (testType === 'database' || testType === 'all') {
-      logger.info({
-        message: '🧪 Запуск тестов базы данных',
-        description: 'Starting database tests',
-      })
-
-      const dbTester = new DatabaseTester()
-      const dbResults = await dbTester.runAllTests()
-      formatResults(dbResults, 'базы данных')
-    }
-
-    if (testType === 'inngest' || testType === 'all') {
-      logger.info({
-        message: '🧪 Запуск тестов Inngest функций',
-        description: 'Starting Inngest function tests',
-      })
-
-      const inngestTester = new InngestTester()
-      const inngestResults = await inngestTester.runAllTests()
-      formatResults(inngestResults, 'Inngest функций')
-    }
-
-    if (testType === 'neuro') {
-      logger.info({
-        message: '🧪 Запуск тестов генерации изображений',
-        description: 'Starting image generation tests',
-      })
-
-      const inngestTester = new InngestTester()
-      const neuroResults = await inngestTester.runImageGenerationTests()
-
-      // Также запускаем тесты NeuroPhoto V2 при запуске тестов neuro
-      logger.info({
-        message: '🧪 Запуск тестов генерации нейрофото V2',
-        description: 'Starting NeuroPhoto V2 generation tests',
-      })
-
-      // Добавляем результаты тестов NeuroPhoto V2 к результатам обычных тестов
-      const neuroPhotoV2Results = await inngestTester.runSpecificFunctionTests(
-        'neurophoto-v2'
-      )
-      const allNeuroResults = [...neuroResults, ...neuroPhotoV2Results]
-
-      formatResults(allNeuroResults, 'генерации изображений')
-    }
-
-    if (testType === 'neurophoto-v2') {
-      logger.info({
-        message: '🧪 Запуск тестов генерации нейрофото V2',
-        description: 'Starting NeuroPhoto V2 generation tests',
-      })
-
-      const inngestTester = new InngestTester()
-      const neuroPhotoV2Results = await inngestTester.runSpecificFunctionTests(
-        'neurophoto-v2'
-      )
-      formatResults(neuroPhotoV2Results, 'генерации нейрофото V2')
-    }
-
-    if (testType === 'function') {
-      logger.info({
-        message: '🧪 Запуск тестов конкретных Inngest функций',
-        description: 'Starting specific Inngest function tests',
-      })
-
-      const functionName = args[1]
-      if (!functionName) {
-        console.log(
-          `${colors.red}Необходимо указать имя функции для тестирования!${colors.reset}\n`
-        )
-        console.log(
-          `${colors.cyan}Доступные функции: hello-world, broadcast, payment, model-training, model-training-v2, neuro, neurophoto-v2, voice-avatar${colors.reset}\n`
-        )
-        console.log(
-          `${colors.cyan}Пример: ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts function hello-world${colors.reset}\n`
+    switch (testType) {
+      case 'webhook':
+        results = await runWebhookTests()
+        break
+      case 'database':
+        results = await runDatabaseTests()
+        break
+      case 'inngest':
+        results = await runInngestTests()
+        break
+      case 'speech':
+        results = [await runSpeechGenerationTest()]
+        break
+      case 'all':
+        results = [
+          ...(await runWebhookTests()),
+          ...(await runDatabaseTests()),
+          ...(await runInngestTests()),
+          await runSpeechGenerationTest(),
+        ]
+        break
+      default:
+        console.error(
+          `${colors.red}Неизвестный тип теста: ${testType}${colors.reset}`
         )
         printHelp()
         process.exit(1)
-      }
-
-      const inngestTester = new InngestTester()
-      const functionResults = await inngestTester.runSpecificFunctionTests(
-        functionName
-      )
-      formatResults(functionResults, `Inngest функции "${functionName}"`)
     }
 
-    if (testType === 'voice-avatar') {
-      logger.info({
-        message: '🧪 Запуск тестов генерации голосового аватара',
-        description: 'Starting voice avatar tests',
-      })
+    formatResults(results)
 
-      const inngestTester = new InngestTester()
-      const voiceAvatarResults = await inngestTester.runVoiceAvatarTests()
-      formatResults(voiceAvatarResults, 'генерации голосового аватара')
-    }
-
-    if (testType === 'text-to-speech') {
-      logger.info({
-        message: '🧪 Запуск тестов преобразования текста в речь',
-        description: 'Starting text-to-speech tests',
-      })
-
-      const inngestTester = new InngestTester()
-      const textToSpeechResults = await inngestTester.runTextToSpeechTests()
-      const { successful, total } = formatResults(
-        textToSpeechResults,
-        'Текст-в-речь'
-      )
-
-      if (successful < total) {
-        allSuccessful = false
-      }
-    }
-
-    if (testType === 'help' || testType === '--help' || testType === '-h') {
-      printHelp()
-    }
-
-    if (
-      ![
-        'webhook',
-        'bfl-webhook',
-        'neurophoto-webhook',
-        'database',
-        'inngest',
-        'neuro',
-        'neurophoto-v2',
-        'function',
-        'voice-avatar',
-        'text-to-speech',
-        'all',
-        'help',
-        '--help',
-        '-h',
-      ].includes(testType)
-    ) {
-      console.log(
-        `${colors.red}Неизвестный тип тестов: ${testType}${colors.reset}\n`
-      )
-      printHelp()
-    }
-
-    // Добавляем текст-в-речь тесты в общие тесты
-    if (testType === 'all') {
-      // Тесты текст-в-речь
-      logger.info({
-        message: '🧪 Запуск тестов преобразования текста в речь',
-        description: 'Starting text-to-speech tests',
-      })
-
-      const inngestTester = new InngestTester()
-      const textToSpeechResults = await inngestTester.runTextToSpeechTests()
-      const textToSpeechStats = formatResults(
-        textToSpeechResults,
-        'Текст-в-речь'
-      )
-
-      if (textToSpeechStats.successful < textToSpeechStats.total) {
-        allSuccessful = false
-      }
-    }
-
-    // Запуск тестов
-    const speechResults = await runSpeechGenerationTest()
-
-    if (speechResults.success) {
-      logger.info({
-        message: '🎉 Все тесты пройдены успешно',
-        description: 'All tests passed successfully',
-        duration: speechResults.duration,
-        testName: speechResults.testName,
-        details: speechResults.message,
-      })
-    } else {
-      logger.error({
-        message: '❌ Тесты завершились с ошибками',
-        description: 'Tests failed',
-        error: speechResults.error,
-        duration: speechResults.duration,
-        testName: speechResults.testName,
-        details: speechResults.message,
-      })
-      allSuccessful = false
-      process.exit(1)
-    }
-
-    if (!allSuccessful) {
+    const failedTests = results.filter(r => !r.passed)
+    if (failedTests.length > 0) {
       process.exit(1)
     }
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при запуске тестов',
-      description: 'Error running tests',
-      error: error.message,
-      stack: error.stack,
-    })
-
-    console.log(
-      `\n${colors.red}${colors.bright}ОШИБКА: ${error.message}${colors.reset}\n`
+    console.error(
+      `${colors.red}Ошибка при выполнении тестов: ${
+        error instanceof Error ? error.message : String(error)
+      }${colors.reset}`
     )
     process.exit(1)
   }
@@ -459,103 +203,131 @@ if (require.main === module) {
 }
 
 async function runSpeechGenerationTest(): Promise<TestResult> {
-  logger.info({
-    message: '🎯 Запуск теста генерации речи',
-    description: 'Starting speech generation test',
-  })
-
-  const testCases = [
-    {
-      name: 'Короткий текст через generateSpeech',
-      text: 'Привет, это тестовое сообщение!',
-    },
-    {
-      name: 'Длинный текст через generateSpeech',
-      text: 'Это длинный тестовый текст для проверки работы функции преобразования текста в речь. Он содержит несколько предложений.',
-    },
-  ]
-
   try {
-    const results: TestResult[] = []
-
-    for (const testCase of testCases) {
-      logger.info({
-        message: `🧪 Тест кейс: ${testCase.name}`,
-        description: `Testing case: ${testCase.name}`,
-        text_length: testCase.text.length,
-      })
-
-      // Получаем бота
-      const botData = await getBotByName(TEST_CONFIG.users.main.botName)
-
-      if (!botData?.bot) {
-        throw new Error('Bot instance not found')
-      }
-
-      logger.info({
-        message: '🔄 Запуск generateSpeech',
-        description: 'Starting generateSpeech function',
-        text: testCase.text,
-        telegram_id: TEST_CONFIG.users.main.telegramId,
-      })
-
-      // // Используем реальную функцию generateSpeech
-      // const result = await generateSpeech({
-      //   text: testCase.text,
-      //   voice_id: 'ljyyJh982fsUinaSQPvv',
-      //   telegram_id: TEST_CONFIG.users.main.telegramId,
-      //   is_ru: TEST_CONFIG.users.main.isRussian,
-      //   bot: botData.bot,
-      //   bot_name: TEST_CONFIG.users.main.botName,
-      // })
-
-      // if (!result) {
-      //   throw new Error('Failed to generate speech')
-      // }
-
-      // logger.info({
-      //   message: '✅ Аудио успешно сгенерировано',
-      //   description: 'Audio successfully generated',
-      //   result_type: typeof result,
-      // })
-
-      results.push({
-        success: true,
-        testName: `Генерация речи - ${testCase.name}`,
-        message: `Аудио успешно сгенерировано и отправлено для теста "${testCase.name}"`,
-        duration: 0,
-      })
-
-      logger.info({
-        message: `✅ Тест "${testCase.name}" успешно завершен`,
-        description: `Test "${testCase.name}" completed successfully`,
-      })
-
-      // Пауза между тестами
-      await new Promise(resolve => setTimeout(resolve, 1000))
-    }
-
-    // Возвращаем общий результат
+    const result = await testSpeechGeneration()
     return {
-      success: true,
-      testName: 'Генерация речи',
-      message: `Успешно выполнено ${results.length} тестов генерации речи`,
+      name: 'Тест генерации речи',
+      testName: 'Speech Generation Test',
+      passed: result.passed,
+      success: result.passed,
+      error: result.error,
+      details: result.details || {},
       duration: 0,
+      message: result.error || 'Test completed',
     }
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка в тесте генерации речи',
-      description: 'Error in speech generation test',
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    })
-
     return {
+      name: 'Тест генерации речи',
+      testName: 'Speech Generation Test',
+      passed: false,
       success: false,
       error: error instanceof Error ? error.message : String(error),
-      testName: 'Генерация речи',
+      details: {},
       duration: 0,
-      message: 'Ошибка при генерации речи',
+      message: error instanceof Error ? error.message : String(error),
     }
   }
+}
+
+async function runWebhookTests(): Promise<TestResult[]> {
+  const results: TestResult[] = []
+  const replicateTester = new ReplicateWebhookTester()
+  const bflTester = new BFLWebhookTester()
+  const neurophotoTester = new NeurophotoWebhookTester()
+
+  try {
+    // Тесты Replicate
+    const replicateResults = await replicateTester.runAllTests()
+    results.push(...replicateResults)
+
+    // Тесты BFL
+    const bflResults = await bflTester.runAllTests()
+    results.push(...bflResults)
+
+    // Тесты Neurophoto
+    const neurophotoResults = await neurophotoTester.runAllTests()
+    results.push(...neurophotoResults)
+
+    return results
+  } catch (error) {
+    return [
+      {
+        name: 'Тесты вебхуков',
+        testName: 'Webhook Tests',
+        passed: false,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        details: {},
+        duration: 0,
+        message: error instanceof Error ? error.message : String(error),
+      },
+    ]
+  }
+}
+
+async function runDatabaseTests(): Promise<TestResult[]> {
+  try {
+    const databaseTester = new DatabaseTester()
+    const results = await databaseTester.runAllTests()
+    return results
+  } catch (error) {
+    return [
+      {
+        name: 'Тесты базы данных',
+        testName: 'Database Tests',
+        passed: false,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        details: {},
+        duration: 0,
+        message: error instanceof Error ? error.message : String(error),
+      },
+    ]
+  }
+}
+
+async function runInngestTests(): Promise<TestResult[]> {
+  try {
+    const results = await runPaymentTests()
+    return results
+  } catch (error) {
+    return [
+      {
+        name: 'Тесты Inngest',
+        testName: 'Inngest Tests',
+        passed: false,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        details: {},
+        duration: 0,
+        message: error instanceof Error ? error.message : String(error),
+      },
+    ]
+  }
+}
+
+export async function runAllTests(): Promise<TestResult[]> {
+  logger.info('🚀 Запуск всех тестов', {
+    description: 'Starting all tests',
+  })
+
+  const results: TestResult[] = []
+
+  // Запускаем тесты платежной системы
+  const paymentResults = await runPaymentTests()
+  results.push(...paymentResults)
+
+  // Здесь можно добавить другие тесты...
+
+  const passedTests = results.filter(r => r.passed).length
+  const totalTests = results.length
+
+  logger.info('📊 Общие результаты тестирования', {
+    description: 'Overall test results',
+    passedTests,
+    totalTests,
+    successRate: `${((passedTests / totalTests) * 100).toFixed(2)}%`,
+  })
+
+  return results
 }

@@ -3,66 +3,44 @@
  */
 
 import { PaymentStatus } from '@/core/supabase/updatePaymentStatus'
+import { config } from 'dotenv'
+config({ path: '.env.test' })
 
 export const TEST_CONFIG = {
   // Базовая конфигурация
   server: {
     apiUrl: 'http://localhost:2999',
-    webhookPath: '/webhooks/replicate',
-    bflWebhookPath: '/webhooks/bfl',
-    neurophotoWebhookPath: '/webhooks/neurophoto',
+    webhookPath: '/api/webhook',
+    webhookUrl: 'http://localhost:2999/api/webhook',
+    inngestUrl: 'http://localhost:2999/api/inngest',
+    inngestDevUrl: 'http://localhost:8288',
+    bflWebhookPath: '/api/bfl-webhook',
+    neurophotoWebhookPath: '/api/neurophoto-webhook',
   },
 
   // Тестовые данные пользователей
-  users: {
-    main: {
-      telegramId: '144022504',
-      voiceId: 'test-voice-id',
-      isRussian: true,
-      botName: 'test_bot',
-    },
-    default: {
-      telegramId: '144022504',
-      voiceId: 'test-voice-id',
-      isRussian: true,
-      botName: 'test_bot',
-    },
+  user: {
+    telegramId: '123456789',
+    voiceId: 'test_voice_id',
+    botName: 'test_bot',
+    isRussian: true,
   },
 
   // Тестовые данные для бота
-  bots: {
-    default: 'neuro_blogger_bot',
+  bot: {
+    name: 'test_bot',
+    token: process.env.BOT_TOKEN_TEST_1,
   },
 
   // Тестовые данные для тренировки моделей
-  modelTraining: {
+  training: {
     samples: [
       {
-        trainingId: 'kvb60ecsf9rme0cntzqrhca1y4',
-        modelName: 'test_model_1',
-        status: 'SUCCESS',
-        outputUrl:
-          'https://replicate.delivery/xezq/output-model/trained_model.tar',
-        version: 'ghashtag/neuro_sage:af5678e9a7b6552f3f8c6875e5e9f1c3f7d5f1e8',
+        text: 'Test sample 1',
+        status: 'completed',
         metrics: {
-          predict_time: 7230.5,
-        },
-      },
-      {
-        trainingId: 'failed-training-id',
-        modelName: 'test_model_2',
-        status: 'failed',
-        error: 'Not enough training images',
-        metrics: {
-          predict_time: 120.5,
-        },
-      },
-      {
-        trainingId: 'canceled-training-id',
-        modelName: 'test_model_3',
-        status: 'canceled',
-        metrics: {
-          predict_time: 45.2,
+          accuracy: 0.95,
+          loss: 0.05,
         },
       },
     ],
@@ -143,6 +121,32 @@ export const TEST_CONFIG = {
     ],
   },
 
+  // Тестовые данные для вебхуков видео
+  videoWebhook: {
+    samples: [
+      {
+        id: 'video-webhook-success',
+        status: 'success',
+        output: 'https://example.com/test-video.mp4',
+        telegram_id: 'test_user_123',
+        bot_name: 'test_bot',
+        is_ru: true,
+        videoModel: 'test_model',
+        prompt: 'Test video generation prompt',
+      },
+      {
+        id: 'video-webhook-failed',
+        status: 'failed',
+        error: 'Test error message',
+        telegram_id: 'test_user_123',
+        bot_name: 'test_bot',
+        is_ru: true,
+        videoModel: 'test_model',
+        prompt: 'Failed test video generation prompt',
+      },
+    ],
+  },
+
   // Настройки для инструментов тестирования
   options: {
     retryAttempts: 3,
@@ -158,4 +162,31 @@ export const TEST_CONFIG = {
     COMPLETED: 'COMPLETED' as PaymentStatus,
     FAILED: 'FAILED' as PaymentStatus,
   },
-}
+
+  paymentStatus: {
+    success: 'success',
+    failed: 'failed',
+    pending: 'pending',
+  },
+
+  INNGEST_DEV_URL: 'http://localhost:8288',
+  INNGEST_EVENT_KEY: 'test-key',
+  NODE_ENV: 'test',
+  SUPABASE_URL: process.env.SUPABASE_URL || '',
+  SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY || '',
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+  TELEGRAM_BOT_TOKENS: {
+    neuro_blogger_bot: process.env.TELEGRAM_BOT_TOKEN_NEURO_BLOGGER || '',
+    MetaMuse_Manifest_bot: process.env.TELEGRAM_BOT_TOKEN_META_MUSE || '',
+    ZavaraBot: process.env.TELEGRAM_BOT_TOKEN_ZAVARA || '',
+    LeeSolarbot: process.env.TELEGRAM_BOT_TOKEN_LEE_SOLAR || '',
+    NeuroLenaAssistant_bot: process.env.TELEGRAM_BOT_TOKEN_NEURO_LENA || '',
+    NeurostylistShtogrina_bot:
+      process.env.TELEGRAM_BOT_TOKEN_NEURO_STYLIST || '',
+    Gaia_Kamskaia_bot: process.env.TELEGRAM_BOT_TOKEN_GAIA || '',
+    ai_koshey_bot: process.env.TELEGRAM_BOT_TOKEN_KOSHEY || '',
+    clip_maker_neuro_bot: process.env.TELEGRAM_BOT_TOKEN_CLIP_MAKER || '',
+  },
+} as const
+
+export type TestConfig = typeof TEST_CONFIG

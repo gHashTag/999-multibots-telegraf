@@ -1,18 +1,9 @@
 /**
  * Скрипт для тестирования вебхуков BFL
  */
-import { BFLWebhookTester } from './webhook-tests'
-import { logger } from '../utils/logger'
-
-// Интерфейс для результатов теста (должен совпадать с интерфейсом в webhook-tests.ts)
-interface TestResult {
-  testName: string
-  success: boolean
-  message: string
-  details?: any
-  error?: string
-  duration?: number
-}
+import { BFLWebhookTester } from './webhook.test'
+import { logger } from '@/utils/logger'
+import { TestResult } from './types'
 
 // Интерфейс для итогов тестирования
 interface TestSummary {
@@ -25,39 +16,23 @@ interface TestSummary {
 
 async function runBFLWebhookTests(): Promise<TestSummary> {
   logger.info({
-    message: '🚀 Запуск тестов вебхуков BFL',
+    message: '🚀 Запуск тестов BFL вебхуков',
     description: 'Starting BFL webhook tests',
   })
 
   const tester = new BFLWebhookTester()
   const results = await tester.runAllTests()
 
-  // Считаем успешные и неуспешные тесты
+  // Подсчитываем статистику
   const successCount = results.filter(r => r.success).length
-  const failCount = results.filter(r => !r.success).length
+  const failCount = results.length - successCount
 
-  // Выводим результаты
   logger.info({
-    message: `✅ Тесты BFL вебхуков завершены: ${successCount} успешно, ${failCount} неуспешно`,
-    description: `BFL webhook tests completed: ${successCount} success, ${failCount} failures`,
-    results,
-  })
-
-  // Выводим детали по каждому тесту
-  results.forEach(result => {
-    if (result.success) {
-      logger.info({
-        message: `✓ ${result.testName} - ${result.message}`,
-        description: `Test passed: ${result.testName}`,
-        duration: result.duration,
-      })
-    } else {
-      logger.error({
-        message: `✗ ${result.testName} - ${result.message}`,
-        description: `Test failed: ${result.testName}`,
-        error: result.error,
-      })
-    }
+    message: '📊 Результаты тестов BFL вебхуков',
+    description: 'BFL webhook test results',
+    successCount,
+    failCount,
+    totalTests: results.length,
   })
 
   return {
