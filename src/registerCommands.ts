@@ -250,7 +250,7 @@ export function registerCommands({
 
   composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
     console.log('CASE hearsHandler: 📸 Нейрофото')
-    await ctx.scene.enter('neuro_photo')
+    await ctx.scene.enter('select_neuro_photo')
   })
 
   composer.hears([levels[3].title_ru, levels[3].title_en], async ctx => {
@@ -298,7 +298,7 @@ export function registerCommands({
   composer.hears([levels[10].title_ru, levels[10].title_en], async ctx => {
     console.log('CASE: 🎥 Видео из текста')
     ctx.session.mode = 'text_to_video'
-    await ctx.scene.enter('checkBalanceScene')
+    await ctx.scene.enter('text_to_video')
   })
 
   composer.hears([levels[11].title_ru, levels[11].title_en], async ctx => {

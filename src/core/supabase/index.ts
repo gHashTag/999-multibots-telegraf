@@ -1,18 +1,3 @@
-import { createClient } from '@supabase/supabase-js'
-import {
-  SUPABASE_URL,
-  SUPABASE_SERVICE_KEY,
-  SUPABASE_SERVICE_ROLE_KEY,
-} from '../../config'
-
-// Создаем клиент с service role key
-export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-export const supabaseAdmin = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY
-)
-
 export * from './createUser'
 export * from './createModelTraining'
 export * from './checkSubscriptionByTelegramId'
@@ -68,5 +53,6 @@ export * from './getFineTuneIdByTelegramId'
 export * from './getUserByTaskId'
 export * from './getTelegramIdFromInvId'
 export * from './getBotGroupFromAvatars'
-
+export * from './client'
 export * from './getAllUsersData'
+export * from './saveVideoUrlToSupabase'

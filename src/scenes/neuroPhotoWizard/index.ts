@@ -13,6 +13,7 @@ import { WizardScene } from 'telegraf/scenes'
 import { MyWizardContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
+import { logger } from '@/utils/logger'
 
 const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
   const isRu = ctx.from?.language_code === 'ru'
@@ -21,7 +22,6 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
 
     const { userId, telegramId } = getUserInfo(ctx)
     const userModel = await getLatestUserModel(userId, 'replicate')
-
     const { count, subscription, level } = await getReferalsCountAndUserData(
       telegramId
     )

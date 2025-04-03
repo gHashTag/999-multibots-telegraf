@@ -29,40 +29,43 @@ checkBalanceScene.enter(async ctx => {
   // Нормализуем режим для обратной совместимости
   const normalizedMode = mode
 
-  // Используем единую функцию расчета стоимости
-  const costResult = calculateModeCost({ mode })
-  const cost = costResult.stars
+  // Пропускаем расчет стоимости для режимов с собственной логикой расчета
+  if (mode !== 'text_to_video') {
+    // Используем единую функцию расчета стоимости
+    const costResult = calculateModeCost({ mode })
+    const cost = costResult.stars
 
-  logger.info({
-    message: '💰 Расчет стоимости операции',
-    description: 'Cost calculation in balance check scene',
-    mode,
-    cost,
-    currentBalance,
-    telegram_id: ctx.from?.id,
-  })
-
-  // Отправляем сообщение о балансе только если стоимость определена и не равна 0
-  if (cost !== 0 && !isNaN(cost)) {
-    await sendBalanceMessage(
-      ctx.from.id.toString(),
-      currentBalance,
+    logger.info({
+      message: '💰 Расчет стоимости операции',
+      description: 'Cost calculation in balance check scene',
+      mode,
       cost,
-      isRu,
-      ctx.telegram
-    )
-  }
-
-  if (currentBalance < cost) {
-    logger.warn({
-      message: '⚠️ Недостаточно средств',
-      description: 'Insufficient funds',
+      currentBalance,
       telegram_id: ctx.from?.id,
-      currentBalance,
-      cost,
     })
-    await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
-    return ctx.scene.leave()
+
+    // Отправляем сообщение о балансе только если стоимость определена и не равна 0
+    if (cost !== 0 && !isNaN(cost)) {
+      await sendBalanceMessage(
+        ctx.from.id.toString(),
+        currentBalance,
+        cost,
+        isRu,
+        ctx.telegram
+      )
+    }
+
+    if (currentBalance < cost) {
+      logger.warn({
+        message: '⚠️ Недостаточно средств',
+        description: 'Insufficient funds',
+        telegram_id: ctx.from?.id,
+        currentBalance,
+        cost,
+      })
+      await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
+      return ctx.scene.leave()
+    }
   }
 
   // Переход к соответствующей сцене в зависимости от режима

@@ -15,6 +15,7 @@ import {
   textToSpeechFunction,
   ruPaymentProcessPayment,
   imageToPromptFunction,
+  textToVideoFunction,
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
 import { handleReplicateWebhook } from './controllers/replicateWebhook'
@@ -412,6 +413,7 @@ app.use(
       createVoiceAvatarFunction,
       ruPaymentProcessPayment,
       imageToPromptFunction,
+      textToVideoFunction,
     ],
   })
 )

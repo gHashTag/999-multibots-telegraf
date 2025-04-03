@@ -1,8 +1,7 @@
-import Replicate from 'replicate'
-
-export const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-})
+import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
+import { logger } from '@/utils/logger'
+import { replicate } from './client'
+export * from './client'
 
 export const modelPricing: Record<string, string> = {
   'black-forest-labs/flux-1.1-pro': '$0.040 / image',
@@ -167,4 +166,54 @@ export const models: Record<string, ModelConfig> = {
       getInput(prompt, aspect_ratio || '16:9'),
     price: 0.022,
   },
+}
+
+export const processVideoGeneration = async (
+  videoModel: string,
+  aspect_ratio: string,
+  prompt: string
+) => {
+  const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
+
+  if (!modelConfig) {
+    throw new Error('Invalid video model')
+  }
+
+  logger.info('🎬 Запуск генерации видео', {
+    description: 'Starting video generation',
+    model: videoModel,
+    prompt: prompt.substring(0, 30) + '...',
+  })
+
+  try {
+    const output = await replicate.run(
+      modelConfig.api.model as `${string}/${string}`,
+      {
+        input: {
+          prompt,
+          ...modelConfig.api.input,
+          aspect_ratio:
+            typeof modelConfig.api.input.aspect_ratio === 'function'
+              ? modelConfig.api.input.aspect_ratio(aspect_ratio)
+              : aspect_ratio,
+        },
+      }
+    )
+
+    logger.info('✅ Видео успешно сгенерировано', {
+      description: 'Video successfully generated',
+      model: videoModel,
+      output_type: typeof output,
+    })
+
+    return output
+  } catch (error) {
+    logger.error('❌ Ошибка при генерации видео', {
+      description: 'Error generating video',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      model: videoModel,
+      prompt: prompt.substring(0, 30) + '...',
+    })
+    throw error
+  }
 }

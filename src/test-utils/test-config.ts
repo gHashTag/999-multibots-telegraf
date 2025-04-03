@@ -119,6 +119,30 @@ export const TEST_CONFIG = {
     ],
   },
 
+  // Тестовые данные для text-to-video
+  textToVideo: {
+    samples: [
+      {
+        task_id: 'text-to-video-success',
+        status: 'COMPLETED',
+        result: {
+          video_url: 'https://example.com/test-video.mp4',
+          prompt: 'A beautiful sunset over the ocean',
+          model: 'zeroscope_v2_xl',
+        },
+      },
+      {
+        task_id: 'text-to-video-processing',
+        status: 'processing',
+      },
+      {
+        task_id: 'text-to-video-failed',
+        status: 'failed',
+        error: 'Model processing error',
+      },
+    ],
+  },
+
   // Настройки для инструментов тестирования
   options: {
     retryAttempts: 3,

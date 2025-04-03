@@ -150,45 +150,40 @@ export function calculateModeCost(
   }
 }
 
-export const modeCosts: Record<string, number | ((param?: any) => number)> = {
+export const modeCosts: Record<string, (param?: any) => number> = {
   [ModeEnum.DigitalAvatarBody]: (steps: number) =>
     calculateModeCost({ mode: ModeEnum.DigitalAvatarBody, steps }).stars,
   [ModeEnum.DigitalAvatarBodyV2]: (steps: number) =>
     calculateModeCost({ mode: ModeEnum.DigitalAvatarBodyV2, steps }).stars,
-  [ModeEnum.NeuroPhoto]: calculateModeCost({ mode: ModeEnum.NeuroPhoto }).stars,
-  [ModeEnum.NeuroPhotoV2]: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 })
-    .stars,
-  neuro_photo_2: calculateModeCost({ mode: 'neuro_photo_2' }).stars,
-  [ModeEnum.ImageToPrompt]: calculateModeCost({ mode: ModeEnum.ImageToPrompt })
-    .stars,
-  [ModeEnum.Avatar]: calculateModeCost({ mode: ModeEnum.Avatar }).stars,
-  [ModeEnum.ChatWithAvatar]: calculateModeCost({
-    mode: ModeEnum.ChatWithAvatar,
-  }).stars,
-  [ModeEnum.SelectModel]: calculateModeCost({ mode: ModeEnum.SelectModel })
-    .stars,
-  [ModeEnum.SelectModelWizard]: calculateModeCost({
-    mode: ModeEnum.SelectModelWizard,
-  }).stars,
-  [ModeEnum.Voice]: calculateModeCost({ mode: ModeEnum.Voice }).stars,
-  [ModeEnum.TextToSpeech]: calculateModeCost({ mode: ModeEnum.TextToSpeech })
-    .stars,
-  [ModeEnum.ImageToVideo]: calculateModeCost({ mode: ModeEnum.ImageToVideo })
-    .stars,
-  [ModeEnum.TextToVideo]: calculateModeCost({ mode: ModeEnum.TextToVideo })
-    .stars,
-  [ModeEnum.TextToImage]: calculateModeCost({ mode: ModeEnum.TextToImage })
-    .stars,
-  [ModeEnum.LipSync]: calculateModeCost({ mode: ModeEnum.LipSync }).stars,
+  [ModeEnum.NeuroPhoto]: () =>
+    calculateModeCost({ mode: ModeEnum.NeuroPhoto }).stars,
+  [ModeEnum.NeuroPhotoV2]: () =>
+    calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 }).stars,
+  neuro_photo_2: () => calculateModeCost({ mode: 'neuro_photo_2' }).stars,
+  [ModeEnum.ImageToPrompt]: () =>
+    calculateModeCost({ mode: ModeEnum.ImageToPrompt }).stars,
+  [ModeEnum.Avatar]: () => calculateModeCost({ mode: ModeEnum.Avatar }).stars,
+  [ModeEnum.ChatWithAvatar]: () =>
+    calculateModeCost({ mode: ModeEnum.ChatWithAvatar }).stars,
+  [ModeEnum.SelectModel]: () =>
+    calculateModeCost({ mode: ModeEnum.SelectModel }).stars,
+  [ModeEnum.SelectModelWizard]: () =>
+    calculateModeCost({ mode: ModeEnum.SelectModelWizard }).stars,
+  [ModeEnum.Voice]: () => calculateModeCost({ mode: ModeEnum.Voice }).stars,
+  [ModeEnum.TextToSpeech]: () =>
+    calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
+  [ModeEnum.ImageToVideo]: () =>
+    calculateModeCost({ mode: ModeEnum.ImageToVideo }).stars,
+  [ModeEnum.TextToVideo]: () =>
+    calculateModeCost({ mode: ModeEnum.TextToVideo }).stars,
+  [ModeEnum.TextToImage]: () =>
+    calculateModeCost({ mode: ModeEnum.TextToImage }).stars,
+  [ModeEnum.LipSync]: () => calculateModeCost({ mode: ModeEnum.LipSync }).stars,
 }
 
 export const minCost = Math.min(
-  ...Object.values(modeCosts).map(cost =>
-    typeof cost === 'function' ? cost(1) : cost
-  )
+  ...Object.values(modeCosts).map(cost => cost(1))
 )
 export const maxCost = Math.max(
-  ...Object.values(modeCosts).map(cost =>
-    typeof cost === 'function' ? cost(1) : cost
-  )
+  ...Object.values(modeCosts).map(cost => cost(1))
 )

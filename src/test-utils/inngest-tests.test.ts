@@ -1,13 +1,12 @@
 import { logger } from '@/utils/logger'
 import { TEST_CONFIG } from './test-config'
 import axios from 'axios'
-import elevenlabs from '@/core/elevenlabs'
+import { elevenlabs } from '@/core/elevenlabs'
 import { Readable } from 'stream'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
 import { createWriteStream } from 'fs'
-import { inngest } from '@/core/inngest/clients'
 import { getBotByName } from '@/core/bot'
 
 /**
@@ -203,7 +202,57 @@ export class InngestTester {
       },
     })
 
-    return this.sendEvent('text-to-image.requested', generationData)
+    return this.sendEvent('text-to-image/generate', generationData)
+  }
+
+  /**
+   * Тестирует функцию генерации текст-в-видео
+   */
+  async testTextToVideo(): Promise<TestResult> {
+    const generationData = {
+      prompt: 'A beautiful sunset over the ocean with waves',
+      videoModel: 'wan-text-to-video',
+      telegram_id: TEST_CONFIG.users.main.telegramId,
+      username: 'test_user',
+      is_ru: TEST_CONFIG.users.main.isRussian,
+      bot_name: TEST_CONFIG.users.main.botName,
+    }
+
+    logger.info({
+      message: '🧪 Тест функции генерации текст-в-видео',
+      description: 'Text to video generation function test',
+      generationData: {
+        ...generationData,
+        prompt: generationData.prompt.substring(0, 20) + '...',
+      },
+    })
+
+    return this.sendEvent('text-to-video/generate', generationData)
+  }
+
+  /**
+   * Тестирует функцию генерации текст-в-видео напрямую
+   */
+  async testTextToVideoDirectInvoke(): Promise<TestResult> {
+    const generationData = {
+      prompt: 'A beautiful sunset over the ocean with waves',
+      videoModel: 'wan-text-to-video',
+      telegram_id: TEST_CONFIG.users.main.telegramId,
+      username: 'test_user',
+      is_ru: TEST_CONFIG.users.main.isRussian,
+      bot_name: TEST_CONFIG.users.main.botName,
+    }
+
+    logger.info({
+      message: '🧪 Прямой тест функции генерации текст-в-видео',
+      description: 'Direct text to video generation function test',
+      generationData: {
+        ...generationData,
+        prompt: generationData.prompt.substring(0, 20) + '...',
+      },
+    })
+
+    return this.invokeFunction('text-to-video-function', generationData)
   }
 
   /**
@@ -623,82 +672,40 @@ export class InngestTester {
    * Запускает все тесты
    */
   async runAllTests(): Promise<TestResult[]> {
+    logger.info('🚀 Запуск всех тестов', {
+      description: 'Starting all tests',
+    })
+
     const results: TestResult[] = []
 
-    try {
-      // Тест отправки события тренировки модели
-      const modelTrainingResult = await this.testModelTraining()
-      results.push(modelTrainingResult)
+    // Тесты для тренировки моделей
+    results.push(...(await this.runModelTrainingTests()))
 
-      // Тест отправки события тренировки модели V2
-      const modelTrainingV2Result = await this.testModelTrainingV2()
-      results.push(modelTrainingV2Result)
+    // Тесты для генерации изображений
+    results.push(...(await this.runImageGenerationTests()))
 
-      // Тест отправки события генерации изображения
-      const neuroImageResult = await this.testNeuroImageGeneration()
-      results.push(neuroImageResult)
+    // Тесты для голосовых аватаров
+    results.push(...(await this.runVoiceAvatarTests()))
 
-      // Тест отправки события генерации нейрофото V2
-      const neuroPhotoV2Result = await this.testNeuroPhotoV2Generation()
-      results.push(neuroPhotoV2Result)
+    // Тесты для text-to-speech
+    results.push(...(await this.runTextToSpeechTests()))
 
-      // Тест отправки события генерации текст-в-изображение
-      const textToImageResult = await this.testTextToImage()
-      results.push(textToImageResult)
+    // Тесты для text-to-video
+    results.push(...(await this.runTextToVideoTests()))
 
-      // Прямой вызов функции тренировки модели
-      const directInvokeResult = await this.testModelTrainingDirectInvoke()
-      results.push(directInvokeResult)
+    // Анализ результатов
+    const successCount = results.filter(r => r.success).length
+    const failureCount = results.filter(r => !r.success).length
 
-      // Прямой вызов функции тренировки модели V2
-      const directInvokeV2Result = await this.testModelTrainingV2DirectInvoke()
-      results.push(directInvokeV2Result)
+    logger.info('📊 Результаты тестирования:', {
+      description: 'Test results summary',
+      total: results.length,
+      success: successCount,
+      failure: failureCount,
+      successRate: `${((successCount / results.length) * 100).toFixed(2)}%`,
+    })
 
-      // Прямой вызов функции нейрофото V2
-      const directInvokeNeuroPhotoV2Result =
-        await this.testNeuroPhotoV2DirectInvoke()
-      results.push(directInvokeNeuroPhotoV2Result)
-
-      // Прямой вызов функции текст-в-изображение
-      const directInvokeTextToImageResult =
-        await this.testTextToImageDirectInvoke()
-      results.push(directInvokeTextToImageResult)
-
-      // Тест создания голосового аватара
-      const voiceAvatarResult = await this.testVoiceAvatarCreation()
-      results.push(voiceAvatarResult)
-
-      // Прямой вызов функции создания голосового аватара
-      const directInvokeVoiceAvatarResult =
-        await this.testVoiceAvatarDirectInvoke()
-      results.push(directInvokeVoiceAvatarResult)
-
-      // Тест функции text-to-speech
-      const textToSpeechResult = await this.testTextToSpeech()
-      results.push(textToSpeechResult)
-
-      // Прямой вызов функции text-to-speech
-      const directInvokeTextToSpeechResult =
-        await this.testTextToSpeechDirectInvoke()
-      results.push(directInvokeTextToSpeechResult)
-
-      return results
-    } catch (error) {
-      logger.error({
-        message: '❌ Ошибка при выполнении всех тестов',
-        description: 'Error running all tests',
-        error: error.message,
-      })
-
-      results.push({
-        testName: 'Error in runAllTests',
-        success: false,
-        message: 'Произошла ошибка при выполнении всех тестов',
-        error: error.message,
-      })
-
-      return results
-    }
+    return results
   }
 
   /**
@@ -1056,6 +1063,74 @@ export class InngestTester {
         testName,
       }
     }
+  }
+
+  /**
+   * Запускает все тесты для text-to-video
+   */
+  async runTextToVideoTests(): Promise<TestResult[]> {
+    logger.info('🚀 Запуск тестов text-to-video', {
+      description: 'Starting text-to-video tests',
+    })
+
+    const results: TestResult[] = []
+
+    // Тест с корректными данными
+    results.push(await this.testTextToVideo())
+
+    // Тест с пустым промптом
+    results.push(
+      await this.sendEvent('text-to-video/generate', {
+        prompt: '',
+        videoModel: 'wan-text-to-video',
+        telegram_id: TEST_CONFIG.users.main.telegramId,
+        username: 'test_user',
+        is_ru: TEST_CONFIG.users.main.isRussian,
+        bot_name: TEST_CONFIG.users.main.botName,
+      })
+    )
+
+    // Тест с несуществующей моделью
+    results.push(
+      await this.sendEvent('text-to-video/generate', {
+        prompt: 'Test prompt',
+        videoModel: 'non-existent-model',
+        telegram_id: TEST_CONFIG.users.main.telegramId,
+        username: 'test_user',
+        is_ru: TEST_CONFIG.users.main.isRussian,
+        bot_name: TEST_CONFIG.users.main.botName,
+      })
+    )
+
+    // Прямой вызов функции
+    results.push(await this.testTextToVideoDirectInvoke())
+
+    return results
+  }
+
+  /**
+   * Запускает тесты для тренировки моделей
+   */
+  async runModelTrainingTests(): Promise<TestResult[]> {
+    logger.info('🚀 Запуск тестов тренировки моделей', {
+      description: 'Starting model training tests',
+    })
+
+    const results: TestResult[] = []
+
+    // Тест с корректными данными
+    results.push(await this.testModelTraining())
+
+    // Тест V2 с корректными данными
+    results.push(await this.testModelTrainingV2())
+
+    // Прямой вызов функции тренировки
+    results.push(await this.testModelTrainingDirectInvoke())
+
+    // Прямой вызов функции тренировки V2
+    results.push(await this.testModelTrainingV2DirectInvoke())
+
+    return results
   }
 }
 

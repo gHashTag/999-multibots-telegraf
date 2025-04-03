@@ -1,13 +1,46 @@
 import dotenv from 'dotenv'
+import axios from 'axios'
 
 dotenv.config()
 
-import { NODE_ENV } from '@/config'
+import { NODE_ENV } from '@config'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 
 import { getBotGroupFromAvatars } from '@/core/supabase'
+
+// Увеличиваем таймаут для запросов к API Telegram до 90 секунд
+axios.defaults.timeout = 90000
+
+// Функция для повторных попыток
+const retry = async <T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delay = 1000,
+  description = ''
+): Promise<T> => {
+  try {
+    return await fn()
+  } catch (error) {
+    if (retries === 0) {
+      logger.error(`❌ Все попытки исчерпаны для ${description}:`, {
+        description: 'All retries exhausted',
+        error,
+      })
+      throw error
+    }
+
+    logger.info(`🔄 Повторная попытка (осталось ${retries}):`, {
+      description: 'Retrying operation',
+      operation: description,
+    })
+
+    await new Promise(resolve => setTimeout(resolve, delay))
+    return retry(fn, retries - 1, delay * 2, description)
+  }
+}
+
 if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
 if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
 if (!process.env.BOT_TOKEN_3) throw new Error('BOT_TOKEN_3 is not set')
@@ -15,7 +48,6 @@ if (!process.env.BOT_TOKEN_4) throw new Error('BOT_TOKEN_4 is not set')
 if (!process.env.BOT_TOKEN_5) throw new Error('BOT_TOKEN_5 is not set')
 if (!process.env.BOT_TOKEN_6) throw new Error('BOT_TOKEN_6 is not set')
 if (!process.env.BOT_TOKEN_7) throw new Error('BOT_TOKEN_7 is not set')
-
 if (!process.env.BOT_TOKEN_TEST_1)
   throw new Error('BOT_TOKEN_TEST_1 is not set')
 if (!process.env.BOT_TOKEN_TEST_2)
@@ -57,10 +89,34 @@ export const BOT_URLS = {
 export const BOT_TOKENS =
   NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_TEST
 
-export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
+logger.info('🔍 Текущее окружение и боты:', {
+  description: 'Current environment and bots',
+  NODE_ENV,
+  isProduction: NODE_ENV === 'production',
+  usedTokens: BOT_TOKENS === BOT_TOKENS_PROD ? 'PROD' : 'TEST',
+  activeTokens: BOT_TOKENS.length,
+})
 
-export const DEFAULT_BOT_NAME = 'neuro_blogger_bot'
-export const defaultBot = new Telegraf<MyContext>(DEFAULT_BOT_TOKEN)
+// В тестовом окружении используем только тестовые токены
+const ACTIVE_BOT_NAMES =
+  NODE_ENV === 'production'
+    ? BOT_NAMES
+    : {
+        ['ai_koshey_bot']: process.env.BOT_TOKEN_TEST_1,
+        ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_TEST_2,
+      }
+
+export const DEFAULT_BOT_TOKEN =
+  NODE_ENV === 'production'
+    ? process.env.BOT_TOKEN_1
+    : process.env.BOT_TOKEN_TEST_1
+
+export const DEFAULT_BOT_NAME =
+  NODE_ENV === 'production' ? 'neuro_blogger_bot' : 'ai_koshey_bot'
+
+export const defaultBot = new Telegraf<MyContext>(DEFAULT_BOT_TOKEN, {
+  handlerTimeout: 30000,
+})
 
 logger.info('🤖 Инициализация defaultBot:', {
   description: 'DefaultBot initialization',
@@ -68,7 +124,7 @@ logger.info('🤖 Инициализация defaultBot:', {
 })
 
 // Инициализируем ботов при старте приложения
-export const bots = Object.entries(BOT_NAMES)
+export const bots = Object.entries(ACTIVE_BOT_NAMES)
   .filter(([_, token]) => token) // Фильтруем undefined токены
   .map(([name, token]) => {
     // Если это defaultBot, используем существующий экземпляр
@@ -80,7 +136,9 @@ export const bots = Object.entries(BOT_NAMES)
       return defaultBot
     }
 
-    const bot = new Telegraf<MyContext>(token)
+    const bot = new Telegraf<MyContext>(token, {
+      handlerTimeout: 30000,
+    })
 
     logger.info('🤖 Инициализация бота:', {
       description: 'Bot initialization',
@@ -94,11 +152,13 @@ export const bots = Object.entries(BOT_NAMES)
 logger.info('🌟 Инициализировано ботов:', {
   description: 'Bots initialized',
   count: bots.length,
-  bot_names: Object.keys(BOT_NAMES),
+  bot_names: Object.keys(ACTIVE_BOT_NAMES),
 })
 
 export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1
-export const pulseBot = new Telegraf<MyContext>(PULSE_BOT_TOKEN)
+export const pulseBot = new Telegraf<MyContext>(PULSE_BOT_TOKEN, {
+  handlerTimeout: 30000,
+})
 
 logger.info('🤖 Инициализация pulseBot:', {
   description: 'PulseBot initialization',
@@ -106,8 +166,9 @@ logger.info('🤖 Инициализация pulseBot:', {
 })
 
 export function getBotNameByToken(token: string): { bot_name: string } {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)
+  const entry = Object.entries(ACTIVE_BOT_NAMES).find(
+    ([, value]) => value === token
+  )
   if (!entry) {
     return { bot_name: DEFAULT_BOT_NAME }
   }
@@ -117,8 +178,9 @@ export function getBotNameByToken(token: string): { bot_name: string } {
 }
 
 export function getTokenByBotName(botName: string): string | undefined {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const entry = Object.entries(BOT_NAMES).find(([name, _]) => name === botName)
+  const entry = Object.entries(ACTIVE_BOT_NAMES).find(
+    ([name]) => name === botName
+  )
   if (!entry) {
     console.warn(`Bot name ${botName} not found.`)
     return undefined
@@ -145,7 +207,7 @@ export async function createBotByName(
   const groupId = await getBotGroupFromAvatars(botName)
 
   // Ищем бота в массиве bots
-  const botIndex = Object.keys(BOT_NAMES).indexOf(botName)
+  const botIndex = Object.keys(ACTIVE_BOT_NAMES).indexOf(botName)
   const bot = bots[botIndex]
 
   if (!bot) {
@@ -153,7 +215,7 @@ export async function createBotByName(
       description: 'Bot instance not found',
       botName,
       botIndex,
-      availableBots: Object.keys(BOT_NAMES),
+      availableBots: Object.keys(ACTIVE_BOT_NAMES),
     })
     return undefined
   }
@@ -176,13 +238,13 @@ export function getBotByName(bot_name: string): {
   })
 
   // Проверяем наличие бота в конфигурации
-  const token = BOT_NAMES[bot_name]
+  const token = ACTIVE_BOT_NAMES[bot_name]
   if (!token) {
     logger.error({
       message: '❌ Токен бота не найден в конфигурации',
       description: 'Bot token not found in configuration',
       bot_name,
-      availableBots: Object.keys(BOT_NAMES),
+      availableBots: Object.keys(ACTIVE_BOT_NAMES),
     })
     return { error: 'Bot not found in configuration' }
   }
@@ -195,7 +257,7 @@ export function getBotByName(bot_name: string): {
   })
 
   // Ищем бота в массиве bots
-  const botIndex = Object.keys(BOT_NAMES).indexOf(bot_name)
+  const botIndex = Object.keys(ACTIVE_BOT_NAMES).indexOf(bot_name)
   let bot = bots[botIndex]
 
   // Если бот не найден в массиве или не имеет необходимых методов, создаем новый экземпляр
@@ -205,7 +267,9 @@ export function getBotByName(bot_name: string): {
       description: 'Creating new bot instance',
       bot_name,
     })
-    bot = new Telegraf<MyContext>(token)
+    bot = new Telegraf<MyContext>(token, {
+      handlerTimeout: 30000,
+    })
     // Проверяем, что бот создан корректно
     if (!bot.telegram?.sendMessage) {
       logger.error({
@@ -240,4 +304,36 @@ export const supportRequest = async (title: string, data: any) => {
   } catch (error) {
     throw new Error(`Error supportRequest: ${JSON.stringify(error)}`)
   }
+}
+
+export const createBot = (token: string): Telegraf<MyContext> => {
+  const bot = new Telegraf<MyContext>(token, {
+    handlerTimeout: 90000,
+  })
+  return bot
+}
+
+// Добавляем retry для операций с вебхуками
+export const setupWebhook = async (bot: Telegraf<MyContext>, path: string) => {
+  const webhookUrl = `http://app:2999${path}`
+
+  await retry(
+    () => bot.telegram.deleteWebhook(),
+    3,
+    1000,
+    `delete webhook for ${path}`
+  )
+
+  await retry(
+    () => bot.telegram.setWebhook(webhookUrl),
+    3,
+    1000,
+    `set webhook for ${path}`
+  )
+
+  logger.info('✅ Вебхук настроен:', {
+    description: 'Webhook setup completed',
+    path,
+    url: webhookUrl,
+  })
 }

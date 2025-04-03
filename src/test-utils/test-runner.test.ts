@@ -15,13 +15,13 @@ import {
   BFLWebhookTester,
   NeurophotoWebhookTester,
 } from './webhook-tests'
-import { DatabaseTester } from './database-tests'
-import { InngestTester } from './inngest-tests'
+import { DatabaseTester } from './database-tests.test'
+import { InngestTester } from './inngest-tests.test'
 import { logger } from '@/utils/logger'
 import { TEST_CONFIG } from './test-config'
 import fs from 'fs'
 import path from 'path'
-import { testSpeechGeneration } from './audio-tests'
+import { testSpeechGeneration } from './audio-tests.test'
 import { TestResult } from './types'
 
 import { getBotByName } from '@/core/bot'

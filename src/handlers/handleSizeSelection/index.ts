@@ -1,7 +1,6 @@
 import { MyContext } from '@/interfaces'
-import { getReferalsCountAndUserData, setAspectRatio } from '@/core/supabase'
+import { setAspectRatio } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
-import { mainMenu } from '@/menu'
 
 export async function handleSizeSelection(ctx: MyContext, size: string) {
   ctx.session.selectedSize = size
@@ -13,7 +12,7 @@ export async function handleSizeSelection(ctx: MyContext, size: string) {
   const mode = ctx.session.mode
   console.log(mode, 'mode')
   if (mode === 'neuro_photo') {
-    ctx.scene.enter('neuro_photo')
+    ctx.scene.enter('select_neuro_photo')
   } else if (mode === 'text_to_image') {
     ctx.scene.enter('text_to_image')
   } else {

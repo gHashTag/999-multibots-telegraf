@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  app:
+    container_name: neuro-blogger-telegram-bot-test
+    build:
+      context: ./
+      dockerfile: Dockerfile.dev
+    ports:
+      - '2999:2999'  # API порт
+      - '3008:3008'  # Тестовый бот
+      - '8288:8288'  # Inngest порт
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file:
+      - .env.test
+    environment:
+      - NODE_ENV=test
+      - PORT=3008
+      - LOG_DIR=/tmp/logs
+      - SECRET_KEY=testSecretKey
+      - CREDENTIALS=true
+      - ORIGIN=*
+      - LOG_FORMAT=combined
+      - INNGEST_DEV_URL=http://localhost:8288
+      - GLAMA_API_KEY=test-key
+      - TEST_MODE=true
+      - DEBUG=true
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    command: pnpm run bots
+    user: 'node'
+
+    networks:
+      - test-network
+    restart: 'unless-stopped'
+
+  nginx:
+    container_name: nginx-proxy-test
+    image: nginx:alpine
+    ports:
+      - '8443:443'
+      - '8080:80'
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/:/etc/nginx/conf.d/:ro
+      - /etc/pki/:/etc/pki/:ro
+    networks:
+      - test-network
+    depends_on:
+      - app
+    restart: 'unless-stopped'
+
+networks:
+  test-network:
+    driver: bridge 

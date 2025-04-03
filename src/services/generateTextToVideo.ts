@@ -1,6 +1,6 @@
-import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
-
+import { inngest } from '@/core/inngest/clients'
+import { logger } from '@/utils/logger'
+import { v4 as uuidv4 } from 'uuid'
 interface TextToVideoResponse {
   success: boolean
   videoUrl?: string
@@ -17,38 +17,49 @@ export async function generateTextToVideo(
   botName: string
 ): Promise<TextToVideoResponse> {
   try {
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
-    }/generate/text-to-video`
-
-    if (!prompt)
+    if (!prompt) {
       throw new Error(
         isRu
           ? 'generateTextToVideo: Не удалось определить промпт'
           : 'generateTextToVideo: Could not identify prompt'
       )
-    if (!videoModel)
+    }
+    if (!videoModel) {
       throw new Error(
         isRu
           ? 'generateTextToVideo: Не удалось определить модель'
           : 'generateTextToVideo: Could not identify model'
       )
-    if (!telegram_id)
+    }
+    if (!telegram_id) {
       throw new Error(
         isRu
           ? 'generateTextToVideo: Не удалось определить telegram_id'
           : 'generateTextToVideo: Could not identify telegram_id'
       )
-    if (!username)
+    }
+    if (!username) {
       throw new Error(
         isRu
           ? 'generateTextToVideo: Не удалось определить username'
           : 'generateTextToVideo: Could not identify username'
       )
+    }
 
-    const response = await axios.post<TextToVideoResponse>(
-      url,
-      {
+    logger.info('🎬 Отправка события генерации видео', {
+      description: 'Sending text-to-video generation event',
+      prompt: prompt.substring(0, 50) + '...',
+      videoModel,
+      telegram_id,
+      username,
+      bot_name: botName,
+    })
+
+    // Отправляем событие в Inngest
+    const result = await inngest.send({
+      id: uuidv4(),
+      name: 'text-to-video/generate',
+      data: {
         prompt,
         videoModel,
         telegram_id,
@@ -56,27 +67,29 @@ export async function generateTextToVideo(
         is_ru: isRu,
         bot_name: botName,
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
-    )
+    })
 
-    console.log('Text to video generation response:', response.data)
+    logger.info('✅ Событие генерации видео отправлено', {
+      description: 'Text-to-video generation event sent',
+      event_id: result.ids[0],
+    })
 
-    return response.data
-  } catch (error) {
-    if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      throw new Error(
-        isRu
-          ? 'generateTextToVideo: Произошла ошибка при генерации видео'
-          : 'generateTextToVideo: Error occurred while generating video'
-      )
+    return {
+      success: true,
+      message: isRu
+        ? 'Запрос на генерацию видео отправлен'
+        : 'Video generation request sent',
     }
-    console.error('Unexpected error:', error)
-    throw error
+  } catch (error) {
+    logger.error('❌ Ошибка при отправке события генерации видео', {
+      description: 'Error sending text-to-video generation event',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
+
+    throw new Error(
+      isRu
+        ? 'generateTextToVideo: Произошла ошибка при отправке запроса на генерацию видео'
+        : 'generateTextToVideo: Error occurred while sending video generation request'
+    )
   }
 }
