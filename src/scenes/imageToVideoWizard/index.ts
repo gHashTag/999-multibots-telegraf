@@ -9,7 +9,7 @@ import {
   sendGenericErrorMessage,
   videoModelKeyboard,
 } from '@/menu'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { getUserBalance } from '@/core/supabase'
 
 import { getBotToken, handleHelpCancel } from '@/handlers'

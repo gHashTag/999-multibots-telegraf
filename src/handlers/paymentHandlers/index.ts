@@ -9,10 +9,6 @@ import { updateUserSubscription } from '../../core/supabase'
 import { getTranslation } from '@/core'
 import { isRussian } from '@/core/i18n/language'
 import { sendNotification } from '../../core/notifications'
-import { getBotByName } from '@/core/bot'
-import { calculateModeCost } from '@/price'
-import { ModeEnum } from '@/price/types'
-import { getUserByTelegramIdString } from '@/core/supabase'
 
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {

@@ -1,5 +1,5 @@
 import { sendGenericErrorMessage } from '@/menu'
-import { isRussian } from '../../helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { MyContext } from '../../interfaces'
 
 export async function handleCallback(ctx: MyContext) {

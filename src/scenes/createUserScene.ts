@@ -7,7 +7,7 @@ import {
 } from '@/core/supabase'
 import { getSubScribeChannel } from '@/core/supabase'
 
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 
 const BONUS_AMOUNT = 100
 

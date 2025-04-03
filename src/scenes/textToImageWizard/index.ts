@@ -5,7 +5,7 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImage } from '@/services/generateTextToImage'
 import { getUserBalance } from '@/core/supabase'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import {
   sendBalanceMessage,
   validateAndCalculateImageModelPrice,

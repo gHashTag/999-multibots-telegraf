@@ -5,7 +5,7 @@ import {
   validateAndCalculateVideoModelPrice,
 } from '@/price/helpers'
 import { generateTextToVideo } from '@/services/generateTextToVideo'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { getUserBalance } from '@/core/supabase'
 

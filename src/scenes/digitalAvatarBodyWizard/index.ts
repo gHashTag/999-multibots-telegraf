@@ -1,7 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { getStepSelectionMenu } from '../../menu/getStepSelectionMenu'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { handleTrainingCost } from '@/price/helpers'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'

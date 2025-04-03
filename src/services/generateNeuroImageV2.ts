@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { inngest } from '@/core/inngest/clients'
 
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 

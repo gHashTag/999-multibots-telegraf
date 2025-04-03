@@ -1,7 +1,7 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { generateVoiceAvatar } from '@/services/generateVoiceAvatar'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { getUserBalance } from '@/core/supabase'
 import {
   sendInsufficientStarsMessage,

@@ -4,4 +4,4 @@ export * from './cost.interface'
 export * from './telegram-bot.interface'
 export * from './supabase.interface'
 export * from './api.interface'
-
+export * from './inngest.interface'

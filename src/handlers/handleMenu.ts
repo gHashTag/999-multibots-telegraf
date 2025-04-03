@@ -1,6 +1,6 @@
 import { MyWizardContext } from '@/interfaces'
 import { levels } from '@/menu/mainMenu'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { priceCommand } from '@/commands/priceCommand'
 import { handleTechSupport } from '@/commands/handleTechSupport'
 import { mainMenuButton } from '@/menu/mainMenu'

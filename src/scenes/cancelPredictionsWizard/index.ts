@@ -3,7 +3,7 @@ import axios from 'axios'
 import { MyContext } from '@/interfaces'
 import { refundUser } from '@/price/helpers'
 import { Scenes } from 'telegraf'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { sendGenericErrorMessage } from '@/menu'
 
 interface Prediction {

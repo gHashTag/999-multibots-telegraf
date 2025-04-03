@@ -1,6 +1,6 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext, Mode } from '@/interfaces'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { logger } from '@/utils/logger'
 import { handleHelpCancel } from '@/handlers'
 import { calculateModeCost, sendBalanceMessage } from '@/price/helpers'

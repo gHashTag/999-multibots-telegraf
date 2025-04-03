@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { Markup } from 'telegraf'
 
 export const handleTechSupport = async (ctx: MyContext) => {

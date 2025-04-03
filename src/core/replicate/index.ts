@@ -176,16 +176,31 @@ export const processVideoGeneration = async (
   const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
 
   if (!modelConfig) {
-    throw new Error('Invalid video model')
+    logger.error('❌ Модель видео не найдена', {
+      description: 'Video model not found',
+      videoModel,
+      availableModels: Object.keys(VIDEO_MODELS_CONFIG),
+    })
+    throw new Error(`Invalid video model: ${videoModel}`)
   }
 
   logger.info('🎬 Запуск генерации видео', {
     description: 'Starting video generation',
     model: videoModel,
     prompt: prompt.substring(0, 30) + '...',
+    aspect_ratio,
   })
 
   try {
+    logger.info('⚙️ Подготовка параметров для генерации', {
+      description: 'Preparing generation parameters',
+      model: modelConfig.api.model,
+      aspect_ratio:
+        typeof modelConfig.api.input.aspect_ratio === 'function'
+          ? modelConfig.api.input.aspect_ratio(aspect_ratio)
+          : aspect_ratio,
+    })
+
     const output = await replicate.run(
       modelConfig.api.model as `${string}/${string}`,
       {
@@ -197,23 +212,43 @@ export const processVideoGeneration = async (
               ? modelConfig.api.input.aspect_ratio(aspect_ratio)
               : aspect_ratio,
         },
+        webhook: process.env.REPLICATE_WEBHOOK_URL,
+        webhook_events_filter: ['completed'],
       }
     )
 
+    if (!output) {
+      logger.error('❌ Пустой результат от API', {
+        description: 'Empty response from API',
+        model: videoModel,
+      })
+      throw new Error('Empty response from video generation API')
+    }
+
     logger.info('✅ Видео успешно сгенерировано', {
-      description: 'Video successfully generated',
+      description: 'Video generated successfully',
       model: videoModel,
-      output_type: typeof output,
     })
 
     return output
   } catch (error) {
     logger.error('❌ Ошибка при генерации видео', {
       description: 'Error generating video',
-      error: error instanceof Error ? error.message : 'Unknown error',
       model: videoModel,
-      prompt: prompt.substring(0, 30) + '...',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
     })
-    throw error
+
+    // Проверяем тип ошибки и форматируем сообщение
+    if (error instanceof Error) {
+      if (error.message.includes('StepError')) {
+        throw new Error(
+          'Ошибка при обработке видео. Пожалуйста, попробуйте другую модель или измените запрос.'
+        )
+      }
+      throw error
+    }
+
+    throw new Error('Unexpected error during video generation')
   }
 }

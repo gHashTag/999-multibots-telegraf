@@ -1,8 +1,10 @@
 import { MyWizardContext, Subscription } from '@/interfaces'
 import { supabase } from '.'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { isDev } from '@config'
+import { Context } from 'telegraf'
+import { MyContext } from '../../interfaces'
 
 export const checkPaymentStatus = async (
   ctx: MyWizardContext,

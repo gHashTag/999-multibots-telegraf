@@ -3,7 +3,7 @@ import { MyContext } from '../../interfaces'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '../../core/supabase'
 import { createModelTraining } from '@/services/createModelTraining'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { deleteFile } from '@/helpers'
 
 export const uploadTrainFluxModelScene = new Scenes.BaseScene<MyContext>(

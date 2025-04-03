@@ -1,6 +1,6 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
 export const selectModelScene = new Scenes.WizardScene<MyContext>(

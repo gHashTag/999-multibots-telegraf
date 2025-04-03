@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { setAspectRatio } from '@/core/supabase'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 
 export async function handleSizeSelection(ctx: MyContext, size: string) {
   ctx.session.selectedSize = size

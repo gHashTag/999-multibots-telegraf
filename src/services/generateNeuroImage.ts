@@ -1,5 +1,5 @@
 import { inngest } from '@/core/inngest/clients'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/core/i18n/language'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'

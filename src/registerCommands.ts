@@ -52,7 +52,7 @@ import {
 import { imageModelMenu } from './menu/imageModelMenu'
 
 import { generateTextToImage } from './services/generateTextToImage'
-import { isRussian } from './helpers/language'
+import { isRussian } from '@/core/i18n/language'
 
 import { generateNeuroImage } from './services/generateNeuroImage'
 
