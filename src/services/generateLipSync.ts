@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from 'axios'
 import FormData from 'form-data'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@config'
 import fs from 'fs'
 import path from 'path'
 import { ensureDirectoryExistence } from '@/helpers'

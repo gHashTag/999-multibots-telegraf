@@ -4,7 +4,7 @@ import { inngest } from '@/core/inngest/clients'
 import { updateUserSubscription } from '@/core/supabase'
 import { updatePaymentStatus } from '@/core/supabase/updatePaymentStatus'
 import { logger } from '@/utils/logger'
-import { errorMessageAdmin } from '@/helpers/error/errorMessage'
+import { errorMessageAdmin } from '@/helpers'
 import { getTelegramIdFromInvId } from '@/helpers/getTelegramIdFromInvId'
 import { PaymentStatus } from '@/core/supabase/updatePaymentStatus'
 
@@ -81,7 +81,6 @@ export const ruPaymentProcessPayment = inngest.createFunction(
     // Преобразуем строку в число и округляем до целого
     const roundedIncSum = Math.round(Number(IncSum))
 
-
     try {
       let stars = 0
       let subscription = ''
@@ -92,8 +91,6 @@ export const ruPaymentProcessPayment = inngest.createFunction(
       })
 
       const { telegram_id, username, language_code, bot_name } = userData
-
-   
 
       // 2. Проверяем, соответствует ли сумма одному из тарифов
       const checkSubscriptionStep = await step.run(

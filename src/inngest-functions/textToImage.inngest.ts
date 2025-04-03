@@ -15,12 +15,13 @@ import {
 } from '@/helpers'
 import { replicate } from '@/core/replicate'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-import { API_URL } from '@/config'
+import { API_URL } from '@config'
 import path from 'path'
 import fs from 'fs'
 import { inngest } from '@/core/inngest/clients'
 import { IMAGES_MODELS } from '@/price/models/IMAGES_MODELS'
 import { logger } from '@/utils/logger'
+import { checkUserBalance } from '@/utils/checkUserBalance'
 
 interface TextToImageEvent {
   data: {
@@ -115,12 +116,23 @@ export const textToImageFunction = inngest.createFunction(
         const modelConfig = IMAGES_MODELS[validatedParams.model.toLowerCase()]
         if (!modelConfig) throw new Error('Unsupported model')
 
+        const cost = modelConfig.costPerImage * validatedParams.num_images
+
+        // Проверяем баланс пользователя
+        await checkUserBalance({
+          telegram_id: validatedParams.telegram_id,
+          bot_name: validatedParams.bot_name,
+          required_amount: cost,
+          is_ru: validatedParams.is_ru,
+          operation_type: ModeEnum.TextToImage,
+        })
+
         console.log('💰 Обработка платежа за изображения:', {
           description: 'Processing payment for images',
           telegram_id: validatedParams.telegram_id,
           model: validatedParams.model,
           num_images: validatedParams.num_images,
-          cost: modelConfig.costPerImage * validatedParams.num_images,
+          cost: cost,
         })
 
         // Отправляем событие payment/process для обработки платежа
@@ -135,8 +147,7 @@ export const textToImageFunction = inngest.createFunction(
             is_ru: validatedParams.is_ru,
             bot_name: validatedParams.bot_name,
             description: `Payment for ${validatedParams.num_images} images`,
-            paymentAmount:
-              modelConfig.costPerImage * validatedParams.num_images,
+            paymentAmount: cost,
             type: 'outcome',
             metadata: {
               service_type: ModeEnum.TextToImage,

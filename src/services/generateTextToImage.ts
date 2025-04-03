@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import { ELESTIO_URL, isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
+import { ELESTIO_URL, isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@config'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 

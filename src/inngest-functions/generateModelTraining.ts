@@ -9,7 +9,7 @@ import {
 import { getBotByName } from '@/core/bot'
 import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { inngest } from '@/core/inngest/clients'
-import { API_URL, isDev } from '@/config'
+import { API_URL, isDev } from '@config'
 import { BalanceHelper } from '@/helpers/inngest/balanceHelpers'
 import { logger } from '@utils/logger'
 import { v4 as uuidv4 } from 'uuid'

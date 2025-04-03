@@ -16,6 +16,7 @@ import {
   ruPaymentProcessPayment,
   imageToPromptFunction,
   textToVideoFunction,
+  videoWebhookFunction,
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
 import { handleReplicateWebhook } from './controllers/replicateWebhook'
@@ -24,7 +25,7 @@ import {
   handleWebhookNeurophoto,
   handleWebhookNeurophotoDebug,
 } from './controllers/neurophotoWebhook'
-import { UPLOAD_DIR } from './config'
+import { UPLOAD_DIR } from '@config'
 import { logger } from './utils/logger'
 import multer from 'multer'
 import path from 'path'
@@ -414,6 +415,7 @@ app.use(
       ruPaymentProcessPayment,
       imageToPromptFunction,
       textToVideoFunction,
+      videoWebhookFunction,
     ],
   })
 )

@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from 'axios'
 import { supabase } from '@/core/supabase'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@config'
 import { Telegraf } from 'telegraf'
 
 import { logger } from '@/utils/logger'

@@ -51,7 +51,9 @@ export const {
 } = process.env
 // Дополнительные константы
 export const CREDENTIALS = process.env.CREDENTIALS === 'true'
+
 export const isDev = process.env.NODE_ENV === 'development'
+
 export const UPLOAD_DIR =
   process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
 

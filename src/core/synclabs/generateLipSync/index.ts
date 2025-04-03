@@ -1,4 +1,4 @@
-import { isDev } from '@/config'
+import { isDev } from '@config'
 import { supabase } from '../../supabase'
 import axios from 'axios'
 

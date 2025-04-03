@@ -1,6 +1,5 @@
-import axios, { AxiosResponse } from 'axios'
+import axios from 'axios'
 import { logger } from '@/utils/logger'
-import { GLAMA_API_KEY } from '@/config'
 
 // Базовый URL для Glama MCP API
 const GLAMA_MCP_API_URL = 'https://glama.ai/api/mcp/v1'
@@ -49,7 +48,7 @@ export class GlamaMcpService {
   private readonly apiClient = axios.create({
     baseURL: GLAMA_MCP_API_URL,
     headers: {
-      Authorization: `Bearer ${GLAMA_API_KEY}`,
+      Authorization: `Bearer ${process.env.GLAMA_API_KEY}`,
       'Content-Type': 'application/json',
     },
   })

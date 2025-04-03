@@ -1,5 +1,5 @@
 import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@config'
 import { ImageToVideoResponse, VideoModel } from '@/interfaces'
 
 export async function generateImageToVideo({

@@ -57,7 +57,7 @@ export async function generateTextToVideo(
 
     // Отправляем событие в Inngest
     const result = await inngest.send({
-      id: uuidv4(),
+      id: `text-to-video-${uuidv4()}`,
       name: 'text-to-video/generate',
       data: {
         prompt,

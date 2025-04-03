@@ -1,4 +1,4 @@
-import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
+import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@config'
 
 import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'

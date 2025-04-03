@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { isDev, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import { isDev, ELESTIO_URL, LOCAL_SERVER_URL } from '@config'
 interface UploadVideoRequest {
   videoUrl: string
   telegram_id: string

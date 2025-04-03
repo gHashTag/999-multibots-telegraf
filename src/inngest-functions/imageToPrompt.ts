@@ -1,12 +1,13 @@
 import { inngest } from '@/core/inngest/clients'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
-import axios, { isAxiosError } from 'axios'
+import axios from 'axios'
 import { sendBalanceMessage } from '@/price/helpers'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { v4 as uuidv4 } from 'uuid'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { getUserBalance } from '@/core/supabase'
+import { checkUserBalance } from '@/utils/checkUserBalance'
 
 if (!process.env.ELESTIO_URL) {
   throw new Error('ELESTIO_URL is not set')
@@ -42,6 +43,15 @@ export const imageToPromptFunction = inngest.createFunction(
           telegram_id,
           cost_per_image,
           bot_name,
+        })
+
+        // Проверяем баланс пользователя
+        await checkUserBalance({
+          telegram_id,
+          bot_name,
+          required_amount: cost_per_image,
+          is_ru,
+          operation_type: ModeEnum.ImageToPrompt,
         })
 
         // Генерируем уникальный ID для операции

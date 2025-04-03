@@ -8,6 +8,9 @@ export interface TranslationContext {
   telegram: { token: string }
 }
 
+const DEFAULT_IMAGE_URL =
+  'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/flux_pro.jpeg'
+
 export async function getTranslation({
   key,
   ctx,
@@ -53,7 +56,7 @@ export async function getTranslation({
       console.error('Ошибка получения перевода с дефолтным токеном:', error)
       return {
         translation: 'Ошибка загрузки перевода',
-        url: '',
+        url: DEFAULT_IMAGE_URL,
         buttons: [],
       }
     }

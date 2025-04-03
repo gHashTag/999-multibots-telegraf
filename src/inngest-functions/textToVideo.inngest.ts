@@ -5,7 +5,7 @@ import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { v4 as uuidv4 } from 'uuid'
 import { processVideoGeneration } from '@/core/replicate'
 import { downloadFile } from '@/helpers/downloadFile'
-import { errorMessage, errorMessageAdmin } from '@/helpers'
+import { errorMessageAdmin } from '@/helpers'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
 import { getBotByName } from '@/core/bot'
@@ -14,6 +14,7 @@ import {
   updateUserLevelPlusOne,
   saveVideoUrlToSupabase,
 } from '@/core/supabase'
+import { checkUserBalance } from '@/utils/checkUserBalance'
 
 interface TextToVideoEvent {
   data: {
@@ -26,6 +27,10 @@ interface TextToVideoEvent {
   }
 }
 
+interface VideoGenerationResult {
+  videoUrl: string
+}
+
 export const textToVideoFunction = inngest.createFunction(
   {
     id: 'text-to-video-function',
@@ -35,6 +40,7 @@ export const textToVideoFunction = inngest.createFunction(
   { event: 'text-to-video/generate' },
   async ({ event, step }) => {
     let validatedParams: TextToVideoEvent['data'] | null = null
+    let modelConfig = null
 
     try {
       // Шаг 1: Валидация входных данных
@@ -100,12 +106,41 @@ export const textToVideoFunction = inngest.createFunction(
         }
       })
 
-      // Шаг 3: Обработка платежа
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // Шаг 3: Проверка баланса и получение конфигурации модели
+      modelConfig = VIDEO_MODELS_CONFIG[validatedParams.videoModel]
+
+      if (!modelConfig) {
+        logger.error('❌ Конфигурация модели не найдена:', {
+          description: 'Model configuration not found',
+          videoModel: validatedParams.videoModel,
+          availableModels: Object.keys(VIDEO_MODELS_CONFIG),
+        })
+        throw new Error('Model configuration not found')
+      }
+
+      logger.info('✅ Конфигурация модели получена:', {
+        description: 'Model configuration retrieved',
+        model: modelConfig.title,
+        basePrice: modelConfig.basePrice,
+      })
+
+      // Проверяем баланс пользователя
+      const balanceCheck = await checkUserBalance({
+        telegram_id: validatedParams.telegram_id,
+        bot_name: validatedParams.bot_name,
+        required_amount: modelConfig.basePrice * 100, // Конвертируем в звезды
+        is_ru: validatedParams.is_ru,
+        operation_type: ModeEnum.TextToVideo,
+      })
+
+      if (!balanceCheck.hasBalance) {
+        throw new Error('Insufficient balance')
+      }
+
+      // Шаг 4: Обработка платежа
       const paymentResult = await step.run('process-payment', async () => {
-        const modelConfig = VIDEO_MODELS_CONFIG[validatedParams.videoModel]
         if (!modelConfig) {
-          throw new Error('Invalid video model')
+          throw new Error('Model configuration not found')
         }
 
         logger.info('💰 Обработка платежа за видео', {
@@ -136,9 +171,11 @@ export const textToVideoFunction = inngest.createFunction(
             },
           },
         })
+
+        return { success: true }
       })
 
-      // Шаг 4: Отправка уведомления о начале генерации
+      // Шаг 5: Отправка уведомления о начале генерации
       await step.run('send-start-notification', async () => {
         const { bot } = getBotByName(validatedParams.bot_name)
         await bot.telegram.sendMessage(
@@ -154,7 +191,7 @@ export const textToVideoFunction = inngest.createFunction(
         )
       })
 
-      // Шаг 5: Генерация видео
+      // Шаг 6: Генерация видео
       const videoResult = await step.run('generate-video', async () => {
         logger.info('🎬 Генерация видео', {
           description: 'Generating video',
@@ -168,15 +205,13 @@ export const textToVideoFunction = inngest.createFunction(
           validatedParams.prompt
         )
 
-        let videoUrl: string
-        if (Array.isArray(output)) {
-          if (!output[0]) {
-            throw new Error('Empty array or first element is undefined')
-          }
-          videoUrl = output[0]
-        } else if (typeof output === 'string') {
-          videoUrl = output
-        } else {
+        logger.info('✅ Видео успешно сгенерировано', {
+          description: 'Video successfully generated',
+          model: validatedParams.videoModel,
+          output_type: typeof output,
+        })
+
+        if (typeof output !== 'string') {
           logger.error('❌ Неожиданный формат вывода:', {
             description: 'Unexpected output format',
             output: JSON.stringify(output, null, 2),
@@ -184,10 +219,10 @@ export const textToVideoFunction = inngest.createFunction(
           throw new Error(`Unexpected output format from API: ${typeof output}`)
         }
 
-        return { videoUrl }
+        return { videoUrl: output } as VideoGenerationResult
       })
 
-      // Шаг 6: Сохранение видео
+      // Шаг 7: Сохранение видео
       const savedVideo = await step.run('save-video', async () => {
         const videoLocalPath = path.join(
           process.cwd(),
@@ -212,7 +247,7 @@ export const textToVideoFunction = inngest.createFunction(
         return { videoLocalPath }
       })
 
-      // Шаг 7: Отправка видео пользователю
+      // Шаг 8: Отправка видео пользователю
       await step.run('send-video', async () => {
         const { bot } = getBotByName(validatedParams.bot_name)
         await bot.telegram.sendVideo(validatedParams.telegram_id, {
@@ -234,8 +269,15 @@ export const textToVideoFunction = inngest.createFunction(
                       : '🎥 Generate new video?',
                   },
                 ],
+                [
+                  {
+                    text: validatedParams.is_ru
+                      ? '🏠 Главное меню'
+                      : '🏠 Main menu',
+                  },
+                ],
               ],
-              resize_keyboard: false,
+              resize_keyboard: true,
             },
           }
         )
@@ -253,19 +295,87 @@ export const textToVideoFunction = inngest.createFunction(
         localPath: savedVideo.videoLocalPath,
       }
     } catch (error) {
-      errorMessage(
-        error as Error,
-        validatedParams?.telegram_id?.toString() || '',
-        validatedParams?.is_ru || false
-      )
-      errorMessageAdmin(error as Error)
-
       logger.error('❌ Ошибка при генерации видео:', {
         description: 'Error generating video',
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
         params: validatedParams,
       })
+
+      // Обработка возврата средств при ошибке
+      if (validatedParams && modelConfig) {
+        try {
+          logger.info('💰 Запуск процесса возврата средств', {
+            description: 'Starting refund process',
+            telegram_id: validatedParams.telegram_id,
+            amount: modelConfig.basePrice,
+          })
+
+          // Отправляем событие для возврата средств
+          await inngest.send({
+            id: `refund-${
+              validatedParams.telegram_id
+            }-${Date.now()}-${uuidv4()}`,
+            name: 'payment/process',
+            data: {
+              telegram_id: validatedParams.telegram_id,
+              mode: ModeEnum.TextToVideo,
+              is_ru: validatedParams.is_ru,
+              bot_name: validatedParams.bot_name,
+              description: `Refund for failed video generation`,
+              paymentAmount: modelConfig.basePrice,
+              type: 'income', // Возврат звезд на баланс пользователя
+              metadata: {
+                service_type: ModeEnum.TextToVideo,
+                prompt: validatedParams.prompt,
+                model: validatedParams.videoModel,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            },
+          })
+
+          logger.info('✅ Возврат средств запущен', {
+            description: 'Refund initiated',
+            telegram_id: validatedParams.telegram_id,
+            amount: modelConfig.basePrice * 100,
+          })
+
+          // Отправляем событие о неудачной генерации
+          await inngest.send({
+            id: `failed-video-${
+              validatedParams.telegram_id
+            }-${Date.now()}-${uuidv4()}`,
+            name: 'video/generation.failed',
+            data: {
+              telegram_id: validatedParams.telegram_id,
+              model: validatedParams.videoModel,
+              error: error instanceof Error ? error.message : String(error),
+              prompt: validatedParams.prompt,
+            },
+          })
+
+          // Отправляем уведомление пользователю
+          const { bot } = getBotByName(validatedParams.bot_name)
+          await bot.telegram.sendMessage(
+            validatedParams.telegram_id,
+            validatedParams.is_ru
+              ? '❌ Произошла ошибка при генерации видео. Средства были возвращены на ваш баланс. Пожалуйста, попробуйте еще раз.'
+              : '❌ An error occurred while generating video. The funds have been returned to your balance. Please try again.'
+          )
+
+          // Отправляем уведомление администратору
+          await errorMessageAdmin(error as Error)
+        } catch (refundError) {
+          logger.error('❌ Ошибка при возврате средств:', {
+            description: 'Error processing refund',
+            error:
+              refundError instanceof Error
+                ? refundError.message
+                : 'Unknown error',
+            telegram_id: validatedParams.telegram_id,
+          })
+        }
+      }
 
       throw error
     }

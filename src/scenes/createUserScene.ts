@@ -78,14 +78,14 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
       await ctx.telegram.sendMessage(
         `@neuro_blogger_pulse`,
-        `🔗 Новый пользователь зарегистрировался в боте: ${finalUsername}. По реферальной ссылке: @${user.username}`
+        `🔗 Новый пользователь ${finalUsername} зарегистрировался в боте: ${botName}. По реферальной ссылке: @${user.username}`
       )
     }
   } else {
     try {
       await ctx.telegram.sendMessage(
         `@neuro_blogger_pulse`,
-        `🔗 Новый пользователь зарегистрировался в боте: ${finalUsername}.`
+        `🔗 Новый пользователь  ${finalUsername} зарегистрировался в боте: ${botName}.`
       )
     } catch (error) {
       console.error('Ошибка в createUserStep:', error)

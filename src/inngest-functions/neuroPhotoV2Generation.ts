@@ -6,7 +6,7 @@ import {
   getFineTuneIdByTelegramId,
   getAspectRatio,
 } from '@/core/supabase'
-import { API_URL } from '@/config'
+import { API_URL } from '@config'
 import {
   modeCosts,
   ModeEnum,

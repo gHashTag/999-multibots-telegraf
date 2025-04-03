@@ -4,7 +4,7 @@ import { setPayments } from '../../core/supabase'
 import { isRussian } from '@/helpers'
 import { paymentOptions } from '@/price/priceCalculator'
 import md5 from 'md5'
-import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
+import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@config'
 import { handleHelpCancel } from '@/handlers'
 import { getBotNameByToken } from '@/core'
 

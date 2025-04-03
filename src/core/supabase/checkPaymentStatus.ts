@@ -2,7 +2,7 @@ import { MyWizardContext, Subscription } from '@/interfaces'
 import { supabase } from '.'
 import { isRussian } from '@/helpers/language'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
-import { isDev } from '@/config'
+import { isDev } from '@config'
 
 export const checkPaymentStatus = async (
   ctx: MyWizardContext,

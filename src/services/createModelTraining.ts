@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { UPLOAD_DIR, API_URL } from '@/config'
+import { UPLOAD_DIR, API_URL } from '@config'
 import { MyContext } from '@/interfaces'
 import { inngest } from '@/core/inngest/clients'
 import { logger } from '@/utils/logger'

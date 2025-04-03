@@ -1,5 +1,5 @@
 import { Inngest } from 'inngest'
-import { INNGEST_EVENT_KEY } from '@/config'
+import { INNGEST_EVENT_KEY } from '@config'
 // Добавляем лог для проверки инициализации
 console.log('🔄 Initializing Inngest client...')
 console.log('🔑 INNGEST_EVENT_KEY available:', !!INNGEST_EVENT_KEY)
@@ -14,6 +14,12 @@ if (INNGEST_EVENT_KEY) {
 // Создаем экземпляр Inngest
 export const inngest = new Inngest({
   id: 'neuro-blogger',
+  eventKey: INNGEST_EVENT_KEY,
+})
+
+// Создаем отдельный клиент для тестов
+export const testInngest = new Inngest({
+  id: 'neuro-blogger-test',
   eventKey: INNGEST_EVENT_KEY,
 })
 

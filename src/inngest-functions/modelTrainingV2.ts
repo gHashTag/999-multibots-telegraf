@@ -16,6 +16,8 @@ import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
 import axios from 'axios'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
+import { checkUserBalance } from '@/utils/checkUserBalance'
+
 // Создаем простой интерфейс ApiError для временного использования
 interface ApiError extends Error {
   response?: {
@@ -162,7 +164,14 @@ export const modelTrainingV2 = inngest.createFunction(
       })
       //
 
-      // Проверяем и обрабатываем операцию с балансом через Inngest события
+      // Проверяем и обрабатываем баланс через Inngest события
+      await checkUserBalance({
+        telegram_id,
+        bot_name,
+        required_amount: paymentAmount,
+        is_ru,
+        operation_type: ModeEnum.DigitalAvatarBodyV2,
+      })
 
       await inngest.send({
         id: `train-${telegram_id}-${Date.now()}-${modelName}-${uuidv4()}`,

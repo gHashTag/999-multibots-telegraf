@@ -1,4 +1,4 @@
-import { INNGEST_EVENT_KEY } from '@/config'
+import { INNGEST_EVENT_KEY } from '@config'
 import { supabase } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'

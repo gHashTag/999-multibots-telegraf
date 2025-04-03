@@ -1,9 +1,9 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
-import { Telegraf, Composer } from 'telegraf'
+import { Composer } from 'telegraf'
 import { MyContext, MyTextMessageContext } from '@/interfaces'
-import { NODE_ENV } from './config'
+import { NODE_ENV } from '@config'
 
 import { development, production } from '@/utils/launch'
 import express from 'express'
@@ -43,9 +43,12 @@ export const createBots = async () => {
     const { bot_name } = getBotNameByToken(telegramToken)
     console.log('CASE: bot_name', bot_name)
 
-    const webhookPath = `/${bot_name}`
+    const webhookUrl =
+      NODE_ENV === 'test'
+        ? `http://app:2999`
+        : `https://999-multibots-telegraf-u14194.vm.elestio.app`
 
-    const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app`
+    const webhookPath = `/${bot_name}`
 
     if (NODE_ENV === 'development') {
       development(bot)

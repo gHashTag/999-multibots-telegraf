@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import { updatePrompt, getTaskData, getUserByTaskId } from '@/core/supabase/'
 import { pulseNeuroImageV2, saveFileLocally } from '@/helpers'
-import { API_URL } from '@/config'
+import { API_URL } from '@config'
 import { getBotByName } from '@/core/bot'
 import { errorMessageAdmin } from '@/helpers'
 import fs from 'fs'
