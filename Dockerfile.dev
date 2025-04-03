@@ -2,17 +2,19 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
+# Установка зависимостей для сборки
+RUN apk add --no-cache python3 make g++ git
 
-# Создаем директорию для логов с правильными правами
-RUN mkdir -p /tmp/logs && \
-    chown -R node:node /tmp/logs
+# Установка pnpm и concurrently
+RUN npm install -g pnpm concurrently
 
-USER node
+# Копирование файлов проекта
+COPY package.json pnpm-lock.yaml ./
+COPY . .
 
-COPY --chown=node:node . .
+# Установка зависимостей и сборка
+RUN pnpm install
+RUN pnpm build
 
-EXPOSE 3000
-
-CMD ["npm", "run", "dev"]
+# Команда для запуска тестов с concurrently
+CMD ["concurrently", "\"pnpm run bots\"", "\"pnpm run dev:inngest\""]
