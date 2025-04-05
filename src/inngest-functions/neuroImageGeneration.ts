@@ -10,13 +10,13 @@ import { processApiResponse } from '@/helpers/processApiResponse'
 
 import { saveFileLocally } from '@/helpers'
 import { pulse } from '@/helpers/pulse'
-import { ModeEnum, calculateModeCost } from '@/price'
+import { ModeEnum, calculateModeCost } from '@/price/helpers'
 import path from 'path'
 import { API_URL } from '@config'
 import fs from 'fs'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
-import { checkUserBalance } from '@/utils/checkUserBalance'
+
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 
 export const neuroImageGeneration = inngest.createFunction(
@@ -196,21 +196,11 @@ export const neuroImageGeneration = inngest.createFunction(
         )
 
         // Проверяем баланс пользователя
-        await checkUserBalance({
+        const balance = await getUserBalance(telegram_id.toString(), bot_name)
+        logger.info('💰 Баланс пользователя', {
+          description: 'User balance',
           telegram_id,
-          bot_name,
-          required_amount: paymentAmount,
-          is_ru,
-          operation_type: ModeEnum.NeuroPhoto,
-        })
-
-        logger.info('💰 Списание средств', {
-          description: 'Processing payment',
-          telegram_id,
-          costPerImage: Number(costPerImage),
-          num_images: validNumImages,
-          totalAmount: paymentAmount,
-          bot_name,
+          balance,
         })
 
         // Генерируем уникальный ID для операции
