@@ -1,6 +1,9 @@
 import { InngestTester } from './inngest-tests'
 import { logger } from '@/utils/logger'
 
+// Устанавливаем тестовое окружение
+process.env.NODE_ENV = 'test'
+
 async function runTests() {
   logger.info({
     message: '🚀 Запуск тестов',

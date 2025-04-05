@@ -10,9 +10,7 @@ import { createWriteStream } from 'fs'
 import { getBotByName } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
-/**
- * Интерфейс для результатов теста
- */
+// Интерфейсы и типы
 interface TestResult {
   testName: string
   success: boolean
@@ -22,9 +20,6 @@ interface TestResult {
   duration?: number
 }
 
-/**
- * Интерфейс для параметров text-to-speech
- */
 interface TextToSpeechParams {
   text: string
   voice_id: string

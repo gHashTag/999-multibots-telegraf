@@ -3,6 +3,7 @@
  */
 
 import { PaymentStatus } from '@/core/supabase/updatePaymentStatus'
+import { logger } from '@/utils/logger'
 
 export const TEST_CONFIG = {
   // Базовая конфигурация
@@ -16,10 +17,9 @@ export const TEST_CONFIG = {
   // Тестовые данные пользователей
   users: {
     main: {
-      telegramId: '144022504',
-      voiceId: 'test-voice-id',
-      isRussian: true,
+      telegramId: '123456789',
       botName: 'test_bot',
+      isRussian: true,
     },
     default: {
       telegramId: '144022504',
@@ -133,5 +133,28 @@ export const TEST_CONFIG = {
     PENDING: 'PENDING' as PaymentStatus,
     COMPLETED: 'COMPLETED' as PaymentStatus,
     FAILED: 'FAILED' as PaymentStatus,
+  },
+
+  mocks: {
+    bot: {
+      telegram: {
+        sendMessage: async () => {
+          logger.info('🤖 Mock: Sending message')
+          return true
+        },
+        sendAudio: async () => {
+          logger.info('🎵 Mock: Sending audio')
+          return true
+        },
+        sendPhoto: async () => {
+          logger.info('📸 Mock: Sending photo')
+          return true
+        },
+        sendVideo: async () => {
+          logger.info('🎥 Mock: Sending video')
+          return true
+        },
+      },
+    },
   },
 }
