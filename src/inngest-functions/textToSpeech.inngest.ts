@@ -1,4 +1,4 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { inngest } from '@/core/inngest/clients'
 import { getBotByName } from '@/core/bot'
 import {
@@ -75,10 +75,14 @@ export const textToSpeechFunction = inngest.createFunction(
         return validData
       })) as TextToSpeechEvent['data']
 
+      if (!validatedParams) {
+        throw new Error('Validation failed - missing required parameters')
+      }
+
+      const params = validatedParams // Создаем константу для использования в блоке try
+
       await step.run('get-user-info', async () => {
-        const user = await getUserByTelegramIdString(
-          validatedParams.telegram_id
-        )
+        const user = await getUserByTelegramIdString(params.telegram_id)
         if (!user) throw new Error('User not found')
         if (user.level === 7) {
           await updateUserLevelPlusOne(user.telegram_id, user.level)
@@ -88,13 +92,15 @@ export const textToSpeechFunction = inngest.createFunction(
 
       // Отправляем уведомление о начале генерации
       await step.run('send-generating-notification', async () => {
-        const { bot } = getBotByName(validatedParams.bot_name)
+        const botResult = getBotByName(params.bot_name)
+        if (!botResult?.bot) {
+          throw new Error(`Bot ${params.bot_name} not found`)
+        }
+        const { bot } = botResult
 
         await bot.telegram.sendMessage(
-          validatedParams.telegram_id,
-          validatedParams.is_ru
-            ? '⏳ Генерация аудио...'
-            : '⏳ Generating audio...'
+          params.telegram_id,
+          params.is_ru ? '⏳ Генерация аудио...' : '⏳ Generating audio...'
         )
 
         return { sent: true }
@@ -105,9 +111,9 @@ export const textToSpeechFunction = inngest.createFunction(
         try {
           console.log('📣 Генерация речи:', {
             description: 'Generating speech',
-            voice_id: validatedParams.voice_id,
-            telegram_id: validatedParams.telegram_id,
-            text_length: validatedParams.text.length,
+            voice_id: params.voice_id,
+            telegram_id: params.telegram_id,
+            text_length: params.text.length,
           })
 
           // Проверяем наличие API ключа
@@ -117,15 +123,15 @@ export const textToSpeechFunction = inngest.createFunction(
 
           console.log('🎯 Запрос к ElevenLabs API:', {
             description: 'Making request to ElevenLabs API',
-            voice_id: validatedParams.voice_id,
+            voice_id: params.voice_id,
             model: 'eleven_turbo_v2_5',
-            text_length: validatedParams.text.length,
+            text_length: params.text.length,
           })
 
           const audioStream = await elevenlabs.generate({
-            voice: validatedParams.voice_id,
+            voice: params.voice_id,
             model_id: 'eleven_turbo_v2_5',
-            text: validatedParams.text,
+            text: params.text,
           })
 
           console.log('✅ Получен ответ от ElevenLabs API:', {
@@ -219,14 +225,14 @@ export const textToSpeechFunction = inngest.createFunction(
 
       // Обработка оплаты с помощью PaymentProcessor
       const paymentResult = await step.run('process-payment', async () => {
-        const eventId = `payment-${validatedParams.telegram_id}-${Date.now()}-${
-          validatedParams.text.length
+        const eventId = `payment-${params.telegram_id}-${Date.now()}-${
+          params.text.length
         }-${uuidv4()}`
 
         console.log('💰 Отправка платежа на обработку:', {
           description: 'Sending payment for processing',
           eventId,
-          telegram_id: validatedParams.telegram_id,
+          telegram_id: params.telegram_id,
           amount: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
         })
 
@@ -235,17 +241,14 @@ export const textToSpeechFunction = inngest.createFunction(
           id: eventId,
           name: 'payment/process',
           data: {
-            telegram_id: validatedParams.telegram_id,
-            mode: ModeEnum.TextToSpeech,
-            is_ru: validatedParams.is_ru,
-            bot_name: validatedParams.bot_name,
-            description: `Payment for text to speech`,
+            telegram_id: params.telegram_id,
+            amount: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
             type: 'outcome',
-            paymentAmount: calculateModeCost({ mode: ModeEnum.TextToSpeech })
-              .stars,
+            description: 'Payment for text to speech conversion',
+            bot_name: params.bot_name,
             metadata: {
               service_type: ModeEnum.TextToSpeech,
-              text_length: validatedParams.text.length,
+              text_preview: params.text.substring(0, 50),
             },
           },
         })
@@ -253,7 +256,11 @@ export const textToSpeechFunction = inngest.createFunction(
 
       // Отправляем аудио пользователю
       await step.run('send-audio', async () => {
-        const { bot } = getBotByName(validatedParams.bot_name)
+        const botResult = getBotByName(params.bot_name)
+        if (!botResult?.bot) {
+          throw new Error(`Bot ${params.bot_name} not found`)
+        }
+        const { bot } = botResult
 
         if (!speechResult?.audioBuffer) {
           console.error('❌ Отсутствует аудио буфер:', {
@@ -304,27 +311,25 @@ export const textToSpeechFunction = inngest.createFunction(
           })
 
           await bot.telegram.sendAudio(
-            validatedParams.telegram_id,
+            params.telegram_id,
             {
               source: tempFilePath,
               filename: `voice_${Date.now()}.mp3`,
             } as InputFile,
             {
-              caption: validatedParams.is_ru
+              caption: params.is_ru
                 ? 'Ваше аудио готово 🎵'
                 : 'Your audio is ready 🎵',
               reply_markup: {
                 keyboard: [
                   [
                     {
-                      text: validatedParams.is_ru
+                      text: params.is_ru
                         ? '🎙️ Текст в голос'
                         : '🎙️ Text to speech',
                     },
                     {
-                      text: validatedParams.is_ru
-                        ? '🏠 Главное меню'
-                        : '🏠 Main menu',
+                      text: params.is_ru ? '🏠 Главное меню' : '🏠 Main menu',
                     },
                   ],
                 ],
@@ -335,7 +340,7 @@ export const textToSpeechFunction = inngest.createFunction(
 
           console.log('✅ Аудио успешно отправлено:', {
             description: 'Audio successfully sent',
-            telegram_id: validatedParams.telegram_id,
+            telegram_id: params.telegram_id,
           })
         } catch (error) {
           console.error('❌ Ошибка при работе с аудио:', {
@@ -370,10 +375,10 @@ export const textToSpeechFunction = inngest.createFunction(
           paymentData?.amount !== undefined
         ) {
           await sendBalanceMessage(
-            validatedParams.telegram_id,
+            params.telegram_id,
             paymentData.newBalance,
             paymentData.amount,
-            validatedParams.is_ru,
+            params.is_ru,
             bot as unknown as Telegram
           )
         }
@@ -412,8 +417,7 @@ export const textToSpeechFunction = inngest.createFunction(
               bot_name: validatedParams.bot_name,
               description: `Refund for failed text to speech generation`,
               type: 'income',
-              paymentAmount: calculateModeCost({ mode: ModeEnum.TextToSpeech })
-                .stars,
+              amount: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
               metadata: {
                 service_type: ModeEnum.TextToSpeech,
                 text_length: validatedParams.text.length,
@@ -433,7 +437,12 @@ export const textToSpeechFunction = inngest.createFunction(
           errorMessageAdmin(error as Error)
 
           // Отправляем уведомление пользователю об ошибке и возврате средств
-          const { bot } = getBotByName(validatedParams.bot_name)
+          const botResult = getBotByName(validatedParams.bot_name)
+          if (!botResult?.bot) {
+            throw new Error(`Bot ${validatedParams.bot_name} not found`)
+          }
+          const { bot } = botResult
+
           await bot.telegram.sendMessage(
             validatedParams.telegram_id,
             validatedParams.is_ru

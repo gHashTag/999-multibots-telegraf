@@ -1,11 +1,9 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
-import { supabase } from './index'
-import { logger } from '@/utils/logger'
-import { getUserBalance } from './getUserBalance'
 import {
   TelegramId,
   normalizeTelegramId,
 } from '@/interfaces/telegram.interface'
+import { supabase } from './index'
+import { logger } from '@/utils/logger'
 
 interface UpdateUserBalanceParams {
   telegram_id: TelegramId
@@ -46,7 +44,11 @@ export const updateUserBalance = async ({
       description: 'Updating user balance',
       telegram_id: normalizedId,
       amount,
+      type,
+      operation_description,
+      metadata,
       bot_name,
+      payment_method,
     })
 
     const { data: result, error } = await supabase.rpc('update_user_balance', {
@@ -60,6 +62,11 @@ export const updateUserBalance = async ({
         error: error.message,
         telegram_id: normalizedId,
         amount,
+        type,
+        operation_description,
+        metadata,
+        bot_name,
+        payment_method,
       })
       throw error
     }
@@ -68,6 +75,11 @@ export const updateUserBalance = async ({
       description: 'Balance updated successfully',
       telegram_id: normalizedId,
       new_balance: result,
+      type,
+      operation_description,
+      metadata,
+      bot_name,
+      payment_method,
     })
 
     return { success: true, newBalance: result }
@@ -76,6 +88,11 @@ export const updateUserBalance = async ({
       description: 'Error in updateUserBalance function',
       error: error instanceof Error ? error.message : String(error),
       telegram_id,
+      type,
+      operation_description,
+      metadata,
+      bot_name,
+      payment_method,
     })
     return {
       success: false,

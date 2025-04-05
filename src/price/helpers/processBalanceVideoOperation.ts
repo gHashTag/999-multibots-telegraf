@@ -1,4 +1,4 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { getUserBalance } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
 import { VideoModel } from '@/interfaces/models.interface'
@@ -51,6 +51,9 @@ export const processBalanceVideoOperation = async ({
   try {
     // Получаем текущий баланс
     const currentBalance = await getUserBalance(telegram_id)
+    if (currentBalance === null) {
+      throw new Error('Balance not found')
+    }
 
     const availableModels: VideoModel[] = VIDEO_MODELS.map(model => model.name)
 

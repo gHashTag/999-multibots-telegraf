@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
 import { createClient } from '@supabase/supabase-js'
 import {
   SUPABASE_URL,

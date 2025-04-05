@@ -8,6 +8,13 @@ import {
   BroadcastResult,
   FetchUsersOptions,
 } from './broadcast.service'
+import { TelegramId } from '@/interfaces/telegram.interface'
+
+interface InngestError extends Error {
+  message: string
+  code?: string
+  status?: number
+}
 
 // Функция проверки является ли пользователь владельцем аватара
 // Заменяет неработающий импорт avatarService
@@ -36,12 +43,13 @@ const isAvatarOwner = async (
 
     // Если нашли пользователя с указанным telegram_id и bot_name, считаем его владельцем
     return true
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as Error
     logger.error('❌ Исключение при проверке владельца аватара:', {
       description: 'Exception checking avatar owner',
       telegram_id,
       bot_name,
-      error: error?.message || 'Unknown error',
+      error: err.message || 'Unknown error',
     })
     return false
   }
@@ -86,15 +94,17 @@ export class InngestService {
 
         console.log('✅ Событие успешно отправлено:', result)
         return result
-      } catch (sendError) {
-        console.error('❌ Ошибка при отправке в Inngest API:', sendError)
+      } catch (sendError: unknown) {
+        const error = sendError as InngestError
+        console.error('❌ Ошибка при отправке в Inngest API:', error)
         throw new Error(
-          `Ошибка Inngest API: ${sendError.message || 'Неизвестная ошибка'}`
+          `Ошибка Inngest API: ${error.message || 'Неизвестная ошибка'}`
         )
       }
-    } catch (error) {
-      console.error('❌ Общая ошибка при отправке события:', error)
-      throw error
+    } catch (error: unknown) {
+      const err = error as InngestError
+      console.error('❌ Общая ошибка при отправке события:', err)
+      throw err
     }
   }
 
@@ -137,15 +147,17 @@ export class InngestService {
 
         console.log('✅ Событие успешно отправлено:', result)
         return result
-      } catch (sendError) {
-        console.error('❌ Ошибка при отправке в Inngest API:', sendError)
+      } catch (sendError: unknown) {
+        const error = sendError as InngestError
+        console.error('❌ Ошибка при отправке в Inngest API:', error)
         throw new Error(
-          `Ошибка Inngest API: ${sendError.message || 'Неизвестная ошибка'}`
+          `Ошибка Inngest API: ${error.message || 'Неизвестная ошибка'}`
         )
       }
-    } catch (error) {
-      console.error('❌ Общая ошибка при отправке события:', error)
-      throw error
+    } catch (error: unknown) {
+      const err = error as InngestError
+      console.error('❌ Общая ошибка при отправке события:', err)
+      throw err
     }
   }
 
@@ -185,9 +197,10 @@ export class InngestService {
         textRu,
         options,
       })
-    } catch (error) {
-      console.error('❌ Ошибка при запуске рассылки:', error)
-      throw error
+    } catch (error: unknown) {
+      const err = error as Error
+      console.error('❌ Ошибка при запуске рассылки:', err)
+      throw err
     }
   }
 
@@ -214,10 +227,11 @@ export class InngestService {
         }
       }
       return { success: true, successCount: 0, errorCount: 0 }
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as Error
       logger.error('❌ Ошибка при проверке прав:', {
         description: 'Error checking permissions',
-        error: error?.message || 'Unknown error',
+        error: err.message || 'Unknown error',
       })
       return {
         success: false,
@@ -268,10 +282,11 @@ export class InngestService {
         errorCount: 0,
         users: users || [],
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as Error
       logger.error('❌ Ошибка при получении пользователей:', {
         description: 'Error fetching users',
-        error: error?.message || 'Unknown error',
+        error: err.message || 'Unknown error',
       })
       return {
         success: false,
@@ -288,21 +303,19 @@ export class InngestService {
    */
   static async getBotInstance(botName: string) {
     try {
-      const result = getBotByName(botName)
-      if (!result || !result.bot) {
-        logger.error(`❌ Бот не найден: ${botName}`, {
-          description: `Bot not found: ${botName}`,
-        })
-        return null
+      const bot = getBotByName(botName)
+      if (!bot) {
+        throw new Error(`Бот ${botName} не найден`)
       }
-      return result.bot
-    } catch (error) {
-      logger.error('❌ Ошибка при получении бота:', {
+      return bot
+    } catch (error: unknown) {
+      const err = error as Error
+      logger.error('❌ Ошибка при получении инстанса бота:', {
         description: 'Error getting bot instance',
-        error: error?.message || 'Unknown error',
+        error: err.message,
         botName,
       })
-      return null
+      throw err
     }
   }
 }

@@ -1,14 +1,13 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
-import { supabase } from '@/core/supabase'
-import { logger } from '@utils/logger'
 import {
   TelegramId,
   normalizeTelegramId,
 } from '@/interfaces/telegram.interface'
+import { supabase } from '@/core/supabase'
+import { logger } from '@utils/logger'
 
 // Интерфейс для данных тренировки
 export interface TrainingData {
-  telegram_id: TelegramId | number
+  telegram_id: TelegramId
   model_name: string
   trigger_word: string
   zip_url: string

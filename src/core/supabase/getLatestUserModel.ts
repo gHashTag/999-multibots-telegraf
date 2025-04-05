@@ -1,4 +1,4 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '.'
 import { ModelTraining } from '@/interfaces'
 import { logger } from '@/utils/logger'

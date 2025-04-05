@@ -2,12 +2,11 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
-import { NODE_ENV } from '@/config'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { TEST_CONFIG } from '@/test-utils/test-config'
-
+import { NODE_ENV } from '@/config'
 import { getBotGroupFromAvatars } from '@/core/supabase'
 if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
 if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')

@@ -49,7 +49,7 @@ export async function sendPaymentNotificationToUser({
   } catch (error) {
     logger.error('❌ Ошибка при отправке личного уведомления', {
       description: 'Error sending personal payment notification',
-      error: error.message,
+      error: error instanceof Error ? error.message : String(error),
       telegram_id: telegramId,
     })
     throw error

@@ -2,103 +2,106 @@ import { Scenes, Markup } from 'telegraf'
 import { sendBalanceMessage } from '@/price/helpers'
 import { generateImageToVideo } from '@/services/generateImageToVideo'
 import { MyContext, VideoModel } from '@/interfaces'
-import {
-  cancelMenu,
-  createHelpCancelKeyboard,
-  sendGenerationCancelledMessage,
-  sendGenericErrorMessage,
-  videoModelKeyboard,
-} from '@/menu'
+import { cancelMenu } from '@/menu'
 import { isRussian } from '@/helpers/language'
 import { getUserBalance } from '@/core/supabase'
 
 import { getBotToken, handleHelpCancel } from '@/handlers'
-import { validateAndCalculateVideoModelPrice } from '@/price/helpers/validateAndCalculateVideoModelPrice'
+import { validateAndCalculateVideoModelPrice } from '@/price/helpers'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { logger } from '@/utils/logger'
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
-  'image_to_video',
+  ModeEnum.ImageToVideo,
   async ctx => {
-    const isRu = isRussian(ctx)
-    // Запрашиваем модель
-    await ctx.reply(
-      isRu ? 'Выберите модель для генерации:' : 'Choose generation model:',
-      {
-        reply_markup: videoModelKeyboard(isRu, 'image').reply_markup,
-      }
-    )
-    ctx.wizard.next()
-    return
-  },
-  async ctx => {
-    const isRu = isRussian(ctx)
+    try {
+      const isRu = ctx.from?.language_code === 'ru' || false
 
-    if (!ctx.from) {
-      await ctx.reply(isRu ? 'Пользователь не найден' : 'User not found')
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, выберите модель для генерации видео'
+          : 'Please select a model for video generation'
+      )
+
+      return ctx.wizard.next()
+    } catch (error) {
+      logger.error('❌ Ошибка при инициализации сцены:', {
+        description: 'Error initializing scene',
+        error: error instanceof Error ? error.message : String(error),
+        telegram_id: ctx.from?.id,
+      })
       return ctx.scene.leave()
     }
-
-    const message = ctx.message as { text?: string }
-
-    if (message && 'text' in message) {
-      const messageText = message.text?.toLowerCase()
-      console.log('messageText', messageText)
-
-      if (messageText === (isRu ? 'отмена' : 'cancel')) {
-        await sendGenerationCancelledMessage(ctx, isRu)
+  },
+  async ctx => {
+    try {
+      if (!ctx.message || !('text' in ctx.message)) {
+        const isRu = ctx.from?.language_code === 'ru' || false
+        await ctx.reply(
+          isRu
+            ? 'Пожалуйста, отправьте текстовое сообщение'
+            : 'Please send a text message'
+        )
         return ctx.scene.leave()
       }
-      const currentBalance = await getUserBalance(ctx.from.id)
-      console.log('currentBalance', currentBalance)
-      const videoModel = messageText
-      console.log('videoModel', videoModel)
 
-      const { paymentAmount, modelId } =
-        await validateAndCalculateVideoModelPrice(
-          videoModel,
-          currentBalance,
-          isRu,
-          ctx,
-          'image'
-        )
-      ctx.session.paymentAmount = paymentAmount
+      const messageText = ctx.message.text
+      const isRu = ctx.from?.language_code === 'ru' || false
 
-      // Устанавливаем videoModel в сессии
-      ctx.session.videoModel = modelId as VideoModel
-      console.log('ctx.session.videoModel', ctx.session.videoModel)
+      const currentBalance = await getUserBalance(
+        ctx.from?.id?.toString() || ''
+      )
+      if (currentBalance === null) {
+        return ctx.scene.leave()
+      }
+
+      const result = await validateAndCalculateVideoModelPrice(
+        messageText,
+        currentBalance,
+        isRu,
+        ctx,
+        'image'
+      )
+
+      if (!result) {
+        return ctx.scene.leave()
+      }
+
+      const { amount, modelId } = result
+      ctx.session.amount = amount
+      ctx.session.videoModel = modelId
 
       await sendBalanceMessage(
-        ctx.from.id.toString(),
+        ctx.from?.id?.toString() || '',
         currentBalance,
-        paymentAmount,
+        amount,
         isRu,
         ctx.telegram
       )
 
       await ctx.reply(
         isRu
-          ? `Вы выбрали модель для генерации: ${videoModel}`
-          : `You have chosen the generation model: ${videoModel}`,
+          ? `Вы выбрали модель для генерации: ${messageText}`
+          : `You have chosen the generation model: ${messageText}`,
         {
           reply_markup: { remove_keyboard: true },
         }
       )
-      const isCancel = await handleHelpCancel(ctx)
-      if (isCancel) {
-        return ctx.scene.leave()
-      }
 
+      return ctx.wizard.next()
+    } catch (error) {
+      logger.error('❌ Ошибка в обработчике сообщения:', {
+        description: 'Error in message handler',
+        error: error instanceof Error ? error.message : String(error),
+        telegram_id: ctx.from?.id,
+      })
+
+      const isRu = ctx.from?.language_code === 'ru' || false
       await ctx.reply(
         isRu
-          ? 'Пожалуйста, отправьте изображение для генерации видео'
-          : 'Please send an image for video generation',
-        {
-          reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-        }
+          ? '❌ Произошла ошибка при обработке вашего запроса'
+          : '❌ An error occurred while processing your request'
       )
-      return ctx.wizard.next()
-    } else {
-      await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
   },

@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
 import { MyContext } from '@/interfaces'
 import { WizardScene } from 'telegraf/scenes'
 import { getUserByTelegramId } from '@/core/supabase'
@@ -10,7 +9,6 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
 const subscriptionCheckStep = async (ctx: MyContext) => {
   console.log('CASE: subscriptionCheckStep', ctx.from)
 
-  const { language_code } = ctx.from
   // Проверяем существует ли пользователь в базе
   const existingUser = await getUserByTelegramId(ctx)
   console.log('subscriptionCheckStep - existingUser:', existingUser)
@@ -28,6 +26,16 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
       return ctx.scene.enter('menuScene')
     }
     const SUBSCRIBE_CHANNEL_ID = await getSubScribeChannel(ctx)
+    const language_code = existingUser.language_code
+    if (!SUBSCRIBE_CHANNEL_ID) {
+      console.log('CASE: SUBSCRIBE_CHANNEL_ID not found')
+      await ctx.reply(
+        language_code === 'ru'
+          ? '❌ Не удалось получить ID канала подписки'
+          : '❌ Failed to get subscribe channel ID'
+      )
+      return ctx.scene.leave()
+    }
     // Проверяем подписку
     const isSubscribed = await verifySubscription(
       ctx,

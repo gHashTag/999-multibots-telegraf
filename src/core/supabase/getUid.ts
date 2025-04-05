@@ -1,5 +1,5 @@
 import { supabase } from '.'
-
+import { TelegramId } from '@/interfaces/telegram.interface'
 export const getUid = async (
   telegram_id: TelegramId
 ): Promise<{

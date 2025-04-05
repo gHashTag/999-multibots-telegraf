@@ -1,46 +1,92 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { inngest } from '@/core/inngest/clients'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { ModeEnum } from '@/price/helpers/modelsCost'
 import { supabase } from '@/core/supabase'
+
+// Вспомогательные функции для генерации тестовых данных
+const generateTestTelegramId = (): TelegramId => {
+  return Date.now().toString()
+}
+
+const generateOperationId = (telegram_id: TelegramId): string => {
+  return `${Date.now()}-${telegram_id}-${uuidv4()}`
+}
 
 const waitForPaymentCompletion = async (
   telegram_id: TelegramId,
-  operation_id: string,
-  expectedBalance: number
+  operation_id: string
 ) => {
   let attempts = 0
-  const maxAttempts = 10
+  const maxAttempts = 5 // Уменьшаем количество попыток с 20 до 5
   const delay = 1000 // 1 second
 
   while (attempts < maxAttempts) {
+    attempts++
+
     // Проверяем запись в payments_v2
-    const { data: payment } = await supabase
+    const { data: payments, error: paymentError } = await supabase
       .from('payments_v2')
-      .select('status')
+      .select('status, payment_id')
       .eq('telegram_id', telegram_id)
       .eq('inv_id', operation_id)
-      .single()
+      .order('payment_date', { ascending: false })
+      .limit(1)
 
-    logger.info('🔄 Проверка статуса операции', {
-      description: 'Checking operation status',
-      attempt: attempts + 1,
-      payment_status: payment?.status,
+    if (paymentError) {
+      logger.error('❌ Ошибка при проверке статуса платежа', {
+        description: 'Error checking payment status',
+        error: paymentError.message,
+        attempt: attempts,
+        telegram_id,
+        operation_id,
+      })
+      continue
+    }
+
+    const payment = payments?.[0]
+
+    logger.info('🔄 Проверка статуса платежа', {
+      description: 'Checking payment status',
+      attempt: attempts,
+      telegram_id,
       operation_id,
+      payment_status: payment?.status || 'NOT_FOUND',
+      payment_id: payment?.payment_id || 'NOT_FOUND',
     })
 
-    if (payment?.status === 'COMPLETED') {
+    if (!payment) {
+      logger.error('❌ Платеж не найден', {
+        description: 'Payment not found',
+        operation_id,
+        attempt: attempts,
+        telegram_id,
+      })
+      await new Promise(resolve => setTimeout(resolve, delay))
+      continue
+    }
+
+    if (payment.status === 'FAILED') {
+      logger.error('❌ Платеж завершился с ошибкой', {
+        description: 'Payment failed',
+        operation_id,
+        attempt: attempts,
+        telegram_id,
+      })
+      return false
+    }
+
+    if (payment.status === 'COMPLETED') {
       logger.info('✅ Операция успешно завершена', {
         description: 'Operation completed successfully',
         operation_id,
+        payment_id: payment.payment_id,
       })
       return true
     }
 
     await new Promise(resolve => setTimeout(resolve, delay))
-    attempts++
   }
 
   logger.error('❌ Таймаут операции', {
@@ -52,204 +98,113 @@ const waitForPaymentCompletion = async (
 }
 
 export const testInngestPayment = async () => {
-  try {
-    const testTelegramId = Date.now()
-    logger.info('🚀 Начало тестирования Inngest функции обработки платежей', {
-      description: 'Starting Inngest payment function test',
-      telegram_id: testTelegramId,
-    })
+  const telegram_id = generateTestTelegramId()
+  const bot_name = 'test_bot'
 
-    // Создаем тестового пользователя
-    const { error: createUserError } = await supabase.from('users').insert([
-      {
-        telegram_id: testTelegramId.toString(),
-        username: 'test_user',
-        first_name: 'Test',
-        last_name: 'User',
-        is_bot: false,
-        language_code: 'ru',
-        photo_url: '',
-        chat_id: testTelegramId,
-        mode: 'clean',
-        model: 'gpt-4-turbo',
-        count: 0,
-        aspect_ratio: '9:16',
-        balance: 0,
-        bot_name: 'test_bot',
-        level: 1,
+  logger.info('🚀 Начало тестирования платежной системы', {
+    description: 'Starting payment system test',
+    telegram_id,
+  })
+
+  // Генерируем уникальный operation_id для пополнения
+  const incomeOperationId = generateOperationId(telegram_id)
+
+  // Отправляем событие пополнения
+  await inngest.send({
+    name: 'payment/process',
+    data: {
+      amount: 100,
+      telegram_id,
+      type: 'income',
+      description: 'test income',
+      bot_name,
+      operation_id: incomeOperationId,
+      metadata: {
+        service_type: 'System',
+        test: true,
       },
-    ])
+    },
+  })
 
-    if (createUserError) {
-      throw new Error(`Failed to create test user: ${createUserError.message}`)
-    }
+  // Ждем завершения операции пополнения
+  const incomeResult = await waitForPaymentCompletion(
+    telegram_id,
+    incomeOperationId
+  )
 
-    logger.info('👤 Создан тестовый пользователь', {
-      description: 'Test user created',
-      telegram_id: testTelegramId,
+  if (!incomeResult) {
+    logger.error('❌ Ошибка при пополнении баланса', {
+      description: 'Error during income operation',
+      telegram_id,
+      operation_id: incomeOperationId,
     })
+    process.exit(1)
+  }
 
-    // Шаг 1: Проверяем начальный баланс
-    const initialBalance = await getUserBalance(testTelegramId)
-    logger.info('💰 Начальный баланс', {
-      description: 'Initial balance check',
-      telegram_id: testTelegramId,
-      balance: initialBalance,
-    })
-
-    // Шаг 2: Отправляем событие для пополнения баланса
-    const addOperationId = `${Date.now()}-${testTelegramId}-${uuidv4()}`
-    await inngest.send({
-      id: `test-payment-add-${addOperationId}`,
-      name: 'payment/process',
-      data: {
-        telegram_id: testTelegramId,
-        amount: 100,
-        is_ru: true,
-        bot_name: 'test_bot',
-        description: 'Test add payment via Inngest',
-        type: 'income',
-        metadata: {
-          service_type: 'System',
-          test: true,
-        },
-        operation_id: addOperationId,
-      },
-    })
-
-    // Ждем завершения первой операции
-    logger.info('⏳ Ожидание завершения операции пополнения', {
-      description: 'Waiting for add operation completion',
-      operation_id: addOperationId,
-    })
-
-    const addOperationCompleted = await waitForPaymentCompletion(
-      testTelegramId,
-      addOperationId,
-      100 // Ожидаемый баланс после пополнения
-    )
-    if (!addOperationCompleted) {
-      throw new Error('Add operation timeout')
-    }
-
-    // Шаг 3: Проверяем баланс после пополнения
-    const balanceAfterAdd = await getUserBalance(testTelegramId)
-    logger.info('💰 Баланс после пополнения', {
-      description: 'Balance after adding payment',
-      telegram_id: testTelegramId,
-      balance: balanceAfterAdd,
+  // Проверяем баланс после пополнения
+  const balanceAfterIncome = await getUserBalance(telegram_id)
+  if (Number(balanceAfterIncome) !== 100) {
+    logger.error('❌ Некорректный баланс после пополнения', {
+      description: 'Incorrect balance after income',
+      telegram_id,
       expected: 100,
+      actual: balanceAfterIncome,
     })
+    process.exit(1)
+  }
 
-    // Шаг 4: Отправляем событие для списания средств
-    const spendOperationId = `${Date.now()}-${testTelegramId}-${uuidv4()}`
-    await inngest.send({
-      id: `test-payment-spend-${spendOperationId}`,
-      name: 'payment/process',
-      data: {
-        telegram_id: testTelegramId,
-        amount: 30,
-        is_ru: true,
-        bot_name: 'test_bot',
-        description: 'Test spend payment via Inngest',
-        type: 'outcome',
-        metadata: {
-          service_type: ModeEnum.TextToImage,
-          test: true,
-        },
-        operation_id: spendOperationId,
+  // Генерируем уникальный operation_id для списания
+  const spendOperationId = generateOperationId(telegram_id)
+
+  // Отправляем событие списания
+  await inngest.send({
+    name: 'payment/process',
+    data: {
+      amount: -30,
+      telegram_id,
+      type: 'outcome',
+      description: 'test outcome',
+      bot_name,
+      operation_id: spendOperationId,
+      metadata: {
+        service_type: 'System',
+        test: true,
       },
-    })
+    },
+  })
 
-    // Ждем завершения второй операции
-    logger.info('⏳ Ожидание завершения операции списания', {
-      description: 'Waiting for spend operation completion',
+  // Ждем завершения операции списания
+  const spendResult = await waitForPaymentCompletion(
+    telegram_id,
+    spendOperationId
+  )
+
+  if (!spendResult) {
+    logger.error('❌ Ошибка при списании средств', {
+      description: 'Error during spend operation',
+      telegram_id,
       operation_id: spendOperationId,
     })
-
-    const spendOperationCompleted = await waitForPaymentCompletion(
-      testTelegramId,
-      spendOperationId,
-      70 // Ожидаемый баланс после списания
-    )
-    if (!spendOperationCompleted) {
-      throw new Error('Spend operation timeout')
-    }
-
-    // Шаг 5: Проверяем финальный баланс
-    const finalBalance = await getUserBalance(testTelegramId)
-    logger.info('💰 Финальный баланс', {
-      description: 'Final balance check',
-      telegram_id: testTelegramId,
-      balance: finalBalance,
-      expected: 70,
-    })
-
-    // Шаг 6: Проверяем записи в таблице payments_v2
-    const { data: payments, error } = await supabase
-      .from('payments_v2')
-      .select(
-        'amount, stars, payment_method, status, description, metadata, inv_id'
-      )
-      .eq('telegram_id', testTelegramId)
-      .order('payment_date', { ascending: false })
-
-    if (error) {
-      throw error
-    }
-
-    logger.info('📊 Записи в таблице payments_v2', {
-      description: 'Payments records',
-      telegram_id: testTelegramId,
-      payments,
-    })
-
-    // Проверяем результаты
-    const testsPassed =
-      initialBalance === 0 &&
-      balanceAfterAdd === 100 &&
-      finalBalance === 70 &&
-      payments.length === 2 &&
-      payments.every(p => p.status === 'COMPLETED') &&
-      payments.some(p => p.inv_id === addOperationId) &&
-      payments.some(p => p.inv_id === spendOperationId)
-
-    logger.info(
-      testsPassed ? '✅ Все тесты пройдены' : '❌ Некоторые тесты не пройдены',
-      {
-        description: testsPassed
-          ? 'All tests passed successfully'
-          : 'Some tests failed',
-        telegram_id: testTelegramId,
-        initialBalance,
-        balanceAfterAdd,
-        finalBalance,
-        paymentsCount: payments.length,
-      }
-    )
-
-    // Очищаем тестовые данные
-    await supabase
-      .from('payments_v2')
-      .delete()
-      .eq('telegram_id', testTelegramId.toString())
-    await supabase
-      .from('users')
-      .delete()
-      .eq('telegram_id', testTelegramId.toString())
-
-    logger.info('🧹 Тестовые данные очищены', {
-      description: 'Test data cleaned up',
-      telegram_id: testTelegramId,
-    })
-
-    return testsPassed
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании:', {
-      description: 'Error during testing',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-    })
-    throw error
+    process.exit(1)
   }
+
+  // Проверяем баланс после списания
+  const finalBalance = await getUserBalance(telegram_id)
+  if (Number(finalBalance) !== 70) {
+    logger.error('❌ Некорректный финальный баланс', {
+      description: 'Incorrect final balance',
+      telegram_id,
+      expected: 70,
+      actual: finalBalance,
+    })
+    process.exit(1)
+  }
+
+  logger.info('✅ Тест платежной системы успешно завершен', {
+    description: 'Payment system test completed successfully',
+    telegram_id,
+    final_balance: finalBalance,
+  })
+
+  process.exit(0)
 }

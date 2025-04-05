@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '.'
 
 export async function isLimitAi(telegram_id: TelegramId): Promise<boolean> {

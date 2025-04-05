@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import {

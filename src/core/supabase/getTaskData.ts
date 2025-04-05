@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '@/core/supabase' // Предполагаем, что supabase уже настроен
 
 /**

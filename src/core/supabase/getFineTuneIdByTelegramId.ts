@@ -1,7 +1,7 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '@/core/supabase'
 
-export async function getFineTuneIdByTelegramId(telegramId: string) {
+export async function getFineTuneIdByTelegramId(telegramId: TelegramId) {
   try {
     console.log('Запрос FineTune ID для telegramId:', telegramId)
 

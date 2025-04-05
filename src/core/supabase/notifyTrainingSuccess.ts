@@ -6,7 +6,6 @@ import { getUserByTelegramIdString } from '@/core/supabase'
 import { getTelegramIdFromFinetune } from '@/core/bfl'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/core/inngest/clients'
-import { TelegramId } from '@/interfaces/telegram.interface'
 
 export async function notifyTrainingSuccess(
   finetuneId: string,

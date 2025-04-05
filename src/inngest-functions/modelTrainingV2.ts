@@ -1,39 +1,19 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
 import { inngest } from '@/core/inngest/clients'
 import { getBotByName } from '@/core/bot'
 import {
   getUserByTelegramId,
-  updateUserBalance,
   updateUserLevelPlusOne,
   getUserBalance,
   createModelTrainingV2,
 } from '@/core/supabase'
-import {
-  modeCosts,
-  ModeEnum,
-  calculateModeCost,
-} from '@/price/helpers/modelsCost'
-import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
-import axios from 'axios'
-import { logger } from '@/utils/logger'
+import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
+import { supabase } from '@/core/supabase'
 import { v4 as uuidv4 } from 'uuid'
-// Создаем простой интерфейс ApiError для временного использования
-interface ApiError extends Error {
-  response?: {
-    status: number
-  }
-}
+import { logger } from '@/utils/logger'
 
-interface TrainingResponse {
-  id: string
-  status: string
-  urls: { get: string }
-  error?: string
-  finetune_id?: string
-}
+import axios from 'axios'
 
-// Активные тренировки для отслеживания
-const activeTrainings = new Map<string, { cancel: () => void }>()
+const MAX_ACTIVE_TRAININGS = 3
 
 // Функция для кодирования файла в base64
 async function encodeFileToBase64(url: string): Promise<string> {
@@ -140,7 +120,7 @@ export const modelTrainingV2 = inngest.createFunction(
     }
 
     // Проверяем и обрабатываем баланс
-    const balanceOperation = await step.run('process-balance', async () => {
+    await step.run('process-balance', async () => {
       logger.info({
         message: '💰 Processing user balance',
         telegramId: telegram_id,
@@ -170,7 +150,10 @@ export const modelTrainingV2 = inngest.createFunction(
         name: 'payment/process',
         data: {
           telegram_id,
-          paymentAmount,
+          amount: calculateModeCost({
+            mode: ModeEnum.DigitalAvatarBodyV2,
+            steps,
+          }).stars,
           is_ru,
           bot_name,
           description: `Payment for model training ${modelName} (steps: ${steps})`,
@@ -197,14 +180,39 @@ export const modelTrainingV2 = inngest.createFunction(
     })
 
     try {
-      // Кодируем ZIP файл в base64
-      const encodedZip = await step.run('encode-zip', async () => {
-        logger.info({
-          message: '📦 Encoding ZIP file to base64',
-          zipUrl,
-          step: 'encode-zip',
-        })
+      // Проверяем существующие тренировки
+      const existingTrainings = await step.run(
+        'check-existing-trainings',
+        async () => {
+          const { data: trainings, error } = await supabase
+            .from('trainings')
+            .select('*')
+            .eq('telegram_id', telegram_id)
+            .eq('status', 'active')
 
+          if (error) {
+            console.error('❌ Ошибка при проверке существующих тренировок:', {
+              description: 'Error checking existing trainings',
+              error: error instanceof Error ? error.message : String(error),
+            })
+            throw error instanceof Error ? error : new Error(String(error))
+          }
+
+          return trainings || []
+        }
+      )
+
+      // Проверяем количество активных тренировок
+      if (existingTrainings.length >= MAX_ACTIVE_TRAININGS) {
+        throw new Error(
+          is_ru
+            ? `У вас уже есть ${existingTrainings.length} активных тренировок. Пожалуйста, дождитесь их завершения.`
+            : `You already have ${existingTrainings.length} active trainings. Please wait for them to complete.`
+        )
+      }
+
+      // Кодируем ZIP файл
+      const encodedZip = await step.run('encode-zip', async () => {
         try {
           const result = await encodeFileToBase64(zipUrl)
 
@@ -216,116 +224,119 @@ export const modelTrainingV2 = inngest.createFunction(
 
           return result
         } catch (error) {
-          logger.error({
-            message: '❌ Failed to encode ZIP file',
-            zipUrl,
-            error: error.message,
-            step: 'encode-zip',
+          console.error('❌ Ошибка при кодировании ZIP файла:', {
+            description: 'Error encoding ZIP file',
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
           })
-          throw error
+          throw error instanceof Error
+            ? error
+            : new Error('Failed to encode ZIP file')
         }
       })
 
       // Отправляем запрос на API для создания модели
-      const training = await step.run('create-training', async () => {
-        logger.info({
-          message: '🌐 Sending request to BFL API for model creation',
-          telegramId: telegram_id,
-          triggerWord,
-          modelName,
-          steps,
-          step: 'create-training',
-        })
-
-        try {
-          const response = await fetch('https://api.us1.bfl.ai/v1/finetune', {
-            method: 'POST',
-            headers: {
+      const trainingResponse = await step.run(
+        'create-training-bfl',
+        async () => {
+          try {
+            const headers = {
               'Content-Type': 'application/json',
-              'X-Key': process.env.BFL_API_KEY,
-            },
-            body: JSON.stringify({
-              file_data: encodedZip,
-              finetune_comment: telegram_id,
-              trigger_word: triggerWord,
-              mode: 'character',
-              iterations: steps,
-              learning_rate: 0.000001,
-              captioning: true,
-              priority: 'high_res_only',
-              finetune_type: 'full',
-              lora_rank: 32,
-              webhook_url: process.env.BFL_WEBHOOK_URL,
-              webhook_secret: process.env.BFL_WEBHOOK_SECRET,
-            }),
-          })
+              'X-Key': process.env.BFL_API_KEY || '',
+            } as const
 
-          logger.info({
-            message: '📡 Received response from BFL API',
-            statusCode: response.status,
-            step: 'create-training',
-          })
+            const response = await fetch(
+              `${process.env.BFL_API_URL}/api/v1/finetune`,
+              {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  name: modelName,
+                  type: 'character',
+                  instance_prompt: triggerWord,
+                  class_prompt: 'person',
+                  num_class_images: 0,
+                  save_sample_prompt: triggerWord,
+                  negative_prompt: '',
+                  steps,
+                }),
+              }
+            )
 
-          if (!response.ok) {
-            logger.error({
-              message: '❌ Failed to create model training',
-              statusCode: response.status,
-              step: 'create-training',
+            if (!response.ok) {
+              const errorText = await response.text()
+              console.error('❌ Ошибка при создании тренировки в BFL API:', {
+                description: 'Error creating training in BFL API',
+                status: response.status,
+                error: errorText,
+              })
+              throw new Error(`Failed to create training: ${errorText}`)
+            }
+
+            const data = await response.json()
+            console.log('✅ Тренировка успешно создана в BFL API:', {
+              description: 'Training created successfully in BFL API',
+              finetune_id: data.finetune_id,
             })
 
-            throw new Error(
-              `Failed to initiate training with new API. Status: ${response.status}`
-            )
+            if (!data.finetune_id) {
+              throw new Error('No finetune_id in response')
+            }
+
+            return data
+          } catch (error) {
+            console.error('❌ Ошибка при создании тренировки:', {
+              description: 'Error creating training',
+              error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : undefined,
+            })
+            throw error instanceof Error ? error : new Error(String(error))
           }
-
-          const jsonResponse = (await response.json()) as TrainingResponse
-
-          logger.info({
-            message: '🎉 Model training initiated successfully',
-            trainingResponse: jsonResponse,
-            telegramId: telegram_id,
-            modelName,
-            step: 'create-training',
-          })
-
-          return jsonResponse
-        } catch (error) {
-          logger.error({
-            message: '❌ Failed to create training',
-            error: error.message,
-            step: 'create-training',
-          })
-          throw error
         }
-      })
+      )
 
       // Сохраняем информацию о тренировке в базу данных
       await step.run('save-training-to-db', async () => {
-        logger.info({
-          message: '💾 Saving training information to database',
-          finetune_id: training.finetune_id,
-          telegramId: telegram_id,
-          modelName,
-          step: 'save-training-to-db',
-        })
+        try {
+          logger.info({
+            message: '💾 Saving training information to database',
+            finetune_id: trainingResponse.finetune_id,
+            telegramId: telegram_id,
+            modelName,
+            step: 'save-training-to-db',
+          })
 
-        await createModelTrainingV2({
-          finetune_id: training.finetune_id,
-          telegram_id,
-          model_name: modelName,
-          trigger_word: triggerWord,
-          zip_url: zipUrl,
-          steps,
-          api: 'bfl',
-        })
+          if (!trainingResponse.finetune_id) {
+            throw new Error('No finetune_id in training response')
+          }
 
-        logger.info({
-          message: '✅ Training information saved successfully',
-          finetune_id: training.finetune_id,
-          telegramId: telegram_id,
-          modelName,
-          step: 'save-training-to-db',
-        })
+          await createModelTrainingV2({
+            finetune_id: trainingResponse.finetune_id,
+            telegram_id,
+            model_name: modelName,
+            trigger_word: triggerWord,
+            zip_url: zipUrl,
+            steps,
+            api: 'bfl',
+          })
+
+          logger.info({
+            message: '✅ Training information saved successfully',
+            finetune_id: trainingResponse.finetune_id,
+            telegramId: telegram_id,
+            modelName,
+            step: 'save-training-to-db',
+          })
+        } catch (error) {
+          console.error('❌ Ошибка при сохранении тренировки в базу данных:', {
+            description: 'Error saving training to database',
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          })
+          throw error instanceof Error
+            ? error
+            : new Error('Failed to save training to database')
+        }
       })
 
       // Отправляем уведомление пользователю
@@ -355,98 +366,50 @@ export const modelTrainingV2 = inngest.createFunction(
         message: '🏁 Model training process completed successfully',
         telegramId: telegram_id,
         modelName,
-        finetune_id: training.finetune_id,
+        finetune_id: trainingResponse.finetune_id,
       })
 
       return {
         success: true,
-        message: `Training initiated successfully: ${JSON.stringify(training)}`,
+        message: `Training initiated successfully: ${JSON.stringify(
+          trainingResponse
+        )}`,
       }
     } catch (error) {
-      logger.error({
-        message: '❌ Ошибка при тренировке модели',
-        description: 'Error during model training',
-        error: error instanceof Error ? error.message : 'Unknown error',
+      console.error('❌ Глобальная ошибка при создании тренировки:', {
+        description: 'Global error in training creation',
+        error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        params: event.data,
       })
 
-      const { telegram_id, bot_name, is_ru, modelName, steps } = event.data
+      // Отправляем событие для возврата средств
+      const refundEventId = `refund-${telegram_id}-${Date.now()}-${uuidv4()}`
 
-      // Обработка возврата средств
-      try {
-        const refundAmount = calculateModeCost({
-          mode: ModeEnum.DigitalAvatarBodyV2,
-          steps: Number(steps),
-        }).stars
-
-        logger.info({
-          message: '💸 Начало процесса возврата средств',
-          description: 'Starting refund process due to training error',
-          telegram_id,
-          refundAmount,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        })
-
-        // Отправляем событие возврата средств
-        await inngest.send({
-          id: `refund-${telegram_id}-${Date.now()}-${uuidv4()}`,
-          name: 'payment/process',
-          data: {
-            telegram_id,
-            amount: refundAmount, // положительное значение для возврата
-            type: 'refund',
-            description: `Возврат средств за неудачную тренировку модели ${modelName}`,
-            bot_name,
-            metadata: {
-              service_type: ModeEnum.DigitalAvatarBodyV2,
-              error: error instanceof Error ? error.message : 'Unknown error',
-              model_name: modelName,
-              steps: Number(steps),
-            },
-          },
-        })
-
-        logger.info({
-          message: '✅ Возврат средств выполнен',
-          description: 'Refund processed successfully',
-          telegram_id,
-          refundAmount,
-        })
-
-        // Отправляем уведомление пользователю
-        const { bot } = getBotByName(bot_name)
-        if (bot) {
-          const message = is_ru
-            ? `❌ Произошла ошибка при тренировке модели. ${refundAmount} ⭐️ возвращены на ваш баланс.`
-            : `❌ An error occurred during model training. ${refundAmount} ⭐️ have been refunded to your balance.`
-
-          await bot.telegram.sendMessage(telegram_id, message)
-        }
-      } catch (refundError) {
-        logger.error({
-          message: '🚨 Ошибка при попытке возврата средств',
-          description: 'Error during refund process',
-          error:
-            refundError instanceof Error
-              ? refundError.message
-              : 'Unknown error',
-          originalError:
-            error instanceof Error ? error.message : 'Unknown error',
-          telegram_id,
-        })
-      }
-
-      // Отправляем событие о неудаче
       await inngest.send({
-        name: 'model-training-v2/failed',
+        id: refundEventId,
+        name: 'payment/refund',
         data: {
-          ...event.data,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          telegram_id,
+          mode: ModeEnum.DigitalAvatarBodyV2,
+          is_ru,
+          bot_name,
+          description: `Refund for failed model training: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          type: 'income',
+          amount: calculateModeCost({
+            mode: ModeEnum.DigitalAvatarBodyV2,
+            steps,
+          }).stars,
+          metadata: {
+            service_type: ModeEnum.DigitalAvatarBodyV2,
+            model_name: modelName,
+            error: error instanceof Error ? error.message : String(error),
+          },
         },
       })
 
-      throw error
+      throw error instanceof Error ? error : new Error(String(error))
     }
   }
 )

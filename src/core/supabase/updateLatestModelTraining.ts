@@ -1,4 +1,5 @@
 import { supabase } from '.'
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { logger } from '@utils/logger'
 // Определяем тип для обновлений и экспортируем его
 export type UpdateLatestModelTraining = {

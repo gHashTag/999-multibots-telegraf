@@ -1,5 +1,5 @@
 import { supabase } from '.'
-
+import { TelegramId } from '@/interfaces/telegram.interface'
 export interface ModelTrainingV2 {
   finetune_id: string
   telegram_id: TelegramId

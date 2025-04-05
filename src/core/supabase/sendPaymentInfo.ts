@@ -1,8 +1,8 @@
 import { Payment } from '@/interfaces/payments.interface'
 import { supabase } from '.'
-
+import { TelegramId } from '@/interfaces/telegram.interface'
 export async function sendPaymentInfo(
-  user_id: string,
+  user_id: TelegramId,
   level: string
 ): Promise<Payment[]> {
   const { data, error } = await supabase

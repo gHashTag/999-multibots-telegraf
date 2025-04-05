@@ -8,11 +8,11 @@ import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { getUserBalance } from '@/core/supabase'
-
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { handleHelpCancel } from '@/handlers'
 
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
-  'text_to_video',
+  ModeEnum.TextToVideo,
   async ctx => {
     const isRu = isRussian(ctx)
     try {
@@ -57,24 +57,33 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const videoModel = message.text?.toLowerCase()
       console.log('videoModel', videoModel)
 
-      const currentBalance = await getUserBalance(ctx.from.id)
+      const currentBalance = await getUserBalance(ctx.from.id.toString())
       console.log('currentBalance', currentBalance)
+      if (currentBalance === null) {
+        await ctx.reply(
+          isRu ? 'Не удалось определить баланс' : 'Could not identify balance'
+        )
+        return ctx.scene.leave()
+      }
       const isCancel = await handleHelpCancel(ctx)
       if (isCancel) {
         return ctx.scene.leave()
       } else {
         // Используем await для получения результата
-        const { paymentAmount, modelId } =
-          await validateAndCalculateVideoModelPrice(
-            videoModel,
-            currentBalance,
-            isRu,
-            ctx,
-            'text'
-          )
-        console.log('paymentAmount', paymentAmount)
+        const result = await validateAndCalculateVideoModelPrice(
+          videoModel,
+          currentBalance,
+          isRu,
+          ctx,
+          'text'
+        )
+        if (!result) {
+          return ctx.scene.leave()
+        }
+        const { amount, modelId } = result
+        console.log('amount', amount)
         console.log('modelId', modelId)
-        if (paymentAmount === null) {
+        if (amount === null) {
           return ctx.scene.leave()
         }
 
@@ -84,7 +93,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         await sendBalanceMessage(
           ctx.from.id.toString(),
           currentBalance,
-          paymentAmount,
+          amount,
           isRu,
           ctx.telegram
         )

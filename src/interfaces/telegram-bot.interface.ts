@@ -1,4 +1,4 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { Context, NarrowedContext, Scenes } from 'telegraf'
 import { ModelUrl, Subscription, UserModel } from './index'
 import type { Update, Message } from 'telegraf/typings/core/types/typegram'
@@ -20,7 +20,7 @@ export interface SessionData {
   mode: Mode
   videoModel: string
   imageUrl: string
-  paymentAmount: number
+  amount: number
   images: BufferType
   modelName: string
   targetUserId: number
@@ -79,7 +79,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   imageUrl: string
   videoUrl: string
   audioUrl: string
-  paymentAmount: number
+  amount: number
   subscription: Subscription
   images: BufferType
   modelName: string
@@ -104,6 +104,7 @@ export interface MyContext extends Context {
   attempts: number
   scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
   wizard: Scenes.WizardContextWizard<MyContext>
+  amount: number
 }
 
 // Создайте новый тип, объединяющий MyContext и WizardContext

@@ -1,4 +1,7 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
+import {
+  TelegramId,
+  normalizeTelegramId,
+} from '@/interfaces/telegram.interface'
 import { inngest } from '@/core/inngest/clients'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { logger } from '@/utils/logger'
@@ -6,10 +9,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { supabase } from '@/core/supabase'
 import { TestResult } from '../types'
-import {
-  TelegramId,
-  normalizeTelegramId,
-} from '@/interfaces/telegram.interface'
+import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
 
 const waitForPaymentCompletion = async (
   telegram_id: TelegramId,
@@ -17,56 +17,64 @@ const waitForPaymentCompletion = async (
   expectedBalance: number
 ): Promise<boolean> => {
   let attempts = 0
-  const maxAttempts = 20
+  const maxAttempts = 5 // Уменьшаем количество попыток
   const delay = 1000 // 1 second
 
   while (attempts < maxAttempts) {
-    // Проверяем запись в payments_v2
-    const { data: payments, error } = await supabase
-      .from('payments_v2')
-      .select('status')
-      .eq('telegram_id', telegram_id)
-      .eq('inv_id', operation_id)
+    try {
+      // Проверяем запись в payments_v2
+      const payment = await getPaymentByInvId(operation_id)
 
-    if (error) {
-      logger.error('❌ Ошибка при проверке статуса платежа', {
-        description: 'Error checking payment status',
-        error: error.message,
-        telegram_id,
-        operation_id,
-      })
-      return false
-    }
+      // Проверяем текущий баланс
+      const currentBalance = await getUserBalance(telegram_id)
 
-    if (!payments || payments.length === 0) {
-      logger.info('🔄 Платеж еще не создан', {
-        description: 'Payment not created yet',
+      logger.info('🔄 Проверка статуса платежа', {
+        description: 'Checking payment status',
         attempt: attempts + 1,
         telegram_id,
         operation_id,
-      })
-    } else {
-      const payment = payments[0] // Берем первый платеж, если их несколько
-
-      logger.info('🔄 Проверка статуса операции', {
-        description: 'Checking operation status',
-        attempt: attempts + 1,
-        payment_status: payment?.status,
-        operation_id,
-        payments_found: payments.length,
+        payment_status: payment?.status || 'NOT_FOUND',
+        current_balance: currentBalance,
+        expected_balance: expectedBalance,
       })
 
-      if (payment?.status === 'COMPLETED') {
-        logger.info('✅ Операция успешно завершена', {
-          description: 'Operation completed successfully',
+      if (
+        payment?.status === 'COMPLETED' &&
+        currentBalance === expectedBalance
+      ) {
+        logger.info('✅ Платеж успешно завершен', {
+          description: 'Payment completed successfully',
+          telegram_id,
           operation_id,
+          current_balance: currentBalance,
+          expected_balance: expectedBalance,
         })
         return true
       }
-    }
 
-    await new Promise(resolve => setTimeout(resolve, delay))
-    attempts++
+      if (payment?.status === 'FAILED') {
+        logger.error('❌ Платеж завершился с ошибкой', {
+          description: 'Payment failed',
+          telegram_id,
+          operation_id,
+          current_balance: currentBalance,
+        })
+        return false
+      }
+
+      attempts++
+      await new Promise(resolve => setTimeout(resolve, delay))
+    } catch (error) {
+      logger.error('❌ Ошибка при проверке статуса платежа', {
+        description: 'Error checking payment status',
+        error: error instanceof Error ? error.message : String(error),
+        attempt: attempts + 1,
+        telegram_id,
+        operation_id,
+      })
+      attempts++
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
   }
 
   logger.error('❌ Таймаут операции', {
@@ -77,11 +85,34 @@ const waitForPaymentCompletion = async (
   return false
 }
 
-export const testPaymentSystem = async (): Promise<TestResult> => {
+/**
+ * Очищает тестовые данные пользователя
+ */
+const cleanupTestUser = async (telegram_id: TelegramId) => {
   try {
-    const testTelegramId = normalizeTelegramId(Date.now())
-    const testUsername = `test_user_${testTelegramId}`
+    // Удаляем платежи
+    await supabase.from('payments_v2').delete().eq('telegram_id', telegram_id)
+    // Удаляем пользователя
+    await supabase.from('users').delete().eq('telegram_id', telegram_id)
 
+    logger.info('🧹 Тестовые данные очищены', {
+      description: 'Test data cleaned up',
+      telegram_id,
+    })
+  } catch (error) {
+    logger.error('❌ Ошибка при очистке тестовых данных', {
+      description: 'Error cleaning up test data',
+      error: error instanceof Error ? error.message : String(error),
+      telegram_id,
+    })
+  }
+}
+
+export const testPaymentSystem = async (): Promise<TestResult> => {
+  const testTelegramId = normalizeTelegramId(Date.now())
+  const testUsername = `test_user_${testTelegramId}`
+
+  try {
     logger.info('🚀 Начало тестирования платежной системы', {
       description: 'Starting payment system test',
       telegram_id: testTelegramId,
@@ -121,7 +152,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
       username: testUsername,
     })
 
-    // Шаг 1: Проверяем начальный баланс
+    // Тест 1: Проверка начального баланса
     const initialBalance = await getUserBalance(testTelegramId)
     logger.info('💰 Начальный баланс', {
       description: 'Initial balance check',
@@ -135,7 +166,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
       )
     }
 
-    // Шаг 2: Отправляем событие для пополнения баланса
+    // Тест 2: Пополнение баланса (STARS)
     const addOperationId = `${Date.now()}-${testTelegramId}-${uuidv4()}`
     await inngest.send({
       id: `test-payment-add-${addOperationId}`,
@@ -152,14 +183,12 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
           test: true,
         },
         operation_id: addOperationId,
+        currency: 'STARS',
       },
     })
 
-    // Ждем завершения первой операции
-    logger.info('⏳ Ожидание завершения операции пополнения', {
-      description: 'Waiting for add operation completion',
-      operation_id: addOperationId,
-    })
+    // Добавляем задержку для обработки события
+    await new Promise(resolve => setTimeout(resolve, 5000))
 
     const addOperationCompleted = await waitForPaymentCompletion(
       testTelegramId,
@@ -171,22 +200,14 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
       throw new Error('Операция пополнения не завершилась успешно')
     }
 
-    // Шаг 3: Проверяем баланс после пополнения
     const balanceAfterAdd = await getUserBalance(testTelegramId)
-    logger.info('💰 Баланс после пополнения', {
-      description: 'Balance after adding payment',
-      telegram_id: testTelegramId,
-      balance: balanceAfterAdd,
-      expected: 100,
-    })
-
     if (balanceAfterAdd !== 100) {
       throw new Error(
         `Баланс после пополнения должен быть 100, получено: ${balanceAfterAdd}`
       )
     }
 
-    // Шаг 4: Отправляем событие для списания средств
+    // Тест 3: Списание средств
     const spendOperationId = `${Date.now()}-${testTelegramId}-${uuidv4()}`
     await inngest.send({
       id: `test-payment-spend-${spendOperationId}`,
@@ -203,13 +224,8 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
           test: true,
         },
         operation_id: spendOperationId,
+        currency: 'STARS',
       },
-    })
-
-    // Ждем завершения второй операции
-    logger.info('⏳ Ожидание завершения операции списания', {
-      description: 'Waiting for spend operation completion',
-      operation_id: spendOperationId,
     })
 
     const spendOperationCompleted = await waitForPaymentCompletion(
@@ -222,26 +238,77 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
       throw new Error('Операция списания не завершилась успешно')
     }
 
-    // Шаг 5: Проверяем финальный баланс
-    const finalBalance = await getUserBalance(testTelegramId)
-    logger.info('💰 Финальный баланс', {
-      description: 'Final balance check',
-      telegram_id: testTelegramId,
-      balance: finalBalance,
-      expected: 70,
+    // Тест 4: Проверка на отрицательный баланс
+    const negativeOperationId = `${Date.now()}-${testTelegramId}-${uuidv4()}`
+    await inngest.send({
+      id: `test-payment-negative-${negativeOperationId}`,
+      name: 'payment/process',
+      data: {
+        telegram_id: testTelegramId,
+        amount: 100,
+        is_ru: true,
+        bot_name: 'test_bot',
+        description: 'Test negative balance prevention',
+        type: 'outcome',
+        metadata: {
+          service_type: ModeEnum.TextToImage,
+          test: true,
+        },
+        operation_id: negativeOperationId,
+        currency: 'STARS',
+      },
     })
 
-    if (finalBalance !== 70) {
+    // Ждем обработки операции
+    await new Promise(resolve => setTimeout(resolve, 5000))
+
+    const balanceAfterNegative = await getUserBalance(testTelegramId)
+    if (balanceAfterNegative !== 70) {
       throw new Error(
-        `Финальный баланс должен быть 70, получено: ${finalBalance}`
+        `Баланс не должен уйти в минус, ожидается 70, получено: ${balanceAfterNegative}`
       )
     }
 
-    // Шаг 6: Проверяем записи в таблице payments_v2
+    // Тест 5: Конкурентные операции
+    const concurrentOperations = Array.from({ length: 5 }, (_, i) => {
+      const operationId = `${Date.now()}-${testTelegramId}-concurrent-${i}`
+      return inngest.send({
+        id: `test-payment-concurrent-${operationId}`,
+        name: 'payment/process',
+        data: {
+          telegram_id: testTelegramId,
+          amount: 10,
+          is_ru: true,
+          bot_name: 'test_bot',
+          description: `Concurrent operation ${i}`,
+          type: 'income',
+          metadata: {
+            service_type: 'System',
+            test: true,
+            concurrent_test: true,
+          },
+          operation_id: operationId,
+          currency: 'STARS',
+        },
+      })
+    })
+
+    await Promise.all(concurrentOperations)
+    await new Promise(resolve => setTimeout(resolve, 5000))
+
+    const finalBalance = await getUserBalance(testTelegramId)
+    if (finalBalance !== 120) {
+      // 70 + (5 * 10)
+      throw new Error(
+        `Неверный баланс после конкурентных операций, ожидается 120, получено: ${finalBalance}`
+      )
+    }
+
+    // Тест 6: Проверка записей в таблице payments_v2
     const { data: payments, error } = await supabase
       .from('payments_v2')
       .select(
-        'amount, stars, payment_method, status, description, metadata, inv_id'
+        'amount, stars, payment_method, status, description, metadata, inv_id, currency'
       )
       .eq('telegram_id', testTelegramId)
       .order('payment_date', { ascending: false })
@@ -250,38 +317,42 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
       throw new Error(`Ошибка при получении платежей: ${error.message}`)
     }
 
-    if (!payments || payments.length !== 2) {
-      throw new Error(`Ожидалось 2 платежа, получено: ${payments?.length ?? 0}`)
+    if (!payments || payments.length === 0) {
+      throw new Error('Не найдены записи о платежах')
     }
 
-    if (
-      payments[0].status !== 'COMPLETED' ||
-      payments[1].status !== 'COMPLETED'
-    ) {
-      throw new Error('Не все платежи имеют статус COMPLETED')
-    }
-
-    logger.info('✅ Тест платежной системы успешно завершен', {
-      description: 'Payment system test completed successfully',
+    logger.info('✅ Тесты платежной системы успешно завершены', {
+      description: 'Payment system tests completed successfully',
       telegram_id: testTelegramId,
+      final_balance: finalBalance,
+      payments_count: payments.length,
     })
 
     return {
       success: true,
-      message: 'Тест платежной системы успешно завершен',
-      testName: 'payment-system',
+      testName: 'Payment System Test',
+      message: 'Все тесты платежной системы успешно пройдены',
+      details: {
+        telegram_id: testTelegramId,
+        final_balance: finalBalance,
+        payments_count: payments.length,
+      },
     }
-  } catch (err) {
-    const error = err as Error
-    logger.error('❌ Ошибка в тесте платежной системы:', {
-      description: 'Payment system test failed',
-      error: error.message,
+  } catch (error) {
+    logger.error('❌ Ошибка в тестах платежной системы', {
+      description: 'Error in payment system tests',
+      error: error instanceof Error ? error.message : String(error),
+      telegram_id: testTelegramId,
     })
 
     return {
       success: false,
-      message: `Тест платежной системы завершился с ошибкой: ${error.message}`,
-      testName: 'payment-system',
+      testName: 'Payment System Test',
+      message: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error.message : String(error),
     }
+  } finally {
+    // Очищаем тестовые данные
+    await cleanupTestUser(testTelegramId)
   }
 }

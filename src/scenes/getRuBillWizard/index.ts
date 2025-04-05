@@ -7,103 +7,157 @@ import {
   description,
   subscriptionTitles,
 } from './helper'
-import { setPayments, updateUserSubscription } from '../../core/supabase'
+import { setPayments, updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
 import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/utils/logger'
+
+type Subscription = 'neurophoto' | 'neurobase' | 'neuroblogger'
+
 const generateInvoiceStep = async (ctx: MyContext) => {
-  console.log('🚀 Starting generateInvoiceStep')
+  logger.info('🚀 Начало создания счета', {
+    description: 'Starting invoice generation',
+  })
+
   const isRu = isRussian(ctx)
   const selectedPayment = ctx.session.selectedPayment
 
-  if (selectedPayment) {
-    const email = ctx.session.email
-    console.log('📧 Email from session:', email)
+  if (!selectedPayment) {
+    logger.error('❌ Не выбран способ оплаты', {
+      description: 'Payment method not selected',
+    })
+    return
+  }
 
-    const stars = selectedPayment.amount
-    const subscription = selectedPayment.subscription
+  const email = ctx.session.email
+  logger.info('📧 Email получен из сессии:', {
+    description: 'Email from session',
+    email,
+  })
 
-    try {
-      const userId = ctx.from?.id
-      console.log('👤 User ID:', userId)
+  const stars = selectedPayment.amount
+  const subscription = selectedPayment.subscription as Subscription | undefined
 
-      // Генерируем уникальный InvId
-      const invId = uuidv4()
-      console.log('🔢 Generated invoice ID:', invId)
-
-      // Получение invoiceID
-      const invoiceURL = await getInvoiceId(
-        merchantLogin,
-        stars,
-        Number(invId),
-        description,
-        password1
-      )
-      console.log('🔗 Invoice URL:', invoiceURL)
-
-      const { bot_name } = getBotNameByToken(ctx.telegram.token)
-
-      // Сохранение платежа со статусом PENDING
-      await setPayments({
-        telegram_id: userId.toString(),
-        OutSum: stars.toString(),
-        InvId: invId.toString(),
-        currency: 'RUB',
-        stars: Number(selectedPayment.stars),
-        status: 'PENDING',
-        email: email,
-        payment_method: 'Telegram',
-        subscription: subscription,
-        bot_name,
-        language: ctx.from?.language_code,
-        invoice_url: invoiceURL,
-      })
-      console.log('💾 Payment saved with status PENDING')
-
-      // Формируем и отправляем сообщение с кнопкой оплаты
-      const inlineKeyboard = [
-        [
-          {
-            text: isRu
-              ? `Купить ${
-                  subscriptionTitles(isRu)[subscription]
-                } за ${stars} р.`
-              : `Buy ${
-                  subscriptionTitles(isRu)[subscription]
-                } for ${stars} RUB.`,
-            url: invoiceURL,
-          },
-        ],
-      ]
-
-      await ctx.reply(
-        isRu
-          ? `<b>🤑 Подписка ${subscriptionTitles(isRu)[subscription]}</b>
-            \nВ случае возникновения проблем с оплатой, пожалуйста, свяжитесь с нами @neuro_sage`
-          : `<b>🤑 Subscription ${subscriptionTitles(isRu)[subscription]}</b>
-            \nIn case of payment issues, please contact us @neuro_sage`,
-        {
-          reply_markup: {
-            inline_keyboard: inlineKeyboard,
-          },
-          parse_mode: 'HTML',
-        }
-      )
-      console.log('✉️ Payment message sent to user')
-
-      // Обновление подписки пользователя
-      await updateUserSubscription(userId.toString(), subscription)
-      console.log('✅ User subscription updated')
-
-      return ctx.scene.leave()
-    } catch (error) {
-      console.error('❌ Error in creating invoice:', error)
-      await ctx.reply(
-        isRu
-          ? 'Ошибка при создании чека. Пожалуйста, попробуйте снова.'
-          : 'Error creating invoice. Please try again.'
-      )
+  try {
+    const userId = ctx.from?.id
+    if (!userId) {
+      throw new Error('User ID not found')
     }
+
+    logger.info('👤 ID пользователя:', {
+      description: 'User ID',
+      userId,
+    })
+
+    // Генерируем уникальный InvId
+    const invId = uuidv4()
+    const numericInvId = parseInt(invId.replace(/-/g, '').slice(0, 9), 16)
+
+    logger.info('🔢 Сгенерирован ID счета:', {
+      description: 'Generated invoice ID',
+      invId,
+      numericInvId,
+    })
+    if (!merchantLogin || !password1) {
+      throw new Error('merchantLogin or password1 is not defined')
+    }
+
+    // Получение invoiceID
+    const invoiceURL = await getInvoiceId(
+      merchantLogin,
+      stars,
+      numericInvId,
+      description,
+      password1
+    )
+    logger.info('🔗 URL счета:', {
+      description: 'Invoice URL',
+      invoiceURL,
+    })
+
+    const { bot_name } = getBotNameByToken(ctx.telegram.token)
+
+    // Сохранение платежа со статусом PENDING
+    await setPayments({
+      telegram_id: userId.toString(),
+      amount: stars,
+      OutSum: stars.toString(),
+      InvId: invId,
+      inv_id: invId,
+      currency: 'RUB',
+      stars: Number(selectedPayment.stars),
+      status: 'PENDING',
+      email: email || undefined,
+      payment_method: 'Telegram',
+      subscription: subscription,
+      bot_name,
+      description: subscription
+        ? `Покупка подписки ${subscription}`
+        : `Пополнение баланса на ${stars} звезд`,
+      metadata: {
+        payment_method: 'Telegram',
+        subscription: subscription || undefined,
+        stars: Number(selectedPayment.stars),
+      },
+      language: ctx.from?.language_code || 'ru',
+      invoice_url: invoiceURL,
+    })
+    logger.info('💾 Платеж сохранен со статусом PENDING', {
+      description: 'Payment saved with PENDING status',
+    })
+
+    // Формируем и отправляем сообщение с кнопкой оплаты
+    const titles = subscriptionTitles(isRu)
+    const subscriptionTitle = subscription ? titles[subscription] : ''
+
+    const inlineKeyboard = [
+      [
+        {
+          text: isRu
+            ? `Купить ${subscriptionTitle} за ${stars} р.`
+            : `Buy ${subscriptionTitle} for ${stars} RUB.`,
+          url: invoiceURL,
+        },
+      ],
+    ]
+
+    await ctx.reply(
+      isRu
+        ? `<b>🤑 Подписка ${subscriptionTitle}</b>
+          \nВ случае возникновения проблем с оплатой, пожалуйста, свяжитесь с нами @neuro_sage`
+        : `<b>🤑 Subscription ${subscriptionTitle}</b>
+          \nIn case of payment issues, please contact us @neuro_sage`,
+      {
+        reply_markup: {
+          inline_keyboard: inlineKeyboard,
+        },
+        parse_mode: 'HTML',
+      }
+    )
+    logger.info('✉️ Сообщение об оплате отправлено пользователю', {
+      description: 'Payment message sent to user',
+    })
+
+    // Обновление подписки пользователя
+    if (subscription) {
+      await updateUserSubscription(userId.toString(), subscription)
+      logger.info('✅ Подписка пользователя обновлена', {
+        description: 'User subscription updated',
+      })
+    }
+
+    return ctx.scene.leave()
+  } catch (error) {
+    logger.error('❌ Ошибка при создании счета:', {
+      description: 'Error creating invoice',
+      error: error instanceof Error ? error.message : String(error),
+    })
+    await ctx.reply(
+      isRu
+        ? 'Ошибка при создании чека. Пожалуйста, попробуйте снова.'
+        : 'Error creating invoice. Please try again.'
+    )
   }
 }
 

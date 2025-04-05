@@ -1,50 +1,57 @@
-import { MyContext } from '@/interfaces'
-import {
-  getReferalsCountAndUserData,
-  getUserBalance,
-  updateUserBalance,
-} from '@/core/supabase'
-import { mainMenu } from '@/menu'
+import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { getUserBalance } from '@/core/supabase'
+import { inngest } from '@/core/inngest/clients'
+import { logger } from '@/utils/logger'
+import { isRussian } from '@/helpers'
 
-export async function refundUser(ctx: MyContext, paymentAmount: number) {
-  if (!ctx.from) {
-    throw new Error('User not found')
-  }
-  const balance = await getUserBalance(ctx.from.id)
-  console.log('balance', balance)
-  // Возвращаем средства пользователю
-  const newBalance = balance + paymentAmount
-  console.log('newBalance', newBalance)
-  await updateUserBalance({
-    telegram_id: ctx.from.id,
-    amount: paymentAmount,
-    type: 'income',
-    operation_description: 'Refund',
-  })
+export async function refundUser(ctx: MyContext, amount: number) {
+  try {
+    const balance = await getUserBalance(ctx.from?.id.toString() || '')
 
-  // Отправляем сообщение пользователю
-  const isRu = ctx.from.language_code === 'ru'
-  const telegram_id = ctx.from?.id?.toString() || ''
-  const { count, subscription, level } = await getReferalsCountAndUserData(
-    telegram_id
-  )
-
-  await ctx.reply(
-    isRu
-      ? `Возвращено ${paymentAmount.toFixed(
-          2
-        )} ⭐️ на ваш счет.\nВаш баланс: ${newBalance.toFixed(2)} ⭐️`
-      : `${paymentAmount.toFixed(
-          2
-        )} ⭐️ have been refunded to your account.\nYour balance: ${newBalance.toFixed(
-          2
-        )} ⭐️`,
-    {
-      reply_markup: {
-        keyboard: (
-          await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
-        ).reply_markup.keyboard,
-      },
+    if (balance === null) {
+      throw new Error('Balance not found')
     }
-  )
+
+    const newBalance = balance + amount
+
+    await inngest.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: ctx.from?.id.toString(),
+        amount,
+        type: 'income',
+        description: 'Refund for cancelled operation',
+        bot_name: ctx.botInfo.username,
+      },
+    })
+
+    logger.info({
+      message: '💰 Возврат средств выполнен',
+      description: 'Refund completed',
+      telegram_id: ctx.from?.id,
+      amount,
+      oldBalance: balance,
+      newBalance,
+    })
+
+    const message = isRussian(ctx)
+      ? `Возвращено ${amount.toFixed(2)} руб.`
+      : `${amount.toFixed(2)} RUB has been refunded`
+
+    await ctx.reply(message)
+  } catch (error) {
+    logger.error({
+      message: '❌ Ошибка при возврате средств',
+      description: 'Refund error',
+      error: error instanceof Error ? error.message : String(error),
+      telegram_id: ctx.from?.id,
+      amount,
+    })
+
+    const message = isRussian(ctx)
+      ? '❌ Произошла ошибка при возврате средств'
+      : '❌ An error occurred while processing the refund'
+
+    await ctx.reply(message)
+  }
 }

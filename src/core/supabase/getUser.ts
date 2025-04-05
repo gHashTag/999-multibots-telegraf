@@ -1,6 +1,9 @@
 import { supabase } from '.'
 import { logger } from '@/utils/logger'
-import { TelegramId, normalizeTelegramId } from '@/interfaces/telegram.interface'
+import {
+  TelegramId,
+  normalizeTelegramId,
+} from '@/interfaces/telegram.interface'
 
 export const getUser = async (telegram_id: TelegramId) => {
   try {
@@ -54,4 +57,4 @@ export const getUser = async (telegram_id: TelegramId) => {
     })
     throw error
   }
-} 
+}

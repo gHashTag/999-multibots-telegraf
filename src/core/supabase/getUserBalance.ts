@@ -1,18 +1,19 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
-import { supabase } from './index'
-import { logger } from '@/utils/logger'
 import {
   TelegramId,
   normalizeTelegramId,
 } from '@/interfaces/telegram.interface'
+import { supabase } from './index'
+import { logger } from '@/utils/logger'
 
 /**
  * Получает баланс пользователя
  * @param telegram_id - ID пользователя в Telegram
+ * @param bot_name - Имя бота (опционально)
  * @returns Баланс пользователя или null в случае ошибки
  */
 export const getUserBalance = async (
-  telegram_id: TelegramId
+  telegram_id: TelegramId,
+  bot_name?: string
 ): Promise<number | null> => {
   try {
     if (!telegram_id) {
@@ -25,19 +26,27 @@ export const getUserBalance = async (
     logger.info('🔍 Получение баланса пользователя:', {
       description: 'Getting user balance',
       telegram_id: normalizedId,
+      bot_name,
     })
 
-    const { data: user, error } = await supabase
+    let query = supabase
       .from('users')
       .select('balance')
       .eq('telegram_id', normalizedId)
-      .single()
+
+    // Если указан bot_name, добавляем его в условие
+    if (bot_name) {
+      query = query.eq('bot_name', bot_name)
+    }
+
+    const { data: user, error } = await query.single()
 
     if (error) {
       logger.error('❌ Ошибка при получении баланса:', {
         description: 'Error getting balance',
         error: error.message,
         telegram_id: normalizedId,
+        bot_name,
       })
       throw error
     }
@@ -46,6 +55,7 @@ export const getUserBalance = async (
       logger.info('ℹ️ Пользователь не найден:', {
         description: 'User not found',
         telegram_id: normalizedId,
+        bot_name,
       })
       return 0 // Возвращаем 0 для новых пользователей
     }
@@ -54,6 +64,7 @@ export const getUserBalance = async (
       description: 'Balance retrieved successfully',
       telegram_id: normalizedId,
       balance: user.balance,
+      bot_name,
     })
 
     return user.balance
@@ -62,6 +73,7 @@ export const getUserBalance = async (
       description: 'Error in getUserBalance function',
       error: error instanceof Error ? error.message : String(error),
       telegram_id,
+      bot_name,
     })
     throw error
   }

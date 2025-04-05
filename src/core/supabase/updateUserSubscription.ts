@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '@/core/supabase'
 
 export const updateUserSubscription = async (

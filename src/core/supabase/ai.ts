@@ -1,11 +1,5 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from './index'
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
-import FormData from 'form-data'
-import axios from 'axios'
 
 export const getHistory = async (
   brand: string,

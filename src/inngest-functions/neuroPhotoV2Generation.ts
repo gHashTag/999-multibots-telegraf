@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
 import { inngest } from '@/core/inngest/clients'
 import {
   getUserByTelegramId,
@@ -8,11 +7,7 @@ import {
   getAspectRatio,
 } from '@/core/supabase'
 import { API_URL } from '@/config'
-import {
-  modeCosts,
-  ModeEnum,
-  calculateModeCost,
-} from '@/price/helpers/modelsCost'
+import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
@@ -177,7 +172,7 @@ export const neuroPhotoV2Generation = inngest.createFunction(
           name: 'payment/process',
           data: {
             telegram_id,
-            paymentAmount: costCalculation.totalCost,
+            amount: costCalculation.totalCost,
             is_ru,
             bot_name,
             description: `Payment for generating ${numImagesToGenerate} image${
@@ -313,14 +308,16 @@ export const neuroPhotoV2Generation = inngest.createFunction(
             }
 
             // Вызываем API для генерации изображения
+            const headers: Record<string, string> = {
+              'Content-Type': 'application/json',
+              'X-Key': process.env.BFL_API_KEY ?? '',
+            }
+
             const response = await fetch(
               'https://api.us1.bfl.ai/v1/flux-pro-1.1-ultra-finetuned',
               {
                 method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-Key': process.env.BFL_API_KEY,
-                },
+                headers,
                 body: JSON.stringify(input),
               }
             )

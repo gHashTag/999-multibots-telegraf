@@ -1,6 +1,5 @@
 import { MySession } from '../interfaces'
 import { ModeEnum } from '../price/helpers/modelsCost'
-import { TelegramId } from '@/interfaces/telegram.interface'
 
 export const defaultSession: () => MySession = () => ({
   selectedModel: '',

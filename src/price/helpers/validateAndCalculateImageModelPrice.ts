@@ -29,7 +29,7 @@ export async function validateAndCalculateImageModelPrice(
   }
 
   const price = modelInfo.costPerImage
-  ctx.session.paymentAmount = price
+  ctx.session.amount = price
   if (currentBalance < price) {
     await ctx.reply(
       isRu ? 'Недостаточно средств на балансе' : 'Insufficient balance'

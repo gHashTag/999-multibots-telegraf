@@ -1,8 +1,8 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
-import { Telegraf, Composer } from 'telegraf'
-import { MyContext, MyTextMessageContext } from '@/interfaces'
+import { Composer } from 'telegraf'
+import { MyContext } from '@/interfaces'
 import { NODE_ENV } from './config'
 
 import { development, production } from '@/utils/launch'
@@ -71,10 +71,11 @@ export const createBots = async () => {
       production(bot, port, webhookUrl, webhookPath)
     }
 
-    bot.use((ctx: MyTextMessageContext, next: NextFunction) => {
+    bot.use((ctx: MyContext, next: NextFunction) => {
       logger.info('🔍 Получено сообщение/команда:', {
         description: 'Message/command received',
-        text: ctx.message?.text,
+        text:
+          ctx.message && 'text' in ctx.message ? ctx.message.text : undefined,
         from: ctx.from?.id,
         chat: ctx.chat?.id,
         bot: ctx.botInfo?.username,

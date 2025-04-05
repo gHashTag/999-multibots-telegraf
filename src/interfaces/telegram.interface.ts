@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
 export type TelegramId = string
 
 export interface TelegramUser {

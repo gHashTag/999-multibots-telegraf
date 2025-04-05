@@ -1,4 +1,4 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { GenerationResult } from '@/interfaces'
 import { getBotByName } from '@/core/bot'
 import { v4 as uuidv4 } from 'uuid'
@@ -7,6 +7,7 @@ import {
   getAspectRatio,
   savePrompt,
   getUserByTelegramIdString,
+  getUserBalance,
 } from '@/core/supabase'
 import {
   downloadFile,
@@ -15,7 +16,7 @@ import {
   saveFileLocally,
 } from '@/helpers'
 import { replicate } from '@/core/replicate'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { API_URL } from '@/config'
 import path from 'path'
 import fs from 'fs'
@@ -41,7 +42,7 @@ interface ApiImageResponse {
 
 type ImageResult =
   | { success: true; imageUrl: string }
-  | { success: false; error: Error }
+  | { success: false; error: unknown }
 
 const supportedSizes = [
   '1024x1024',
@@ -101,88 +102,108 @@ export const textToImageFunction = inngest.createFunction(
         return validData
       })) as TextToImageEvent['data']
 
-      await step.run('get-user-info', async () => {
-        const user = await getUserByTelegramIdString(
-          validatedParams.telegram_id
-        )
-        if (!user) throw new Error('User not found')
-        if (user.level === 10) {
-          await updateUserLevelPlusOne(user.telegram_id, user.level)
+      if (!validatedParams) {
+        throw new Error('Validation failed - missing required parameters')
+      }
+
+      const params = validatedParams
+
+      const user = await step.run('get-user-info', async () => {
+        const userData = await getUserByTelegramIdString(params.telegram_id)
+        if (!userData) throw new Error('User not found')
+        if (userData.level === 10) {
+          await updateUserLevelPlusOne(userData.telegram_id, userData.level)
         }
-        return user
+        return userData
       })
 
       const paymentResult = await step.run('process-payment', async () => {
-        const modelConfig = IMAGES_MODELS[validatedParams.model.toLowerCase()]
-        if (!modelConfig) throw new Error('Unsupported model')
+        const cost =
+          calculateModeCost({ mode: ModeEnum.TextToImage }).stars *
+          params.num_images
 
-        console.log('💰 Обработка платежа за изображения:', {
-          description: 'Processing payment for images',
-          telegram_id: validatedParams.telegram_id,
-          model: validatedParams.model,
-          num_images: validatedParams.num_images,
-          cost: modelConfig.costPerImage * validatedParams.num_images,
+        logger.info('💰 Обработка платежа', {
+          description: 'Processing payment',
+          telegram_id: params.telegram_id,
+          cost,
+          bot_name: params.bot_name,
         })
 
-        // Отправляем событие payment/process для обработки платежа
+        // Отправляем событие в централизованный процессор платежей
         await inngest.send({
-          id: `payment-${validatedParams.telegram_id}-${Date.now()}-${
-            validatedParams.num_images
+          id: `payment-${params.telegram_id}-${Date.now()}-${
+            params.num_images
           }-${uuidv4()}`,
           name: 'payment/process',
           data: {
-            telegram_id: validatedParams.telegram_id,
-            mode: ModeEnum.TextToImage,
-            is_ru: validatedParams.is_ru,
-            bot_name: validatedParams.bot_name,
-            description: `Payment for ${validatedParams.num_images} images`,
-            paymentAmount:
-              modelConfig.costPerImage * validatedParams.num_images,
+            telegram_id: params.telegram_id,
+            amount: cost,
+            is_ru: params.is_ru,
+            bot_name: params.bot_name,
             type: 'outcome',
+            description: 'Payment for text to image generation',
             metadata: {
               service_type: ModeEnum.TextToImage,
-              prompt: validatedParams.prompt,
+              prompt: params.prompt,
             },
           },
         })
+
+        logger.info('💸 Платеж отправлен на обработку', {
+          description: 'Payment sent for processing',
+          telegram_id: params.telegram_id,
+          cost,
+        })
+
+        // Даем время на обработку платежа
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+        // Получаем актуальный баланс из базы данных
+        const newBalance = await getUserBalance(params.telegram_id)
+
+        return {
+          success: true,
+          paymentAmount: cost,
+          newBalance: Number(newBalance) || 0,
+        }
       })
+
+      if (!paymentResult.success) {
+        throw new Error('Payment processing failed')
+      }
 
       const generationParams = await step.run(
         'prepare-generation',
         async () => {
-          const aspectRatio = await getAspectRatio(
-            Number(validatedParams.telegram_id)
-          )
+          const aspectRatio = await getAspectRatio(params.telegram_id)
           let size: string | undefined
 
-          if (validatedParams.model.toLowerCase() === 'recraft v3') {
+          if (params.model.toLowerCase() === 'recraft v3') {
             const [w, h] = aspectRatio.split(':').map(Number)
             const calculated = `${1024}x${Math.round((1024 / w) * h)}`
             size = supportedSizes.includes(calculated)
               ? calculated
               : '1024x1024'
-          } else if (validatedParams.model.toLowerCase() === 'luma/photon') {
+          } else if (params.model.toLowerCase() === 'luma/photon') {
             return {
-              prompt: validatedParams.prompt,
-              modelKey:
-                validatedParams.model.toLowerCase() as `${string}/${string}`,
+              prompt: params.prompt,
+              modelKey: params.model.toLowerCase() as `${string}/${string}`,
               input: {
-                prompt: validatedParams.prompt,
+                prompt: params.prompt,
                 aspect_ratio: '1:1',
               },
-              numImages: validatedParams.num_images,
+              numImages: params.num_images,
             }
           }
 
           return {
-            prompt: validatedParams.prompt,
-            modelKey:
-              validatedParams.model.toLowerCase() as `${string}/${string}`,
+            prompt: params.prompt,
+            modelKey: params.model.toLowerCase() as `${string}/${string}`,
             input: {
-              prompt: validatedParams.prompt,
+              prompt: params.prompt,
               ...(size ? { size } : { aspect_ratio: aspectRatio }),
             },
-            numImages: validatedParams.num_images,
+            numImages: params.num_images,
           }
         }
       )
@@ -191,7 +212,7 @@ export const textToImageFunction = inngest.createFunction(
       for (let i = 0; i < generationParams.numImages; i++) {
         const imageResult = (await step.run(`generate-image-${i}`, async () => {
           try {
-            await sendGenerationStatus(validatedParams, i)
+            await sendGenerationStatus(params, i)
             const output = await replicate.run(generationParams.modelKey, {
               input: generationParams.input,
             })
@@ -204,29 +225,27 @@ export const textToImageFunction = inngest.createFunction(
               description: 'Error during image generation',
               modelKey: generationParams.modelKey,
               error: JSON.stringify(error, Object.getOwnPropertyNames(error)),
-              stack: error.stack,
+              stack: error instanceof Error ? error.stack : undefined,
             })
             return {
               success: false as const,
-              error:
-                error instanceof Error
-                  ? error
-                  : new Error(JSON.stringify(error)),
+              error,
             }
           }
         })) as ImageResult
 
         if (!imageResult.success) {
-          await handleGenerationError(
-            (imageResult as { success: false; error: Error }).error,
-            validatedParams
-          )
+          const errorMessage =
+            imageResult.error instanceof Error
+              ? imageResult.error.message
+              : 'Image generation failed'
+          await handleGenerationError(new Error(errorMessage), params)
           continue
         }
 
         const savedImage = await step.run(`save-image-${i}`, async () => {
           const localPath = await saveFileLocally(
-            validatedParams.telegram_id,
+            params.telegram_id,
             imageResult.imageUrl,
             'text-to-image',
             '.jpeg'
@@ -237,9 +256,9 @@ export const textToImageFunction = inngest.createFunction(
             generationParams.modelKey,
             ModeEnum.TextToImage,
             `${API_URL}/uploads/${
-              validatedParams.telegram_id
+              params.telegram_id
             }/text-to-image/${path.basename(localPath)}`,
-            validatedParams.telegram_id,
+            params.telegram_id,
             'COMPLETED'
           )
 
@@ -249,7 +268,7 @@ export const textToImageFunction = inngest.createFunction(
         await step.run(`send-image-${i}`, async () => {
           await sendImageToUser(
             savedImage.localPath,
-            validatedParams,
+            params,
             paymentResult.newBalance
           )
         })
@@ -265,10 +284,10 @@ export const textToImageFunction = inngest.createFunction(
           await pulse(
             results[0].image.toString('base64'),
             generationParams.prompt,
-            `/${validatedParams.model}`,
-            validatedParams.telegram_id,
-            validatedParams.username || '',
-            validatedParams.is_ru
+            `/${params.model}`,
+            params.telegram_id,
+            params.username || '',
+            params.is_ru
           )
         }
         return { success: true, results }
@@ -308,7 +327,7 @@ export const textToImageFunction = inngest.createFunction(
               name: 'payment/process',
               data: {
                 telegram_id: validatedParams.telegram_id,
-                amount: refundAmount, // положительное значение для возврата
+                amount: refundAmount.toString(), // положительное значение для возврата
                 type: 'refund',
                 description: `Возврат средств за неудачную генерацию ${validatedParams.num_images} изображений`,
                 bot_name: validatedParams.bot_name,
@@ -367,6 +386,10 @@ async function sendGenerationStatus(
   index: number
 ) {
   const { bot } = getBotByName(params.bot_name)
+  if (!bot) {
+    throw new Error(`Bot ${params.bot_name} not found`)
+  }
+
   const message =
     params.num_images > 1
       ? params.is_ru
@@ -384,6 +407,10 @@ async function handleGenerationError(
   params: TextToImageEvent['data']
 ) {
   const { bot } = getBotByName(params.bot_name)
+  if (!bot) {
+    throw new Error(`Bot ${params.bot_name} not found`)
+  }
+
   let message = '❌ Произошла ошибка.'
 
   console.log('📊 Детали ошибки:', {
@@ -428,6 +455,9 @@ async function sendImageToUser(
   balance: number
 ) {
   const { bot } = getBotByName(params.bot_name)
+  if (!bot) {
+    throw new Error(`Bot ${params.bot_name} not found`)
+  }
 
   await bot.telegram.sendPhoto(params.telegram_id, {
     source: fs.createReadStream(localPath),

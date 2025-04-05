@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '.'
 
 export const getVoiceId = async (telegram_id: TelegramId) => {

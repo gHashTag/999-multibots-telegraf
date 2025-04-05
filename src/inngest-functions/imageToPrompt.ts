@@ -53,17 +53,15 @@ export const imageToPromptFunction = inngest.createFunction(
           name: 'payment/process',
           data: {
             telegram_id,
-            paymentAmount: cost_per_image,
+            amount: cost_per_image,
             is_ru,
             bot_name,
-            bot,
             type: 'outcome',
-            description: 'Payment for image to prompt analysis',
+            description: 'Payment for image to prompt conversion',
             operation_id: payment_operation_id,
             metadata: {
               service_type: ModeEnum.ImageToPrompt,
-              bot_name,
-              language: is_ru ? 'ru' : 'en',
+              image_url: image,
             },
           },
         })
@@ -72,7 +70,7 @@ export const imageToPromptFunction = inngest.createFunction(
           description: 'Payment sent for processing',
           telegram_id,
           payment_operation_id,
-          paymentAmount: cost_per_image,
+          amount: cost_per_image,
         })
 
         // Даем время на обработку платежа
@@ -94,6 +92,9 @@ export const imageToPromptFunction = inngest.createFunction(
 
       // Отправляем сообщение о начале обработки
       await step.run('send-start-message', async () => {
+        if (!bot) {
+          throw new Error('Bot instance not found')
+        }
         await bot.telegram.sendMessage(
           telegram_id,
           is_ru ? '⏳ Генерация промпта...' : '⏳ Generating prompt...'
@@ -232,6 +233,9 @@ export const imageToPromptFunction = inngest.createFunction(
               // Отправляем результат пользователю
               await step.run('send-result', async () => {
                 try {
+                  if (!bot) {
+                    throw new Error('Bot instance not found')
+                  }
                   await bot.telegram.sendMessage(
                     telegram_id,
                     '```\n' + caption + '\n```',
@@ -257,6 +261,9 @@ export const imageToPromptFunction = inngest.createFunction(
               // Отправляем сообщение о балансе
               await step.run('send-balance-message', async () => {
                 try {
+                  if (!bot) {
+                    throw new Error('Bot instance not found')
+                  }
                   await sendBalanceMessage(
                     telegram_id,
                     balanceCheck.newBalance,

@@ -100,13 +100,13 @@ export const TEST_CONFIG = {
   // Тестовые данные пользователей
   users: {
     main: {
-      telegramId: '123456789',
+      telegramId: '144022504',
       botName: 'test_bot',
       isRussian: true,
     },
     default: {
       telegramId: '144022504',
-      voiceId: 'test-voice-id',
+      voiceId: 'test_voice_id',
       isRussian: true,
       botName: 'test_bot',
     },
@@ -220,5 +220,13 @@ export const TEST_CONFIG = {
 
   mocks: {
     bot: mockBot,
+  },
+
+  CHECK_INTERVAL: 5000, // 5 секунд между проверками
+
+  // Тестовые модели
+  models: {
+    neurophoto:
+      'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b',
   },
 }

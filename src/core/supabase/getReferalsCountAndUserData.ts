@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { Subscription } from '@/interfaces/supabase.interface'
 import { supabase } from '.'
 import { UserType } from '@/interfaces/supabase.interface'
