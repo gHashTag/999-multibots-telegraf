@@ -5,11 +5,11 @@ import {
   getReferalsCountAndUserData,
   getUserByTelegramIdString,
 } from '@/core/supabase'
-import { getSubScribeChannel } from '@/core/supabase'
+
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { isRussian } from '@/helpers/language'
 
-const BONUS_AMOUNT = 100
+// const BONUS_AMOUNT = 100
 
 const createUserStep = async (ctx: MyTextMessageContext) => {
   console.log('CASE:createUserStep', ctx.from)
@@ -64,7 +64,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
     ctx.session.inviter = userData.user_id
 
-    const newCount = count + 1
+    // const newCount = count + 1
     if (ctx.session.inviteCode) {
       await ctx.telegram.sendMessage(
         ctx.session.inviteCode,

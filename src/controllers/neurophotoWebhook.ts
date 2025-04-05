@@ -340,7 +340,7 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
       processedTaskIds.add(task_id)
 
       // Сохраняем фотографию на сервере
-      const { telegram_id, username, bot_name, language_code, prompt } =
+      const { telegram_id, username, language_code, prompt } =
         await updatePrompt(task_id, result.sample)
       const is_ru = language_code === 'ru'
 

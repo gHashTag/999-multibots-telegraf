@@ -4,6 +4,89 @@
 
 import { PaymentStatus } from '@/core/supabase/updatePaymentStatus'
 import { logger } from '@/utils/logger'
+import { Telegraf } from 'telegraf'
+import { MyContext } from '@/interfaces'
+
+const mockBot = {
+  telegram: {
+    sendMessage: async () => {
+      logger.info({
+        message: '🤖 Mock: Отправка сообщения',
+        description: 'Mock: Sending message',
+      })
+      return true
+    },
+    sendAudio: async () => {
+      logger.info({
+        message: '🎵 Mock: Отправка аудио',
+        description: 'Mock: Sending audio',
+      })
+      return true
+    },
+    sendPhoto: async () => {
+      logger.info({
+        message: '📸 Mock: Отправка фото',
+        description: 'Mock: Sending photo',
+      })
+      return true
+    },
+    sendVideo: async () => {
+      logger.info({
+        message: '🎥 Mock: Отправка видео',
+        description: 'Mock: Sending video',
+      })
+      return true
+    },
+  },
+  options: {},
+  context: {},
+  webhookFilter: () => true,
+  handleError: () => Promise.resolve(),
+  command: () => {
+    logger.info({
+      message: '🎯 Mock: Регистрация команды',
+      description: 'Mock: Command registration',
+    })
+    return mockBot
+  },
+  on: () => {
+    logger.info({
+      message: '👂 Mock: Подписка на событие',
+      description: 'Mock: Event subscription',
+    })
+    return mockBot
+  },
+  start: () => {
+    logger.info({
+      message: '🚀 Mock: Команда start',
+      description: 'Mock: Start command',
+    })
+    return mockBot
+  },
+  help: () => {
+    logger.info({
+      message: '❓ Mock: Команда help',
+      description: 'Mock: Help command',
+    })
+    return mockBot
+  },
+  settings: () => mockBot,
+  catch: () => mockBot,
+  use: () => mockBot,
+  launch: async () => {
+    logger.info({
+      message: '🚀 Mock: Запуск бота',
+      description: 'Mock: Bot launch',
+    })
+  },
+  stop: async () => {
+    logger.info({
+      message: '🛑 Mock: Остановка бота',
+      description: 'Mock: Bot stop',
+    })
+  },
+  botInfo: {},
+} as unknown as Telegraf<MyContext>
 
 export const TEST_CONFIG = {
   // Базовая конфигурация
@@ -136,25 +219,6 @@ export const TEST_CONFIG = {
   },
 
   mocks: {
-    bot: {
-      telegram: {
-        sendMessage: async () => {
-          logger.info('🤖 Mock: Sending message')
-          return true
-        },
-        sendAudio: async () => {
-          logger.info('🎵 Mock: Sending audio')
-          return true
-        },
-        sendPhoto: async () => {
-          logger.info('📸 Mock: Sending photo')
-          return true
-        },
-        sendVideo: async () => {
-          logger.info('🎥 Mock: Sending video')
-          return true
-        },
-      },
-    },
+    bot: mockBot,
   },
 }

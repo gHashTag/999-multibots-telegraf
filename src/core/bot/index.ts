@@ -6,6 +6,7 @@ import { NODE_ENV } from '@/config'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
+import { TEST_CONFIG } from '@/test-utils/test-config'
 
 import { getBotGroupFromAvatars } from '@/core/supabase'
 if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
@@ -169,6 +170,16 @@ export function getBotByName(bot_name: string): {
   bot?: Telegraf<MyContext>
   error?: string | null
 } {
+  // В тестовом окружении возвращаем мок
+  if (process.env.NODE_ENV === 'test') {
+    logger.info({
+      message: '🧪 Возвращаем мок бота для тестов',
+      description: 'Returning mock bot for tests',
+      bot_name,
+    })
+    return { bot: TEST_CONFIG.mocks.bot }
+  }
+
   logger.info({
     message: '🔎 getBotByName запрошен для',
     description: 'getBotByName requested for',
