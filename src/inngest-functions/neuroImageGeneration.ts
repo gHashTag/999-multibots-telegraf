@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
 import { inngest } from '@/core/inngest/clients'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
@@ -19,7 +18,6 @@ import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
 
 import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 
 export const neuroImageGeneration = inngest.createFunction(
   {

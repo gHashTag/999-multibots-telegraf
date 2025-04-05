@@ -57,7 +57,10 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const videoModel = message.text?.toLowerCase()
       console.log('videoModel', videoModel)
 
-      const currentBalance = await getUserBalance(ctx.from.id.toString())
+      const currentBalance = await getUserBalance(
+        ctx.from.id.toString(),
+        ctx.botInfo.username
+      )
       console.log('currentBalance', currentBalance)
       if (currentBalance === null) {
         await ctx.reply(

@@ -159,7 +159,10 @@ export const textToImageFunction = inngest.createFunction(
         await new Promise(resolve => setTimeout(resolve, 500))
 
         // Получаем актуальный баланс из базы данных
-        const newBalance = await getUserBalance(params.telegram_id)
+        const newBalance = await getUserBalance(
+          params.telegram_id,
+          params.bot_name
+        )
 
         return {
           success: true,

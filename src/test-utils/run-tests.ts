@@ -1,5 +1,6 @@
 import { InngestTester } from './inngest-tests'
 import { logger } from '@/utils/logger'
+import { runBalanceTest } from './tests/balance-test'
 
 // Устанавливаем тестовое окружение
 process.env.NODE_ENV = 'test'
@@ -13,8 +14,13 @@ async function runTests() {
   const tester = new InngestTester()
 
   try {
+    // Запускаем тест баланса
+    const balanceTestResult = await runBalanceTest()
+
     // Запускаем тесты платежей
-    const results = await tester.runAllTests()
+    const inngestResults = await tester.runAllTests()
+
+    const results = [balanceTestResult, ...inngestResults]
 
     // Выводим результаты
     const successCount = results.filter(r => r.success).length

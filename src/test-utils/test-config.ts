@@ -97,6 +97,9 @@ export const TEST_CONFIG = {
     neurophotoWebhookPath: '/webhooks/neurophoto',
   },
 
+  // Тестовые изображения
+  TEST_IMAGE_URL: 'https://picsum.photos/512/512',
+
   // Тестовые данные пользователей
   users: {
     main: {

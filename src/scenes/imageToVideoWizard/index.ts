@@ -49,7 +49,8 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       const isRu = ctx.from?.language_code === 'ru' || false
 
       const currentBalance = await getUserBalance(
-        ctx.from?.id?.toString() || ''
+        ctx.from?.id?.toString() || '',
+        ctx.botInfo.username
       )
       if (currentBalance === null) {
         return ctx.scene.leave()

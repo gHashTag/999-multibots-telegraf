@@ -184,7 +184,7 @@ export const paymentProcessor = inngest.createFunction(
         })
 
         // Получаем текущий баланс
-        const currentBalance = await getUserBalance(telegram_id)
+        const currentBalance = await getUserBalance(telegram_id, bot_name)
 
         // Подробное логирование полученного баланса
         logger.info('💰 Получен баланс пользователя:', {
@@ -332,7 +332,7 @@ export const paymentProcessor = inngest.createFunction(
           })
 
           // Получаем текущий баланс
-          const currentBalance = await getUserBalance(telegram_id)
+          const currentBalance = await getUserBalance(telegram_id, bot_name)
 
           // Проверяем достаточность средств для списания
           if (

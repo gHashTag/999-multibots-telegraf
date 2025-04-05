@@ -1,80 +1,62 @@
-import {
-  TelegramId,
-  normalizeTelegramId,
-} from '@/interfaces/telegram.interface'
-import { supabase } from './index'
+import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
+interface BalanceResult {
+  total_balance: number
+  income: number
+  outcome: number
+  commission: number
+}
+
 /**
- * Получает баланс пользователя
+ * Получает баланс пользователя из расчета транзакций
  * @param telegram_id - ID пользователя в Telegram
  * @param bot_name - Имя бота (опционально)
  * @returns Баланс пользователя или null в случае ошибки
  */
 export const getUserBalance = async (
-  telegram_id: TelegramId,
-  bot_name?: string
-): Promise<number | null> => {
+  telegram_id: string | number,
+  bot_name: string
+): Promise<number> => {
   try {
-    if (!telegram_id) {
-      throw new Error('telegram_id is required')
-    }
+    logger.info('🔍 Getting user balance', { telegram_id, bot_name })
 
-    // Нормализуем telegram_id в строку
-    const normalizedId = normalizeTelegramId(telegram_id)
-
-    logger.info('🔍 Получение баланса пользователя:', {
-      description: 'Getting user balance',
-      telegram_id: normalizedId,
-      bot_name,
+    const { data, error } = await supabase.rpc('calculate_user_balance', {
+      p_telegram_id: telegram_id.toString(),
+      p_bot_name: bot_name,
     })
 
-    let query = supabase
-      .from('users')
-      .select('balance')
-      .eq('telegram_id', normalizedId)
-
-    // Если указан bot_name, добавляем его в условие
-    if (bot_name) {
-      query = query.eq('bot_name', bot_name)
-    }
-
-    const { data: user, error } = await query.single()
-
     if (error) {
-      logger.error('❌ Ошибка при получении баланса:', {
-        description: 'Error getting balance',
-        error: error.message,
-        telegram_id: normalizedId,
+      logger.error('❌ Error getting user balance', {
+        error,
+        telegram_id,
         bot_name,
       })
       throw error
     }
 
-    if (!user) {
-      logger.info('ℹ️ Пользователь не найден:', {
-        description: 'User not found',
-        telegram_id: normalizedId,
+    if (!data || data.length === 0) {
+      logger.info('ℹ️ No balance data found, returning 0', {
+        telegram_id,
         bot_name,
       })
-      return 0 // Возвращаем 0 для новых пользователей
+      return 0
     }
 
-    logger.info('✅ Баланс успешно получен:', {
-      description: 'Balance retrieved successfully',
-      telegram_id: normalizedId,
-      balance: user.balance,
-      bot_name,
-    })
+    const balance = data[0] as BalanceResult
 
-    return user.balance
-  } catch (error) {
-    logger.error('❌ Ошибка в getUserBalance:', {
-      description: 'Error in getUserBalance function',
-      error: error instanceof Error ? error.message : String(error),
+    logger.info('✅ User balance retrieved', {
       telegram_id,
       bot_name,
+      total_balance: balance.total_balance,
+      income: balance.income,
+      outcome: balance.outcome,
+      commission: balance.commission,
     })
+
+    return balance.total_balance
+  } catch (error) {
+    logger.error('❌ Error in getUserBalance', { error, telegram_id, bot_name })
     throw error
   }
 }

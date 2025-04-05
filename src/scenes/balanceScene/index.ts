@@ -16,7 +16,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       const userId = ctx.from?.id || 0
 
       // Get current balance
-      const balance = await getUserBalance(userId)
+      const balance = await getUserBalance(userId, ctx.botInfo.username)
 
       // Get payment statistics using direct query
       const { data: payments } = await supabase

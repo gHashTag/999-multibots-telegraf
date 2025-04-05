@@ -6,7 +6,14 @@ import { isRussian } from '@/helpers'
 
 export async function refundUser(ctx: MyContext, amount: number) {
   try {
-    const balance = await getUserBalance(ctx.from?.id.toString() || '')
+    if (!ctx.from?.id) {
+      throw new Error('User ID not found')
+    }
+
+    const balance = await getUserBalance(
+      ctx.from?.id?.toString() || '',
+      ctx.botInfo.username
+    )
 
     if (balance === null) {
       throw new Error('Balance not found')

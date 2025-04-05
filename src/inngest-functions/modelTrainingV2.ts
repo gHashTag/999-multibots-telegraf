@@ -128,7 +128,7 @@ export const modelTrainingV2 = inngest.createFunction(
       })
 
       // Получаем текущий баланс и рассчитываем стоимость
-      const currentBalance = await getUserBalance(telegram_id)
+      const currentBalance = await getUserBalance(telegram_id, bot_name)
       const paymentAmount = calculateModeCost({
         mode: ModeEnum.DigitalAvatarBodyV2,
         steps,

@@ -50,7 +50,10 @@ export const processBalanceVideoOperation = async ({
 }: BalanceOperationProps): Promise<BalanceOperationResult> => {
   try {
     // Получаем текущий баланс
-    const currentBalance = await getUserBalance(telegram_id)
+    const currentBalance = await getUserBalance(
+      telegram_id,
+      ctx.botInfo.username
+    )
     if (currentBalance === null) {
       throw new Error('Balance not found')
     }

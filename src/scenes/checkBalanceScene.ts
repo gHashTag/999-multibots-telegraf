@@ -24,7 +24,7 @@ checkBalanceScene.enter(async ctx => {
 
   const isRu = ctx.from?.language_code === 'ru'
   const { userId } = getUserInfo(ctx)
-  const currentBalance = await getUserBalance(userId)
+  const currentBalance = await getUserBalance(userId, ctx.botInfo.username)
   const mode = ctx.session.mode as ModeEnum
 
   // Нормализуем режим для обратной совместимости
@@ -45,6 +45,9 @@ checkBalanceScene.enter(async ctx => {
 
   // Отправляем сообщение о балансе только если стоимость определена и не равна 0
   if (cost !== 0 && !isNaN(cost)) {
+    if (!ctx.from?.id) {
+      throw new Error('User ID not found')
+    }
     await sendBalanceMessage(
       ctx.from.id.toString(),
       currentBalance,

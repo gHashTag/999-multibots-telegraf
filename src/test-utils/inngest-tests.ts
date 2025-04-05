@@ -1,6 +1,6 @@
 import { logger } from '@/utils/logger'
 import { TEST_CONFIG } from './test-config'
-import axios from 'axios'
+import axios, { AxiosError } from 'axios'
 import { elevenlabs } from '@/core/elevenlabs'
 import { Readable } from 'stream'
 import path from 'path'
@@ -9,6 +9,8 @@ import fs from 'fs'
 import { createWriteStream } from 'fs'
 import { getBotByName } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { TelegramId } from '@/interfaces/telegram.interface'
+import { Inngest } from 'inngest'
 
 // Интерфейсы и типы
 interface TestResult {
@@ -43,10 +45,41 @@ interface TextToVideoParams {
 export class InngestTester {
   private inngestDevUrl: string
   private eventKey: string
+  private inngestClient: Inngest
 
   constructor() {
     this.inngestDevUrl = process.env.INNGEST_DEV_URL || 'http://localhost:8288'
     this.eventKey = process.env.INNGEST_EVENT_KEY || 'test-event-key'
+    this.inngestClient = new Inngest({
+      id: 'test-inngest',
+      eventKey: this.eventKey,
+    })
+  }
+
+  /**
+   * Обработчик ошибок для логирования
+   */
+  private handleError(error: unknown): string {
+    if (error instanceof AxiosError) {
+      const responseData = error.response?.data as { message?: string }
+      return responseData?.message || error.message
+    }
+    if (error instanceof Error) {
+      if (
+        'response' in error &&
+        error.response &&
+        typeof error.response === 'object'
+      ) {
+        const response = error.response as {
+          data?: { message?: string; error?: string }
+        }
+        if (response.data) {
+          return response.data.message || response.data.error || error.message
+        }
+      }
+      return error.message
+    }
+    return String(error)
   }
 
   /**
@@ -91,10 +124,12 @@ export class InngestTester {
       }
     } catch (error) {
       const duration = Date.now() - startTime
+      const errorMessage = this.handleError(error)
+
       logger.error({
         message: '❌ Ошибка при отправке события Inngest',
         description: 'Error during Inngest event test',
-        error: error.message,
+        error: errorMessage,
         eventName: name,
       })
 
@@ -102,7 +137,7 @@ export class InngestTester {
         testName,
         success: false,
         message: `Ошибка при отправке события "${name}"`,
-        error: error.message,
+        error: errorMessage,
         duration,
       }
     }
@@ -254,10 +289,11 @@ export class InngestTester {
       }
     } catch (error) {
       const duration = Date.now() - startTime
+      const errorMessage = this.handleError(error)
       logger.error({
         message: '❌ Ошибка при прямом вызове функции Inngest',
         description: 'Error during Inngest function invocation',
-        error: error.message,
+        error: errorMessage,
         functionId,
       })
 
@@ -265,7 +301,7 @@ export class InngestTester {
         testName,
         success: false,
         message: `Ошибка при вызове функции "${functionId}"`,
-        error: error.message,
+        error: errorMessage,
         duration,
       }
     }
@@ -682,17 +718,18 @@ export class InngestTester {
 
       return results
     } catch (error) {
+      const errorMessage = this.handleError(error)
       logger.error({
         message: '❌ Ошибка при выполнении тестов платежей',
         description: 'Error running payment tests',
-        error: error.message,
+        error: errorMessage,
       })
 
       results.push({
         testName: 'Error in runPaymentTests',
         success: false,
         message: 'Произошла ошибка при выполнении тестов платежей',
-        error: error.message,
+        error: errorMessage,
       })
 
       return results
@@ -886,17 +923,18 @@ export class InngestTester {
 
       return results
     } catch (error) {
+      const errorMessage = this.handleError(error)
       logger.error({
         message: '❌ Ошибка при выполнении тестов генерации изображений',
         description: 'Error running image generation tests',
-        error: error.message,
+        error: errorMessage,
       })
 
       results.push({
         testName: 'Error in runImageGenerationTests',
         success: false,
         message: 'Произошла ошибка при выполнении тестов генерации изображений',
-        error: error.message,
+        error: errorMessage,
       })
 
       return results
@@ -1038,10 +1076,11 @@ export class InngestTester {
 
       return results
     } catch (error) {
+      const errorMessage = this.handleError(error)
       logger.error({
         message: `❌ Ошибка при запуске тестов функции ${functionName}`,
         description: `Error running ${functionName} function tests`,
-        error: error.message,
+        error: errorMessage,
       })
 
       return [
@@ -1049,7 +1088,7 @@ export class InngestTester {
           testName: `Тест функции ${functionName}`,
           success: false,
           message: `Ошибка при запуске тестов функции ${functionName}`,
-          error: error.message,
+          error: errorMessage,
         },
       ]
     }
@@ -1243,15 +1282,16 @@ export class InngestTester {
         paymentProcessed: true,
       }
     } catch (error) {
+      const errorMessage = this.handleError(error)
       logger.error({
         message: '❌ Ошибка при тестировании преобразования текста в видео',
         description: 'Error during text to video test',
-        error: error.message,
+        error: errorMessage,
       })
 
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       }
     }
   }

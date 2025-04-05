@@ -142,7 +142,7 @@ export const testInngestPayment = async () => {
   }
 
   // Проверяем баланс после пополнения
-  const balanceAfterIncome = await getUserBalance(telegram_id)
+  const balanceAfterIncome = await getUserBalance(telegram_id, bot_name)
   if (Number(balanceAfterIncome) !== 100) {
     logger.error('❌ Некорректный баланс после пополнения', {
       description: 'Incorrect balance after income',
@@ -189,7 +189,7 @@ export const testInngestPayment = async () => {
   }
 
   // Проверяем баланс после списания
-  const finalBalance = await getUserBalance(telegram_id)
+  const finalBalance = await getUserBalance(telegram_id, bot_name)
   if (Number(finalBalance) !== 70) {
     logger.error('❌ Некорректный финальный баланс', {
       description: 'Incorrect final balance',

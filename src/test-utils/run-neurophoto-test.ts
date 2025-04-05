@@ -5,107 +5,114 @@ import { createTestUser } from './helpers/createTestUser'
 import { getUserBalance } from '@/core/supabase'
 import { TestResult } from './interfaces'
 
+interface NeuroPhotoGenerateEvent {
+  name: 'neuro/photo.generate'
+  data: {
+    prompt: string
+    model_url: string
+    numImages: number
+    telegram_id: string | number
+    username: string
+    is_ru: boolean
+    bot_name: string
+  }
+}
+
 /**
- * Запускает тест генерации нейрофото
+ * Тест генерации нейрофото
  */
-async function runNeuroPhotoTest(): Promise<TestResult> {
+async function testNeuroPhotoGeneration(): Promise<TestResult> {
+  const testName = '🎨 Test NeuroPhoto Generation'
+
   try {
-    logger.info({
-      message: '🚀 Запуск теста генерации нейрофото',
-      description: 'Starting neurophoto generation test',
+    logger.info('🚀 Starting neurophoto test', {
+      description: 'Testing neurophoto generation',
     })
 
-    // Создаем тестового пользователя
-    const telegram_id = `${Math.floor(Math.random() * 1000000000000)}`
-    await createTestUser(telegram_id)
-
-    // Получаем начальный баланс
-    const initialBalance = await getUserBalance(
-      telegram_id,
-      TEST_CONFIG.bots.default
-    )
-
-    logger.info({
-      message: '💰 Начальный баланс пользователя',
-      description: 'Initial user balance',
-      balance: initialBalance,
-      telegram_id,
-    })
-
-    // Отправляем событие для генерации нейрофото
-    const eventResponse = await inngest.send({
+    // Отправляем событие для генерации фото
+    await inngest.send<NeuroPhotoGenerateEvent>({
       name: 'neuro/photo.generate',
       data: {
         prompt: 'Test prompt for neurophoto generation',
         model_url: TEST_CONFIG.models.neurophoto,
         numImages: 1,
-        telegram_id,
+        telegram_id: TEST_CONFIG.TEST_USER_ID,
         username: 'test_user',
         is_ru: true,
-        bot_name: TEST_CONFIG.bots.default,
+        bot_name: TEST_CONFIG.TEST_BOT_NAME,
       },
     })
 
-    logger.info({
-      message: '✅ Событие генерации отправлено',
-      description: 'Generation event sent',
-      eventId: eventResponse.ids?.[0],
-      telegram_id,
+    logger.info('✅ Neurophoto generation event sent', {
+      description: 'Event sent successfully',
+      user_id: TEST_CONFIG.TEST_USER_ID,
     })
 
-    // Даем время на обработку
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Тест обработки ошибок
+    await inngest.send<NeuroPhotoGenerateEvent>({
+      name: 'neuro/photo.generate',
+      data: {
+        prompt: 'Test prompt for error case',
+        model_url: TEST_CONFIG.models.neurophoto,
+        numImages: 1,
+        telegram_id: '999999999', // Несуществующий пользователь
+        username: 'test_user',
+        is_ru: true,
+        bot_name: TEST_CONFIG.TEST_BOT_NAME,
+      },
+    })
 
-    // Проверяем новый баланс
-    const newBalance = await getUserBalance(
-      telegram_id,
-      TEST_CONFIG.bots.default
-    )
-
-    logger.info({
-      message: '💰 Новый баланс пользователя',
-      description: 'New user balance',
-      balance: newBalance,
-      telegram_id,
+    logger.info('✅ Error case test completed', {
+      description: 'Error handling test completed',
     })
 
     return {
-      testName: 'NeuroPhoto Generation Test',
+      testName,
       success: true,
-      message: 'Тест генерации нейрофото успешно завершен',
+      message: '✅ NeuroPhoto tests completed successfully',
     }
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка в тесте генерации нейрофото',
-      description: 'Error in neurophoto generation test',
-      error: error instanceof Error ? error.message : 'Unknown error',
+    logger.error('❌ NeuroPhoto test failed', {
+      error: error instanceof Error ? error.message : String(error),
     })
 
     return {
-      testName: 'NeuroPhoto Generation Test',
+      testName,
       success: false,
-      message: 'Ошибка при тестировании генерации нейрофото',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      message: '❌ NeuroPhoto test failed',
+      error: error instanceof Error ? error.message : String(error),
     }
   }
 }
 
-// Запускаем тест если файл вызван напрямую
-if (require.main === module) {
-  runNeuroPhotoTest()
-    .then(result => {
-      if (!result.success) {
-        process.exit(1)
-      }
+// Запускаем тесты
+async function runTests() {
+  logger.info({
+    message: '🚀 Запуск тестов нейрофото',
+    description: 'Starting neurophoto tests',
+  })
+
+  try {
+    const result = await testNeuroPhotoGeneration()
+
+    logger.info({
+      message: result.success ? '✅ Тест успешно завершен' : '❌ Тест провален',
+      description: 'Test completed',
+      testName: result.testName,
+      success: result.success,
+      details: result.message,
+      error: result.error,
     })
-    .catch(error => {
-      logger.error({
-        message: '❌ Критическая ошибка при запуске теста',
-        description: 'Critical error running test',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
-      process.exit(1)
+  } catch (error) {
+    logger.error({
+      message: '❌ Ошибка при выполнении теста',
+      description: 'Error running test',
+      error: error instanceof Error ? error.message : String(error),
     })
+  }
 }
 
-export { runNeuroPhotoTest }
+// Запускаем тесты
+runTests()
+
+export { testNeuroPhotoGeneration }

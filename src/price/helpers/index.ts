@@ -141,7 +141,10 @@ export const processPayment = async ({
       throw new Error('User ID not found')
     }
 
-    const currentBalance = await getUserBalance(ctx.from.id.toString())
+    const currentBalance = await getUserBalance(
+      ctx.from.id.toString(),
+      ctx.botInfo.username
+    )
 
     if (!currentBalance || currentBalance < amount) {
       const message = isRussian(ctx)

@@ -14,7 +14,8 @@ import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
 const waitForPaymentCompletion = async (
   telegram_id: TelegramId,
   operation_id: string,
-  expectedBalance: number
+  expectedBalance: number,
+  bot_name: string
 ): Promise<boolean> => {
   let attempts = 0
   const maxAttempts = 5 // Уменьшаем количество попыток
@@ -26,7 +27,10 @@ const waitForPaymentCompletion = async (
       const payment = await getPaymentByInvId(operation_id)
 
       // Проверяем текущий баланс
-      const currentBalance = await getUserBalance(telegram_id)
+      const currentBalance = await getUserBalance(
+        telegram_id.toString(),
+        bot_name
+      )
 
       logger.info('🔄 Проверка статуса платежа', {
         description: 'Checking payment status',
@@ -153,7 +157,10 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
     })
 
     // Тест 1: Проверка начального баланса
-    const initialBalance = await getUserBalance(testTelegramId)
+    const initialBalance = await getUserBalance(
+      testTelegramId.toString(),
+      'ai_koshey_bot'
+    )
     logger.info('💰 Начальный баланс', {
       description: 'Initial balance check',
       telegram_id: testTelegramId,
@@ -193,14 +200,18 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
     const addOperationCompleted = await waitForPaymentCompletion(
       testTelegramId,
       addOperationId,
-      100
+      100,
+      'ai_koshey_bot'
     )
 
     if (!addOperationCompleted) {
       throw new Error('Операция пополнения не завершилась успешно')
     }
 
-    const balanceAfterAdd = await getUserBalance(testTelegramId)
+    const balanceAfterAdd = await getUserBalance(
+      testTelegramId.toString(),
+      'ai_koshey_bot'
+    )
     if (balanceAfterAdd !== 100) {
       throw new Error(
         `Баланс после пополнения должен быть 100, получено: ${balanceAfterAdd}`
@@ -231,7 +242,8 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
     const spendOperationCompleted = await waitForPaymentCompletion(
       testTelegramId,
       spendOperationId,
-      70
+      70,
+      'ai_koshey_bot'
     )
 
     if (!spendOperationCompleted) {
@@ -262,7 +274,10 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
     // Ждем обработки операции
     await new Promise(resolve => setTimeout(resolve, 5000))
 
-    const balanceAfterNegative = await getUserBalance(testTelegramId)
+    const balanceAfterNegative = await getUserBalance(
+      testTelegramId.toString(),
+      'ai_koshey_bot'
+    )
     if (balanceAfterNegative !== 70) {
       throw new Error(
         `Баланс не должен уйти в минус, ожидается 70, получено: ${balanceAfterNegative}`
@@ -296,7 +311,10 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
     await Promise.all(concurrentOperations)
     await new Promise(resolve => setTimeout(resolve, 5000))
 
-    const finalBalance = await getUserBalance(testTelegramId)
+    const finalBalance = await getUserBalance(
+      testTelegramId.toString(),
+      'ai_koshey_bot'
+    )
     if (finalBalance !== 120) {
       // 70 + (5 * 10)
       throw new Error(

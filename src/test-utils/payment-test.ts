@@ -1,4 +1,4 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '@/core/supabase'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
@@ -13,7 +13,10 @@ export const testPaymentSystem = async () => {
     })
 
     // Шаг 1: Проверяем начальный баланс
-    const initialBalance = await getUserBalance(testTelegramId)
+    const initialBalance = await getUserBalance(
+      testTelegramId.toString(),
+      'ai_koshey_bot'
+    )
     logger.info('💰 Начальный баланс', {
       description: 'Initial balance check',
       telegram_id: testTelegramId,
@@ -22,11 +25,11 @@ export const testPaymentSystem = async () => {
 
     // Шаг 2: Добавляем звезды
     const addResult = await updateUserBalance({
-      telegram_id: testTelegramId,
+      telegram_id: testTelegramId.toString(),
       amount: 100,
       type: 'income',
       operation_description: 'Test add stars',
-      bot_name: 'test_bot',
+      bot_name: 'ai_koshey_bot',
     })
 
     logger.info('➕ Результат добавления звезд', {
@@ -36,7 +39,10 @@ export const testPaymentSystem = async () => {
     })
 
     // Шаг 3: Проверяем баланс после добавления
-    const balanceAfterAdd = await getUserBalance(testTelegramId)
+    const balanceAfterAdd = await getUserBalance(
+      testTelegramId.toString(),
+      'ai_koshey_bot'
+    )
     logger.info('💰 Баланс после добавления', {
       description: 'Balance after adding stars',
       telegram_id: testTelegramId,
@@ -46,11 +52,11 @@ export const testPaymentSystem = async () => {
 
     // Шаг 4: Списываем звезды
     const spendResult = await updateUserBalance({
-      telegram_id: testTelegramId,
+      telegram_id: testTelegramId.toString(),
       amount: 30,
       type: 'outcome',
       operation_description: 'Test spend stars',
-      bot_name: 'test_bot',
+      bot_name: 'ai_koshey_bot',
     })
 
     logger.info('➖ Результат списания звезд', {
@@ -60,7 +66,10 @@ export const testPaymentSystem = async () => {
     })
 
     // Шаг 5: Проверяем финальный баланс
-    const finalBalance = await getUserBalance(testTelegramId)
+    const finalBalance = await getUserBalance(
+      testTelegramId.toString(),
+      'ai_koshey_bot'
+    )
     logger.info('💰 Финальный баланс', {
       description: 'Final balance check',
       telegram_id: testTelegramId,
@@ -72,7 +81,7 @@ export const testPaymentSystem = async () => {
     const { data: payments, error } = await supabase
       .from('payments_v2')
       .select('amount, stars, payment_method, status, description')
-      .eq('telegram_id', testTelegramId)
+      .eq('telegram_id', testTelegramId.toString())
       .order('payment_date', { ascending: false })
 
     if (error) {

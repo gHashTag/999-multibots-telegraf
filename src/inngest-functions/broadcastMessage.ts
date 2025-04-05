@@ -1,6 +1,9 @@
 import { inngest } from '@/core/inngest/clients'
 import { broadcastService } from '@/services/broadcast.service'
 import { logger } from '@utils/logger'
+import { Telegraf } from 'telegraf'
+import { MyContext } from '@/interfaces'
+
 // Интерфейс для данных события
 export interface BroadcastEventData {
   imageUrl?: string
@@ -14,6 +17,14 @@ export interface BroadcastEventData {
   postLink?: string
   videoFileId?: string
   parse_mode?: 'HTML' | 'Markdown' // Добавляем поддержку разных режимов разметки
+}
+
+interface BotResults {
+  [key: string]: Telegraf<MyContext>
+}
+
+interface BroadcastError extends Error {
+  step?: string
 }
 
 // Функция для рассылки сообщений
@@ -82,7 +93,7 @@ export const broadcastMessage = inngest.createFunction(
       // Шаг 4: Подготовка ботов
       await step.run('prepare-bots', async () => {
         const uniqueBotNames = [...new Set(users.map(u => u.bot_name))]
-        const botResults = {}
+        const botResults: BotResults = {}
 
         for (const botName of uniqueBotNames) {
           const bot = await broadcastService.getBotInstance(botName)
@@ -147,13 +158,14 @@ export const broadcastMessage = inngest.createFunction(
         test_mode: params.test_mode || false,
       }
     } catch (error) {
+      const broadcastError = error as BroadcastError
       logger.error('❌ Ошибка при выполнении рассылки:', {
         description: 'Error during broadcast execution',
-        error: error?.message || 'Unknown error',
-        step: error?.step || 'unknown',
-        contentType: event.data.contentType || 'photo',
-        bot_name: event.data.bot_name || 'all',
-        test_mode: event.data.test_mode || false,
+        error: broadcastError.message || 'Unknown error',
+        step: broadcastError.step || 'unknown',
+        contentType: (event.data as BroadcastEventData).contentType || 'photo',
+        bot_name: (event.data as BroadcastEventData).bot_name || 'all',
+        test_mode: (event.data as BroadcastEventData).test_mode || false,
       })
 
       throw error // Позволяем Inngest обработать повторные попытки

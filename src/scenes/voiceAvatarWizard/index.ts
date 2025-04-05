@@ -21,7 +21,10 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    const currentBalance = await getUserBalance(ctx.from.id)
+    const currentBalance = await getUserBalance(
+      ctx.from.id,
+      ctx.botInfo.username
+    )
     const price = voiceConversationCost || 0
     if (currentBalance < price) {
       await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
@@ -79,6 +82,9 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         }
 
         const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+        if (!ctx.from?.id) {
+          throw new Error('User ID not found')
+        }
         await generateVoiceAvatar(
           fileUrl,
           ctx.from.id.toString(),
