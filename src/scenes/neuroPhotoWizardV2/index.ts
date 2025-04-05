@@ -16,6 +16,7 @@ import { WizardScene } from 'telegraf/scenes'
 import { MyWizardContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
   const isRu = ctx.from?.language_code === 'ru'
@@ -167,7 +168,7 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
 }
 
 export const neuroPhotoWizardV2 = new WizardScene<MyWizardContext>(
-  'neuro_photo_v2',
+  ModeEnum.NeuroPhotoV2,
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
   neuroPhotoButtonStep

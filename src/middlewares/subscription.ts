@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const subscriptionMiddleware = async (
   ctx: MyContext,
@@ -7,7 +8,7 @@ export const subscriptionMiddleware = async (
   console.log('🎛 CASE:subscriptionMiddleware')
   try {
     await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
-    await ctx.scene.enter('subscriptionCheckScene')
+    await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
 
     await next()
   } catch (error) {

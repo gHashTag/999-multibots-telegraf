@@ -7,13 +7,14 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 import { handleMenu } from '@/handlers/handleMenu'
 import { logger } from '@/utils/logger'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 if (!process.env.HUGGINGFACE_TOKEN) {
   throw new Error('HUGGINGFACE_TOKEN is not set')
 }
 
 export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
-  'image_to_prompt',
+  ModeEnum.ImageToPrompt,
   async ctx => {
     logger.info('🎯 Запуск сцены image_to_prompt', {
       description: 'Starting image_to_prompt scene',
@@ -85,7 +86,7 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
     try {
       const photoSize = imageMsg.photo[imageMsg.photo.length - 1]
       const file = await ctx.telegram.getFile(photoSize.file_id)
-      ctx.session.mode = 'image_to_prompt'
+      ctx.session.mode = ModeEnum.ImageToPrompt
       const botToken = getBotToken(ctx)
       const imageUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
 

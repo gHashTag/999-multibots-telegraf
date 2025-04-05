@@ -1,8 +1,9 @@
 import { inngest } from '@/core/inngest/clients'
-import { BalanceOperationResult, PaymentService } from '@/interfaces'
+import { BalanceOperationResult } from '@/interfaces'
 import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 // Кеш для хранения информации об обработанных платежах, чтобы избежать дублирования
 const processedPayments = new Map<string, BalanceOperationResult>()
@@ -78,14 +79,17 @@ export const paymentProcessor = inngest.createFunction(
     try {
       const {
         telegram_id,
-        paymentAmount,
+        amount: paymentAmount,
         is_ru = false,
         bot_name,
         description,
         operation_id,
         bot,
         metadata = {},
-        type = 'outcome', // По умолчанию outcome, если не указано иное
+        type = 'outcome',
+        payment_type = 'regular',
+        currency = 'STARS',
+        money_amount,
       } = event.data
 
       // ШАГ 1: Инициализация операции и проверка кеша
@@ -384,40 +388,29 @@ export const paymentProcessor = inngest.createFunction(
 
         try {
           // Определяем тип сервиса на основе описания или метаданных
-          let serviceType = 'System'
+          let serviceType = metadata?.service_type || 'System'
 
-          // Пытаемся определить тип сервиса по описанию
-          if (description) {
+          // Если сервис не указан в метаданных, пытаемся определить по описанию
+          if (!metadata?.service_type && description) {
             const descLower = description.toLowerCase()
-            if (
-              descLower.includes('image') ||
-              descLower.includes('photo') ||
-              descLower.includes('картин')
-            ) {
-              serviceType = 'NeuroPhoto'
-            } else if (
-              descLower.includes('speech') ||
-              descLower.includes('голос')
-            ) {
-              serviceType = 'Text to speech'
-            } else if (
-              descLower.includes('training') ||
-              descLower.includes('обучени')
-            ) {
-              serviceType = 'Training'
-            } else if (descLower.includes('refund')) {
-              serviceType = 'Refund'
-            }
-          }
 
-          // Если сервис не удалось определить по описанию, проверяем метаданные
-          if (
-            serviceType === 'System' &&
-            metadata &&
-            typeof metadata === 'object' &&
-            'service_type' in metadata
-          ) {
-            serviceType = metadata.service_type as PaymentService
+            if (descLower.includes('refund')) {
+              serviceType = 'Refund'
+            } else if (
+              descLower.includes('migration') ||
+              descLower.includes('bonus')
+            ) {
+              serviceType = 'System'
+            } else {
+              // Проверяем все возможные моды
+              const modeValues = Object.values(ModeEnum)
+              for (const mode of modeValues) {
+                if (descLower.includes(mode.replace(/_/g, ' '))) {
+                  serviceType = mode
+                  break
+                }
+              }
+            }
           }
 
           logger.info('🛎️ Определен тип сервиса', {
@@ -427,24 +420,23 @@ export const paymentProcessor = inngest.createFunction(
             originalDescription: description,
           })
 
-          // Создаем объединенные метаданные
-          const combinedMetadata = {
-            ...metadata,
-            operation_id: initResult.opId,
-            service_type: serviceType,
-          }
-
           // Вызываем функцию обновления баланса
           const result = await updateUserBalance({
             telegram_id,
-            amount: balanceData.paymentAmountNumber,
-            type: balanceData.operation_type,
+            amount: paymentAmount,
+            type,
             operation_description:
-              description ||
-              `${balanceData.operation_type} operation via payment/process`,
-            metadata: combinedMetadata,
+              description || `${type} operation via payment/process`,
+            metadata: {
+              ...metadata,
+              operation_id: initResult.opId,
+              service_type: serviceType,
+              payment_type,
+              currency,
+              money_amount,
+            },
             bot_name,
-            payment_method: metadata?.service_type || serviceType || 'System',
+            payment_method: serviceType,
           })
 
           logger.info('💰 Результат обновления баланса:', {

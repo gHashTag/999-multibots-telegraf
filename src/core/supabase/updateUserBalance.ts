@@ -13,7 +13,7 @@ interface UpdateUserBalanceParams {
 }
 
 /**
- * Обновляет баланс пользователя, записывая соответствующую транзакцию в таблицу payments
+ * Обновляет баланс пользователя, записывая соответствующую транзакцию в таблицу payments_v2
  * И возвращает актуальный баланс пользователя
  */
 export const updateUserBalance = async ({
@@ -92,27 +92,34 @@ export const updateUserBalance = async ({
       type,
     })
 
-    // Создаем новую запись в таблице payments
+    // Определяем тип операции и валюту на основе метаданных
+    const currency = metadata?.currency || 'STARS'
+    const payment_type = metadata?.payment_type || 'regular'
+
+    // Создаем новую запись в таблице payments_v2
     const { data, error } = await supabase
-      .from('payments')
+      .from('payments_v2')
       .insert([
         {
           telegram_id,
-          amount,
-          stars: amount,
-          inv_id,
-          type,
+          payment_date: new Date(),
+          operation_type: type,
           status: 'COMPLETED',
+          stars_amount: currency === 'STARS' ? amount : null,
+          money_amount: currency === 'RUB' ? amount : null,
+          currency,
           description: operation_description || `${type} operation`,
           metadata,
           payment_method,
           bot_name,
+          inv_id,
+          payment_type,
         },
       ])
       .select()
 
     if (error) {
-      const errorMessage = '❌ Ошибка при создании записи в payments'
+      const errorMessage = '❌ Ошибка при создании записи в payments_v2'
       logger.error(errorMessage, {
         description: 'Error creating payment record',
         error: error.message,

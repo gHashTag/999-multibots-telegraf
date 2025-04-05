@@ -5,6 +5,8 @@ import { MyContext } from '@/interfaces'
 import { inngest } from '@/core/inngest/clients'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
+import { ModeEnum } from '@/price/helpers/modelsCost'
+
 interface ModelTrainingRequest {
   filePath: string
   triggerWord: string
@@ -52,7 +54,7 @@ export async function createModelTraining(
 
     // Определяем имя события в зависимости от режима
     let eventName = 'model-training/start'
-    if (ctx.session.mode === 'digital_avatar_body_2') {
+    if (ctx.session.mode === ModeEnum.DigitalAvatarBodyV2) {
       eventName = 'model-training/v2/requested'
     }
 

@@ -7,7 +7,7 @@ import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
 import { handleHelpCancel } from '@/handlers'
 import { getBotNameByToken } from '@/core'
-
+import { ModeEnum } from '@/price/helpers/modelsCost'
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
 
@@ -66,7 +66,7 @@ async function getInvoiceId(
   }
 }
 
-export const emailWizard = new Scenes.BaseScene<MyContext>('emailWizard')
+export const emailWizard = new Scenes.BaseScene<MyContext>(ModeEnum.EmailWizard)
 
 emailWizard.enter(async ctx => {
   const isRu = isRussian(ctx)

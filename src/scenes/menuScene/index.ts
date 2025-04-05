@@ -12,6 +12,7 @@ import { handleMenu } from '@/handlers'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
 import { sendTutorialMessage } from '@/handlers/sendTutorialMessage'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -123,18 +124,18 @@ const menuCommandStep = async (ctx: MyContext) => {
       await sendTutorialMessage(ctx, isRu)
     } else {
       const levelKeys: { [key: number]: Mode } = {
-        0: 'subscribe',
-        1: 'digital_avatar_body',
-        2: 'neuro_photo',
-        3: 'image_to_prompt',
-        4: 'avatar_brain',
-        5: 'chat_with_avatar',
-        6: 'select_model',
-        7: 'voice',
-        8: 'text_to_speech',
-        9: 'image_to_video',
-        10: 'text_to_video',
-        11: 'text_to_image',
+        0: ModeEnum.Subscribe,
+        1: ModeEnum.DigitalAvatarBody,
+        2: ModeEnum.NeuroPhoto,
+        3: ModeEnum.ImageToPrompt,
+        4: ModeEnum.Avatar,
+        5: ModeEnum.ChatWithAvatar,
+        6: ModeEnum.SelectModel,
+        7: ModeEnum.Voice,
+        8: ModeEnum.TextToSpeech,
+        9: ModeEnum.ImageToVideo,
+        10: ModeEnum.TextToVideo,
+        11: ModeEnum.TextToImage,
       }
 
       const key = levelKeys[newLevel + 1]

@@ -6,9 +6,10 @@ import { isRussian } from '@/helpers/language'
 import { setModel } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(
-  'select_model_wizard',
+  ModeEnum.SelectModelWizard,
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
 

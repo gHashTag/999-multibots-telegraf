@@ -663,8 +663,7 @@ export class NeurophotoWebhookTester {
     try {
       const { error } = await testSupabase.from('prompt_history').insert({
         task_id: taskId,
-        telegram_id: TEST_CONFIG.users.default.telegram_id,
-        username: TEST_CONFIG.users.default.username,
+        telegramId: TEST_CONFIG.users.default.telegramId,
         bot_name: TEST_CONFIG.bots.default,
         language_code: 'ru',
         prompt: 'Тестовый промпт для нейрофото',
@@ -735,8 +734,7 @@ export class NeurophotoWebhookTester {
     try {
       const { error } = await testSupabase.from('prompt_history').insert({
         task_id: taskId,
-        telegram_id: TEST_CONFIG.users.default.telegram_id,
-        username: TEST_CONFIG.users.default.username,
+        telegramId: TEST_CONFIG.users.default.telegramId,
         bot_name: TEST_CONFIG.bots.default,
         language_code: 'ru',
         prompt: 'Тестовый промпт для нейрофото в обработке',
@@ -800,8 +798,7 @@ export class NeurophotoWebhookTester {
     try {
       const { error } = await testSupabase.from('prompt_history').insert({
         task_id: taskId,
-        telegram_id: TEST_CONFIG.users.default.telegram_id,
-        username: TEST_CONFIG.users.default.username,
+        telegramId: TEST_CONFIG.users.default.telegramId,
         bot_name: TEST_CONFIG.bots.default,
         language_code: 'ru',
         prompt: 'Тестовый промпт для модерации нейрофото',

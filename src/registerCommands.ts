@@ -69,6 +69,8 @@ import { getTrainingCancelUrl } from './core/supabase'
 import { get100Command } from './commands/get100Command'
 import { composer as inngestCommand } from './commands/inngest'
 
+import { ModeEnum } from '@/price/helpers/modelsCost'
+
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
@@ -137,7 +139,7 @@ export function registerCommands({
   // Регистрация команд
   bot.command('start', async ctx => {
     console.log('CASE bot.command: start')
-    await ctx.scene.enter('subscriptionCheckScene')
+    await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
   })
 
   bot.command('stats', async ctx => {
@@ -162,25 +164,25 @@ export function registerCommands({
   // Команда для запуска рассылки
   bot.command('broadcast', async ctx => {
     console.log('CASE bot.command: broadcast')
-    await ctx.scene.enter('broadcast_wizard')
+    await ctx.scene.enter(ModeEnum.BroadcastWizard)
   })
 
   composer.command('broadcast', async ctx => {
     console.log('CASE bot.command: broadcast')
-    await ctx.scene.enter('broadcast_wizard')
+    await ctx.scene.enter(ModeEnum.BroadcastWizard)
   })
 
   bot.command('menu', async ctx => {
     console.log('CASE bot.command: menu')
-    ctx.session.mode = 'main_menu'
-    await ctx.scene.enter('subscriptionCheckScene')
+    ctx.session.mode = ModeEnum.MainMenu
+    await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
   })
 
   composer.command('menu', async ctx => {
     console.log('CASE: myComposer.command menu')
     // ctx.session = defaultSession()
-    ctx.session.mode = 'main_menu'
-    await ctx.scene.enter('subscriptionCheckScene')
+    ctx.session.mode = ModeEnum.MainMenu
+    await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
   })
 
   bot.command('tech', async ctx => {
@@ -190,14 +192,14 @@ export function registerCommands({
 
   bot.hears(['⬆️ Улучшить промпт', '⬆️ Improve prompt'], async ctx => {
     console.log('CASE: Улучшить промпт')
-    // ctx.session.mode = 'improve_prompt'
-    await ctx.scene.enter('improvePromptWizard')
+    // ctx.session.mode = ModeEnum.ImprovePrompt
+    await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
   })
 
   bot.hears(['📐 Изменить размер', '📐 Change size'], async ctx => {
     console.log('CASE: Изменить размер')
-    // ctx.session.mode = 'change_size'
-    await ctx.scene.enter('sizeWizard')
+    // ctx.session.mode = ModeEnum.ChangeSize
+    await ctx.scene.enter(ModeEnum.SizeWizard)
   })
 
   composer.command('tech', async ctx => {
@@ -215,23 +217,23 @@ export function registerCommands({
   bot.command('buy', async ctx => {
     console.log('CASE: buy')
     ctx.session.subscription = 'stars'
-    await ctx.scene.enter('paymentScene')
+    await ctx.scene.enter(ModeEnum.PaymentScene)
   })
 
   composer.command('buy', async ctx => {
     console.log('CASE: buy')
     ctx.session.subscription = 'stars'
-    await ctx.scene.enter('paymentScene')
+    await ctx.scene.enter(ModeEnum.PaymentScene)
   })
 
   composer.command('invite', async ctx => {
     console.log('CASE: invite')
-    await ctx.scene.enter('inviteScene')
+    await ctx.scene.enter(ModeEnum.InviteScene)
   })
 
   composer.command('balance', async ctx => {
     console.log('CASE: balance')
-    await ctx.scene.enter('balanceScene')
+    await ctx.scene.enter(ModeEnum.BalanceScene)
   })
 
   composer.command('help', async ctx => {
@@ -239,72 +241,72 @@ export function registerCommands({
   })
 
   composer.command('neuro_coder', async ctx => {
-    await ctx.scene.enter('neuroCoderScene')
+    await ctx.scene.enter(ModeEnum.NeuroCoderScene)
   })
 
   composer.hears([levels[1].title_ru, levels[1].title_en], async ctx => {
     console.log('CASE: 🤖 Цифровое тело')
-    ctx.session.mode = 'digital_avatar_body'
-    await ctx.scene.enter('select_model')
+    ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
+    await ctx.scene.enter(ModeEnum.SelectModelWizard)
   })
 
   composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
     console.log('CASE hearsHandler: 📸 Нейрофото')
-    await ctx.scene.enter('neuro_photo')
+    await ctx.scene.enter(ModeEnum.SelectNeuroPhoto)
   })
 
   composer.hears([levels[3].title_ru, levels[3].title_en], async ctx => {
     console.log('CASE: 🔍 Промпт из фото')
-    ctx.session.mode = 'image_to_prompt'
-    await ctx.scene.enter('checkBalanceScene')
+    ctx.session.mode = ModeEnum.ImageToPrompt
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[4].title_ru, levels[4].title_en], async ctx => {
     console.log('CASE: 🧠 Мозг аватара')
-    ctx.session.mode = 'avatar_brain'
-    await ctx.scene.enter('checkBalanceScene')
+    ctx.session.mode = ModeEnum.Avatar
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[5].title_ru, levels[5].title_en], async ctx => {
     console.log('CASE: 💭 Чат с аватаром')
-    ctx.session.mode = 'chat_with_avatar'
-    await ctx.scene.enter('checkBalanceScene')
+    ctx.session.mode = ModeEnum.ChatWithAvatar
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[6].title_ru, levels[6].title_en], async ctx => {
     console.log('CASE: 🤖 Выбор модели ИИ')
-    ctx.session.mode = 'select_model_wizard'
-    await ctx.scene.enter('checkBalanceScene')
+    ctx.session.mode = ModeEnum.SelectModelWizard
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[7].title_ru, levels[7].title_en], async ctx => {
     console.log('CASE: 🎤 Голос аватара')
-    ctx.session.mode = 'voice'
-    await ctx.scene.enter('checkBalanceScene')
+    ctx.session.mode = ModeEnum.Voice
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[8].title_ru, levels[8].title_en], async ctx => {
     console.log('CASE: 🎙️ Текст в голос')
-    ctx.session.mode = 'text_to_speech'
-    await ctx.scene.enter('checkBalanceScene')
+    ctx.session.mode = ModeEnum.TextToSpeech
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[9].title_ru, levels[9].title_en], async ctx => {
     console.log('CASE: 🎥 Фото в видео')
-    ctx.session.mode = 'image_to_video'
-    await ctx.scene.enter('checkBalanceScene')
+    ctx.session.mode = ModeEnum.ImageToVideo
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[10].title_ru, levels[10].title_en], async ctx => {
     console.log('CASE: 🎥 Видео из текста')
-    ctx.session.mode = 'text_to_video'
-    await ctx.scene.enter('checkBalanceScene')
+    ctx.session.mode = ModeEnum.TextToVideo
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[11].title_ru, levels[11].title_en], async ctx => {
     console.log('CASE: 🖼️ Текст в фото')
-    ctx.session.mode = 'text_to_image'
-    await ctx.scene.enter('checkBalanceScene')
+    ctx.session.mode = ModeEnum.TextToImage
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     await imageModelMenu(ctx)
   })
 
@@ -322,33 +324,33 @@ export function registerCommands({
 
   composer.hears(['❓ Помощь', '❓ Help'], async ctx => {
     console.log('CASE: Помощь')
-    ctx.session.mode = 'help'
-    await ctx.scene.enter('helpScene')
+    ctx.session.mode = ModeEnum.Help
+    await ctx.scene.enter(ModeEnum.HelpScene)
   })
 
   composer.hears([levels[100].title_ru, levels[100].title_en], async ctx => {
     console.log('CASE: Пополнить баланс')
-    ctx.session.mode = 'top_up_balance'
+    ctx.session.mode = ModeEnum.TopUpBalance
     ctx.session.subscription = 'stars'
-    await ctx.scene.enter('paymentScene')
+    await ctx.scene.enter(ModeEnum.PaymentScene)
   })
 
   composer.hears([levels[101].title_ru, levels[101].title_en], async ctx => {
     console.log('CASE: Баланс')
-    ctx.session.mode = 'balance'
-    await ctx.scene.enter('balanceScene')
+    ctx.session.mode = ModeEnum.Balance
+    await ctx.scene.enter(ModeEnum.BalanceScene)
   })
 
   composer.hears([levels[102].title_ru, levels[102].title_en], async ctx => {
     console.log('CASE: Пригласить друга')
-    ctx.session.mode = 'invite'
-    await ctx.scene.enter('inviteScene')
+    ctx.session.mode = ModeEnum.Invite
+    await ctx.scene.enter(ModeEnum.InviteScene)
   })
 
   composer.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
     console.log('CASE: Главное меню')
-    ctx.session.mode = 'main_menu'
-    await ctx.scene.enter('menuScene')
+    ctx.session.mode = ModeEnum.MainMenu
+    await ctx.scene.enter(ModeEnum.MainMenu)
   })
 
   composer.hears(
@@ -367,10 +369,10 @@ export function registerCommands({
       console.log('CASE: Сгенерировать новое видео')
       const mode = ctx.session.mode
       console.log('mode', mode)
-      if (mode === 'text_to_video') {
-        await ctx.scene.enter('text_to_video')
-      } else if (mode === 'image_to_video') {
-        await ctx.scene.enter('image_to_video')
+      if (mode === ModeEnum.TextToVideo) {
+        await ctx.scene.enter(ModeEnum.TextToVideo)
+      } else if (mode === ModeEnum.ImageToVideo) {
+        await ctx.scene.enter(ModeEnum.ImageToVideo)
       } else {
         await ctx.reply(
           isRussian(ctx)
@@ -405,7 +407,7 @@ export function registerCommands({
     }
 
     const generate = async (num: number) => {
-      if (ctx.session.mode === 'neuro_photo') {
+      if (ctx.session.mode === ModeEnum.NeuroPhoto) {
         if (!ctx.session.userModel?.model_url) {
           await ctx.reply(
             isRu
@@ -485,7 +487,7 @@ export function registerCommands({
     }
 
     const generate = async (num: number) => {
-      if (ctx.session.mode === 'neuro_photo') {
+      if (ctx.session.mode === ModeEnum.NeuroPhoto) {
         if (!ctx.session.userModel?.model_url) {
           await ctx.reply(
             isRu
@@ -544,13 +546,13 @@ export function registerCommands({
   composer.hears(['⬆️ Улучшить промпт', '⬆️ Improve prompt'], async ctx => {
     console.log('CASE: Улучшить промпт')
 
-    await ctx.scene.enter('improvePromptWizard')
+    await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
   })
 
   composer.hears(['📐 Изменить размер', '📐 Change size'], async ctx => {
     console.log('CASE: Изменить размер')
 
-    await ctx.scene.enter('sizeWizard')
+    await ctx.scene.enter(ModeEnum.SizeWizard)
   })
 
   composer.hears(
@@ -587,7 +589,7 @@ export function registerCommands({
 
   composer.hears(['Справка по команде', 'Help for the command'], async ctx => {
     console.log('CASE: Справка по команде')
-    await ctx.scene.enter('helpScene')
+    await ctx.scene.enter(ModeEnum.HelpScene)
   })
 
   bot.action(/^cancel_train:(.+)$/, async ctx => {

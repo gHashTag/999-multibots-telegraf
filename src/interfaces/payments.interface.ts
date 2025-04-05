@@ -5,6 +5,13 @@ export interface BalanceOperationResult {
   error?: string
 }
 
+export interface Payment {
+  id: string
+  user_id: string
+  level: string
+  created_at: string
+}
+
 export type PaymentService =
   | 'NeuroPhoto'
   | 'Text to speech'

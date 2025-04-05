@@ -5,6 +5,7 @@ import { handleTextMessage } from '../../handlers/handleTextMessage'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { levels } from '@/menu'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 const createHelpCancelKeyboard = (isRu: boolean) => {
   return {
@@ -19,7 +20,7 @@ const createHelpCancelKeyboard = (isRu: boolean) => {
 }
 
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
-  'chat_with_avatar',
+  ModeEnum.ChatWithAvatar,
   async ctx => {
     console.log('CASE: Чат с аватаром')
     const isRu = isRussian(ctx)
@@ -49,7 +50,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     const isHelp =
       ctx.message.text === (isRu ? levels[6].title_ru : levels[6].title_en)
     if (isHelp) {
-      ctx.session.mode = 'select_model_wizard'
+      ctx.session.mode = ModeEnum.SelectModelWizard
       await ctx.scene.enter('checkBalanceScene')
       return
     }

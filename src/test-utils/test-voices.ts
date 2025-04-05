@@ -1,5 +1,5 @@
 import { logger } from '../utils/logger'
-import elevenLabsClient from '../core/elevenlabs'
+import { elevenlabs } from '../core/elevenlabs'
 
 interface Voice {
   voice_id: string
@@ -31,7 +31,7 @@ export async function testGetVoices(): Promise<TestResult> {
   })
 
   try {
-    const voices = (await elevenLabsClient.getVoices()) as Voice[]
+    const voices = (await elevenlabs.voices.getAll()) as unknown as Voice[]
 
     if (!voices || voices.length === 0) {
       logger.warn({

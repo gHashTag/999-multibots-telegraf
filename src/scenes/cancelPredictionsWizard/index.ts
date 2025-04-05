@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios'
 import { MyContext } from '@/interfaces'
-import { refundUser } from '@/price/helpers'
+import { ModeEnum, refundUser } from '@/price/helpers'
 import { Scenes } from 'telegraf'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage } from '@/menu'
@@ -22,7 +22,7 @@ interface Prediction {
 }
 
 export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
-  'cancelPredictionsWizard',
+  ModeEnum.CancelPredictionsWizard,
   async ctx => {
     try {
       // Получаем список предсказаний

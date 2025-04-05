@@ -6,7 +6,7 @@ import {
   getUserByTelegramIdString,
 } from '@/core/supabase'
 import { getSubScribeChannel } from '@/core/supabase'
-
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { isRussian } from '@/helpers/language'
 
 const BONUS_AMOUNT = 100
@@ -119,10 +119,10 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       ? '✅ Аватар успешно создан!'
       : '✅ Avatar created successfully!'
   )
-  return ctx.scene.enter('subscriptionCheckScene')
+  return ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
 }
 
 export const createUserScene = new WizardScene<MyWizardContext>(
-  'createUserScene',
+  ModeEnum.CreateUserScene,
   createUserStep
 )

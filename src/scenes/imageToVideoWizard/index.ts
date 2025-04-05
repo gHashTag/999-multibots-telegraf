@@ -14,6 +14,7 @@ import { getUserBalance } from '@/core/supabase'
 
 import { getBotToken, handleHelpCancel } from '@/handlers'
 import { validateAndCalculateVideoModelPrice } from '@/price/helpers/validateAndCalculateVideoModelPrice'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   'image_to_video',
@@ -176,7 +177,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
             botName: ctx.botInfo?.username,
           })
           ctx.session.prompt = prompt
-          ctx.session.mode = 'image_to_video'
+          ctx.session.mode = ModeEnum.ImageToVideo
         } catch (error) {
           console.error('Ошибка при создании видео:', error)
           await ctx.reply(

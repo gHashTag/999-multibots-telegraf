@@ -9,7 +9,7 @@ import { mainMenuButton, mainMenu } from '@/menu'
 import { sendGenericErrorMessage, sendPhotoDescriptionRequest } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
-
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { MyWizardContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
@@ -164,7 +164,7 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
 }
 
 export const neuroPhotoWizard = new WizardScene<MyWizardContext>(
-  'neuro_photo',
+  ModeEnum.NeuroPhoto,
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
   neuroPhotoButtonStep

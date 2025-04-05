@@ -74,7 +74,7 @@ const getStatsCommand = async (ctx: MyContext): Promise<void> => {
       bot_name: botName,
     })
 
-    const { data: stats, error } = await supabase.rpc('get_bot_statistics', {
+    const { data: stats, error } = await supabase.rpc('get_bot_statistics_v2', {
       p_bot_name: botName,
     })
 

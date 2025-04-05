@@ -4,6 +4,7 @@ import { getUserByTelegramId } from '@/core/supabase'
 import { verifySubscription } from '@/middlewares/verifySubscription'
 import { getSubScribeChannel } from '@/core/supabase'
 import { isDev } from '@/helpers'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
   console.log('CASE: subscriptionCheckStep', ctx.from)
@@ -49,6 +50,6 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
 }
 
 export const subscriptionCheckScene = new WizardScene(
-  'subscriptionCheckScene',
+  ModeEnum.SubscriptionCheckScene,
   subscriptionCheckStep
 )

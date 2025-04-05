@@ -4,7 +4,7 @@ import { getUserBalance, supabase } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const balanceScene = new Scenes.WizardScene<MyContext>(
-  'balanceScene',
+  ModeEnum.BalanceScene,
   async (ctx: MyContext) => {
     try {
       console.log('🎯 CASE: balanceScene - Getting user balance info', {
