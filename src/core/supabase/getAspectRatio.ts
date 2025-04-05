@@ -1,6 +1,7 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { supabase } from '.'
 
-export const getAspectRatio = async (telegram_id: number) => {
+export const getAspectRatio = async (telegram_id: TelegramId) => {
   const { data, error } = await supabase
     .from('users')
     .select('aspect_ratio')

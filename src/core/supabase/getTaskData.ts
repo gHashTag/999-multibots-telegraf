@@ -6,7 +6,7 @@ import { supabase } from '@/core/supabase' // Предполагаем, что s
  * @returns Объект с данными или null, если данные не найдены.
  */
 export async function getTaskData(task_id: string): Promise<{
-  telegram_id: string
+  telegram_id: TelegramId
   bot_name: string
   language_code: string
   username: string

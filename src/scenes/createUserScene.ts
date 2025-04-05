@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { MyTextMessageContext, MyWizardContext } from '@/interfaces'
 import { WizardScene } from 'telegraf/scenes'
 import {

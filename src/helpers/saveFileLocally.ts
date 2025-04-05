@@ -14,7 +14,7 @@ const writeFile = promisify(fs.writeFile)
  * @returns Локальный путь к сохраненному файлу.
  */
 export async function saveFileLocally(
-  telegram_id: string | number,
+  telegram_id: TelegramId,
   fileUrl: string,
   category: string,
   extension: string

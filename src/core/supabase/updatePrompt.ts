@@ -6,7 +6,7 @@ export const updatePrompt = async (
   mediaUrl: string,
   status?: string
 ): Promise<{
-  telegram_id: string
+  telegram_id: TelegramId
   username: string
   bot_name: string
   language_code: string

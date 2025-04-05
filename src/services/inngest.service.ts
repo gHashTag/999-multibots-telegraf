@@ -12,7 +12,7 @@ import {
 // Функция проверки является ли пользователь владельцем аватара
 // Заменяет неработающий импорт avatarService
 const isAvatarOwner = async (
-  telegram_id: string,
+  telegram_id: TelegramId,
   bot_name: string
 ): Promise<boolean> => {
   try {
@@ -195,7 +195,7 @@ export class InngestService {
    * Проверяет права пользователя на отправку рассылки
    */
   static async checkOwnerPermissions(
-    telegram_id: string,
+    telegram_id: TelegramId,
     bot_name: string
   ): Promise<BroadcastResult> {
     try {

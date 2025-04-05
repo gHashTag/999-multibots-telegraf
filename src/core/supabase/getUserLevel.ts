@@ -6,7 +6,7 @@ import { supabase } from '.'
  * @returns Уровень пользователя или null, если пользователь не найден.
  */
 export async function getUserLevel(
-  telegram_id: string
+  telegram_id: TelegramId
 ): Promise<number | null> {
   try {
     // Запрашиваем данные пользователя из таблицы 'users'

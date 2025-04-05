@@ -1,6 +1,6 @@
 import { supabase } from '.'
 
-export const getVoiceId = async (telegram_id: string) => {
+export const getVoiceId = async (telegram_id: TelegramId) => {
   const { data, error } = await supabase
     .from('users')
     .select('voice_id_elevenlabs')

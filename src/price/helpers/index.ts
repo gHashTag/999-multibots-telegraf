@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 export * from './modelsCost'
 export * from './calculateFinalPrice'
 export * from './calculateStars'
@@ -28,7 +29,7 @@ export async function processBalanceOperation({
   description,
   type,
 }: {
-  telegram_id: string
+  telegram_id: TelegramId
   paymentAmount: number
   is_ru: boolean
   bot: Telegraf<MyContext>
@@ -100,7 +101,7 @@ export async function processBalanceOperation({
 }
 
 export async function sendBalanceMessage(
-  telegram_id: string,
+  telegram_id: TelegramId,
   newBalance: number | undefined,
   amount: number,
   is_ru: boolean,

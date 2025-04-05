@@ -1,16 +1,19 @@
 import { Subscription } from '@/interfaces/supabase.interface'
 import { supabase } from '.'
 import { UserType } from '@/interfaces/supabase.interface'
+import { logger } from '@/utils/logger'
 
-export const getReferalsCountAndUserData = async (
-  telegram_id: string
-): Promise<{
+interface ReferralsResponse {
   count: number
   level: number
   subscription?: Subscription
-  userData: UserType
+  userData: UserType | null
   isExist: boolean
-}> => {
+}
+
+export const getReferalsCountAndUserData = async (
+  telegram_id: TelegramId
+): Promise<ReferralsResponse> => {
   try {
     // Сначала получаем UUID пользователя
     const { data: userData, error: userError } = await supabase
@@ -20,10 +23,11 @@ export const getReferalsCountAndUserData = async (
       .single()
 
     if (userError || !userData) {
-      console.error(
-        'getReferalsCountAndUserData: Ошибка при получении user_id:',
-        userError
-      )
+      logger.error('❌ Ошибка при получении user_id:', {
+        description: 'Error getting user data',
+        error: userError?.message,
+        telegram_id,
+      })
       return {
         count: 0,
         level: 0,
@@ -39,7 +43,12 @@ export const getReferalsCountAndUserData = async (
       .eq('inviter', userData.user_id)
 
     if (error) {
-      console.error('Ошибка при получении рефералов:', error)
+      logger.error('❌ Ошибка при получении рефералов:', {
+        description: 'Error getting referrals',
+        error: error.message,
+        telegram_id,
+        user_id: userData.user_id,
+      })
       return {
         count: 0,
         level: 0,
@@ -50,13 +59,18 @@ export const getReferalsCountAndUserData = async (
 
     return {
       count: data?.length || 0,
-      level: userData.level,
-      subscription: userData.subscription,
+      level: userData.level || 0,
+      subscription: userData.subscription as Subscription,
       userData: userData as UserType,
       isExist: true,
     }
-  } catch (error) {
-    console.error('Ошибка в getReferalsCountAndUserData:', error)
+  } catch (err) {
+    const error = err as Error
+    logger.error('❌ Ошибка в getReferalsCountAndUserData:', {
+      description: 'Unexpected error in getReferalsCountAndUserData',
+      error: error.message,
+      telegram_id,
+    })
     return {
       count: 0,
       level: 0,

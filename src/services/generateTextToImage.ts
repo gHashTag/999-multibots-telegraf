@@ -8,7 +8,7 @@ export const generateTextToImage = async (
   prompt: string,
   model_type: string,
   num_images: number,
-  telegram_id: string,
+  telegram_id: TelegramId,
   isRu: boolean,
   ctx: MyContext,
   botName: string

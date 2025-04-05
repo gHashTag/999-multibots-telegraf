@@ -1,8 +1,9 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { supabase } from '@/core/supabase'
 import { logger } from '@utils/logger'
 
 export interface Avatar {
-  telegram_id: string
+  telegram_id: TelegramId
   avatar_url: string
   group: string
   created_at: string
@@ -15,7 +16,7 @@ export const avatarService = {
    * Проверяет, является ли пользователь владельцем бота
    */
   isAvatarOwner: async (
-    telegram_id: string,
+    telegram_id: TelegramId,
     bot_name?: string
   ): Promise<boolean> => {
     try {
@@ -57,7 +58,7 @@ export const avatarService = {
    * Получает информацию о владельце бота
    */
   getAvatarByTelegramId: async (
-    telegram_id: string
+    telegram_id: TelegramId
   ): Promise<Avatar | null> => {
     try {
       const { data, error } = await supabase
@@ -123,7 +124,7 @@ export const avatarService = {
    * Добавляет пользователя как владельца бота
    */
   addAvatarOwner: async (
-    telegram_id: string | number,
+    telegram_id: TelegramId,
     bot_name: string,
     avatar_url = 'https://example.com/default_avatar.png',
     group = `${bot_name}_group`

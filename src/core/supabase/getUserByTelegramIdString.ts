@@ -1,6 +1,7 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { supabase } from '.'
 
-export async function getUserByTelegramIdString(telegram_id: string) {
+export async function getUserByTelegramIdString(telegram_id: TelegramId) {
   try {
     const { data, error } = await supabase
       .from('users')

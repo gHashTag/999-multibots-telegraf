@@ -8,7 +8,7 @@ export interface BalanceCheckOptions {
 
 export const BalanceHelper = {
   checkBalance: async (
-    telegram_id: string,
+    telegram_id: TelegramId,
     requiredAmount: number,
     options?: BalanceCheckOptions
   ): Promise<{ success: boolean; currentBalance: number }> => {

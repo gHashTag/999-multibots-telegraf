@@ -8,7 +8,7 @@ interface ValidationResult {
 
 interface UserParams {
   username: string
-  telegram_id: string
+  telegram_id: TelegramId
   is_ru: boolean
 }
 

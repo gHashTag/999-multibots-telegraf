@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import axios, { AxiosResponse } from 'axios'
 import { supabase } from '@/core/supabase'
 import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
@@ -24,7 +25,7 @@ interface BroadcastTestRequest {
   textRu: string // Текст на русском
   textEn: string // Текст на английском
   botName: string
-  sender_telegram_id: string
+  sender_telegram_id: TelegramId
   contentType: string // 'photo', 'video', 'text', 'post_link'
   postLink?: string
 }
@@ -757,7 +758,7 @@ export const broadcastService = {
    * Проверяет права пользователя на отправку рассылки
    */
   checkOwnerPermissions: async (
-    telegram_id: string,
+    telegram_id: TelegramId,
     bot_name: string
   ): Promise<BroadcastResult> => {
     try {

@@ -5,7 +5,7 @@ import { MyContext } from '@/interfaces'
 
 export const errorMessage = async (
   error: Error,
-  telegram_id: string,
+  telegram_id: TelegramId,
   isRussian = true
 ) => {
   try {

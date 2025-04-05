@@ -6,7 +6,7 @@ export const pulseNeuroImageV2 = async (
   imagePath: string,
   prompt: string,
   command: string,
-  telegram_id: string,
+  telegram_id: TelegramId,
   username: string,
   is_ru: boolean
 ) => {

@@ -8,7 +8,7 @@ import { logger } from '@/utils/logger'
 export async function generateNeuroImageV2(
   prompt: string,
   numImages: number,
-  telegram_id: string,
+  telegram_id: TelegramId,
   ctx: MyContext,
   botName: string
 ): Promise<{ data: string } | null> {

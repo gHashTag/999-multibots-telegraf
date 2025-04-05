@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { replicate } from '@/core/replicate'
 import {
   createModelTraining,
@@ -64,7 +65,7 @@ const replicateTrainingCache = new Map<
 
 // 2. Функция проверки и установки статуса
 function checkAndSetTrainingCache(
-  telegram_id: string,
+  telegram_id: TelegramId,
   modelName: string,
   status: 'starting'
 ): boolean {
@@ -116,7 +117,7 @@ function checkAndSetTrainingCache(
 
 // 3. Функция обновления статуса
 function updateTrainingStatus(
-  telegram_id: string,
+  telegram_id: TelegramId,
   modelName: string,
   status: 'running' | 'completed' | 'failed',
   trainingId?: string
@@ -151,7 +152,7 @@ interface TrainingEventData {
   is_ru: string | boolean
   modelName: string
   steps: string | number
-  telegram_id: string
+  telegram_id: TelegramId
   triggerWord: string
   zipUrl: string
 }
@@ -563,7 +564,7 @@ export const generateModelTraining = inngest.createFunction(
         }
       },
 
-      registerCancelHandler: (telegram_id: string, trainingId: string) => {
+      registerCancelHandler: (telegram_id: TelegramId, trainingId: string) => {
         const cancelProcess = {
           cancel: async () => {
             try {

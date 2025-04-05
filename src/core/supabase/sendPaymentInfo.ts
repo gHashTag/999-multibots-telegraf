@@ -6,7 +6,7 @@ export async function sendPaymentInfo(
   level: string
 ): Promise<Payment[]> {
   const { data, error } = await supabase
-    .from('payments')
+    .from('payments_v2')
     .insert([{ user_id, level }])
     .single()
 

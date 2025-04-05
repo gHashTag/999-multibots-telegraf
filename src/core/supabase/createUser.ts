@@ -1,110 +1,125 @@
-import { CreateUserData } from '@/interfaces'
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { supabase } from '.'
+import { logger } from '@/utils/logger'
+import {
+  TelegramId,
+  normalizeTelegramId,
+} from '@/interfaces/telegram.interface'
 
-export const createUser = async (userData: CreateUserData) => {
-  const {
-    username,
-    telegram_id,
-    first_name,
-    last_name,
-    is_bot,
-    language_code,
-    photo_url,
-    chat_id,
-    mode,
-    model,
-    count,
-    aspect_ratio,
-    balance,
-    inviter,
-    bot_name,
-  } = userData
+export interface CreateUserParams {
+  telegram_id: TelegramId
+  username?: string
+  first_name?: string
+  last_name?: string
+  language_code?: string
+  is_bot?: boolean
+  photo_url?: string
+  chat_id?: string
+  mode?: string
+  model?: string
+  count?: number
+  aspect_ratio?: string
+  balance?: number
+  bot_name?: string
+  level?: number
+}
 
-  let inviterUser
-  if (inviter) {
-    const { data: checkInviter, error: fetchError } = await supabase
-      .from('users')
-      .select('user_id')
-      .eq('user_id', inviter)
-      .maybeSingle()
-
-    if (fetchError)
-      throw new Error(`Ошибка при проверке инвайтера: ${fetchError.message}`)
-    inviterUser = checkInviter
-  }
-
-  const isInviter = inviter && inviterUser
-
-  const { data: existingUser, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('telegram_id', telegram_id.toString())
-    .maybeSingle()
-
-  if (error) {
-    throw new Error(
-      `Ошибка при проверке существующего пользователя: ${error.message}`
-    )
-  }
-
-  if (existingUser) {
-    const updates = {
-      username,
-      first_name,
-      last_name,
-      is_bot,
-      language_code,
-      photo_url,
-      chat_id,
-      mode,
-      model,
-      count,
-      aspect_ratio,
-      balance,
-      ...(!existingUser.inviter && isInviter ? { inviter } : {}),
-      bot_name,
-    }
-
-    const { error: updateError } = await supabase
-      .from('users')
-      .update(updates)
-      .eq('telegram_id', telegram_id.toString())
-
-    if (updateError) {
-      throw new Error(
-        `Ошибка при обновлении пользователя: ${updateError.message}`
-      )
-    }
-  } else {
-    // Создаем базовый объект пользователя без inviter
-    const newUser = {
-      username,
+export const createUser = async (userData: CreateUserParams) => {
+  try {
+    const {
       telegram_id,
+      username,
       first_name,
       last_name,
-      is_bot,
-      language_code,
-      photo_url,
+      language_code = 'ru',
+      is_bot = false,
+      photo_url = '',
       chat_id,
-      mode,
-      model,
-      count,
-      aspect_ratio,
-      balance,
-      ...(isInviter ? { inviter } : {}),
+      mode = 'clean',
+      model = 'gpt-4-turbo',
+      count = 0,
+      aspect_ratio = '9:16',
+      balance = 0,
       bot_name,
-    }
+      level = 1,
+    } = userData
 
-    const { error: insertError } = await supabase
+    logger.info('👤 Создание нового пользователя:', {
+      description: 'Creating new user',
+      telegram_id,
+    })
+
+    // Нормализуем telegram_id в строку
+    const normalizedTelegramId = normalizeTelegramId(telegram_id)
+
+    // Проверяем, существует ли пользователь
+    const { data: existingUser, error: checkError } = await supabase
       .from('users')
-      .insert([newUser])
+      .select('*')
+      .eq('telegram_id', normalizedTelegramId)
+      .single()
 
-    if (insertError) {
-      throw new Error(
-        `Ошибка при добавлении пользователя: ${insertError.message}`
-      )
+    if (checkError && checkError.code !== 'PGRST116') {
+      logger.error('❌ Ошибка при проверке существующего пользователя:', {
+        description: 'Error checking existing user',
+        error: checkError.message,
+        telegram_id: normalizedTelegramId,
+      })
+      throw checkError
     }
-  }
 
-  return existingUser
+    if (existingUser) {
+      logger.info('👤 Пользователь уже существует:', {
+        description: 'User already exists',
+        telegram_id: normalizedTelegramId,
+      })
+      return existingUser
+    }
+
+    // Создаем нового пользователя
+    const { data: newUser, error: createError } = await supabase
+      .from('users')
+      .insert([
+        {
+          telegram_id: normalizedTelegramId,
+          username,
+          first_name,
+          last_name,
+          language_code,
+          is_bot,
+          photo_url,
+          chat_id: chat_id || normalizedTelegramId,
+          mode,
+          model,
+          count,
+          aspect_ratio,
+          balance,
+          bot_name,
+          level,
+        },
+      ])
+
+    if (createError) {
+      logger.error('❌ Ошибка при создании пользователя:', {
+        description: 'Error creating user',
+        error: createError.message,
+        telegram_id: normalizedTelegramId,
+      })
+      throw createError
+    }
+
+    logger.info('✅ Пользователь успешно создан:', {
+      description: 'User created successfully',
+      telegram_id: normalizedTelegramId,
+    })
+
+    return newUser
+  } catch (error) {
+    logger.error('❌ Ошибка в createUser:', {
+      description: 'Error in createUser function',
+      error: error instanceof Error ? error.message : String(error),
+      telegram_id: userData.telegram_id,
+    })
+    throw error
+  }
 }

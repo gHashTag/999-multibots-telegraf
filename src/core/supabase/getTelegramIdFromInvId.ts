@@ -1,7 +1,9 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { supabase } from '.'
+import { logger } from '@/utils/logger'
 
 type User = {
-  telegram_id: string
+  telegram_id: TelegramId
   language_code: string
   first_name?: string
   last_name?: string
@@ -11,7 +13,7 @@ type User = {
 }
 
 interface PaymentWithUser {
-  telegram_id: string
+  telegram_id: TelegramId
   users: {
     first_name: string | null
     last_name: string | null
@@ -24,8 +26,13 @@ interface PaymentWithUser {
 
 export const getTelegramIdFromInvId = async (inv_id: string): Promise<User> => {
   try {
+    logger.info({
+      message: '🔍 Поиск пользователя по inv_id',
+      inv_id,
+    })
+
     const { data: rawData, error } = await supabase
-      .from('payments')
+      .from('payments_v2')
       .select(
         `
         telegram_id,
@@ -43,11 +50,19 @@ export const getTelegramIdFromInvId = async (inv_id: string): Promise<User> => {
       .single()
 
     if (error) {
-      console.error('Ошибка получения данных:', error)
+      logger.error({
+        message: '❌ Ошибка получения данных',
+        error: error.message,
+        inv_id,
+      })
       throw error
     }
 
     if (!rawData) {
+      logger.error({
+        message: '❌ Данные не найдены',
+        inv_id,
+      })
       throw new Error('Данные не найдены')
     }
 
@@ -57,6 +72,11 @@ export const getTelegramIdFromInvId = async (inv_id: string): Promise<User> => {
     // Проверяем, что данные пользователя существуют
     const { telegram_id, users } = paymentData
     if (!users) {
+      logger.error({
+        message: '❌ Данные пользователя не найдены',
+        inv_id,
+        telegram_id,
+      })
       throw new Error('Данные пользователя не найдены')
     }
 
@@ -69,17 +89,24 @@ export const getTelegramIdFromInvId = async (inv_id: string): Promise<User> => {
       language_code,
     } = users
 
+    // Преобразуем null в undefined
     return {
       telegram_id,
       language_code,
-      first_name,
-      last_name,
-      username,
-      balance,
-      bot_name,
+      first_name: first_name || undefined,
+      last_name: last_name || undefined,
+      username: username || undefined,
+      balance: balance || undefined,
+      bot_name: bot_name || undefined,
     }
-  } catch (error) {
-    console.error('Ошибка получения Telegram ID пользователя:', error)
+  } catch (err) {
+    const error = err as Error
+    logger.error({
+      message: '❌ Ошибка получения Telegram ID пользователя',
+      error: error.message,
+      stack: error.stack,
+      inv_id,
+    })
     throw error
   }
 }

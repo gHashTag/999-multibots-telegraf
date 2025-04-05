@@ -1,5 +1,6 @@
 import { supabase } from '.'
 import { logger } from '@/utils/logger'
+import { TelegramId } from '@/interfaces/telegram.interface'
 
 export interface TrainingWithUser {
   id: string
@@ -8,7 +9,7 @@ export interface TrainingWithUser {
   status: string
   users: {
     bot_name: string
-    telegram_id: number
+    telegram_id: TelegramId
     language_code: string
   } | null
 }
@@ -50,8 +51,8 @@ export async function getTrainingWithUser(
   } catch (error) {
     logger.error({
       message: '❌ Критическая ошибка при получении данных о тренировке',
-      error: error.message,
-      stack: error.stack,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
       trainingId,
     })
     return null

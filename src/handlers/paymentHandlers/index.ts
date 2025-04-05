@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { Context, Scenes } from 'telegraf'
 import { isRussian } from '@/helpers'
 import { setPayments, getTranslation } from '@/core/supabase'
@@ -12,7 +13,7 @@ import { createBotByName } from '@/core/bot'
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
   subscription: string
-  telegram_id: number
+  telegram_id: TelegramId
   email: string
 }
 

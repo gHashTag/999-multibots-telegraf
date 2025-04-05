@@ -1,6 +1,6 @@
 import { supabase } from '.'
 
-export async function isLimitAi(telegram_id: string): Promise<boolean> {
+export async function isLimitAi(telegram_id: TelegramId): Promise<boolean> {
   const dailyLimit = 3
   const today = new Date().toISOString().split('T')[0]
 

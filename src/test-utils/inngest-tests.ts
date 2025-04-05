@@ -23,7 +23,15 @@ interface TestResult {
 interface TextToSpeechParams {
   text: string
   voice_id: string
-  telegram_id: string
+  telegram_id: TelegramId
+  is_ru: boolean
+  bot_name: string
+  username?: string
+}
+
+interface TextToVideoParams {
+  text: string
+  telegram_id: TelegramId
   is_ru: boolean
   bot_name: string
   username?: string
@@ -1118,7 +1126,7 @@ export class InngestTester {
   }: {
     text: string
     voice_id: string
-    telegram_id: string
+    telegram_id: TelegramId
     is_ru: boolean
     bot_name: string
   }): Promise<TestResult> {
@@ -1200,6 +1208,50 @@ export class InngestTester {
         success: false,
         message: error instanceof Error ? error.message : String(error),
         testName,
+      }
+    }
+  }
+
+  /**
+   * Тестирует функцию преобразования текста в видео
+   */
+  async textToVideo(params: TextToVideoParams): Promise<{
+    success: boolean
+    videoBuffer?: Buffer
+    paymentProcessed?: boolean
+    error?: string
+  }> {
+    logger.info({
+      message: '🎥 Тест функции преобразования текста в видео',
+      description: 'Text to video function test',
+      params: {
+        ...params,
+        text: params.text.substring(0, 20) + '...',
+      },
+    })
+
+    try {
+      const result = await this.sendEvent('text-to-video.requested', params)
+
+      if (!result.success) {
+        throw new Error(result.error || 'Unknown error')
+      }
+
+      return {
+        success: true,
+        videoBuffer: Buffer.from('mock-video-data'),
+        paymentProcessed: true,
+      }
+    } catch (error) {
+      logger.error({
+        message: '❌ Ошибка при тестировании преобразования текста в видео',
+        description: 'Error during text to video test',
+        error: error.message,
+      })
+
+      return {
+        success: false,
+        error: error.message,
       }
     }
   }

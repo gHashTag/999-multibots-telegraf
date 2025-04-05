@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { inngest } from '@/core/inngest/clients'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'

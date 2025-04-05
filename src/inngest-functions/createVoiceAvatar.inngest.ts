@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { inngest } from '@/core/inngest/clients'
 import {
   getUserByTelegramIdString,
@@ -14,7 +15,7 @@ import { logger } from '@/utils/logger'
 interface CreateVoiceAvatarEvent {
   data: {
     fileUrl: string
-    telegram_id: string
+    telegram_id: TelegramId
     username: string
     is_ru: boolean
     bot_name: string

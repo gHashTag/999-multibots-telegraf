@@ -1,7 +1,8 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { supabase } from '@/core/supabase'
 
 type User = {
-  telegram_id: string
+  telegram_id: TelegramId
   language_code: string
   first_name?: string
   last_name?: string
@@ -11,7 +12,7 @@ type User = {
 }
 
 interface PaymentWithUser {
-  telegram_id: string
+  telegram_id: TelegramId
   users: {
     first_name: string | null
     last_name: string | null
@@ -25,7 +26,7 @@ interface PaymentWithUser {
 export const getTelegramIdFromInvId = async (inv_id: string): Promise<User> => {
   try {
     const { data: rawData, error } = await supabase
-      .from('payments')
+      .from('payments_v2')
       .select(
         `
         telegram_id,

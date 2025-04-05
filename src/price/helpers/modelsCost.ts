@@ -71,7 +71,11 @@ export interface CostCalculationResult {
   dollars: number
 }
 
-const BASE_COSTS = {
+type BaseCosts = {
+  [key in ModeEnum | 'neuro_photo_2']?: number
+}
+
+const BASE_COSTS: BaseCosts = {
   [ModeEnum.NeuroPhoto]: 0.08,
   [ModeEnum.NeuroPhotoV2]: 0.14,
   neuro_photo_2: 0.14,
@@ -134,7 +138,7 @@ export function calculateModeCost(
         })
       }
 
-      const baseCostInDollars = BASE_COSTS[normalizedMode as string]
+      const baseCostInDollars = BASE_COSTS[normalizedMode as keyof BaseCosts]
 
       if (baseCostInDollars === undefined) {
         logger.error({

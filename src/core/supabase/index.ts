@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { createClient } from '@supabase/supabase-js'
 import {
   SUPABASE_URL,
@@ -5,9 +6,14 @@ import {
   SUPABASE_SERVICE_ROLE_KEY,
 } from '../../config'
 
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error('Missing Supabase environment variables')
+}
+
 // Создаем клиент с service role key
 export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
+// Создаем админский клиент с тем же ключом
 export const supabaseAdmin = createClient(
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY

@@ -1,11 +1,12 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { supabase } from '.'
 
 export async function checkSubscriptionByTelegramId(
-  telegram_id: string
+  telegram_id: TelegramId
 ): Promise<string> {
   // Получаем последнюю подписку пользователя
   const { data: subscriptionData, error: subscriptionError } = await supabase
-    .from('payments')
+    .from('payments_v2')
     .select('*')
     .eq('telegram_id', telegram_id)
     .order('created_at', { ascending: false })

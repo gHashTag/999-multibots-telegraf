@@ -9,7 +9,7 @@ export async function generateNeuroImage(
   prompt: string,
   model_url: ModelUrl,
   numImages: number | string,
-  telegram_id: string,
+  telegram_id: TelegramId,
   ctx: Context,
   botName: string
 ): Promise<void> {

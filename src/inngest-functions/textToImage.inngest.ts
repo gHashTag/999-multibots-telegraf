@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { GenerationResult } from '@/interfaces'
 import { getBotByName } from '@/core/bot'
 import { v4 as uuidv4 } from 'uuid'
@@ -27,7 +28,7 @@ interface TextToImageEvent {
     prompt: string
     model: string
     num_images: number
-    telegram_id: string
+    telegram_id: TelegramId
     username?: string
     is_ru: boolean
     bot_name: string

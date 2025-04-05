@@ -1,5 +1,6 @@
 import { MySession } from '../interfaces'
 import { ModeEnum } from '../price/helpers/modelsCost'
+import { TelegramId } from '@/interfaces/telegram.interface'
 
 export const defaultSession: () => MySession = () => ({
   selectedModel: '',
@@ -11,7 +12,7 @@ export const defaultSession: () => MySession = () => ({
     model_url: 'i/i:i',
   },
   numImages: 1,
-  telegram_id: 0,
+  telegram_id: '0',
   mode: ModeEnum.TextToImage,
   attempts: 0,
   videoModel: '',

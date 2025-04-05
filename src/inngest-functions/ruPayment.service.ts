@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { sendPaymentNotificationWithBot } from '@/price/helpers/sendPaymentNotificationWithBot'
 import { sendPaymentNotificationToUser } from '@/price/helpers/sendPaymentNotificationToUser'
 import { inngest } from '@/core/inngest/clients'

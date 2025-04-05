@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { supabase } from '@/core/supabase'
 import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
@@ -7,7 +8,7 @@ import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 
 export async function createVoiceAvatar(
   fileUrl: string,
-  telegram_id: string,
+  telegram_id: TelegramId,
   username: string,
   isRu: boolean,
   bot: Telegraf<MyContext>

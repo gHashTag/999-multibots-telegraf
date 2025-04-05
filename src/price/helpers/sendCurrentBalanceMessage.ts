@@ -1,8 +1,9 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { MyContext } from '@/interfaces'
 
 export const sendCurrentBalanceMessage = async (
   ctx: MyContext,
-  telegram_id: number,
+  telegram_id: TelegramId,
   isRu: boolean,
   currentBalance: number
 ) => {

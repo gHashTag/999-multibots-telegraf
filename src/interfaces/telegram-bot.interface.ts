@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { Context, NarrowedContext, Scenes } from 'telegraf'
 import { ModelUrl, Subscription, UserModel } from './index'
 import type { Update, Message } from 'telegraf/typings/core/types/typegram'
@@ -71,7 +72,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   selectedSize: string
   userModel: UserModel
   numImages: number
-  telegram_id: number
+  telegram_id: TelegramId
   mode: Mode
   attempts: number
   videoModel: string

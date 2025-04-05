@@ -1,6 +1,7 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { supabase } from '.';
 
-export const getGeneratedImages = async (telegram_id: number) => {
+export const getGeneratedImages = async (telegram_id: TelegramId) => {
   const { data, error } = await supabase.from('users').select('count, limit').eq('telegram_id', telegram_id.toString()).single();
 
   if (error || !data) {

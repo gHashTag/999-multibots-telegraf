@@ -1,6 +1,6 @@
 import { supabase } from '.'
 
-export const getUserData = async (telegram_id: string) => {
+export const getUserData = async (telegram_id: TelegramId) => {
   const { data, error } = await supabase
     .from('users')
     .select(

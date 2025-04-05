@@ -1,6 +1,6 @@
 export interface CreateUserData {
   username: string
-  telegram_id: string
+  telegram_id: TelegramId
   first_name: string
   last_name: string
   is_bot: boolean

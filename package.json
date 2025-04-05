@@ -6,6 +6,7 @@
   "license": "ISC",
   "scripts": {
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
+    "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME nodemon src/bot.ts",
     "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
     "bots": "cross-env NODE_ENV=development nodemon src/bot.ts",
     "build": "swc src -d dist --source-maps --copy-files",

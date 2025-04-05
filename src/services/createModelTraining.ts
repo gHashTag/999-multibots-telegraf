@@ -11,7 +11,7 @@ interface ModelTrainingRequest {
   filePath: string
   triggerWord: string
   modelName: string
-  telegram_id: string
+  telegram_id: TelegramId
   is_ru: boolean
   steps: number
   botName: string

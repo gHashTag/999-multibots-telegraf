@@ -20,7 +20,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
       // Get payment statistics using direct query
       const { data: payments } = await supabase
-        .from('payments')
+        .from('payments_v2')
         .select('amount, type, payment_method, status')
         .eq('telegram_id', userId)
 

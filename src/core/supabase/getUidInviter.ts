@@ -1,11 +1,11 @@
 import { supabase } from '.'
 
 export const getUidInviter = async (
-  telegram_id: string | number
+  telegram_id: TelegramId
 ): Promise<{
   inviter_id: string | null
   inviter_username: string | null
-  inviter_telegram_id: string | null
+  inviter_telegram_id: TelegramId | null
 } | null> => {
   try {
     if (!telegram_id) {

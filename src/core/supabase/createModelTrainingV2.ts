@@ -2,7 +2,7 @@ import { supabase } from '.'
 
 export interface ModelTrainingV2 {
   finetune_id: string
-  telegram_id: string
+  telegram_id: TelegramId
   model_name: string
   trigger_word: string
   zip_url: string

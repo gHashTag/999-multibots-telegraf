@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { supabase } from '../supabase'
 import { logger } from '../../utils/logger'
 
@@ -29,12 +30,13 @@ export async function getTelegramIdFromFinetune(
     }
 
     return data.telegram_id.toString()
-  } catch (error) {
+  } catch (err) {
+    const error = err as Error
     logger.error({
       message: '❌ Ошибка при получении Telegram ID из финтюна',
       finetuneId,
-      error: error.message,
-      stack: error.stack,
+      error: error?.message || 'Unknown error',
+      stack: error?.stack || 'No stack trace',
     })
     throw error
   }

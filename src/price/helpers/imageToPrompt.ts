@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { inngest } from '@/core/inngest/clients'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
@@ -9,7 +10,7 @@ import { getUserByTelegramIdString } from '@/core/supabase'
 
 export async function generateImageToPrompt(
   imageUrl: string,
-  telegram_id: string,
+  telegram_id: TelegramId,
   ctx: MyContext,
   isRu: boolean,
   botName: string

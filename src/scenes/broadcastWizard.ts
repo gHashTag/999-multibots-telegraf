@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { Scenes, Markup } from 'telegraf'
 
 import { MyContext } from '@/interfaces'

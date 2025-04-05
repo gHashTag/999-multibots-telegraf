@@ -1,6 +1,6 @@
 import { supabase } from '.'
 
-export const getUserModel = async (telegram_id: string): Promise<string> => {
+export const getUserModel = async (telegram_id: TelegramId): Promise<string> => {
   const { data, error } = await supabase
     .from('users')
     .select('model')

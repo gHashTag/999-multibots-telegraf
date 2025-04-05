@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { getUserBalance } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
 import { VideoModel } from '@/interfaces/models.interface'
@@ -8,7 +9,7 @@ import { calculateFinalPrice } from './calculateFinalPrice'
 type BalanceOperationProps = {
   ctx: MyContext
   videoModel: string
-  telegram_id: number
+  telegram_id: TelegramId
   is_ru: boolean
 }
 

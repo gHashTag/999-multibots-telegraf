@@ -15,6 +15,7 @@ import { setBotCommands } from './setCommands'
 import { getBotNameByToken } from './core/bot'
 import startApiServer from './api'
 import { bots } from './core/bot'
+import { logger } from '@/utils/logger'
 
 dotenv.config()
 
@@ -24,13 +25,27 @@ type NextFunction = (err?: Error) => void
 
 export const createBots = async () => {
   startApiServer()
-  console.log('🚀 Запущен публичный API сервер')
+  logger.info('🚀 Запущен публичный API сервер', {
+    description: 'Public API server started',
+  })
 
-  bots.forEach((bot, index) => {
+  // В режиме разработки используем только тестовые боты
+  const activeBots =
+    NODE_ENV === 'development'
+      ? bots.filter(bot => {
+          const { bot_name } = getBotNameByToken(bot.telegram.token)
+          return bot_name === 'ai_koshey_bot'
+        })
+      : bots
+
+  activeBots.forEach((bot, index) => {
     const app = express()
 
     const port = 3001 + index
-    console.log('CASE: port', port)
+    logger.info('🔌 Порт для бота:', {
+      description: 'Bot port',
+      port,
+    })
 
     setBotCommands(bot)
     registerCommands({ bot, composer })
@@ -41,10 +56,13 @@ export const createBots = async () => {
 
     const telegramToken = bot.telegram.token
     const { bot_name } = getBotNameByToken(telegramToken)
-    console.log('CASE: bot_name', bot_name)
+    logger.info('🤖 Запускается бот:', {
+      description: 'Starting bot',
+      bot_name,
+      environment: NODE_ENV,
+    })
 
     const webhookPath = `/${bot_name}`
-
     const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app`
 
     if (NODE_ENV === 'development') {
@@ -54,7 +72,8 @@ export const createBots = async () => {
     }
 
     bot.use((ctx: MyTextMessageContext, next: NextFunction) => {
-      console.log('🔍 Получено сообщение/команда:', {
+      logger.info('🔍 Получено сообщение/команда:', {
+        description: 'Message/command received',
         text: ctx.message?.text,
         from: ctx.from?.id,
         chat: ctx.chat?.id,
@@ -65,11 +84,13 @@ export const createBots = async () => {
     })
 
     app.use(webhookPath, express.json(), (req, res) => {
-      console.log('CASE: production')
-      console.log('req.query', req.query)
+      logger.info('📨 Получен вебхук:', {
+        description: 'Webhook received',
+        query: req.query,
+      })
 
       const token = req.query.token as string
-      const bot = bots.find(b => b.telegram.token === token)
+      const bot = activeBots.find(b => b.telegram.token === token)
 
       if (bot) {
         bot.handleUpdate(req.body, res)

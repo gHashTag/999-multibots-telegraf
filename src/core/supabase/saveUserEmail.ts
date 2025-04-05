@@ -1,7 +1,7 @@
 import { supabase } from '.'
 
 export async function saveUserEmail(
-  telegram_id: string,
+  telegram_id: TelegramId,
   email: string
 ): Promise<void> {
   const { error } = await supabase

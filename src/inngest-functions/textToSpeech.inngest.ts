@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { inngest } from '@/core/inngest/clients'
 import { getBotByName } from '@/core/bot'
 import {
@@ -20,7 +21,7 @@ interface TextToSpeechEvent {
   data: {
     text: string
     voice_id: string
-    telegram_id: string
+    telegram_id: TelegramId
     is_ru: boolean
     bot_name: string
     username?: string

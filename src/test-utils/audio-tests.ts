@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { logger } from '../utils/logger'
 import { Buffer } from 'buffer'
 import * as fs from 'fs'

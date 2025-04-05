@@ -32,7 +32,7 @@ async function downloadFile(url: string, outputPath: string): Promise<void> {
 export async function generateLipSync(
   videoUrl: string,
   audioUrl: string,
-  telegram_id: string,
+  telegram_id: TelegramId,
   botName: string
 ): Promise<LipSyncResponse> {
   try {

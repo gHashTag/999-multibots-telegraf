@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 export async function getTelegramIdFromFinetune(finetuneId: string) {
   const url = `https://api.us1.bfl.ai/v1/finetune_details?finetune_id=${finetuneId}`
 

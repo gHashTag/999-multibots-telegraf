@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { updateUserSoul } from '@/core/supabase'

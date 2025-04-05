@@ -3,7 +3,7 @@ import { logger } from '@/utils/logger'
 
 
 export interface Payments {
-  telegram_id: string
+  telegram_id: TelegramId
   username: string
   amount: string
   stars: number
