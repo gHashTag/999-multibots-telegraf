@@ -61,7 +61,7 @@ export const paymentProcessor = inngest.createFunction(
         operation_id,
         bot,
         metadata = {},
-        type = 'money_expence',
+        type = 'money_expense',
         currency = 'STARS',
       } = event.data
 
@@ -336,7 +336,7 @@ export const paymentProcessor = inngest.createFunction(
 
           // Проверяем достаточность средств для списания
           if (
-            type === 'money_expence' &&
+            type === 'money_expense' &&
             currentBalance !== null &&
             currentBalance < Math.abs(amount)
           ) {

@@ -32,6 +32,8 @@ export interface SessionData {
 
 export interface MyWizardSession extends Scenes.WizardSessionData {
   data: string
+  cursor: number
+  severity: number
   imageUrl?: string
   text?: string
   textRu?: string

@@ -53,7 +53,7 @@ export const testPaymentSystem = async () => {
     const spendResult = await updateUserBalance({
       telegram_id: testTelegramId.toString(),
       amount: 30,
-      type: 'money_expence',
+      type: 'money_expense',
       operation_description: 'Test spend stars',
       bot_name: 'ai_koshey_bot',
     })

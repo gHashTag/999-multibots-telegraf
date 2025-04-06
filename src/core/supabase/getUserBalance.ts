@@ -5,7 +5,7 @@ import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 interface BalanceResult {
   total_balance: number
   money_income: number
-  money_expence: number
+  money_expense: number
   commission: number
 }
 
@@ -85,7 +85,7 @@ export const getUserBalance = async (
       telegram_id: normalizedId,
       total_balance: balance.total_balance,
       money_income: balance.money_income,
-      money_expence: balance.money_expence,
+      money_expense: balance.money_expense,
       commission: balance.commission,
     })
 

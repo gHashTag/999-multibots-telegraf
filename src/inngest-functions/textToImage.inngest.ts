@@ -140,7 +140,7 @@ export const textToImageFunction = inngest.createFunction(
             amount: cost,
             is_ru: params.is_ru,
             bot_name: params.bot_name,
-            type: 'money_expence',
+            type: 'money_expense',
             description: 'Payment for text to image generation',
             metadata: {
               service_type: ModeEnum.TextToImage,

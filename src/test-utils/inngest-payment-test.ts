@@ -162,8 +162,8 @@ export const testInngestPayment = async () => {
     data: {
       amount: -30,
       telegram_id,
-      type: 'money_expence',
-      description: 'test money_expence',
+      type: 'money_expense',
+      description: 'test money_expense',
       bot_name,
       operation_id: spendOperationId,
       metadata: {

@@ -15,7 +15,7 @@ export const broadcastService = {
     ignoreActiveFlag = false
   ): Promise<TelegramId[]> {
     const service = new BroadcastServiceClass(
-      botName,
+          botName,
       process.env.BOT_TOKEN || ''
     )
     return service.getBotUsers(ignoreActiveFlag)
@@ -23,7 +23,7 @@ export const broadcastService = {
 
   async getAllBotUsers(botName: string): Promise<TelegramId[]> {
     const service = new BroadcastServiceClass(
-      botName,
+          botName,
       process.env.BOT_TOKEN || ''
     )
     return service.getAllBotUsers()

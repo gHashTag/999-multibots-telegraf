@@ -61,7 +61,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
             }
             // Расход
             else if (
-              payment.type === 'money_expence' ||
+              payment.type === 'money_expense' ||
               payment.type === 'money_expense'
             ) {
               stats.total_spent += amount
