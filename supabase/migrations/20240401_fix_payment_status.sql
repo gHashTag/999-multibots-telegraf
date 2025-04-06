@@ -74,4 +74,40 @@ BEGIN
 
     RETURN v_payment_id;
 END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION process_payment_status_change()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_telegram_id bigint;
+  v_amount numeric;
+  v_stars numeric;
+  v_status text;
+  v_metadata jsonb;
+  v_bot_name text;
+  v_subscription text;
+  v_currency text;
+  v_type operation_type;
+BEGIN
+  -- Получаем значения из NEW
+  v_telegram_id := NEW.telegram_id;
+  v_amount := NEW.amount;
+  v_stars := NEW.stars;
+  v_status := NEW.status;
+  v_metadata := NEW.metadata;
+  v_bot_name := NEW.bot_name;
+  v_subscription := NEW.subscription;
+  v_currency := NEW.currency;
+  v_type := NEW.type;
+
+  -- Если статус изменился на COMPLETED
+  IF NEW.status = 'COMPLETED' AND OLD.status != 'COMPLETED' THEN
+    -- Обновляем баланс пользователя
+    UPDATE users
+    SET balance = balance + v_stars
+    WHERE telegram_id = v_telegram_id;
+  END IF;
+
+  RETURN NEW;
+END;
 $$ LANGUAGE plpgsql; 

@@ -2,10 +2,10 @@ import { inngest } from '@/core/inngest/clients'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import axios from 'axios'
-import { sendBalanceMessage } from '@/price/helpers'
+import { sendBalanceMessage } from '@/price/helpers/sendBalanceMessage'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { v4 as uuidv4 } from 'uuid'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes.interface'
 import { getUserBalance } from '@/core/supabase'
 
 if (!process.env.ELESTIO_URL) {

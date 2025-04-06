@@ -5,7 +5,7 @@ import { handleTextMessage } from '../../handlers/handleTextMessage'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { levels } from '@/menu'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes.interface'
 
 const createHelpCancelKeyboard = (isRu: boolean) => {
   return {

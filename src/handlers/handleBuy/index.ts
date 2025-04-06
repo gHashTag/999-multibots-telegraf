@@ -1,5 +1,6 @@
 import { Context } from 'telegraf'
 import { starAmounts } from '@/price/helpers'
+
 interface BuyParams {
   ctx: Context
   data: string

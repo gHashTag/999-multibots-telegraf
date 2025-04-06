@@ -7,13 +7,16 @@ import {
   description,
   subscriptionTitles,
 } from './helper'
-import { setPayments, updateUserSubscription } from '@/core/supabase'
+import { setPayments, updateUserSubscription, getUserBalance } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
-import { v4 as uuidv4 } from 'uuid'
-import { logger } from '@/utils/logger'
 
-type Subscription = 'neurophoto' | 'neurobase' | 'neuroblogger'
+import { logger } from '@/utils/logger'
+import { generateInvId } from '@/utils/generateInvId'
+import { Subscription } from '@/interfaces/supabase.interface'
+import { ModeEnum } from '@/interfaces/modes.interface'
+// Локальный тип для подписок, используемых в этом модуле
+type LocalSubscription = Extract<Subscription, 'neurophoto' | 'neurobase' | 'neuroblogger'>
 
 const generateInvoiceStep = async (ctx: MyContext) => {
   logger.info('🚀 Начало создания счета', {
@@ -37,7 +40,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
   })
 
   const stars = selectedPayment.amount
-  const subscription = selectedPayment.subscription as Subscription | undefined
+  const subscription = selectedPayment.subscription as LocalSubscription | undefined
 
   try {
     const userId = ctx.from?.id
@@ -51,8 +54,8 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     })
 
     // Генерируем уникальный InvId
-    const invId = uuidv4()
-    const numericInvId = parseInt(invId.replace(/-/g, '').slice(0, 9), 16)
+    const invId = generateInvId(userId, stars)
+    const numericInvId = parseInt(invId.split('-')[0]) // Используем timestamp как числовой ID
 
     logger.info('🔢 Сгенерирован ID счета:', {
       description: 'Generated invoice ID',
@@ -81,7 +84,6 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     // Сохранение платежа со статусом PENDING
     await setPayments({
       telegram_id: userId.toString(),
-      amount: stars,
       OutSum: stars.toString(),
       InvId: invId,
       inv_id: invId,
@@ -102,9 +104,18 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       },
       language: ctx.from?.language_code || 'ru',
       invoice_url: invoiceURL,
+      type: 'money_expense',
+      service_type: ModeEnum.NeuroPhoto,
     })
     logger.info('💾 Платеж сохранен со статусом PENDING', {
       description: 'Payment saved with PENDING status',
+    })
+
+    // Получаем текущий баланс пользователя
+    const balance = await getUserBalance(userId.toString(), bot_name)
+    logger.info('💰 Текущий баланс пользователя:', {
+      description: 'Current user balance',
+      balance,
     })
 
     // Формируем и отправляем сообщение с кнопкой оплаты
@@ -137,6 +148,18 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     )
     logger.info('✉️ Сообщение об оплате отправлено пользователю', {
       description: 'Payment message sent to user',
+    })
+
+    // Отправляем информацию о цене и балансе
+    await ctx.reply(
+      isRu
+        ? `⭐️ Цена: ${stars} звезд\n💰 Баланс: ${balance} звезд`
+        : `⭐️ Price: ${stars} stars\n💰 Balance: ${balance} stars`
+    )
+    logger.info('💫 Информация о цене и балансе отправлена', {
+      description: 'Price and balance information sent',
+      stars,
+      balance,
     })
 
     // Обновление подписки пользователя

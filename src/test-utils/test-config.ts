@@ -88,6 +88,12 @@ const mockBot = {
   botInfo: {},
 } as unknown as Telegraf<MyContext>
 
+export interface TestResult {
+  success: boolean
+  name: string
+  error?: string
+}
+
 export const TEST_CONFIG = {
   // Базовая конфигурация
   server: {
@@ -235,4 +241,21 @@ export const TEST_CONFIG = {
       type: 'test_type',
     },
   },
+
+  TIMEOUT: 30000, // 30 seconds
+  RETRY_ATTEMPTS: 3,
+  RETRY_DELAY: 1000, // 1 second
+  LOG_LEVEL: 'info',
+  EMOJI: {
+    START: '🚀',
+    SUCCESS: '✅',
+    ERROR: '❌',
+    INFO: 'ℹ️',
+    WARNING: '⚠️',
+    DEBUG: '🔍',
+    RETRY: '🔄',
+    TEST: '🎯',
+    DATA: '💾',
+    EVENT: '⚡️'
+  }
 }

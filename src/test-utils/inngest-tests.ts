@@ -8,7 +8,7 @@ import os from 'os'
 import fs from 'fs'
 import { createWriteStream } from 'fs'
 import { getBotByName } from '@/core/bot'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes.interface'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { Inngest } from 'inngest'
 
@@ -759,9 +759,14 @@ export class InngestTester {
       description: 'Test money_income operation',
       bot_name,
       is_ru,
-      payment_type: 'regular',
-      currency: 'STARS',
-      money_amount: 0,
+      payment_id: 1,
+      stars: 100,
+      status: 'COMPLETED',
+      payment_method: 'test',
+      currency: 'RUB',
+      subscription: 'test',
+      language: 'ru',
+      inv_id: '123456789',
     }
 
     const result = await this.sendEvent('payment/process', paymentData)
@@ -795,9 +800,14 @@ export class InngestTester {
       description: 'Test money_expense operation',
       bot_name,
       is_ru,
-      payment_type: 'regular',
-      currency: 'STARS',
-      money_amount: 0,
+      payment_id: 2,
+      stars: 100,
+      status: 'COMPLETED',
+      payment_method: 'test',
+      currency: 'RUB',
+      subscription: 'test',
+      language: 'ru',
+      inv_id: '123456789',
     }
 
     const result = await this.sendEvent('payment/process', paymentData)
@@ -836,9 +846,14 @@ export class InngestTester {
         description,
         bot_name,
         is_ru,
-        payment_type: 'regular',
-        currency: 'STARS',
-        money_amount: 0,
+        payment_id: 3,
+        stars: 100,
+        status: 'COMPLETED',
+        payment_method: 'test',
+        currency: 'RUB',
+        subscription: 'test',
+        language: 'ru',
+        inv_id: '123456789',
       }
 
       const result = await this.sendEvent('payment/process', paymentData)
@@ -874,9 +889,14 @@ export class InngestTester {
       description: 'Test payment with metadata',
       bot_name,
       is_ru,
-      payment_type: 'subscription',
+      payment_id: 4,
+      stars: 100,
+      status: 'COMPLETED',
+      payment_method: 'test',
       currency: 'RUB',
-      money_amount: 1000,
+      subscription: 'test',
+      language: 'ru',
+      inv_id: '123456789',
       metadata: {
         service_type: ModeEnum.TextToImage,
         campaign: 'test_campaign',

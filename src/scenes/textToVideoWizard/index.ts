@@ -1,14 +1,12 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext, VideoModel } from '@/interfaces'
-import {
-  sendBalanceMessage,
-  validateAndCalculateVideoModelPrice,
-} from '@/price/helpers'
+import { validateAndCalculateVideoModelPrice } from '@/price/helpers'
+import { sendBalanceMessage } from '@/price/helpers/sendBalanceMessage'
 import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { getUserBalance } from '@/core/supabase'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes.interface'
 import { handleHelpCancel } from '@/handlers'
 
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(

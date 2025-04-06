@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes.interface'
 
 export const subscriptionMiddleware = async (
   ctx: MyContext,

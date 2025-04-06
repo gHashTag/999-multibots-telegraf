@@ -7,7 +7,7 @@ import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
 import { handleHelpCancel } from '@/handlers'
 
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes.interface'
 import { v4 as uuidv4 } from 'uuid'
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
@@ -140,7 +140,6 @@ emailWizard.on('text', async ctx => {
 
         await setPayments({
           telegram_id: userId.toString(),
-          amount: numericAmount,
           OutSum: amount.toString(),
           InvId: numericInvId.toString(),
           inv_id: numericInvId.toString(),
@@ -156,6 +155,8 @@ emailWizard.on('text', async ctx => {
           },
           language: ctx.from.language_code || 'ru',
           invoice_url: invoiceURL,
+          type: 'money_income',
+          service_type: ModeEnum.NeuroPhoto,
         })
 
         const inlineKeyboard = [

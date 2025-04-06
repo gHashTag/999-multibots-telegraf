@@ -9,7 +9,7 @@ import { mainMenuButton, mainMenu } from '@/menu'
 import { sendGenericErrorMessage, sendPhotoDescriptionRequest } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes.interface'
 import { MyContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
@@ -103,7 +103,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         return ctx.scene.leave()
       }
       if (model_url && trigger_word) {
-        const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
+        const fullPrompt = `${trigger_word}, ${promptText}`
         await generateNeuroImage(
           fullPrompt,
           model_url,
