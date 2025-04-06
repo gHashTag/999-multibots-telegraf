@@ -2,7 +2,6 @@ import axios from 'axios'
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
 import { testSupabase } from './test-env'
-import { TestResult } from './types'
 
 /**
  * Интерфейс для результатов теста
@@ -181,7 +180,7 @@ export class ReplicateWebhookTester {
    */
   async testFailedTraining(): Promise<TestResult> {
     const sample = TEST_CONFIG.modelTraining.samples.find(
-      s => s.status === 'failed'
+      (s: { status: string }) => s.status === 'failed'
     )
 
     if (!sample) {
@@ -220,7 +219,7 @@ export class ReplicateWebhookTester {
    */
   async testCanceledTraining(): Promise<TestResult> {
     const sample = TEST_CONFIG.modelTraining.samples.find(
-      s => s.status === 'canceled'
+      (s: { status: string }) => s.status === 'canceled'
     )
 
     if (!sample) {
@@ -293,7 +292,6 @@ export class ReplicateWebhookTester {
         message: '❌ Критическая ошибка при выполнении тестов вебхуков',
         description: 'Critical error during webhook tests',
         error: error instanceof Error ? error.message : 'Unknown error',
-
       })
       throw error
     }
@@ -644,9 +642,8 @@ export class NeurophotoWebhookTester {
    * Тестирует успешное завершение генерации изображения
    */
   async testSuccessfulGeneration(): Promise<TestResult> {
-    // Используем предустановленный пример из конфигурации
     const sample = TEST_CONFIG.neurophoto.samples.find(
-      s => s.status === 'COMPLETED'
+      (s: { status: string }) => s.status === 'completed'
     )
 
     if (!sample) {
@@ -715,9 +712,8 @@ export class NeurophotoWebhookTester {
    * Тестирует обработку задачи в процессе выполнения
    */
   async testProcessingStatus(): Promise<TestResult> {
-    // Используем предустановленный пример из конфигурации
     const sample = TEST_CONFIG.neurophoto.samples.find(
-      s => s.status === 'processing'
+      (s: { status: string }) => s.status === 'processing'
     )
 
     if (!sample) {
@@ -779,9 +775,8 @@ export class NeurophotoWebhookTester {
    * Тестирует обработку модерации контента
    */
   async testContentModeration(): Promise<TestResult> {
-    // Используем предустановленный пример из конфигурации
     const sample = TEST_CONFIG.neurophoto.samples.find(
-      s => s.status === 'Content Moderated'
+      (s: { status: string }) => s.status === 'moderation'
     )
 
     if (!sample) {
@@ -896,4 +891,3 @@ export class NeurophotoWebhookTester {
     return results
   }
 }
-

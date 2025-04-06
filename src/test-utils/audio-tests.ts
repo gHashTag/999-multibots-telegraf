@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
 import { logger } from '../utils/logger'
 import { Buffer } from 'buffer'
 import * as fs from 'fs'
@@ -230,12 +229,6 @@ export async function testSpeechGeneration(): Promise<TestResult> {
       message: '🎯 Запуск теста генерации речи',
       description: 'Starting speech generation test',
     })
-
-    // Тестовые данные
-    const testText = 'Hello, this is a test.'
-    const testVoiceId = 'ljyyJh982fsUinaSQPvv'
-    const testTelegramId = '123456789'
-    const bot = await mockBot()
 
     // // Генерируем аудио
     // const result = await generateSpeech({

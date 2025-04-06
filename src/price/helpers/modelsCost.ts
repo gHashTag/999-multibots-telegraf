@@ -56,6 +56,8 @@ export enum ModeEnum {
   HelpScene = 'help_scene',
   CancelPredictionsWizard = 'cancel_predictions_wizard',
   EmailWizard = 'email_wizard',
+  GetRuBillWizard = 'get_ru_bill_wizard',
+  SubscriptionScene = 'subscription_scene',
   CreateUserScene = 'create_user_scene',
 }
 

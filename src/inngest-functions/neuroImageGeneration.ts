@@ -468,7 +468,7 @@ export const neuroImageGeneration = inngest.createFunction(
       }
 
       // Отдельный шаг для проверки баланса
-      const userBalance = await step.run('check-balance', async () => {
+      await step.run('check-balance', async () => {
         try {
           logger.info('🔍 Начало шага проверки баланса', {
             description: 'Starting balance check step',

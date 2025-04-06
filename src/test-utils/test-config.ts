@@ -84,6 +84,18 @@ export const TEST_CONFIG = {
       botName: 'test_bot',
       isRussian: true,
     },
+    default: {
+      telegramId: '123456789',
+      botName: 'test_bot',
+      isRussian: true,
+    },
+  },
+
+  // Тестовые боты
+  bots: {
+    test_bot: mockBot,
+    neurophoto: mockBot,
+    default: mockBot,
   },
 
   // Тестовые данные для тренировки моделей
@@ -97,8 +109,46 @@ export const TEST_CONFIG = {
         metrics: {
           loss: 0.001,
           accuracy: 0.99,
+          predict_time: 120,
         },
         error: null,
+      },
+    ],
+  },
+
+  // Конфигурация BFL тренировок
+  bflTraining: {
+    samples: [
+      {
+        trainingId: 'test-bfl-id-1',
+        status: 'completed',
+        outputUrl: 'https://example.com/bfl-model.safetensors',
+        version: '1.0.0',
+        metrics: {
+          loss: 0.001,
+          accuracy: 0.99,
+          predict_time: 120,
+        },
+      },
+    ],
+  },
+
+  // Конфигурация Neurophoto
+  neurophoto: {
+    samples: [
+      {
+        generationId: 'test-neurophoto-id-1',
+        task_id: 'test-task-id-1',
+        status: 'completed',
+        outputUrl: 'https://example.com/generated-image.jpg',
+        prompt: 'Test prompt',
+        result: {
+          url: 'https://example.com/generated-image.jpg',
+          status: 'completed',
+        },
+        metrics: {
+          predict_time: 10,
+        },
       },
     ],
   },

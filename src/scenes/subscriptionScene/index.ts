@@ -3,10 +3,11 @@ import { MyContext } from '../../interfaces'
 import { handleMenu } from '@/handlers'
 import { getTranslation } from '@/core/supabase'
 import { isRussian } from '@/helpers'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { isValidPaymentSubscription } from '@/interfaces/payments.interface'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
+
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.SubscriptionScene,
   async ctx => {

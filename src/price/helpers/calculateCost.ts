@@ -1,4 +1,4 @@
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
 import {
   conversionRates,
@@ -115,37 +115,6 @@ export function calculateCost(
     ),
   }
 }
-
-// Тестовый расчет
-logger.debug({
-  message: '🧪 Тестовый расчет V1',
-  description: 'Test calculations V1',
-})
-stepOptions.v1.forEach(steps => {
-  const cost = calculateCost(steps, 'v1')
-  logger.debug({
-    message: '📊 Результат расчета',
-    description: 'Calculation result',
-    steps,
-    stars: cost.stars,
-    rubles: cost.rubles,
-  })
-})
-
-logger.debug({
-  message: '🧪 Тестовый расчет V2',
-  description: 'Test calculations V2',
-})
-stepOptions.v2.forEach(steps => {
-  const cost = calculateCost(steps, 'v2')
-  logger.debug({
-    message: '📊 Результат расчета',
-    description: 'Calculation result',
-    steps,
-    stars: cost.stars,
-    rubles: cost.rubles,
-  })
-})
 
 export function calculateModeCost(
   mode: ModeEnum,

@@ -11,7 +11,6 @@ import { getBotByName } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { Inngest } from 'inngest'
-import { TestResult } from './types'
 
 // Интерфейсы и типы
 interface TestResult {
@@ -88,7 +87,6 @@ export class InngestTester {
    */
   async sendEvent(name: string, data: any): Promise<TestResult> {
     const startTime = Date.now()
-    const testName = `Inngest event test: ${name}`
 
     try {
       logger.info({
@@ -253,7 +251,6 @@ export class InngestTester {
     eventData: any
   ): Promise<TestResult> {
     const startTime = Date.now()
-    const testName = `Inngest function invoke: ${functionId}`
 
     try {
       logger.info({
