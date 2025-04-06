@@ -175,6 +175,7 @@ export const neuroPhotoV2Generation = inngest.createFunction(
             amount: costCalculation.totalCost,
             is_ru,
             bot_name,
+            type: 'money_expense',
             description: `Payment for generating ${numImagesToGenerate} image${
               numImagesToGenerate === 1 ? '' : 's'
             } with prompt: ${prompt.substring(0, 30)}...`,

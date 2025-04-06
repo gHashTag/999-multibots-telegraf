@@ -289,6 +289,7 @@ export async function balanceTest(): Promise<TestResult> {
     return {
       success: true,
       message: 'Тест команды /balance успешно завершен',
+      name: 'Balance Command Test',
     }
   } catch (error) {
     logger.error('❌ Ошибка в тесте команды /balance:', {
@@ -300,6 +301,7 @@ export async function balanceTest(): Promise<TestResult> {
       message: `Ошибка в тесте команды /balance: ${
         error instanceof Error ? error.message : String(error)
       }`,
+      name: 'Balance Command Test',
     }
   }
 }
