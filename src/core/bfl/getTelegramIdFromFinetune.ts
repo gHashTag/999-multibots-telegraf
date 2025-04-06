@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
 export async function getTelegramIdFromFinetune(finetuneId: string) {
   const url = `https://api.us1.bfl.ai/v1/finetune_details?finetune_id=${finetuneId}`
 
@@ -6,7 +5,7 @@ export async function getTelegramIdFromFinetune(finetuneId: string) {
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'X-Key': process.env.BFL_API_KEY,
+        'X-Key': process.env.BFL_API_KEY || '',
         'Content-Type': 'application/json',
       },
     })

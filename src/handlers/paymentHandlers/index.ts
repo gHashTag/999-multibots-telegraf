@@ -276,7 +276,7 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
     } else {
       console.log('CASE: subscriptionType not in buttons', selectedButton)
       await setPayments({
-        telegram_id: ctx.from.id.toString(),
+        telegram_id: ctx.from?.id?.toString() || '',
         amount: Number(stars),
         OutSum: stars.toString(),
         InvId: ctx.message?.successful_payment?.invoice_payload || '',
@@ -303,7 +303,7 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       )
       await sendNotification(
         ctx,
-        `💫 Пользователь @${ctx.from.username} (ID: ${ctx.from.id}) пополнил баланс на ${stars} звезд!`
+        `💫 Пользователь @${ctx.from?.username} (ID: ${ctx.from?.id}) пополнил баланс на ${stars} звезд!`
       )
       ctx.session.subscription = ''
       ctx.session.buttons = []

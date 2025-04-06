@@ -20,8 +20,18 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id, 10))
       : []
 
+    const telegramId = ctx.from?.id.toString()
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось получить ID пользователя'
+          : '❌ Error: User ID not found'
+      )
+      return ctx.scene.leave()
+    }
+
     // Добавляем тестовый план для администраторов
-    if (adminIds.includes(ctx.from.id)) {
+    if (adminIds.includes(parseInt(telegramId))) {
       buttons.push({
         row: 4, // Укажите номер строки, где хотите разместить тестовый план
         text: '🧪 Тест', // Название тестового плана
@@ -36,7 +46,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     ctx.session.buttons = buttons
 
     // Формируем клавиатуру на основе кнопок
-    const keyboardRows = []
+    const keyboardRows: any[] = []
     buttons.forEach(button => {
       const row = button.row || 0
       if (!keyboardRows[row]) {

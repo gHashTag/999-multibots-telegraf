@@ -21,7 +21,7 @@ export async function testBroadcastMessage(): Promise<BroadcastTestResult[]> {
   try {
     // Тест 1: Отправка простого текстового сообщения
     const simpleMessageResult = await inngest.send({
-      name: 'broadcast/send-message',
+      name: 'broadcast/message',
       data: {
         telegram_id: testTelegramId,
         bot_name: TEST_CONFIG.TEST_BOT_NAME,

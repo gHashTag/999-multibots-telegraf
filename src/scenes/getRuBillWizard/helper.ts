@@ -5,7 +5,7 @@ import md5 from 'md5'
 
 export const merchantLogin = MERCHANT_LOGIN
 export const password1 = PASSWORD1
-export const resultUrl2 = RESULT_URL2
+export const resultUrl2 = RESULT_URL2 || ''
 export const description = 'Покупка звезд'
 
 export const subscriptionTitles = (isRu: boolean) => ({
@@ -63,16 +63,21 @@ export const getInvoiceId = async (
 
   const baseUrl = 'https://auth.robokassa.ru/Merchant/Index.aspx'
 
-  const params = new URLSearchParams({
+  const params = {
     MerchantLogin: merchantLogin,
     OutSum: outSum.toString(),
     InvId: invId.toString(),
     Description: description,
     SignatureValue: signatureValue,
     ResultUrl2: resultUrl2,
-  })
+  }
 
-  const url = `${baseUrl}?${params.toString()}`
+  const searchParams = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    searchParams.append(key, value)
+  }
+
+  const url = `${baseUrl}?${searchParams.toString()}`
   console.log('Generated URL:', url)
 
   return url

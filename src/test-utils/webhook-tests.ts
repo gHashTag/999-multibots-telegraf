@@ -53,7 +53,7 @@ export class ReplicateWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить статус тренировки до теста',
             description: 'Failed to get training status before test',
-            error: error.message,
+            error: error instanceof Error ? error.message : 'Unknown error',
           })
         }
       }
@@ -92,7 +92,7 @@ export class ReplicateWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить статус тренировки после теста',
             description: 'Failed to get training status after test',
-            error: error.message,
+            error: error instanceof Error ? error.message : 'Unknown error',
           })
         }
       }
@@ -119,7 +119,7 @@ export class ReplicateWebhookTester {
       logger.error({
         message: '❌ Ошибка при отправке вебхука',
         description: 'Error during webhook test',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         payload,
       })
 
@@ -127,7 +127,7 @@ export class ReplicateWebhookTester {
         testName,
         success: false,
         message: 'Ошибка при отправке вебхука',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         duration,
       }
     }
@@ -291,7 +291,7 @@ export class ReplicateWebhookTester {
       logger.error({
         message: '❌ Критическая ошибка при выполнении тестов вебхуков',
         description: 'Critical error during webhook tests',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
       throw error
     }
@@ -336,7 +336,7 @@ export class BFLWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить статус BFL тренировки до теста',
             description: 'Failed to get BFL training status before test',
-            error: error.message,
+            error: error instanceof Error ? error.message : 'Unknown error',
           })
         }
       }
@@ -375,7 +375,7 @@ export class BFLWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить статус BFL тренировки после теста',
             description: 'Failed to get BFL training status after test',
-            error: error.message,
+            error: error instanceof Error ? error.message : 'Unknown error',
           })
         }
       }
@@ -402,7 +402,7 @@ export class BFLWebhookTester {
       logger.error({
         message: '❌ Ошибка при отправке BFL вебхука',
         description: 'Error during BFL webhook test',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         payload,
       })
 
@@ -410,7 +410,7 @@ export class BFLWebhookTester {
         testName,
         success: false,
         message: 'Ошибка при отправке BFL вебхука',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         duration,
       }
     }
@@ -554,7 +554,7 @@ export class NeurophotoWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить данные промпта до теста',
             description: 'Failed to get prompt data before test',
-            error: error.message,
+            error: error instanceof Error ? error.message : 'Unknown error',
           })
         }
       }
@@ -596,7 +596,7 @@ export class NeurophotoWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить данные промпта после теста',
             description: 'Failed to get prompt data after test',
-            error: error.message,
+            error: error instanceof Error ? error.message : 'Unknown error',
           })
         }
       }
@@ -624,7 +624,7 @@ export class NeurophotoWebhookTester {
       logger.error({
         message: '❌ Ошибка при отправке вебхука нейрофото',
         description: 'Error during neurophoto webhook test',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         payload,
       })
 
@@ -632,7 +632,7 @@ export class NeurophotoWebhookTester {
         testName,
         success: false,
         message: 'Ошибка при отправке вебхука нейрофото',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         duration,
       }
     }
@@ -674,14 +674,14 @@ export class NeurophotoWebhookTester {
         logger.error({
           message: '❌ Ошибка при создании тестовой записи',
           description: 'Error creating test record',
-          error: error.message,
+          error: error instanceof Error ? error.message : 'Unknown error',
         })
 
         return {
           testName: 'Successful neurophoto generation webhook test',
           success: false,
           message: 'Не удалось создать тестовую запись в базе данных',
-          error: error.message,
+          error: error instanceof Error ? error.message : 'Unknown error',
         }
       }
     } catch (error) {
@@ -689,7 +689,7 @@ export class NeurophotoWebhookTester {
         testName: 'Successful neurophoto generation webhook test',
         success: false,
         message: 'Не удалось создать тестовую запись в базе данных',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       }
     }
 
@@ -746,7 +746,7 @@ export class NeurophotoWebhookTester {
           testName: 'Processing neurophoto webhook test',
           success: false,
           message: 'Не удалось создать тестовую запись в базе данных',
-          error: error.message,
+          error: error instanceof Error ? error.message : 'Unknown error',
         }
       }
     } catch (error) {
@@ -754,7 +754,7 @@ export class NeurophotoWebhookTester {
         testName: 'Processing neurophoto webhook test',
         success: false,
         message: 'Не удалось создать тестовую запись в базе данных',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       }
     }
 
@@ -810,7 +810,7 @@ export class NeurophotoWebhookTester {
           testName: 'Content moderation neurophoto webhook test',
           success: false,
           message: 'Не удалось создать тестовую запись в базе данных',
-          error: error.message,
+          error: error instanceof Error ? error.message : 'Unknown error',
         }
       }
     } catch (error) {
@@ -818,7 +818,7 @@ export class NeurophotoWebhookTester {
         testName: 'Content moderation neurophoto webhook test',
         success: false,
         message: 'Не удалось создать тестовую запись в базе данных',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       }
     }
 

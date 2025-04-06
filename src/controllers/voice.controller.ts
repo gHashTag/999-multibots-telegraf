@@ -57,6 +57,9 @@ export class VoiceController {
       res.status(200).json({ message: 'Voice creation started' })
 
       const { bot } = getBotByName(bot_name)
+      if (!bot) {
+        throw new Error('Bot not found')
+      }
       createVoiceAvatar(fileUrl, telegram_id, username, is_ru, bot)
     } catch (error) {
       next(error)

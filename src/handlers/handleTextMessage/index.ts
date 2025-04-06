@@ -1,5 +1,5 @@
 import { answerAi, model } from '../../core/openai'
-import { getUserData, getUserModel } from '../../core/supabase'
+import { getUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 
 /**
@@ -132,6 +132,9 @@ export async function handleTextMessage(ctx: MyContext) {
             : 'Failed to get message text'
         )
         return
+      }
+      if (!ctx.chat?.id) {
+        throw new Error('Chat ID is not defined')
       }
       await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 

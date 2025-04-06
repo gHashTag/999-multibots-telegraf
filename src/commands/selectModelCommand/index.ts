@@ -42,7 +42,12 @@ export async function selectModelCommand(ctx: MyContext) {
 
     return
   } catch (error) {
-    console.error('Error creating model selection menu:', error)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    if (error instanceof Error) {
+      console.error('Error creating model selection menu:', error)
+      await sendGenericErrorMessage(ctx, isRu, error)
+    } else {
+      console.error('Error creating model selection menu:', error)
+      await sendGenericErrorMessage(ctx, isRu, new Error('Unknown error'))
+    }
   }
 }

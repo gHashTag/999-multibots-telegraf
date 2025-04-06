@@ -21,6 +21,7 @@ if (!supabaseUrl || !supabaseKey) {
     description: 'Using temporary Supabase values',
     url: supabaseUrl,
   })
+  throw new Error('Missing Supabase environment variables')
 }
 
 // Создаем клиент Supabase для тестов

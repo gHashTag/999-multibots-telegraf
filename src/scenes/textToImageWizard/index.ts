@@ -3,7 +3,7 @@ import { MyContext } from '../../interfaces'
 import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { sendGenericErrorMessage } from '@/menu'
-import { generateTextToImage } from '@/services/generateTextToImage'
+
 import { getUserBalance } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
 import {

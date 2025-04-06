@@ -97,9 +97,6 @@ export const TEST_CONFIG = {
     neurophotoWebhookPath: '/webhooks/neurophoto',
   },
 
-  // Тестовые изображения
-  TEST_IMAGE_URL: 'https://picsum.photos/512/512',
-
   // Тестовые данные пользователей
   users: {
     main: {
@@ -214,6 +211,7 @@ export const TEST_CONFIG = {
 
   TEST_USER_ID: '144022504',
   TEST_BOT_NAME: 'test_bot',
+  TEST_IMAGE_URL: 'https://example.com/test-image.jpg',
 
   PAYMENT_STATUS: {
     PENDING: 'PENDING' as PaymentStatus,

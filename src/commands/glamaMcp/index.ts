@@ -41,13 +41,15 @@ glamaMcpCommand.command('glamaservers', async ctx => {
   } catch (error) {
     logger.error({
       message: '❌ Ошибка при запросе серверов Glama MCP',
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
       chat_id: ctx.chat?.id,
       user_id: ctx.from?.id,
     })
 
     await ctx.reply(
-      `❌ Произошла ошибка при запросе серверов Glama MCP: ${error.message}`
+      `❌ Произошла ошибка при запросе серверов Glama MCP: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
     )
   }
 })
@@ -103,13 +105,15 @@ glamaMcpCommand.command('glamaserver', async ctx => {
   } catch (error) {
     logger.error({
       message: '❌ Ошибка при запросе информации о сервере Glama MCP',
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
       chat_id: ctx.chat?.id,
       user_id: ctx.from?.id,
     })
 
     await ctx.reply(
-      `❌ Произошла ошибка при запросе информации о сервере: ${error.message}`
+      `❌ Произошла ошибка при запросе информации о сервере: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
     )
   }
 })

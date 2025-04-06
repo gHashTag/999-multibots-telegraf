@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { updateUserSoul } from '@/core/supabase'
@@ -77,9 +76,13 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
       }
     }
 
-    const telegram_id = ctx.from.id
+    const telegram_id = ctx.from?.id
 
-    const userExists = await getUserByTelegramId(ctx)
+    if (!telegram_id) {
+      throw new Error('User ID not found')
+    }
+
+    const userExists = await getUserByTelegramId(telegram_id.toString())
     if (!userExists) {
       throw new Error(`User with ID ${telegram_id} does not exist.`)
     }

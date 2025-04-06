@@ -7,6 +7,9 @@ export const subscriptionMiddleware = async (
 ): Promise<void> => {
   console.log('🎛 CASE:subscriptionMiddleware')
   try {
+    if (!ctx.chat?.id) {
+      throw new Error('Chat ID is not defined')
+    }
     await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
     await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
 

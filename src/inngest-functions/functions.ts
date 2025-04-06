@@ -232,15 +232,23 @@ export const broadcastFunction = inngest.createFunction(
                 errorCount++
 
                 // Обработка ошибок от Telegram API
-                if (error.response) {
-                  const errorCode = error.response.error_code
+                if (error && typeof error === 'object' && 'response' in error) {
+                  const telegramError = error as {
+                    response: {
+                      error_code: number
+                      description: string
+                    }
+                    message: string
+                  }
+
+                  const errorCode = telegramError.response.error_code
                   if (errorCode === 403 || errorCode === 400) {
                     // Пользователь заблокировал бота или иная критическая ошибка
                     logger.error(
                       `❌ Удаляем пользователя ${user.telegram_id} из-за ошибки ${errorCode}`,
                       {
                         description: `Removing user due to error ${errorCode}`,
-                        error: error.response.description,
+                        error: telegramError.response.description,
                         telegram_id: user.telegram_id,
                       }
                     )
@@ -252,19 +260,32 @@ export const broadcastFunction = inngest.createFunction(
                         .delete()
                         .eq('telegram_id', user.telegram_id)
                     } catch (dbError) {
-                      logger.error('❌ Ошибка удаления пользователя из базы:', {
-                        telegram_id: user.telegram_id,
-                        error: dbError.message,
-                      })
+                      if (dbError instanceof Error) {
+                        logger.error(
+                          '❌ Ошибка удаления пользователя из базы:',
+                          {
+                            telegram_id: user.telegram_id,
+                            error: dbError.message,
+                          }
+                        )
+                      } else {
+                        logger.error(
+                          '❌ Ошибка удаления пользователя из базы:',
+                          {
+                            telegram_id: user.telegram_id,
+                            error: 'Неизвестная ошибка',
+                          }
+                        )
+                      }
                     }
                   }
-                }
 
-                results.push({
-                  success: false,
-                  telegram_id: user.telegram_id,
-                  error: error.message || 'Неизвестная ошибка',
-                })
+                  results.push({
+                    success: false,
+                    telegram_id: user.telegram_id,
+                    error: telegramError.message || 'Неизвестная ошибка',
+                  })
+                }
               }
             }
 
@@ -302,10 +323,14 @@ export const broadcastFunction = inngest.createFunction(
 
       return summary
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Неизвестная ошибка'
+      const errorStack = error instanceof Error ? error.stack : undefined
+
       logger.error('❌ Ошибка при выполнении рассылки через Inngest:', {
         description: 'Error in Inngest broadcast function',
-        error: error.message,
-        stack: error.stack,
+        error: errorMessage,
+        ...(errorStack && { stack: errorStack }),
       })
 
       throw error

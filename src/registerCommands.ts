@@ -583,6 +583,14 @@ export function registerCommands({
     const { count, subscription, level } = await getReferalsCountAndUserData(
       telegram_id
     )
+    if (!subscription) {
+      await ctx.reply(
+        isRu
+          ? 'Произошла ошибка при обработке вашего профиля 😔'
+          : 'An error occurred while processing your profile 😔'
+      )
+      return ctx.scene.leave()
+    }
     await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
     return ctx.scene.leave()
   })

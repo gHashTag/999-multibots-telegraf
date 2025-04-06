@@ -1,8 +1,7 @@
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/core/inngest/clients'
-import { createTestUser } from './helpers/createTestUser'
-import { getUserBalance } from '@/core/supabase'
+
 import { TestResult } from './interfaces'
 
 interface NeuroPhotoGenerateEvent {

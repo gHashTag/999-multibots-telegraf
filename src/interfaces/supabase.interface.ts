@@ -1,3 +1,4 @@
+import { TelegramId } from './telegram.interface'
 export interface CreateUserData {
   username: string
   telegram_id: TelegramId

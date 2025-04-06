@@ -2,6 +2,7 @@ import { MyContext } from '@/interfaces'
 import { inngest } from '@/core/inngest/clients'
 import { sendGenericErrorMessage } from '@/menu'
 import { logger } from '@/utils/logger'
+import { TelegramId } from '@/interfaces/telegram.interface'
 interface VoiceAvatarResponse {
   success: boolean
   message: string
@@ -53,7 +54,7 @@ export async function generateVoiceAvatar(
       error,
     })
 
-    await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx, isRu, error as Error)
 
     throw error
   }

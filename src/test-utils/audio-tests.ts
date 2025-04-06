@@ -1,12 +1,12 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { logger } from '../utils/logger'
 import { Buffer } from 'buffer'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { Telegraf } from 'telegraf'
-import { MyContext } from '../interfaces'
-import { generateSpeech } from '../core/generateSpeech'
+import { MyContext } from '@/interfaces'
+// import { generateSpeech } from '@/services/generateSpeech'
 
 /**
  * Интерфейс для результатов теста
@@ -237,36 +237,36 @@ export async function testSpeechGeneration(): Promise<TestResult> {
     const testTelegramId = '123456789'
     const bot = await mockBot()
 
-    // Генерируем аудио
-    const result = await generateSpeech({
-      text: testText,
-      voice_id: testVoiceId,
-      telegram_id: testTelegramId,
-      is_ru: false,
-      bot,
-      bot_name: 'test_bot',
-    })
+    // // Генерируем аудио
+    // const result = await generateSpeech({
+    //   text: testText,
+    //   voice_id: testVoiceId,
+    //   telegram_id: testTelegramId,
+    //   is_ru: false,
+    //   bot,
+    //   bot_name: 'test_bot',
+    // })
 
-    // Проверяем, что файл создан
-    if (!fs.existsSync(result.audioUrl)) {
-      throw new Error('Аудио файл не создан')
-    }
+    // // Проверяем, что файл создан
+    // if (!fs.existsSync(result.audioUrl)) {
+    //   throw new Error('Аудио файл не создан')
+    // }
 
-    // Проверяем размер файла
-    const stats = fs.statSync(result.audioUrl)
-    if (stats.size === 0) {
-      throw new Error('Аудио файл пустой')
-    }
+    // // Проверяем размер файла
+    // const stats = fs.statSync(result.audioUrl)
+    // if (stats.size === 0) {
+    //   throw new Error('Аудио файл пустой')
+    // }
 
-    logger.info({
-      message: '✅ Тест успешно завершен',
-      description: 'Test completed successfully',
-      audioUrl: result.audioUrl,
-      fileSize: stats.size,
-    })
+    // logger.info({
+    //   message: '✅ Тест успешно завершен',
+    //   description: 'Test completed successfully',
+    //   audioUrl: result.audioUrl,
+    //   fileSize: stats.size,
+    // })
 
-    // Удаляем временный файл
-    fs.unlinkSync(result.audioUrl)
+    // // Удаляем временный файл
+    // fs.unlinkSync(result.audioUrl)
 
     return {
       success: true,

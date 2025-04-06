@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
 import { UPLOAD_DIR } from '@/config'
 import { API_URL } from '@/config'
+import { Readable } from 'stream'
 
 // Типы для multer
 interface MulterFile {
@@ -18,11 +19,14 @@ interface MulterFile {
   filename: string
   path: string
   buffer: Buffer
+  stream: Readable
+  lastModifiedDate?: Date
+  hash?: string
 }
 
 // Расширяем тип Request для поддержки файлов от multer
 interface MulterRequest extends Request {
-  file?: MulterFile
+  file?: MulterFile | undefined
 }
 
 // Убедимся, что директория для загрузок существует
@@ -117,8 +121,8 @@ export const uploadZipFile = async (req: Request, res: Response) => {
   } catch (error) {
     logger.error({
       message: '❌ Ошибка в контроллере загрузки файла',
-      error: error.message,
-      stack: error.stack,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
     })
     return res.status(500).json({ error: 'Внутренняя ошибка сервера' })
   }

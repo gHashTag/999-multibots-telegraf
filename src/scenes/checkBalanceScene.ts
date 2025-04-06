@@ -23,8 +23,8 @@ checkBalanceScene.enter(async ctx => {
   })
 
   const isRu = ctx.from?.language_code === 'ru'
-  const { userId } = getUserInfo(ctx)
-  const currentBalance = await getUserBalance(userId, ctx.botInfo.username)
+  const { telegramId } = getUserInfo(ctx)
+  const currentBalance = await getUserBalance(telegramId, ctx.botInfo.username)
   const mode = ctx.session.mode as ModeEnum
 
   // Нормализуем режим для обратной совместимости

@@ -212,7 +212,7 @@ export const modelTrainingV2 = inngest.createFunction(
       }
 
       // Кодируем ZIP файл
-      const encodedZip = await step.run('encode-zip', async () => {
+      await step.run('encode-zip', async () => {
         try {
           const result = await encodeFileToBase64(zipUrl)
 

@@ -733,7 +733,13 @@ You have successfully completed all tasks and reached the maximum level! 🌟✨
     await ctx.reply(message, {
       reply_markup: {
         keyboard: (
-          await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+          await mainMenu({
+            isRu,
+            inviteCount: count,
+            subscription: subscription || 'stars',
+            ctx,
+            level,
+          })
         ).reply_markup.keyboard,
       },
     })

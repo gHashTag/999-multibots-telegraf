@@ -1,6 +1,6 @@
 import { handleBuy } from '@/handlers'
 
-export async function handleTopUp(ctx) {
+export async function handleTopUp(ctx: any) {
   try {
     console.log('CASE: handleTopUp')
     const data = ctx.match[0]

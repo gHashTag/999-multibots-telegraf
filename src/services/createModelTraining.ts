@@ -6,7 +6,7 @@ import { inngest } from '@/core/inngest/clients'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-
+import { TelegramId } from '@/interfaces/telegram.interface'
 interface ModelTrainingRequest {
   filePath: string
   triggerWord: string
@@ -101,8 +101,8 @@ export async function createModelTraining(
   } catch (error) {
     logger.error({
       message: 'Ошибка при запуске тренировки модели',
-      error: error.message,
-      stack: error.stack,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
       requestData: {
         modelName: requestData.modelName,
         telegram_id: requestData.telegram_id,
@@ -113,8 +113,12 @@ export async function createModelTraining(
     const isRu = requestData.is_ru === true
     await ctx.replyWithHTML(
       isRu
-        ? `❌ <b>Ошибка при запуске тренировки:</b>\n\n${error.message}`
-        : `❌ <b>Error while starting training:</b>\n\n${error.message}`
+        ? `❌ <b>Ошибка при запуске тренировки:</b>\n\n${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`
+        : `❌ <b>Error while starting training:</b>\n\n${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`
     )
 
     throw error
@@ -156,8 +160,12 @@ async function uploadFileAndGetUrl(filePath: string): Promise<string> {
   } catch (error) {
     logger.error({
       message: '❌ Ошибка при сохранении файла',
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
     })
-    throw new Error(`Ошибка при сохранении файла: ${error.message}`)
+    throw new Error(
+      `Ошибка при сохранении файла: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
+    )
   }
 }

@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
@@ -59,7 +58,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     // Обработка текстового сообщения
     await handleTextMessage(ctx)
 
-    const telegram_id = ctx.from.id
+    const telegram_id = ctx.from?.id.toString()
     console.log(telegram_id, 'telegram_id')
 
     const userExists = await getUserByTelegramId(ctx)
@@ -84,7 +83,15 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     const level = userExists.level
     if (level === 4) {
-      await updateUserLevelPlusOne(telegram_id.toString(), level)
+      if (!telegram_id) {
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка при обработке вашего профиля 😔'
+            : 'An error occurred while processing your profile 😔'
+        )
+        return ctx.scene.leave()
+      }
+      await updateUserLevelPlusOne(telegram_id, level)
     }
 
     return

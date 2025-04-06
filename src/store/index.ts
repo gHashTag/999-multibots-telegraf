@@ -30,6 +30,7 @@ export const defaultSession: () => MySession = () => ({
   inviter: '',
   inviteCode: '',
   invoiceURL: '',
+  amount: 0,
   selectedPayment: {
     amount: 0,
     stars: '',

@@ -108,7 +108,7 @@ export const textToImageFunction = inngest.createFunction(
 
       const params = validatedParams
 
-      const user = await step.run('get-user-info', async () => {
+      await step.run('get-user-info', async () => {
         const userData = await getUserByTelegramIdString(params.telegram_id)
         if (!userData) throw new Error('User not found')
         if (userData.level === 10) {

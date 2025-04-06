@@ -1,4 +1,4 @@
-import { MyWizardContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { levels } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
 import { priceCommand } from '@/commands/priceCommand'
@@ -9,7 +9,7 @@ import { getStatsCommand } from '@/commands/stats'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
 // Функция, которая обрабатывает логику сцены
-export const handleMenu = async (ctx: MyWizardContext) => {
+export const handleMenu = async (ctx: MyContext) => {
   console.log('CASE: handleMenuCommand')
   const isRu = isRussian(ctx)
   if (ctx.message && 'text' in ctx.message) {

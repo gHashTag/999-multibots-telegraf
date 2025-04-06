@@ -13,10 +13,12 @@ const texts = {
     mainMenu: '🏠 Main menu\nChoose the section 👇',
     inviteLink: 'Invite link for friends 👇🏻',
   },
-}
+} as const
 
-export const getText = (isRu: boolean, key: string, ...args: any[]) => {
+type TextKey = keyof (typeof texts)['ru']
+
+export const getText = (isRu: boolean, key: TextKey, ...args: number[]) => {
   const lang = isRu ? 'ru' : 'en'
   const text = texts[lang][key]
-  return typeof text === 'function' ? text(...args) : text
+  return typeof text === 'function' ? text(args[0]) : text
 }

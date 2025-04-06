@@ -22,8 +22,8 @@ export class WebhookBFLController {
     } catch (error) {
       logger.error({
         message: '❌ Ошибка при обработке вебхука BFL',
-        error: error.message,
-        stack: error.stack,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
       })
       res.status(500).json({ error: 'Internal server error' })
     }

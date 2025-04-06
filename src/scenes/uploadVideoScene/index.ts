@@ -26,7 +26,7 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
 
     if (message && 'video' in message) {
-      if (message.video.file_size > MAX_FILE_SIZE) {
+      if (message.video.file_size && message.video.file_size > MAX_FILE_SIZE) {
         await ctx.reply(
           isRu
             ? '⚠️ Ошибка: видео слишком большое. Максимальный размер: 50MB'
@@ -54,11 +54,19 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
   async ctx => {
     console.log('CASE 3: uploadVideoScene')
     const isRu = ctx.from?.language_code === 'ru'
-
+    const telegramId = ctx.from?.id.toString()
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось получить ID пользователя'
+          : '❌ Error: User ID not found'
+      )
+      return ctx.scene.leave()
+    }
     try {
       await uploadVideoToServer({
         videoUrl: ctx.session.videoUrl,
-        telegram_id: ctx.from?.id.toString(),
+        telegram_id: telegramId,
         fileName: `video_to_url_${randomUUID()}`,
       })
       await ctx.reply(

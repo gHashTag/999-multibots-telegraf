@@ -4,6 +4,7 @@ import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
 import fs from 'fs'
 import path from 'path'
 import { ensureDirectoryExistence } from '@/helpers'
+import { TelegramId } from '@/interfaces/telegram.interface'
 interface LipSyncResponse {
   message: string
   resultUrl?: string

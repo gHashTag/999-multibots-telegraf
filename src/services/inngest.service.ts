@@ -3,17 +3,33 @@ import { supabase } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/core/inngest/clients'
-import {
-  BroadcastOptions,
-  BroadcastResult,
-  FetchUsersOptions,
-} from './broadcast.service'
 import { TelegramId } from '@/interfaces/telegram.interface'
 
 interface InngestError extends Error {
   message: string
   code?: string
   status?: number
+}
+
+interface FetchUsersOptions {
+  bot_name?: string
+  test_mode?: boolean
+  test_telegram_id?: string
+  sender_telegram_id?: string
+}
+
+interface BroadcastOptions {
+  bot_name?: string
+  sender_telegram_id?: string
+  test_mode?: boolean
+  test_telegram_id?: string
+}
+
+interface BroadcastResult {
+  success: boolean
+  successCount: number
+  errorCount: number
+  users?: any[]
 }
 
 // Функция проверки является ли пользователь владельцем аватара
@@ -223,7 +239,6 @@ export class InngestService {
           success: false,
           successCount: 0,
           errorCount: 0,
-          reason: 'unauthorized',
         }
       }
       return { success: true, successCount: 0, errorCount: 0 }
@@ -237,7 +252,6 @@ export class InngestService {
         success: false,
         successCount: 0,
         errorCount: 0,
-        reason: 'permission_check_error',
       }
     }
   }
@@ -292,7 +306,6 @@ export class InngestService {
         success: false,
         successCount: 0,
         errorCount: 0,
-        reason: 'fetch_users_error',
         users: [],
       }
     }

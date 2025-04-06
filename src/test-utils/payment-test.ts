@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '@/core/supabase'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'

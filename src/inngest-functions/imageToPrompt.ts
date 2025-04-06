@@ -1,7 +1,7 @@
 import { inngest } from '@/core/inngest/clients'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
-import axios, { isAxiosError } from 'axios'
+import axios from 'axios'
 import { sendBalanceMessage } from '@/price/helpers'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { v4 as uuidv4 } from 'uuid'

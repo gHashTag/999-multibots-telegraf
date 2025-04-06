@@ -1,11 +1,11 @@
-import { MyWizardContext, Subscription } from '@/interfaces'
+import { MyContext, Subscription } from '@/interfaces'
 import { supabase } from '.'
 import { isRussian } from '@/helpers/language'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { isDev } from '@/config'
 
 export const checkPaymentStatus = async (
-  ctx: MyWizardContext,
+  ctx: MyContext,
   subscription: Subscription
 ): Promise<boolean> => {
   // Проверяем, что ctx и ctx.from определены

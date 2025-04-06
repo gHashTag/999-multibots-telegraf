@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { getAvailableModels } from '../../commands/selectModelCommand/getAvailableModels'
@@ -82,7 +81,17 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      await setModel(ctx.from.id.toString(), model)
+      const telegramId = ctx.from?.id.toString()
+      if (!telegramId) {
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: не удалось получить ID пользователя'
+            : '❌ Error: User ID not found'
+        )
+        return ctx.scene.leave()
+      }
+
+      await setModel(telegramId, model)
 
       await ctx.reply(
         isRu
@@ -95,16 +104,14 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      const telegram_id = ctx.from.id
-
-      const userExists = await getUserByTelegramId(ctx)
+      const userExists = await getUserByTelegramId(telegramId)
 
       if (!userExists) {
-        throw new Error(`User with ID ${telegram_id} does not exist.`)
+        throw new Error(`User with ID ${telegramId} does not exist.`)
       }
       const level = userExists.level
       if (level === 5) {
-        await updateUserLevelPlusOne(telegram_id.toString(), level)
+        await updateUserLevelPlusOne(telegramId, level)
       }
       ctx.scene.enter('chat_with_avatar')
       return

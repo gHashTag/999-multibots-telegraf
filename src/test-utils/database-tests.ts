@@ -54,14 +54,14 @@ export class DatabaseTester {
       logger.error({
         message: '❌ Ошибка при тестировании соединения с базой данных',
         description: 'Error during database connection test',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
 
       return {
         testName,
         success: false,
         message: 'Ошибка при соединении с базой данных',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         duration,
       }
     }
@@ -124,7 +124,7 @@ export class DatabaseTester {
       logger.error({
         message: '❌ Ошибка при проверке наличия тренировки',
         description: 'Error during training existence test',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         trainingId,
       })
 
@@ -132,7 +132,7 @@ export class DatabaseTester {
         testName,
         success: false,
         message: 'Ошибка при поиске тренировки',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         duration,
       }
     }
@@ -186,7 +186,7 @@ export class DatabaseTester {
       logger.error({
         message: '❌ Ошибка при получении тренировок пользователя',
         description: 'Error during user trainings test',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         telegramId,
       })
 
@@ -194,7 +194,7 @@ export class DatabaseTester {
         testName,
         success: false,
         message: 'Ошибка при получении тренировок пользователя',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         duration,
       }
     }
@@ -251,7 +251,7 @@ export class DatabaseTester {
       logger.error({
         message: '❌ Критическая ошибка при выполнении тестов базы данных',
         description: 'Critical error during database tests',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
       throw error
     }
