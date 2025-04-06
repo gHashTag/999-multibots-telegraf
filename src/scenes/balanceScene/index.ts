@@ -2,57 +2,82 @@ import { MyContext } from '@/interfaces'
 import { Scenes } from 'telegraf'
 import { getUserBalance, supabase } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { logger } from '@/utils/logger'
+import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 
 export const balanceScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.BalanceScene,
   async (ctx: MyContext) => {
+    const userId = ctx.from?.id || 0
+    const normalizedId = normalizeTelegramId(userId)
+    const isRu = ctx.from?.language_code === 'ru'
+
     try {
-      console.log('🎯 CASE: balanceScene - Getting user balance info', {
-        description: 'Getting detailed balance information',
-        userId: ctx.from?.id,
+      logger.info('🎯 Получение информации о балансе:', {
+        description: 'Getting balance information',
+        userId: normalizedId,
+        bot: ctx.botInfo.username,
       })
 
-      const isRu = ctx.from?.language_code === 'ru'
-      const userId = ctx.from?.id || 0
+      // Получаем текущий баланс
+      const balance = await getUserBalance(normalizedId, ctx.botInfo.username)
 
-      // Get current balance
-      const balance = await getUserBalance(userId, ctx.botInfo.username)
-
-      // Get payment statistics using direct query
-      const { data: payments } = await supabase
+      // Получаем статистику платежей
+      const { data: payments, error: paymentsError } = await supabase
         .from('payments_v2')
-        .select('amount, type, payment_method, status')
-        .eq('telegram_id', userId)
+        .select('amount, type, payment_method, status, description')
+        .eq('telegram_id', normalizedId)
+        .eq('bot_name', ctx.botInfo.username)
 
-      // Initialize statistics
+      if (paymentsError) {
+        logger.error('❌ Ошибка получения платежей:', {
+          description: 'Error getting payments',
+          error: paymentsError,
+          userId: normalizedId,
+        })
+        throw paymentsError
+      }
+
+      // Инициализируем статистику
       const stats = {
         total_added: 0,
         total_spent: 0,
         services: {} as Record<string, number>,
       }
 
-      // Calculate statistics from payments
+      // Считаем статистику из платежей
       if (payments) {
         payments.forEach(payment => {
-          // Only count COMPLETED payments
           if (payment.status === 'COMPLETED') {
-            if (payment.type === 'income') {
-              stats.total_added += Number(payment.amount)
-            } else if (payment.type === 'outcome') {
-              stats.total_spent += Number(payment.amount)
+            const amount = Number(payment.amount)
 
-              // Group by payment method for services usage
+            // Доход
+            if (
+              payment.type === 'income' ||
+              payment.type === 'money_income' ||
+              payment.description?.toLowerCase().includes('refund')
+            ) {
+              stats.total_added += amount
+            }
+            // Расход
+            else if (
+              payment.type === 'outcome' ||
+              payment.type === 'money_expense'
+            ) {
+              stats.total_spent += amount
+
+              // Группируем по сервисам
               const service = payment.payment_method
               if (service) {
                 stats.services[service] =
-                  (stats.services[service] || 0) + Number(payment.amount)
+                  (stats.services[service] || 0) + amount
               }
             }
           }
         })
       }
 
-      // Calculate bonus stars
+      // Считаем бонусные звезды
       const bonusStars = Math.max(
         0,
         balance - (stats.total_added - stats.total_spent)
@@ -63,47 +88,70 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
         : `💰 <b>Balance Information:</b>\n\n`
 
       message += isRu
-        ? `✨ Текущий баланс: ${balance} ⭐️\n` +
-          (bonusStars > 0 ? `🎁 Бонусные звезды: ${bonusStars} ⭐️\n` : '')
-        : `✨ Current balance: ${balance} ⭐️\n` +
-          (bonusStars > 0 ? `🎁 Bonus stars: ${bonusStars} ⭐️\n` : '')
+        ? `✨ Текущий баланс: ${balance.toFixed(2)} ⭐️\n` +
+          (bonusStars > 0
+            ? `🎁 Бонусные звезды: ${bonusStars.toFixed(2)} ⭐️\n`
+            : '')
+        : `✨ Current balance: ${balance.toFixed(2)} ⭐️\n` +
+          (bonusStars > 0
+            ? `🎁 Bonus stars: ${bonusStars.toFixed(2)} ⭐️\n`
+            : '')
 
       message += isRu
         ? `\n💳 <b>История платежей:</b>\n` +
-          `➕ Всего пополнено: ${stats.total_added} ⭐️\n` +
-          `➖ Всего потрачено: ${stats.total_spent} ⭐️\n`
+          `➕ Всего пополнено: ${stats.total_added.toFixed(2)} ⭐️\n` +
+          `➖ Всего потрачено: ${stats.total_spent.toFixed(2)} ⭐️\n`
         : `\n💳 <b>Payment History:</b>\n` +
-          `➕ Total added: ${stats.total_added} ⭐️\n` +
-          `➖ Total spent: ${stats.total_spent} ⭐️\n`
+          `➕ Total added: ${stats.total_added.toFixed(2)} ⭐️\n` +
+          `➖ Total spent: ${stats.total_spent.toFixed(2)} ⭐️\n`
 
-      // Add service usage statistics if there are any expenses
+      // Добавляем статистику по сервисам если есть расходы
       if (stats.total_spent > 0) {
         message += isRu
           ? `\n🤖 <b>Использование сервисов:</b>\n`
           : `\n🤖 <b>Services Usage:</b>\n`
 
-        // Add only services that were used
-        Object.entries(stats.services).forEach(([service, amount]) => {
-          if (amount > 0) {
-            const serviceEmoji = getServiceEmoji(service)
-            const serviceName = getServiceName(service, isRu)
-            message += isRu
-              ? `${serviceEmoji} ${serviceName}: ${amount} ⭐️\n`
-              : `${serviceEmoji} ${serviceName}: ${amount} ⭐️\n`
-          }
-        })
+        Object.entries(stats.services)
+          .sort(([, a], [, b]) => b - a) // Сортируем по убыванию сумм
+          .forEach(([service, amount]) => {
+            if (amount > 0) {
+              const serviceEmoji = getServiceEmoji(service)
+              const serviceName = getServiceName(service, isRu)
+              message += `${serviceEmoji} ${serviceName}: ${amount.toFixed(
+                2
+              )} ⭐️\n`
+            }
+          })
       }
+
+      logger.info('✅ Информация о балансе подготовлена:', {
+        description: 'Balance information prepared',
+        userId: normalizedId,
+        balance,
+        total_added: stats.total_added,
+        total_spent: stats.total_spent,
+      })
 
       await ctx.reply(message, { parse_mode: 'HTML' })
       await ctx.scene.enter('menuScene')
     } catch (error) {
-      console.error('❌ Error sending balance:', error)
-      throw error
+      logger.error('❌ Ошибка в сцене баланса:', {
+        description: 'Error in balance scene',
+        error: error instanceof Error ? error.message : String(error),
+        userId: ctx.from?.id,
+      })
+
+      const errorMessage = isRu
+        ? '❌ Произошла ошибка при получении баланса. Пожалуйста, попробуйте позже.'
+        : '❌ Error getting balance information. Please try again later.'
+
+      await ctx.reply(errorMessage)
+      await ctx.scene.enter('menuScene')
     }
   }
 )
 
-// Helper function to get emoji for service
+// Хелпер для получения эмодзи сервиса
 function getServiceEmoji(service: string): string {
   const emojis: Record<string, string> = {
     [ModeEnum.NeuroPhoto]: '📸',
@@ -125,7 +173,7 @@ function getServiceEmoji(service: string): string {
   return emojis[service] || '⭐️'
 }
 
-// Helper function to get service name
+// Хелпер для получения названия сервиса
 function getServiceName(service: string, isRu: boolean): string {
   const names: Record<string, [string, string]> = {
     [ModeEnum.NeuroPhoto]: ['Нейрофото', 'Neuro Photo'],
