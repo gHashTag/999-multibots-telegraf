@@ -16,6 +16,7 @@ import { API_URL } from '@config'
 import fs from 'fs'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
+import { v4 as uuidv4 } from 'uuid'
 
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 
@@ -409,6 +410,7 @@ export const neuroImageGeneration = inngest.createFunction(
             }).stars
 
             await inngest.send({
+              id: `refund-${telegram_id}-${Date.now()}-${uuidv4()}`,
               name: 'payment/process',
               data: {
                 telegram_id,

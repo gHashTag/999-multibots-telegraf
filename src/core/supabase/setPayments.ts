@@ -21,6 +21,7 @@ export interface Payment {
   payment_date?: Date
   OutSum?: string
   InvId?: string
+  type?: 'money_income' | 'money_expense'
 }
 
 /**
@@ -65,6 +66,7 @@ export const setPayments = async ({
       bot_name,
       language,
       invoice_url,
+      type: amount > 0 ? 'money_income' : 'money_expense',
     })
 
     if (error) {
@@ -105,6 +107,7 @@ export interface CreatePaymentParams {
   bot_name: string
   inv_id: string
   status: string
+  type?: 'money_income' | 'money_expense'
 }
 
 export const createPayment = async (
@@ -114,6 +117,8 @@ export const createPayment = async (
     const normalizedParams = {
       ...params,
       telegram_id: normalizeTelegramId(params.telegram_id),
+      type:
+        params.type || (params.amount > 0 ? 'money_income' : 'money_expense'),
     }
 
     logger.info('🚀 Создание записи о платеже:', {
