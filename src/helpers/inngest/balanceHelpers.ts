@@ -14,7 +14,7 @@ export const BalanceHelper = {
     options?: BalanceCheckOptions
   ): Promise<{ success: boolean; currentBalance: number }> => {
     const currentBalance = await getUserBalance(
-      Number(telegram_id),
+      telegram_id.toString(),
       options?.botInstance?.name || ''
     )
     if (currentBalance === null) throw new Error('User not found')

@@ -3,7 +3,7 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { logger } from '@/utils/logger'
 import { TEST_CONFIG } from '@/test-utils/test-config'
 import { NODE_ENV } from '@/config'
@@ -69,7 +69,7 @@ logger.info('🤖 Инициализация defaultBot:', {
 
 // Инициализируем ботов при старте приложения
 export const bots = Object.entries(BOT_NAMES)
-  .filter(([_, token]) => token) // Фильтруем undefined токены
+  .filter(([, token]) => token) // Фильтруем undefined токены
   .map(([name, token]) => {
     // Если это defaultBot, используем существующий экземпляр
     if (name === DEFAULT_BOT_NAME) {

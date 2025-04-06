@@ -1,6 +1,6 @@
 import { MySession } from '../interfaces'
 import { ModeEnum } from '../price/helpers/modelsCost'
-
+import { LocalSubscription } from '../scenes/getRuBillWizard'
 export const defaultSession: () => MySession = () => ({
   selectedModel: '',
   prompt: '',
@@ -33,8 +33,8 @@ export const defaultSession: () => MySession = () => ({
   amount: 0,
   selectedPayment: {
     amount: 0,
-    stars: '',
-    subscription: 'stars',
+    stars: 0,
+    subscription: 'stars' as LocalSubscription,
   },
   buttons: [],
 })

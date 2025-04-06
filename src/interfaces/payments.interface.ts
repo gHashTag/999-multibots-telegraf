@@ -484,7 +484,7 @@ export const SERVICE_DESCRIPTIONS: Record<
   },
   [ModeEnum.Tech]: {
     expense: (amount: number) =>
-      `🔧 Техническая операция: ${amount} ${getStarsWord(amount)}`,
+      `🧠 Нейросеть: ${amount} ${getStarsWord(amount)}`,
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },
@@ -577,9 +577,15 @@ export const SERVICE_DESCRIPTIONS: Record<
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },
-  [ModeEnum.NeuroBase]: {
+  [ModeEnum.GetRuBillWizard]: {
     expense: (amount: number) =>
-      `🧠 NeuroBase: ${amount} ${getStarsWord(amount)}`,
+      `📑 Получение счета: ${amount} ${getStarsWord(amount)}`,
+    income: (amount: number) =>
+      `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
+  },
+  [ModeEnum.SubscriptionScene]: {
+    expense: (amount: number) =>
+      `📲 Управление подписками: ${amount} ${getStarsWord(amount)}`,
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },
