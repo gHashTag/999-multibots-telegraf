@@ -14,7 +14,7 @@ import { Inngest } from 'inngest'
 
 // Интерфейсы и типы
 interface TestResult {
-  testName: string
+  name: string
   success: boolean
   message: string
   details?: any
@@ -112,7 +112,7 @@ export class InngestTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name,
         success: response.status === 200,
         message: `Событие "${name}" успешно отправлено за ${duration}мс`,
         details: {
@@ -134,7 +134,7 @@ export class InngestTester {
       })
 
       return {
-        testName,
+        name,
         success: false,
         message: `Ошибка при отправке события "${name}"`,
         error: errorMessage,
@@ -277,7 +277,7 @@ export class InngestTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: functionId,
         success: response.status === 200,
         message: `Функция "${functionId}" успешно вызвана за ${duration}мс`,
         details: {
@@ -298,7 +298,7 @@ export class InngestTester {
       })
 
       return {
-        testName,
+        name: functionId,
         success: false,
         message: `Ошибка при вызове функции "${functionId}"`,
         error: errorMessage,
@@ -501,7 +501,7 @@ export class InngestTester {
       })
       results.push({
         ...shortTextResult,
-        testName: 'Text-to-speech short text test',
+        name: 'Text-to-speech short text test',
       })
 
       // Тест 2: Длинный текст
@@ -515,7 +515,7 @@ export class InngestTester {
       })
       results.push({
         ...longTextResult,
-        testName: 'Text-to-speech long text test',
+        name: 'Text-to-speech long text test',
       })
 
       // Тест 3: Неправильный ID голоса
@@ -529,14 +529,14 @@ export class InngestTester {
       })
       results.push({
         ...invalidVoiceResult,
-        testName: 'Text-to-speech invalid voice ID test',
+        name: 'Text-to-speech invalid voice ID test',
       })
 
       // Тест 4: Прямой вызов функции
       const directInvokeResult = await this.testTextToSpeechDirectInvoke()
       results.push({
         ...directInvokeResult,
-        testName: 'Text-to-speech direct invocation test',
+        name: 'Text-to-speech direct invocation test',
       })
 
       // Тесты реальной генерации аудио
@@ -551,7 +551,7 @@ export class InngestTester {
         'ljyyJh982fsUinaSQPvv'
       )
       results.push({
-        testName: 'Audio generation - short text',
+        name: 'Audio generation - short text',
         ...shortTextAudioResult,
       })
 
@@ -563,7 +563,7 @@ export class InngestTester {
         'ljyyJh982fsUinaSQPvv'
       )
       results.push({
-        testName: 'Audio generation - long text',
+        name: 'Audio generation - long text',
         ...longTextAudioResult,
       })
 
@@ -573,7 +573,7 @@ export class InngestTester {
         'invalid_voice_id'
       )
       results.push({
-        testName: 'Audio generation - invalid voice ID',
+        name: 'Audio generation - invalid voice ID',
         ...invalidVoiceAudioResult,
       })
 
@@ -581,7 +581,7 @@ export class InngestTester {
         message: '✅ Завершены тесты text-to-speech',
         description: 'Text-to-speech tests completed',
         results: results.map(r => ({
-          testName: r.testName,
+          name: r.name,
           success: r.success,
           message: r.message,
         })),
@@ -596,7 +596,7 @@ export class InngestTester {
       })
 
       results.push({
-        testName: 'Text-to-speech tests error',
+        name: 'Text-to-speech tests error',
         success: false,
         message: 'Произошла ошибка при выполнении тестов text-to-speech',
         error: error instanceof Error ? error.message : String(error),
@@ -726,7 +726,7 @@ export class InngestTester {
       })
 
       results.push({
-        testName: 'Error in runPaymentTests',
+        name: 'Error in runPaymentTests',
         success: false,
         message: 'Произошла ошибка при выполнении тестов платежей',
         error: errorMessage,
@@ -767,7 +767,7 @@ export class InngestTester {
     const result = await this.sendEvent('payment/process', paymentData)
     return {
       ...result,
-      testName: 'Basic Income Operation Test',
+      name: 'Basic Income Operation Test',
       message: result.message || 'Test completed',
     }
   }
@@ -803,7 +803,7 @@ export class InngestTester {
     const result = await this.sendEvent('payment/process', paymentData)
     return {
       ...result,
-      testName: 'Basic Outcome Operation Test',
+      name: 'Basic Outcome Operation Test',
       message: result.message || 'Test completed',
     }
   }
@@ -844,7 +844,7 @@ export class InngestTester {
       const result = await this.sendEvent('payment/process', paymentData)
       results.push({
         ...result,
-        testName: `Service Type Detection Test - ${mode}`,
+        name: `Service Type Detection Test - ${mode}`,
         message: result.message || 'Test completed',
       })
     }
@@ -887,7 +887,7 @@ export class InngestTester {
     const result = await this.sendEvent('payment/process', paymentData)
     return {
       ...result,
-      testName: 'Payment Metadata Test',
+      name: 'Payment Metadata Test',
       message: result.message || 'Test completed',
     }
   }
@@ -931,7 +931,7 @@ export class InngestTester {
       })
 
       results.push({
-        testName: 'Error in runImageGenerationTests',
+        name: 'Error in runImageGenerationTests',
         success: false,
         message: 'Произошла ошибка при выполнении тестов генерации изображений',
         error: errorMessage,
@@ -959,7 +959,7 @@ export class InngestTester {
       message: '✅ Завершены тесты голосового аватара',
       description: 'Voice avatar tests completed',
       results: results.map(r => ({
-        testName: r.testName,
+        name: r.name,
         success: r.success,
         message: r.message,
       })),
@@ -1085,7 +1085,7 @@ export class InngestTester {
 
       return [
         {
-          testName: `Тест функции ${functionName}`,
+          name: `Тест функции ${functionName}`,
           success: false,
           message: `Ошибка при запуске тестов функции ${functionName}`,
           error: errorMessage,
@@ -1097,7 +1097,7 @@ export class InngestTester {
   async testAudioGeneration(
     text: string,
     voice_id: string
-  ): Promise<Omit<TestResult, 'testName'>> {
+  ): Promise<Omit<TestResult, 'name'>> {
     logger.info({
       message: '🎯 Тест генерации аудио',
       description: 'Testing audio generation',
@@ -1231,9 +1231,9 @@ export class InngestTester {
       })
 
       return {
+        name: testName,
         success: true,
         message: 'Audio sent successfully',
-        testName,
       }
     } catch (error) {
       logger.error({
@@ -1244,9 +1244,9 @@ export class InngestTester {
       })
 
       return {
+        name: testName,
         success: false,
         message: error instanceof Error ? error.message : String(error),
-        testName,
       }
     }
   }

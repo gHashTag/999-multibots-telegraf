@@ -1,7 +1,9 @@
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { supabase } from '@/core/supabase'
-
+import { sendTransactionNotification } from '@/helpers/sendTransactionNotification'
+import { getUserBalance } from '@/core/supabase'
+import { v4 as uuidv4 } from 'uuid'
 /**
  * Функция Inngest для обработки платежей с шагами
  */
@@ -11,8 +13,8 @@ export const paymentProcessor = inngest.createFunction(
     retries: 3,
   },
   { event: 'payment/process' },
-  async ({ event, step }) => {
-    const { telegram_id, amount, type, description, bot_name, inv_id, stars } =
+  async ({ event }) => {
+    const { telegram_id, amount, type, description, bot_name, inv_id } =
       event.data
 
     logger.info('🚀 Обработка платежа:', {
@@ -23,6 +25,9 @@ export const paymentProcessor = inngest.createFunction(
     })
 
     try {
+      // Получаем текущий баланс до транзакции
+      const currentBalance = await getUserBalance(telegram_id, bot_name)
+
       const { data: payment, error } = await supabase
         .from('payments_v2')
         .upsert([
@@ -52,11 +57,27 @@ export const paymentProcessor = inngest.createFunction(
         throw new Error('Payment creation failed')
       }
 
+      // Получаем новый баланс после транзакции
+      const newBalance = await getUserBalance(telegram_id, bot_name)
+      const operationId = uuidv4()
+      await sendTransactionNotification({
+        telegram_id: Number(telegram_id),
+        operationId,
+        amount,
+        currentBalance: Number(currentBalance) || 0,
+        newBalance: Number(newBalance) || 0,
+        description: description || 'Платеж успешно обработан',
+        isRu: true,
+        bot_name,
+      })
+
       logger.info('✅ Платеж успешно обработан:', {
         description: 'Payment processed successfully',
         payment_id: payment?.payment_id,
         telegram_id,
         amount,
+        currentBalance,
+        newBalance,
       })
 
       return payment

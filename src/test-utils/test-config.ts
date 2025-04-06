@@ -69,6 +69,40 @@ export const TEST_CONFIG = {
     bot: mockBot,
   },
 
+  // Конфигурация сервера
+  server: {
+    apiUrl: 'http://localhost:3000',
+    webhookPath: '/api/webhook',
+    bflWebhookPath: '/api/bfl-webhook',
+    neurophotoWebhookPath: '/api/neurophoto-webhook',
+  },
+
+  // Тестовые пользователи
+  users: {
+    main: {
+      telegramId: '123456789',
+      botName: 'test_bot',
+      isRussian: true,
+    },
+  },
+
+  // Тестовые данные для тренировки моделей
+  modelTraining: {
+    samples: [
+      {
+        trainingId: 'test-training-id-1',
+        status: 'completed',
+        outputUrl: 'https://example.com/model.safetensors',
+        version: '1.0.0',
+        metrics: {
+          loss: 0.001,
+          accuracy: 0.99,
+        },
+        error: null,
+      },
+    ],
+  },
+
   // Тестовые данные для платежей
   payments: {
     success: {

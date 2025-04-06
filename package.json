@@ -44,10 +44,10 @@
     "telegraf": "^4.16.3",
     "tslib": "^2.8.1",
     "uuid": "^11.1.0",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "@inngest/test": "^0.1.6"
   },
   "devDependencies": {
-    "@inngest/test": "^0.1.6",
     "@swc/cli": "^0.1.57",
     "@swc/core": "^1.2.220",
     "@types/archiver": "^6.0.3",

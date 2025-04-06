@@ -604,16 +604,8 @@ export const neuroImageGeneration = inngest.createFunction(
 
           // Формируем сообщение для отправки, используя результат из шага check-balance
           const message = is_ru
-            ? `Ваши изображения сгенерированы! Стоимость: ${(
-                costPerImage * Number(validNumImages)
-              ).toFixed(2)} ⭐️\nНовый баланс: ${
-                userBalance.formattedBalance
-              } ⭐️`
-            : `Your images generated! Cost: ${(
-                costPerImage * Number(validNumImages)
-              ).toFixed(2)} ⭐️\nNew balance: ${
-                userBalance.formattedBalance
-              } ⭐️`
+            ? `Ваши изображения сгенерированы! ️`
+            : `Your images generated!`
 
           // Клавиатура для ответа
           const keyboard = {
