@@ -2,6 +2,22 @@ import { TEST_CONFIG } from '../test-config'
 import { logger } from '@/utils/logger'
 import { TestResult } from '../types'
 import { supabase } from '@/core/supabase'
+import { MyContext } from '@/interfaces'
+
+const mockSession = {
+  __scenes: {
+    data: {},
+    cursor: 0,
+    severity: 'info',
+  },
+  data: {},
+  imageUrl: '',
+  text: '',
+  amount: 0,
+  attempts: 0,
+  severity: 'info',
+  cursor: 0,
+}
 
 export const runBalanceTests = async (): Promise<TestResult[]> => {
   const results: TestResult[] = []
@@ -18,6 +34,7 @@ export const runBalanceTests = async (): Promise<TestResult[]> => {
       .from('payments_v2')
       .delete()
       .eq('bot_name', TEST_BOT_NAME)
+      .eq('telegram_id', String(TEST_OWNER_ID))
 
     if (deletePaymentsError) {
       logger.error('❌ Ошибка при очистке тестовых платежей', {
@@ -142,6 +159,7 @@ export const runBalanceTests = async (): Promise<TestResult[]> => {
       .from('payments_v2')
       .delete()
       .eq('bot_name', TEST_BOT_NAME)
+      .eq('telegram_id', String(TEST_OWNER_ID))
 
     if (cleanupPaymentsError) {
       logger.error('❌ Ошибка при очистке тестовых платежей', {
@@ -189,4 +207,99 @@ export const runBalanceTests = async (): Promise<TestResult[]> => {
   }
 
   return results
+}
+
+export async function balanceTest(): Promise<TestResult> {
+  try {
+    logger.info('🚀 Начинаем тест команды /balance', {
+      description: 'Starting /balance command test',
+    })
+
+    // Создаем тестового пользователя
+    const userTelegramId = '123456789'
+    const botName = 'test_bot'
+
+    const { error: userError } = await supabase.from('users').insert({
+      telegram_id: userTelegramId,
+      bot_name: botName,
+      balance: 1000,
+    })
+
+    if (userError) {
+      throw new Error(`Ошибка при создании пользователя: ${userError.message}`)
+    }
+
+    // Создаем тестовые платежи
+    const { error: paymentError } = await supabase.from('payments_v2').insert([
+      {
+        telegram_id: userTelegramId,
+        bot_name: botName,
+        amount: 100,
+        stars: 100,
+        type: 'money_income',
+        status: 'COMPLETED',
+        payment_method: 'rub',
+        description: 'Test payment 1',
+      },
+      {
+        telegram_id: userTelegramId,
+        bot_name: botName,
+        amount: -50,
+        stars: 50,
+        type: 'money_expense',
+        status: 'COMPLETED',
+        description: 'Test payment 2',
+      },
+    ])
+
+    if (paymentError) {
+      throw new Error(`Ошибка при создании платежей: ${paymentError.message}`)
+    }
+
+    // Создаем контекст для пользователя
+    const userContext = {
+      from: {
+        id: parseInt(userTelegramId),
+        is_bot: false,
+        first_name: 'User',
+      },
+      botInfo: {
+        username: botName,
+      },
+      session: mockSession,
+    } as unknown as MyContext
+
+    // Проверяем баланс через RPC
+    const { data: balance, error: balanceError } = await supabase.rpc(
+      'get_user_balance',
+      { user_telegram_id: userTelegramId }
+    )
+
+    if (balanceError) {
+      throw new Error(`Ошибка при получении баланса: ${balanceError.message}`)
+    }
+
+    logger.info('💰 Текущий баланс пользователя:', {
+      description: 'Current user balance',
+      balance,
+      telegram_id: userTelegramId,
+      bot_name: botName,
+    })
+
+    return {
+      success: true,
+      message: 'Тест команды /balance успешно завершен',
+    }
+  } catch (error) {
+    logger.error('❌ Ошибка в тесте команды /balance:', {
+      description: 'Error in /balance command test',
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      message: `Ошибка в тесте команды /balance: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    }
+  }
 }

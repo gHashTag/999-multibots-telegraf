@@ -229,7 +229,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
         is_ru: true,
         bot_name: 'test_bot',
         description: 'Test spend payment via Inngest',
-        type: 'money_expence',
+        type: 'money_expense',
         metadata: {
           service_type: ModeEnum.TextToImage,
           test: true,
@@ -261,7 +261,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
         is_ru: true,
         bot_name: 'test_bot',
         description: 'Test negative balance prevention',
-        type: 'money_expence',
+        type: 'money_expense',
         metadata: {
           service_type: ModeEnum.TextToImage,
           test: true,

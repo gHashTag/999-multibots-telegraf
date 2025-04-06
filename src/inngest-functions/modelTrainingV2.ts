@@ -157,7 +157,7 @@ export const modelTrainingV2 = inngest.createFunction(
           is_ru,
           bot_name,
           description: `Payment for model training ${modelName} (steps: ${steps})`,
-          type: 'money_expence',
+          type: 'money_expense',
           metadata: {
             service_type: ModeEnum.DigitalAvatarBodyV2,
             model_name: modelName,

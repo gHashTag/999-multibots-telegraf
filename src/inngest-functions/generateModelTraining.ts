@@ -852,7 +852,7 @@ export const generateModelTraining = inngest.createFunction(
           data: {
             telegram_id: eventData.telegram_id,
             amount: -paymentAmount, // отрицательное значение для списания
-            type: 'money_expence',
+            type: 'money_expense',
             description: `Оплата тренировки модели ${modelName} (${steps} шагов)`,
             bot_name: eventData.bot_name,
             metadata: {

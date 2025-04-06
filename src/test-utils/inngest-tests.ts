@@ -783,7 +783,7 @@ export class InngestTester {
 
     logger.info({
       message: '🧪 Тест базовой операции списания',
-      description: 'Basic money_expence operation test',
+      description: 'Basic money_expense operation test',
       testAmount,
       telegram_id,
     })
@@ -791,8 +791,8 @@ export class InngestTester {
     const paymentData = {
       telegram_id,
       amount: testAmount,
-      type: 'money_expence',
-      description: 'Test money_expence operation',
+      type: 'money_expense',
+      description: 'Test money_expense operation',
       bot_name,
       is_ru,
       payment_type: 'regular',
@@ -832,7 +832,7 @@ export class InngestTester {
       const paymentData = {
         telegram_id,
         amount: testAmount,
-        type: 'money_expence',
+        type: 'money_expense',
         description,
         bot_name,
         is_ru,
@@ -870,7 +870,7 @@ export class InngestTester {
     const paymentData = {
       telegram_id,
       amount: testAmount,
-      type: 'money_expence',
+      type: 'money_expense',
       description: 'Test payment with metadata',
       bot_name,
       is_ru,

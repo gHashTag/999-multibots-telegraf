@@ -243,7 +243,7 @@ export const textToSpeechFunction = inngest.createFunction(
           data: {
             telegram_id: params.telegram_id,
             amount: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
-            type: 'money_expence',
+            type: 'money_expense',
             description: 'Payment for text to speech conversion',
             bot_name: params.bot_name,
             metadata: {
