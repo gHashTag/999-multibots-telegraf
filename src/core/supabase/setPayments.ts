@@ -1,6 +1,7 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
+import { v4 as uuidv4 } from 'uuid'
 
 export interface Payment {
   payment_id?: number // Optional because it's auto-generated
@@ -119,6 +120,7 @@ export const createPayment = async (
       telegram_id: normalizeTelegramId(params.telegram_id),
       type:
         params.type || (params.amount > 0 ? 'money_income' : 'money_expense'),
+      inv_id: params.inv_id || `${Date.now()}-${params.telegram_id}-${uuidv4()}`,
     }
 
     logger.info('🚀 Создание записи о платеже:', {
@@ -127,6 +129,7 @@ export const createPayment = async (
       amount: normalizedParams.amount,
       stars: normalizedParams.stars,
       currency: normalizedParams.currency,
+      inv_id: normalizedParams.inv_id,
     })
 
     const { data: payments, error } = await supabase
