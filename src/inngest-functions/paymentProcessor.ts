@@ -69,7 +69,7 @@ export const paymentProcessor = inngest.createFunction(
       const initResult = await step.run('init-operation', async () => {
         // Создаем уникальный идентификатор операции
         const opId =
-          operation_id || `${telegram_id}-${amount}-${new Date().getTime()}`
+          operation_id || `${telegram_id}-${amount}-${new Date().getTime()}-${uuidv4()}`
 
         logger.info('🚀 ШАГ 1: Инициализация операции', {
           description: 'Step 1: Operation initialization',
