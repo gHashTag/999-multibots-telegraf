@@ -74,7 +74,7 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
         console.log('CASE: 🖼️ Текст в фото')
         ctx.session.mode = ModeEnum.TextToImage
-          await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       // [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
       //   console.log('CASE: 🎤 Синхронизация губ')

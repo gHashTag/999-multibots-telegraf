@@ -1,9 +1,9 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { Context, Scenes } from 'telegraf'
 import { isRussian } from '@/helpers'
-import { setPayments, getTranslation } from '@/core/supabase'
+import { getTranslation } from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
-import { updateUserSubscription } from '@/core/supabase/updateUserSubscription'
+import { updateUserSubscription, createPayment } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
 
 import { supabase } from '@/core/supabase'
@@ -203,7 +203,7 @@ async function processPayment(
 
   await updateUserSubscription(userId, subscriptionName)
 
-  await setPayments({
+  await createPayment({
     telegram_id: userId.toString(),
     amount: Number(amount),
     OutSum: amount.toString(),
@@ -276,7 +276,7 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       await processPayment(ctx, stars_price, callback_data, stars)
     } else {
       console.log('CASE: subscriptionType not in buttons', selectedButton)
-      await setPayments({
+      await createPayment({
         telegram_id: ctx.from?.id?.toString() || '',
         amount: Number(stars),
         OutSum: stars.toString(),
@@ -328,6 +328,34 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
         inv_id: ctx.message?.successful_payment?.invoice_payload,
         stars: Number(stars),
       },
+    })
+
+    await createPayment({
+      telegram_id: ctx.from?.id?.toString() || '',
+      amount: stars,
+      OutSum: stars.toString(),
+      InvId: ctx.message?.successful_payment?.invoice_payload || '',
+      inv_id: ctx.message?.successful_payment?.invoice_payload || '',
+      currency: 'RUB',
+      stars: Number(stars),
+      status: 'PENDING',
+      payment_method: 'Telegram',
+      subscription: subscriptionType,
+      bot_name: ctx.botInfo.username,
+      description: subscriptionType
+        ? `Покупка подписки ${subscriptionType}`
+        : `Пополнение баланса на ${stars} звезд`,
+      metadata: {
+        payment_method: 'Telegram',
+        subscription: subscriptionType || undefined,
+        stars: Number(stars),
+        email: ctx.session.email || undefined,
+      },
+      language: ctx.from?.language_code || 'ru',
+      invoice_url: '',
+    })
+    logger.info('💾 Платеж сохранен со статусом PENDING', {
+      description: 'Payment saved with PENDING status',
     })
   } catch (error) {
     console.error('Error processing payment:', error)

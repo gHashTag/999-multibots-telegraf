@@ -2,12 +2,11 @@
  * Конфигурация для тестирования различных компонентов системы
  */
 
-import { PaymentStatus } from '@/core/supabase/updatePaymentStatus'
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { InngestTestEngine } from '@inngest/test'
-import { inngest } from '@/inngest-functions/clients'
+
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
 
 // Создаем мок бота
@@ -57,7 +56,12 @@ export const inngestTestEngine = new InngestTestEngine({
   function: paymentProcessor,
 })
 
-// Конфигурация для тестов
+export interface TestResult {
+  success: boolean
+  name: string
+  error?: string
+}
+
 export const TEST_CONFIG = {
   // Базовая конфигурация
   mockBot,
@@ -79,7 +83,23 @@ export const TEST_CONFIG = {
     },
   },
 
-  // Тестовый движок Inngest
+  TIMEOUT: 30000, // 30 seconds
+  RETRY_ATTEMPTS: 3,
+  RETRY_DELAY: 1000, // 1 second
+  LOG_LEVEL: 'info',
+  EMOJI: {
+    START: '🚀',
+    SUCCESS: '✅',
+    ERROR: '❌',
+    INFO: 'ℹ️',
+    WARNING: '⚠️',
+    DEBUG: '🔍',
+    RETRY: '🔄',
+    TEST: '🎯',
+    DATA: '💾',
+    EVENT: '⚡️',
+  },
+
   inngestEngine: inngestTestEngine,
 
   // Таймауты
