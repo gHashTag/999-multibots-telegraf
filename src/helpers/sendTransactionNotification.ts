@@ -20,7 +20,7 @@ export const sendTransactionNotification = async ({
   newBalance,
   description,
   isRu,
-  bot
+  bot,
 }: TransactionNotificationParams) => {
   try {
     logger.info('📝 Отправка уведомления о транзакции:', {
@@ -58,4 +58,4 @@ New balance: ${newBalance} ⭐️`
     })
     throw error
   }
-} 
+}
