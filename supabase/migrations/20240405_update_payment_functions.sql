@@ -138,4 +138,4 @@ BEGIN
         'new_balance', v_new_balance
     );
 END;
-$$ LANGUAGE plpgsql; 
+$$ LANGUAGE plpgsql;

@@ -1,30 +1,4 @@
--- Стандартизация типа telegram_id во всех таблицах и функциях
-
--- Удаляем представление перед изменением типа столбца
-DROP VIEW IF EXISTS payments_analytics CASCADE;
-
--- 1. Обновляем тип в таблице users (уже BIGINT)
-ALTER TABLE users 
-ALTER COLUMN telegram_id SET DATA TYPE BIGINT;
-
--- 2. Обновляем тип в таблице payments_v2
-ALTER TABLE payments_v2 
-ALTER COLUMN telegram_id SET DATA TYPE BIGINT;
-
--- Пересоздаем представление после изменения типа столбца
-CREATE VIEW payments_analytics AS
-SELECT 
-  p.*,
-  u.first_name,
-  u.last_name,
-  u.username,
-  u.balance,
-  u.language_code,
-  u.bot_name as user_bot_name
-FROM payments_v2 p
-LEFT JOIN users u ON p.telegram_id = u.telegram_id;
-
--- 3. Пересоздаем функции с правильными типами
+-- Обновляем функцию get_user_balance
 DROP FUNCTION IF EXISTS get_user_balance(text);
 CREATE OR REPLACE FUNCTION get_user_balance(user_telegram_id TEXT)
 RETURNS NUMERIC AS $$
@@ -43,7 +17,7 @@ BEGIN
     -- Используем payments_v2 вместо payments
     IF telegram_id_numeric IS NULL THEN
         SELECT COALESCE(
-            SUM(CASE WHEN operation_type = 'money_income' THEN stars_amount ELSE -stars_amount END),
+            SUM(CASE WHEN type = 'money_income' THEN stars ELSE -stars END),
             0
         ) INTO result
         FROM payments_v2 
@@ -51,7 +25,7 @@ BEGIN
         AND status = 'COMPLETED';
     ELSE
         SELECT COALESCE(
-            SUM(CASE WHEN operation_type = 'money_income' THEN stars_amount ELSE -stars_amount END),
+            SUM(CASE WHEN type = 'money_income' THEN stars ELSE -stars END),
             0
         ) INTO result
         FROM payments_v2 
@@ -63,22 +37,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION ensure_user_exists(p_telegram_id BIGINT)
-RETURNS void AS $$
-BEGIN
-    INSERT INTO users (telegram_id)
-    VALUES (p_telegram_id)
-    ON CONFLICT (telegram_id) DO NOTHING;
-END;
-$$ LANGUAGE plpgsql;
-
+-- Обновляем функцию sync_user_balance
 CREATE OR REPLACE FUNCTION sync_user_balance()
 RETURNS TRIGGER AS $$
 BEGIN
     -- Обновляем баланс в таблице users при изменении payments_v2
     UPDATE users
     SET balance = (
-        SELECT COALESCE(SUM(CASE WHEN operation_type = 'money_income' THEN stars_amount ELSE -stars_amount END), 0)
+        SELECT COALESCE(SUM(CASE WHEN type = 'money_income' THEN stars ELSE -stars END), 0)
         FROM payments_v2
         WHERE telegram_id = NEW.telegram_id
         AND status = 'COMPLETED'
@@ -97,13 +63,12 @@ CREATE TRIGGER sync_balance_trigger_v2
     FOR EACH ROW
     EXECUTE FUNCTION sync_user_balance();
 
+-- Обновляем функцию add_stars_to_balance
 CREATE OR REPLACE FUNCTION add_stars_to_balance(
     p_telegram_id bigint,
     p_stars integer,
     p_description text,
-    p_bot_name text,
-    p_type text,
-    p_service_type text
+    p_bot_name text
 ) RETURNS jsonb AS $$
 DECLARE
     v_old_balance integer;
@@ -121,12 +86,12 @@ BEGIN
     -- Создаем запись о начислении в payments_v2
     INSERT INTO payments_v2 (
         payment_date,
-        money_amount,
+        amount,
         status,
         payment_method,
         description,
         metadata,
-        stars_amount,
+        stars,
         telegram_id,
         currency,
         subscription,
@@ -135,15 +100,14 @@ BEGIN
         type
     ) VALUES (
         NOW(),
-        0,  -- Бесплатное начисление
+        p_stars,  -- Сумма равна количеству звезд
         'COMPLETED',
         'system',
         p_description,
         jsonb_build_object(
             'type', 'system_add',
             'old_balance', v_old_balance,
-            'added_stars', p_stars,
-            'service_type', p_service_type
+            'added_stars', p_stars
         ),
         p_stars,
         p_telegram_id,
@@ -151,7 +115,7 @@ BEGIN
         'none',
         p_bot_name,
         'ru',
-        p_type
+        'money_income'  -- По умолчанию это доход
     )
     RETURNING payment_id INTO v_payment_id;
 

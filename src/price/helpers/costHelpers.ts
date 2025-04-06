@@ -1,4 +1,4 @@
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import {
   conversionRates,
   conversionRatesV2,

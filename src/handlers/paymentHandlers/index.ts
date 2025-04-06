@@ -10,8 +10,7 @@ import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
 import { createBotByName } from '@/core/bot'
-import { PaymentStatus, TransactionType } from '@/interfaces/payments.interface'
-import { ModeEnum } from '@/interfaces/modes.interface'
+
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
