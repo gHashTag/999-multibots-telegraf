@@ -34,57 +34,57 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
         console.log('CASE: 🔍 Промпт из фото')
         ctx.session.mode = ModeEnum.ImageToPrompt
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[4].title_ru : levels[4].title_en]: async () => {
         console.log('CASE: 🧠 Мозг аватара')
         ctx.session.mode = ModeEnum.Avatar
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[5].title_ru : levels[5].title_en]: async () => {
         console.log('CASE: 💭 Чат с аватаром')
         ctx.session.mode = ModeEnum.ChatWithAvatar
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[6].title_ru : levels[6].title_en]: async () => {
         console.log('CASE: 🤖 Выбор модели ИИ')
         ctx.session.mode = ModeEnum.SelectModelWizard
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[7].title_ru : levels[7].title_en]: async () => {
         console.log('CASE: 🎤 Голос аватара')
         ctx.session.mode = ModeEnum.Voice
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[8].title_ru : levels[8].title_en]: async () => {
         console.log('CASE: 🎙️ Текст в голос')
         ctx.session.mode = ModeEnum.TextToSpeech
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[9].title_ru : levels[9].title_en]: async () => {
         console.log('CASE: 🎥 Фото в видео')
         ctx.session.mode = ModeEnum.ImageToVideo
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[10].title_ru : levels[10].title_en]: async () => {
         console.log('CASE:  Видео из текста')
         ctx.session.mode = ModeEnum.TextToVideo
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
         console.log('CASE: 🖼️ Текст в фото')
         ctx.session.mode = ModeEnum.TextToImage
-        await ctx.scene.enter('checkBalanceScene')
+          await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       // [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
       //   console.log('CASE: 🎤 Синхронизация губ')
       //   ctx.session.mode = 'lip_sync'
-      //   await ctx.scene.enter('checkBalanceScene')
+      //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       // },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
       //   ctx.session.mode = 'video_in_url'
-      //   await ctx.scene.enter('checkBalanceScene')
+      //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       // },
       [isRu ? levels[100].title_ru : levels[100].title_en]: async () => {
         console.log('CASE: 💎 Пополнить баланс')
