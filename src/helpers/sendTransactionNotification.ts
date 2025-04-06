@@ -31,12 +31,12 @@ export const sendTransactionNotification = async ({
     })
 
     const message = isRu
-      ? `${description}
+      ? `
 ID: ${operationId}
 Сумма: ${amount} ⭐️
 Старый баланс: ${currentBalance} ⭐️
 Новый баланс: ${newBalance} ⭐️`
-      : `${description}
+      : `
 ID: ${operationId}
 Amount: ${amount} ⭐️
 Old balance: ${currentBalance} ⭐️

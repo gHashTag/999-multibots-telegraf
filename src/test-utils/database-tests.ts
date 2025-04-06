@@ -1,18 +1,7 @@
 import { testSupabase } from './test-env'
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
-
-/**
- * Интерфейс для результатов тестирования
- */
-interface TestResult {
-  testName: string
-  success: boolean
-  message: string
-  details?: any
-  error?: string
-  duration?: number
-}
+import { TestResult } from './types'
 
 /**
  * Класс для тестирования базы данных
@@ -43,7 +32,7 @@ export class DatabaseTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
         success: true,
         message: `Соединение с базой данных установлено за ${duration}мс`,
         details: { count },
@@ -58,7 +47,7 @@ export class DatabaseTester {
       })
 
       return {
-        testName,
+        name: testName,
         success: false,
         message: 'Ошибка при соединении с базой данных',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -94,7 +83,7 @@ export class DatabaseTester {
           // Код ошибки, когда запись не найдена
           const duration = Date.now() - startTime
           return {
-            testName,
+            name: testName,
             success: false,
             message: `Тренировка ${trainingId} не найдена в базе данных`,
             details: { error },
@@ -106,7 +95,7 @@ export class DatabaseTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
         success: true,
         message: `Тренировка ${trainingId} найдена в базе данных`,
         details: {
@@ -129,7 +118,7 @@ export class DatabaseTester {
       })
 
       return {
-        testName,
+        name: testName,
         success: false,
         message: 'Ошибка при поиске тренировки',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -168,7 +157,7 @@ export class DatabaseTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
         success: true,
         message: `Найдено ${trainingsCount} тренировок пользователя ${telegramId}`,
         details: {
@@ -191,7 +180,7 @@ export class DatabaseTester {
       })
 
       return {
-        testName,
+        name: testName,
         success: false,
         message: 'Ошибка при получении тренировок пользователя',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -252,8 +241,10 @@ export class DatabaseTester {
         message: '❌ Критическая ошибка при выполнении тестов базы данных',
         description: 'Critical error during database tests',
         error: error instanceof Error ? error.message : 'Unknown error',
+
       })
       throw error
     }
   }
 }
+

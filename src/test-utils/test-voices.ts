@@ -1,5 +1,6 @@
-import { logger } from '../utils/logger'
-import { elevenlabs } from '../core/elevenlabs'
+import { elevenlabs } from '@/core/elevenlabs'
+import { logger } from '@/utils/logger'
+import { TestResult } from './types'
 
 interface Voice {
   voice_id: string
@@ -13,96 +14,83 @@ interface Voice {
   created_at_unix: number | null
 }
 
-interface TestResult {
-  success: boolean
-  message: string
-  voices?: Array<{
-    voice_id: string
-    name: string
-    category: string
-  }>
-  error?: string
-}
-
+/**
+ * Тестирует получение списка голосов
+ */
 export async function testGetVoices(): Promise<TestResult> {
-  logger.info({
-    message: '🎯 Тест получения списка голосов',
-    description: 'Testing voice list retrieval',
-  })
+  const startTime = Date.now()
 
   try {
-    const voices = (await elevenlabs.voices.getAll()) as unknown as Voice[]
+    logger.info({
+      message: '🎯 Тест получения списка голосов',
+      description: 'Testing voice list retrieval',
+    })
+
+    const response = await elevenlabs.voices.getAll()
+    const voices = response.voices as unknown as Voice[]
 
     if (!voices || voices.length === 0) {
       logger.warn({
         message: '⚠️ Список голосов пуст',
         description: 'Voice list is empty',
       })
+
       return {
+        name: 'Get voices test',
         success: false,
         message: 'Список голосов пуст',
+        error: 'Empty voice list',
+        duration: Date.now() - startTime,
       }
     }
 
-    // Группируем голоса по категориям
-    const voicesByCategory = voices.reduce(
-      (acc: { [key: string]: number }, voice) => {
-        acc[voice.category] = (acc[voice.category] || 0) + 1
-        return acc
-      },
-      {}
-    )
+    // Собираем статистику по категориям
+    const categories = new Map<string, number>()
+    voices.forEach((voice: Voice) => {
+      const count = categories.get(voice.category) || 0
+      categories.set(voice.category, count + 1)
+    })
 
     logger.info({
       message: '📊 Статистика по категориям голосов',
       description: 'Voice categories statistics',
-      categories: voicesByCategory,
+      categories: Object.fromEntries(categories),
     })
 
-    // Выводим подробную информацию о каждом голосе
-    voices.forEach(voice => {
-      logger.info({
-        message: '🎤 Информация о голосе',
+    // Логируем информацию о каждом голосе
+    voices.forEach((voice: Voice) => {
+      logger.debug({
+        message: '🗣️ Информация о голосе',
         description: 'Voice details',
-        details: {
-          voice_id: voice.voice_id,
-          name: voice.name,
-          category: voice.category,
-          description: voice.description,
-          preview_url: voice.preview_url,
-          created_at: voice.created_at_unix
-            ? new Date(voice.created_at_unix * 1000).toISOString()
-            : null,
-        },
-      })
-    })
-
-    logger.info({
-      message: '✅ Список голосов получен успешно',
-      description: 'Voice list retrieved successfully',
-      voiceCount: voices.length,
-    })
-
-    return {
-      success: true,
-      message: `Получено ${voices.length} голосов`,
-      voices: voices.map(voice => ({
         voice_id: voice.voice_id,
         name: voice.name,
         category: voice.category,
-      })),
+      })
+    })
+
+    return {
+      name: 'Get voices test',
+      success: true,
+      message: `Получено ${voices.length} голосов`,
+      details: {
+        voiceCount: voices.length,
+        categories: Object.fromEntries(categories),
+      },
+      duration: Date.now() - startTime,
     }
   } catch (error) {
     logger.error({
       message: '❌ Ошибка при получении списка голосов',
       description: 'Error getting voice list',
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error.message : 'Unknown error',
     })
 
     return {
+      name: 'Get voices test',
       success: false,
       message: 'Ошибка при получении списка голосов',
       error: error instanceof Error ? error.message : String(error),
+      duration: Date.now() - startTime,
     }
   }
 }

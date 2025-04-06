@@ -10,10 +10,8 @@ import { TelegramId } from '@/interfaces/telegram.interface'
 import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
 import { 
   TransactionType, 
-  TRANSACTION_DESCRIPTIONS, 
-  DETAILED_TRANSACTION_DESCRIPTIONS,
-  TRANSACTION_KEYS,
-  SERVICE_KEYS
+  SERVICE_DESCRIPTIONS,
+  ModeEnum
 } from '@/interfaces/payments.interface'
 import { sendTransactionNotification } from '@/helpers/sendTransactionNotification'
 
@@ -32,27 +30,6 @@ interface PaymentProcessorEvent {
   }
 }
 
-// Функция для получения детального описания транзакции
-function getDetailedDescription(type: TransactionType, service?: string): string {
-  if (!service) {
-    return TRANSACTION_DESCRIPTIONS[type]
-  }
-
-  const serviceDescriptions = DETAILED_TRANSACTION_DESCRIPTIONS[type]
-  return serviceDescriptions[service] || serviceDescriptions.default
-}
-
-// Функция для определения сервиса из описания
-function getServiceFromDescription(description: string): string {
-  const serviceKeys = Object.values(SERVICE_KEYS)
-  for (const service of serviceKeys) {
-    if (description.toLowerCase().includes(service.toLowerCase())) {
-      return service
-    }
-  }
-  return 'default'
-}
-
 /**
  * Функция Inngest для обработки платежей
  */
@@ -65,7 +42,7 @@ export const paymentProcessor = inngest.createFunction(
         telegram_id,
         amount,
         type,
-        description,
+        description: providedDescription,
         bot_name,
         metadata = {},
         operation_id: provided_operation_id
@@ -74,7 +51,7 @@ export const paymentProcessor = inngest.createFunction(
       // Шаг 1: Проверка на дубликаты
       const operationId = await step.run('check-duplicates', async () => {
         const id = provided_operation_id || generateInvId(telegram_id, amount)
-        const key = `${telegram_id}:${amount}:${type}:${description}`
+        const key = `${telegram_id}:${amount}:${type}:${providedDescription}`
         const existingPayment = processedPayments.get(key)
 
         if (existingPayment && Date.now() - existingPayment.time < 5000) {
@@ -85,6 +62,22 @@ export const paymentProcessor = inngest.createFunction(
         return id
       })
 
+      // Генерируем описание на основе типа сервиса и операции
+      const description = await step.run('generate-description', async () => {
+        if (providedDescription && providedDescription.startsWith('Payment for generating')) {
+          return providedDescription // Сохраняем детальные описания для генерации изображений
+        }
+
+        const serviceType = (metadata.service_type || 'system') as keyof typeof SERVICE_DESCRIPTIONS
+        if (type === 'money_expense' && serviceType in SERVICE_DESCRIPTIONS) {
+          return SERVICE_DESCRIPTIONS[serviceType].expense(Math.abs(amount))
+        } else if (type === 'money_income') {
+          return SERVICE_DESCRIPTIONS.neuro_photo.income(Math.abs(amount))
+        }
+        
+        return providedDescription || `⚙️ Системная операция: ${amount} звезд`
+      })
+
       // Шаг 2: Обработка платежа через SQL функцию process_payment
       const paymentResult = await step.run('process-payment', async () => {
         // Конвертируем BigInt в строку для безопасной сериализации
@@ -93,7 +86,7 @@ export const paymentProcessor = inngest.createFunction(
         ))
 
         const { data, error } = await supabase.rpc('process_payment', {
-          p_telegram_id: telegram_id.toString(), // Конвертируем в строку
+          p_telegram_id: telegram_id.toString(),
           p_amount: amount,
           p_type: type,
           p_description: description,
@@ -113,7 +106,6 @@ export const paymentProcessor = inngest.createFunction(
           throw error
         }
 
-        // Конвертируем значения в числа для JavaScript
         return {
           ...data,
           old_balance: Number(data.old_balance),
