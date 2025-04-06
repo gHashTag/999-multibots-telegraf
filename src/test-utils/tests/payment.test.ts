@@ -260,8 +260,23 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
 
     return {
       success: true,
+<<<<<<< Updated upstream
       message: 'Тест платежной системы успешно завершен',
       name: 'Payment System Test',
+=======
+<<<<<<< HEAD
+      name: 'Payment System Test',
+      message: 'Все тесты платежной системы успешно пройдены',
+      details: {
+        telegram_id: testTelegramId,
+        final_balance: finalBalance,
+        payments_count: payments.length,
+      },
+=======
+      message: 'Тест платежной системы успешно завершен',
+      name: 'Payment System Test',
+>>>>>>> b75d880 (tests)
+>>>>>>> Stashed changes
     }
   } catch (error) {
     logger.error('❌ Ошибка в тесте платежной системы:', {
@@ -272,10 +287,23 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
 
     return {
       success: false,
+<<<<<<< Updated upstream
       message: `Ошибка в тесте платежной системы: ${
         error instanceof Error ? error.message : String(error)
       }`,
       name: 'Payment System Test',
+=======
+<<<<<<< HEAD
+      name: 'Payment System Test',
+      message: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error.message : String(error),
+=======
+      message: `Ошибка в тесте платежной системы: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      name: 'Payment System Test',
+>>>>>>> b75d880 (tests)
+>>>>>>> Stashed changes
     }
   }
 }

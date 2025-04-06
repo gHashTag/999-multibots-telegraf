@@ -7,13 +7,13 @@ import {
   description,
   subscriptionTitles,
 } from './helper'
-import { setPayments, updateUserSubscription } from '@/core/supabase'
+import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
-
+import { createPayment } from '@/core/supabase/createPayment'
 type Subscription = 'neurophoto' | 'neurobase' | 'neuroblogger'
 
 const generateInvoiceStep = async (ctx: MyContext) => {
@@ -80,7 +80,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
     // Сохранение платежа со статусом PENDING
-    await setPayments({
+    await createPayment({
       telegram_id: userId.toString(),
       amount: stars,
       OutSum: stars.toString(),
@@ -89,7 +89,6 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       currency: 'RUB',
       stars: Number(selectedPayment.stars),
       status: 'PENDING',
-      email: email || undefined,
       payment_method: 'Telegram',
       subscription: subscription,
       bot_name,
@@ -99,7 +98,6 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       metadata: {
         payment_method: 'Telegram',
         subscription: subscription || undefined,
-        stars: Number(selectedPayment.stars),
       },
       language: ctx.from?.language_code || 'ru',
       invoice_url: invoiceURL,
