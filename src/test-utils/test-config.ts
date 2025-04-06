@@ -91,22 +91,22 @@ const mockBot = {
 export const TEST_CONFIG = {
   // Базовая конфигурация
   server: {
-    apiUrl: 'http://localhost:2999',
-    webhookPath: '/webhooks/replicate',
-    bflWebhookPath: '/webhooks/bfl',
-    neurophotoWebhookPath: '/webhooks/neurophoto',
+    apiUrl: 'http://localhost:3000',
+    webhookPath: '/webhook',
+    bflWebhookPath: '/bfl-webhook',
+    neurophotoWebhookPath: '/neurophoto-webhook',
   },
 
   // Тестовые данные пользователей
   users: {
     main: {
-      telegramId: '144022504',
+      telegramId: '123456789',
       botName: 'test_bot',
       isRussian: true,
     },
     default: {
-      telegramId: '144022504',
-      voiceId: 'test_voice_id',
+      telegramId: '987654321',
+      voiceId: 'test_voice',
       isRussian: true,
       botName: 'test_bot',
     },
@@ -212,6 +212,7 @@ export const TEST_CONFIG = {
   TEST_USER_ID: '144022504',
   TEST_BOT_NAME: 'test_bot',
   TEST_IMAGE_URL: 'https://example.com/test-image.jpg',
+  TEST_OWNER_ID: 123456789,
 
   PAYMENT_STATUS: {
     PENDING: 'PENDING' as PaymentStatus,
@@ -229,5 +230,9 @@ export const TEST_CONFIG = {
   models: {
     neurophoto:
       'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b',
+    default: {
+      name: 'test_model',
+      type: 'test_type',
+    },
   },
 }

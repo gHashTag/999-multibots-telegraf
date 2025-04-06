@@ -11,7 +11,7 @@ import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { inngest } from '@/core/inngest/clients'
 import { API_URL, isDev } from '@/config'
 import { BalanceHelper } from '@/helpers/inngest/balanceHelpers'
-import { logger } from '@utils/logger'
+import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { Prediction } from 'replicate'
@@ -852,7 +852,7 @@ export const generateModelTraining = inngest.createFunction(
           data: {
             telegram_id: eventData.telegram_id,
             amount: -paymentAmount, // отрицательное значение для списания
-            type: 'outcome',
+            type: 'money_expence',
             description: `Оплата тренировки модели ${modelName} (${steps} шагов)`,
             bot_name: eventData.bot_name,
             metadata: {

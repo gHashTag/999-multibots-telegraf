@@ -98,7 +98,7 @@ export const createVoiceAvatarFunction = inngest.createFunction(
             is_ru: validatedParams.is_ru,
             bot_name: validatedParams.bot_name,
             description: 'Payment for voice avatar creation',
-            type: 'outcome',
+            type: 'money_expence',
             amount: calculateModeCost({ mode: ModeEnum.Voice }).stars,
             metadata: {
               service_type: ModeEnum.Voice,

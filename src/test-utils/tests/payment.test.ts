@@ -184,7 +184,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
         is_ru: true,
         bot_name: 'test_bot',
         description: 'Test add payment via Inngest',
-        type: 'income',
+        type: 'money_income',
         metadata: {
           service_type: 'System',
           test: true,
@@ -229,7 +229,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
         is_ru: true,
         bot_name: 'test_bot',
         description: 'Test spend payment via Inngest',
-        type: 'outcome',
+        type: 'money_expence',
         metadata: {
           service_type: ModeEnum.TextToImage,
           test: true,
@@ -261,7 +261,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
         is_ru: true,
         bot_name: 'test_bot',
         description: 'Test negative balance prevention',
-        type: 'outcome',
+        type: 'money_expence',
         metadata: {
           service_type: ModeEnum.TextToImage,
           test: true,
@@ -296,7 +296,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
           is_ru: true,
           bot_name: 'test_bot',
           description: `Concurrent operation ${i}`,
-          type: 'income',
+          type: 'money_income',
           metadata: {
             service_type: 'System',
             test: true,

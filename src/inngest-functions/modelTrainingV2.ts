@@ -157,7 +157,7 @@ export const modelTrainingV2 = inngest.createFunction(
           is_ru,
           bot_name,
           description: `Payment for model training ${modelName} (steps: ${steps})`,
-          type: 'outcome',
+          type: 'money_expence',
           metadata: {
             service_type: ModeEnum.DigitalAvatarBodyV2,
             model_name: modelName,
@@ -396,7 +396,7 @@ export const modelTrainingV2 = inngest.createFunction(
           description: `Refund for failed model training: ${
             error instanceof Error ? error.message : String(error)
           }`,
-          type: 'income',
+          type: 'money_income',
           amount: calculateModeCost({
             mode: ModeEnum.DigitalAvatarBodyV2,
             steps,

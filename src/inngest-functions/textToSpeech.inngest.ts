@@ -243,7 +243,7 @@ export const textToSpeechFunction = inngest.createFunction(
           data: {
             telegram_id: params.telegram_id,
             amount: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
-            type: 'outcome',
+            type: 'money_expence',
             description: 'Payment for text to speech conversion',
             bot_name: params.bot_name,
             metadata: {
@@ -416,7 +416,7 @@ export const textToSpeechFunction = inngest.createFunction(
               is_ru: validatedParams.is_ru,
               bot_name: validatedParams.bot_name,
               description: `Refund for failed text to speech generation`,
-              type: 'income',
+              type: 'money_income',
               amount: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
               metadata: {
                 service_type: ModeEnum.TextToSpeech,

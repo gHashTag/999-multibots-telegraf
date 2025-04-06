@@ -115,8 +115,8 @@ export const testInngestPayment = async () => {
     data: {
       amount: 100,
       telegram_id,
-      type: 'income',
-      description: 'test income',
+      type: 'money_income',
+      description: 'test money_income',
       bot_name,
       operation_id: incomeOperationId,
       metadata: {
@@ -134,7 +134,7 @@ export const testInngestPayment = async () => {
 
   if (!incomeResult) {
     logger.error('❌ Ошибка при пополнении баланса', {
-      description: 'Error during income operation',
+      description: 'Error during money_income operation',
       telegram_id,
       operation_id: incomeOperationId,
     })
@@ -145,7 +145,7 @@ export const testInngestPayment = async () => {
   const balanceAfterIncome = await getUserBalance(telegram_id, bot_name)
   if (Number(balanceAfterIncome) !== 100) {
     logger.error('❌ Некорректный баланс после пополнения', {
-      description: 'Incorrect balance after income',
+      description: 'Incorrect balance after money_income',
       telegram_id,
       expected: 100,
       actual: balanceAfterIncome,
@@ -162,8 +162,8 @@ export const testInngestPayment = async () => {
     data: {
       amount: -30,
       telegram_id,
-      type: 'outcome',
-      description: 'test outcome',
+      type: 'money_expence',
+      description: 'test money_expence',
       bot_name,
       operation_id: spendOperationId,
       metadata: {

@@ -94,7 +94,7 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
         console.log('CASE: 🤑 Баланс')
         ctx.session.mode = 'balance' as any
-        await ctx.scene.enter('balanceScene')
+        await ctx.scene.enter(ModeEnum.BalanceScene)
       },
       [isRu ? levels[102].title_ru : levels[102].title_en]: async () => {
         console.log('CASE: 👥 Пригласить друга')
@@ -129,7 +129,7 @@ export const handleMenu = async (ctx: MyContext) => {
       '/balance': async () => {
         console.log('CASE: 💰 Баланс')
         ctx.session.mode = 'balance' as any
-        await ctx.scene.enter('balanceScene')
+        await ctx.scene.enter(ModeEnum.BalanceScene)
       },
       '/help': async () => {
         console.log('CASE: ❓ Помощь')

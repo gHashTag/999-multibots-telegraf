@@ -158,7 +158,7 @@ export const ruPaymentProcessPayment = inngest.createFunction(
           data: {
             amount: stars,
             telegram_id: telegram_id.toString(),
-            type: 'income',
+            type: 'money_income',
             description: subscription
               ? `Покупка подписки ${subscription}`
               : `Пополнение баланса на ${stars} звезд`,

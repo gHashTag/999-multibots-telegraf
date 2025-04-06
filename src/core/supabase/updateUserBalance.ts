@@ -8,7 +8,7 @@ import { logger } from '@/utils/logger'
 interface UpdateUserBalanceParams {
   telegram_id: TelegramId
   amount: number
-  type: 'income' | 'outcome'
+  type: 'money_income' | 'money_expence'
   operation_description?: string
   metadata?: Record<string, any>
   bot_name?: string

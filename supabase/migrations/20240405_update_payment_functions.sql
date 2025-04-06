@@ -17,7 +17,7 @@ BEGIN
     -- Используем payments_v2 вместо payments
     IF telegram_id_numeric IS NULL THEN
         SELECT COALESCE(
-            SUM(CASE WHEN operation_type = 'income' THEN stars_amount ELSE -stars_amount END),
+            SUM(CASE WHEN operation_type = 'money_income' THEN stars_amount ELSE -stars_amount END),
             0
         ) INTO result
         FROM payments_v2 
@@ -25,7 +25,7 @@ BEGIN
         AND status = 'COMPLETED';
     ELSE
         SELECT COALESCE(
-            SUM(CASE WHEN operation_type = 'income' THEN stars_amount ELSE -stars_amount END),
+            SUM(CASE WHEN operation_type = 'money_income' THEN stars_amount ELSE -stars_amount END),
             0
         ) INTO result
         FROM payments_v2 
@@ -44,7 +44,7 @@ BEGIN
     -- Обновляем баланс в таблице users при изменении payments_v2
     UPDATE users
     SET balance = (
-        SELECT COALESCE(SUM(CASE WHEN operation_type = 'income' THEN stars_amount ELSE -stars_amount END), 0)
+        SELECT COALESCE(SUM(CASE WHEN operation_type = 'money_income' THEN stars_amount ELSE -stars_amount END), 0)
         FROM payments_v2
         WHERE telegram_id = NEW.telegram_id
         AND status = 'COMPLETED'
@@ -115,7 +115,7 @@ BEGIN
         'none',
         p_bot_name,
         'ru',
-        'income'
+        'money_income'
     )
     RETURNING payment_id INTO v_payment_id;
 

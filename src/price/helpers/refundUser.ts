@@ -26,7 +26,7 @@ export async function refundUser(ctx: MyContext, amount: number) {
       data: {
         telegram_id: ctx.from?.id.toString(),
         amount,
-        type: 'income',
+        type: 'money_income',
         description: 'Refund for cancelled operation',
         bot_name: ctx.botInfo.username,
       },

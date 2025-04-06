@@ -73,7 +73,7 @@ const runRuPaymentTest = async () => {
     })
 
     logger.error('❌ Ошибка при пополнении баланса', {
-      description: 'Error during income operation',
+      description: 'Error during money_income operation',
       telegram_id,
       operation_id,
     })

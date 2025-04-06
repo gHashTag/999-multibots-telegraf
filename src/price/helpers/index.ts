@@ -69,7 +69,7 @@ export async function processBalanceOperation({
     await updateUserBalance({
       telegram_id,
       amount: amount,
-      type: 'outcome',
+      type: 'money_expence',
       operation_description: description,
       bot_name,
     })
@@ -126,13 +126,13 @@ export async function sendBalanceMessage(
 export const processPayment = async ({
   ctx,
   amount,
-  type = 'outcome',
+  type = 'money_expence',
   description,
   metadata = {},
 }: {
   ctx: MyContext
   amount: number
-  type?: 'income' | 'outcome'
+  type?: 'money_income' | 'money_expence'
   description?: string
   metadata?: Record<string, any>
 }) => {

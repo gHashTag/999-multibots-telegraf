@@ -26,7 +26,7 @@ export const testPaymentSystem = async () => {
     const addResult = await updateUserBalance({
       telegram_id: testTelegramId.toString(),
       amount: 100,
-      type: 'income',
+      type: 'money_income',
       operation_description: 'Test add stars',
       bot_name: 'ai_koshey_bot',
     })
@@ -53,7 +53,7 @@ export const testPaymentSystem = async () => {
     const spendResult = await updateUserBalance({
       telegram_id: testTelegramId.toString(),
       amount: 30,
-      type: 'outcome',
+      type: 'money_expence',
       operation_description: 'Test spend stars',
       bot_name: 'ai_koshey_bot',
     })

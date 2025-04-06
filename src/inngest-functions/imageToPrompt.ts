@@ -56,7 +56,7 @@ export const imageToPromptFunction = inngest.createFunction(
             amount: cost_per_image,
             is_ru,
             bot_name,
-            type: 'outcome',
+            type: 'money_expence',
             description: 'Payment for image to prompt conversion',
             operation_id: payment_operation_id,
             metadata: {
