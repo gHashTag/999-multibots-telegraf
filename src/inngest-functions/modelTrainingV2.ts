@@ -160,7 +160,7 @@ export const modelTrainingV2 = inngest.createFunction(
 
       // Отправляем событие для списания средств
       await inngest.send({
-        name: 'balance/process',
+        name: 'payment/process',
         data: {
           telegram_id,
           amount: -cost,
@@ -171,7 +171,7 @@ export const modelTrainingV2 = inngest.createFunction(
             model_name: modelName,
             training_steps: steps,
             current_balance: currentBalance,
-          },
+          }
         },
       })
 
@@ -409,7 +409,7 @@ export const modelTrainingV2 = inngest.createFunction(
 
       // Отправляем событие для возврата средств
       await inngest.send({
-        name: 'balance/process',
+        name: 'payment/process',
         data: {
           telegram_id,
           amount: balanceResult.cost,
@@ -420,7 +420,7 @@ export const modelTrainingV2 = inngest.createFunction(
             model_name: modelName,
             training_steps: steps,
             error: error instanceof Error ? error.message : 'Unknown error',
-          },
+          }
         },
       })
 

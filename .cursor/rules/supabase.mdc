@@ -5,6 +5,33 @@ alwaysApply: false
 ---
 # SQL Database Access Patterns
 
+## PROJECTS
+
+{
+  "data": {
+    "details": [
+      {
+        "id": "yuukfqcsdhkyxegfwlcb",
+        "organization_id": "hlenjgpkwenatqlfwzlg",
+        "name": "NeuroBlogger",
+        "region": "eu-central-2",
+        "status": "ACTIVE_HEALTHY",
+        "database": {
+          "host": "db.yuukfqcsdhkyxegfwlcb.supabase.co",
+          "version": "15.8.1.021",
+          "postgres_engine": "15",
+          "release_channel": "ga"
+        },
+        "created_at": "2025-01-01T09:47:23.870115Z"
+      }
+    ]
+  },
+  "error": null,
+  "successfull": true,
+  "successful": true
+}
+
+
 ## Detect SQL DDL Operations
 
 When you see SQL queries that try to modify database structure (DDL operations), suggest using migrations instead:

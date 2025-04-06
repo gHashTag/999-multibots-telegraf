@@ -15,7 +15,7 @@ interface UpdateUserBalanceParams {
 }
 
 /**
- * Обновляет баланс пользователя через событие balance/process
+ * Обновляет баланс пользователя через событие payment/process
  */
 export const updateUserBalance = async ({
   telegram_id,
@@ -39,7 +39,7 @@ export const updateUserBalance = async ({
 
     // Отправляем событие для обновления баланса
     await inngest.send({
-      name: 'balance/process',
+      name: 'payment/process',
       data: {
         telegram_id,
         amount,

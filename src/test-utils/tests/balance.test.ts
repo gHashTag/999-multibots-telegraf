@@ -3,6 +3,7 @@ import { logger } from '@/utils/logger'
 import { TestResult } from '../types'
 import { supabase } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
+import { getUserBalance } from '@/core/supabase'
 
 const mockSession = {
   __scenes: {
@@ -78,22 +79,7 @@ export const runBalanceTests = async (): Promise<TestResult[]> => {
     }
 
     // Тест 1: Проверка начального баланса
-    const { data: initialBalance, error: initialError } = await supabase.rpc(
-      'get_user_balance',
-      {
-        p_telegram_id: String(TEST_OWNER_ID),
-        p_bot_name: TEST_BOT_NAME,
-      }
-    )
-
-    if (initialError) {
-      logger.error('❌ Ошибка при проверке начального баланса', {
-        description: 'Error checking initial balance',
-        error: initialError.message,
-        details: initialError,
-      })
-      throw initialError
-    }
+    const initialBalance = await getUserBalance(TEST_OWNER_ID, TEST_BOT_NAME)
 
     results.push({
       name: 'Initial Balance Check',
@@ -127,22 +113,7 @@ export const runBalanceTests = async (): Promise<TestResult[]> => {
     }
 
     // Проверяем обновленный баланс
-    const { data: updatedBalance, error: updateError } = await supabase.rpc(
-      'get_user_balance',
-      {
-        p_telegram_id: String(TEST_OWNER_ID),
-        p_bot_name: TEST_BOT_NAME,
-      }
-    )
-
-    if (updateError) {
-      logger.error('❌ Ошибка при проверке обновленного баланса', {
-        description: 'Error checking updated balance',
-        error: updateError.message,
-        details: updateError,
-      })
-      throw updateError
-    }
+    const updatedBalance = await getUserBalance(TEST_OWNER_ID, TEST_BOT_NAME)
 
     results.push({
       name: 'Balance Update After Payment',
@@ -269,14 +240,11 @@ export async function balanceTest(): Promise<TestResult> {
       session: mockSession,
     } as unknown as MyContext
 
-    // Проверяем баланс через RPC
-    const { data: balance, error: balanceError } = await supabase.rpc(
-      'get_user_balance',
-      { user_telegram_id: userTelegramId }
-    )
+    // Проверяем баланс
+    const balance = await getUserBalance(userTelegramId, botName)
 
-    if (balanceError) {
-      throw new Error(`Ошибка при получении баланса: ${balanceError.message}`)
+    if (!balance) {
+      throw new Error('Balance not found')
     }
 
     logger.info('💰 Текущий баланс пользователя:', {

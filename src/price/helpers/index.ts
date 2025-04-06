@@ -129,7 +129,7 @@ export interface ProcessBalanceOperationParams {
 }
 
 /**
- * Обрабатывает операцию с балансом через событие balance/process
+ * Обрабатывает операцию с балансом через событие payment/process
  */
 export const processBalanceOperation = async ({
   telegram_id,
@@ -173,7 +173,7 @@ export const processBalanceOperation = async ({
 
     // Отправляем событие для обновления баланса
     await inngest.send({
-      name: 'balance/process',
+      name: 'payment/process',
       data: {
         telegram_id,
         amount,
@@ -184,7 +184,7 @@ export const processBalanceOperation = async ({
         metadata: {
           ...metadata,
           current_balance: currentBalance,
-        },
+        }
       },
     })
 
