@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { v4 as uuidv4 } from 'uuid'
 export class TextToSpeechController {
   public textToSpeech = async (

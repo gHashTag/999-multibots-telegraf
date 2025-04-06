@@ -1,5 +1,5 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
@@ -8,8 +8,7 @@ import { supabase } from '@/core/supabase'
 import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
 
 import { getBotByName } from '@/core/bot'
-import { ModeEnum } from '@/interfaces/modes.interface'
-import { calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
 

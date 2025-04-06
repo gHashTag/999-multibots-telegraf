@@ -16,12 +16,11 @@ import {
   saveFileLocally,
 } from '@/helpers'
 import { replicate } from '@/core/replicate'
-import { ModeEnum } from '@/interfaces/modes.interface'
-import { calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { API_URL } from '@/config'
 import path from 'path'
 import fs from 'fs'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { IMAGES_MODELS } from '@/price/models/IMAGES_MODELS'
 import { logger } from '@/utils/logger'
 

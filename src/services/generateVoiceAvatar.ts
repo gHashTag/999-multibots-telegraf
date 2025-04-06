@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { sendGenericErrorMessage } from '@/menu'
 import { logger } from '@/utils/logger'
 import { TelegramId } from '@/interfaces/telegram.interface'

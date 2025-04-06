@@ -69,7 +69,7 @@ import { getTrainingCancelUrl } from './core/supabase'
 import { get100Command } from './commands/get100Command'
 import { composer as inngestCommand } from './commands/inngest'
 
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([

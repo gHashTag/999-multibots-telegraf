@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { getUserBalance } from '@/core/supabase'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { isRussian } from '@/helpers'
 

@@ -1,6 +1,6 @@
 import { sendPaymentNotificationWithBot } from '@/price/helpers/sendPaymentNotificationWithBot'
 import { sendPaymentNotificationToUser } from '@/price/helpers/sendPaymentNotificationToUser'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { updateUserSubscription } from '@/core/supabase'
 import { updatePaymentStatus } from '@/core/supabase/updatePaymentStatus'
 import { logger } from '@/utils/logger'

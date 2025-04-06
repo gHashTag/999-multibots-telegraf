@@ -2,7 +2,7 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { getVoiceId } from '../../core/supabase'
 
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { isRussian } from '@/helpers'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'

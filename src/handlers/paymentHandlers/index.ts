@@ -10,8 +10,7 @@ import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
 import { createBotByName } from '@/core/bot'
-import { PaymentStatus, TransactionType } from '@/interfaces/payments.interface'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { inngest } from '@/inngest-functions/clients'
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
   subscription: string
@@ -206,21 +205,22 @@ async function processPayment(
 
   await setPayments({
     telegram_id: userId.toString(),
+    amount: Number(amount),
     OutSum: amount.toString(),
     InvId: payload || '',
-    currency: 'STARS',
+    inv_id: payload || '',
+    currency: 'RUB',
     stars: Number(stars),
-    status: 'COMPLETED' as PaymentStatus,
-    payment_method: 'Telegram',
+    status: 'SUCCESS',
+    payment_method: 'Robokassa',
     bot_name: ctx.botInfo.username,
-    description: `Payment completed - ${amount.toString()} STARS`,
+    description: `Payment completed - ${amount.toString()} RUB`,
     metadata: {
-      payment_method: 'TELEGRAM',
+      payment_method: 'Robokassa',
       email: ctx.session.email,
     },
+    language: 'ru',
     invoice_url: '',
-    type: 'money_income' as TransactionType,
-    service_type: ModeEnum.NeuroPhoto,
   })
 
   await sendNotification(
@@ -278,11 +278,13 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       console.log('CASE: subscriptionType not in buttons', selectedButton)
       await setPayments({
         telegram_id: ctx.from?.id?.toString() || '',
+        amount: Number(stars),
         OutSum: stars.toString(),
         InvId: ctx.message?.successful_payment?.invoice_payload || '',
+        inv_id: ctx.message?.successful_payment?.invoice_payload || '',
         currency: 'RUB',
         stars: Number(stars),
-        status: 'COMPLETED' as PaymentStatus,
+        status: 'SUCCESS',
         payment_method: 'Robokassa',
         bot_name: ctx.botInfo.username,
         description: `Subscription payment completed - ${stars.toString()} RUB`,
@@ -294,8 +296,6 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
         },
         language: 'ru',
         invoice_url: '',
-        type: 'subscription_purchase' as TransactionType,
-        service_type: ModeEnum.NeuroPhoto,
       })
       await ctx.reply(
         isRu
@@ -309,6 +309,26 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       ctx.session.subscription = ''
       ctx.session.buttons = []
     }
+
+    logger.info('✅ Обработка успешного платежа:', {
+      description: 'Processing successful payment',
+      telegram_id: ctx.from?.id,
+      amount: stars,
+      inv_id: ctx.message?.successful_payment?.invoice_payload,
+    })
+
+    await inngest.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: String(ctx.from?.id),
+        amount: Number(stars),
+        type: 'money_income',
+        description: `Purchase and sale:: ${stars}`,
+        bot_name: ctx.botInfo.username,
+        inv_id: ctx.message?.successful_payment?.invoice_payload,
+        stars: Number(stars),
+      },
+    })
   } catch (error) {
     console.error('Error processing payment:', error)
   }

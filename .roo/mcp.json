@@ -4,17 +4,8 @@
       "command": "npx",
       "args": ["@agentdeskai/browser-tools-mcp@1.0.11"]
     },
-    "supabase": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-postgres",
-        "postgresql://postgres.yuukfqcsdhkyxegfwlcb:syzgo5-gefbuQ-gabbef@aws-0-eu-central-2.pooler.supabase.com:5432/postgres"
-      ]
-    },
-    "remotion-docs": {
-      "command": "npx",
-      "args": ["@remotion/mcp"]
+    "supabase_composio": {
+      "url": "https://mcp.composio.dev/supabase/calm-damp-magician-B-f2iC"
     },
     "actors-mcp-server": {
       "command": "npx",
@@ -28,14 +19,8 @@
         "APIFY_TOKEN": "apify_api_MYTainOkZluaaN2ixc1E0klUhnkxqO2aXfEJ"
       }
     },
-    "git": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "git-mcp-server",
-        "--repository",
-        "https://github.com/gHashTag/999-multibots-telegraf.git"
-      ]
+    "github_composio": {
+      "url": "https://mcp.composio.dev/github/calm-damp-magician-B-f2iC"
     },
     "cli": {
       "command": "uvx",

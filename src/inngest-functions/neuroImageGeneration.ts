@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import { savePrompt } from '@/core/supabase/savePrompt'
@@ -7,10 +7,10 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { processApiResponse } from '@/helpers/processApiResponse'
-import { generateInvId } from '@/utils/generateInvId'
+
 import { saveFileLocally } from '@/helpers'
 import { pulse } from '@/helpers/pulse'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum, calculateModeCost } from '@/price/helpers'
 import path from 'path'
 import { API_URL } from '@config'
 import fs from 'fs'
@@ -19,7 +19,6 @@ import { getBotByName } from '@/core/bot'
 import { v4 as uuidv4 } from 'uuid'
 
 import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { calculateModeCost } from '@/price/helpers/modelsCost'
 
 export const neuroImageGeneration = inngest.createFunction(
   {
@@ -206,16 +205,20 @@ export const neuroImageGeneration = inngest.createFunction(
         })
 
         // Генерируем уникальный ID для операции
-        const operation_id = generateInvId(telegram_id, paymentAmount)
+        const payment_operation_id = `${telegram_id}-${Date.now()}-${prompt.substring(
+          0,
+          10
+        )}`
+
         logger.info('💰 Генерируем уникальный ID для операции', {
           description: 'Generating unique ID for operation',
           telegram_id,
-          operation_id,
+          payment_operation_id,
         })
 
         // Используем централизованный процессор платежей через событие
         const paymentResult = await inngest.send({
-          id: operation_id,
+          id: payment_operation_id,
           name: 'payment/process',
           data: {
             telegram_id,
@@ -240,7 +243,7 @@ export const neuroImageGeneration = inngest.createFunction(
             description:
               'Payment sent for processing via payment/process event',
             telegram_id,
-            operation_id,
+            payment_operation_id,
             payment_event_id: paymentResult.ids?.[0] || 'unknown',
             paymentAmount,
           }
@@ -259,14 +262,14 @@ export const neuroImageGeneration = inngest.createFunction(
             telegram_id,
             newBalance,
             paymentAmount,
-            operation_id,
+            payment_operation_id,
           }
         )
 
         return {
           success: true,
           newBalance,
-          operation_id,
+          payment_operation_id,
         }
       })
 
@@ -306,7 +309,7 @@ export const neuroImageGeneration = inngest.createFunction(
               )
 
               const input = {
-                prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
+                prompt: `Fashionable: ${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
                 negative_prompt: 'nsfw, erotic, violence, bad anatomy...',
                 num_inference_steps: 40,
                 guidance_scale: 3,
@@ -601,8 +604,16 @@ export const neuroImageGeneration = inngest.createFunction(
 
           // Формируем сообщение для отправки, используя результат из шага check-balance
           const message = is_ru
-            ? `Ваши изображения сгенерированы!`
-            : `Your images generated!`
+            ? `Ваши изображения сгенерированы! Стоимость: ${(
+                costPerImage * Number(validNumImages)
+              ).toFixed(2)} ⭐️\nНовый баланс: ${
+                userBalance.formattedBalance
+              } ⭐️`
+            : `Your images generated! Cost: ${(
+                costPerImage * Number(validNumImages)
+              ).toFixed(2)} ⭐️\nNew balance: ${
+                userBalance.formattedBalance
+              } ⭐️`
 
           // Клавиатура для ответа
           const keyboard = {

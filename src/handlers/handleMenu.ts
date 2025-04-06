@@ -6,7 +6,7 @@ import { handleTechSupport } from '@/commands/handleTechSupport'
 import { mainMenuButton } from '@/menu/mainMenu'
 import { get100Command } from '@/commands'
 import { getStatsCommand } from '@/commands/stats'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
@@ -34,7 +34,7 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
         console.log('CASE: 🔍 Промпт из фото')
         ctx.session.mode = ModeEnum.ImageToPrompt
-        await ctx.scene.enter('imageToPromptWizard')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[4].title_ru : levels[4].title_en]: async () => {
         console.log('CASE: 🧠 Мозг аватара')

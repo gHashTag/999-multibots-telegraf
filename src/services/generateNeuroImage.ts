@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { isRussian } from '@/helpers/language'
 import { ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'

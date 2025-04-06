@@ -63,7 +63,7 @@ function formatResults(results: TestResult[], testType: string) {
 
     console.log(
       `${index + 1}. ${statusColor}${status}${colors.reset} ${colors.bright}${
-        result.name
+        result.testName
       }${colors.reset} ${colors.yellow}${duration}${colors.reset}`
     )
     console.log(`   ${result.message}`)

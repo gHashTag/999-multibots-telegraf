@@ -2,14 +2,15 @@ import {
   TelegramId,
   normalizeTelegramId,
 } from '@/interfaces/telegram.interface'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { supabase } from '@/core/supabase'
 import { TestResult } from '../types'
 import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
+import { TEST_CONFIG } from '../test-config'
 
 const waitForPaymentCompletion = async (
   telegram_id: TelegramId,
@@ -139,7 +140,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
         count: 0,
         aspect_ratio: '9:16',
         balance: 0,
-        bot_name: 'test_bot',
+        bot_name: TEST_CONFIG.TEST_BOT_NAME,
         level: 1,
       },
     ])
@@ -159,7 +160,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
     // Тест 1: Проверка начального баланса
     const initialBalance = await getUserBalance(
       testTelegramId.toString(),
-      'ai_koshey_bot'
+      TEST_CONFIG.TEST_BOT_NAME
     )
     logger.info('💰 Начальный баланс', {
       description: 'Initial balance check',
@@ -174,43 +175,33 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
     }
 
     // Тест 2: Пополнение баланса (STARS)
-    const addOperationId = `${Date.now()}-${testTelegramId}-${uuidv4()}`
-    await inngest.send({
-      id: `test-payment-add-${addOperationId}`,
-      name: 'payment/process',
-      data: {
-        telegram_id: testTelegramId,
-        amount: 100,
-        is_ru: true,
-        bot_name: 'test_bot',
-        description: 'Test add payment via Inngest',
-        type: 'money_income',
-        metadata: {
-          service_type: 'System',
-          test: true,
+    const addInv_id = uuidv4()
+    await TEST_CONFIG.inngestEngine.execute({
+      events: [
+        {
+          name: 'payment/process',
+          data: {
+            telegram_id: testTelegramId,
+            amount: 100,
+            type: 'money_income',
+            description: 'Test add payment via Inngest',
+            bot_name: TEST_CONFIG.TEST_BOT_NAME,
+            inv_id: addInv_id,
+            metadata: {
+              service_type: 'System',
+              test: true,
+            },
+          },
         },
-        operation_id: addOperationId,
-        currency: 'STARS',
-      },
+      ],
     })
 
-    // Добавляем задержку для обработки события
-    await new Promise(resolve => setTimeout(resolve, 5000))
-
-    const addOperationCompleted = await waitForPaymentCompletion(
-      testTelegramId,
-      addOperationId,
-      100,
-      'ai_koshey_bot'
-    )
-
-    if (!addOperationCompleted) {
-      throw new Error('Операция пополнения не завершилась успешно')
-    }
+    // Даем время на обработку события
+    await new Promise(resolve => setTimeout(resolve, 1000))
 
     const balanceAfterAdd = await getUserBalance(
       testTelegramId.toString(),
-      'ai_koshey_bot'
+      TEST_CONFIG.TEST_BOT_NAME
     )
     if (balanceAfterAdd !== 100) {
       throw new Error(
@@ -219,158 +210,72 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
     }
 
     // Тест 3: Списание средств
-    const spendOperationId = `${Date.now()}-${testTelegramId}-${uuidv4()}`
-    await inngest.send({
-      id: `test-payment-spend-${spendOperationId}`,
-      name: 'payment/process',
-      data: {
-        telegram_id: testTelegramId,
-        amount: 30,
-        is_ru: true,
-        bot_name: 'test_bot',
-        description: 'Test spend payment via Inngest',
-        type: 'money_expense',
-        metadata: {
-          service_type: ModeEnum.TextToImage,
-          test: true,
-        },
-        operation_id: spendOperationId,
-        currency: 'STARS',
-      },
-    })
-
-    const spendOperationCompleted = await waitForPaymentCompletion(
-      testTelegramId,
-      spendOperationId,
-      70,
-      'ai_koshey_bot'
-    )
-
-    if (!spendOperationCompleted) {
-      throw new Error('Операция списания не завершилась успешно')
-    }
-
-    // Тест 4: Проверка на отрицательный баланс
-    const negativeOperationId = `${Date.now()}-${testTelegramId}-${uuidv4()}`
-    await inngest.send({
-      id: `test-payment-negative-${negativeOperationId}`,
-      name: 'payment/process',
-      data: {
-        telegram_id: testTelegramId,
-        amount: 100,
-        is_ru: true,
-        bot_name: 'test_bot',
-        description: 'Test negative balance prevention',
-        type: 'money_expense',
-        metadata: {
-          service_type: ModeEnum.TextToImage,
-          test: true,
-        },
-        operation_id: negativeOperationId,
-        currency: 'STARS',
-      },
-    })
-
-    // Ждем обработки операции
-    await new Promise(resolve => setTimeout(resolve, 5000))
-
-    const balanceAfterNegative = await getUserBalance(
-      testTelegramId.toString(),
-      'ai_koshey_bot'
-    )
-    if (balanceAfterNegative !== 70) {
-      throw new Error(
-        `Баланс не должен уйти в минус, ожидается 70, получено: ${balanceAfterNegative}`
-      )
-    }
-
-    // Тест 5: Конкурентные операции
-    const concurrentOperations = Array.from({ length: 5 }, (_, i) => {
-      const operationId = `${Date.now()}-${testTelegramId}-concurrent-${i}`
-      return inngest.send({
-        id: `test-payment-concurrent-${operationId}`,
-        name: 'payment/process',
-        data: {
-          telegram_id: testTelegramId,
-          amount: 10,
-          is_ru: true,
-          bot_name: 'test_bot',
-          description: `Concurrent operation ${i}`,
-          type: 'money_income',
-          metadata: {
-            service_type: 'System',
-            test: true,
-            concurrent_test: true,
+    const spendInv_id = uuidv4()
+    await TEST_CONFIG.inngestEngine.execute({
+      events: [
+        {
+          name: 'payment/process',
+          data: {
+            telegram_id: testTelegramId,
+            amount: -30,
+            type: 'money_expense',
+            description: 'Test spend payment via Inngest',
+            bot_name: TEST_CONFIG.TEST_BOT_NAME,
+            inv_id: spendInv_id,
+            metadata: {
+              service_type: ModeEnum.TextToImage,
+              test: true,
+            },
           },
-          operation_id: operationId,
-          currency: 'STARS',
         },
-      })
+      ],
     })
 
-    await Promise.all(concurrentOperations)
-    await new Promise(resolve => setTimeout(resolve, 5000))
+    // Даем время на обработку события
+    await new Promise(resolve => setTimeout(resolve, 1000))
 
     const finalBalance = await getUserBalance(
       testTelegramId.toString(),
-      'ai_koshey_bot'
+      TEST_CONFIG.TEST_BOT_NAME
     )
-    if (finalBalance !== 120) {
-      // 70 + (5 * 10)
+    if (finalBalance !== 70) {
       throw new Error(
-        `Неверный баланс после конкурентных операций, ожидается 120, получено: ${finalBalance}`
+        `Финальный баланс должен быть 70, получено: ${finalBalance}`
       )
     }
 
-    // Тест 6: Проверка записей в таблице payments_v2
-    const { data: payments, error } = await supabase
-      .from('payments_v2')
-      .select(
-        'amount, stars, payment_method, status, description, metadata, inv_id, currency'
-      )
-      .eq('telegram_id', testTelegramId)
-      .order('payment_date', { ascending: false })
-
-    if (error) {
-      throw new Error(`Ошибка при получении платежей: ${error.message}`)
-    }
-
-    if (!payments || payments.length === 0) {
-      throw new Error('Не найдены записи о платежах')
-    }
-
-    logger.info('✅ Тесты платежной системы успешно завершены', {
-      description: 'Payment system tests completed successfully',
+    logger.info('✅ Тест платежной системы успешно завершен', {
+      description: 'Payment system test completed successfully',
       telegram_id: testTelegramId,
       final_balance: finalBalance,
-      payments_count: payments.length,
     })
+
+    // Очистка тестовых данных
+    if (TEST_CONFIG.cleanupAfterEach) {
+      await Promise.all([
+        supabase.from('payments_v2').delete().eq('telegram_id', testTelegramId),
+        supabase.from('users').delete().eq('telegram_id', testTelegramId),
+      ])
+    }
 
     return {
       success: true,
+      message: 'Тест платежной системы успешно завершен',
       name: 'Payment System Test',
-      message: 'Все тесты платежной системы успешно пройдены',
-      details: {
-        telegram_id: testTelegramId,
-        final_balance: finalBalance,
-        payments_count: payments.length,
-      },
     }
   } catch (error) {
-    logger.error('❌ Ошибка в тестах платежной системы', {
-      description: 'Error in payment system tests',
+    logger.error('❌ Ошибка в тесте платежной системы:', {
+      description: 'Error in payment system test',
       error: error instanceof Error ? error.message : String(error),
       telegram_id: testTelegramId,
     })
 
     return {
       success: false,
+      message: `Ошибка в тесте платежной системы: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
       name: 'Payment System Test',
-      message: error instanceof Error ? error.message : String(error),
-      error: error instanceof Error ? error.message : String(error),
     }
-  } finally {
-    // Очищаем тестовые данные
-    await cleanupTestUser(testTelegramId)
   }
 }

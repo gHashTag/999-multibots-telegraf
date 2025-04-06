@@ -19,12 +19,6 @@ import { logger } from '@/utils/logger'
 
 dotenv.config()
 
-const DEV_BOT_NAME = process.env.DEV_BOT_NAME
-
-if (!DEV_BOT_NAME) {
-  throw new Error('DEV_BOT_NAME is not set')
-}
-
 export const composer = new Composer<MyContext>()
 
 type NextFunction = (err?: Error) => void
@@ -40,7 +34,7 @@ export const createBots = async () => {
     NODE_ENV === 'development'
       ? bots.filter(bot => {
           const { bot_name } = getBotNameByToken(bot.telegram.token)
-          return bot_name === DEV_BOT_NAME
+          return bot_name === 'ai_koshey_bot'
         })
       : bots
 

@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { broadcastService } from '@/services/broadcast.service'
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
