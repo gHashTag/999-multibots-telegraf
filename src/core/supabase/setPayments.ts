@@ -3,22 +3,25 @@ import { logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { generateInvId } from '@/utils/generateInvId'
 import { inngest } from '@/core/inngest/clients'
-import { 
-  Payment, 
-  CreatePaymentDTO, 
-  PaymentStatus, 
+import {
+  Payment,
+  CreatePaymentDTO,
+  PaymentStatus,
   PaymentMethod,
-  TransactionType, 
+  TransactionType,
   ContentService,
-  ModeEnum
+  ModeEnum,
 } from '@/interfaces/payments.interface'
 
 /**
  * Создает новый платеж в системе
  */
-export async function createPayment(params: CreatePaymentDTO): Promise<Payment> {
+export async function createPayment(
+  params: CreatePaymentDTO
+): Promise<Payment> {
   const normalizedTelegramId = normalizeTelegramId(params.telegram_id)
-  const invId = params.inv_id || generateInvId(normalizedTelegramId, params.amount)
+  const invId =
+    params.inv_id || generateInvId(normalizedTelegramId, params.amount)
 
   logger.info({
     message: '💰 Создание нового платежа',
@@ -26,8 +29,8 @@ export async function createPayment(params: CreatePaymentDTO): Promise<Payment> 
     params: {
       ...params,
       telegram_id: normalizedTelegramId,
-      inv_id: invId
-    }
+      inv_id: invId,
+    },
   })
 
   const paymentData: Omit<Payment, 'payment_id' | 'payment_date'> = {
@@ -36,7 +39,10 @@ export async function createPayment(params: CreatePaymentDTO): Promise<Payment> 
     stars: params.stars,
     currency: params.currency,
     description: params.description,
-    metadata: params.metadata || {},
+    metadata: {
+      ...params.metadata,
+      language: params.language,
+    },
     bot_name: params.bot_name,
     status: params.status,
     email: params.email,
@@ -46,8 +52,7 @@ export async function createPayment(params: CreatePaymentDTO): Promise<Payment> 
     service_type: params.service_type || ModeEnum.NeuroPhoto,
     inv_id: invId,
     operation_id: invId,
-    language: params.language,
-    payment_method: params.payment_method
+    payment_method: params.payment_method,
   }
 
   try {
@@ -62,7 +67,7 @@ export async function createPayment(params: CreatePaymentDTO): Promise<Payment> 
         message: '❌ Ошибка при создании платежа',
         description: 'Error creating payment',
         error,
-        paymentData
+        paymentData,
       })
       throw error
     }
@@ -70,7 +75,7 @@ export async function createPayment(params: CreatePaymentDTO): Promise<Payment> 
     logger.info({
       message: '✅ Платеж успешно создан',
       description: 'Payment created successfully',
-      payment: data
+      payment: data,
     })
 
     return data as Payment
@@ -79,7 +84,7 @@ export async function createPayment(params: CreatePaymentDTO): Promise<Payment> 
       message: '❌ Ошибка при создании платежа',
       description: 'Error in createPayment function',
       error,
-      paymentData
+      paymentData,
     })
     throw error
   }
@@ -118,7 +123,7 @@ export async function setPayments(payment: {
       amount,
       status: payment.status,
       type: payment.type,
-      service_type: payment.service_type
+      service_type: payment.service_type,
     })
 
     await inngest.send({
@@ -140,9 +145,9 @@ export async function setPayments(payment: {
           language: payment.language,
           invoice_url: payment.invoice_url,
           payment_method: payment.payment_method,
-          service_type: payment.service_type
-        }
-      }
+          service_type: payment.service_type,
+        },
+      },
     })
 
     logger.info({
@@ -151,7 +156,7 @@ export async function setPayments(payment: {
       telegram_id: normalizedTelegramId,
       amount,
       status: payment.status,
-      type: payment.type
+      type: payment.type,
     })
 
     return { success: true }

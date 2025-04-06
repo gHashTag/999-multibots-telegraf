@@ -1,9 +1,32 @@
 import { ModeEnum } from '@/interfaces/modes.interface'
 
 /**
+ * Типы подписок, доступные для оплаты
+ */
+export type PaymentSubscription =
+  | 'neurophoto'
+  | 'neurobase'
+  | 'neuroblogger'
+  | 'neurotester'
+
+/**
+ * Проверяет, является ли подписка допустимой для оплаты
+ */
+export function isValidPaymentSubscription(
+  subscription: string | undefined
+): subscription is PaymentSubscription {
+  return (
+    subscription === 'neurophoto' ||
+    subscription === 'neurobase' ||
+    subscription === 'neuroblogger' ||
+    subscription === 'neurotester'
+  )
+}
+
+/**
  * Статусы платежа
  */
-export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
 
 /**
  * Результат операции с балансом
@@ -18,22 +41,23 @@ export interface BalanceOperationResult {
 /**
  * Платежные системы
  */
-export type PaymentMethod = 
+export type PaymentMethod =
   | 'Telegram'
   | 'Robokassa'
   | 'System'
-  | 'Unknown';
+  | 'Unknown'
+  | 'Manual'
 
 /**
  * Сервисы для генерации контента
  * Включает все возможные режимы работы бота из ModeEnum
  */
-export type ContentService = ModeEnum;
+export type ContentService = ModeEnum
 
 /**
  * Объединенный тип сервиса
  */
-export type PaymentService = ContentService | PaymentMethod;
+export type PaymentService = ContentService | PaymentMethod
 
 /**
  * Базовая структура платежа в системе
@@ -75,30 +99,30 @@ export interface CreatePaymentDTO {
   inv_id?: string
   status: PaymentStatus
   email?: string
-  subscription?: string
+  subscription?: PaymentSubscription
   language?: string
   invoice_url?: string
-  type?: TransactionType
-  service_type?: ContentService
+  type: TransactionType
+  service_type: ContentService
 }
 
 /**
  * Полная структура платежа, включая все поля
  */
-export type Payment = BasePayment;
+export type Payment = BasePayment
 
 /**
  * Типы транзакций в системе
  */
 export type TransactionType =
-  | 'money_income'    // 💰 Пополнение баланса
-  | 'money_expense'   // 💸 Списание средств
+  | 'money_income' // 💰 Пополнение баланса
+  | 'money_expense' // 💸 Списание средств
   | 'subscription_purchase' // ⭐️ Покупка подписки
-  | 'subscription_renewal'  // 🔄 Продление подписки
-  | 'refund'          // ↩️ Возврат средств
-  | 'bonus'           // 🎁 Бонусное начисление
-  | 'referral'        // 👥 Реферальное начисление
-  | 'system';         // 💫 Системная операция
+  | 'subscription_renewal' // 🔄 Продление подписки
+  | 'refund' // ↩️ Возврат средств
+  | 'bonus' // 🎁 Бонусное начисление
+  | 'referral' // 👥 Реферальное начисление
+  | 'system' // 💫 Системная операция
 
 /**
  * Описания для каждого типа транзакции
@@ -111,26 +135,32 @@ export const TRANSACTION_DESCRIPTIONS: Record<TransactionType, string> = {
   refund: '↩️ Возврат средств',
   bonus: '🎁 Бонусное начисление',
   referral: '👥 Реферальное начисление',
-  system: '💫 Системная операция'
-} as const;
+  system: '💫 Системная операция',
+} as const
 
 /**
  * Детальные описания для каждого типа транзакции
  */
-export const DETAILED_TRANSACTION_DESCRIPTIONS: Record<TransactionType, Record<string, string>> = {
+export const DETAILED_TRANSACTION_DESCRIPTIONS: Record<
+  TransactionType,
+  Record<string, string>
+> = {
   money_income: {
     [ModeEnum.NeuroPhoto]: '🖼️ Пополнение баланса для генерации изображений',
     [ModeEnum.TextToSpeech]: '🗣️ Пополнение баланса для озвучки текста',
     [ModeEnum.ImageToVideo]: '🎬 Пополнение баланса для создания видео',
-    [ModeEnum.TextToImage]: '🖼️ Пополнение баланса для создания изображения из текста',
+    [ModeEnum.TextToImage]:
+      '🖼️ Пополнение баланса для создания изображения из текста',
     [ModeEnum.DigitalAvatarBody]: '🎭 Пополнение баланса для создания аватара',
-    [ModeEnum.DigitalAvatarBodyV2]: '🎭 Пополнение баланса для создания аватара V2',
+    [ModeEnum.DigitalAvatarBodyV2]:
+      '🎭 Пополнение баланса для создания аватара V2',
     [ModeEnum.ChatWithAvatar]: '💬 Пополнение баланса для чата с аватаром',
     [ModeEnum.LipSync]: '👄 Пополнение баланса для синхронизации губ',
     [ModeEnum.Voice]: '🗣️ Пополнение баланса для голосового аватара',
-    [ModeEnum.TextToVideo]: '🎬 Пополнение баланса для создания видео из текста',
+    [ModeEnum.TextToVideo]:
+      '🎬 Пополнение баланса для создания видео из текста',
     [ModeEnum.ImageToPrompt]: '🔍 Пополнение баланса для анализа изображения',
-    'default': '💰 Пополнение баланса'
+    default: '💰 Пополнение баланса',
   },
   money_expense: {
     [ModeEnum.NeuroPhoto]: '🖼️ Генерация изображений',
@@ -144,34 +174,36 @@ export const DETAILED_TRANSACTION_DESCRIPTIONS: Record<TransactionType, Record<s
     [ModeEnum.Voice]: '🗣️ Голосовой аватар',
     [ModeEnum.TextToVideo]: '🎬 Создание видео из текста',
     [ModeEnum.ImageToPrompt]: '🔍 Анализ изображения',
-    'default': '💸 Списание средств'
+    default: '💸 Списание средств',
   },
   subscription_purchase: {
-    'neurophoto': '⭐️ Покупка подписки NeuroPhoto',
-    'neurobase': '⭐️ Покупка подписки NeuroBase',
-    'neuroblogger': '⭐️ Покупка подписки NeuroBlogger',
-    'default': '⭐️ Покупка подписки'
+    neurophoto: '⭐️ Покупка подписки NeuroPhoto',
+    neurobase: '⭐️ Покупка подписки NeuroBase',
+    neuroblogger: '⭐️ Покупка подписки NeuroBlogger',
+    neurotester: '🧪 Тестовая подписка',
+    default: '⭐️ Покупка подписки',
   },
   subscription_renewal: {
-    'neurophoto': '🔄 Продление подписки NeuroPhoto',
-    'neurobase': '🔄 Продление подписки NeuroBase',
-    'neuroblogger': '🔄 Продление подписки NeuroBlogger',
-    'default': '🔄 Продление подписки'
+    neurophoto: '🔄 Продление подписки NeuroPhoto',
+    neurobase: '🔄 Продление подписки NeuroBase',
+    neuroblogger: '🔄 Продление подписки NeuroBlogger',
+    neurotester: '🧪 Продление тестовой подписки',
+    default: '🔄 Продление подписки',
   },
   refund: {
-    'default': '↩️ Возврат средств'
+    default: '↩️ Возврат средств',
   },
   bonus: {
-    'default': '🎁 Бонусное начисление'
+    default: '🎁 Бонусное начисление',
   },
   referral: {
-    'default': '👥 Реферальное начисление'
+    default: '👥 Реферальное начисление',
   },
   system: {
-    'migration': '🔄 Миграция баланса пользователя',
-    'default': '💫 Системная операция'
-  }
-} as const;
+    migration: '🔄 Миграция баланса пользователя',
+    default: '💫 Системная операция',
+  },
+} as const
 
 /**
  * Ключи для описаний транзакций
@@ -184,8 +216,8 @@ export const TRANSACTION_KEYS = {
   REFUND: 'refund',
   BONUS: 'bonus',
   REFERRAL: 'referral',
-  SYSTEM: 'system'
-} as const;
+  SYSTEM: 'system',
+} as const
 
 /**
  * Ключи для сервисов
@@ -199,8 +231,8 @@ export const SERVICE_KEYS: Record<string, ContentService> = {
   DIGITAL_AVATAR_BODY_V2: ModeEnum.DigitalAvatarBodyV2,
   CHAT_WITH_AVATAR: ModeEnum.ChatWithAvatar,
   LIP_SYNC: ModeEnum.LipSync,
-  VOICE: ModeEnum.Voice
-} as const;
+  VOICE: ModeEnum.Voice,
+} as const
 
 /**
  * Ключи для подписок
@@ -208,8 +240,9 @@ export const SERVICE_KEYS: Record<string, ContentService> = {
 export const SUBSCRIPTION_KEYS = {
   NEUROPHOTO: 'neurophoto',
   NEUROBASE: 'neurobase',
-  NEUROBLOGGER: 'neuroblogger'
-} as const;
+  NEUROBLOGGER: 'neuroblogger',
+  NEUROTESTER: 'neurotester',
+} as const
 
 /**
  * Ключи для платежных систем
@@ -218,31 +251,35 @@ export const PAYMENT_METHOD_KEYS: Record<string, PaymentMethod> = {
   TELEGRAM: 'Telegram',
   ROBOKASSA: 'Robokassa',
   SYSTEM: 'System',
-  UNKNOWN: 'Unknown'
-} as const;
+  UNKNOWN: 'Unknown',
+  MANUAL: 'Manual',
+} as const
 
 /**
  * Маппинг команд на типы сервисов
  */
-export const COMMAND_TO_SERVICE_MAP: Partial<Record<ModeEnum, ContentService>> = {
-  [ModeEnum.NeuroPhoto]: ModeEnum.NeuroPhoto,
-  [ModeEnum.NeuroPhotoV2]: ModeEnum.NeuroPhotoV2,
-  [ModeEnum.TextToSpeech]: ModeEnum.TextToSpeech,
-  [ModeEnum.ImageToVideo]: ModeEnum.ImageToVideo,
-  [ModeEnum.TextToVideo]: ModeEnum.TextToVideo,
-  [ModeEnum.TextToImage]: ModeEnum.TextToImage,
-  [ModeEnum.ImageToPrompt]: ModeEnum.ImageToPrompt,
-  [ModeEnum.DigitalAvatarBody]: ModeEnum.DigitalAvatarBody,
-  [ModeEnum.DigitalAvatarBodyV2]: ModeEnum.DigitalAvatarBodyV2,
-  [ModeEnum.ChatWithAvatar]: ModeEnum.ChatWithAvatar,
-  [ModeEnum.LipSync]: ModeEnum.LipSync,
-  [ModeEnum.Voice]: ModeEnum.Voice
-} as const;
+export const COMMAND_TO_SERVICE_MAP: Partial<Record<ModeEnum, ContentService>> =
+  {
+    [ModeEnum.NeuroPhoto]: ModeEnum.NeuroPhoto,
+    [ModeEnum.NeuroPhotoV2]: ModeEnum.NeuroPhotoV2,
+    [ModeEnum.TextToSpeech]: ModeEnum.TextToSpeech,
+    [ModeEnum.ImageToVideo]: ModeEnum.ImageToVideo,
+    [ModeEnum.TextToVideo]: ModeEnum.TextToVideo,
+    [ModeEnum.TextToImage]: ModeEnum.TextToImage,
+    [ModeEnum.ImageToPrompt]: ModeEnum.ImageToPrompt,
+    [ModeEnum.DigitalAvatarBody]: ModeEnum.DigitalAvatarBody,
+    [ModeEnum.DigitalAvatarBodyV2]: ModeEnum.DigitalAvatarBodyV2,
+    [ModeEnum.ChatWithAvatar]: ModeEnum.ChatWithAvatar,
+    [ModeEnum.LipSync]: ModeEnum.LipSync,
+    [ModeEnum.Voice]: ModeEnum.Voice,
+  } as const
 
 /**
  * Маппинг команд на типы транзакций
  */
-export const COMMAND_TO_TRANSACTION_TYPE: Partial<Record<ModeEnum, TransactionType>> = {
+export const COMMAND_TO_TRANSACTION_TYPE: Partial<
+  Record<ModeEnum, TransactionType>
+> = {
   [ModeEnum.NeuroPhoto]: 'money_expense',
   [ModeEnum.NeuroPhotoV2]: 'money_expense',
   [ModeEnum.TextToSpeech]: 'money_expense',
@@ -256,34 +293,35 @@ export const COMMAND_TO_TRANSACTION_TYPE: Partial<Record<ModeEnum, TransactionTy
   [ModeEnum.LipSync]: 'money_expense',
   [ModeEnum.Voice]: 'money_expense',
   [ModeEnum.Subscribe]: 'subscription_purchase',
-  [ModeEnum.TopUpBalance]: 'money_income'
-} as const;
+  [ModeEnum.TopUpBalance]: 'money_income',
+} as const
 
 /**
  * Получение типа транзакции и сервиса по команде
  */
 export function getTransactionInfoByCommand(command: ModeEnum): {
-  transactionType: TransactionType;
-  service: ContentService;
-  description: string;
+  transactionType: TransactionType
+  service: ContentService
+  description: string
 } {
-  const transactionType = COMMAND_TO_TRANSACTION_TYPE[command] || 'system';
-  const service = COMMAND_TO_SERVICE_MAP[command];
-  
+  const transactionType = COMMAND_TO_TRANSACTION_TYPE[command] || 'system'
+  const service = COMMAND_TO_SERVICE_MAP[command]
+
   if (!service) {
     return {
       transactionType,
       service: ModeEnum.NeuroPhoto, // Дефолтный сервис
-      description: DETAILED_TRANSACTION_DESCRIPTIONS[transactionType].default
-    };
+      description: DETAILED_TRANSACTION_DESCRIPTIONS[transactionType].default,
+    }
   }
 
   return {
     transactionType,
     service,
-    description: DETAILED_TRANSACTION_DESCRIPTIONS[transactionType][service] || 
-                DETAILED_TRANSACTION_DESCRIPTIONS[transactionType].default
-  };
+    description:
+      DETAILED_TRANSACTION_DESCRIPTIONS[transactionType][service] ||
+      DETAILED_TRANSACTION_DESCRIPTIONS[transactionType].default,
+  }
 }
 
 /**
