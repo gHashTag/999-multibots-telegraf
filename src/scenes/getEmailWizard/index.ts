@@ -3,7 +3,7 @@ import { isRussian } from '@/helpers'
 import { handleHelpCancel } from '@/handlers'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { WizardScene } from 'telegraf/scenes'
-
+import { LocalSubscription } from '@/scenes/getRuBillWizard'
 const selectPaymentOptionStep = async (ctx: MyContext) => {
   console.log('CASE 3: selectPaymentOptionStep')
   const isRu = isRussian(ctx)
@@ -25,7 +25,11 @@ const selectPaymentOptionStep = async (ctx: MyContext) => {
 
     if (selectedPayment) {
       console.log('Selected payment option:', selectedPayment)
-      ctx.session.selectedPayment = selectedPayment
+      ctx.session.selectedPayment = {
+        amount: selectedPayment.amount,
+        stars: Number(selectedPayment.stars),
+        subscription: selectedPayment.subscription as LocalSubscription,
+      }
       await ctx.scene.enter('getRuBillWizard')
       return
     } else {

@@ -22,7 +22,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const currentBalance = await getUserBalance(
-      ctx.from.id,
+      ctx.from.id.toString(),
       ctx.botInfo.username
     )
     const price = voiceConversationCost || 0

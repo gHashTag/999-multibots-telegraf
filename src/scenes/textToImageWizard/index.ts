@@ -103,7 +103,10 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         throw new Error('User ID not found')
       }
 
-      const balance = await getUserBalance(ctx.from.id, ctx.botInfo.username)
+      const balance = await getUserBalance(
+        ctx.from.id.toString(),
+        ctx.botInfo.username
+      )
       const price = await validateAndCalculateImageModelPrice(
         fullModelId,
         availableModels,
