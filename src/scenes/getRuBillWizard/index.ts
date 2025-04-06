@@ -7,7 +7,11 @@ import {
   description,
   subscriptionTitles,
 } from './helper'
-import { setPayments, updateUserSubscription, getUserBalance } from '@/core/supabase'
+import {
+  setPayments,
+  updateUserSubscription,
+  getUserBalance,
+} from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
 
@@ -15,8 +19,12 @@ import { logger } from '@/utils/logger'
 import { generateInvId } from '@/utils/generateInvId'
 import { Subscription } from '@/interfaces/supabase.interface'
 import { ModeEnum } from '@/interfaces/modes.interface'
-// Локальный тип для подписок, используемых в этом модуле
-type LocalSubscription = Extract<Subscription, 'neurophoto' | 'neurobase' | 'neuroblogger'>
+
+// Экспортируем тип для подписок
+export type LocalSubscription = Extract<
+  Subscription,
+  'neurophoto' | 'neurobase' | 'neuroblogger'
+>
 
 const generateInvoiceStep = async (ctx: MyContext) => {
   logger.info('🚀 Начало создания счета', {
@@ -40,7 +48,9 @@ const generateInvoiceStep = async (ctx: MyContext) => {
   })
 
   const stars = selectedPayment.amount
-  const subscription = selectedPayment.subscription as LocalSubscription | undefined
+  const subscription = selectedPayment.subscription as
+    | LocalSubscription
+    | undefined
 
   try {
     const userId = ctx.from?.id

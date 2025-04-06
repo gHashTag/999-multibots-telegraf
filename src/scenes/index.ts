@@ -4,7 +4,6 @@ export * from './broadcastWizard'
 // Существующие экспорты
 export * from './avatarBrainWizard'
 export * from './imageToPromptWizard'
-export * from './emailWizard'
 export * from './improvePromptWizard'
 export * from './sizeWizard'
 export * from './neuroPhotoWizard'

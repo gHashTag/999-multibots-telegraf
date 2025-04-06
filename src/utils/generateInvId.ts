@@ -1,17 +1,23 @@
-import { v4 as uuidv4 } from 'uuid'
 import { logger } from './logger'
 
 /**
  * Генерирует уникальный inv_id для платежей
  * @param telegram_id - ID пользователя в Telegram
  * @param amount - Сумма платежа
- * @returns Уникальный inv_id в формате: timestamp-telegram_id-amount-uuid
+ * @returns Уникальный inv_id в формате: timestamp + random
  */
-export const generateInvId = (telegram_id: string | number, amount: number): string => {
+export const generateInvId = (
+  telegram_id: string | number,
+  amount: number
+): string => {
   try {
-    const invId =  uuidv4()
+    // Генерируем числовой ID платежа из timestamp и случайного числа
+    const timestamp = Date.now()
+    const random = Math.floor(Math.random() * 1000)
+    const invId = `${timestamp}${random}`
 
-    logger.info('🔑 Сгенерирован inv_id:', {
+    logger.info({
+      message: '🔑 Сгенерирован inv_id',
       description: 'Generated inv_id',
       inv_id: invId,
       telegram_id,
@@ -20,7 +26,8 @@ export const generateInvId = (telegram_id: string | number, amount: number): str
 
     return invId
   } catch (error) {
-    logger.error('❌ Ошибка при генерации inv_id:', {
+    logger.error({
+      message: '❌ Ошибка при генерации inv_id',
       description: 'Error generating inv_id',
       error: error instanceof Error ? error.message : String(error),
       telegram_id,
@@ -28,4 +35,4 @@ export const generateInvId = (telegram_id: string | number, amount: number): str
     })
     throw error
   }
-} 
+}

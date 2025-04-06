@@ -44,6 +44,7 @@ export enum ModeEnum {
   EmailWizard = 'email_wizard',
   CreateUserScene = 'create_user_scene',
   NeuroBase = 'neuro_base',
+  SubscriptionScene = 'subscription_scene',
 }
 
 /**
@@ -62,15 +63,8 @@ export const MODE_CATEGORIES = {
     ModeEnum.Avatar,
     ModeEnum.ChatWithAvatar,
   ],
-  VIDEO: [
-    ModeEnum.ImageToVideo,
-    ModeEnum.TextToVideo,
-    ModeEnum.LipSync,
-  ],
-  AUDIO: [
-    ModeEnum.Voice,
-    ModeEnum.TextToSpeech,
-  ],
+  VIDEO: [ModeEnum.ImageToVideo, ModeEnum.TextToVideo, ModeEnum.LipSync],
+  AUDIO: [ModeEnum.Voice, ModeEnum.TextToSpeech],
   SYSTEM: [
     ModeEnum.Subscribe,
     ModeEnum.Help,
@@ -91,7 +85,7 @@ export const MODE_CATEGORIES = {
     ModeEnum.EmailWizard,
     ModeEnum.CreateUserScene,
   ],
-} as const;
+} as const
 
 /**
  * Проверка, является ли режим платным
@@ -110,24 +104,26 @@ export const isPaidMode = (mode: ModeEnum): boolean => {
     ModeEnum.LipSync,
     ModeEnum.Voice,
     ModeEnum.TextToSpeech,
-  ].includes(mode);
-};
+  ].includes(mode)
+}
 
 /**
  * Проверка, является ли режим сценой
  */
 export const isSceneMode = (mode: ModeEnum): boolean => {
-  return (MODE_CATEGORIES.SCENES as unknown as ModeEnum[]).includes(mode);
-};
+  return (MODE_CATEGORIES.SCENES as unknown as ModeEnum[]).includes(mode)
+}
 
 /**
  * Получение категории режима
  */
-export const getModeCategory = (mode: ModeEnum): keyof typeof MODE_CATEGORIES | undefined => {
+export const getModeCategory = (
+  mode: ModeEnum
+): keyof typeof MODE_CATEGORIES | undefined => {
   for (const [category, modes] of Object.entries(MODE_CATEGORIES)) {
     if ((modes as unknown as ModeEnum[]).includes(mode)) {
-      return category as keyof typeof MODE_CATEGORIES;
+      return category as keyof typeof MODE_CATEGORIES
     }
   }
-  return undefined;
-}; 
+  return undefined
+}
