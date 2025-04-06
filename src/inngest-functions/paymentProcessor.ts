@@ -1,12 +1,8 @@
 import { inngest } from '@/core/inngest/clients'
 import { logger } from '@/utils/logger'
-import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { supabase } from '@/core/supabase'
 import { generateInvId } from '@/utils/generateInvId'
-import { createBotByName, getBotByName } from '@/core/bot'
-import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { getBotByName } from '@/core/bot'
 import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
 import { 
   TransactionType, 
@@ -45,7 +41,7 @@ export const paymentProcessor = inngest.createFunction(
         description: providedDescription,
         bot_name,
         metadata = {},
-        operation_id: provided_operation_id
+        operation_id: provided_operation_id,
       } = event.data
 
       // Шаг 1: Проверка на дубликаты
@@ -81,9 +77,11 @@ export const paymentProcessor = inngest.createFunction(
       // Шаг 2: Обработка платежа через SQL функцию process_payment
       const paymentResult = await step.run('process-payment', async () => {
         // Конвертируем BigInt в строку для безопасной сериализации
-        const safeMetadata = JSON.parse(JSON.stringify(metadata, (_, value) =>
-          typeof value === 'bigint' ? value.toString() : value
-        ))
+        const safeMetadata = JSON.parse(
+          JSON.stringify(metadata, (_, value) =>
+            typeof value === 'bigint' ? value.toString() : value
+          )
+        )
 
         const { data, error } = await supabase.rpc('process_payment', {
           p_telegram_id: telegram_id.toString(),
@@ -92,7 +90,7 @@ export const paymentProcessor = inngest.createFunction(
           p_description: description,
           p_bot_name: bot_name,
           p_operation_id: operationId,
-          p_metadata: safeMetadata
+          p_metadata: safeMetadata,
         })
 
         if (error) {
@@ -101,7 +99,7 @@ export const paymentProcessor = inngest.createFunction(
             error: error.message,
             telegram_id: telegram_id.toString(),
             amount,
-            type
+            type,
           })
           throw error
         }
@@ -110,7 +108,7 @@ export const paymentProcessor = inngest.createFunction(
           ...data,
           old_balance: Number(data.old_balance),
           new_balance: Number(data.new_balance),
-          amount: Number(data.amount)
+          amount: Number(data.amount),
         }
       })
 
@@ -139,7 +137,7 @@ export const paymentProcessor = inngest.createFunction(
           newBalance: paymentResult.new_balance,
           description,
           isRu,
-          bot: bot.telegram
+          bot: bot.telegram,
         })
 
         return {
@@ -159,9 +157,8 @@ export const paymentProcessor = inngest.createFunction(
         old_balance: paymentResult.old_balance,
         new_balance: paymentResult.new_balance,
         amount: paymentResult.amount,
-        operation_id: paymentResult.operation_id
+        operation_id: paymentResult.operation_id,
       }
-
     } catch (error) {
       logger.error('❌ Ошибка в paymentProcessor:', {
         description: 'Error in payment processor',

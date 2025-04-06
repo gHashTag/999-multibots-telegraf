@@ -34,7 +34,7 @@ export const paymentOptions: {
   // { amount: 10, stars: '6' },
 ]
 
-interface ConversionRates {
+export interface ConversionRates {
   costPerStarInDollars: number
   costPerStepInStars: number
   rublesToDollarsRate: number
@@ -68,12 +68,6 @@ export function calculateCost(
   const stars = steps * rates.costPerStepInStars
   const dollars = stars * rates.costPerStarInDollars
   const rubles = dollars * rates.rublesToDollarsRate
-
-  console.log('steps', steps)
-  console.log('rates', rates)
-  console.log('stars', stars)
-  console.log('dollars', dollars)
-  console.log('rubles', rubles)
 
   return {
     steps,
