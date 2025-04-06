@@ -32,16 +32,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION add_stars_to_balance(
+CREATE OR REPLACE FUNCTION add_stars_to_user(
     p_telegram_id BIGINT,
-    p_stars integer,
-    p_description text,
-    p_bot_name text
-) RETURNS jsonb AS $$
+    p_stars NUMERIC,
+    p_description TEXT,
+    p_bot_name VARCHAR DEFAULT 'unknown'
+) RETURNS JSONB AS $$
 DECLARE
-    v_old_balance integer;
-    v_new_balance integer;
-    v_payment_id integer;
+    v_payment_id INTEGER;
+    v_old_balance NUMERIC;
+    v_new_balance NUMERIC;
+    v_inv_id VARCHAR;
 BEGIN
     -- Логируем начало операции
     RAISE NOTICE '🚀 Начало начисления % звезд для пользователя %', p_stars, p_telegram_id;
@@ -50,6 +51,9 @@ BEGIN
     SELECT balance INTO v_old_balance
     FROM users
     WHERE telegram_id = p_telegram_id;
+
+    -- Генерируем уникальный inv_id
+    v_inv_id := CONCAT(EXTRACT(EPOCH FROM NOW())::BIGINT, '-', p_telegram_id, '-', p_stars, '-', md5(random()::text));
 
     -- Создаем запись о начислении в payments_v2
     INSERT INTO payments_v2 (
@@ -83,7 +87,7 @@ BEGIN
         'none',
         p_bot_name,
         'ru',
-        format('%s-%s', NOW()::bigint, p_telegram_id)
+        v_inv_id
     )
     RETURNING payment_id INTO v_payment_id;
 
@@ -102,10 +106,6 @@ BEGIN
         INSERT INTO users (telegram_id, balance, last_payment_date)
         VALUES (p_telegram_id, v_new_balance, NOW());
     END IF;
-
-    -- Логируем результат операции
-    RAISE NOTICE '✅ Звезды успешно начислены. Старый баланс: %, Новый баланс: %', 
-        v_old_balance, v_new_balance;
 
     RETURN jsonb_build_object(
         'payment_id', v_payment_id,

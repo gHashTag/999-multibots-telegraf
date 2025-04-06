@@ -1,178 +1,167 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
-import { v4 as uuidv4 } from 'uuid'
-
-export interface Payment {
-  payment_id?: number // Optional because it's auto-generated
-  telegram_id: string
-  amount: number
-  stars: number
-  currency: string
-  description: string
-  metadata: any
-  payment_method: string
-  bot_name: string
-  inv_id: string
-  status: string
-  email?: string
-  subscription?: string
-  language?: string
-  invoice_url?: string
-  payment_date?: Date
-  OutSum?: string
-  InvId?: string
-  type?: 'money_income' | 'money_expense'
-}
+import { generateInvId } from '@/utils/generateInvId'
+import { inngest } from '@/core/inngest/clients'
+import { 
+  Payment, 
+  CreatePaymentDTO, 
+  PaymentStatus, 
+  PaymentMethod,
+  TransactionType, 
+  ContentService,
+  ModeEnum
+} from '@/interfaces/payments.interface'
 
 /**
- * 💰 Создает новый платеж в базе данных
- * @param payment - Данные платежа
+ * Создает новый платеж в системе
  */
-export const setPayments = async ({
-  telegram_id,
-  OutSum,
-  InvId,
-  currency,
-  stars,
-  email,
-  status,
-  payment_method,
-  subscription,
-  bot_name,
-  language,
-  invoice_url,
-}: Payment) => {
+export async function createPayment(params: CreatePaymentDTO): Promise<Payment> {
+  const normalizedTelegramId = normalizeTelegramId(params.telegram_id)
+  const invId = params.inv_id || generateInvId(normalizedTelegramId, params.amount)
+
+  logger.info({
+    message: '💰 Создание нового платежа',
+    description: 'Creating new payment',
+    params: {
+      ...params,
+      telegram_id: normalizedTelegramId,
+      inv_id: invId
+    }
+  })
+
+  const paymentData: Omit<Payment, 'payment_id' | 'payment_date'> = {
+    telegram_id: normalizedTelegramId,
+    amount: params.amount,
+    stars: params.stars,
+    currency: params.currency,
+    description: params.description,
+    metadata: params.metadata || {},
+    bot_name: params.bot_name,
+    status: params.status,
+    email: params.email,
+    subscription: params.subscription || 'none',
+    invoice_url: params.invoice_url,
+    type: params.type || 'system',
+    service_type: params.service_type || ModeEnum.NeuroPhoto,
+    inv_id: invId,
+    operation_id: invId,
+    language: params.language,
+    payment_method: params.payment_method
+  }
+
   try {
-    const amount = OutSum ? parseFloat(OutSum) : 0
-
-    logger.info('🔍 Создание нового платежа:', {
-      description: 'Creating new payment',
-      telegram_id,
-      amount,
-      status,
-    })
-
-    const { data, error } = await supabase.from('payments_v2').insert({
-      telegram_id,
-      amount,
-      inv_id: InvId || `${Date.now()}-${telegram_id}`,
-      currency,
-      status,
-      payment_method,
-      description: `Purchase and sale:: ${stars}`,
-      stars,
-      email,
-      subscription,
-      bot_name,
-      language,
-      invoice_url,
-      type: amount > 0 ? 'money_income' : 'money_expense',
-    })
+    const { data, error } = await supabase
+      .from('payments_v2')
+      .insert(paymentData)
+      .select()
+      .single()
 
     if (error) {
-      logger.error('❌ Ошибка создания платежа:', {
+      logger.error({
+        message: '❌ Ошибка при создании платежа',
         description: 'Error creating payment',
-        error: error.message,
-        telegram_id,
+        error,
+        paymentData
       })
       throw error
     }
 
-    logger.info('✅ Платеж успешно создан', {
+    logger.info({
+      message: '✅ Платеж успешно создан',
       description: 'Payment created successfully',
-      telegram_id,
-      amount,
-      status,
+      payment: data
     })
 
-    return data
+    return data as Payment
   } catch (error) {
-    logger.error('❌ Ошибка в setPayments:', {
-      description: 'Error in setPayments function',
-      error: error instanceof Error ? error.message : String(error),
-      telegram_id: normalizeTelegramId(telegram_id),
+    logger.error({
+      message: '❌ Ошибка при создании платежа',
+      description: 'Error in createPayment function',
+      error,
+      paymentData
     })
     throw error
   }
 }
 
-export interface CreatePaymentParams {
-  telegram_id: number
-  amount: number
-  stars: number
+/**
+ * Обрабатывает платеж от платежной системы
+ */
+export async function setPayments(payment: {
+  telegram_id: string | number
+  OutSum?: string
+  inv_id?: string
+  InvId?: string
   currency: string
-  description: string
-  metadata: any
-  payment_method: string
+  stars: number
+  email?: string
+  status: PaymentStatus
+  payment_method: PaymentMethod
+  subscription?: string
   bot_name: string
-  inv_id: string
-  status: string
-  type?: 'money_income' | 'money_expense'
-}
-
-export const createPayment = async (
-  params: CreatePaymentParams
-): Promise<Payment | null> => {
+  language?: string
+  invoice_url?: string
+  type: TransactionType
+  service_type: ContentService
+  description: string
+  metadata?: Record<string, any>
+}): Promise<{ success: boolean }> {
   try {
-    const normalizedParams = {
-      ...params,
-      telegram_id: normalizeTelegramId(params.telegram_id),
-      type: params.type || (params.amount > 0 ? 'money_income' : 'money_expense'),
-      inv_id: params.inv_id
-    }
+    const amount = payment.OutSum ? parseFloat(payment.OutSum) : 0
+    const normalizedTelegramId = normalizeTelegramId(payment.telegram_id)
 
-    logger.info('🚀 Создание записи о платеже:', {
-      description: 'Creating payment record',
-      telegram_id: normalizedParams.telegram_id,
-      amount: normalizedParams.amount,
-      stars: normalizedParams.stars,
-      currency: normalizedParams.currency,
-      inv_id: normalizedParams.inv_id,
+    logger.info({
+      message: '🔍 Создание нового платежа',
+      description: 'Creating new payment',
+      telegram_id: normalizedTelegramId,
+      amount,
+      status: payment.status,
+      type: payment.type,
+      service_type: payment.service_type
     })
 
-    const { data: payments, error } = await supabase
-      .from('payments_v2')
-      .insert(normalizedParams)
-      .select(
-        'payment_id, telegram_id, amount, stars, currency, description, metadata, payment_method, bot_name, inv_id, status'
-      )
-      .limit(1)
-
-    if (error) {
-      logger.error('❌ Ошибка при создании записи о платеже:', {
-        description: 'Error creating payment record',
-        error: error.message,
-        error_details: error,
-        params: normalizedParams,
-        telegram_id: normalizedParams.telegram_id,
-      })
-      return null
-    }
-
-    const payment = payments?.[0]
-    if (!payment) {
-      logger.error('❌ Платеж не был создан:', {
-        description: 'Payment was not created',
-        params: normalizedParams,
-        telegram_id: normalizedParams.telegram_id,
-      })
-      return null
-    }
-
-    logger.info('✅ Запись о платеже создана:', {
-      description: 'Payment record created',
-      payment_id: payment.payment_id,
-      telegram_id: normalizedParams.telegram_id,
+    await inngest.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: normalizedTelegramId,
+        amount,
+        type: payment.type,
+        description: payment.description,
+        bot_name: payment.bot_name,
+        operation_id: payment.InvId || payment.inv_id,
+        inv_id: payment.inv_id,
+        metadata: {
+          ...payment.metadata,
+          currency: payment.currency,
+          stars: payment.stars,
+          email: payment.email,
+          subscription: payment.subscription,
+          language: payment.language,
+          invoice_url: payment.invoice_url,
+          payment_method: payment.payment_method,
+          service_type: payment.service_type
+        }
+      }
     })
 
-    return payment
+    logger.info({
+      message: '✅ Событие платежа отправлено',
+      description: 'Payment event sent',
+      telegram_id: normalizedTelegramId,
+      amount,
+      status: payment.status,
+      type: payment.type
+    })
+
+    return { success: true }
   } catch (error) {
-    logger.error('❌ Ошибка при создании записи о платеже:', {
-      description: 'Error creating payment record',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegram_id: params.telegram_id,
+    logger.error({
+      message: '❌ Ошибка в setPayments',
+      description: 'Error in setPayments function',
+      error: error instanceof Error ? error.message : String(error),
+      telegram_id: normalizeTelegramId(payment.telegram_id),
     })
-    return null
+    throw error
   }
 }

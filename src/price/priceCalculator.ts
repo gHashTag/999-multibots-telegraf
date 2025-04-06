@@ -3,8 +3,8 @@ import { Subscription } from '@/interfaces/supabase.interface'
 // Базовые константы
 const COST_PER_STEP_IN_STARS = 0.22
 const COST_PER_STEP_IN_STARS_V2 = 0.5
-const RUBLES_TO_DOLLARS_RATE = 80
-const STAR_COST = 0.016 // Стоимость одной звезды в долларах
+export const RUBLES_TO_DOLLARS_RATE = 80
+export const STAR_COST = 0.016 // Стоимость одной звезды в долларах
 
 // Стоимость шага в долларах и рублях
 export const stepCostInDollars = STAR_COST * COST_PER_STEP_IN_STARS

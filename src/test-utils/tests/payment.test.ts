@@ -6,7 +6,7 @@ import { inngest } from '@/core/inngest/clients'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes.interface'
 import { supabase } from '@/core/supabase'
 import { TestResult } from '../types'
 import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
@@ -348,7 +348,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
 
     return {
       success: true,
-      testName: 'Payment System Test',
+      name: 'Payment System Test',
       message: 'Все тесты платежной системы успешно пройдены',
       details: {
         telegram_id: testTelegramId,
@@ -365,7 +365,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
 
     return {
       success: false,
-      testName: 'Payment System Test',
+      name: 'Payment System Test',
       message: error instanceof Error ? error.message : String(error),
       error: error instanceof Error ? error.message : String(error),
     }

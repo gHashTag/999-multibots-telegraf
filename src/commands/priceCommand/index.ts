@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
-import { ModeEnum, calculateModeCost } from '@/price/helpers'
+import { ModeEnum } from '@/interfaces/modes.interface'
 import { logger } from '@/utils/logger'
-
+import { calculateModeCost } from '@/price/helpers/modelsCost'
 export async function priceCommand(ctx: MyContext) {
   const isRu = ctx.from?.language_code === 'ru'
 

@@ -15,9 +15,10 @@ export interface TestResult {
   success: boolean
   error?: string
   duration?: number
-  testName: string
+  name: string
   message?: string
   details?: string
+  context?: MyContext
 }
 
 export async function generateAudioBuffer(
@@ -175,7 +176,7 @@ export async function testAudioGeneration(): Promise<TestResult> {
     return {
       success: true,
       duration: Date.now() - startTime,
-      testName,
+      name: testName,
       message: 'Аудио успешно сгенерировано и сохранено',
     }
   } catch (error) {
@@ -189,7 +190,7 @@ export async function testAudioGeneration(): Promise<TestResult> {
       success: false,
       error: error instanceof Error ? error.message : String(error),
       duration: Date.now() - startTime,
-      testName,
+      name: testName,
       message: 'Ошибка при генерации аудио',
     }
   }
@@ -271,7 +272,7 @@ export async function testSpeechGeneration(): Promise<TestResult> {
     return {
       success: true,
       duration: Date.now() - startTime,
-      testName,
+      name: testName,
       message: 'Аудио успешно сгенерировано и отправлено',
     }
   } catch (error) {
@@ -285,7 +286,7 @@ export async function testSpeechGeneration(): Promise<TestResult> {
       success: false,
       error: error instanceof Error ? error.message : String(error),
       duration: Date.now() - startTime,
-      testName,
+      name: testName,
       message: 'Ошибка при генерации речи',
     }
   }

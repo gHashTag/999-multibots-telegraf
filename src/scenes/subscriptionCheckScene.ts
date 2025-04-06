@@ -4,7 +4,7 @@ import { getUserByTelegramId } from '@/core/supabase'
 import { verifySubscription } from '@/middlewares/verifySubscription'
 import { getSubScribeChannel } from '@/core/supabase'
 import { isDev } from '@/helpers'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes.interface'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
   console.log('CASE: subscriptionCheckStep', ctx.from)

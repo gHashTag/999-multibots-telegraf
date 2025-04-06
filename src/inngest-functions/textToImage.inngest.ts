@@ -16,7 +16,8 @@ import {
   saveFileLocally,
 } from '@/helpers'
 import { replicate } from '@/core/replicate'
-import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes.interface'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { API_URL } from '@/config'
 import path from 'path'
 import fs from 'fs'

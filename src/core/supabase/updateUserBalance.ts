@@ -1,103 +1,87 @@
-import {
-  TelegramId,
-  normalizeTelegramId,
-} from '@/interfaces/telegram.interface'
-import { supabase } from './index'
 import { logger } from '@/utils/logger'
+import { inngest } from '@/core/inngest/clients'
+import { v4 as uuidv4 } from 'uuid'
+import { getUserBalance } from './getUserBalance'
+import { TransactionType } from '@/interfaces/payments.interface'
 
 interface UpdateUserBalanceParams {
-  telegram_id: TelegramId
+  telegram_id: string
   amount: number
-  type: 'money_income' | 'money_expense'
-  operation_description?: string
+  type: TransactionType
+  operation_description: string
   metadata?: Record<string, any>
-  bot_name?: string
+  bot_name: string
   payment_method?: string
 }
 
 /**
- * Обновляет баланс пользователя, записывая соответствующую транзакцию в таблицу payments_v2
- * И возвращает актуальный баланс пользователя
+ * Обновляет баланс пользователя через событие balance/process
  */
 export const updateUserBalance = async ({
   telegram_id,
   amount,
   type,
-  operation_description = '',
+  operation_description,
   metadata = {},
   bot_name,
-  payment_method = 'System',
-}: UpdateUserBalanceParams): Promise<{
-  success: boolean
-  newBalance: number | null
-  error?: string
-}> => {
+  payment_method,
+}: UpdateUserBalanceParams): Promise<number | null> => {
   try {
-    if (!telegram_id) {
-      throw new Error('telegram_id is required')
-    }
-
-    // Нормализуем telegram_id в строку
-    const normalizedId = normalizeTelegramId(telegram_id)
-
-    logger.info('💰 Обновление баланса пользователя:', {
-      description: 'Updating user balance',
-      telegram_id: normalizedId,
+    logger.info('💰 Отправка события обновления баланса:', {
+      description: 'Sending balance update event',
+      telegram_id,
       amount,
       type,
       operation_description,
-      metadata,
-      bot_name,
-      payment_method,
     })
 
-    const { data: result, error } = await supabase.rpc('update_user_balance', {
-      p_telegram_id: normalizedId,
-      p_amount: amount,
-    })
+    const operation_id = `${telegram_id}-${Date.now()}-${uuidv4()}`
 
-    if (error) {
-      logger.error('❌ Ошибка при обновлении баланса:', {
-        description: 'Error updating balance',
-        error: error.message,
-        telegram_id: normalizedId,
+    // Отправляем событие для обновления баланса
+    await inngest.send({
+      name: 'balance/process',
+      data: {
+        telegram_id,
         amount,
         type,
-        operation_description,
-        metadata,
+        description: operation_description,
         bot_name,
-        payment_method,
+        operation_id,
+        metadata: {
+          ...metadata,
+          payment_method,
+        },
+      },
+    })
+
+    // Даем время на обработку события
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // Получаем обновленный баланс
+    const newBalance = await getUserBalance(telegram_id, bot_name)
+
+    if (!newBalance) {
+      logger.error('❌ Не удалось получить обновленный баланс:', {
+        description: 'Failed to get updated balance',
+        telegram_id,
       })
-      throw error
+      return null
     }
 
     logger.info('✅ Баланс успешно обновлен:', {
       description: 'Balance updated successfully',
-      telegram_id: normalizedId,
-      new_balance: result,
-      type,
-      operation_description,
-      metadata,
-      bot_name,
-      payment_method,
+      telegram_id,
+      new_balance: newBalance,
     })
 
-    return { success: true, newBalance: result }
+    return newBalance
   } catch (error) {
-    logger.error('❌ Ошибка в updateUserBalance:', {
-      description: 'Error in updateUserBalance function',
-      error: error instanceof Error ? error.message : String(error),
+    logger.error('❌ Ошибка при обновлении баланса:', {
+      description: 'Error updating balance',
+      error: error instanceof Error ? error.message : 'Unknown error',
       telegram_id,
-      type,
-      operation_description,
-      metadata,
-      bot_name,
-      payment_method,
+      amount,
     })
-    return {
-      success: false,
-      newBalance: null,
-      error: error instanceof Error ? error.message : String(error),
-    }
+    return null
   }
 }

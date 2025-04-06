@@ -8,7 +8,7 @@ import {
 } from '@/price/helpers'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes.interface'
 
 export const checkBalanceScene = new Scenes.BaseScene<MyContext>(
   ModeEnum.CheckBalanceScene

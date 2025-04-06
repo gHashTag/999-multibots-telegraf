@@ -7,16 +7,16 @@ import {
 } from '@/core/supabase'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { InputFile } from 'telegraf/typings/core/types/typegram'
-import { ModeEnum } from '@/price/helpers/modelsCost'
-import { sendBalanceMessage } from '@/price/helpers'
 import { v4 as uuidv4 } from 'uuid'
 import { elevenlabs } from '@/core/elevenlabs'
+import { ModeEnum } from '@/interfaces/modes.interface'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
-
 import { createWriteStream } from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { Telegram } from 'telegraf'
+import { sendBalanceMessage } from '@/price/helpers/sendBalanceMessage'
+
 interface TextToSpeechEvent {
   data: {
     text: string

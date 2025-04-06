@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger'
 import { Telegram, Telegraf } from 'telegraf'
 import { BalanceOperationResult } from '../../interfaces'
 import { isRussian } from '@/helpers'
+import { v4 as uuidv4 } from 'uuid'
 
 export * from './modelsCost'
 export * from './calculateFinalPrice'
@@ -27,85 +28,6 @@ export * from './sendPaymentNotificationWithBot'
 export { starAmounts } from './starAmounts'
 export { voiceConversationCost } from './voiceConversationCost'
 
-export async function processBalanceOperation({
-  telegram_id,
-  amount,
-  is_ru,
-  bot,
-  bot_name,
-  description,
-  type,
-}: {
-  telegram_id: TelegramId
-  amount: number
-  is_ru: boolean
-  bot: Telegraf<MyContext>
-  bot_name: string
-  description: string
-  type: string
-}): Promise<BalanceOperationResult> {
-  try {
-    const user = await getUserByTelegramId(telegram_id)
-    if (!user) {
-      throw new Error(`User with ID ${telegram_id} not found`)
-    }
-
-    const currentBalance = user.balance || 0
-    if (currentBalance < amount) {
-      const message = is_ru
-        ? `❌ Недостаточно средств. Необходимо: ${amount} руб.`
-        : `❌ Insufficient funds. Required: ${amount} RUB`
-
-      bot.telegram.sendMessage(telegram_id, message)
-      return {
-        success: false,
-        error: 'Insufficient funds',
-        newBalance: currentBalance,
-        modePrice: amount,
-      }
-    }
-
-    const newBalance = currentBalance - amount
-    await updateUserBalance({
-      telegram_id,
-      amount: amount,
-      type: 'money_expense',
-      operation_description: description,
-      bot_name,
-    })
-
-    logger.info({
-      message: '💰 Операция с балансом выполнена',
-      description: 'Balance operation completed',
-      telegram_id,
-      type,
-      amount,
-      oldBalance: currentBalance,
-      newBalance,
-    })
-
-    return {
-      success: true,
-      newBalance,
-      modePrice: amount,
-    }
-  } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при обработке платежа',
-      description: 'Payment processing error',
-      error: error instanceof Error ? error.message : String(error),
-      telegram_id,
-      type,
-    })
-
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-      newBalance: 0,
-      modePrice: amount,
-    }
-  }
-}
 
 export async function sendBalanceMessage(
   telegram_id: TelegramId,
@@ -194,5 +116,110 @@ export const processPayment = async ({
       error: error instanceof Error ? error.message : 'Unknown error',
       modePrice: amount,
     }
+  }
+}
+
+export interface ProcessBalanceOperationParams {
+  telegram_id: string
+  amount: number
+  type: string
+  description: string
+  bot_name: string
+  metadata?: Record<string, any>
+}
+
+/**
+ * Обрабатывает операцию с балансом через событие balance/process
+ */
+export const processBalanceOperation = async ({
+  telegram_id,
+  amount,
+  type,
+  description,
+  bot_name,
+  metadata = {},
+}: ProcessBalanceOperationParams): Promise<number | null> => {
+  try {
+    logger.info('💰 Начало операции с балансом:', {
+      description: 'Starting balance operation',
+      telegram_id,
+      amount,
+      type,
+    })
+
+    // Получаем текущий баланс
+    const currentBalance = await getUserBalance(telegram_id, bot_name)
+
+    if (!currentBalance) {
+      logger.error('❌ Пользователь не найден:', {
+        description: 'User not found',
+        telegram_id,
+      })
+      return null
+    }
+
+    // Проверяем достаточность средств для списания
+    if (type === 'balance_decrease' && currentBalance < Math.abs(amount)) {
+      logger.error('❌ Недостаточно средств:', {
+        description: 'Insufficient funds',
+        telegram_id,
+        required: Math.abs(amount),
+        available: currentBalance,
+      })
+      return null
+    }
+
+    const operation_id = `${telegram_id}-${Date.now()}-${uuidv4()}`
+
+    // Отправляем событие для обновления баланса
+    await inngest.send({
+      name: 'balance/process',
+      data: {
+        telegram_id,
+        amount,
+        type,
+        description,
+        bot_name,
+        operation_id,
+        metadata: {
+          ...metadata,
+          current_balance: currentBalance,
+        },
+      },
+    })
+
+    // Даем время на обработку события
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // Получаем обновленный баланс
+    const newBalance = await getUserBalance(telegram_id, bot_name)
+
+    if (!newBalance) {
+      logger.error('❌ Не удалось получить обновленный баланс:', {
+        description: 'Failed to get updated balance',
+        telegram_id,
+      })
+      return null
+    }
+
+    logger.info('✅ Операция с балансом успешно завершена:', {
+      description: 'Balance operation completed successfully',
+      telegram_id,
+      old_balance: currentBalance,
+      new_balance: newBalance,
+      amount,
+      type,
+    })
+
+    return newBalance
+  } catch (error) {
+    logger.error('❌ Ошибка при обработке операции с балансом:', {
+      description: 'Error processing balance operation',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegram_id,
+      amount,
+      type,
+    })
+    return null
   }
 }

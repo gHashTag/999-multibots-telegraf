@@ -10,6 +10,8 @@ import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
 import { createBotByName } from '@/core/bot'
+import { PaymentStatus, TransactionType } from '@/interfaces/payments.interface'
+import { ModeEnum } from '@/interfaces/modes.interface'
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
   subscription: string
@@ -204,22 +206,21 @@ async function processPayment(
 
   await setPayments({
     telegram_id: userId.toString(),
-    amount: Number(amount),
     OutSum: amount.toString(),
     InvId: payload || '',
-    inv_id: payload || '',
-    currency: 'RUB',
+    currency: 'STARS',
     stars: Number(stars),
-    status: 'SUCCESS',
-    payment_method: 'Robokassa',
+    status: 'COMPLETED' as PaymentStatus,
+    payment_method: 'Telegram',
     bot_name: ctx.botInfo.username,
-    description: `Payment completed - ${amount.toString()} RUB`,
+    description: `Payment completed - ${amount.toString()} STARS`,
     metadata: {
-      payment_method: 'Robokassa',
+      payment_method: 'TELEGRAM',
       email: ctx.session.email,
     },
-    language: 'ru',
     invoice_url: '',
+    type: 'money_income' as TransactionType,
+    service_type: ModeEnum.NeuroPhoto,
   })
 
   await sendNotification(
@@ -277,13 +278,11 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       console.log('CASE: subscriptionType not in buttons', selectedButton)
       await setPayments({
         telegram_id: ctx.from?.id?.toString() || '',
-        amount: Number(stars),
         OutSum: stars.toString(),
         InvId: ctx.message?.successful_payment?.invoice_payload || '',
-        inv_id: ctx.message?.successful_payment?.invoice_payload || '',
         currency: 'RUB',
         stars: Number(stars),
-        status: 'SUCCESS',
+        status: 'COMPLETED' as PaymentStatus,
         payment_method: 'Robokassa',
         bot_name: ctx.botInfo.username,
         description: `Subscription payment completed - ${stars.toString()} RUB`,
@@ -295,6 +294,8 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
         },
         language: 'ru',
         invoice_url: '',
+        type: 'subscription_purchase' as TransactionType,
+        service_type: ModeEnum.NeuroPhoto,
       })
       await ctx.reply(
         isRu

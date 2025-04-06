@@ -10,7 +10,7 @@ import { processApiResponse } from '@/helpers/processApiResponse'
 
 import { saveFileLocally } from '@/helpers'
 import { pulse } from '@/helpers/pulse'
-import { ModeEnum, calculateModeCost } from '@/price/helpers'
+import { ModeEnum } from '@/interfaces/modes.interface'
 import path from 'path'
 import { API_URL } from '@config'
 import fs from 'fs'
@@ -19,6 +19,7 @@ import { getBotByName } from '@/core/bot'
 import { v4 as uuidv4 } from 'uuid'
 
 import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
 
 export const neuroImageGeneration = inngest.createFunction(
   {
@@ -309,7 +310,7 @@ export const neuroImageGeneration = inngest.createFunction(
               )
 
               const input = {
-                prompt: `Fashionable: ${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
+                prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
                 negative_prompt: 'nsfw, erotic, violence, bad anatomy...',
                 num_inference_steps: 40,
                 guidance_scale: 3,
