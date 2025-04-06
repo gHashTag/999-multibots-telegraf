@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { getBotByName } from '@/core/bot'
 import {
   getUserByTelegramId,
@@ -6,8 +6,7 @@ import {
   getUserBalance,
   createModelTrainingV2,
 } from '@/core/supabase'
-
-import { calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { supabase } from '@/core/supabase'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
@@ -120,87 +119,63 @@ export const modelTrainingV2 = inngest.createFunction(
       })
     }
 
-    // Шаг 2: Проверяем баланс и списываем средства
-    const balanceResult = await step.run('check-and-deduct-balance', async () => {
-      logger.info('💰 ШАГ 2: Проверка и списание средств', {
-        description: 'Step 2: Checking and deducting funds',
-        telegram_id,
-        bot_name,
+    // Проверяем и обрабатываем баланс
+    await step.run('process-balance', async () => {
+      logger.info({
+        message: '💰 Processing user balance',
+        telegramId: telegram_id,
+        step: 'process-balance',
       })
 
-      // Получаем текущий баланс
+      // Получаем текущий баланс и рассчитываем стоимость
       const currentBalance = await getUserBalance(telegram_id, bot_name)
+      const paymentAmount = calculateModeCost({
+        mode: ModeEnum.DigitalAvatarBodyV2,
+        steps,
+      }).stars
 
-      if (!currentBalance) {
-        logger.error('❌ Пользователь не найден:', {
-          description: 'User not found',
-          telegram_id,
-        })
-        throw new Error('User not found')
-      }
-
-      // Рассчитываем стоимость
-      const costResult = calculateModeCost({
-        mode: 'training',
-        steps: steps,
+      logger.info({
+        message: '💲 Balance information',
+        telegramId: telegram_id,
+        currentBalance,
+        paymentAmount,
+        step: 'process-balance',
       })
+      //
 
-      const cost = costResult.stars
+      // Проверяем и обрабатываем операцию с балансом через Inngest события
 
-      // Проверяем достаточность средств
-      if (currentBalance < cost) {
-        logger.error('❌ Недостаточно средств для обучения:', {
-          description: 'Insufficient funds for training',
-          telegram_id,
-          required: cost,
-          available: currentBalance,
-        })
-        throw new Error(`Insufficient funds. Required: ${cost}, available: ${currentBalance}`)
-      }
-
-      // Отправляем событие для списания средств
       await inngest.send({
+        id: `train-${telegram_id}-${Date.now()}-${modelName}-${uuidv4()}`,
         name: 'payment/process',
         data: {
           telegram_id,
-          amount: -cost,
-          type: 'balance_decrease',
-          description: `Training model ${modelName}`,
+          amount: calculateModeCost({
+            mode: ModeEnum.DigitalAvatarBodyV2,
+            steps,
+          }).stars,
+          is_ru,
           bot_name,
+          description: `Payment for model training ${modelName} (steps: ${steps})`,
+          type: 'money_expense',
           metadata: {
+            service_type: ModeEnum.DigitalAvatarBodyV2,
             model_name: modelName,
-            training_steps: steps,
-            current_balance: currentBalance,
-          }
+            steps: steps,
+          },
         },
       })
 
-      // Даем время на обработку события
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      // Получаем обновленный баланс
-      const newBalance = await getUserBalance(telegram_id, bot_name)
-
-      if (!newBalance) {
-        logger.error('❌ Не удалось получить обновленный баланс:', {
-          description: 'Failed to get updated balance',
-          telegram_id,
-        })
-        throw new Error('Failed to get updated balance')
-      }
-
-      logger.info('✅ Средства успешно списаны:', {
-        description: 'Funds deducted successfully',
-        telegram_id,
-        old_balance: currentBalance,
-        new_balance: newBalance,
-        cost,
+      logger.info({
+        message: '✅ Balance processed successfully',
+        telegramId: telegram_id,
+        step: 'process-balance',
       })
 
       return {
-        cost,
-        old_balance: currentBalance,
-        new_balance: newBalance,
+        currentBalance,
+        paymentAmount,
+        balanceCheck: { success: true },
       }
     })
 
@@ -408,23 +383,33 @@ export const modelTrainingV2 = inngest.createFunction(
       })
 
       // Отправляем событие для возврата средств
+      const refundEventId = `refund-${telegram_id}-${Date.now()}-${uuidv4()}`
+
       await inngest.send({
-        name: 'payment/process',
+        id: refundEventId,
+        name: 'payment/refund',
         data: {
           telegram_id,
-          amount: balanceResult.cost,
-          type: 'balance_increase',
-          description: `Refund for failed training of model ${modelName}`,
+          mode: ModeEnum.DigitalAvatarBodyV2,
+          is_ru,
           bot_name,
+          description: `Refund for failed model training: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          type: 'money_income',
+          amount: calculateModeCost({
+            mode: ModeEnum.DigitalAvatarBodyV2,
+            steps,
+          }).stars,
           metadata: {
+            service_type: ModeEnum.DigitalAvatarBodyV2,
             model_name: modelName,
-            training_steps: steps,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          }
+            error: error instanceof Error ? error.message : String(error),
+          },
         },
       })
 
-      throw error
+      throw error instanceof Error ? error : new Error(String(error))
     }
   }
 )

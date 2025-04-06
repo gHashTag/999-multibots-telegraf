@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { supabase } from '@/core/supabase'

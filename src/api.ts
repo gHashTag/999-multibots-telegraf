@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { serve } from 'inngest/express'
-import { inngest } from './core/inngest/clients'
+import { inngest } from './inngest-functions/clients'
 
 import {
   neuroImageGeneration,

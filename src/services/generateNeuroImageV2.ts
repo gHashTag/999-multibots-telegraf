@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { isRussian } from '@/helpers/language'
 import { MyContext } from '@/interfaces'

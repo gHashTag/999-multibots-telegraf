@@ -1,47 +1,47 @@
 import { supabase } from '@/core/supabase'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { logger } from '@/utils/logger'
+import { TEST_CONFIG } from './test-config'
+import { v4 as uuidv4 } from 'uuid'
 
 export const testPaymentSystem = async () => {
   try {
-    const testTelegramId = Date.now()
+    const testTelegramId = Date.now().toString()
+    const testBotName = 'test_bot'
+
     logger.info('🚀 Начало тестирования платежной системы', {
       description: 'Starting payment system test',
       telegram_id: testTelegramId,
     })
 
     // Шаг 1: Проверяем начальный баланс
-    const initialBalance = await getUserBalance(
-      testTelegramId.toString(),
-      'ai_koshey_bot'
-    )
+    const initialBalance = await getUserBalance(testTelegramId, testBotName)
     logger.info('💰 Начальный баланс', {
       description: 'Initial balance check',
       telegram_id: testTelegramId,
       balance: initialBalance,
     })
 
-    // Шаг 2: Добавляем звезды
-    const addResult = await updateUserBalance({
-      telegram_id: testTelegramId.toString(),
-      amount: 100,
-      type: 'money_income',
-      operation_description: 'Test add stars',
-      bot_name: 'ai_koshey_bot',
-    })
-
-    logger.info('➕ Результат добавления звезд', {
-      description: 'Add stars result',
-      telegram_id: testTelegramId,
-      result: addResult,
+    // Шаг 2: Добавляем звезды через Inngest
+    const addInv_id = uuidv4()
+    await TEST_CONFIG.inngestEngine.execute({
+      events: [
+        {
+          name: 'payment/process',
+          data: {
+            telegram_id: testTelegramId,
+            amount: 100,
+            type: 'money_income',
+            description: 'Test add stars',
+            bot_name: testBotName,
+            inv_id: addInv_id,
+          },
+        },
+      ],
     })
 
     // Шаг 3: Проверяем баланс после добавления
-    const balanceAfterAdd = await getUserBalance(
-      testTelegramId.toString(),
-      'ai_koshey_bot'
-    )
+    const balanceAfterAdd = await getUserBalance(testTelegramId, testBotName)
     logger.info('💰 Баланс после добавления', {
       description: 'Balance after adding stars',
       telegram_id: testTelegramId,
@@ -49,26 +49,26 @@ export const testPaymentSystem = async () => {
       expected: 100,
     })
 
-    // Шаг 4: Списываем звезды
-    const spendResult = await updateUserBalance({
-      telegram_id: testTelegramId.toString(),
-      amount: 30,
-      type: 'money_expense',
-      operation_description: 'Test spend stars',
-      bot_name: 'ai_koshey_bot',
-    })
-
-    logger.info('➖ Результат списания звезд', {
-      description: 'Spend stars result',
-      telegram_id: testTelegramId,
-      result: spendResult,
+    // Шаг 4: Списываем звезды через Inngest
+    const spendInv_id = uuidv4()
+    await TEST_CONFIG.inngestEngine.execute({
+      events: [
+        {
+          name: 'payment/process',
+          data: {
+            telegram_id: testTelegramId,
+            amount: -30,
+            type: 'money_expense',
+            description: 'Test spend stars',
+            bot_name: testBotName,
+            inv_id: spendInv_id,
+          },
+        },
+      ],
     })
 
     // Шаг 5: Проверяем финальный баланс
-    const finalBalance = await getUserBalance(
-      testTelegramId.toString(),
-      'ai_koshey_bot'
-    )
+    const finalBalance = await getUserBalance(testTelegramId, testBotName)
     logger.info('💰 Финальный баланс', {
       description: 'Final balance check',
       telegram_id: testTelegramId,
@@ -80,7 +80,7 @@ export const testPaymentSystem = async () => {
     const { data: payments, error } = await supabase
       .from('payments_v2')
       .select('amount, stars, payment_method, status, description')
-      .eq('telegram_id', testTelegramId.toString())
+      .eq('telegram_id', testTelegramId)
       .order('payment_date', { ascending: false })
 
     if (error) {
@@ -117,10 +117,12 @@ export const testPaymentSystem = async () => {
     }
 
     // Очистка тестовых данных
-    await supabase
-      .from('payments_v2')
-      .delete()
-      .eq('telegram_id', testTelegramId)
+    if (TEST_CONFIG.cleanupAfterEach) {
+      await supabase
+        .from('payments_v2')
+        .delete()
+        .eq('telegram_id', testTelegramId)
+    }
 
     return testsPassed
   } catch (error) {

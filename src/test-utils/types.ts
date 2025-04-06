@@ -1,5 +1,4 @@
 import { Context } from 'telegraf'
-import { MyContext } from '@/interfaces'
 
 export interface TestResult {
   name: string
@@ -8,6 +7,14 @@ export interface TestResult {
   details?: any
   error?: string
   duration?: number
-  context?: MyContext
 }
 
+export interface MockContext extends Partial<Context> {
+  from?: {
+    id: number
+  }
+  botInfo?: {
+    username: string
+  }
+  reply: (message: string, extra?: any) => Promise<any>
+}

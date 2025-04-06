@@ -5,7 +5,7 @@ import { MyContext } from '@/interfaces'
 import { getUserByTelegramIdString } from '@/core/supabase'
 import { getTelegramIdFromFinetune } from '@/core/bfl'
 import { logger } from '@/utils/logger'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 
 export async function notifyTrainingSuccess(
   finetuneId: string,

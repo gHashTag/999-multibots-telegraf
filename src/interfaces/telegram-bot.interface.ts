@@ -107,7 +107,6 @@ export interface MyContext extends Context {
   scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
   wizard: Scenes.WizardContextWizard<MyContext>
   amount: number
-  match?: RegExpMatchArray;
 }
 
 // Создайте новый тип, объединяющий MyContext и WizardContext

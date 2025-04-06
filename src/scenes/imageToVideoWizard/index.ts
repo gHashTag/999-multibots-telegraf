@@ -8,7 +8,7 @@ import { getUserBalance } from '@/core/supabase'
 
 import { getBotToken, handleHelpCancel } from '@/handlers'
 import { validateAndCalculateVideoModelPrice } from '@/price/helpers'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(

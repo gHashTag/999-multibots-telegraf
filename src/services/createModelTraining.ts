@@ -2,10 +2,10 @@ import fs from 'fs'
 import path from 'path'
 import { UPLOAD_DIR, API_URL } from '@/config'
 import { MyContext } from '@/interfaces'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { TelegramId } from '@/interfaces/telegram.interface'
 interface ModelTrainingRequest {
   filePath: string

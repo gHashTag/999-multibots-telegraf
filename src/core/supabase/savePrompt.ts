@@ -1,5 +1,5 @@
 import { supabase } from '.'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const savePrompt = async (
   prompt: string,

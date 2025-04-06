@@ -7,7 +7,7 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 import { handleMenu } from '@/handlers/handleMenu'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 if (!process.env.HUGGINGFACE_TOKEN) {
   throw new Error('HUGGINGFACE_TOKEN is not set')

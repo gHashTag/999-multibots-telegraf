@@ -1,5 +1,5 @@
 import { logger } from '@/utils/logger'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { TestResult } from '../interfaces'
 import { TEST_CONFIG } from '../test-config'
 import { generateRandomTelegramId } from '@/utils/generateRandomTelegramId'

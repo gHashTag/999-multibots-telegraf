@@ -1,13 +1,14 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { setPayments } from '../../core/supabase'
+import { logger } from '@/utils/logger'
 import { isRussian } from '@/helpers'
 import { paymentOptions } from '@/price/priceCalculator'
 import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
 import { handleHelpCancel } from '@/handlers'
+import { inngest } from '@/inngest-functions/clients'
 
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { v4 as uuidv4 } from 'uuid'
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
@@ -138,25 +139,24 @@ emailWizard.on('text', async ctx => {
           password1
         )
 
-        await setPayments({
-          telegram_id: userId.toString(),
-          OutSum: amount.toString(),
-          InvId: numericInvId.toString(),
-          inv_id: numericInvId.toString(),
-          currency: 'RUB',
-          stars: numericAmount,
-          status: 'PENDING',
-          payment_method: 'Robokassa',
-          bot_name: ctx.botInfo.username,
-          description,
-          metadata: {
-            payment_method: 'Robokassa',
-            email: ctx.session.email,
+        logger.info('✅ Обработка платежа в EmailWizard:', {
+          description: 'Processing payment in EmailWizard',
+          telegram_id: userId,
+          amount: numericAmount,
+          inv_id: numericInvId,
+        })
+
+        await inngest.send({
+          name: 'payment/process',
+          data: {
+            telegram_id: String(userId),
+            amount: Number(numericAmount),
+            type: 'money_income',
+            description: `Email payment:: ${stars}`,
+            bot_name: ctx.botInfo.username,
+            inv_id: String(numericInvId),
+            stars: Number(stars),
           },
-          language: ctx.from.language_code || 'ru',
-          invoice_url: invoiceURL,
-          type: 'money_income',
-          service_type: ModeEnum.NeuroPhoto,
         })
 
         const inlineKeyboard = [

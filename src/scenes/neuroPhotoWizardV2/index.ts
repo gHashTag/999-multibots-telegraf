@@ -16,7 +16,7 @@ import { WizardScene } from 'telegraf/scenes'
 import { MyContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const isRu = ctx.from?.language_code === 'ru'
@@ -93,7 +93,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       const userId = ctx.from?.id
 
       if (trigger_word) {
-        const fullPrompt = `${trigger_word}, ${promptText}`
+        const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
         const telegramId = ctx.from?.id.toString()
         if (!telegramId) {
           await ctx.reply(

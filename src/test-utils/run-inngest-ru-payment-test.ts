@@ -1,6 +1,6 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
-import { generateInvId } from '@/utils/generateInvId'
+import { v4 as uuidv4 } from 'uuid'
 import { TEST_CONFIG } from './test-config'
 
 const runRuPaymentTest = async () => {
@@ -10,15 +10,15 @@ const runRuPaymentTest = async () => {
     })
 
     const telegram_id = Date.now().toString()
-    const amount = 500 // Тестовая сумма в рублях
-    const operation_id = generateInvId(telegram_id, amount)
+    const operation_id = `${telegram_id}-${telegram_id}-${uuidv4()}`
+    const inv_id = uuidv4()
 
     // Отправляем тестовое событие
     await inngest.send({
       name: 'ru-payment/process-payment',
       data: {
-        IncSum: amount,
-        inv_id: operation_id,
+        IncSum: 500, // Тестовая сумма в рублях
+        inv_id,
         telegram_id,
         bot_name: 'test_bot',
         description: 'test ru payment',
@@ -33,6 +33,7 @@ const runRuPaymentTest = async () => {
       description: 'Test event sent',
       telegram_id,
       operation_id,
+      inv_id,
     })
 
     // Ждем и проверяем статус платежа
@@ -48,6 +49,7 @@ const runRuPaymentTest = async () => {
         attempt: attempts,
         telegram_id,
         operation_id,
+        inv_id,
       })
 
       // Здесь должна быть проверка статуса платежа в БД

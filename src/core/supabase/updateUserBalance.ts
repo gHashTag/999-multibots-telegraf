@@ -1,88 +1,103 @@
+import {
+  TelegramId,
+  normalizeTelegramId,
+} from '@/interfaces/telegram.interface'
+import { supabase } from './index'
 import { logger } from '@/utils/logger'
-import { inngest } from '@/core/inngest/clients'
-import { getUserBalance } from './getUserBalance'
-import { TransactionType } from '@/interfaces/payments.interface'
-import { generateInvId } from '@/utils/generateInvId'
 
 interface UpdateUserBalanceParams {
-  telegram_id: string
+  telegram_id: TelegramId
   amount: number
-  type: TransactionType
-  operation_description: string
+  type: 'money_income' | 'money_expense'
+  operation_description?: string
   metadata?: Record<string, any>
-  bot_name: string
+  bot_name?: string
   payment_method?: string
 }
 
 /**
- * Обновляет баланс пользователя через событие payment/process
+ * Обновляет баланс пользователя, записывая соответствующую транзакцию в таблицу payments_v2
+ * И возвращает актуальный баланс пользователя
  */
 export const updateUserBalance = async ({
   telegram_id,
   amount,
   type,
-  operation_description,
+  operation_description = '',
   metadata = {},
   bot_name,
-  payment_method,
-}: UpdateUserBalanceParams): Promise<number | null> => {
+  payment_method = 'System',
+}: UpdateUserBalanceParams): Promise<{
+  success: boolean
+  newBalance: number | null
+  error?: string
+}> => {
   try {
-    logger.info('💰 Отправка события обновления баланса:', {
-      description: 'Sending balance update event',
-      telegram_id,
+    if (!telegram_id) {
+      throw new Error('telegram_id is required')
+    }
+
+    // Нормализуем telegram_id в строку
+    const normalizedId = normalizeTelegramId(telegram_id)
+
+    logger.info('💰 Обновление баланса пользователя:', {
+      description: 'Updating user balance',
+      telegram_id: normalizedId,
       amount,
       type,
       operation_description,
+      metadata,
+      bot_name,
+      payment_method,
     })
 
-    const operation_id = generateInvId(telegram_id, amount)
+    const { data: result, error } = await supabase.rpc('update_user_balance', {
+      p_telegram_id: normalizedId,
+      p_amount: amount,
+    })
 
-    // Отправляем событие для обновления баланса
-    await inngest.send({
-      id: operation_id,
-      name: 'payment/process',
-      data: {
-        telegram_id,
+    if (error) {
+      logger.error('❌ Ошибка при обновлении баланса:', {
+        description: 'Error updating balance',
+        error: error.message,
+        telegram_id: normalizedId,
         amount,
         type,
-        description: operation_description,
+        operation_description,
+        metadata,
         bot_name,
-        operation_id,
-        metadata: {
-          ...metadata,
-          payment_method,
-        },
-      },
-    })
-
-    // Даем время на обработку события
-    await new Promise(resolve => setTimeout(resolve, 1000))
-
-    // Получаем обновленный баланс
-    const newBalance = await getUserBalance(telegram_id, bot_name)
-
-    if (!newBalance) {
-      logger.error('❌ Не удалось получить обновленный баланс:', {
-        description: 'Failed to get updated balance',
-        telegram_id,
+        payment_method,
       })
-      return null
+      throw error
     }
 
     logger.info('✅ Баланс успешно обновлен:', {
       description: 'Balance updated successfully',
-      telegram_id,
-      new_balance: newBalance,
+      telegram_id: normalizedId,
+      new_balance: result,
+      type,
+      operation_description,
+      metadata,
+      bot_name,
+      payment_method,
     })
 
-    return newBalance
+    return { success: true, newBalance: result }
   } catch (error) {
-    logger.error('❌ Ошибка при обновлении баланса:', {
-      description: 'Error updating balance',
-      error: error instanceof Error ? error.message : 'Unknown error',
+    logger.error('❌ Ошибка в updateUserBalance:', {
+      description: 'Error in updateUserBalance function',
+      error: error instanceof Error ? error.message : String(error),
       telegram_id,
-      amount,
+      type,
+      operation_description,
+      metadata,
+      bot_name,
+      payment_method,
     })
-    return null
+    return {
+      success: false,
+      newBalance: null,
+      error: error instanceof Error ? error.message : String(error),
+    }
   }
 }

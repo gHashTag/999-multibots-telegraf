@@ -1,6 +1,6 @@
 import { logger } from '@/utils/logger'
-import { statsTest } from './tests/stats.test'
-import { balanceTest } from './tests/balance.test'
+import { runStatsTests } from './tests/stats.test'
+import { runBalanceTests } from './tests/balance.test'
 
 // Устанавливаем тестовое окружение
 process.env.NODE_ENV = 'test'
@@ -11,7 +11,7 @@ async function runTests() {
       description: 'Starting tests',
     })
 
-    const results = await Promise.all([statsTest(), balanceTest()])
+    const results = await Promise.all([runStatsTests(), runBalanceTests()])
 
     const failedTests = results.filter(test => !test.success)
 

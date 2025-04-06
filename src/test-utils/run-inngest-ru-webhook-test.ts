@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { SUBSCRIPTION_PLANS } from '@/inngest-functions/ruPayment.service'
 

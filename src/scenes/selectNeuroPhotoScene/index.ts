@@ -3,7 +3,7 @@ import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
 import { logger } from '@/utils/logger'
 import { handleHelpCancel } from '@/handlers'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 //
 export const selectNeuroPhotoScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.SelectNeuroPhoto,

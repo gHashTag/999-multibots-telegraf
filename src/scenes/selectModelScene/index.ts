@@ -2,7 +2,7 @@ import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const selectModelScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.SelectModelWizard,

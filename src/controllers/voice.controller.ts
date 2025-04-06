@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { getBotByName } from '@/core/bot'
 import { createVoiceAvatar } from '@/helpers'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { validateUserParams } from '@/middlewares'
 
 export class VoiceController {

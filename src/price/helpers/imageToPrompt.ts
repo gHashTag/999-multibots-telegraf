@@ -1,9 +1,9 @@
 import { TelegramId } from '@/interfaces/telegram.interface';
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { ModeEnum } from '@/interfaces/modes.interface'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { getBotByName } from '@/core/bot'
 import { getUserByTelegramIdString } from '@/core/supabase'

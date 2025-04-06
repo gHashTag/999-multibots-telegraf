@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
+import { calculateFinalPrice } from '@/price/helpers'
 import { findModelByTitle } from '@/menu/videoModelMenu'
 import { IMAGES_MODELS } from '@/price/models/IMAGES_MODELS'
 
