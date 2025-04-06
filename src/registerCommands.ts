@@ -12,7 +12,6 @@ import { privateChat } from './middlewares/privateChat'
 import {
   avatarBrainWizard,
   textToVideoWizard,
-  emailWizard,
   broadcastWizard,
   neuroPhotoWizard,
   neuroPhotoWizardV2,
@@ -85,7 +84,6 @@ export const stage = new Scenes.Stage<MyContext>([
   balanceScene,
   avatarBrainWizard,
   imageToPromptWizard,
-  emailWizard,
   textToImageWizard,
   improvePromptWizard,
   sizeWizard,

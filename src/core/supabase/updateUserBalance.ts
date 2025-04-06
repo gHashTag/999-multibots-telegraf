@@ -13,6 +13,7 @@ interface UpdateUserBalanceParams {
   metadata?: Record<string, any>
   bot_name?: string
   payment_method?: string
+  bot_name: string
 }
 
 /**
@@ -32,6 +33,7 @@ export const updateUserBalance = async ({
   newBalance: number | null
   error?: string
 }> => {
+}: UpdateUserBalanceParams): Promise<number | null> => {
   try {
     if (!telegram_id) {
       throw new Error('telegram_id is required')
@@ -67,6 +69,23 @@ export const updateUserBalance = async ({
         metadata,
         bot_name,
         payment_method,
+        operation_id,
+        metadata: {
+          ...metadata,
+        },
+      },
+    })
+
+    // Даем время на обработку события
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // Получаем обновленный баланс
+    const newBalance = await getUserBalance(telegram_id, bot_name)
+
+    if (!newBalance) {
+      logger.error('❌ Не удалось получить обновленный баланс:', {
+        description: 'Failed to get updated balance',
+        telegram_id,
       })
       throw error
     }

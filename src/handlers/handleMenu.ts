@@ -21,15 +21,15 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
         console.log('CASE: 💫 Оформление подписки')
         ctx.session.mode = 'subscribe' as any
-        await ctx.scene.enter('subscriptionScene')
+        await ctx.scene.enter(ModeEnum.SubscriptionScene)
       },
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         console.log('CASE: 🤖 Цифровое тело')
-        await ctx.scene.enter('select_model')
+        await ctx.scene.enter(ModeEnum.SelectModelWizard)
       },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         console.log('CASE handleMenu: 📸 Нейрофото')
-        await ctx.scene.enter('neuro_photo')
+        await ctx.scene.enter(ModeEnum.NeuroPhoto)
       },
       [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
         console.log('CASE: 🔍 Промпт из фото')
