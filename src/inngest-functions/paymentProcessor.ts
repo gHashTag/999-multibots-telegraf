@@ -270,8 +270,9 @@ export const paymentProcessor = inngest.createFunction(
             metadata: {},
             payment_method: 'balance',
             bot_name,
-            inv_id: operation_id,
+            inv_id: initResult.opId,
             status: 'PENDING',
+            type
           })
 
           if (!payment || !payment.payment_id) {

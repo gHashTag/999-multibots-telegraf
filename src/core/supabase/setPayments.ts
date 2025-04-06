@@ -118,9 +118,8 @@ export const createPayment = async (
     const normalizedParams = {
       ...params,
       telegram_id: normalizeTelegramId(params.telegram_id),
-      type:
-        params.type || (params.amount > 0 ? 'money_income' : 'money_expense'),
-      inv_id: params.inv_id || `${Date.now()}-${params.telegram_id}-${uuidv4()}`,
+      type: params.type || (params.amount > 0 ? 'money_income' : 'money_expense'),
+      inv_id: params.inv_id
     }
 
     logger.info('🚀 Создание записи о платеже:', {
