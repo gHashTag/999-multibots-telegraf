@@ -7,7 +7,7 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { processApiResponse } from '@/helpers/processApiResponse'
-
+import { generateInvId } from '@/utils/generateInvId'
 import { saveFileLocally } from '@/helpers'
 import { pulse } from '@/helpers/pulse'
 import { ModeEnum } from '@/interfaces/modes.interface'
@@ -206,20 +206,16 @@ export const neuroImageGeneration = inngest.createFunction(
         })
 
         // Генерируем уникальный ID для операции
-        const payment_operation_id = `${telegram_id}-${Date.now()}-${prompt.substring(
-          0,
-          10
-        )}`
-
+        const operation_id = generateInvId(telegram_id, paymentAmount)
         logger.info('💰 Генерируем уникальный ID для операции', {
           description: 'Generating unique ID for operation',
           telegram_id,
-          payment_operation_id,
+          operation_id,
         })
 
         // Используем централизованный процессор платежей через событие
         const paymentResult = await inngest.send({
-          id: payment_operation_id,
+          id: operation_id,
           name: 'payment/process',
           data: {
             telegram_id,
@@ -244,7 +240,7 @@ export const neuroImageGeneration = inngest.createFunction(
             description:
               'Payment sent for processing via payment/process event',
             telegram_id,
-            payment_operation_id,
+            operation_id,
             payment_event_id: paymentResult.ids?.[0] || 'unknown',
             paymentAmount,
           }
@@ -263,14 +259,14 @@ export const neuroImageGeneration = inngest.createFunction(
             telegram_id,
             newBalance,
             paymentAmount,
-            payment_operation_id,
+            operation_id,
           }
         )
 
         return {
           success: true,
           newBalance,
-          payment_operation_id,
+          operation_id,
         }
       })
 
@@ -605,16 +601,8 @@ export const neuroImageGeneration = inngest.createFunction(
 
           // Формируем сообщение для отправки, используя результат из шага check-balance
           const message = is_ru
-            ? `Ваши изображения сгенерированы! Стоимость: ${(
-                costPerImage * Number(validNumImages)
-              ).toFixed(2)} ⭐️\nНовый баланс: ${
-                userBalance.formattedBalance
-              } ⭐️`
-            : `Your images generated! Cost: ${(
-                costPerImage * Number(validNumImages)
-              ).toFixed(2)} ⭐️\nNew balance: ${
-                userBalance.formattedBalance
-              } ⭐️`
+            ? `Ваши изображения сгенерированы!`
+            : `Your images generated!`
 
           // Клавиатура для ответа
           const keyboard = {

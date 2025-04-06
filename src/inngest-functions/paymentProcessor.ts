@@ -28,6 +28,7 @@ interface PaymentProcessorEvent {
     description: string
     bot_name: string
     metadata?: Record<string, unknown>
+    operation_id?: string
   }
 }
 
@@ -66,13 +67,13 @@ export const paymentProcessor = inngest.createFunction(
         type,
         description,
         bot_name,
-        inv_id,
         metadata = {},
+        operation_id: provided_operation_id
       } = event.data
 
       // Шаг 1: Проверка на дубликаты
       const operationId = await step.run('check-duplicates', async () => {
-        const id = generateInvId(telegram_id, amount)
+        const id = provided_operation_id || generateInvId(telegram_id, amount)
         const key = `${telegram_id}:${amount}:${type}:${description}`
         const existingPayment = processedPayments.get(key)
 
@@ -84,44 +85,45 @@ export const paymentProcessor = inngest.createFunction(
         return id
       })
 
-      // Шаг 2: Получение текущего баланса
-      const currentBalance = await step.run('get-balance', async () => {
-        const balance = await getUserBalance(telegram_id, amount)
-        if (typeof balance !== 'number') {
-          throw new Error('Не удалось получить баланс')
-        }
-        return balance
-      })
+      // Шаг 2: Обработка платежа через SQL функцию process_payment
+      const paymentResult = await step.run('process-payment', async () => {
+        // Конвертируем BigInt в строку для безопасной сериализации
+        const safeMetadata = JSON.parse(JSON.stringify(metadata, (_, value) =>
+          typeof value === 'bigint' ? value.toString() : value
+        ))
 
-      // Шаг 3: Расчет нового баланса
-      const newBalance = await step.run('calculate-balance', async () => {
-        return currentBalance + amount
-      })
-
-      // Шаг 4: Создание записи о транзакции
-      const service = getServiceFromDescription(description)
-      const detailedDescription = getDetailedDescription(type, service)
-
-      await step.run('create-transaction-record', async () => {
-        const { error } = await supabase.from('payments_v2').insert({
-          telegram_id,
-          amount,
-          inv_id,
-          type,
-          description: detailedDescription,
-          bot_name,
-          metadata,
-          operation_id: operationId,
-          service_type: service
+        const { data, error } = await supabase.rpc('process_payment', {
+          p_telegram_id: telegram_id.toString(), // Конвертируем в строку
+          p_amount: amount,
+          p_type: type,
+          p_description: description,
+          p_bot_name: bot_name,
+          p_operation_id: operationId,
+          p_metadata: safeMetadata
         })
 
         if (error) {
-          throw new Error(`Ошибка создания записи о транзакции: ${error.message}`)
+          logger.error('❌ Ошибка при обработке платежа:', {
+            description: 'Error processing payment',
+            error: error.message,
+            telegram_id: telegram_id.toString(),
+            amount,
+            type
+          })
+          throw error
+        }
+
+        // Конвертируем значения в числа для JavaScript
+        return {
+          ...data,
+          old_balance: Number(data.old_balance),
+          new_balance: Number(data.new_balance),
+          amount: Number(data.amount)
         }
       })
 
-      // Шаг 5: Отправка деталей транзакции пользователю
-      const transactionDetails = await step.run('send-transaction-details', async () => {
+      // Шаг 3: Отправка уведомления пользователю
+      await step.run('send-notification', async () => {
         logger.info('📝 Отправка деталей транзакции:', {
           description: 'Sending transaction details',
           type,
@@ -141,9 +143,9 @@ export const paymentProcessor = inngest.createFunction(
           telegram_id,
           operationId,
           amount,
-          currentBalance,
-          newBalance,
-          description: detailedDescription,
+          currentBalance: paymentResult.old_balance,
+          newBalance: paymentResult.new_balance,
+          description,
           isRu,
           bot: bot.telegram
         })
@@ -152,14 +154,22 @@ export const paymentProcessor = inngest.createFunction(
           telegram_id,
           amount,
           type,
-          description: detailedDescription,
+          description,
           operationId,
-          oldBalance: currentBalance,
-          newBalance,
+          oldBalance: paymentResult.old_balance,
+          newBalance: paymentResult.new_balance,
         }
       })
 
-      return transactionDetails
+      return {
+        success: true,
+        payment_id: paymentResult.payment_id,
+        old_balance: paymentResult.old_balance,
+        new_balance: paymentResult.new_balance,
+        amount: paymentResult.amount,
+        operation_id: paymentResult.operation_id
+      }
+
     } catch (error) {
       logger.error('❌ Ошибка в paymentProcessor:', {
         description: 'Error in payment processor',
