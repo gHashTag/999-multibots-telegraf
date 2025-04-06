@@ -1,8 +1,8 @@
 import { logger } from '@/utils/logger'
 import { inngest } from '@/core/inngest/clients'
-import { v4 as uuidv4 } from 'uuid'
 import { getUserBalance } from './getUserBalance'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { generateInvId } from '@/utils/generateInvId'
 
 interface UpdateUserBalanceParams {
   telegram_id: string
@@ -35,10 +35,11 @@ export const updateUserBalance = async ({
       operation_description,
     })
 
-    const operation_id = `${telegram_id}-${Date.now()}-${uuidv4()}`
+    const operation_id = generateInvId(telegram_id, amount)
 
     // Отправляем событие для обновления баланса
     await inngest.send({
+      id: operation_id,
       name: 'payment/process',
       data: {
         telegram_id,
