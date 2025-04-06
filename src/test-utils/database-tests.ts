@@ -1,6 +1,7 @@
 import { testSupabase } from './test-env'
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
+import { TestResult } from './types'
 
 /**
  * Интерфейс для результатов тестирования
@@ -252,8 +253,10 @@ export class DatabaseTester {
         message: '❌ Критическая ошибка при выполнении тестов базы данных',
         description: 'Critical error during database tests',
         error: error instanceof Error ? error.message : 'Unknown error',
+
       })
       throw error
     }
   }
 }
+

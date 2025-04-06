@@ -11,6 +11,7 @@ import { getBotByName } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { Inngest } from 'inngest'
+import { TestResult } from './types'
 
 // Интерфейсы и типы
 interface TestResult {

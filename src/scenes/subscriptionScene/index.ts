@@ -3,9 +3,12 @@ import { MyContext } from '../../interfaces'
 import { handleMenu } from '@/handlers'
 import { getTranslation } from '@/core/supabase'
 import { isRussian } from '@/helpers'
-
+import { ModeEnum } from '@/interfaces/modes.interface'
+import { paymentOptionsPlans } from '@/price/priceCalculator'
+import { isValidPaymentSubscription } from '@/interfaces/payments.interface'
+import { LocalSubscription } from '@/scenes/getRuBillWizard'
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
-  'subscriptionScene',
+  ModeEnum.SubscriptionScene,
   async ctx => {
     console.log('CASE: subscriptionScene', ctx)
     const isRu = isRussian(ctx)
@@ -90,37 +93,45 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
       const text = ctx.update.callback_query.data
       console.log('text', text)
-      if (text === 'neurobase') {
-        console.log('CASE: 📚 НейроБаза')
-        ctx.session.subscription = 'neurobase'
-        return ctx.scene.enter('paymentScene')
-      } else if (text === 'neuromeeting') {
-        console.log('CASE: 🧠 НейроВстреча')
-        ctx.session.subscription = 'neuromeeting'
-        return ctx.scene.enter('paymentScene')
-      } else if (text === 'neuroblogger') {
-        console.log('CASE: 🤖 НейроБлогер')
-        ctx.session.subscription = 'neuroblogger'
-        return ctx.scene.enter('paymentScene')
-      } else if (text === 'neurophoto') {
-        console.log('CASE: 🎨 НейроФото')
-        ctx.session.subscription = 'neurophoto'
-        return ctx.scene.enter('paymentScene')
-      } else if (text === 'neuromentor') {
-        console.log('CASE: 🧠 НейроМентор')
-        ctx.session.subscription = 'neuromentor'
-        return ctx.scene.enter('paymentScene')
-      } else if (text === 'neurotester') {
-        console.log('CASE: 🧪 Тестовый план')
-        ctx.session.subscription = 'neurotester'
-        return ctx.scene.enter('paymentScene')
+
+      // Находим выбранный тариф
+      const selectedPayment = paymentOptionsPlans.find(
+        option => option.subscription === text
+      )
+
+      if (selectedPayment) {
+        console.log('Selected payment option:', selectedPayment)
+        const subscription = selectedPayment.subscription
+        if (isValidPaymentSubscription(subscription)) {
+          ctx.session.subscription = subscription
+          ctx.session.selectedPayment = {
+            amount: selectedPayment.amount,
+            stars: Number(selectedPayment.stars),
+            subscription: subscription as LocalSubscription,
+          }
+          return ctx.scene.enter(ModeEnum.PaymentScene)
+        } else {
+          console.warn(
+            'Subscription type not supported for payment:',
+            subscription
+          )
+          const isRu = isRussian(ctx)
+          await ctx.reply(
+            isRu
+              ? 'Этот тип подписки не поддерживает оплату. Пожалуйста, выберите другой вариант.'
+              : 'This subscription type does not support payment. Please select another option.'
+          )
+        }
       } else if (text === 'mainmenu') {
         console.log('CASE: 🏠 Главное меню')
-        return ctx.scene.enter('menuScene')
+        return ctx.scene.enter(ModeEnum.MainMenu)
       } else {
         console.warn('Unknown subscription type:', text)
+        const isRu = isRussian(ctx)
         await ctx.reply(
-          'Неизвестный тип подписки. Пожалуйста, выберите другой вариант.'
+          isRu
+            ? 'Неизвестный тип подписки. Пожалуйста, выберите другой вариант.'
+            : 'Unknown subscription type. Please select another option.'
         )
       }
     } else {

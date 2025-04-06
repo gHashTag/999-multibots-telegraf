@@ -10,12 +10,19 @@ import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
 import { createBotByName } from '@/core/bot'
-import { inngest } from '@/inngest-functions/clients'
+import { PaymentStatus, TransactionType } from '@/interfaces/payments.interface'
+import { ModeEnum } from '@/interfaces/modes.interface'
+import { LocalSubscription } from '@/scenes/getRuBillWizard'
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
   subscription: string
   telegram_id: TelegramId
   email: string
+  selectedPayment?: {
+    amount: number
+    stars: number
+    subscription?: LocalSubscription
+  }
 }
 
 type PaymentContext = Context &
@@ -252,112 +259,61 @@ async function processPayment(
 export async function handleSuccessfulPayment(ctx: PaymentContext) {
   try {
     if (!ctx.chat) {
-      console.error('Update does not belong to a chat')
+      logger.error('❌ Update does not belong to a chat', {
+        description: 'Chat not found in context',
+      })
       return
     }
-    const isRu = isRussian(ctx)
+
     const stars = ctx.message?.successful_payment?.total_amount || 0
     const subscriptionType = ctx.session.subscription
-    console.log('CASE: subscriptionType', subscriptionType)
+
+    logger.info('🔍 Обработка успешного платежа', {
+      description: 'Processing successful payment',
+      stars,
+      subscriptionType,
+    })
+
     const { buttons } = await getTranslation({
       key: 'subscriptionScene',
       ctx,
     })
-    console.log('CASE: buttons', buttons)
 
     const selectedButton = buttons.find(
       button => button.callback_data === subscriptionType
     )
-    console.log('CASE: selectedButton', selectedButton)
 
     if (selectedButton) {
-      console.log('CASE: subscriptionType in buttons', selectedButton)
+      logger.info('💫 Обработка подписки', {
+        description: 'Processing subscription payment',
+        subscription: selectedButton,
+      })
       const { stars_price, callback_data } = selectedButton
       await processPayment(ctx, stars_price, callback_data, stars)
     } else {
-      console.log('CASE: subscriptionType not in buttons', selectedButton)
-      await createPayment({
-        telegram_id: ctx.from?.id?.toString() || '',
-        amount: Number(stars),
-        OutSum: stars.toString(),
-        InvId: ctx.message?.successful_payment?.invoice_payload || '',
-        inv_id: ctx.message?.successful_payment?.invoice_payload || '',
-        currency: 'RUB',
-        stars: Number(stars),
-        status: 'SUCCESS',
-        payment_method: 'Robokassa',
-        bot_name: ctx.botInfo.username,
-        description: `Subscription payment completed - ${stars.toString()} RUB`,
-        subscription: subscriptionType,
-        metadata: {
-          payment_method: 'Robokassa',
-          email: ctx.session.email,
-          subscription: subscriptionType,
-        },
-        language: 'ru',
-        invoice_url: '',
+      logger.info('💰 Создание платежа через Robokassa', {
+        description: 'Creating Robokassa payment',
+        stars,
+        subscriptionType,
       })
-      await ctx.reply(
-        isRu
-          ? `💫 Ваш баланс пополнен на ${stars}⭐️ звезд!`
-          : `💫 Your balance has been replenished by ${stars}⭐️ stars!`
-      )
-      await sendNotification(
-        ctx,
-        `💫 Пользователь @${ctx.from?.username} (ID: ${ctx.from?.id}) пополнил баланс на ${stars} звезд!`
-      )
-      ctx.session.subscription = ''
-      ctx.session.buttons = []
+
+      // Переходим в сцену создания счета
+      await ctx.scene.enter('getRuBillWizard')
+
+      // Устанавливаем данные для сцены
+      ctx.session.selectedPayment = {
+        amount: stars,
+        stars: stars,
+        subscription: subscriptionType as LocalSubscription,
+      }
     }
 
-    logger.info('✅ Обработка успешного платежа:', {
-      description: 'Processing successful payment',
-      telegram_id: ctx.from?.id,
-      amount: stars,
-      inv_id: ctx.message?.successful_payment?.invoice_payload,
-    })
-
-    await inngest.send({
-      name: 'payment/process',
-      data: {
-        telegram_id: String(ctx.from?.id),
-        amount: Number(stars),
-        type: 'money_income',
-        description: `Purchase and sale:: ${stars}`,
-        bot_name: ctx.botInfo.username,
-        inv_id: ctx.message?.successful_payment?.invoice_payload,
-        stars: Number(stars),
-      },
-    })
-
-    await createPayment({
-      telegram_id: ctx.from?.id?.toString() || '',
-      amount: stars,
-      OutSum: stars.toString(),
-      InvId: ctx.message?.successful_payment?.invoice_payload || '',
-      inv_id: ctx.message?.successful_payment?.invoice_payload || '',
-      currency: 'RUB',
-      stars: Number(stars),
-      status: 'PENDING',
-      payment_method: 'Telegram',
-      subscription: subscriptionType,
-      bot_name: ctx.botInfo.username,
-      description: subscriptionType
-        ? `Покупка подписки ${subscriptionType}`
-        : `Пополнение баланса на ${stars} звезд`,
-      metadata: {
-        payment_method: 'Telegram',
-        subscription: subscriptionType || undefined,
-        stars: Number(stars),
-        email: ctx.session.email || undefined,
-      },
-      language: ctx.from?.language_code || 'ru',
-      invoice_url: '',
-    })
-    logger.info('💾 Платеж сохранен со статусом PENDING', {
-      description: 'Payment saved with PENDING status',
-    })
+    ctx.session.subscription = ''
+    ctx.session.buttons = []
   } catch (error) {
-    console.error('Error processing payment:', error)
+    logger.error('❌ Ошибка обработки платежа', {
+      description: 'Error processing payment',
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 }

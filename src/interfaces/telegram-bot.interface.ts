@@ -5,6 +5,8 @@ import type { Update, Message } from 'telegraf/typings/core/types/typegram'
 import { Buffer } from 'buffer'
 import { Mode } from './cost.interface'
 import { BroadcastContentType } from '@/scenes/broadcastWizard'
+import { LocalSubscription } from '@/scenes/getRuBillWizard'
+
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {
   title_ru: string
@@ -96,8 +98,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   text?: string
   selectedPayment: {
     amount: number
-    stars: string
-    subscription: Subscription
+    stars: number
+    subscription?: LocalSubscription
   }
 }
 
@@ -107,6 +109,7 @@ export interface MyContext extends Context {
   scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
   wizard: Scenes.WizardContextWizard<MyContext>
   amount: number
+  match?: RegExpMatchArray
 }
 
 // Создайте новый тип, объединяющий MyContext и WizardContext

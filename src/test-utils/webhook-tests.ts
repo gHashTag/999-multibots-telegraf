@@ -2,6 +2,7 @@ import axios from 'axios'
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
 import { testSupabase } from './test-env'
+import { TestResult } from './types'
 
 /**
  * Интерфейс для результатов теста
@@ -292,6 +293,7 @@ export class ReplicateWebhookTester {
         message: '❌ Критическая ошибка при выполнении тестов вебхуков',
         description: 'Critical error during webhook tests',
         error: error instanceof Error ? error.message : 'Unknown error',
+
       })
       throw error
     }
@@ -894,3 +896,4 @@ export class NeurophotoWebhookTester {
     return results
   }
 }
+

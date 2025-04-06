@@ -250,7 +250,7 @@ async function main() {
 
       const dbTester = new DatabaseTester()
       const dbResults = await dbTester.runAllTests()
-      formatResults(dbResults, 'базы данных')
+      formatResults(dbResults as TestResult[], 'базы данных')
     }
 
     if (testType === 'inngest' || testType === 'all') {
@@ -414,7 +414,7 @@ async function main() {
         message: '🎉 Все тесты пройдены успешно',
         description: 'All tests passed successfully',
         duration: speechResults.duration,
-        testName: speechResults.testName,
+        name: speechResults.name,
         details: speechResults.message,
       })
     } else {
@@ -423,7 +423,7 @@ async function main() {
         description: 'Tests failed',
         error: speechResults.error,
         duration: speechResults.duration,
-        testName: speechResults.testName,
+        name: speechResults.name,
         details: speechResults.message,
       })
       allSuccessful = false
@@ -521,7 +521,7 @@ async function runSpeechGenerationTest(): Promise<TestResult> {
 
       results.push({
         success: true,
-        testName: `Генерация речи - ${testCase.name}`,
+        name: `Генерация речи - ${testCase.name}`,
         message: `Аудио успешно сгенерировано и отправлено для теста "${testCase.name}"`,
         duration: 0,
       })
@@ -538,7 +538,7 @@ async function runSpeechGenerationTest(): Promise<TestResult> {
     // Возвращаем общий результат
     return {
       success: true,
-      testName: 'Генерация речи',
+      name: 'Генерация речи',
       message: `Успешно выполнено ${results.length} тестов генерации речи`,
       duration: 0,
     }
@@ -553,7 +553,7 @@ async function runSpeechGenerationTest(): Promise<TestResult> {
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
-      testName: 'Генерация речи',
+      name: 'Генерация речи',
       duration: 0,
       message: 'Ошибка при генерации речи',
     }

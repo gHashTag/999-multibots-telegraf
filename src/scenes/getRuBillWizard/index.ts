@@ -16,6 +16,12 @@ import { inngest } from '@/inngest-functions/clients'
 import { createPayment } from '@/core/supabase/createPayment'
 type Subscription = 'neurophoto' | 'neurobase' | 'neuroblogger'
 
+// Экспортируем тип для подписок
+export type LocalSubscription = Extract<
+  Subscription,
+  'neurophoto' | 'neurobase' | 'neuroblogger'
+>
+
 const generateInvoiceStep = async (ctx: MyContext) => {
   logger.info('🚀 Начало создания счета', {
     description: 'Starting invoice generation',
