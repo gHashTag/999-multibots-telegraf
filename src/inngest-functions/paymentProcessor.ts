@@ -15,6 +15,7 @@ import {
   TRANSACTION_KEYS,
   SERVICE_KEYS
 } from '@/interfaces/payments.interface'
+import { sendTransactionNotification } from '@/helpers/sendTransactionNotification'
 
 // Кэш для отслеживания обработанных платежей
 const processedPayments = new Map<string, { time: number }>()
@@ -97,19 +98,7 @@ export const paymentProcessor = inngest.createFunction(
         return currentBalance + amount
       })
 
-      // Шаг 4: Обновление баланса
-      await step.run('update-balance', async () => {
-        const { error } = await supabase.rpc('update_user_balance', {
-          p_telegram_id: telegram_id,
-          p_new_balance: newBalance,
-        })
-
-        if (error) {
-          throw new Error(`Ошибка обновления баланса: ${error.message}`)
-        }
-      })
-
-      // Шаг 5: Создание записи о транзакции
+      // Шаг 4: Создание записи о транзакции
       const service = getServiceFromDescription(description)
       const detailedDescription = getDetailedDescription(type, service)
 
@@ -131,7 +120,7 @@ export const paymentProcessor = inngest.createFunction(
         }
       })
 
-      // Шаг 6: Отправка деталей транзакции пользователю
+      // Шаг 5: Отправка деталей транзакции пользователю
       const transactionDetails = await step.run('send-transaction-details', async () => {
         logger.info('📝 Отправка деталей транзакции:', {
           description: 'Sending transaction details',
@@ -148,21 +137,18 @@ export const paymentProcessor = inngest.createFunction(
         const userData = await getUserByTelegramId(telegram_id)
         const isRu = userData?.language_code === 'ru'
 
-        const message = isRu
-          ? `${detailedDescription}
-ID: ${operationId}
-Сумма: ${amount} ⭐️
-Старый баланс: ${currentBalance} ⭐️
-Новый баланс: ${newBalance} ⭐️`
-          : `${detailedDescription}
-ID: ${operationId}
-Amount: ${amount} ⭐️
-Old balance: ${currentBalance} ⭐️
-New balance: ${newBalance} ⭐️`
+        await sendTransactionNotification({
+          telegram_id,
+          operationId,
+          amount,
+          currentBalance,
+          newBalance,
+          description: detailedDescription,
+          isRu,
+          bot: bot.telegram
+        })
 
-        await bot.telegram.sendMessage(telegram_id, message)
-
-          return {
+        return {
           telegram_id,
           amount,
           type,
