@@ -9,7 +9,7 @@ export async function validateAndCalculateVideoModelPrice(
   isRu: boolean,
   ctx: MyContext,
   inputType: 'text' | 'image'
-): Promise<{ paymentAmount: number; modelId: string } | null> {
+): Promise<{ amount: number; modelId: string } | null> {
   console.log('🚀 Начало валидации модели:', {
     description: 'Starting model validation',
     videoModel,
@@ -50,21 +50,21 @@ export async function validateAndCalculateVideoModelPrice(
     return null
   }
 
-  const paymentAmount = calculateFinalPrice(modelId)
+  const amount = calculateFinalPrice(modelId)
   console.log('💰 Расчет стоимости:', {
     description: 'Price calculation',
     modelId,
-    paymentAmount,
+    amount,
     currentBalance,
   })
 
-  ctx.session.paymentAmount = paymentAmount
-  if (currentBalance < paymentAmount) {
+  ctx.session.amount = amount
+  if (currentBalance < amount) {
     console.log('❌ Недостаточно средств:', {
       description: 'Insufficient funds',
       currentBalance,
-      paymentAmount,
-      difference: paymentAmount - currentBalance,
+      amount,
+      difference: amount - currentBalance,
     })
     await ctx.reply(
       isRu ? 'Недостаточно средств на балансе' : 'Insufficient balance'
@@ -75,11 +75,11 @@ export async function validateAndCalculateVideoModelPrice(
   console.log('✅ Валидация успешна:', {
     description: 'Validation successful',
     modelId,
-    paymentAmount,
+    amount,
   })
 
   return {
-    paymentAmount,
+    amount,
     modelId,
   }
 }

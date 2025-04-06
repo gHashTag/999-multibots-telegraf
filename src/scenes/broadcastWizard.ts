@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import { broadcastService } from '@/services/broadcast.service'
+import { broadcastService, BroadcastResult } from '@/services/broadcast.service'
 
 // Типы контента для рассылки
 export enum BroadcastContentType {
@@ -93,6 +93,69 @@ function getContentTypeFromMessage(
     return BroadcastContentType.POST_LINK
   }
   return null
+}
+
+// Функция для отправки текстовой рассылки
+async function sendTextBroadcast(
+  ctx: MyContext,
+  text: string,
+  ownerTelegramId?: string
+): Promise<BroadcastResult> {
+  const botToken = process.env.BOT_TOKEN || ''
+  return broadcastService.sendBroadcastWithImage(
+    botToken,
+    text,
+    '',
+    ownerTelegramId
+  )
+}
+
+// Функция для отправки рассылки с изображением
+async function sendImageBroadcast(
+  ctx: MyContext,
+  text: string,
+  imageUrl: string,
+  ownerTelegramId?: string
+): Promise<BroadcastResult> {
+  const botToken = process.env.BOT_TOKEN || ''
+  return broadcastService.sendBroadcastWithImage(
+    botToken,
+    text,
+    imageUrl,
+    ownerTelegramId
+  )
+}
+
+// Функция для отправки рассылки с видео
+async function sendVideoBroadcast(
+  ctx: MyContext,
+  text: string,
+  videoUrl: string,
+  ownerTelegramId?: string
+): Promise<BroadcastResult> {
+  const botToken = process.env.BOT_TOKEN || ''
+  return broadcastService.sendBroadcastWithVideo(
+    botToken,
+    text,
+    videoUrl,
+    ownerTelegramId
+  )
+}
+
+// Функция для отправки рассылки со ссылкой на пост
+async function sendPostLinkBroadcast(
+  ctx: MyContext,
+  text: string,
+  postLink: string,
+  ownerTelegramId?: string
+): Promise<BroadcastResult> {
+  const botToken = process.env.BOT_TOKEN || ''
+  return broadcastService.sendBroadcastWithImage(
+    botToken,
+    text,
+    '',
+    ownerTelegramId
+  )
 }
 
 export const broadcastWizard = new Scenes.WizardScene<MyContext>(
@@ -194,7 +257,7 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
       case BroadcastContentType.TEXT:
         await ctx.reply(
           isRu
-            ? 'Пожалуйста, введите текст на РУССКОМ языке 🇷🇺'
+            ? 'Пожалуйста, введите текст на РУССКОМ языке ��🇺'
             : 'Please enter text in RUSSIAN 🇷🇺',
           { reply_markup: createCancelKeyboard(isRu).reply_markup }
         )
@@ -415,7 +478,6 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
       const botName = ctx.botInfo?.username || ''
       const ownerTelegramId = ctx.scene.session.ownerTelegramId || ''
       const textRu = ctx.scene.session.textRu || ''
-      const textEn = ctx.scene.session.textEn || ''
 
       if (!botName) {
         await ctx.reply(
@@ -428,63 +490,58 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
       }
 
       try {
-        let result
+        let result: BroadcastResult
         switch (ctx.scene.session.contentType) {
           case BroadcastContentType.PHOTO:
-            result = await broadcastService.sendBroadcastToUsers(
-              botName,
-              ctx.scene.session.photoFileId || '',
+            result = await sendImageBroadcast(
+              ctx,
               textRu,
-              textEn,
+              ctx.scene.session.photoFileId || '',
               ownerTelegramId
             )
             break
 
           case BroadcastContentType.VIDEO:
-            result = await broadcastService.sendBroadcastWithVideo(
-              botName,
-              ctx.scene.session.videoFileId || '',
+            result = await sendVideoBroadcast(
+              ctx,
               textRu,
-              textEn,
+              ctx.scene.session.videoFileId || '',
               ownerTelegramId
             )
             break
 
           case BroadcastContentType.TEXT:
-            result = await broadcastService.sendBroadcastWithText(
-              botName,
-              textRu,
-              textEn,
-              ownerTelegramId
-            )
+            result = await sendTextBroadcast(ctx, textRu, ownerTelegramId)
             break
 
           case BroadcastContentType.POST_LINK:
-            result = await broadcastService.sendBroadcastWithPostLink(
-              botName,
-              ctx.scene.session.postLink || '',
+            result = await sendPostLinkBroadcast(
+              ctx,
               textRu,
-              textEn,
+              ctx.scene.session.postLink || '',
               ownerTelegramId
             )
             break
+
+          default:
+            throw new Error('Неизвестный тип контента')
         }
 
-        if (result && result.success) {
+        if (result.success) {
           await ctx.reply(
             isRu
-              ? '✅ Рассылка успешно запущена!'
-              : '✅ Broadcast successfully started!',
+              ? `✅ Рассылка успешно отправлена!\nУспешно: ${result.successCount}\nОшибок: ${result.errorCount}`
+              : `✅ Broadcast sent successfully!\nSuccess: ${result.successCount}\nErrors: ${result.errorCount}`,
             { reply_markup: Markup.removeKeyboard().reply_markup }
           )
         } else {
           await ctx.reply(
             isRu
               ? `❌ Ошибка при отправке рассылки: ${
-                  result?.message || 'неизвестная ошибка'
+                  result.reason || 'Неизвестная ошибка'
                 }`
               : `❌ Error sending broadcast: ${
-                  result?.message || 'unknown error'
+                  result.reason || 'Unknown error'
                 }`,
             { reply_markup: Markup.removeKeyboard().reply_markup }
           )
@@ -492,17 +549,17 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
       } catch (error) {
         logger.error('Ошибка при отправке рассылки:', {
           description: 'Error sending broadcast',
-          error: error.message || 'Unknown error',
+          error: (error as Error).message || 'Unknown error',
           userId: ctx.from?.id,
         })
 
         await ctx.reply(
           isRu
             ? `❌ Произошла ошибка при отправке рассылки: ${
-                error.message || 'неизвестная ошибка'
+                (error as Error).message || 'неизвестная ошибка'
               }`
             : `❌ An error occurred while sending broadcast: ${
-                error.message || 'unknown error'
+                (error as Error).message || 'unknown error'
               }`,
           { reply_markup: Markup.removeKeyboard().reply_markup }
         )

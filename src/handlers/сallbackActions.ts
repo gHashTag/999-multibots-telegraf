@@ -8,7 +8,7 @@ export function registerCallbackActions(bot: any) {
     handleCallback(ctx)
   })
 
-  bot.action(/^select_model_/, async ctx => {
+  bot.action(/^select_model_/, async (ctx: any) => {
     console.log('CASE: select_model_', ctx.match)
     const model = ctx.match.input.replace('select_model_', '')
     ctx.session.selectedModel = model

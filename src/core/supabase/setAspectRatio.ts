@@ -1,7 +1,8 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '.'
 
 export const setAspectRatio = async (
-  telegram_id: number,
+  telegram_id: TelegramId,
   aspect_ratio: string
 ) => {
   console.log(telegram_id, aspect_ratio, 'setAspectRatio')

@@ -19,9 +19,7 @@ import { DatabaseTester } from './database-tests'
 import { InngestTester } from './inngest-tests'
 import { logger } from '@/utils/logger'
 import { TEST_CONFIG } from './test-config'
-import fs from 'fs'
-import path from 'path'
-import { testSpeechGeneration } from './audio-tests'
+
 import { TestResult } from './types'
 
 import { getBotByName } from '@/core/bot'
@@ -42,7 +40,7 @@ const colors = {
 /**
  * Форматирует результаты тестов для вывода в консоль
  */
-function formatResults(results, testType: string) {
+function formatResults(results: TestResult[], testType: string) {
   console.log(
     `\n${colors.bright}${colors.blue}=== Результаты тестов ${testType} ===${colors.reset}\n`
   )
@@ -439,12 +437,14 @@ async function main() {
     logger.error({
       message: '❌ Ошибка при запуске тестов',
       description: 'Error running tests',
-      error: error.message,
-      stack: error.stack,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
     })
 
     console.log(
-      `\n${colors.red}${colors.bright}ОШИБКА: ${error.message}${colors.reset}\n`
+      `\n${colors.red}${colors.bright}ОШИБКА: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }${colors.reset}\n`
     )
     process.exit(1)
   }

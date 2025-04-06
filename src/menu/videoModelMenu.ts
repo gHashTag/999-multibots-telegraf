@@ -190,14 +190,11 @@ export const videoModelKeyboard = (
   })
 
   // Формируем ряды кнопок по 2 в ряд
-  const modelButtons = []
+  const modelButtons: string[][] = []
   for (let i = 0; i < filteredModels.length; i += 2) {
-    const row = [
-      Markup.button.text(filteredModels[i].title),
-      filteredModels[i + 1]
-        ? Markup.button.text(filteredModels[i + 1].title)
-        : null,
-    ].filter(Boolean)
+    const row = [filteredModels[i].title, filteredModels[i + 1]?.title].filter(
+      (title): title is string => Boolean(title)
+    )
 
     if (row.length > 0) {
       modelButtons.push(row)
@@ -206,8 +203,8 @@ export const videoModelKeyboard = (
 
   // Добавляем служебные кнопки
   modelButtons.push([
-    Markup.button.text(isRu ? 'Справка по команде' : 'Help for the command'),
-    Markup.button.text(isRu ? 'Отмена' : 'Cancel'),
+    isRu ? 'Справка по команде' : 'Help for the command',
+    isRu ? 'Отмена' : 'Cancel',
   ])
 
   console.log('⌨️ Итоговая клавиатура:', {

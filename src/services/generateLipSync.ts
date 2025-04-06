@@ -4,6 +4,7 @@ import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
 import fs from 'fs'
 import path from 'path'
 import { ensureDirectoryExistence } from '@/helpers'
+import { TelegramId } from '@/interfaces/telegram.interface'
 interface LipSyncResponse {
   message: string
   resultUrl?: string
@@ -32,7 +33,7 @@ async function downloadFile(url: string, outputPath: string): Promise<void> {
 export async function generateLipSync(
   videoUrl: string,
   audioUrl: string,
-  telegram_id: string,
+  telegram_id: TelegramId,
   botName: string
 ): Promise<LipSyncResponse> {
   try {

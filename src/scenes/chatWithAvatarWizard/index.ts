@@ -5,6 +5,7 @@ import { handleTextMessage } from '../../handlers/handleTextMessage'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { levels } from '@/menu'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 const createHelpCancelKeyboard = (isRu: boolean) => {
   return {
@@ -19,7 +20,7 @@ const createHelpCancelKeyboard = (isRu: boolean) => {
 }
 
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
-  'chat_with_avatar',
+  ModeEnum.ChatWithAvatar,
   async ctx => {
     console.log('CASE: Чат с аватаром')
     const isRu = isRussian(ctx)
@@ -49,7 +50,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     const isHelp =
       ctx.message.text === (isRu ? levels[6].title_ru : levels[6].title_en)
     if (isHelp) {
-      ctx.session.mode = 'select_model_wizard'
+      ctx.session.mode = ModeEnum.SelectModelWizard
       await ctx.scene.enter('checkBalanceScene')
       return
     }
@@ -57,7 +58,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     // Обработка текстового сообщения
     await handleTextMessage(ctx)
 
-    const telegram_id = ctx.from.id
+    const telegram_id = ctx.from?.id.toString()
     console.log(telegram_id, 'telegram_id')
 
     const userExists = await getUserByTelegramId(ctx)
@@ -82,7 +83,15 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     const level = userExists.level
     if (level === 4) {
-      await updateUserLevelPlusOne(telegram_id.toString(), level)
+      if (!telegram_id) {
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка при обработке вашего профиля 😔'
+            : 'An error occurred while processing your profile 😔'
+        )
+        return ctx.scene.leave()
+      }
+      await updateUserLevelPlusOne(telegram_id, level)
     }
 
     return

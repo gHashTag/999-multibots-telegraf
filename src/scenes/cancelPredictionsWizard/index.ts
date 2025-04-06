@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios'
 import { MyContext } from '@/interfaces'
-import { refundUser } from '@/price/helpers'
+import { ModeEnum, refundUser } from '@/price/helpers'
 import { Scenes } from 'telegraf'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage } from '@/menu'
@@ -22,7 +22,7 @@ interface Prediction {
 }
 
 export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
-  'cancelPredictionsWizard',
+  ModeEnum.CancelPredictionsWizard,
   async ctx => {
     try {
       // Получаем список предсказаний
@@ -76,16 +76,20 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
         )
 
         if (ctx.from) {
-          const paymentAmount = ctx.session.paymentAmount
-          console.log('paymentAmount', paymentAmount)
-          await refundUser(ctx, paymentAmount)
+          const amount = ctx.session.amount
+          console.log('amount', amount)
+          await refundUser(ctx, amount)
         }
       }
       return ctx.scene.leave()
     } catch (error) {
       console.error('Error cancelling predictions:', error)
       const isRu = isRussian(ctx)
-      await sendGenericErrorMessage(ctx, isRu, error)
+      await sendGenericErrorMessage(
+        ctx,
+        isRu,
+        error instanceof Error ? error : new Error(String(error))
+      )
       return ctx.scene.leave()
     }
   }

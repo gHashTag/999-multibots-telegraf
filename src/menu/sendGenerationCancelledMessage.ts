@@ -11,10 +11,17 @@ export const sendGenerationCancelledMessage = async (
   const { count, subscription, level } = await getReferalsCountAndUserData(
     telegram_id
   )
+
   await ctx.reply(message, {
     reply_markup: {
       keyboard: (
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+        await mainMenu({
+          isRu,
+          inviteCount: count,
+          subscription: subscription || 'stars',
+          ctx,
+          level,
+        })
       ).reply_markup.keyboard,
     },
   })

@@ -1,4 +1,5 @@
 import { getUserBalance } from '@/core/supabase'
+import { TelegramId } from '@/interfaces/telegram.interface'
 
 export interface BalanceCheckOptions {
   notifyUser?: boolean
@@ -8,11 +9,14 @@ export interface BalanceCheckOptions {
 
 export const BalanceHelper = {
   checkBalance: async (
-    telegram_id: string,
+    telegram_id: TelegramId,
     requiredAmount: number,
     options?: BalanceCheckOptions
   ): Promise<{ success: boolean; currentBalance: number }> => {
-    const currentBalance = await getUserBalance(Number(telegram_id))
+    const currentBalance = await getUserBalance(
+      Number(telegram_id),
+      options?.botInstance?.name || ''
+    )
     if (currentBalance === null) throw new Error('User not found')
 
     console.log(`🔍 Проверка баланса для ${telegram_id}:`, {

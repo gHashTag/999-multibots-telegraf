@@ -6,9 +6,9 @@ import { handleTrainingCost } from '@/price/helpers'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
 import { getStepSelectionMenuV2 } from '@/menu'
-
+import { ModeEnum } from '@/price/helpers/modelsCost'
 export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
-  'digital_avatar_body_v2',
+  ModeEnum.DigitalAvatarBodyV2,
   async ctx => {
     const isRu = isRussian(ctx)
     const costMessage = generateCostMessage(stepOptions.v2, isRu, 'v2')

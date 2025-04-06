@@ -19,7 +19,7 @@ export async function getAiFeedbackFromSupabase({
   report,
   language_code,
   full_name,
-}: GetAiSupabaseFeedbackT): Promise<{ ai_response: string }> {
+}: GetAiSupabaseFeedbackT) {
   if (!assistant_id) throw new Error('Assistant ID is not set')
   if (!report) throw new Error('Report is not set')
   if (!language_code) throw new Error('Language code is not set')

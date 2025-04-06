@@ -3,7 +3,7 @@ import { MyContext } from '../../interfaces'
 import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { sendGenericErrorMessage } from '@/menu'
-import { generateTextToImage } from '@/services/generateTextToImage'
+
 import { getUserBalance } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
 import {
@@ -99,11 +99,15 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       }
 
       const availableModels = Object.keys(imageModelPrices) as string[]
+      if (!ctx.from?.id) {
+        throw new Error('User ID not found')
+      }
 
+      const balance = await getUserBalance(ctx.from.id, ctx.botInfo.username)
       const price = await validateAndCalculateImageModelPrice(
         fullModelId,
         availableModels,
-        await getUserBalance(ctx.from.id),
+        balance,
         isRu,
         ctx
       )
@@ -112,8 +116,6 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       if (price === null) {
         return ctx.scene.leave()
       }
-
-      const balance = await getUserBalance(ctx.from.id)
 
       await sendBalanceMessage(
         ctx.from.id.toString(),
@@ -160,6 +162,10 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
             ? '⏳ Запрос на генерацию изображения отправлен! Результат придёт в этот чат в ближайшее время.'
             : '⏳ Image generation request sent! The result will be sent to this chat shortly.'
         )
+
+        if (!ctx.from?.id) {
+          throw new Error('User ID not found')
+        }
 
         // Отправляем событие в Inngest вместо прямого вызова API
         await InngestService.sendEvent('text-to-image.requested', {

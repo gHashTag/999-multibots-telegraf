@@ -2,13 +2,14 @@ import axios from 'axios'
 
 import { ELESTIO_URL, isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
 import { MyContext } from '@/interfaces'
-import { logger } from '@/utils/logger'
+
+import { TelegramId } from '@/interfaces/telegram.interface'
 
 export const generateTextToImage = async (
   prompt: string,
   model_type: string,
   num_images: number,
-  telegram_id: string,
+  telegram_id: TelegramId,
   isRu: boolean,
   ctx: MyContext,
   botName: string

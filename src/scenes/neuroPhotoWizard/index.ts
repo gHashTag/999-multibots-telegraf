@@ -9,18 +9,26 @@ import { mainMenuButton, mainMenu } from '@/menu'
 import { sendGenericErrorMessage, sendPhotoDescriptionRequest } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
-
-import { MyWizardContext } from '@/interfaces'
+import { ModeEnum } from '@/price/helpers/modelsCost'
+import { MyContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
 
-const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
+const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const isRu = ctx.from?.language_code === 'ru'
   try {
     console.log('CASE 1: neuroPhotoConversation')
 
-    const { userId, telegramId } = getUserInfo(ctx)
-    const userModel = await getLatestUserModel(userId, 'replicate')
+    const { telegramId } = getUserInfo(ctx)
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? 'Произошла ошибка при обработке вашего профиля 😔'
+          : 'An error occurred while processing your profile 😔'
+      )
+      return ctx.scene.leave()
+    }
+    const userModel = await getLatestUserModel(telegramId, 'replicate')
 
     const { count, subscription, level } = await getReferalsCountAndUserData(
       telegramId
@@ -37,7 +45,7 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
               await mainMenu({
                 isRu,
                 inviteCount: count,
-                subscription,
+                subscription: subscription || 'stars',
                 ctx,
                 level,
               })
@@ -62,12 +70,12 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
     return
   } catch (error) {
     console.error('Error in neuroPhotoConversationStep:', error)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx, isRu, error as Error)
     throw error
   }
 }
 
-const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
+const neuroPhotoPromptStep = async (ctx: MyContext) => {
   console.log('CASE 2: neuroPhotoPromptStep')
   const isRu = ctx.from?.language_code === 'ru'
   const promptMsg = ctx.message
@@ -85,15 +93,22 @@ const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
       const model_url = ctx.session.userModel.model_url as ModelUrl
       const trigger_word = ctx.session.userModel.trigger_word as string
 
-      const userId = ctx.from?.id
-
+      const telegramId = ctx.from?.id.toString()
+      if (!telegramId) {
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка при обработке вашего профиля 😔'
+            : 'An error occurred while processing your profile 😔'
+        )
+        return ctx.scene.leave()
+      }
       if (model_url && trigger_word) {
         const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
         await generateNeuroImage(
           fullPrompt,
           model_url,
           1,
-          userId.toString(),
+          telegramId,
           ctx,
           ctx.botInfo?.username
         )
@@ -108,7 +123,7 @@ const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
   }
 }
 
-const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
+const neuroPhotoButtonStep = async (ctx: MyContext) => {
   console.log('CASE 3: neuroPhotoButtonStep')
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text
@@ -139,14 +154,21 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
     // Обработка кнопок с числами
     const numImages = parseInt(text[0])
     const prompt = ctx.session.prompt
-    const userId = ctx.from?.id
-
+    const telegramId = ctx.from?.id.toString()
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? 'Произошла ошибка при обработке вашего профиля 😔'
+          : 'An error occurred while processing your profile 😔'
+      )
+      return ctx.scene.leave()
+    }
     const generate = async (num: number) => {
       await generateNeuroImage(
         prompt,
         ctx.session.userModel.model_url,
         num,
-        userId.toString(),
+        telegramId,
         ctx,
         ctx.botInfo?.username
       )
@@ -158,13 +180,21 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
       const { count, subscription, level } = await getReferalsCountAndUserData(
         ctx.from?.id?.toString() || ''
       )
+      if (!subscription) {
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка при обработке вашего профиля 😔'
+            : 'An error occurred while processing your profile 😔'
+        )
+        return ctx.scene.leave()
+      }
       await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
     }
   }
 }
 
-export const neuroPhotoWizard = new WizardScene<MyWizardContext>(
-  'neuro_photo',
+export const neuroPhotoWizard = new WizardScene<MyContext>(
+  ModeEnum.NeuroPhoto,
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
   neuroPhotoButtonStep

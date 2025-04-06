@@ -1,4 +1,5 @@
 import { VideoModel } from '@/interfaces'
+import { ModeEnum } from '../price/helpers/modelsCost'
 
 export interface VideoModelConfig {
   name: VideoModel
@@ -29,36 +30,23 @@ export const VIDEO_MODELS: VideoModelConfig[] = [
   },
 ]
 
-export type Mode =
-  | 'subscribe'
-  | 'digital_avatar_body'
-  | 'digital_avatar_body_2'
-  | 'neuro_photo'
-  | 'neuro_photo_2'
-  | 'neuro_photo_v2'
-  | 'image_to_prompt'
-  | 'avatar_brain'
-  | 'chat_with_avatar'
-  | 'image_to_video'
-  | 'text_to_speech'
-  | 'text_to_image'
-  | 'text_to_video'
-  | 'voice'
-  | 'select_model'
-  | 'select_model_wizard'
-  | 'invite'
-  | 'help'
+// Дополнительные режимы, не входящие в ModeEnum
+export type AdditionalMode =
   | 'start_learning'
   | 'top_up_balance'
   | 'balance'
   | 'main_menu'
   | 'improve_prompt'
   | 'change_size'
-  | 'lip_sync'
   | 'getRuBill'
   | 'getEmailWizard'
   | 'price'
   | 'video_in_url'
   | 'tech'
   | 'stats'
+  | 'invite'
+  | 'help'
+
+export type Mode = ModeEnum | AdditionalMode
+
 export type ModeCosts = Required<Record<Mode, number>>

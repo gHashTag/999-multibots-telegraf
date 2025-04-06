@@ -1,7 +1,8 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '.'
 
 export const updateUserVoice = async (
-  telegram_id: string,
+  telegram_id: TelegramId,
   voice_id_elevenlabs: string
 ) => {
   const { error } = await supabase

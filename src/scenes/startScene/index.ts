@@ -70,6 +70,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     ctx.wizard.next()
   },
   async (ctx: MyContext) => {
+    const isRu = ctx.from?.language_code === 'ru'
     const telegram_id = ctx.from?.id?.toString() || ''
     const { subscription, isExist } = await getReferalsCountAndUserData(
       telegram_id
@@ -77,6 +78,19 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     console.log('isExist', isExist)
     if (!isExist) {
       await ctx.scene.enter('createUserScene')
+      return
+    }
+    const telegramId = ctx.from?.id.toString()
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось получить ID пользователя'
+          : '❌ Error: User ID not found'
+      )
+      return ctx.scene.leave()
+    }
+    if (!subscription) {
+      await ctx.scene.enter('subscriptionScene')
       return
     }
     const hasFullAccess = await checkPaymentStatus(ctx, subscription)

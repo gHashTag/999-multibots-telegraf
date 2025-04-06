@@ -1,3 +1,16 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
+import { MyContext } from '@/interfaces/telegram-bot.interface'
+import {
+  getUserBalance,
+  updateUserBalance,
+  getUserByTelegramId,
+} from '@/core/supabase'
+import { inngest } from '@/core/inngest/clients'
+import { logger } from '@/utils/logger'
+import { Telegram, Telegraf } from 'telegraf'
+import { BalanceOperationResult } from '../../interfaces'
+import { isRussian } from '@/helpers'
+
 export * from './modelsCost'
 export * from './calculateFinalPrice'
 export * from './calculateStars'
@@ -14,22 +27,17 @@ export * from './sendPaymentNotificationWithBot'
 export { starAmounts } from './starAmounts'
 export { voiceConversationCost } from './voiceConversationCost'
 
-import { Telegraf, Telegram } from 'telegraf'
-import { MyContext, BalanceOperationResult } from '../../interfaces'
-import { logger } from '../../utils/logger'
-import { getUserByTelegramId, updateUserBalance } from '../../core/supabase'
-
 export async function processBalanceOperation({
   telegram_id,
-  paymentAmount,
+  amount,
   is_ru,
   bot,
   bot_name,
   description,
   type,
 }: {
-  telegram_id: string
-  paymentAmount: number
+  telegram_id: TelegramId
+  amount: number
   is_ru: boolean
   bot: Telegraf<MyContext>
   bot_name: string
@@ -43,24 +51,24 @@ export async function processBalanceOperation({
     }
 
     const currentBalance = user.balance || 0
-    if (currentBalance < paymentAmount) {
+    if (currentBalance < amount) {
       const message = is_ru
-        ? `❌ Недостаточно средств. Необходимо: ${paymentAmount} руб.`
-        : `❌ Insufficient funds. Required: ${paymentAmount} RUB`
+        ? `❌ Недостаточно средств. Необходимо: ${amount} руб.`
+        : `❌ Insufficient funds. Required: ${amount} RUB`
 
       bot.telegram.sendMessage(telegram_id, message)
       return {
         success: false,
         error: 'Insufficient funds',
         newBalance: currentBalance,
-        modePrice: paymentAmount,
+        modePrice: amount,
       }
     }
 
-    const newBalance = currentBalance - paymentAmount
+    const newBalance = currentBalance - amount
     await updateUserBalance({
       telegram_id,
-      amount: paymentAmount,
+      amount: amount,
       type: 'outcome',
       operation_description: description,
       bot_name,
@@ -71,7 +79,7 @@ export async function processBalanceOperation({
       description: 'Balance operation completed',
       telegram_id,
       type,
-      amount: paymentAmount,
+      amount,
       oldBalance: currentBalance,
       newBalance,
     })
@@ -79,7 +87,7 @@ export async function processBalanceOperation({
     return {
       success: true,
       newBalance,
-      modePrice: paymentAmount,
+      modePrice: amount,
     }
   } catch (error) {
     logger.error({
@@ -94,13 +102,13 @@ export async function processBalanceOperation({
       success: false,
       error: error instanceof Error ? error.message : String(error),
       newBalance: 0,
-      modePrice: paymentAmount,
+      modePrice: amount,
     }
   }
 }
 
 export async function sendBalanceMessage(
-  telegram_id: string,
+  telegram_id: TelegramId,
   newBalance: number | undefined,
   amount: number,
   is_ru: boolean,
@@ -112,5 +120,79 @@ export async function sendBalanceMessage(
       : `⭐️ Price: ${amount} stars\n💫 Balance: ${newBalance} stars`
 
     bot.sendMessage(telegram_id, message)
+  }
+}
+
+export const processPayment = async ({
+  ctx,
+  amount,
+  type = 'outcome',
+  description,
+  metadata = {},
+}: {
+  ctx: MyContext
+  amount: number
+  type?: 'income' | 'outcome'
+  description?: string
+  metadata?: Record<string, any>
+}) => {
+  try {
+    if (!ctx.from?.id) {
+      throw new Error('User ID not found')
+    }
+
+    const currentBalance = await getUserBalance(
+      ctx.from.id.toString(),
+      ctx.botInfo.username
+    )
+
+    if (!currentBalance || currentBalance < amount) {
+      const message = isRussian(ctx)
+        ? `❌ Недостаточно средств. Необходимо: ${amount} руб.`
+        : `❌ Insufficient funds. Required: ${amount} RUB`
+
+      await ctx.reply(message)
+
+      return {
+        success: false,
+        error: 'Insufficient funds',
+        currentBalance: currentBalance || 0,
+        modePrice: amount,
+      }
+    }
+
+    const newBalance = currentBalance - amount
+
+    // Отправляем событие для обработки платежа
+    await inngest.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: ctx.from.id.toString(),
+        amount,
+        type,
+        description,
+        metadata,
+        bot_name: ctx.botInfo.username,
+      },
+    })
+
+    return {
+      success: true,
+      currentBalance,
+      newBalance,
+      modePrice: amount,
+    }
+  } catch (error) {
+    logger.error('❌ Ошибка при обработке платежа:', {
+      description: 'Error processing payment',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      modePrice: amount,
+    })
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      modePrice: amount,
+    }
   }
 }

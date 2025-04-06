@@ -1,4 +1,4 @@
-import axios, { AxiosResponse } from 'axios'
+import axios from 'axios'
 import { logger } from '@/utils/logger'
 import { GLAMA_API_KEY } from '@/config'
 
@@ -74,13 +74,13 @@ export class GlamaMcpService {
     } catch (error) {
       logger.error({
         message: '❌ Ошибка при получении списка серверов Glama MCP',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         url: `${GLAMA_MCP_API_URL}/servers`,
-        status: error.response?.status,
-        responseData: error.response?.data,
       })
       throw new Error(
-        `Ошибка при получении списка серверов Glama MCP: ${error.message}`
+        `Ошибка при получении списка серверов Glama MCP: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       )
     }
   }
@@ -110,13 +110,13 @@ export class GlamaMcpService {
       logger.error({
         message: '❌ Ошибка при получении информации о сервере Glama MCP',
         serverId,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         url: `${GLAMA_MCP_API_URL}/servers/${serverId}`,
-        status: error.response?.status,
-        responseData: error.response?.data,
       })
       throw new Error(
-        `Ошибка при получении информации о сервере Glama MCP: ${error.message}`
+        `Ошибка при получении информации о сервере Glama MCP: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       )
     }
   }

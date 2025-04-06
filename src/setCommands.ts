@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { Telegraf } from 'telegraf'
 import { MyContext } from './interfaces'
 import { supabase } from './core/supabase'
@@ -40,7 +41,7 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
     } catch (dbError) {
       console.error('❌ Ошибка при запросе к базе данных:', {
         description: 'Database query error',
-        error: dbError?.message || 'Unknown error',
+        error: dbError instanceof Error ? dbError.message : 'Unknown error',
         botName,
         fallbackAction: 'Using fallback owner ID for testing',
       })
@@ -90,7 +91,7 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
   } catch (error) {
     console.error('❌ Ошибка при установке команд для владельца бота:', {
       description: 'Error setting owner commands',
-      error: error?.message || 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     })
   }
 }

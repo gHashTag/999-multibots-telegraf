@@ -1,9 +1,10 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '.'
 import { ModelTraining } from '@/interfaces'
 import { logger } from '@/utils/logger'
 
 export async function getLatestUserModel(
-  telegram_id: number,
+  telegram_id: TelegramId,
   api: string
 ): Promise<ModelTraining | null> {
   try {

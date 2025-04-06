@@ -16,6 +16,12 @@ import { v4 as uuidv4 } from 'uuid'
 
 import type { Prediction } from 'replicate'
 
+// В начале файла добавим интерфейс для ошибок
+interface CustomError {
+  message: string
+  stack?: string
+}
+
 // Более чёткое определение типов
 type ActiveCheckFromDB = {
   exists: true
@@ -263,7 +269,7 @@ export const generateModelTraining = inngest.createFunction(
     logger.info({
       message: 'Получено событие тренировки модели',
       eventId: event.id,
-      timestamp: new Date(event.ts).toISOString(),
+      timestamp: new Date(event.ts || Date.now()).toISOString(),
       idempotencyKey: `train:${event.data.telegram_id}:${event.data.modelName}`,
     })
 
@@ -284,7 +290,7 @@ export const generateModelTraining = inngest.createFunction(
           .order('created_at', { ascending: false })
           .limit(1)
 
-        if (existingTrainings?.length > 0) {
+        if (existingTrainings && existingTrainings.length > 0) {
           const training = existingTrainings[0]
           logger.info({
             message: 'Найдена активная тренировка в базе данных',
@@ -326,12 +332,12 @@ export const generateModelTraining = inngest.createFunction(
 
         // Если ни в БД, ни в кэше нет активной тренировки
         return { exists: false } as NoActiveCheck
-      } catch (error) {
+      } catch (err) {
+        const error = err as Error
         logger.error({
           message: 'Ошибка при проверке активных тренировок',
           error: error.message,
         })
-        // При ошибке проверки разрешаем запуск для надежности
         return { exists: false, error: error.message } as ErrorActiveCheck
       }
     })) as ActiveCheckResult
@@ -372,7 +378,8 @@ export const generateModelTraining = inngest.createFunction(
               }
             )
           }
-        } catch (error) {
+        } catch (err) {
+          const error = err as Error
           logger.error({
             message: 'Не удалось отправить уведомление о дублированном запросе',
             error: error.message,
@@ -440,7 +447,8 @@ export const generateModelTraining = inngest.createFunction(
               telegram_id: eventData.telegram_id,
             })
             return true
-          } catch (error) {
+          } catch (err) {
+            const error = err as Error
             logger.error({
               message: 'Ошибка отправки сообщения',
               error: error.message,
@@ -532,10 +540,11 @@ export const generateModelTraining = inngest.createFunction(
             url: existing.url,
           })
           return `${username}/${modelName}`
-        } catch (error) {
+        } catch (error: unknown) {
+          const errorObj = error as CustomError
           logger.info({
             message: '🏗️ Создание новой модели...',
-            error: error.message,
+            error: errorObj.message,
           })
           try {
             const newModel = await replicate.models.create(
@@ -548,17 +557,18 @@ export const generateModelTraining = inngest.createFunction(
               }
             )
             logger.info({
-              message: '✅ Модель создана:',
+              message: '✅ Новая модель создана:',
               id: newModel.latest_version?.id,
             })
             await new Promise(resolve => setTimeout(resolve, 5000))
             return `${username}/${modelName}`
-          } catch (createError) {
+          } catch (createErr: unknown) {
+            const createError = createErr as CustomError
             logger.error({
               message: '❌ Ошибка создания модели:',
-              error: createError,
+              error: createError.message,
             })
-            throw new Error('Failed to create model')
+            throw createError
           }
         }
       },
@@ -611,13 +621,14 @@ export const generateModelTraining = inngest.createFunction(
           if (!url.protocol || !['http:', 'https:'].includes(url.protocol)) {
             throw new Error('Неверный протокол URL')
           }
-        } catch (error) {
+        } catch (error: unknown) {
+          const errorObj = error as CustomError
           logger.error({
             message: '❌ Некорректный формат URL',
             fullImageUrl,
-            error: error.message,
+            error: errorObj.message,
           })
-          throw new Error(`Некорректный формат URL: ${error.message}`)
+          throw new Error(`Некорректный формат URL: ${errorObj.message}`)
         }
 
         // Доп. проверка на корректность URL
@@ -672,12 +683,12 @@ export const generateModelTraining = inngest.createFunction(
             training.id
           )
           return training
-        } catch (error) {
-          // Детально логируем ошибку
+        } catch (error: unknown) {
+          const errorObj = error as CustomError
           logger.error({
             message: '❌ Ошибка запуска тренировки в Replicate',
-            error: error.message,
-            stack: error.stack,
+            error: errorObj.message,
+            stack: errorObj.stack,
             inputs: {
               destination,
               imageUrl: fullImageUrl,
@@ -689,7 +700,7 @@ export const generateModelTraining = inngest.createFunction(
           // Обрабатываем ошибку для пользователя
           const isRussian =
             eventData.is_ru === true || eventData.is_ru === 'true'
-          let errorMessage = error.message
+          let errorMessage = errorObj.message
 
           // Распознаем конкретные ошибки и даем понятные пояснения
           if (errorMessage.includes('is not a valid URL scheme')) {
@@ -800,14 +811,15 @@ export const generateModelTraining = inngest.createFunction(
         return result
       })
 
-      if (!balanceCheck?.success) {
+      if (!balanceCheck || !balanceCheck.success) {
         return {
           success: false,
           error: 'Insufficient funds',
           telegram_id: eventData.telegram_id,
-          currentBalance: balanceCheck.currentBalance,
-          paymentAmount,
-          newBalance: Number(balanceCheck.currentBalance) - paymentAmount,
+          currentBalance: balanceCheck?.currentBalance || 0,
+          paymentAmount: paymentAmount || 0,
+          newBalance:
+            Number(balanceCheck?.currentBalance || 0) - (paymentAmount || 0),
           modelName,
           steps,
         }
@@ -827,6 +839,10 @@ export const generateModelTraining = inngest.createFunction(
 
       // Затем выполняем списание через payment/process
       const chargeResult = await step.run('charge-user-balance', async () => {
+        if (!balanceCheck) {
+          throw new Error('Balance check result is null')
+        }
+
         // Отправляем событие списания средств
         await inngest.send({
           id: `train-${
@@ -850,7 +866,8 @@ export const generateModelTraining = inngest.createFunction(
         return {
           success: true,
           oldBalance: balanceCheck.currentBalance,
-          newBalance: Number(balanceCheck.currentBalance) - paymentAmount,
+          newBalance:
+            Number(balanceCheck.currentBalance) - (paymentAmount || 0),
           paymentAmount,
         }
       })
@@ -875,10 +892,11 @@ export const generateModelTraining = inngest.createFunction(
               url: existing.url,
             })
             return `${username}/${modelName}`
-          } catch (error) {
+          } catch (error: unknown) {
+            const errorObj = error as CustomError
             logger.info({
               message: '🏗️ Создание новой модели...',
-              error: error.message,
+              error: errorObj.message,
             })
             const newModel = await replicate.models.create(
               username,
@@ -895,10 +913,11 @@ export const generateModelTraining = inngest.createFunction(
             })
             return `${username}/${modelName}`
           }
-        } catch (error) {
+        } catch (error: unknown) {
+          const errorObj = error as CustomError
           logger.error({
             message: '❌ Ошибка создания/проверки модели:',
-            error: error.message,
+            error: errorObj.message,
           })
           throw error
         }
@@ -991,11 +1010,12 @@ export const generateModelTraining = inngest.createFunction(
         message: 'Обучение запущено. Ожидайте уведомления.',
         trainingId: trainingResult.training.id,
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorObj = error as CustomError
       logger.error({
         message: 'Критическая ошибка в процессе тренировки',
-        error: error.message,
-        stack: error.stack,
+        error: errorObj.message,
+        stack: errorObj.stack,
         telegram_id: eventData.telegram_id,
       })
 
@@ -1023,7 +1043,7 @@ export const generateModelTraining = inngest.createFunction(
               service_type: ModeEnum.DigitalAvatarBody,
               model_name: eventData.modelName,
               steps: Number(eventData.steps),
-              error: error.message,
+              error: errorObj.message,
             },
           },
         })
@@ -1033,7 +1053,7 @@ export const generateModelTraining = inngest.createFunction(
       const isRussian = eventData.is_ru === true || eventData.is_ru === 'true'
 
       await helpers.sendMessage(
-        TRAINING_MESSAGES.error(error.message)[isRussian ? 'ru' : 'en']
+        TRAINING_MESSAGES.error(errorObj.message)[isRussian ? 'ru' : 'en']
       )
 
       if (activeTrainings.has(eventData.telegram_id)) {
@@ -1044,7 +1064,7 @@ export const generateModelTraining = inngest.createFunction(
         })
       }
 
-      throw error
+      throw errorObj
     }
   }
 )

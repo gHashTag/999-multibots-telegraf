@@ -3,9 +3,10 @@ import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
 import { logger } from '@/utils/logger'
 import { handleHelpCancel } from '@/handlers'
-
+import { ModeEnum } from '@/price/helpers/modelsCost'
+//
 export const selectNeuroPhotoScene = new Scenes.WizardScene<MyContext>(
-  'neuro_photo',
+  ModeEnum.SelectNeuroPhoto,
   async ctx => {
     const isRu = isRussian(ctx)
     logger.info({
@@ -92,7 +93,7 @@ export const selectNeuroPhotoScene = new Scenes.WizardScene<MyContext>(
         description: 'Selected Flux Pro version',
         telegram_id: ctx.from?.id,
       })
-      ctx.session.mode = 'neuro_photo_v2'
+      ctx.session.mode = ModeEnum.NeuroPhotoV2
       await ctx.scene.enter('checkBalanceScene')
       return
     } else if (text.includes('flux')) {
@@ -101,7 +102,7 @@ export const selectNeuroPhotoScene = new Scenes.WizardScene<MyContext>(
         description: 'Selected Flux version',
         telegram_id: ctx.from?.id,
       })
-      ctx.session.mode = 'neuro_photo'
+      ctx.session.mode = ModeEnum.NeuroPhoto
       await ctx.scene.enter('checkBalanceScene')
       return
     }

@@ -12,7 +12,7 @@ import { saveFileLocally } from '@/helpers'
 import { pulse } from '@/helpers/pulse'
 import { ModeEnum, calculateModeCost } from '@/price/helpers'
 import path from 'path'
-import { API_URL } from '@/config'
+import { API_URL } from '@config'
 import fs from 'fs'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
@@ -22,7 +22,7 @@ import { getUserBalance } from '@/core/supabase/getUserBalance'
 export const neuroImageGeneration = inngest.createFunction(
   {
     id: `neuro-image-generation`,
-    retries: 3,
+    retries: 1,
   },
   { event: 'neuro/photo.generate' },
   async ({ event, step }) => {
@@ -195,13 +195,12 @@ export const neuroImageGeneration = inngest.createFunction(
           (Number(costPerImage) * validNumImagesAsNumber).toFixed(2)
         )
 
-        logger.info('💰 Списание средств', {
-          description: 'Processing payment',
+        // Проверяем баланс пользователя
+        const balance = await getUserBalance(telegram_id.toString(), bot_name)
+        logger.info('💰 Баланс пользователя', {
+          description: 'User balance',
           telegram_id,
-          costPerImage: Number(costPerImage),
-          num_images: validNumImages,
-          totalAmount: paymentAmount,
-          bot_name,
+          balance,
         })
 
         // Генерируем уникальный ID для операции
@@ -222,19 +221,14 @@ export const neuroImageGeneration = inngest.createFunction(
           name: 'payment/process',
           data: {
             telegram_id,
-            paymentAmount,
-            is_ru,
-            bot_name,
-            bot,
-            type: 'outcome', // Явно указываем тип операции
+            amount: paymentAmount,
+            type: 'outcome',
             description: `Payment for generating ${validNumImages} image${
               validNumImages === 1 ? '' : 's'
             } with prompt: ${prompt.substring(0, 30)}...`,
-            operation_id: payment_operation_id,
+            bot_name,
             metadata: {
               service_type: 'NeuroPhoto',
-              bot_name,
-              language: is_ru ? 'ru' : 'en',
               prompt_preview: prompt.substring(0, 50),
               num_images: validNumImages,
               cost_per_image: costPerImage,
@@ -298,7 +292,12 @@ export const neuroImageGeneration = inngest.createFunction(
           const generationResult = await step.run(
             `generate-image-${i}`,
             async () => {
-              const { bot } = getBotByName(bot_name)
+              const botResult = getBotByName(bot_name)
+              if (!botResult?.bot) {
+                throw new Error('Bot instance not found')
+              }
+              const { bot } = botResult
+
               await bot.telegram.sendMessage(
                 telegram_id,
                 is_ru
@@ -378,7 +377,12 @@ export const neuroImageGeneration = inngest.createFunction(
           )
 
           await step.run(`notify-image-${i}`, async () => {
-            const { bot } = getBotByName(bot_name)
+            const botResult = getBotByName(bot_name)
+            if (!botResult?.bot) {
+              throw new Error('Bot instance not found')
+            }
+            const { bot } = botResult
+
             await bot.telegram.sendPhoto(telegram_id, {
               source: fs.createReadStream(generationResult.path),
             })
@@ -427,8 +431,9 @@ export const neuroImageGeneration = inngest.createFunction(
             })
 
             // Уведомляем пользователя
-            const { bot } = getBotByName(bot_name)
-            if (bot) {
+            const botResult = getBotByName(bot_name)
+            if (botResult?.bot) {
+              const { bot } = botResult
               const message = is_ru
                 ? `❌ Не удалось сгенерировать изображение ${
                     i + 1
@@ -673,11 +678,11 @@ export const neuroImageGeneration = inngest.createFunction(
       })
 
       return { success: true, images: generatedImages }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error({
         message: '🚨 Ошибка генерации изображения',
-        error: error.message,
-        stack: error.stack,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
         telegram_id: event.data.telegram_id,
       })
 
@@ -699,7 +704,7 @@ export const neuroImageGeneration = inngest.createFunction(
           description: 'Starting refund process due to generation error',
           telegram_id,
           refundAmount,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         })
 
         // Отправляем событие возврата средств
@@ -707,13 +712,13 @@ export const neuroImageGeneration = inngest.createFunction(
           name: 'payment/process',
           data: {
             telegram_id,
-            amount: refundAmount, // положительное значение для возврата
+            amount: refundAmount,
             type: 'refund',
             description: `Возврат средств за неудачную генерацию ${validNumImages} изображений`,
             bot_name,
             metadata: {
               service_type: ModeEnum.NeuroPhoto,
-              error: error.message,
+              error: error instanceof Error ? error.message : String(error),
               num_images: validNumImages,
             },
           },
@@ -727,22 +732,23 @@ export const neuroImageGeneration = inngest.createFunction(
         })
 
         // Отправляем уведомление пользователю
-        const { bot } = getBotByName(bot_name)
-        if (bot) {
+        const botResult = getBotByName(bot_name)
+        if (botResult?.bot) {
+          const { bot } = botResult
           const message = is_ru
             ? `❌ Произошла ошибка при генерации изображения. Средства (${refundAmount} ⭐️) возвращены на ваш баланс.`
             : `❌ An error occurred during image generation. Funds (${refundAmount} ⭐️) have been returned to your balance.`
 
           await bot.telegram.sendMessage(telegram_id, message)
         }
-      } catch (refundError) {
+      } catch (refundError: unknown) {
         logger.error({
           message: '🚨 Ошибка при попытке возврата средств',
           error:
             refundError instanceof Error
               ? refundError.message
-              : 'Unknown error',
-          originalError: error.message,
+              : String(refundError),
+          originalError: error instanceof Error ? error.message : String(error),
           telegram_id: event.data.telegram_id,
         })
       }
@@ -751,7 +757,7 @@ export const neuroImageGeneration = inngest.createFunction(
         name: 'neuro/photo.failed',
         data: {
           ...event.data,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         },
       })
 

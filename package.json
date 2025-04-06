@@ -6,6 +6,7 @@
   "license": "ISC",
   "scripts": {
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
+    "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME nodemon src/bot.ts",
     "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
     "bots": "cross-env NODE_ENV=development nodemon src/bot.ts",
     "build": "swc src -d dist --source-maps --copy-files",
@@ -48,6 +49,7 @@
   "devDependencies": {
     "@swc/cli": "^0.1.57",
     "@swc/core": "^1.2.220",
+    "@types/archiver": "^6.0.3",
     "@types/bcrypt": "^5.0.0",
     "@types/compression": "^1.7.2",
     "@types/cookie-parser": "^1.4.3",

@@ -1,7 +1,8 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '@/core/supabase'
 
 export async function updateUserLevelPlusOne(
-  telegram_id: string,
+  telegram_id: TelegramId,
   level: number
 ) {
   try {

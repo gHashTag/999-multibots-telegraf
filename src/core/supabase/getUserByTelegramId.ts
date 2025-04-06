@@ -1,6 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { supabase } from '.'
 import { logger } from '@/utils/logger'
+import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 
 /**
  * Получает пользователя по идентификатору Telegram
@@ -49,8 +50,8 @@ export async function getUserByTelegramId(ctxOrId: MyContext | string) {
       }
     } else {
       // Получаем данные из контекста
-      telegramId = ctxOrId.from.id.toString()
-      botName = ctxOrId.botInfo.username
+      telegramId = normalizeTelegramId(ctxOrId.from?.id || '')
+      botName = ctxOrId.botInfo?.username || null
       logger.info({
         message: '🔍 Получение пользователя из контекста',
         description: 'Getting user from context',

@@ -37,7 +37,7 @@ export class NotificationService {
     } catch (error) {
       logger.error({
         message: '❌ Ошибка при отправке уведомления об ошибке',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         telegramId,
         botName,
       })
@@ -82,7 +82,7 @@ export class NotificationService {
     } catch (error) {
       logger.error({
         message: '❌ Ошибка при отправке уведомления об успехе',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         telegramId,
         botName,
       })

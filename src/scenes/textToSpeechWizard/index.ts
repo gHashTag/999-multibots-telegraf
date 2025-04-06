@@ -1,10 +1,7 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { getUserBalance, getVoiceId } from '../../core/supabase'
-import {
-  sendBalanceMessage,
-  sendInsufficientStarsMessage,
-} from '@/price/helpers'
+import { getVoiceId } from '../../core/supabase'
+
 import { inngest } from '@/core/inngest/clients'
 import { isRussian } from '@/helpers'
 import { createHelpCancelKeyboard } from '@/menu'
@@ -43,7 +40,17 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
       return
     } else {
       try {
-        const voice_id = await getVoiceId(ctx.from.id.toString())
+        const telegramId = ctx.from?.id.toString()
+        if (!telegramId) {
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка: не удалось получить ID пользователя'
+              : '❌ Error: User ID not found'
+          )
+          return ctx.scene.leave()
+        }
+
+        const voice_id = await getVoiceId(telegramId)
 
         if (!voice_id) {
           await ctx.reply(
@@ -56,12 +63,12 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         }
 
         await inngest.send({
-          id: `tts-${ctx.from.id}-${Date.now()}-${uuidv4().substring(0, 8)}`,
+          id: `tts-${telegramId}-${Date.now()}-${uuidv4().substring(0, 8)}`,
           name: 'text-to-speech.requested',
           data: {
             text: message.text,
             voice_id,
-            telegram_id: ctx.from.id.toString(),
+            telegram_id: telegramId,
             is_ru: isRu,
             bot_name: ctx.botInfo?.username,
           },

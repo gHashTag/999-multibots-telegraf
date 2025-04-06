@@ -1,10 +1,5 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from './index'
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
-import FormData from 'form-data'
-import axios from 'axios'
 
 export const getHistory = async (
   brand: string,
@@ -78,7 +73,7 @@ export const setHistory = async ({
   return true
 }
 
-export const incrementGeneratedImages = async (telegram_id: number) => {
+export const incrementGeneratedImages = async (telegram_id: TelegramId) => {
   const { data, error } = await supabase
     .from('users')
     .select('count')
@@ -117,7 +112,7 @@ export const incrementLimit = async ({
   telegram_id,
   amount,
 }: {
-  telegram_id: number
+  telegram_id: TelegramId
   amount: number
 }) => {
   const { data, error } = await supabase
@@ -154,7 +149,7 @@ export const incrementLimit = async ({
   return true
 }
 
-export const getGeneratedImages = async (telegram_id: number) => {
+export const getGeneratedImages = async (telegram_id: TelegramId) => {
   const { data, error } = await supabase
     .from('users')
     .select('count, limit')
@@ -168,7 +163,7 @@ export const getGeneratedImages = async (telegram_id: number) => {
   return { count: Number(data.count), limit: Number(data.limit) }
 }
 
-export const getAspectRatio = async (telegram_id: number) => {
+export const getAspectRatio = async (telegram_id: TelegramId) => {
   const { data, error } = await supabase
     .from('users')
     .select('aspect_ratio')
@@ -184,7 +179,7 @@ export const getAspectRatio = async (telegram_id: number) => {
 }
 
 export const setAspectRatio = async (
-  telegram_id: number,
+  telegram_id: TelegramId,
   aspect_ratio: string
 ) => {
   const { error } = await supabase
@@ -299,7 +294,7 @@ export const getPrompt = async (prompt_id: string) => {
   return data
 }
 
-export async function getModel(telegram_id: string): Promise<string> {
+export async function getModel(telegram_id: TelegramId): Promise<string> {
   try {
     const { data, error } = await supabase
       .from('users')
@@ -314,7 +309,7 @@ export async function getModel(telegram_id: string): Promise<string> {
   }
 }
 
-export async function setModel(telegram_id: string, model: string) {
+export async function setModel(telegram_id: TelegramId, model: string) {
   try {
     await supabase
       .from('users')
@@ -326,7 +321,7 @@ export async function setModel(telegram_id: string, model: string) {
   }
 }
 
-export const getUserData = async (telegram_id: string) => {
+export const getUserData = async (telegram_id: TelegramId) => {
   const { data, error } = await supabase
     .from('users')
     .select('username, first_name, last_name, company, position, designation')

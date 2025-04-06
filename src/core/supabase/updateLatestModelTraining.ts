@@ -1,4 +1,5 @@
 import { supabase } from '.'
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { logger } from '@utils/logger'
 // Определяем тип для обновлений и экспортируем его
 export type UpdateLatestModelTraining = {
@@ -11,7 +12,7 @@ export type UpdateLatestModelTraining = {
 }
 
 export const updateLatestModelTraining = async (
-  telegram_id: string,
+  telegram_id: TelegramId,
   modelName: string,
   updates: UpdateLatestModelTraining,
   api: string
@@ -57,7 +58,7 @@ export const updateLatestModelTraining = async (
   } catch (error) {
     logger.error({
       message: 'Ошибка при обновлении последней записи о тренировке',
-      error: error.message,
+      error: error instanceof Error ? error.message : String(error),
     })
   }
 }

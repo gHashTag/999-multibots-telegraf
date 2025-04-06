@@ -1,6 +1,6 @@
 import axios, { isAxiosError } from 'axios'
 import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
-
+import { TelegramId } from '@/interfaces/telegram.interface'
 interface TextToVideoResponse {
   success: boolean
   videoUrl?: string
@@ -11,7 +11,7 @@ interface TextToVideoResponse {
 export async function generateTextToVideo(
   prompt: string,
   videoModel: string,
-  telegram_id: string,
+  telegram_id: TelegramId,
   username: string,
   isRu: boolean,
   botName: string

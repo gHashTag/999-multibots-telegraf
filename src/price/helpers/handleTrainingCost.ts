@@ -16,7 +16,10 @@ export async function handleTrainingCost(
   currentBalance: number
 }> {
   const trainingCostInStars = calculateCost(steps, version)
-  const currentBalance = await getUserBalance(Number(ctx.from?.id))
+  const currentBalance = await getUserBalance(
+    Number(ctx.from?.id),
+    ctx.botInfo.username
+  )
 
   let leaveScene = false
   if (currentBalance < trainingCostInStars.stars) {

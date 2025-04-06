@@ -1,11 +1,11 @@
-import { MyWizardContext, Subscription } from '@/interfaces'
+import { MyContext, Subscription } from '@/interfaces'
 import { supabase } from '.'
 import { isRussian } from '@/helpers/language'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { isDev } from '@/config'
 
 export const checkPaymentStatus = async (
-  ctx: MyWizardContext,
+  ctx: MyContext,
   subscription: Subscription
 ): Promise<boolean> => {
   // Проверяем, что ctx и ctx.from определены
@@ -25,7 +25,7 @@ export const checkPaymentStatus = async (
   try {
     // Получаем последнюю запись оплаты для пользователя
     const { data: paymentData, error } = await supabase
-      .from('payments') // TODO: изменить на payments_history
+      .from('payments_v2') // TODO: изменить на payments_history
       .select('payment_date')
       .eq('telegram_id', ctx.from.id.toString())
       .order('payment_date', { ascending: false })

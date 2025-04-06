@@ -13,24 +13,25 @@ import {
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
 
-import { MyWizardContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
-const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
+const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const isRu = ctx.from?.language_code === 'ru'
   try {
     console.log('CASE 1: neuroPhotoConversationV2')
 
     const { telegramId } = getUserInfo(ctx)
-    const userModel = await getLatestUserModel(Number(telegramId), 'bfl')
+    const userModel = await getLatestUserModel(telegramId, 'bfl')
     console.log('userModel', userModel)
 
     const { count, subscription, level } = await getReferalsCountAndUserData(
       telegramId
     )
 
-    if (!userModel || !userModel.finetune_id) {
+    if (!userModel || !userModel.finetune_id || !subscription) {
       await ctx.reply(
         isRu
           ? '❌ У вас нет обученных моделей.\n\nИспользуйте команду "🤖 Цифровое тело аватара", в главном меню, чтобы создать свою ИИ модель для генерации нейрофото в вашим лицом. '
@@ -41,7 +42,7 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
               await mainMenu({
                 isRu,
                 inviteCount: count,
-                subscription,
+                subscription: subscription || 'stars',
                 ctx,
                 level,
               })
@@ -66,12 +67,12 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
     return ctx.wizard.next()
   } catch (error) {
     console.error('Error in neuroPhotoConversationStep:', error)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx, isRu, error as Error)
     throw error
   }
 }
 
-const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
+const neuroPhotoPromptStep = async (ctx: MyContext) => {
   console.log('CASE 2: neuroPhotoPromptStep')
   const isRu = ctx.from?.language_code === 'ru'
   const promptMsg = ctx.message
@@ -93,10 +94,19 @@ const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
 
       if (trigger_word) {
         const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
+        const telegramId = ctx.from?.id.toString()
+        if (!telegramId) {
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка: не удалось получить ID пользователя'
+              : '❌ Error: User ID not found'
+          )
+          return ctx.scene.leave()
+        }
         await generateNeuroImageV2(
           fullPrompt,
           1,
-          userId.toString(),
+          telegramId,
           ctx,
           ctx.botInfo?.username
         )
@@ -111,7 +121,7 @@ const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
   }
 }
 
-const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
+const neuroPhotoButtonStep = async (ctx: MyContext) => {
   console.log('CASE 3: neuroPhotoButtonStep')
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text
@@ -142,14 +152,23 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
     // Обработка кнопок с числами
     const numImages = parseInt(text[0])
     const prompt = ctx.session.prompt
-    const userId = ctx.from?.id
+
     const trigger_word = ctx.session.userModel.trigger_word as string
     const fullPrompt = `${trigger_word}, ${prompt}`
     const generate = async (num: number) => {
+      const telegramId = ctx.from?.id.toString()
+      if (!telegramId) {
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: не удалось получить ID пользователя'
+            : '❌ Error: User ID not found'
+        )
+        return ctx.scene.leave()
+      }
       await generateNeuroImageV2(
         fullPrompt,
         num,
-        userId.toString(),
+        telegramId,
         ctx,
         ctx.botInfo?.username
       )
@@ -161,13 +180,29 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
       const { count, subscription, level } = await getReferalsCountAndUserData(
         ctx.from?.id?.toString() || ''
       )
-      await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+      const telegramId = ctx.from?.id.toString()
+      if (!telegramId) {
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: не удалось получить ID пользователя'
+            : '❌ Error: User ID not found'
+        )
+        return ctx.scene.leave()
+      }
+
+      await mainMenu({
+        isRu,
+        inviteCount: count,
+        subscription: subscription || 'stars',
+        ctx,
+        level,
+      })
     }
   }
 }
 
-export const neuroPhotoWizardV2 = new WizardScene<MyWizardContext>(
-  'neuro_photo_v2',
+export const neuroPhotoWizardV2 = new WizardScene<MyContext>(
+  ModeEnum.NeuroPhotoV2,
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
   neuroPhotoButtonStep

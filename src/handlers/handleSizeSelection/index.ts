@@ -1,11 +1,13 @@
 import { MyContext } from '@/interfaces'
-import { getReferalsCountAndUserData, setAspectRatio } from '@/core/supabase'
+import { setAspectRatio } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
-import { mainMenu } from '@/menu'
 
 export async function handleSizeSelection(ctx: MyContext, size: string) {
   ctx.session.selectedSize = size
-  await setAspectRatio(ctx.from.id, size)
+  if (!ctx.from?.id) {
+    throw new Error('Telegram ID is not defined')
+  }
+  await setAspectRatio(ctx.from.id.toString(), size)
   const isRu = isRussian(ctx)
   await ctx.reply(
     isRu ? `✅ Вы выбрали размер: ${size}` : `✅ You selected size: ${size}`

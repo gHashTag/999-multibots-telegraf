@@ -98,15 +98,15 @@ export async function notifyTrainingSuccess(
     logger.error({
       message: '🚨 Critical error in training notification',
       finetuneId,
-      error: error.message,
-      stack: error.stack,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
     })
 
     await inngest.send({
       name: 'model/training.notification_failed',
       data: {
         finetuneId,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         status,
       },
     })

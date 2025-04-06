@@ -30,7 +30,7 @@ export async function handleCallback(ctx: MyContext) {
       await ctx.answerCbQuery()
     } catch (e) {
       console.error('Не удалось ответить на callback query:', e)
-      await sendGenericErrorMessage(ctx, isRu, error)
+      await sendGenericErrorMessage(ctx, isRu, error as Error)
     }
     throw error
   }

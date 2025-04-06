@@ -1,6 +1,7 @@
 import { supabase } from '.'
+import { TelegramId } from '@/interfaces/telegram.interface'
 
-export async function cleanupOldArchives(userId: string) {
+export async function cleanupOldArchives(userId: TelegramId) {
   try {
     // Получаем список всех файлов в папке пользователя
     const { data: files, error } = await supabase.storage

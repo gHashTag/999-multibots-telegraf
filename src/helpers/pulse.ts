@@ -70,9 +70,13 @@ export const pulse = async (
       telegram_id,
       command,
     })
+    if (!telegram_id || !prompt || !command || !bot_name) {
+      throw new Error('Invalid data received in pulse')
+    }
 
     const image = imageOrOptions // В старом формате первый параметр - это путь к изображению
-    const truncatedPrompt = prompt.length > 800 ? prompt.slice(0, 800) : prompt
+    const truncatedPrompt =
+      prompt?.length > 800 ? prompt?.slice(0, 800) : prompt
     const caption = is_ru
       ? `@${
           username || 'Пользователь без username'
@@ -93,8 +97,8 @@ export const pulse = async (
     logger.error({
       message: '❌ Ошибка при отправке в pulse',
       description: 'Error sending to pulse',
-      error: error.message,
-      stack: error.stack,
+      error: (error as Error).message,
+      stack: (error as Error).stack,
     })
   }
 }

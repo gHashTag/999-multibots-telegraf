@@ -1,5 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 import { Telegraf } from 'telegraf'
 
@@ -8,7 +9,7 @@ export function registerHearsActions(bot: Telegraf<MyContext>) {
     ['🎙️ Текст в голос', '🎙️ Text to speech'],
     async (ctx: MyContext) => {
       console.log('CASE bot: 🎙️ Текст в голос')
-      ctx.session.mode = 'text_to_speech'
+      ctx.session.mode = ModeEnum.TextToSpeech
       await ctx.scene.enter('text_to_speech')
     }
   )

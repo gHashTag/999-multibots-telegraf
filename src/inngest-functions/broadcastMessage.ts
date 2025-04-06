@@ -1,6 +1,10 @@
 import { inngest } from '@/core/inngest/clients'
 import { broadcastService } from '@/services/broadcast.service'
 import { logger } from '@utils/logger'
+import { Telegraf } from 'telegraf'
+import { MyContext } from '@/interfaces'
+import { BroadcastService } from '@/services/broadcast.class'
+
 // Интерфейс для данных события
 export interface BroadcastEventData {
   imageUrl?: string
@@ -14,6 +18,14 @@ export interface BroadcastEventData {
   postLink?: string
   videoFileId?: string
   parse_mode?: 'HTML' | 'Markdown' // Добавляем поддержку разных режимов разметки
+}
+
+interface BotResults {
+  [key: string]: Telegraf<MyContext>
+}
+
+interface BroadcastError extends Error {
+  step?: string
 }
 
 // Функция для рассылки сообщений
@@ -47,11 +59,13 @@ export const broadcastMessage = inngest.createFunction(
       // Шаг 2: Проверка прав доступа
       await step.run('check-permissions', async () => {
         if (params.sender_telegram_id && params.bot_name) {
-          const broadcastResult = await broadcastService.checkOwnerPermissions(
-            params.sender_telegram_id,
-            params.bot_name
+          const service = new BroadcastService(
+            params.bot_name,
+            process.env.BOT_TOKEN || ''
           )
-          if (!broadcastResult.success) {
+          const users = await service.getBotUsers()
+          const hasPermission = users.includes(params.sender_telegram_id)
+          if (!hasPermission) {
             throw new Error('Нет прав для выполнения рассылки')
           }
         }
@@ -59,54 +73,81 @@ export const broadcastMessage = inngest.createFunction(
 
       // Шаг 3: Загрузка списка пользователей
       const users = await step.run('fetch-users', async () => {
-        const result = await broadcastService.fetchUsers({
-          bot_name: params.bot_name,
-          test_mode: params.test_mode,
-          test_telegram_id: params.test_telegram_id,
-          sender_telegram_id: params.sender_telegram_id,
-        })
+        let userList: string[] = []
 
-        if (!result.users || result.users.length === 0) {
+        if (params.test_mode && params.test_telegram_id) {
+          userList = [params.test_telegram_id]
+        } else if (params.bot_name) {
+          userList = await broadcastService.getBotUsers(params.bot_name)
+        } else {
+          userList = await broadcastService.getAllBotUsers('all')
+        }
+
+        if (!userList || userList.length === 0) {
           throw new Error('Нет пользователей для рассылки')
         }
 
-        logger.info(`👥 Загружено пользователей: ${result.users.length}`, {
-          description: `Fetched users count: ${result.users.length}`,
+        logger.info(`👥 Загружено пользователей: ${userList.length}`, {
+          description: `Fetched users count: ${userList.length}`,
           bot_name: params.bot_name || 'all',
           test_mode: params.test_mode || false,
         })
 
-        return result.users
+        return userList.map(id => ({
+          telegram_id: id,
+          bot_name: params.bot_name || 'all',
+        }))
       })
 
       // Шаг 4: Подготовка ботов
       await step.run('prepare-bots', async () => {
         const uniqueBotNames = [...new Set(users.map(u => u.bot_name))]
-        const botResults = {}
+        const results: BotResults = {}
 
         for (const botName of uniqueBotNames) {
-          const bot = await broadcastService.getBotInstance(botName)
-          if (!bot) {
-            throw new Error(`Бот ${botName} не найден`)
-          }
-          botResults[botName] = bot
+          const bot = new Telegraf<MyContext>(process.env.BOT_TOKEN || '')
+          results[botName] = bot
         }
 
-        return botResults
+        return results
       })
 
       // Шаг 5: Отправка сообщений
       const result = await step.run('send-messages', async () => {
-        const broadcastResult = await broadcastService.sendToAllUsers(
-          params.imageUrl,
-          params.textRu,
-          {
-            ...params,
-            bot_name: params.bot_name,
-            textEn: params.textEn,
+        let successCount = 0
+        let errorCount = 0
+
+        for (const user of users) {
+          try {
+            if (params.contentType === 'photo') {
+              await broadcastService.sendBroadcastWithImage(
+                process.env.BOT_TOKEN || '',
+                params.textRu,
+                params.imageUrl || '',
+                user.telegram_id
+              )
+              successCount++
+            } else if (params.contentType === 'video') {
+              await broadcastService.sendBroadcastWithVideo(
+                process.env.BOT_TOKEN || '',
+                params.textRu,
+                params.videoFileId || '',
+                user.telegram_id
+              )
+              successCount++
+            }
+          } catch (error) {
+            errorCount++
+            logger.error('❌ Ошибка при отправке сообщения пользователю:', {
+              description: 'Error sending message to user',
+              error: error instanceof Error ? error.message : 'Unknown error',
+              user_id: user.telegram_id,
+              bot_name: user.bot_name,
+            })
           }
-        )
-        return broadcastResult || { successCount: 0, errorCount: 0 }
+        }
+
+        return { successCount, errorCount }
       })
 
       // Шаг 6: Анализ результатов
@@ -147,13 +188,14 @@ export const broadcastMessage = inngest.createFunction(
         test_mode: params.test_mode || false,
       }
     } catch (error) {
+      const broadcastError = error as BroadcastError
       logger.error('❌ Ошибка при выполнении рассылки:', {
         description: 'Error during broadcast execution',
-        error: error?.message || 'Unknown error',
-        step: error?.step || 'unknown',
-        contentType: event.data.contentType || 'photo',
-        bot_name: event.data.bot_name || 'all',
-        test_mode: event.data.test_mode || false,
+        error: broadcastError.message || 'Unknown error',
+        step: broadcastError.step || 'unknown',
+        contentType: (event.data as BroadcastEventData).contentType || 'photo',
+        bot_name: (event.data as BroadcastEventData).bot_name || 'all',
+        test_mode: (event.data as BroadcastEventData).test_mode || false,
       })
 
       throw error // Позволяем Inngest обработать повторные попытки

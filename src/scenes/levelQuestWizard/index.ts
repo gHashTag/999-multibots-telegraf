@@ -43,7 +43,13 @@ const createStepScene = (
         : `You have successfully completed all training and reached the maximum level! 🌟✨`,
       stepNumber < 12
         ? Markup.keyboard([[nextStepText], ['➡️ Завершить']]).resize()
-        : await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+        : await mainMenu({
+            isRu,
+            inviteCount: count,
+            subscription: subscription || 'stars',
+            ctx,
+            level,
+          })
     )
   })
 

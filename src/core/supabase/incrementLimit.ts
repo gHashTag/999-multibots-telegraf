@@ -1,10 +1,11 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '.'
 
 export const incrementLimit = async ({
   telegram_id,
   amount,
 }: {
-  telegram_id: number
+  telegram_id: TelegramId
   amount: number
 }) => {
   const { data, error } = await supabase

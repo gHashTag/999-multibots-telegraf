@@ -1,15 +1,15 @@
 import { inngest } from '@/core/inngest/clients'
 import { isRussian } from '@/helpers/language'
-import { MyContext, ModelUrl } from '@/interfaces'
+import { ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { Context } from 'telegraf'
-
+import { TelegramId } from '@/interfaces/telegram.interface'
 export async function generateNeuroImage(
   prompt: string,
   model_url: ModelUrl,
   numImages: number | string,
-  telegram_id: string,
+  telegram_id: TelegramId,
   ctx: Context,
   botName: string
 ): Promise<void> {

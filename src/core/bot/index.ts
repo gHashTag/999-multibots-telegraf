@@ -2,11 +2,11 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
-import { NODE_ENV } from '@/config'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
-
+import { TEST_CONFIG } from '@/test-utils/test-config'
+import { NODE_ENV } from '@/config'
 import { getBotGroupFromAvatars } from '@/core/supabase'
 if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
 if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
@@ -35,7 +35,7 @@ const BOT_TOKENS_TEST = [
   process.env.BOT_TOKEN_TEST_2,
 ]
 
-export const BOT_NAMES = {
+export const BOT_NAMES: Record<string, string> = {
   ['neuro_blogger_bot']: process.env.BOT_TOKEN_1,
   ['MetaMuse_Manifest_bot']: process.env.BOT_TOKEN_2,
   ['ZavaraBot']: process.env.BOT_TOKEN_3,
@@ -57,7 +57,7 @@ export const BOT_URLS = {
 export const BOT_TOKENS =
   NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_TEST
 
-export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
+export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1 as string
 
 export const DEFAULT_BOT_NAME = 'neuro_blogger_bot'
 export const defaultBot = new Telegraf<MyContext>(DEFAULT_BOT_TOKEN)
@@ -97,7 +97,7 @@ logger.info('🌟 Инициализировано ботов:', {
   bot_names: Object.keys(BOT_NAMES),
 })
 
-export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1
+export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1 as string
 export const pulseBot = new Telegraf<MyContext>(PULSE_BOT_TOKEN)
 
 logger.info('🤖 Инициализация pulseBot:', {
@@ -142,7 +142,7 @@ export async function createBotByName(
     return undefined
   }
 
-  const groupId = await getBotGroupFromAvatars(botName)
+  const groupId = (await getBotGroupFromAvatars(botName)) || ''
 
   // Ищем бота в массиве bots
   const botIndex = Object.keys(BOT_NAMES).indexOf(botName)
@@ -169,6 +169,16 @@ export function getBotByName(bot_name: string): {
   bot?: Telegraf<MyContext>
   error?: string | null
 } {
+  // В тестовом окружении возвращаем мок
+  if (process.env.NODE_ENV === 'test') {
+    logger.info({
+      message: '🧪 Возвращаем мок бота для тестов',
+      description: 'Returning mock bot for tests',
+      bot_name,
+    })
+    return { bot: TEST_CONFIG.mocks.bot }
+  }
+
   logger.info({
     message: '🔎 getBotByName запрошен для',
     description: 'getBotByName requested for',
@@ -187,57 +197,41 @@ export function getBotByName(bot_name: string): {
     return { error: 'Bot not found in configuration' }
   }
 
-  logger.info({
-    message: '🔑 Токен бота получен из конфигурации',
-    description: 'Bot token retrieved from configuration',
-    bot_name,
-    tokenLength: token.length,
-  })
-
   // Ищем бота в массиве bots
   const botIndex = Object.keys(BOT_NAMES).indexOf(bot_name)
-  let bot = bots[botIndex]
+  const bot = bots[botIndex]
 
-  // Если бот не найден в массиве или не имеет необходимых методов, создаем новый экземпляр
-  if (!bot || !bot.telegram?.sendMessage) {
-    logger.info({
-      message: '🔄 Создание нового экземпляра бота',
-      description: 'Creating new bot instance',
+  if (!bot) {
+    logger.error({
+      message: '❌ Экземпляр бота не найден',
+      description: 'Bot instance not found',
       bot_name,
+      botIndex,
+      availableBots: Object.keys(BOT_NAMES),
     })
-    bot = new Telegraf<MyContext>(token)
-    // Проверяем, что бот создан корректно
-    if (!bot.telegram?.sendMessage) {
-      logger.error({
-        message: '❌ Ошибка инициализации бота',
-        description: 'Bot initialization error',
-        bot_name,
-        hasTelegram: !!bot.telegram,
-        methods: bot.telegram ? Object.keys(bot.telegram) : [],
-      })
-      return { error: 'Bot initialization failed' }
-    }
-    // Заменяем бота в массиве
-    bots[botIndex] = bot
+    return { error: 'Bot instance not found' }
   }
-
-  logger.info({
-    message: '✅ Бот успешно получен',
-    description: 'Bot successfully retrieved',
-    bot_name,
-    hasSendMessage: typeof bot.telegram?.sendMessage === 'function',
-  })
 
   return { bot }
 }
 
 export const supportRequest = async (title: string, data: any) => {
+  if (!process.env.SUPPORT_CHAT_ID) {
+    logger.error('❌ SUPPORT_CHAT_ID не установлен', {
+      description: 'SUPPORT_CHAT_ID is not set',
+    })
+    return
+  }
+
   try {
-    await pulseBot.telegram.sendMessage(
+    await defaultBot.telegram.sendMessage(
       process.env.SUPPORT_CHAT_ID,
-      `🚀 ${title}\n\n${JSON.stringify(data)}`
+      `${title}\n\n${JSON.stringify(data, null, 2)}`
     )
   } catch (error) {
-    throw new Error(`Error supportRequest: ${JSON.stringify(error)}`)
+    logger.error('❌ Ошибка отправки сообщения в поддержку:', {
+      description: 'Error sending message to support',
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 }

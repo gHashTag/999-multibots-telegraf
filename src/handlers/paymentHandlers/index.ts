@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { Context, Scenes } from 'telegraf'
 import { isRussian } from '@/helpers'
 import { setPayments, getTranslation } from '@/core/supabase'
@@ -12,7 +13,7 @@ import { createBotByName } from '@/core/bot'
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
   subscription: string
-  telegram_id: number
+  telegram_id: TelegramId
   email: string
 }
 
@@ -195,21 +196,30 @@ async function processPayment(
   )
   const payload = ctx.message?.successful_payment?.invoice_payload
   console.log('CASE: payload', payload)
+  if (!userId) {
+    throw new Error('User ID is undefined')
+  }
 
   await updateUserSubscription(userId, subscriptionName)
 
   await setPayments({
-    telegram_id: userId,
+    telegram_id: userId.toString(),
+    amount: Number(amount),
     OutSum: amount.toString(),
     InvId: payload || '',
-    currency: 'STARS',
-    stars,
-    status: 'COMPLETED',
-    email: ctx.session.email,
-    payment_method: 'Telegram',
-    subscription: 'stars',
+    inv_id: payload || '',
+    currency: 'RUB',
+    stars: Number(stars),
+    status: 'SUCCESS',
+    payment_method: 'Robokassa',
     bot_name: ctx.botInfo.username,
-    language: ctx.from?.language_code,
+    description: `Payment completed - ${amount.toString()} RUB`,
+    metadata: {
+      payment_method: 'Robokassa',
+      email: ctx.session.email,
+    },
+    language: 'ru',
+    invoice_url: '',
   })
 
   await sendNotification(
@@ -266,17 +276,25 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
     } else {
       console.log('CASE: subscriptionType not in buttons', selectedButton)
       await setPayments({
-        telegram_id: ctx.from.id.toString(),
+        telegram_id: ctx.from?.id?.toString() || '',
+        amount: Number(stars),
         OutSum: stars.toString(),
         InvId: ctx.message?.successful_payment?.invoice_payload || '',
-        currency: 'STARS',
-        stars,
-        status: 'COMPLETED',
-        email: ctx.session.email,
-        payment_method: 'Telegram',
-        subscription: 'stars',
+        inv_id: ctx.message?.successful_payment?.invoice_payload || '',
+        currency: 'RUB',
+        stars: Number(stars),
+        status: 'SUCCESS',
+        payment_method: 'Robokassa',
         bot_name: ctx.botInfo.username,
-        language: ctx.from?.language_code,
+        description: `Subscription payment completed - ${stars.toString()} RUB`,
+        subscription: subscriptionType,
+        metadata: {
+          payment_method: 'Robokassa',
+          email: ctx.session.email,
+          subscription: subscriptionType,
+        },
+        language: 'ru',
+        invoice_url: '',
       })
       await ctx.reply(
         isRu
@@ -285,7 +303,7 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       )
       await sendNotification(
         ctx,
-        `💫 Пользователь @${ctx.from.username} (ID: ${ctx.from.id}) пополнил баланс на ${stars} звезд!`
+        `💫 Пользователь @${ctx.from?.username} (ID: ${ctx.from?.id}) пополнил баланс на ${stars} звезд!`
       )
       ctx.session.subscription = ''
       ctx.session.buttons = []

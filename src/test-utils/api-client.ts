@@ -126,7 +126,7 @@ export class ApiClient {
       logger.error({
         message: '❌ API недоступен',
         description: 'API health check failed',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
       return false
     }
@@ -149,7 +149,7 @@ export class ApiClient {
       logger.error({
         message: '❌ Ошибка при отправке веб-хука',
         description: 'Error sending webhook',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         path,
       })
       throw error

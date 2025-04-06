@@ -6,12 +6,11 @@ import { paymentOptions } from '@/price/priceCalculator'
 import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
 import { handleHelpCancel } from '@/handlers'
-import { getBotNameByToken } from '@/core'
 
+import { ModeEnum } from '@/price/helpers/modelsCost'
+import { v4 as uuidv4 } from 'uuid'
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
-
-const description = 'Покупка звезд'
 
 const resultUrl2 = RESULT_URL2
 
@@ -22,6 +21,9 @@ function generateRobokassaUrl(
   description: string,
   password1: string
 ): string {
+  if (!resultUrl2 || !merchantLogin || !password1) {
+    throw new Error('resultUrl2 or merchantLogin or password1 is not defined')
+  }
   const signatureValue = md5(
     `${merchantLogin}:${outSum}:${invId}:${encodeURIComponent(
       resultUrl2
@@ -66,7 +68,7 @@ async function getInvoiceId(
   }
 }
 
-export const emailWizard = new Scenes.BaseScene<MyContext>('emailWizard')
+export const emailWizard = new Scenes.BaseScene<MyContext>(ModeEnum.EmailWizard)
 
 emailWizard.enter(async ctx => {
   const isRu = isRussian(ctx)
@@ -111,45 +113,58 @@ emailWizard.on('text', async ctx => {
       const stars = parseInt(match[1], 10) // Количество звезд
       const amount = parseInt(match[2], 10) // Сумма в рублях
 
+      if (!merchantLogin || !password1) {
+        throw new Error('merchantLogin or password1 is not defined')
+      }
+
       try {
-        const userId = ctx.from?.id
-        const invId = Math.floor(Math.random() * 1000000)
+        if (!ctx.from) {
+          throw new Error('User data is undefined')
+        }
+
+        const userId = ctx.from.id
+        const invId = uuidv4()
+        const description = 'Balance replenishment'
+
+        const numericAmount = Number(amount)
+        const numericInvId = Number(invId)
+
         // Получение invoiceID
         const invoiceURL = await getInvoiceId(
           merchantLogin,
-          amount,
-          invId,
+          numericAmount,
+          numericInvId,
           description,
           password1
         )
-        const email = ctx.session.email
 
-        const { bot_name } = getBotNameByToken(ctx.telegram.token)
-
-        // Сохранение платежа со статусом PENDING
         await setPayments({
           telegram_id: userId.toString(),
+          amount: numericAmount,
           OutSum: amount.toString(),
-          InvId: invId.toString(),
+          InvId: numericInvId.toString(),
+          inv_id: numericInvId.toString(),
           currency: 'RUB',
-          stars,
+          stars: numericAmount,
           status: 'PENDING',
-          email: email,
-          payment_method: 'Telegram',
-          subscription: 'stars',
-          bot_name,
-          language: ctx.from?.language_code,
+          payment_method: 'Robokassa',
+          bot_name: ctx.botInfo.username,
+          description,
+          metadata: {
+            payment_method: 'Robokassa',
+            email: ctx.session.email,
+          },
+          language: ctx.from.language_code || 'ru',
           invoice_url: invoiceURL,
         })
-
-        console.log('invoiceURL', invoiceURL)
 
         const inlineKeyboard = [
           [
             {
-              text: isRu
-                ? `Купить ${stars}⭐️ за ${amount} р`
-                : `Buy ${stars}⭐️ for ${amount} RUB`,
+              text:
+                ctx.from.language_code === 'ru'
+                  ? `Купить ${numericAmount}⭐️ за ${numericAmount} р`
+                  : `Buy ${numericAmount}⭐️ for ${numericAmount} RUB`,
               url: invoiceURL,
             },
           ],

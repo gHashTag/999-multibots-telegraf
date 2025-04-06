@@ -2,6 +2,7 @@ import { MyContext } from '../../interfaces'
 import { supabase } from '../supabase'
 import { getBotNameByToken, DEFAULT_BOT_NAME } from '../bot'
 import { TranslationButton } from '../../interfaces/supabase.interface'
+import { logger } from '@/utils/logger'
 
 export interface TranslationContext {
   from: { language_code: string }
@@ -21,12 +22,19 @@ export async function getTranslation({
   url: string
   buttons: TranslationButton[]
 }> {
-  console.log('CASE: getTranslation:', key)
-  const { language_code } = ctx.from
+  logger.info('🔍 Получение перевода:', {
+    description: 'Getting translation',
+    key,
+  })
+
+  const language_code = ctx.from?.language_code || 'en'
   const token = ctx.telegram.token
 
   const botName = bot_name ? bot_name : getBotNameByToken(token).bot_name
-  console.log('botName', botName)
+  logger.info('🤖 Имя бота:', {
+    description: 'Bot name',
+    botName,
+  })
 
   const fetchTranslation = async (name: string) => {
     return await supabase
@@ -43,14 +51,20 @@ export async function getTranslation({
 
   // Если ошибка, пробуем с дефолтным токеном
   if (error) {
-    console.error('Ошибка получения перевода с текущим токеном')
+    logger.error('❌ Ошибка получения перевода с текущим токеном:', {
+      description: 'Error getting translation with current token',
+      error: error.message,
+    })
 
     const defaultBot = DEFAULT_BOT_NAME
 
     ;({ data, error } = await fetchTranslation(defaultBot))
 
     if (error) {
-      console.error('Ошибка получения перевода с дефолтным токеном:', error)
+      logger.error('❌ Ошибка получения перевода с дефолтным токеном:', {
+        description: 'Error getting translation with default token',
+        error: error.message,
+      })
       return {
         translation: 'Ошибка загрузки перевода',
         url: '',
@@ -59,9 +73,28 @@ export async function getTranslation({
     }
   }
 
+  if (!data) {
+    logger.error('❌ Данные перевода не найдены:', {
+      description: 'Translation data not found',
+      key,
+      language_code,
+    })
+    return {
+      translation: 'Перевод не найден',
+      url: '',
+      buttons: [],
+    }
+  }
+
+  logger.info('✅ Перевод получен:', {
+    description: 'Translation retrieved successfully',
+    key,
+    language_code,
+  })
+
   return {
-    translation: data.translation,
-    url: data.url,
-    buttons: data.buttons,
+    translation: data.translation || '',
+    url: data.url || '',
+    buttons: data.buttons || [],
   }
 }

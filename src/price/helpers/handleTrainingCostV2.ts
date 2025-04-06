@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { isRussian } from '@/helpers/language'
+
 import { calculateTrainingCost } from './calculateTrainingCost'
 import { getUserBalance } from '@/core/supabase'
 
@@ -14,7 +14,7 @@ export async function handleTrainingCostV2(
   currentBalance: number
 }> {
   const telegram_id = ctx.from?.id?.toString() || ''
-  const currentBalance = await getUserBalance(telegram_id)
+  const currentBalance = await getUserBalance(telegram_id, ctx.botInfo.username)
   const trainingCostInStars = calculateTrainingCost(steps, version)
 
   if (currentBalance < trainingCostInStars) {

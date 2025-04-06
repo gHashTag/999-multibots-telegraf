@@ -87,23 +87,13 @@ httpRequestCommand.command('http', async ctx => {
   } catch (error) {
     logger.error({
       message: '❌ Ошибка при выполнении HTTP запроса',
-      error: error.message,
-      stack: error.stack,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
     })
 
-    let errorMessage = `❌ Ошибка при выполнении запроса: ${error.message}`
-
-    // Добавляем детали ошибки, если есть
-    if (error.response) {
-      errorMessage += `\nСтатус: ${error.response.status} ${error.response.statusText}`
-      if (error.response.data) {
-        const errorData =
-          typeof error.response.data === 'object'
-            ? JSON.stringify(error.response.data, null, 2)
-            : error.response.data
-        errorMessage += `\nОтвет:\n${errorData}`
-      }
-    }
+    const errorMessage = `❌ Ошибка при выполнении запроса: ${
+      error instanceof Error ? error.message : 'Unknown error'
+    }`
 
     await ctx.reply(errorMessage)
   }

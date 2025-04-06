@@ -89,9 +89,10 @@ export const handleReplicateWebhook = async (req: Request, res: Response) => {
         training.model_name,
         {
           status: newStatus,
-          output_url: payload.output?.uri || payload.output?.version || null,
-          weights: payload.output?.weights || null,
-          error: payload.error || null,
+          output_url:
+            payload.output?.uri || payload.output?.version || undefined,
+          weights: payload.output?.weights || undefined,
+          error: payload.error || undefined,
           replicate_training_id: payload.id,
         },
         'replicate'
@@ -157,7 +158,10 @@ export const handleReplicateWebhook = async (req: Request, res: Response) => {
           logger.error({
             message:
               '❌ Ошибка при отправке уведомления о завершении тренировки',
-            error: notificationError.message,
+            error:
+              notificationError instanceof Error
+                ? notificationError.message
+                : 'Unknown error',
             trainingId: payload.id,
           })
         }
@@ -173,8 +177,8 @@ export const handleReplicateWebhook = async (req: Request, res: Response) => {
     } catch (dbError) {
       logger.error({
         message: '❌ Ошибка запроса к базе данных',
-        error: dbError.message,
-        stack: dbError.stack,
+        error: dbError instanceof Error ? dbError.message : 'Unknown error',
+        stack: dbError instanceof Error ? dbError.stack : undefined,
         trainingId: payload.id,
       })
 
@@ -182,14 +186,14 @@ export const handleReplicateWebhook = async (req: Request, res: Response) => {
       return res.status(200).json({
         success: false,
         message: 'Database error, but webhook acknowledged',
-        error: dbError.message,
+        error: dbError instanceof Error ? dbError.message : 'Unknown error',
       })
     }
   } catch (error) {
     logger.error({
       message: '❌ Критическая ошибка при обработке веб-хука Replicate',
-      error: error.message,
-      stack: error.stack,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
       requestId: req.headers['x-request-id'],
     })
 

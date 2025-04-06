@@ -1,3 +1,4 @@
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { getUserBalance } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
 import { VideoModel } from '@/interfaces/models.interface'
@@ -8,7 +9,7 @@ import { calculateFinalPrice } from './calculateFinalPrice'
 type BalanceOperationProps = {
   ctx: MyContext
   videoModel: string
-  telegram_id: number
+  telegram_id: TelegramId
   is_ru: boolean
 }
 
@@ -49,7 +50,13 @@ export const processBalanceVideoOperation = async ({
 }: BalanceOperationProps): Promise<BalanceOperationResult> => {
   try {
     // Получаем текущий баланс
-    const currentBalance = await getUserBalance(telegram_id)
+    const currentBalance = await getUserBalance(
+      telegram_id,
+      ctx.botInfo.username
+    )
+    if (currentBalance === null) {
+      throw new Error('Balance not found')
+    }
 
     const availableModels: VideoModel[] = VIDEO_MODELS.map(model => model.name)
 

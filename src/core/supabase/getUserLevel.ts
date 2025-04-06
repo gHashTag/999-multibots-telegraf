@@ -1,12 +1,12 @@
 import { supabase } from '.'
-
+import { TelegramId } from '@/interfaces/telegram.interface'
 /**
  * Функция для получения уровня пользователя по его telegram_id.
  * @param telegram_id - Идентификатор пользователя в Telegram.
  * @returns Уровень пользователя или null, если пользователь не найден.
  */
 export async function getUserLevel(
-  telegram_id: string
+  telegram_id: TelegramId
 ): Promise<number | null> {
   try {
     // Запрашиваем данные пользователя из таблицы 'users'

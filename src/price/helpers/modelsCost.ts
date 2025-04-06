@@ -16,6 +16,7 @@ export function calculateCostInStars(costInDollars: number): number {
 }
 
 export enum ModeEnum {
+  Subscribe = 'subscribe',
   DigitalAvatarBody = 'digital_avatar_body',
   DigitalAvatarBodyV2 = 'digital_avatar_body_v2',
   NeuroPhoto = 'neuro_photo',
@@ -31,6 +32,31 @@ export enum ModeEnum {
   TextToVideo = 'text_to_video',
   TextToImage = 'text_to_image',
   LipSync = 'lip_sync',
+  SelectNeuroPhoto = 'select_neuro_photo',
+  ChangeSize = 'change_size',
+  Invite = 'invite',
+  Help = 'help',
+  MainMenu = 'main_menu',
+  Balance = 'balance',
+  ImprovePrompt = 'improve_prompt',
+  TopUpBalance = 'top_up_balance',
+  VideoInUrl = 'video_in_url',
+  Tech = 'tech',
+  Stats = 'stats',
+  BroadcastWizard = 'broadcast_wizard',
+  SubscriptionCheckScene = 'subscription_check_scene',
+  ImprovePromptWizard = 'improve_prompt_wizard',
+  SizeWizard = 'size_wizard',
+  PaymentScene = 'payment_scene',
+  InviteScene = 'invite_scene',
+  BalanceScene = 'balance_scene',
+  Step0 = 'step0',
+  NeuroCoderScene = 'neuro_coder_scene',
+  CheckBalanceScene = 'check_balance_scene',
+  HelpScene = 'help_scene',
+  CancelPredictionsWizard = 'cancel_predictions_wizard',
+  EmailWizard = 'email_wizard',
+  CreateUserScene = 'create_user_scene',
 }
 
 export interface CostCalculationParams {
@@ -45,7 +71,11 @@ export interface CostCalculationResult {
   dollars: number
 }
 
-const BASE_COSTS = {
+type BaseCosts = {
+  [key in ModeEnum | 'neuro_photo_2']?: number
+}
+
+const BASE_COSTS: BaseCosts = {
   [ModeEnum.NeuroPhoto]: 0.08,
   [ModeEnum.NeuroPhotoV2]: 0.14,
   neuro_photo_2: 0.14,
@@ -108,7 +138,7 @@ export function calculateModeCost(
         })
       }
 
-      const baseCostInDollars = BASE_COSTS[normalizedMode as string]
+      const baseCostInDollars = BASE_COSTS[normalizedMode as keyof BaseCosts]
 
       if (baseCostInDollars === undefined) {
         logger.error({

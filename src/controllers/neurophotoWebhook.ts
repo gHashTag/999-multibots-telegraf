@@ -64,7 +64,7 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
       logger.error({
         message: '❌ Ошибка при получении данных задачи',
         description: 'Failed to fetch task data',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         task_id,
         status,
       })
@@ -150,13 +150,20 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
                     'Webhook processed successfully: content moderated, notification sent',
                 })
               } catch (sendError) {
-                logger.error({
-                  message: '❌ Ошибка при отправке уведомления о модерации',
-                  description: 'Error sending moderation notification',
-                  error: sendError.message,
-                  task_id,
-                  telegram_id: userData.telegram_id,
-                })
+                if (sendError instanceof Error) {
+                  logger.error({
+                    message: '❌ Ошибка при отправке уведомления о модерации',
+                    description: 'Error sending moderation notification',
+                    error: sendError.message,
+                    task_id,
+                    telegram_id: userData.telegram_id,
+                  })
+                } else {
+                  logger.error({
+                    message: '❌ Ошибка при отправке уведомления о модерации',
+                    description: 'Error sending moderation notification',
+                  })
+                }
               }
             } else {
               logger.error({
@@ -174,12 +181,19 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
             })
           }
         } catch (userLookupError) {
-          logger.error({
-            message: '❌ Ошибка при поиске пользователя по ID задачи',
-            description: 'Error looking up user by task ID',
-            error: userLookupError.message,
-            task_id,
-          })
+          if (userLookupError instanceof Error) {
+            logger.error({
+              message: '❌ Ошибка при поиске пользователя по ID задачи',
+              description: 'Error looking up user by task ID',
+              error: userLookupError.message,
+              task_id,
+            })
+          } else {
+            logger.error({
+              message: '❌ Ошибка при поиске пользователя по ID задачи',
+              description: 'Error looking up user by task ID',
+            })
+          }
         }
 
         // Если не удалось найти пользователя или отправить сообщение,
@@ -216,10 +230,16 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
         })
       }
 
-      const { telegram_id, language_code } = await updatePrompt(
-        task_id,
-        result?.sample || ''
-      )
+      const promptData = await updatePrompt(task_id, result?.sample || '')
+      if (!promptData) {
+        logger.error({
+          message: '❌ Не удалось обновить данные промпта',
+          description: 'Failed to update prompt data',
+          task_id,
+        })
+        throw new Error('Failed to update prompt data')
+      }
+      const { telegram_id, language_code } = promptData
       const is_ru = language_code === 'ru'
 
       logger.warn({
@@ -263,13 +283,20 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
           telegram_id,
         })
       } catch (sendError) {
-        logger.error({
-          message: '❌ Ошибка при отправке уведомления о модерации',
-          description: 'Error sending moderation notification',
-          error: sendError.message,
-          task_id,
-          telegram_id,
-        })
+        if (sendError instanceof Error) {
+          logger.error({
+            message: '❌ Ошибка при отправке уведомления о модерации',
+            description: 'Error sending moderation notification',
+            error: sendError.message,
+            task_id,
+            telegram_id,
+          })
+        } else {
+          logger.error({
+            message: '❌ Ошибка при отправке уведомления о модерации',
+            description: 'Error sending moderation notification',
+          })
+        }
       }
 
       // Помечаем задачу как обработанную
@@ -340,8 +367,16 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
       processedTaskIds.add(task_id)
 
       // Сохраняем фотографию на сервере
-      const { telegram_id, username, bot_name, language_code, prompt } =
-        await updatePrompt(task_id, result.sample)
+      const promptData = await updatePrompt(task_id, result.sample)
+      if (!promptData) {
+        logger.error({
+          message: '❌ Не удалось обновить данные промпта',
+          description: 'Failed to update prompt data',
+          task_id,
+        })
+        throw new Error('Failed to update prompt data')
+      }
+      const { telegram_id, username, language_code, prompt } = promptData
       const is_ru = language_code === 'ru'
 
       logger.info({
@@ -374,6 +409,15 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
       })
 
       try {
+        if (!bot) {
+          logger.error({
+            message: '❌ Не удалось получить экземпляр бота',
+            description: 'Failed to get bot instance',
+            bot_name,
+            task_id,
+          })
+          return res.status(500).json({ error: 'Internal server error' })
+        }
         // Отправляем изображение пользователю
         await bot.telegram.sendPhoto(
           telegram_id,
@@ -408,13 +452,20 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
           telegram_id,
         })
       } catch (sendError) {
-        logger.error({
-          message: '❌ Ошибка при отправке изображения пользователю',
-          description: 'Error sending image to user',
-          error: sendError.message,
-          task_id,
-          telegram_id,
-        })
+        if (sendError instanceof Error) {
+          logger.error({
+            message: '❌ Ошибка при отправке изображения пользователю',
+            description: 'Error sending image to user',
+            error: sendError.message,
+            task_id,
+            telegram_id,
+          })
+        } else {
+          logger.error({
+            message: '❌ Ошибка при отправке изображения пользователю',
+            description: 'Error sending image to user',
+          })
+        }
       }
 
       // Отправляем изображение в pulse
@@ -435,21 +486,34 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
           telegram_id,
         })
       } catch (pulseError) {
-        logger.error({
-          message: '❌ Ошибка при отправке аналитики',
-          description: 'Error sending analytics',
-          error: pulseError.message,
-          task_id,
-          telegram_id,
-        })
+        if (pulseError instanceof Error) {
+          logger.error({
+            message: '❌ Ошибка при отправке аналитики',
+            description: 'Error sending analytics',
+            error: pulseError.message,
+            task_id,
+            telegram_id,
+          })
+        } else {
+          logger.error({
+            message: '❌ Ошибка при отправке аналитики',
+            description: 'Error sending analytics',
+          })
+        }
       }
 
       res.status(200).json({ message: 'Webhook processed successfully' })
     } else {
-      const { telegram_id, language_code } = await updatePrompt(
-        task_id,
-        result?.sample || ''
-      )
+      const promptData = await updatePrompt(task_id, result?.sample || '')
+      if (!promptData) {
+        logger.error({
+          message: '❌ Не удалось обновить данные промпта',
+          description: 'Failed to update prompt data',
+          task_id,
+        })
+        throw new Error('Failed to update prompt data')
+      }
+      const { telegram_id, language_code } = promptData
       const is_ru = language_code === 'ru'
 
       logger.error({
@@ -461,6 +525,16 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
       })
 
       try {
+        if (!bot) {
+          logger.error({
+            message: '❌ Не удалось получить экземпляр бота',
+            description: 'Failed to get bot instance',
+            bot_name,
+            task_id,
+          })
+          return res.status(500).json({ error: 'Internal server error' })
+        }
+
         await bot.telegram.sendMessage(telegram_id, `🚫 ${status}`, {
           reply_markup: {
             keyboard: [
@@ -476,13 +550,20 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
           },
         })
       } catch (sendError) {
-        logger.error({
-          message: '❌ Ошибка при отправке сообщения об ошибке',
-          description: 'Error sending error message',
-          error: sendError.message,
-          task_id,
-          telegram_id,
-        })
+        if (sendError instanceof Error) {
+          logger.error({
+            message: '❌ Ошибка при отправке сообщения об ошибке',
+            description: 'Error sending error message',
+            error: sendError.message,
+            task_id,
+            telegram_id,
+          })
+        } else {
+          logger.error({
+            message: '❌ Ошибка при отправке сообщения об ошибке',
+            description: 'Error sending error message',
+          })
+        }
       }
 
       errorMessageAdmin(
@@ -495,8 +576,8 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
     logger.error({
       message: '❌ Критическая ошибка при обработке вебхука',
       description: 'Critical error processing neurophoto webhook',
-      error: error.message,
-      stack: error.stack,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
       request: req.body,
     })
 
@@ -542,8 +623,8 @@ export const handleWebhookNeurophotoDebug = async (
     logger.error({
       message: '❌ Ошибка в режиме отладки вебхука нейрофото',
       description: 'Error in debug neurophoto webhook handler',
-      error: error.message,
-      stack: error.stack,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
     })
 
     return res

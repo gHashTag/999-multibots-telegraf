@@ -1,5 +1,5 @@
 import { supabase } from '.'
-
+import { TelegramId } from '@/interfaces/telegram.interface'
 // Определяем тип для обновлений и экспортируем его
 export type ModelTrainingUpdate = {
   status?: string
@@ -9,7 +9,7 @@ export type ModelTrainingUpdate = {
 }
 
 export const updateModelTraining = async (
-  user_id: string,
+  user_id: TelegramId,
   model_name: string,
   updates: ModelTrainingUpdate
 ) => {

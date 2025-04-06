@@ -1,32 +1,44 @@
-import { MyTextMessageContext, MyWizardContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { WizardScene } from 'telegraf/scenes'
 import {
   createUser,
   getReferalsCountAndUserData,
   getUserByTelegramIdString,
+  CreateUserParams,
 } from '@/core/supabase'
-import { getSubScribeChannel } from '@/core/supabase'
 
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { isRussian } from '@/helpers/language'
 
-const BONUS_AMOUNT = 100
+// const BONUS_AMOUNT = 100
 
-const createUserStep = async (ctx: MyTextMessageContext) => {
+const createUserStep = async (ctx: MyContext) => {
   console.log('CASE:createUserStep', ctx.from)
 
+  if (!ctx.from) {
+    throw new Error('User data not found')
+  }
+
   const {
-    username,
-    id: telegram_id,
-    first_name,
-    last_name,
-    is_bot,
-    language_code,
+    username = '',
+    id,
+    first_name = '',
+    last_name = '',
+    is_bot = false,
+    language_code = 'en',
   } = ctx.from
 
-  const finalUsername = username || first_name || telegram_id.toString()
+  const telegram_id = id.toString()
+  const finalUsername = username || first_name || telegram_id
+
+  if (!ctx.message || !('text' in ctx.message)) {
+    throw new Error('Message text not found')
+  }
+
+  const messageText = ctx.message.text
 
   // Проверка на полную ссылку или просто команду /start
-  const botNameMatch = ctx.message.text.match(
+  const botNameMatch = messageText.match(
     /https:\/\/t\.me\/([a-zA-Z0-9_]+)\?start=(\d+)/
   )
 
@@ -38,15 +50,15 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   if (botNameMatch) {
     botName = botNameMatch[1]
     startNumber = botNameMatch[2]
-  } else if (ctx.message.text.startsWith('/start')) {
+  } else if (messageText.startsWith('/start')) {
     console.log(
       'CASE: 🔄 Команда /start. botInfo.username:',
       ctx.botInfo.username
     )
-    console.log('ctx.message.text', ctx.message.text)
+    console.log('messageText', messageText)
     // Обработка команды /start без ссылки
-    botName = ctx.botInfo.username
-    const parts = ctx.message.text.split(' ')
+    botName = ctx.botInfo.username || ''
+    const parts = messageText.split(' ')
     console.log('parts', parts)
     startNumber = parts.length > 1 ? parts[1] : ''
   }
@@ -58,14 +70,13 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
   if (ctx.session.inviteCode) {
     console.log('CASE: ctx.session.inviteCode', ctx.session.inviteCode)
-    const { count, userData } = await getReferalsCountAndUserData(
+    const { userData } = await getReferalsCountAndUserData(
       ctx.session.inviteCode.toString()
     )
 
-    ctx.session.inviter = userData.user_id
+    if (userData) {
+      ctx.session.inviter = userData.user_id
 
-    const newCount = count + 1
-    if (ctx.session.inviteCode) {
       await ctx.telegram.sendMessage(
         ctx.session.inviteCode,
         isRussian(ctx)
@@ -74,12 +85,12 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       )
 
       const user = await getUserByTelegramIdString(ctx.session.inviteCode)
-      console.log('user', user)
-
-      await ctx.telegram.sendMessage(
-        `@neuro_blogger_pulse`,
-        `🔗 Новый пользователь зарегистрировался в боте: ${finalUsername}. По реферальной ссылке: @${user.username}`
-      )
+      if (user?.username) {
+        await ctx.telegram.sendMessage(
+          `@neuro_blogger_pulse`,
+          `🔗 Новый пользователь зарегистрировался в боте: ${finalUsername}. По реферальной ссылке: @${user.username}`
+        )
+      }
     }
   } else {
     try {
@@ -95,34 +106,33 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     }
   }
 
-  const userData = {
+  const newUserData: CreateUserParams = {
     username: finalUsername,
-    telegram_id: telegram_id.toString(),
-    first_name: first_name || null,
-    last_name: last_name || null,
-    is_bot: is_bot || false,
-    language_code: language_code || 'en',
+    telegram_id,
+    first_name: first_name || undefined,
+    last_name: last_name || undefined,
+    is_bot,
+    language_code,
     photo_url: '',
-    chat_id: ctx.chat?.id || null,
+    chat_id: ctx.chat?.id?.toString(),
     mode: 'clean',
     model: 'gpt-4-turbo',
     count: 0,
     aspect_ratio: '9:16',
     balance: 0,
-    inviter: ctx.session.inviter || null,
     bot_name: botName,
   }
 
-  await createUser(userData)
+  await createUser(newUserData)
   await ctx.reply(
     isRussian(ctx)
       ? '✅ Аватар успешно создан!'
       : '✅ Avatar created successfully!'
   )
-  return ctx.scene.enter('subscriptionCheckScene')
+  return ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
 }
 
-export const createUserScene = new WizardScene<MyWizardContext>(
-  'createUserScene',
+export const createUserScene = new WizardScene<MyContext>(
+  ModeEnum.CreateUserScene,
   createUserStep
 )

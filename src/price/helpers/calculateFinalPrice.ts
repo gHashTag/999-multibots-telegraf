@@ -28,7 +28,7 @@ export const calculateFinalPrice = (modelId: string): number => {
 
     return stars
   } catch (error) {
-    console.error('💥 Ошибка расчета:', error.message)
+    console.error('💥 Ошибка расчета:', (error as Error).message)
     return NaN
   }
 }

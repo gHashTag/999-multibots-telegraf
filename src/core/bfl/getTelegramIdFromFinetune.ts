@@ -5,7 +5,7 @@ export async function getTelegramIdFromFinetune(finetuneId: string) {
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'X-Key': process.env.BFL_API_KEY,
+        'X-Key': process.env.BFL_API_KEY || '',
         'Content-Type': 'application/json',
       },
     })

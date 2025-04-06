@@ -141,7 +141,9 @@ export async function mainMenu({
   }
 
   // Получаем основные кнопки для текущей подписки
-  let availableLevels = subscriptionLevelsMap[subscription] || []
+  let availableLevels =
+    subscriptionLevelsMap[subscription as keyof typeof subscriptionLevelsMap] ||
+    []
 
   // Для neurophoto при уровне 3 добавляем дополнительные кнопки
   if (subscription === 'neurophoto' && level >= 3) {
@@ -159,7 +161,9 @@ export async function mainMenu({
     availableLevels = availableLevels.filter(
       l =>
         // Оставляем кнопки, которые есть в subscriptionLevelsMap
-        subscriptionLevelsMap[subscription].includes(l) ||
+        subscriptionLevelsMap[
+          subscription as keyof typeof subscriptionLevelsMap
+        ].includes(l) ||
         // Или это дополнительные кнопки
         additionalButtons.includes(l)
     )

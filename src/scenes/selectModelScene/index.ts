@@ -2,9 +2,10 @@ import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const selectModelScene = new Scenes.WizardScene<MyContext>(
-  'select_model',
+  ModeEnum.SelectModelWizard,
   async ctx => {
     const isRu = isRussian(ctx)
 
@@ -51,11 +52,11 @@ export const selectModelScene = new Scenes.WizardScene<MyContext>(
       const modelChoice = ctx.message.text.toLowerCase()
 
       if (modelChoice.includes('flux pro')) {
-        ctx.session.mode = 'digital_avatar_body_2'
+        ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
         await ctx.scene.enter('checkBalanceScene')
         return
       } else if (modelChoice.includes('flux')) {
-        ctx.session.mode = 'digital_avatar_body'
+        ctx.session.mode = ModeEnum.DigitalAvatarBody
         await ctx.scene.enter('checkBalanceScene')
         return
       }

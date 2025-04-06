@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { promisify } from 'util'
 import { downloadFile } from '@/helpers/downloadFile'
+import { TelegramId } from '@/interfaces/telegram.interface'
 const mkdir = promisify(fs.mkdir)
 const writeFile = promisify(fs.writeFile)
 
@@ -14,7 +15,7 @@ const writeFile = promisify(fs.writeFile)
  * @returns Локальный путь к сохраненному файлу.
  */
 export async function saveFileLocally(
-  telegram_id: string | number,
+  telegram_id: TelegramId,
   fileUrl: string,
   category: string,
   extension: string

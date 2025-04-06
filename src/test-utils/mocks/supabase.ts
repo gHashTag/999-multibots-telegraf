@@ -1,8 +1,9 @@
+import { TelegramId } from '@/interfaces/telegram.interface';
 import { logger } from '../../utils/logger'
 
 export interface User {
   id: string
-  telegram_id: string
+  telegram_id: TelegramId
   balance: number
   level: number
 }
@@ -15,7 +16,7 @@ const mockUser: User = {
 }
 
 export async function getUserByTelegramId(
-  telegram_id: string
+  telegram_id: TelegramId
 ): Promise<User | null> {
   logger.info({
     message: '🔍 Поиск пользователя в базе данных (мок)',
@@ -26,7 +27,7 @@ export async function getUserByTelegramId(
 }
 
 export async function updateUserLevelPlusOne(
-  telegram_id: string,
+  telegram_id: TelegramId,
   level: number
 ): Promise<void> {
   logger.info({
@@ -39,7 +40,7 @@ export async function updateUserLevelPlusOne(
 }
 
 export async function updateUserBalance(
-  telegram_id: string,
+  telegram_id: TelegramId,
   newBalance: number
 ): Promise<void> {
   logger.info({

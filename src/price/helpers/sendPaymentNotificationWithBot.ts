@@ -1,9 +1,9 @@
 import { pulseBot } from '@/core/bot'
 import { logger } from '@/utils/logger'
-
+import { TelegramId } from '@/interfaces/telegram.interface'
 
 export interface Payments {
-  telegram_id: string
+  telegram_id: TelegramId
   username: string
   amount: string
   stars: number
@@ -14,7 +14,7 @@ export async function sendPaymentNotificationWithBot({
   username,
   amount,
   stars,
-}: Payments ) {
+}: Payments) {
   const groupId = '@neuro_blogger_pulse'
   try {
     await pulseBot.telegram.sendMessage(

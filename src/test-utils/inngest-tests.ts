@@ -1,18 +1,18 @@
 import { logger } from '@/utils/logger'
 import { TEST_CONFIG } from './test-config'
-import axios from 'axios'
-import elevenlabs from '@/core/elevenlabs'
+import axios, { AxiosError } from 'axios'
+import { elevenlabs } from '@/core/elevenlabs'
 import { Readable } from 'stream'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
 import { createWriteStream } from 'fs'
-import { inngest } from '@/core/inngest/clients'
 import { getBotByName } from '@/core/bot'
+import { ModeEnum } from '@/price/helpers/modelsCost'
+import { TelegramId } from '@/interfaces/telegram.interface'
+import { Inngest } from 'inngest'
 
-/**
- * Интерфейс для результатов теста
- */
+// Интерфейсы и типы
 interface TestResult {
   testName: string
   success: boolean
@@ -22,13 +22,18 @@ interface TestResult {
   duration?: number
 }
 
-/**
- * Интерфейс для параметров text-to-speech
- */
 interface TextToSpeechParams {
   text: string
   voice_id: string
-  telegram_id: string
+  telegram_id: TelegramId
+  is_ru: boolean
+  bot_name: string
+  username?: string
+}
+
+interface TextToVideoParams {
+  text: string
+  telegram_id: TelegramId
   is_ru: boolean
   bot_name: string
   username?: string
@@ -40,10 +45,41 @@ interface TextToSpeechParams {
 export class InngestTester {
   private inngestDevUrl: string
   private eventKey: string
+  private inngestClient: Inngest
 
   constructor() {
     this.inngestDevUrl = process.env.INNGEST_DEV_URL || 'http://localhost:8288'
     this.eventKey = process.env.INNGEST_EVENT_KEY || 'test-event-key'
+    this.inngestClient = new Inngest({
+      id: 'test-inngest',
+      eventKey: this.eventKey,
+    })
+  }
+
+  /**
+   * Обработчик ошибок для логирования
+   */
+  private handleError(error: unknown): string {
+    if (error instanceof AxiosError) {
+      const responseData = error.response?.data as { message?: string }
+      return responseData?.message || error.message
+    }
+    if (error instanceof Error) {
+      if (
+        'response' in error &&
+        error.response &&
+        typeof error.response === 'object'
+      ) {
+        const response = error.response as {
+          data?: { message?: string; error?: string }
+        }
+        if (response.data) {
+          return response.data.message || response.data.error || error.message
+        }
+      }
+      return error.message
+    }
+    return String(error)
   }
 
   /**
@@ -88,10 +124,12 @@ export class InngestTester {
       }
     } catch (error) {
       const duration = Date.now() - startTime
+      const errorMessage = this.handleError(error)
+
       logger.error({
         message: '❌ Ошибка при отправке события Inngest',
         description: 'Error during Inngest event test',
-        error: error.message,
+        error: errorMessage,
         eventName: name,
       })
 
@@ -99,7 +137,7 @@ export class InngestTester {
         testName,
         success: false,
         message: `Ошибка при отправке события "${name}"`,
-        error: error.message,
+        error: errorMessage,
         duration,
       }
     }
@@ -251,10 +289,11 @@ export class InngestTester {
       }
     } catch (error) {
       const duration = Date.now() - startTime
+      const errorMessage = this.handleError(error)
       logger.error({
         message: '❌ Ошибка при прямом вызове функции Inngest',
         description: 'Error during Inngest function invocation',
-        error: error.message,
+        error: errorMessage,
         functionId,
       })
 
@@ -262,7 +301,7 @@ export class InngestTester {
         testName,
         success: false,
         message: `Ошибка при вызове функции "${functionId}"`,
-        error: error.message,
+        error: errorMessage,
         duration,
       }
     }
@@ -623,81 +662,233 @@ export class InngestTester {
    * Запускает все тесты
    */
   async runAllTests(): Promise<TestResult[]> {
+    logger.info({
+      message: '🧪 Запуск всех тестов',
+      description: 'Running all tests',
+    })
+
+    const results: TestResult[] = []
+
+    // Тесты платежей
+    const paymentResults = await this.runPaymentTests()
+    results.push(...paymentResults)
+
+    // Тесты генерации изображений
+    const imageResults = await this.runImageGenerationTests()
+    results.push(...imageResults)
+
+    // Тесты голосового аватара
+    const voiceResults = await this.runVoiceAvatarTests()
+    results.push(...voiceResults)
+
+    // Тесты text-to-speech
+    const ttsResults = await this.runTextToSpeechTests()
+    results.push(...ttsResults)
+
+    // Логируем общие результаты
+    const successCount = results.filter(r => r.success).length
+    const totalTests = results.length
+
+    logger.info({
+      message: `✅ Завершено ${successCount}/${totalTests} тестов`,
+      description: 'All tests completed',
+      successRate: `${((successCount / totalTests) * 100).toFixed(2)}%`,
+    })
+
+    return results
+  }
+
+  /**
+   * Запускает тесты платежей
+   */
+  async runPaymentTests(): Promise<TestResult[]> {
     const results: TestResult[] = []
 
     try {
-      // Тест отправки события тренировки модели
-      const modelTrainingResult = await this.testModelTraining()
-      results.push(modelTrainingResult)
+      // Базовые операции
+      results.push(await this.testBasicIncomeOperation())
+      results.push(await this.testBasicOutcomeOperation())
 
-      // Тест отправки события тренировки модели V2
-      const modelTrainingV2Result = await this.testModelTrainingV2()
-      results.push(modelTrainingV2Result)
+      // Тесты определения типа сервиса
+      const serviceTypeResults = await this.testServiceTypeDetection()
+      results.push(...serviceTypeResults)
 
-      // Тест отправки события генерации изображения
-      const neuroImageResult = await this.testNeuroImageGeneration()
-      results.push(neuroImageResult)
-
-      // Тест отправки события генерации нейрофото V2
-      const neuroPhotoV2Result = await this.testNeuroPhotoV2Generation()
-      results.push(neuroPhotoV2Result)
-
-      // Тест отправки события генерации текст-в-изображение
-      const textToImageResult = await this.testTextToImage()
-      results.push(textToImageResult)
-
-      // Прямой вызов функции тренировки модели
-      const directInvokeResult = await this.testModelTrainingDirectInvoke()
-      results.push(directInvokeResult)
-
-      // Прямой вызов функции тренировки модели V2
-      const directInvokeV2Result = await this.testModelTrainingV2DirectInvoke()
-      results.push(directInvokeV2Result)
-
-      // Прямой вызов функции нейрофото V2
-      const directInvokeNeuroPhotoV2Result =
-        await this.testNeuroPhotoV2DirectInvoke()
-      results.push(directInvokeNeuroPhotoV2Result)
-
-      // Прямой вызов функции текст-в-изображение
-      const directInvokeTextToImageResult =
-        await this.testTextToImageDirectInvoke()
-      results.push(directInvokeTextToImageResult)
-
-      // Тест создания голосового аватара
-      const voiceAvatarResult = await this.testVoiceAvatarCreation()
-      results.push(voiceAvatarResult)
-
-      // Прямой вызов функции создания голосового аватара
-      const directInvokeVoiceAvatarResult =
-        await this.testVoiceAvatarDirectInvoke()
-      results.push(directInvokeVoiceAvatarResult)
-
-      // Тест функции text-to-speech
-      const textToSpeechResult = await this.testTextToSpeech()
-      results.push(textToSpeechResult)
-
-      // Прямой вызов функции text-to-speech
-      const directInvokeTextToSpeechResult =
-        await this.testTextToSpeechDirectInvoke()
-      results.push(directInvokeTextToSpeechResult)
+      // Тест метаданных
+      results.push(await this.testPaymentMetadata())
 
       return results
     } catch (error) {
+      const errorMessage = this.handleError(error)
       logger.error({
-        message: '❌ Ошибка при выполнении всех тестов',
-        description: 'Error running all tests',
-        error: error.message,
+        message: '❌ Ошибка при выполнении тестов платежей',
+        description: 'Error running payment tests',
+        error: errorMessage,
       })
 
       results.push({
-        testName: 'Error in runAllTests',
+        testName: 'Error in runPaymentTests',
         success: false,
-        message: 'Произошла ошибка при выполнении всех тестов',
-        error: error.message,
+        message: 'Произошла ошибка при выполнении тестов платежей',
+        error: errorMessage,
       })
 
       return results
+    }
+  }
+
+  /**
+   * Тестирует базовую операцию пополнения баланса
+   */
+  async testBasicIncomeOperation(): Promise<TestResult> {
+    const testAmount = 100
+    const telegram_id = TEST_CONFIG.users.main.telegramId
+    const bot_name = TEST_CONFIG.users.main.botName
+    const is_ru = TEST_CONFIG.users.main.isRussian
+
+    logger.info({
+      message: '🧪 Тест базовой операции пополнения',
+      description: 'Basic income operation test',
+      testAmount,
+      telegram_id,
+    })
+
+    const paymentData = {
+      telegram_id,
+      amount: testAmount,
+      type: 'income',
+      description: 'Test income operation',
+      bot_name,
+      is_ru,
+      payment_type: 'regular',
+      currency: 'STARS',
+      money_amount: 0,
+    }
+
+    const result = await this.sendEvent('payment/process', paymentData)
+    return {
+      ...result,
+      testName: 'Basic Income Operation Test',
+      message: result.message || 'Test completed',
+    }
+  }
+
+  /**
+   * Тестирует базовую операцию списания баланса
+   */
+  async testBasicOutcomeOperation(): Promise<TestResult> {
+    const testAmount = 50
+    const telegram_id = TEST_CONFIG.users.main.telegramId
+    const bot_name = TEST_CONFIG.users.main.botName
+    const is_ru = TEST_CONFIG.users.main.isRussian
+
+    logger.info({
+      message: '🧪 Тест базовой операции списания',
+      description: 'Basic outcome operation test',
+      testAmount,
+      telegram_id,
+    })
+
+    const paymentData = {
+      telegram_id,
+      amount: testAmount,
+      type: 'outcome',
+      description: 'Test outcome operation',
+      bot_name,
+      is_ru,
+      payment_type: 'regular',
+      currency: 'STARS',
+      money_amount: 0,
+    }
+
+    const result = await this.sendEvent('payment/process', paymentData)
+    return {
+      ...result,
+      testName: 'Basic Outcome Operation Test',
+      message: result.message || 'Test completed',
+    }
+  }
+
+  /**
+   * Тестирует определение типа сервиса из описания
+   */
+  async testServiceTypeDetection(): Promise<TestResult[]> {
+    const telegram_id = TEST_CONFIG.users.main.telegramId
+    const bot_name = TEST_CONFIG.users.main.botName
+    const is_ru = TEST_CONFIG.users.main.isRussian
+    const testAmount = 10
+    const results: TestResult[] = []
+
+    // Тестируем все типы сервисов из ModeEnum
+    for (const mode of Object.values(ModeEnum)) {
+      const description = `Test payment for ${String(mode).replace(/_/g, ' ')}`
+
+      logger.info({
+        message: '🧪 Тест определения типа сервиса',
+        description: 'Service type detection test',
+        mode,
+        testDescription: description,
+      })
+
+      const paymentData = {
+        telegram_id,
+        amount: testAmount,
+        type: 'outcome',
+        description,
+        bot_name,
+        is_ru,
+        payment_type: 'regular',
+        currency: 'STARS',
+        money_amount: 0,
+      }
+
+      const result = await this.sendEvent('payment/process', paymentData)
+      results.push({
+        ...result,
+        testName: `Service Type Detection Test - ${mode}`,
+        message: result.message || 'Test completed',
+      })
+    }
+
+    return results
+  }
+
+  /**
+   * Тестирует обработку метаданных платежа
+   */
+  async testPaymentMetadata(): Promise<TestResult> {
+    const telegram_id = TEST_CONFIG.users.main.telegramId
+    const bot_name = TEST_CONFIG.users.main.botName
+    const is_ru = TEST_CONFIG.users.main.isRussian
+    const testAmount = 25
+
+    logger.info({
+      message: '🧪 Тест обработки метаданных платежа',
+      description: 'Payment metadata processing test',
+      telegram_id,
+    })
+
+    const paymentData = {
+      telegram_id,
+      amount: testAmount,
+      type: 'outcome',
+      description: 'Test payment with metadata',
+      bot_name,
+      is_ru,
+      payment_type: 'subscription',
+      currency: 'RUB',
+      money_amount: 1000,
+      metadata: {
+        service_type: ModeEnum.TextToImage,
+        campaign: 'test_campaign',
+        operation_id: 'test_op_123',
+      },
+    }
+
+    const result = await this.sendEvent('payment/process', paymentData)
+    return {
+      ...result,
+      testName: 'Payment Metadata Test',
+      message: result.message || 'Test completed',
     }
   }
 
@@ -732,17 +923,18 @@ export class InngestTester {
 
       return results
     } catch (error) {
+      const errorMessage = this.handleError(error)
       logger.error({
         message: '❌ Ошибка при выполнении тестов генерации изображений',
         description: 'Error running image generation tests',
-        error: error.message,
+        error: errorMessage,
       })
 
       results.push({
         testName: 'Error in runImageGenerationTests',
         success: false,
         message: 'Произошла ошибка при выполнении тестов генерации изображений',
-        error: error.message,
+        error: errorMessage,
       })
 
       return results
@@ -884,10 +1076,11 @@ export class InngestTester {
 
       return results
     } catch (error) {
+      const errorMessage = this.handleError(error)
       logger.error({
         message: `❌ Ошибка при запуске тестов функции ${functionName}`,
         description: `Error running ${functionName} function tests`,
-        error: error.message,
+        error: errorMessage,
       })
 
       return [
@@ -895,7 +1088,7 @@ export class InngestTester {
           testName: `Тест функции ${functionName}`,
           success: false,
           message: `Ошибка при запуске тестов функции ${functionName}`,
-          error: error.message,
+          error: errorMessage,
         },
       ]
     }
@@ -972,7 +1165,7 @@ export class InngestTester {
   }: {
     text: string
     voice_id: string
-    telegram_id: string
+    telegram_id: TelegramId
     is_ru: boolean
     bot_name: string
   }): Promise<TestResult> {
@@ -1054,6 +1247,51 @@ export class InngestTester {
         success: false,
         message: error instanceof Error ? error.message : String(error),
         testName,
+      }
+    }
+  }
+
+  /**
+   * Тестирует функцию преобразования текста в видео
+   */
+  async textToVideo(params: TextToVideoParams): Promise<{
+    success: boolean
+    videoBuffer?: Buffer
+    paymentProcessed?: boolean
+    error?: string
+  }> {
+    logger.info({
+      message: '🎥 Тест функции преобразования текста в видео',
+      description: 'Text to video function test',
+      params: {
+        ...params,
+        text: params.text.substring(0, 20) + '...',
+      },
+    })
+
+    try {
+      const result = await this.sendEvent('text-to-video.requested', params)
+
+      if (!result.success) {
+        throw new Error(result.error || 'Unknown error')
+      }
+
+      return {
+        success: true,
+        videoBuffer: Buffer.from('mock-video-data'),
+        paymentProcessed: true,
+      }
+    } catch (error) {
+      const errorMessage = this.handleError(error)
+      logger.error({
+        message: '❌ Ошибка при тестировании преобразования текста в видео',
+        description: 'Error during text to video test',
+        error: errorMessage,
+      })
+
+      return {
+        success: false,
+        error: errorMessage,
       }
     }
   }

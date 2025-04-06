@@ -5,13 +5,14 @@ import { isRussian } from '../../helpers/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { createHelpCancelKeyboard } from '@/menu'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 interface WizardSessionData extends Scenes.WizardSessionData {
   company?: string
   position?: string
 }
 
 export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
-  'avatar_brain',
+  ModeEnum.Avatar,
   async ctx => {
     const isRu = isRussian(ctx)
     await ctx.reply(
@@ -75,9 +76,13 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
       }
     }
 
-    const telegram_id = ctx.from.id
+    const telegram_id = ctx.from?.id
 
-    const userExists = await getUserByTelegramId(ctx)
+    if (!telegram_id) {
+      throw new Error('User ID not found')
+    }
+
+    const userExists = await getUserByTelegramId(telegram_id.toString())
     if (!userExists) {
       throw new Error(`User with ID ${telegram_id} does not exist.`)
     }

@@ -1,8 +1,8 @@
 export interface TestResult {
+  testName: string
   success: boolean
+  message: string
+  details?: any
   error?: string
   duration?: number
-  testName: string
-  message?: string
-  details?: string
 }
