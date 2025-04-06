@@ -1,5 +1,5 @@
-import { Telegram } from 'telegraf'
 import { logger } from '@/utils/logger'
+import { createBotByName } from '@/core/bot'
 
 interface TransactionNotificationParams {
   telegram_id: number
@@ -9,7 +9,7 @@ interface TransactionNotificationParams {
   newBalance: number
   description: string
   isRu: boolean
-  bot: Telegram
+  bot_name: string
 }
 
 export const sendTransactionNotification = async ({
@@ -18,9 +18,8 @@ export const sendTransactionNotification = async ({
   amount,
   currentBalance,
   newBalance,
-  description,
   isRu,
-  bot,
+  bot_name,
 }: TransactionNotificationParams) => {
   try {
     logger.info('📝 Отправка уведомления о транзакции:', {
@@ -30,19 +29,25 @@ export const sendTransactionNotification = async ({
       amount,
     })
 
+    const botData = await createBotByName(bot_name)
+
+    if (!botData) {
+      throw new Error(`Bot ${bot_name} not found`)
+    }
+
     const message = isRu
-      ? `${description}
+      ? `
 ID: ${operationId}
 Сумма: ${amount} ⭐️
 Старый баланс: ${currentBalance} ⭐️
 Новый баланс: ${newBalance} ⭐️`
-      : `${description}
+      : `
 ID: ${operationId}
 Amount: ${amount} ⭐️
 Old balance: ${currentBalance} ⭐️
 New balance: ${newBalance} ⭐️`
 
-    await bot.sendMessage(telegram_id, message)
+    await botData.bot.telegram.sendMessage(telegram_id, message)
 
     logger.info('✅ Уведомление отправлено:', {
       description: 'Transaction notification sent',

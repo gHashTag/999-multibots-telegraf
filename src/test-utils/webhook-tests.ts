@@ -7,7 +7,7 @@ import { testSupabase } from './test-env'
  * Интерфейс для результатов теста
  */
 interface TestResult {
-  testName: string
+  name: string
   success: boolean
   message: string
   details?: any
@@ -99,7 +99,7 @@ export class ReplicateWebhookTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
         success: true,
         message: `Вебхук успешно отправлен за ${duration}мс`,
         details: {
@@ -124,7 +124,7 @@ export class ReplicateWebhookTester {
       })
 
       return {
-        testName,
+        name: testName,
         success: false,
         message: 'Ошибка при отправке вебхука',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -143,7 +143,7 @@ export class ReplicateWebhookTester {
 
     if (!sample) {
       return {
-        testName: 'Successful training webhook test',
+        name: 'Successful training webhook test',
         success: false,
         message: 'Нет примера успешной тренировки в конфигурации',
         error: 'No sample found',
@@ -185,7 +185,7 @@ export class ReplicateWebhookTester {
 
     if (!sample) {
       return {
-        testName: 'Failed training webhook test',
+        name: 'Failed training webhook test',
         success: false,
         message: 'Нет примера неудачной тренировки в конфигурации',
         error: 'No sample found',
@@ -224,7 +224,7 @@ export class ReplicateWebhookTester {
 
     if (!sample) {
       return {
-        testName: 'Canceled training webhook test',
+        name: 'Canceled training webhook test',
         success: false,
         message: 'Нет примера отмененной тренировки в конфигурации',
         error: 'No sample found',
@@ -382,7 +382,7 @@ export class BFLWebhookTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
         success: true,
         message: `BFL вебхук успешно отправлен за ${duration}мс`,
         details: {
@@ -407,7 +407,7 @@ export class BFLWebhookTester {
       })
 
       return {
-        testName,
+        name: testName,
         success: false,
         message: 'Ошибка при отправке BFL вебхука',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -426,7 +426,7 @@ export class BFLWebhookTester {
 
     if (!sample) {
       return {
-        testName: 'BFL successful training webhook test',
+        name: 'BFL successful training webhook test',
         success: false,
         message: 'Нет примера успешной BFL тренировки в конфигурации',
         error: 'No sample found',
@@ -452,7 +452,7 @@ export class BFLWebhookTester {
 
     if (!sample) {
       return {
-        testName: 'BFL error training webhook test',
+        name: 'BFL error training webhook test',
         success: false,
         message: 'Нет примера ошибочной BFL тренировки в конфигурации',
         error: 'No sample found',
@@ -478,7 +478,7 @@ export class BFLWebhookTester {
 
     if (!sample) {
       return {
-        testName: 'BFL pending training webhook test',
+        name: 'BFL pending training webhook test',
         success: false,
         message: 'Нет примера ожидающей BFL тренировки в конфигурации',
         error: 'No sample found',
@@ -603,7 +603,7 @@ export class NeurophotoWebhookTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
         success: true,
         message: `Вебхук нейрофото успешно отправлен за ${duration}мс`,
         details: {
@@ -629,7 +629,7 @@ export class NeurophotoWebhookTester {
       })
 
       return {
-        testName,
+        name: testName,
         success: false,
         message: 'Ошибка при отправке вебхука нейрофото',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -649,7 +649,7 @@ export class NeurophotoWebhookTester {
 
     if (!sample) {
       return {
-        testName: 'Successful neurophoto generation webhook test',
+        name: 'Successful neurophoto generation webhook test',
         success: false,
         message: 'Нет примера успешной генерации нейрофото в конфигурации',
         error: 'No sample found',
@@ -678,7 +678,7 @@ export class NeurophotoWebhookTester {
         })
 
         return {
-          testName: 'Successful neurophoto generation webhook test',
+          name: 'Successful neurophoto generation webhook test',
           success: false,
           message: 'Не удалось создать тестовую запись в базе данных',
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -686,7 +686,7 @@ export class NeurophotoWebhookTester {
       }
     } catch (error) {
       return {
-        testName: 'Successful neurophoto generation webhook test',
+        name: 'Successful neurophoto generation webhook test',
         success: false,
         message: 'Не удалось создать тестовую запись в базе данных',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -720,7 +720,7 @@ export class NeurophotoWebhookTester {
 
     if (!sample) {
       return {
-        testName: 'Processing neurophoto webhook test',
+        name: 'Processing neurophoto webhook test',
         success: false,
         message: 'Нет примера processing статуса в конфигурации',
         error: 'No sample found',
@@ -743,7 +743,7 @@ export class NeurophotoWebhookTester {
 
       if (error) {
         return {
-          testName: 'Processing neurophoto webhook test',
+          name: 'Processing neurophoto webhook test',
           success: false,
           message: 'Не удалось создать тестовую запись в базе данных',
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -751,7 +751,7 @@ export class NeurophotoWebhookTester {
       }
     } catch (error) {
       return {
-        testName: 'Processing neurophoto webhook test',
+        name: 'Processing neurophoto webhook test',
         success: false,
         message: 'Не удалось создать тестовую запись в базе данных',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -784,7 +784,7 @@ export class NeurophotoWebhookTester {
 
     if (!sample) {
       return {
-        testName: 'Content moderation neurophoto webhook test',
+        name: 'Content moderation neurophoto webhook test',
         success: false,
         message: 'Нет примера модерации в конфигурации',
         error: 'No sample found',
@@ -807,7 +807,7 @@ export class NeurophotoWebhookTester {
 
       if (error) {
         return {
-          testName: 'Content moderation neurophoto webhook test',
+          name: 'Content moderation neurophoto webhook test',
           success: false,
           message: 'Не удалось создать тестовую запись в базе данных',
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -815,7 +815,7 @@ export class NeurophotoWebhookTester {
       }
     } catch (error) {
       return {
-        testName: 'Content moderation neurophoto webhook test',
+        name: 'Content moderation neurophoto webhook test',
         success: false,
         message: 'Не удалось создать тестовую запись в базе данных',
         error: error instanceof Error ? error.message : 'Unknown error',

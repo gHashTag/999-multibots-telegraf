@@ -6,7 +6,7 @@ import { logger } from '@/utils/logger'
  * Интерфейс для результатов тестирования
  */
 interface TestResult {
-  testName: string
+  name: string
   success: boolean
   message: string
   details?: any
@@ -43,7 +43,7 @@ export class DatabaseTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
         success: true,
         message: `Соединение с базой данных установлено за ${duration}мс`,
         details: { count },
@@ -58,7 +58,7 @@ export class DatabaseTester {
       })
 
       return {
-        testName,
+        name: testName,
         success: false,
         message: 'Ошибка при соединении с базой данных',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -94,7 +94,7 @@ export class DatabaseTester {
           // Код ошибки, когда запись не найдена
           const duration = Date.now() - startTime
           return {
-            testName,
+            name: testName,
             success: false,
             message: `Тренировка ${trainingId} не найдена в базе данных`,
             details: { error },
@@ -106,7 +106,7 @@ export class DatabaseTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
         success: true,
         message: `Тренировка ${trainingId} найдена в базе данных`,
         details: {
@@ -129,7 +129,7 @@ export class DatabaseTester {
       })
 
       return {
-        testName,
+        name: testName,
         success: false,
         message: 'Ошибка при поиске тренировки',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -168,7 +168,7 @@ export class DatabaseTester {
 
       const duration = Date.now() - startTime
       return {
-        testName,
+        name: testName,
         success: true,
         message: `Найдено ${trainingsCount} тренировок пользователя ${telegramId}`,
         details: {
@@ -191,7 +191,7 @@ export class DatabaseTester {
       })
 
       return {
-        testName,
+        name: testName,
         success: false,
         message: 'Ошибка при получении тренировок пользователя',
         error: error instanceof Error ? error.message : 'Unknown error',
