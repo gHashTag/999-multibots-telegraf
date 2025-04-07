@@ -28,7 +28,6 @@ export const updateUserBalance = async ({
   metadata = {},
 }: UpdateUserBalanceParams): Promise<{
   success: boolean
-  balance?: number
   error?: any
 }> => {
   try {
@@ -149,7 +148,6 @@ export const updateUserBalance = async ({
       return {
         success: false,
         error: new Error(errorMessage),
-        balance: currentBalance,
       }
     }
 
@@ -202,7 +200,6 @@ export const updateUserBalance = async ({
 
       return {
         success: true,
-        balance: updatedBalance,
       }
     }
 
@@ -283,7 +280,6 @@ export const updateUserBalance = async ({
 
     return {
       success: true,
-      balance: newBalance,
     }
   } catch (error) {
     logger.error('❌ Критическая ошибка при создании записи платежа:', {

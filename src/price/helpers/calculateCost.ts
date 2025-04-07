@@ -77,12 +77,7 @@ export function calculateCost(
   const rates = version === 'v1' ? conversionRates : conversionRatesV2
 
   const baseCost = steps * rates.costPerStepInStars
-  logger.debug({
-    message: 'baseCost',
-    description: 'Base cost calculated',
-    version,
-    baseCost,
-  })
+
   return {
     steps,
     stars: parseFloat(baseCost.toFixed(2)),

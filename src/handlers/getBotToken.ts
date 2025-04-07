@@ -17,7 +17,7 @@ export function getBotToken(ctxOrBotName: MyContext | string): string {
 
   // Если бот найден, возвращаем его токен
   if (foundBot) {
-    return foundBot[1] // Возвращаем токен бота
+    return foundBot[1] as string // Возвращаем токен бота
   }
 
   // По умолчанию возвращаем токен первого бота

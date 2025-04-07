@@ -11,9 +11,11 @@ import { getBotByName } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { Inngest } from 'inngest'
-import axios, { AxiosError } from 'axios'
-import { ModeEnum } from '@/interfaces'
-import { TestResult } from './interfaces'
+import { TestResult, VideoTestResult, TextToVideoResponse } from './interfaces'
+
+// Импортируем новые тесты
+import { testTextToVideo } from './tests/textToVideo.test'
+import { testImageToVideo } from './tests/imageToVideo.test'
 
 // Интерфейсы и типы
 interface TextToSpeechParams {
@@ -26,14 +28,21 @@ interface TextToSpeechParams {
 }
 
 interface TextToVideoParams {
-  prompt: string
-  telegram_id: TelegramId
-  is_ru: boolean
-  bot_name: string
+  prompt?: string
+  telegram_id?: TelegramId
+  is_ru?: boolean
+  bot_name?: string
   model_id?: string
   username?: string
   aspect_ratio?: string
   duration?: number
+}
+
+interface TextToVideoTestParams extends TextToVideoParams {
+  _test?: {
+    api_error?: boolean
+    insufficient_balance?: boolean
+  }
 }
 
 interface PaymentTestData {
@@ -45,6 +54,14 @@ interface PaymentTestData {
   bot_name: string
   service_type: ModeEnum
   metadata?: Record<string, any>
+}
+
+interface PaymentParams {
+  amount: number
+  telegram_id: string
+  type: string
+  description: string
+  bot_name: string
 }
 
 /**
@@ -665,54 +682,45 @@ export class InngestTester {
   }
 
   /**
-   * Запускает тесты преобразования текста в видео
+   * Запускает тесты генерации видео из текста
    */
   async runTextToVideoTests(): Promise<TestResult[]> {
     logger.info({
-      message: '🎯 Запуск тестов преобразования текста в видео',
-      description: 'Running text-to-video tests',
+      message: '🎯 Запуск тестов генерации видео из текста',
+      description: 'Starting text-to-video tests',
     })
-    
-    const results: TestResult[] = []
-    
+
     try {
-      // Импортируем функцию для тестов
-      const { testTextToVideoProcessing } = await import('./textToVideoFunction.test')
+      // Запускаем тесты для text-to-video
+      const textToVideoResults = await testTextToVideo()
       
-      // Запускаем набор тестов
-      const testResults = await testTextToVideoProcessing()
+      // Запускаем тесты для image-to-video
+      const imageToVideoResults = await testImageToVideo()
       
-      // Тесты возвращают TestResult из другого модуля, игнорируем несоответствие типов
-      // @ts-ignore - Different TestResult interface between modules
-      results.push(...testResults)
-      
+      // Объединяем результаты
+      const results = [...textToVideoResults, ...imageToVideoResults]
+
       logger.info({
-        message: '✅ Тесты преобразования текста в видео успешно запущены',
-        description: 'Text-to-video tests launched successfully',
-        results: testResults.map(r => ({
-          name: r.name,
-          success: r.success,
-        })),
+        message: '✅ Тесты генерации видео завершены',
+        description: 'Text-to-video tests completed',
+        success_count: results.filter(r => r.success).length,
+        total_count: results.length,
       })
-      
+
       return results
     } catch (error) {
-      const errorMessage = this.handleError(error)
-      
       logger.error({
-        message: '❌ Ошибка при запуске тестов преобразования текста в видео',
+        message: '❌ Ошибка при выполнении тестов генерации видео',
         description: 'Error running text-to-video tests',
-        error: errorMessage,
+        error: error instanceof Error ? error.message : String(error),
       })
-      
-      results.push({
-        name: 'Text-to-Video Tests',
+
+      return [{
+        name: 'Тесты генерации видео',
         success: false,
-        message: 'Failed to run text-to-video tests',
-        error: errorMessage,
-      })
-      
-      return results
+        message: 'Критическая ошибка при выполнении тестов',
+        error: error instanceof Error ? error.message : String(error),
+      }]
     }
   }
 
@@ -1288,27 +1296,38 @@ export class InngestTester {
   }
 
   /**
-   * Тестирует функцию создания видео из текста
+   * Тестирует функцию генерации видео из текста
    */
-  async textToVideo(params: {
-    prompt: string
-    telegram_id: string
-    is_ru: boolean
-    bot_name: string
-  }): Promise<TestResult & { videoBuffer?: Buffer }> {
+  // Временно закомментировано до завершения разработки на другом компьютере
+  /*
+  async testTextToVideo(params: TextToVideoTestParams): Promise<VideoTestResult> {
     const startTime = Date.now()
+    logger.info({
+      message: '🎬 Запуск теста генерации видео из текста',
+      description: 'Starting text to video generation test',
+      params,
+    })
 
     try {
-      logger.info({
-        message: '🧪 Тест функции создания видео из текста',
-        description: 'Text to video function test',
-        params,
+      // Отправляем событие для генерации видео
+      const response = await this.sendEvent('text-to-video/generate', {
+        prompt: params.prompt,
+        telegram_id: params.telegram_id || '123456789',
+        is_ru: params.is_ru !== undefined ? params.is_ru : true,
+        bot_name: params.bot_name || 'test_bot',
+        model_id: params.model_id,
+        _test: {
+          api_error: true
+        }
       })
 
-      const response = await this.sendEvent('text-to-video/generate', params)
-
       if (!response.success) {
-        throw new Error(response.error || 'Failed to generate video')
+        const errorMessage = typeof response.error === 'string' 
+          ? response.error 
+          : response.error instanceof Error 
+            ? response.error.message 
+            : 'Failed to generate video'
+        throw new Error(errorMessage)
       }
 
       // Предполагаем, что в ответе есть URL или буфер видео
@@ -1342,13 +1361,11 @@ export class InngestTester {
         params,
       })
 
-      const testError = new Error(errorMessage)
-
       return {
         name: 'Text to Video Generation',
         success: false,
         message: 'Ошибка при создании видео из текста',
-        error: testError,
+        error: error instanceof Error ? error : new Error(errorMessage),
         duration,
         metadata: {
           startTime,
@@ -1358,6 +1375,7 @@ export class InngestTester {
       }
     }
   }
+  */
 }
 
 // Функция для проверки, является ли объект потоком

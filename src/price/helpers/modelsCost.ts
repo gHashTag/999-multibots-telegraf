@@ -88,20 +88,8 @@ const BASE_COSTS: BaseCosts = {
   [ModeEnum.SelectModelWizard]: 0,
   [ModeEnum.Voice]: 0.9,
   [ModeEnum.TextToSpeech]: 0.12,
-  [ModeEnum.ImageToVideo]:
-    Object.values(VIDEO_MODELS_CONFIG)
-      .filter(model => model.inputType.includes('image'))
-      .reduce((acc, model) => acc + model.basePrice, 0) /
-    Object.values(VIDEO_MODELS_CONFIG).filter(model =>
-      model.inputType.includes('image')
-    ).length,
-  [ModeEnum.TextToVideo]:
-    Object.values(VIDEO_MODELS_CONFIG)
-      .filter(model => model.inputType.includes('text'))
-      .reduce((acc, model) => acc + model.basePrice, 0) /
-    Object.values(VIDEO_MODELS_CONFIG).filter(model =>
-      model.inputType.includes('text')
-    ).length,
+  [ModeEnum.ImageToVideo]: 0,
+  [ModeEnum.TextToVideo]: 0,
   [ModeEnum.TextToImage]: 0.08,
   [ModeEnum.LipSync]: 0.9,
 }
