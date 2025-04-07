@@ -59,6 +59,7 @@ export const imageToPromptFunction = inngest.createFunction(
             type: 'money_expense',
             description: 'Payment for image to prompt conversion',
             operation_id: payment_operation_id,
+            service_type: ModeEnum.ImageToPrompt,
             metadata: {
               service_type: ModeEnum.ImageToPrompt,
               image_url: image,
