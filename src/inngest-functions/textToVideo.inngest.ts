@@ -101,12 +101,12 @@ export const textToVideoFunction = inngest.createFunction(
       const user = await step.run('get-user-info', async () => {
         const userResult = await getUserByTelegramIdString(params.telegram_id)
         if (!userResult) throw new Error('User not found')
-        
+
         // Увеличиваем уровень пользователя, если это его первый запрос на создание видео
         if (userResult.level === 9) {
           await updateUserLevelPlusOne(userResult.telegram_id, userResult.level)
         }
-        
+
         return userResult
       })
 
@@ -125,8 +125,8 @@ export const textToVideoFunction = inngest.createFunction(
 
         await bot.telegram.sendMessage(
           params.telegram_id,
-          params.is_ru 
-            ? '⏳ Начинаем процесс создания видео из текста...' 
+          params.is_ru
+            ? '⏳ Начинаем процесс создания видео из текста...'
             : '⏳ Starting the text-to-video generation process...'
         )
 
@@ -136,29 +136,30 @@ export const textToVideoFunction = inngest.createFunction(
       // Шаг 4: Расчет стоимости операции
       const costCalculation = await step.run('calculate-cost', async () => {
         // Получаем модель из конфигурации
-        const selectedModel = VIDEO_MODELS_CONFIG[params.model_id || 'wan-text-to-video']
-        
+        const selectedModel =
+          VIDEO_MODELS_CONFIG[params.model_id || 'wan-text-to-video']
+
         if (!selectedModel) {
           throw new Error(`Model ${params.model_id} not found in configuration`)
         }
-        
+
         // Рассчитываем стоимость операции
         const cost = calculateModeCost({
           mode: ModeEnum.TextToVideo,
           numImages: 1,
         })
-        
+
         console.log('💰 Стоимость операции:', {
           description: 'Operation cost',
           cost,
           model: selectedModel.id,
           basePrice: selectedModel.basePrice,
         })
-        
-        return { 
-          cost, 
+
+        return {
+          cost,
           model: selectedModel,
-          operationId
+          operationId,
         }
       })
 
@@ -175,7 +176,7 @@ export const textToVideoFunction = inngest.createFunction(
           if (!botResult?.bot) {
             throw new Error(`Bot ${params.bot_name} not found`)
           }
-          
+
           // Отправляем сообщение о недостаточном балансе и способе пополнения
           await sendBalanceMessage(
             params.telegram_id,
@@ -184,7 +185,7 @@ export const textToVideoFunction = inngest.createFunction(
             params.is_ru,
             botResult.bot.telegram
           )
-          
+
           throw new Error('Insufficient balance')
         }
 
@@ -228,18 +229,19 @@ export const textToVideoFunction = inngest.createFunction(
 
           // Получаем настройки API из конфигурации модели
           const apiModel = costCalculation.model.api.model
-          
+
           // Подготавливаем данные для запроса в зависимости от модели
-          const apiInput = typeof costCalculation.model.api.input === 'function'
-            ? costCalculation.model.api.input(params.aspect_ratio)
-            : costCalculation.model.api.input
+          const apiInput =
+            typeof costCalculation.model.api.input === 'function'
+              ? costCalculation.model.api.input(params.aspect_ratio)
+              : costCalculation.model.api.input
 
           // Здесь должен быть реальный вызов API для генерации видео
           // Сейчас используем заглушку для тестирования
           if (!process.env.REPLICATE_API_TOKEN) {
             throw new Error('REPLICATE_API_TOKEN missing')
           }
-          
+
           // Используем Replicate API для генерации видео
           const response = await axios.post(
             'https://api.replicate.com/v1/predictions',
@@ -252,59 +254,68 @@ export const textToVideoFunction = inngest.createFunction(
             },
             {
               headers: {
-                'Authorization': `Token ${process.env.REPLICATE_API_TOKEN}`,
+                Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
                 'Content-Type': 'application/json',
               },
             }
           )
-          
+
           console.log('✅ Запрос на генерацию видео отправлен:', {
             description: 'Video generation request sent',
             prediction_id: response.data.id,
             status: response.data.status,
             operation_id: operationId,
           })
-          
+
           // Получаем ID предсказания для проверки статуса
           const predictionId = response.data.id
-          
+
           // Функция для проверки статуса генерации
           const checkStatus = async (): Promise<VideoResult> => {
             const statusResponse = await axios.get(
               `https://api.replicate.com/v1/predictions/${predictionId}`,
               {
                 headers: {
-                  'Authorization': `Token ${process.env.REPLICATE_API_TOKEN}`,
+                  Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
                   'Content-Type': 'application/json',
                 },
               }
             )
-            
+
             console.log('🔍 Проверка статуса генерации видео:', {
               description: 'Checking video generation status',
               status: statusResponse.data.status,
               operation_id: operationId,
             })
-            
-            if (['succeeded', 'completed'].includes(statusResponse.data.status)) {
+
+            if (
+              ['succeeded', 'completed'].includes(statusResponse.data.status)
+            ) {
               // Успешная генерация
               const outputUrl = statusResponse.data.output
-              
+
               return {
                 success: true,
-                videoUrl: typeof outputUrl === 'string' ? outputUrl : outputUrl[0],
+                videoUrl:
+                  typeof outputUrl === 'string' ? outputUrl : outputUrl[0],
                 previewUrl: statusResponse.data.urls?.get || null,
               }
-            } else if (['failed', 'canceled'].includes(statusResponse.data.status)) {
+            } else if (
+              ['failed', 'canceled'].includes(statusResponse.data.status)
+            ) {
               // Ошибка генерации
-              throw new Error(`Video generation failed: ${statusResponse.data.error || 'Unknown error'}`)
+              throw new Error(
+                `Video generation failed: ${
+                  statusResponse.data.error || 'Unknown error'
+                }`
+              )
             } else {
               // Продолжаем проверку статуса
               await new Promise(resolve => setTimeout(resolve, 3000))
               return checkStatus()
             }
           }
-          
+
           // Запускаем проверку статуса до завершения операции
           return await checkStatus()
         } catch (error) {
@@ -314,10 +325,13 @@ export const textToVideoFunction = inngest.createFunction(
             telegram_id: params.telegram_id,
             operation_id: operationId,
           })
-          
+
           return {
             success: false,
-            error: error instanceof Error ? error : new Error('Unknown video generation error'),
+            error:
+              error instanceof Error
+                ? error
+                : new Error('Unknown video generation error'),
           }
         }
       })
@@ -326,7 +340,7 @@ export const textToVideoFunction = inngest.createFunction(
       if (videoResult.success) {
         videoUrl = videoResult.videoUrl
         previewUrl = videoResult.previewUrl || null
-        
+
         console.log('✅ Видео успешно создано:', {
           description: 'Video successfully generated',
           videoUrl,
@@ -334,13 +348,13 @@ export const textToVideoFunction = inngest.createFunction(
           telegram_id: params.telegram_id,
           operation_id: operationId,
         })
-        
+
         const botResult = getBotByName(params.bot_name)
         if (!botResult?.bot) {
           throw new Error(`Bot ${params.bot_name} not found`)
         }
         const { bot } = botResult
-        
+
         // Отправляем предупреждение о загрузке видео
         await bot.telegram.sendMessage(
           params.telegram_id,
@@ -348,23 +362,19 @@ export const textToVideoFunction = inngest.createFunction(
             ? '⏳ Видео создано, загружаем...'
             : '⏳ Video created, uploading...'
         )
-        
+
         // Проверяем что URL не null перед отправкой
         if (!videoUrl) {
           throw new Error('Video URL is null')
         }
-        
+
         // Отправляем видео пользователю
-        await bot.telegram.sendVideo(
-          params.telegram_id,
-          videoUrl,
-          {
-            caption: params.is_ru
-              ? `🎬 Ваше видео по запросу: "${params.prompt}"\n\nМодель: ${costCalculation.model.title}`
-              : `🎬 Your video for the prompt: "${params.prompt}"\n\nModel: ${costCalculation.model.title}`,
-          }
-        )
-        
+        await bot.telegram.sendVideo(params.telegram_id, videoUrl, {
+          caption: params.is_ru
+            ? `🎬 Ваше видео по запросу: "${params.prompt}"\n\nМодель: ${costCalculation.model.title}`
+            : `🎬 Your video for the prompt: "${params.prompt}"\n\nModel: ${costCalculation.model.title}`,
+        })
+
         return {
           success: true,
           videoUrl,
@@ -383,7 +393,7 @@ export const textToVideoFunction = inngest.createFunction(
         telegram_id: validatedParams?.telegram_id,
         operation_id: operationId,
       })
-      
+
       // Возвращаем баланс пользователю в случае ошибки
       if (validatedParams && operationId) {
         try {
@@ -399,7 +409,7 @@ export const textToVideoFunction = inngest.createFunction(
               operation_id: `refund-${operationId}`,
             },
           })
-          
+
           console.log('✅ Возврат средств за неудачную генерацию:', {
             description: 'Refund for failed generation',
             telegram_id: validatedParams.telegram_id,
@@ -408,13 +418,16 @@ export const textToVideoFunction = inngest.createFunction(
         } catch (refundError) {
           console.error('❌ Ошибка при возврате средств:', {
             description: 'Error during refund',
-            error: refundError instanceof Error ? refundError.message : 'Unknown error',
+            error:
+              refundError instanceof Error
+                ? refundError.message
+                : 'Unknown error',
             telegram_id: validatedParams.telegram_id,
             operation_id: operationId,
           })
         }
       }
-      
+
       // Отправляем сообщение об ошибке пользователю
       if (validatedParams) {
         try {
@@ -427,26 +440,37 @@ export const textToVideoFunction = inngest.createFunction(
             )
           }
         } catch (notifyError) {
-          console.error('❌ Не удалось отправить уведомление об ошибке пользователю:', {
-            description: 'Failed to send error notification to user',
-            error: notifyError instanceof Error ? notifyError.message : 'Unknown error',
-            telegram_id: validatedParams.telegram_id,
-          })
+          console.error(
+            '❌ Не удалось отправить уведомление об ошибке пользователю:',
+            {
+              description: 'Failed to send error notification to user',
+              error:
+                notifyError instanceof Error
+                  ? notifyError.message
+                  : 'Unknown error',
+              telegram_id: validatedParams.telegram_id,
+            }
+          )
         }
       }
-      
+
       // Отправляем уведомление администратору
       try {
         await errorMessageAdmin(
-          error instanceof Error ? error : new Error(`TextToVideo Error: ${String(error)}`)
+          error instanceof Error
+            ? error
+            : new Error(`TextToVideo Error: ${String(error)}`)
         )
       } catch (adminNotifyError) {
         console.error('❌ Не удалось отправить уведомление администратору:', {
           description: 'Failed to notify admin',
-          error: adminNotifyError instanceof Error ? adminNotifyError.message : 'Unknown error',
+          error:
+            adminNotifyError instanceof Error
+              ? adminNotifyError.message
+              : 'Unknown error',
         })
       }
-      
+
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -455,4 +479,4 @@ export const textToVideoFunction = inngest.createFunction(
       }
     }
   }
-) 
+)
