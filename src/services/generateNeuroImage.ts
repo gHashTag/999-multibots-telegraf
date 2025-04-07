@@ -107,7 +107,7 @@ export async function generateNeuroImage(
       name: 'payment/process',
       data: {
         telegram_id,
-        amount: cost.stars,
+        amount: -Math.abs(cost.stars),
         type: 'money_expense',
         description: `Payment for generating ${validNumImages} image${
           validNumImages === 1 ? '' : 's'
@@ -125,7 +125,7 @@ export async function generateNeuroImage(
     logger.info('💸 Платеж отправлен на обработку:', {
       description: 'Payment sent for processing',
       telegram_id,
-      amount: cost.stars,
+      amount: -Math.abs(cost.stars),
       payment_id: paymentOperation.ids?.[0] || 'unknown',
     })
 
@@ -178,7 +178,13 @@ export async function generateNeuroImage(
           aspect_ratio,
         }
 
-        const output = await replicate.run(model_url, { input })
+        // Преобразуем model_url в правильный формат для Replicate
+        // Так как тип ожидает строки формата "namespace/model" или "namespace/model:version"
+        const formattedModelUrl = model_url.includes('/')
+          ? (model_url as `${string}/${string}`)
+          : (`replicate/${model_url}` as `${string}/${string}`)
+
+        const output = await replicate.run(formattedModelUrl, { input })
         const imageUrl = await processApiResponse(output)
 
         if (!imageUrl) throw new Error('Image generation failed')
