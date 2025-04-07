@@ -4,10 +4,16 @@ import {
   RESULT_URL2,
   TEST_PASSWORD1,
   isDev,
-} from '@/config'
+} from '../../config'
 
-import { levels } from '@/menu/mainMenu'
+import { levels } from '../../menu/mainMenu'
 import md5 from 'md5'
+
+interface SubscriptionTitles {
+  neurophoto: string
+  neurobase: string
+  neuroblogger: string
+}
 
 export const merchantLogin = MERCHANT_LOGIN
 export const password1 = PASSWORD1
@@ -18,7 +24,7 @@ export const description = 'Покупка звезд'
 // Флаг для использования тестового режима Robokassa
 export const useTestMode = isDev
 
-export const subscriptionTitles = (isRu: boolean) => ({
+export const subscriptionTitles = (isRu: boolean): SubscriptionTitles => ({
   neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
   neurobase: isRu ? '📚 НейроБаза' : '📚 NeuroBase',
   neuroblogger: isRu ? '🤖 НейроБлогер' : '🤖 NeuroBlogger',
