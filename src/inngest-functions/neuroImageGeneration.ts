@@ -223,6 +223,7 @@ export const neuroImageGeneration = inngest.createFunction(
           data: {
             telegram_id,
             amount: paymentAmount,
+            stars: paymentAmount,
             type: 'money_expense',
             description: `Payment for generating ${validNumImages} image${
               validNumImages === 1 ? '' : 's'
