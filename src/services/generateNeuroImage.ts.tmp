@@ -107,7 +107,7 @@ export async function generateNeuroImage(
       name: 'payment/process',
       data: {
         telegram_id,
-        amount: -Math.abs(cost.stars),
+        amount: cost.stars,
         type: 'money_expense',
         description: `Payment for generating ${validNumImages} image${
           validNumImages === 1 ? '' : 's'
@@ -125,7 +125,7 @@ export async function generateNeuroImage(
     logger.info('💸 Платеж отправлен на обработку:', {
       description: 'Payment sent for processing',
       telegram_id,
-      amount: -Math.abs(cost.stars),
+      amount: cost.stars,
       payment_id: paymentOperation.ids?.[0] || 'unknown',
     })
 

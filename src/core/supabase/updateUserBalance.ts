@@ -67,7 +67,7 @@ export const updateUserBalance = async ({
     }
 
     // Получаем данные пользователя для ID
-    const { data: userData, error: userError } = await supabase
+    const { data: userData } = await supabase
       .from('users')
       .select('id')
       .eq('telegram_id', normalizedTelegramId)
