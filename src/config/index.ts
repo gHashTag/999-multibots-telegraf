@@ -1,19 +1,61 @@
 import 'dotenv/config'
 import path from 'path'
 import { logger } from '@/utils/logger'
+import fs from 'fs'
+
+// Загружаем переменные окружения в зависимости от окружения
+const envFile = process.env.NODE_ENV === 'test' ? '.env.test' : '.env'
+const envPath = path.resolve(process.cwd(), envFile)
+
+// Проверяем существование файла
+if (!fs.existsSync(envPath)) {
+  logger.error('❌ Файл с переменными окружения не найден:', {
+    description: 'Environment file not found',
+    env_path: envPath,
+    cwd: process.cwd(),
+    env: process.env.NODE_ENV,
+  })
+  process.exit(1)
+}
 
 logger.info('🔍 Загрузка переменных окружения:', {
   description: 'Loading environment variables',
-  env_path: path.resolve(process.cwd(), '.env'),
+  env_path: envPath,
   cwd: process.cwd(),
+  env: process.env.NODE_ENV,
+  file_exists: fs.existsSync(envPath),
 })
+
+// Загружаем переменные окружения из соответствующего файла
+require('dotenv').config({ path: envPath })
 
 logger.info('🔍 Переменные окружения в config/index.ts:', {
   description: 'Environment variables in config/index.ts',
   SUPABASE_URL: process.env.SUPABASE_URL,
+  SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY?.slice(0, 10) + '...',
+  SUPABASE_SERVICE_ROLE_KEY:
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 10) + '...',
   NODE_ENV: process.env.NODE_ENV,
   all_env_keys: Object.keys(process.env),
 })
+
+// Проверяем наличие необходимых переменных Supabase
+if (
+  !process.env.SUPABASE_URL ||
+  !process.env.SUPABASE_SERVICE_KEY ||
+  !process.env.SUPABASE_SERVICE_ROLE_KEY
+) {
+  logger.error(
+    '❌ Отсутствуют необходимые переменные окружения Supabase в config/index.ts',
+    {
+      description: 'Missing required Supabase environment variables',
+      SUPABASE_URL: !!process.env.SUPABASE_URL,
+      SUPABASE_SERVICE_KEY: !!process.env.SUPABASE_SERVICE_KEY,
+      SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    }
+  )
+  process.exit(1)
+}
 
 // Экспортируем переменные окружения
 export const {

@@ -1,5 +1,4 @@
 import { v4 as uuid } from 'uuid'
-import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { TestResult } from '../interfaces'
 import { TEST_CONFIG } from '../test-config'

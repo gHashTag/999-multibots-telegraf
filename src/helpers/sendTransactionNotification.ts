@@ -29,18 +29,22 @@ export const sendTransactionNotification = async ({
   amount,
   currentBalance,
   newBalance,
+  description,
   isRu,
   bot_name,
-}: TransactionNotificationParams) => {
+}: TransactionNotificationParams): Promise<{ success: boolean }> => {
   try {
-    logger.info('📝 Отправка уведомления о транзакции:', {
-      description: 'Sending transaction notification',
+    logger.info('💰 Отправка уведомления о транзакции', {
+      message: 'Sending transaction notification',
       telegram_id,
       operationId,
       amount,
-      currentBalance,
-      newBalance,
+      description,
     })
+
+    if (!bot_name) {
+      throw new Error('Bot name is required')
+    }
 
     const botData = await createBotByName(bot_name)
 
@@ -86,12 +90,15 @@ New balance: ${newBalanceNumber} ⭐️`
       old_balance: oldBalanceNumber,
       new_balance: newBalanceNumber,
     })
+
+    return { success: true }
   } catch (error) {
-    logger.error('❌ Ошибка при отправке уведомления:', {
-      description: 'Error sending transaction notification',
-      error: error instanceof Error ? error.message : String(error),
+    logger.error('❌ Ошибка при отправке уведомления о транзакции', {
+      message: 'Error sending transaction notification',
       telegram_id,
       operationId,
+      amount,
+      error: error instanceof Error ? error.message : String(error),
     })
     throw error
   }
@@ -100,27 +107,100 @@ New balance: ${newBalanceNumber} ⭐️`
 export async function sendTransactionNotificationTest(
   params: SendTransactionNotificationParams
 ): Promise<{ success: boolean }> {
+  const {
+    telegram_id,
+    operationId,
+    amount,
+    currentBalance,
+    newBalance,
+    description,
+    isRu = false,
+    bot_name,
+  } = params
+
   // В тестовом окружении просто логируем и возвращаем успех
   if (process.env.NODE_ENV === 'test') {
-    const { description, ...rest } = params
     logger.info('📨 Мок уведомления о транзакции:', {
-      description: 'Mock transaction notification',
-      ...rest,
+      description,
+      telegram_id,
+      operationId,
+      amount,
+      currentBalance,
+      newBalance,
+      isRu,
+      bot_name,
     })
     return { success: true }
   }
 
   // Реальная реализация для продакшена
   try {
-    // ... существующий код ...
+    logger.info('📝 Отправка уведомления о транзакции:', {
+      description: 'Sending transaction notification',
+      telegram_id,
+      operationId,
+      amount,
+      currentBalance,
+      newBalance,
+    })
+
+    if (!bot_name) {
+      throw new Error('Bot name is required')
+    }
+
+    const botData = await createBotByName(bot_name)
+
+    if (!botData) {
+      throw new Error(`Bot ${bot_name} not found`)
+    }
+
+    // Преобразуем баланс к числу для корректных вычислений
+    const oldBalanceNumber = Number(currentBalance)
+    const newBalanceNumber = Number(newBalance)
+
+    // Проверяем направление операции
+    // Если amount отрицательный, но новый баланс выше старого, значит есть ошибка отображения
+    if (amount < 0 && newBalanceNumber > oldBalanceNumber) {
+      logger.warn('⚠️ Подозрительное изменение баланса:', {
+        description: 'Suspicious balance change',
+        amount,
+        currentBalance: oldBalanceNumber,
+        newBalance: newBalanceNumber,
+        expected_new_balance: oldBalanceNumber + amount,
+      })
+    }
+
+    const message = isRu
+      ? `
+ID: ${operationId}
+Сумма: ${amount} ⭐️
+Старый баланс: ${oldBalanceNumber} ⭐️
+Новый баланс: ${newBalanceNumber} ⭐️`
+      : `
+ID: ${operationId}
+Amount: ${amount} ⭐️
+Old balance: ${oldBalanceNumber} ⭐️
+New balance: ${newBalanceNumber} ⭐️`
+
+    await botData.bot.telegram.sendMessage(telegram_id, message)
+
+    logger.info('✅ Уведомление отправлено:', {
+      description: 'Transaction notification sent',
+      telegram_id,
+      operationId,
+      amount,
+      old_balance: oldBalanceNumber,
+      new_balance: newBalanceNumber,
+    })
+
     return { success: true }
   } catch (error) {
-    const { description, ...rest } = params
-    logger.error('❌ Ошибка при отправке уведомления о транзакции:', {
+    logger.error('❌ Ошибка при отправке уведомления:', {
       description: 'Error sending transaction notification',
       error: error instanceof Error ? error.message : String(error),
-      ...rest,
+      telegram_id,
+      operationId,
     })
-    return { success: false }
+    throw error
   }
 }

@@ -19,7 +19,9 @@
     "tunnel": "ssh -R 80:localhost:2999 localhost.run",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
     "type-check": "tsc --noEmit --strict",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\""
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",

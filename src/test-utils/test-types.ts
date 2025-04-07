@@ -1,4 +1,4 @@
-import { TestResult } from './interfaces'
+import { TestResult } from './types'
 
 export interface VideoTestResult extends TestResult {
   videoBuffer?: Buffer

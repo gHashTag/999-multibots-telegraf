@@ -1,6 +1,5 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
-import { supabase } from '../supabase'
-import { logger } from '../../utils/logger'
+import { logger } from '@/utils/logger'
+import { supabase } from '@/core/supabase'
 
 /**
  * Получает Telegram ID пользователя по ID финтюна

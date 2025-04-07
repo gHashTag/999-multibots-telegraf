@@ -2,29 +2,17 @@ import axios from 'axios'
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
 import { supabaseTestClient } from './test-env'
+import { TestResult } from './types'
 
-interface TestResult {
-  name: string
-  success: boolean
-  message: string
-  error?: Error | string
-  details?: Record<string, unknown>
-  duration?: number
-  metadata?: {
-    startTime?: number
-    endTime?: number
-    environment?: string
-    testType?: string
-  }
-  testName?: string
-  paymentProcessed?: boolean
-  videoBuffer?: Buffer
-  balance?: number
-  before_balance?: number
-  after_balance?: number
-  spent_balance?: number
-}
+/** Константы для статусов тренировки */
+const TRAINING_STATUS = {
+  SUCCESS: 'SUCCESS',
+  FAILED: 'FAILED',
+  CANCELED: 'CANCELED',
+  PROCESSING: 'PROCESSING',
+} as const
 
+/** Интерфейс для полезной нагрузки вебхука */
 interface WebhookPayload {
   task_id: string
   status?: string
@@ -41,38 +29,33 @@ interface WebhookPayload {
   }
   error?: string
   trainingId?: string
-  result?: any
+  result?: Record<string, unknown>
 }
 
+/** Опции для отправки вебхука */
 interface WebhookOptions {
+  /** Проверять ли изменения в базе данных */
   checkDatabase: boolean
+  /** Ожидаемый статус после обработки */
   expectedStatus?: string
+  /** Ожидаемый результат */
   expectedOutput?: string
+  /** Ожидаемая ошибка */
   expectedError?: string
+  /** Использовать ли отладочный эндпоинт */
   useDebugEndpoint?: boolean
 }
 
+/** Статус в базе данных до и после отправки вебхука */
 interface DatabaseStatus {
+  /** Статус до отправки */
   beforeStatus: string | null
+  /** Статус после отправки */
   afterStatus: string | null
+  /** Изменился ли статус */
   changed: boolean
+  /** URL результата */
   output_url?: string
-}
-
-interface ModelTrainingSample {
-  prompt: string
-  negative_prompt: string
-  image_url: string
-}
-
-interface BFLTrainingSample {
-  text: string
-  image_url: string
-}
-
-interface NeuroPhotoSample {
-  url: string
-  prompt: string
 }
 
 /**
@@ -81,6 +64,9 @@ interface NeuroPhotoSample {
 export class ReplicateWebhookTester {
   /**
    * Отправляет вебхук и проверяет результат
+   * @param payload - Полезная нагрузка вебхука
+   * @param options - Опции для отправки и проверки
+   * @returns Результат теста
    */
   async sendWebhook(
     payload: WebhookPayload,
@@ -91,10 +77,11 @@ export class ReplicateWebhookTester {
 
     try {
       logger.info({
-        message: '🧪 Тест отправки вебхука',
-        description: 'Webhook send test',
+        message: '🚀 Начало теста отправки вебхука',
+        description: 'Starting webhook test',
+        test_name: testName,
         status: payload.status,
-        trainingId: payload.id,
+        training_id: payload.id,
       })
 
       // Проверяем статус тренировки в базе перед запросом, если нужно
@@ -109,10 +96,18 @@ export class ReplicateWebhookTester {
             .single()
 
           beforeStatus = data?.status || null
+
+          logger.info({
+            message: '🔍 Получен статус до теста',
+            description: 'Got status before test',
+            test_name: testName,
+            status: beforeStatus,
+          })
         } catch (error) {
           logger.warn({
             message: '⚠️ Не удалось получить статус тренировки до теста',
             description: 'Failed to get training status before test',
+            test_name: testName,
             error: error instanceof Error ? error.message : 'Unknown error',
           })
         }
@@ -120,6 +115,13 @@ export class ReplicateWebhookTester {
 
       // Формируем URL для запроса
       const webhookUrl = `${TEST_CONFIG.server.apiUrl}${TEST_CONFIG.server.webhookPath}`
+
+      logger.info({
+        message: '📡 Отправка вебхука',
+        description: 'Sending webhook',
+        test_name: testName,
+        url: webhookUrl,
+      })
 
       // Отправляем вебхук
       const response = await axios.post(webhookUrl, payload, {
@@ -132,6 +134,13 @@ export class ReplicateWebhookTester {
       if (response.status !== 200) {
         throw new Error(`Unexpected status code: ${response.status}`)
       }
+
+      logger.info({
+        message: '✅ Вебхук успешно отправлен',
+        description: 'Webhook sent successfully',
+        test_name: testName,
+        status: response.status,
+      })
 
       // Если нужно проверить базу данных, ждем некоторое время для обработки запроса
       let afterStatus: string | null = null
@@ -148,10 +157,18 @@ export class ReplicateWebhookTester {
             .single()
 
           afterStatus = data?.status || null
+
+          logger.info({
+            message: '🔍 Получен статус после теста',
+            description: 'Got status after test',
+            test_name: testName,
+            status: afterStatus,
+          })
         } catch (error) {
           logger.warn({
             message: '⚠️ Не удалось получить статус тренировки после теста',
             description: 'Failed to get training status after test',
+            test_name: testName,
             error: error instanceof Error ? error.message : 'Unknown error',
           })
         }
@@ -166,37 +183,42 @@ export class ReplicateWebhookTester {
           }
         : null
 
+      logger.info({
+        message: '🏁 Тест успешно завершен',
+        description: 'Test completed successfully',
+        test_name: testName,
+        duration: `${duration}ms`,
+        database_check: databaseCheck,
+      })
+
       return {
         name: testName,
         success: true,
         message: `Вебхук успешно отправлен за ${duration}мс`,
-        details: {
-          responseData: response.data,
-          databaseCheck,
-        },
-        duration,
       }
     } catch (error) {
       const duration = Date.now() - startTime
       logger.error({
         message: '❌ Ошибка при отправке вебхука',
         description: 'Error during webhook test',
+        test_name: testName,
         error: error instanceof Error ? error.message : 'Unknown error',
         payload,
+        duration: `${duration}ms`,
       })
 
       return {
         name: testName,
         success: false,
         message: 'Ошибка при отправке вебхука',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        duration,
+        error: error instanceof Error ? error : new Error(String(error)),
       }
     }
   }
 
   /**
    * Тестирует успешное завершение тренировки
+   * @returns Результат теста
    */
   async testSuccessfulTraining(): Promise<TestResult> {
     const mockTraining: WebhookPayload = {
@@ -205,7 +227,7 @@ export class ReplicateWebhookTester {
       model: 'ostris/flux-dev-lora-trainer',
       version:
         'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
-      status: 'SUCCESS',
+      status: TRAINING_STATUS.SUCCESS,
       output: {
         uri: 'https://example.com/output.jpg',
         version: '1.0.0',
@@ -217,7 +239,8 @@ export class ReplicateWebhookTester {
 
     logger.info({
       message: '🧪 Тест вебхука успешной тренировки',
-      description: 'Successful training webhook test',
+      description: 'Starting successful training webhook test',
+      test_name: 'Successful Training Test',
       sample: mockTraining,
     })
 
@@ -226,6 +249,7 @@ export class ReplicateWebhookTester {
 
   /**
    * Тестирует неудачное завершение тренировки
+   * @returns Результат теста
    */
   async testFailedTraining(): Promise<TestResult> {
     const mockTraining: WebhookPayload = {
@@ -234,13 +258,14 @@ export class ReplicateWebhookTester {
       model: 'ostris/flux-dev-lora-trainer',
       version:
         'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
-      status: 'FAILED',
+      status: TRAINING_STATUS.FAILED,
       error: 'Test error message',
     }
 
     logger.info({
       message: '🧪 Тест вебхука неудачной тренировки',
-      description: 'Failed training webhook test',
+      description: 'Starting failed training webhook test',
+      test_name: 'Failed Training Test',
       sample: mockTraining,
     })
 
@@ -249,32 +274,22 @@ export class ReplicateWebhookTester {
 
   /**
    * Тестирует отмену тренировки
+   * @returns Результат теста
    */
   async testCanceledTraining(): Promise<TestResult> {
-    const sample = TEST_CONFIG.modelTraining.samples.find(
-      s => s.status === 'canceled'
-    )
-
-    if (!sample) {
-      return {
-        name: 'Canceled training webhook test',
-        success: false,
-        message: 'Не найден пример отмененной тренировки',
-      }
-    }
-
     const mockTraining: WebhookPayload = {
-      id: sample.trainingId,
-      task_id: `${sample.trainingId}-task`,
+      id: 'test-training-id-canceled',
+      task_id: 'test-task-id-canceled',
       model: 'ostris/flux-dev-lora-trainer',
       version:
         'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
-      status: 'CANCELED',
+      status: TRAINING_STATUS.CANCELED,
     }
 
     logger.info({
       message: '🧪 Тест вебхука отмененной тренировки',
-      description: 'Canceled training webhook test',
+      description: 'Starting canceled training webhook test',
+      test_name: 'Canceled Training Test',
       sample: mockTraining,
     })
 
@@ -282,48 +297,43 @@ export class ReplicateWebhookTester {
   }
 
   /**
-   * Запускает все тесты вебхуков
+   * Запускает все тесты
+   * @returns Массив результатов тестов
    */
   async runAllTests(): Promise<TestResult[]> {
     const results: TestResult[] = []
+    const startTime = Date.now()
+
     logger.info({
-      message: '🧪 Запуск всех тестов вебхуков',
-      description: 'Running all webhook tests',
+      message: '🚀 Запуск всех тестов вебхуков',
+      description: 'Starting all webhook tests',
+      test_name: 'All Webhook Tests',
     })
 
-    try {
-      // Тест успешного завершения тренировки
-      const successResult = await this.testSuccessfulTraining()
-      results.push(successResult)
+    // Тест успешной тренировки
+    results.push(await this.testSuccessfulTraining())
 
-      // Тест неудачного завершения тренировки
-      const failedResult = await this.testFailedTraining()
-      results.push(failedResult)
+    // Тест неудачной тренировки
+    results.push(await this.testFailedTraining())
 
-      // Тест отмены тренировки
-      const canceledResult = await this.testCanceledTraining()
-      results.push(canceledResult)
+    // Тест отмененной тренировки
+    results.push(await this.testCanceledTraining())
 
-      // Считаем общую статистику
-      const successful = results.filter(r => r.success).length
-      const total = results.length
+    const duration = Date.now() - startTime
+    const successCount = results.filter(r => r.success).length
+    const failureCount = results.filter(r => !r.success).length
 
-      logger.info({
-        message: `🏁 Тесты вебхуков завершены: ${successful}/${total} успешно`,
-        description: 'Webhook tests completed',
-        successCount: successful,
-        totalCount: total,
-      })
+    logger.info({
+      message: '🏁 Все тесты вебхуков завершены',
+      description: 'All webhook tests completed',
+      test_name: 'All Webhook Tests',
+      duration: `${duration}ms`,
+      success_count: successCount,
+      failure_count: failureCount,
+      total_tests: results.length,
+    })
 
-      return results
-    } catch (error) {
-      logger.error({
-        message: '❌ Критическая ошибка при выполнении тестов вебхуков',
-        description: 'Critical error during webhook tests',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
-      throw error
-    }
+    return results
   }
 }
 
@@ -333,168 +343,32 @@ export class ReplicateWebhookTester {
 export class BFLWebhookTester {
   /**
    * Отправляет вебхук и проверяет результат
+   * @param payload - Полезная нагрузка вебхука
+   * @param options - Опции для отправки и проверки
+   * @returns Результат теста
    */
-  async sendWebhook(
-    payload: WebhookPayload,
-    options: WebhookOptions = { checkDatabase: true }
-  ): Promise<TestResult> {
+  async sendWebhook(payload: WebhookPayload): Promise<TestResult> {
     const startTime = Date.now()
-    const testName = `BFL Webhook test: ${payload.status || 'completed'}`
+    const testName = `BFL Webhook test: ${payload.status || 'unknown'}`
 
     try {
       logger.info({
-        message: '🧪 Тест отправки вебхука BFL',
-        description: 'BFL webhook send test',
-        status: payload.status || 'completed',
-        taskId: payload.task_id,
+        message: '🚀 Начало теста отправки BFL вебхука',
+        description: 'Starting BFL webhook test',
+        test_name: testName,
+        status: payload.status,
+        training_id: payload.trainingId,
       })
 
       // Формируем URL для запроса
       const webhookUrl = `${TEST_CONFIG.server.apiUrl}${TEST_CONFIG.server.bflWebhookPath}`
 
-      // Подготавливаем данные для отправки
-      const webhookData: WebhookPayload = {
-        task_id: payload.task_id,
-        status: payload.status || 'completed',
-        result: payload.result || null,
-      }
-
-      // Отправляем вебхук
-      const response = await axios.post(webhookUrl, webhookData, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      // Проверяем статус ответа
-      if (response.status !== 200) {
-        throw new Error(`Unexpected status code: ${response.status}`)
-      }
-
-      const duration = Date.now() - startTime
-
-      return {
-        name: testName,
-        success: true,
-        message: `Вебхук BFL успешно отправлен за ${duration}мс`,
-        details: {
-          responseData: response.data,
-        },
-        duration,
-      }
-    } catch (error) {
-      const duration = Date.now() - startTime
-      logger.error({
-        message: '❌ Ошибка при отправке вебхука BFL',
-        description: 'Error during BFL webhook test',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        payload,
-      })
-
-      return {
-        name: testName,
-        success: false,
-        message: 'Ошибка при отправке вебхука BFL',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        duration,
-      }
-    }
-  }
-
-  /**
-   * Тестирует успешное завершение тренировки в BFL
-   */
-  async testSuccessfulTraining(): Promise<TestResult> {
-    const mockTraining: WebhookPayload = {
-      id: 'test-bfl-training-id',
-      task_id: 'test-bfl-task-id',
-      model: 'stability-ai/stable-diffusion',
-      version:
-        'db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf',
-      status: 'SUCCESS',
-      output: {
-        uri: 'https://example.com/bfl-output.jpg',
-        version: '1.0.0',
-      },
-      metrics: {
-        predict_time: 1000,
-      },
-    }
-
-    logger.info({
-      message: '🧪 Тест вебхука успешной BFL тренировки',
-      description: 'Successful BFL training webhook test',
-      sample: mockTraining,
-    })
-
-    return this.sendWebhook(mockTraining)
-  }
-
-  /**
-   * Тестирует ошибку при тренировке в BFL
-   */
-  async testFailedTraining(): Promise<TestResult> {
-    const mockTraining: WebhookPayload = {
-      id: 'test-bfl-training-id-failed',
-      task_id: 'test-bfl-task-id-failed',
-      model: 'stability-ai/stable-diffusion',
-      version:
-        'db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf',
-      status: 'FAILED',
-      error: 'Test BFL error message',
-    }
-
-    logger.info({
-      message: '🧪 Тест вебхука неудачной BFL тренировки',
-      description: 'Failed BFL training webhook test',
-      sample: mockTraining,
-    })
-
-    return this.sendWebhook(mockTraining)
-  }
-
-  /**
-   * Запускает все тесты последовательно
-   */
-  async runAllTests(): Promise<TestResult[]> {
-    const results: TestResult[] = []
-
-    // Успешная тренировка
-    results.push(await this.testSuccessfulTraining())
-
-    // Ошибочная тренировка
-    results.push(await this.testFailedTraining())
-
-    return results
-  }
-}
-
-/**
- * Класс для тестирования вебхуков нейрофото
- */
-export class NeuroPhotoWebhookTester {
-  /**
-   * Отправляет вебхук для тестирования нейрофото и проверяет результат
-   * @param payload Данные для отправки
-   * @param options Опции отправки
-   */
-  async sendWebhook(
-    payload: WebhookPayload,
-    options: WebhookOptions = { checkDatabase: true }
-  ): Promise<TestResult> {
-    const startTime = Date.now()
-    const testName = `NeuroPhoto Webhook test: ${payload.status || 'unknown'}`
-
-    try {
       logger.info({
-        message: '🧪 Тест отправки вебхука NeuroPhoto',
-        description: 'NeuroPhoto webhook send test',
-        status: payload.status,
-        taskId: payload.task_id,
+        message: '📡 Отправка BFL вебхука',
+        description: 'Sending BFL webhook',
+        test_name: testName,
+        url: webhookUrl,
       })
-
-      // Формируем URL для запроса
-      const webhookUrl = `${TEST_CONFIG.server.apiUrl}${TEST_CONFIG.server.neurophotoWebhookPath}`
 
       // Отправляем вебхук
       const response = await axios.post(webhookUrl, payload, {
@@ -508,59 +382,234 @@ export class NeuroPhotoWebhookTester {
         throw new Error(`Unexpected status code: ${response.status}`)
       }
 
+      logger.info({
+        message: '✅ BFL вебхук успешно отправлен',
+        description: 'BFL webhook sent successfully',
+        test_name: testName,
+        status: response.status,
+      })
+
       const duration = Date.now() - startTime
+
+      logger.info({
+        message: '🏁 Тест BFL вебхука успешно завершен',
+        description: 'BFL webhook test completed successfully',
+        test_name: testName,
+        duration: `${duration}ms`,
+      })
 
       return {
         name: testName,
         success: true,
-        message: `Вебхук NeuroPhoto успешно отправлен за ${duration}мс`,
-        details: {
-          responseData: response.data,
-        },
-        duration,
+        message: `BFL вебхук успешно отправлен за ${duration}мс`,
       }
     } catch (error) {
       const duration = Date.now() - startTime
       logger.error({
-        message: '❌ Ошибка при отправке вебхука NeuroPhoto',
-        description: 'Error during NeuroPhoto webhook test',
+        message: '❌ Ошибка при отправке BFL вебхука',
+        description: 'Error during BFL webhook test',
+        test_name: testName,
         error: error instanceof Error ? error.message : 'Unknown error',
         payload,
+        duration: `${duration}ms`,
       })
 
       return {
         name: testName,
         success: false,
-        message: 'Ошибка при отправке вебхука NeuroPhoto',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        duration,
+        message: 'Ошибка при отправке BFL вебхука',
+        error: error instanceof Error ? error : new Error(String(error)),
       }
     }
   }
 
   /**
-   * Тестирует успешное завершение генерации изображения
+   * Тестирует успешное завершение тренировки
+   * @returns Результат теста
+   */
+  async testSuccessfulTraining(): Promise<TestResult> {
+    const mockTraining: WebhookPayload = {
+      task_id: 'test-task-id',
+      trainingId: 'test-training-id',
+      status: TRAINING_STATUS.SUCCESS,
+      result: {
+        url: 'https://example.com/output.jpg',
+      },
+    }
+
+    logger.info({
+      message: '🧪 Тест BFL вебхука успешной тренировки',
+      description: 'Starting successful BFL training webhook test',
+      test_name: 'Successful BFL Training Test',
+      sample: mockTraining,
+    })
+
+    return this.sendWebhook(mockTraining)
+  }
+
+  /**
+   * Тестирует неудачное завершение тренировки
+   * @returns Результат теста
+   */
+  async testFailedTraining(): Promise<TestResult> {
+    const mockTraining: WebhookPayload = {
+      task_id: 'test-task-id-failed',
+      trainingId: 'test-training-id-failed',
+      status: TRAINING_STATUS.FAILED,
+      error: 'Test error message',
+    }
+
+    logger.info({
+      message: '🧪 Тест BFL вебхука неудачной тренировки',
+      description: 'Starting failed BFL training webhook test',
+      test_name: 'Failed BFL Training Test',
+      sample: mockTraining,
+    })
+
+    return this.sendWebhook(mockTraining)
+  }
+
+  /**
+   * Запускает все тесты
+   * @returns Массив результатов тестов
+   */
+  async runAllTests(): Promise<TestResult[]> {
+    const results: TestResult[] = []
+    const startTime = Date.now()
+
+    logger.info({
+      message: '🚀 Запуск всех тестов BFL вебхуков',
+      description: 'Starting all BFL webhook tests',
+      test_name: 'All BFL Webhook Tests',
+    })
+
+    // Тест успешной тренировки
+    results.push(await this.testSuccessfulTraining())
+
+    // Тест неудачной тренировки
+    results.push(await this.testFailedTraining())
+
+    const duration = Date.now() - startTime
+    const successCount = results.filter(r => r.success).length
+    const failureCount = results.filter(r => !r.success).length
+
+    logger.info({
+      message: '🏁 Все тесты BFL вебхуков завершены',
+      description: 'All BFL webhook tests completed',
+      test_name: 'All BFL Webhook Tests',
+      duration: `${duration}ms`,
+      success_count: successCount,
+      failure_count: failureCount,
+      total_tests: results.length,
+    })
+
+    return results
+  }
+}
+
+/**
+ * Класс для тестирования вебхуков NeuroPhoto
+ */
+export class NeuroPhotoWebhookTester {
+  /**
+   * Отправляет вебхук и проверяет результат
+   * @param payload - Полезная нагрузка вебхука
+   * @returns Результат теста
+   */
+  async sendWebhook(payload: WebhookPayload): Promise<TestResult> {
+    const startTime = Date.now()
+    const testName = `NeuroPhoto Webhook test: ${payload.status || 'unknown'}`
+
+    try {
+      logger.info({
+        message: '🚀 Начало теста отправки NeuroPhoto вебхука',
+        description: 'Starting NeuroPhoto webhook test',
+        test_name: testName,
+        status: payload.status,
+        id: payload.id,
+      })
+
+      // Формируем URL для запроса
+      const webhookUrl = `${TEST_CONFIG.server.apiUrl}${TEST_CONFIG.server.neurophotoWebhookPath}`
+
+      logger.info({
+        message: '📡 Отправка NeuroPhoto вебхука',
+        description: 'Sending NeuroPhoto webhook',
+        test_name: testName,
+        url: webhookUrl,
+      })
+
+      // Отправляем вебхук
+      const response = await axios.post(webhookUrl, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      // Проверяем статус ответа
+      if (response.status !== 200) {
+        throw new Error(`Unexpected status code: ${response.status}`)
+      }
+
+      logger.info({
+        message: '✅ NeuroPhoto вебхук успешно отправлен',
+        description: 'NeuroPhoto webhook sent successfully',
+        test_name: testName,
+        status: response.status,
+      })
+
+      const duration = Date.now() - startTime
+
+      logger.info({
+        message: '🏁 Тест NeuroPhoto вебхука успешно завершен',
+        description: 'NeuroPhoto webhook test completed successfully',
+        test_name: testName,
+        duration: `${duration}ms`,
+      })
+
+      return {
+        name: testName,
+        success: true,
+        message: `NeuroPhoto вебхук успешно отправлен за ${duration}мс`,
+      }
+    } catch (error) {
+      const duration = Date.now() - startTime
+      logger.error({
+        message: '❌ Ошибка при отправке NeuroPhoto вебхука',
+        description: 'Error during NeuroPhoto webhook test',
+        test_name: testName,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        payload,
+        duration: `${duration}ms`,
+      })
+
+      return {
+        name: testName,
+        success: false,
+        message: 'Ошибка при отправке NeuroPhoto вебхука',
+        error: error instanceof Error ? error : new Error(String(error)),
+      }
+    }
+  }
+
+  /**
+   * Тестирует успешную генерацию
+   * @returns Результат теста
    */
   async testSuccessfulGeneration(): Promise<TestResult> {
     const mockGeneration: WebhookPayload = {
-      id: 'test-neurophoto-id',
-      task_id: 'test-neurophoto-task-id',
-      model: 'stability-ai/stable-diffusion',
-      version:
-        'db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf',
-      status: 'SUCCESS',
+      task_id: 'test-task-id',
+      id: 'test-generation-id',
+      status: TRAINING_STATUS.SUCCESS,
       output: {
-        uri: 'https://example.com/neurophoto-output.jpg',
-        version: '1.0.0',
-      },
-      metrics: {
-        predict_time: 1000,
+        image: 'https://example.com/output.jpg',
       },
     }
 
     logger.info({
-      message: '🧪 Тест вебхука успешной NeuroPhoto генерации',
-      description: 'Successful NeuroPhoto generation webhook test',
+      message: '🧪 Тест NeuroPhoto вебхука успешной генерации',
+      description: 'Starting successful NeuroPhoto generation webhook test',
+      test_name: 'Successful NeuroPhoto Generation Test',
       sample: mockGeneration,
     })
 
@@ -568,22 +617,21 @@ export class NeuroPhotoWebhookTester {
   }
 
   /**
-   * Тестирует неудачное завершение генерации изображения
+   * Тестирует неудачную генерацию
+   * @returns Результат теста
    */
   async testFailedGeneration(): Promise<TestResult> {
     const mockGeneration: WebhookPayload = {
-      id: 'test-neurophoto-id-failed',
-      task_id: 'test-neurophoto-task-id-failed',
-      model: 'stability-ai/stable-diffusion',
-      version:
-        'db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf',
-      status: 'FAILED',
-      error: 'Test NeuroPhoto error message',
+      task_id: 'test-task-id-failed',
+      id: 'test-generation-id-failed',
+      status: TRAINING_STATUS.FAILED,
+      error: 'Test error message',
     }
 
     logger.info({
-      message: '🧪 Тест вебхука неудачной NeuroPhoto генерации',
-      description: 'Failed NeuroPhoto generation webhook test',
+      message: '🧪 Тест NeuroPhoto вебхука неудачной генерации',
+      description: 'Starting failed NeuroPhoto generation webhook test',
+      test_name: 'Failed NeuroPhoto Generation Test',
       sample: mockGeneration,
     })
 
@@ -591,52 +639,37 @@ export class NeuroPhotoWebhookTester {
   }
 
   /**
-   * Запускает все тесты вебхуков нейрофото
-   * @param options Параметры запуска тестов
+   * Запускает все тесты
+   * @returns Массив результатов тестов
    */
-  async runAllTests(options = { checkDatabase: true }): Promise<TestResult[]> {
+  async runAllTests(): Promise<TestResult[]> {
+    const results: TestResult[] = []
+    const startTime = Date.now()
+
     logger.info({
-      message: '🧪 Запуск всех тестов вебхуков нейрофото',
-      description: 'Running all neurophoto webhook tests',
-      options,
+      message: '🚀 Запуск всех тестов NeuroPhoto вебхуков',
+      description: 'Starting all NeuroPhoto webhook tests',
+      test_name: 'All NeuroPhoto Webhook Tests',
     })
 
-    const results: TestResult[] = []
+    // Тест успешной генерации
+    results.push(await this.testSuccessfulGeneration())
 
-    if (options.checkDatabase) {
-      // Выполняем тесты с проверкой базы данных
-      results.push(await this.testSuccessfulGeneration())
-      results.push(await this.testFailedGeneration())
-    } else {
-      // Выполняем тесты без создания записей в базе данных
-      // и без проверки данных в базе (dry run)
-      logger.info({
-        message: '🧪 Запуск тестов в режиме dry run (без проверки базы данных)',
-        description: 'Running neurophoto webhook tests in dry run mode',
-      })
+    // Тест неудачной генерации
+    results.push(await this.testFailedGeneration())
 
-      // Используем примеры из конфигурации напрямую
-      for (const sample of TEST_CONFIG.neurophoto.samples) {
-        const taskId = `test-dryrun-${sample.task_id}-${Date.now()}`
-        const payload: WebhookPayload = {
-          task_id: taskId,
-          status: sample.status,
-          result: sample.result,
-        }
-
-        results.push(
-          await this.sendWebhook(payload, {
-            checkDatabase: false,
-          })
-        )
-      }
-    }
+    const duration = Date.now() - startTime
+    const successCount = results.filter(r => r.success).length
+    const failureCount = results.filter(r => !r.success).length
 
     logger.info({
-      message: '✅ Все тесты вебхуков нейрофото выполнены',
-      description: 'All neurophoto webhook tests completed',
-      totalTests: results.length,
-      successfulTests: results.filter(r => r.success).length,
+      message: '🏁 Все тесты NeuroPhoto вебхуков завершены',
+      description: 'All NeuroPhoto webhook tests completed',
+      test_name: 'All NeuroPhoto Webhook Tests',
+      duration: `${duration}ms`,
+      success_count: successCount,
+      failure_count: failureCount,
+      total_tests: results.length,
     })
 
     return results

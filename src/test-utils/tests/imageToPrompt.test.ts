@@ -1,182 +1,210 @@
-import { inngest } from '@/inngest-functions/clients'
+import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
-import { calculateModeCost, ModeEnum } from '@/price/helpers/modelsCost'
+import { TestResult } from '../types'
 import { v4 as uuidv4 } from 'uuid'
-import { TestResult } from '../interfaces'
 import { TEST_CONFIG } from '../test-config'
-import { updateUserBalance } from '@/core/supabase'
+import { ModeEnum } from '@/price/helpers/modelsCost'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
 
-interface BalanceResult {
-  success: boolean
-  error?: any
-  balance?: number
-}
-
-/**
- * Тестирует функцию imageToPrompt через Inngest
- */
 export async function testImageToPrompt(): Promise<TestResult> {
-  const name = 'image_to_prompt_test'
+  const testName = 'Image to Prompt Test'
+  const testTelegramId = Date.now().toString()
+  const testBotName = TEST_CONFIG.TEST_BOT_NAME
+  const testImageUrl = TEST_CONFIG.TEST_IMAGE_URL
 
   try {
-    logger.info('🚀 Начинаем тест Image To Prompt:', {
-      description: 'Starting Image To Prompt test',
+    logger.info('🚀 Начинаем тест преобразования изображения в промпт', {
+      description: 'Starting image to prompt test',
+      test_telegram_id: testTelegramId,
+      test_bot_name: testBotName,
     })
 
-    // Получаем стоимость операции
-    const cost = calculateModeCost({ mode: ModeEnum.ImageToPrompt }).stars
-
-    logger.info('💰 Стоимость операции:', {
-      description: 'Operation cost',
-      cost,
-      mode: ModeEnum.ImageToPrompt,
+    // Создаем тестового пользователя
+    const { error: createError } = await supabase.from('users').insert({
+      telegram_id: testTelegramId,
+      username: `test_user_${testTelegramId}`,
+      bot_name: testBotName,
     })
 
-    // Создаем тестовое событие
-    const event_id = `test-image-to-prompt-${Date.now()}-${uuidv4()}`
-
-    // Отправляем событие add_stars_to_balance перед отправкой основного события
-    logger.info('💸 Пополняем баланс пользователя напрямую:', {
-      description: 'Adding stars to user balance directly',
-      telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
-      cost: cost * 2, // Добавляем с запасом
-    })
-
-    // Пополняем баланс пользователя напрямую через функцию updateUserBalance
-    const balanceResult = (await updateUserBalance({
-      telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
-      amount: cost * 2, // Добавляем с запасом
-      type: 'money_income',
-      description: 'Пополнение баланса для теста Image2Prompt',
-      bot_name: TEST_CONFIG.TEST_BOT_NAME,
-      service_type: 'testing',
-    })) as BalanceResult
-
-    if (!balanceResult.success) {
-      throw new Error(`Не удалось пополнить баланс: ${balanceResult.error}`)
+    if (createError) {
+      throw new Error(`Ошибка создания пользователя: ${createError.message}`)
     }
 
-    logger.info('✅ Баланс пополнен:', {
-      description: 'Balance added successfully',
-      new_balance: balanceResult.balance,
-      added_amount: cost * 2,
+    logger.info('👤 Создан тестовый пользователь', {
+      description: 'Test user created',
+      telegram_id: testTelegramId,
+      bot_name: testBotName,
     })
 
-    // Отправляем событие imageToPrompt
-    logger.info('🔄 Отправляем событие Image To Prompt:', {
-      description: 'Sending Image To Prompt event',
-      event_id,
-      test_image: TEST_CONFIG.TEST_IMAGE_URL,
+    // Пополняем баланс пользователя
+    const addInv_id = `${testTelegramId}-${Date.now()}`
+    await TEST_CONFIG.inngestEngine.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: testTelegramId,
+        amount: 100,
+        type: 'money_income',
+        description: 'Test add stars for image processing',
+        bot_name: testBotName,
+        inv_id: addInv_id,
+        service_type: ModeEnum.TopUpBalance,
+        test_mode: true,
+      },
     })
 
-    await inngest.send({
-      id: event_id,
+    logger.info('💰 Отправлен запрос на пополнение баланса', {
+      description: 'Balance top-up request sent',
+      amount: 100,
+      inv_id: addInv_id,
+    })
+
+    // Проверяем баланс после пополнения
+    const balanceAfterAdd = await getUserBalance(testTelegramId)
+    if (balanceAfterAdd !== 100) {
+      throw new Error(
+        `Баланс после пополнения ${balanceAfterAdd}, ожидалось 100`
+      )
+    }
+
+    logger.info('✅ Баланс пополнен', {
+      description: 'Balance topped up',
+      balance: balanceAfterAdd,
+    })
+
+    // Отправляем запрос на обработку изображения
+    const eventId = uuidv4()
+    await TEST_CONFIG.inngestEngine.send({
+      name: 'image/process',
+      data: {
+        telegram_id: testTelegramId,
+        bot_name: testBotName,
+        image_url: testImageUrl,
+        event_id: eventId,
+        test_mode: true,
+        service_type: ModeEnum.ImageToPrompt,
+      },
+    })
+
+    logger.info('🖼️ Отправлен запрос на обработку изображения', {
+      description: 'Image processing request sent',
+      event_id: eventId,
+      image_url: testImageUrl,
+    })
+
+    // Отправляем запрос на генерацию промпта
+    await TEST_CONFIG.inngestEngine.send({
       name: 'image/to-prompt.generate',
       data: {
-        image: TEST_CONFIG.TEST_IMAGE_URL,
-        telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
-        username: 'test_user',
+        telegram_id: testTelegramId,
+        username: `test_user_${testTelegramId}`,
+        bot_name: testBotName,
+        image: testImageUrl,
         is_ru: true,
-        bot_name: TEST_CONFIG.TEST_BOT_NAME,
-        cost_per_image: cost,
+        cost_per_image: 1.875,
       },
     })
 
-    logger.info('⏳ Ждём выполнения функции (5 секунд):', {
-      description: 'Waiting for function execution',
-      event_id,
+    logger.info('🎯 Отправлен запрос на генерацию промпта', {
+      description: 'Prompt generation request sent',
+      telegram_id: testTelegramId,
+      image_url: testImageUrl,
     })
 
-    // Даем время на обработку
-    await new Promise(resolve => setTimeout(resolve, 5000))
+    // Ждем обработки изображения
+    const startTime = Date.now()
+    const timeout = 10000 // 10 секунд
+    let imageProcessed = false
 
-    // Проверяем баланс после операции
-    const afterBalanceResult = (await updateUserBalance({
-      telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
-      amount: 0, // Просто для проверки баланса
-      type: 'money_income',
-      description: 'Проверка баланса после Image2Prompt',
-      bot_name: TEST_CONFIG.TEST_BOT_NAME,
-    })) as BalanceResult
+    while (Date.now() - startTime < timeout) {
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .eq('telegram_id', testTelegramId)
+        .eq('bot_name', testBotName)
+        .single()
 
-    // Мы ожидаем, что баланс уменьшился на стоимость операции
-    logger.info('🔍 Проверяем баланс после операции:', {
-      description: 'Checking balance after operation',
-      before_balance: balanceResult.balance,
-      after_balance: afterBalanceResult.success
-        ? afterBalanceResult.balance
-        : 'error',
-      expected_change: -cost,
+      if (eventError) {
+        throw new Error(`Ошибка получения события: ${eventError.message}`)
+      }
+
+      if (event?.status === 'completed') {
+        imageProcessed = true
+        break
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+
+    if (!imageProcessed) {
+      throw new Error('Таймаут обработки изображения')
+    }
+
+    logger.info('✅ Изображение обработано', {
+      description: 'Image processed',
+      event_id: eventId,
     })
 
-    const balanceChange =
-      afterBalanceResult.success &&
-      balanceResult.balance &&
-      afterBalanceResult.balance
-        ? balanceResult.balance - afterBalanceResult.balance
-        : 0
+    // Проверяем баланс после обработки
+    const finalBalance = await getUserBalance(testTelegramId)
+    const expectedCost = 1.875 // Стоимость для режима ImageToPrompt
+    const expectedBalance = balanceAfterAdd - expectedCost
 
-    const isBalanceCorrect = Math.abs(balanceChange - cost) < 0.01 // Допустимая погрешность
+    if (Math.abs(finalBalance - expectedBalance) > 0.01) {
+      throw new Error(
+        `Некорректное списание за обработку изображения. Ожидалось: ${expectedBalance}, получено: ${finalBalance}`
+      )
+    }
 
-    if (afterBalanceResult.success && isBalanceCorrect) {
-      logger.info('✅ Баланс корректно изменился:', {
-        description: 'Balance changed correctly',
-        change: balanceChange,
-        expected: cost,
-      })
-    } else {
-      logger.warn('⚠️ Баланс изменился неправильно:', {
-        description: 'Unexpected balance change',
-        change: balanceChange,
-        expected: cost,
-        before_balance: balanceResult.balance,
-        after_balance: afterBalanceResult.success
-          ? afterBalanceResult.balance
-          : 'error',
+    logger.info('💰 Проверка баланса после обработки', {
+      description: 'Balance check after processing',
+      initial_balance: balanceAfterAdd,
+      final_balance: finalBalance,
+      cost: expectedCost,
+    })
+
+    // Очистка тестовых данных
+    if (TEST_CONFIG.cleanupAfterEach) {
+      await Promise.all([
+        supabase
+          .from('users')
+          .delete()
+          .eq('telegram_id', testTelegramId)
+          .eq('bot_name', testBotName),
+        supabase
+          .from('events')
+          .delete()
+          .eq('telegram_id', testTelegramId)
+          .eq('bot_name', testBotName),
+      ])
+
+      logger.info('🧹 Тестовые данные очищены', {
+        description: 'Test data cleaned up',
+        telegram_id: testTelegramId,
+        bot_name: testBotName,
       })
     }
 
-    // Проверяем результаты теста
-    logger.info('✅ Тест отправки события завершен:', {
-      description: 'Event sending test completed',
-      event_id,
-      cost,
-      telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
-      bot_name: TEST_CONFIG.TEST_BOT_NAME,
-      balance_change_correct: isBalanceCorrect,
-    })
-
     return {
-      name,
+      name: testName,
       success: true,
-      message: '✅ Тест Image To Prompt успешно завершен',
-      details: {
-        event_id,
-        cost,
-        telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
-        bot_name: TEST_CONFIG.TEST_BOT_NAME,
-        initial_balance: balanceResult.balance,
-        final_balance: afterBalanceResult.success
-          ? afterBalanceResult.balance
-          : 'error',
-        balance_change: balanceChange,
-        balance_change_correct: isBalanceCorrect,
-      },
+      message: 'Тест преобразования изображения успешно пройден',
     }
-  } catch (error) {
-    logger.error('❌ Ошибка в тесте Image To Prompt:', {
-      description: 'Error in Image To Prompt test',
-      error: error instanceof Error ? error.message : String(error),
-      error_details: error,
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err))
+
+    logger.error('❌ Ошибка при тестировании преобразования изображения', {
+      description: 'Error in image to prompt test',
+      error: error.message,
+      telegram_id: testTelegramId,
+      bot_name: testBotName,
     })
 
     return {
-      name,
+      name: testName,
       success: false,
-      message: `❌ Тест завершился с ошибкой: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      error: error instanceof Error ? error.message : String(error),
+      message: 'Ошибка при тестировании преобразования изображения',
+      error,
     }
   }
 }

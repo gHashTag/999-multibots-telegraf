@@ -1,6 +1,5 @@
 import { logger } from '@/utils/logger'
-import { TestError, TestLogError, TestResult } from './interfaces'
-import { TEST_CONFIG } from './test-config'
+import { TestError, TestResult } from './interfaces'
 
 /**
  * Класс для логирования в тестах с поддержкой TypeScript
@@ -19,9 +18,9 @@ export class TestLogger {
    * Логирование начала теста
    */
   static logTestStart(testName: string): void {
-    logger.info({
-      message: `🚀 Запуск теста: ${testName}`,
-      description: `Starting test: ${testName}`,
+    logger.info('🚀 Начало теста', {
+      description: 'Test started',
+      test_name: testName,
     })
   }
 
@@ -29,9 +28,11 @@ export class TestLogger {
    * Логирование успешного завершения теста
    */
   static logTestSuccess(result: TestResult): void {
-    logger.info({
-      message: `✅ Тест успешно завершен: ${result.name}`,
-      description: `Test completed successfully: ${result.name}`,
+    logger.info('✅ Тест успешно завершен', {
+      description: 'Test completed successfully',
+      test_name: result.name,
+      success: result.success,
+      message: result.message,
     })
   }
 
@@ -40,10 +41,11 @@ export class TestLogger {
    */
   static logTestError(error: Error | string, testName: string): void {
     const errorMessage = error instanceof Error ? error.message : error
-    logger.error({
-      message: `❌ Ошибка в тесте: ${testName}`,
-      description: `Test failed: ${testName}`,
+    logger.error('❌ Ошибка в тесте', {
+      description: 'Test failed',
+      test_name: testName,
       error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
     })
   }
 
@@ -55,18 +57,24 @@ export class TestLogger {
     success: boolean
     message: string
     error?: Error | string
-    details?: Record<string, unknown>
     startTime: number
   }): TestResult {
-    const { name, success, message, error, details, startTime } = params
+    const { name, success, message, error } = params
+
+    if (error) {
+      logger.error('❌ Ошибка в тесте', {
+        description: 'Test error details',
+        test_name: name,
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+      })
+    }
 
     return {
       name,
       success,
       message,
       error: error ? this.formatError(error) : undefined,
-      details,
-      duration: Date.now() - startTime,
     }
   }
 
@@ -78,8 +86,7 @@ export class TestLogger {
     description: string,
     context?: Record<string, unknown>
   ): void {
-    logger.info({
-      message: `${TEST_CONFIG.EMOJI.INFO} ${message}`,
+    logger.info('ℹ️ ' + message, {
       description,
       ...context,
     })
@@ -93,8 +100,7 @@ export class TestLogger {
     description: string,
     context?: Record<string, unknown>
   ): void {
-    logger.warn({
-      message: `${TEST_CONFIG.EMOJI.WARNING} ${message}`,
+    logger.warn('⚠️ ' + message, {
       description,
       ...context,
     })
@@ -108,8 +114,7 @@ export class TestLogger {
     description: string,
     context?: Record<string, unknown>
   ): void {
-    logger.debug({
-      message: `${TEST_CONFIG.EMOJI.DEBUG} ${message}`,
+    logger.debug('🔍 ' + message, {
       description,
       ...context,
     })
@@ -124,5 +129,59 @@ export class TestLogger {
         test: testName,
       },
     })
+  }
+}
+
+export async function testLogger(): Promise<TestResult> {
+  const testName = 'Logger Test'
+
+  try {
+    logger.info({
+      message: '🧪 Тест логгера',
+      description: 'Testing logger functionality',
+    })
+
+    // Тестируем различные уровни логирования
+    logger.debug({
+      message: '🔍 Тестовое отладочное сообщение',
+      description: 'Test debug message',
+    })
+
+    logger.info({
+      message: 'ℹ️ Тестовое информационное сообщение',
+      description: 'Test info message',
+    })
+
+    logger.warn({
+      message: '⚠️ Тестовое предупреждение',
+      description: 'Test warning message',
+    })
+
+    logger.error({
+      message: '❌ Тестовая ошибка',
+      description: 'Test error message',
+      error: new Error('Test error'),
+    })
+
+    return {
+      name: testName,
+      success: true,
+      message: 'Все уровни логирования работают корректно',
+    }
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err))
+
+    logger.error({
+      message: '❌ Ошибка при тестировании логгера',
+      description: 'Logger test error',
+      error,
+    })
+
+    return {
+      name: testName,
+      success: false,
+      message: 'Ошибка при тестировании логгера',
+      error,
+    }
   }
 }

@@ -1,11 +1,16 @@
 import { Scenes, Markup } from 'telegraf'
+
 import { MyContext } from '../../interfaces'
 import { getAvailableModels } from '../../commands/selectModelCommand/getAvailableModels'
 import { sendGenericErrorMessage } from '@/menu'
 import { isRussian } from '@/helpers/language'
-import { getUserByTelegramIdString, setModel } from '@/core/supabase'
+import {
+  getUserByTelegramIdString,
+  updateUserLevelPlusOne,
+  setModel,
+} from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'
-import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(

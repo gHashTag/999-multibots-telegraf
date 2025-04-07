@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
 import { Telegraf } from 'telegraf'
 import { MyContext } from './interfaces'
 import { supabase } from './core/supabase'

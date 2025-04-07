@@ -4,6 +4,7 @@
 import { BFLWebhookTester } from './webhook-tests'
 import { logger } from '../utils/logger'
 import { TestResult } from './interfaces'
+import { supabase } from '@/core/supabase'
 
 // Интерфейс для итогов тестирования
 interface TestSummary {
@@ -40,7 +41,6 @@ async function runBFLWebhookTests(): Promise<TestSummary> {
       logger.info({
         message: `✓ ${result.name} - ${result.message}`,
         description: `Test passed: ${result.name}`,
-        duration: result.duration,
       })
     } else {
       logger.error({
@@ -57,6 +57,64 @@ async function runBFLWebhookTests(): Promise<TestSummary> {
     successCount,
     failCount,
     results,
+  }
+}
+
+export async function testBFLWebhook(trainingId: string): Promise<TestResult> {
+  const testName = 'BFL Webhook Test'
+
+  try {
+    logger.info({
+      message: '🧪 Тест вебхука BFL',
+      description: 'Testing BFL webhook',
+      trainingId,
+    })
+
+    const { data, error } = await supabase
+      .from('bfl_trainings')
+      .select('*')
+      .eq('id', trainingId)
+      .single()
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    if (!data) {
+      throw new Error(`Тренировка ${trainingId} не найдена`)
+    }
+
+    logger.info({
+      message: '✅ Тренировка BFL найдена',
+      description: 'BFL training found',
+      training: {
+        id: data.id,
+        status: data.status,
+        createdAt: data.created_at,
+      },
+    })
+
+    return {
+      name: testName,
+      success: true,
+      message: `Тренировка BFL ${trainingId} успешно обработана`,
+    }
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err))
+
+    logger.error({
+      message: '❌ Ошибка при обработке вебхука BFL',
+      description: 'Error processing BFL webhook',
+      error,
+      trainingId,
+    })
+
+    return {
+      name: testName,
+      success: false,
+      message: 'Ошибка при обработке вебхука BFL',
+      error,
+    }
   }
 }
 

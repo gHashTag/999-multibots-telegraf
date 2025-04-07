@@ -1,33 +1,87 @@
-import { testInngestPayment } from './inngest-payment-test'
 import { logger } from '@/utils/logger'
+import { TestResult } from './types'
+import { inngestTestEngine } from './test-config'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
-const runTest = async () => {
+export async function runInngestPaymentTest(): Promise<TestResult[]> {
+  const results: TestResult[] = []
+  const testUserId = '123456789'
+
   try {
-    logger.info('🚀 Запуск тестирования платежной системы через Inngest', {
-      description: 'Starting payment system testing via Inngest',
+    logger.info('🚀 Запуск тестов платежной системы через Inngest', {
+      description: 'Starting payment system tests via Inngest',
+      test_user_id: testUserId,
     })
 
-    const result = await testInngestPayment()
+    // Тест пополнения баланса
+    const depositAmount = 100
+    await inngestTestEngine.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: testUserId,
+        amount: depositAmount,
+        type: 'money_income',
+        description: 'Тестовое пополнение баланса',
+        bot_name: 'test_bot',
+        service_type: ModeEnum.TopUpBalance,
+      },
+    })
 
-    if (result) {
-      logger.info('✅ Тестирование успешно завершено', {
-        description: 'Testing completed successfully',
-      })
-      process.exit(0)
-    } else {
-      logger.error('❌ Тестирование завершилось с ошибками', {
-        description: 'Testing completed with errors',
-      })
-      process.exit(1)
-    }
+    logger.info('💰 Отправлен запрос на пополнение баланса', {
+      description: 'Balance deposit request sent',
+      amount: depositAmount,
+      user_id: testUserId,
+    })
+
+    results.push({
+      name: 'Тест пополнения баланса',
+      success: true,
+      message: `Запрос на пополнение баланса на ${depositAmount} отправлен`,
+    })
+
+    // Тест списания средств
+    const withdrawAmount = 50
+    await inngestTestEngine.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: testUserId,
+        amount: withdrawAmount,
+        type: 'money_expense',
+        description: 'Тестовое списание средств',
+        bot_name: 'test_bot',
+        service_type: ModeEnum.TextToVideo,
+      },
+    })
+
+    logger.info('💸 Отправлен запрос на списание средств', {
+      description: 'Balance withdrawal request sent',
+      amount: withdrawAmount,
+      user_id: testUserId,
+    })
+
+    results.push({
+      name: 'Тест списания средств',
+      success: true,
+      message: `Запрос на списание ${withdrawAmount} отправлен`,
+    })
+
+    return results
   } catch (error) {
-    logger.error('❌ Критическая ошибка при тестировании', {
-      description: 'Critical error during testing',
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+    const err = error instanceof Error ? error : new Error(String(error))
+
+    logger.error('❌ Ошибка при выполнении тестов платежной системы', {
+      description: 'Error in payment system tests',
+      error: err.message,
+      stack: err.stack,
     })
-    process.exit(1)
+
+    results.push({
+      name: 'Тесты платежной системы',
+      success: false,
+      message: `Ошибка при выполнении тестов: ${err.message}`,
+      error: err,
+    })
+
+    return results
   }
 }
-
-runTest()

@@ -1,14 +1,4 @@
-/**
- * Интерфейс результата теста
- */
-export interface TestResult {
-  name: string
-  success: boolean
-  message: string
-  details?: any
-  error?: string | Error
-  duration?: number
-}
+import { TestResult } from './types'
 
 /**
  * Интерфейс для ошибки теста с дополнительным контекстом
@@ -35,3 +25,5 @@ export interface LogData {
   description?: string
   [key: string]: any
 }
+
+export type { TestResult }

@@ -84,7 +84,7 @@ async function killProcessesByPort(port) {
             ? `taskkill /F /PID ${processId}`
             : `kill -9 ${processId}`
 
-        exec(killCommand, (killError, killStdout, killStderr) => {
+        exec(killCommand, killError => {
           completedKills++
 
           if (killError) {

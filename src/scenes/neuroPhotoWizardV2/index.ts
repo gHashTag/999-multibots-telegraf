@@ -89,7 +89,11 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
       const trigger_word = ctx.session.userModel.trigger_word as string
 
-      const userId = ctx.from?.id
+      const telegram_id = ctx.from?.id
+      if (!telegram_id) {
+        await ctx.reply('❌ Ошибка: не удалось определить ID пользователя')
+        return ctx.scene.leave()
+      }
 
       if (trigger_word) {
         const fullPrompt = `${trigger_word}, ${promptText}`
@@ -155,19 +159,15 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     const trigger_word = ctx.session.userModel.trigger_word as string
     const fullPrompt = `${trigger_word}, ${prompt}`
     const generate = async (num: number) => {
-      const telegramId = ctx.from?.id.toString()
-      if (!telegramId) {
-        await ctx.reply(
-          isRu
-            ? '❌ Ошибка: не удалось получить ID пользователя'
-            : '❌ Error: User ID not found'
-        )
+      const telegram_id = ctx.from?.id
+      if (!telegram_id) {
+        await ctx.reply('❌ Ошибка: не удалось определить ID пользователя')
         return ctx.scene.leave()
       }
       await generateNeuroImageV2(
         fullPrompt,
         num,
-        telegramId,
+        telegram_id.toString(),
         ctx,
         ctx.botInfo?.username
       )
@@ -179,13 +179,9 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       const { count, subscription, level } = await getReferalsCountAndUserData(
         ctx.from?.id?.toString() || ''
       )
-      const telegramId = ctx.from?.id.toString()
-      if (!telegramId) {
-        await ctx.reply(
-          isRu
-            ? '❌ Ошибка: не удалось получить ID пользователя'
-            : '❌ Error: User ID not found'
-        )
+      const telegram_id = ctx.from?.id
+      if (!telegram_id) {
+        await ctx.reply('❌ Ошибка: не удалось определить ID пользователя')
         return ctx.scene.leave()
       }
 

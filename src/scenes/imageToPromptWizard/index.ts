@@ -2,7 +2,6 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 
 import { createHelpCancelKeyboard } from '@/menu'
-import { imageToPromptFunction } from '@/price/helpers/imageToPrompt'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 import { handleMenu } from '@/handlers/handleMenu'

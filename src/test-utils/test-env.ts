@@ -5,28 +5,41 @@ import { logger } from '@/utils/logger'
 // Загружаем переменные окружения из .env файла
 config()
 
-// Проверяем наличие необходимых переменных окружения
+/**
+ * Список обязательных переменных окружения
+ */
 const requiredEnvVars = [
   'SUPABASE_URL',
   'SUPABASE_SERVICE_KEY',
   'SUPABASE_ANON_KEY',
-]
+] as const
 
-// Функция для безопасного получения переменных окружения
+/**
+ * Функция для безопасного получения переменных окружения
+ * @param name - Имя переменной окружения
+ * @returns Значение переменной окружения
+ * @throws Error если переменная не найдена
+ */
 function getEnvVar(name: string): string {
   const value = process.env[name]
   if (!value) {
-    logger.error(`❌ Отсутствует переменная окружения ${name}`)
+    logger.error('❌ Отсутствует переменная окружения', {
+      description: 'Missing environment variable',
+      variable: name,
+    })
     throw new Error(`Missing environment variable: ${name}`)
   }
   return value
 }
 
+// Проверяем наличие всех обязательных переменных
 for (const envVar of requiredEnvVars) {
   getEnvVar(envVar)
 }
 
-// Создаем клиент Supabase для тестов
+/**
+ * Клиент Supabase для тестов с полным доступом
+ */
 export const supabaseTestClient = createClient(
   getEnvVar('SUPABASE_URL'),
   getEnvVar('SUPABASE_SERVICE_KEY'),
@@ -37,19 +50,33 @@ export const supabaseTestClient = createClient(
   }
 )
 
-// Создаем клиент Supabase для анонимного доступа
+/**
+ * Клиент Supabase для анонимного доступа
+ */
 export const supabaseAnon = createClient(
   getEnvVar('SUPABASE_URL'),
   getEnvVar('SUPABASE_ANON_KEY')
 )
 
-// Интерфейс для данных логирования
-export interface LogData {
-  [key: string]: any
+/**
+ * Интерфейс для конфигурации тестового окружения
+ */
+interface TestEnvironment {
+  supabase: {
+    url: string
+    key: string
+  }
+  api: {
+    url: string
+    webhookPath: string
+    bflWebhookPath: string
+  }
 }
 
-// Экспортируем настройки для тестов
-export const TEST_ENV = {
+/**
+ * Конфигурация тестового окружения
+ */
+export const TEST_ENV: TestEnvironment = {
   supabase: {
     url: getEnvVar('SUPABASE_URL'),
     key: getEnvVar('SUPABASE_ANON_KEY'),
@@ -61,9 +88,20 @@ export const TEST_ENV = {
   },
 }
 
-// Логгер для тестов
-export const testLogger = {
-  info: (message: string, data?: LogData) => {
+/**
+ * Интерфейс для логгера тестов
+ */
+interface TestLogger {
+  info: (message: string, data?: Record<string, any>) => void
+  error: (message: string, error?: Error | string) => void
+  success: (message: string, data?: Record<string, any>) => void
+}
+
+/**
+ * Логгер для тестов с эмодзи
+ */
+export const testLogger: TestLogger = {
+  info: (message: string, data?: Record<string, any>) => {
     logger.info({
       message: `🧪 ${message}`,
       description: message,
@@ -77,7 +115,7 @@ export const testLogger = {
       error: error instanceof Error ? error.message : error,
     })
   },
-  success: (message: string, data?: LogData) => {
+  success: (message: string, data?: Record<string, any>) => {
     logger.info({
       message: `✅ ${message}`,
       description: message,

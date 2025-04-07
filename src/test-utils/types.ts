@@ -1,4 +1,10 @@
+import { Telegraf } from 'telegraf'
 import { Context } from 'telegraf'
+
+/** Расширенный контекст для бота */
+export interface MyContext extends Context {
+  session: any
+}
 
 /**
  * Мок-контекст для тестирования Telegraf
@@ -22,18 +28,16 @@ export interface MockContext {
  */
 export interface TestResult {
   success: boolean
-  error?: string
-  duration?: number
+  message: string
   name: string
-  message?: string
-  details?: string
+  error?: Error
 }
 
 export interface BotInfo {
-  id: number
-  is_bot: boolean
-  first_name: string
-  username: string
+  id: string
+  name: string
+  token: string
+  webhook_url: string
   can_join_groups: boolean
   can_read_all_group_messages: boolean
   supports_inline_queries: boolean
@@ -41,12 +45,11 @@ export interface BotInfo {
 
 export interface TestUser {
   id: number
-  username: string
-  is_bot: boolean
-  first_name: string
-  last_name: string
-  telegramId?: string
-  botName?: string
+  telegram_id: string
+  username?: string
+  first_name?: string
+  last_name?: string
+  language_code?: string
   isRussian?: boolean
 }
 
@@ -56,120 +59,119 @@ export interface TestBot {
 }
 
 export interface ModelTrainingSample {
-  trainingId: string
+  id: string
+  name: string
+  description: string
   status: string
-  metrics: {
-    predict_time: number
-  }
 }
 
 export interface BFLTrainingSample {
-  text: string
-  image_url: string
+  id: string
+  name: string
+  description: string
+  status: string
 }
 
 export interface NeuroPhotoSample {
-  url: string
-  prompt: string
-  task_id?: string
-  status?: string
-  result?: any
+  id: string
+  name: string
+  description: string
+  status: string
 }
 
 export interface PaymentSample {
+  id: string
   amount: number
-  inv_id: string
-  sign: string
+  status: string
 }
 
 export interface TestEmoji {
-  START: string
-  SUCCESS: string
-  ERROR: string
-  INFO: string
-  WARNING: string
-  DEBUG: string
-  RETRY: string
-  TEST: string
-  DATA: string
-  EVENT: string
+  success: string
+  error: string
+  warning: string
+  info: string
+}
+
+/** Конфигурация бота */
+export interface BotConfig {
+  name: string
+  token: string
+}
+
+/** Статусы тренировки */
+export type TrainingStatusType =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELED'
+
+export const TRAINING_STATUS: Record<TrainingStatusType, TrainingStatusType> = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+  CANCELED: 'CANCELED',
+} as const
+
+/** Конфигурация тренировки модели */
+export interface TrainingConfig {
+  id: string
+  name: string
+  description: string
+  status: TrainingStatusType
 }
 
 export interface TestConfig {
+  /** Конфигурация мок-бота */
   mockBot: {
     telegram: any
   }
+  /** Моки для тестирования */
   mocks: {
-    bot: any
+    bot: Telegraf<MyContext>
   }
+  /** Конфигурация сервера */
   server: {
     apiUrl: string
     webhookPath: string
     bflWebhookPath: string
     neurophotoWebhookPath: string
   }
+  /** Тестовые пользователи */
   users: {
-    main: {
-      telegramId: string
-      username: string
-      firstName: string
-      lastName: string
-      botName: string
-      isRussian: boolean
-    }
+    main: TestUser
   }
+  /** Конфигурация Supabase */
   supabase: {
     url: string
     key: string
   }
+  /** Конфигурация ботов */
   bots: {
-    [key: string]: TestBot
+    test_bot: BotConfig
+    neurophoto: BotConfig
+    default: BotConfig
   }
-  modelTraining: {
-    samples: ModelTrainingSample[]
+  /** Тестовые константы */
+  TEST_USER_ID: string
+  TEST_BOT_NAME: string
+  TEST_TELEGRAM_ID: string
+  TEST_IMAGE_URL: string
+  PAYMENT_PROCESSING_TIMEOUT: number
+  inngestEngine: any
+  models: {
+    default: string
+    stable: string
   }
-  bflTraining: {
-    samples: BFLTrainingSample[]
-  }
-  neurophoto: {
-    samples: NeuroPhotoSample[]
-  }
-  payments: {
-    success: PaymentSample
-    fail: PaymentSample
-  }
+  cleanupAfterEach: boolean
+  /** Тестовые тренировки моделей */
+  modelTraining: TrainingConfig[]
   CHECK_INTERVAL: number
   TIMEOUT: number
-  RETRY_ATTEMPTS: number
-  RETRY_DELAY: number
-  LOG_LEVEL: string
-  EMOJI: TestEmoji
-  inngestEngine: any
-  PAYMENT_PROCESSING_TIMEOUT: number
-  cleanupAfterEach: boolean
-  TEST_USER_ID: string
-  TEST_OWNER_ID: string
-  TEST_BOT_NAME: string
-  TEST_IMAGE_URL: string
-  TEST_TELEGRAM_ID: string
-  cleanupAfterTests: boolean
-  maxWaitTime: number
-  eventBufferSize: number
-  api: {
-    url: string
-    webhookPath: string
-    bflWebhookPath: string
-  }
-  inngest: {
-    eventKey: string
-    signingKey: string
-    baseUrl: string
-  }
-  bflWebhookPath: string
-  models: {
-    neurophoto: {
-      name: string
-      version: string
-    }
+  endpoints: {
+    payment: string
+    generate: string
+    check: string
   }
 }

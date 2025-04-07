@@ -105,11 +105,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
 export interface MyContext extends Context {
   session: MySession
-  attempts: number
   scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
   wizard: Scenes.WizardContextWizard<MyContext>
-  amount: number
-  match?: RegExpMatchArray
 }
 
 // Создайте новый тип, объединяющий MyContext и WizardContext

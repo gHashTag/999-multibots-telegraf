@@ -50,6 +50,6 @@ export const createMockContext = (
       can_read_all_group_messages: true,
       supports_inline_queries: false,
     },
-    reply: async (text: string, extra?: any) => mockMessage,
+    reply: async () => mockMessage,
   }
 }

@@ -1,49 +1,21 @@
-import {
-  TelegramId,
-  normalizeTelegramId,
-} from '@/interfaces/telegram.interface'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { logger } from '@/utils/logger'
-import { v4 as uuidv4 } from 'uuid'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { supabase } from '@/core/supabase'
 import { TestResult } from '../interfaces'
 import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
-import { TEST_CONFIG, inngestTestEngine } from '../test-config'
+import { TEST_CONFIG } from '../test-config'
 
-const waitForPaymentCompletion = async (inv_id: string, timeout = 5000) => {
+const waitForPaymentCompletion = async (inv_id: string, timeout = 10000) => {
   const startTime = Date.now()
   while (Date.now() - startTime < timeout) {
     const payment = await getPaymentByInvId(inv_id)
     if (payment?.status === 'COMPLETED') {
       return payment
     }
-    await new Promise(resolve => setTimeout(resolve, 500))
+    await new Promise(resolve => setTimeout(resolve, 100))
   }
   throw new Error('Payment completion timeout')
-}
-
-/**
- * Очищает тестовые данные пользователя
- */
-const cleanupTestUser = async (telegram_id: TelegramId) => {
-  try {
-    // Удаляем платежиОшибки TypeScript тоже проверить, что все нормально.
-    await supabase.from('payments_v2').delete().eq('telegram_id', telegram_id)
-    // Удаляем пользователя
-    await supabase.from('users').delete().eq('telegram_id', telegram_id)
-
-    logger.info('🧹 Тестовые данные очищены', {
-      description: 'Test data cleaned up',
-      telegram_id,
-    })
-  } catch (error) {
-    logger.error('❌ Ошибка при очистке тестовых данных', {
-      description: 'Error cleaning up test data',
-      error: error instanceof Error ? error.message : String(error),
-      telegram_id,
-    })
-  }
 }
 
 export async function testPaymentSystem(): Promise<TestResult> {
@@ -53,6 +25,8 @@ export async function testPaymentSystem(): Promise<TestResult> {
   try {
     logger.info('🚀 Начинаем тест платежной системы', {
       description: 'Starting payment system test',
+      test_telegram_id: testTelegramId,
+      test_bot_name: testBotName,
     })
 
     // Создаем тестового пользователя
@@ -66,15 +40,26 @@ export async function testPaymentSystem(): Promise<TestResult> {
       throw new Error(`Ошибка создания пользователя: ${createError.message}`)
     }
 
+    logger.info('👤 Создан тестовый пользователь', {
+      description: 'Test user created',
+      telegram_id: testTelegramId,
+      bot_name: testBotName,
+    })
+
     // Проверяем начальный баланс
     const initialBalance = await getUserBalance(testTelegramId)
     if (initialBalance !== 0) {
       throw new Error(`Начальный баланс ${initialBalance}, ожидалось 0`)
     }
 
+    logger.info('💰 Начальный баланс проверен', {
+      description: 'Initial balance checked',
+      balance: initialBalance,
+    })
+
     // Тестируем пополнение баланса
-    const addInv_id = uuidv4()
-    await inngestTestEngine.send({
+    const addInv_id = `${testTelegramId}-${Date.now()}`
+    await TEST_CONFIG.inngestEngine.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,
@@ -84,11 +69,23 @@ export async function testPaymentSystem(): Promise<TestResult> {
         bot_name: testBotName,
         inv_id: addInv_id,
         service_type: ModeEnum.TopUpBalance,
+        test_mode: true,
       },
     })
 
+    logger.info('💸 Отправлен запрос на пополнение баланса', {
+      description: 'Balance top-up request sent',
+      amount: 100,
+      inv_id: addInv_id,
+    })
+
     // Ждем завершения платежа
-    await waitForPaymentCompletion(addInv_id)
+    const addPayment = await waitForPaymentCompletion(addInv_id)
+
+    logger.info('✅ Платеж на пополнение завершен', {
+      description: 'Top-up payment completed',
+      payment: addPayment,
+    })
 
     // Проверяем баланс после пополнения
     const balanceAfterAdd = await getUserBalance(testTelegramId)
@@ -98,9 +95,14 @@ export async function testPaymentSystem(): Promise<TestResult> {
       )
     }
 
+    logger.info('💰 Баланс после пополнения проверен', {
+      description: 'Balance after top-up checked',
+      balance: balanceAfterAdd,
+    })
+
     // Тестируем списание баланса
-    const spendInv_id = uuidv4()
-    await inngestTestEngine.send({
+    const spendInv_id = `${testTelegramId}-${Date.now()}`
+    await TEST_CONFIG.inngestEngine.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,
@@ -110,11 +112,23 @@ export async function testPaymentSystem(): Promise<TestResult> {
         bot_name: testBotName,
         inv_id: spendInv_id,
         service_type: ModeEnum.TextToVideo,
+        test_mode: true,
       },
     })
 
+    logger.info('💸 Отправлен запрос на списание баланса', {
+      description: 'Balance withdrawal request sent',
+      amount: 30,
+      inv_id: spendInv_id,
+    })
+
     // Ждем завершения платежа
-    await waitForPaymentCompletion(spendInv_id)
+    const spendPayment = await waitForPaymentCompletion(spendInv_id)
+
+    logger.info('✅ Платеж на списание завершен', {
+      description: 'Withdrawal payment completed',
+      payment: spendPayment,
+    })
 
     // Проверяем баланс после списания
     const balanceAfterSpend = await getUserBalance(testTelegramId)
@@ -124,43 +138,112 @@ export async function testPaymentSystem(): Promise<TestResult> {
       )
     }
 
-    // Очистка тестовых данных
-    if (TEST_CONFIG.cleanupAfterEach) {
-      await Promise.all([
-        supabase
-          .from('users')
-          .delete()
-          .eq('telegram_id', testTelegramId)
-          .eq('bot_name', testBotName),
-        supabase
-          .from('payments_v2')
-          .delete()
-          .eq('telegram_id', testTelegramId)
-          .eq('bot_name', testBotName),
-      ])
+    logger.info('💰 Баланс после списания проверен', {
+      description: 'Balance after withdrawal checked',
+      balance: balanceAfterSpend,
+    })
+
+    // Тестируем защиту от овердрафта
+    const overdraftInv_id = `${testTelegramId}-${Date.now()}`
+    await TEST_CONFIG.inngestEngine.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: testTelegramId,
+        amount: 100,
+        type: 'money_expense',
+        description: 'Test overdraft protection',
+        bot_name: testBotName,
+        inv_id: overdraftInv_id,
+        service_type: ModeEnum.TextToVideo,
+        test_mode: true,
+      },
+    })
+
+    logger.info('🛡️ Отправлен запрос на проверку защиты от овердрафта', {
+      description: 'Overdraft protection test request sent',
+      amount: 100,
+      inv_id: overdraftInv_id,
+    })
+
+    // Ждем завершения платежа
+    try {
+      await waitForPaymentCompletion(overdraftInv_id)
+      throw new Error('Платеж с овердрафтом должен был быть отклонен')
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'Payment completion timeout'
+      ) {
+        logger.info('✅ Защита от овердрафта сработала', {
+          description: 'Overdraft protection worked',
+          inv_id: overdraftInv_id,
+        })
+      } else {
+        throw error
+      }
     }
 
-    logger.info('✅ Тесты платежной системы завершены успешно', {
-      description: 'Payment system tests completed successfully',
+    // Проверяем баланс после попытки овердрафта
+    const balanceAfterOverdraft = await getUserBalance(testTelegramId)
+    if (balanceAfterOverdraft !== 70) {
+      throw new Error(
+        `Баланс после попытки овердрафта ${balanceAfterOverdraft}, ожидалось 70`
+      )
+    }
+
+    logger.info('💰 Баланс после попытки овердрафта проверен', {
+      description: 'Balance after overdraft attempt checked',
+      balance: balanceAfterOverdraft,
+    })
+
+    // Очищаем тестовые данные
+    const { error: deleteUserError } = await supabase
+      .from('users')
+      .delete()
+      .eq('telegram_id', testTelegramId)
+
+    if (deleteUserError) {
+      logger.error('❌ Ошибка при удалении тестового пользователя', {
+        description: 'Error deleting test user',
+        error: deleteUserError.message,
+      })
+    }
+
+    const { error: deletePaymentsError } = await supabase
+      .from('payments_v2')
+      .delete()
+      .eq('telegram_id', testTelegramId)
+
+    if (deletePaymentsError) {
+      logger.error('❌ Ошибка при удалении тестовых платежей', {
+        description: 'Error deleting test payments',
+        error: deletePaymentsError.message,
+      })
+    }
+
+    logger.info('🧹 Тестовые данные очищены', {
+      description: 'Test data cleaned up',
+      telegram_id: testTelegramId,
     })
 
     return {
       name: 'Payment System Test',
       success: true,
-      message: 'Тесты платежной системы успешно пройдены',
+      message: 'Тест платежной системы успешно завершен',
     }
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при тестировании платежной системы',
+    logger.error('❌ Ошибка при тестировании платежной системы', {
       description: 'Error in payment system test',
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegram_id: testTelegramId,
+      bot_name: testBotName,
     })
 
     return {
       name: 'Payment System Test',
       success: false,
       message: `Ошибка при тестировании: ${
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : 'Unknown error'
       }`,
     }
   }

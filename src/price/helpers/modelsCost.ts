@@ -59,6 +59,7 @@ export enum ModeEnum {
   GetRuBillWizard = 'get_ru_bill_wizard',
   SubscriptionScene = 'subscription_scene',
   CreateUserScene = 'create_user_scene',
+  TextToVoice = 'text_to_voice',
 }
 
 export interface CostCalculationParams {
@@ -104,6 +105,7 @@ const BASE_COSTS: BaseCosts = {
     ).length,
   [ModeEnum.TextToImage]: 0.08,
   [ModeEnum.LipSync]: 0.9,
+  [ModeEnum.TextToVoice]: 0.8,
 }
 
 export function calculateModeCost(
@@ -195,6 +197,8 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.TextToImage]: calculateModeCost({ mode: ModeEnum.TextToImage })
     .stars,
   [ModeEnum.LipSync]: calculateModeCost({ mode: ModeEnum.LipSync }).stars,
+  [ModeEnum.TextToVoice]: calculateModeCost({ mode: ModeEnum.TextToVoice })
+    .stars,
 }
 
 export const minCost = Math.min(

@@ -1,66 +1,105 @@
 import { logger } from '@/utils/logger'
-import { TestResult } from './interfaces'
-import { testPaymentSystem } from './tests/payment.test'
+import { TestResult } from './types'
+import { TEST_CONFIG } from './test-config'
+import { ModeEnum } from '@/interfaces/app.interface'
+import { inngest } from '@/core/inngest'
 
-// Устанавливаем тестовое окружение
-process.env.NODE_ENV = 'test'
+const testAmount = 100
 
 export async function runPaymentTests(): Promise<TestResult[]> {
+  const results: TestResult[] = []
+
   try {
-    logger.info('🚀 Запуск тестов платежной системы', {
-      description: 'Starting payment system tests',
+    logger.info('🚀 Starting payment tests', {
+      test_user_id: TEST_CONFIG.TEST_USER_ID,
+      description: 'Running payment system tests',
     })
 
-    const result = await testPaymentSystem()
-    return [result]
-  } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при запуске тестов платежной системы',
-      description: 'Error running payment system tests',
-      error: error instanceof Error ? error.message : String(error),
-    })
-
-    return [
-      {
-        name: 'Payment System Tests',
-        success: false,
-        message: `Ошибка при запуске тестов: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+    // Тест создания платежа
+    const createPaymentResult = await inngest.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: TEST_CONFIG.TEST_USER_ID,
+        amount: testAmount,
+        type: 'money_income',
+        description: 'Test payment',
+        bot_name: TEST_CONFIG.TEST_BOT_NAME,
+        service_type: ModeEnum.TopUpBalance,
       },
-    ]
-  }
-}
+    })
 
-async function runTests() {
-  logger.info({
-    message: '🚀 Запуск тестов платежной системы',
-    description: 'Starting payment system tests',
-  })
-
-  try {
-    const results = await runPaymentTests()
-
-    for (const result of results) {
-      logger.info({
-        message: result.success
-          ? '✅ Тест успешно завершен'
-          : '❌ Тест провален',
-        description: 'Test completed',
-        name: result.name,
-        success: result.success,
-        details: result.message,
-        error: result.error,
-      })
+    if (!createPaymentResult) {
+      throw new Error('Failed to create payment')
     }
+
+    results.push({
+      success: true,
+      message: 'Payment creation test passed',
+      name: 'Create Payment Test',
+    })
+
+    // Тест снятия средств
+    const withdrawalResult = await inngest.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: TEST_CONFIG.TEST_USER_ID,
+        amount: testAmount / 2,
+        type: 'money_expense',
+        description: 'Test withdrawal',
+        bot_name: TEST_CONFIG.TEST_BOT_NAME,
+        service_type: ModeEnum.TextToImage,
+      },
+    })
+
+    if (!withdrawalResult) {
+      throw new Error('Failed to process withdrawal')
+    }
+
+    results.push({
+      success: true,
+      message: 'Withdrawal test passed',
+      name: 'Withdrawal Test',
+    })
+
+    // Тест защиты от овердрафта
+    const overdraftResult = await inngest.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: TEST_CONFIG.TEST_USER_ID,
+        amount: testAmount * 2,
+        type: 'money_expense',
+        description: 'Test overdraft',
+        bot_name: TEST_CONFIG.TEST_BOT_NAME,
+        service_type: ModeEnum.TextToImage,
+      },
+    })
+
+    if (overdraftResult) {
+      throw new Error('Overdraft protection failed')
+    }
+
+    results.push({
+      success: true,
+      message: 'Overdraft protection test passed',
+      name: 'Overdraft Protection Test',
+    })
+
+    logger.info('✅ All payment tests completed successfully')
+
+    return results
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при выполнении теста',
-      description: 'Error running test',
+    logger.error('❌ Ошибка в тесте платежей:', {
+      description: 'Error in payment tests',
       error: error instanceof Error ? error.message : String(error),
     })
-  }
-}
 
-// Запускаем тесты
-runTests()
+    results.push({
+      success: false,
+      message: 'Ошибка в тесте платежей',
+      name: 'Payment Tests',
+      error: error instanceof Error ? error : new Error(String(error)),
+    })
+  }
+
+  return results
+}

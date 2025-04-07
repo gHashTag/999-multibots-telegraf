@@ -1,18 +1,6 @@
-import { supabaseTestClient } from './test-env'
-import { TEST_CONFIG } from './test-config'
+import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
-
-/**
- * Интерфейс для результатов тестирования
- */
-interface TestResult {
-  name: string
-  success: boolean
-  message: string
-  details?: any
-  error?: string
-  duration?: number
-}
+import { TestResult } from './types'
 
 /**
  * Класс для тестирования базы данных
@@ -22,47 +10,40 @@ export class DatabaseTester {
    * Проверяет соединение с базой данных
    */
   async testConnection(): Promise<TestResult> {
-    const startTime = Date.now()
-    const testName = 'Database connection test'
-
     try {
-      logger.info({
-        message: '🧪 Тест соединения с базой данных',
-        description: 'Database connection test',
-      })
-
-      // Делаем простой запрос к базе данных
-      const { error, count } = await supabaseTestClient
+      const { count, error } = await supabase
         .from('users')
         .select('*', { count: 'exact', head: true })
-        .limit(1)
 
       if (error) {
         throw new Error(error.message)
       }
 
-      const duration = Date.now() - startTime
-      return {
-        name: testName,
-        success: true,
-        message: `Соединение с базой данных установлено за ${duration}мс`,
-        details: { count },
-        duration,
-      }
-    } catch (error) {
-      const duration = Date.now() - startTime
-      logger.error({
-        message: '❌ Ошибка при тестировании соединения с базой данных',
-        description: 'Error during database connection test',
-        error: error instanceof Error ? error.message : 'Unknown error',
+      logger.info({
+        message: '🧪 Тест подключения к базе данных',
+        description: 'Database connection test',
+        count,
       })
 
       return {
-        name: testName,
+        name: 'Database Connection Test',
+        success: true,
+        message: `Успешное подключение к базе данных. Количество пользователей: ${count}`,
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+
+      logger.error({
+        message: '❌ Ошибка подключения к базе данных',
+        description: 'Database connection error',
+        error,
+      })
+
+      return {
+        name: 'Database Connection Test',
         success: false,
-        message: 'Ошибка при соединении с базой данных',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        duration,
+        message: 'Ошибка подключения к базе данных',
+        error,
       }
     }
   }
@@ -71,7 +52,6 @@ export class DatabaseTester {
    * Проверяет наличие тренировки по ID
    */
   async testTrainingExists(trainingId: string): Promise<TestResult> {
-    const startTime = Date.now()
     const testName = `Training existence test: ${trainingId}`
 
     try {
@@ -82,7 +62,7 @@ export class DatabaseTester {
       })
 
       // Пробуем найти тренировку
-      const { data, error } = await supabaseTestClient
+      const { data, error } = await supabase
         .from('model_trainings')
         .select('*')
         .eq('replicate_training_id', trainingId)
@@ -92,39 +72,38 @@ export class DatabaseTester {
       if (error) {
         if (error.code === 'PGRST116') {
           // Код ошибки, когда запись не найдена
-          const duration = Date.now() - startTime
           return {
             name: testName,
             success: false,
             message: `Тренировка ${trainingId} не найдена в базе данных`,
-            details: { error },
-            duration,
           }
         }
         throw new Error(error.message)
       }
 
-      const duration = Date.now() - startTime
+      logger.info({
+        message: '✅ Тренировка найдена',
+        description: 'Training found',
+        training: {
+          id: data.id,
+          modelName: data.model_name,
+          status: data.status,
+          createdAt: data.created_at,
+        },
+      })
+
       return {
         name: testName,
         success: true,
         message: `Тренировка ${trainingId} найдена в базе данных`,
-        details: {
-          training: {
-            id: data.id,
-            modelName: data.model_name,
-            status: data.status,
-            createdAt: data.created_at,
-          },
-        },
-        duration,
       }
-    } catch (error) {
-      const duration = Date.now() - startTime
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+
       logger.error({
         message: '❌ Ошибка при проверке наличия тренировки',
         description: 'Error during training existence test',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error,
         trainingId,
       })
 
@@ -132,8 +111,7 @@ export class DatabaseTester {
         name: testName,
         success: false,
         message: 'Ошибка при поиске тренировки',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        duration,
+        error,
       }
     }
   }
@@ -142,7 +120,6 @@ export class DatabaseTester {
    * Проверяет последние тренировки пользователя
    */
   async testUserTrainings(telegramId: string): Promise<TestResult> {
-    const startTime = Date.now()
     const testName = `User trainings test: ${telegramId}`
 
     try {
@@ -153,7 +130,7 @@ export class DatabaseTester {
       })
 
       // Получаем тренировки пользователя
-      const { data, error } = await supabaseTestClient
+      const { data, error } = await supabase
         .from('model_trainings')
         .select('*')
         .eq('telegram_id', telegramId)
@@ -166,27 +143,31 @@ export class DatabaseTester {
 
       const trainingsCount = data.length
 
-      const duration = Date.now() - startTime
+      const trainings = data.map(t => ({
+        id: t.id,
+        modelName: t.model_name,
+        status: t.status,
+        createdAt: t.created_at,
+      }))
+
+      logger.info({
+        message: '✅ Тренировки пользователя получены',
+        description: 'User trainings retrieved',
+        trainings,
+      })
+
       return {
         name: testName,
         success: true,
         message: `Найдено ${trainingsCount} тренировок пользователя ${telegramId}`,
-        details: {
-          trainings: data.map(t => ({
-            id: t.id,
-            modelName: t.model_name,
-            status: t.status,
-            createdAt: t.created_at,
-          })),
-        },
-        duration,
       }
-    } catch (error) {
-      const duration = Date.now() - startTime
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+
       logger.error({
         message: '❌ Ошибка при получении тренировок пользователя',
         description: 'Error during user trainings test',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error,
         telegramId,
       })
 
@@ -194,8 +175,7 @@ export class DatabaseTester {
         name: testName,
         success: false,
         message: 'Ошибка при получении тренировок пользователя',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        duration,
+        error,
       }
     }
   }
@@ -205,55 +185,22 @@ export class DatabaseTester {
    */
   async runAllTests(): Promise<TestResult[]> {
     const results: TestResult[] = []
-    logger.info({
-      message: '🧪 Запуск всех тестов базы данных',
-      description: 'Running all database tests',
-    })
 
-    try {
-      // Тест соединения
-      const connectionResult = await this.testConnection()
-      results.push(connectionResult)
+    // Тест соединения
+    const connectionResult = await this.testConnection()
+    results.push(connectionResult)
 
-      // Если соединение не установлено, прерываем остальные тесты
-      if (!connectionResult.success) {
-        logger.error({
-          message: '❌ Тесты базы данных прерваны из-за ошибки соединения',
-          description: 'Database tests aborted due to connection error',
-        })
-
-        return results
-      }
-
-      // Тест наличия тренировки из конфигурации
-      const trainingId = TEST_CONFIG.modelTraining.samples[0].trainingId
-      const trainingResult = await this.testTrainingExists(trainingId)
+    // Если соединение успешно, запускаем остальные тесты
+    if (connectionResult.success) {
+      // Тест наличия тренировки
+      const trainingResult = await this.testTrainingExists('test-training-1')
       results.push(trainingResult)
 
       // Тест тренировок пользователя
-      const telegramId = TEST_CONFIG.users.main.telegramId
-      const userTrainingsResult = await this.testUserTrainings(telegramId)
+      const userTrainingsResult = await this.testUserTrainings('123456789')
       results.push(userTrainingsResult)
-
-      // Считаем общую статистику
-      const successful = results.filter(r => r.success).length
-      const total = results.length
-
-      logger.info({
-        message: `🏁 Тесты базы данных завершены: ${successful}/${total} успешно`,
-        description: 'Database tests completed',
-        successCount: successful,
-        totalCount: total,
-      })
-
-      return results
-    } catch (error) {
-      logger.error({
-        message: '❌ Критическая ошибка при выполнении тестов базы данных',
-        description: 'Critical error during database tests',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
-      throw error
     }
+
+    return results
   }
 }

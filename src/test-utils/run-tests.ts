@@ -1,25 +1,52 @@
 import { logger } from '@/utils/logger'
-import { TestResult } from './interfaces'
-import { testImageToPrompt } from './tests'
+import { TestResult } from './types'
+import { DatabaseTester } from './database-tests'
+import { ReplicateWebhookTester } from './webhook-tests'
+import { VoiceTester } from './test-voices'
+import { InngestTester } from './inngest-tests'
 
 /**
  * Запускает все тесты и возвращает результаты
  */
 export async function runTests(): Promise<TestResult[]> {
-  logger.info('🚀 Запуск тестов...')
+  logger.info('🚀 Запуск тестов...', {
+    description: 'Starting test execution',
+  })
 
   const results: TestResult[] = []
 
   try {
-    const imageToPromptResult = await testImageToPrompt()
-    results.push(imageToPromptResult)
+    // База данных
+    const databaseTester = new DatabaseTester()
+    const databaseResults = await databaseTester.runAllTests()
+    results.push(...databaseResults)
 
-    logger.info(
-      `✅ Успешно выполнено тестов: ${results.filter(r => r.success).length}`
-    )
-    logger.info(
-      `❌ Провалено тестов: ${results.filter(r => !r.success).length}`
-    )
+    // Вебхуки
+    const webhookTester = new ReplicateWebhookTester()
+    const webhookResults = await webhookTester.runAllTests()
+    results.push(...webhookResults)
+
+    // Голосовые тесты
+    const voiceTester = new VoiceTester()
+    const voiceResults = await voiceTester.runAllTests()
+    results.push(...voiceResults)
+
+    // Тесты Inngest
+    const inngestTester = new InngestTester()
+    const inngestResults = await inngestTester.runAllTests()
+    results.push(...inngestResults)
+
+    // Выводим статистику
+    const successCount = results.filter(r => r.success).length
+    const failCount = results.filter(r => !r.success).length
+    const totalCount = results.length
+
+    logger.info('📊 Статистика тестов', {
+      description: 'Test statistics',
+      total: totalCount,
+      success: successCount,
+      fail: failCount,
+    })
 
     return results
   } catch (error) {
@@ -52,6 +79,7 @@ runTests()
     } else {
       logger.info('🟢 Все тесты успешно выполнены', {
         description: 'All tests passed successfully',
+        total_tests: results.length,
       })
       process.exit(0)
     }

@@ -1,59 +1,41 @@
-import { Message } from 'telegraf/typings/core/types/typegram'
-
+/**
+ * Мок-объект для Telegram API
+ */
 export const TelegramMock = {
-  sendMessage: async (
-    chatId: number | string,
-    text: string
-  ): Promise<Message> => {
-    return {
-      message_id: 1,
-      date: Date.now(),
-      chat: {
-        id: Number(chatId),
-        type: 'private',
-        first_name: 'Test',
-        last_name: 'User',
-        username: 'test_user',
-      },
-      text: text,
-      from: {
-        id: 1,
-        is_bot: true,
-        first_name: 'Test Bot',
-        username: 'test_bot',
-      },
-    }
-  },
-
-  editMessageText: async (
-    chatId: number | string,
-    messageId: number,
-    text: string
-  ): Promise<Message> => {
-    return {
-      message_id: messageId,
-      date: Date.now(),
-      chat: {
-        id: Number(chatId),
-        type: 'private',
-        first_name: 'Test',
-        last_name: 'User',
-        username: 'test_user',
-      },
-      text: text,
-      from: {
-        id: 1,
-        is_bot: true,
-        first_name: 'Test Bot',
-        username: 'test_bot',
-      },
-    }
-  },
-
-  deleteMessage: async (
-    chatId: number | string,
-    messageId: number
-  ): Promise<boolean> => {
-    return true
-  },
+  sendMessage: async () => true,
+  editMessageText: async () => true,
+  deleteMessage: async () => true,
+  sendPhoto: async () => true,
+  sendDocument: async () => true,
+  sendVideo: async () => true,
+  sendVoice: async () => true,
+  sendAudio: async () => true,
+  sendMediaGroup: async () => true,
+  editMessageReplyMarkup: async () => true,
+  answerCallbackQuery: async () => true,
+  getFile: async () => ({ file_path: 'test/file/path' }),
+  getFileLink: async () => 'https://test.file.url',
+  downloadFile: async () => Buffer.from('test file content'),
+  setChatMenuButton: async () => true,
+  setMyCommands: async () => true,
+  getMyCommands: async () => [],
+  setWebhook: async () => true,
+  deleteWebhook: async () => true,
+  getWebhookInfo: async () => ({
+    url: '',
+    has_custom_certificate: false,
+    pending_update_count: 0,
+    max_connections: 40,
+    ip_address: '',
+  }),
+  getUpdates: async () => [],
+  getMe: async () => ({
+    id: 123456789,
+    is_bot: true,
+    first_name: 'Test Bot',
+    username: 'test_bot',
+    can_join_groups: true,
+    can_read_all_group_messages: true,
+    supports_inline_queries: false,
+  }),
 }

@@ -1,5 +1,3 @@
-import { MyContext } from '@/interfaces'
-
 /**
  * Мок-объект телеграм-бота для тестирования Inngest функций
  */
@@ -56,7 +54,7 @@ export class MockTelegram {
 /**
  * Мок-класс Telegraf для тестирования
  */
-export class MockTelegraf<T extends MyContext> {
+export class MockTelegraf {
   telegram: MockTelegram
 
   constructor(token?: string) {
@@ -81,6 +79,6 @@ export class MockTelegraf<T extends MyContext> {
 /**
  * Создает мок-бот для тестирования
  */
-export function createMockBot(token?: string): MockTelegraf<MyContext> {
-  return new MockTelegraf<MyContext>(token)
+export function createMockBot(token?: string): MockTelegraf {
+  return new MockTelegraf(token)
 }

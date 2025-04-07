@@ -10,7 +10,7 @@ import {
  */
 export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED'
 
-interface UpdatePaymentStatusProps {
+export interface UpdatePaymentStatusProps {
   inv_id: string
   status: PaymentStatus
   stars?: number

@@ -3,6 +3,7 @@ import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
 
 import { TestResult } from './interfaces'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 interface NeuroPhotoGenerateEvent {
   name: 'neuro/photo.generate'
@@ -79,7 +80,7 @@ async function testNeuroPhotoGeneration(): Promise<TestResult> {
       name: testName,
       success: false,
       message: '❌ NeuroPhoto test failed',
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error : new Error(String(error)),
     }
   }
 }
@@ -115,3 +116,65 @@ async function runTests() {
 runTests()
 
 export { testNeuroPhotoGeneration }
+
+export async function runNeurophotoTest(): Promise<TestResult> {
+  try {
+    logger.info('🚀 Starting neurophoto test')
+
+    // Генерация изображения
+    const generateResult = await TEST_CONFIG.inngestEngine.send({
+      name: 'neurophoto/generate',
+      data: {
+        prompt: 'Test prompt for neurophoto',
+        model_url: TEST_CONFIG.models.neurophoto.name,
+        telegram_id: TEST_CONFIG.TEST_USER_ID,
+        bot_name: TEST_CONFIG.TEST_BOT_NAME,
+        service_type: ModeEnum.NeuroPhoto,
+      },
+    })
+
+    if (!generateResult) {
+      throw new Error('Failed to generate image')
+    }
+
+    logger.info('✅ Image generation request sent', {
+      event_id: generateResult.id,
+    })
+
+    // Проверка статуса генерации
+    const checkResult = await TEST_CONFIG.inngestEngine.send({
+      name: 'neurophoto/check',
+      data: {
+        prompt: 'Test prompt for neurophoto',
+        model_url: TEST_CONFIG.models.neurophoto.name,
+        telegram_id: TEST_CONFIG.TEST_USER_ID,
+        bot_name: TEST_CONFIG.TEST_BOT_NAME,
+        service_type: ModeEnum.NeuroPhoto,
+      },
+    })
+
+    if (!checkResult?.id) {
+      throw new Error('Failed to check image status')
+    }
+
+    logger.info('✅ Image status check completed', {
+      event_id: checkResult.id,
+    })
+
+    return {
+      success: true,
+      name: 'Neurophoto Test',
+      message: 'Successfully generated and checked image',
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error('❌ Neurophoto test failed:', { error: errorMessage })
+
+    return {
+      success: false,
+      name: 'Neurophoto Test',
+      message: 'Failed to generate or check image',
+      error: error instanceof Error ? error : new Error(String(error)),
+    }
+  }
+}

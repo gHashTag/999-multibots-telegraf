@@ -4,19 +4,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import fetch from 'node-fetch'
+import { TestResult } from './types'
 // import { generateSpeech } from '@/services/generateSpeech'
-
-/**
- * Интерфейс для результатов теста
- */
-export interface TestResult {
-  success: boolean
-  error?: string
-  duration?: number
-  name: string
-  message?: string
-  details?: string
-}
 
 export async function generateAudioBuffer(
   text: string,
@@ -117,7 +106,6 @@ export async function generateAudioBuffer(
 }
 
 export async function testAudioGeneration(): Promise<TestResult> {
-  const startTime = Date.now()
   const testName = 'Audio Generation Test'
 
   try {
@@ -155,30 +143,29 @@ export async function testAudioGeneration(): Promise<TestResult> {
     })
 
     return {
-      success: true,
-      duration: Date.now() - startTime,
       name: testName,
+      success: true,
       message: 'Аудио успешно сгенерировано и сохранено',
     }
-  } catch (error) {
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err))
+
     logger.error({
       message: '❌ Ошибка в тесте генерации аудио',
       description: 'Error in audio generation test',
-      error: error instanceof Error ? error.message : String(error),
+      error: error.message,
     })
 
     return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-      duration: Date.now() - startTime,
       name: testName,
+      success: false,
       message: 'Ошибка при генерации аудио',
+      error,
     }
   }
 }
 
 export async function testSpeechGeneration(): Promise<TestResult> {
-  const startTime = Date.now()
   const testName = 'Speech Generation Test'
 
   try {
@@ -219,24 +206,24 @@ export async function testSpeechGeneration(): Promise<TestResult> {
     // fs.unlinkSync(result.audioUrl)
 
     return {
-      success: true,
-      duration: Date.now() - startTime,
       name: testName,
+      success: true,
       message: 'Аудио успешно сгенерировано и отправлено',
     }
-  } catch (error) {
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err))
+
     logger.error({
       message: '❌ Ошибка в тесте генерации речи',
       description: 'Error in speech generation test',
-      error: error instanceof Error ? error.message : String(error),
+      error: error.message,
     })
 
     return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-      duration: Date.now() - startTime,
       name: testName,
+      success: false,
       message: 'Ошибка при генерации речи',
+      error,
     }
   }
 }

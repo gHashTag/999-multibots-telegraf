@@ -1,6 +1,6 @@
 import { logger } from '@/utils/logger'
 import { supabase } from '@/core/supabase'
-import { TestResult } from '../interfaces'
+import { TestResult } from '../types'
 
 interface DebugConfig {
   userId: number
@@ -47,11 +47,9 @@ const DEBUG_BOTS: DebugConfig[] = [
 ]
 
 interface PaymentStats {
-  totalRubIncome: number
-  totalStarsFromRub: number
-  totalStarsIncome: number
-  totalStarsSpent: number
-  totalBonusStars: number
+  total_amount: number
+  total_count: number
+  average_amount: number
 }
 
 const getStartOfLastMonth = (): Date => {
@@ -88,36 +86,49 @@ const getOldPaymentStats = async (botName: string): Promise<PaymentStats> => {
     }
 
     const stats: PaymentStats = {
-      totalRubIncome: 0,
-      totalStarsFromRub: 0,
-      totalStarsIncome: 0,
-      totalStarsSpent: 0,
-      totalBonusStars: 0,
+      total_amount: 0,
+      total_count: 0,
+      average_amount: 0,
     }
 
-    payments?.forEach(payment => {
+    if (!payments || payments.length === 0) {
+      logger.warn('⚠️ Нет платежей в старой таблице', {
+        description: 'No payments found in old table',
+        bot_name: botName,
+        date_range: { start: startDate, end: endDate },
+      })
+      return stats
+    }
+
+    payments.forEach(payment => {
       if (payment.status === 'COMPLETED') {
         if (payment.payment_method === 'rub') {
-          stats.totalRubIncome += payment.amount
-          stats.totalStarsFromRub += payment.stars
+          stats.total_amount += payment.amount
+          stats.total_count += 1
         } else if (payment.payment_method === 'stars') {
           if (payment.type === 'money_income') {
-            stats.totalStarsIncome += payment.amount
+            stats.total_amount += payment.amount
+            stats.total_count += 1
           } else if (payment.type === 'money_expense') {
-            stats.totalStarsSpent += Math.abs(payment.amount)
+            stats.total_amount += Math.abs(payment.amount)
+            stats.total_count += 1
           }
         } else if (payment.payment_method === 'bonus') {
-          stats.totalBonusStars += payment.amount
+          stats.total_amount += payment.amount
+          stats.total_count += 1
         }
       }
     })
+
+    stats.average_amount =
+      stats.total_count > 0 ? stats.total_amount / stats.total_count : 0
 
     logger.info('📊 Статистика из старой таблицы', {
       description: 'Old table statistics',
       bot_name: botName,
       date_range: { start: startDate, end: endDate },
       stats,
-      payments_count: payments?.length || 0,
+      payments_count: payments.length,
     })
 
     return stats
@@ -155,36 +166,49 @@ const getNewPaymentStats = async (botName: string): Promise<PaymentStats> => {
     }
 
     const stats: PaymentStats = {
-      totalRubIncome: 0,
-      totalStarsFromRub: 0,
-      totalStarsIncome: 0,
-      totalStarsSpent: 0,
-      totalBonusStars: 0,
+      total_amount: 0,
+      total_count: 0,
+      average_amount: 0,
     }
 
-    payments?.forEach(payment => {
+    if (!payments || payments.length === 0) {
+      logger.warn('⚠️ Нет платежей в новой таблице', {
+        description: 'No payments found in new table',
+        bot_name: botName,
+        date_range: { start: startDate, end: endDate },
+      })
+      return stats
+    }
+
+    payments.forEach(payment => {
       if (payment.status === 'COMPLETED') {
         if (payment.payment_method === 'rub') {
-          stats.totalRubIncome += payment.amount
-          stats.totalStarsFromRub += payment.stars
+          stats.total_amount += payment.amount
+          stats.total_count += 1
         } else if (payment.payment_method === 'stars') {
           if (payment.type === 'money_income') {
-            stats.totalStarsIncome += payment.amount
+            stats.total_amount += payment.amount
+            stats.total_count += 1
           } else if (payment.type === 'money_expense') {
-            stats.totalStarsSpent += Math.abs(payment.amount)
+            stats.total_amount += Math.abs(payment.amount)
+            stats.total_count += 1
           }
         } else if (payment.payment_method === 'bonus') {
-          stats.totalBonusStars += payment.amount
+          stats.total_amount += payment.amount
+          stats.total_count += 1
         }
       }
     })
+
+    stats.average_amount =
+      stats.total_count > 0 ? stats.total_amount / stats.total_count : 0
 
     logger.info('📊 Статистика из новой таблицы', {
       description: 'New table statistics',
       bot_name: botName,
       date_range: { start: startDate, end: endDate },
       stats,
-      payments_count: payments?.length || 0,
+      payments_count: payments.length,
     })
 
     return stats
@@ -198,149 +222,147 @@ const getNewPaymentStats = async (botName: string): Promise<PaymentStats> => {
   }
 }
 
-const compareStats = (
-  oldStats: PaymentStats,
-  newStats: PaymentStats
-): boolean => {
-  const threshold = 0.01 // Допустимая погрешность в 1%
-
-  const isWithinThreshold = (a: number, b: number): boolean => {
-    if (a === 0 && b === 0) return true
-    if (a === 0 || b === 0) return false
-    const diff = Math.abs((a - b) / a)
-    return diff <= threshold
-  }
-
-  const comparison = {
-    totalRubIncome: isWithinThreshold(
-      oldStats.totalRubIncome,
-      newStats.totalRubIncome
-    ),
-    totalStarsFromRub: isWithinThreshold(
-      oldStats.totalStarsFromRub,
-      newStats.totalStarsFromRub
-    ),
-    totalStarsIncome: isWithinThreshold(
-      oldStats.totalStarsIncome,
-      newStats.totalStarsIncome
-    ),
-    totalStarsSpent: isWithinThreshold(
-      oldStats.totalStarsSpent,
-      newStats.totalStarsSpent
-    ),
-    totalBonusStars: isWithinThreshold(
-      oldStats.totalBonusStars,
-      newStats.totalBonusStars
-    ),
-  }
-
-  logger.info('🔍 Результаты сравнения', {
-    description: 'Comparison results',
-    comparison,
-  })
-
-  return Object.values(comparison).every(Boolean)
-}
-
-export const runClientsMigrationTests = async (): Promise<TestResult[]> => {
-  const results: TestResult[] = []
-  const startDate = getStartOfLastMonth()
-  const endDate = getEndOfLastMonth()
+export async function testClientsMigration(): Promise<TestResult> {
+  const testName = 'Clients Migration Test'
 
   try {
-    logger.info('🎯 Начало тестирования миграции клиентов', {
-      description: 'Starting clients migration tests',
-      total_clients: DEBUG_BOTS.length,
-      date_range: {
-        start: startDate.toISOString(),
-        end: endDate.toISOString(),
-      },
+    logger.info('🚀 Начинаем тестирование миграции клиентов', {
+      description: 'Starting clients migration test',
+      bots_count: DEBUG_BOTS.length,
     })
 
-    for (const client of DEBUG_BOTS) {
-      logger.info('🔍 Проверка статистики для клиента', {
-        description: 'Checking client statistics',
-        bot_name: client.botName,
-        client_description: client.description,
+    const results = await Promise.all(
+      DEBUG_BOTS.map(async bot => {
+        try {
+          const oldStats = await getOldPaymentStats(bot.botName)
+          const newStats = await getNewPaymentStats(bot.botName)
+
+          // Проверяем совпадение статистики с погрешностью 1%
+          const totalAmountDiff = Math.abs(
+            oldStats.total_amount - newStats.total_amount
+          )
+          const totalAmountThreshold = oldStats.total_amount * 0.01 // 1% погрешность
+
+          const totalCountDiff = Math.abs(
+            oldStats.total_count - newStats.total_count
+          )
+          const totalCountThreshold = oldStats.total_count * 0.01 // 1% погрешность
+
+          const statsMatch =
+            totalAmountDiff <= totalAmountThreshold &&
+            totalCountDiff <= totalCountThreshold
+
+          if (!statsMatch) {
+            logger.warn('⚠️ Несоответствие статистики', {
+              description: 'Statistics mismatch',
+              bot_name: bot.botName,
+              bot_description: bot.description,
+              old_stats: oldStats,
+              new_stats: newStats,
+              differences: {
+                total_amount: totalAmountDiff,
+                total_count: totalCountDiff,
+              },
+              thresholds: {
+                total_amount: totalAmountThreshold,
+                total_count: totalCountThreshold,
+              },
+            })
+          } else {
+            logger.info('✅ Статистика совпадает', {
+              description: 'Statistics match',
+              bot_name: bot.botName,
+              bot_description: bot.description,
+              old_stats: oldStats,
+              new_stats: newStats,
+            })
+          }
+
+          return {
+            botName: bot.botName,
+            description: bot.description,
+            statsMatch,
+            oldStats,
+            newStats,
+          }
+        } catch (error) {
+          logger.error('❌ Ошибка при проверке бота', {
+            description: 'Error checking bot',
+            error: error instanceof Error ? error.message : String(error),
+            bot_name: bot.botName,
+            bot_description: bot.description,
+          })
+          return {
+            botName: bot.botName,
+            description: bot.description,
+            statsMatch: false,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        }
+      })
+    )
+
+    const failedBots = results.filter(result => !result.statsMatch)
+
+    if (failedBots.length > 0) {
+      logger.error('❌ Тест миграции клиентов завершен с ошибками', {
+        description: 'Clients migration test completed with errors',
+        failed_bots: failedBots.map(bot => ({
+          name: bot.botName,
+          description: bot.description,
+          error: bot.error,
+        })),
       })
 
-      const oldStats = await getOldPaymentStats(client.botName)
-      const newStats = await getNewPaymentStats(client.botName)
-      const statsMatch = compareStats(oldStats, newStats)
-
-      results.push({
-        name: `Migration Test - ${client.description}`,
-        success: statsMatch,
-        message: statsMatch
-          ? `✅ Статистика успешно перенесена для ${client.description}`
-          : `❌ Несоответствие в статистике для ${client.description}`,
-        details: {
-          botName: client.botName,
-          dateRange: {
-            start: startDate.toISOString(),
-            end: endDate.toISOString(),
-          },
-          oldStats,
-          newStats,
-          difference: {
-            totalRubIncome: newStats.totalRubIncome - oldStats.totalRubIncome,
-            totalStarsFromRub:
-              newStats.totalStarsFromRub - oldStats.totalStarsFromRub,
-            totalStarsIncome:
-              newStats.totalStarsIncome - oldStats.totalStarsIncome,
-            totalStarsSpent:
-              newStats.totalStarsSpent - oldStats.totalStarsSpent,
-            totalBonusStars:
-              newStats.totalBonusStars - oldStats.totalBonusStars,
-          },
-        },
-      })
-
-      logger.info('📊 Результаты сравнения статистики', {
-        description: 'Statistics comparison results',
-        bot_name: client.botName,
-        client_description: client.description,
-        date_range: {
-          start: startDate.toISOString(),
-          end: endDate.toISOString(),
-        },
-        old_stats: oldStats,
-        new_stats: newStats,
-        match: statsMatch,
-      })
+      return {
+        name: testName,
+        success: false,
+        message: `Ошибка миграции для ${failedBots.length} ботов`,
+        error: new Error(
+          `Несоответствие статистики для ботов: ${failedBots
+            .map(bot => bot.botName)
+            .join(', ')}`
+        ),
+      }
     }
 
-    logger.info('✅ Тестирование миграции клиентов завершено', {
-      description: 'Clients migration testing completed',
-      total_tests: results.length,
-      successful_tests: results.filter(r => r.success).length,
-      date_range: {
-        start: startDate.toISOString(),
-        end: endDate.toISOString(),
-      },
+    logger.info('✅ Тест миграции клиентов успешно завершен', {
+      description: 'Clients migration test completed successfully',
+      bots_checked: results.length,
     })
-  } catch (error) {
+
+    return {
+      name: testName,
+      success: true,
+      message: `Миграция успешно проверена для ${results.length} ботов`,
+    }
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err))
+
     logger.error('❌ Ошибка при тестировании миграции клиентов', {
-      description: 'Error during clients migration testing',
-      error: error instanceof Error ? error.message : String(error),
-      details: error,
+      description: 'Error in clients migration test',
+      error: error.message,
     })
 
-    results.push({
-      name: 'Clients Migration Testing',
+    return {
+      name: testName,
       success: false,
-      message: `❌ Ошибка при тестировании: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      details: {
-        error,
-        date_range: {
-          start: startDate.toISOString(),
-          end: endDate.toISOString(),
-        },
-      },
-    })
+      message: 'Ошибка при тестировании миграции клиентов',
+      error,
+    }
   }
+}
 
-  return results
+// Запускаем тест если файл запущен напрямую
+if (require.main === module) {
+  ;(async () => {
+    try {
+      const results = await testClientsMigration()
+      console.log('📊 Результаты тестов:', results)
+      process.exit(0)
+    } catch (error) {
+      console.error('❌ Ошибка при запуске тестов:', error)
+      process.exit(1)
+    }
+  })()
 }

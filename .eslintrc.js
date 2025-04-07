@@ -25,8 +25,6 @@ module.exports = {
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/ban-types': 'off',
     '@typescript-eslint/no-var-requires': 'off',
-    semi: ['error', 'never'],
-    '@typescript-eslint/semi': ['error', 'never'],
-    'prettier/prettier': ['error', { semi: false }],
+    'prettier/prettier': 'error',
   },
 }

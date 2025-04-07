@@ -4,6 +4,7 @@ import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/core/supabase'
+import { TestResult } from './types'
 
 // Вспомогательные функции для генерации тестовых данных
 const generateTestTelegramId = (): TelegramId => {
@@ -97,114 +98,117 @@ const waitForPaymentCompletion = async (
   return false
 }
 
-export const testInngestPayment = async () => {
-  const telegram_id = generateTestTelegramId()
-  const bot_name = 'test_bot'
+export const testInngestPayment = async (): Promise<TestResult> => {
+  try {
+    const telegram_id = generateTestTelegramId()
+    const bot_name = 'test_bot'
 
-  logger.info('🚀 Начало тестирования платежной системы', {
-    description: 'Starting payment system test',
-    telegram_id,
-  })
-
-  // Генерируем уникальный operation_id для пополнения
-  const incomeOperationId = generateOperationId(telegram_id)
-
-  // Отправляем событие пополнения
-  await inngest.send({
-    name: 'payment/process',
-    data: {
-      amount: 100,
+    logger.info('🚀 Начало тестирования платежной системы', {
+      description: 'Starting payment system test',
       telegram_id,
-      type: 'money_income',
-      description: 'test money_income',
-      bot_name,
-      operation_id: incomeOperationId,
-      metadata: {
-        service_type: 'System',
-        test: true,
+    })
+
+    // Генерируем уникальный operation_id для пополнения
+    const incomeOperationId = generateOperationId(telegram_id)
+
+    // Отправляем событие пополнения
+    await inngest.send({
+      name: 'payment/process',
+      data: {
+        amount: 100,
+        telegram_id,
+        type: 'money_income',
+        description: 'test money_income',
+        bot_name,
+        operation_id: incomeOperationId,
+        metadata: {
+          service_type: 'System',
+          test: true,
+        },
       },
-    },
-  })
-
-  // Ждем завершения операции пополнения
-  const incomeResult = await waitForPaymentCompletion(
-    telegram_id,
-    incomeOperationId
-  )
-
-  if (!incomeResult) {
-    logger.error('❌ Ошибка при пополнении баланса', {
-      description: 'Error during money_income operation',
-      telegram_id,
-      operation_id: incomeOperationId,
     })
-    process.exit(1)
-  }
 
-  // Проверяем баланс после пополнения
-  const balanceAfterIncome = await getUserBalance(telegram_id, bot_name)
-  if (Number(balanceAfterIncome) !== 100) {
-    logger.error('❌ Некорректный баланс после пополнения', {
-      description: 'Incorrect balance after money_income',
+    // Ждем завершения операции пополнения
+    const incomeResult = await waitForPaymentCompletion(
       telegram_id,
-      expected: 100,
-      actual: balanceAfterIncome,
-    })
-    process.exit(1)
-  }
+      incomeOperationId
+    )
 
-  // Генерируем уникальный operation_id для списания
-  const spendOperationId = generateOperationId(telegram_id)
+    if (!incomeResult) {
+      throw new Error('Ошибка при пополнении баланса')
+    }
 
-  // Отправляем событие списания
-  await inngest.send({
-    name: 'payment/process',
-    data: {
-      amount: -30,
-      telegram_id,
-      type: 'money_expense',
-      description: 'test money_expense',
-      bot_name,
-      operation_id: spendOperationId,
-      metadata: {
-        service_type: 'System',
-        test: true,
+    // Проверяем баланс после пополнения
+    const balanceAfterIncome = await getUserBalance(telegram_id, bot_name)
+    if (Number(balanceAfterIncome) !== 100) {
+      throw new Error(
+        `Некорректный баланс после пополнения: ожидалось 100, получено ${balanceAfterIncome}`
+      )
+    }
+
+    // Генерируем уникальный operation_id для списания
+    const spendOperationId = generateOperationId(telegram_id)
+
+    // Отправляем событие списания
+    await inngest.send({
+      name: 'payment/process',
+      data: {
+        amount: -30,
+        telegram_id,
+        type: 'money_expense',
+        description: 'test money_expense',
+        bot_name,
+        operation_id: spendOperationId,
+        metadata: {
+          service_type: 'System',
+          test: true,
+        },
       },
-    },
-  })
-
-  // Ждем завершения операции списания
-  const spendResult = await waitForPaymentCompletion(
-    telegram_id,
-    spendOperationId
-  )
-
-  if (!spendResult) {
-    logger.error('❌ Ошибка при списании средств', {
-      description: 'Error during spend operation',
-      telegram_id,
-      operation_id: spendOperationId,
     })
-    process.exit(1)
-  }
 
-  // Проверяем баланс после списания
-  const finalBalance = await getUserBalance(telegram_id, bot_name)
-  if (Number(finalBalance) !== 70) {
-    logger.error('❌ Некорректный финальный баланс', {
-      description: 'Incorrect final balance',
+    // Ждем завершения операции списания
+    const spendResult = await waitForPaymentCompletion(
       telegram_id,
-      expected: 70,
-      actual: finalBalance,
+      spendOperationId
+    )
+
+    if (!spendResult) {
+      throw new Error('Ошибка при списании средств')
+    }
+
+    // Проверяем баланс после списания
+    const finalBalance = await getUserBalance(telegram_id, bot_name)
+    if (Number(finalBalance) !== 70) {
+      throw new Error(
+        `Некорректный финальный баланс: ожидалось 70, получено ${finalBalance}`
+      )
+    }
+
+    logger.info('✅ Тестирование платежной системы успешно завершено', {
+      description: 'Payment system test completed successfully',
+      telegram_id,
+      final_balance: finalBalance,
     })
-    process.exit(1)
+
+    return {
+      success: true,
+      message: 'Тестирование платежной системы успешно завершено',
+      name: 'Payment System Test',
+    }
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Неизвестная ошибка'
+
+    logger.error('❌ Ошибка при тестировании платежной системы', {
+      description: 'Payment system test failed',
+      error: errorMessage,
+    })
+
+    return {
+      success: false,
+      message: errorMessage,
+      name: 'Payment System Test',
+      error: error instanceof Error ? error : new Error(errorMessage),
+    }
   }
-
-  logger.info('✅ Тест платежной системы успешно завершен', {
-    description: 'Payment system test completed successfully',
-    telegram_id,
-    final_balance: finalBalance,
-  })
-
-  process.exit(0)
 }

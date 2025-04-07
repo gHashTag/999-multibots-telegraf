@@ -14,7 +14,7 @@ export async function priceCommand(ctx: MyContext) {
 
   // Получаем стоимость для каждого режима
   const prices = Object.entries(ModeEnum).reduce(
-    (acc, [key, mode]) => {
+    (acc, [, mode]) => {
       // Для режимов с шагами рассчитываем диапазон цен
       if (
         mode === ModeEnum.DigitalAvatarBody ||

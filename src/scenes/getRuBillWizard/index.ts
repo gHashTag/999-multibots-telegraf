@@ -1,4 +1,3 @@
-import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { isRussian } from '@/helpers'
 import {
   getInvoiceId,
@@ -13,7 +12,6 @@ import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
 
-import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
 
@@ -26,7 +24,7 @@ export type LocalSubscription = Extract<
   'neurophoto' | 'neurobase' | 'neuroblogger'
 >
 
-const generateInvoiceStep = async (ctx: MyContext) => {
+const generateInvoiceStep = async (ctx: any) => {
   logger.info('🚀 Начало создания счета', {
     description: 'Starting invoice generation',
   })

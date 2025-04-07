@@ -5,9 +5,9 @@ dotenv.config()
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { logger } from '@/utils/logger'
-import { TEST_CONFIG } from '@/test-utils/test-config'
 import { NODE_ENV } from '@/config'
 import { getBotGroupFromAvatars } from '@/core/supabase'
+import { initSession } from '@/middlewares/session.middleware'
 
 // Проверяем токены в зависимости от окружения
 if (process.env.NODE_ENV === 'production') {
@@ -98,6 +98,9 @@ export const bots = Object.entries(BOT_NAMES)
 
     const bot = new Telegraf<MyContext>(token)
 
+    // Применяем middleware для инициализации сессии
+    bot.use(initSession())
+
     logger.info('🤖 Инициализация бота:', {
       description: 'Bot initialization',
       bot_name: name,
@@ -106,6 +109,9 @@ export const bots = Object.entries(BOT_NAMES)
 
     return bot
   })
+
+// Применяем middleware к defaultBot
+defaultBot.use(initSession())
 
 logger.info('🌟 Инициализировано ботов:', {
   description: 'Bots initialized',
@@ -194,7 +200,7 @@ export function getBotByName(bot_name: string): {
       description: 'Returning mock bot for tests',
       bot_name,
     })
-    return { bot: TEST_CONFIG.mocks.bot }
+    return { bot: new Telegraf<MyContext>('test-token') }
   }
 
   logger.info({
