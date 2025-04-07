@@ -1,22 +1,27 @@
-import { inngest } from '@/inngest-functions/clients'
+import { inngest } from './clients'
 import { logger } from '@/utils/logger'
-
-import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
-import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { v4 as uuidv4 } from 'uuid'
-
-import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
-import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
-import { supabase } from '@/core/supabase'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
+import { v4 as uuidv4 } from 'uuid'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+
+export type TransactionType =
+  | 'money_expense'
+  | 'money_income'
+  | 'subscription_purchase'
+  | 'subscription_renewal'
+  | 'refund'
+  | 'bonus'
+  | 'referral'
+  | 'system'
 
 export interface PaymentProcessEvent {
   data: {
     telegram_id: string
     amount: number // Всегда положительное число
     stars?: number // Всегда положительное число
-    type: string
+    type: TransactionType
     description: string
     bot_name: string
     inv_id?: string
@@ -36,7 +41,13 @@ export const paymentProcessor = inngest.createFunction(
     retries: 3,
   },
   { event: 'payment/process' },
-  async ({ event, step }) => {
+  async ({
+    event,
+    step,
+  }: {
+    event: { data: PaymentProcessEvent['data'] }
+    step: any
+  }) => {
     const { telegram_id, amount, type, description, bot_name, service_type } =
       event.data
 

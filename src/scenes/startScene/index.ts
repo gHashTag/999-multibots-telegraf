@@ -72,9 +72,8 @@ export const startScene = new Scenes.WizardScene<MyContext>(
   async (ctx: MyContext) => {
     const isRu = ctx.from?.language_code === 'ru'
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { subscription, isExist } = await getReferalsCountAndUserData(
-      telegram_id
-    )
+    const { subscription, isExist } =
+      await getReferalsCountAndUserData(telegram_id)
     console.log('isExist', isExist)
     if (!isExist) {
       await ctx.scene.enter(ModeEnum.CreateUserScene)

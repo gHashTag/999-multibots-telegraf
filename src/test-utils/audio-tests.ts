@@ -1,10 +1,8 @@
-import { logger } from '../utils/logger'
+import { logger } from '@/utils/logger'
 import { Buffer } from 'buffer'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
-import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
 import fetch from 'node-fetch'
 // import { generateSpeech } from '@/services/generateSpeech'
 
@@ -80,34 +78,18 @@ export async function generateAudioBuffer(
 
     const chunks: Uint8Array[] = []
     let totalSize = 0
-    let isReading = true
 
-    const reader = response.body.getReader()
+    // Читаем данные из стрима
+    const buffer = await response.buffer()
+    chunks.push(buffer)
+    totalSize += buffer.length
 
-    while (isReading) {
-      const { done, value } = await reader.read()
-
-      if (done) {
-        logger.info({
-          message: '✅ Чтение стрима завершено',
-          description: 'Stream reading completed',
-          totalSize,
-          timestamp: new Date().toISOString(),
-        })
-        isReading = false
-        continue
-      }
-
-      chunks.push(value)
-      totalSize += value.length
-      logger.debug({
-        message: '📦 Получен чанк данных',
-        description: 'Data chunk received',
-        chunkSize: value.length,
-        totalSize,
-        timestamp: new Date().toISOString(),
-      })
-    }
+    logger.info({
+      message: '✅ Чтение данных завершено',
+      description: 'Data reading completed',
+      totalSize,
+      timestamp: new Date().toISOString(),
+    })
 
     const audioBuffer = Buffer.concat(chunks)
     logger.info({
@@ -194,32 +176,6 @@ export async function testAudioGeneration(): Promise<TestResult> {
     }
   }
 }
-
-async function mockBot() {
-  const bot = new Telegraf<MyContext>(process.env.BOT_TOKEN || 'mock-token')
-
-  // Мокаем методы бота
-  bot.telegram.sendMessage = async () => {
-    logger.info({
-      message: '📤 Отправка сообщения в Telegram',
-      description: 'Sending message to Telegram (mocked)',
-    })
-    return {} as any
-  }
-
-  bot.telegram.sendAudio = async () => {
-    logger.info({
-      message: '🎵 Отправка аудио в Telegram',
-      description: 'Sending audio to Telegram (mocked)',
-    })
-    return {} as any
-  }
-
-  return bot
-}
-
-// Мокаем переменные окружения для тестов
-process.env.ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'mock-key'
 
 export async function testSpeechGeneration(): Promise<TestResult> {
   const startTime = Date.now()

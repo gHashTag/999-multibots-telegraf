@@ -5,10 +5,7 @@ import { TEST_CONFIG, inngestTestEngine } from '../test-config'
 import { supabase } from '@/core/supabase'
 import { getUserBalance } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-import {
-  TelegramId,
-  normalizeTelegramId,
-} from '@/interfaces/telegram.interface'
+
 import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
 
 const waitForPaymentCompletion = async (inv_id: string, timeout = 5000) => {

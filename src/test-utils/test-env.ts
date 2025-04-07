@@ -12,25 +12,35 @@ const requiredEnvVars = [
   'SUPABASE_ANON_KEY',
 ]
 
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    logger.error({
-      message: `❌ Отсутствует переменная окружения ${envVar}`,
-      description: `Missing required environment variable ${envVar}`,
-    })
-    process.exit(1)
+// Функция для безопасного получения переменных окружения
+function getEnvVar(name: string): string {
+  const value = process.env[name]
+  if (!value) {
+    logger.error(`❌ Отсутствует переменная окружения ${name}`)
+    throw new Error(`Missing environment variable: ${name}`)
   }
+  return value
+}
+
+for (const envVar of requiredEnvVars) {
+  getEnvVar(envVar)
 }
 
 // Создаем клиент Supabase для тестов
 export const supabaseTestClient = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!,
+  getEnvVar('SUPABASE_URL'),
+  getEnvVar('SUPABASE_SERVICE_KEY'),
   {
     auth: {
       persistSession: false,
     },
   }
+)
+
+// Создаем клиент Supabase для анонимного доступа
+export const supabaseAnon = createClient(
+  getEnvVar('SUPABASE_URL'),
+  getEnvVar('SUPABASE_ANON_KEY')
 )
 
 // Интерфейс для данных логирования
@@ -41,8 +51,8 @@ export interface LogData {
 // Экспортируем настройки для тестов
 export const TEST_ENV = {
   supabase: {
-    url: process.env.SUPABASE_URL!,
-    key: process.env.SUPABASE_ANON_KEY!,
+    url: getEnvVar('SUPABASE_URL'),
+    key: getEnvVar('SUPABASE_ANON_KEY'),
   },
   api: {
     url: process.env.API_URL || 'http://localhost:2999',

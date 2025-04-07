@@ -579,9 +579,8 @@ export function registerCommands({
     console.log('CASE: Отмена')
     const isRu = isRussian(ctx)
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegram_id
-    )
+    const { count, subscription, level } =
+      await getReferalsCountAndUserData(telegram_id)
     if (!subscription) {
       await ctx.reply(
         isRu

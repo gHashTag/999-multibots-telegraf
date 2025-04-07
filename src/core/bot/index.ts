@@ -21,8 +21,10 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.BOT_TOKEN_7) throw new Error('❌ BOT_TOKEN_7 must be set')
 } else {
   // Check test tokens
-  if (!process.env.BOT_TOKEN_TEST_1) throw new Error('❌ BOT_TOKEN_TEST_1 must be set')
-  if (!process.env.BOT_TOKEN_TEST_2) throw new Error('❌ BOT_TOKEN_TEST_2 must be set')
+  if (!process.env.BOT_TOKEN_TEST_1)
+    throw new Error('❌ BOT_TOKEN_TEST_1 must be set')
+  if (!process.env.BOT_TOKEN_TEST_2)
+    throw new Error('❌ BOT_TOKEN_TEST_2 must be set')
 }
 
 const BOT_TOKENS_PROD = [

@@ -1,62 +1,40 @@
 import { logger } from '@/utils/logger'
-import { TEST_CONFIG } from './test-config'
 import { TestResult } from './interfaces'
 import { testImageToPrompt } from './tests'
 
 /**
  * Запускает все тесты и возвращает результаты
  */
-async function runTests(): Promise<TestResult[]> {
-  logger.info('🚀 Запуск тестирования', {
-    description: 'Starting tests',
-  })
+export async function runTests(): Promise<TestResult[]> {
+  logger.info('🚀 Запуск тестов...')
 
   const results: TestResult[] = []
 
   try {
-    // Тест imageToPrompt
-    logger.info('🎯 Запуск теста imageToPrompt', {
-      description: 'Running imageToPrompt test',
-    })
-
     const imageToPromptResult = await testImageToPrompt()
     results.push(imageToPromptResult)
 
-    if (imageToPromptResult.success) {
-      logger.info('✅ Тест imageToPrompt успешно выполнен', {
-        description: 'imageToPrompt test completed successfully',
-        details: imageToPromptResult.details,
-      })
-    } else {
-      logger.error('❌ Тест imageToPrompt завершился с ошибкой', {
-        description: 'imageToPrompt test failed',
-        error: imageToPromptResult.error,
-      })
-    }
+    logger.info(
+      `✅ Успешно выполнено тестов: ${results.filter(r => r.success).length}`
+    )
+    logger.info(
+      `❌ Провалено тестов: ${results.filter(r => !r.success).length}`
+    )
 
-    // Здесь можно добавить другие тесты
+    return results
   } catch (error) {
-    logger.error('❌ Ошибка в процессе тестирования', {
-      description: 'Error during testing',
+    logger.error('❌ Ошибка при выполнении тестов:', {
+      description: 'Error during test execution',
       error: error instanceof Error ? error.message : String(error),
     })
+    return [
+      {
+        success: false,
+        name: 'Общая ошибка тестов',
+        message: error instanceof Error ? error.message : String(error),
+      },
+    ]
   }
-
-  // Выводим общий результат
-  const successCount = results.filter(r => r.success).length
-  const totalCount = results.length
-
-  logger.info(
-    `📊 Результаты тестирования: ${successCount}/${totalCount} успешно`,
-    {
-      description: 'Test results',
-      success_count: successCount,
-      total_count: totalCount,
-      success_rate: `${(successCount / totalCount) * 100}%`,
-    }
-  )
-
-  return results
 }
 
 // Запускаем тесты

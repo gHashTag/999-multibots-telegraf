@@ -30,9 +30,8 @@ const menuCommandStep = async (ctx: MyContext) => {
       newSubscription = 'neurobase'
       newLevel = 0
     } else {
-      const { count, subscription, level } = await getReferalsCountAndUserData(
-        telegram_id
-      )
+      const { count, subscription, level } =
+        await getReferalsCountAndUserData(telegram_id)
       newCount = count
       newSubscription = subscription || 'stars'
       newLevel = level
@@ -85,8 +84,8 @@ const menuCommandStep = async (ctx: MyContext) => {
         ? nextLevel.title_ru
         : nextLevel.title_en
       : isRu
-      ? 'Неизвестный уровень'
-      : 'Unknown level'
+        ? 'Неизвестный уровень'
+        : 'Unknown level'
 
     const inlineKeyboard = [
       ...(newCount >= 1

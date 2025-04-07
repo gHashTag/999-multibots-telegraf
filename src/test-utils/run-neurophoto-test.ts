@@ -33,7 +33,7 @@ async function testNeuroPhotoGeneration(): Promise<TestResult> {
       name: 'neuro/photo.generate',
       data: {
         prompt: 'Test prompt for neurophoto generation',
-        model_url: TEST_CONFIG.models.neurophoto,
+        model_url: TEST_CONFIG.models.neurophoto.name,
         numImages: 1,
         telegram_id: TEST_CONFIG.TEST_USER_ID,
         username: 'test_user',
@@ -52,7 +52,7 @@ async function testNeuroPhotoGeneration(): Promise<TestResult> {
       name: 'neuro/photo.generate',
       data: {
         prompt: 'Test prompt for error case',
-        model_url: TEST_CONFIG.models.neurophoto,
+        model_url: TEST_CONFIG.models.neurophoto.name,
         numImages: 1,
         telegram_id: '999999999', // Несуществующий пользователь
         username: 'test_user',

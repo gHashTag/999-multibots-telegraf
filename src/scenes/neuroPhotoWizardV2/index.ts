@@ -27,9 +27,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     const userModel = await getLatestUserModel(telegramId, 'bfl')
     console.log('userModel', userModel)
 
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegramId
-    )
+    const { count, subscription, level } =
+      await getReferalsCountAndUserData(telegramId)
 
     if (!userModel || !userModel.finetune_id || !subscription) {
       await ctx.reply(
