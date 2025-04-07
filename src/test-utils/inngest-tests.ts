@@ -13,6 +13,10 @@ import { TelegramId } from '@/interfaces/telegram.interface'
 import { Inngest } from 'inngest'
 import { TestResult, VideoTestResult, TextToVideoResponse } from './interfaces'
 
+// Импортируем новые тесты
+import { testTextToVideo } from './tests/textToVideo.test'
+import { testImageToVideo } from './tests/imageToVideo.test'
+
 // Интерфейсы и типы
 interface TextToSpeechParams {
   text: string
@@ -687,17 +691,14 @@ export class InngestTester {
     })
 
     try {
-      // Импортируем функцию для тестов
-      const { testTextToVideoWizard } = await import('./tests/textToVideoWizard.test')
+      // Запускаем тесты для text-to-video
+      const textToVideoResults = await testTextToVideo()
       
-      // Запускаем тесты мастера генерации видео
-      const wizardResults = await testTextToVideoWizard()
-      
-      // Запускаем тесты генерации видео
-      const generationResults = await this.testVideoGeneration()
+      // Запускаем тесты для image-to-video
+      const imageToVideoResults = await testImageToVideo()
       
       // Объединяем результаты
-      const results = [...wizardResults, ...generationResults]
+      const results = [...textToVideoResults, ...imageToVideoResults]
 
       logger.info({
         message: '✅ Тесты генерации видео завершены',
@@ -719,110 +720,6 @@ export class InngestTester {
         success: false,
         message: 'Критическая ошибка при выполнении тестов',
         error: error instanceof Error ? error.message : String(error),
-      }]
-    }
-  }
-
-  /**
-   * Тестирует функциональность генерации видео
-   */
-  private async testVideoGeneration(): Promise<TestResult[]> {
-    const results: TestResult[] = []
-    const startTime = Date.now()
-
-    try {
-      // Временно закомментировано до завершения разработки на другом компьютере
-      /*
-      // Тест 1: Генерация видео с текстовым промптом
-      const textOnlyResult = await this.sendEvent('text-to-video.requested', {
-        telegram_id: TEST_CONFIG.users.main.telegramId,
-        prompt: 'A beautiful sunset over the ocean',
-        model: 'wan-2.1-t2v',
-        bot_name: TEST_CONFIG.users.main.botName,
-      })
-
-      results.push({
-        name: 'Генерация видео из текста',
-        success: textOnlyResult.success,
-        message: textOnlyResult.success 
-          ? 'Видео успешно сгенерировано из текста' 
-          : 'Ошибка при генерации видео из текста',
-        error: textOnlyResult.error,
-        duration: Date.now() - startTime,
-        details: textOnlyResult.details,
-      })
-
-      // Тест 2: Генерация видео с изображением
-      const imageResult = await this.sendEvent('text-to-video.requested', {
-        telegram_id: TEST_CONFIG.users.main.telegramId,
-        prompt: 'Make this image move',
-        model: 'kling-v1.6-pro',
-        image_url: 'https://example.com/test-image.jpg',
-        bot_name: TEST_CONFIG.users.main.botName,
-      })
-
-      results.push({
-        name: 'Генерация видео из изображения',
-        success: imageResult.success,
-        message: imageResult.success 
-          ? 'Видео успешно сгенерировано из изображения' 
-          : 'Ошибка при генерации видео из изображения',
-        error: imageResult.error,
-        duration: Date.now() - startTime,
-        details: imageResult.details,
-      })
-
-      // Тест на обработку ошибки API
-      const errorEventResult = await this.sendEvent('text-to-video.requested', {
-        telegram_id: '123456789',
-        prompt: 'Test prompt',
-        model: 'test-model',
-        bot_name: 'test_bot',
-        is_ru: true,
-        _test: {
-          api_error: true
-        }
-      })
-
-      results.push({
-        name: 'Проверка обработки ошибки API',
-        success: errorEventResult.success === false && errorEventResult.error === 'API error (test)',
-        message: errorEventResult.success === false && errorEventResult.error === 'API error (test)'
-          ? 'Ошибка API обработана корректно'
-          : 'Ошибка API не была обработана корректно',
-        error: errorEventResult.error,
-        duration: errorEventResult.duration,
-        details: {
-          error: errorEventResult.error,
-          telegram_id: errorEventResult.telegram_id,
-          operation_id: errorEventResult.operation_id
-        }
-      })
-      */
-
-      // Временное сообщение о пропуске тестов
-      logger.info({
-        message: '⏳ Тесты text-to-video временно пропущены',
-        description: 'Text-to-video tests temporarily skipped',
-      })
-
-      return results
-    } catch (error) {
-      const duration = Date.now() - startTime
-      const errorMessage = this.handleError(error)
-
-      logger.error({
-        message: '❌ Ошибка при тестировании генерации видео',
-        description: 'Error testing video generation',
-        error: errorMessage,
-      })
-
-      return [{
-        name: 'Тесты генерации видео',
-        success: false,
-        message: 'Критическая ошибка при тестировании генерации',
-        error: errorMessage,
-        duration,
       }]
     }
   }
