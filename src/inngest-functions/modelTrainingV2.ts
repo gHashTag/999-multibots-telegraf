@@ -10,6 +10,7 @@ import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { supabase } from '@/core/supabase'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
+import { fetch } from 'undici'
 
 import axios from 'axios'
 
