@@ -59,7 +59,10 @@ export const inngestTestEngine = new InngestTestEngine({
 export interface TestResult {
   success: boolean
   name: string
-  error?: string
+  message?: string
+  error?: string | Error
+  details?: Record<string, any>
+  testName?: string
 }
 
 export const TEST_CONFIG = {
@@ -197,4 +200,5 @@ export const TEST_CONFIG = {
   TEST_OWNER_ID: '123456789',
   TEST_BOT_NAME: 'test_bot',
   TEST_IMAGE_URL: 'https://example.com/test-image.jpg',
+  TEST_TELEGRAM_ID: '123456789',
 }
