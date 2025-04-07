@@ -7,33 +7,71 @@ import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { createPendingPayment } from '@/core/supabase/createPendingPayment'
 import md5 from 'md5'
-import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
+import {
+  MERCHANT_LOGIN,
+  PASSWORD1,
+  RESULT_URL2,
+  TEST_PASSWORD1,
+} from '@/config'
 import { generateInvId } from '@/utils/generateInvId'
 
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
+const testPassword1 = TEST_PASSWORD1
 const resultUrl2 = RESULT_URL2
+
+// Флаг для использования тестового режима Robokassa
+const useTestMode = true
 
 function generateRobokassaUrl(
   merchantLogin: string,
   outSum: number,
   invId: number,
   description: string,
-  password1: string
+  password1: string,
+  isTest: boolean = useTestMode
 ): string {
   if (!resultUrl2 || !merchantLogin || !password1) {
     throw new Error('resultUrl2 or merchantLogin or password1 is not defined')
   }
+
+  // Если включен тестовый режим и доступен тестовый пароль, используем его
+  const actualPassword = isTest && testPassword1 ? testPassword1 : password1
+
+  console.log('🔍 Формирование URL для Robokassa', {
+    description: 'Generating Robokassa URL',
+    merchantLogin,
+    outSum,
+    invId,
+    resultUrl2,
+    isTestMode: isTest,
+    usingTestPassword: isTest && testPassword1 ? true : false,
+  })
+
+  // Убеждаемся, что invId - целое число
+  if (!Number.isInteger(invId)) {
+    console.error('❌ Ошибка: InvId не является целым числом', {
+      description: 'Error: InvId is not an integer',
+      invId,
+    })
+    // Преобразуем в целое число если это не так
+    invId = Math.floor(invId)
+  }
+
   const signatureValue = md5(
-    `${merchantLogin}:${outSum}:${invId}:${encodeURIComponent(
-      resultUrl2
-    )}:${password1}`
+    `${merchantLogin}:${outSum}:${invId}:${actualPassword}`
   ).toUpperCase()
+
   const url = `https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=${merchantLogin}&OutSum=${outSum}&InvId=${invId}&Description=${encodeURIComponent(
     description
   )}&SignatureValue=${signatureValue}&ResultUrl2=${encodeURIComponent(
     resultUrl2
-  )}`
+  )}${isTest ? '&IsTest=1' : ''}`
+
+  console.log('✅ URL сформирован', {
+    description: 'URL generated',
+    url,
+  })
 
   return url
 }
@@ -45,25 +83,39 @@ async function getInvoiceId(
   description: string,
   password1: string
 ): Promise<string> {
-  console.log('Start getInvoiceId', {
+  console.log('🚀 Запуск getInvoiceId', {
+    description: 'Starting getInvoiceId',
     merchantLogin,
     outSum,
     invId,
-    description,
-    password1,
+    useTestMode,
   })
   try {
+    // Используем тестовый пароль для тестового режима
+    const actualPassword =
+      useTestMode && testPassword1 ? testPassword1 : password1
+
+    console.log('🔑 Выбран пароль для Robokassa', {
+      description: 'Selected password for Robokassa',
+      isTestMode: useTestMode,
+      usingTestPassword: useTestMode && testPassword1 ? true : false,
+    })
+
     const response = generateRobokassaUrl(
       merchantLogin,
       outSum,
       invId,
       description,
-      password1
+      actualPassword,
+      useTestMode // Передаем флаг тестового режима
     )
 
     return response
   } catch (error) {
-    console.error('Error in getInvoiceId:', error)
+    console.error('❌ Ошибка в getInvoiceId:', {
+      description: 'Error in getInvoiceId',
+      error,
+    })
     throw error
   }
 }
