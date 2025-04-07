@@ -58,9 +58,7 @@ export const inngestTestEngine = new InngestTestEngine({
   eventBufferSize: 200,
 })
 
-=======
-<<<<<<< HEAD
->>>>>>> Stashed changes
+
 export interface TestResult {
   success: boolean
   name: string
@@ -69,20 +67,14 @@ export interface TestResult {
   details?: Record<string, any>
 }
 
-=======
-// Создаем тестовый движок Inngest
-export const inngestTestEngine = new InngestTestEngine({
-  function: paymentProcessor,
-})
 
-// Конфигурация для тестов
->>>>>>> b75d880 (tests)
+
+
 export const TEST_CONFIG = {
   // Моки для тестирования
   mockBot: { telegram: mockTelegram },
   mocks: { bot: mockBot },
 
-<<<<<<< Updated upstream
   // Конфигурация сервера
   server: {
     apiUrl: 'http://localhost:3000',
@@ -169,8 +161,6 @@ export const TEST_CONFIG = {
     ],
   },
 
-=======
->>>>>>> Stashed changes
   // Тестовые данные для платежей
   payments: {
     success: {
@@ -202,7 +192,6 @@ export const TEST_CONFIG = {
     RETRY: '🔄',
     TEST: '🎯',
     DATA: '💾',
-<<<<<<< Updated upstream
     EVENT: '⚡️',
   },
 
