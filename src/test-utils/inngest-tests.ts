@@ -39,6 +39,17 @@ interface TextToVideoParams {
   username?: string
 }
 
+interface PaymentTestData {
+  telegram_id: TelegramId
+  amount: number
+  stars?: number
+  type: 'money_income' | 'money_expense'
+  description: string
+  bot_name: string
+  service_type: ModeEnum
+  metadata?: Record<string, any>
+}
+
 /**
  * Класс для тестирования Inngest функций
  */
@@ -738,72 +749,42 @@ export class InngestTester {
    * Тестирует базовую операцию пополнения баланса
    */
   async testBasicIncomeOperation(): Promise<TestResult> {
-    const testAmount = 100
-    const telegram_id = TEST_CONFIG.users.main.telegramId
-    const bot_name = TEST_CONFIG.users.main.botName
-    const is_ru = TEST_CONFIG.users.main.isRussian
-
-    logger.info({
-      message: '🧪 Тест базовой операции пополнения',
-      description: 'Basic money_income operation test',
-      testAmount,
-      telegram_id,
-    })
-
     const paymentData = {
-      telegram_id,
-      amount: testAmount,
+      telegram_id: TEST_CONFIG.users.main.telegramId,
+      amount: 100,
+      stars: 100,
       type: 'money_income',
-      description: 'Test money_income operation',
-      bot_name,
-      is_ru,
-      payment_type: 'regular',
-      currency: 'STARS',
-      money_amount: 0,
+      description: 'Test income operation',
+      bot_name: TEST_CONFIG.users.main.botName,
+      service_type: ModeEnum.NeuroPhoto,
+      metadata: {
+        test: true,
+        service_type: ModeEnum.NeuroPhoto,
+      },
     }
 
-    const result = await this.sendEvent('payment/process', paymentData)
-    return {
-      ...result,
-      name: 'Basic Income Operation Test',
-      message: result.message || 'Test completed',
-    }
+    return this.sendEvent('payment/process', paymentData)
   }
 
   /**
    * Тестирует базовую операцию списания баланса
    */
   async testBasicOutcomeOperation(): Promise<TestResult> {
-    const testAmount = 50
-    const telegram_id = TEST_CONFIG.users.main.telegramId
-    const bot_name = TEST_CONFIG.users.main.botName
-    const is_ru = TEST_CONFIG.users.main.isRussian
-
-    logger.info({
-      message: '🧪 Тест базовой операции списания',
-      description: 'Basic money_expense operation test',
-      testAmount,
-      telegram_id,
-    })
-
     const paymentData = {
-      telegram_id,
-      amount: testAmount,
+      telegram_id: TEST_CONFIG.users.main.telegramId,
+      amount: 50,
+      stars: 50,
       type: 'money_expense',
-      description: 'Test money_expense operation',
-      bot_name,
-      is_ru,
-      payment_type: 'regular',
-      currency: 'STARS',
-      money_amount: 0,
+      description: 'Test expense operation',
+      bot_name: TEST_CONFIG.users.main.botName,
+      service_type: ModeEnum.NeuroPhoto,
+      metadata: {
+        test: true,
+        service_type: ModeEnum.NeuroPhoto,
+      },
     }
 
-    const result = await this.sendEvent('payment/process', paymentData)
-    return {
-      ...result,
-      name: 'Basic Outcome Operation Test',
-      message: result.message || 'Test completed',
-    }
+    return this.sendEvent('payment/process', paymentData)
   }
 
   /**

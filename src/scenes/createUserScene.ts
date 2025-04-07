@@ -119,7 +119,6 @@ const createUserStep = async (ctx: MyContext) => {
     model: 'gpt-4-turbo',
     count: 0,
     aspect_ratio: '9:16',
-    balance: 0,
     bot_name: botName,
   }
 
