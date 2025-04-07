@@ -9,7 +9,6 @@ export interface User {
   username?: string
   first_name?: string
   last_name?: string
-  balance?: number
   bot_name?: string
   created_at?: string
   updated_at?: string

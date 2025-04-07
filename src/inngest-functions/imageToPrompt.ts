@@ -2,7 +2,7 @@ import { inngest } from '@/inngest-functions/clients'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import axios from 'axios'
-import { sendBalanceMessage } from '@/price/helpers'
+
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { v4 as uuidv4 } from 'uuid'
 import { ModeEnum } from '@/price/helpers/modelsCost'

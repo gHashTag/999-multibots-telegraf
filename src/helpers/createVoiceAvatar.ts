@@ -1,10 +1,13 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
-import { supabase } from '@/core/supabase'
+import { TelegramId } from '@/interfaces/telegram.interface'
+import {
+  getUserByTelegramIdString,
+  supabase,
+  updateUserLevelPlusOne,
+} from '@/core/supabase'
 import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 
 export async function createVoiceAvatar(
   fileUrl: string,
@@ -14,7 +17,7 @@ export async function createVoiceAvatar(
   bot: Telegraf<MyContext>
 ): Promise<{ voiceId: string }> {
   try {
-    const userExists = await getUserByTelegramId(telegram_id)
+    const userExists = await getUserByTelegramIdString(telegram_id)
     if (!userExists) {
       throw new Error(`User with ID ${telegram_id} does not exist.`)
     }

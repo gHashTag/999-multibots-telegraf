@@ -5,72 +5,71 @@
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { InngestTestEngine } from '@inngest/test'
 
+// Импорт из локального файла, а не из пакета
+import { InngestTestEngine } from './inngest-test-engine'
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
 
-// Создаем мок бота
+// Создаем моки для тестов без использования jest
+// Мок телеграм бота для тестов
+const mockTelegram = {
+  sendMessage: async () => ({}),
+  editMessageText: async () => ({}),
+  sendPhoto: async () => ({}),
+  sendVideo: async () => ({}),
+  sendAnimation: async () => ({}),
+}
+
+// Мок бота для тестирования
 const mockBot = {
-  telegram: {
-    sendMessage: async () => {
-      logger.info('🤖 Mock: Отправка сообщения', {
-        description: 'Mock: Sending message',
-      })
-      return true
-    },
-    sendPhoto: async () => {
-      logger.info('📸 Mock: Отправка фото', {
-        description: 'Mock: Sending photo',
-      })
-      return true
-    },
-    sendVideo: async () => {
-      logger.info('🎥 Mock: Отправка видео', {
-        description: 'Mock: Sending video',
-      })
-      return true
-    },
-    sendDocument: async () => {
-      logger.info('📄 Mock: Отправка документа', {
-        description: 'Mock: Sending document',
-      })
-      return true
-    },
-    sendMediaGroup: async () => {
-      logger.info('🖼️ Mock: Отправка медиа группы', {
-        description: 'Mock: Sending media group',
-      })
-      return true
-    },
-    deleteMessage: async () => {
-      logger.info('🗑️ Mock: Удаление сообщения', {
-        description: 'Mock: Deleting message',
-      })
-      return true
-    },
+  telegram: mockTelegram,
+  use: () => Promise.resolve(mockBot),
+  command: () => Promise.resolve(mockBot),
+  action: () => Promise.resolve(mockBot),
+  on: () => Promise.resolve(mockBot),
+  options: {},
+  context: {},
+  webhookFilter: () => true,
+  handleError: () => Promise.resolve(),
+  // Дополнительные необходимые поля для Telegraf
+  telegram_response: {},
+  botInfo: {
+    id: 123456789,
+    is_bot: true,
+    first_name: 'Test Bot',
+    username: 'test_bot',
+    can_join_groups: true,
+    can_read_all_group_messages: true,
+    supports_inline_queries: true,
   },
+  secretPathComponent: () => '',
+  launch: () => Promise.resolve({ stopPolling: () => Promise.resolve() }),
+  stop: () => Promise.resolve({}),
+  catch: () => mockBot,
+  startPolling: () => Promise.resolve({}),
+  startWebhook: () => Promise.resolve({}),
+  handleUpdate: () => Promise.resolve({}),
+  login: () => '',
 } as unknown as Telegraf<MyContext>
 
-// Создаем тестовый движок Inngest
+// Создаем тестовый движок Inngest с правильными параметрами
 export const inngestTestEngine = new InngestTestEngine({
-  function: paymentProcessor,
+  maxWaitTime: 10000,
+  eventBufferSize: 200,
 })
 
 export interface TestResult {
   success: boolean
   name: string
   message?: string
-  error?: string | Error
+  error?: string
   details?: Record<string, any>
-  testName?: string
 }
 
 export const TEST_CONFIG = {
-  // Базовая конфигурация
-  mockBot,
-  mocks: {
-    bot: mockBot,
-  },
+  // Моки для тестирования
+  mockBot: { telegram: mockTelegram },
+  mocks: { bot: mockBot },
 
   // Конфигурация сервера
   server: {
@@ -83,75 +82,77 @@ export const TEST_CONFIG = {
   // Тестовые пользователи
   users: {
     main: {
-      telegramId: '123456789',
-      botName: 'test_bot',
-      isRussian: true,
+      id: 123456789,
+      username: 'test_user',
+      is_bot: false,
+      first_name: 'Test',
+      last_name: 'User',
     },
     default: {
-      telegramId: '123456789',
-      botName: 'test_bot',
-      isRussian: true,
+      id: 987654321,
+      username: 'default_user',
+      is_bot: false,
+      first_name: 'Default',
+      last_name: 'User',
     },
   },
 
   // Тестовые боты
   bots: {
-    test_bot: mockBot,
-    neurophoto: mockBot,
-    default: mockBot,
+    test_bot: {
+      name: 'test_bot',
+      token: 'test_token',
+    },
+    neurophoto: {
+      name: 'neurophoto_bot',
+      token: 'neurophoto_token',
+    },
+    default: {
+      name: 'default_bot',
+      token: 'default_token',
+    },
   },
 
-  // Тестовые данные для тренировки моделей
+  // Тестовые данные для обучения моделей
   modelTraining: {
     samples: [
       {
-        trainingId: 'test-training-id-1',
-        status: 'completed',
-        outputUrl: 'https://example.com/model.safetensors',
-        version: '1.0.0',
-        metrics: {
-          loss: 0.001,
-          accuracy: 0.99,
-          predict_time: 120,
-        },
-        error: null,
+        prompt: 'Test prompt 1',
+        negative_prompt: 'Test negative prompt 1',
+        image_url: 'https://example.com/test1.jpg',
+      },
+      {
+        prompt: 'Test prompt 2',
+        negative_prompt: 'Test negative prompt 2',
+        image_url: 'https://example.com/test2.jpg',
       },
     ],
   },
 
-  // Конфигурация BFL тренировок
+  // Тестовые данные для BFL обучения
   bflTraining: {
     samples: [
       {
-        trainingId: 'test-bfl-id-1',
-        status: 'completed',
-        outputUrl: 'https://example.com/bfl-model.safetensors',
-        version: '1.0.0',
-        metrics: {
-          loss: 0.001,
-          accuracy: 0.99,
-          predict_time: 120,
-        },
+        text: 'Test text 1',
+        image_url: 'https://example.com/bfl1.jpg',
+      },
+      {
+        text: 'Test text 2',
+        image_url: 'https://example.com/bfl2.jpg',
       },
     ],
   },
 
-  // Конфигурация Neurophoto
+  // Тестовые данные для neurophoto
   neurophoto: {
     samples: [
       {
-        generationId: 'test-neurophoto-id-1',
-        task_id: 'test-task-id-1',
-        status: 'completed',
-        outputUrl: 'https://example.com/generated-image.jpg',
-        prompt: 'Test prompt',
-        result: {
-          url: 'https://example.com/generated-image.jpg',
-          status: 'completed',
-        },
-        metrics: {
-          predict_time: 10,
-        },
+        url: 'https://example.com/neurophoto1.jpg',
+        prompt: 'Test neurophoto prompt 1',
+      },
+      {
+        url: 'https://example.com/neurophoto2.jpg',
+        prompt: 'Test neurophoto prompt 2',
       },
     ],
   },
@@ -160,20 +161,23 @@ export const TEST_CONFIG = {
   payments: {
     success: {
       amount: 100,
-      type: 'money_income',
-      description: 'Test payment',
+      inv_id: 'test_payment_123',
+      sign: 'test_sign_123',
     },
     error: {
-      amount: -50,
-      type: 'money_outcome',
-      description: 'Test error payment',
+      amount: -1,
+      inv_id: 'error_payment_123',
+      sign: 'error_sign_123',
     },
   },
 
-  TIMEOUT: 30000, // 30 seconds
+  // Таймауты и повторы
+  TIMEOUT: 30000,
   RETRY_ATTEMPTS: 3,
-  RETRY_DELAY: 1000, // 1 second
+  RETRY_DELAY: 1000,
   LOG_LEVEL: 'info',
+
+  // Эмодзи для логирования
   EMOJI: {
     START: '🚀',
     SUCCESS: '✅',
@@ -187,18 +191,26 @@ export const TEST_CONFIG = {
     EVENT: '⚡️',
   },
 
+  // Тестовый движок Inngest с правильными параметрами
   inngestEngine: inngestTestEngine,
 
-  // Таймауты
+  // Таймаут для обработки платежей
   PAYMENT_PROCESSING_TIMEOUT: 1000,
 
-  // Очистка после тестов
+  // Флаг для очистки после каждого теста
   cleanupAfterEach: true,
 
-  // Тестовые константы
+  // Тестовые ID
   TEST_USER_ID: '123456789',
   TEST_OWNER_ID: '123456789',
   TEST_BOT_NAME: 'test_bot',
+
+  // URL тестового изображения для image-to-prompt
   TEST_IMAGE_URL: 'https://example.com/test-image.jpg',
+
+  // Тестовый ID для Telegram
   TEST_TELEGRAM_ID: '123456789',
 }
+
+// Экспорт для использования в тестах
+export default TEST_CONFIG

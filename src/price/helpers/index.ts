@@ -3,7 +3,7 @@ import { MyContext } from '@/interfaces/telegram-bot.interface'
 import {
   getUserBalance,
   updateUserBalance,
-  getUserByTelegramId,
+  getUserByTelegramIdString,
 } from '@/core/supabase'
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
@@ -46,7 +46,7 @@ export async function processBalanceOperation({
   type: string
 }): Promise<BalanceOperationResult> {
   try {
-    const user = await getUserByTelegramId(telegram_id)
+    const user = await getUserByTelegramIdString(telegram_id)
     if (!user) {
       throw new Error(`User with ID ${telegram_id} not found`)
     }
@@ -71,7 +71,7 @@ export async function processBalanceOperation({
       telegram_id,
       amount: amount,
       type: 'money_expense',
-      operation_description: description,
+      description: description,
       bot_name,
     })
 

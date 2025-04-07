@@ -12,7 +12,6 @@ export interface CreateUserData {
   model: string
   count: number
   aspect_ratio: string
-  balance: number
   inviter: string | null
   bot_name: string
 }
@@ -62,7 +61,6 @@ export interface UserType {
   model?: string | null
   count?: bigint | null
   aspect_ratio?: string | null
-  balance?: number | null
   inviter?: string | null // UUID
   vip?: boolean | null
   subscription?: string | null

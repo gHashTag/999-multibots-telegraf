@@ -108,7 +108,7 @@ export const modelTrainingV2 = inngest.createFunction(
           step: 'update-user-level',
         })
 
-        await updateUserLevelPlusOne(telegram_id, userExists.level)
+        await updateUserLevelPlusOne(telegram_id, userExists.level || 0)
 
         logger.info({
           message: '✅ User level updated successfully',

@@ -1,13 +1,10 @@
-import {
-  TelegramId,
-  normalizeTelegramId,
-} from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from './index'
 import { logger } from '@/utils/logger'
 import { TransactionType } from '@/interfaces/payments.interface'
 
 interface UpdateUserBalanceParams {
-  telegram_id: string | number
+  telegram_id: TelegramId
   amount: number
   type: TransactionType
   description: string
@@ -18,7 +15,8 @@ interface UpdateUserBalanceParams {
 }
 
 /**
- * Обновляет баланс пользователя и создает запись в таблице платежей
+ * Создает запись в таблице платежей payments_v2
+ * Баланс рассчитывается на основе таблицы платежей через SQL-функцию get_user_balance
  */
 export const updateUserBalance = async ({
   telegram_id,
@@ -34,86 +32,209 @@ export const updateUserBalance = async ({
   error?: any
 }> => {
   try {
-    logger.info('💰 Обновление баланса пользователя:', {
-      description: 'Updating user balance',
+    logger.info('💰 Создание записи платежа:', {
+      description: 'Creating payment record',
       telegram_id,
       amount,
       type,
       operation_description: description,
       metadata,
       bot_name,
-      payment_method: 'balance',
+      payment_method: 'system',
       service_type,
     })
 
-    // Нормализуем telegram_id к BIGINT
+    // Нормализуем telegram_id к BIGINT и amount к numeric
     const normalizedTelegramId = String(telegram_id)
+    const normalizedAmount = Number(amount)
 
-    // Используем улучшенную функцию с проверкой баланса
-    const { data, error } = await supabase.rpc(
-      'add_stars_to_balance_with_check',
+    // Получаем текущий баланс из функции get_user_balance
+    const { data: currentBalance, error: balanceError } = await supabase.rpc(
+      'get_user_balance',
       {
-        p_telegram_id: normalizedTelegramId,
-        p_stars: amount,
-        p_description: description,
-        p_bot_name: bot_name,
-        p_type: type,
-        p_service_type: service_type,
+        user_telegram_id: normalizedTelegramId,
       }
     )
 
-    if (error) {
-      logger.error('❌ Ошибка при обновлении баланса:', {
-        description: 'Error updating balance',
-        error: error.message,
-        error_details: error,
-        telegram_id,
-        amount,
-        type,
-        operation_description: description,
-        metadata,
-        bot_name,
-        payment_method: 'balance',
-        service_type,
+    if (balanceError) {
+      logger.error('❌ Ошибка при получении баланса пользователя:', {
+        description: 'Error getting user balance',
+        error: balanceError.message,
+        error_details: balanceError,
+        telegram_id: normalizedTelegramId,
       })
-      return { success: false, error }
+      return { success: false, error: balanceError }
     }
 
-    // Проверяем результат выполнения функции
-    if (!data.success) {
-      logger.error('❌ Ошибка в add_stars_to_balance_with_check:', {
-        description: 'Error from add_stars_to_balance_with_check',
-        error: data.error,
-        error_message: data.error_message,
-        telegram_id,
-        type,
-        bot_name,
-        user_id: data.user_id,
-        old_balance: data.old_balance,
-        requested_amount: data.requested_amount,
+    // Получаем данные пользователя для ID
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('telegram_id', normalizedTelegramId)
+      .single()
+
+    let userId: number
+
+    // Если пользователя нет, создаем его
+    if (!userData) {
+      logger.info('👤 Создание нового пользователя:', {
+        description: 'Creating new user',
+        telegram_id: normalizedTelegramId,
       })
+
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .insert({
+          telegram_id: normalizedTelegramId,
+          bot_name: bot_name,
+          last_payment_date: new Date().toISOString(),
+        })
+        .select('id')
+        .single()
+
+      if (createError) {
+        logger.error('❌ Ошибка при создании пользователя:', {
+          description: 'Error creating user',
+          error: createError.message,
+          error_details: createError,
+          telegram_id: normalizedTelegramId,
+        })
+        return { success: false, error: createError }
+      }
+
+      userId = newUser.id
+    } else {
+      userId = userData.id
+    }
+
+    // Проверяем достаточность баланса при списании
+    if (
+      type === 'money_expense' &&
+      currentBalance < Math.abs(normalizedAmount)
+    ) {
+      const errorMessage = `Недостаточно средств. Текущий баланс: ${currentBalance}, требуется: ${Math.abs(
+        normalizedAmount
+      )}`
+      logger.error('⚠️ Недостаточно средств:', {
+        description: 'Insufficient funds',
+        current_balance: currentBalance,
+        required_amount: Math.abs(normalizedAmount),
+        telegram_id: normalizedTelegramId,
+      })
+
+      // Создаем запись о неудачной попытке списания
+      await supabase.from('payments_v2').insert({
+        payment_date: new Date().toISOString(),
+        amount: normalizedAmount,
+        status: 'FAILED',
+        payment_method: 'system',
+        description: `${description} (Недостаточно средств)`,
+        metadata: {
+          type: 'system_deduction_failed',
+          error: 'insufficient_funds',
+          current_balance: currentBalance,
+          requested_stars: normalizedAmount,
+          service_type: service_type,
+          user_id: userId,
+        },
+        stars: normalizedAmount,
+        telegram_id: normalizedTelegramId,
+        currency: 'STARS',
+        subscription: 'none',
+        bot_name: bot_name,
+        language: 'ru',
+        type: type,
+      })
+
       return {
         success: false,
-        error: new Error(data.error_message || 'Недостаточно средств'),
-        balance: data.old_balance,
+        error: new Error(errorMessage),
+        balance: currentBalance,
       }
     }
 
-    logger.info('✅ Баланс успешно обновлен:', {
-      description: 'Balance updated successfully',
-      telegram_id,
-      payment_id: data.payment_id,
-      old_balance: data.old_balance,
-      new_balance: data.new_balance,
-      amount,
+    // Создаем запись об операции
+    const { data: paymentData, error: paymentError } = await supabase
+      .from('payments_v2')
+      .insert({
+        payment_date: new Date().toISOString(),
+        amount: normalizedAmount,
+        status: 'COMPLETED',
+        payment_method: 'system',
+        description: description,
+        metadata: {
+          type: normalizedAmount >= 0 ? 'system_add' : 'system_deduction',
+          current_balance: currentBalance,
+          stars_change: normalizedAmount,
+          service_type: service_type,
+          user_id: userId,
+        },
+        stars: normalizedAmount,
+        telegram_id: normalizedTelegramId,
+        currency: 'STARS',
+        subscription: 'none',
+        bot_name: bot_name,
+        language: 'ru',
+        type: type,
+      })
+      .select('payment_id')
+      .single()
+
+    if (paymentError) {
+      logger.error('❌ Ошибка при создании записи платежа:', {
+        description: 'Error creating payment record',
+        error: paymentError.message,
+        error_details: paymentError,
+        telegram_id: normalizedTelegramId,
+      })
+      return { success: false, error: paymentError }
+    }
+
+    // Обновляем last_payment_date у пользователя
+    await supabase
+      .from('users')
+      .update({
+        last_payment_date: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('telegram_id', normalizedTelegramId)
+
+    // Получаем новый баланс
+    const { data: newBalance, error: newBalanceError } = await supabase.rpc(
+      'get_user_balance',
+      {
+        user_telegram_id: normalizedTelegramId,
+      }
+    )
+
+    if (newBalanceError) {
+      logger.error('❌ Ошибка при получении нового баланса пользователя:', {
+        description: 'Error getting new user balance',
+        error: newBalanceError.message,
+        error_details: newBalanceError,
+        telegram_id: normalizedTelegramId,
+      })
+      return { success: false, error: newBalanceError }
+    }
+
+    logger.info('✅ Запись платежа создана и баланс обновлен:', {
+      description: 'Payment record created successfully',
+      telegram_id: normalizedTelegramId,
+      payment_id: paymentData.payment_id,
+      old_balance: currentBalance,
+      new_balance: newBalance,
+      amount: normalizedAmount,
       type,
       bot_name,
     })
 
-    return { success: true, balance: data.new_balance }
+    return {
+      success: true,
+      balance: newBalance,
+    }
   } catch (error) {
-    logger.error('❌ Критическая ошибка при обновлении баланса:', {
-      description: 'Critical error updating balance',
+    logger.error('❌ Критическая ошибка при создании записи платежа:', {
+      description: 'Critical error creating payment record',
       error: error instanceof Error ? error.message : String(error),
       error_details: error,
       telegram_id,
