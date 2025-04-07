@@ -27,7 +27,7 @@ export const testTextToVideo = async (): Promise<TestResult[]> => {
 
     results.push({
       name: 'Генерация видео из текста',
-      success: true,
+        success: true,
       message: 'Событие успешно отправлено',
       details: successResult,
     })
@@ -49,7 +49,7 @@ export const testTextToVideo = async (): Promise<TestResult[]> => {
 
     results.push({
       name: 'Обработка ошибки API',
-      success: true,
+        success: true,
       message: 'Ошибка API успешно обработана',
       details: apiErrorResult,
     })
@@ -90,7 +90,7 @@ export const testTextToVideo = async (): Promise<TestResult[]> => {
 
     results.push({
       name: 'Проверка неподдерживаемой модели',
-      success: true,
+        success: true,
       message: 'Ошибка неподдерживаемой модели успешно обработана',
       details: unsupportedModelResult,
     })
