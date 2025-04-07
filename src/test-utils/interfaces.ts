@@ -5,15 +5,9 @@ export interface TestResult {
   name: string
   success: boolean
   message: string
-  error?: Error | string
-  details?: Record<string, unknown>
+  details?: any
+  error?: string | Error
   duration?: number
-  metadata?: {
-    startTime?: number
-    endTime?: number
-    environment?: string
-    testType?: string
-  }
 }
 
 /**
@@ -34,4 +28,10 @@ export type TestLogError = {
   error: Error | string
   context?: Record<string, unknown>
   code?: string
+}
+
+export interface LogData {
+  message: string
+  description?: string
+  [key: string]: any
 }

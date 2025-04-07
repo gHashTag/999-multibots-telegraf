@@ -1,4 +1,4 @@
-import { testSupabase } from './test-env'
+import { supabaseTestClient } from './test-env'
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
 
@@ -32,7 +32,7 @@ export class DatabaseTester {
       })
 
       // Делаем простой запрос к базе данных
-      const { error, count } = await testSupabase
+      const { error, count } = await supabaseTestClient
         .from('users')
         .select('*', { count: 'exact', head: true })
         .limit(1)
@@ -82,7 +82,7 @@ export class DatabaseTester {
       })
 
       // Пробуем найти тренировку
-      const { data, error } = await testSupabase
+      const { data, error } = await supabaseTestClient
         .from('model_trainings')
         .select('*')
         .eq('replicate_training_id', trainingId)
@@ -153,7 +153,7 @@ export class DatabaseTester {
       })
 
       // Получаем тренировки пользователя
-      const { data, error } = await testSupabase
+      const { data, error } = await supabaseTestClient
         .from('model_trainings')
         .select('*')
         .eq('telegram_id', telegramId)

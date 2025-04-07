@@ -2,9 +2,15 @@ import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { calculateModeCost, ModeEnum } from '@/price/helpers/modelsCost'
 import { v4 as uuidv4 } from 'uuid'
-import { TestResult } from '../types'
+import { TestResult } from '../interfaces'
 import { TEST_CONFIG } from '../test-config'
 import { updateUserBalance } from '@/core/supabase'
+
+interface BalanceResult {
+  success: boolean
+  error?: any
+  balance?: number
+}
 
 /**
  * Тестирует функцию imageToPrompt через Inngest
@@ -37,14 +43,14 @@ export async function testImageToPrompt(): Promise<TestResult> {
     })
 
     // Пополняем баланс пользователя напрямую через функцию updateUserBalance
-    const balanceResult = await updateUserBalance({
+    const balanceResult = (await updateUserBalance({
       telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
       amount: cost * 2, // Добавляем с запасом
       type: 'money_income',
       description: 'Пополнение баланса для теста Image2Prompt',
       bot_name: TEST_CONFIG.TEST_BOT_NAME,
       service_type: 'testing',
-    })
+    })) as BalanceResult
 
     if (!balanceResult.success) {
       throw new Error(`Не удалось пополнить баланс: ${balanceResult.error}`)
@@ -85,13 +91,13 @@ export async function testImageToPrompt(): Promise<TestResult> {
     await new Promise(resolve => setTimeout(resolve, 5000))
 
     // Проверяем баланс после операции
-    const afterBalanceResult = await updateUserBalance({
+    const afterBalanceResult = (await updateUserBalance({
       telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
       amount: 0, // Просто для проверки баланса
       type: 'money_income',
       description: 'Проверка баланса после Image2Prompt',
       bot_name: TEST_CONFIG.TEST_BOT_NAME,
-    })
+    })) as BalanceResult
 
     // Мы ожидаем, что баланс уменьшился на стоимость операции
     logger.info('🔍 Проверяем баланс после операции:', {

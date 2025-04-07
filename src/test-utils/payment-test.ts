@@ -24,20 +24,16 @@ export const testPaymentSystem = async () => {
 
     // Шаг 2: Добавляем звезды через Inngest
     const addInv_id = uuidv4()
-    await TEST_CONFIG.inngestEngine.execute({
-      events: [
-        {
-          name: 'payment/process',
-          data: {
-            telegram_id: testTelegramId,
-            amount: 100,
-            type: 'money_income',
-            description: 'Test add stars',
-            bot_name: testBotName,
-            inv_id: addInv_id,
-          },
-        },
-      ],
+    await TEST_CONFIG.inngestEngine.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: testTelegramId,
+        amount: 100,
+        type: 'money_income',
+        description: 'Test add stars',
+        bot_name: testBotName,
+        inv_id: addInv_id,
+      },
     })
 
     // Шаг 3: Проверяем баланс после добавления
@@ -51,20 +47,16 @@ export const testPaymentSystem = async () => {
 
     // Шаг 4: Списываем звезды через Inngest
     const spendInv_id = uuidv4()
-    await TEST_CONFIG.inngestEngine.execute({
-      events: [
-        {
-          name: 'payment/process',
-          data: {
-            telegram_id: testTelegramId,
-            amount: -30,
-            type: 'money_expense',
-            description: 'Test spend stars',
-            bot_name: testBotName,
-            inv_id: spendInv_id,
-          },
-        },
-      ],
+    await TEST_CONFIG.inngestEngine.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: testTelegramId,
+        amount: -30,
+        type: 'money_expense',
+        description: 'Test spend stars',
+        bot_name: testBotName,
+        inv_id: spendInv_id,
+      },
     })
 
     // Шаг 5: Проверяем финальный баланс

@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
-import { TestResult } from '../types'
+import { TestResult } from '../interfaces'
 import { TEST_CONFIG } from '../test-config'
 import { supabase } from '@/core/supabase'
 import { getUserBalance } from '@/core/supabase'
@@ -24,9 +24,9 @@ const waitForPaymentCompletion = async (inv_id: string, timeout = 5000) => {
   throw new Error('Payment completion timeout')
 }
 
-export async function runBalanceTests(): Promise<TestResult[]> {
+export async function testBalance(): Promise<TestResult[]> {
   const results: TestResult[] = []
-  const testTelegramId = normalizeTelegramId(Date.now())
+  const testTelegramId = Date.now().toString()
 
   try {
     logger.info('🚀 Начинаем тест команды /balance', {
@@ -45,7 +45,7 @@ export async function runBalanceTests(): Promise<TestResult[]> {
     }
 
     // Проверяем начальный баланс
-    const initialBalance = await getUserBalance(testTelegramId.toString())
+    const initialBalance = await getUserBalance(testTelegramId)
     results.push({
       success: initialBalance === 0,
       name: 'Initial Balance Check',
@@ -74,7 +74,7 @@ export async function runBalanceTests(): Promise<TestResult[]> {
     await waitForPaymentCompletion(addInv_id)
 
     // Проверяем баланс после пополнения
-    const balanceAfterAdd = await getUserBalance(testTelegramId.toString())
+    const balanceAfterAdd = await getUserBalance(testTelegramId)
     results.push({
       success: balanceAfterAdd === 100,
       name: 'Balance After Add',

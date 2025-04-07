@@ -7,7 +7,7 @@ import {
   createModelTrainingV2,
 } from '@/core/supabase'
 import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
-import { supabase } from '@/services/supabase.service'
+import { supabase } from '@/core/supabase'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
 import { fetch } from 'undici'
@@ -15,6 +15,11 @@ import { fetch } from 'undici'
 import axios from 'axios'
 
 const MAX_ACTIVE_TRAININGS = 3
+
+interface BFLTrainingResponse {
+  finetune_id: string
+  [key: string]: any
+}
 
 // Функция для кодирования файла в base64
 async function encodeFileToBase64(url: string): Promise<string> {
@@ -274,7 +279,7 @@ export const modelTrainingV2 = inngest.createFunction(
               throw new Error(`Failed to create training: ${errorText}`)
             }
 
-            const data = await response.json()
+            const data = (await response.json()) as BFLTrainingResponse
             console.log('✅ Тренировка успешно создана в BFL API:', {
               description: 'Training created successfully in BFL API',
               finetune_id: data.finetune_id,
@@ -284,7 +289,7 @@ export const modelTrainingV2 = inngest.createFunction(
               throw new Error('No finetune_id in response')
             }
 
-            return data
+            return data as BFLTrainingResponse
           } catch (error) {
             console.error('❌ Ошибка при создании тренировки:', {
               description: 'Error creating training',

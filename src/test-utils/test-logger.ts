@@ -18,11 +18,10 @@ export class TestLogger {
   /**
    * Логирование начала теста
    */
-  static logTestStart(testName: string, context?: Record<string, unknown>): void {
+  static logTestStart(testName: string): void {
     logger.info({
-      message: `${TEST_CONFIG.EMOJI.START} Запуск теста: ${testName}`,
+      message: `🚀 Запуск теста: ${testName}`,
       description: `Starting test: ${testName}`,
-      ...context,
     })
   }
 
@@ -31,30 +30,20 @@ export class TestLogger {
    */
   static logTestSuccess(result: TestResult): void {
     logger.info({
-      message: `${TEST_CONFIG.EMOJI.SUCCESS} Тест успешно завершен: ${result.name}`,
+      message: `✅ Тест успешно завершен: ${result.name}`,
       description: `Test completed successfully: ${result.name}`,
-      duration: result.duration,
-      details: result.details,
-      metadata: result.metadata,
     })
   }
 
   /**
    * Логирование ошибки теста
    */
-  static logTestError(logError: TestLogError): void {
-    const formattedError = this.formatError(logError.error)
-    
+  static logTestError(error: Error | string, testName: string): void {
+    const errorMessage = error instanceof Error ? error.message : error
     logger.error({
-      message: `${TEST_CONFIG.EMOJI.ERROR} ${logError.message}`,
-      description: logError.description,
-      error: {
-        message: formattedError.message,
-        stack: formattedError.stack,
-        code: logError.code || 'TEST_ERROR',
-        context: logError.context,
-        timestamp: formattedError.timestamp,
-      },
+      message: `❌ Ошибка в тесте: ${testName}`,
+      description: `Test failed: ${testName}`,
+      error: errorMessage,
     })
   }
 
@@ -70,7 +59,7 @@ export class TestLogger {
     startTime: number
   }): TestResult {
     const { name, success, message, error, details, startTime } = params
-    
+
     return {
       name,
       success,
@@ -78,12 +67,6 @@ export class TestLogger {
       error: error ? this.formatError(error) : undefined,
       details,
       duration: Date.now() - startTime,
-      metadata: {
-        startTime,
-        endTime: Date.now(),
-        environment: process.env.NODE_ENV,
-        testType: name.split(' ')[0],
-      },
     }
   }
 
@@ -131,4 +114,15 @@ export class TestLogger {
       ...context,
     })
   }
-} 
+
+  static logTestSkipped(testName: string, reason: string): void {
+    logger.info({
+      message: `⏭️ Тест пропущен: ${testName}`,
+      description: 'Test skipped',
+      reason,
+      context: {
+        test: testName,
+      },
+    })
+  }
+}

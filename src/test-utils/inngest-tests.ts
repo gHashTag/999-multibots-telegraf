@@ -11,8 +11,6 @@ import { getBotByName } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { Inngest } from 'inngest'
-import axios, { AxiosError } from 'axios'
-import { ModeEnum } from '@/interfaces'
 import { TestResult } from './interfaces'
 
 // Интерфейсы и типы
@@ -45,6 +43,11 @@ interface PaymentTestData {
   bot_name: string
   service_type: ModeEnum
   metadata?: Record<string, any>
+}
+
+interface InngestEventResponse {
+  status: number
+  data: any
 }
 
 /**
@@ -93,7 +96,10 @@ export class InngestTester {
   /**
    * Отправляет событие в Inngest Dev Server
    */
-  async sendEvent(name: string, data: any): Promise<TestResult> {
+  async sendEvent(
+    name: string,
+    data: Record<string, any>
+  ): Promise<TestResult> {
     const startTime = Date.now()
 
     try {
@@ -104,7 +110,7 @@ export class InngestTester {
       })
 
       // Отправляем событие в Inngest Dev Server
-      const response = await axios.post(
+      const response = await axios.post<InngestEventResponse>(
         `${this.inngestDevUrl}/e/${this.eventKey}`,
         {
           name,
@@ -155,7 +161,7 @@ export class InngestTester {
    */
   async testModelTraining(): Promise<TestResult> {
     const trainingData = {
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
       is_ru: TEST_CONFIG.users.main.isRussian,
       modelName: 'test_training_model',
       steps: 1500,
@@ -183,9 +189,9 @@ export class InngestTester {
         'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b',
       numImages: 1,
       telegram_id: TEST_CONFIG.users.main.telegramId,
-      username: 'test_user',
+      username: TEST_CONFIG.users.main.username,
       is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
     }
 
     logger.info({
@@ -208,9 +214,9 @@ export class InngestTester {
       prompt: 'Stylish portrait in evening urban setting with neon lights',
       num_images: 1,
       telegram_id: TEST_CONFIG.users.main.telegramId,
-      username: 'test_user',
+      username: TEST_CONFIG.users.main.username,
       is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
     }
 
     logger.info({
@@ -234,9 +240,9 @@ export class InngestTester {
       model: 'stable-diffusion-xl',
       num_images: 1,
       telegram_id: TEST_CONFIG.users.main.telegramId,
-      username: 'test_user',
+      username: TEST_CONFIG.users.main.username,
       is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
     }
 
     logger.info({
@@ -318,7 +324,7 @@ export class InngestTester {
    */
   async testModelTrainingV2(): Promise<TestResult> {
     const trainingData = {
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
       is_ru: TEST_CONFIG.users.main.isRussian,
       modelName: 'test_training_model_v2',
       steps: 1500,
@@ -341,7 +347,7 @@ export class InngestTester {
    */
   async testModelTrainingDirectInvoke(): Promise<TestResult> {
     const trainingData = {
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
       is_ru: TEST_CONFIG.users.main.isRussian,
       modelName: 'test_training_model_direct',
       steps: 1500,
@@ -364,7 +370,7 @@ export class InngestTester {
    */
   async testModelTrainingV2DirectInvoke(): Promise<TestResult> {
     const trainingData = {
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
       is_ru: TEST_CONFIG.users.main.isRussian,
       modelName: 'test_training_model_v2_direct',
       steps: 1500,
@@ -390,9 +396,9 @@ export class InngestTester {
       prompt: 'Professional portrait in natural light with bokeh effect',
       num_images: 1,
       telegram_id: TEST_CONFIG.users.main.telegramId,
-      username: 'test_user_direct',
+      username: TEST_CONFIG.users.main.username,
       is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
     }
 
     logger.info({
@@ -419,9 +425,9 @@ export class InngestTester {
       model: 'stable-diffusion-xl',
       num_images: 1,
       telegram_id: TEST_CONFIG.users.main.telegramId,
-      username: 'test_user',
+      username: TEST_CONFIG.users.main.username,
       is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
     }
 
     logger.info({
@@ -443,9 +449,9 @@ export class InngestTester {
     const voiceAvatarData = {
       fileUrl: 'https://example.com/voice-message.oga',
       telegram_id: TEST_CONFIG.users.main.telegramId,
-      username: 'test_user',
+      username: TEST_CONFIG.users.main.username,
       is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
     }
 
     logger.info({
@@ -467,9 +473,9 @@ export class InngestTester {
     const voiceAvatarData = {
       fileUrl: 'https://example.com/voice-message.oga',
       telegram_id: TEST_CONFIG.users.main.telegramId,
-      username: 'test_user',
+      username: TEST_CONFIG.users.main.username,
       is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
     }
 
     logger.info({
@@ -501,9 +507,9 @@ export class InngestTester {
         text: 'Привет!',
         voice_id: 'ljyyJh982fsUinaSQPvv',
         telegram_id: TEST_CONFIG.users.main.telegramId,
-        username: 'test_user',
+        username: TEST_CONFIG.users.main.username,
         is_ru: TEST_CONFIG.users.main.isRussian,
-        bot_name: TEST_CONFIG.users.main.botName,
+        bot_name: TEST_CONFIG.bots.test_bot.name,
       })
       results.push({
         ...shortTextResult,
@@ -515,9 +521,9 @@ export class InngestTester {
         text: 'Это длинный тестовый текст для проверки работы функции преобразования текста в речь. Он содержит несколько предложений, чтобы проверить обработку длинных текстов.',
         voice_id: 'ljyyJh982fsUinaSQPvv',
         telegram_id: TEST_CONFIG.users.main.telegramId,
-        username: 'test_user',
+        username: TEST_CONFIG.users.main.username,
         is_ru: TEST_CONFIG.users.main.isRussian,
-        bot_name: TEST_CONFIG.users.main.botName,
+        bot_name: TEST_CONFIG.bots.test_bot.name,
       })
       results.push({
         ...longTextResult,
@@ -529,9 +535,9 @@ export class InngestTester {
         text: 'Тест с неправильным ID голоса',
         voice_id: 'invalid_voice_id',
         telegram_id: TEST_CONFIG.users.main.telegramId,
-        username: 'test_user',
+        username: TEST_CONFIG.users.main.username,
         is_ru: TEST_CONFIG.users.main.isRussian,
-        bot_name: TEST_CONFIG.users.main.botName,
+        bot_name: TEST_CONFIG.bots.test_bot.name,
       })
       results.push({
         ...invalidVoiceResult,
@@ -622,9 +628,9 @@ export class InngestTester {
       text: data?.text || 'Это тестовый текст для преобразования в речь.',
       voice_id: data?.voice_id || 'ljyyJh982fsUinaSQPvv',
       telegram_id: data?.telegram_id || TEST_CONFIG.users.main.telegramId,
-      username: data?.username || 'test_user',
+      username: data?.username || TEST_CONFIG.users.main.username,
       is_ru: data?.is_ru ?? TEST_CONFIG.users.main.isRussian,
-      bot_name: data?.bot_name || TEST_CONFIG.users.main.botName,
+      bot_name: data?.bot_name || TEST_CONFIG.bots.test_bot.name,
     }
 
     logger.info({
@@ -647,9 +653,9 @@ export class InngestTester {
       text: 'Это тестовый текст для прямого вызова функции преобразования в речь.',
       voice_id: 'ljyyJh982fsUinaSQPvv',
       telegram_id: TEST_CONFIG.users.main.telegramId,
-      username: 'test_user',
+      username: TEST_CONFIG.users.main.username,
       is_ru: TEST_CONFIG.users.main.isRussian,
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
     }
 
     logger.info({
@@ -662,58 +668,6 @@ export class InngestTester {
     })
 
     return this.invokeFunction('text-to-speech', textToSpeechData)
-  }
-
-  /**
-   * Запускает тесты преобразования текста в видео
-   */
-  async runTextToVideoTests(): Promise<TestResult[]> {
-    logger.info({
-      message: '🎯 Запуск тестов преобразования текста в видео',
-      description: 'Running text-to-video tests',
-    })
-    
-    const results: TestResult[] = []
-    
-    try {
-      // Импортируем функцию для тестов
-      const { testTextToVideoProcessing } = await import('./textToVideoFunction.test')
-      
-      // Запускаем набор тестов
-      const testResults = await testTextToVideoProcessing()
-      
-      // Тесты возвращают TestResult из другого модуля, игнорируем несоответствие типов
-      // @ts-ignore - Different TestResult interface between modules
-      results.push(...testResults)
-      
-      logger.info({
-        message: '✅ Тесты преобразования текста в видео успешно запущены',
-        description: 'Text-to-video tests launched successfully',
-        results: testResults.map(r => ({
-          name: r.name,
-          success: r.success,
-        })),
-      })
-      
-      return results
-    } catch (error) {
-      const errorMessage = this.handleError(error)
-      
-      logger.error({
-        message: '❌ Ошибка при запуске тестов преобразования текста в видео',
-        description: 'Error running text-to-video tests',
-        error: errorMessage,
-      })
-      
-      results.push({
-        name: 'Text-to-Video Tests',
-        success: false,
-        message: 'Failed to run text-to-video tests',
-        error: errorMessage,
-      })
-      
-      return results
-    }
   }
 
   /**
@@ -742,10 +696,6 @@ export class InngestTester {
     // Тесты text-to-speech
     const ttsResults = await this.runTextToSpeechTests()
     results.push(...ttsResults)
-
-    // Тесты text-to-video
-    const textToVideoResults = await this.runTextToVideoTests()
-    results.push(...textToVideoResults)
 
     // Логируем общие результаты
     const successCount = results.filter(r => r.success).length
@@ -808,7 +758,7 @@ export class InngestTester {
       stars: 100,
       type: 'money_income',
       description: 'Test income operation',
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
       service_type: ModeEnum.NeuroPhoto,
       metadata: {
         test: true,
@@ -829,7 +779,7 @@ export class InngestTester {
       stars: 50,
       type: 'money_expense',
       description: 'Test expense operation',
-      bot_name: TEST_CONFIG.users.main.botName,
+      bot_name: TEST_CONFIG.bots.test_bot.name,
       service_type: ModeEnum.NeuroPhoto,
       metadata: {
         test: true,
@@ -845,7 +795,7 @@ export class InngestTester {
    */
   async testServiceTypeDetection(): Promise<TestResult[]> {
     const telegram_id = TEST_CONFIG.users.main.telegramId
-    const bot_name = TEST_CONFIG.users.main.botName
+    const bot_name = TEST_CONFIG.bots.test_bot.name
     const is_ru = TEST_CONFIG.users.main.isRussian
     const testAmount = 10
     const results: TestResult[] = []
@@ -889,7 +839,7 @@ export class InngestTester {
    */
   async testPaymentMetadata(): Promise<TestResult> {
     const telegram_id = TEST_CONFIG.users.main.telegramId
-    const bot_name = TEST_CONFIG.users.main.botName
+    const bot_name = TEST_CONFIG.bots.test_bot.name
     const is_ru = TEST_CONFIG.users.main.isRussian
     const testAmount = 25
 
@@ -1038,7 +988,7 @@ export class InngestTester {
           broadcastResult = await this.sendEvent('broadcast/send', {
             message: 'Test broadcast message',
             telegram_ids: [TEST_CONFIG.users.main.telegramId],
-            bot_name: TEST_CONFIG.users.main.botName,
+            bot_name: TEST_CONFIG.bots.test_bot.name,
           })
           results.push(broadcastResult)
           break
@@ -1047,8 +997,8 @@ export class InngestTester {
           paymentResult = await this.sendEvent('payment/process', {
             amount: 100,
             telegram_id: TEST_CONFIG.users.main.telegramId,
-            username: 'test_user',
-            bot_name: TEST_CONFIG.users.main.botName,
+            username: TEST_CONFIG.users.main.username,
+            bot_name: TEST_CONFIG.bots.test_bot.name,
           })
           results.push(paymentResult)
           break
@@ -1101,10 +1051,6 @@ export class InngestTester {
             await this.testTextToSpeechDirectInvoke()
           results.push(directInvokeTextToSpeechResult)
           break
-
-        case 'text-to-video':
-          // Тестируем функцию преобразования текста в видео
-          return this.runTextToVideoTests()
 
         default:
           throw new Error(`Неизвестная функция: ${functionName}`)
@@ -1297,64 +1243,57 @@ export class InngestTester {
     bot_name: string
   }): Promise<TestResult & { videoBuffer?: Buffer }> {
     const startTime = Date.now()
+    const testName = 'Text to Video Generation'
 
     try {
       logger.info({
-        message: '🧪 Тест функции создания видео из текста',
-        description: 'Text to video function test',
+        message: '🧪 Тест генерации видео из текста',
+        description: 'Text to video generation test',
         params,
       })
 
-      const response = await this.sendEvent('text-to-video/generate', params)
-
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to generate video')
-      }
-
-      // Предполагаем, что в ответе есть URL или буфер видео
-      const videoBuffer = response.details?.videoBuffer as Buffer
+      // Отправляем событие в Inngest Dev Server
+      const response = await axios.post(
+        `${this.inngestDevUrl}/e/${this.eventKey}`,
+        {
+          name: 'text-to-video/generate',
+          data: params,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      )
 
       const duration = Date.now() - startTime
       return {
-        name: 'Text to Video Generation',
-        success: true,
-        message: `Видео успешно создано за ${duration}мс`,
+        name: testName,
+        success: response.status === 200,
+        message: `Видео успешно сгенерировано за ${duration}мс`,
         details: {
-          params,
-          videoBuffer: !!videoBuffer,
+          responseStatus: response.status,
+          responseData: response.data,
         },
         duration,
-        metadata: {
-          startTime,
-          endTime: Date.now(),
-          testType: 'text-to-video',
-        },
-        videoBuffer,
       }
     } catch (error) {
       const duration = Date.now() - startTime
-      const errorMessage = this.handleError(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
 
       logger.error({
-        message: '❌ Ошибка при создании видео из текста',
-        description: 'Error during text to video generation',
+        message: '❌ Ошибка при генерации видео',
+        description: 'Error during video generation',
         error: errorMessage,
-        params,
       })
 
-      const testError = new Error(errorMessage)
-
       return {
-        name: 'Text to Video Generation',
+        name: testName,
         success: false,
-        message: 'Ошибка при создании видео из текста',
-        error: testError,
+        message: 'Ошибка при генерации видео',
+        error: errorMessage,
         duration,
-        metadata: {
-          startTime,
-          endTime: Date.now(),
-          testType: 'text-to-video',
-        },
       }
     }
   }

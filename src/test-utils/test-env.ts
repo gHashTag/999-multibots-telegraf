@@ -1,47 +1,77 @@
-import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import { config } from 'dotenv'
 import { logger } from '@/utils/logger'
 
-// Загружаем переменные окружения из .env-файла
-dotenv.config()
-
-// Определяем ключи для Supabase
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY
+// Загружаем переменные окружения из .env файла
+config()
 
 // Проверяем наличие необходимых переменных окружения
-if (!supabaseUrl || !supabaseKey) {
-  logger.error({
-    message: '🚨 Отсутствуют переменные окружения для Supabase',
-    description: 'Missing Supabase environment variables',
-  })
+const requiredEnvVars = [
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_KEY',
+  'SUPABASE_ANON_KEY',
+]
 
-  logger.warn({
-    message: '⚠️ Используются временные значения для Supabase',
-    description: 'Using temporary Supabase values',
-    url: supabaseUrl,
-  })
-  throw new Error('Missing Supabase environment variables')
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    logger.error({
+      message: `❌ Отсутствует переменная окружения ${envVar}`,
+      description: `Missing required environment variable ${envVar}`,
+    })
+    process.exit(1)
+  }
 }
 
 // Создаем клиент Supabase для тестов
-export const testSupabase = createClient(supabaseUrl, supabaseKey)
+export const supabaseTestClient = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!,
+  {
+    auth: {
+      persistSession: false,
+    },
+  }
+)
 
-logger.info({
-  message: '🔌 Тестовый клиент Supabase инициализирован',
-  description: 'Test Supabase client initialized',
-  url: supabaseUrl,
-})
+// Интерфейс для данных логирования
+export interface LogData {
+  [key: string]: any
+}
 
 // Экспортируем настройки для тестов
 export const TEST_ENV = {
   supabase: {
-    url: supabaseUrl,
-    key: supabaseKey,
+    url: process.env.SUPABASE_URL!,
+    key: process.env.SUPABASE_ANON_KEY!,
   },
   api: {
     url: process.env.API_URL || 'http://localhost:2999',
     webhookPath: '/webhooks/replicate',
     bflWebhookPath: '/webhooks/bfl',
+  },
+}
+
+// Логгер для тестов
+export const testLogger = {
+  info: (message: string, data?: LogData) => {
+    logger.info({
+      message: `🧪 ${message}`,
+      description: message,
+      ...data,
+    })
+  },
+  error: (message: string, error?: Error | string) => {
+    logger.error({
+      message: `❌ ${message}`,
+      description: message,
+      error: error instanceof Error ? error.message : error,
+    })
+  },
+  success: (message: string, data?: LogData) => {
+    logger.info({
+      message: `✅ ${message}`,
+      description: message,
+      ...data,
+    })
   },
 }

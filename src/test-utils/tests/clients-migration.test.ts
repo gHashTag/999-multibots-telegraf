@@ -1,6 +1,6 @@
 import { logger } from '@/utils/logger'
 import { supabase } from '@/core/supabase'
-import { TestResult } from '../types'
+import { TestResult } from '../interfaces'
 
 interface DebugConfig {
   userId: number

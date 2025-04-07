@@ -66,7 +66,7 @@ async function testNeuroPhotoGeneration(): Promise<TestResult> {
     })
 
     return {
-      testName,
+      name: testName,
       success: true,
       message: '✅ NeuroPhoto tests completed successfully',
     }
@@ -76,7 +76,7 @@ async function testNeuroPhotoGeneration(): Promise<TestResult> {
     })
 
     return {
-      testName,
+      name: testName,
       success: false,
       message: '❌ NeuroPhoto test failed',
       error: error instanceof Error ? error.message : String(error),
@@ -97,7 +97,7 @@ async function runTests() {
     logger.info({
       message: result.success ? '✅ Тест успешно завершен' : '❌ Тест провален',
       description: 'Test completed',
-      testName: result.testName,
+      testName: result.name,
       success: result.success,
       details: result.message,
       error: result.error,

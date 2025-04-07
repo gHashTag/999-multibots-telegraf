@@ -6,14 +6,35 @@ interface InngestTestEngineOptions {
   eventBufferSize?: number
 }
 
+interface InngestEvent {
+  id: string
+  name: string
+  data: Record<string, any>
+  timestamp: string
+  status: 'pending' | 'completed' | 'failed'
+  result?: any
+}
+
+interface StepFunction {
+  run: <T>(name: string, fn: () => Promise<T>) => Promise<T>
+}
+
+interface HandlerContext {
+  event: InngestEvent
+  step: StepFunction
+}
+
 /**
  * Тестовый движок для Inngest функций
  * Позволяет отслеживать отправленные события и симулировать работу Inngest
  */
 export class InngestTestEngine {
-  private events: any[] = []
-  private registeredFunctions: Map<string, any> = new Map()
-  private options: InngestTestEngineOptions
+  private events: InngestEvent[] = []
+  private registeredFunctions: Map<
+    string,
+    (ctx: HandlerContext) => Promise<any>
+  > = new Map()
+  private options: Required<InngestTestEngineOptions>
 
   constructor(options: InngestTestEngineOptions = {}) {
     this.options = {
@@ -30,7 +51,10 @@ export class InngestTestEngine {
   /**
    * Регистрирует функцию для обработки события
    */
-  register(eventName: string, handler: any) {
+  register(
+    eventName: string,
+    handler: (ctx: HandlerContext) => Promise<any>
+  ): void {
     logger.info('📝 Регистрация функции', {
       description: 'Registering function',
       event_name: eventName,
@@ -41,9 +65,9 @@ export class InngestTestEngine {
   /**
    * Создает объект step для выполнения функции
    */
-  private createStepObject() {
+  private createStepObject(): StepFunction {
     return {
-      run: async (name: string, fn: () => Promise<any>) => {
+      run: async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
         logger.info('🔄 Выполнение шага', {
           description: 'Running step',
           step_name: name,
@@ -71,7 +95,11 @@ export class InngestTestEngine {
   /**
    * Отправить событие в тестовый движок
    */
-  async send(event: any) {
+  async send(event: {
+    name: string
+    data: Record<string, any>
+    id?: string
+  }): Promise<{ event: InngestEvent; success: boolean }> {
     logger.info('📨 Отправка события в тестовый движок', {
       description: 'Sending event to test engine',
       event_name: event.name,
@@ -80,7 +108,7 @@ export class InngestTestEngine {
     })
 
     // Добавляем событие в буфер
-    const eventWithId = {
+    const eventWithId: InngestEvent = {
       ...event,
       id: event.id || Math.random().toString(36).substring(7),
       timestamp: new Date().toISOString(),
@@ -89,7 +117,7 @@ export class InngestTestEngine {
     this.events.push(eventWithId)
 
     // Ограничиваем размер буфера
-    if (this.events.length > (this.options.eventBufferSize || 100)) {
+    if (this.events.length > this.options.eventBufferSize) {
       this.events.shift()
     }
 
@@ -114,7 +142,8 @@ export class InngestTestEngine {
           result,
         })
 
-        await this.simulateExecution(eventWithId.id, result)
+        await this.simulateExecution(eventWithId.id, { success: true, result })
+        return { event: eventWithId, success: true }
       } catch (error) {
         logger.error('❌ Ошибка при выполнении функции', {
           description: 'Error executing function',
@@ -141,28 +170,28 @@ export class InngestTestEngine {
   /**
    * Получить все события
    */
-  getEvents() {
+  getEvents(): InngestEvent[] {
     return this.events
   }
 
   /**
    * Получить событие по ID
    */
-  getEventById(id: string) {
+  getEventById(id: string): InngestEvent | undefined {
     return this.events.find(e => e.id === id)
   }
 
   /**
    * Получить события по имени
    */
-  getEventsByName(name: string) {
+  getEventsByName(name: string): InngestEvent[] {
     return this.events.filter(e => e.name === name)
   }
 
   /**
    * Очистить буфер событий
    */
-  clearEvents() {
+  clearEvents(): void {
     this.events = []
     logger.info('🧹 Буфер событий очищен', {
       description: 'Event buffer cleared',
@@ -175,7 +204,7 @@ export class InngestTestEngine {
   async waitForEvent(
     eventName: string,
     timeout = this.options.maxWaitTime
-  ): Promise<any> {
+  ): Promise<InngestEvent> {
     logger.info('⏳ Ожидание события', {
       description: 'Waiting for event',
       event_name: eventName,
@@ -200,7 +229,7 @@ export class InngestTestEngine {
           return
         }
 
-        if (Date.now() - startTime > (timeout || 5000)) {
+        if (Date.now() - startTime > timeout) {
           logger.warn('⚠️ Таймаут ожидания события', {
             description: 'Event waiting timeout',
             event_name: eventName,
@@ -220,7 +249,10 @@ export class InngestTestEngine {
   /**
    * Симулирует выполнение события
    */
-  private async simulateExecution(eventId: string, result: any) {
+  private async simulateExecution(
+    eventId: string,
+    result: { success: boolean; result?: any; error?: string }
+  ): Promise<void> {
     const event = this.events.find(e => e.id === eventId)
     if (event) {
       event.status = result.success ? 'completed' : 'failed'

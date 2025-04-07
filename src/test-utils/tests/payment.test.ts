@@ -4,13 +4,14 @@ import {
 } from '@/interfaces/telegram.interface'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { logger } from '@/utils/logger'
-import { v4 as uuid } from 'uuid'
+import { v4 as uuidv4 } from 'uuid'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { supabase } from '@/core/supabase'
-import { TestResult } from '../types'
+import { TestResult } from '../interfaces'
 import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
 import { TEST_CONFIG } from '../test-config'
 import { InngestTestEngine } from '../inngest-test-engine'
+import { inngest } from '@/inngest-functions/clients'
 
 // Создаем экземпляр тестового движка
 const inngestTestEngine = new InngestTestEngine()
@@ -50,22 +51,20 @@ const cleanupTestUser = async (telegram_id: TelegramId) => {
   }
 }
 
-export async function runPaymentTests(): Promise<TestResult> {
-  const testTelegramId = normalizeTelegramId(Date.now())
-  const testUsername = `test_user_${testTelegramId}`
+export async function testPaymentSystem(): Promise<TestResult> {
+  const testTelegramId = Date.now().toString()
+  const testBotName = TEST_CONFIG.TEST_BOT_NAME
 
   try {
-    logger.info('🚀 Начало тестирования платежной системы', {
+    logger.info('🚀 Начинаем тест платежной системы', {
       description: 'Starting payment system test',
-      telegram_id: testTelegramId,
-      username: testUsername,
     })
 
     // Создаем тестового пользователя
     const { error: createError } = await supabase.from('users').insert({
       telegram_id: testTelegramId,
-      username: testUsername,
-      bot_name: TEST_CONFIG.TEST_BOT_NAME,
+      username: `test_user_${testTelegramId}`,
+      bot_name: testBotName,
     })
 
     if (createError) {
@@ -73,71 +72,54 @@ export async function runPaymentTests(): Promise<TestResult> {
     }
 
     // Проверяем начальный баланс
-    const initialBalance = await getUserBalance(testTelegramId.toString())
-    logger.info('💰 Начальный баланс:', {
-      description: 'Initial balance check',
-      balance: initialBalance,
-    })
+    const initialBalance = await getUserBalance(testTelegramId)
+    if (initialBalance !== 0) {
+      throw new Error(`Начальный баланс ${initialBalance}, ожидалось 0`)
+    }
 
-    // Тест 2: Пополнение баланса (STARS)
-    const addInv_id = uuid()
-    await inngestTestEngine.send({
+    // Тестируем пополнение баланса
+    const addInv_id = uuidv4()
+    await inngest.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,
         amount: 100,
         type: 'money_income',
-        description: 'Test add payment via Inngest',
-        bot_name: TEST_CONFIG.TEST_BOT_NAME,
+        description: 'Test add stars',
+        bot_name: testBotName,
         inv_id: addInv_id,
         service_type: ModeEnum.TopUpBalance,
       },
     })
 
-    // Ждем завершения платежа
-    await waitForPaymentCompletion(addInv_id)
-
     // Проверяем баланс после пополнения
-    const balanceAfterAdd = await getUserBalance(testTelegramId.toString())
-    logger.info('💰 Баланс после пополнения:', {
-      description: 'Balance after add',
-      balance: balanceAfterAdd,
-    })
-
+    const balanceAfterAdd = await getUserBalance(testTelegramId)
     if (balanceAfterAdd !== 100) {
       throw new Error(
-        `Неверный баланс после пополнения. Ожидалось: 100, Получено: ${balanceAfterAdd}`
+        `Баланс после пополнения ${balanceAfterAdd}, ожидалось 100`
       )
     }
 
-    // Тест 3: Списание средств
-    const spendInv_id = uuid()
-    await inngestTestEngine.send({
+    // Тестируем списание баланса
+    const spendInv_id = uuidv4()
+    await inngest.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,
         amount: 30,
         type: 'money_expense',
-        description: 'Test spend payment via Inngest',
-        bot_name: TEST_CONFIG.TEST_BOT_NAME,
+        description: 'Test spend stars',
+        bot_name: testBotName,
         inv_id: spendInv_id,
-        service_type: ModeEnum.TextToImage,
+        service_type: ModeEnum.TextToVideo,
       },
     })
 
-    // Ждем завершения платежа
-    await waitForPaymentCompletion(spendInv_id)
-
-    // Проверяем финальный баланс
-    const finalBalance = await getUserBalance(testTelegramId.toString())
-    logger.info('💰 Финальный баланс:', {
-      description: 'Final balance check',
-      balance: finalBalance,
-    })
-
-    if (finalBalance !== 70) {
+    // Проверяем баланс после списания
+    const balanceAfterSpend = await getUserBalance(testTelegramId)
+    if (balanceAfterSpend !== 70) {
       throw new Error(
-        `Неверный финальный баланс. Ожидалось: 70, Получено: ${finalBalance}`
+        `Баланс после списания ${balanceAfterSpend}, ожидалось 70`
       )
     }
 
@@ -148,30 +130,35 @@ export async function runPaymentTests(): Promise<TestResult> {
           .from('users')
           .delete()
           .eq('telegram_id', testTelegramId)
-          .eq('bot_name', TEST_CONFIG.TEST_BOT_NAME),
+          .eq('bot_name', testBotName),
         supabase
           .from('payments_v2')
           .delete()
           .eq('telegram_id', testTelegramId)
-          .eq('bot_name', TEST_CONFIG.TEST_BOT_NAME),
+          .eq('bot_name', testBotName),
       ])
     }
 
+    logger.info('✅ Тесты платежной системы завершены успешно', {
+      description: 'Payment system tests completed successfully',
+    })
+
     return {
-      success: true,
       name: 'Payment System Test',
-      message: 'Тест платежной системы успешно завершен',
+      success: true,
+      message: 'Тесты платежной системы успешно пройдены',
     }
   } catch (error) {
-    logger.error('❌ Ошибка в тесте платежной системы:', {
+    logger.error({
+      message: '❌ Ошибка при тестировании платежной системы',
       description: 'Error in payment system test',
       error: error instanceof Error ? error.message : String(error),
     })
 
     return {
-      success: false,
       name: 'Payment System Test',
-      message: `Ошибка в тесте платежной системы: ${
+      success: false,
+      message: `Ошибка при тестировании: ${
         error instanceof Error ? error.message : String(error)
       }`,
     }
@@ -190,7 +177,7 @@ export const runAllPaymentTests = async (): Promise<TestResult[]> => {
 
   try {
     // Основной тест платежной системы
-    const paymentSystemResult = await runPaymentTests()
+    const paymentSystemResult = await testPaymentSystem()
     results.push(paymentSystemResult)
 
     logger.info('✅ Все тесты платежной системы завершены', {

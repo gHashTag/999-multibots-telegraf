@@ -3,16 +3,7 @@
  */
 import { BFLWebhookTester } from './webhook-tests'
 import { logger } from '../utils/logger'
-
-// Интерфейс для результатов теста (должен совпадать с интерфейсом в webhook-tests.ts)
-interface TestResult {
-  name: string
-  success: boolean
-  message: string
-  details?: any
-  error?: string
-  duration?: number
-}
+import { TestResult } from './interfaces'
 
 // Интерфейс для итогов тестирования
 interface TestSummary {

@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
-import { TestResult } from '../types'
+import { TestResult } from '../interfaces'
 import { TEST_CONFIG } from '../test-config'
 import { supabase } from '@/core/supabase'
 
@@ -52,21 +52,17 @@ export async function runStatsTests(): Promise<TestResult> {
     })
 
     // Execute test payment
-    await TEST_CONFIG.inngestEngine.execute({
-      events: [
-        {
-          name: 'payment/process',
-          data: {
-            telegram_id,
-            amount: 100,
-            type: 'money_income',
-            description: 'Test payment',
-            bot_name,
-            inv_id,
-            stars: 100,
-          },
-        },
-      ],
+    await TEST_CONFIG.inngestEngine.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
+        amount: 100,
+        type: 'money_income',
+        description: 'Test payment',
+        bot_name: TEST_CONFIG.TEST_BOT_NAME,
+        inv_id,
+        stars: 100,
+      },
     })
 
     // Wait for payment to be processed

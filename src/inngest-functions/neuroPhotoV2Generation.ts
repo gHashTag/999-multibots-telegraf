@@ -15,6 +15,12 @@ import { MyContext } from '@/interfaces'
 import { v4 as uuidv4 } from 'uuid'
 import { fetch } from 'undici'
 
+interface NeuroPhotoV2Response {
+  id: string
+  status: string
+  [key: string]: any
+}
+
 /**
  * Inngest функция для генерации нейрофото V2
  */
@@ -337,7 +343,7 @@ export const neuroPhotoV2Generation = inngest.createFunction(
               )
             }
 
-            const data = await response.json()
+            const data = (await response.json()) as NeuroPhotoV2Response
 
             logger.info({
               message: '✅ Запрос на генерацию отправлен',
