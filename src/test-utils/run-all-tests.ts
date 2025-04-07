@@ -2,6 +2,7 @@ import { logger } from '@/utils/logger'
 import { TestResult } from './types'
 import { runAllPaymentTests } from './tests/payment.test'
 import { runBalanceTests } from './tests/balance.test'
+import { testChatWithAvatar } from './tests/chatWithAvatar.test'
 import { InngestTestEngine } from './inngest-test-engine'
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
 
@@ -29,6 +30,10 @@ export const runAllTests = async () => {
     // Запускаем тесты баланса
     const balanceResults = await runBalanceTests()
     results.push(...balanceResults)
+
+    // Запускаем тест чата с аватаром
+    const chatWithAvatarResult = await testChatWithAvatar()
+    results.push(chatWithAvatarResult)
 
     // Выводим общие результаты
     const successCount = results.filter(r => r.success).length

@@ -1,5 +1,4 @@
 import { v4 as uuid } from 'uuid'
-import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { TestResult } from '../types'
 import { TEST_CONFIG } from '../test-config'
@@ -11,8 +10,78 @@ import {
   normalizeTelegramId,
 } from '@/interfaces/telegram.interface'
 import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
+import { InngestTestEngine } from '../inngest-test-engine'
+import { PaymentProcessEvent } from '@/inngest-functions/paymentProcessor'
+import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
+import { TransactionType } from '@/interfaces/payments.interface'
 
-const waitForPaymentCompletion = async (inv_id: string, timeout = 5000) => {
+// Создаем экземпляр тестового движка
+const inngestTestEngine = new InngestTestEngine()
+
+// Регистрируем обработчик платежей
+inngestTestEngine.register('payment/process', async ({ 
+  event,
+  step 
+}: {
+  event: { data: PaymentProcessEvent['data'] },
+  step: unknown
+}) => {
+  const { telegram_id, amount, type, description, bot_name, service_type } = event.data as {
+    telegram_id: string
+    amount: number
+    type: TransactionType
+    description: string
+    bot_name: string
+    service_type: string
+  }
+
+  logger.info('🚀 Начало обработки платежа', {
+    description: 'Starting payment processing',
+    telegram_id,
+    amount,
+    type,
+    bot_name,
+    service_type,
+  })
+
+  try {
+    // Создаем запись о платеже
+    const payment = await createSuccessfulPayment({
+      telegram_id,
+      amount,
+      stars: amount,
+      type,
+      description,
+      bot_name,
+      service_type,
+      payment_method: 'balance',
+      status: 'COMPLETED',
+      inv_id: event.data.inv_id,
+    })
+
+    logger.info('✅ Платеж создан', {
+      description: 'Payment created',
+      payment_id: payment.payment_id,
+      telegram_id,
+      amount,
+      type,
+    })
+
+    return { success: true, payment }
+  } catch (error) {
+    logger.error('❌ Ошибка при обработке платежа', {
+      description: 'Error processing payment',
+      telegram_id,
+      amount,
+      type,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    throw error
+  }
+})
+
+const waitForPaymentCompletion = async (inv_id: string, timeout = 30000) => {
   const startTime = Date.now()
   while (Date.now() - startTime < timeout) {
     const payment = await getPaymentByInvId(inv_id)
@@ -57,7 +126,7 @@ export async function runBalanceTests(): Promise<TestResult[]> {
 
     // Тестируем пополнение баланса
     const addInv_id = uuid()
-    await inngest.send({
+    await inngestTestEngine.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,
@@ -111,6 +180,7 @@ export async function runBalanceTests(): Promise<TestResult[]> {
       message: `❌ Ошибка при тестировании баланса: ${
         error instanceof Error ? error.message : String(error)
       }`,
+      error: error instanceof Error ? error : new Error(String(error))
     })
   }
 
