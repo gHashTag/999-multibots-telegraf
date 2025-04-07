@@ -17,6 +17,7 @@ interface CreateSuccessfulPaymentParams {
   subscription?: string
   language?: string
   inv_id?: string
+  service_type: string
 }
 
 /**
@@ -32,6 +33,7 @@ export const createSuccessfulPayment = async (
       stars,
       payment_method,
       description,
+      service_type,
       type,
       bot_name,
       status,
@@ -67,6 +69,7 @@ export const createSuccessfulPayment = async (
         payment_method,
         description,
         type,
+        service_type,
         bot_name,
         status,
         payment_date: new Date().toISOString(),

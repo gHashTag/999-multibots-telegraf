@@ -19,6 +19,7 @@ import { getBotByName } from '@/core/bot'
 import { v4 as uuidv4 } from 'uuid'
 
 import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { supabase } from '@/core/supabase'
 
 export const neuroImageGeneration = inngest.createFunction(
   {
@@ -37,6 +38,42 @@ export const neuroImageGeneration = inngest.createFunction(
         is_ru,
         bot_name,
       } = event.data
+
+      // Проверяем, не обрабатывается ли уже этот запрос
+      const isProcessing = await step.run('check-processing', async () => {
+        const { data: existingPrompts } = await supabase
+          .from('prompts')
+          .select('*')
+          .eq('telegram_id', telegram_id)
+          .eq('prompt', prompt)
+          .eq('status', 'PROCESSING')
+          .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        return existingPrompts && existingPrompts.length > 0
+      })
+
+      if (isProcessing) {
+        logger.info('⚠️ Запрос уже обрабатывается', {
+          description: 'Request is already being processed',
+          telegram_id,
+          prompt: prompt.substring(0, 50) + '...',
+        })
+        return { success: false, error: 'Request is already being processed' }
+      }
+
+      // Сохраняем статус PROCESSING
+      await step.run('save-processing-status', async () => {
+        await savePrompt(
+          prompt,
+          model_url,
+          ModeEnum.NeuroPhoto,
+          '',
+          telegram_id,
+          'PROCESSING'
+        )
+      })
 
       // Гарантируем, что numImages будет числом
       const validNumImages = numImages ? parseInt(String(numImages), 10) : 1
@@ -196,91 +233,55 @@ export const neuroImageGeneration = inngest.createFunction(
           (Number(costPerImage) * validNumImagesAsNumber).toFixed(2)
         )
 
-        // Проверяем баланс пользователя
-        const balance = await getUserBalance(telegram_id.toString(), bot_name)
-        logger.info('💰 Баланс пользователя', {
-          description: 'User balance',
-          telegram_id,
-          balance,
-        })
-
         // Генерируем уникальный ID для операции
-        const payment_operation_id = `${telegram_id}-${Date.now()}-${prompt.substring(
-          0,
-          10
-        )}`
+        const payment_operation_id = uuidv4()
 
-        logger.info('💰 Генерируем уникальный ID для операции', {
-          description: 'Generating unique ID for operation',
-          telegram_id,
-          payment_operation_id,
-        })
-
-        // Используем централизованный процессор платежей через событие
-        const paymentResult = await inngest.send({
+        // Отправляем событие для обработки платежа
+        await inngest.send({
           id: payment_operation_id,
           name: 'payment/process',
           data: {
             telegram_id,
-            amount: paymentAmount,
+            amount: Math.abs(paymentAmount),
+            stars: Math.abs(paymentAmount),
             type: 'money_expense',
-            description: `Payment for generating ${validNumImages} image${
-              validNumImages === 1 ? '' : 's'
-            } with prompt: ${prompt.substring(0, 30)}...`,
+            description: `Payment for generating ${numImages} image${
+              numImages > 1 ? 's' : ''
+            } with prompt: ${prompt.slice(0, 50)}...`,
             bot_name,
+            inv_id: payment_operation_id,
+            service_type: ModeEnum.NeuroPhoto,
             metadata: {
-              service_type: 'NeuroPhoto',
-              prompt_preview: prompt.substring(0, 50),
-              num_images: validNumImages,
+              num_images: numImages,
+              operation_id: payment_operation_id,
+              service_type: ModeEnum.NeuroPhoto,
               cost_per_image: costPerImage,
+              prompt_preview: prompt.slice(0, 50),
             },
           },
         })
 
-        logger.info(
-          '💸 Платеж отправлен на обработку через событие payment/process',
-          {
-            description:
-              'Payment sent for processing via payment/process event',
-            telegram_id,
-            payment_operation_id,
-            payment_event_id: paymentResult.ids?.[0] || 'unknown',
-            paymentAmount,
-          }
-        )
-
-        // Даем время на обработку платежа
-        await new Promise(resolve => setTimeout(resolve, 500))
-
-        // Получаем актуальный баланс пользователя
-        const newBalance = await getUserBalance(telegram_id, bot_name)
-
-        logger.info(
-          '✅ Платеж обработан через событие payment/process, баланс:',
-          {
-            description: 'Payment processed via payment/process event',
-            telegram_id,
-            newBalance,
-            paymentAmount,
-            payment_operation_id,
-          }
-        )
-
-        return {
-          success: true,
-          newBalance,
+        logger.info('💸 Payment sent for processing', {
+          description: 'Payment sent via payment/process event',
+          telegram_id,
           payment_operation_id,
-        }
+          paymentAmount: -Math.abs(paymentAmount),
+        })
+
+        return { success: true, payment_id: payment_operation_id }
       })
 
-      const aspect_ratio = await step.run('get-aspect-ratio', async () => {
-        const ratio = await getAspectRatio(telegram_id)
-        logger.info('📐 Используемый размер изображения', {
-          message: '📐 Using aspect ratio',
-          ratio,
+      if (!balanceCheck.success) {
+        logger.error('❌ Payment processing failed', {
+          description: 'Failed to process payment',
+          telegram_id,
+          payment_id: balanceCheck.payment_id,
         })
-        return ratio
-      })
+        throw new Error('Payment processing failed')
+      }
+
+      // Получаем аспект изображения
+      const aspect_ratio = await getAspectRatio(telegram_id)
 
       const generatedImages = []
 
@@ -506,7 +507,6 @@ export const neuroImageGeneration = inngest.createFunction(
           logger.info('💵 Проверка баланса после операций', {
             description: 'Balance check after operations',
             telegram_id,
-            balanceFromOperation: balanceCheck?.newBalance || 'unknown',
             balanceFromPayments: actualBalance,
             costTotal: (costPerImage * validNumImages).toFixed(2),
           })
@@ -520,7 +520,6 @@ export const neuroImageGeneration = inngest.createFunction(
           return {
             rawBalance: actualBalance,
             formattedBalance,
-            balanceFromOperation: balanceCheck?.newBalance,
           }
         } catch (error) {
           logger.error('❌ Ошибка в шаге проверки баланса', {
@@ -531,7 +530,6 @@ export const neuroImageGeneration = inngest.createFunction(
           return {
             rawBalance: 0,
             formattedBalance: '0.00',
-            balanceFromOperation: 'unknown',
           }
         }
       })
