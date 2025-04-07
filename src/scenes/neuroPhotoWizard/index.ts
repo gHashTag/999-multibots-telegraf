@@ -103,7 +103,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         return ctx.scene.leave()
       }
       if (model_url && trigger_word) {
-        const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
+        const fullPrompt = `${trigger_word}, ${promptText}`
         await generateNeuroImage(
           fullPrompt,
           model_url,

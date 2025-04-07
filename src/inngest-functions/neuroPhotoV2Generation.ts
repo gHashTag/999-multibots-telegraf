@@ -121,13 +121,11 @@ export const neuroPhotoV2Generation = inngest.createFunction(
       // Увеличиваем уровень пользователя, если он на первом уровне
       if (userExists.level === 1) {
         await step.run('update-level', async () => {
-          await updateUserLevelPlusOne(telegram_id, userExists.level)
-          logger.info({
-            message: '⬆️ Уровень пользователя увеличен',
-            description: 'User level increased',
-            telegram_id,
-            newLevel: userExists.level + 1,
-          })
+          if (!userExists.level) {
+            await updateUserLevelPlusOne(telegram_id, 1)
+          } else {
+            await updateUserLevelPlusOne(telegram_id, userExists.level)
+          }
         })
       }
 
@@ -228,7 +226,7 @@ export const neuroPhotoV2Generation = inngest.createFunction(
       const input = {
         finetune_id: finetuneId,
         finetune_strength: 2,
-        prompt: `Fashionable: ${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
+        prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
         aspect_ratio: aspectRatio,
         width: dimensions.width,
         height: dimensions.height,
