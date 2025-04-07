@@ -24,12 +24,21 @@ export async function createPendingPayment(
 ): Promise<{ success: boolean }> {
   const normalizedTelegramId = normalizeTelegramId(params.telegram_id)
 
+  // Добавляем пользовательский payment_method из metadata, если он есть
+  const paymentMethod = params.metadata?.payment_method || 'Robokassa'
+
+  // Проверяем, является ли платеж Robokassa - устанавливаем валюту RUB
+  // Для всех Robokassa платежей используем валюту RUB
+  const currency = paymentMethod === 'Robokassa' ? 'RUB' : 'STARS'
+
   logger.info({
     message: '🔄 Создание платежа в статусе PENDING',
     description: 'Creating new PENDING payment',
     params: {
       ...params,
       telegram_id: normalizedTelegramId,
+      currency,
+      payment_method: paymentMethod,
     },
   })
 
@@ -38,11 +47,11 @@ export async function createPendingPayment(
       telegram_id: normalizedTelegramId,
       amount: params.amount,
       stars: params.stars,
-      currency: 'RUB',
+      currency: currency,
       description: params.description,
       metadata: {
         ...params.metadata,
-        payment_method: 'Robokassa',
+        payment_method: paymentMethod,
         email: params.email,
       },
       bot_name: params.bot_name,
@@ -54,7 +63,7 @@ export async function createPendingPayment(
       inv_id: params.inv_id,
       operation_id: params.inv_id,
       language: params.language || 'ru',
-      payment_method: 'Robokassa',
+      payment_method: paymentMethod,
     })
 
     if (error) {
@@ -66,6 +75,8 @@ export async function createPendingPayment(
           telegram_id: normalizedTelegramId,
           amount: params.amount,
           stars: params.stars,
+          currency,
+          payment_method: paymentMethod,
         },
       })
       throw error
@@ -77,6 +88,8 @@ export async function createPendingPayment(
       telegram_id: normalizedTelegramId,
       amount: params.amount,
       stars: params.stars,
+      currency,
+      payment_method: paymentMethod,
     })
 
     return { success: true }
@@ -88,6 +101,8 @@ export async function createPendingPayment(
       params: {
         telegram_id: normalizedTelegramId,
         amount: params.amount,
+        currency,
+        payment_method: paymentMethod,
       },
     })
     throw error
