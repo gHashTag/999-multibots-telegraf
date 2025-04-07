@@ -153,6 +153,59 @@ export const updateUserBalance = async ({
       }
     }
 
+    // Проверяем, не является ли это дублирующей записью платежа
+    // Например, если у нас уже есть запись в payments_v2 для этой операции
+    // В этом случае не создаем дополнительных системных записей
+    if (metadata && metadata.payment_id) {
+      logger.info(
+        '⚠️ Существует основная запись платежа, пропускаем создание системной:',
+        {
+          description:
+            'Main payment record exists, skipping system record creation',
+          telegram_id: normalizedTelegramId,
+          payment_id: metadata.payment_id,
+          amount: normalizedAmount,
+        }
+      )
+
+      // Обновляем last_payment_date у пользователя
+      await supabase
+        .from('users')
+        .update({
+          last_payment_date: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('telegram_id', normalizedTelegramId)
+
+      // Получаем актуальный баланс
+      const { data: updatedBalance, error: updatedBalanceError } =
+        await supabase.rpc('get_user_balance', {
+          user_telegram_id: normalizedTelegramId,
+        })
+
+      if (updatedBalanceError) {
+        logger.error('❌ Ошибка при получении обновленного баланса:', {
+          description: 'Error getting updated balance',
+          error: updatedBalanceError.message,
+          telegram_id: normalizedTelegramId,
+        })
+        return { success: false, error: updatedBalanceError }
+      }
+
+      logger.info('✅ Транзакция уже была обработана, обновили баланс:', {
+        description: 'Transaction already processed, updated balance',
+        telegram_id: normalizedTelegramId,
+        old_balance: currentBalance,
+        new_balance: updatedBalance,
+        amount: normalizedAmount,
+      })
+
+      return {
+        success: true,
+        balance: updatedBalance,
+      }
+    }
+
     // Создаем запись об операции
     const { data: paymentData, error: paymentError } = await supabase
       .from('payments_v2')
