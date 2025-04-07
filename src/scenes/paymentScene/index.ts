@@ -100,7 +100,7 @@ function generateRobokassaUrl(
     MerchantLogin: merchantLogin,
     OutSum: outSum.toString(),
     InvId: invId.toString(),
-    Description: encodeURIComponent(description),
+    Description: description,
     SignatureValue: signatureValue,
   })
 

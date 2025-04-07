@@ -131,7 +131,7 @@ export const getInvoiceId = async (
     MerchantLogin: merchantLogin,
     OutSum: outSum.toString(),
     InvId: invId.toString(),
-    Description: encodeURIComponent(description),
+    Description: description,
     SignatureValue: signatureValue,
   })
 
@@ -142,7 +142,7 @@ export const getInvoiceId = async (
 
   const url = `${baseUrl}?${params.toString()}`
   console.log('✅ URL сформирован для Robokassa:', {
-    description: 'URL generated for Robokassa',
+    message: 'Generated URL for Robokassa',
     testMode: isTest,
     paymentUrl: url,
   })
