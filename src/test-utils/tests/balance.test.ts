@@ -164,3 +164,205 @@ export const runBalanceTests = async (): Promise<TestResult[]> => {
 
   return results
 }
+
+/**
+ * Тест для проверки работы функции add_stars_to_balance
+ */
+export async function testAddStarsToBalance(): Promise<TestResult> {
+  const testName = 'add_stars_to_balance'
+
+  logger.info('🚀 Начинаем тест add_stars_to_balance:', {
+    description: 'Starting add_stars_to_balance test',
+    test_config: TEST_CONFIG,
+  })
+
+  try {
+    // Тестовый Telegram ID
+    const testTelegramId = TEST_CONFIG.TEST_TELEGRAM_ID
+    const botName = TEST_CONFIG.TEST_BOT_NAME
+
+    // Получаем текущий баланс
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('balance, id')
+      .eq('telegram_id', testTelegramId)
+      .single()
+
+    if (userError) {
+      logger.error('❌ Ошибка при получении данных пользователя:', {
+        description: 'Error getting user data',
+        error: userError,
+        telegram_id: testTelegramId,
+      })
+      throw userError
+    }
+
+    const initialBalance = userData?.balance || 0
+
+    logger.info('ℹ️ Информация о тестовом пользователе:', {
+      description: 'Test user information',
+      telegram_id: testTelegramId,
+      user_id: userData?.id,
+      initial_balance: initialBalance,
+    })
+
+    // Тестовая сумма для добавления на баланс
+    const testAmount = 5
+
+    // Вызываем функцию add_stars_to_balance
+    const { data: result, error: balanceError } = await supabase.rpc(
+      'add_stars_to_balance',
+      {
+        p_telegram_id: testTelegramId,
+        p_stars: testAmount,
+        p_description: 'Test balance update',
+        p_bot_name: botName,
+        p_type: 'money_income',
+        p_service_type: 'test',
+      }
+    )
+
+    if (balanceError) {
+      logger.error('❌ Ошибка при вызове add_stars_to_balance:', {
+        description: 'Error calling add_stars_to_balance',
+        error: balanceError,
+        telegram_id: testTelegramId,
+        amount: testAmount,
+        bot_name: botName,
+      })
+      throw balanceError
+    }
+
+    logger.info('✅ Результат add_stars_to_balance:', {
+      description: 'add_stars_to_balance result',
+      result,
+    })
+
+    // Проверяем, что данные обновились
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .select('balance')
+      .eq('telegram_id', testTelegramId)
+      .single()
+
+    if (updateError) {
+      logger.error('❌ Ошибка при получении обновленных данных:', {
+        description: 'Error getting updated data',
+        error: updateError,
+        telegram_id: testTelegramId,
+      })
+      throw updateError
+    }
+
+    const newBalance = updatedUser?.balance || 0
+    const expectedBalance = Number(initialBalance) + testAmount
+
+    logger.info('ℹ️ Результаты изменения баланса:', {
+      description: 'Balance change results',
+      initialBalance,
+      testAmount,
+      expectedBalance,
+      actualNewBalance: newBalance,
+      isCorrect: newBalance === expectedBalance,
+    })
+
+    // Добавляем проверку на согласованность
+    const { data: payments, error: paymentsError } = await supabase
+      .from('payments_v2')
+      .select('*')
+      .eq('telegram_id', testTelegramId)
+      .order('payment_date', { ascending: false })
+      .limit(1)
+
+    if (paymentsError) {
+      logger.error('❌ Ошибка при получении платежей:', {
+        description: 'Error getting payments',
+        error: paymentsError,
+        telegram_id: testTelegramId,
+      })
+      throw paymentsError
+    }
+
+    logger.info('💾 Последняя запись о платеже:', {
+      description: 'Last payment record',
+      payment: payments[0],
+    })
+
+    // Тест для проверки причин возможной ошибки при expense
+    // Делаем небольшое списание средств
+    const expenseAmount = -2 // отрицательное значение для expense
+
+    logger.info('🔍 Проверка списания средств (money_expense):', {
+      description: 'Testing expense operation',
+      telegram_id: testTelegramId,
+      currentBalance: newBalance,
+      expenseAmount,
+    })
+
+    const { data: expenseResult, error: expenseError } = await supabase.rpc(
+      'add_stars_to_balance',
+      {
+        p_telegram_id: testTelegramId,
+        p_stars: expenseAmount,
+        p_description: 'Test expense operation',
+        p_bot_name: botName,
+        p_type: 'money_expense',
+        p_service_type: 'test',
+      }
+    )
+
+    if (expenseError) {
+      logger.error('❌ Ошибка при списании средств:', {
+        description: 'Error in expense operation',
+        error: expenseError,
+        telegram_id: testTelegramId,
+        amount: expenseAmount,
+        currentBalance: newBalance,
+      })
+    } else {
+      logger.info('✅ Результат списания средств:', {
+        description: 'Expense operation result',
+        result: expenseResult,
+      })
+    }
+
+    // Проверяем, что баланс корректно обновлен
+    const isBalanceCorrect = newBalance === expectedBalance
+
+    return {
+      testName,
+      success: isBalanceCorrect && !balanceError,
+      message: isBalanceCorrect
+        ? '✅ Тест успешно пройден: баланс корректно обновлен'
+        : '❌ Тест не пройден: баланс не соответствует ожидаемому',
+      details: {
+        initialBalance,
+        testAmount,
+        expectedBalance,
+        actualNewBalance: newBalance,
+        rpcResult: result,
+        lastPayment: payments[0],
+        expenseTest: {
+          success: !expenseError,
+          result: expenseResult,
+          error: expenseError ? String(expenseError) : null,
+        },
+      },
+    }
+  } catch (error) {
+    logger.error('❌ Критическая ошибка в тесте add_stars_to_balance:', {
+      description: 'Critical error in add_stars_to_balance test',
+      error: error instanceof Error ? error.message : String(error),
+      error_details: error,
+    })
+
+    return {
+      testName,
+      success: false,
+      message: `❌ Тест завершился с ошибкой: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      error: error instanceof Error ? error : new Error(String(error)),
+    }
+  }
+}
