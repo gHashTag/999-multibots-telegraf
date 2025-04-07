@@ -32,7 +32,7 @@ export const getUserBalance = async (
     })
 
     // Получаем баланс из функции get_user_balance
-    const { data: balance, error } = await supabase.rpc('get_user_balance', {
+    const { data: stars, error } = await supabase.rpc('get_user_balance', {
       user_telegram_id: normalizedId.toString(), // Важно передать в виде строки
     })
 
@@ -49,11 +49,11 @@ export const getUserBalance = async (
     logger.info('✅ Баланс пользователя получен:', {
       description: 'User balance retrieved',
       telegram_id: normalizedId,
-      balance: balance || 0,
+      stars: stars || 0,
       bot_name,
     })
 
-    return balance || 0
+    return stars || 0
   } catch (error) {
     logger.error('❌ Ошибка в getUserBalance:', {
       description: 'Error in getUserBalance function',
@@ -83,7 +83,7 @@ export interface PaymentDetail {
  * Интерфейс для статистики баланса
  */
 export interface UserBalanceStats {
-  balance: number
+  stars: number // Баланс в звездах (переименовано с balance)
   total_added: number
   total_spent: number
   bonus_stars: number
@@ -109,7 +109,7 @@ export const getUserBalanceStats = async (
         bot_name,
       })
       return {
-        balance: 0,
+        stars: 0,
         total_added: 0,
         total_spent: 0,
         bonus_stars: 0,
@@ -146,7 +146,7 @@ export const getUserBalanceStats = async (
         telegram_id: normalizedId,
       })
       return {
-        balance: 0,
+        stars: 0,
         total_added: 0,
         total_spent: 0,
         bonus_stars: 0,
@@ -159,7 +159,7 @@ export const getUserBalanceStats = async (
     }
 
     const result: UserBalanceStats = {
-      balance: Number(stats.balance) || 0,
+      stars: Number(stats.stars) || 0, // получаем из поля stars, не balance
       total_added: Number(stats.total_added) || 0,
       total_spent: Number(stats.total_spent) || 0,
       bonus_stars: Number(stats.bonus_stars) || 0,
@@ -174,7 +174,7 @@ export const getUserBalanceStats = async (
       description: 'User balance statistics retrieved',
       telegram_id: normalizedId,
       stats: {
-        balance: result.balance,
+        stars: result.stars,
         total_added: result.total_added,
         total_spent: result.total_spent,
         payment_methods_count: Object.keys(result.payment_methods || {}).length,
@@ -192,7 +192,7 @@ export const getUserBalanceStats = async (
       telegram_id,
     })
     return {
-      balance: 0,
+      stars: 0,
       total_added: 0,
       total_spent: 0,
       bonus_stars: 0,

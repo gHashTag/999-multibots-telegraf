@@ -11,6 +11,9 @@ import {
   SERVICE_KEYS,
 } from '@/interfaces/payments.interface'
 import { TelegramId } from '@/interfaces/telegram.interface'
+import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
+import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
+import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 
 // Кэш для отслеживания обработанных платежей
 const processedPayments = new Map<string, { time: number }>()
@@ -114,7 +117,6 @@ export const paymentProcessor = inngest.createFunction(
             description: 'User found',
             telegram_id,
             user_id: user.id,
-            current_balance: user.balance,
             bot_name,
           })
         }

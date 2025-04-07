@@ -32,7 +32,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       )
 
       console.log('📊 Статистика баланса получена:', {
-        balance: stats.balance,
+        balance: stats.stars,
         total_added: stats.total_added,
         total_spent: stats.total_spent,
         bonus_stars: stats.bonus_stars,
@@ -89,11 +89,11 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
         : `💰 <b>Balance Information:</b>\n\n`
 
       message += isRu
-        ? `✨ Текущий баланс: ${stats.balance.toFixed(2)} ⭐️\n` +
+        ? `✨ Текущий баланс: ${stats.stars.toFixed(2)} ⭐️\n` +
           (stats.bonus_stars > 0
             ? `🎁 Бонусные звезды: ${stats.bonus_stars.toFixed(2)} ⭐️\n`
             : '')
-        : `✨ Current balance: ${stats.balance.toFixed(2)} ⭐️\n` +
+        : `✨ Current balance: ${stats.stars.toFixed(2)} ⭐️\n` +
           (stats.bonus_stars > 0
             ? `🎁 Bonus stars: ${stats.bonus_stars.toFixed(2)} ⭐️\n`
             : '')
@@ -275,7 +275,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       logger.info('✅ Информация о балансе подготовлена:', {
         description: 'Balance information prepared',
         userId: normalizedId,
-        balance: stats.balance,
+        balance: stats.stars,
         total_added: stats.total_added,
         total_spent: stats.total_spent,
         services_count: Object.keys(stats.services).length,

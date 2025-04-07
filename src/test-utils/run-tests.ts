@@ -7,8 +7,8 @@ import { TestResult } from './types'
  */
 async function runTests(): Promise<TestResult[]> {
   logger.info('🚀 Запуск тестирования', {
-    description: 'Starting tests',
-  })
+      description: 'Starting tests',
+    })
 
   const results: TestResult[] = []
 
@@ -30,7 +30,7 @@ async function runTests(): Promise<TestResult[]> {
       logger.error('❌ Тест imageToPrompt завершился с ошибкой', {
         description: 'imageToPrompt test failed',
         error: imageToPromptResult.error,
-      })
+    })
     }
 
     // Здесь можно добавить другие тесты
