@@ -63,7 +63,7 @@ import { setupLevelHandlers } from './handlers/setupLevelHandlers'
 
 import { defaultSession } from './store'
 import { getTrainingCancelUrl } from './core/supabase'
-import { fetch } from 'undici'
+import fetch from 'node-fetch'
 // import { handleTextMessage } from './handlers'
 
 import { get100Command } from './commands/get100Command'
