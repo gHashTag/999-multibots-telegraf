@@ -1,15 +1,20 @@
 import { MyContext } from '@/interfaces'
 import { Scenes } from 'telegraf'
-import { getUserBalanceStats, supabase } from '@/core/supabase'
+import { getUserBalanceStats } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { isDev } from '@/config'
+import { convertRublesToStars } from '@/price/helpers'
+
+import { isRubPayment } from '@/price/helpers/costHelpers'
+
+import moment from 'moment'
 
 export const balanceScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.BalanceScene,
   async (ctx: MyContext) => {
-    const userId = isDev ? '2086031075' : ctx.from?.id || 0 // В коде был захардкожен ID, для дебага. Здесь используем ctx.from?.id
+    const userId = isDev ? '1018174166' : ctx.from?.id || 0 // В коде был захардкожен ID, для дебага. Здесь используем ctx.from?.id
     const normalizedId = normalizeTelegramId(userId)
     const isRu = ctx.from?.language_code === 'ru'
 
@@ -99,23 +104,139 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
         : `\n💳 <b>Payment History:</b>\n` +
           `➕ Total added: ${stats.total_added.toFixed(2)} ⭐️\n`
 
+      // Фильтрация платежей по типам
+      const positivePayments =
+        stats.payments?.filter(payment => {
+          // Проверяем, что платеж завершен и относится к нужному типу
+          return (
+            (payment?.status === 'COMPLETED' ||
+              payment?.status === undefined) &&
+            ['money_income', 'system'].includes(payment.type || '')
+          )
+        }) || []
+
+      // Используем новую функцию isRubPayment для определения рублёвых пополнений
+      const rubPayments = positivePayments
+        .filter(payment => isRubPayment(payment) && Number(payment.amount) > 0)
+        .sort(
+          (a, b) =>
+            new Date(b.payment_date || 0).getTime() -
+            new Date(a.payment_date || 0).getTime()
+        )
+        .slice(0, 3)
+
+      // Фильтруем платежи для пополнений за звезды
+      const starsPayments = positivePayments
+        .filter(
+          payment =>
+            payment.currency === 'STARS' &&
+            payment.type === 'money_income' &&
+            Number(payment.amount) > 0
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.payment_date || 0).getTime() -
+            new Date(a.payment_date || 0).getTime()
+        )
+        .slice(0, 3)
+
+      // Добавляем информацию о покупке звезд за рубли
+      if (rubPayments.length > 0) {
+        message += isRu
+          ? `\n💵 <b>Куплено за рубли:</b>\n`
+          : `\n💵 <b>Purchased with rubles:</b>\n`
+
+        // Показываем последние 3 платежа
+        rubPayments.forEach(payment => {
+          const date = payment.payment_date
+            ? moment(payment.payment_date).format('DD.MM.YYYY')
+            : '—'
+          const amount = payment.amount || 0
+          const stars = payment.stars || 0
+          message += isRu
+            ? `• ${date}: ${amount} ₽ = ${stars} ⭐️\n`
+            : `• ${date}: ${amount} ₽ = ${stars} ⭐️\n`
+        })
+
+        // Если платежей больше 3, добавляем многоточие
+        if (rubPayments.length > 3) {
+          message += isRu
+            ? `• ... и ещё ${rubPayments.length - 3} платежей\n`
+            : `• ... and ${rubPayments.length - 3} more payments\n`
+        }
+
+        // Текущий курс конвертации
+        const exampleRub = 1000
+        const exampleStars = convertRublesToStars(exampleRub)
+        message += isRu
+          ? `ℹ️ <i>Текущий курс: ${exampleRub} ₽ = ${exampleStars} ⭐️</i>\n`
+          : `ℹ️ <i>Current rate: ${exampleRub} ₽ = ${exampleStars} ⭐️</i>\n`
+      } else {
+        message += isRu
+          ? `\n💵 <b>Куплено за рубли:</b>\n• Пополнений не было\n`
+          : `\n💵 <b>Purchased with rubles:</b>\n• No purchases\n`
+      }
+
+      // Добавляем информацию о покупке за звезды
+      message += isRu
+        ? `\n⭐️ <b>Куплено за звезды:</b>\n`
+        : `\n⭐️ <b>Purchased with stars:</b>\n`
+
+      if (starsPayments.length > 0) {
+        // Показываем последние 3 платежа
+        starsPayments.forEach(payment => {
+          const date = payment.payment_date
+            ? moment(payment.payment_date).format('DD.MM.YYYY')
+            : '—'
+          const stars = payment.stars || 0
+          message += isRu
+            ? `• ${date}: ${stars} ⭐️\n`
+            : `• ${date}: ${stars} ⭐️\n`
+        })
+
+        // Если платежей больше 3, добавляем многоточие
+        if (starsPayments.length > 3) {
+          message += isRu
+            ? `• ... и ещё ${starsPayments.length - 3} платежей\n`
+            : `• ... and ${starsPayments.length - 3} more payments\n`
+        }
+      } else {
+        message += isRu ? `• Пополнений не было\n` : `• No purchases\n`
+      }
+
       // Детализация пополнений
+      message += isRu
+        ? `\n<b>Детализация поступлений:</b>\n`
+        : `\n<b>Incoming details:</b>\n`
+
       if (rubIncome > 0) {
         message += isRu
-          ? `• Пополнено через оплату: ${rubIncome.toFixed(2)} ⭐️\n`
-          : `• Added through payment: ${rubIncome.toFixed(2)} ⭐️\n`
+          ? `• <b>Пополнено через оплату</b>: ${rubIncome.toFixed(2)} ⭐️\n`
+          : `• <b>Added through payment</b>: ${rubIncome.toFixed(2)} ⭐️\n`
+      } else {
+        message += isRu
+          ? `• <b>Пополнено через оплату</b>: 0.00 ⭐️\n`
+          : `• <b>Added through payment</b>: 0.00 ⭐️\n`
       }
 
       if (starsIncome > 0) {
         message += isRu
-          ? `• Прямое пополнение звезд: ${starsIncome.toFixed(2)} ⭐️\n`
-          : `• Direct stars top-up: ${starsIncome.toFixed(2)} ⭐️\n`
+          ? `• <b>Прямое пополнение звезд</b>: ${starsIncome.toFixed(2)} ⭐️\n`
+          : `• <b>Direct stars top-up</b>: ${starsIncome.toFixed(2)} ⭐️\n`
+      } else {
+        message += isRu
+          ? `• <b>Прямое пополнение звезд</b>: 0.00 ⭐️\n`
+          : `• <b>Direct stars top-up</b>: 0.00 ⭐️\n`
       }
 
       if (systemIncome > 0) {
         message += isRu
-          ? `• Бонусные начисления: ${systemIncome.toFixed(2)} ⭐️\n`
-          : `• Bonus credits: ${systemIncome.toFixed(2)} ⭐️\n`
+          ? `• <b>Бонусные начисления</b>: ${systemIncome.toFixed(2)} ⭐️\n`
+          : `• <b>Bonus credits</b>: ${systemIncome.toFixed(2)} ⭐️\n`
+      } else {
+        message += isRu
+          ? `• <b>Бонусные начисления</b>: 0.00 ⭐️\n`
+          : `• <b>Bonus credits</b>: 0.00 ⭐️\n`
       }
 
       // Информация о расходах
@@ -140,6 +261,10 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
               )} ⭐️\n`
             }
           })
+      } else {
+        message += isRu
+          ? `\n🤖 <b>Использование сервисов:</b>\n• Пока нет расходов\n`
+          : `\n🤖 <b>Services Usage:</b>\n• No services used yet\n`
       }
 
       // Добавляем информацию о боте
