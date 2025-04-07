@@ -53,200 +53,234 @@ function getServiceFromDescription(description: string): string {
   return 'default'
 }
 
+export interface PaymentProcessEvent {
+  telegram_id: TelegramId
+  amount: number
+  type: TransactionType
+  description: string
+  bot_name?: string
+  is_ru?: boolean
+  service_type?: string
+  operation_id?: string
+  metadata?: Record<string, any>
+}
+
 /**
- * Функция Inngest для обработки платежей с шагами
+ * Централизованный процессор платежей через Inngest
+ * Выполняет все операции с балансом пользователя
  */
 export const paymentProcessor = inngest.createFunction(
   {
-    id: `payment-processor`,
+    id: 'payment-processor',
+    name: 'Payment Processor',
     retries: 3,
   },
   { event: 'payment/process' },
-  async ({ event }) => {
-    const {
-      telegram_id,
-      amount,
-      type,
-      description,
-      bot_name,
-      inv_id,
-      service_type,
-    } = event.data
-
-    logger.info('🚀 Обработка платежа:', {
-      description: 'Processing payment',
-      telegram_id,
-      amount,
-      type,
-      service_type,
-      bot_name,
-      inv_id,
-    })
-
+  async ({ event, step }) => {
     try {
-      // Получаем текущий баланс до транзакции
-      const currentBalance = await getUserBalance(telegram_id, bot_name)
-
-      logger.info('💰 Текущий баланс пользователя:', {
-        description: 'Current user balance',
+      const {
         telegram_id,
-        currentBalance,
-        bot_name,
-      })
+        amount,
+        type = 'money_income',
+        description = '',
+        bot_name = 'default_bot',
+        service_type = 'default',
+        operation_id = '',
+        metadata = {},
+      } = event.data as PaymentProcessEvent
 
-      // Создаем запись о платеже
-      const { data: payment, error: paymentError } = await supabase
-        .from('payments_v2')
-        .upsert([
-          {
-            inv_id: inv_id || `${telegram_id}-${Date.now()}`,
-            telegram_id,
-            amount,
-            stars: amount,
-            type,
-            description,
-            bot_name,
-            status: 'COMPLETED',
-            payment_method: 'balance',
-            currency: 'STARS',
-            metadata: service_type ? { service_type } : undefined,
-          },
-        ])
-        .select('*')
-        .single()
-
-      if (paymentError) {
-        logger.error('❌ Ошибка при создании записи о платеже:', {
-          description: 'Error creating payment record',
-          error: paymentError.message,
-          error_details: paymentError,
-          telegram_id,
-          type,
-          bot_name,
-        })
-        throw new Error('Payment creation failed')
-      }
-
-      logger.info('✅ Запись о платеже создана:', {
-        description: 'Payment record created successfully',
-        payment_id: payment?.payment_id,
+      logger.info('🚀 Обработка платежа:', {
+        description: 'Processing payment',
         telegram_id,
         amount,
         type,
+        service_type,
         bot_name,
+        inv_id: operation_id,
       })
 
-      // Проверяем, существует ли пользователь в базе данных
-      const { data: user, error: userError } = await supabase
-        .from('users')
-        .select('balance, id')
-        .eq('telegram_id', telegram_id)
-        .single()
-
-      if (userError) {
-        logger.error('❌ Ошибка при проверке пользователя:', {
-          description: 'Error checking user existence',
-          error: userError.message,
-          error_details: userError,
-          telegram_id,
-          bot_name,
-        })
-        throw new Error('User check failed')
-      }
-
-      if (!user) {
-        logger.error('❌ Пользователь не найден:', {
-          description: 'User not found in database',
-          telegram_id,
-          bot_name,
-        })
-        throw new Error('User not found')
-      }
-
-      // Обновляем баланс пользователя через add_stars_to_balance
-      const updateBalanceParams = {
-        telegram_id,
-        amount,
-        type: type as 'money_income' | 'money_expense',
-        operation_description: description,
-        bot_name,
-        payment_method: 'balance',
-        metadata: { payment_id: payment?.payment_id },
-        service_type: service_type || 'default',
-      }
-
-      logger.info('🔄 Параметры обновления баланса:', {
-        description: 'Balance update parameters',
-        ...updateBalanceParams,
-      })
-
-      const {
-        success,
-        newBalance,
-        error: balanceError,
-      } = await updateUserBalance(updateBalanceParams)
-
-      if (!success || balanceError) {
-        logger.error('❌ Ошибка при обновлении баланса:', {
-          description: 'Error updating balance',
-          error: balanceError,
-          telegram_id,
-          type,
-          bot_name,
-          user_id: user.id,
-          current_db_balance: user.balance,
-          attempted_amount_change: amount,
-        })
-
-        // Проверяем, если у пользователя недостаточно средств
-        if (type === 'money_expense' && user.balance < Math.abs(amount)) {
-          logger.error('💸 Недостаточно средств на балансе:', {
-            description: 'Insufficient funds',
+      // Проверяем существует ли пользователь
+      const userExists = await step.run('check-user-exists', async () => {
+        const user = await getUserByTelegramId(telegram_id, bot_name)
+        if (!user) {
+          logger.info('👤 Пользователь не найден, будет создан:', {
+            description: 'User not found, will be created',
             telegram_id,
-            current_balance: user.balance,
-            required_amount: Math.abs(amount),
             bot_name,
           })
-          throw new Error('Insufficient funds')
+        } else {
+          logger.info('👤 Найден пользователь:', {
+            description: 'User found',
+            telegram_id,
+            user_id: user.id,
+            current_balance: user.balance,
+            bot_name,
+          })
         }
-
-        throw new Error('Balance update failed')
-      }
-
-      // Отправляем уведомление
-      const operationId = uuidv4()
-      await sendTransactionNotification({
-        telegram_id: Number(telegram_id),
-        operationId,
-        amount,
-        currentBalance: Number(currentBalance) || 0,
-        newBalance: Number(newBalance) || 0,
-        description: description || 'Платеж успешно обработан',
-        isRu: true,
-        bot_name,
+        return !!user
       })
 
-      logger.info('✅ Платеж успешно обработан:', {
-        description: 'Payment processed successfully',
-        payment_id: payment?.payment_id,
+      // Получаем текущий баланс пользователя
+      const currentBalance = await step.run('get-user-balance', async () => {
+        const balance = await getUserBalance(telegram_id, bot_name)
+
+        logger.info('💰 Текущий баланс пользователя:', {
+          description: 'Current user balance',
+          telegram_id,
+          currentBalance: balance,
+          bot_name,
+        })
+
+        return balance
+      })
+
+      // Проверка достаточности средств при списании
+      if (type === 'money_expense' && currentBalance < Math.abs(amount)) {
+        logger.error('❌ Недостаточно средств для списания:', {
+          description: 'Insufficient funds for deduction',
+          telegram_id,
+          currentBalance,
+          requestedAmount: amount,
+          bot_name,
+        })
+
+        throw new Error('Insufficient funds')
+      }
+
+      // Создаем запись о платеже
+      const paymentRecord = await step.run(
+        'create-payment-record',
+        async () => {
+          try {
+            if (operation_id) {
+              // Проверяем, не обработан ли уже этот платеж
+              const existingPayment = await getPaymentByInvId(operation_id)
+              if (existingPayment) {
+                logger.info('⚠️ Платеж уже обработан:', {
+                  description: 'Payment already processed',
+                  payment_id: existingPayment.payment_id,
+                  inv_id: operation_id,
+                })
+                return existingPayment
+              }
+            }
+
+            const payment = await createSuccessfulPayment({
+              telegram_id,
+              amount,
+              stars: amount,
+              payment_method: 'balance',
+              description,
+              type,
+              bot_name,
+              status: 'COMPLETED',
+              metadata: {
+                ...metadata,
+                service_type,
+                operation_id,
+              },
+            })
+
+            logger.info('✅ Запись о платеже создана:', {
+              description: 'Payment record created successfully',
+              payment_id: payment.payment_id,
+              telegram_id,
+              amount,
+              type,
+              bot_name,
+            })
+
+            return payment
+          } catch (error) {
+            logger.error('❌ Ошибка при создании записи о платеже:', {
+              description: 'Error creating payment record',
+              error: error instanceof Error ? error.message : String(error),
+              error_details: error,
+              telegram_id,
+              amount,
+              type,
+              bot_name,
+            })
+            throw error
+          }
+        }
+      )
+
+      // Обновляем баланс пользователя через специальную RPC функцию
+      const balanceUpdate = await step.run('update-user-balance', async () => {
+        try {
+          logger.info('🔄 Параметры обновления баланса:', {
+            description: 'Balance update parameters',
+            telegram_id,
+            amount,
+            type,
+            operation_description: description,
+            bot_name,
+            payment_method: 'balance',
+            metadata: { payment_id: paymentRecord.payment_id },
+            service_type,
+          })
+
+          // Используем новую функцию с проверкой баланса
+          const updateResult = await updateUserBalance({
+            telegram_id,
+            amount:
+              type === 'money_expense' ? -Math.abs(amount) : Math.abs(amount),
+            type,
+            description: description || 'Balance update',
+            bot_name,
+            service_type,
+            metadata: {
+              ...metadata,
+              payment_id: paymentRecord.payment_id,
+            },
+          })
+
+          if (!updateResult.success) {
+            throw updateResult.error || new Error('Balance update failed')
+          }
+
+          return {
+            success: true,
+            oldBalance: currentBalance,
+            newBalance: updateResult.balance,
+          }
+        } catch (error) {
+          logger.error('❌ Ошибка при обновлении баланса:', {
+            description: 'Error updating balance',
+            error: error instanceof Error ? error.message : String(error),
+            telegram_id,
+            type,
+            bot_name,
+            user_id: userExists ? 'exists' : 'new',
+            current_db_balance: currentBalance,
+            attempted_amount_change: amount,
+          })
+          throw error
+        }
+      })
+
+      // Формируем результат обработки платежа
+      return {
+        success: true,
         telegram_id,
         amount,
         type,
-        currentBalance,
-        newBalance,
+        payment_id: paymentRecord.payment_id,
+        old_balance: balanceUpdate.oldBalance,
+        new_balance: balanceUpdate.newBalance,
+        operation_id,
         bot_name,
-      })
-
-      return payment
+      }
     } catch (error) {
       logger.error('❌ Ошибка при обработке платежа:', {
         description: 'Error processing payment',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : String(error),
         error_stack: error instanceof Error ? error.stack : undefined,
-        telegram_id,
-        amount,
-        type,
-        bot_name,
+        telegram_id: event.data.telegram_id,
+        amount: event.data.amount,
+        type: event.data.type,
+        bot_name: event.data.bot_name,
       })
       throw error
     }
