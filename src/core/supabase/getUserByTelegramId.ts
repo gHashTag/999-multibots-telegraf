@@ -1,130 +1,73 @@
-import { MyContext } from '@/interfaces'
 import { supabase } from '.'
 import { logger } from '@/utils/logger'
-import { normalizeTelegramId } from '@/interfaces/telegram.interface'
+import { User } from '@/interfaces/user.interface'
+import { TelegramId } from '@/interfaces/telegram.interface'
 
 /**
- * Получает пользователя по идентификатору Telegram
- * Функция поддерживает два формата аргумента:
- * 1. Объект MyContext (для использования в командах бота)
- * 2. Строковый telegram_id (для использования в функциях Inngest)
+ * Получает информацию о пользователе по его Telegram ID
  */
-export async function getUserByTelegramId(ctxOrId: MyContext | string) {
+export const getUserByTelegramId = async (
+  telegram_id: TelegramId,
+  bot_name?: string
+): Promise<User | null> => {
   try {
-    // Определяем, что было передано: контекст или ID
-    let telegramId: string
-    let botName: string | null = null
+    logger.info('🔍 Поиск пользователя по telegram_id', {
+      description: 'Finding user by telegram_id',
+      telegram_id,
+      bot_name,
+    })
 
-    if (typeof ctxOrId === 'string') {
-      telegramId = ctxOrId
-      logger.info({
-        message: '🔍 Получение пользователя по ID',
-        description: 'Getting user by string ID',
-        telegramId,
-      })
+    // Нормализуем telegram_id к строке
+    const normalizedTelegramId = String(telegram_id)
 
-      // Проверка на тестовый режим
-      if (
-        process.env.NODE_ENV === 'test' ||
-        process.env.IS_TESTING === 'true'
-      ) {
-        logger.info({
-          message: '🧪 Тестовый режим обнаружен',
-          description: 'Test mode detected, returning mock user',
-          telegramId,
-        })
-
-        // Возвращаем мок-данные для тестирования
-        return {
-          id: 'test-user-id',
-          telegram_id: telegramId,
-          username: 'test_user',
-          level: 2,
-          balance: 1000,
-          bot_name: 'neuro_blogger_bot',
-          created_at: new Date().toISOString(),
-          voice_id: 'test-voice-id',
-          fine_tune_id: 'test-finetune-id',
-          aspect_ratio: '1:1',
-        }
-      }
-    } else {
-      // Получаем данные из контекста
-      telegramId = normalizeTelegramId(ctxOrId.from?.id || '')
-      botName = ctxOrId.botInfo?.username || null
-      logger.info({
-        message: '🔍 Получение пользователя из контекста',
-        description: 'Getting user from context',
-        telegramId,
-        botName,
-      })
-    }
-
-    // Получаем пользователя из базы данных
-    const { data, error } = await supabase
+    let query = supabase
       .from('users')
       .select('*')
-      .eq('telegram_id', telegramId)
-      .single()
+      .eq('telegram_id', normalizedTelegramId)
 
-    if (error) {
-      logger.error({
-        message: '❌ Пользователь не зарегистрирован',
-        description: 'User not registered',
-        telegramId,
+    // Если указан bot_name, добавляем его в условие
+    if (bot_name) {
+      query = query.eq('bot_name', bot_name)
+    }
+
+    const { data, error } = await query.single()
+
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 - это код ошибки "не найдено", его не логируем как ошибку
+      logger.error('❌ Ошибка при поиске пользователя:', {
+        description: 'Error finding user',
         error: error.message,
+        error_details: error,
+        telegram_id,
+        bot_name,
       })
       return null
     }
 
-    // Обновляем имя бота, если оно изменилось и у нас есть информация о новом имени
-    if (botName && data.bot_name !== botName) {
-      logger.info({
-        message: '🔄 Имя бота изменилось, обновляем...',
-        description: 'Bot name changed, updating',
-        oldBotName: data.bot_name,
-        newBotName: botName,
-        telegramId,
+    if (!data) {
+      logger.info('ℹ️ Пользователь не найден:', {
+        description: 'User not found',
+        telegram_id,
+        bot_name,
       })
-
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ bot_name: botName })
-        .eq('telegram_id', telegramId)
-
-      if (updateError) {
-        logger.error({
-          message: '❌ Ошибка при обновлении имени бота',
-          description: 'Error updating bot name',
-          error: updateError.message,
-          telegramId,
-        })
-      } else {
-        logger.info({
-          message: '✅ Имя бота успешно обновлено',
-          description: 'Bot name updated successfully',
-          telegramId,
-          botName,
-        })
-        // Обновляем данные в памяти
-        data.bot_name = botName
-      }
+      return null
     }
 
-    logger.info({
-      message: '✅ Пользователь найден',
-      description: 'User found in database',
-      userId: data.id,
-      telegramId,
+    logger.info('✅ Пользователь найден:', {
+      description: 'User found',
+      user_id: data.id,
+      telegram_id,
+      bot_name,
     })
 
-    return data
+    return data as User
   } catch (error) {
-    logger.error({
-      message: '❌ Непредвиденная ошибка при получении пользователя',
-      description: 'Unexpected error fetching user by Telegram ID',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : null,
+    logger.error('❌ Ошибка в getUserByTelegramId:', {
+      description: 'Error in getUserByTelegramId function',
+      error: error instanceof Error ? error.message : String(error),
+      error_details: error,
+      telegram_id,
+      bot_name,
     })
     return null
   }
