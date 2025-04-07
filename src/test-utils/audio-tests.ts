@@ -5,6 +5,7 @@ import * as path from 'path'
 import * as os from 'os'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
+import { fetch } from 'undici'
 // import { generateSpeech } from '@/services/generateSpeech'
 
 /**
