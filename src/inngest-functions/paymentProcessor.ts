@@ -2,26 +2,26 @@ import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 
 import { sendTransactionNotification } from '@/helpers/sendTransactionNotification'
-import { getUserBalance, updateUserBalance } from '@/core/supabase'
+import { getUserBalance } from '@/core/supabase'
 import { v4 as uuidv4 } from 'uuid'
-import { TransactionType } from '@/interfaces/payments.interface'
-import { TelegramId } from '@/interfaces/telegram.interface'
+
 import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
 import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 import { supabase } from '@/core/supabase'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export interface PaymentProcessEvent {
   data: {
     telegram_id: string
-    amount: number // Теперь всегда положительное число
-    stars?: number // Теперь всегда положительное число
+    amount: number // Всегда положительное число
+    stars?: number // Всегда положительное число
     type: string
     description: string
     bot_name: string
     inv_id?: string
     metadata?: any
-    service_type: string
+    service_type: ModeEnum // Используем ModeEnum для типизации
   }
 }
 

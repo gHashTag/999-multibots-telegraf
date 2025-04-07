@@ -91,6 +91,9 @@ export const TEST_CONFIG = {
       is_bot: false,
       first_name: 'Test',
       last_name: 'User',
+      telegramId: '123456789',
+      botName: 'test_bot',
+      isRussian: true,
     },
     default: {
       id: 987654321,
@@ -210,10 +213,13 @@ export const TEST_CONFIG = {
   TEST_BOT_NAME: 'test_bot',
 
   // URL тестового изображения для image-to-prompt
-  TEST_IMAGE_URL: 'https://example.com/test-image.jpg',
+  TEST_IMAGE_URL: 'https://example.com/test.jpg',
 
   // Тестовый ID для Telegram
   TEST_TELEGRAM_ID: '123456789',
+
+  // Тестовые константы
+  CHECK_INTERVAL: 1000,
 }
 
 // Экспорт для использования в тестах

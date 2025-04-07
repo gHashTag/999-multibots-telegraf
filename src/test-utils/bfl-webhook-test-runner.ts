@@ -6,7 +6,7 @@ import { logger } from '../utils/logger'
 
 // Интерфейс для результатов теста (должен совпадать с интерфейсом в webhook-tests.ts)
 interface TestResult {
-  testName: string
+  name: string
   success: boolean
   message: string
   details?: any
@@ -47,14 +47,14 @@ async function runBFLWebhookTests(): Promise<TestSummary> {
   results.forEach(result => {
     if (result.success) {
       logger.info({
-        message: `✓ ${result.testName} - ${result.message}`,
-        description: `Test passed: ${result.testName}`,
+        message: `✓ ${result.name} - ${result.message}`,
+        description: `Test passed: ${result.name}`,
         duration: result.duration,
       })
     } else {
       logger.error({
-        message: `✗ ${result.testName} - ${result.message}`,
-        description: `Test failed: ${result.testName}`,
+        message: `✗ ${result.name} - ${result.message}`,
+        description: `Test failed: ${result.name}`,
         error: result.error,
       })
     }
