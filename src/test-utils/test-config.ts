@@ -10,9 +10,110 @@ import { MyContext } from '@/interfaces'
 import { InngestTestEngine } from './inngest-test-engine'
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
 
+// Интерфейсы для тестовых данных
+interface TelegramMock {
+  sendMessage: () => Promise<Record<string, unknown>>
+  editMessageText: () => Promise<Record<string, unknown>>
+  sendPhoto: () => Promise<Record<string, unknown>>
+  sendVideo: () => Promise<Record<string, unknown>>
+  sendAnimation: () => Promise<Record<string, unknown>>
+}
+
+interface BotInfo {
+  id: number
+  is_bot: boolean
+  first_name: string
+  username: string
+  can_join_groups: boolean
+  can_read_all_group_messages: boolean
+  supports_inline_queries: boolean
+}
+
+interface BotMock {
+  telegram: TelegramMock
+  use: () => Promise<BotMock>
+  command: () => Promise<BotMock>
+  action: () => Promise<BotMock>
+  on: () => Promise<BotMock>
+  options: Record<string, unknown>
+  context: Record<string, unknown>
+  webhookFilter: () => boolean
+  handleError: () => Promise<void>
+  telegram_response: Record<string, unknown>
+  botInfo: BotInfo
+  secretPathComponent: () => string
+  launch: () => Promise<{ stopPolling: () => Promise<void> }>
+  stop: () => Promise<Record<string, unknown>>
+  catch: () => BotMock
+  startPolling: () => Promise<Record<string, unknown>>
+  startWebhook: () => Promise<Record<string, unknown>>
+  handleUpdate: () => Promise<Record<string, unknown>>
+  login: () => string
+}
+
+interface TestUser {
+  id: number
+  username: string
+  is_bot: boolean
+  first_name: string
+  last_name: string
+  telegramId?: string
+  botName?: string
+  isRussian?: boolean
+}
+
+interface TestBot {
+  name: string
+  token: string
+}
+
+interface ModelTrainingSample {
+  prompt: string
+  negative_prompt: string
+  image_url: string
+}
+
+interface BFLTrainingSample {
+  text: string
+  image_url: string
+}
+
+interface NeuroPhotoSample {
+  url: string
+  prompt: string
+}
+
+interface PaymentSample {
+  amount: number
+  inv_id: string
+  sign: string
+}
+
+interface TestEmoji {
+  START: string
+  SUCCESS: string
+  ERROR: string
+  INFO: string
+  WARNING: string
+  DEBUG: string
+  RETRY: string
+  TEST: string
+  DATA: string
+  EVENT: string
+}
+
+// Интерфейс для результатов тестов
+export interface TestResult {
+  success: boolean
+  name: string
+  message?: string
+  error?: string
+  details?: Record<string, unknown>
+}
+
 // Создаем моки для тестов без использования jest
 // Мок телеграм бота для тестов
-const mockTelegram = {
+const mockTelegram: TelegramMock = {
   sendMessage: async () => ({}),
   editMessageText: async () => ({}),
   sendPhoto: async () => ({}),
@@ -32,7 +133,6 @@ const mockBot = {
   webhookFilter: () => true,
   handleError: () => Promise.resolve(),
   // Дополнительные необходимые поля для Telegraf
-  telegram_response: {},
   botInfo: {
     id: 123456789,
     is_bot: true,
@@ -49,7 +149,6 @@ const mockBot = {
   startPolling: () => Promise.resolve({}),
   startWebhook: () => Promise.resolve({}),
   handleUpdate: () => Promise.resolve({}),
-  login: () => '',
 } as unknown as Telegraf<MyContext>
 
 // Создаем тестовый движок Inngest с правильными параметрами
@@ -60,15 +159,6 @@ export const inngestTestEngine = new InngestTestEngine({
 
 // Регистрируем функцию paymentProcessor
 inngestTestEngine.register('payment/process', paymentProcessor)
-
-// Интерфейс для результатов тестов
-export interface TestResult {
-  success: boolean
-  name: string
-  message?: string
-  error?: string
-  details?: Record<string, any>
-}
 
 export const TEST_CONFIG = {
   // Моки для тестирования
@@ -94,14 +184,14 @@ export const TEST_CONFIG = {
       telegramId: '123456789',
       botName: 'test_bot',
       isRussian: true,
-    },
+    } as TestUser,
     default: {
       id: 987654321,
       username: 'default_user',
       is_bot: false,
       first_name: 'Default',
       last_name: 'User',
-    },
+    } as TestUser,
   },
 
   // Тестовые боты
@@ -109,15 +199,15 @@ export const TEST_CONFIG = {
     test_bot: {
       name: 'test_bot',
       token: 'test_token',
-    },
+    } as TestBot,
     neurophoto: {
       name: 'neurophoto_bot',
       token: 'neurophoto_token',
-    },
+    } as TestBot,
     default: {
       name: 'default_bot',
       token: 'default_token',
-    },
+    } as TestBot,
   },
 
   // Тестовые данные для обучения моделей
@@ -127,12 +217,12 @@ export const TEST_CONFIG = {
         prompt: 'Test prompt 1',
         negative_prompt: 'Test negative prompt 1',
         image_url: 'https://example.com/test1.jpg',
-      },
+      } as ModelTrainingSample,
       {
         prompt: 'Test prompt 2',
         negative_prompt: 'Test negative prompt 2',
         image_url: 'https://example.com/test2.jpg',
-      },
+      } as ModelTrainingSample,
     ],
   },
 
@@ -142,11 +232,11 @@ export const TEST_CONFIG = {
       {
         text: 'Test text 1',
         image_url: 'https://example.com/bfl1.jpg',
-      },
+      } as BFLTrainingSample,
       {
         text: 'Test text 2',
         image_url: 'https://example.com/bfl2.jpg',
-      },
+      } as BFLTrainingSample,
     ],
   },
 
@@ -156,11 +246,11 @@ export const TEST_CONFIG = {
       {
         url: 'https://example.com/neurophoto1.jpg',
         prompt: 'Test neurophoto prompt 1',
-      },
+      } as NeuroPhotoSample,
       {
         url: 'https://example.com/neurophoto2.jpg',
         prompt: 'Test neurophoto prompt 2',
-      },
+      } as NeuroPhotoSample,
     ],
   },
 
@@ -170,12 +260,12 @@ export const TEST_CONFIG = {
       amount: 100,
       inv_id: 'test_payment_123',
       sign: 'test_sign_123',
-    },
+    } as PaymentSample,
     error: {
       amount: -1,
       inv_id: 'error_payment_123',
       sign: 'error_sign_123',
-    },
+    } as PaymentSample,
   },
 
   // Таймауты и повторы
@@ -196,7 +286,7 @@ export const TEST_CONFIG = {
     TEST: '🎯',
     DATA: '💾',
     EVENT: '⚡️',
-  },
+  } as TestEmoji,
 
   // Тестовый движок Inngest с правильными параметрами
   inngestEngine: inngestTestEngine,
