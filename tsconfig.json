@@ -4,7 +4,7 @@
     "target": "es2020",
     "module": "commonjs",
     "lib": ["es2020"],
-    "declaration": true,
+    "declaration": false,
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -12,7 +12,7 @@
     "alwaysStrict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noImplicitReturns": true,
+    "noImplicitReturns": false, // TODO: after refactor this option should be true
     "noFallthroughCasesInSwitch": false,
     "inlineSourceMap": true,
     "inlineSources": true,
@@ -40,7 +40,7 @@
       "@handlers/*": ["src/handlers/*"],
       "@helpers/*": ["src/helpers/*"],
       "@commands/*": ["src/commands/*"],
-      "@inngest-functions/*": ["src/inngest-fuctions/*"],
+      "@inngest-functions/*": ["src/inngest-functions/*"],
       "@test-utils/*": ["src/test-utils/*"]
     },
     "moduleResolution": "node",

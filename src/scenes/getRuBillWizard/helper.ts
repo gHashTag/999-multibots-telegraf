@@ -9,12 +9,6 @@ import {
 import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'
 
-interface SubscriptionTitles {
-  neurophoto: string
-  neurobase: string
-  neuroblogger: string
-}
-
 export const merchantLogin = MERCHANT_LOGIN
 export const password1 = PASSWORD1
 export const testPassword1 = TEST_PASSWORD1
