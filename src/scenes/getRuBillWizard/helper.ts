@@ -74,7 +74,7 @@ export const generateSignature = (
 
   // Корректное формирование подписи без resultUrl2
   const signatureString = `${merchantLogin}:${outSum}:${invId}:${actualPassword}`
-  console.log('Строка для подписи:', {
+  console.log('📝 Строка для подписи:', {
     description: 'Signature string',
     signatureString,
   })
@@ -102,7 +102,6 @@ export const getInvoiceId = async (
     outSum,
     invId,
     description,
-    resultUrl2,
     isTestMode: isTest,
   })
 
@@ -124,29 +123,29 @@ export const getInvoiceId = async (
     isTest
   )
 
+  // Формируем базовый URL Robokassa
   const baseUrl = 'https://auth.robokassa.ru/Merchant/Index.aspx'
 
-  const params = {
+  // Создаем параметры запроса - ВАЖНО: без ResultUrl2
+  const params = new URLSearchParams({
     MerchantLogin: merchantLogin,
     OutSum: outSum.toString(),
     InvId: invId.toString(),
-    Description: description,
+    Description: encodeURIComponent(description),
     SignatureValue: signatureValue,
-    ResultUrl2: resultUrl2,
-  }
+  })
 
   // Добавляем параметр IsTest только если включен тестовый режим
   if (isTest) {
-    params['IsTest'] = '1'
+    params.append('IsTest', '1')
   }
 
-  const searchParams = new URLSearchParams()
-  for (const [key, value] of Object.entries(params)) {
-    searchParams.append(key, value)
-  }
-
-  const url = `${baseUrl}?${searchParams.toString()}`
-  console.log('✅ URL сформирован:', { description: 'Generated URL', url })
+  const url = `${baseUrl}?${params.toString()}`
+  console.log('✅ URL сформирован для Robokassa:', {
+    description: 'URL generated for Robokassa',
+    testMode: isTest,
+    paymentUrl: url,
+  })
 
   return url
 }
