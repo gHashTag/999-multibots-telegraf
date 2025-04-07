@@ -323,16 +323,10 @@ export const broadcastFunction = inngest.createFunction(
 
       return summary
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Неизвестная ошибка'
-      const errorStack = error instanceof Error ? error.stack : undefined
-
-      logger.error('❌ Ошибка при выполнении рассылки через Inngest:', {
-        description: 'Error in Inngest broadcast function',
-        error: errorMessage,
-        ...(errorStack && { stack: errorStack }),
+      logger.error('❌ Ошибка при обработке рассылки:', {
+        description: 'Error processing broadcast',
+        error,
       })
-
       throw error
     }
   }

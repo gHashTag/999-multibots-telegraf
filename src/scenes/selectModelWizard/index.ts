@@ -7,6 +7,7 @@ import { getUserByTelegramIdString, setModel } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { logger } from '@/utils/logger'
 
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.SelectModelWizard,
@@ -15,7 +16,10 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
 
     try {
       const models = await getAvailableModels()
-      console.log('models', models)
+      logger.info('🔄 Получены доступные модели:', {
+        description: 'Available models fetched',
+        models
+      })
 
       // Создаем кнопки для каждой модели, по 3 в ряд
       const buttons: string[][] = []
@@ -49,7 +53,10 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
 
       return ctx.wizard.next()
     } catch (error) {
-      console.error('Error creating model selection menu:', error)
+      logger.error('❌ Ошибка при создании меню выбора модели:', {
+        description: 'Error creating model selection menu',
+        error: error instanceof Error ? error.message : String(error)
+      })
       await ctx.reply(
         isRu
           ? '❌ Ошибка при получении списка моделей'
@@ -68,30 +75,61 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const isCancel = await handleHelpCancel(ctx)
-    console.log('CASE: select_model', isCancel)
     if (isCancel) {
-      console.log('CASE: select_model', isCancel)
       return ctx.scene.leave()
-    } else {
-      const model = message.text
-      console.log('CASE: select_model', model)
-      const models = await getAvailableModels()
-      if (!models.includes(model)) {
-        await ctx.reply(isRu ? '❌ Модель не найдена' : '❌ Model not found')
-        return ctx.scene.leave()
-      }
+    }
 
-      const telegramId = ctx.from?.id.toString()
-      if (!telegramId) {
+    const model = message.text
+    const models = await getAvailableModels()
+    
+    if (!models.includes(model)) {
+      await ctx.reply(isRu ? '❌ Модель не найдена' : '❌ Model not found')
+      return ctx.scene.leave()
+    }
+
+    const telegramId = ctx.from?.id.toString()
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось получить ID пользователя'
+          : '❌ Error: User ID not found'
+      )
+      return ctx.scene.leave()
+    }
+
+    try {
+      // Проверяем существование пользователя
+      const user = await getUserByTelegramIdString(telegramId)
+      if (!user) {
+        logger.error('❌ Пользователь не найден:', {
+          description: 'User not found',
+          telegramId
+        })
         await ctx.reply(
           isRu
-            ? '❌ Ошибка: не удалось получить ID пользователя'
-            : '❌ Error: User ID not found'
+            ? '❌ Ошибка: пользователь не найден'
+            : '❌ Error: User not found'
         )
         return ctx.scene.leave()
       }
 
+      // Устанавливаем модель
       await setModel(telegramId, model)
+      logger.info('✅ Модель успешно установлена:', {
+        description: 'Model successfully set',
+        telegramId,
+        model
+      })
+
+      // Обновляем уровень пользователя если нужно
+      if (user.level === 5) {
+        await updateUserLevelPlusOne(telegramId, user.level)
+        logger.info('✅ Уровень пользователя обновлен:', {
+          description: 'User level updated',
+          telegramId,
+          newLevel: user.level + 1
+        })
+      }
 
       await ctx.reply(
         isRu
@@ -104,17 +142,21 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      const userExists = await getUserByTelegramIdString(telegramId)
-
-      if (!userExists) {
-        throw new Error(`User with ID ${telegramId} does not exist.`)
-      }
-      const level = userExists.level
-      if (level === 5) {
-        await updateUserLevelPlusOne(telegramId, level)
-      }
-      ctx.scene.enter('chat_with_avatar')
-      return
+      // Переходим в сцену чата с аватаром
+      return ctx.scene.enter(ModeEnum.ChatWithAvatar)
+    } catch (error) {
+      logger.error('❌ Ошибка при установке модели:', {
+        description: 'Error setting model',
+        error: error instanceof Error ? error.message : String(error),
+        telegramId,
+        model
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка при установке модели'
+          : '❌ Error setting model'
+      )
+      return ctx.scene.leave()
     }
   }
 )

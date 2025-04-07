@@ -29,7 +29,10 @@ const createHelpCancelKeyboard = (isRu: boolean) => {
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ChatWithAvatar,
   async ctx => {
-    console.log('🚀 Начало чата с аватаром [Starting chat with avatar]')
+    logger.info('🚀 Начало чата с аватаром:', {
+      description: 'Starting chat with avatar',
+      telegramId: ctx.from?.id
+    })
     const isRu = isRussian(ctx)
 
     try {
@@ -41,55 +44,106 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
           reply_markup: createHelpCancelKeyboard(isRu),
         }
       )
-      console.log('✅ Приветственное сообщение отправлено [Welcome message sent]')
+      logger.info('✅ Приветственное сообщение отправлено:', {
+        description: 'Welcome message sent',
+        telegramId: ctx.from?.id
+      })
       return ctx.wizard.next()
     } catch (error) {
-      console.error('❌ Ошибка при отправке приветственного сообщения:', error)
+      logger.error('❌ Ошибка при отправке приветственного сообщения:', {
+        description: 'Error sending welcome message',
+        error: error instanceof Error ? error.message : String(error),
+        telegramId: ctx.from?.id
+      })
       throw error
     }
   },
   async ctx => {
-    console.log('📝 Получено сообщение в чате с аватаром [Message received in avatar chat]')
+    logger.info('📝 Получено сообщение в чате с аватаром:', {
+      description: 'Message received in avatar chat',
+      telegramId: ctx.from?.id,
+      messageType: ctx.message ? Object.keys(ctx.message)[0] : 'unknown'
+    })
     
     if (!ctx.message) {
-      console.log('⚠️ Получено пустое сообщение [Empty message received]')
+      logger.warn('⚠️ Получено пустое сообщение:', {
+        description: 'Empty message received',
+        telegramId: ctx.from?.id
+      })
       return ctx.scene.leave()
     }
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
-      console.log('🛑 Пользователь отменил чат [User cancelled chat]')
+      logger.info('🛑 Пользователь отменил чат:', {
+        description: 'User cancelled chat',
+        telegramId: ctx.from?.id
+      })
       return ctx.scene.leave()
     }
 
     const isRu = isRussian(ctx)
+    const telegramId = ctx.from?.id.toString()
+
+    if (!telegramId) {
+      logger.error('❌ Не удалось получить ID пользователя:', {
+        description: 'Failed to get user ID'
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось получить ID пользователя'
+          : '❌ Error: User ID not found'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Проверяем существование пользователя
+    const user = await getUserByTelegramIdString(telegramId)
+    if (!user) {
+      logger.error('❌ Пользователь не найден:', {
+        description: 'User not found',
+        telegramId
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: пользователь не найден'
+          : '❌ Error: User not found'
+      )
+      return ctx.scene.leave()
+    }
 
     // Проверяем, является ли сообщение запросом справки
     if ('text' in ctx.message && ctx.message.text === (isRu ? levels[6].title_ru : levels[6].title_en)) {
-      console.log('ℹ️ Пользователь запросил справку [User requested help]')
-      ctx.session.mode = ModeEnum.SelectModelWizard
-      await ctx.scene.enter('checkBalanceScene')
+      logger.info('ℹ️ Пользователь запросил справку:', {
+        description: 'User requested help',
+        telegramId
+      })
+      await ctx.scene.enter(ModeEnum.SelectModelWizard)
       return
     }
 
     try {
       // Обработка текстового сообщения
       if ('text' in ctx.message) {
-        console.log('🤖 Обработка текстового сообщения [Processing text message]')
+        logger.info('🤖 Обработка текстового сообщения:', {
+          description: 'Processing text message',
+          telegramId
+        })
+        await ctx.telegram.sendChatAction(Number(telegramId), 'typing')
         await handleTextMessage(ctx)
       }
       // Обработка голосового сообщения
       else if ('voice' in ctx.message) {
-        console.log('🎙️ Обработка голосового сообщения [Processing voice message]')
+        logger.info('🎙️ Обработка голосового сообщения:', {
+          description: 'Processing voice message',
+          telegramId
+        })
         
         // Получаем файл голосового сообщения
-        const file = await ctx.telegram.getFile(ctx.message.voice.file_id)
-        if (!file.file_path) {
+        const file = await ctx.telegram.getFileLink(ctx.message.voice.file_id)
+        if (!file.href) {
           throw new Error('File path not found')
         }
-
-        // Формируем URL для скачивания файла
-        const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
 
         // Отправляем уведомление о начале обработки
         await ctx.reply(
@@ -100,11 +154,11 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
 
         // Отправляем событие в Inngest для обработки
         await inngest.send({
-          id: `voice-to-text-${ctx.from?.id}-${Date.now()}-${uuidv4().substring(0, 8)}`,
+          id: `voice-to-text-${telegramId}-${Date.now()}-${uuidv4().substring(0, 8)}`,
           name: 'voice-to-text.requested',
           data: {
-            fileUrl,
-            telegram_id: ctx.from?.id.toString(),
+            fileUrl: file.href,
+            telegram_id: telegramId,
             is_ru: isRu,
             bot_name: ctx.botInfo?.username,
             username: ctx.from?.username,
@@ -113,10 +167,10 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
 
         // Отправляем событие для обработки платежа
         await inngest.send({
-          id: `payment-${ctx.from?.id}-${Date.now()}-${ModeEnum.VoiceToText}-${uuidv4()}`,
+          id: `payment-${telegramId}-${Date.now()}-${ModeEnum.VoiceToText}-${uuidv4()}`,
           name: 'payment/process',
           data: {
-            telegram_id: ctx.from?.id.toString(),
+            telegram_id: telegramId,
             amount: calculateModeCost({ mode: ModeEnum.VoiceToText }).stars,
             type: 'money_expense',
             description: 'Payment for voice to text conversion',
@@ -127,7 +181,11 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       }
       // Обработка неподдерживаемого типа сообщения
       else {
-        console.log('⚠️ Неподдерживаемый тип сообщения [Unsupported message type]')
+        logger.warn('⚠️ Неподдерживаемый тип сообщения:', {
+          description: 'Unsupported message type',
+          telegramId,
+          messageType: Object.keys(ctx.message)[0]
+        })
         await ctx.reply(
           isRu
             ? '❌ Пожалуйста, отправьте текстовое или голосовое сообщение'
@@ -136,44 +194,37 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      const telegram_id = ctx.from?.id.toString()
-      console.log('👤 Telegram ID пользователя:', telegram_id)
-
-      const userExists = await getUserByTelegramIdString(telegram_id || '')
-      console.log('📊 Данные пользователя:', JSON.stringify(userExists, null, 2))
-
-      if (!userExists?.id) {
-        console.error('❌ Неверная структура данных пользователя:', {
-          telegram_id,
-          data_structure: Object.keys(userExists || {}),
+      // Обновляем уровень пользователя если нужно
+      if (user.level === 4) {
+        logger.info('📈 Обновление уровня пользователя:', {
+          description: 'Updating user level',
+          telegramId,
+          currentLevel: user.level
         })
-        const isRu = isRussian(ctx)
-        return ctx.reply(
-          isRu
-            ? 'Произошла ошибка при обработке вашего профиля 😔'
-            : 'An error occurred while processing your profile 😔'
-        )
-      }
-
-      const level = userExists.level
-      if (level === 4) {
-        console.log('📈 Обновление уровня пользователя [Updating user level]')
-        if (!telegram_id) {
-          await ctx.reply(
-            isRu
-              ? 'Произошла ошибка при обработке вашего профиля 😔'
-              : 'An error occurred while processing your profile 😔'
-          )
-          return ctx.scene.leave()
+        
+        try {
+          await updateUserLevelPlusOne(telegramId, user.level)
+          logger.info('✅ Уровень пользователя обновлен:', {
+            description: 'User level updated',
+            telegramId,
+            newLevel: user.level + 1
+          })
+        } catch (error) {
+          logger.error('❌ Ошибка при обновлении уровня пользователя:', {
+            description: 'Error updating user level',
+            error: error instanceof Error ? error.message : String(error),
+            telegramId
+          })
         }
-        await updateUserLevelPlusOne(telegram_id, level)
-        console.log('✅ Уровень пользователя обновлен [User level updated]')
       }
 
       return
     } catch (error) {
-      console.error('❌ Ошибка в чате с аватаром:', error)
-      const isRu = isRussian(ctx)
+      logger.error('❌ Ошибка в чате с аватаром:', {
+        description: 'Error in avatar chat',
+        error: error instanceof Error ? error.message : String(error),
+        telegramId
+      })
       await ctx.reply(
         isRu
           ? 'Произошла ошибка при обработке сообщения. Пожалуйста, попробуйте позже.'
