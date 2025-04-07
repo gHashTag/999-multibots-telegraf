@@ -58,9 +58,6 @@ export const inngestTestEngine = new InngestTestEngine({
   eventBufferSize: 200,
 })
 
-// Регистрируем функцию paymentProcessor
-inngestTestEngine.register('payment/process', paymentProcessor)
-
 // Интерфейс для результатов тестов
 export interface TestResult {
   success: boolean

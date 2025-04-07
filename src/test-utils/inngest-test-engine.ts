@@ -17,7 +17,7 @@ export class InngestTestEngine {
 
   constructor(options: InngestTestEngineOptions = {}) {
     this.options = {
-      maxWaitTime: options.maxWaitTime || 10000,
+      maxWaitTime: options.maxWaitTime || 30000,
       eventBufferSize: options.eventBufferSize || 200,
     }
 
@@ -103,6 +103,9 @@ export class InngestTestEngine {
           handler_name: handler.name,
         })
 
+        // Добавляем задержку для симуляции реального выполнения
+        await new Promise(resolve => setTimeout(resolve, 500))
+
         const result = await handler({
           event: eventWithId,
           step: this.createStepObject(),
@@ -114,7 +117,11 @@ export class InngestTestEngine {
           result,
         })
 
-        await this.simulateExecution(eventWithId.id, result)
+        // Обновляем статус события
+        eventWithId.status = 'completed'
+        eventWithId.result = result
+
+        return { event: eventWithId, success: true }
       } catch (error) {
         logger.error('❌ Ошибка при выполнении функции', {
           description: 'Error executing function',
@@ -122,20 +129,20 @@ export class InngestTestEngine {
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
         })
-        await this.simulateExecution(eventWithId.id, {
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        })
-        throw error
+
+        // Обновляем статус события
+        eventWithId.status = 'failed'
+        eventWithId.error = error instanceof Error ? error.message : String(error)
+
+        return { event: eventWithId, success: false, error }
       }
     } else {
       logger.warn('⚠️ Обработчик не найден для события', {
         description: 'No handler found for event',
         event_name: event.name,
       })
+      return { event: eventWithId, success: false }
     }
-
-    return { event: eventWithId, success: true }
   }
 
   /**

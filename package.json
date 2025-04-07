@@ -12,7 +12,7 @@
     "bots": "cross-env NODE_ENV=development nodemon src/bot.ts",
     "build": "swc src -d dist --source-maps --copy-files",
     "build:tsc": "tsc && tsc-alias",
-    "test": "NODE_ENV=test ts-node --no-compile -r tsconfig-paths/register src/test-utils/run-all-tests.ts",
+    "test": "NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/run-all-tests.ts",
     "lint": "eslint --ignore-path .gitignore --ext .ts src",
     "lint:fix": "npm run lint -- --fix",
     "ngrok": "ngrok http 2999",

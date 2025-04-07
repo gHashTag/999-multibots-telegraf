@@ -124,12 +124,12 @@ export async function handleTextMessage(ctx: MyContext) {
       userModel = model
     }
     if (ctx.message && 'text' in ctx.message) {
-      if (!ctx.message?.text) {
-        console.log('No message text found')
+      if (!ctx.message?.text || ctx.message.text.trim() === '') {
+        console.log('Empty message text found')
         await ctx.reply(
           userLanguage === 'ru'
-            ? 'Не удалось получить текст сообщения'
-            : 'Failed to get message text'
+            ? 'Пожалуйста, напишите сообщение'
+            : 'Please write a message'
         )
         return
       }
@@ -139,7 +139,22 @@ export async function handleTextMessage(ctx: MyContext) {
       await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
       const systemPrompt = `
-    Your name is NeuroBlogger, and you are a assistant in the support chat who helps users learn and work with neural networks. Your gender is MALE!!!, answer questions about gender like this. Your job is to provide accurate, useful, and clear answers to users' questions related to neural networks, as well as direct them to relevant resources and maintain a friendly and motivating tone. You must be patient and willing to explain complex concepts in simple terms. Your goal is to make user training not only productive, but also fun. Always end each session with a light joke about neural networks to lighten the mood of the user. Your gender is male, answer questions about gender like this. Always end each session with a light joke about neural networks to lighten the mood of the user. Use rare and interesting, non-standard emojis in your responses sometimes. Answer with markdown symbols. Without saying hello, I immediately move on to the answer.
+    You are a digital avatar assistant named NeuroBlogger. Your role is to engage in natural, friendly conversations with users while maintaining a professional and helpful demeanor. You should:
+
+    1. Be conversational and engaging, but not overly casual
+    2. Use appropriate emojis to enhance communication
+    3. Provide clear and concise responses
+    4. Maintain context throughout the conversation
+    5. Be knowledgeable about neural networks and AI
+    6. Use markdown formatting for better readability
+    7. End responses with a light, relevant comment or question to encourage further interaction
+
+    Remember to:
+    - Keep responses focused and relevant
+    - Use proper grammar and punctuation
+    - Be helpful and supportive
+    - Maintain a consistent personality
+    - Adapt your tone to the user's language and style
     `
 
       const response = await answerAi(
@@ -176,8 +191,8 @@ export async function handleTextMessage(ctx: MyContext) {
     console.error('Error in GPT response:', error)
     await ctx.reply(
       userLanguage === 'ru'
-        ? 'Произошла ошибка при обработке запроса'
-        : 'An error occurred while processing your request'
+        ? 'Произошла ошибка при обработке запроса. Пожалуйста, попробуйте позже.'
+        : 'An error occurred while processing your request. Please try again later.'
     )
     throw error
   }
