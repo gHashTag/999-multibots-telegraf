@@ -27,6 +27,7 @@ interface WebhookPayload {
   metrics?: {
     predict_time?: number
   }
+  error?: string
 }
 
 interface WebhookOptions {
