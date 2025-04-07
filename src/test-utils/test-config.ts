@@ -58,7 +58,10 @@ export const inngestTestEngine = new InngestTestEngine({
   eventBufferSize: 200,
 })
 
+// Регистрируем функцию paymentProcessor
+inngestTestEngine.register('payment/process', paymentProcessor)
 
+// Интерфейс для результатов тестов
 export interface TestResult {
   success: boolean
   name: string
@@ -66,9 +69,6 @@ export interface TestResult {
   error?: string
   details?: Record<string, any>
 }
-
-
-
 
 export const TEST_CONFIG = {
   // Моки для тестирования
