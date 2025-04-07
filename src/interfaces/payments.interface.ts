@@ -160,6 +160,8 @@ export const DETAILED_TRANSACTION_DESCRIPTIONS: Record<
     [ModeEnum.TextToVideo]:
       '🎬 Пополнение баланса для создания видео из текста',
     [ModeEnum.ImageToPrompt]: '🔍 Пополнение баланса для анализа изображения',
+    [ModeEnum.TextToVoice]:
+      '🗣️ Пополнение баланса для преобразования текста в голос',
     default: '💰 Пополнение баланса',
   },
   money_expense: {
@@ -174,6 +176,7 @@ export const DETAILED_TRANSACTION_DESCRIPTIONS: Record<
     [ModeEnum.Voice]: '🗣️ Голосовой аватар',
     [ModeEnum.TextToVideo]: '🎬 Создание видео из текста',
     [ModeEnum.ImageToPrompt]: '🔍 Анализ изображения',
+    [ModeEnum.TextToVoice]: '🗣️ Преобразование текста в голос',
     default: '💸 Списание средств',
   },
   subscription_purchase: {
@@ -272,6 +275,7 @@ export const COMMAND_TO_SERVICE_MAP: Partial<Record<ModeEnum, ContentService>> =
     [ModeEnum.ChatWithAvatar]: ModeEnum.ChatWithAvatar,
     [ModeEnum.LipSync]: ModeEnum.LipSync,
     [ModeEnum.Voice]: ModeEnum.Voice,
+    [ModeEnum.TextToVoice]: ModeEnum.TextToVoice,
   } as const
 
 /**
@@ -292,6 +296,7 @@ export const COMMAND_TO_TRANSACTION_TYPE: Partial<
   [ModeEnum.ChatWithAvatar]: 'money_expense',
   [ModeEnum.LipSync]: 'money_expense',
   [ModeEnum.Voice]: 'money_expense',
+  [ModeEnum.TextToVoice]: 'money_expense',
   [ModeEnum.Subscribe]: 'subscription_purchase',
   [ModeEnum.TopUpBalance]: 'money_income',
 } as const
@@ -586,6 +591,12 @@ export const SERVICE_DESCRIPTIONS: Record<
   [ModeEnum.SubscriptionScene]: {
     expense: (amount: number) =>
       `📲 Управление подписками: ${amount} ${getStarsWord(amount)}`,
+    income: (amount: number) =>
+      `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
+  },
+  [ModeEnum.TextToVoice]: {
+    expense: (amount: number) =>
+      `🗣️ Преобразование текста в голос: ${amount} ${getStarsWord(amount)}`,
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },

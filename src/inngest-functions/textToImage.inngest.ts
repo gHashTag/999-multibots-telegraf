@@ -269,11 +269,7 @@ export const textToImageFunction = inngest.createFunction(
         })
 
         await step.run(`send-image-${i}`, async () => {
-          await sendImageToUser(
-            savedImage.localPath,
-            params,
-            paymentResult.newBalance
-          )
+          await sendImageToUser(savedImage.localPath, params)
         })
 
         results.push({
@@ -454,8 +450,7 @@ async function handleGenerationError(
 
 async function sendImageToUser(
   localPath: string,
-  params: TextToImageEvent['data'],
-  balance: number
+  params: TextToImageEvent['data']
 ) {
   const { bot } = getBotByName(params.bot_name)
   if (!bot) {
@@ -468,9 +463,7 @@ async function sendImageToUser(
 
   await bot.telegram.sendMessage(
     params.telegram_id,
-    params.is_ru
-      ? `✅ Готово! Баланс: ${balance.toFixed(2)} ⭐️`
-      : `✅ Done! Balance: ${balance.toFixed(2)} ⭐️`,
+    params.is_ru ? `✅ Готово!️` : `✅ Done!️`,
     {
       reply_markup: {
         keyboard: [

@@ -1,3 +1,35 @@
+// Устанавливаем NODE_ENV в test и загружаем переменные окружения
+process.env.NODE_ENV = 'test'
+
+import dotenv from 'dotenv'
+import path from 'path'
+import fs from 'fs'
+
+// Загружаем переменные окружения из .env.test
+const envPath = path.resolve(process.cwd(), '.env.test')
+
+console.log('🔍 Путь к файлу .env.test:', envPath)
+console.log('📂 Текущая директория:', process.cwd())
+
+// Проверяем существование файла
+if (!fs.existsSync(envPath)) {
+  console.error('❌ Файл .env.test не найден:', envPath)
+  process.exit(1)
+}
+
+console.log('✅ Файл .env.test найден')
+
+// Загружаем переменные окружения
+const result = dotenv.config({ path: envPath })
+
+if (result.error) {
+  console.error('❌ Ошибка при загрузке .env.test:', result.error)
+  process.exit(1)
+}
+
+console.log('✅ Переменные окружения загружены')
+console.log('🔑 INNGEST_EVENT_KEY:', process.env.INNGEST_EVENT_KEY)
+
 import { logger } from '@/utils/logger'
 import { testBroadcastMessage } from './tests/broadcast.test'
 import { testClientsMigration } from './tests/clients-migration.test'
@@ -5,15 +37,6 @@ import { testImageToPrompt } from './tests/imageToPrompt.test'
 import { testPaymentSystem } from './tests/payment.test'
 import { testVoiceCost } from './tests/voice-cost-test'
 import { TestResult } from './types'
-import dotenv from 'dotenv'
-import path from 'path'
-
-// Устанавливаем NODE_ENV в test
-process.env.NODE_ENV = 'test'
-
-// Загружаем переменные окружения из .env.test
-const envPath = path.resolve(process.cwd(), '.env.test')
-dotenv.config({ path: envPath })
 
 // Проверяем наличие необходимых переменных окружения
 logger.info('🔍 Проверка переменных окружения в run-all-tests.ts:', {

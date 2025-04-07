@@ -2,7 +2,6 @@ import { logger } from '@/utils/logger'
 import { TestResult } from './types'
 import { DatabaseTester } from './database-tests'
 import { ReplicateWebhookTester } from './webhook-tests'
-import { VoiceTester } from './test-voices'
 import { InngestTester } from './inngest-tests'
 
 /**
@@ -25,11 +24,6 @@ export async function runTests(): Promise<TestResult[]> {
     const webhookTester = new ReplicateWebhookTester()
     const webhookResults = await webhookTester.runAllTests()
     results.push(...webhookResults)
-
-    // Голосовые тесты
-    const voiceTester = new VoiceTester()
-    const voiceResults = await voiceTester.runAllTests()
-    results.push(...voiceResults)
 
     // Тесты Inngest
     const inngestTester = new InngestTester()

@@ -27,6 +27,7 @@ export async function testBroadcastMessage(): Promise<BroadcastTestResult[]> {
         text: 'Test broadcast message',
         status: 'pending',
         created_at: new Date().toISOString(),
+        message_id: Date.now(),
       })
       .select()
       .single()
