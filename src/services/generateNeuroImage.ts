@@ -112,8 +112,19 @@ export async function generateNeuroImage(
     // Проверяем, не был ли уже отправлен платеж с таким ID операции
     const existingPayment = await getPaymentByInvId(operationId)
 
-    if (!existingPayment) {
-      // Только если платежа еще нет, списываем средства
+    // Проверяем статус подписки пользователя для определения нужно ли списывать средства
+    const userSubscription = user.subscription || 'none'
+    const isNeurotester = userSubscription === 'neurotester'
+
+    logger.info('👤 Тип подписки пользователя:', {
+      description: 'User subscription type',
+      telegram_id,
+      subscription: userSubscription,
+      is_neurotester: isNeurotester,
+    })
+
+    if (!existingPayment && !isNeurotester) {
+      // Только если платежа еще нет и пользователь не neurotester, списываем средства
       const paymentOperation = await inngest.send({
         id: operationId, // Используем уникальный ID для предотвращения дублирования
         name: 'payment/process',
@@ -142,13 +153,24 @@ export async function generateNeuroImage(
         payment_id: paymentOperation.ids?.[0] || 'unknown',
         operation_id: operationId,
       })
-    } else {
+    } else if (existingPayment) {
       logger.info('⚠️ Платеж с таким ID операции уже существует:', {
         description: 'Payment with this operation ID already exists',
         operation_id: operationId,
         existing_payment_id: existingPayment.payment_id,
         telegram_id,
       })
+    } else if (isNeurotester) {
+      logger.info(
+        '🧪 Платеж не требуется - пользователь с подпиской neurotester:',
+        {
+          description:
+            'Payment not required - user has neurotester subscription',
+          telegram_id,
+          subscription: userSubscription,
+          operation_id: operationId,
+        }
+      )
     }
 
     // Получаем аспект изображения
