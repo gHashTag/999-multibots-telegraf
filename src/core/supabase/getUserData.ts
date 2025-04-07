@@ -7,7 +7,7 @@ export const getUserData = async (telegram_id: TelegramId) => {
     .select(
       'username, first_name, last_name, company, position, designation, language_code'
     )
-    .eq('telegram_id', telegram_id.toString())
+    .eq('telegram_id', BigInt(telegram_id))
     .maybeSingle()
 
   if (error) {

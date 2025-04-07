@@ -93,6 +93,7 @@ const BASE_COSTS: BaseCosts = {
   [ModeEnum.TextToVideo]: 0,
   [ModeEnum.TextToImage]: 0.08,
   [ModeEnum.LipSync]: 0.9,
+  [ModeEnum.VoiceToText]: 0.08,
 }
 
 export function calculateModeCost(

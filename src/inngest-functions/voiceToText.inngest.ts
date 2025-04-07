@@ -8,6 +8,7 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
 import fetch from 'node-fetch'
 import { Context } from 'telegraf'
 import { Update } from 'telegraf/typings/core/types/typegram'
+import * as fs from 'fs'
 
 export const voiceToTextProcessor = inngest.createFunction(
   { 
@@ -28,9 +29,18 @@ export const voiceToTextProcessor = inngest.createFunction(
 
       // Получаем аудио файл
       console.log('🎵 Получение аудио файла [Getting audio file]')
-      const audioResponse = await fetch(fileUrl)
-      if (!audioResponse.ok) {
-        throw new Error('Ошибка получения аудио файла')
+      let audioBuffer: Buffer
+      if (fileUrl.startsWith('file://')) {
+        // Читаем локальный файл
+        const filePath = fileUrl.slice(7) // Убираем 'file://'
+        audioBuffer = fs.readFileSync(filePath)
+      } else {
+        // Получаем файл по URL
+        const audioResponse = await fetch(fileUrl)
+        if (!audioResponse.ok) {
+          throw new Error('Ошибка получения аудио файла')
+        }
+        audioBuffer = Buffer.from(await audioResponse.arrayBuffer())
       }
 
       // Инициализируем OpenAI
@@ -41,7 +51,7 @@ export const voiceToTextProcessor = inngest.createFunction(
       // Отправляем аудио в Whisper API
       console.log('🎤 Отправка в Whisper API [Sending to Whisper API]')
       const transcription = await openai.audio.transcriptions.create({
-        file: await toFile(audioResponse, 'audio.ogg'),
+        file: await toFile(audioBuffer, 'audio.ogg'),
         model: 'whisper-1',
         language: is_ru ? 'ru' : 'en',
       })

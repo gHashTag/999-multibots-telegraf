@@ -589,6 +589,12 @@ export const SERVICE_DESCRIPTIONS: Record<
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },
+  [ModeEnum.VoiceToText]: {
+    expense: (amount: number) =>
+      `🎤 Преобразование голоса в текст: ${amount} ${getStarsWord(amount)}`,
+    income: (amount: number) =>
+      `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
+  },
 } as const
 
 /**
