@@ -15,7 +15,7 @@ export const resultUrl2 = RESULT_URL2 || ''
 export const description = 'Покупка звезд'
 
 // Флаг для использования тестового режима Robokassa
-export const useTestMode = true
+export const useTestMode = false
 
 export const subscriptionTitles = (isRu: boolean) => ({
   neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
@@ -70,6 +70,7 @@ export const generateSignature = (
     invId,
     isTestMode: isTest,
     usingTestPassword: isTest && testPassword1 ? true : false,
+    mode: isTest ? 'ТЕСТОВЫЙ РЕЖИМ' : 'БОЕВОЙ РЕЖИМ',
   })
 
   // Корректное формирование подписи без resultUrl2
@@ -97,11 +98,10 @@ export const getInvoiceId = async (
   isTest: boolean = useTestMode
 ): Promise<string> => {
   console.log('🚀 Формирование счёта с параметрами:', {
-    description: 'Generating invoice with parameters',
+    message: 'Generating invoice with parameters',
     merchantLogin,
     outSum,
     invId,
-    description,
     isTestMode: isTest,
   })
 
