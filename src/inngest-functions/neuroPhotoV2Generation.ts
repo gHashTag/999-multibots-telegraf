@@ -13,7 +13,7 @@ import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { v4 as uuidv4 } from 'uuid'
-import { fetch } from 'undici'
+import fetch from 'node-fetch'
 
 interface NeuroPhotoV2Response {
   id: string

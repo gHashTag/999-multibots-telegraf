@@ -9,12 +9,7 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
 import { supabase } from '@/core/supabase'
 import { TestResult } from '../interfaces'
 import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
-import { TEST_CONFIG } from '../test-config'
-import { InngestTestEngine } from '../inngest-test-engine'
-import { inngest } from '@/inngest-functions/clients'
-
-// Создаем экземпляр тестового движка
-const inngestTestEngine = new InngestTestEngine()
+import { TEST_CONFIG, inngestTestEngine } from '../test-config'
 
 const waitForPaymentCompletion = async (inv_id: string, timeout = 5000) => {
   const startTime = Date.now()
@@ -33,7 +28,7 @@ const waitForPaymentCompletion = async (inv_id: string, timeout = 5000) => {
  */
 const cleanupTestUser = async (telegram_id: TelegramId) => {
   try {
-    // Удаляем платежи
+    // Удаляем платежиОшибки TypeScript тоже проверить, что все нормально.
     await supabase.from('payments_v2').delete().eq('telegram_id', telegram_id)
     // Удаляем пользователя
     await supabase.from('users').delete().eq('telegram_id', telegram_id)
@@ -79,7 +74,7 @@ export async function testPaymentSystem(): Promise<TestResult> {
 
     // Тестируем пополнение баланса
     const addInv_id = uuidv4()
-    await inngest.send({
+    await inngestTestEngine.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,
@@ -92,6 +87,9 @@ export async function testPaymentSystem(): Promise<TestResult> {
       },
     })
 
+    // Ждем завершения платежа
+    await waitForPaymentCompletion(addInv_id)
+
     // Проверяем баланс после пополнения
     const balanceAfterAdd = await getUserBalance(testTelegramId)
     if (balanceAfterAdd !== 100) {
@@ -102,7 +100,7 @@ export async function testPaymentSystem(): Promise<TestResult> {
 
     // Тестируем списание баланса
     const spendInv_id = uuidv4()
-    await inngest.send({
+    await inngestTestEngine.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,
@@ -114,6 +112,9 @@ export async function testPaymentSystem(): Promise<TestResult> {
         service_type: ModeEnum.TextToVideo,
       },
     })
+
+    // Ждем завершения платежа
+    await waitForPaymentCompletion(spendInv_id)
 
     // Проверяем баланс после списания
     const balanceAfterSpend = await getUserBalance(testTelegramId)

@@ -1,8 +1,7 @@
 import { v4 as uuid } from 'uuid'
-import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { TestResult } from '../interfaces'
-import { TEST_CONFIG } from '../test-config'
+import { TEST_CONFIG, inngestTestEngine } from '../test-config'
 import { supabase } from '@/core/supabase'
 import { getUserBalance } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
@@ -57,7 +56,7 @@ export async function testBalance(): Promise<TestResult[]> {
 
     // Тестируем пополнение баланса
     const addInv_id = uuid()
-    await inngest.send({
+    await inngestTestEngine.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,

@@ -1,5 +1,5 @@
 import { logger } from '@/utils/logger'
-import { fetch } from 'undici'
+import fetch from 'node-fetch'
 
 interface BflResponse {
   finetune_details: {

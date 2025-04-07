@@ -1,27 +1,34 @@
 import { createClient } from '@supabase/supabase-js'
-import {
-  SUPABASE_URL,
-  SUPABASE_SERVICE_KEY,
-  SUPABASE_SERVICE_ROLE_KEY,
-} from '../../config'
 import { logger } from '@/utils/logger'
+
+const { SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_SERVICE_ROLE_KEY } =
+  process.env
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error('Missing Supabase environment variables')
 }
 
-// Создаем клиент с service role key
-export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+// Создаем клиент Supabase
+export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  auth: {
+    persistSession: false,
+  },
+})
 
 // Создаем админский клиент с тем же ключом
 export const supabaseAdmin = createClient(
   SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY
+  SUPABASE_SERVICE_ROLE_KEY,
+  {
+    auth: {
+      persistSession: false,
+    },
+  }
 )
 
 logger.info('🔌 Supabase клиент инициализирован', {
   description: 'Supabase client initialized',
-  url: SUPABASE_URL?.substring(0, 15) + '...',
+  url: SUPABASE_URL?.slice(0, 10) + '...',
 })
 
 export * from './createUser'

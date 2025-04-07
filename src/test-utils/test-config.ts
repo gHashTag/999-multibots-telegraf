@@ -9,6 +9,7 @@ import { TestResult } from './interfaces'
 import { InngestTestEngine } from './inngest-test-engine'
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
 import { TelegramMock } from './mocks/telegram.mock'
+import { supabase } from '@/core/supabase'
 
 // Интерфейсы для тестовых данных
 interface BotInfo {
@@ -84,25 +85,43 @@ export const inngestTestEngine = new InngestTestEngine({
 })
 
 // Регистрируем функцию paymentProcessor как обработчик события
-inngestTestEngine.register('payment/process', async ({ event }) => {
+inngestTestEngine.register('payment/process', async ({ event, step }) => {
   try {
-    logger.info({
-      message: '🚀 Обработка платежа в тестовом окружении',
+    logger.info('🚀 Обработка платежа в тестовом окружении', {
       description: 'Processing payment in test environment',
       event_id: event.id,
       event_data: event.data,
     })
 
-    // Возвращаем успешный результат для тестов
-    return {
-      success: true,
-      message: 'Payment processed in test environment',
-      event_id: event.id,
+    // Создаем запись о платеже в БД
+    const { error } = await supabase.from('payments_v2').insert({
+      telegram_id: event.data.telegram_id,
+      amount: event.data.amount,
+      stars: event.data.amount,
+      type: event.data.type,
+      description: event.data.description,
+      bot_name: event.data.bot_name,
+      status: 'COMPLETED',
+      payment_method: 'test',
+      inv_id: event.data.inv_id,
+      service_type: event.data.service_type,
+    })
+
+    if (error) {
+      throw error
     }
+
+    logger.info('✅ Платеж успешно обработан', {
+      description: 'Payment processed successfully',
+      event_id: event.id,
+      telegram_id: event.data.telegram_id,
+      amount: event.data.amount,
+    })
+
+    return { success: true }
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при обработке платежа в тестовом окружении',
-      description: 'Error processing payment in test environment',
+    logger.error('❌ Ошибка при обработке платежа', {
+      description: 'Error processing payment',
       error: error instanceof Error ? error.message : String(error),
       event_id: event.id,
     })
@@ -233,7 +252,7 @@ export const TEST_CONFIG = {
     INFO: 'ℹ️',
     WARNING: '⚠️',
     DEBUG: '🔍',
-    RETRY: '🔄',
+    RETRY: '��',
     TEST: '🎯',
     DATA: '💾',
     EVENT: '⚡️',
@@ -243,7 +262,7 @@ export const TEST_CONFIG = {
   inngestEngine: inngestTestEngine,
 
   // Таймаут для обработки платежей
-  PAYMENT_PROCESSING_TIMEOUT: 1000,
+  PAYMENT_PROCESSING_TIMEOUT: 5000,
 
   // Флаг для очистки после каждого теста
   cleanupAfterEach: true,
@@ -251,13 +270,32 @@ export const TEST_CONFIG = {
   // Тестовые ID
   TEST_USER_ID: '123456789',
   TEST_OWNER_ID: '123456789',
-  TEST_BOT_NAME: 'test_bot',
-
-  // URL тестового изображения для image-to-prompt
+  TEST_BOT_NAME: process.env.TEST_BOT_NAME || 'neuro_blogger_bot',
   TEST_IMAGE_URL: 'https://example.com/test.jpg',
+  TEST_TELEGRAM_ID: process.env.TEST_TELEGRAM_ID || '144022504',
 
-  // Тестовый ID для Telegram
-  TEST_TELEGRAM_ID: '123456789',
+  // Очищать ли тестовые данные после выполнения тестов
+  cleanupAfterTests: true,
+
+  // Максимальное время ожидания для асинхронных операций (в мс)
+  maxWaitTime: 10000,
+
+  // Размер буфера событий
+  eventBufferSize: 200,
+
+  // API конфигурация
+  api: {
+    url: process.env.API_URL || 'http://localhost:2999',
+    webhookPath: '/webhooks/replicate',
+    bflWebhookPath: '/webhooks/bfl',
+  },
+
+  // Inngest конфигурация
+  inngest: {
+    eventKey: process.env.INNGEST_EVENT_KEY!,
+    signingKey: process.env.INNGEST_SIGNING_KEY!,
+    baseUrl: process.env.INNGEST_BASE_URL || 'http://localhost:8288',
+  },
 
   models: {
     neurophoto: 'test-model',

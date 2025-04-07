@@ -142,8 +142,7 @@ app.get('/api', (req, res) => {
 
 // Проверка статуса сервера
 app.get('/api/status', (req, res) => {
-  logger.info({
-    message: '🔍 Проверка статуса сервера',
+  logger.info('🔍 Проверка статуса сервера', {
     description: 'Server status check',
   })
   res.json({
@@ -396,21 +395,21 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
   }
 })
 
-// Настраиваем Inngest middleware
+// Serve Inngest functions
 app.use(
   '/api/inngest',
   serve({
     client: inngest,
     functions: [
-      textToImageFunction,
-      textToSpeechFunction,
       neuroImageGeneration,
       generateModelTraining,
       modelTrainingV2,
       broadcastMessage,
       paymentProcessor,
       neuroPhotoV2Generation,
+      textToImageFunction,
       createVoiceAvatarFunction,
+      textToSpeechFunction,
       ruPaymentProcessPayment,
       imageToPromptFunction,
     ],
@@ -431,14 +430,50 @@ app.use((req, res) => {
   })
 })
 
-// Запуск сервера API
-const startApiServer = () => {
-  app.listen(port, () => {
-    logger.info('🚀 API сервер запущен', {
-      description: 'API server is running',
-      port,
-    })
+export function startApiServer(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    try {
+      logger.info('🚀 Запуск API сервера...', {
+        description: 'Starting API server',
+        port,
+      })
+
+      const server = app.listen(port, () => {
+        logger.info('✅ API сервер успешно запущен', {
+          description: 'API server started successfully',
+          port,
+          url: `http://localhost:${port}`,
+        })
+        resolve()
+      })
+
+      server.on('error', error => {
+        logger.error('❌ Ошибка при запуске API сервера', {
+          description: 'API server error',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          port,
+        })
+        reject(error)
+      })
+
+      // Обработка сигналов завершения
+      process.on('SIGTERM', () => {
+        logger.info('🛑 Получен сигнал SIGTERM', {
+          description: 'SIGTERM signal received',
+        })
+        server.close(() => {
+          logger.info('👋 API сервер успешно остановлен', {
+            description: 'API server stopped successfully',
+          })
+          process.exit(0)
+        })
+      })
+    } catch (error) {
+      logger.error('❌ Критическая ошибка при запуске API сервера', {
+        description: 'Critical API server error',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
+      reject(error)
+    }
   })
 }
-
-export default startApiServer
