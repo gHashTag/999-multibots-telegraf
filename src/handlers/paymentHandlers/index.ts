@@ -209,20 +209,23 @@ async function processPayment(
 
   await updateUserSubscription(userId, subscriptionName)
 
+  // Для всех платежей через Robokassa используем валюту RUB
+  const paymentMethod = 'Robokassa'
+
   await createPayment({
     telegram_id: userId.toString(),
     amount: Number(amount),
     OutSum: amount.toString(),
     InvId: payload || '',
     inv_id: payload || '',
-    currency: 'RUB',
+    currency: 'RUB', // Для Robokassa всегда используем RUB
     stars: Number(stars),
     status: 'SUCCESS',
-    payment_method: 'Robokassa',
+    payment_method: paymentMethod,
     bot_name: ctx.botInfo.username,
     description: `Payment completed - ${amount.toString()} RUB`,
     metadata: {
-      payment_method: 'Robokassa',
+      payment_method: paymentMethod,
       email: ctx.session.email,
     },
     language: 'ru',

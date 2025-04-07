@@ -26,6 +26,7 @@ export * from './handleTrainingCost'
 export * from './sendPaymentNotificationWithBot'
 export { starAmounts } from './starAmounts'
 export { voiceConversationCost } from './voiceConversationCost'
+export { convertRublesToStars } from './costHelpers'
 
 export async function processBalanceOperation({
   telegram_id,
