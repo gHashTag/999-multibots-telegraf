@@ -14,6 +14,7 @@ import { supabase } from '@/core/supabase'
 export interface PaymentProcessEvent {
   telegram_id: TelegramId
   amount: number
+  stars?: number
   type: TransactionType
   description: string
   bot_name?: string
@@ -39,6 +40,7 @@ export const paymentProcessor = inngest.createFunction(
       const {
         telegram_id,
         amount,
+        stars = amount,
         type = 'money_income',
         description = '',
         bot_name = 'default_bot',
@@ -52,6 +54,7 @@ export const paymentProcessor = inngest.createFunction(
         description: 'Processing payment',
         telegram_id,
         amount,
+        stars,
         type,
         service_type,
         bot_name,
@@ -129,7 +132,7 @@ export const paymentProcessor = inngest.createFunction(
             const payment = await createSuccessfulPayment({
               telegram_id,
               amount,
-              stars: amount,
+              stars,
               payment_method: 'balance',
               description,
               type,
