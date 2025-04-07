@@ -32,11 +32,14 @@ interface TextToSpeechParams {
 }
 
 interface TextToVideoParams {
-  text: string
+  prompt: string
   telegram_id: TelegramId
   is_ru: boolean
   bot_name: string
+  model_id?: string
   username?: string
+  aspect_ratio?: string
+  duration?: number
 }
 
 interface PaymentTestData {
@@ -668,6 +671,58 @@ export class InngestTester {
   }
 
   /**
+   * Запускает тесты преобразования текста в видео
+   */
+  async runTextToVideoTests(): Promise<TestResult[]> {
+    logger.info({
+      message: '🎯 Запуск тестов преобразования текста в видео',
+      description: 'Running text-to-video tests',
+    })
+    
+    const results: TestResult[] = []
+    
+    try {
+      // Импортируем функцию для тестов
+      const { testTextToVideoProcessing } = await import('./textToVideoFunction.test')
+      
+      // Запускаем набор тестов
+      const testResults = await testTextToVideoProcessing()
+      
+      // Тесты возвращают TestResult из другого модуля, игнорируем несоответствие типов
+      // @ts-ignore - Different TestResult interface between modules
+      results.push(...testResults)
+      
+      logger.info({
+        message: '✅ Тесты преобразования текста в видео успешно запущены',
+        description: 'Text-to-video tests launched successfully',
+        results: testResults.map(r => ({
+          name: r.name,
+          success: r.success,
+        })),
+      })
+      
+      return results
+    } catch (error) {
+      const errorMessage = this.handleError(error)
+      
+      logger.error({
+        message: '❌ Ошибка при запуске тестов преобразования текста в видео',
+        description: 'Error running text-to-video tests',
+        error: errorMessage,
+      })
+      
+      results.push({
+        name: 'Text-to-Video Tests',
+        success: false,
+        message: 'Failed to run text-to-video tests',
+        error: errorMessage,
+      })
+      
+      return results
+    }
+  }
+
+  /**
    * Запускает все тесты
    */
   async runAllTests(): Promise<TestResult[]> {
@@ -693,6 +748,10 @@ export class InngestTester {
     // Тесты text-to-speech
     const ttsResults = await this.runTextToSpeechTests()
     results.push(...ttsResults)
+
+    // Тесты text-to-video
+    const textToVideoResults = await this.runTextToVideoTests()
+    results.push(...textToVideoResults)
 
     // Логируем общие результаты
     const successCount = results.filter(r => r.success).length
@@ -1049,6 +1108,10 @@ export class InngestTester {
           results.push(directInvokeTextToSpeechResult)
           break
 
+        case 'text-to-video':
+          // Тестируем функцию преобразования текста в видео
+          return this.runTextToVideoTests()
+
         default:
           throw new Error(`Неизвестная функция: ${functionName}`)
       }
@@ -1244,7 +1307,7 @@ export class InngestTester {
       description: 'Text to video function test',
       params: {
         ...params,
-        text: params.text.substring(0, 20) + '...',
+        prompt: params.prompt.substring(0, 20) + '...',
       },
     })
 

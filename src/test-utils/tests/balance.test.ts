@@ -1,7 +1,18 @@
+<<<<<<< Updated upstream
+=======
+import { v4 as uuid } from 'uuid'
+import { inngest } from '@/inngest-functions/clients'
+>>>>>>> Stashed changes
 import { logger } from '@/utils/logger'
 import { TestResult } from '../types'
 import { TEST_CONFIG } from '../test-config'
 import { supabase } from '@/core/supabase'
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+import { MyContext } from '@/interfaces'
+import { getUserBalance } from '@/core/supabase'
+>>>>>>> Stashed changes
 
 import { getUserBalance } from '@/core/supabase'
 
@@ -164,159 +175,172 @@ export const runBalanceTests = async (): Promise<TestResult[]> => {
 
   return results
 }
+<<<<<<< Updated upstream
+=======
 
-/**
- * Тест для проверки работы функции add_stars_to_balance
- */
-export async function testAddStarsToBalance(): Promise<TestResult> {
-  const testName = 'add_stars_to_balance'
+export async function balanceTest(): Promise<TestResult> {
+=======
 
-  logger.info('🚀 Начинаем тест add_stars_to_balance:', {
-    description: 'Starting add_stars_to_balance test',
-    test_config: TEST_CONFIG,
-  })
-
+export async function runBalanceTests(): Promise<TestResult> {
+>>>>>>> b75d880 (tests)
   try {
-    // Тестовый Telegram ID
-    const testTelegramId = TEST_CONFIG.TEST_TELEGRAM_ID
-    const botName = TEST_CONFIG.TEST_BOT_NAME
-
-    // Получаем текущий баланс через функцию getUserBalance вместо прямого обращения к колонке balance
-    const initialBalance = await getUserBalance(testTelegramId, botName)
-
-    logger.info('ℹ️ Информация о тестовом пользователе:', {
-      description: 'Test user information',
-      telegram_id: testTelegramId,
-      initial_balance: initialBalance,
+    logger.info('🚀 Начинаем тест команды /balance', {
+      description: 'Starting /balance command test',
     })
 
-    // Тестовая сумма для добавления на баланс
-    const testAmount = 5
+    const telegram_id = 123456789
+    const bot_name = TEST_CONFIG.TEST_BOT_NAME
 
-    // Вызываем функцию add_stars_to_balance
-    const { data: result, error: balanceError } = await supabase.rpc(
-      'add_stars_to_balance',
-      {
-        p_telegram_id: testTelegramId,
-        p_stars: testAmount,
-        p_description: 'Test balance update',
-        p_bot_name: botName,
-        p_type: 'money_income',
-        p_service_type: 'test',
-      }
+    // Cleanup any existing test data
+    logger.info('🧹 Очистка существующих тестовых данных', {
+      description: 'Cleaning up existing test data',
+    })
+    await Promise.all([
+      supabase
+        .from('users')
+        .delete()
+        .eq('telegram_id', telegram_id)
+        .eq('bot_name', bot_name),
+      supabase
+        .from('payments_v2')
+        .delete()
+        .eq('telegram_id', telegram_id)
+        .eq('bot_name', bot_name),
+    ])
+
+    // Wait a bit to ensure cleanup is complete
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // Create test user
+    logger.info('👤 Создание тестового пользователя', {
+      description: 'Creating test user',
+    })
+    const { error: createError } = await supabase.from('users').insert({
+      telegram_id,
+      bot_name,
+    })
+
+    if (createError) {
+      throw new Error(`Failed to create test user: ${createError.message}`)
+    }
+
+    // Generate unique inv_id for test payment
+    const inv_id = uuid()
+    logger.info('🔍 Создаем тестовый платеж', {
+      description: 'Creating test payment',
+      inv_id,
+    })
+
+<<<<<<< HEAD
+    // Проверяем баланс
+    const balance = await getUserBalance(userTelegramId, botName)
+
+    if (!balance) {
+      throw new Error('Balance not found')
+=======
+    // Execute test payment
+    await TEST_CONFIG.inngestEngine.execute({
+      events: [
+        {
+          name: 'payment/process',
+          data: {
+            telegram_id,
+            amount: 100,
+            type: 'money_income',
+            description: 'Test payment',
+            bot_name,
+            inv_id,
+            stars: 100,
+          },
+        },
+      ],
+    })
+
+    // Wait for payment to be processed
+    await new Promise(resolve =>
+      setTimeout(resolve, TEST_CONFIG.PAYMENT_PROCESSING_TIMEOUT)
     )
 
-    if (balanceError) {
-      logger.error('❌ Ошибка при вызове add_stars_to_balance:', {
-        description: 'Error calling add_stars_to_balance',
-        error: balanceError,
-        telegram_id: testTelegramId,
-        amount: testAmount,
-        bot_name: botName,
-      })
-      throw balanceError
-    }
-
-    logger.info('✅ Результат add_stars_to_balance:', {
-      description: 'add_stars_to_balance result',
-      result,
-    })
-
-    // Проверяем, что данные обновились - используем getUserBalance вместо прямого доступа к balance
-    const newBalance = await getUserBalance(testTelegramId, botName)
-    const expectedBalance = Number(initialBalance) + testAmount
-
-    logger.info('ℹ️ Результаты изменения баланса:', {
-      description: 'Balance change results',
-      initialBalance,
-      testAmount,
-      expectedBalance,
-      actualNewBalance: newBalance,
-      isCorrect: newBalance === expectedBalance,
-    })
-
-    // Проверяем также, что платеж был добавлен в payments_v2
-    const { data: paymentData, error: paymentError } = await supabase
+    // Check if payment was successful
+    const { data: payment, error: paymentError } = await supabase
       .from('payments_v2')
       .select('*')
-      .eq('telegram_id', testTelegramId)
-      .eq('stars', testAmount)
-      .eq('bot_name', botName)
-      .order('payment_date', { ascending: false })
-      .limit(1)
+      .eq('telegram_id', telegram_id)
+      .eq('bot_name', bot_name)
+      .eq('inv_id', inv_id)
+      .single()
 
-    if (paymentError) {
-      logger.error('❌ Ошибка при проверке записи payment_v2:', {
-        description: 'Error checking payment_v2 record',
-        error: paymentError,
-        telegram_id: testTelegramId,
-        currentBalance: newBalance,
-      })
-      throw paymentError
+    if (paymentError || !payment) {
+      throw new Error(
+        `Failed to find payment: ${
+          paymentError?.message || 'Payment not found'
+        }`
+      )
+>>>>>>> b75d880 (tests)
     }
 
-    // Проверяем, что есть запись в payments_v2 и она правильная
-    const paymentExists = paymentData && paymentData.length > 0
-    const paymentIsCorrect =
-      paymentExists &&
-      paymentData[0].stars === testAmount &&
-      paymentData[0].type === 'money_income'
-
-    logger.info('ℹ️ Результаты проверки записи в payments_v2:', {
-      description: 'Payment record check results',
-      payment_exists: paymentExists,
-      payment_is_correct: paymentIsCorrect,
-      payment_data:
-        paymentData && paymentData.length > 0 ? paymentData[0] : null,
-      currentBalance: newBalance,
-    })
-
-    // Очищаем тестовые данные - удаляем платеж, который мы добавили
-    const { error: cleanupError } = await supabase
-      .from('payments_v2')
-      .delete()
-      .eq('telegram_id', testTelegramId)
-      .eq('stars', testAmount)
-      .eq('bot_name', botName)
-
-    if (cleanupError) {
-      logger.error('❌ Ошибка при очистке тестовых платежей:', {
-        description: 'Error cleaning up test payments',
-        error: cleanupError,
-      })
+    if (payment.status !== 'SUCCESS') {
+      throw new Error(`Payment failed with status: ${payment.status}`)
     }
 
-    const isBalanceCorrect = newBalance === expectedBalance
+    // Cleanup test data if configured
+    if (TEST_CONFIG.cleanupAfterEach) {
+      logger.info('🧹 Очистка тестовых данных', {
+        description: 'Cleaning up test data',
+      })
+      await Promise.all([
+        supabase
+          .from('users')
+          .delete()
+          .eq('telegram_id', telegram_id)
+          .eq('bot_name', bot_name),
+        supabase
+          .from('payments_v2')
+          .delete()
+          .eq('telegram_id', telegram_id)
+          .eq('bot_name', bot_name),
+      ])
+    }
 
     return {
-      name: testName,
-      success: isBalanceCorrect && !balanceError,
-      message: isBalanceCorrect
-        ? '✅ Функция add_stars_to_balance работает корректно'
-        : `❌ Ошибка в работе функции add_stars_to_balance. Ожидался баланс ${expectedBalance}, получен ${newBalance}`,
-      details: {
-        initialBalance,
-        added: testAmount,
-        expectedBalance,
-        actualNewBalance: newBalance,
-        paymentRecordFound: paymentExists,
-        paymentRecordCorrect: paymentIsCorrect,
-      },
+      success: true,
+      message: 'Тест команды /balance успешно пройден',
+      name: 'Balance Command Test',
     }
   } catch (error) {
-    logger.error('❌ Критическая ошибка в тесте add_stars_to_balance:', {
-      description: 'Critical error in add_stars_to_balance test',
+    logger.error('❌ Ошибка в тесте команды /balance', {
+      description: 'Error in /balance command test',
       error: error instanceof Error ? error.message : String(error),
-      details: error,
     })
 
     return {
-      name: testName,
       success: false,
-      message: `❌ Критическая ошибка: ${
+      message: `Ошибка в тесте команды /balance: ${
         error instanceof Error ? error.message : String(error)
       }`,
-      details: error,
+      name: 'Balance Command Test',
     }
   }
 }
+
+async function cleanupTestData() {
+  logger.info('🧹 Очистка тестовых данных', {
+    description: 'Cleaning up test data',
+    test_bot: TEST_CONFIG.TEST_BOT_NAME,
+  })
+
+  // Очищаем все тестовые данные
+  await Promise.all([
+    supabase
+      .from('payments_v2')
+      .delete()
+      .eq('bot_name', TEST_CONFIG.TEST_BOT_NAME)
+      .eq('telegram_id', String(TEST_CONFIG.TEST_OWNER_ID)),
+    supabase
+      .from('users')
+      .delete()
+      .eq('bot_name', TEST_CONFIG.TEST_BOT_NAME)
+      .eq('telegram_id', String(TEST_CONFIG.TEST_OWNER_ID)),
+  ])
+}
+>>>>>>> Stashed changes
