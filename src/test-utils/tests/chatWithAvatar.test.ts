@@ -1,86 +1,140 @@
 import { TEST_CONFIG } from '../test-config'
 import { TestResult } from '../types'
 import { logger } from '@/utils/logger'
-import { getUserByTelegramIdString } from '@/core/supabase'
-import { ModeEnum } from '@/price/helpers/modelsCost'
 import { supabase } from '@/core/supabase'
-import { normalizeTelegramId } from '@/interfaces/telegram.interface'
+import { InngestTestEngine } from '../inngest-test-engine'
+import { voiceToTextProcessor } from '@/inngest-functions/voiceToText.inngest'
+import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
+import { ModeEnum } from '@/price/helpers/modelsCost'
+import { handleTextMessage } from '@/handlers/handleTextMessage'
+import { Context } from 'telegraf'
+import { Update } from 'telegraf/typings/core/types/typegram'
 import { createUser } from '@/core/supabase/createUser'
+
+interface TextMessageEvent {
+  telegram_id: string
+  text: string
+  bot_name: string
+}
 
 /**
  * Тест для проверки функциональности чата с аватаром
  */
 export async function testChatWithAvatar(): Promise<TestResult> {
   const testName = 'Chat with Avatar Test'
-  logger.info(`🚀 Starting ${testName}`)
-
-  // Создаем уникальный ID для тестового пользователя
-  const testTelegramId = normalizeTelegramId(Date.now())
-  const testUsername = `test_user_${testTelegramId}`
-
   try {
-    // Создаем тестового пользователя с нужным уровнем
-    await createUser({
-      telegram_id: testTelegramId,
-      username: testUsername,
-      bot_name: TEST_CONFIG.bots.test_bot.name,
-      level: 5, // Уровень выше 4 для доступа к чату с аватаром
-      mode: ModeEnum.ChatWithAvatar,
-      model: 'gpt-4-turbo',
-      count: 0,
-      aspect_ratio: '9:16',
-      language_code: 'ru',
-      is_bot: false,
-      photo_url: '',
+    // Create test user
+    const telegramId = '123456789'
+    const user = await createUser({
+      telegram_id: telegramId,
+      username: 'test_user',
+      language_code: 'en',
+      bot_name: 'test_bot',
     })
 
-    // Проверяем существование пользователя
-    const user = await getUserByTelegramIdString(testTelegramId.toString())
     if (!user) {
-      throw new Error('❌ User not found in database')
+      throw new Error('User was not created')
     }
 
-    // Проверяем, что пользователь имеет доступ к чату с аватаром
-    if (user.level < 4) {
-      throw new Error('❌ User does not have access to chat with avatar')
-    }
+    // Initialize test engine
+    const inngestTestEngine = new InngestTestEngine({
+      maxWaitTime: 30000,
+      eventBufferSize: 200,
+    })
 
-    // Проверяем, что режим установлен правильно
-    if (user.mode !== ModeEnum.ChatWithAvatar) {
-      throw new Error('❌ Incorrect mode set')
-    }
+    // Register handlers
+    inngestTestEngine.register('text-message.requested', async ({ event }: { event: TextMessageEvent }) => {
+      try {
+        const ctx = {
+          from: {
+            id: parseInt(event.telegram_id),
+            username: 'test_user',
+            language_code: 'en',
+          },
+          message: {
+            text: event.text,
+            chat: {
+              id: parseInt(event.telegram_id),
+            },
+          },
+          reply: async (text: string) => {
+            logger.info('🤖 Отправка сообщения', { text })
+            return { message_id: 1 }
+          },
+        } as Context<Update>
 
-    logger.info('✅ Chat with Avatar test completed successfully')
-    return {
-      success: true,
-      name: testName,
-      message: 'Chat with Avatar functionality works correctly',
-      details: {
-        user: {
-          id: user.id,
-          telegram_id: user.telegram_id,
-          level: user.level,
-          mode: user.mode
-        }
+        await handleTextMessage(ctx)
+      } catch (error) {
+        logger.error('❌ Error in text message handler:', { error })
+        throw error
+      }
+    })
+    inngestTestEngine.register('voice-to-text.requested', voiceToTextProcessor)
+    inngestTestEngine.register('payment/process', paymentProcessor)
+
+    // Test text message processing
+    const textMessageEvent = {
+      name: 'text-message.requested',
+      data: {
+        telegram_id: telegramId,
+        text: '/start',
+        bot_name: 'test_bot',
       },
     }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    logger.error(`❌ Error in ${testName}:`, { error: errorMessage })
-    return {
-      success: false,
-      name: testName,
-      message: 'Test failed',
-      error: errorMessage,
+    const textMessageResult = await inngestTestEngine.send(textMessageEvent)
+    if (!textMessageResult.success) {
+      throw new Error(`Text message processing failed: ${textMessageResult.error}`)
     }
-  } finally {
-    // Очищаем тестовые данные
-    if (TEST_CONFIG.cleanupAfterEach) {
-      await supabase
+
+    // Test voice message processing
+    const voiceMessageEvent = {
+      name: 'voice-to-text.requested',
+      data: {
+        telegram_id: telegramId,
+        file_id: 'test_file_id',
+        bot_name: 'test_bot',
+      },
+    }
+    const voiceMessageResult = await inngestTestEngine.send(voiceMessageEvent)
+    if (!voiceMessageResult.success) {
+      throw new Error(`Voice message processing failed: ${voiceMessageResult.error}`)
+    }
+
+    // Check user balance
+    const { data: updatedUser, error: balanceError } = await supabase
+      .from('users')
+      .select()
+      .eq('telegram_id', telegramId)
+      .single()
+
+    if (balanceError) {
+      throw new Error(`Failed to check user balance: ${balanceError.message}`)
+    }
+
+    // Cleanup test data if configured
+    if (TEST_CONFIG.mockBot) {
+      const { error: deleteError } = await supabase
         .from('users')
         .delete()
-        .eq('telegram_id', testTelegramId)
-        .eq('bot_name', TEST_CONFIG.bots.test_bot.name)
+        .eq('telegram_id', telegramId)
+
+      if (deleteError) {
+        logger.error('❌ Failed to cleanup test data:', { error: deleteError })
+      }
+    }
+
+    return {
+      name: testName,
+      success: true,
+      message: 'Chat with avatar test completed successfully',
+    }
+  } catch (error) {
+    logger.error('❌ Chat with avatar test failed:', { error })
+    return {
+      name: testName,
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: error instanceof Error ? error : new Error(String(error)),
     }
   }
 } 

@@ -94,6 +94,7 @@ export const createUser = async (userData: CreateUserParams) => {
           level,
         },
       ])
+      .select()
 
     if (createError) {
       logger.error('❌ Ошибка при создании пользователя:', {

@@ -1,6 +1,8 @@
 import { answerAi, model } from '../../core/openai'
 import { getUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
+import { Context } from 'telegraf'
+import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 
 /**
  * Функция для безопасной обработки Markdown в сообщениях Telegram
@@ -59,7 +61,7 @@ export function markdownToHtml(text: string): string {
  * пытаясь использовать различные форматы в случае ошибки
  */
 export async function sendSafeFormattedMessage(
-  ctx: any,
+  ctx: Context,
   text: string
 ): Promise<any> {
   try {
@@ -91,7 +93,7 @@ export async function sendSafeFormattedMessage(
   }
 }
 
-export async function handleTextMessage(ctx: MyContext) {
+export async function handleTextMessage(ctx: Context) {
   console.log('CASE: handleTextMessage')
   const userLanguage = ctx.from?.language_code || 'ru'
   console.log('User language:', userLanguage)
@@ -102,12 +104,12 @@ export async function handleTextMessage(ctx: MyContext) {
     }
   }
   try {
-    const userId = ctx.from?.id.toString() || ''
+    const userId = ctx.from?.id?.toString() || ''
     console.log('User ID:', userId)
 
     let userModel = model // TODO: DEEPSEEK /await getUserModel(userId)
     console.log('User model:', userModel)
-    let userData = await getUserData(userId)
+    let userData = await getUserData(normalizeTelegramId(userId))
 
     // Если пользователь не найден, используем данные из контекста
     if (!userData) {

@@ -59,6 +59,7 @@ export enum ModeEnum {
   GetRuBillWizard = 'get_ru_bill_wizard',
   SubscriptionScene = 'subscription_scene',
   CreateUserScene = 'create_user_scene',
+  VoiceToText = 'voice_to_text',
 }
 
 export interface CostCalculationParams {
@@ -135,6 +136,10 @@ export function calculateModeCost(
       }
     }
 
+    if (mode === ModeEnum.VoiceToText) {
+      stars = 5
+    }
+
     stars = parseFloat(stars.toFixed(2))
     const dollars = parseFloat((stars * starCost).toFixed(2))
     const rubles = parseFloat((dollars * interestRate).toFixed(2))
@@ -183,6 +188,7 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.TextToImage]: calculateModeCost({ mode: ModeEnum.TextToImage })
     .stars,
   [ModeEnum.LipSync]: calculateModeCost({ mode: ModeEnum.LipSync }).stars,
+  [ModeEnum.VoiceToText]: calculateModeCost({ mode: ModeEnum.VoiceToText }).stars,
 }
 
 export const minCost = Math.min(

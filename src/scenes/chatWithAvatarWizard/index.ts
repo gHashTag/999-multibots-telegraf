@@ -9,6 +9,10 @@ import {
 } from '@/core/supabase'
 import { levels } from '@/menu'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { inngest } from '@/inngest-functions/clients'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
+import { logger } from '@/utils/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 const createHelpCancelKeyboard = (isRu: boolean) => {
   return {
@@ -31,8 +35,8 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     try {
       await ctx.reply(
         isRu
-          ? 'Напиши мне сообщение 💭 и я отвечу на него'
-          : 'Write me a message 💭 and I will answer you',
+          ? 'Напиши мне сообщение 💭 или отправь голосовое сообщение 🎙️, и я отвечу на него'
+          : 'Write me a message 💭 or send a voice message 🎙️, and I will answer you',
         {
           reply_markup: createHelpCancelKeyboard(isRu),
         }
@@ -47,8 +51,8 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     console.log('📝 Получено сообщение в чате с аватаром [Message received in avatar chat]')
     
-    if (!ctx.message || !('text' in ctx.message)) {
-      console.log('⚠️ Получено не текстовое сообщение [Non-text message received]')
+    if (!ctx.message) {
+      console.log('⚠️ Получено пустое сообщение [Empty message received]')
       return ctx.scene.leave()
     }
 
@@ -60,9 +64,8 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     const isRu = isRussian(ctx)
 
-    const isHelp =
-      ctx.message.text === (isRu ? levels[6].title_ru : levels[6].title_en)
-    if (isHelp) {
+    // Проверяем, является ли сообщение запросом справки
+    if ('text' in ctx.message && ctx.message.text === (isRu ? levels[6].title_ru : levels[6].title_en)) {
       console.log('ℹ️ Пользователь запросил справку [User requested help]')
       ctx.session.mode = ModeEnum.SelectModelWizard
       await ctx.scene.enter('checkBalanceScene')
@@ -71,8 +74,67 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     try {
       // Обработка текстового сообщения
-      console.log('🤖 Обработка сообщения пользователя [Processing user message]')
-      await handleTextMessage(ctx)
+      if ('text' in ctx.message) {
+        console.log('🤖 Обработка текстового сообщения [Processing text message]')
+        await handleTextMessage(ctx)
+      }
+      // Обработка голосового сообщения
+      else if ('voice' in ctx.message) {
+        console.log('🎙️ Обработка голосового сообщения [Processing voice message]')
+        
+        // Получаем файл голосового сообщения
+        const file = await ctx.telegram.getFile(ctx.message.voice.file_id)
+        if (!file.file_path) {
+          throw new Error('File path not found')
+        }
+
+        // Формируем URL для скачивания файла
+        const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+
+        // Отправляем уведомление о начале обработки
+        await ctx.reply(
+          isRu
+            ? '🎙️ Обрабатываю ваше голосовое сообщение...'
+            : '🎙️ Processing your voice message...'
+        )
+
+        // Отправляем событие в Inngest для обработки
+        await inngest.send({
+          id: `voice-to-text-${ctx.from?.id}-${Date.now()}-${uuidv4().substring(0, 8)}`,
+          name: 'voice-to-text.requested',
+          data: {
+            fileUrl,
+            telegram_id: ctx.from?.id.toString(),
+            is_ru: isRu,
+            bot_name: ctx.botInfo?.username,
+            username: ctx.from?.username,
+          },
+        })
+
+        // Отправляем событие для обработки платежа
+        await inngest.send({
+          id: `payment-${ctx.from?.id}-${Date.now()}-${ModeEnum.VoiceToText}-${uuidv4()}`,
+          name: 'payment/process',
+          data: {
+            telegram_id: ctx.from?.id.toString(),
+            amount: calculateModeCost({ mode: ModeEnum.VoiceToText }).stars,
+            type: 'money_expense',
+            description: 'Payment for voice to text conversion',
+            bot_name: ctx.botInfo?.username,
+            service_type: ModeEnum.VoiceToText,
+          },
+        })
+      }
+      // Обработка неподдерживаемого типа сообщения
+      else {
+        console.log('⚠️ Неподдерживаемый тип сообщения [Unsupported message type]')
+        await ctx.reply(
+          isRu
+            ? '❌ Пожалуйста, отправьте текстовое или голосовое сообщение'
+            : '❌ Please send a text or voice message'
+        )
+        return
+      }
 
       const telegram_id = ctx.from?.id.toString()
       console.log('👤 Telegram ID пользователя:', telegram_id)

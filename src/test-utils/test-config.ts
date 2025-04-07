@@ -9,6 +9,7 @@ import { MyContext } from '@/interfaces'
 // Импорт из локального файла, а не из пакета
 import { InngestTestEngine } from './inngest-test-engine'
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 // Создаем моки для тестов без использования jest
 // Мок телеграм бота для тестов
@@ -290,6 +291,19 @@ export const TEST_CONFIG = {
 
   // Тестовые константы
   CHECK_INTERVAL: 1000,
+
+  botName: 'test_bot',
+  cleanupAfterTest: true,
+  testUser: {
+    level: 1,
+    mode: ModeEnum.ChatWithAvatar,
+    language_code: 'ru',
+  },
+  testMessages: {
+    text: 'Привет, как дела?',
+    voiceUrl: 'https://example.com/test-voice.mp3',
+  },
+  checkInterval: 1000,
 }
 
 // Экспорт для использования в тестах
