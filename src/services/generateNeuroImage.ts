@@ -18,6 +18,7 @@ import {
 } from '@/core/supabase'
 import { pulse } from '@/helpers/pulse'
 import { getBotByName } from '@/core/bot'
+import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
 
 /**
  * Генерирует нейроизображение для пользователя напрямую, без использования Inngest
@@ -108,34 +109,47 @@ export async function generateNeuroImage(
       8
     )}`
 
-    // Списываем средства
-    const paymentOperation = await inngest.send({
-      id: operationId, // Используем уникальный ID для предотвращения дублирования
-      name: 'payment/process',
-      data: {
-        telegram_id,
-        amount: -Math.abs(cost.stars), // Используем отрицательное значение для расхода
-        type: 'money_expense',
-        description: `Payment for generating ${validNumImages} image${
-          validNumImages === 1 ? '' : 's'
-        } with prompt: ${prompt.substring(0, 30)}...`,
-        bot_name: botName,
-        operation_id: operationId, // Передаем ID операции для отслеживания
-        metadata: {
-          service_type: 'NeuroPhoto',
-          prompt_preview: prompt.substring(0, 50),
-          num_images: validNumImages,
-          cost_per_image: cost.stars,
-        },
-      },
-    })
+    // Проверяем, не был ли уже отправлен платеж с таким ID операции
+    const existingPayment = await getPaymentByInvId(operationId)
 
-    logger.info('💸 Платеж отправлен на обработку:', {
-      description: 'Payment sent for processing',
-      telegram_id,
-      amount: -Math.abs(cost.stars),
-      payment_id: paymentOperation.ids?.[0] || 'unknown',
-    })
+    if (!existingPayment) {
+      // Только если платежа еще нет, списываем средства
+      const paymentOperation = await inngest.send({
+        id: operationId, // Используем уникальный ID для предотвращения дублирования
+        name: 'payment/process',
+        data: {
+          telegram_id,
+          amount: -Math.abs(cost.stars), // Используем отрицательное значение для расхода
+          type: 'money_expense',
+          description: `Payment for generating ${validNumImages} image${
+            validNumImages === 1 ? '' : 's'
+          } with prompt: ${prompt.substring(0, 30)}...`,
+          bot_name: botName,
+          operation_id: operationId, // Передаем ID операции для отслеживания
+          metadata: {
+            service_type: 'NeuroPhoto',
+            prompt_preview: prompt.substring(0, 50),
+            num_images: validNumImages,
+            cost_per_image: cost.stars,
+          },
+        },
+      })
+
+      logger.info('💸 Платеж отправлен на обработку:', {
+        description: 'Payment sent for processing',
+        telegram_id,
+        amount: -Math.abs(cost.stars),
+        payment_id: paymentOperation.ids?.[0] || 'unknown',
+        operation_id: operationId,
+      })
+    } else {
+      logger.info('⚠️ Платеж с таким ID операции уже существует:', {
+        description: 'Payment with this operation ID already exists',
+        operation_id: operationId,
+        existing_payment_id: existingPayment.payment_id,
+        telegram_id,
+      })
+    }
 
     // Получаем аспект изображения
     const aspect_ratio = await getAspectRatio(telegram_id)
@@ -164,7 +178,7 @@ export async function generateNeuroImage(
 
         // Настраиваем параметры генерации
         const input = {
-          prompt: `Fashionable: ${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
+          prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
           negative_prompt: 'nsfw, erotic, violence, bad anatomy...',
           num_inference_steps: 40,
           guidance_scale: 3,
