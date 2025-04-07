@@ -46,14 +46,10 @@ export const updateUserBalance = async ({
     // Нормализуем telegram_id в BIGINT
     const normalizedId = normalizeTelegramId(telegram_id)
 
-    // Округляем amount до целого числа, так как add_stars_to_balance принимает только integer
-    const roundedAmount = Math.round(amount)
-
     logger.info('💰 Обновление баланса пользователя:', {
       description: 'Updating user balance',
       telegram_id: normalizedId,
-      original_amount: amount,
-      rounded_amount: roundedAmount,
+      amount,
       type,
       operation_description,
       metadata,
@@ -65,10 +61,7 @@ export const updateUserBalance = async ({
     // Вызываем add_stars_to_balance для обновления баланса
     const { data: result, error } = await supabase.rpc('add_stars_to_balance', {
       p_telegram_id: normalizedId,
-      p_stars:
-        type === 'money_expense'
-          ? -Math.abs(roundedAmount)
-          : Math.abs(roundedAmount),
+      p_stars: type === 'money_expense' ? -Math.abs(amount) : Math.abs(amount),
       p_description: operation_description || 'Balance update',
       p_bot_name: bot_name,
       p_type: type,
@@ -81,8 +74,7 @@ export const updateUserBalance = async ({
         error: error.message,
         error_details: error,
         telegram_id: normalizedId,
-        original_amount: amount,
-        rounded_amount: roundedAmount,
+        amount,
         type,
         operation_description,
         metadata,
@@ -99,7 +91,6 @@ export const updateUserBalance = async ({
         error: 'No result returned from add_stars_to_balance',
         telegram_id: normalizedId,
         amount,
-        rounded_amount: roundedAmount,
         type,
       })
       throw new Error('Payment processing failed')
@@ -113,8 +104,7 @@ export const updateUserBalance = async ({
       payment_id: result.payment_id,
       old_balance: result.old_balance,
       new_balance: newBalance,
-      original_amount: amount,
-      rounded_amount: roundedAmount,
+      amount,
       type,
       operation_description,
       metadata,
