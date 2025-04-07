@@ -58,6 +58,7 @@ export const inngestTestEngine = new InngestTestEngine({
   eventBufferSize: 200,
 })
 
+
 export interface TestResult {
   success: boolean
   name: string
@@ -65,6 +66,9 @@ export interface TestResult {
   error?: string
   details?: Record<string, any>
 }
+
+
+
 
 export const TEST_CONFIG = {
   // Моки для тестирования

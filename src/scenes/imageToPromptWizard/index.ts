@@ -2,12 +2,15 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 
 import { createHelpCancelKeyboard } from '@/menu'
-import { generateImageToPrompt } from '@/price/helpers/imageToPrompt'
+import { imageToPromptFunction } from '@/price/helpers/imageToPrompt'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 import { handleMenu } from '@/handlers/handleMenu'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { inngest } from '@/inngest-functions/clients'
+import { v4 as uuidv4 } from 'uuid'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
 
 if (!process.env.HUGGINGFACE_TOKEN) {
   throw new Error('HUGGINGFACE_TOKEN is not set')
@@ -90,7 +93,55 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
       const botToken = getBotToken(ctx)
       const imageUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
 
-      await generateImageToPrompt(imageUrl, telegram_id, ctx, isRu, botName)
+      // Рассчитываем стоимость операции
+      const cost = calculateModeCost({
+        mode: ModeEnum.ImageToPrompt,
+        steps: 1,
+      })
+
+      logger.info('💰 Рассчитана стоимость операции', {
+        description: 'Cost calculated',
+        cost_per_image: cost.stars,
+        telegram_id,
+        botName,
+      })
+
+      // Отправляем событие в Inngest
+      const eventId = `image-to-prompt-${telegram_id}-${Date.now()}-${uuidv4()}`
+      logger.info('📝 Подготовка события', {
+        description: 'Preparing event',
+        eventId,
+        telegram_id,
+        botName,
+      })
+
+      await inngest.send({
+        id: eventId,
+        name: 'image/to-prompt.generate',
+        data: {
+          image: imageUrl,
+          telegram_id,
+          username: ctx.from?.username,
+          is_ru: isRu,
+          bot_name: botName,
+          cost_per_image: cost.stars,
+          metadata: {
+            service_type: ModeEnum.ImageToPrompt,
+            bot_name: botName,
+            language: isRu ? 'ru' : 'en',
+            environment: process.env.NODE_ENV,
+          },
+        },
+      })
+
+      logger.info('✅ Событие успешно отправлено', {
+        description: 'Event sent successfully',
+        eventId,
+        telegram_id,
+        botName,
+        environment: process.env.NODE_ENV,
+      })
+
       ctx.wizard.next()
     } catch (error) {
       logger.error('❌ Ошибка при обработке изображения', {

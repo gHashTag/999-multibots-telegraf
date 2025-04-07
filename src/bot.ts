@@ -29,14 +29,32 @@ export const createBots = async () => {
     description: 'Public API server started',
   })
 
-  // В режиме разработки используем только тестовые боты
-  const activeBots =
-    NODE_ENV === 'development'
-      ? bots.filter(bot => {
-          const { bot_name } = getBotNameByToken(bot.telegram.token)
-          return bot_name === 'ai_koshey_bot'
-        })
-      : bots
+  if (!process.env.DEV_BOT_NAME) {
+    logger.error('❌ DEV_BOT_NAME не установлен', {
+      description: 'DEV_BOT_NAME is not set',
+    })
+    throw new Error('DEV_BOT_NAME is required')
+  }
+
+  // В режиме разработки используем только один тестовый бот
+  const testBot = NODE_ENV === 'development' 
+    ? bots.find(bot => {
+        const { bot_name } = getBotNameByToken(bot.telegram.token)
+        return bot_name ===  process.env.DEV_BOT_NAME
+      })
+    : null
+
+  const activeBots = NODE_ENV === 'development' 
+    ? (testBot ? [testBot] : [])
+    : bots
+
+  if (NODE_ENV === 'development' && activeBots.length === 0) {
+    logger.error('❌ Тестовый бот не найден', {
+      description: 'Test bot not found',
+      environment: NODE_ENV
+    })
+    throw new Error('Test bot not found')
+  }
 
   activeBots.forEach((bot, index) => {
     const app = express()
