@@ -75,6 +75,8 @@ export interface PaymentDetail {
   payment_date: string
   type: string
   description: string
+  payment_method: string
+  status: string
 }
 
 /**

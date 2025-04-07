@@ -5,6 +5,8 @@ alwaysApply: false
 ---
 # SQL Database Access Patterns
 
+"ref": "yuukfqcsdhkyxegfwlcb"
+
 ## Detect SQL DDL Operations
 
 When you see SQL queries that try to modify database structure (DDL operations), suggest using migrations instead:

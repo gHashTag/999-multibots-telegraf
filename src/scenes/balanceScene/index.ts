@@ -14,7 +14,7 @@ import moment from 'moment'
 export const balanceScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.BalanceScene,
   async (ctx: MyContext) => {
-    const userId = isDev ? '1018174166' : ctx.from?.id || 0 // В коде был захардкожен ID, для дебага. Здесь используем ctx.from?.id
+    const userId = isDev ? '2086031075' : ctx.from?.id || 0 // В коде был захардкожен ID, для дебага. Здесь используем ctx.from?.id
     const normalizedId = normalizeTelegramId(userId)
     const isRu = ctx.from?.language_code === 'ru'
 
