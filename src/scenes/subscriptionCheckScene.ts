@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { WizardScene } from 'telegraf/scenes'
-import { getUserByTelegramId } from '@/core/supabase'
+import { getUserByTelegramIdString } from '@/core/supabase'
 import { verifySubscription } from '@/middlewares/verifySubscription'
 import { getSubScribeChannel } from '@/core/supabase'
 import { isDev } from '@/helpers'
@@ -8,15 +8,20 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
   console.log('CASE: subscriptionCheckStep', ctx.from)
-
+  if (!ctx.from?.id) {
+    console.log('CASE: user not found')
+    return ctx.scene.enter(ModeEnum.CreateUserScene)
+  }
   // Проверяем существует ли пользователь в базе
-  const existingUser = await getUserByTelegramId(ctx)
+  const existingUser = await getUserByTelegramIdString(
+    ctx.from?.id.toString() || ''
+  )
   console.log('subscriptionCheckStep - existingUser:', existingUser)
 
   // Если пользователь не существует, то переходим к созданию пользователя
   if (!existingUser) {
     console.log('CASE: user not exists')
-    return ctx.scene.enter('createUserScene')
+    return ctx.scene.enter(ModeEnum.CreateUserScene)
   }
   const subscription = existingUser.subscription
   // Получаем ID канала подписки

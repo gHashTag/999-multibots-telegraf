@@ -18,7 +18,6 @@ export interface CreateUserParams {
   model?: string
   count?: number
   aspect_ratio?: string
-  balance?: number
   bot_name?: string
   level?: number
 }
@@ -38,7 +37,6 @@ export const createUser = async (userData: CreateUserParams) => {
       model = 'gpt-4-turbo',
       count = 0,
       aspect_ratio = '9:16',
-      balance = 0,
       bot_name,
       level = 1,
     } = userData
@@ -92,7 +90,6 @@ export const createUser = async (userData: CreateUserParams) => {
           model,
           count,
           aspect_ratio,
-          balance,
           bot_name,
           level,
         },

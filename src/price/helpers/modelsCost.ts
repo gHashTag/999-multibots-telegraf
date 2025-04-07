@@ -111,14 +111,6 @@ export function calculateModeCost(
 ): CostCalculationResult {
   const { mode, steps, numImages = 1 } = params
 
-  logger.info({
-    message: '💰 Расчет стоимости операции',
-    description: 'Calculating operation cost',
-    mode,
-    steps,
-    numImages,
-  })
-
   try {
     let stars = 0
 
@@ -158,15 +150,6 @@ export function calculateModeCost(
     stars = parseFloat(stars.toFixed(2))
     const dollars = parseFloat((stars * starCost).toFixed(2))
     const rubles = parseFloat((dollars * interestRate).toFixed(2))
-
-    logger.info({
-      message: '✅ Стоимость рассчитана',
-      description: 'Cost calculation completed',
-      mode,
-      stars,
-      dollars,
-      rubles,
-    })
 
     return { stars, dollars, rubles }
   } catch (error) {
