@@ -11,17 +11,11 @@ import { getBotByName } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { Inngest } from 'inngest'
+import axios, { AxiosError } from 'axios'
+import { ModeEnum } from '@/interfaces'
+import { TestResult } from './interfaces'
 
 // Интерфейсы и типы
-interface TestResult {
-  name: string
-  success: boolean
-  message: string
-  details?: any
-  error?: string
-  duration?: number
-}
-
 interface TextToSpeechParams {
   text: string
   voice_id: string
@@ -1313,46 +1307,73 @@ export class InngestTester {
   }
 
   /**
-   * Тестирует функцию преобразования текста в видео
+   * Тестирует функцию создания видео из текста
    */
-  async textToVideo(params: TextToVideoParams): Promise<{
-    success: boolean
-    videoBuffer?: Buffer
-    paymentProcessed?: boolean
-    error?: string
-  }> {
-    logger.info({
-      message: '🎥 Тест функции преобразования текста в видео',
-      description: 'Text to video function test',
-      params: {
-        ...params,
-        prompt: params.prompt.substring(0, 20) + '...',
-      },
-    })
+  async textToVideo(params: {
+    prompt: string
+    telegram_id: string
+    is_ru: boolean
+    bot_name: string
+  }): Promise<TestResult & { videoBuffer?: Buffer }> {
+    const startTime = Date.now()
 
     try {
-      const result = await this.sendEvent('text-to-video.requested', params)
-
-      if (!result.success) {
-        throw new Error(result.error || 'Unknown error')
-      }
-
-      return {
-        success: true,
-        videoBuffer: Buffer.from('mock-video-data'),
-        paymentProcessed: true,
-      }
-    } catch (error) {
-      const errorMessage = this.handleError(error)
-      logger.error({
-        message: '❌ Ошибка при тестировании преобразования текста в видео',
-        description: 'Error during text to video test',
-        error: errorMessage,
+      logger.info({
+        message: '🧪 Тест функции создания видео из текста',
+        description: 'Text to video function test',
+        params,
       })
 
+      const response = await this.sendEvent('text-to-video/generate', params)
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to generate video')
+      }
+
+      // Предполагаем, что в ответе есть URL или буфер видео
+      const videoBuffer = response.details?.videoBuffer as Buffer
+
+      const duration = Date.now() - startTime
       return {
-        success: false,
+        name: 'Text to Video Generation',
+        success: true,
+        message: `Видео успешно создано за ${duration}мс`,
+        details: {
+          params,
+          videoBuffer: !!videoBuffer,
+        },
+        duration,
+        metadata: {
+          startTime,
+          endTime: Date.now(),
+          testType: 'text-to-video',
+        },
+        videoBuffer,
+      }
+    } catch (error) {
+      const duration = Date.now() - startTime
+      const errorMessage = this.handleError(error)
+
+      logger.error({
+        message: '❌ Ошибка при создании видео из текста',
+        description: 'Error during text to video generation',
         error: errorMessage,
+        params,
+      })
+
+      const testError = new Error(errorMessage)
+
+      return {
+        name: 'Text to Video Generation',
+        success: false,
+        message: 'Ошибка при создании видео из текста',
+        error: testError,
+        duration,
+        metadata: {
+          startTime,
+          endTime: Date.now(),
+          testType: 'text-to-video',
+        },
       }
     }
   }
