@@ -23,6 +23,33 @@ const resultUrl2 = RESULT_URL2
 // Флаг для использования тестового режима Robokassa
 const useTestMode = true
 
+/**
+ * Генерирует короткий ID для заказа, подходящий для Robokassa
+ * Создает ID заказа на основе времени и случайного числа, но с меньшей длиной
+ * @param userId ID пользователя
+ * @param amount Сумма заказа
+ * @returns Короткий ID заказа (до 9 цифр)
+ */
+function generateShortInvId(userId: string | number, amount: number): number {
+  try {
+    // Берем последние 5 цифр timestamp
+    const timestamp = Date.now() % 100000
+    // Случайное число от 1000 до 9999
+    const random = Math.floor(Math.random() * 9000) + 1000
+    // Объединяем в одно число и возвращаем как целое число
+    return parseInt(`${timestamp}${random}`)
+  } catch (error) {
+    console.error('❌ Ошибка при генерации короткого inv_id', {
+      description: 'Error generating short inv_id',
+      error,
+      userId,
+      amount,
+    })
+    // В случае ошибки возвращаем случайное число до 1 миллиона
+    return Math.floor(Math.random() * 1000000) + 1
+  }
+}
+
 function generateRobokassaUrl(
   merchantLogin: string,
   outSum: number,
@@ -31,8 +58,8 @@ function generateRobokassaUrl(
   password1: string,
   isTest: boolean = useTestMode
 ): string {
-  if (!resultUrl2 || !merchantLogin || !password1) {
-    throw new Error('resultUrl2 or merchantLogin or password1 is not defined')
+  if (!merchantLogin || !password1) {
+    throw new Error('merchantLogin or password1 is not defined')
   }
 
   // Если включен тестовый режим и доступен тестовый пароль, используем его
@@ -43,34 +70,50 @@ function generateRobokassaUrl(
     merchantLogin,
     outSum,
     invId,
-    resultUrl2,
     isTestMode: isTest,
     usingTestPassword: isTest && testPassword1 ? true : false,
   })
 
-  // Убеждаемся, что invId - целое число
-  if (!Number.isInteger(invId)) {
-    console.error('❌ Ошибка: InvId не является целым числом', {
-      description: 'Error: InvId is not an integer',
-      invId,
+  // Убеждаемся, что invId - целое число и не слишком длинное
+  if (!Number.isInteger(invId) || invId > 2147483647) {
+    console.error('❌ Ошибка: InvId некорректный, будет преобразован', {
+      description: 'Error: InvId is incorrect, will be converted',
+      originalInvId: invId,
     })
-    // Преобразуем в целое число если это не так
-    invId = Math.floor(invId)
+    // Преобразуем в целое число если это не так и ограничиваем длину
+    invId = Math.floor(invId % 1000000)
   }
 
-  const signatureValue = md5(
-    `${merchantLogin}:${outSum}:${invId}:${actualPassword}`
-  ).toUpperCase()
+  const signatureString = `${merchantLogin}:${outSum}:${invId}:${actualPassword}`
+  console.log('📝 Строка для подписи:', {
+    description: 'Signature string',
+    signatureString,
+  })
 
-  const url = `https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=${merchantLogin}&OutSum=${outSum}&InvId=${invId}&Description=${encodeURIComponent(
-    description
-  )}&SignatureValue=${signatureValue}&ResultUrl2=${encodeURIComponent(
-    resultUrl2
-  )}${isTest ? '&IsTest=1' : ''}`
+  const signatureValue = md5(signatureString).toUpperCase()
 
-  console.log('✅ URL сформирован', {
-    description: 'URL generated',
-    url,
+  // Формируем базовый URL Robokassa
+  const baseUrl = 'https://auth.robokassa.ru/Merchant/Index.aspx'
+
+  // Создаем параметры запроса - ВАЖНО: без ResultUrl2
+  const params = new URLSearchParams({
+    MerchantLogin: merchantLogin,
+    OutSum: outSum.toString(),
+    InvId: invId.toString(),
+    Description: encodeURIComponent(description),
+    SignatureValue: signatureValue,
+  })
+
+  // Добавляем параметр IsTest только если включен тестовый режим
+  if (isTest) {
+    params.append('IsTest', '1')
+  }
+
+  const url = `${baseUrl}?${params.toString()}`
+  console.log('✅ URL сформирован для Robokassa:', {
+    message: 'URL generated for Robokassa',
+    testMode: isTest,
+    paymentUrl: url,
   })
 
   return url
@@ -152,7 +195,7 @@ paymentScene.enter(async ctx => {
       }
 
       const userId = ctx.from.id
-      const invId = generateInvId(userId, amount)
+      const invId = generateShortInvId(userId, amount)
       const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
       const numericInvId = Number(invId)
 
@@ -311,7 +354,7 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
 
   try {
     const userId = ctx.from.id
-    const invId = generateInvId(userId, amount)
+    const invId = generateShortInvId(userId, amount)
     const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
     const numericInvId = Number(invId)
 
