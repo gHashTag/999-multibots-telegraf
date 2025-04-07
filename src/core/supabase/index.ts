@@ -4,6 +4,7 @@ import {
   SUPABASE_SERVICE_KEY,
   SUPABASE_SERVICE_ROLE_KEY,
 } from '../../config'
+import { logger } from '@/utils/logger'
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error('Missing Supabase environment variables')
@@ -17,6 +18,11 @@ export const supabaseAdmin = createClient(
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY
 )
+
+logger.info('🔌 Supabase клиент инициализирован', {
+  description: 'Supabase client initialized',
+  url: SUPABASE_URL?.substring(0, 15) + '...',
+})
 
 export * from './createUser'
 export * from './createModelTraining'
@@ -78,3 +84,8 @@ export * from './getTranslation'
 export * from './updateUserSubscription'
 export * from './getUser'
 export * from './createPayment'
+
+// Добавляем реэкспорт функций для работы с платежами
+// Именно их не хватает в paymentProcessor.ts
+export { getPaymentByInvId } from './getPaymentByInvId'
+export { createSuccessfulPayment } from './createSuccessfulPayment'

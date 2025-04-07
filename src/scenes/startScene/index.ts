@@ -7,7 +7,7 @@ import {
 } from '@/core/supabase'
 import { mainMenuButton } from '@/menu/mainMenu'
 import { BOT_URLS } from '@/core/bot'
-
+import { ModeEnum } from '@/price/helpers/modelsCost'
 async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
   const botName = ctx.botInfo.username
   let postUrl = ''
@@ -77,7 +77,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     )
     console.log('isExist', isExist)
     if (!isExist) {
-      await ctx.scene.enter('createUserScene')
+      await ctx.scene.enter(ModeEnum.CreateUserScene)
       return
     }
     const telegramId = ctx.from?.id.toString()

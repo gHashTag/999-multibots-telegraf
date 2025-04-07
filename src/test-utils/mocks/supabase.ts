@@ -4,14 +4,12 @@ import { logger } from '../../utils/logger'
 export interface User {
   id: string
   telegram_id: TelegramId
-  balance: number
   level: number
 }
 
 const mockUser: User = {
   id: '123',
   telegram_id: '123456789',
-  balance: 1000,
   level: 7,
 }
 
@@ -44,8 +42,8 @@ export async function updateUserBalance(
   newBalance: number
 ): Promise<void> {
   logger.info({
-    message: '💰 Обновление баланса пользователя (мок)',
-    description: 'Updating user balance (mock)',
+    message: '💰 Обновление записей платежей (мок)',
+    description: 'Updating payment records (mock)',
     telegram_id,
     newBalance,
   })

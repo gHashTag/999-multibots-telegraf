@@ -7,7 +7,6 @@ export interface User {
   first_name?: string
   last_name?: string
   username?: string
-  balance: number
   bot_name: string
 }
 

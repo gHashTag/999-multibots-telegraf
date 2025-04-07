@@ -3,7 +3,10 @@ import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
 import { handleTextMessage } from '../../handlers/handleTextMessage'
 import { handleHelpCancel } from '@/handlers'
-import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+import {
+  getUserByTelegramIdString,
+  updateUserLevelPlusOne,
+} from '@/core/supabase'
 import { levels } from '@/menu'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
@@ -61,7 +64,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     const telegram_id = ctx.from?.id.toString()
     console.log(telegram_id, 'telegram_id')
 
-    const userExists = await getUserByTelegramId(ctx)
+    const userExists = await getUserByTelegramIdString(telegram_id || '')
     console.log(
       '🟢 User data:',
       JSON.stringify(userExists, null, 2),

@@ -8,18 +8,22 @@ import { logger } from '@/utils/logger'
 import { TEST_CONFIG } from '@/test-utils/test-config'
 import { NODE_ENV } from '@/config'
 import { getBotGroupFromAvatars } from '@/core/supabase'
-if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
-if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
-if (!process.env.BOT_TOKEN_3) throw new Error('BOT_TOKEN_3 is not set')
-if (!process.env.BOT_TOKEN_4) throw new Error('BOT_TOKEN_4 is not set')
-if (!process.env.BOT_TOKEN_5) throw new Error('BOT_TOKEN_5 is not set')
-if (!process.env.BOT_TOKEN_6) throw new Error('BOT_TOKEN_6 is not set')
-if (!process.env.BOT_TOKEN_7) throw new Error('BOT_TOKEN_7 is not set')
 
-if (!process.env.BOT_TOKEN_TEST_1)
-  throw new Error('BOT_TOKEN_TEST_1 is not set')
-if (!process.env.BOT_TOKEN_TEST_2)
-  throw new Error('BOT_TOKEN_TEST_2 is not set')
+// Проверяем токены в зависимости от окружения
+if (process.env.NODE_ENV === 'production') {
+  // Check production tokens
+  if (!process.env.BOT_TOKEN_1) throw new Error('❌ BOT_TOKEN_1 must be set')
+  if (!process.env.BOT_TOKEN_2) throw new Error('❌ BOT_TOKEN_2 must be set')
+  if (!process.env.BOT_TOKEN_3) throw new Error('❌ BOT_TOKEN_3 must be set')
+  if (!process.env.BOT_TOKEN_4) throw new Error('❌ BOT_TOKEN_4 must be set')
+  if (!process.env.BOT_TOKEN_5) throw new Error('❌ BOT_TOKEN_5 must be set')
+  if (!process.env.BOT_TOKEN_6) throw new Error('❌ BOT_TOKEN_6 must be set')
+  if (!process.env.BOT_TOKEN_7) throw new Error('❌ BOT_TOKEN_7 must be set')
+} else {
+  // Check test tokens
+  if (!process.env.BOT_TOKEN_TEST_1) throw new Error('❌ BOT_TOKEN_TEST_1 must be set')
+  if (!process.env.BOT_TOKEN_TEST_2) throw new Error('❌ BOT_TOKEN_TEST_2 must be set')
+}
 
 const BOT_TOKENS_PROD = [
   process.env.BOT_TOKEN_1,
@@ -29,13 +33,14 @@ const BOT_TOKENS_PROD = [
   process.env.BOT_TOKEN_5,
   process.env.BOT_TOKEN_6,
   process.env.BOT_TOKEN_7,
-]
+].filter((token): token is string => typeof token === 'string')
+
 const BOT_TOKENS_TEST = [
   process.env.BOT_TOKEN_TEST_1,
   process.env.BOT_TOKEN_TEST_2,
-]
+].filter((token): token is string => typeof token === 'string')
 
-export const BOT_NAMES: Record<string, string> = {
+export const BOT_NAMES: Record<string, string | undefined> = {
   ['neuro_blogger_bot']: process.env.BOT_TOKEN_1,
   ['MetaMuse_Manifest_bot']: process.env.BOT_TOKEN_2,
   ['ZavaraBot']: process.env.BOT_TOKEN_3,
@@ -57,7 +62,8 @@ export const BOT_URLS = {
 export const BOT_TOKENS =
   NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_TEST
 
-export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1 as string
+export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
+if (!DEFAULT_BOT_TOKEN) throw new Error('❌ DEFAULT_BOT_TOKEN must be set')
 
 export const DEFAULT_BOT_NAME = 'neuro_blogger_bot'
 export const defaultBot = new Telegraf<MyContext>(DEFAULT_BOT_TOKEN)
@@ -69,8 +75,16 @@ logger.info('🤖 Инициализация defaultBot:', {
 
 // Инициализируем ботов при старте приложения
 export const bots = Object.entries(BOT_NAMES)
-  .filter(([, token]) => token) // Фильтруем undefined токены
+  .filter(([, token]) => token !== undefined)
   .map(([name, token]) => {
+    if (!token) {
+      logger.error('❌ Токен не определен:', {
+        description: 'Token is undefined',
+        bot_name: name,
+      })
+      throw new Error(`Token is undefined for bot ${name}`)
+    }
+
     // Если это defaultBot, используем существующий экземпляр
     if (name === DEFAULT_BOT_NAME) {
       logger.info('🤖 Использование существующего defaultBot:', {
@@ -97,7 +111,9 @@ logger.info('🌟 Инициализировано ботов:', {
   bot_names: Object.keys(BOT_NAMES),
 })
 
-export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1 as string
+export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1
+if (!PULSE_BOT_TOKEN) throw new Error('❌ PULSE_BOT_TOKEN must be set')
+
 export const pulseBot = new Telegraf<MyContext>(PULSE_BOT_TOKEN)
 
 logger.info('🤖 Инициализация pulseBot:', {

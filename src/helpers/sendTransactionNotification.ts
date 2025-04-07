@@ -27,6 +27,8 @@ export const sendTransactionNotification = async ({
       telegram_id,
       operationId,
       amount,
+      currentBalance,
+      newBalance,
     })
 
     const botData = await createBotByName(bot_name)
@@ -35,17 +37,33 @@ export const sendTransactionNotification = async ({
       throw new Error(`Bot ${bot_name} not found`)
     }
 
+    // Преобразуем баланс к числу для корректных вычислений
+    const oldBalanceNumber = Number(currentBalance)
+    const newBalanceNumber = Number(newBalance)
+
+    // Проверяем направление операции
+    // Если amount отрицательный, но новый баланс выше старого, значит есть ошибка отображения
+    if (amount < 0 && newBalanceNumber > oldBalanceNumber) {
+      logger.warn('⚠️ Подозрительное изменение баланса:', {
+        description: 'Suspicious balance change',
+        amount,
+        currentBalance: oldBalanceNumber,
+        newBalance: newBalanceNumber,
+        expected_new_balance: oldBalanceNumber + amount,
+      })
+    }
+
     const message = isRu
       ? `
 ID: ${operationId}
 Сумма: ${amount} ⭐️
-Старый баланс: ${currentBalance} ⭐️
-Новый баланс: ${newBalance} ⭐️`
+Старый баланс: ${oldBalanceNumber} ⭐️
+Новый баланс: ${newBalanceNumber} ⭐️`
       : `
 ID: ${operationId}
 Amount: ${amount} ⭐️
-Old balance: ${currentBalance} ⭐️
-New balance: ${newBalance} ⭐️`
+Old balance: ${oldBalanceNumber} ⭐️
+New balance: ${newBalanceNumber} ⭐️`
 
     await botData.bot.telegram.sendMessage(telegram_id, message)
 
@@ -53,6 +71,9 @@ New balance: ${newBalance} ⭐️`
       description: 'Transaction notification sent',
       telegram_id,
       operationId,
+      amount,
+      old_balance: oldBalanceNumber,
+      new_balance: newBalanceNumber,
     })
   } catch (error) {
     logger.error('❌ Ошибка при отправке уведомления:', {

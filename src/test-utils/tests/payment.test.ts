@@ -11,6 +11,7 @@ import { supabase } from '@/core/supabase'
 import { TestResult } from '../types'
 import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
 import { TEST_CONFIG } from '../test-config'
+import { testAddStarsToBalance } from './balance.test'
 
 const waitForPaymentCompletion = async (
   telegram_id: TelegramId,
@@ -302,5 +303,50 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
       name: 'Payment System Test',
 >>>>>>> b75d880 (tests)
     }
+  }
+}
+
+/**
+ * Запускает все тесты, связанные с платежной системой
+ */
+export const runAllPaymentTests = async (): Promise<TestResult[]> => {
+  logger.info('🚀 Запуск всех тестов платежной системы', {
+    description: 'Running all payment system tests',
+  })
+
+  const results: TestResult[] = []
+
+  try {
+    // Основной тест платежной системы
+    const paymentSystemResult = await testPaymentSystem()
+    results.push(paymentSystemResult)
+
+    // Тест функции add_stars_to_balance
+    const balanceResult = await testAddStarsToBalance()
+    results.push(balanceResult)
+
+    logger.info('✅ Все тесты платежной системы завершены', {
+      description: 'All payment system tests completed',
+      success_count: results.filter(r => r.success).length,
+      fail_count: results.filter(r => !r.success).length,
+    })
+
+    return results
+  } catch (error) {
+    logger.error('❌ Ошибка при запуске тестов платежной системы', {
+      description: 'Error running payment tests',
+      error: error instanceof Error ? error.message : String(error),
+    })
+
+    return [
+      {
+        name: 'payment_tests',
+        success: false,
+        message: `❌ Ошибка при запуске тестов: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    ]
   }
 }
