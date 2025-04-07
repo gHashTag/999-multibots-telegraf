@@ -258,35 +258,6 @@ export const imageToPromptFunction = inngest.createFunction(
                 }
               })
 
-              // Отправляем сообщение о балансе
-              await step.run('send-balance-message', async () => {
-                try {
-                  if (!bot) {
-                    throw new Error('Bot instance not found')
-                  }
-                  await sendBalanceMessage(
-                    telegram_id,
-                    balanceCheck.newBalance,
-                    cost_per_image,
-                    is_ru,
-                    bot.telegram
-                  )
-                  logger.info('✅ Сообщение о балансе отправлено', {
-                    description: 'Balance message sent',
-                    telegram_id,
-                    new_balance: balanceCheck.newBalance,
-                  })
-                } catch (error) {
-                  logger.error('❌ Ошибка при отправке сообщения о балансе', {
-                    description: 'Error sending balance message',
-                    telegram_id,
-                    error:
-                      error instanceof Error ? error.message : 'Unknown error',
-                  })
-                  throw error
-                }
-              })
-
               return { success: true, caption }
             }
           } catch (e) {
