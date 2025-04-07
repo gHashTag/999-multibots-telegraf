@@ -3,6 +3,7 @@ import {
   PASSWORD1,
   RESULT_URL2,
   TEST_PASSWORD1,
+  isDev,
 } from '@/config'
 
 import { levels } from '@/menu/mainMenu'
@@ -15,7 +16,7 @@ export const resultUrl2 = RESULT_URL2 || ''
 export const description = 'Покупка звезд'
 
 // Флаг для использования тестового режима Robokassa
-export const useTestMode = false
+export const useTestMode = isDev
 
 export const subscriptionTitles = (isRu: boolean) => ({
   neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,

@@ -7,14 +7,14 @@ import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { createPendingPayment } from '@/core/supabase/createPendingPayment'
 import md5 from 'md5'
-import { MERCHANT_LOGIN, PASSWORD1, TEST_PASSWORD1 } from '@/config'
+import { MERCHANT_LOGIN, PASSWORD1, TEST_PASSWORD1, isDev } from '@/config'
 
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
 const testPassword1 = TEST_PASSWORD1
 
 // Флаг для использования тестового режима Robokassa
-const useTestMode = false
+const useTestMode = isDev
 
 /**
  * Генерирует короткий ID для заказа, подходящий для Robokassa
