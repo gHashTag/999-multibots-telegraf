@@ -6,11 +6,12 @@ import {
   password1,
   description,
   subscriptionTitles,
+  generateShortInvId,
+  useTestMode,
 } from './helper'
 import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
-import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
 import { createPayment } from '@/core/supabase/createPayment'
@@ -57,9 +58,9 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       userId,
     })
 
-    // Генерируем уникальный InvId
-    const invId = uuidv4()
-    const numericInvId = parseInt(invId.replace(/-/g, '').slice(0, 9), 16)
+    // Генерируем короткий InvId для Robokassa
+    const numericInvId = generateShortInvId(userId, stars)
+    const invId = numericInvId.toString()
 
     logger.info('🔢 Сгенерирован ID счета:', {
       description: 'Generated invoice ID',
@@ -76,7 +77,8 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       stars,
       numericInvId,
       description,
-      password1
+      password1,
+      useTestMode
     )
     logger.info('🔗 URL счета:', {
       description: 'Invoice URL',
