@@ -84,6 +84,42 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
       }
     )
 
+    // Устанавливаем команды для владельца бота
+    await bot.telegram.setMyCommands(
+      [
+        {
+          command: 'start',
+          description: '👤 Start / Начать',
+        },
+        {
+          command: 'menu',
+          description: '📟 Menu / Главное меню',
+        },
+        {
+          command: 'tech',
+          description: '🛠 Tech Support / Техподдержка',
+        },
+        {
+          command: 'price',
+          description: '⭐️ Price / Цена',
+        },
+        {
+          command: 'stats',
+          description: '📊 Statistics / Статистика',
+        },
+        {
+          command: 'broadcast',
+          description: '📢 Broadcast / Рассылка сообщений',
+        }
+      ],
+      {
+        scope: {
+          type: 'chat',
+          chat_id: parseInt(ownerTelegramId)
+        }
+      }
+    )
+
     console.log('✅ Команды бота успешно установлены:', {
       description: 'Bot commands set successfully for private chats',
       botName,

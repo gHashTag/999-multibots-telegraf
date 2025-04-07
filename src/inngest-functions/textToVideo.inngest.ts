@@ -72,7 +72,7 @@ export const textToVideoFunction = inngest.createFunction(
 
         // Проверяем, что модель поддерживает текст
         const modelId = event.data.model_id || 'kling-v1.6-pro'
-        const modelConfig = VIDEO_MODELS_CONFIG[modelId]
+        const modelConfig = VIDEO_MODELS_CONFIG[modelId as keyof typeof VIDEO_MODELS_CONFIG]
         if (!modelConfig || !modelConfig.inputType.includes('text')) {
           throw new Error(`Model ${modelId} does not support text input`)
         }
@@ -143,7 +143,7 @@ export const textToVideoFunction = inngest.createFunction(
       // Шаг 4: Расчет стоимости операции
       const costCalculation = await step.run('calculate-cost', async () => {
         // Получаем модель из конфигурации
-        const selectedModel = VIDEO_MODELS_CONFIG[params.model_id]
+        const selectedModel = VIDEO_MODELS_CONFIG[params.model_id as keyof typeof VIDEO_MODELS_CONFIG]
         if (!selectedModel) {
           throw new Error(`Model ${params.model_id} not found in configuration`)
         }
@@ -260,7 +260,7 @@ export const textToVideoFunction = inngest.createFunction(
             previewUrl,
           } as VideoResult
         } catch (error) {
-          console.error('❌ Ошибка при генерации видео:', error)
+          console.error('❌ Ошибка при генерации видео:', String(error))
           throw error
         }
       })
@@ -312,17 +312,13 @@ export const textToVideoFunction = inngest.createFunction(
         const botResult = getBotByName(validatedParams?.bot_name || '')
         if (botResult?.bot && validatedParams) {
           await errorMessage(
+            new Error(errorMsg),
             validatedParams.telegram_id,
-            validatedParams.is_ru,
-            errorMsg
+            validatedParams.is_ru
           )
 
           // Отправляем уведомление администратору
-          await errorMessageAdmin(
-            validatedParams.telegram_id,
-            errorMsg,
-            operationId
-          )
+          await errorMessageAdmin(new Error(`Error in text-to-video generation: ${errorMsg}${operationId ? `. Operation ID: ${operationId}` : ''}`))
         }
       } catch (notifyError) {
         console.error('❌ Error sending error notification:', notifyError)
