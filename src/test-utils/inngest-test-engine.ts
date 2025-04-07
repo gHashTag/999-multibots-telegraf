@@ -35,7 +35,27 @@ export class InngestTestEngine {
       description: 'Registering function',
       event_name: eventName,
     })
-    this.registeredFunctions.set(eventName, handler)
+
+    // Создаем обертку для функции
+    const wrappedHandler = async (params: any) => {
+      try {
+        // Если это InngestFunction, вызываем её fn метод
+        if (handler.fn) {
+          return await handler.fn(params)
+        }
+        // Иначе вызываем функцию напрямую
+        return await handler(params)
+      } catch (error) {
+        logger.error('❌ Ошибка в обработчике', {
+          description: 'Handler error',
+          event_name: eventName,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        throw error
+      }
+    }
+
+    this.registeredFunctions.set(eventName, wrappedHandler)
   }
 
   /**
@@ -181,7 +201,7 @@ export class InngestTestEngine {
    */
   async waitForEvent(
     eventName: string,
-    timeout = this.options.maxWaitTime
+    timeout: number = this.options.maxWaitTime || 30000
   ): Promise<any> {
     logger.info('⏳ Ожидание события', {
       description: 'Waiting for event',
@@ -198,22 +218,23 @@ export class InngestTestEngine {
         )
 
         if (event) {
-          logger.info('✅ Событие обнаружено', {
-            description: 'Event found',
+          logger.info('✅ Событие получено', {
+            description: 'Event received',
             event_name: eventName,
-            event_id: event.id,
+            event,
           })
           resolve(event)
           return
         }
 
-        if (Date.now() - startTime > (timeout || 5000)) {
-          logger.warn('⚠️ Таймаут ожидания события', {
-            description: 'Event waiting timeout',
+        if (Date.now() - startTime > timeout) {
+          const error = new Error(`Timeout waiting for event ${eventName}`)
+          logger.error('❌ Таймаут ожидания события', {
+            description: 'Event wait timeout',
             event_name: eventName,
             timeout,
           })
-          reject(new Error(`Timeout waiting for event: ${eventName}`))
+          reject(error)
           return
         }
 

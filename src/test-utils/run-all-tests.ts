@@ -3,14 +3,17 @@ import { TestResult } from './types'
 import { runAllPaymentTests } from './tests/payment.test'
 import { runBalanceTests } from './tests/balance.test'
 import { testChatWithAvatar } from './tests/chatWithAvatar.test'
+import { testVoiceToText } from './tests/voiceToText.test'
 import { InngestTestEngine } from './inngest-test-engine'
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
+import { voiceToTextProcessor } from '@/inngest-functions/voiceToText.inngest'
 
 // Создаем экземпляр тестового движка
 const inngestTestEngine = new InngestTestEngine()
 
 // Регистрируем обработчики событий
 inngestTestEngine.register('payment/process', paymentProcessor)
+inngestTestEngine.register('voice-to-text.requested', voiceToTextProcessor)
 
 /**
  * Запускает все тесты
@@ -34,6 +37,10 @@ export const runAllTests = async () => {
     // Запускаем тест чата с аватаром
     const chatWithAvatarResult = await testChatWithAvatar()
     results.push(chatWithAvatarResult)
+
+    // Запускаем тест распознавания голоса
+    const voiceToTextResult = await testVoiceToText()
+    results.push(voiceToTextResult)
 
     // Выводим общие результаты
     const successCount = results.filter(r => r.success).length
