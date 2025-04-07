@@ -12,15 +12,17 @@ import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment
 import { supabase } from '@/core/supabase'
 
 export interface PaymentProcessEvent {
-  telegram_id: TelegramId
-  amount: number
-  type: TransactionType
-  description: string
-  bot_name?: string
-  is_ru?: boolean
-  service_type?: string
-  operation_id?: string
-  metadata?: Record<string, any>
+  data: {
+    telegram_id: string
+    amount: number // Теперь всегда положительное число
+    stars?: number // Теперь всегда положительное число
+    type: string
+    description: string
+    bot_name: string
+    inv_id?: string
+    metadata?: any
+    service_type: string
+  }
 }
 
 /**
@@ -39,23 +41,23 @@ export const paymentProcessor = inngest.createFunction(
       const {
         telegram_id,
         amount,
-        type = 'money_income',
-        description = '',
-        bot_name = 'default_bot',
-        service_type = 'default',
-        operation_id = '',
-        metadata = {},
-        is_ru = true,
-      } = event.data as PaymentProcessEvent
+        type,
+        description,
+        bot_name,
+        inv_id,
+        metadata,
+        service_type,
+      } = event.data
+      const stars = event.data.stars ?? amount
 
       logger.info('🚀 Обработка платежа:', {
         description: 'Processing payment',
         telegram_id,
         amount,
+        stars,
         type,
-        service_type,
         bot_name,
-        inv_id: operation_id,
+        inv_id: inv_id,
       })
 
       // Проверяем существует ли пользователь
@@ -105,68 +107,40 @@ export const paymentProcessor = inngest.createFunction(
         throw new Error('Insufficient funds')
       }
 
-      // Создаем запись о платеже
-      const paymentRecord = await step.run(
-        'create-payment-record',
-        async () => {
-          try {
-            if (operation_id) {
-              // Проверяем, не обработан ли уже этот платеж
-              const existingPayment = await getPaymentByInvId(operation_id)
-              if (existingPayment) {
-                logger.info('⚠️ Платеж уже обработан:', {
-                  description: 'Payment already processed',
-                  payment_id: existingPayment.payment_id,
-                  inv_id: operation_id,
-                })
-                return existingPayment
-              }
-            }
-
-            // Формируем уникальный inv_id для транзакции если его нет
-            const inv_id = operation_id || `${telegram_id}-${Date.now()}`
-
-            const payment = await createSuccessfulPayment({
-              telegram_id,
-              amount,
-              stars: amount,
-              payment_method: 'balance',
-              description,
-              type,
-              bot_name,
-              status: 'COMPLETED',
-              inv_id,
-              metadata: {
-                ...metadata,
-                service_type,
-                operation_id,
-              },
-            })
-
-            logger.info('✅ Запись о платеже создана:', {
-              description: 'Payment record created successfully',
-              payment_id: payment.payment_id,
-              telegram_id,
-              amount,
-              type,
-              bot_name,
-            })
-
-            return payment
-          } catch (error) {
-            logger.error('❌ Ошибка при создании записи о платеже:', {
-              description: 'Error creating payment record',
-              error: error instanceof Error ? error.message : String(error),
-              error_details: error,
-              telegram_id,
-              amount,
-              type,
-              bot_name,
-            })
-            throw error
+      // Проверяем существующий платеж
+      if (inv_id) {
+        const existingPayment = await step.run(
+          'check-existing-payment',
+          async () => {
+            return await getPaymentByInvId(inv_id)
           }
+        )
+
+        if (existingPayment) {
+          logger.info('⚠️ Платеж уже обработан:', {
+            description: 'Payment already processed',
+            payment_id: existingPayment.payment_id,
+            inv_id: inv_id,
+          })
+          return { success: false, error: 'Payment already exists' }
         }
-      )
+      }
+
+      // Создаем платеж (всегда с положительными значениями)
+      const payment = await step.run('create-payment', async () => {
+        return await createSuccessfulPayment({
+          telegram_id: telegram_id,
+          amount: Math.abs(amount), // Гарантируем положительное значение
+          stars: Math.abs(stars), // Гарантируем положительное значение
+          type, // money_income или money_expense определяет прибавление или вычитание
+          description,
+          bot_name,
+          service_type,
+          metadata,
+          payment_method: 'balance',
+          status: 'COMPLETED',
+        })
+      })
 
       // Обновляем баланс пользователя - сейчас этот шаг не создает новых записей
       // Он нужен только чтобы получить актуальный баланс после транзакции
@@ -175,7 +149,7 @@ export const paymentProcessor = inngest.createFunction(
           logger.info('🔄 Получение обновленного баланса:', {
             description: 'Getting updated balance',
             telegram_id,
-            payment_id: paymentRecord.payment_id,
+            payment_id: payment.payment_id,
             amount,
             type,
             bot_name,
@@ -226,7 +200,7 @@ export const paymentProcessor = inngest.createFunction(
       await step.run('send-notification', async () => {
         try {
           // Генерируем уникальный ID операции
-          const operationId = operation_id || uuidv4()
+          const operationId = inv_id || uuidv4()
 
           // Отправляем уведомление о транзакции
           await sendTransactionNotification({
@@ -236,7 +210,7 @@ export const paymentProcessor = inngest.createFunction(
             currentBalance: Number(currentBalance) || 0,
             newBalance: Number(balanceUpdate.newBalance) || 0,
             description: description || 'Платеж успешно обработан',
-            isRu: is_ru,
+            isRu: true,
             bot_name,
           })
 
@@ -272,10 +246,10 @@ export const paymentProcessor = inngest.createFunction(
         telegram_id,
         amount,
         type,
-        payment_id: paymentRecord.payment_id,
+        payment_id: payment.payment_id,
         old_balance: balanceUpdate.oldBalance,
         new_balance: balanceUpdate.newBalance,
-        operation_id,
+        operation_id: inv_id,
         bot_name,
       }
     } catch (error) {
