@@ -70,6 +70,20 @@ export interface TestResult {
   details?: Record<string, any>
 }
 
+/**
+ * Интерфейс для тестового пользователя
+ */
+interface TestUser {
+  id: number
+  username: string
+  is_bot: boolean
+  first_name: string
+  last_name: string
+  telegramId: string
+  botName: string
+  isRussian?: boolean
+}
+
 export const TEST_CONFIG = {
   // Моки для тестирования
   mockBot: { telegram: mockTelegram },
@@ -101,6 +115,9 @@ export const TEST_CONFIG = {
       is_bot: false,
       first_name: 'Default',
       last_name: 'User',
+      telegramId: '987654321',
+      botName: 'default_bot',
+      isRussian: false,
     },
   },
 
@@ -108,7 +125,7 @@ export const TEST_CONFIG = {
   bots: {
     test_bot: {
       name: 'test_bot',
-      token: 'test_token',
+      token: process.env.BOT_TOKEN_TEST_1 || 'test_token',
     },
     neurophoto: {
       name: 'neurophoto_bot',
@@ -127,12 +144,41 @@ export const TEST_CONFIG = {
         prompt: 'Test prompt 1',
         negative_prompt: 'Test negative prompt 1',
         image_url: 'https://example.com/test1.jpg',
+        status: 'SUCCESS',
+        trainingId: 'training_123',
+        outputUrl: 'https://example.com/output1.safetensors',
+        version: '1.0.0',
+        metrics: {
+          predict_time: 120
+        },
+        error: null
       },
       {
         prompt: 'Test prompt 2',
         negative_prompt: 'Test negative prompt 2',
         image_url: 'https://example.com/test2.jpg',
+        status: 'failed',
+        trainingId: 'training_456',
+        outputUrl: null,
+        version: null,
+        metrics: {
+          predict_time: 60
+        },
+        error: 'Training failed due to insufficient data'
       },
+      {
+        prompt: 'Test prompt 3',
+        negative_prompt: 'Test negative prompt 3',
+        image_url: 'https://example.com/test3.jpg',
+        status: 'canceled',
+        trainingId: 'training_789',
+        outputUrl: null,
+        version: null,
+        metrics: {
+          predict_time: 30
+        },
+        error: null
+      }
     ],
   },
 
@@ -142,11 +188,25 @@ export const TEST_CONFIG = {
       {
         text: 'Test text 1',
         image_url: 'https://example.com/bfl1.jpg',
+        status: 'completed',
+        task_id: 'bfl_task_123',
+        result: {
+          url: 'https://example.com/bfl_result1.jpg'
+        }
       },
       {
         text: 'Test text 2',
         image_url: 'https://example.com/bfl2.jpg',
+        status: 'error',
+        task_id: 'bfl_task_456',
+        error: 'Processing failed'
       },
+      {
+        text: 'Test text 3',
+        image_url: 'https://example.com/bfl3.jpg',
+        status: 'pending',
+        task_id: 'bfl_task_789'
+      }
     ],
   },
 
@@ -156,11 +216,24 @@ export const TEST_CONFIG = {
       {
         url: 'https://example.com/neurophoto1.jpg',
         prompt: 'Test neurophoto prompt 1',
+        status: 'completed',
+        task_id: 'neurophoto_123',
+        result: {
+          url: 'https://example.com/neurophoto_result1.jpg'
+        }
       },
       {
         url: 'https://example.com/neurophoto2.jpg',
         prompt: 'Test neurophoto prompt 2',
+        status: 'processing',
+        task_id: 'neurophoto_456'
       },
+      {
+        url: 'https://example.com/neurophoto3.jpg',
+        prompt: 'Test neurophoto prompt 3',
+        status: 'moderation_failed',
+        task_id: 'neurophoto_789'
+      }
     ],
   },
 

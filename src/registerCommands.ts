@@ -617,7 +617,7 @@ export function registerCommands({
       const response = await fetch(cancelUrl, {
         method: 'POST',
         headers: {
-          Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+          Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
         },
       })
 
@@ -654,7 +654,7 @@ export function registerCommands({
       const response = await fetch(cancelUrl, {
         method: 'POST',
         headers: {
-          Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+          Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
         },
       })
 

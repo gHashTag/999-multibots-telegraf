@@ -98,6 +98,7 @@ ${colors.bright}Доступные типы тестов:${colors.reset}
   ${colors.cyan}function${colors.reset}   - Тесты конкретных Inngest функций (требуется указать имя функции)
   ${colors.cyan}voice-avatar${colors.reset} - Тесты генерации голосового аватара
   ${colors.cyan}text-to-speech${colors.reset} - Тесты преобразования текста в речь
+  ${colors.cyan}text-to-video${colors.reset}    - Тесты генерации видео из текста
   ${colors.cyan}all${colors.reset}        - Все тесты
 
 ${colors.bright}Параметры:${colors.reset}
@@ -117,6 +118,7 @@ ${colors.bright}Примеры:${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts neurophoto-v2${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts function hello-world${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts text-to-speech${colors.reset}
+  ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts text-to-video${colors.reset}
   ${colors.cyan}ts-node -r tsconfig-paths/register src/test-utils/test-runner.ts all${colors.reset}
 
 ${colors.bright}Доступные Inngest функции для тестирования:${colors.reset}
@@ -358,6 +360,21 @@ async function main() {
       }
     }
 
+    if (testType === 'text-to-video' || testType === 'all') {
+      logger.info({
+        message: '🧪 Запуск тестов генерации видео из текста',
+        description: 'Starting text-to-video tests',
+      })
+
+      const inngestTester = new InngestTester()
+      const textToVideoResults = await inngestTester.runTextToVideoTests()
+      const { successful, total } = formatResults(textToVideoResults, 'Текст-в-видео')
+
+      if (successful < total) {
+        allSuccessful = false
+      }
+    }
+
     if (testType === 'help' || testType === '--help' || testType === '-h') {
       printHelp()
     }
@@ -374,6 +391,7 @@ async function main() {
         'function',
         'voice-avatar',
         'text-to-speech',
+        'text-to-video',
         'all',
         'help',
         '--help',
@@ -486,7 +504,8 @@ async function runSpeechGenerationTest(): Promise<TestResult> {
       })
 
       // Получаем бота
-      const botData = await getBotByName(TEST_CONFIG.users.main.botName)
+      const botName = 'neuro_blogger_bot' // Используем существующего бота
+      const botData = await getBotByName(botName)
 
       if (!botData?.bot) {
         throw new Error('Bot instance not found')

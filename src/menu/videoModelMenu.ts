@@ -2,7 +2,7 @@ import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 
 // models.config.ts
-type VideoModelConfig = {
+export type VideoModelConfig = {
   id: string
   title: string
   description: string
@@ -18,6 +18,7 @@ type VideoModelConfig = {
   }
   imageKey?: string
 }
+
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   minimax: {
     id: 'minimax',

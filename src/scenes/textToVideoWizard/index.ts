@@ -4,12 +4,13 @@ import {
   sendBalanceMessage,
   validateAndCalculateVideoModelPrice,
 } from '@/price/helpers'
-import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { getUserBalance } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { handleHelpCancel } from '@/handlers'
+import { inngest } from '@/inngest-functions/clients'
+import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.TextToVideo,
@@ -18,7 +19,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     try {
       // Запрашиваем модель
       await ctx.reply(
-        isRu ? 'Выберите модель для генерации:' : 'Choose generation model:',
+        isRu 
+          ? '🎥 Выберите модель для генерации видео:' 
+          : '🎥 Choose video generation model:',
         {
           reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
         }
@@ -26,7 +29,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       ctx.wizard.next()
       return
     } catch (error: unknown) {
-      console.error('Error in text_to_video:', error)
+      console.error('❌ Error in text_to_video:', error)
       const errorMessage =
         error instanceof Error ? error.message : String(error)
       await ctx.reply(
@@ -55,13 +58,13 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
             : 'text_to_video: Could not identify user'
         )
       const videoModel = message.text?.toLowerCase()
-      console.log('videoModel', videoModel)
+      console.log('🎬 Selected video model:', videoModel)
 
       const currentBalance = await getUserBalance(
         ctx.from.id.toString(),
         ctx.botInfo.username
       )
-      console.log('currentBalance', currentBalance)
+      console.log('💰 Current balance:', currentBalance)
       if (currentBalance === null) {
         await ctx.reply(
           isRu ? 'Не удалось определить баланс' : 'Could not identify balance'
@@ -84,8 +87,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
         const { amount, modelId } = result
-        console.log('amount', amount)
-        console.log('modelId', modelId)
+        console.log('💵 Generation cost:', amount)
+        console.log('🆔 Model ID:', modelId)
         if (amount === null) {
           return ctx.scene.leave()
         }
@@ -93,6 +96,21 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         // Устанавливаем videoModel в сессии
         ctx.session.videoModel = modelId as VideoModel
 
+        // Проверяем, требует ли модель изображение
+        const modelConfig = VIDEO_MODELS_CONFIG[modelId]
+        const requiresImage = modelConfig?.inputType.includes('image') && !modelConfig?.inputType.includes('text')
+        if (requiresImage) {
+          await ctx.reply(
+            isRu
+              ? '🖼️ Эта модель требует изображение для генерации видео. Пожалуйста, отправьте изображение.'
+              : '🖼️ This model requires an image for video generation. Please send an image.',
+            Markup.removeKeyboard()
+          )
+          ctx.session.amount = amount
+          return ctx.wizard.next()
+        }
+
+        // Показываем информацию о балансе и стоимости
         await sendBalanceMessage(
           ctx.from.id.toString(),
           currentBalance,
@@ -103,14 +121,15 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
         await ctx.reply(
           isRu
-            ? 'Пожалуйста, отправьте текстовое описание'
-            : 'Please send a text description',
+            ? '✍️ Пожалуйста, отправьте текстовое описание для генерации видео'
+            : '✍️ Please send a text description for video generation',
           Markup.removeKeyboard()
         )
+        ctx.session.amount = amount
         return ctx.wizard.next()
       }
     } else {
-      console.log('text_to_video: else')
+      console.log('❌ text_to_video: else branch - invalid message')
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
@@ -119,10 +138,50 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
     const message = ctx.message
 
+    // Проверяем, требует ли модель изображение
+    const modelConfig = VIDEO_MODELS_CONFIG[ctx.session.videoModel || '']
+    const requiresImage = modelConfig?.inputType.includes('image') && !modelConfig?.inputType.includes('text')
+    if (requiresImage) {
+      // Проверяем, что получили изображение
+      if (!message || !('photo' in message)) {
+        await ctx.reply(
+          isRu
+            ? '❌ Пожалуйста, отправьте изображение для генерации видео'
+            : '❌ Please send an image for video generation'
+        )
+        return
+      }
+
+      // Сохраняем ссылку на изображение
+      const photos = message.photo
+      if (!photos || photos.length === 0) {
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось получить изображение'
+            : '❌ Failed to get the image'
+        )
+        return
+      }
+
+      // Получаем file_id последнего (самого большого) изображения
+      const fileId = photos[photos.length - 1].file_id
+      const file = await ctx.telegram.getFile(fileId)
+      const imageUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`
+
+      ctx.session.imageUrl = imageUrl
+
+      await ctx.reply(
+        isRu
+          ? '✍️ Теперь отправьте текстовое описание для генерации видео'
+          : '✍️ Now send a text description for video generation'
+      )
+      return ctx.wizard.next()
+    }
+
     if (message && 'text' in message) {
       const prompt = message.text
 
-      console.log('prompt', prompt)
+      console.log('📝 Prompt:', prompt)
 
       if (!prompt)
         throw new Error(
@@ -130,15 +189,93 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         )
 
       const videoModel = ctx.session.videoModel
-      console.log('videoModel', videoModel)
+      console.log('🎥 Using video model:', videoModel)
       if (prompt && videoModel && ctx.from && ctx.from.username) {
-        await generateTextToVideo(
+        // Отправляем событие для генерации видео через Inngest
+        await inngest.send({
+          name: 'text-to-video.requested',
+          data: {
+            prompt,
+            telegram_id: ctx.from.id.toString(),
+            is_ru: isRu,
+            bot_name: ctx.botInfo?.username || '',
+            model_id: videoModel,
+            username: ctx.from.username,
+          },
+        })
+
+        console.log('⚡️ Sent text-to-video.requested event:', {
+          description: 'Text to video generation requested',
           prompt,
-          videoModel,
-          ctx.from.id.toString(),
-          ctx.from.username,
-          isRu,
-          ctx.botInfo?.username
+          model: videoModel,
+          telegram_id: ctx.from.id,
+        })
+
+        await ctx.reply(
+          isRu
+            ? '🎬 Запрос на генерацию видео отправлен! Я пришлю результат, как только он будет готов.'
+            : '🎬 Video generation request sent! I will send you the result as soon as it is ready.'
+        )
+
+        ctx.session.prompt = prompt
+      }
+
+      await ctx.scene.leave()
+    } else {
+      await sendGenericErrorMessage(ctx, isRu)
+      await ctx.scene.leave()
+    }
+  },
+  // Новый шаг для обработки промпта после получения изображения
+  async ctx => {
+    const isRu = isRussian(ctx)
+    const message = ctx.message
+
+    if (message && 'text' in message) {
+      const prompt = message.text
+      console.log('📝 Prompt:', prompt)
+
+      if (!prompt)
+        throw new Error(
+          isRu ? 'Не удалось определить текст' : 'Could not identify text'
+        )
+
+      const videoModel = ctx.session.videoModel
+      const imageUrl = ctx.session.imageUrl
+      console.log('🎥 Using video model:', videoModel)
+      console.log('🖼️ Using image URL:', imageUrl)
+
+      if (prompt && videoModel && imageUrl && ctx.from && ctx.from.username) {
+        // Получаем ключ для изображения из конфигурации модели
+        const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
+        const imageKey = modelConfig?.imageKey || 'image'
+
+        // Отправляем событие для генерации видео через Inngest
+        await inngest.send({
+          name: 'text-to-video.requested',
+          data: {
+            prompt,
+            telegram_id: ctx.from.id.toString(),
+            is_ru: isRu,
+            bot_name: ctx.botInfo?.username || '',
+            model_id: videoModel,
+            username: ctx.from.username,
+            [imageKey]: imageUrl,
+          },
+        })
+
+        console.log('⚡️ Sent text-to-video.requested event:', {
+          description: 'Image to video generation requested',
+          prompt,
+          model: videoModel,
+          telegram_id: ctx.from.id,
+          [imageKey]: imageUrl,
+        })
+
+        await ctx.reply(
+          isRu
+            ? '🎬 Запрос на генерацию видео отправлен! Я пришлю результат, как только он будет готов.'
+            : '🎬 Video generation request sent! I will send you the result as soon as it is ready.'
         )
 
         ctx.session.prompt = prompt

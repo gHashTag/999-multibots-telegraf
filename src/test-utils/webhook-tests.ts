@@ -4,6 +4,65 @@ import { logger } from '@/utils/logger'
 import { testSupabase } from './test-env'
 
 /**
+ * Интерфейс для метрик тренировки
+ */
+interface TrainingMetrics {
+  predict_time: number
+}
+
+/**
+ * Интерфейс для образца тренировки модели
+ */
+interface ModelTrainingSample {
+  prompt: string
+  negative_prompt: string
+  image_url: string
+  status: string
+  trainingId: string
+  outputUrl: string | null
+  version: string | null
+  metrics: TrainingMetrics
+  error: string | null
+}
+
+/**
+ * Интерфейс для результата BFL
+ */
+interface BFLResult {
+  url: string
+}
+
+/**
+ * Интерфейс для образца BFL тренировки
+ */
+interface BFLTrainingSample {
+  text: string
+  image_url: string
+  status: string
+  task_id: string
+  result?: BFLResult
+  error?: string
+}
+
+/**
+ * Интерфейс для результата Neurophoto
+ */
+interface NeurophotoResult {
+  url: string
+}
+
+/**
+ * Интерфейс для образца Neurophoto
+ */
+interface NeurophotoSample {
+  url: string
+  prompt: string
+  status: string
+  task_id: string
+  result?: NeurophotoResult
+}
+
+/**
  * Интерфейс для результатов теста
  */
 interface TestResult {
@@ -138,7 +197,7 @@ export class ReplicateWebhookTester {
    */
   async testSuccessfulTraining(): Promise<TestResult> {
     const sample = TEST_CONFIG.modelTraining.samples.find(
-      s => s.status === 'SUCCESS'
+      (s: ModelTrainingSample) => s.status === 'SUCCESS'
     )
 
     if (!sample) {
@@ -180,7 +239,7 @@ export class ReplicateWebhookTester {
    */
   async testFailedTraining(): Promise<TestResult> {
     const sample = TEST_CONFIG.modelTraining.samples.find(
-      (s: { status: string }) => s.status === 'failed'
+      (s: ModelTrainingSample) => s.status === 'failed'
     )
 
     if (!sample) {
@@ -219,7 +278,7 @@ export class ReplicateWebhookTester {
    */
   async testCanceledTraining(): Promise<TestResult> {
     const sample = TEST_CONFIG.modelTraining.samples.find(
-      (s: { status: string }) => s.status === 'canceled'
+      (s: ModelTrainingSample) => s.status === 'canceled'
     )
 
     if (!sample) {
@@ -417,11 +476,11 @@ export class BFLWebhookTester {
   }
 
   /**
-   * Тестирует успешное завершение тренировки в BFL
+   * Тестирует успешное завершение тренировки
    */
   async testSuccessfulTraining(): Promise<TestResult> {
     const sample = TEST_CONFIG.bflTraining.samples.find(
-      s => s.status === 'COMPLETED'
+      (s: BFLTrainingSample) => s.status === 'COMPLETED'
     )
 
     if (!sample) {
@@ -443,11 +502,11 @@ export class BFLWebhookTester {
   }
 
   /**
-   * Тестирует ошибку при тренировке в BFL
+   * Тестирует ошибку тренировки
    */
   async testErrorTraining(): Promise<TestResult> {
     const sample = TEST_CONFIG.bflTraining.samples.find(
-      s => s.status === 'ERROR'
+      (s: BFLTrainingSample) => s.status === 'ERROR'
     )
 
     if (!sample) {
@@ -469,11 +528,11 @@ export class BFLWebhookTester {
   }
 
   /**
-   * Тестирует в процессе тренировки в BFL
+   * Тестирует ожидание тренировки
    */
   async testPendingTraining(): Promise<TestResult> {
     const sample = TEST_CONFIG.bflTraining.samples.find(
-      s => s.status === 'PENDING'
+      (s: BFLTrainingSample) => s.status === 'PENDING'
     )
 
     if (!sample) {
@@ -639,11 +698,11 @@ export class NeurophotoWebhookTester {
   }
 
   /**
-   * Тестирует успешное завершение генерации изображения
+   * Тестирует успешную генерацию
    */
   async testSuccessfulGeneration(): Promise<TestResult> {
     const sample = TEST_CONFIG.neurophoto.samples.find(
-      (s: { status: string }) => s.status === 'completed'
+      (s: NeurophotoSample) => s.status === 'completed'
     )
 
     if (!sample) {
@@ -709,11 +768,11 @@ export class NeurophotoWebhookTester {
   }
 
   /**
-   * Тестирует обработку задачи в процессе выполнения
+   * Тестирует статус обработки
    */
   async testProcessingStatus(): Promise<TestResult> {
     const sample = TEST_CONFIG.neurophoto.samples.find(
-      (s: { status: string }) => s.status === 'processing'
+      (s: NeurophotoSample) => s.status === 'processing'
     )
 
     if (!sample) {
@@ -772,11 +831,11 @@ export class NeurophotoWebhookTester {
   }
 
   /**
-   * Тестирует обработку модерации контента
+   * Тестирует модерацию контента
    */
   async testContentModeration(): Promise<TestResult> {
     const sample = TEST_CONFIG.neurophoto.samples.find(
-      (s: { status: string }) => s.status === 'moderation'
+      (s: NeurophotoSample) => s.status === 'moderation'
     )
 
     if (!sample) {

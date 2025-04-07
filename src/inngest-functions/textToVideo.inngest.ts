@@ -38,7 +38,7 @@ interface TextToVideoEvent {
  */
 type VideoResult =
   | { success: true; videoUrl: string; previewUrl?: string }
-  | { success: false; error: Error }
+  | { success: false; error: string }
 
 /**
  * Функция для генерации видео из текста
@@ -215,7 +215,12 @@ export const textToVideoFunction = inngest.createFunction(
       const videoResult = await step.run('generate-video', async () => {
         // Симуляция ошибки API для тестирования
         if (params._test?.api_error) {
-          throw new Error('API error (test)')
+          return {
+            success: false,
+            error: 'API error (test)',
+            telegram_id: params.telegram_id,
+            operation_id: operationId
+          }
         }
 
         try {
@@ -254,7 +259,7 @@ export const textToVideoFunction = inngest.createFunction(
             },
             {
               headers: {
-                Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+                Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
                 'Content-Type': 'application/json',
               },
             }
@@ -276,7 +281,7 @@ export const textToVideoFunction = inngest.createFunction(
               `https://api.replicate.com/v1/predictions/${predictionId}`,
               {
                 headers: {
-                  Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+                  Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
                   'Content-Type': 'application/json',
                 },
               }
@@ -328,10 +333,7 @@ export const textToVideoFunction = inngest.createFunction(
 
           return {
             success: false,
-            error:
-              error instanceof Error
-                ? error
-                : new Error('Unknown video generation error'),
+            error: error instanceof Error ? error.message : 'Unknown video generation error'
           }
         }
       })
@@ -383,8 +385,13 @@ export const textToVideoFunction = inngest.createFunction(
           operationId,
         }
       } else {
-        // Обработка ошибки генерации видео
-        throw videoResult.error
+        // Возвращаем результат с ошибкой
+        return {
+          success: false,
+          error: videoResult.error,
+          telegram_id: params.telegram_id,
+          operation_id: operationId
+        }
       }
     } catch (error) {
       console.error('❌ Ошибка при обработке запроса на создание видео:', {
