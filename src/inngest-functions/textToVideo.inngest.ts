@@ -18,7 +18,7 @@ import { TransactionType } from '@/interfaces/payments.interface'
  */
 interface TextToVideoEvent {
   data: {
-    prompt: string
+    prompt: string // Текстовое описание видео
     telegram_id: TelegramId
     is_ru: boolean
     bot_name: string
@@ -38,7 +38,7 @@ interface TextToVideoEvent {
  */
 type VideoResult =
   | { success: true; videoUrl: string; previewUrl?: string }
-  | { success: false; error: Error }
+  | { success: false; error: string }
 
 /**
  * Функция для генерации видео из текста
@@ -70,12 +70,19 @@ export const textToVideoFunction = inngest.createFunction(
           throw new Error('Missing required fields')
         }
 
+        // Проверяем, что модель поддерживает текст
+        const modelId = event.data.model_id || 'kling-v1.6-pro'
+        const modelConfig = VIDEO_MODELS_CONFIG[modelId as keyof typeof VIDEO_MODELS_CONFIG]
+        if (!modelConfig || !modelConfig.inputType.includes('text')) {
+          throw new Error(`Model ${modelId} does not support text input`)
+        }
+
         const validData: TextToVideoEvent['data'] = {
           prompt: event.data.prompt,
           telegram_id: event.data.telegram_id,
           is_ru: event.data.is_ru,
           bot_name: event.data.bot_name,
-          model_id: event.data.model_id || 'wan-text-to-video', // значение по умолчанию
+          model_id: modelId,
           aspect_ratio: event.data.aspect_ratio || '16:9',
           duration: event.data.duration || 6,
         }
@@ -95,18 +102,18 @@ export const textToVideoFunction = inngest.createFunction(
         throw new Error('Validation failed - missing required parameters')
       }
 
-      const params = validatedParams // Создаем константу для использования в блоке try
+      const params = validatedParams
 
       // Шаг 2: Получение информации о пользователе
       const user = await step.run('get-user-info', async () => {
         const userResult = await getUserByTelegramIdString(params.telegram_id)
         if (!userResult) throw new Error('User not found')
-        
+
         // Увеличиваем уровень пользователя, если это его первый запрос на создание видео
         if (userResult.level === 9) {
           await updateUserLevelPlusOne(userResult.telegram_id, userResult.level)
         }
-        
+
         return userResult
       })
 
@@ -125,8 +132,8 @@ export const textToVideoFunction = inngest.createFunction(
 
         await bot.telegram.sendMessage(
           params.telegram_id,
-          params.is_ru 
-            ? '⏳ Начинаем процесс создания видео из текста...' 
+          params.is_ru
+            ? '⏳ Начинаем процесс создания видео из текста...'
             : '⏳ Starting the text-to-video generation process...'
         )
 
@@ -136,29 +143,28 @@ export const textToVideoFunction = inngest.createFunction(
       // Шаг 4: Расчет стоимости операции
       const costCalculation = await step.run('calculate-cost', async () => {
         // Получаем модель из конфигурации
-        const selectedModel = VIDEO_MODELS_CONFIG[params.model_id || 'wan-text-to-video']
-        
+        const selectedModel = VIDEO_MODELS_CONFIG[params.model_id as keyof typeof VIDEO_MODELS_CONFIG]
         if (!selectedModel) {
           throw new Error(`Model ${params.model_id} not found in configuration`)
         }
-        
+
         // Рассчитываем стоимость операции
         const cost = calculateModeCost({
           mode: ModeEnum.TextToVideo,
           numImages: 1,
         })
-        
+
         console.log('💰 Стоимость операции:', {
           description: 'Operation cost',
           cost,
           model: selectedModel.id,
           basePrice: selectedModel.basePrice,
         })
-        
-        return { 
-          cost, 
+
+        return {
+          cost,
           model: selectedModel,
-          operationId
+          operationId,
         }
       })
 
@@ -175,8 +181,8 @@ export const textToVideoFunction = inngest.createFunction(
           if (!botResult?.bot) {
             throw new Error(`Bot ${params.bot_name} not found`)
           }
-          
-          // Отправляем сообщение о недостаточном балансе и способе пополнения
+
+          // Отправляем сообщение о недостаточном балансе
           await sendBalanceMessage(
             params.telegram_id,
             user.balance,
@@ -184,7 +190,7 @@ export const textToVideoFunction = inngest.createFunction(
             params.is_ru,
             botResult.bot.telegram
           )
-          
+
           throw new Error('Insufficient balance')
         }
 
@@ -193,14 +199,15 @@ export const textToVideoFunction = inngest.createFunction(
 
       // Шаг 6: Списание средств с баланса пользователя
       await step.run('charge-user', async () => {
-        // Отправляем событие для обработки платежа
         await inngest.send({
           name: 'payment/process',
           data: {
-            amount: -costCalculation.cost.stars,
             telegram_id: params.telegram_id,
-            type: 'money_expense' as TransactionType,
-            description: `🎬 Создание видео из текста (${costCalculation.model.title})`,
+            amount: costCalculation.cost.stars,
+            type: 'money_expense',
+            description: params.is_ru
+              ? 'Создание видео из текста'
+              : 'Text to video generation',
             bot_name: params.bot_name,
             service_type: ModeEnum.TextToVideo,
             operation_id: operationId,
@@ -210,249 +217,120 @@ export const textToVideoFunction = inngest.createFunction(
         return { charged: true }
       })
 
-      // Шаг 7: Генерация видео через API
-      const videoResult = await step.run('generate-video', async () => {
-        // Симуляция ошибки API для тестирования
+      // Шаг 7: Генерация видео
+      const generationResult = await step.run('generate-video', async () => {
+        // Тестовый случай для ошибки API
         if (params._test?.api_error) {
           throw new Error('API error (test)')
         }
 
         try {
-          console.log('🎬 Запуск генерации видео:', {
-            description: 'Starting video generation',
-            model: costCalculation.model.id,
+          // Формируем данные для API запроса
+          const apiData = {
             prompt: params.prompt,
-            telegram_id: params.telegram_id,
-            operation_id: operationId,
-          })
-
-          // Получаем настройки API из конфигурации модели
-          const apiModel = costCalculation.model.api.model
-          
-          // Подготавливаем данные для запроса в зависимости от модели
-          const apiInput = typeof costCalculation.model.api.input === 'function'
-            ? costCalculation.model.api.input(params.aspect_ratio)
-            : costCalculation.model.api.input
-
-          // Здесь должен быть реальный вызов API для генерации видео
-          // Сейчас используем заглушку для тестирования
-          if (!process.env.REPLICATE_API_TOKEN) {
-            throw new Error('REPLICATE_API_TOKEN missing')
+            model: params.model_id,
+            aspect_ratio: params.aspect_ratio,
+            duration: params.duration,
           }
-          
-          // Используем Replicate API для генерации видео
+
+          // Отправляем запрос к API
           const response = await axios.post(
-            'https://api.replicate.com/v1/predictions',
-            {
-              version: apiModel,
-              input: {
-                prompt: params.prompt,
-                ...apiInput,
-              },
-            },
+            `${process.env.VIDEO_API_URL}/generate`,
+            apiData,
             {
               headers: {
-                'Authorization': `Token ${process.env.REPLICATE_API_TOKEN}`,
                 'Content-Type': 'application/json',
+                Authorization: `Bearer ${process.env.VIDEO_API_KEY}`,
               },
             }
           )
-          
-          console.log('✅ Запрос на генерацию видео отправлен:', {
-            description: 'Video generation request sent',
-            prediction_id: response.data.id,
-            status: response.data.status,
-            operation_id: operationId,
-          })
-          
-          // Получаем ID предсказания для проверки статуса
-          const predictionId = response.data.id
-          
-          // Функция для проверки статуса генерации
-          const checkStatus = async (): Promise<VideoResult> => {
-            const statusResponse = await axios.get(
-              `https://api.replicate.com/v1/predictions/${predictionId}`,
-              {
-                headers: {
-                  'Authorization': `Token ${process.env.REPLICATE_API_TOKEN}`,
-                  'Content-Type': 'application/json',
-                },
-              }
-            )
-            
-            console.log('🔍 Проверка статуса генерации видео:', {
-              description: 'Checking video generation status',
-              status: statusResponse.data.status,
-              operation_id: operationId,
-            })
-            
-            if (['succeeded', 'completed'].includes(statusResponse.data.status)) {
-              // Успешная генерация
-              const outputUrl = statusResponse.data.output
-              
-              return {
-                success: true,
-                videoUrl: typeof outputUrl === 'string' ? outputUrl : outputUrl[0],
-                previewUrl: statusResponse.data.urls?.get || null,
-              }
-            } else if (['failed', 'canceled'].includes(statusResponse.data.status)) {
-              // Ошибка генерации
-              throw new Error(`Video generation failed: ${statusResponse.data.error || 'Unknown error'}`)
-            } else {
-              // Продолжаем проверку статуса
-              await new Promise(resolve => setTimeout(resolve, 3000))
-              return checkStatus()
-            }
+
+          if (!response.data || !response.data.videoUrl) {
+            throw new Error('Invalid API response')
           }
-          
-          // Запускаем проверку статуса до завершения операции
-          return await checkStatus()
-        } catch (error) {
-          console.error('❌ Ошибка при генерации видео:', {
-            description: 'Error generating video',
-            error: error instanceof Error ? error.message : 'Unknown error',
-            telegram_id: params.telegram_id,
-            operation_id: operationId,
-          })
-          
+
+          videoUrl = response.data.videoUrl
+          if (response.data.previewUrl) {
+            previewUrl = response.data.previewUrl
+          }
+
           return {
-            success: false,
-            error: error instanceof Error ? error : new Error('Unknown video generation error'),
-          }
+            success: true,
+            videoUrl,
+            previewUrl,
+          } as VideoResult
+        } catch (error) {
+          console.error('❌ Ошибка при генерации видео:', String(error))
+          throw error
         }
       })
 
-      // Шаг 8: Обработка результата и отправка видео пользователю
-      if (videoResult.success) {
-        videoUrl = videoResult.videoUrl
-        previewUrl = videoResult.previewUrl || null
-        
-        console.log('✅ Видео успешно создано:', {
-          description: 'Video successfully generated',
-          videoUrl,
-          previewUrl,
-          telegram_id: params.telegram_id,
-          operation_id: operationId,
-        })
-        
+      // Шаг 8: Отправка результата пользователю
+      await step.run('send-result', async () => {
         const botResult = getBotByName(params.bot_name)
         if (!botResult?.bot) {
           throw new Error(`Bot ${params.bot_name} not found`)
         }
         const { bot } = botResult
-        
-        // Отправляем предупреждение о загрузке видео
-        await bot.telegram.sendMessage(
-          params.telegram_id,
-          params.is_ru
-            ? '⏳ Видео создано, загружаем...'
-            : '⏳ Video created, uploading...'
-        )
-        
-        // Проверяем что URL не null перед отправкой
-        if (!videoUrl) {
-          throw new Error('Video URL is null')
-        }
-        
-        // Отправляем видео пользователю
-        await bot.telegram.sendVideo(
-          params.telegram_id,
-          videoUrl,
-          {
+
+        // Отправляем превью, если есть
+        if (previewUrl) {
+          await bot.telegram.sendPhoto(params.telegram_id, previewUrl, {
             caption: params.is_ru
-              ? `🎬 Ваше видео по запросу: "${params.prompt}"\n\nМодель: ${costCalculation.model.title}`
-              : `🎬 Your video for the prompt: "${params.prompt}"\n\nModel: ${costCalculation.model.title}`,
-          }
-        )
-        
-        return {
-          success: true,
-          videoUrl,
-          prompt: params.prompt,
-          model: costCalculation.model.id,
-          operationId,
+              ? '🎬 Превью сгенерированного видео'
+              : '🎬 Preview of generated video',
+          })
         }
-      } else {
-        // Обработка ошибки генерации видео
-        throw videoResult.error
+
+        // Отправляем видео
+        if (videoUrl) {
+          await bot.telegram.sendVideo(params.telegram_id, videoUrl, {
+            caption: params.is_ru
+              ? '✨ Ваше видео готово!'
+              : '✨ Your video is ready!',
+          })
+        }
+
+        return { sent: true }
+      })
+
+      // Возвращаем успешный результат
+      return {
+        success: true,
+        videoUrl,
+        previewUrl,
+        operationId,
+        telegram_id: params.telegram_id,
       }
     } catch (error) {
-      console.error('❌ Ошибка при обработке запроса на создание видео:', {
-        description: 'Error processing video creation request',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        telegram_id: validatedParams?.telegram_id,
-        operation_id: operationId,
-      })
-      
-      // Возвращаем баланс пользователю в случае ошибки
-      if (validatedParams && operationId) {
-        try {
-          await inngest.send({
-            name: 'payment/process',
-            data: {
-              amount: calculateModeCost({ mode: ModeEnum.TextToVideo }).stars,
-              telegram_id: validatedParams.telegram_id,
-              type: 'refund' as TransactionType,
-              description: '↩️ Возврат средств за неудачную генерацию видео',
-              bot_name: validatedParams.bot_name,
-              service_type: ModeEnum.TextToVideo,
-              operation_id: `refund-${operationId}`,
-            },
-          })
-          
-          console.log('✅ Возврат средств за неудачную генерацию:', {
-            description: 'Refund for failed generation',
-            telegram_id: validatedParams.telegram_id,
-            operation_id: operationId,
-          })
-        } catch (refundError) {
-          console.error('❌ Ошибка при возврате средств:', {
-            description: 'Error during refund',
-            error: refundError instanceof Error ? refundError.message : 'Unknown error',
-            telegram_id: validatedParams.telegram_id,
-            operation_id: operationId,
-          })
-        }
-      }
-      
+      // Обработка ошибок
+      console.error('❌ Error in text-to-video generation:', error)
+      const errorMsg = error instanceof Error ? error.message : String(error)
+
       // Отправляем сообщение об ошибке пользователю
-      if (validatedParams) {
-        try {
-          const botResult = getBotByName(validatedParams.bot_name)
-          if (botResult?.bot) {
-            await errorMessage(
-              error instanceof Error ? error : new Error('Unknown error'),
-              validatedParams.telegram_id,
-              validatedParams.is_ru
-            )
-          }
-        } catch (notifyError) {
-          console.error('❌ Не удалось отправить уведомление об ошибке пользователю:', {
-            description: 'Failed to send error notification to user',
-            error: notifyError instanceof Error ? notifyError.message : 'Unknown error',
-            telegram_id: validatedParams.telegram_id,
-          })
-        }
-      }
-      
-      // Отправляем уведомление администратору
       try {
-        await errorMessageAdmin(
-          error instanceof Error ? error : new Error(`TextToVideo Error: ${String(error)}`)
-        )
-      } catch (adminNotifyError) {
-        console.error('❌ Не удалось отправить уведомление администратору:', {
-          description: 'Failed to notify admin',
-          error: adminNotifyError instanceof Error ? adminNotifyError.message : 'Unknown error',
-        })
+        const botResult = getBotByName(validatedParams?.bot_name || '')
+        if (botResult?.bot && validatedParams) {
+          await errorMessage(
+            new Error(errorMsg),
+            validatedParams.telegram_id,
+            validatedParams.is_ru
+          )
+
+          // Отправляем уведомление администратору
+          await errorMessageAdmin(new Error(`Error in text-to-video generation: ${errorMsg}${operationId ? `. Operation ID: ${operationId}` : ''}`))
+        }
+      } catch (notifyError) {
+        console.error('❌ Error sending error notification:', notifyError)
       }
-      
+
+      // Возвращаем ошибку
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMsg,
+        operationId,
         telegram_id: validatedParams?.telegram_id,
-        operation_id: operationId,
       }
     }
   }
-) 
+)

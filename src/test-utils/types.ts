@@ -15,10 +15,21 @@ export interface TestResult {
   message: string
 
   // Подробная информация о результате теста (опционально)
-  details?: any
+  details?: Record<string, unknown>
 
   // Информация об ошибке, если тест не прошел (опционально)
-  error?: string
+  error?: Error | string
+
+  // Длительность выполнения теста (опционально)
+  duration?: number
+
+  // Метаданные теста (опционально)
+  metadata?: {
+    startTime?: number
+    endTime?: number
+    environment?: string
+    testType?: string
+  }
 }
 
 /**

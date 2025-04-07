@@ -1,6 +1,7 @@
 import { logger } from '@/utils/logger'
+import { InngestFunction } from 'inngest'
 
-export interface InngestTestEngineOptions {
+interface InngestTestEngineOptions {
   maxWaitTime?: number
   eventBufferSize?: number
 }
@@ -11,19 +12,60 @@ export interface InngestTestEngineOptions {
  */
 export class InngestTestEngine {
   private events: any[] = []
+  private registeredFunctions: Map<string, any> = new Map()
   private options: InngestTestEngineOptions
 
   constructor(options: InngestTestEngineOptions = {}) {
     this.options = {
-      maxWaitTime: 5000,
-      eventBufferSize: 100,
-      ...options,
+      maxWaitTime: options.maxWaitTime || 10000,
+      eventBufferSize: options.eventBufferSize || 200,
     }
 
     logger.info('🔧 Инициализация тестового движка Inngest', {
       description: 'Initializing Inngest test engine',
       options: this.options,
     })
+  }
+
+  /**
+   * Регистрирует функцию для обработки события
+   */
+  register(eventName: string, handler: any) {
+    logger.info('📝 Регистрация функции', {
+      description: 'Registering function',
+      event_name: eventName,
+    })
+    this.registeredFunctions.set(eventName, handler)
+  }
+
+  /**
+   * Создает объект step для выполнения функции
+   */
+  private createStepObject() {
+    return {
+      run: async (name: string, fn: () => Promise<any>) => {
+        logger.info('🔄 Выполнение шага', {
+          description: 'Running step',
+          step_name: name,
+        })
+        try {
+          const result = await fn()
+          logger.info('✅ Шаг выполнен успешно', {
+            description: 'Step completed successfully',
+            step_name: name,
+            result,
+          })
+          return result
+        } catch (error) {
+          logger.error('❌ Ошибка при выполнении шага', {
+            description: 'Error executing step',
+            step_name: name,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          throw error
+        }
+      },
+    }
   }
 
   /**
@@ -38,18 +80,62 @@ export class InngestTestEngine {
     })
 
     // Добавляем событие в буфер
-    this.events.push({
+    const eventWithId = {
       ...event,
+      id: event.id || Math.random().toString(36).substring(7),
       timestamp: new Date().toISOString(),
       status: 'pending',
-    })
+    }
+    this.events.push(eventWithId)
 
     // Ограничиваем размер буфера
     if (this.events.length > (this.options.eventBufferSize || 100)) {
       this.events.shift()
     }
 
-    return { event, success: true }
+    // Если есть зарегистрированная функция для этого события, выполняем её
+    const handler = this.registeredFunctions.get(event.name)
+    if (handler) {
+      try {
+        logger.info('🚀 Запуск обработчика события', {
+          description: 'Starting event handler',
+          event_name: event.name,
+          handler_name: handler.name,
+        })
+
+        const result = await handler({
+          event: eventWithId,
+          step: this.createStepObject(),
+        })
+
+        logger.info('✅ Обработчик события выполнен успешно', {
+          description: 'Event handler completed successfully',
+          event_name: event.name,
+          result,
+        })
+
+        await this.simulateExecution(eventWithId.id, result)
+      } catch (error) {
+        logger.error('❌ Ошибка при выполнении функции', {
+          description: 'Error executing function',
+          event_name: event.name,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        })
+        await this.simulateExecution(eventWithId.id, {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        throw error
+      }
+    } else {
+      logger.warn('⚠️ Обработчик не найден для события', {
+        description: 'No handler found for event',
+        event_name: event.name,
+      })
+    }
+
+    return { event: eventWithId, success: true }
   }
 
   /**
@@ -132,35 +218,13 @@ export class InngestTestEngine {
   }
 
   /**
-   * Симуляция выполнения функции
+   * Симулирует выполнение события
    */
-  async simulateExecution(eventId: string, result: any = { success: true }) {
-    const eventIndex = this.events.findIndex(e => e.id === eventId)
-
-    if (eventIndex >= 0) {
-      this.events[eventIndex] = {
-        ...this.events[eventIndex],
-        result,
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-      }
-
-      logger.info('🚀 Событие выполнено (симуляция)', {
-        description: 'Event executed (simulation)',
-        event_id: eventId,
-        event_name: this.events[eventIndex].name,
-        result,
-      })
-
-      return this.events[eventIndex]
+  private async simulateExecution(eventId: string, result: any) {
+    const event = this.events.find(e => e.id === eventId)
+    if (event) {
+      event.status = result.success ? 'completed' : 'failed'
+      event.result = result
     }
-
-    logger.warn('⚠️ Событие не найдено для симуляции', {
-      description: 'Event not found for simulation',
-      event_id: eventId,
-    })
-
-    return null
   }
 }
- 

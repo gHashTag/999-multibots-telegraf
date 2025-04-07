@@ -63,6 +63,7 @@ import { setupLevelHandlers } from './handlers/setupLevelHandlers'
 
 import { defaultSession } from './store'
 import { getTrainingCancelUrl } from './core/supabase'
+import fetch from 'node-fetch'
 // import { handleTextMessage } from './handlers'
 
 import { get100Command } from './commands/get100Command'
@@ -616,7 +617,7 @@ export function registerCommands({
       const response = await fetch(cancelUrl, {
         method: 'POST',
         headers: {
-          Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+          Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
         },
       })
 
@@ -653,7 +654,7 @@ export function registerCommands({
       const response = await fetch(cancelUrl, {
         method: 'POST',
         headers: {
-          Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+          Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
         },
       })
 

@@ -8,7 +8,6 @@ type User = {
   first_name?: string
   last_name?: string
   username?: string
-  balance?: number
   bot_name?: string
 }
 
@@ -18,7 +17,6 @@ interface PaymentWithUser {
     first_name: string | null
     last_name: string | null
     username: string | null
-    balance: number | null
     language_code: string
     bot_name: string | null
   }
@@ -40,7 +38,6 @@ export const getTelegramIdFromInvId = async (inv_id: string): Promise<User> => {
           first_name,
           last_name,
           username,
-          balance,
           language_code,
           bot_name
         )
@@ -80,14 +77,7 @@ export const getTelegramIdFromInvId = async (inv_id: string): Promise<User> => {
       throw new Error('Данные пользователя не найдены')
     }
 
-    const {
-      first_name,
-      last_name,
-      username,
-      balance,
-      bot_name,
-      language_code,
-    } = users
+    const { first_name, last_name, username, bot_name, language_code } = users
 
     // Преобразуем null в undefined
     return {
@@ -96,7 +86,6 @@ export const getTelegramIdFromInvId = async (inv_id: string): Promise<User> => {
       first_name: first_name || undefined,
       last_name: last_name || undefined,
       username: username || undefined,
-      balance: balance || undefined,
       bot_name: bot_name || undefined,
     }
   } catch (err) {
