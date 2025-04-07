@@ -309,7 +309,7 @@ export const neuroImageGeneration = inngest.createFunction(
               )
 
               const input = {
-                prompt: `Fashionable: ${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
+                prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
                 negative_prompt: 'nsfw, erotic, violence, bad anatomy...',
                 num_inference_steps: 40,
                 guidance_scale: 3,
@@ -476,61 +476,11 @@ export const neuroImageGeneration = inngest.createFunction(
             bot_name,
           })
 
-          // Специальная проверка для проблемного пользователя
-          const isProblematicCase =
-            bot_name === 'neuro_blogger_bot' &&
-            telegram_id &&
-            telegram_id.toString() === '144022504'
-
-          if (isProblematicCase) {
-            logger.info('🚨 ОБНАРУЖЕН ПРОБЛЕМНЫЙ КЕЙС', {
-              description: 'Known problematic case detected',
-              telegram_id,
-              bot_name,
-              balanceCheck: balanceCheck
-                ? JSON.stringify(balanceCheck)
-                : 'null',
-            })
-
-            // Для проблемного кейса берем баланс напрямую из результата операции платежа
-            if (balanceCheck && typeof balanceCheck.newBalance === 'number') {
-              logger.info('💰 Используем баланс из процесса оплаты', {
-                description: 'Using balance from payment process',
-                telegram_id,
-                balance: balanceCheck.newBalance,
-                bot_name,
-              })
-
-              return {
-                rawBalance: balanceCheck.newBalance,
-                formattedBalance: balanceCheck.newBalance.toFixed(2),
-                balanceFromOperation: balanceCheck.newBalance,
-              }
-            }
-          }
-
           // Получаем актуальный баланс пользователя напрямую из функции getUserBalance
           let actualBalance
           try {
-            if (bot_name === 'neuro_blogger_bot') {
-              logger.info('🔧 Особая обработка для neuro_blogger_bot', {
-                description: 'Special handling for neuro_blogger_bot',
-                telegram_id,
-                usingBalanceCheck: !!balanceCheck?.newBalance,
-                bot_name,
-              })
-
-              // Используем баланс из предыдущей операции вместо вызова проблемной функции
-              if (balanceCheck && typeof balanceCheck.newBalance === 'number') {
-                actualBalance = balanceCheck.newBalance
-              } else {
-                // Если нет balanceCheck, используем напрямую расчет из payments
-                actualBalance = await getUserBalance(telegram_id, bot_name)
-              }
-            } else {
-              // Для других ботов используем стандартную функцию
-              actualBalance = await getUserBalance(telegram_id, bot_name)
-            }
+            // Для всех ботов используем стандартную функцию
+            actualBalance = await getUserBalance(telegram_id, bot_name)
 
             logger.info('💰 Получен баланс пользователя', {
               description: 'User balance retrieved',

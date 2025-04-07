@@ -93,7 +93,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       const userId = ctx.from?.id
 
       if (trigger_word) {
-        const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
+        const fullPrompt = `${trigger_word}, ${promptText}`
         const telegramId = ctx.from?.id.toString()
         if (!telegramId) {
           await ctx.reply(
