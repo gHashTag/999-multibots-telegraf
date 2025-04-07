@@ -23,21 +23,29 @@ interface WebhookPayload {
   output?: {
     uri?: string
     version?: string
+    image?: string
   }
   metrics?: {
     predict_time?: number
   }
   error?: string
+  trainingId?: string
+  task_id?: string
+  result?: string
 }
 
 interface WebhookOptions {
   checkDatabase: boolean
+  expectedStatus?: string
+  expectedOutput?: string
+  expectedError?: string
 }
 
 interface DatabaseStatus {
   beforeStatus: string | null
   afterStatus: string | null
   changed: boolean
+  output_url?: string
 }
 
 interface ModelTrainingSample {
