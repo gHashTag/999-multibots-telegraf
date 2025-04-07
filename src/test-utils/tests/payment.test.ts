@@ -250,12 +250,15 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
       final_balance: finalBalance,
     })
 
+<<<<<<< Updated upstream
     // Получаем все платежи пользователя для отчета
     const { data: payments } = await supabase
       .from('payments_v2')
       .select('*')
       .eq('telegram_id', testTelegramId)
 
+=======
+>>>>>>> Stashed changes
     // Очистка тестовых данных
     if (TEST_CONFIG.cleanupAfterEach) {
       await Promise.all([
@@ -266,6 +269,7 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
 
     return {
       success: true,
+<<<<<<< HEAD
       name: 'Payment System Test',
       message: 'Все тесты платежной системы успешно пройдены',
       details: {
@@ -273,6 +277,10 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
         final_balance: finalBalance,
         payments_count: payments ? payments.length : 0,
       },
+=======
+      message: 'Тест платежной системы успешно завершен',
+      name: 'Payment System Test',
+>>>>>>> b75d880 (tests)
     }
   } catch (error) {
     logger.error('❌ Ошибка в тесте платежной системы:', {
@@ -283,9 +291,16 @@ export const testPaymentSystem = async (): Promise<TestResult> => {
 
     return {
       success: false,
+<<<<<<< HEAD
       name: 'Payment System Test',
       message: error instanceof Error ? error.message : String(error),
       error: error instanceof Error ? error.message : String(error),
+=======
+      message: `Ошибка в тесте платежной системы: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      name: 'Payment System Test',
+>>>>>>> b75d880 (tests)
     }
   }
 }

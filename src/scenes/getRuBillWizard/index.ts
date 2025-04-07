@@ -12,6 +12,16 @@ import {
 import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+=======
+import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/utils/logger'
+import { inngest } from '@/inngest-functions/clients'
+>>>>>>> b75d880 (tests)
+
+>>>>>>> Stashed changes
 import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
 import { createPayment } from '@/core/supabase/createPayment'

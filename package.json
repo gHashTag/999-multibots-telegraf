@@ -51,6 +51,7 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
+    "@inngest/test": "^0.1.6",
     "@swc/cli": "^0.1.57",
     "@swc/core": "^1.2.220",
     "@types/archiver": "^6.0.3",
