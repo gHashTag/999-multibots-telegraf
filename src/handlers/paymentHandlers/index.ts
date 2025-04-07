@@ -10,8 +10,10 @@ import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
 import { createBotByName } from '@/core/bot'
-
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
+
+import { inngest } from '@/inngest-functions/clients'
+
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
   subscription: string
@@ -310,8 +312,25 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       }
     }
 
-    ctx.session.subscription = ''
-    ctx.session.buttons = []
+    logger.info('✅ Обработка успешного платежа:', {
+      description: 'Processing successful payment',
+      telegram_id: ctx.from?.id,
+      amount: stars,
+      inv_id: ctx.message?.successful_payment?.invoice_payload,
+    })
+
+    await inngest.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: String(ctx.from?.id),
+        amount: Number(stars),
+        type: 'money_income',
+        description: `Purchase and sale:: ${stars}`,
+        bot_name: ctx.botInfo.username,
+        inv_id: ctx.message?.successful_payment?.invoice_payload,
+        stars: Number(stars),
+      },
+    })
   } catch (error) {
     logger.error('❌ Ошибка обработки платежа', {
       description: 'Error processing payment',

@@ -4,6 +4,55 @@ import { supabase } from '@/core/supabase'
 import { sendTransactionNotification } from '@/helpers/sendTransactionNotification'
 import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import { v4 as uuidv4 } from 'uuid'
+import {
+  TransactionType,
+  TRANSACTION_DESCRIPTIONS,
+  DETAILED_TRANSACTION_DESCRIPTIONS,
+  SERVICE_KEYS,
+} from '@/interfaces/payments.interface'
+import { TelegramId } from '@/interfaces/telegram.interface'
+
+// Кэш для отслеживания обработанных платежей
+const processedPayments = new Map<string, { time: number }>()
+
+interface PaymentProcessorEvent {
+  data: {
+    telegram_id: TelegramId
+    amount: number
+    type: TransactionType
+    description: string
+    bot_name: string
+    metadata?: Record<string, unknown>
+    operation_id?: string
+    inv_id?: string
+    service_type?: string
+  }
+}
+
+// Функция для получения детального описания транзакции
+function getDetailedDescription(
+  type: TransactionType,
+  service?: string
+): string {
+  if (!service) {
+    return TRANSACTION_DESCRIPTIONS[type]
+  }
+
+  const serviceDescriptions = DETAILED_TRANSACTION_DESCRIPTIONS[type]
+  return serviceDescriptions[service] || serviceDescriptions.default
+}
+
+// Функция для определения сервиса из описания
+function getServiceFromDescription(description: string): string {
+  const serviceKeys = Object.values(SERVICE_KEYS)
+  for (const service of serviceKeys) {
+    if (description.toLowerCase().includes(service.toLowerCase())) {
+      return service
+    }
+  }
+  return 'default'
+}
+
 /**
  * Функция Inngest для обработки платежей с шагами
  */

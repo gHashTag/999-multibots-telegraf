@@ -6,9 +6,15 @@ import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { InngestTestEngine } from '@inngest/test'
+<<<<<<< Updated upstream
 
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
 
+=======
+import { inngest } from '@/inngest-functions/clients'
+import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
+
+>>>>>>> Stashed changes
 // Создаем мок бота
 const mockBot = {
   telegram: {
@@ -51,17 +57,29 @@ const mockBot = {
   },
 } as unknown as Telegraf<MyContext>
 
+<<<<<<< Updated upstream
 // Создаем тестовый движок Inngest
 export const inngestTestEngine = new InngestTestEngine({
   function: paymentProcessor,
 })
 
+=======
+<<<<<<< HEAD
+>>>>>>> Stashed changes
 export interface TestResult {
   success: boolean
   name: string
   error?: string
 }
 
+=======
+// Создаем тестовый движок Inngest
+export const inngestTestEngine = new InngestTestEngine({
+  function: paymentProcessor,
+})
+
+// Конфигурация для тестов
+>>>>>>> b75d880 (tests)
 export const TEST_CONFIG = {
   // Базовая конфигурация
   mockBot,
@@ -69,6 +87,7 @@ export const TEST_CONFIG = {
     bot: mockBot,
   },
 
+<<<<<<< Updated upstream
   // Конфигурация сервера
   server: {
     apiUrl: 'http://localhost:3000',
@@ -153,6 +172,8 @@ export const TEST_CONFIG = {
     ],
   },
 
+=======
+>>>>>>> Stashed changes
   // Тестовые данные для платежей
   payments: {
     success: {
@@ -167,6 +188,7 @@ export const TEST_CONFIG = {
     },
   },
 
+<<<<<<< HEAD
   TIMEOUT: 30000, // 30 seconds
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000, // 1 second
@@ -181,9 +203,16 @@ export const TEST_CONFIG = {
     RETRY: '🔄',
     TEST: '🎯',
     DATA: '💾',
+<<<<<<< Updated upstream
     EVENT: '⚡️',
   },
 
+=======
+    EVENT: '⚡️'
+  }
+=======
+  // Тестовый движок Inngest
+>>>>>>> Stashed changes
   inngestEngine: inngestTestEngine,
 
   // Таймауты
@@ -197,4 +226,8 @@ export const TEST_CONFIG = {
   TEST_OWNER_ID: '123456789',
   TEST_BOT_NAME: 'test_bot',
   TEST_IMAGE_URL: 'https://example.com/test-image.jpg',
+<<<<<<< Updated upstream
+=======
+>>>>>>> b75d880 (tests)
+>>>>>>> Stashed changes
 }
