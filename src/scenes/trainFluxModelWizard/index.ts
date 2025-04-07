@@ -1,10 +1,11 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
-
-import { isValidImage } from '../../helpers/images'
-import { isRussian } from '@/helpers/language'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { MyContext } from '@/interfaces'
+import { isRussian } from '@/helpers'
 import { getBotToken } from '@/handlers'
+import { isValidImage } from '@/helpers/images'
+import { fetch } from 'node-fetch'
+
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
 export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
   'trainFluxModelWizard',
