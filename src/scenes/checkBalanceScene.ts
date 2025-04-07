@@ -34,15 +34,6 @@ checkBalanceScene.enter(async ctx => {
   const costResult = calculateModeCost({ mode })
   const cost = costResult.stars
 
-  logger.info({
-    message: '💰 Расчет стоимости операции',
-    description: 'Cost calculation in balance check scene',
-    mode,
-    cost,
-    currentBalance,
-    telegram_id: ctx.from?.id,
-  })
-
   // Отправляем сообщение о балансе только если стоимость определена и не равна 0
   if (cost !== 0 && !isNaN(cost)) {
     if (!ctx.from?.id) {
