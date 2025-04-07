@@ -102,17 +102,25 @@ export async function generateNeuroImage(
       steps: validNumImages,
     })
 
+    // Создаем уникальный ID операции
+    const operationId = `neuro-photo-payment-${telegram_id}-${Date.now()}-${uuidv4().slice(
+      0,
+      8
+    )}`
+
     // Списываем средства
     const paymentOperation = await inngest.send({
+      id: operationId, // Используем уникальный ID для предотвращения дублирования
       name: 'payment/process',
       data: {
         telegram_id,
-        amount: -Math.abs(cost.stars),
+        amount: -Math.abs(cost.stars), // Используем отрицательное значение для расхода
         type: 'money_expense',
         description: `Payment for generating ${validNumImages} image${
           validNumImages === 1 ? '' : 's'
         } with prompt: ${prompt.substring(0, 30)}...`,
         bot_name: botName,
+        operation_id: operationId, // Передаем ID операции для отслеживания
         metadata: {
           service_type: 'NeuroPhoto',
           prompt_preview: prompt.substring(0, 50),
@@ -248,17 +256,24 @@ export async function generateNeuroImage(
             steps: 1, // возвращаем за одно изображение
           }).stars
 
+          // Создаем уникальный ID для операции возврата
+          const refundOperationId = `refund-${telegram_id}-${Date.now()}-${uuidv4().slice(
+            0,
+            8
+          )}`
+
           await inngest.send({
-            id: `refund-${telegram_id}-${Date.now()}-${uuidv4()}`,
+            id: refundOperationId,
             name: 'payment/process',
             data: {
               telegram_id,
-              amount: refundAmount,
+              amount: refundAmount, // Для возврата используем положительное значение
               type: 'refund',
               description: `Возврат за неудачную генерацию изображения ${
                 i + 1
               }/${validNumImages}`,
               bot_name: botName,
+              operation_id: refundOperationId, // Передаем ID операции
               metadata: {
                 service_type: ModeEnum.NeuroPhoto,
                 error:
