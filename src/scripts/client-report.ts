@@ -2,7 +2,7 @@ import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import fs from 'fs'
 import path from 'path'
-import { formatDate, formatDateTime } from '@/utils/formatDate'
+
 import * as Excel from 'exceljs'
 
 /**
@@ -30,6 +30,14 @@ interface DailyOperationSummary {
   totalSpent: number
   totalImages: number
   byServiceType: Record<string, { count: number; stars: number }>
+}
+
+const formatDate = (date: Date) => {
+  return date.toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
 }
 
 const SERVICE_TYPES_MAP: Record<string, string> = {
