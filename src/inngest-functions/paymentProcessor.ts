@@ -87,6 +87,7 @@ export const paymentProcessor = inngest.createFunction(
         service_type = 'default',
         operation_id = '',
         metadata = {},
+        is_ru = true,
       } = event.data as PaymentProcessEvent
 
       logger.info('🚀 Обработка платежа:', {
@@ -257,6 +258,50 @@ export const paymentProcessor = inngest.createFunction(
             attempted_amount_change: amount,
           })
           throw error
+        }
+      })
+
+      // Отправляем уведомление пользователю о транзакции
+      await step.run('send-notification', async () => {
+        try {
+          // Генерируем уникальный ID операции
+          const operationId = operation_id || uuidv4()
+
+          // Отправляем уведомление о транзакции
+          await sendTransactionNotification({
+            telegram_id: Number(telegram_id),
+            operationId,
+            amount,
+            currentBalance: Number(currentBalance) || 0,
+            newBalance: Number(balanceUpdate.newBalance) || 0,
+            description: description || 'Платеж успешно обработан',
+            isRu: is_ru,
+            bot_name,
+          })
+
+          logger.info('📨 Уведомление о транзакции отправлено:', {
+            description: 'Transaction notification sent',
+            telegram_id,
+            operation_id: operationId,
+            amount,
+            old_balance: currentBalance,
+            new_balance: balanceUpdate.newBalance,
+            bot_name,
+          })
+
+          return { success: true, operationId }
+        } catch (error) {
+          logger.error('⚠️ Ошибка при отправке уведомления:', {
+            description: 'Error sending notification',
+            error: error instanceof Error ? error.message : String(error),
+            telegram_id,
+            amount,
+            type,
+            bot_name,
+          })
+
+          // Не прерываем выполнение, если уведомление не отправлено
+          return { success: false, error: String(error) }
         }
       })
 
