@@ -7,10 +7,10 @@ import {
   createModelTrainingV2,
 } from '@/core/supabase'
 import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
-import { supabase } from '@/core/supabase'
+import { supabase } from '@/services/supabase.service'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
-import fetch from 'node-fetch'
+import { fetch } from 'undici'
 
 import axios from 'axios'
 
