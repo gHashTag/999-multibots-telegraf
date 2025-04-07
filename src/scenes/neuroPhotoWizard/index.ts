@@ -1,4 +1,4 @@
-import { ModelUrl, UserModel } from '../../interfaces'
+import { ModelUrl, UserModel } from '@/interfaces'
 
 import { generateNeuroImage } from '@/services/generateNeuroImage'
 import {
