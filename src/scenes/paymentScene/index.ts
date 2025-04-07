@@ -7,21 +7,14 @@ import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { createPendingPayment } from '@/core/supabase/createPendingPayment'
 import md5 from 'md5'
-import {
-  MERCHANT_LOGIN,
-  PASSWORD1,
-  RESULT_URL2,
-  TEST_PASSWORD1,
-} from '@/config'
-import { generateInvId } from '@/utils/generateInvId'
+import { MERCHANT_LOGIN, PASSWORD1, TEST_PASSWORD1 } from '@/config'
 
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
 const testPassword1 = TEST_PASSWORD1
-const resultUrl2 = RESULT_URL2
 
 // Флаг для использования тестового режима Robokassa
-const useTestMode = true
+const useTestMode = false
 
 /**
  * Генерирует короткий ID для заказа, подходящий для Robokassa
@@ -72,6 +65,7 @@ function generateRobokassaUrl(
     invId,
     isTestMode: isTest,
     usingTestPassword: isTest && testPassword1 ? true : false,
+    mode: isTest ? 'ТЕСТОВЫЙ РЕЖИМ' : 'БОЕВОЙ РЕЖИМ',
   })
 
   // Убеждаемся, что invId - целое число и не слишком длинное
