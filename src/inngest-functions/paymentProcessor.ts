@@ -9,6 +9,7 @@ import { TelegramId } from '@/interfaces/telegram.interface'
 import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
 import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
+import { supabase } from '@/core/supabase'
 
 export interface PaymentProcessEvent {
   telegram_id: TelegramId
@@ -122,6 +123,9 @@ export const paymentProcessor = inngest.createFunction(
               }
             }
 
+            // Формируем уникальный inv_id для транзакции если его нет
+            const inv_id = operation_id || `${telegram_id}-${Date.now()}`
+
             const payment = await createSuccessfulPayment({
               telegram_id,
               amount,
@@ -131,6 +135,7 @@ export const paymentProcessor = inngest.createFunction(
               type,
               bot_name,
               status: 'COMPLETED',
+              inv_id,
               metadata: {
                 ...metadata,
                 service_type,
@@ -163,44 +168,44 @@ export const paymentProcessor = inngest.createFunction(
         }
       )
 
-      // Обновляем баланс пользователя через специальную RPC функцию
+      // Обновляем баланс пользователя - сейчас этот шаг не создает новых записей
+      // Он нужен только чтобы получить актуальный баланс после транзакции
       const balanceUpdate = await step.run('update-user-balance', async () => {
         try {
-          logger.info('🔄 Параметры обновления баланса:', {
-            description: 'Balance update parameters',
+          logger.info('🔄 Получение обновленного баланса:', {
+            description: 'Getting updated balance',
             telegram_id,
+            payment_id: paymentRecord.payment_id,
             amount,
             type,
-            operation_description: description,
             bot_name,
-            payment_method: 'balance',
-            metadata: { payment_id: paymentRecord.payment_id },
-            service_type,
           })
 
-          // Используем новую функцию с проверкой баланса
-          const updateResult = await updateUserBalance({
-            telegram_id,
-            amount:
-              type === 'money_expense' ? -Math.abs(amount) : Math.abs(amount),
-            type,
-            description: description || 'Balance update',
-            bot_name,
-            service_type,
-            metadata: {
-              ...metadata,
-              payment_id: paymentRecord.payment_id,
-            },
-          })
+          // Получаем новый баланс после создания платежа
+          const { data: newBalance, error: balanceError } = await supabase.rpc(
+            'get_user_balance',
+            {
+              user_telegram_id: String(telegram_id),
+            }
+          )
 
-          if (!updateResult.success) {
-            throw updateResult.error || new Error('Balance update failed')
+          if (balanceError) {
+            throw balanceError
           }
+
+          // Обновляем дату последнего платежа пользователя
+          await supabase
+            .from('users')
+            .update({
+              last_payment_date: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('telegram_id', String(telegram_id))
 
           return {
             success: true,
             oldBalance: currentBalance,
-            newBalance: updateResult.balance,
+            newBalance,
           }
         } catch (error) {
           logger.error('❌ Ошибка при обновлении баланса:', {

@@ -12,21 +12,7 @@ export function calculateCostInStars(
 ): CostDetails {
   const rates = version === 'v1' ? conversionRates : conversionRatesV2
 
-  logger.debug({
-    message: '💰 Расчет стоимости операции',
-    description: 'Calculating operation cost',
-    version,
-    steps,
-  })
-
   const baseCost = steps * rates.costPerStepInStars
-
-  logger.debug({
-    message: 'baseCost',
-    description: 'Base cost calculated',
-    version,
-    baseCost,
-  })
 
   return {
     steps,
@@ -89,12 +75,7 @@ export function calculateCost(
   version: 'v1' | 'v2' = 'v1'
 ): CostDetails {
   const rates = version === 'v1' ? conversionRates : conversionRatesV2
-  logger.debug({
-    message: '💰 Расчет стоимости операции',
-    description: 'Calculating operation cost',
-    version,
-    steps,
-  })
+
   const baseCost = steps * rates.costPerStepInStars
   logger.debug({
     message: 'baseCost',
@@ -128,14 +109,6 @@ export function calculateModeCost(
     ? steps * rates.costPerStepInStars
     : getDefaultBaseCost(mode)
 
-  logger.debug({
-    message: '💰 Расчет стоимости операции',
-    description: 'Calculating operation cost',
-    mode,
-    steps,
-    numImages,
-  })
-
   const cost = {
     steps: steps || Math.round(baseCost / rates.costPerStepInStars),
     stars: parseFloat(baseCost.toFixed(2)),
@@ -148,15 +121,6 @@ export function calculateModeCost(
       ).toFixed(2)
     ),
   }
-
-  logger.debug({
-    message: '✅ Стоимость рассчитана',
-    description: 'Cost calculation completed',
-    mode,
-    stars: cost.stars,
-    dollars: cost.dollars,
-    rubles: cost.rubles,
-  })
 
   return cost
 }
