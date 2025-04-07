@@ -1,12 +1,22 @@
-import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
+import {
+  MERCHANT_LOGIN,
+  PASSWORD1,
+  RESULT_URL2,
+  TEST_PASSWORD1,
+  isDev,
+} from '@/config'
 
 import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'
 
 export const merchantLogin = MERCHANT_LOGIN
 export const password1 = PASSWORD1
+export const testPassword1 = TEST_PASSWORD1
 export const resultUrl2 = RESULT_URL2 || ''
 export const description = 'Покупка звезд'
+
+// Флаг для использования тестового режима Robokassa
+export const useTestMode = isDev
 
 export const subscriptionTitles = (isRu: boolean) => ({
   neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
@@ -14,26 +24,68 @@ export const subscriptionTitles = (isRu: boolean) => ({
   neuroblogger: isRu ? '🤖 НейроБлогер' : '🤖 NeuroBlogger',
 })
 
+/**
+ * Генерирует короткий ID для заказа, подходящий для Robokassa
+ * Создает ID заказа на основе времени и случайного числа, но с меньшей длиной
+ * @param userId ID пользователя
+ * @param amount Сумма заказа
+ * @returns Короткий ID заказа (до 9 цифр)
+ */
+export function generateShortInvId(
+  userId: string | number,
+  amount: number
+): number {
+  try {
+    // Берем последние 5 цифр timestamp
+    const timestamp = Date.now() % 100000
+    // Случайное число от 1000 до 9999
+    const random = Math.floor(Math.random() * 9000) + 1000
+    // Объединяем в одно число и возвращаем как целое число
+    return parseInt(`${timestamp}${random}`)
+  } catch (error) {
+    console.error('❌ Ошибка при генерации короткого inv_id', {
+      description: 'Error generating short inv_id',
+      error,
+      userId,
+      amount,
+    })
+    // В случае ошибки возвращаем случайное число до 1 миллиона
+    return Math.floor(Math.random() * 1000000) + 1
+  }
+}
+
 export const generateSignature = (
   merchantLogin: string,
   outSum: number,
   invId: number,
-  resultUrl2: string,
-  password1: string
+  password1: string,
+  isTest: boolean = useTestMode
 ): string => {
-  console.log('🔍 Generating signature with parameters:')
-  console.log('MerchantLogin:', merchantLogin)
-  console.log('OutSum:', outSum)
-  console.log('InvId:', invId)
-  console.log('ResultUrl2:', resultUrl2)
+  // Если включен тестовый режим и доступен тестовый пароль, используем его
+  const actualPassword = isTest && testPassword1 ? testPassword1 : password1
 
-  const signatureString = `${merchantLogin}:${outSum}:${invId}:${encodeURIComponent(
-    resultUrl2
-  )}:${password1}`
-  console.log('Signature string:', signatureString)
+  console.log('🔍 Формирование подписи для Robokassa', {
+    description: 'Generating Robokassa signature',
+    merchantLogin,
+    outSum,
+    invId,
+    isTestMode: isTest,
+    usingTestPassword: isTest && testPassword1 ? true : false,
+    mode: isTest ? 'ТЕСТОВЫЙ РЕЖИМ' : 'БОЕВОЙ РЕЖИМ',
+  })
+
+  // Корректное формирование подписи без resultUrl2
+  const signatureString = `${merchantLogin}:${outSum}:${invId}:${actualPassword}`
+  console.log('📝 Строка для подписи:', {
+    description: 'Signature string',
+    signatureString,
+  })
 
   const signature = md5(signatureString).toUpperCase()
-  console.log('Generated signature:', signature)
+  console.log('✅ Подпись сгенерирована:', {
+    description: 'Generated signature',
+    signature,
+  })
 
   return signature
 }
@@ -43,42 +95,58 @@ export const getInvoiceId = async (
   outSum: number,
   invId: number,
   description: string,
-  password1: string
+  password1: string,
+  isTest: boolean = useTestMode
 ): Promise<string> => {
-  console.log('🚀 Generating invoice with parameters:')
-  console.log('MerchantLogin:', merchantLogin)
-  console.log('OutSum:', outSum)
-  console.log('InvId:', invId)
-  console.log('Description:', description)
-  console.log('ResultUrl2:', resultUrl2)
+  console.log('🚀 Формирование счёта с параметрами:', {
+    message: 'Generating invoice with parameters',
+    merchantLogin,
+    outSum,
+    invId,
+    isTestMode: isTest,
+  })
+
+  // Убеждаемся, что invId - целое число и не слишком длинное
+  if (!Number.isInteger(invId) || invId > 2147483647) {
+    console.error('❌ Ошибка: InvId некорректный, будет преобразован', {
+      description: 'Error: InvId is incorrect, will be converted',
+      originalInvId: invId,
+    })
+    // Преобразуем в целое число если это не так и ограничиваем длину
+    invId = Math.floor(invId % 1000000)
+  }
 
   const signatureValue = generateSignature(
     merchantLogin,
     outSum,
     invId,
-    resultUrl2,
-    password1
+    password1,
+    isTest
   )
-  console.log('Using signature:', signatureValue)
 
+  // Формируем базовый URL Robokassa
   const baseUrl = 'https://auth.robokassa.ru/Merchant/Index.aspx'
 
-  const params = {
+  // Создаем параметры запроса - ВАЖНО: без ResultUrl2
+  const params = new URLSearchParams({
     MerchantLogin: merchantLogin,
     OutSum: outSum.toString(),
     InvId: invId.toString(),
     Description: description,
     SignatureValue: signatureValue,
-    ResultUrl2: resultUrl2,
+  })
+
+  // Добавляем параметр IsTest только если включен тестовый режим
+  if (isTest) {
+    params.append('IsTest', '1')
   }
 
-  const searchParams = new URLSearchParams()
-  for (const [key, value] of Object.entries(params)) {
-    searchParams.append(key, value)
-  }
-
-  const url = `${baseUrl}?${searchParams.toString()}`
-  console.log('Generated URL:', url)
+  const url = `${baseUrl}?${params.toString()}`
+  console.log('✅ URL сформирован для Robokassa:', {
+    message: 'Generated URL for Robokassa',
+    testMode: isTest,
+    paymentUrl: url,
+  })
 
   return url
 }

@@ -40,6 +40,8 @@ export const {
   OPENAI_API_KEY,
   MERCHANT_LOGIN,
   PASSWORD1,
+  PASSWORD2,
+  RESULT_URL,
   RESULT_URL2,
   PINATA_JWT,
   PINATA_GATEWAY,
@@ -48,6 +50,8 @@ export const {
   INNGEST_API_KEY,
   INNGEST_URL,
   GLAMA_API_KEY,
+  TEST_PASSWORD1,
+  TEST_PASSWORD2,
 } = process.env
 // Дополнительные константы
 export const CREDENTIALS = process.env.CREDENTIALS === 'true'

@@ -7,33 +7,108 @@ import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { createPendingPayment } from '@/core/supabase/createPendingPayment'
 import md5 from 'md5'
-import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
-import { generateInvId } from '@/utils/generateInvId'
+import { MERCHANT_LOGIN, PASSWORD1, TEST_PASSWORD1, isDev } from '@/config'
 
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
-const resultUrl2 = RESULT_URL2
+const testPassword1 = TEST_PASSWORD1
+
+// Флаг для использования тестового режима Robokassa
+const useTestMode = isDev
+
+/**
+ * Генерирует короткий ID для заказа, подходящий для Robokassa
+ * Создает ID заказа на основе времени и случайного числа, но с меньшей длиной
+ * @param userId ID пользователя
+ * @param amount Сумма заказа
+ * @returns Короткий ID заказа (до 9 цифр)
+ */
+function generateShortInvId(userId: string | number, amount: number): number {
+  try {
+    // Берем последние 5 цифр timestamp
+    const timestamp = Date.now() % 100000
+    // Случайное число от 1000 до 9999
+    const random = Math.floor(Math.random() * 9000) + 1000
+    // Объединяем в одно число и возвращаем как целое число
+    return parseInt(`${timestamp}${random}`)
+  } catch (error) {
+    console.error('❌ Ошибка при генерации короткого inv_id', {
+      description: 'Error generating short inv_id',
+      error,
+      userId,
+      amount,
+    })
+    // В случае ошибки возвращаем случайное число до 1 миллиона
+    return Math.floor(Math.random() * 1000000) + 1
+  }
+}
 
 function generateRobokassaUrl(
   merchantLogin: string,
   outSum: number,
   invId: number,
   description: string,
-  password1: string
+  password1: string,
+  isTest: boolean = useTestMode
 ): string {
-  if (!resultUrl2 || !merchantLogin || !password1) {
-    throw new Error('resultUrl2 or merchantLogin or password1 is not defined')
+  if (!merchantLogin || !password1) {
+    throw new Error('merchantLogin or password1 is not defined')
   }
-  const signatureValue = md5(
-    `${merchantLogin}:${outSum}:${invId}:${encodeURIComponent(
-      resultUrl2
-    )}:${password1}`
-  ).toUpperCase()
-  const url = `https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=${merchantLogin}&OutSum=${outSum}&InvId=${invId}&Description=${encodeURIComponent(
-    description
-  )}&SignatureValue=${signatureValue}&ResultUrl2=${encodeURIComponent(
-    resultUrl2
-  )}`
+
+  // Если включен тестовый режим и доступен тестовый пароль, используем его
+  const actualPassword = isTest && testPassword1 ? testPassword1 : password1
+
+  console.log('🔍 Формирование URL для Robokassa', {
+    description: 'Generating Robokassa URL',
+    merchantLogin,
+    outSum,
+    invId,
+    isTestMode: isTest,
+    usingTestPassword: isTest && testPassword1 ? true : false,
+    mode: isTest ? 'ТЕСТОВЫЙ РЕЖИМ' : 'БОЕВОЙ РЕЖИМ',
+  })
+
+  // Убеждаемся, что invId - целое число и не слишком длинное
+  if (!Number.isInteger(invId) || invId > 2147483647) {
+    console.error('❌ Ошибка: InvId некорректный, будет преобразован', {
+      description: 'Error: InvId is incorrect, will be converted',
+      originalInvId: invId,
+    })
+    // Преобразуем в целое число если это не так и ограничиваем длину
+    invId = Math.floor(invId % 1000000)
+  }
+
+  const signatureString = `${merchantLogin}:${outSum}:${invId}:${actualPassword}`
+  console.log('📝 Строка для подписи:', {
+    description: 'Signature string',
+    signatureString,
+  })
+
+  const signatureValue = md5(signatureString).toUpperCase()
+
+  // Формируем базовый URL Robokassa
+  const baseUrl = 'https://auth.robokassa.ru/Merchant/Index.aspx'
+
+  // Создаем параметры запроса - ВАЖНО: без ResultUrl2
+  const params = new URLSearchParams({
+    MerchantLogin: merchantLogin,
+    OutSum: outSum.toString(),
+    InvId: invId.toString(),
+    Description: description,
+    SignatureValue: signatureValue,
+  })
+
+  // Добавляем параметр IsTest только если включен тестовый режим
+  if (isTest) {
+    params.append('IsTest', '1')
+  }
+
+  const url = `${baseUrl}?${params.toString()}`
+  console.log('✅ URL сформирован для Robokassa:', {
+    message: 'URL generated for Robokassa',
+    testMode: isTest,
+    paymentUrl: url,
+  })
 
   return url
 }
@@ -45,25 +120,39 @@ async function getInvoiceId(
   description: string,
   password1: string
 ): Promise<string> {
-  console.log('Start getInvoiceId', {
+  console.log('🚀 Запуск getInvoiceId', {
+    description: 'Starting getInvoiceId',
     merchantLogin,
     outSum,
     invId,
-    description,
-    password1,
+    useTestMode,
   })
   try {
+    // Используем тестовый пароль для тестового режима
+    const actualPassword =
+      useTestMode && testPassword1 ? testPassword1 : password1
+
+    console.log('🔑 Выбран пароль для Robokassa', {
+      description: 'Selected password for Robokassa',
+      isTestMode: useTestMode,
+      usingTestPassword: useTestMode && testPassword1 ? true : false,
+    })
+
     const response = generateRobokassaUrl(
       merchantLogin,
       outSum,
       invId,
       description,
-      password1
+      actualPassword,
+      useTestMode // Передаем флаг тестового режима
     )
 
     return response
   } catch (error) {
-    console.error('Error in getInvoiceId:', error)
+    console.error('❌ Ошибка в getInvoiceId:', {
+      description: 'Error in getInvoiceId',
+      error,
+    })
     throw error
   }
 }
@@ -100,7 +189,7 @@ paymentScene.enter(async ctx => {
       }
 
       const userId = ctx.from.id
-      const invId = generateInvId(userId, amount)
+      const invId = generateShortInvId(userId, amount)
       const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
       const numericInvId = Number(invId)
 
@@ -259,7 +348,7 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
 
   try {
     const userId = ctx.from.id
-    const invId = generateInvId(userId, amount)
+    const invId = generateShortInvId(userId, amount)
     const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
     const numericInvId = Number(invId)
 
