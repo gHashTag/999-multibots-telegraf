@@ -8,7 +8,7 @@ import {
   httpRequestCommand,
 } from './commands'
 import { privateChat } from './middlewares/privateChat'
-
+import { zepMemoryMiddleware } from './middlewares/zepMemory'
 import {
   avatarBrainWizard,
   textToVideoWizard,
@@ -807,6 +807,9 @@ export function registerCommands({
       await ctx.answerCbQuery('❌ Ошибка при отмене тренировки')
     }
   })
+
+  composer.use(zepMemoryMiddleware)
+bot.use(zepMemoryMiddleware)
 
   // myComposer.on('text', (ctx: MyContext) => {
   //   console.log('CASE: text')
