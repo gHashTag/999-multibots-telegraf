@@ -14,72 +14,14 @@ import { InngestTestEngine } from '../inngest-test-engine'
 import { PaymentProcessEvent } from '@/inngest-functions/paymentProcessor'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { inngest } from '@/inngest-functions/clients'
+import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
 
 // Создаем экземпляр тестового движка
 const inngestTestEngine = new InngestTestEngine()
 
 // Регистрируем обработчик платежей
-inngestTestEngine.register('payment/process', async ({ 
-  event,
-  step 
-}: {
-  event: { data: PaymentProcessEvent['data'] },
-  step: unknown
-}) => {
-  const { telegram_id, amount, type, description, bot_name, service_type } = event.data as {
-    telegram_id: string
-    amount: number
-    type: TransactionType
-    description: string
-    bot_name: string
-    service_type: string
-  }
-
-  logger.info('🚀 Начало обработки платежа', {
-    description: 'Starting payment processing',
-    telegram_id,
-    amount,
-    type,
-    bot_name,
-    service_type,
-  })
-
-  try {
-    // Создаем запись о платеже
-    const payment = await createSuccessfulPayment({
-      telegram_id,
-      amount,
-      stars: amount,
-      type,
-      description,
-      bot_name,
-      service_type,
-      payment_method: 'balance',
-      status: 'COMPLETED',
-      inv_id: event.data.inv_id,
-    })
-
-    logger.info('✅ Платеж создан', {
-      description: 'Payment created',
-      payment_id: payment.payment_id,
-      telegram_id,
-      amount,
-      type,
-    })
-
-    return { success: true, payment }
-  } catch (error) {
-    logger.error('❌ Ошибка при обработке платежа', {
-      description: 'Error processing payment',
-      telegram_id,
-      amount,
-      type,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    })
-    throw error
-  }
-})
+inngestTestEngine.registerFunction(paymentProcessor)
 
 const waitForPaymentCompletion = async (inv_id: string, timeout = 30000) => {
   const startTime = Date.now()
@@ -162,7 +104,7 @@ export async function runPaymentTests(): Promise<TestResult> {
 
     // Тест 2: Пополнение баланса (STARS)
     const addInv_id = uuid()
-    await inngestTestEngine.send({
+    await inngest.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,
@@ -193,7 +135,7 @@ export async function runPaymentTests(): Promise<TestResult> {
 
     // Тест 3: Списание средств
     const spendInv_id = uuid()
-    await inngestTestEngine.send({
+    await inngest.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,
