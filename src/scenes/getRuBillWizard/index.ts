@@ -12,6 +12,7 @@ import {
 import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
@@ -192,6 +193,6 @@ const generateInvoiceStep = async (ctx: MyContext) => {
 }
 
 export const getRuBillWizard = new WizardScene(
-  'getRuBillWizard',
+  ModeEnum.GetRuBillWizard,
   generateInvoiceStep
 )

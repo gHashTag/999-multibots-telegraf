@@ -4,6 +4,8 @@ import { handleHelpCancel } from '@/handlers'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { WizardScene } from 'telegraf/scenes'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
+import { ModeEnum } from '@/price/helpers/modelsCost'
+
 const selectPaymentOptionStep = async (ctx: MyContext) => {
   console.log('CASE 3: selectPaymentOptionStep')
   const isRu = isRussian(ctx)
@@ -47,6 +49,6 @@ const selectPaymentOptionStep = async (ctx: MyContext) => {
 }
 
 export const getEmailWizard = new WizardScene(
-  'getEmailWizard',
+  ModeEnum.EmailWizard,
   selectPaymentOptionStep
 )

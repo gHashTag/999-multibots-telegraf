@@ -59,6 +59,7 @@ export enum ModeEnum {
   GetRuBillWizard = 'get_ru_bill_wizard',
   SubscriptionScene = 'subscription_scene',
   CreateUserScene = 'create_user_scene',
+  StartScene = 'start_scene',
 }
 
 export interface CostCalculationParams {

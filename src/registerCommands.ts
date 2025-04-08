@@ -119,7 +119,7 @@ export function registerCommands({
   bot: Telegraf<MyContext>
   composer: Composer<MyContext>
 }) {
-  bot.use(session({ defaultSession }))
+  bot.use(session())
   bot.use(stage.middleware())
   bot.use(composer.middleware())
   bot.use(privateChat)
@@ -236,7 +236,7 @@ export function registerCommands({
   })
 
   composer.command('help', async ctx => {
-    await ctx.scene.enter('step0')
+    await ctx.scene.enter(ModeEnum.Step0)
   })
 
   composer.command('neuro_coder', async ctx => {
@@ -680,4 +680,34 @@ export function registerCommands({
 
   composer.use(inngestCommand)
   bot.use(inngestCommand)
+
+  // Add callback query handlers
+  bot.action('neuro_photo', async (ctx) => {
+    console.log('CASE: neuro_photo callback')
+    ctx.session.mode = ModeEnum.NeuroPhotoV2
+    await ctx.scene.enter(ModeEnum.SelectNeuroPhoto)
+  })
+
+  bot.action('improve_prompt', async (ctx) => {
+    console.log('CASE: improve_prompt callback')
+    await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
+  })
+
+  bot.action('change_size', async (ctx) => {
+    console.log('CASE: change_size callback')
+    await ctx.scene.enter(ModeEnum.SizeWizard)
+  })
+
+  bot.action('help', async (ctx) => {
+    console.log('CASE: help callback')
+    ctx.session.mode = ModeEnum.Help
+    await ctx.scene.enter(ModeEnum.HelpScene)
+  })
+
+  bot.action('main_menu', async (ctx) => {
+    console.log('CASE: main_menu callback')
+    ctx.session.mode = ModeEnum.MainMenu
+    await ctx.scene.enter(ModeEnum.MainMenu)
+  })
 }
+

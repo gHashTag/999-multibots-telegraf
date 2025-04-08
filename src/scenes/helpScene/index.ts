@@ -20,7 +20,7 @@ import { isRussian } from '@/helpers'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
-export const helpScene = new Scenes.BaseScene<MyContext>('helpScene')
+const helpScene = new Scenes.BaseScene<MyContext>('helpScene')
 
 helpScene.enter(async ctx => {
   const mode = ctx.session.mode
@@ -174,14 +174,22 @@ helpScene.enter(async ctx => {
         })
         break
       case ModeEnum.Help:
-        ctx.scene.enter('step0')
+        ctx.scene.enter(ModeEnum.Step0)
         break
       default:
-        ctx.scene.enter('step0')
+        ctx.scene.enter(ModeEnum.Step0)
         break
     }
   } catch (error) {
     console.error('Error in helpScene:', error)
     await ctx.reply('Произошла ошибка. Пожалуйста, попробуйте снова.')
   }
+})
+
+helpScene.command('start', async ctx => {
+  ctx.scene.enter(ModeEnum.Step0)
+})
+
+helpScene.command('help', async ctx => {
+  ctx.scene.enter(ModeEnum.Step0)
 })

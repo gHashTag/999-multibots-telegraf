@@ -8,6 +8,9 @@ import {
 import { mainMenuButton } from '@/menu/mainMenu'
 import { BOT_URLS } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { isRussian } from '@/helpers/language'
+import { mainMenu } from '@/menu'
+
 async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
   const botName = ctx.botInfo.username
   let postUrl = ''
@@ -43,7 +46,7 @@ async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
 }
 
 export const startScene = new Scenes.WizardScene<MyContext>(
-  'startScene',
+  ModeEnum.StartScene,
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
     const { translation, url } = await getTranslation({

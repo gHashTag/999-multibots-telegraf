@@ -6,7 +6,7 @@ import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
 
-import { WizardScene } from 'telegraf/scenes'
+import { Scenes } from 'telegraf'
 
 import { handleMenu } from '@/handlers'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
@@ -172,7 +172,7 @@ const menuNextStep = async (ctx: MyContext) => {
     console.log('text 1', text)
     if (text === 'unlock_features') {
       console.log('CASE: 🔓 Разблокировать все функции')
-      await ctx.scene.enter('subscriptionScene')
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
@@ -185,8 +185,8 @@ const menuNextStep = async (ctx: MyContext) => {
   ctx.scene.leave()
 }
 
-export const menuScene = new WizardScene(
-  'menuScene',
+export const menuScene = new Scenes.WizardScene(
+  ModeEnum.MainMenu,
   menuCommandStep,
   menuNextStep
 )

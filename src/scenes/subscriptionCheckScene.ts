@@ -5,6 +5,7 @@ import { verifySubscription } from '@/middlewares/verifySubscription'
 import { getSubScribeChannel } from '@/core/supabase'
 import { isDev } from '@/helpers'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { Scenes } from 'telegraf'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
   console.log('CASE: subscriptionCheckStep', ctx.from)
@@ -28,7 +29,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   if (subscription !== 'stars') {
     console.log('CASE: subscription not stars')
     if (isDev) {
-      return ctx.scene.enter('menuScene')
+      return ctx.scene.enter(ModeEnum.MainMenu)
     }
     const SUBSCRIBE_CHANNEL_ID = await getSubScribeChannel(ctx)
     const language_code = existingUser.language_code
@@ -39,7 +40,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
           ? '❌ Не удалось получить ID канала подписки'
           : '❌ Failed to get subscribe channel ID'
       )
-      return ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
     }
     // Проверяем подписку
     const isSubscribed = await verifySubscription(
@@ -48,22 +49,24 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
       SUBSCRIBE_CHANNEL_ID
     )
     if (!isSubscribed) {
-      // Если подписка не существует, то выходим из сцены
+      // Если подписка не существует, то переходим в главное меню
       console.log('CASE: not subscribed')
-      // Если подписка существует, то переходим к стартовой сцене
-      console.log('CASE: isSubscribed', isSubscribed)
-      return ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
     }
   }
 
-  if (ctx.session.mode === 'main_menu') {
-    return ctx.scene.enter('menuScene')
+  // If we reach here, subscription is valid
+  if (ctx.session.mode === ModeEnum.MainMenu) {
+    return ctx.scene.enter(ModeEnum.MainMenu)
   } else {
-    return ctx.scene.enter('startScene')
+    // If we have a target scene in session, go there
+    const targetScene = ctx.session.targetScene || ModeEnum.StartScene
+    delete ctx.session.targetScene // Clear the target scene after use
+    return ctx.scene.enter(targetScene)
   }
 }
 
-export const subscriptionCheckScene = new WizardScene(
-  ModeEnum.SubscriptionCheckScene,
-  subscriptionCheckStep
-)
+export const subscriptionCheckScene = new Scenes.BaseScene<MyContext>(ModeEnum.SubscriptionCheckScene)
+
+// Use the single subscription check logic
+subscriptionCheckScene.enter(subscriptionCheckStep)

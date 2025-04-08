@@ -96,6 +96,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   invoiceURL: string
   buttons: Button[]
   text?: string
+  targetScene?: Mode
   selectedPayment: {
     amount: number
     stars: number
