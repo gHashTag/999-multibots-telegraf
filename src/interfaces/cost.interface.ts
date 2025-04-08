@@ -1,5 +1,7 @@
 import { VideoModel } from '@/interfaces'
 import { ModeEnum } from '../price/helpers/modelsCost'
+import { ServiceEnum } from '@/types/services'
+import { SceneEnum } from '@/types/scenes'
 
 export interface VideoModelConfig {
   name: VideoModel
@@ -47,6 +49,6 @@ export type AdditionalMode =
   | 'invite'
   | 'help'
 
-export type Mode = ModeEnum | AdditionalMode
+export type Mode = ServiceEnum | SceneEnum | string
 
 export type ModeCosts = Required<Record<Mode, number>>

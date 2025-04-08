@@ -53,6 +53,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       })
     }
 
+    // Store buttons in session for later use
     ctx.session.buttons = buttonsWithAdmin
 
     // Формируем клавиатуру на основе кнопок

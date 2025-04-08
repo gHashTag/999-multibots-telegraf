@@ -45,10 +45,15 @@ const fileFormat = winston.format.combine(
 
 // Create transports
 const transports = [
-  // Console transport
-  new winston.transports.Console({
-    format: consoleFormat,
-  }),
+  // Console transport for non-production environments
+  ...(process.env.NODE_ENV !== 'production' ? [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple(),
+      ),
+    })
+  ] : []),
   // Error log file transport
   new winston.transports.File({
     filename: path.join('logs', 'error.log'),
@@ -62,21 +67,15 @@ const transports = [
   }),
 ];
 
-// Create logger instance
+// Create a logger instance
 export const Logger = winston.createLogger({
   level: level(),
   levels,
+  format: winston.format.combine(
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    winston.format.errors({ stack: true }),
+    winston.format.splat(),
+    winston.format.json()
+  ),
   transports,
 });
-
-// If not in production, log to console with colors
-if (process.env.NODE_ENV !== 'production') {
-  Logger.add(
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple(),
-      ),
-    }),
-  );
-}

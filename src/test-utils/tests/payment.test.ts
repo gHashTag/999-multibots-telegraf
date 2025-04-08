@@ -16,7 +16,7 @@ import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment
 import { TransactionType } from '@/interfaces/payments.interface'
 import { inngest } from '@/inngest-functions/clients'
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
-import { inngestTestEngine } from '../inngest'
+import { inngestTestEngine as baseInngestTestEngine } from '../inngest'
 
 // Создаем экземпляр тестового движка
 const inngestTestEngine = new InngestTestEngine()
