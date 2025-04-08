@@ -166,8 +166,8 @@ export class ZepClient implements IZepClient {
     const metrics = this.cache.getMetrics()
     return {
       cacheSize: metrics.size,
-      hitRate: metrics.hitRate,
-      missRate: metrics.missRate
+      hitRate: metrics.hits / (metrics.hits + metrics.misses),
+      missRate: metrics.misses / (metrics.hits + metrics.misses)
     }
   }
 
