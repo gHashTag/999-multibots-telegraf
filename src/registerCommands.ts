@@ -336,7 +336,8 @@ export function registerCommands({
       level: levels[5].title_ru
     })
     ctx.session.mode = ModeEnum.ChatWithAvatar
-    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    // Проверяем баланс и если всё в порядке, входим в сцену чата
+    await ctx.scene.enter(ModeEnum.ChatWithAvatar)
   })
 
   composer.hears([levels[6].title_ru, levels[6].title_en], async ctx => {
