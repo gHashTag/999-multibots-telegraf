@@ -1,5 +1,6 @@
 import { Inngest } from 'inngest'
-import { logger } from '@/utils/logger'
+import { TestingClient } from 'inngest/test'
+import { Logger as logger } from '@/utils/logger'
 
 class InngestServiceClass {
   private inngest: Inngest
@@ -40,3 +41,14 @@ class InngestServiceClass {
 }
 
 export const InngestService = new InngestServiceClass()
+
+// Create test engine instance
+export const inngestTestEngine = new TestingClient({
+  id: 'test-engine',
+})
+
+// Initialize Inngest client for testing
+export const inngest = new Inngest({ 
+  id: 'test-client',
+  middleware: [inngestTestEngine.middleware()]
+})

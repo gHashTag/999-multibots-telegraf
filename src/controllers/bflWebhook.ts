@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import { notifyTrainingSuccess } from '@/core/supabase/notifyTrainingSuccess'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 export class WebhookBFLController {
   public async handleWebhookBFL(req: Request, res: Response): Promise<void> {

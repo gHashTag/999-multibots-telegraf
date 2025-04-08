@@ -7,7 +7,7 @@ import { getUserByTelegramIdString, setModel } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.SelectModelWizard,

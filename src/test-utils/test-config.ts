@@ -2,7 +2,7 @@
  * Конфигурация для тестирования различных компонентов системы
  */
 
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 

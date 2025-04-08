@@ -2,7 +2,7 @@
  * Скрипт для тестирования вебхуков BFL
  */
 import { BFLWebhookTester } from './webhook-tests'
-import { logger } from '../utils/logger'
+import { Logger as logger } from '../utils/logger'
 
 // Интерфейс для результатов теста (должен совпадать с интерфейсом в webhook-tests.ts)
 interface TestResult {

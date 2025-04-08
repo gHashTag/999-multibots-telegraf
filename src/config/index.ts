@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import path from 'path'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 logger.info('🔍 Загрузка переменных окружения:', {
   description: 'Loading environment variables',

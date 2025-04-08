@@ -1,7 +1,7 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '.'
 import { ModelTraining } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 export async function getLatestUserModel(
   telegram_id: TelegramId,

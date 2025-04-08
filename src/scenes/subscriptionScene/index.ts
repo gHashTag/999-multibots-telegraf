@@ -7,16 +7,21 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { isValidPaymentSubscription } from '@/interfaces/payments.interface'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
+import { TranslationButton } from '@/interfaces/supabase.interface'
+import { TranslationCategory } from '@/interfaces/translations.interface'
+
+interface KeyboardButton {
+  text: string
+  callback_data: string
+  remove_keyboard: boolean
+}
 
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.SubscriptionScene,
   async ctx => {
     console.log('CASE: subscriptionScene', ctx)
     const isRu = isRussian(ctx)
-    const { translation, buttons } = await getTranslation({
-      key: 'subscriptionScene',
-      ctx,
-    })
+    const { translation, buttons } = await getTranslation('subscriptionScene', ctx, undefined, TranslationCategory.SPECIFIC)
     console.log('buttons!!!', buttons)
 
     // Проверяем, является ли пользователь администратором
@@ -35,23 +40,24 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Добавляем тестовый план для администраторов
+    const buttonsWithAdmin = [...(buttons || [])]
     if (adminIds.includes(parseInt(telegramId))) {
-      buttons.push({
-        row: 4, // Укажите номер строки, где хотите разместить тестовый план
-        text: '🧪 Тест', // Название тестового плана
-        en_price: 1, // Тестовая цена в долларах
-        ru_price: 1, // Тестовая цена в рублях
+      buttonsWithAdmin.push({
+        row: 4,
+        text: '🧪 Тест',
+        en_price: 1,
+        ru_price: 1,
         description: 'Тестовый план для проверки функционала.',
-        stars_price: 1, // Количество звезд для тестового плана
-        callback_data: 'neurotester', // Уникальный идентификатор для тестового плана
+        stars_price: 1,
+        callback_data: 'neurotester',
       })
     }
 
-    ctx.session.buttons = buttons
+    ctx.session.buttons = buttonsWithAdmin
 
     // Формируем клавиатуру на основе кнопок
-    const keyboardRows: any[] = []
-    buttons.forEach(button => {
+    const keyboardRows: KeyboardButton[][] = []
+    buttonsWithAdmin.forEach(button => {
       const row = button.row || 0
       if (!keyboardRows[row]) {
         keyboardRows[row] = []
@@ -80,64 +86,50 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       },
     ])
 
-    const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
-
+    // Отправляем сообщение с клавиатурой
     await ctx.reply(translation, {
-      reply_markup: inlineKeyboard.reply_markup,
-      parse_mode: 'Markdown',
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard(cleanedKeyboardRows),
     })
 
     return ctx.wizard.next()
   },
   async (ctx: MyContext) => {
-    console.log('CASE: subscriptionScene.next', ctx)
-    if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
-      const text = ctx.update.callback_query.data
-      console.log('text', text)
-
-      // Находим выбранный тариф
-      const selectedPayment = paymentOptionsPlans.find(
-        option => option.subscription === text
-      )
-
-      if (selectedPayment) {
-        console.log('Selected payment option:', selectedPayment)
-        const subscription = selectedPayment.subscription
-        if (isValidPaymentSubscription(subscription)) {
-          ctx.session.subscription = subscription
-          ctx.session.selectedPayment = {
-            amount: selectedPayment.amount,
-            stars: Number(selectedPayment.stars),
-            subscription: subscription as LocalSubscription,
-          }
-          return ctx.scene.enter(ModeEnum.PaymentScene)
-        } else {
-          console.warn(
-            'Subscription type not supported for payment:',
-            subscription
-          )
-          const isRu = isRussian(ctx)
-          await ctx.reply(
-            isRu
-              ? 'Этот тип подписки не поддерживает оплату. Пожалуйста, выберите другой вариант.'
-              : 'This subscription type does not support payment. Please select another option.'
-          )
-        }
-      } else if (text === 'mainmenu') {
-        console.log('CASE: 🏠 Главное меню')
-        return ctx.scene.enter(ModeEnum.MainMenu)
-      } else {
-        console.warn('Unknown subscription type:', text)
-        const isRu = isRussian(ctx)
-        await ctx.reply(
-          isRu
-            ? 'Неизвестный тип подписки. Пожалуйста, выберите другой вариант.'
-            : 'Unknown subscription type. Please select another option.'
-        )
-      }
-    } else {
-      handleMenu(ctx)
+    if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
+      await ctx.reply('❌ Invalid callback query')
       return ctx.scene.leave()
     }
+
+    const data = ctx.callbackQuery.data
+    if (data === 'mainmenu') {
+      await handleMenu(ctx)
+      return ctx.scene.leave()
+    }
+
+    const selectedButton = ctx.session.buttons?.find(
+      (button: TranslationButton) => button.callback_data === data
+    )
+
+    if (!selectedButton) {
+      await ctx.reply('❌ Invalid subscription option')
+      return ctx.scene.leave()
+    }
+
+    const isRu = isRussian(ctx)
+    const price = isRu ? selectedButton.ru_price : selectedButton.en_price
+
+    // Store the full subscription details in the session
+    ctx.session.selectedPayment = {
+      amount: price,
+      stars: selectedButton.stars_price,
+      subscription: data as LocalSubscription
+    }
+
+    if (!isValidPaymentSubscription(data as LocalSubscription)) {
+      await ctx.reply('❌ Invalid subscription data')
+      return ctx.scene.leave()
+    }
+
+    await ctx.scene.enter(isRu ? 'getRuBillWizard' : 'getEnBillWizard')
   }
 )

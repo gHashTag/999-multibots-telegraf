@@ -1,4 +1,4 @@
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TestResult } from './types'
 import { runAllPaymentTests } from './tests/payment.test'
 import { runBalanceTests } from './tests/balance.test'

@@ -1,4 +1,4 @@
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TestResult } from '../types'
 import { VIDEO_MODELS_CONFIG, VideoModelConfig } from '@/menu/videoModelMenu'
 import { TEST_CONFIG } from '../test-config'

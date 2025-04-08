@@ -4,7 +4,7 @@ dotenv.config()
 
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TEST_CONFIG } from '@/test-utils/test-config'
 import { NODE_ENV } from '@/config'
 import { getBotGroupFromAvatars } from '@/core/supabase'

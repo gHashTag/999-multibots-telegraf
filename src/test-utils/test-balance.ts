@@ -1,5 +1,5 @@
 import { supabase } from '@/core/supabase'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 async function testAddStarsToBalance() {
   const testTelegramId = 123456789

@@ -1,5 +1,5 @@
 import { TestResult } from './types'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { MyContext } from '@/interfaces'
 import { ZepClient } from '@/core/zep'
 

@@ -1,6 +1,6 @@
 import { isRussian } from '@/helpers'
 import { Context } from 'telegraf'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 import { inngest } from '@/inngest-functions/clients'
 

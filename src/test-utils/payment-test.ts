@@ -1,6 +1,6 @@
 import { supabase } from '@/core/supabase'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TEST_CONFIG } from './test-config'
 import { v4 as uuidv4 } from 'uuid'
 

@@ -1,5 +1,5 @@
 import { TestResult } from '../types'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { Cache } from '@/core/cache'
 import { CACHE_CONFIG } from '@/config/cache'
 

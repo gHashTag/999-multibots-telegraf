@@ -3,7 +3,7 @@ import {
   normalizeTelegramId,
 } from '@/interfaces/telegram.interface'
 import { supabase } from '.'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 export interface CreateUserParams {
   telegram_id: TelegramId

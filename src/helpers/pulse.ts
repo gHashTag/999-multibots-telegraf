@@ -1,6 +1,6 @@
 import { pulseBot } from '@/core/bot'
 import fs from 'fs'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 // Для обратной совместимости поддерживаем старый формат
 export const pulse = async (

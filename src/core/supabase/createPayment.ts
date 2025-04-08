@@ -1,5 +1,5 @@
 import { supabase } from '.'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 
 interface PaymentData {

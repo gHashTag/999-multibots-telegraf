@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios'
 import { ZEP_CONFIG, ZepMemory } from '@/config/zep'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { Cache } from '@/core/cache'
 
 interface ZepMessage {

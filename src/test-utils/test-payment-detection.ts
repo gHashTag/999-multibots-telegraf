@@ -1,5 +1,5 @@
 import { isRubPayment } from '../price/helpers/costHelpers'
-import { logger } from '../utils/logger'
+import { Logger as logger } from '../utils/logger'
 
 /**
  * Тестирование функции определения рублёвых платежей

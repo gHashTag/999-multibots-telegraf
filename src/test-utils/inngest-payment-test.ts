@@ -1,7 +1,7 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { inngest } from '@/inngest-functions/clients'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/core/supabase'
 

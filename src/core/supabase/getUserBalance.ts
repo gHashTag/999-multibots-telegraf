@@ -3,7 +3,7 @@ import {
   normalizeTelegramId,
 } from '@/interfaces/telegram.interface'
 import { supabase } from './index'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 /**
  * Получает баланс пользователя на основе транзакций в payments_v2

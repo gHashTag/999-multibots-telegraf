@@ -11,7 +11,7 @@ import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { inngest } from '@/inngest-functions/clients'
 import { API_URL, isDev } from '@/config'
 import { BalanceHelper } from '@/helpers/inngest/balanceHelpers'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { Prediction } from 'replicate'

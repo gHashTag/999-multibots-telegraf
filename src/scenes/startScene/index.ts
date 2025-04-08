@@ -46,24 +46,36 @@ export const startScene = new Scenes.WizardScene<MyContext>(
   'startScene',
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
-    const { translation, url } = await getTranslation({
-      key: 'start',
-      ctx,
-    })
+    const { translation, url } = await getTranslation('start', ctx)
 
-    await ctx.replyWithPhoto(url, {
-      caption: translation,
-      parse_mode: 'Markdown',
-      reply_markup: Markup.keyboard([
-        [
-          Markup.button.text(
-            isRu ? mainMenuButton.title_ru : mainMenuButton.title_en
-          ),
-        ],
-      ])
-        .resize()
-        .oneTime().reply_markup,
-    })
+    if (url) {
+      await ctx.replyWithPhoto(url, {
+        caption: translation,
+        parse_mode: 'Markdown',
+        reply_markup: Markup.keyboard([
+          [
+            Markup.button.text(
+              isRu ? mainMenuButton.title_ru : mainMenuButton.title_en
+            ),
+          ],
+        ])
+          .resize()
+          .oneTime().reply_markup,
+      })
+    } else {
+      await ctx.reply(translation, {
+        parse_mode: 'Markdown',
+        reply_markup: Markup.keyboard([
+          [
+            Markup.button.text(
+              isRu ? mainMenuButton.title_ru : mainMenuButton.title_en
+            ),
+          ],
+        ])
+          .resize()
+          .oneTime().reply_markup,
+      })
+    }
 
     await sendTutorialMessage(ctx, isRu)
 

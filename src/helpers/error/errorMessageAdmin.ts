@@ -1,4 +1,4 @@
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { MyContext } from '@/interfaces'
 import { Telegraf } from 'telegraf'
 

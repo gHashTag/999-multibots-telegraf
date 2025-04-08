@@ -26,7 +26,7 @@ import {
   handleWebhookNeurophotoDebug,
 } from './controllers/neurophotoWebhook'
 import { UPLOAD_DIR } from './config'
-import { logger } from './utils/logger'
+import { Logger as logger } from './utils/logger'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'

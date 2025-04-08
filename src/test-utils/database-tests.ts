@@ -1,6 +1,6 @@
 import { testSupabase } from './test-env'
 import { TEST_CONFIG } from './test-config'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 /**
  * Интерфейс для результатов тестирования

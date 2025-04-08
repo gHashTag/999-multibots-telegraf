@@ -1,5 +1,5 @@
 import { testInngestPayment } from './inngest-payment-test'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 const runTest = async () => {
   try {

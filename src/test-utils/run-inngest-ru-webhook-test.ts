@@ -1,5 +1,5 @@
 import { inngest } from '@/inngest-functions/clients'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { SUBSCRIPTION_PLANS } from '@/inngest-functions/ruPayment.service'
 
 import { supabase } from '@/core/supabase'

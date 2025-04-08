@@ -14,7 +14,7 @@ import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
 
 import { v4 as uuidv4 } from 'uuid'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
 
 import { createPayment } from '@/core/supabase/createPayment'

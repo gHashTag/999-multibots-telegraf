@@ -1,4 +1,4 @@
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { InngestService } from '@/test-utils/inngest'
 import { supabase } from '@/core/supabase'
 import { generateRandomTelegramId } from '@/utils/generateRandomTelegramId'

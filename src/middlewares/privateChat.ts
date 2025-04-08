@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 export const privateChat = async (
   ctx: MyContext,

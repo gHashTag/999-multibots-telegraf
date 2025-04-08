@@ -1,6 +1,6 @@
 import { pulseBot } from '@/core/bot'
 import * as fs from 'fs'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TelegramId } from '@/interfaces/telegram.interface'
 export const pulseNeuroImageV2 = async (
   imagePath: string,

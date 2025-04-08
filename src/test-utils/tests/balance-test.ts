@@ -1,7 +1,7 @@
 import { TEST_CONFIG } from '../test-config'
 import { TestResult } from '../interfaces'
 import { getUserBalance } from '../../core/supabase/getUserBalance'
-import { logger } from '../../utils/logger'
+import { Logger as logger } from '../../utils/logger'
 
 /**
  * Тест функции getUserBalance

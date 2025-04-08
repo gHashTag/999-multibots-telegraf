@@ -3,7 +3,7 @@ import {
   normalizeTelegramId,
 } from '@/interfaces/telegram.interface'
 import { supabase } from '@/core/supabase'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 // Интерфейс для данных тренировки
 export interface TrainingData {

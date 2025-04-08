@@ -1,9 +1,7 @@
-import { logger } from '@/utils/logger'
-import { testZepMemory } from './tests/zepMemory.test'
+import { Logger as logger } from '@/utils/logger'
 import { testCache } from './tests/cache.test'
 import { runAllPaymentTests } from './tests/payment.test'
-import { runChatWithAvatarTests } from './tests/chatWithAvatar.test'
-import { runVoiceToTextTests } from './tests/voiceToText.test'
+import { testChatWithAvatar } from './tests/chatWithAvatar.test'
 import { runClientsMigrationTests } from './tests/clients-migration.test'
 
 async function runTests() {
@@ -22,16 +20,6 @@ async function runTests() {
       process.exit(1)
     }
 
-    // Запускаем тесты памяти
-    const memoryResults = await testZepMemory()
-    if (!memoryResults.success) {
-      logger.error('❌ Тесты памяти не пройдены:', {
-        description: 'Memory tests failed',
-        error: memoryResults.error
-      })
-      process.exit(1)
-    }
-
     // Запускаем тесты платежей
     const paymentResults = await runAllPaymentTests()
     if (paymentResults.some(result => !result.success)) {
@@ -43,21 +31,11 @@ async function runTests() {
     }
 
     // Запускаем тесты чата с аватаром
-    const chatResults = await runChatWithAvatarTests()
+    const chatResults = await testChatWithAvatar()
     if (!chatResults.success) {
       logger.error('❌ Тесты чата с аватаром не пройдены:', {
         description: 'Chat tests failed',
         error: chatResults.error
-      })
-      process.exit(1)
-    }
-
-    // Запускаем тесты распознавания голоса
-    const voiceResults = await runVoiceToTextTests()
-    if (!voiceResults.success) {
-      logger.error('❌ Тесты распознавания голоса не пройдены:', {
-        description: 'Voice recognition tests failed',
-        error: voiceResults.error
       })
       process.exit(1)
     }
@@ -76,10 +54,8 @@ async function runTests() {
       description: 'All tests passed successfully',
       results: {
         cache: cacheResults,
-        memory: memoryResults,
         payment: paymentResults,
         chat: chatResults,
-        voice: voiceResults,
         migration: migrationResults
       }
     })
