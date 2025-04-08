@@ -1,6 +1,7 @@
 import { MySession } from '../interfaces'
 import { ModeEnum } from '../price/helpers/modelsCost'
 import { LocalSubscription } from '../scenes/getRuBillWizard'
+
 export const defaultSession = (): MySession => ({
   memory: {
     messages: []
@@ -10,32 +11,10 @@ export const defaultSession = (): MySession => ({
   prompt: '',
   selectedSize: '',
   userModel: {
-    id: 0,
-    telegram_id: '',
-    balance: 0,
-    stars: 0,
-    subscription: null,
-    subscription_end_date: null,
-    created_at: '',
-    updated_at: '',
-    email: '',
-    username: '',
-    first_name: '',
-    last_name: '',
-    language_code: '',
-    is_premium: false,
-    is_blocked: false,
-    is_admin: false,
-    is_super_admin: false,
-    referral_code: '',
-    referrer_id: null,
-    referral_balance: 0,
-    referral_count: 0,
-    total_referral_earnings: 0,
-    total_earnings: 0,
-    total_spent: 0,
-    last_activity: '',
-    settings: null
+    model_name: '',
+    trigger_word: '',
+    model_url: '' as `${string}/${string}:${string}`,
+    model_key: '' as `${string}/${string}:${string}`
   },
   numImages: 1,
   telegram_id: '',
@@ -46,7 +25,7 @@ export const defaultSession = (): MySession => ({
   videoUrl: '',
   audioUrl: '',
   amount: 0,
-  subscription: null,
+  subscription: '',
   images: [],
   modelName: '',
   targetUserId: 0,

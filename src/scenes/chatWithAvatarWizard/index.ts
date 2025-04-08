@@ -81,7 +81,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     if (isCancel) {
       logger.info('🛑 Пользователь отменил чат:', {
         description: 'User cancelled chat',
-        telegramId: ctx.from?.id
+        telegramId
       })
       return ctx.scene.leave()
     }
@@ -116,7 +116,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Проверяем, является ли сообщение запросом справки
-    if ('text' in ctx.message && ctx.message.text === (isRu ? levels[6].title_ru : levels[6].title_en)) {
+    if (ctx.message.text === (isRu ? levels[6].title_ru : levels[6].title_en)) {
       logger.info('ℹ️ Пользователь запросил справку:', {
         description: 'User requested help',
         telegramId
@@ -124,32 +124,45 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       await ctx.scene.enter(ModeEnum.SelectModelWizard)
       return
     }
+
     const text = ctx.message.text
     const zepClient = ZepClient.getInstance()
-    const sessionId = `${telegramId || ''}_${ctx.botInfo?.username || ''}`
-  
-    // Сохраняем сообщение пользователя
-    await zepClient.addMessage(sessionId, 'user', text)
-  
-    // Получаем историю чата
-    const memory = await zepClient.getMemory(sessionId)
-    const chatHistory = memory?.messages || []
-  
-    // Формируем контекст для модели
-    const context = chatHistory.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }))
-  
-    // Отправляем запрос к модели с историей
-    const response = await handleTextMessage(ctx)
-  
-    // Сохраняем ответ ассистента
-    if (typeof response === 'string') {
-      await zepClient.addMessage(sessionId, 'assistant', response)
-    }
-  
+    const sessionId = `${telegramId}_${ctx.botInfo?.username || ''}`
+
     try {
+      // Сохраняем сообщение пользователя
+      await zepClient.saveMemory(sessionId, {
+        messages: [{
+          role: 'user',
+          content: text,
+          timestamp: Date.now()
+        }]
+      })
+
+      // Получаем историю чата
+      const memory = await zepClient.getMemory(sessionId)
+      const chatHistory = memory?.messages || []
+
+      // Формируем контекст для модели
+      const context = chatHistory.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+
+      // Отправляем запрос к модели с историей
+      const response = await handleTextMessage(ctx)
+
+      // Сохраняем ответ ассистента
+      if (typeof response === 'string') {
+        await zepClient.saveMemory(sessionId, {
+          messages: [{
+            role: 'assistant',
+            content: response,
+            timestamp: Date.now()
+          }]
+        })
+      }
+
       // Обработка текстового сообщения
       if ('text' in ctx.message) {
         logger.info('🤖 Обработка текстового сообщения:', {
