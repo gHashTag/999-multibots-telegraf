@@ -27,7 +27,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     )
     const price = voiceConversationCost || 0
     if (currentBalance < price) {
-      await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
+      await sendInsufficientStarsMessage(ctx, currentBalance, price)
       return ctx.scene.leave()
     }
 

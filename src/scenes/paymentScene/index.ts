@@ -342,7 +342,7 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
         ? 'Пожалуйста, сначала выберите тариф.'
         : 'Please select a subscription plan first.'
     )
-    await ctx.scene.enter('menuScene')
+    await ctx.scene.enter(ModeEnum.MenuScene)
     return
   }
 
@@ -415,5 +415,5 @@ Click the button below to proceed with payment. After successful payment, stars 
 
 paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
   console.log('CASE: 🏠 Главное меню', ctx.match)
-  await ctx.scene.enter('menuScene')
+  await ctx.scene.enter(ModeEnum.MenuScene)
 })

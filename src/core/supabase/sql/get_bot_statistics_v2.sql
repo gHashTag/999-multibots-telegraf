@@ -13,10 +13,10 @@ BEGIN
     RETURN QUERY
     WITH user_stats AS (
         -- Считаем общее количество пользователей
-        SELECT COUNT(DISTINCT telegram_id) as total_users,
-               COUNT(DISTINCT CASE WHEN balance > 0 THEN telegram_id END) as paying_users
-        FROM users
-        WHERE bot_name = p_bot_name
+        SELECT COUNT(DISTINCT u.telegram_id) as total_users,
+               COUNT(DISTINCT CASE WHEN get_user_balance(u.telegram_id::text) > 0 THEN u.telegram_id END) as paying_users
+        FROM users u
+        WHERE u.bot_name = p_bot_name
     ),
     payment_stats AS (
         -- Статистика по платежам

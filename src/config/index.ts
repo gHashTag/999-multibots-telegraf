@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import { config } from 'dotenv'
 import path from 'path'
 import { logger } from '@/utils/logger'
 

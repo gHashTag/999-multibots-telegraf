@@ -1,100 +1,118 @@
-import { MyContext } from '../../interfaces'
-import { supabase } from '../supabase'
-import { getBotNameByToken, DEFAULT_BOT_NAME } from '../bot'
-import { TranslationButton } from '../../interfaces/supabase.interface'
+import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { supabase } from '@/core/supabase'
+import { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
+import { TranslationButton } from '@/interfaces/supabase.interface'
 import { logger } from '@/utils/logger'
+import { PostgrestError } from '@supabase/supabase-js'
+import { 
+  TranslationCategory,
+  TranslationCategoryType,
+  Translation 
+} from '@/interfaces/translations.interface'
+
+interface TranslationResponse {
+  translation: string
+  url?: string
+  buttons?: TranslationButton[]
+}
 
 export interface TranslationContext {
   from: { language_code: string }
   telegram: { token: string }
 }
 
+async function fetchTranslation(
+  key: string,
+  bot_name: string,
+  language_code: string,
+  category: TranslationCategoryType,
+  is_override?: boolean
+): Promise<Translation | null> {
+  const query = supabase
+    .from('translations')
+    .select('*')
+    .eq('key', key)
+    .eq('language_code', language_code)
+    .eq('category', category)
+
+  if (category === TranslationCategory.SPECIFIC) {
+    query.eq('bot_name', bot_name)
+    if (is_override !== undefined) {
+      query.eq('is_override', is_override)
+    }
+  }
+
+  const { data, error } = await query.single()
+
+  if (error) {
+    logger.error('Error fetching translation:', { error, key, bot_name, language_code, category })
+    return null
+  }
+
+  return data
+}
+
 export async function getTranslation({
   key,
   ctx,
   bot_name,
+  category = TranslationCategory.SPECIFIC
 }: {
   key: string
   ctx: MyContext
   bot_name?: string
-}): Promise<{
-  translation: string
-  url: string
-  buttons: TranslationButton[]
-}> {
-  logger.info('🔍 Получение перевода:', {
-    description: 'Getting translation',
-    key,
-  })
-
+  category: TranslationCategoryType
+}): Promise<TranslationResponse> {
   const language_code = ctx.from?.language_code || 'en'
-  const token = ctx.telegram.token
+  const current_bot = bot_name || ctx.botInfo.username || ''
 
-  const botName = bot_name ? bot_name : getBotNameByToken(token).bot_name
-  logger.info('🤖 Имя бота:', {
-    description: 'Bot name',
-    botName,
-  })
-
-  const fetchTranslation = async (name: string) => {
-    return await supabase
-      .from('translations')
-      .select('translation, url, buttons')
-      .eq('language_code', language_code)
-      .eq('key', key)
-      .eq('bot_name', name)
-      .single()
-  }
-
-  // Первый запрос с текущим токеном
-  let { data, error } = await fetchTranslation(botName)
-
-  // Если ошибка, пробуем с дефолтным токеном
-  if (error) {
-    logger.error('❌ Ошибка получения перевода с текущим токеном:', {
-      description: 'Error getting translation with current token',
-      error: error.message,
-    })
-
-    const defaultBot = DEFAULT_BOT_NAME
-
-    ;({ data, error } = await fetchTranslation(defaultBot))
-
-    if (error) {
-      logger.error('❌ Ошибка получения перевода с дефолтным токеном:', {
-        description: 'Error getting translation with default token',
-        error: error.message,
-      })
-      return {
-        translation: 'Ошибка загрузки перевода',
-        url: '',
-        buttons: [],
-      }
-    }
-  }
-
-  if (!data) {
-    logger.error('❌ Данные перевода не найдены:', {
-      description: 'Translation data not found',
-      key,
-      language_code,
-    })
+  // Try to find specific override translation for current bot
+  let translation = await fetchTranslation(key, current_bot, language_code, TranslationCategory.SPECIFIC, true)
+  if (translation) {
+    logger.debug('Found override translation', { key, bot: current_bot })
     return {
-      translation: 'Перевод не найден',
-      url: '',
-      buttons: [],
+      translation: translation.translation,
+      url: translation.url,
+      buttons: translation.buttons,
     }
   }
 
-  logger.info('✅ Перевод получен:', {
-    description: 'Translation retrieved successfully',
-    key,
-    language_code,
-  })
+  // Try to find specific translation for current bot
+  translation = await fetchTranslation(key, current_bot, language_code, TranslationCategory.SPECIFIC)
+  if (translation) {
+    logger.debug('Found specific translation', { key, bot: current_bot })
+    return {
+      translation: translation.translation,
+      url: translation.url,
+      buttons: translation.buttons,
+    }
+  }
 
+  // Try to find common translation
+  translation = await fetchTranslation(key, current_bot, language_code, TranslationCategory.COMMON)
+  if (translation) {
+    logger.debug('Found common translation', { key })
+    return {
+      translation: translation.translation,
+      url: translation.url,
+      buttons: translation.buttons,
+    }
+  }
+
+  // Try to find system translation
+  translation = await fetchTranslation(key, current_bot, language_code, TranslationCategory.SYSTEM)
+  if (translation) {
+    logger.debug('Found system translation', { key })
+    return {
+      translation: translation.translation,
+      url: translation.url,
+      buttons: translation.buttons,
+    }
+  }
+
+  // No translation found
+  logger.warn('Translation not found', { key, bot: current_bot, language: language_code })
   return {
-    translation: data.translation || '',
-    url: data.url || '',
-    buttons: data.buttons || [],
+    translation: `Translation not found for key: ${key}`,
   }
 }

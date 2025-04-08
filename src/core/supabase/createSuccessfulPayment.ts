@@ -14,7 +14,6 @@ interface CreateSuccessfulPaymentParams {
   status: 'COMPLETED' | 'PENDING' | 'FAILED'
   metadata?: Record<string, any>
   currency?: string
-  subscription?: string
   language?: string
   inv_id?: string
   service_type: string
@@ -39,7 +38,6 @@ export const createSuccessfulPayment = async (
       status,
       metadata = {},
       currency = 'STARS',
-      subscription = 'none',
       language = 'ru',
       inv_id,
     } = params
@@ -75,7 +73,6 @@ export const createSuccessfulPayment = async (
         payment_date: new Date().toISOString(),
         metadata,
         currency,
-        subscription,
         language,
         inv_id: inv_id || `${normalizedTelegramId}-${Date.now()}`,
       })

@@ -518,6 +518,12 @@ export const SERVICE_DESCRIPTIONS: Record<
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },
+  [ModeEnum.MenuScene]: {
+    expense: (amount: number) =>
+      `📋 Главное меню: ${amount} ${getStarsWord(amount)}`,
+    income: (amount: number) =>
+      `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
+  },
   [ModeEnum.StartScene]: {
     expense: (amount: number) =>
       `🎬 Начальная сцена: ${amount} ${getStarsWord(amount)}`,
@@ -592,6 +598,12 @@ export const SERVICE_DESCRIPTIONS: Record<
   [ModeEnum.SubscriptionScene]: {
     expense: (amount: number) =>
       `📲 Управление подписками: ${amount} ${getStarsWord(amount)}`,
+    income: (amount: number) =>
+      `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
+  },
+  [ModeEnum.VoiceToText]: {
+    expense: (amount: number) =>
+      `🎤 Преобразование голоса в текст: ${amount} ${getStarsWord(amount)}`,
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },

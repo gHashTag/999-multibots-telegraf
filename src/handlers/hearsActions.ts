@@ -16,8 +16,8 @@ export function registerHearsActions(bot: Telegraf<MyContext>) {
 
   bot.hears(['🏠 Главное меню', '🏠 Main menu'], async (ctx: MyContext) => {
     console.log('CASE: Главное меню')
-    ctx.session.mode = 'main_menu'
-    await ctx.scene.enter('menuScene')
+    ctx.session.mode = ModeEnum.MenuScene
+    await ctx.scene.enter(ModeEnum.MenuScene)
   })
 
   bot.hears(

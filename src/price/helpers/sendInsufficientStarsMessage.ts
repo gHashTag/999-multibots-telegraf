@@ -1,13 +1,11 @@
-import { MyContext } from '@/interfaces'
+import { isRussian } from '@/helpers/language'
+import { getStarsWord } from '@/utils/getStarsWord'
 
-export const sendInsufficientStarsMessage = async (
-  ctx: MyContext,
-  currentBalance: number,
-  isRu: boolean
-) => {
+export async function sendInsufficientStarsMessage(ctx: any, balance: number, requiredStars: number) {
+  const isRu = isRussian(ctx)
   const message = isRu
-    ? `Недостаточно звезд для генерации изображения. Ваш баланс: ${currentBalance} звезд. Пополните баланс вызвав команду /buy.`
-    : `Insufficient stars for image generation. Your balance: ${currentBalance} stars. Top up your balance by calling the /buy command.`
+    ? `⚠️ Недостаточно звезд на балансе. Необходимо: ${requiredStars} ${getStarsWord(requiredStars, isRu)}. Текущий баланс: ${balance} ${getStarsWord(balance, isRu)}`
+    : `⚠️ Insufficient stars balance. Required: ${requiredStars} ${getStarsWord(requiredStars, isRu)}. Current balance: ${balance} ${getStarsWord(balance, isRu)}`
 
-  await ctx.telegram.sendMessage(ctx.from?.id?.toString() || '', message)
+  await ctx.reply(message)
 }

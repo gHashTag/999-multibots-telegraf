@@ -282,7 +282,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       })
 
       await ctx.reply(message, { parse_mode: 'HTML' })
-      await ctx.scene.enter('menuScene')
+      await ctx.scene.enter(ModeEnum.MenuScene)
     } catch (error) {
       logger.error('❌ Ошибка в сцене баланса:', {
         description: 'Error in balance scene',
@@ -295,7 +295,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
         : '❌ Error getting balance information. Please try again later.'
 
       await ctx.reply(errorMessage)
-      await ctx.scene.enter('menuScene')
+      await ctx.scene.enter(ModeEnum.MenuScene)
     }
   }
 )

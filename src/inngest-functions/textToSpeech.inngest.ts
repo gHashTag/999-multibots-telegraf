@@ -37,7 +37,7 @@ type SpeechResult =
   | { success: true; audioBuffer: Buffer | BufferLike }
   | { success: false; error: Error }
 
-export const textToSpeechFunction = inngest.createFunction(
+export const textToSpeech = inngest.createFunction(
   {
     name: 'text-to-speech-generation',
     id: 'text-to-speech',

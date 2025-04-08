@@ -1,10 +1,9 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
-import { Composer } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { NODE_ENV } from './config'
-
+import { Composer } from 'telegraf'
 import { development, production } from '@/utils/launch'
 import express from 'express'
 import { registerCallbackActions } from './handlers/сallbackActions'
@@ -16,10 +15,9 @@ import { getBotNameByToken } from './core/bot'
 import startApiServer from './api'
 import { bots } from './core/bot'
 import { logger } from '@/utils/logger'
+import { defaultSession } from './store'
 
 dotenv.config()
-
-export const composer = new Composer<MyContext>()
 
 type NextFunction = (err?: Error) => void
 
@@ -58,6 +56,7 @@ export const createBots = async () => {
 
   activeBots.forEach((bot, index) => {
     const app = express()
+    const composer = new Composer<MyContext>()
 
     const port = 3001 + index
     logger.info('🔌 Порт для бота:', {

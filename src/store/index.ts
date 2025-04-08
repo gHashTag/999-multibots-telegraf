@@ -1,40 +1,45 @@
 import { MySession } from '../interfaces'
 import { ModeEnum } from '../price/helpers/modelsCost'
 import { LocalSubscription } from '../scenes/getRuBillWizard'
-export const defaultSession: () => MySession = () => ({
+
+export const defaultSession = (): MySession => ({
+  memory: {
+    messages: []
+  },
+  email: '',
   selectedModel: '',
   prompt: '',
-  selectedSize: '9:16',
+  selectedSize: '',
+  language_code: 'en',
+  targetScene: ModeEnum.StartScene,
   userModel: {
     model_name: '',
     trigger_word: '',
-    model_url: 'i/i:i',
+    model_url: '' as `${string}/${string}:${string}`,
+    model_key: '' as `${string}/${string}:${string}`
   },
   numImages: 1,
-  telegram_id: '0',
+  telegram_id: '',
   mode: ModeEnum.TextToImage,
   attempts: 0,
   videoModel: '',
-  paymentAmount: 0,
+  imageUrl: '',
+  videoUrl: '',
+  audioUrl: '',
+  amount: 0,
+  subscription: '',
   images: [],
   modelName: '',
   targetUserId: 0,
   username: '',
   triggerWord: '',
   steps: 0,
-  videoUrl: '',
-  imageUrl: '',
-  audioUrl: '',
-  email: '',
-  subscription: 'stars',
   inviter: '',
   inviteCode: '',
   invoiceURL: '',
-  amount: 0,
+  buttons: [],
   selectedPayment: {
     amount: 0,
-    stars: 0,
-    subscription: 'stars' as LocalSubscription,
-  },
-  buttons: [],
+    stars: 0
+  }
 })

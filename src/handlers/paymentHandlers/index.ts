@@ -5,7 +5,7 @@ import { getTranslation } from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
 import { updateUserSubscription, createPayment } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
-
+import { TranslationCategory } from '@/interfaces/translations.interface'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
@@ -278,10 +278,12 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       subscriptionType,
     })
 
-    const { buttons } = await getTranslation({
+    const translation = await getTranslation({
       key: 'subscriptionScene',
       ctx,
+      category: TranslationCategory.SPECIFIC,
     })
+    const buttons = translation.buttons || []
 
     const selectedButton = buttons.find(
       button => button.callback_data === subscriptionType

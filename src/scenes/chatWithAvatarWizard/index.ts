@@ -8,12 +8,23 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { levels } from '@/menu'
+import { TranslationCategory } from '@/interfaces/translations.interface'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { inngest } from '@/inngest-functions/clients'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
+import { logger } from '@/utils/logger'
+import { v4 as uuidv4 } from 'uuid'
+import { ZepClient } from '@/core/zep'
+import { getTranslation } from '@/core/supabase/getTranslation'
+import { getUserBalance } from '@/core/supabase'
+import { sendInsufficientStarsMessage } from '@/price/helpers'
+import { ReplyKeyboardMarkup, Message } from 'telegraf/typings/core/types/typegram'
 
-const createHelpCancelKeyboard = (isRu: boolean) => {
+
+
+const createHelpCancelKeyboard = (isRu: boolean): ReplyKeyboardMarkup => {
   return {
     keyboard: [
-      [{ text: isRu ? levels[6].title_ru : levels[6].title_en }],
       [{ text: isRu ? 'Отмена' : 'Cancel' }],
       [{ text: isRu ? 'Справка по команде' : 'Help for the command' }],
     ],
@@ -24,80 +35,159 @@ const createHelpCancelKeyboard = (isRu: boolean) => {
 
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ChatWithAvatar,
-  async ctx => {
-    console.log('CASE: Чат с аватаром')
-    const isRu = isRussian(ctx)
+  async (ctx) => {
+    const telegramId = ctx.from?.id
+    logger.info('🎯 Entering chat with avatar wizard', {
+      description: 'Starting chat wizard first step',
+      telegram_id: telegramId,
+      session_mode: ctx.session?.mode,
+      session_state: ctx.session,
+      wizard_state: ctx.wizard?.state
+    })
 
-    await ctx.reply(
-      isRu
-        ? 'Напиши мне сообщение 💭 и я отвечу на него'
-        : 'Write me a message 💭 and I will answer you',
-      {
-        reply_markup: createHelpCancelKeyboard(isRu),
-      }
-    )
-    return ctx.wizard.next()
-  },
-  async ctx => {
-    if (!ctx.message || !('text' in ctx.message)) {
+    if (!telegramId) {
+      logger.error('❌ No telegram ID in chat wizard', {
+        description: 'Missing telegram ID in chat wizard',
+        context: ctx
+      })
       return ctx.scene.leave()
     }
 
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
-
-    const isRu = isRussian(ctx)
-
-    const isHelp =
-      ctx.message.text === (isRu ? levels[6].title_ru : levels[6].title_en)
-    if (isHelp) {
-      ctx.session.mode = ModeEnum.SelectModelWizard
-      await ctx.scene.enter('checkBalanceScene')
-      return
-    }
-
-    // Обработка текстового сообщения
-    await handleTextMessage(ctx)
-
-    const telegram_id = ctx.from?.id.toString()
-    console.log(telegram_id, 'telegram_id')
-
-    const userExists = await getUserByTelegramIdString(telegram_id || '')
-    console.log(
-      '🟢 User data:',
-      JSON.stringify(userExists, null, 2),
-      'userExists'
-    )
-
-    if (!userExists?.id) {
-      console.error('🔴 Invalid user data structure:', {
-        telegram_id,
-        data_structure: Object.keys(userExists || {}),
+    // Verify we're in the correct mode
+    if (ctx.session.mode !== ModeEnum.ChatWithAvatar) {
+      logger.error('❌ Incorrect mode in chat wizard', {
+        description: 'Mode mismatch in chat wizard',
+        expected: ModeEnum.ChatWithAvatar,
+        actual: ctx.session.mode,
+        telegram_id: telegramId,
+        session_state: ctx.session
       })
       const isRu = isRussian(ctx)
-      return ctx.reply(
-        isRu
-          ? 'Произошла ошибка при обработке вашего профиля 😔'
-          : 'An error occurred while processing your profile 😔'
+      await ctx.reply(
+        isRu 
+          ? '❌ Произошла ошибка при входе в чат. Пожалуйста, попробуйте снова через главное меню.'
+          : '❌ Error entering chat. Please try again through the main menu.'
       )
+      return ctx.scene.leave()
     }
 
-    const level = userExists.level
-    if (level === 4) {
-      if (!telegram_id) {
-        await ctx.reply(
-          isRu
-            ? 'Произошла ошибка при обработке вашего профиля 😔'
-            : 'An error occurred while processing your profile 😔'
-        )
+    const isRu = isRussian(ctx)
+
+    try {
+      logger.info('🗣 Getting welcome message translation', {
+        description: 'Fetching chat welcome message',
+        telegram_id: telegramId,
+        language: isRu ? 'ru' : 'en'
+      })
+
+      const startMessage = await getTranslation({
+        key: 'chat_with_avatar_start',
+        ctx,
+        category: TranslationCategory.SPECIFIC,
+      })
+
+      const defaultStartMessage = isRu 
+        ? '👋 Добро пожаловать в чат с аватаром! Я готов общаться с вами. Напишите ваше сообщение, и я постараюсь помочь.'
+        : '👋 Welcome to chat with avatar! I am ready to chat with you. Write your message, and I will try to help.'
+
+      logger.info('💬 Sending welcome message', {
+        description: 'Preparing to send welcome message',
+        telegram_id: telegramId,
+        using_default: !startMessage.translation,
+        message: startMessage.translation || defaultStartMessage
+      })
+
+      await ctx.reply(startMessage.translation || defaultStartMessage, {
+        reply_markup: createHelpCancelKeyboard(isRu)
+      })
+
+      logger.info('➡️ Moving to next wizard step', {
+        description: 'Transitioning to chat interaction step',
+        telegram_id: telegramId,
+        session_state: ctx.session,
+        wizard_state: ctx.wizard?.state
+      })
+
+      return ctx.wizard.next()
+    } catch (error) {
+      logger.error('❌ Error in chat wizard start', {
+        description: 'Error during chat initialization',
+        telegram_id: telegramId,
+        error: error instanceof Error ? error.message : String(error),
+        session_state: ctx.session,
+        wizard_state: ctx.wizard?.state
+      })
+      const fallbackMessage = isRu
+        ? '👋 Добро пожаловать в чат! Напишите ваше сообщение.'
+        : '👋 Welcome to chat! Write your message.'
+      await ctx.reply(fallbackMessage)
+      return ctx.wizard.next()
+    }
+  },
+  async (ctx) => {
+    const telegramId = ctx.from?.id
+    const isRu = isRussian(ctx)
+
+    logger.info('📨 Received message in chat', {
+      description: 'Processing user message in chat',
+      telegram_id: telegramId,
+      message_type: ctx.message && 'text' in ctx.message ? 'text' : 'other',
+      session_state: ctx.session,
+      wizard_state: ctx.wizard?.state
+    })
+
+    try {
+      // Handle help/cancel commands
+      const isCancel = await handleHelpCancel(ctx)
+      if (isCancel) {
+        logger.info('🚫 Chat cancelled by user', {
+          description: 'User cancelled chat session',
+          telegram_id: telegramId
+        })
         return ctx.scene.leave()
       }
-      await updateUserLevelPlusOne(telegram_id, level)
-    }
 
-    return
+      // Process the message
+      if (ctx.message && ('text' in ctx.message)) {
+        const messageText = (ctx.message as Message.TextMessage).text
+
+        logger.info('💬 Processing text message', {
+          description: 'Handling text message in chat',
+          telegram_id: telegramId,
+          message_length: messageText.length
+        })
+
+        // Handle the text message
+        await handleTextMessage(ctx)
+        return
+      }
+
+      logger.warn('⚠️ Unsupported message type', {
+        description: 'Received non-text message in chat',
+        telegram_id: telegramId,
+        message_type: ctx.message ? typeof ctx.message : 'unknown'
+      })
+
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, отправьте текстовое сообщение.'
+          : '❌ Please send a text message.'
+      )
+    } catch (error) {
+      logger.error('❌ Error processing chat message', {
+        description: 'Error in chat message handler',
+        telegram_id: telegramId,
+        error: error instanceof Error ? error.message : String(error),
+        session_state: ctx.session,
+        wizard_state: ctx.wizard?.state
+      })
+
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при обработке сообщения. Пожалуйста, попробуйте еще раз.'
+          : '❌ An error occurred while processing your message. Please try again.'
+      )
+    }
   }
 )
 

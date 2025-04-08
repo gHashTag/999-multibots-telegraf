@@ -69,7 +69,16 @@ export interface Button {
   description: string
 }
 
+export interface Memory {
+  messages: Array<{
+    role: 'user' | 'assistant'
+    content: string
+    timestamp?: number
+  }>
+}
+
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
+  memory?: Memory
   email: string
   selectedModel: string
   prompt: string
@@ -96,7 +105,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   invoiceURL: string
   buttons: Button[]
   text?: string
-  targetScene?: Mode
+  language_code: string
+  targetScene: Mode
   selectedPayment: {
     amount: number
     stars: number

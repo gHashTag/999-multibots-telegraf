@@ -5,16 +5,23 @@ import { getReferalsCountAndUserData } from '@/core/supabase/getReferalsCountAnd
 import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
-
-import { Scenes } from 'telegraf'
+import { logger } from '@/utils/logger'
+import { WizardScene } from 'telegraf/scenes'
 
 import { handleMenu } from '@/handlers'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
 import { sendTutorialMessage } from '@/handlers/sendTutorialMessage'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-
+import { TranslationCategory } from '@/interfaces/translations.interface'
 const menuCommandStep = async (ctx: MyContext) => {
+  const telegramId = ctx.from?.id?.toString()
+  logger.info('🎯 Entering menuCommandStep', {
+    description: 'Starting menu command step',
+    telegram_id: telegramId,
+    session_mode: ctx.session?.mode
+  })
+
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
   try {
@@ -25,11 +32,19 @@ const menuCommandStep = async (ctx: MyContext) => {
     let newLevel: number
 
     if (isDev) {
+      logger.info('🔧 Development mode detected', {
+        description: 'Using development mode settings',
+        telegram_id
+      })
       console.log('CASE 🦄: isDev')
       newCount = 0
       newSubscription = 'neurobase'
       newLevel = 0
     } else {
+      logger.info('📊 Fetching user data', {
+        description: 'Getting user referrals and data',
+        telegram_id
+      })
       const { count, subscription, level } = await getReferalsCountAndUserData(
         telegram_id
       )
@@ -37,6 +52,14 @@ const menuCommandStep = async (ctx: MyContext) => {
       newSubscription = subscription || 'stars'
       newLevel = level
     }
+
+    logger.info('👤 User data loaded', {
+      description: 'User data retrieved',
+      telegram_id,
+      subscription: newSubscription,
+      level: newLevel,
+      referral_count: newCount
+    })
 
     console.log('newSubscription', newSubscription)
     const additionalButtons = [
@@ -46,6 +69,12 @@ const menuCommandStep = async (ctx: MyContext) => {
       levels[103], // Помощь
       levels[104], // Техподдержка
     ]
+
+    logger.info('⌨️ Building menu keyboard', {
+      description: 'Preparing menu keyboard layout',
+      telegram_id,
+      subscription: newSubscription
+    })
 
     const keyboard = await mainMenu({
       isRu,
@@ -110,7 +139,10 @@ const menuCommandStep = async (ctx: MyContext) => {
       const { translation, url } = await getTranslation({
         key: 'digitalAvatar',
         ctx,
+        bot_name: ctx.botInfo.username,
+        category: TranslationCategory.SPECIFIC,
       })
+      
 
       message = translation
       const photo_url = url
@@ -146,6 +178,8 @@ const menuCommandStep = async (ctx: MyContext) => {
         const { translation } = await getTranslation({
           key,
           ctx,
+          bot_name: ctx.botInfo.username,
+          category: TranslationCategory.SPECIFIC,
         })
         await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboard)
       } else {
@@ -166,27 +200,58 @@ const menuCommandStep = async (ctx: MyContext) => {
 }
 
 const menuNextStep = async (ctx: MyContext) => {
+  const telegramId = ctx.from?.id?.toString()
+  logger.info('🎯 Entering menuNextStep', {
+    description: 'Starting next menu step',
+    telegram_id: telegramId,
+    update_type: ctx.updateType
+  })
+
   console.log('CASE 1: menuScene.next')
   if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
     const text = ctx.update.callback_query.data
+    logger.info('🔄 Processing callback query', {
+      description: 'Handling callback data',
+      telegram_id: telegramId,
+      callback_data: text
+    })
     console.log('text 1', text)
     if (text === 'unlock_features') {
+      logger.info('🔓 Unlocking features', {
+        description: 'User requested feature unlock',
+        telegram_id: telegramId
+      })
       console.log('CASE: 🔓 Разблокировать все функции')
-      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+      await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
+    logger.info('💬 Processing text message', {
+      description: 'Handling text message in menu',
+      telegram_id: telegramId,
+      message_text: text
+    })
     console.log('CASE menuNextStep: text 2', text)
     await handleMenu(ctx)
     return
   } else {
+    logger.info('⚠️ Unhandled update type', {
+      description: 'Received unhandled update type in menu',
+      telegram_id: telegramId,
+      update_type: ctx.updateType
+    })
     console.log('CASE: menuScene.next.else')
   }
+  
+  logger.info('🚪 Leaving menu scene', {
+    description: 'Exiting menu scene',
+    telegram_id: telegramId
+  })
   ctx.scene.leave()
 }
 
-export const menuScene = new Scenes.WizardScene<MyContext>(
-  ModeEnum.MainMenu,
+export const menuScene = new WizardScene(
+  ModeEnum.MenuScene,
   menuCommandStep,
   menuNextStep
 )

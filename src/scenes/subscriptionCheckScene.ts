@@ -5,42 +5,42 @@ import { verifySubscription } from '@/middlewares/verifySubscription'
 import { getSubScribeChannel } from '@/core/supabase'
 import { isDev } from '@/helpers'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-import { Scenes } from 'telegraf'
+import { logger } from '@/utils/logger'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
-  console.log('CASE: subscriptionCheckStep', ctx.from)
+  
   if (!ctx.from?.id) {
-    console.log('CASE: user not found')
+    logger.info('CASE: user not found')
     return ctx.scene.enter(ModeEnum.CreateUserScene)
   }
   // Проверяем существует ли пользователь в базе
   const existingUser = await getUserByTelegramIdString(
     ctx.from?.id.toString() || ''
   )
-  console.log('subscriptionCheckStep - existingUser:', existingUser)
+  
 
   // Если пользователь не существует, то переходим к созданию пользователя
   if (!existingUser) {
-    console.log('CASE: user not exists')
+    logger.info('CASE: user not exists')
     return ctx.scene.enter(ModeEnum.CreateUserScene)
   }
   const subscription = existingUser.subscription
   // Получаем ID канала подписки
   if (subscription !== 'stars') {
-    console.log('CASE: subscription not stars')
+    logger.info('CASE: subscription not stars')
     if (isDev) {
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      return ctx.scene.enter(ModeEnum.MenuScene)
     }
     const SUBSCRIBE_CHANNEL_ID = await getSubScribeChannel(ctx)
     const language_code = existingUser.language_code
     if (!SUBSCRIBE_CHANNEL_ID) {
-      console.log('CASE: SUBSCRIBE_CHANNEL_ID not found')
+      logger.info('CASE: SUBSCRIBE_CHANNEL_ID not found')
       await ctx.reply(
         language_code === 'ru'
           ? '❌ Не удалось получить ID канала подписки'
           : '❌ Failed to get subscribe channel ID'
       )
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      return ctx.scene.leave()
     }
     // Проверяем подписку
     const isSubscribed = await verifySubscription(
@@ -61,12 +61,15 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   } else {
     // If we have a target scene in session, go there
     const targetScene = ctx.session.targetScene || ModeEnum.StartScene
-    delete ctx.session.targetScene // Clear the target scene after use
+    // Clear the target scene after use
+    if (ctx.session.targetScene) {
+      ctx.session.targetScene
+    }
     return ctx.scene.enter(targetScene)
   }
 }
 
-export const subscriptionCheckScene = new Scenes.BaseScene<MyContext>(ModeEnum.SubscriptionCheckScene)
-
-// Use the single subscription check logic
-subscriptionCheckScene.enter(subscriptionCheckStep)
+export const subscriptionCheckScene = new WizardScene<MyContext>(
+  ModeEnum.SubscriptionCheckScene,
+  subscriptionCheckStep
+)

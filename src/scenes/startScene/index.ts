@@ -10,7 +10,7 @@ import { BOT_URLS } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { isRussian } from '@/helpers/language'
 import { mainMenu } from '@/menu'
-
+import { TranslationCategory } from '@/interfaces/translations.interface'
 async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
   const botName = ctx.botInfo.username
   let postUrl = ''
@@ -52,9 +52,10 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     const { translation, url } = await getTranslation({
       key: 'start',
       ctx,
+      category: TranslationCategory.SPECIFIC,
     })
 
-    await ctx.replyWithPhoto(url, {
+    await ctx.replyWithPhoto(url || '', {
       caption: translation,
       parse_mode: 'Markdown',
       reply_markup: Markup.keyboard([
@@ -98,7 +99,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     }
     const hasFullAccess = await checkPaymentStatus(ctx, subscription)
     if (hasFullAccess) {
-      await ctx.scene.enter('menuScene')
+      await ctx.scene.enter(ModeEnum.MenuScene)
     } else {
       await ctx.scene.enter('subscriptionScene')
     }

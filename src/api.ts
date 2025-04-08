@@ -13,9 +13,10 @@ import {
   neuroPhotoV2Generation,
   textToImageFunction,
   createVoiceAvatarFunction,
-  textToSpeechFunction,
+  textToSpeech,
   ruPaymentProcessPayment,
   imageToPromptFunction,
+
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
 import { handleReplicateWebhook } from './controllers/replicateWebhook'
@@ -25,7 +26,7 @@ import {
   handleWebhookNeurophotoDebug,
 } from './controllers/neurophotoWebhook'
 import { UPLOAD_DIR } from './config'
-import { logger } from './utils/logger'
+import { logger } from '@/utils/logger'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
@@ -403,7 +404,7 @@ app.use(
     client: inngest,
     functions: [
       textToImageFunction,
-      textToSpeechFunction,
+      textToSpeech,
       neuroImageGeneration,
       generateModelTraining,
       modelTrainingV2,
