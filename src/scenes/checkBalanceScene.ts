@@ -1,180 +1,153 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
-import { getUserBalance } from '@/core/supabase'
-import {
-  sendInsufficientStarsMessage,
-  sendBalanceMessage,
-  calculateModeCost,
-} from '@/price/helpers'
-import { getUserInfo } from '@/handlers/getUserInfo'
+import { MyContext } from '../interfaces'
+import { isRussian } from '../helpers'
+import { getUserBalance } from '../core/supabase'
+import { calculateModeCost } from '../price/helpers/modelsCost'
+import { sendInsufficientStarsMessage } from '../price/helpers'
 import { Logger as logger } from '@/utils/logger'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-//
-export const checkBalanceScene = new Scenes.BaseScene<MyContext>(
-  ModeEnum.CheckBalanceScene
-)
+import { enterScene } from '@/utils/sceneHelpers'
+import { SceneEnum } from '@/types/scenes'
 
-checkBalanceScene.enter(async ctx => {
-  logger.info({
-    message: '💵 Проверка баланса',
-    description: 'Entering balance check scene',
-    telegram_id: ctx.from?.id,
-    mode: ctx.session.mode,
+const modeToSceneMap: Record<ModeEnum, SceneEnum> = {
+  [ModeEnum.ChatWithAvatar]: SceneEnum.ChatWithAvatar,
+  [ModeEnum.NeuroPhoto]: SceneEnum.NeuroPhoto,
+  [ModeEnum.ImageToPrompt]: SceneEnum.ImageToPrompt,
+  [ModeEnum.Voice]: SceneEnum.Voice,
+  [ModeEnum.TextToSpeech]: SceneEnum.TextToSpeech,
+  [ModeEnum.ImageToVideo]: SceneEnum.ImageToVideo,
+  [ModeEnum.TextToVideo]: SceneEnum.TextToVideo,
+  [ModeEnum.TextToImage]: SceneEnum.TextToImage,
+  [ModeEnum.MainMenu]: SceneEnum.MainMenu,
+  [ModeEnum.CheckBalanceScene]: SceneEnum.CheckBalance,
+  [ModeEnum.SubscriptionCheckScene]: SceneEnum.SubscriptionCheck,
+  // Add other mappings as needed
+} as const
+
+export const checkBalanceScene = new Scenes.BaseScene<MyContext>(ModeEnum.CheckBalanceScene)
+
+checkBalanceScene.enter(async (ctx) => {
+  const telegramId = ctx.from?.id
+  const mode = ctx.session?.mode
+
+  logger.info('🎯 Entering check balance scene', {
+    telegram_id: telegramId,
+    mode: mode
   })
 
-  const isRu = ctx.from?.language_code === 'ru'
-  const { telegramId } = getUserInfo(ctx)
-  const currentBalance = await getUserBalance(telegramId, ctx.botInfo.username)
-  const mode = ctx.session.mode as ModeEnum
-
-  // Нормализуем режим для обратной совместимости
-  const normalizedMode = mode
-
-  // Используем единую функцию расчета стоимости
-  const costResult = calculateModeCost({ mode })
-  const cost = costResult.stars
-
-  // Отправляем сообщение о балансе только если стоимость определена и не равна 0
-  if (cost !== 0 && !isNaN(cost)) {
-    if (!ctx.from?.id) {
-      throw new Error('User ID not found')
-    }
-    await sendBalanceMessage(
-      ctx.from.id.toString(),
-      currentBalance,
-      cost,
-      isRu,
-      ctx.telegram
-    )
-  }
-
-  if (currentBalance < cost) {
-    logger.warn({
-      message: '⚠️ Недостаточно средств',
-      description: 'Insufficient funds',
-      telegram_id: ctx.from?.id,
-      currentBalance,
-      cost,
+  if (!telegramId) {
+    logger.error('❌ Telegram ID not found in check balance scene', {
+      telegram_id: telegramId
     })
-    await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
-    return ctx.scene.leave()
+    return
   }
 
-  // Переход к соответствующей сцене в зависимости от режима
-  switch (mode) {
-    case ModeEnum.DigitalAvatarBody:
-      logger.info({
-        message: '🔄 Переход к сцене digital_avatar_body',
-        description: 'Switching to digital_avatar_body scene',
-        telegram_id: ctx.from?.id,
+  if (!mode) {
+    logger.error('❌ Mode not found in check balance scene', {
+      telegram_id: telegramId
+    })
+    return
+  }
+
+  try {
+    // Get user's current balance
+    const balance = await getUserBalance(telegramId.toString())
+    if (balance === null) {
+      logger.error('❌ Failed to get user balance', {
+        telegram_id: telegramId
       })
-      return ctx.scene.enter(ModeEnum.DigitalAvatarBody)
-    case ModeEnum.DigitalAvatarBodyV2:
-      logger.info({
-        message: '🔄 Переход к сцене digital_avatar_body_v2',
-        description: 'Switching to digital_avatar_body_v2 scene',
-        telegram_id: ctx.from?.id,
+      return
+    }
+
+    // Calculate cost for the selected mode
+    const costResult = calculateModeCost({ mode })
+    if (!costResult || !costResult.stars) {
+      logger.error('❌ Failed to calculate mode cost', {
+        telegram_id: telegramId,
+        mode: mode
       })
-      return ctx.scene.enter(ModeEnum.DigitalAvatarBodyV2)
-    case ModeEnum.NeuroPhoto:
-      logger.info({
-        message: '🔄 Переход к сцене neuro_photo',
-        description: 'Switching to neuro_photo scene',
-        telegram_id: ctx.from?.id,
+      return
+    }
+
+    const cost = costResult.stars
+
+    // Check if user has sufficient balance
+    if (balance < cost) {
+      logger.info('⚠️ Insufficient balance', {
+        telegram_id: telegramId,
+        balance: balance,
+        cost: cost,
+        mode: mode
       })
-      return ctx.scene.enter(ModeEnum.NeuroPhoto)
-    case ModeEnum.NeuroPhotoV2:
-      logger.info({
-        message: '🔄 Переход к сцене neuroPhotoWizardV2',
-        description: 'Switching to neuroPhotoWizardV2 scene',
-        telegram_id: ctx.from?.id,
+      await sendInsufficientStarsMessage(ctx, balance, cost)
+      return
+    }
+
+    logger.info('✅ Balance check passed', {
+      telegram_id: telegramId,
+      balance: balance,
+      cost: cost,
+      mode: mode
+    })
+
+    // Transition to appropriate scene based on mode
+    if (mode in ModeEnum) {
+      // Map ModeEnum to SceneEnum
+      let targetScene: SceneEnum
+      switch (mode) {
+        case ModeEnum.ChatWithAvatar:
+          targetScene = SceneEnum.ChatWithAvatar
+          break
+        case ModeEnum.NeuroPhoto:
+          targetScene = SceneEnum.NeuroPhoto
+          break
+        case ModeEnum.TextToImage:
+          targetScene = SceneEnum.TextToImage
+          break
+        case ModeEnum.Voice:
+          targetScene = SceneEnum.Voice
+          break
+        case ModeEnum.TextToSpeech:
+          targetScene = SceneEnum.TextToSpeech
+          break
+        case ModeEnum.ImageToVideo:
+          targetScene = SceneEnum.ImageToVideo
+          break
+        case ModeEnum.TextToVideo:
+          targetScene = SceneEnum.TextToVideo
+          break
+        case ModeEnum.MainMenu:
+          targetScene = SceneEnum.MainMenu
+          break
+        default:
+          logger.info('⚠️ Falling back to main menu for mode:', { mode })
+          targetScene = SceneEnum.MainMenu
+      }
+      return enterScene(ctx, targetScene, telegramId)
+    } else {
+      logger.error('❌ Invalid mode for scene transition', {
+        telegram_id: telegramId,
+        mode: mode
       })
-      return ctx.scene.enter(ModeEnum.NeuroPhotoV2)
-    case ModeEnum.ImageToPrompt:
-      logger.info({
-        message: '🔄 Переход к сцене image_to_prompt',
-        description: 'Switching to image_to_prompt scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter(ModeEnum.ImageToPrompt)
-    case ModeEnum.Avatar:
-      logger.info({
-        message: '🔄 Переход к сцене avatar',
-        description: 'Switching to avatar scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter(ModeEnum.Avatar)
-    case ModeEnum.ChatWithAvatar:
-      logger.info({
-        message: '🔄 Переход к сцене chat_with_avatar',
-        description: 'Switching to chat_with_avatar scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter(ModeEnum.ChatWithAvatar)
-    case ModeEnum.SelectModel:
-      logger.info({
-        message: '🔄 Переход к сцене select_model',
-        description: 'Switching to select_model scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter(ModeEnum.SelectModel)
-    case ModeEnum.Voice:
-      logger.info({
-        message: '🔄 Переход к сцене voice',
-        description: 'Switching to voice scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter(ModeEnum.Voice)
-    case ModeEnum.TextToSpeech:
-      logger.info({
-        message: '🔄 Переход к сцене text_to_speech',
-        description: 'Switching to text_to_speech scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter(ModeEnum.TextToSpeech)
-    case ModeEnum.ImageToVideo:
-      logger.info({
-        message: '🔄 Переход к сцене image_to_video',
-        description: 'Switching to image_to_video scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter(ModeEnum.ImageToVideo)
-    case ModeEnum.TextToVideo:
-      logger.info({
-        message: '🔄 Переход к сцене text_to_video',
-        description: 'Switching to text_to_video scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter(ModeEnum.TextToVideo)
-    case ModeEnum.TextToImage:
-      logger.info({
-        message: '🔄 Переход к сцене text_to_image',
-        description: 'Switching to text_to_image scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter(ModeEnum.TextToImage)
-    case ModeEnum.LipSync:
-      logger.info({
-        message: '🔄 Переход к сцене lip_sync',
-        description: 'Switching to lip_sync scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter(ModeEnum.LipSync)
-    case ModeEnum.SelectModelWizard:
-      logger.info({
-        message: '🔄 Переход к сцене select_model_wizard',
-        description: 'Switching to select_model_wizard scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter(ModeEnum.SelectModelWizard)
-    default:
-      logger.warn({
-        message: '⚠️ Неизвестный режим',
-        description: 'Unknown mode in balance check scene',
-        mode,
-        normalizedMode,
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.leave()
+      const isRu = isRussian(ctx)
+      await ctx.reply(
+        isRu
+          ? '❌ Неверный режим работы'
+          : '❌ Invalid operation mode'
+      )
+      return
+    }
+  } catch (error) {
+    logger.error('❌ Error in check balance scene', {
+      telegram_id: telegramId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      mode: mode
+    })
+    const isRu = isRussian(ctx)
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка при проверке баланса'
+        : '❌ Error occurred while checking balance'
+    )
   }
 })
