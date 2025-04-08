@@ -60,5 +60,6 @@ export const updateLatestModelTraining = async (
       message: 'Ошибка при обновлении последней записи о тренировке',
       error: error instanceof Error ? error.message : String(error),
     })
+    return null // Возвращаем null в случае ошибки
   }
 }

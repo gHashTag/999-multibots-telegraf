@@ -9,7 +9,20 @@ import { getBotByName } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { Inngest } from 'inngest'
-import { TestResult } from './types'
+import { TestResult } from './interfaces'
+import { createTestError } from './test-logger'
+
+// Определяем интерфейс для ответа Inngest
+interface InngestEventResponse {
+  id: string
+  name: string
+  data: Record<string, any>
+  ts: number
+}
+
+// Импортируем новые тесты
+import { testTextToVideo } from './tests/textToVideo.test'
+import { testImageToVideo } from './tests/imageToVideo.test'
 
 // Интерфейсы и типы
 interface TextToSpeechParams {
@@ -21,9 +34,41 @@ interface TextToSpeechParams {
   username?: string
 }
 
-interface InngestEventResponse {
-  status: number
-  data: any
+interface TextToVideoParams {
+  prompt?: string
+  telegram_id?: TelegramId
+  is_ru?: boolean
+  bot_name?: string
+  model_id?: string
+  username?: string
+  aspect_ratio?: string
+  duration?: number
+}
+
+export interface TextToVideoTestParams extends TextToVideoParams {
+  _test?: {
+    api_error?: boolean
+    insufficient_balance?: boolean
+  }
+}
+
+export interface PaymentTestData {
+  telegram_id: TelegramId
+  amount: number
+  stars?: number
+  type: 'money_income' | 'money_expense'
+  description: string
+  bot_name: string
+  service_type: ModeEnum
+  metadata?: Record<string, any>
+}
+
+export interface PaymentParams {
+  amount: number
+  telegram_id: string
+  type: string
+  description: string
+  bot_name: string
 }
 
 /**
@@ -104,6 +149,7 @@ export class InngestTester {
           Date.now() - startTime
         }мс`,
         error: undefined,
+        startTime,
       }
     } catch (error) {
       const errorMessage = this.handleError(error)
@@ -120,6 +166,7 @@ export class InngestTester {
         success: false,
         message: `Ошибка при отправке события "${name}"`,
         error: new Error(errorMessage),
+        startTime,
       }
     }
   }
@@ -243,6 +290,7 @@ export class InngestTester {
         success: response.status === 200,
         message: `Функция "${functionId}" успешно выполнена`,
         error: undefined,
+        startTime: Date.now(),
       }
     } catch (error) {
       const errorMessage = this.handleError(error)
@@ -259,6 +307,7 @@ export class InngestTester {
         success: false,
         message: `Ошибка при вызове функции "${functionId}"`,
         error: new Error(errorMessage),
+        startTime: Date.now(),
       }
     }
   }
@@ -520,6 +569,7 @@ export class InngestTester {
         success: false,
         message: 'Произошла ошибка при выполнении тестов text-to-speech',
         error: error instanceof Error ? error : new Error(String(error)),
+        startTime: Date.now(),
       })
 
       return results
@@ -579,6 +629,54 @@ export class InngestTester {
   }
 
   /**
+   * Запускает тесты генерации видео из текста
+   */
+  async runTextToVideoTests(): Promise<TestResult[]> {
+    const startTime = Date.now()
+    logger.info({
+      message: '🎯 Запуск тестов генерации видео из текста',
+      description: 'Starting text-to-video tests',
+    })
+
+    try {
+      // Запускаем тесты для text-to-video
+      const textToVideoResults = await testTextToVideo()
+
+      // Запускаем тесты для image-to-video
+      const imageToVideoResults = await testImageToVideo()
+
+      // Объединяем результаты
+      const results = [...textToVideoResults, ...imageToVideoResults]
+
+      logger.info({
+        message: '✅ Тесты генерации видео завершены',
+        description: 'Text-to-video tests completed',
+        success_count: results.filter(r => r.success).length,
+        total_count: results.length,
+      })
+
+      return results
+    } catch (error) {
+      logger.error({
+        message: '❌ Ошибка при выполнении тестов генерации видео',
+        description: 'Error running text-to-video tests',
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      return [
+        {
+          name: 'Тесты генерации видео',
+          success: false,
+          message: 'Критическая ошибка при выполнении тестов',
+          error: createTestError(error),
+          startTime,
+          duration: Date.now() - startTime,
+        },
+      ]
+    }
+  }
+
+  /**
    * Запускает все тесты
    */
   async runAllTests(): Promise<TestResult[]> {
@@ -622,6 +720,7 @@ export class InngestTester {
    * Запускает тесты платежей
    */
   async runPaymentTests(): Promise<TestResult[]> {
+    const startTime = Date.now()
     const results: TestResult[] = []
 
     try {
@@ -649,7 +748,9 @@ export class InngestTester {
         name: 'Error in runPaymentTests',
         success: false,
         message: 'Произошла ошибка при выполнении тестов платежей',
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: createTestError(error),
+        startTime,
+        duration: Date.now() - startTime,
       })
 
       return results
@@ -825,6 +926,7 @@ export class InngestTester {
         success: false,
         message: 'Произошла ошибка при выполнении тестов генерации изображений',
         error: error instanceof Error ? error : new Error(String(error)),
+        startTime: Date.now(),
       })
 
       return results
@@ -859,138 +961,13 @@ export class InngestTester {
   }
 
   /**
-   * Запускает тесты конкретной функции Inngest
-   */
-  async runSpecificFunctionTests(functionName: string): Promise<TestResult[]> {
-    logger.info({
-      message: `🧪 Запуск тестов функции ${functionName}`,
-      description: `Running ${functionName} function tests`,
-    })
-
-    const results: TestResult[] = []
-
-    try {
-      // Предварительно объявляем все необходимые переменные
-      let helloWorldResult: TestResult
-      let broadcastResult: TestResult
-      let paymentResult: TestResult
-      let modelTrainingResult: TestResult
-      let directInvokeResult: TestResult
-      let modelTrainingV2Result: TestResult
-      let directInvokeV2Result: TestResult
-      let neuroResult: TestResult
-      let neuroPhotoV2Result: TestResult
-      let directInvokeNeuroPhotoV2Result: TestResult
-      let textToSpeechResult: TestResult
-      let directInvokeTextToSpeechResult: TestResult
-
-      switch (functionName) {
-        case 'hello-world':
-          helloWorldResult = await this.sendEvent('hello-world/greeting', {
-            message: 'Hello from Test Runner!',
-          })
-          results.push(helloWorldResult)
-          break
-
-        case 'broadcast':
-          broadcastResult = await this.sendEvent('broadcast/send', {
-            message: 'Test broadcast message',
-            telegram_ids: [TEST_CONFIG.users.main.telegram_id],
-            bot_name: TEST_CONFIG.bots.test_bot.name,
-          })
-          results.push(broadcastResult)
-          break
-
-        case 'payment':
-          paymentResult = await this.sendEvent('payment/process', {
-            amount: 100,
-            telegram_id: TEST_CONFIG.users.main.telegram_id,
-            username: TEST_CONFIG.users.main.username,
-            bot_name: TEST_CONFIG.bots.test_bot.name,
-          })
-          results.push(paymentResult)
-          break
-
-        case 'model-training':
-          modelTrainingResult = await this.testModelTraining()
-          results.push(modelTrainingResult)
-
-          directInvokeResult = await this.testModelTrainingDirectInvoke()
-          results.push(directInvokeResult)
-          break
-
-        case 'model-training-v2':
-          modelTrainingV2Result = await this.testModelTrainingV2()
-          results.push(modelTrainingV2Result)
-
-          directInvokeV2Result = await this.testModelTrainingV2DirectInvoke()
-          results.push(directInvokeV2Result)
-          break
-
-        case 'neuro':
-          neuroResult = await this.testNeuroImageGeneration()
-          results.push(neuroResult)
-          break
-
-        case 'neurophoto-v2':
-          neuroPhotoV2Result = await this.testNeuroPhotoV2Generation()
-          results.push(neuroPhotoV2Result)
-
-          directInvokeNeuroPhotoV2Result =
-            await this.testNeuroPhotoV2DirectInvoke()
-          results.push(directInvokeNeuroPhotoV2Result)
-          break
-
-        case 'text-to-image':
-          directInvokeResult = await this.testTextToImageDirectInvoke()
-          results.push(directInvokeResult)
-          break
-
-        case 'voice-avatar':
-          directInvokeResult = await this.testVoiceAvatarCreation()
-          results.push(directInvokeResult)
-          break
-
-        case 'text-to-speech':
-          textToSpeechResult = await this.testTextToSpeech()
-          results.push(textToSpeechResult)
-
-          directInvokeTextToSpeechResult =
-            await this.testTextToSpeechDirectInvoke()
-          results.push(directInvokeTextToSpeechResult)
-          break
-
-        default:
-          throw new Error(`Неизвестная функция: ${functionName}`)
-      }
-
-      return results
-    } catch (error) {
-      const errorMessage = this.handleError(error)
-      logger.error({
-        message: `❌ Ошибка при запуске тестов функции ${functionName}`,
-        description: `Error running ${functionName} function tests`,
-        error: errorMessage,
-      })
-
-      return [
-        {
-          name: `Тест функции ${functionName}`,
-          success: false,
-          message: `Ошибка при запуске тестов функции ${functionName}`,
-          error: error instanceof Error ? error : new Error(String(error)),
-        },
-      ]
-    }
-  }
-
-  /**
    * Тестирует аудио генерацию
    */
   async testAudioGeneration(
     text: string,
     voice_id: string
   ): Promise<Omit<TestResult, 'name'>> {
+    const startTime = Date.now()
     try {
       logger.info({
         message: '🧪 Тест генерации аудио',
@@ -1022,12 +999,13 @@ export class InngestTester {
 
       return {
         success: true,
-        message: 'Аудио успешно сгенерировано',
+        message: `Аудио успешно сгенерировано за ${Date.now() - startTime}мс`,
         error: undefined,
+        startTime,
+        duration: Date.now() - startTime,
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err)
-      const error = new Error(errorMessage)
 
       logger.error({
         message: '❌ Ошибка при генерации аудио',
@@ -1038,7 +1016,9 @@ export class InngestTester {
       return {
         success: false,
         message: 'Ошибка при генерации аудио',
-        error,
+        error: new Error(errorMessage),
+        startTime,
+        duration: Date.now() - startTime,
       }
     }
   }
@@ -1057,6 +1037,7 @@ export class InngestTester {
     telegram_id: TelegramId
     bot_name: string
   }): Promise<TestResult> {
+    const startTime = Date.now()
     try {
       logger.info({
         message: '🧪 Тест отправки аудио',
@@ -1078,14 +1059,15 @@ export class InngestTester {
       }
 
       return {
-        name: 'audio-sending',
+        name: 'Audio Sending Test',
         success: true,
-        message: 'Аудио успешно отправлено',
+        message: `Аудио успешно отправлено за ${Date.now() - startTime}мс`,
         error: undefined,
+        startTime,
+        duration: Date.now() - startTime,
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err)
-      const error = new Error(errorMessage)
 
       logger.error({
         message: '❌ Ошибка при отправке аудио',
@@ -1094,31 +1076,55 @@ export class InngestTester {
       })
 
       return {
-        name: 'audio-sending',
+        name: 'Audio Sending Test',
         success: false,
         message: 'Ошибка при отправке аудио',
-        error,
+        error: new Error(errorMessage),
+        startTime,
+        duration: Date.now() - startTime,
       }
     }
   }
 
   /**
-   * Тестирует преобразование текста в видео
+   * Тестирует функцию генерации видео из текста
    */
-  async testTextToVideo(params: {
-    prompt: string
-    telegram_id: string
-    bot_name: string
-  }): Promise<TestResult & { videoBuffer?: Buffer }> {
+  // Временно закомментировано до завершения разработки на другом компьютере
+  /*
+  async testTextToVideo(params: TextToVideoTestParams): Promise<VideoTestResult> {
+    const startTime = Date.now()
+    logger.info({
+      message: '🎬 Запуск теста генерации видео из текста',
+      description: 'Starting text to video generation test',
+      params,
+    })
+
     try {
-      logger.info({
-        message: '🧪 Тест преобразования текста в видео',
-        description: 'Text to video test',
-        params,
+      // Отправляем событие для генерации видео
+      const response = await this.sendEvent('text-to-video/generate', {
+        prompt: params.prompt,
+        telegram_id: params.telegram_id || '123456789',
+        is_ru: params.is_ru !== undefined ? params.is_ru : true,
+        bot_name: params.bot_name || 'test_bot',
+        model_id: params.model_id,
+        _test: {
+          api_error: true
+        }
       })
 
-      const videoBuffer = Buffer.from('test-video-data')
+      if (!response.success) {
+        const errorMessage = typeof response.error === 'string' 
+          ? response.error 
+          : response.error instanceof Error 
+            ? response.error.message 
+            : 'Failed to generate video'
+        throw new Error(errorMessage)
+      }
 
+      // Предполагаем, что в ответе есть URL или буфер видео
+      const videoBuffer = response.details?.videoBuffer as Buffer
+
+      const duration = Date.now() - startTime
       return {
         name: 'text-to-video',
         success: true,
@@ -1139,10 +1145,16 @@ export class InngestTester {
       return {
         name: 'text-to-video',
         success: false,
-        message: 'Ошибка при генерации видео',
-        error,
-        videoBuffer: undefined,
+        message: 'Ошибка при создании видео из текста',
+        error: error instanceof Error ? error : new Error(errorMessage),
+        duration,
+        metadata: {
+          startTime,
+          endTime: Date.now(),
+          testType: 'text-to-video',
+        },
       }
     }
   }
+  */
 }

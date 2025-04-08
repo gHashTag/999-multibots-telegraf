@@ -76,6 +76,7 @@ composer.command('inngest_send', async ctx => {
         2
       )}`
     )
+    return true
   } catch (error) {
     console.error('❌ Ошибка при отправке события Inngest:', error)
     await ctx.reply(
@@ -83,6 +84,7 @@ composer.command('inngest_send', async ctx => {
         error instanceof Error ? error.message : 'Unknown error'
       }`
     )
+    return false
   }
 })
 
@@ -136,6 +138,7 @@ composer.command('broadcast', async ctx => {
     )
 
     console.log('✅ Событие рассылки отправлено:', result)
+    return true
   } catch (error) {
     console.error('❌ Ошибка при запуске рассылки:', error)
     await ctx.reply(
@@ -143,6 +146,7 @@ composer.command('broadcast', async ctx => {
         error instanceof Error ? error.message : 'Unknown error'
       }`
     )
+    return false
   }
 })
 
@@ -188,11 +192,13 @@ composer.command('broadcast_all', async ctx => {
         'Для подтверждения отправьте:\n' +
         `/confirm_broadcast ${imageUrl} ${text.substring(0, 20)}...`
     )
+    return true
   } catch (error) {
     console.error('❌ Ошибка при подготовке рассылки:', error)
     await ctx.reply(
       `❌ Ошибка: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
+    return false
   }
 })
 
@@ -216,7 +222,7 @@ composer.command('confirm_broadcast', async ctx => {
 
     await ctx.reply('🚀 Запускаем массовую рассылку ВСЕМ пользователям...')
 
-    const result = await InngestService.startBroadcast(imageUrl, text, {
+    await InngestService.startBroadcast(imageUrl, text, {
       bot_name,
       sender_telegram_id: ctx.from?.id?.toString(),
       test_mode: false, // Реальная рассылка всем пользователям
@@ -226,14 +232,12 @@ composer.command('confirm_broadcast', async ctx => {
       '✅ Массовая рассылка запущена!\n\n' +
         'Результаты обработки будут доступны в логах системы.'
     )
-
-    console.log('✅ Событие массовой рассылки отправлено:', result)
+    return true
   } catch (error) {
-    console.error('❌ Ошибка при запуске массовой рассылки:', error)
+    console.error('❌ Ошибка при подготовке рассылки:', error)
     await ctx.reply(
-      `❌ Ошибка при запуске массовой рассылки: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`
+      `❌ Ошибка: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
+    return false
   }
 })

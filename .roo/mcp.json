@@ -1,23 +1,41 @@
 {
   "mcpServers": {
+    "docker-tools": {
+      "command": "npx",
+      "args": ["@mcp/docker-tools"],
+      "env": {
+        "DOCKER_HOST": "unix:///var/run/docker.sock",
+        "WORKSPACE_DIR": "/Users/playra/999-multibots-telegraf"
+      }
+    },
     "browser-tools": {
       "command": "npx",
       "args": ["@agentdeskai/browser-tools-mcp@1.0.11"]
     },
+    "googlesheets_composio": {
+      "url": "https://mcp.composio.dev/googlesheets/sour-old-lion-KK2T7-"
+    },
+    "googlesuper_composio": {
+      "url": "https://mcp.composio.dev/googlesuper/calm-damp-magician-B-f2iC"
+    },
     "supabase_composio": {
       "url": "https://mcp.composio.dev/supabase/calm-damp-magician-B-f2iC"
     },
-    "actors-mcp-server": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@apify/actors-mcp-server",
-        "--actors",
-        "reezuan/send-http-requests"
-      ],
+    "gmail_composio": {
+      "url": "https://mcp.composio.dev/gmail/calm-damp-magician-B-f2iC"
+    },
+    "telegram-mcp": {
+      "command": "telegram-mcp",
       "env": {
-        "APIFY_TOKEN": "apify_api_MYTainOkZluaaN2ixc1E0klUhnkxqO2aXfEJ"
+        "TG_APP_ID": "94892",
+        "TG_API_HASH": "cacf9ad137d228611b49b2ecc6d68d43"
       }
+    },
+    "googlemeet_composio": {
+      "url": "https://mcp.composio.dev/googlemeet/calm-damp-magician-B-f2iC"
+    },
+    "youtube_composio": {
+      "url": "https://mcp.composio.dev/youtube/calm-damp-magician-B-f2iC"
     },
     "github_composio": {
       "url": "https://mcp.composio.dev/github/calm-damp-magician-B-f2iC"

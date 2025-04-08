@@ -1,10 +1,11 @@
 /**
  * Скрипт для тестирования вебхуков BFL
  */
-import { BFLWebhookTester } from './webhook-tests'
+import { BFLWebhookTester } from './webhook-tests/index'
 import { logger } from '../utils/logger'
-import { TestResult } from './interfaces'
+import { TestResult } from './types'
 import { supabase } from '@/core/supabase'
+import { createTestError } from './test-logger'
 
 // Интерфейс для итогов тестирования
 interface TestSummary {
@@ -25,18 +26,20 @@ async function runBFLWebhookTests(): Promise<TestSummary> {
   const results = await tester.runAllTests()
 
   // Считаем успешные и неуспешные тесты
-  const successCount = results.filter(r => r.success).length
-  const failCount = results.filter(r => !r.success).length
+  const successfulResults = results.filter(
+    (result: TestResult) => result.success
+  )
+  const failedResults = results.filter((result: TestResult) => !result.success)
 
   // Выводим результаты
   logger.info({
-    message: `✅ Тесты BFL вебхуков завершены: ${successCount} успешно, ${failCount} неуспешно`,
-    description: `BFL webhook tests completed: ${successCount} success, ${failCount} failures`,
+    message: `✅ Тесты BFL вебхуков завершены: ${successfulResults.length} успешно, ${failedResults.length} неуспешно`,
+    description: `BFL webhook tests completed: ${successfulResults.length} success, ${failedResults.length} failures`,
     results,
   })
 
   // Выводим детали по каждому тесту
-  results.forEach(result => {
+  results.forEach((result: TestResult) => {
     if (result.success) {
       logger.info({
         message: `✓ ${result.name} - ${result.message}`,
@@ -52,16 +55,17 @@ async function runBFLWebhookTests(): Promise<TestSummary> {
   })
 
   return {
-    success: failCount === 0,
+    success: failedResults.length === 0,
     totalTests: results.length,
-    successCount,
-    failCount,
+    successCount: successfulResults.length,
+    failCount: failedResults.length,
     results,
   }
 }
 
 export async function testBFLWebhook(trainingId: string): Promise<TestResult> {
   const testName = 'BFL Webhook Test'
+  const startTime = Date.now()
 
   try {
     logger.info({
@@ -98,9 +102,11 @@ export async function testBFLWebhook(trainingId: string): Promise<TestResult> {
       name: testName,
       success: true,
       message: `Тренировка BFL ${trainingId} успешно обработана`,
+      startTime,
+      duration: Date.now() - startTime,
     }
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err))
+    const error = createTestError(err)
 
     logger.error({
       message: '❌ Ошибка при обработке вебхука BFL',
@@ -114,6 +120,8 @@ export async function testBFLWebhook(trainingId: string): Promise<TestResult> {
       success: false,
       message: 'Ошибка при обработке вебхука BFL',
       error,
+      startTime,
+      duration: Date.now() - startTime,
     }
   }
 }
@@ -135,8 +143,7 @@ if (require.main === module) {
       logger.error({
         message: '💥 Критическая ошибка при запуске тестов BFL вебхуков',
         description: 'Critical error during BFL webhook tests',
-        error: error.message,
-        stack: error.stack,
+        error: createTestError(error),
       })
       process.exit(1)
     })

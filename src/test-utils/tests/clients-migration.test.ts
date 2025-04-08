@@ -323,6 +323,7 @@ export async function testClientsMigration(): Promise<TestResult> {
             .map(bot => bot.botName)
             .join(', ')}`
         ),
+        startTime: Date.now(),
       }
     }
 
@@ -335,6 +336,7 @@ export async function testClientsMigration(): Promise<TestResult> {
       name: testName,
       success: true,
       message: `Миграция успешно проверена для ${results.length} ботов`,
+      startTime: Date.now(),
     }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
@@ -348,7 +350,8 @@ export async function testClientsMigration(): Promise<TestResult> {
       name: testName,
       success: false,
       message: 'Ошибка при тестировании миграции клиентов',
-      error,
+      error: error instanceof Error ? error : new Error(String(error)),
+      startTime: Date.now(),
     }
   }
 }

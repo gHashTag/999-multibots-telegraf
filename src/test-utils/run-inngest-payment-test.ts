@@ -1,7 +1,9 @@
 import { logger } from '@/utils/logger'
 import { TestResult } from './types'
-import { inngestTestEngine } from './test-config'
+import { TEST_CONFIG } from './test-config'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+
+const { inngestEngine: inngestTestEngine } = TEST_CONFIG
 
 export async function runInngestPaymentTest(): Promise<TestResult[]> {
   const results: TestResult[] = []
@@ -37,6 +39,7 @@ export async function runInngestPaymentTest(): Promise<TestResult[]> {
       name: 'Тест пополнения баланса',
       success: true,
       message: `Запрос на пополнение баланса на ${depositAmount} отправлен`,
+      startTime: Date.now(),
     })
 
     // Тест списания средств
@@ -63,6 +66,7 @@ export async function runInngestPaymentTest(): Promise<TestResult[]> {
       name: 'Тест списания средств',
       success: true,
       message: `Запрос на списание ${withdrawAmount} отправлен`,
+      startTime: Date.now(),
     })
 
     return results
@@ -80,6 +84,7 @@ export async function runInngestPaymentTest(): Promise<TestResult[]> {
       success: false,
       message: `Ошибка при выполнении тестов: ${err.message}`,
       error: err,
+      startTime: Date.now(),
     })
 
     return results

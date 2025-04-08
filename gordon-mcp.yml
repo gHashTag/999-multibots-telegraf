@@ -1,5 +1,12 @@
 services:
-  docker-tools:
+  time:
+    image: mcp/time
+    environment:
+      - MCP_MODE=stdio
+      - TZ=UTC
+    restart: unless-stopped
+
+  docker:
     image: mcp/docker
     environment:
       - MCP_MODE=stdio
@@ -7,48 +14,12 @@ services:
       - PLATFORM=Darwin
       - HOST_DIR=/workspace
       - PROMPTS=[]
-      - NPM_TOKEN=${NPM_TOKEN}
-      - DOCKER_CONFIG=/root/.docker
-      - DOCKER_DESKTOP_DISABLED=true
-      - DOCKER_CLI_HINTS=false
-      - DOCKER_CONTEXT=default
-      - DOCKER_DESKTOP_ENABLED=false
-      - DOCKER_DESKTOP_CHECK=false
-      - DOCKER_DESKTOP_LOGIN_CHECK=false
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/workspace
-      - ~/.npmrc:/root/.npmrc
-      - ~/.docker:/root/.docker
-    restart: unless-stopped
-    command: ["--platform", "Darwin", "--prompts-file", "/workspace/prompts/prompts.md", "--host-dir", "/workspace", "--offline"]
-
-  sequential-thinking:
-    image: mcp/sequentialthinking
-    environment:
-      - MCP_MODE=stdio
-      - NPM_TOKEN=${NPM_TOKEN}
-    volumes:
-      - ~/.npmrc:/root/.npmrc
+    command: ["--platform", "Darwin", "--prompts-file", "/workspace/prompts/prompts.md", "--host-dir", "/workspace"]
     restart: unless-stopped
 
-  fs:
-    image: mcp/filesystem
-    environment:
-      - MCP_MODE=stdio
-    volumes:
-      - .:/workspace
-    restart: unless-stopped
-    command: ["/workspace"]
-
-  time:
-    image: mcp/time
-    environment:
-      - MCP_MODE=stdio
-    restart: unless-stopped
-
-  fetch:
-    image: mcp/fetch
-    environment:
-      - MCP_MODE=stdio
-    restart: unless-stopped 
+networks:
+  app-network:
+    driver: bridge

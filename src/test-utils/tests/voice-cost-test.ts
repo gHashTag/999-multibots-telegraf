@@ -48,6 +48,7 @@ export async function testVoiceCost(): Promise<TestResult> {
       name: testName,
       success: true,
       message: `Стоимость успешно рассчитана: ${cost.stars} звезд (${cost.rubles} руб.)`,
+      startTime: Date.now(),
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -64,6 +65,7 @@ export async function testVoiceCost(): Promise<TestResult> {
       success: false,
       message: 'Ошибка при расчете стоимости голосового режима',
       error: err,
+      startTime: Date.now(),
     }
   }
 }

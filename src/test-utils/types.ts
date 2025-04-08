@@ -24,13 +24,19 @@ export interface MockContext {
 }
 
 /**
- * Интерфейс для результатов тестов
+ * Interface for test results
  */
 export interface TestResult {
   success: boolean
   message: string
   name: string
+  startTime?: number
+  endTime?: number
+  duration?: number
   error?: Error
+  retries?: number
+  telegram_id?: string
+  details?: Record<string, any>
 }
 
 export interface BotInfo {
@@ -163,15 +169,41 @@ export interface TestConfig {
   models: {
     default: string
     stable: string
+    neurophoto: {
+      name: string
+    }
   }
   cleanupAfterEach: boolean
   /** Тестовые тренировки моделей */
   modelTraining: TrainingConfig[]
   CHECK_INTERVAL: number
   TIMEOUT: number
+  MAX_RETRIES: number
+  VOICE_GENERATION_COST: number
+  CLEANUP_TEST_DATA: boolean
+  timeouts: {
+    default: number
+    long: number
+    short: number
+  }
+  retries: {
+    default: number
+    max: number
+  }
+  delays: {
+    default: number
+    long: number
+    short: number
+  }
+  env: {
+    isTest: boolean
+    testMode: string
+  }
   endpoints: {
     payment: string
     generate: string
     check: string
   }
+  /** Тестовые константы для голосовых функций */
+  TEST_VOICE_ID: string
 }

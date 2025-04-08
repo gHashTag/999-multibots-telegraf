@@ -8,6 +8,7 @@ import { logger } from '../../utils/logger'
  */
 export const runBalanceTest = async (): Promise<TestResult> => {
   const testName = '🏦 Test getUserBalance'
+  const startTime = Date.now()
 
   try {
     logger.info('🚀 Starting balance test', {
@@ -44,6 +45,7 @@ export const runBalanceTest = async (): Promise<TestResult> => {
       name: testName,
       success: true,
       message: '✅ Balance tests completed successfully',
+      startTime,
     }
   } catch (error) {
     logger.error('❌ Balance test failed', { error })
@@ -53,6 +55,7 @@ export const runBalanceTest = async (): Promise<TestResult> => {
       success: false,
       message: '❌ Balance test failed',
       error: error instanceof Error ? error : new Error(String(error)),
+      startTime,
     }
   }
 }

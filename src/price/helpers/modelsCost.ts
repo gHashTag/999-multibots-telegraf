@@ -1,6 +1,5 @@
 import { calculateCost } from './calculateCost'
 import { logger } from '@/utils/logger'
-import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { interestRate } from '../interestRate'
 
 export const starCost = 0.016
@@ -59,6 +58,7 @@ export enum ModeEnum {
   GetRuBillWizard = 'get_ru_bill_wizard',
   SubscriptionScene = 'subscription_scene',
   CreateUserScene = 'create_user_scene',
+  VoiceToText = 'voice_to_text',
   TextToVoice = 'text_to_voice',
 }
 
@@ -89,22 +89,11 @@ const BASE_COSTS: BaseCosts = {
   [ModeEnum.SelectModelWizard]: 0,
   [ModeEnum.Voice]: 0.9,
   [ModeEnum.TextToSpeech]: 0.12,
-  [ModeEnum.ImageToVideo]:
-    Object.values(VIDEO_MODELS_CONFIG)
-      .filter(model => model.inputType.includes('image'))
-      .reduce((acc, model) => acc + model.basePrice, 0) /
-    Object.values(VIDEO_MODELS_CONFIG).filter(model =>
-      model.inputType.includes('image')
-    ).length,
-  [ModeEnum.TextToVideo]:
-    Object.values(VIDEO_MODELS_CONFIG)
-      .filter(model => model.inputType.includes('text'))
-      .reduce((acc, model) => acc + model.basePrice, 0) /
-    Object.values(VIDEO_MODELS_CONFIG).filter(model =>
-      model.inputType.includes('text')
-    ).length,
+  [ModeEnum.ImageToVideo]: 0,
+  [ModeEnum.TextToVideo]: 0,
   [ModeEnum.TextToImage]: 0.08,
   [ModeEnum.LipSync]: 0.9,
+  [ModeEnum.VoiceToText]: 0.08,
   [ModeEnum.TextToVoice]: 0.8,
 }
 
@@ -147,6 +136,10 @@ export function calculateModeCost(
       } else {
         stars = (baseCostInDollars / starCost) * numImages
       }
+    }
+
+    if (mode === ModeEnum.VoiceToText) {
+      stars = 5
     }
 
     stars = parseFloat(stars.toFixed(2))
@@ -197,6 +190,8 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.TextToImage]: calculateModeCost({ mode: ModeEnum.TextToImage })
     .stars,
   [ModeEnum.LipSync]: calculateModeCost({ mode: ModeEnum.LipSync }).stars,
+  [ModeEnum.VoiceToText]: calculateModeCost({ mode: ModeEnum.VoiceToText })
+    .stars,
   [ModeEnum.TextToVoice]: calculateModeCost({ mode: ModeEnum.TextToVoice })
     .stars,
 }

@@ -1,5 +1,6 @@
 import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
+import fetch from 'node-fetch'
 import {
   handleTechSupport,
   getStatsCommand,
@@ -70,6 +71,7 @@ import { get100Command } from './commands/get100Command'
 import { composer as inngestCommand } from './commands/inngest'
 
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { logger } from '@/utils/logger'
 
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
@@ -137,101 +139,153 @@ export function registerCommands({
 
   // Регистрация команд
   bot.command('start', async ctx => {
-    console.log('CASE bot.command: start')
+    logger.info('🚀 Команда start:', {
+      description: 'Start command received',
+      telegramId: ctx.from?.id,
+    })
     await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
   })
 
   bot.command('stats', async ctx => {
-    console.log('CASE bot.command: stats')
+    logger.info('📊 Команда stats:', {
+      description: 'Stats command received',
+      telegramId: ctx.from?.id,
+    })
     await getStatsCommand(ctx)
   })
 
   composer.command('stats', async ctx => {
-    console.log('CASE composer.command: stats')
+    logger.info('📊 Команда stats (composer):', {
+      description: 'Stats command received (composer)',
+      telegramId: ctx.from?.id,
+    })
     await getStatsCommand(ctx)
   })
 
   bot.command('price', async ctx => {
-    console.log('CASE bot.command: price')
+    logger.info('💰 Команда price:', {
+      description: 'Price command received',
+      telegramId: ctx.from?.id,
+    })
     await priceCommand(ctx)
   })
 
   composer.command('price', async ctx => {
+    logger.info('💰 Команда price (composer):', {
+      description: 'Price command received (composer)',
+      telegramId: ctx.from?.id,
+    })
     await priceCommand(ctx)
   })
 
   // Команда для запуска рассылки
   bot.command('broadcast', async ctx => {
-    console.log('CASE bot.command: broadcast')
+    logger.info('📢 Команда broadcast:', {
+      description: 'Broadcast command received',
+      telegramId: ctx.from?.id,
+    })
     await ctx.scene.enter(ModeEnum.BroadcastWizard)
   })
 
   composer.command('broadcast', async ctx => {
-    console.log('CASE bot.command: broadcast')
+    logger.info('📢 Команда broadcast (composer):', {
+      description: 'Broadcast command received (composer)',
+      telegramId: ctx.from?.id,
+    })
     await ctx.scene.enter(ModeEnum.BroadcastWizard)
   })
 
   bot.command('menu', async ctx => {
-    console.log('CASE bot.command: menu')
+    logger.info('📋 Команда menu:', {
+      description: 'Menu command received',
+      telegramId: ctx.from?.id,
+    })
     ctx.session.mode = ModeEnum.MainMenu
     await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
   })
 
   composer.command('menu', async ctx => {
-    console.log('CASE: myComposer.command menu')
-    // ctx.session = defaultSession()
+    logger.info('📋 Команда menu (composer):', {
+      description: 'Menu command received (composer)',
+      telegramId: ctx.from?.id,
+    })
     ctx.session.mode = ModeEnum.MainMenu
     await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
   })
 
   bot.command('tech', async ctx => {
-    console.log('CASE bot.command: tech')
+    logger.info('🛠️ Команда tech:', {
+      description: 'Tech command received',
+      telegramId: ctx.from?.id,
+    })
     await handleTechSupport(ctx)
   })
 
   bot.hears(['⬆️ Улучшить промпт', '⬆️ Improve prompt'], async ctx => {
-    console.log('CASE: Улучшить промпт')
-    // ctx.session.mode = ModeEnum.ImprovePrompt
+    logger.info('⬆️ Улучшение промпта:', {
+      description: 'Improve prompt requested',
+      telegramId: ctx.from?.id,
+    })
     await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
   })
 
   bot.hears(['📐 Изменить размер', '📐 Change size'], async ctx => {
-    console.log('CASE: Изменить размер')
-    // ctx.session.mode = ModeEnum.ChangeSize
+    logger.info('📐 Изменение размера:', {
+      description: 'Change size requested',
+      telegramId: ctx.from?.id,
+    })
     await ctx.scene.enter(ModeEnum.SizeWizard)
   })
 
   composer.command('tech', async ctx => {
-    console.log('CASE bot.command: tech')
+    logger.info('🛠️ Команда tech (composer):', {
+      description: 'Tech command received (composer)',
+      telegramId: ctx.from?.id,
+    })
     await handleTechSupport(ctx)
   })
 
   composer.hears(/^(🛠 Техподдержка|🛠 Tech Support)$/i, handleTechSupport)
 
   composer.command('get100', async ctx => {
-    console.log('CASE: get100')
+    logger.info('👥 Команда get100:', {
+      description: 'Get100 command received',
+      telegramId: ctx.from?.id,
+    })
     await get100Command(ctx)
   })
 
   bot.command('buy', async ctx => {
-    console.log('CASE: buy')
+    logger.info('💸 Команда buy:', {
+      description: 'Buy command received',
+      telegramId: ctx.from?.id,
+    })
     ctx.session.subscription = 'stars'
     await ctx.scene.enter(ModeEnum.PaymentScene)
   })
 
   composer.command('buy', async ctx => {
-    console.log('CASE: buy')
+    logger.info('💸 Команда buy (composer):', {
+      description: 'Buy command received (composer)',
+      telegramId: ctx.from?.id,
+    })
     ctx.session.subscription = 'stars'
     await ctx.scene.enter(ModeEnum.PaymentScene)
   })
 
   composer.command('invite', async ctx => {
-    console.log('CASE: invite')
+    logger.info('👥 Команда invite:', {
+      description: 'Invite command received',
+      telegramId: ctx.from?.id,
+    })
     await ctx.scene.enter(ModeEnum.InviteScene)
   })
 
   composer.command('balance', async ctx => {
-    console.log('CASE: balance')
+    logger.info('💰 Команда balance:', {
+      description: 'Balance command received',
+      telegramId: ctx.from?.id,
+    })
     await ctx.scene.enter(ModeEnum.BalanceScene)
   })
 
@@ -244,66 +298,99 @@ export function registerCommands({
   })
 
   composer.hears([levels[1].title_ru, levels[1].title_en], async ctx => {
-    console.log('CASE: 🤖 Цифровое тело')
+    logger.info('🤖 Цифровое тело:', {
+      description: 'Digital avatar body selected',
+      level: levels[1].title_ru,
+    })
     ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
     await ctx.scene.enter(ModeEnum.SelectModelWizard)
   })
 
   composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
-    console.log('CASE hearsHandler: 📸 Нейрофото')
+    logger.info('📸 Нейрофото:', {
+      description: 'Neurophoto selected',
+      level: levels[2].title_ru,
+    })
     await ctx.scene.enter(ModeEnum.SelectNeuroPhoto)
   })
 
   composer.hears([levels[3].title_ru, levels[3].title_en], async ctx => {
-    console.log('CASE: 🔍 Промпт из фото')
+    logger.info('🔍 Промпт из фото:', {
+      description: 'Image to prompt selected',
+      level: levels[3].title_ru,
+    })
     ctx.session.mode = ModeEnum.ImageToPrompt
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[4].title_ru, levels[4].title_en], async ctx => {
-    console.log('CASE: 🧠 Мозг аватара')
+    logger.info('🧠 Мозг аватара:', {
+      description: 'Avatar brain selected',
+      level: levels[4].title_ru,
+    })
     ctx.session.mode = ModeEnum.Avatar
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[5].title_ru, levels[5].title_en], async ctx => {
-    console.log('CASE: 💭 Чат с аватаром')
+    logger.info('💭 Чат с аватаром:', {
+      description: 'Chat with avatar selected',
+      level: levels[5].title_ru,
+    })
     ctx.session.mode = ModeEnum.ChatWithAvatar
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[6].title_ru, levels[6].title_en], async ctx => {
-    console.log('CASE: 🤖 Выбор модели ИИ')
+    logger.info('🤖 Выбор модели ИИ:', {
+      description: 'Select model selected',
+      level: levels[6].title_ru,
+    })
     ctx.session.mode = ModeEnum.SelectModelWizard
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[7].title_ru, levels[7].title_en], async ctx => {
-    console.log('CASE: 🎤 Голос аватара')
+    logger.info('🎤 Голос аватара:', {
+      description: 'Voice selected',
+      level: levels[7].title_ru,
+    })
     ctx.session.mode = ModeEnum.Voice
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[8].title_ru, levels[8].title_en], async ctx => {
-    console.log('CASE: 🎙️ Текст в голос')
+    logger.info('🎙️ Текст в голос:', {
+      description: 'Text to speech selected',
+      level: levels[8].title_ru,
+    })
     ctx.session.mode = ModeEnum.TextToSpeech
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[9].title_ru, levels[9].title_en], async ctx => {
-    console.log('CASE: 🎥 Фото в видео')
+    logger.info('🎥 Фото в видео:', {
+      description: 'Image to video selected',
+      level: levels[9].title_ru,
+    })
     ctx.session.mode = ModeEnum.ImageToVideo
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[10].title_ru, levels[10].title_en], async ctx => {
-    console.log('CASE: 🎥 Видео из текста')
+    logger.info('🎥 Видео из текста:', {
+      description: 'Text to video selected',
+      level: levels[10].title_ru,
+    })
     ctx.session.mode = ModeEnum.TextToVideo
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[11].title_ru, levels[11].title_en], async ctx => {
-    console.log('CASE: 🖼️ Текст в фото')
+    logger.info('🖼️ Текст в фото:', {
+      description: 'Text to image selected',
+      level: levels[11].title_ru,
+    })
     ctx.session.mode = ModeEnum.TextToImage
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     await imageModelMenu(ctx)
@@ -322,32 +409,47 @@ export function registerCommands({
   // })
 
   composer.hears(['❓ Помощь', '❓ Help'], async ctx => {
-    console.log('CASE: Помощь')
+    logger.info('❓ Помощь:', {
+      description: 'Help requested',
+      telegramId: ctx.from?.id,
+    })
     ctx.session.mode = ModeEnum.Help
     await ctx.scene.enter(ModeEnum.HelpScene)
   })
 
   composer.hears([levels[100].title_ru, levels[100].title_en], async ctx => {
-    console.log('CASE: Пополнить баланс')
+    logger.info('💸 Пополнить баланс:', {
+      description: 'Top up balance requested',
+      level: levels[100].title_ru,
+    })
     ctx.session.mode = ModeEnum.TopUpBalance
     ctx.session.subscription = 'stars'
     await ctx.scene.enter(ModeEnum.PaymentScene)
   })
 
   composer.hears([levels[101].title_ru, levels[101].title_en], async ctx => {
-    console.log('CASE: Баланс')
+    logger.info('💰 Баланс:', {
+      description: 'Balance requested',
+      level: levels[101].title_ru,
+    })
     ctx.session.mode = ModeEnum.Balance
     await ctx.scene.enter(ModeEnum.BalanceScene)
   })
 
   composer.hears([levels[102].title_ru, levels[102].title_en], async ctx => {
-    console.log('CASE: Пригласить друга')
+    logger.info('👥 Пригласить друга:', {
+      description: 'Invite friend requested',
+      level: levels[102].title_ru,
+    })
     ctx.session.mode = ModeEnum.Invite
     await ctx.scene.enter(ModeEnum.InviteScene)
   })
 
   composer.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
-    console.log('CASE: Главное меню')
+    logger.info('🏠 Главное меню:', {
+      description: 'Main menu requested',
+      telegramId: ctx.from?.id,
+    })
     ctx.session.mode = ModeEnum.MainMenu
     await ctx.scene.enter(ModeEnum.MainMenu)
   })
@@ -358,16 +460,22 @@ export function registerCommands({
   )
 
   bot.hears(['/get100'], async ctx => {
-    console.log('CASE: get100')
+    logger.info('/get100:', {
+      description: 'Get100 command received',
+      telegramId: ctx.from?.id,
+    })
     await get100Command(ctx)
   })
 
   composer.hears(
     ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
     async ctx => {
-      console.log('CASE: Сгенерировать новое видео')
+      logger.info('🎥 Сгенерировать новое видео:', {
+        description: 'Generate new video requested',
+        telegramId: ctx.from?.id,
+      })
       const mode = ctx.session.mode
-      console.log('mode', mode)
+      logger.info('mode:', { mode })
       if (mode === ModeEnum.TextToVideo) {
         await ctx.scene.enter(ModeEnum.TextToVideo)
       } else if (mode === ModeEnum.ImageToVideo) {
@@ -384,16 +492,22 @@ export function registerCommands({
 
   composer.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async ctx => {
     const text = ctx.message.text
-    console.log(`CASE: Нажата кнопка ${text}`)
+    logger.info(`CASE: Нажата кнопка ${text}:`, {
+      description: 'Button pressed',
+      text: text,
+      telegramId: ctx.from?.id,
+    })
     const isRu = isRussian(ctx)
     const prompt = ctx.session.prompt
     const userId = ctx.from.id
     const numImages = parseInt(text[0])
 
-    console.log('ctx.session.mode', ctx.session.mode)
-    console.log('ctx.session.prompt', ctx.session.prompt)
-    console.log('ctx.session.userModel', ctx.session.userModel)
-    console.log('ctx.session.selectedModel', ctx.session.selectedModel)
+    logger.info('ctx.session.mode:', { mode: ctx.session.mode })
+    logger.info('ctx.session.prompt:', { prompt })
+    logger.info('ctx.session.userModel:', { userModel: ctx.session.userModel })
+    logger.info('ctx.session.selectedModel:', {
+      selectedModel: ctx.session.selectedModel,
+    })
 
     // Проверяем наличие необходимых данных
     if (!prompt) {
@@ -434,7 +548,7 @@ export function registerCommands({
           return
         }
 
-        console.log('Вызов generateTextToImage с параметрами:', {
+        logger.info('Вызов generateTextToImage с параметрами:', {
           prompt,
           model: ctx.session.selectedModel,
           numImages: num,
@@ -464,16 +578,22 @@ export function registerCommands({
 
   bot.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async ctx => {
     const text = ctx.message.text
-    console.log(`CASE: Нажата кнопка ${text}`)
+    logger.info(`CASE: Нажата кнопка ${text}:`, {
+      description: 'Button pressed',
+      text: text,
+      telegramId: ctx.from?.id,
+    })
     const isRu = isRussian(ctx)
     const prompt = ctx.session.prompt
     const userId = ctx.from.id
     const numImages = parseInt(text[0])
 
-    console.log('ctx.session.mode', ctx.session.mode)
-    console.log('ctx.session.prompt', ctx.session.prompt)
-    console.log('ctx.session.userModel', ctx.session.userModel)
-    console.log('ctx.session.selectedModel', ctx.session.selectedModel)
+    logger.info('ctx.session.mode:', { mode: ctx.session.mode })
+    logger.info('ctx.session.prompt:', { prompt })
+    logger.info('ctx.session.userModel:', { userModel: ctx.session.userModel })
+    logger.info('ctx.session.selectedModel:', {
+      selectedModel: ctx.session.selectedModel,
+    })
 
     // Проверяем наличие необходимых данных
     if (!prompt) {
@@ -514,7 +634,7 @@ export function registerCommands({
           return
         }
 
-        console.log('Вызов generateTextToImage с параметрами:', {
+        logger.info('Вызов generateTextToImage с параметрами:', {
           prompt,
           model: ctx.session.selectedModel,
           numImages: num,
@@ -543,13 +663,19 @@ export function registerCommands({
   })
 
   composer.hears(['⬆️ Улучшить промпт', '⬆️ Improve prompt'], async ctx => {
-    console.log('CASE: Улучшить промпт')
+    logger.info('⬆️ Улучшение промпта:', {
+      description: 'Improve prompt requested',
+      telegramId: ctx.from?.id,
+    })
 
     await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
   })
 
   composer.hears(['📐 Изменить размер', '📐 Change size'], async ctx => {
-    console.log('CASE: Изменить размер')
+    logger.info('📐 Изменение размера:', {
+      description: 'Change size requested',
+      telegramId: ctx.from?.id,
+    })
 
     await ctx.scene.enter(ModeEnum.SizeWizard)
   })
@@ -569,14 +695,20 @@ export function registerCommands({
       '9:21',
     ],
     async ctx => {
-      console.log('CASE: Изменить размер')
+      logger.info('📐 Изменение размера:', {
+        description: 'Change size requested',
+        telegramId: ctx.from?.id,
+      })
       const size = ctx.message.text
       await handleSizeSelection(ctx, size)
     }
   )
 
   composer.hears(/^(Отмена|отмена|Cancel|cancel)$/i, async ctx => {
-    console.log('CASE: Отмена')
+    logger.info('Отмена:', {
+      description: 'Cancel requested',
+      telegramId: ctx.from?.id,
+    })
     const isRu = isRussian(ctx)
     const telegram_id = ctx.from?.id?.toString() || ''
     const { count, subscription, level } =
@@ -594,7 +726,10 @@ export function registerCommands({
   })
 
   composer.hears(['Справка по команде', 'Help for the command'], async ctx => {
-    console.log('CASE: Справка по команде')
+    logger.info('Справка по команде:', {
+      description: 'Help for the command requested',
+      telegramId: ctx.from?.id,
+    })
     await ctx.scene.enter(ModeEnum.HelpScene)
   })
 
@@ -616,7 +751,7 @@ export function registerCommands({
       const response = await fetch(cancelUrl, {
         method: 'POST',
         headers: {
-          Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+          Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
         },
       })
 
@@ -630,7 +765,10 @@ export function registerCommands({
         await ctx.answerCbQuery('❌ Не удалось отменить тренировку')
       }
     } catch (error) {
-      console.error('❌ Ошибка отмены:', error)
+      logger.error('❌ Ошибка отмены:', {
+        description: 'Error cancelling training',
+        error: error instanceof Error ? error.message : String(error),
+      })
       await ctx.answerCbQuery('❌ Ошибка при отмене тренировки')
     }
   })
@@ -653,7 +791,7 @@ export function registerCommands({
       const response = await fetch(cancelUrl, {
         method: 'POST',
         headers: {
-          Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+          Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
         },
       })
 
@@ -667,7 +805,10 @@ export function registerCommands({
         await ctx.answerCbQuery('❌ Не удалось отменить тренировку')
       }
     } catch (error) {
-      console.error('❌ Ошибка отмены:', error)
+      logger.error('❌ Ошибка отмены:', {
+        description: 'Error cancelling training',
+        error: error instanceof Error ? error.message : String(error),
+      })
       await ctx.answerCbQuery('❌ Ошибка при отмене тренировки')
     }
   })

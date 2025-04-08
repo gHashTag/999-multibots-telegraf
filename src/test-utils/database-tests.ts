@@ -29,6 +29,7 @@ export class DatabaseTester {
         name: 'Database Connection Test',
         success: true,
         message: `Успешное подключение к базе данных. Количество пользователей: ${count}`,
+        startTime: Date.now(),
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
@@ -44,6 +45,7 @@ export class DatabaseTester {
         success: false,
         message: 'Ошибка подключения к базе данных',
         error,
+        startTime: Date.now(),
       }
     }
   }
@@ -76,6 +78,7 @@ export class DatabaseTester {
             name: testName,
             success: false,
             message: `Тренировка ${trainingId} не найдена в базе данных`,
+            startTime: Date.now(),
           }
         }
         throw new Error(error.message)
@@ -96,6 +99,7 @@ export class DatabaseTester {
         name: testName,
         success: true,
         message: `Тренировка ${trainingId} найдена в базе данных`,
+        startTime: Date.now(),
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
@@ -112,6 +116,7 @@ export class DatabaseTester {
         success: false,
         message: 'Ошибка при поиске тренировки',
         error,
+        startTime: Date.now(),
       }
     }
   }
@@ -160,6 +165,7 @@ export class DatabaseTester {
         name: testName,
         success: true,
         message: `Найдено ${trainingsCount} тренировок пользователя ${telegramId}`,
+        startTime: Date.now(),
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
@@ -176,6 +182,7 @@ export class DatabaseTester {
         success: false,
         message: 'Ошибка при получении тренировок пользователя',
         error,
+        startTime: Date.now(),
       }
     }
   }

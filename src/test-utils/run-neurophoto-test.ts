@@ -70,6 +70,7 @@ async function testNeuroPhotoGeneration(): Promise<TestResult> {
       name: testName,
       success: true,
       message: '✅ NeuroPhoto tests completed successfully',
+      startTime: Date.now(),
     }
   } catch (error) {
     logger.error('❌ NeuroPhoto test failed', {
@@ -81,6 +82,7 @@ async function testNeuroPhotoGeneration(): Promise<TestResult> {
       success: false,
       message: '❌ NeuroPhoto test failed',
       error: error instanceof Error ? error : new Error(String(error)),
+      startTime: Date.now(),
     }
   }
 }
@@ -165,6 +167,7 @@ export async function runNeurophotoTest(): Promise<TestResult> {
       success: true,
       name: 'Neurophoto Test',
       message: 'Successfully generated and checked image',
+      startTime: Date.now(),
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -175,6 +178,7 @@ export async function runNeurophotoTest(): Promise<TestResult> {
       name: 'Neurophoto Test',
       message: 'Failed to generate or check image',
       error: error instanceof Error ? error : new Error(String(error)),
+      startTime: Date.now(),
     }
   }
 }

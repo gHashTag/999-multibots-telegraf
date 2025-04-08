@@ -1,206 +1,223 @@
 import { Scenes, Markup } from 'telegraf'
-import { sendBalanceMessage } from '@/price/helpers'
-import { generateImageToVideo } from '@/services/generateImageToVideo'
 import { MyContext, VideoModel } from '@/interfaces'
-import { cancelMenu } from '@/menu'
+import {
+  sendBalanceMessage,
+  validateAndCalculateVideoModelPrice,
+} from '@/price/helpers'
 import { isRussian } from '@/helpers/language'
+import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { getUserBalance } from '@/core/supabase'
-
-import { getBotToken, handleHelpCancel } from '@/handlers'
-import { validateAndCalculateVideoModelPrice } from '@/price/helpers'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-import { logger } from '@/utils/logger'
+import { handleHelpCancel } from '@/handlers'
+import { inngest } from '@/inngest-functions/clients'
+import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToVideo,
   async ctx => {
+    const isRu = isRussian(ctx)
     try {
-      const isRu = ctx.from?.language_code === 'ru' || false
-
+      // Запрашиваем модель
       await ctx.reply(
         isRu
-          ? 'Пожалуйста, выберите модель для генерации видео'
-          : 'Please select a model for video generation'
+          ? '🎥 Выберите модель для генерации видео:'
+          : '🎥 Choose video generation model:',
+        {
+          reply_markup: videoModelKeyboard(isRu, 'image').reply_markup,
+        }
       )
-
-      return ctx.wizard.next()
-    } catch (error) {
-      logger.error('❌ Ошибка при инициализации сцены:', {
-        description: 'Error initializing scene',
-        error: error instanceof Error ? error.message : String(error),
-        telegram_id: ctx.from?.id,
-      })
+      ctx.wizard.next()
+      return
+    } catch (error: unknown) {
+      console.error('❌ Error in image_to_video:', error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      await ctx.reply(
+        isRu
+          ? `❌ Произошла ошибка: ${errorMessage}`
+          : `❌ An error occurred: ${errorMessage}`
+      )
       return ctx.scene.leave()
     }
   },
   async ctx => {
-    try {
-      if (!ctx.message || !('text' in ctx.message)) {
-        const isRu = ctx.from?.language_code === 'ru' || false
-        await ctx.reply(
-          isRu
-            ? 'Пожалуйста, отправьте текстовое сообщение'
-            : 'Please send a text message'
-        )
-        return ctx.scene.leave()
-      }
+    const isRu = isRussian(ctx)
+    const message = ctx.message as { text?: string }
+    if (!message.text)
+      throw new Error(
+        isRu
+          ? 'image_to_video: Не удалось определить модель'
+          : 'image_to_video: Could not identify model'
+      )
 
-      const messageText = ctx.message.text
-      const isRu = ctx.from?.language_code === 'ru' || false
+    if (message && 'text' in message) {
+      if (!ctx.from)
+        throw new Error(
+          isRu
+            ? 'image_to_video: Не удалось определить пользователя'
+            : 'image_to_video: Could not identify user'
+        )
+      const videoModel = message.text?.toLowerCase()
+      console.log('🎬 Selected video model:', videoModel)
 
       const currentBalance = await getUserBalance(
-        ctx.from?.id?.toString() || '',
+        ctx.from.id.toString(),
         ctx.botInfo.username
       )
+      console.log('💰 Current balance:', currentBalance)
       if (currentBalance === null) {
-        return ctx.scene.leave()
-      }
-
-      const result = await validateAndCalculateVideoModelPrice(
-        messageText,
-        currentBalance,
-        isRu,
-        ctx,
-        'image'
-      )
-
-      if (!result) {
-        return ctx.scene.leave()
-      }
-
-      const { amount, modelId } = result
-      ctx.session.amount = amount
-      ctx.session.videoModel = modelId
-
-      await sendBalanceMessage(
-        ctx.from?.id?.toString() || '',
-        currentBalance,
-        amount,
-        isRu,
-        ctx.telegram
-      )
-
-      await ctx.reply(
-        isRu
-          ? `Вы выбрали модель для генерации: ${messageText}`
-          : `You have chosen the generation model: ${messageText}`,
-        {
-          reply_markup: { remove_keyboard: true },
-        }
-      )
-
-      return ctx.wizard.next()
-    } catch (error) {
-      logger.error('❌ Ошибка в обработчике сообщения:', {
-        description: 'Error in message handler',
-        error: error instanceof Error ? error.message : String(error),
-        telegram_id: ctx.from?.id,
-      })
-
-      const isRu = ctx.from?.language_code === 'ru' || false
-      await ctx.reply(
-        isRu
-          ? '❌ Произошла ошибка при обработке вашего запроса'
-          : '❌ An error occurred while processing your request'
-      )
-      return ctx.scene.leave()
-    }
-  },
-  async ctx => {
-    const message = ctx.message
-    const isRu = ctx.from?.language_code === 'ru'
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    } else {
-      if (message && 'photo' in message) {
-        const photo = message.photo[message.photo.length - 1]
-        const file = await ctx.telegram.getFile(photo.file_id)
-        const filePath = file.file_path
-
-        if (!filePath) {
-          await ctx.reply(
-            isRu ? 'Не удалось получить изображение' : 'Failed to get image'
-          )
-          return ctx.scene.leave()
-        }
-
-        const botToken = getBotToken(ctx)
-        ctx.session.imageUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`
         await ctx.reply(
-          isRu
-            ? 'Теперь опишите желаемое движение в видео'
-            : 'Now describe the desired movement in the video',
-          {
-            reply_markup: cancelMenu(isRu).reply_markup,
-          }
+          isRu ? 'Не удалось определить баланс' : 'Could not identify balance'
         )
-        return ctx.wizard.next()
+        return ctx.scene.leave()
       }
-
-      await ctx.reply(
-        isRu ? 'Пожалуйста, отправьте изображение' : 'Please send an image'
-      )
-      return undefined
-    }
-  },
-  async ctx => {
-    const message = ctx.message
-    const isRu = isRussian(ctx)
-    console.log('isRu', isRu)
-    if (message && 'text' in message) {
       const isCancel = await handleHelpCancel(ctx)
       if (isCancel) {
         return ctx.scene.leave()
       } else {
-        const prompt = message.text
-        const videoModel = ctx.session.videoModel as VideoModel
-        const imageUrl = ctx.session.imageUrl
-        if (!prompt) throw new Error('Prompt is required')
-        if (!videoModel) throw new Error('Video model is required')
-        if (!imageUrl) throw new Error('Image URL is required')
-        if (!ctx.from?.username) throw new Error('Username is required')
-
-        try {
-          console.log('Calling generateImageToVideo with:', {
-            imageUrl,
-            prompt,
-            videoModel,
-            telegram_id: ctx.from.id,
-            username: ctx.from.username,
-            isRu,
-          })
-
-          await generateImageToVideo({
-            imageUrl,
-            prompt,
-            videoModel,
-            telegram_id: ctx.from.id.toString(),
-            username: ctx.from.username,
-            isRu,
-            botName: ctx.botInfo?.username,
-          })
-          ctx.session.prompt = prompt
-          ctx.session.mode = ModeEnum.ImageToVideo
-        } catch (error) {
-          console.error('Ошибка при создании видео:', error)
-          await ctx.reply(
-            isRu
-              ? 'Произошла ошибка при создании видео. Пожалуйста, попробуйте позже.'
-              : 'An error occurred while creating the video. Please try again later.'
-          )
+        // Используем await для получения результата
+        const result = await validateAndCalculateVideoModelPrice(
+          videoModel,
+          currentBalance,
+          isRu,
+          ctx,
+          'image'
+        )
+        if (!result) {
+          return ctx.scene.leave()
         }
-        return ctx.scene.leave()
+        const { amount, modelId } = result
+        console.log('💵 Generation cost:', amount)
+        console.log('🆔 Model ID:', modelId)
+        if (amount === null) {
+          return ctx.scene.leave()
+        }
+
+        // Устанавливаем videoModel в сессии
+        ctx.session.videoModel = modelId as VideoModel
+
+        // Показываем информацию о балансе и стоимости
+        await sendBalanceMessage(
+          ctx.from.id.toString(),
+          currentBalance,
+          amount,
+          isRu,
+          ctx.telegram
+        )
+
+        await ctx.reply(
+          isRu
+            ? '🖼️ Пожалуйста, отправьте изображение для генерации видео'
+            : '🖼️ Please send an image for video generation',
+          Markup.removeKeyboard()
+        )
+        ctx.session.amount = amount
+        return ctx.wizard.next()
       }
+    } else {
+      console.log('❌ image_to_video: else branch - invalid message')
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave()
     }
+  },
+  async ctx => {
+    const isRu = isRussian(ctx)
+    const message = ctx.message
+
+    // Проверяем, что получили изображение
+    if (!message || !('photo' in message)) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, отправьте изображение для генерации видео'
+          : '❌ Please send an image for video generation'
+      )
+      return
+    }
+
+    // Сохраняем ссылку на изображение
+    const photos = message.photo
+    if (!photos || photos.length === 0) {
+      await ctx.reply(
+        isRu
+          ? '❌ Не удалось получить изображение'
+          : '❌ Failed to get the image'
+      )
+      return
+    }
+
+    // Получаем file_id последнего (самого большого) изображения
+    const fileId = photos[photos.length - 1].file_id
+    const file = await ctx.telegram.getFile(fileId)
+    const imageUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`
+
+    ctx.session.imageUrl = imageUrl
 
     await ctx.reply(
       isRu
-        ? 'Пожалуйста, отправьте текстовое описание'
-        : 'Please send a text description',
-      Markup.removeKeyboard()
+        ? '✍️ Теперь отправьте текстовое описание для генерации видео'
+        : '✍️ Now send a text description for video generation'
     )
-    return undefined
+    return ctx.wizard.next()
+  },
+  async ctx => {
+    const isRu = isRussian(ctx)
+    const message = ctx.message
+
+    if (message && 'text' in message) {
+      const prompt = message.text
+      console.log('📝 Prompt:', prompt)
+
+      if (!prompt)
+        throw new Error(
+          isRu ? 'Не удалось определить текст' : 'Could not identify text'
+        )
+
+      const videoModel = ctx.session.videoModel
+      const imageUrl = ctx.session.imageUrl
+      console.log('🎥 Using video model:', videoModel)
+      console.log('🖼️ Using image URL:', imageUrl)
+
+      if (prompt && videoModel && imageUrl && ctx.from && ctx.from.username) {
+        // Получаем ключ для изображения из конфигурации модели
+        const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
+        const imageKey = modelConfig?.imageKey || 'image'
+
+        // Отправляем событие для генерации видео через Inngest
+        await inngest.send({
+          name: 'text-to-video.requested',
+          data: {
+            prompt,
+            telegram_id: ctx.from.id.toString(),
+            is_ru: isRu,
+            bot_name: ctx.botInfo?.username || '',
+            model_id: videoModel,
+            username: ctx.from.username,
+            [imageKey]: imageUrl,
+          },
+        })
+
+        console.log('⚡️ Sent text-to-video.requested event:', {
+          description: 'Image to video generation requested',
+          prompt,
+          model: videoModel,
+          telegram_id: ctx.from.id,
+          [imageKey]: imageUrl,
+        })
+
+        await ctx.reply(
+          isRu
+            ? '🎬 Запрос на генерацию видео отправлен! Я пришлю результат, как только он будет готов.'
+            : '🎬 Video generation request sent! I will send you the result as soon as it is ready.'
+        )
+
+        ctx.session.prompt = prompt
+      }
+
+      await ctx.scene.leave()
+    } else {
+      await sendGenericErrorMessage(ctx, isRu)
+      await ctx.scene.leave()
+    }
   }
 )
 

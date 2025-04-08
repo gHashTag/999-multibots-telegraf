@@ -1,10 +1,10 @@
-interface LogData {
+export interface LogData {
   description?: string
   message?: string
   [key: string]: any
 }
 
-type LogObject = {
+export type LogObject = {
   message: string
   [key: string]: any
 }

@@ -188,7 +188,8 @@ export async function testImageToPrompt(): Promise<TestResult> {
     return {
       name: testName,
       success: true,
-      message: 'Тест преобразования изображения успешно пройден',
+      message: 'Image to prompt test completed successfully',
+      startTime: Date.now(),
     }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
@@ -203,8 +204,9 @@ export async function testImageToPrompt(): Promise<TestResult> {
     return {
       name: testName,
       success: false,
-      message: 'Ошибка при тестировании преобразования изображения',
-      error,
+      message: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error : new Error(String(error)),
+      startTime: Date.now(),
     }
   }
 }

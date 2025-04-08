@@ -107,6 +107,7 @@ export async function generateAudioBuffer(
 
 export async function testAudioGeneration(): Promise<TestResult> {
   const testName = 'Audio Generation Test'
+  const startTime = Date.now()
 
   try {
     logger.info({
@@ -146,6 +147,7 @@ export async function testAudioGeneration(): Promise<TestResult> {
       name: testName,
       success: true,
       message: 'Аудио успешно сгенерировано и сохранено',
+      startTime,
     }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
@@ -161,12 +163,14 @@ export async function testAudioGeneration(): Promise<TestResult> {
       success: false,
       message: 'Ошибка при генерации аудио',
       error,
+      startTime,
     }
   }
 }
 
 export async function testSpeechGeneration(): Promise<TestResult> {
   const testName = 'Speech Generation Test'
+  const startTime = Date.now()
 
   try {
     logger.info({
@@ -208,7 +212,8 @@ export async function testSpeechGeneration(): Promise<TestResult> {
     return {
       name: testName,
       success: true,
-      message: 'Аудио успешно сгенерировано и отправлено',
+      message: 'Тест генерации речи пройден успешно',
+      startTime,
     }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
@@ -224,6 +229,7 @@ export async function testSpeechGeneration(): Promise<TestResult> {
       success: false,
       message: 'Ошибка при генерации речи',
       error,
+      startTime,
     }
   }
 }

@@ -5,16 +5,101 @@ import { supabase } from '@/core/supabase'
 import { TestResult } from '../interfaces'
 import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
 import { TEST_CONFIG } from '../test-config'
+import { InngestTestEngine } from '../inngest-test-engine'
+import { PaymentProcessEvent } from '@/inngest-functions/paymentProcessor'
+import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
+import { TransactionType } from '@/interfaces/payments.interface'
+
+// Создаем экземпляр тестового движка
+const inngestTestEngine = new InngestTestEngine()
+
+const paymentProcessor = async ({
+  event,
+}: {
+  event: { data: PaymentProcessEvent['data'] }
+}) => {
+  const { telegram_id, amount, type, description, bot_name, service_type } =
+    event.data as {
+      telegram_id: string
+      amount: number
+      type: TransactionType
+      description: string
+      bot_name: string
+      service_type: string
+    }
+
+  logger.info('🚀 Начало обработки платежа', {
+    description: 'Starting payment processing',
+    telegram_id,
+    amount,
+    type,
+    bot_name,
+    service_type,
+  })
+
+  try {
+    // Создаем запись о платеже
+    const payment = await createSuccessfulPayment({
+      telegram_id,
+      amount,
+      stars: amount,
+      type,
+      description,
+      bot_name,
+      service_type,
+      payment_method: 'balance',
+      status: 'COMPLETED',
+      inv_id: event.data.inv_id,
+    })
+
+    logger.info('✅ Платеж создан', {
+      description: 'Payment created',
+      payment_id: payment.payment_id,
+      telegram_id,
+      amount,
+      type,
+    })
+
+    return { success: true, payment }
+  } catch (error) {
+    logger.error('❌ Ошибка при обработке платежа', {
+      description: 'Error processing payment',
+      telegram_id,
+      amount,
+      type,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    throw error
+  }
+}
+
+inngestTestEngine.registerEventHandler('payment/process', paymentProcessor)
 
 const waitForPaymentCompletion = async (inv_id: string, timeout = 10000) => {
   const startTime = Date.now()
+  const checkInterval = 1000 // Увеличиваем интервал проверки до 1 секунды
+
   while (Date.now() - startTime < timeout) {
     const payment = await getPaymentByInvId(inv_id)
-    if (payment?.status === 'COMPLETED') {
+    if (payment) {
+      logger.info('✅ Платеж найден', {
+        description: 'Payment found',
+        inv_id,
+        payment,
+      })
       return payment
     }
-    await new Promise(resolve => setTimeout(resolve, 100))
+
+    logger.info('ℹ️ Платеж не найден', {
+      description: 'Payment not found',
+      inv_id,
+      elapsed: Date.now() - startTime,
+    })
+
+    await new Promise(resolve => setTimeout(resolve, checkInterval))
   }
+
   throw new Error('Payment completion timeout')
 }
 
@@ -230,6 +315,7 @@ export async function testPaymentSystem(): Promise<TestResult> {
       name: 'Payment System Test',
       success: true,
       message: 'Тест платежной системы успешно завершен',
+      startTime: Date.now(),
     }
   } catch (error) {
     logger.error('❌ Ошибка при тестировании платежной системы', {
@@ -245,6 +331,8 @@ export async function testPaymentSystem(): Promise<TestResult> {
       message: `Ошибка при тестировании: ${
         error instanceof Error ? error.message : 'Unknown error'
       }`,
+      error: error instanceof Error ? error : new Error(String(error)),
+      startTime: Date.now(),
     }
   }
 }
@@ -283,6 +371,7 @@ export const runAllPaymentTests = async (): Promise<TestResult[]> => {
         message: `Ошибка при запуске тестов платежной системы: ${
           error instanceof Error ? error.message : String(error)
         }`,
+        startTime: Date.now(),
       },
     ]
   }

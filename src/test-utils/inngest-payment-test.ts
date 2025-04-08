@@ -194,6 +194,7 @@ export const testInngestPayment = async (): Promise<TestResult> => {
       success: true,
       message: 'Тестирование платежной системы успешно завершено',
       name: 'Payment System Test',
+      startTime: Date.now(),
     }
   } catch (error) {
     const errorMessage =
@@ -209,6 +210,7 @@ export const testInngestPayment = async (): Promise<TestResult> => {
       message: errorMessage,
       name: 'Payment System Test',
       error: error instanceof Error ? error : new Error(errorMessage),
+      startTime: Date.now(),
     }
   }
 }

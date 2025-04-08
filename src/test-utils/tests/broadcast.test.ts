@@ -4,6 +4,7 @@ import { TestResult } from '../types'
 import { TEST_CONFIG } from '../test-config'
 import { generateRandomTelegramId } from '@/utils/generateRandomTelegramId'
 import { supabase } from '@/core/supabase'
+import { createTestError } from '../test-logger'
 
 interface BroadcastTestResult extends TestResult {
   telegram_id?: string
@@ -67,6 +68,7 @@ export async function testBroadcastMessage(): Promise<BroadcastTestResult[]> {
       message: 'Простое текстовое сообщение отправлено',
       telegram_id: testTelegramId,
       message_sent: true,
+      startTime: Date.now(),
     })
 
     // Тест 2: Отправка сообщения с изображением
@@ -91,6 +93,7 @@ export async function testBroadcastMessage(): Promise<BroadcastTestResult[]> {
       message: 'Сообщение с изображением отправлено',
       telegram_id: testTelegramId,
       message_sent: true,
+      startTime: Date.now(),
     })
 
     // Тест 3: Отправка сообщения с кнопками
@@ -114,6 +117,7 @@ export async function testBroadcastMessage(): Promise<BroadcastTestResult[]> {
       message: 'Сообщение с кнопками отправлено',
       telegram_id: testTelegramId,
       message_sent: true,
+      startTime: Date.now(),
     })
 
     logger.info('✅ Тестирование broadcast message завершено успешно', {
@@ -146,13 +150,16 @@ export async function testBroadcastMessage(): Promise<BroadcastTestResult[]> {
       success: false,
       message: 'Ошибка при тестировании broadcast message',
       error: err,
+      startTime: Date.now(),
     })
   }
 
   return results
 }
 
-export async function testBroadcast(messageId: string): Promise<TestResult> {
+export async function testBroadcast(
+  messageId: string
+): Promise<BroadcastTestResult> {
   const testName = 'Broadcast Test'
 
   try {
@@ -194,10 +201,13 @@ export async function testBroadcast(messageId: string): Promise<TestResult> {
     return {
       name: testName,
       success: true,
-      message: `Сообщение ${messageId} готово к рассылке`,
+      message: 'Тест рассылки успешно завершен',
+      telegram_id: messageId,
+      message_sent: true,
+      startTime: Date.now(),
     }
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err))
+    const error = createTestError(err)
 
     logger.error('❌ Ошибка при проверке сообщения', {
       description: 'Broadcast message check error',
@@ -208,8 +218,11 @@ export async function testBroadcast(messageId: string): Promise<TestResult> {
     return {
       name: testName,
       success: false,
-      message: 'Ошибка при проверке сообщения для рассылки',
+      message: error.message,
       error,
+      telegram_id: messageId,
+      message_sent: false,
+      startTime: Date.now(),
     }
   }
 }

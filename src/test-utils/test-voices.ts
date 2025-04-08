@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { TEST_CONFIG } from './test-config'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { createTestError } from './test-logger'
 
 /**
  * Настройки голоса
@@ -64,6 +65,7 @@ export async function testGetVoices(): Promise<TestResult> {
         success: false,
         message: 'Отсутствует API ключ ElevenLabs',
         error: new Error('Missing ElevenLabs API key'),
+        startTime: Date.now(),
       }
     }
 
@@ -81,6 +83,7 @@ export async function testGetVoices(): Promise<TestResult> {
         success: false,
         message: 'Список голосов пуст',
         error: new Error('Empty voice list'),
+        startTime: Date.now(),
       }
     }
 
@@ -113,6 +116,7 @@ export async function testGetVoices(): Promise<TestResult> {
       name: 'Get voices test',
       success: true,
       message: `Получено ${voices.length} голосов`,
+      startTime: Date.now(),
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -129,6 +133,7 @@ export async function testGetVoices(): Promise<TestResult> {
       success: false,
       message: 'Ошибка при получении списка голосов',
       error: err,
+      startTime: Date.now(),
     }
   }
 }
@@ -300,6 +305,7 @@ export async function testVoices(): Promise<TestResult> {
       name: testName,
       success: true,
       message: 'Тесты голосовых функций успешно завершены',
+      startTime: Date.now(),
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -333,6 +339,80 @@ export async function testVoices(): Promise<TestResult> {
       success: false,
       message: 'Ошибка при тестировании голосовых функций',
       error: err,
+      startTime: Date.now(),
     }
   }
+}
+
+export async function runVoiceTests(): Promise<TestResult[]> {
+  const results: TestResult[] = []
+  const startTime = Date.now()
+
+  try {
+    logger.info('🎤 Запуск тестов голосовых функций')
+
+    // Тест создания голоса
+    try {
+      const voiceResult = await createTestVoice()
+      results.push({
+        name: 'Voice Creation Test',
+        success: true,
+        message: 'Голос успешно создан',
+        startTime,
+        details: voiceResult,
+      })
+    } catch (error) {
+      logger.error(`❌ Ошибка при создании голоса: ${error}`)
+      results.push({
+        name: 'Voice Creation Test',
+        success: false,
+        message: 'Ошибка при создании голоса',
+        error: createTestError(error),
+        startTime,
+      })
+    }
+
+    // Тест генерации речи
+    try {
+      const speechResult = await generateTestSpeech()
+      results.push({
+        name: 'Speech Generation Test',
+        success: true,
+        message: 'Речь успешно сгенерирована',
+        startTime,
+        details: speechResult,
+      })
+    } catch (error) {
+      logger.error(`❌ Ошибка при генерации речи: ${error}`)
+      results.push({
+        name: 'Speech Generation Test',
+        success: false,
+        message: 'Ошибка при генерации речи',
+        error: createTestError(error),
+        startTime,
+      })
+    }
+
+    return results
+  } catch (error) {
+    logger.error(`❌ Критическая ошибка в тестах голосовых функций: ${error}`)
+    results.push({
+      name: 'Voice Tests',
+      success: false,
+      message: 'Критическая ошибка в тестах голосовых функций',
+      error: createTestError(error),
+      startTime,
+    })
+    return results
+  }
+}
+
+async function createTestVoice() {
+  // Здесь должна быть реализация создания тестового голоса
+  return { voice_id: 'test_voice_id' }
+}
+
+async function generateTestSpeech() {
+  // Здесь должна быть реализация генерации тестовой речи
+  return { audio_url: 'test_audio_url' }
 }

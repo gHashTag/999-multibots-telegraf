@@ -7,7 +7,7 @@ import { logger } from '@/utils/logger'
 
 /**
  * Получает баланс пользователя на основе транзакций в payments_v2
- * Вызывает SQL-функцию get_user_balance
+ * Вызывает SQL-функцию get_user_balance_v3
  */
 export const getUserBalance = async (
   telegram_id: TelegramId,
@@ -31,9 +31,10 @@ export const getUserBalance = async (
       bot_name,
     })
 
-    // Получаем баланс из функции get_user_balance
-    const { data: stars, error } = await supabase.rpc('get_user_balance', {
-      user_telegram_id: normalizedId.toString(), // Важно передать в виде строки
+    // Получаем баланс из функции get_user_balance_v3
+    const { data: stars, error } = await supabase.rpc('get_user_balance_v3', {
+      p_telegram_id: normalizedId.toString(), // Важно передать в виде строки
+      p_bot_name: bot_name,
     })
 
     if (error) {

@@ -4,7 +4,6 @@ import { supabase } from '@/core/supabase'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { logger } from '@/utils/logger'
 import { getErrorMessage, getErrorDetails } from '@/utils/error'
-import fetch from 'node-fetch'
 
 export interface BroadcastResult {
   success: boolean
@@ -23,7 +22,7 @@ export class BroadcastService {
 
   constructor(
     private readonly botName: string,
-    private readonly botToken: string,
+    botToken: string,
     private readonly testMode: boolean = false
   ) {
     this.supabase = supabase
@@ -96,36 +95,6 @@ export class BroadcastService {
         bot_name: this.botName,
       })
       throw new Error(`Failed to update user status: ${getErrorMessage(err)}`)
-    }
-  }
-
-  private async loadFile(fileId: string): Promise<Buffer> {
-    try {
-      const fileInfo = await this.bot.telegram.getFile(fileId)
-      const fileUrl = `https://api.telegram.org/file/bot${this.botToken}/${fileInfo.file_path}`
-      const response = await fetch(fileUrl)
-      return Buffer.from(await response.arrayBuffer())
-    } catch (err: unknown) {
-      logger.error('❌ Failed to load file', {
-        error: getErrorDetails(err),
-        file_id: fileId,
-        bot_name: this.botName,
-      })
-      throw new Error(`Failed to load file: ${getErrorMessage(err)}`)
-    }
-  }
-
-  private async loadFileFromUrl(url: string): Promise<Buffer> {
-    try {
-      const response = await fetch(url)
-      return Buffer.from(await response.arrayBuffer())
-    } catch (err: unknown) {
-      logger.error('❌ Failed to load file from URL', {
-        error: getErrorDetails(err),
-        url,
-        bot_name: this.botName,
-      })
-      throw new Error(`Failed to load file from URL: ${getErrorMessage(err)}`)
     }
   }
 

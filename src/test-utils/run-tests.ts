@@ -53,6 +53,7 @@ export async function runTests(): Promise<TestResult[]> {
         success: false,
         name: 'Общая ошибка тестов',
         message: error instanceof Error ? error.message : String(error),
+        startTime: Date.now(),
       },
     ]
   }

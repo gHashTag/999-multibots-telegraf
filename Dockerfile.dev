@@ -1,9 +1,13 @@
 FROM node:20-alpine
 
+# Install pnpm globally
+RUN npm install -g pnpm
+
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+COPY pnpm-lock.yaml ./
+RUN pnpm install
 
 # Создаем директорию для логов с правильными правами
 RUN mkdir -p /tmp/logs && \
@@ -15,4 +19,4 @@ COPY --chown=node:node . .
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+CMD ["pnpm", "run", "dev"]

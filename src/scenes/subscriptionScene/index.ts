@@ -122,6 +122,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
               ? 'Этот тип подписки не поддерживает оплату. Пожалуйста, выберите другой вариант.'
               : 'This subscription type does not support payment. Please select another option.'
           )
+          return ctx.wizard.selectStep(1)
         }
       } else if (text === 'mainmenu') {
         console.log('CASE: 🏠 Главное меню')
@@ -134,6 +135,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
             ? 'Неизвестный тип подписки. Пожалуйста, выберите другой вариант.'
             : 'Unknown subscription type. Please select another option.'
         )
+        return ctx.wizard.selectStep(1)
       }
     } else {
       handleMenu(ctx)

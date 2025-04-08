@@ -62,8 +62,15 @@ export async function getAiFeedbackFromSupabase({
           }
         }
       }
+      // Если не нашли сообщение от ассистента
+      return {
+        ai_response: 'No response from assistant',
+      }
     } else {
       console.log(run.status)
+      return {
+        ai_response: `Assistant run status: ${run.status}`,
+      }
     }
   } catch (error) {
     console.error('Error querying OpenAI Assistant:', error)

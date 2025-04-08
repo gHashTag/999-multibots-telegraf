@@ -1,0 +1,8 @@
+packages:
+  - '.'  # Root package
+  - 'packages/*'  # All packages in the packages directory
+ignoredBuiltDependencies:
+  - esbuild
+onlyBuiltDependencies:
+  - '@swc/core'
+  - bcrypt

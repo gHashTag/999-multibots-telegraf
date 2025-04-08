@@ -84,6 +84,8 @@ httpRequestCommand.command('http', async ctx => {
         `📊 Результат запроса (статус: ${response.status}):\n\n${result}`
       )
     }
+
+    return true
   } catch (error) {
     logger.error({
       message: '❌ Ошибка при выполнении HTTP запроса',
@@ -96,6 +98,7 @@ httpRequestCommand.command('http', async ctx => {
     }`
 
     await ctx.reply(errorMessage)
+    return false
   }
 })
 

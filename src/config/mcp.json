@@ -1,0 +1,47 @@
+{
+  "mcpServers": {
+    "mcp-server-docker": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "-v",
+        "${PWD}:/app",
+        "-p",
+        "3000:3000",
+        "mcp-server-docker:latest"
+      ]
+    },
+    "googlesheets_composio": {
+      "url": "https://mcp.composio.dev/googlesheets/sour-old-lion-KK2T7-"
+    },
+    "googlesuper_composio": {
+      "url": "https://mcp.composio.dev/googlesuper/calm-damp-magician-B-f2iC"
+    },
+    "supabase_composio": {
+      "url": "https://mcp.composio.dev/supabase/calm-damp-magician-B-f2iC"
+    },
+    "gmail_composio": {
+      "url": "https://mcp.composio.dev/gmail/calm-damp-magician-B-f2iC"
+    },
+    "telegram-mcp": {
+      "command": "telegram-mcp",
+      "env": {
+        "TG_APP_ID": "94892",
+        "TG_API_HASH": "cacf9ad137d228611b49b2ecc6d68d43"
+      }
+    },
+    "googlemeet_composio": {
+      "url": "https://mcp.composio.dev/googlemeet/calm-damp-magician-B-f2iC"
+    },
+    "youtube_composio": {
+      "url": "https://mcp.composio.dev/youtube/calm-damp-magician-B-f2iC"
+    },
+    "github_composio": {
+      "url": "https://mcp.composio.dev/github/calm-damp-magician-B-f2iC"
+    }
+  }
+} 

@@ -84,38 +84,43 @@ export const uploadZipFile = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Неверный секретный ключ' })
     }
 
-    upload(req, res, function (err) {
-      if (err) {
-        logger.error({
-          message: '❌ Ошибка загрузки файла',
-          error: err.message,
+    return new Promise<void>(resolve => {
+      upload(req, res, function (err) {
+        if (err) {
+          logger.error({
+            message: '❌ Ошибка загрузки файла',
+            error: err.message,
+          })
+          res.status(400).json({ error: err.message })
+          return resolve()
+        }
+
+        const multerReq = req as MulterRequest
+
+        if (!multerReq.file) {
+          logger.error({
+            message: '❌ Файл не предоставлен',
+            ip: req.ip,
+          })
+          res.status(400).json({ error: 'Файл не предоставлен' })
+          return resolve()
+        }
+
+        // Создаем URL для доступа к файлу
+        const fileUrl = `${API_URL}/uploads/${multerReq.file.filename}`
+
+        logger.info({
+          message: '✅ Файл успешно загружен',
+          filename: multerReq.file.filename,
+          size: multerReq.file.size,
+          url: fileUrl,
         })
-        return res.status(400).json({ error: err.message })
-      }
 
-      const multerReq = req as MulterRequest
-
-      if (!multerReq.file) {
-        logger.error({
-          message: '❌ Файл не предоставлен',
-          ip: req.ip,
+        res.status(200).json({
+          message: 'Файл успешно загружен',
+          zipUrl: fileUrl,
         })
-        return res.status(400).json({ error: 'Файл не предоставлен' })
-      }
-
-      // Создаем URL для доступа к файлу
-      const fileUrl = `${API_URL}/uploads/${multerReq.file.filename}`
-
-      logger.info({
-        message: '✅ Файл успешно загружен',
-        filename: multerReq.file.filename,
-        size: multerReq.file.size,
-        url: fileUrl,
-      })
-
-      return res.status(200).json({
-        message: 'Файл успешно загружен',
-        zipUrl: fileUrl,
+        resolve()
       })
     })
   } catch (error) {

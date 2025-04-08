@@ -1,102 +1,131 @@
-import { logger } from '@/utils/logger'
+import { logger } from '../utils/logger'
+import { InngestFunction } from 'inngest'
 
-interface InngestTestEngineOptions {
+export interface InngestOptions {
+  timeout?: number
   maxWaitTime?: number
   eventBufferSize?: number
 }
 
-interface InngestEvent {
-  id: string
+export interface InngestEvent {
   name: string
   data: any
-  ts: number
+  status?: string
+  result?: any
+  error?: Error
+}
+
+export interface StepObject {
+  id: string
+  name: string
+  data: Record<string, any>
 }
 
 export class InngestTestEngine {
-  private handlers: Map<string, (event: any) => Promise<any>>
-  private events: InngestEvent[]
-  private maxWaitTime: number
-  private eventBufferSize: number
+  private registeredFunctions: Map<
+    string,
+    { fn: InngestFunction<any, any, any> | Function }
+  > = new Map()
+  private events: InngestEvent[] = []
+  private readonly options: InngestOptions
 
-  constructor(options: InngestTestEngineOptions = {}) {
-    this.handlers = new Map()
-    this.events = []
-    this.maxWaitTime = options.maxWaitTime || 10000
-    this.eventBufferSize = options.eventBufferSize || 200
-
-    logger.info('🔧 Инициализация тестового движка Inngest', {
-      description: 'Initializing Inngest test engine',
-      options: {
-        maxWaitTime: this.maxWaitTime,
-        eventBufferSize: this.eventBufferSize,
-      },
-    })
+  constructor(options: InngestOptions = {}) {
+    this.options = options
+    console.log('🚀 Initializing InngestTestEngine')
   }
 
-  register(eventName: string, handler: (event: any) => Promise<any>) {
-    logger.info('📝 Регистрация функции', {
-      description: 'Registering function',
-      event_name: eventName,
-    })
-    this.handlers.set(eventName, handler)
+  async init() {
+    // Use options if needed for initialization
+    const { timeout = 5000 } = this.options
+    console.log(`⚙️ Initializing with timeout: ${timeout}ms`)
+    return this
   }
 
-  async send(event: { name: string; data: any }) {
-    const id = Math.random().toString(36).substring(7)
-    const ts = Date.now()
+  registerEventHandler(
+    eventName: string,
+    handler: InngestFunction<any, any, any> | Function
+  ) {
+    console.log(`📝 Registering handler for event: ${eventName}`)
+    this.registeredFunctions.set(eventName, { fn: handler })
+  }
 
-    const inngestEvent = {
-      id,
+  // Alias for registerEventHandler for backward compatibility
+  register(
+    eventName: string,
+    handler: InngestFunction<any, any, any> | Function
+  ) {
+    return this.registerEventHandler(eventName, handler)
+  }
+
+  async send(inngestEvent: InngestEvent): Promise<any> {
+    try {
+      const handler = this.registeredFunctions.get(inngestEvent.name)
+
+      if (!handler) {
+        throw new Error(`Handler not found for event: ${inngestEvent.name}`)
+      }
+
+      inngestEvent.status = 'PROCESSING'
+      this.events.push(inngestEvent)
+
+      logger.info('🔄 Обработка события', {
+        description: 'Processing event',
+        event: inngestEvent.name,
+        data: inngestEvent.data,
+      })
+
+      const handlerFn = handler.fn
+      if (typeof handlerFn !== 'function') {
+        throw new Error('Handler must be a function')
+      }
+
+      const result = await handlerFn({
+        event: this.createStepObject(inngestEvent),
+        step: {
+          run: async (_name: string, fn: Function) => {
+            return await fn()
+          },
+        },
+      })
+
+      inngestEvent.status = 'COMPLETED'
+      inngestEvent.result = result
+
+      logger.info('✅ Событие обработано успешно', {
+        description: 'Event processed successfully',
+        event: inngestEvent.name,
+        result,
+      })
+
+      return result
+    } catch (error) {
+      inngestEvent.status = 'FAILED'
+      inngestEvent.error =
+        error instanceof Error ? error : new Error(String(error))
+
+      logger.error('❌ Ошибка при обработке события', {
+        description: 'Error processing event',
+        event: inngestEvent.name,
+        error: inngestEvent.error,
+      })
+
+      throw error
+    }
+  }
+
+  private createStepObject(event: InngestEvent): StepObject {
+    return {
+      id: Math.random().toString(36).substring(7),
       name: event.name,
       data: event.data,
-      ts,
     }
-
-    this.events.push(inngestEvent)
-
-    // Ограничиваем размер буфера событий
-    if (this.events.length > this.eventBufferSize) {
-      this.events.shift()
-    }
-
-    const handler = this.handlers.get(event.name)
-    if (handler) {
-      try {
-        logger.info('🚀 Начало обработки события', {
-          description: 'Starting event processing',
-          event_name: event.name,
-          event_id: id,
-        })
-
-        const result = await handler({ event: inngestEvent })
-
-        logger.info('✅ Событие успешно обработано', {
-          description: 'Event processed successfully',
-          event_name: event.name,
-          event_id: id,
-          result,
-        })
-
-        return { id, ts, result }
-      } catch (error) {
-        logger.error('❌ Ошибка при обработке события', {
-          description: 'Error processing event',
-          event_name: event.name,
-          event_id: id,
-          error: error instanceof Error ? error.message : String(error),
-        })
-        throw error
-      }
-    }
-
-    return { id, ts }
   }
 
-  getEvents() {
+  getEvents(): InngestEvent[] {
     return this.events
   }
 
-  clearEvents() {
+  clearEvents(): void {
     this.events = []
   }
 }

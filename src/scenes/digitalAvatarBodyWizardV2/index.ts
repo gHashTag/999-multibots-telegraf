@@ -52,6 +52,7 @@ export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
           ? '🔢 Пожалуйста, выберите количество шагов для продолжения обучения модели.'
           : '🔢 Please select the number of steps to proceed with model training.'
       )
+      return ctx.wizard.next()
     }
   }
 )

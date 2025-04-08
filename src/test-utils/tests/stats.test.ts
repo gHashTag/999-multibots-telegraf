@@ -113,6 +113,7 @@ export async function runStatsTests(): Promise<TestResult> {
       success: true,
       message: 'Тест команды /stats успешно пройден',
       name: 'Stats Command Test',
+      startTime: Date.now(),
     }
   } catch (error) {
     logger.error('❌ Ошибка в тесте команды /stats', {
@@ -126,6 +127,7 @@ export async function runStatsTests(): Promise<TestResult> {
         error instanceof Error ? error.message : String(error)
       }`,
       name: 'Stats Command Test',
+      startTime: Date.now(),
     }
   }
 }

@@ -97,7 +97,6 @@ function getContentTypeFromMessage(
 
 // Функция для отправки текстовой рассылки
 async function sendTextBroadcast(
-  ctx: MyContext,
   text: string,
   ownerTelegramId?: string
 ): Promise<BroadcastResult> {
@@ -112,7 +111,6 @@ async function sendTextBroadcast(
 
 // Функция для отправки рассылки с изображением
 async function sendImageBroadcast(
-  ctx: MyContext,
   text: string,
   imageUrl: string,
   ownerTelegramId?: string
@@ -128,7 +126,6 @@ async function sendImageBroadcast(
 
 // Функция для отправки рассылки с видео
 async function sendVideoBroadcast(
-  ctx: MyContext,
   text: string,
   videoUrl: string,
   ownerTelegramId?: string
@@ -144,9 +141,8 @@ async function sendVideoBroadcast(
 
 // Функция для отправки рассылки со ссылкой на пост
 async function sendPostLinkBroadcast(
-  ctx: MyContext,
   text: string,
-  postLink: string,
+  _postLink: string,
   ownerTelegramId?: string
 ): Promise<BroadcastResult> {
   const botToken = process.env.BOT_TOKEN || ''
@@ -494,7 +490,6 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
         switch (ctx.scene.session.contentType) {
           case BroadcastContentType.PHOTO:
             result = await sendImageBroadcast(
-              ctx,
               textRu,
               ctx.scene.session.photoFileId || '',
               ownerTelegramId
@@ -503,7 +498,6 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
 
           case BroadcastContentType.VIDEO:
             result = await sendVideoBroadcast(
-              ctx,
               textRu,
               ctx.scene.session.videoFileId || '',
               ownerTelegramId
@@ -511,12 +505,11 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
             break
 
           case BroadcastContentType.TEXT:
-            result = await sendTextBroadcast(ctx, textRu, ownerTelegramId)
+            result = await sendTextBroadcast(textRu, ownerTelegramId)
             break
 
           case BroadcastContentType.POST_LINK:
             result = await sendPostLinkBroadcast(
-              ctx,
               textRu,
               ctx.scene.session.postLink || '',
               ownerTelegramId

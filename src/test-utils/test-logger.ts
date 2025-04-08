@@ -1,17 +1,15 @@
 import { logger } from '@/utils/logger'
-import { TestError, TestResult } from './interfaces'
+import { TestResult } from './types'
 
 /**
  * Класс для логирования в тестах с поддержкой TypeScript
  */
 export class TestLogger {
-  private static formatError(error: Error | string): TestError {
+  private static formatError(error: Error | string): Error {
     if (error instanceof Error) {
-      return error as TestError
+      return error
     }
-    const testError = new Error(error) as TestError
-    testError.timestamp = Date.now()
-    return testError
+    return new Error(error)
   }
 
   /**
@@ -75,6 +73,7 @@ export class TestLogger {
       success,
       message,
       error: error ? this.formatError(error) : undefined,
+      startTime: params.startTime,
     }
   }
 
@@ -130,7 +129,16 @@ export class TestLogger {
       },
     })
   }
+
+  /**
+   * Создание результата теста с правильной обработкой ошибок
+   */
+  static createTestError(error: unknown): Error {
+    return error instanceof Error ? error : new Error(String(error))
+  }
 }
+
+export const createTestError = TestLogger.createTestError
 
 export async function testLogger(): Promise<TestResult> {
   const testName = 'Logger Test'
@@ -167,6 +175,7 @@ export async function testLogger(): Promise<TestResult> {
       name: testName,
       success: true,
       message: 'Все уровни логирования работают корректно',
+      startTime: Date.now(),
     }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
@@ -181,7 +190,8 @@ export async function testLogger(): Promise<TestResult> {
       name: testName,
       success: false,
       message: 'Ошибка при тестировании логгера',
-      error,
+      error: error,
+      startTime: Date.now(),
     }
   }
 }
