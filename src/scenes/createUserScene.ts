@@ -9,6 +9,7 @@ import {
 
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { isRussian } from '@/helpers/language'
+import { pulseBot } from '@/core'
 
 // const BONUS_AMOUNT = 100
 
@@ -94,7 +95,7 @@ const createUserStep = async (ctx: MyContext) => {
     }
   } else {
     try {
-      await ctx.telegram.sendMessage(
+      await pulseBot.telegram.sendMessage(
         `@neuro_blogger_pulse`,
         `🔗 Новый пользователь зарегистрировался в боте: ${finalUsername}.`
       )
