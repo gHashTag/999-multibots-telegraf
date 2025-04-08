@@ -19,8 +19,7 @@
     "ngrok": "ngrok http 2999",
     "tunnel": "ssh -R 80:localhost:2999 localhost.run",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
-    "type-check": "tsc --noEmit",
-    "prepare": "husky install"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",
@@ -84,8 +83,6 @@
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",
-    "husky": "^8.0.0",
-    "jest": "^28.1.1",
     "lint-staged": "^13.0.3",
     "node-config": "^0.0.2",
     "node-gyp": "^9.1.0",
