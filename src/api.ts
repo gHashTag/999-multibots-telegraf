@@ -26,7 +26,7 @@ import {
   handleWebhookNeurophotoDebug,
 } from './controllers/neurophotoWebhook'
 import { UPLOAD_DIR } from './config'
-import { Logger as logger } from './utils/logger'
+import { Logger } from './utils/logger'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
@@ -49,7 +49,7 @@ app.use('/payment-success', express.raw({ type: '*/*' }))
 
 // Создаем директорию для загрузок, если она не существует
 if (!fs.existsSync(UPLOAD_DIR)) {
-  logger.info('📁 Создание директории для загрузок', {
+  Logger.info('📁 Создание директории для загрузок', {
     description: 'Creating uploads directory',
     path: UPLOAD_DIR,
   })
@@ -81,14 +81,14 @@ const upload = multer({
 // Обработка загрузки файлов
 app.post('/uploads', upload.single('file'), (req, res) => {
   try {
-    logger.info('📤 Получен файл для загрузки', {
+    Logger.info('📤 Получен файл для загрузки', {
       description: 'File upload received',
       filename: req.file?.originalname,
       size: req.file?.size,
     })
 
     if (!req.file) {
-      logger.error('❌ Файл не найден в запросе', {
+      Logger.error('❌ Файл не найден в запросе', {
         description: 'No file in request',
       })
       return res.status(400).json({
@@ -100,7 +100,7 @@ app.post('/uploads', upload.single('file'), (req, res) => {
     // Формируем URL для доступа к файлу
     const fileUrl = `/uploads/${req.file.filename}`
 
-    logger.info('✅ Файл успешно загружен', {
+    Logger.info('✅ Файл успешно загружен', {
       description: 'File uploaded successfully',
       filename: req.file.originalname,
       path: fileUrl,
@@ -114,7 +114,7 @@ app.post('/uploads', upload.single('file'), (req, res) => {
       path: req.file.path,
     })
   } catch (error) {
-    logger.error('❌ Ошибка при загрузке файла', {
+    Logger.error('❌ Ошибка при загрузке файла', {
       description: 'File upload error',
       error: error instanceof Error ? error.message : 'Unknown error',
     })
@@ -130,7 +130,7 @@ app.use('/uploads', express.static(UPLOAD_DIR))
 
 // Маршруты API
 app.get('/api', (req, res) => {
-  logger.info({
+  Logger.info({
     message: '🚀 API запрос получен!',
     description: 'API request received!',
   })
@@ -143,7 +143,7 @@ app.get('/api', (req, res) => {
 
 // Проверка статуса сервера
 app.get('/api/status', (req, res) => {
-  logger.info({
+  Logger.info({
     message: '🔍 Проверка статуса сервера',
     description: 'Server status check',
   })
@@ -179,7 +179,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
 
     // Проверяем, не является ли тело JWT токеном
     if (rawBody.startsWith('eyJ')) {
-      logger.info({
+      Logger.info({
         message: '🔄 Пропускаем JWT токен',
         description: 'Skipping JWT token',
         bodyType: typeof req.body,
@@ -193,7 +193,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     const contentType = req.headers['content-type'] || ''
     const query = req.query || {}
 
-    logger.info({
+    Logger.info({
       message: '🔍 Получен webhook от Robokassa',
       description: 'Received webhook from Robokassa',
       headers: req.headers,
@@ -230,7 +230,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
       if (rawBody.startsWith('{')) {
         // Это JSON
         parsedBody = JSON.parse(rawBody)
-        logger.info({
+        Logger.info({
           message: '📦 Распарсили JSON',
           description: 'Parsed JSON data',
           parsedBody,
@@ -240,7 +240,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
         parsedBody = Object.fromEntries(
           new URLSearchParams(rawBody)
         ) as RobokassaWebhookData
-        logger.info({
+        Logger.info({
           message: '📦 Распарсили form-urlencoded',
           description: 'Parsed form-urlencoded data',
           parsedBody,
@@ -255,7 +255,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
         Object.keys(query).length > 0
       ) {
         parsedBody = query as unknown as RobokassaWebhookData
-        logger.info({
+        Logger.info({
           message: '📦 Используем параметры из URL',
           description: 'Using URL parameters',
           parsedBody,
@@ -269,7 +269,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
         )
       }
 
-      logger.info({
+      Logger.info({
         message: '✅ Данные успешно получены',
         description: 'Data successfully retrieved',
         parsedBody,
@@ -277,7 +277,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     } catch (parseError) {
       // Проверяем, не является ли ошибка связана с JWT токеном
       if (rawBody.startsWith('eyJ')) {
-        logger.info({
+        Logger.info({
           message: '🔄 Пропускаем JWT токен после ошибки парсинга',
           description: 'Skipping JWT token after parse error',
           bodyType: typeof req.body,
@@ -286,7 +286,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
         return res.send('OK')
       }
 
-      logger.error({
+      Logger.error({
         message: '❌ Ошибка получения данных',
         description: 'Data retrieval error',
         error:
@@ -307,7 +307,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     // Проверяем наличие обязательных полей
     const invoiceId = inv_id || InvId
     if (!invoiceId) {
-      logger.error({
+      Logger.error({
         message: '❌ Отсутствует inv_id',
         description: 'Missing inv_id',
         parsedBody,
@@ -318,7 +318,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     // Robokassa может прислать сумму в разных полях
     const amount = IncSum || OutSum || out_summ
     if (!amount) {
-      logger.error({
+      Logger.error({
         message: '❌ Отсутствует сумма платежа',
         description: 'Missing payment amount',
         parsedBody,
@@ -328,7 +328,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
 
     const roundedIncSum = Number(amount)
     if (isNaN(roundedIncSum)) {
-      logger.error({
+      Logger.error({
         message: '❌ Некорректная сумма платежа',
         description: 'Invalid payment amount',
         amount,
@@ -337,7 +337,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
       return res.send('OK')
     }
 
-    logger.info({
+    Logger.info({
       message: '💰 Данные платежа получены',
       description: 'Payment data received',
       invoiceId,
@@ -355,7 +355,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
       },
     })
 
-    logger.info({
+    Logger.info({
       message: '✅ Событие платежа отправлено в Inngest',
       description: 'Payment event sent to Inngest',
       invoiceId,
@@ -369,7 +369,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
     const rawBody =
       req.body instanceof Buffer ? req.body.toString('utf8') : req.body
     if (typeof rawBody === 'string' && rawBody.startsWith('eyJ')) {
-      logger.info({
+      Logger.info({
         message: '🔄 Пропускаем JWT токен из-за ошибки',
         description: 'Skipping JWT token due to error',
         bodyType: typeof req.body,
@@ -378,7 +378,7 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
       return res.send('OK')
     }
 
-    logger.error({
+    Logger.error({
       message: '❌ Ошибка обработки платежного веб-хука',
       description: 'Error processing payment webhook',
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -421,7 +421,7 @@ app.use(
 
 // Обработка ошибки 404
 app.use((req, res) => {
-  logger.warn({
+  Logger.warn({
     message: '⚠️ Маршрут не найден',
     description: 'Route not found',
     path: req.originalUrl,
@@ -436,7 +436,7 @@ app.use((req, res) => {
 // Запуск сервера API
 const startApiServer = () => {
   app.listen(port, () => {
-    logger.info('🚀 API сервер запущен', {
+    Logger.info('🚀 API сервер запущен', {
       description: 'API server is running',
       port,
     })

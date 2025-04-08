@@ -40,7 +40,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Добавляем тестовый план для администраторов
-    const buttonsWithAdmin = [...(buttons || [])]
+    const buttonsWithAdmin: TranslationButton[] = [...(buttons || [])]
     if (adminIds.includes(parseInt(telegramId))) {
       buttonsWithAdmin.push({
         row: 4,
