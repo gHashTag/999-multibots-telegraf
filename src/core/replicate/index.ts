@@ -167,4 +167,23 @@ export const models: Record<string, ModelConfig> = {
       getInput(prompt, aspect_ratio || '16:9'),
     price: 0.022,
   },
+  neuro_photo: {
+    key: 'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b',
+    description: {
+      ru: 'Создает фотореалистичные изображения высокого качества',
+      en: 'Creates photorealistic high-quality images',
+    },
+    word: 'photo',
+    price: 0.025,
+    getInput: (prompt: string, aspectRatio?: string) => ({
+      prompt,
+      ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
+      num_inference_steps: 50,
+      guidance_scale: 7.5,
+      negative_prompt: 'ugly, disfigured, low quality, blurry, nsfw',
+      refine: 'expert_ensemble_refiner',
+      scheduler: 'K_EULER',
+      num_outputs: 1,
+    }),
+  },
 }
