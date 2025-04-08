@@ -1,5 +1,5 @@
 import { logger } from '../utils/logger'
-import { InngestFunction } from 'inngest'
+import { InngestFunction, Inngest } from 'inngest'
 
 export interface InngestOptions {
   timeout?: number
@@ -21,6 +21,11 @@ export interface StepObject {
   data: Record<string, any>
 }
 
+interface EventStatus {
+  status: 'pending' | 'completed' | 'failed'
+  error?: string
+}
+
 export class InngestTestEngine {
   private registeredFunctions: Map<
     string,
@@ -28,17 +33,18 @@ export class InngestTestEngine {
   > = new Map()
   private events: InngestEvent[] = []
   private readonly options: InngestOptions
+  private inngest: Inngest
+  private eventStatuses: Map<string, EventStatus>
 
   constructor(options: InngestOptions = {}) {
     this.options = options
+    this.inngest = new Inngest({ id: 'test-engine' })
+    this.eventStatuses = new Map()
     console.log('🚀 Initializing InngestTestEngine')
   }
 
-  async init() {
-    // Use options if needed for initialization
-    const { timeout = 5000 } = this.options
-    console.log(`⚙️ Initializing with timeout: ${timeout}ms`)
-    return this
+  async init(): Promise<void> {
+    logger.info('🚀 Initializing InngestTestEngine')
   }
 
   registerEventHandler(
@@ -127,5 +133,14 @@ export class InngestTestEngine {
 
   clearEvents(): void {
     this.events = []
+    this.eventStatuses.clear()
+  }
+
+  async getEventStatus(eventId: string): Promise<EventStatus | null> {
+    return this.eventStatuses.get(eventId) || null
+  }
+
+  setEventStatus(eventId: string, status: EventStatus): void {
+    this.eventStatuses.set(eventId, status)
   }
 }

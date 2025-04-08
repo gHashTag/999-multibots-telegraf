@@ -1,67 +1,66 @@
-import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
-import { ImageToVideoResponse, VideoModel } from '@/interfaces'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { inngest } from '@/inngest-functions/clients'
+import { logger } from '@/utils/logger'
+import { v4 as uuidv4 } from 'uuid'
+import { processBalanceVideoOperation } from '@/price/helpers'
+import { getBotByName } from '@/core/bot'
 
-export async function generateImageToVideo({
-  imageUrl,
-  prompt,
-  videoModel,
-  telegram_id,
-  username,
-  isRu,
-  botName,
-}: {
+interface GenerateImageToVideoParams {
   imageUrl: string
   prompt: string
-  videoModel: VideoModel
-  telegram_id: TelegramId
+  videoModel: string
+  telegram_id: string
   username: string
-  isRu: boolean
-  botName: string
-}): Promise<ImageToVideoResponse> {
+  is_ru: boolean
+  bot_name: string
+}
+
+export const generateImageToVideo = async (
+  params: GenerateImageToVideoParams
+): Promise<void> => {
+  const { videoModel, telegram_id, is_ru, bot_name } = params
+
   try {
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
-    }/generate/image-to-video`
+    logger.info('🎬 Processing image to video request', {
+      description: 'Processing request and checking balance',
+      ...params,
+    })
 
-    if (!imageUrl) throw new Error('Image URL is required')
-    if (!prompt) throw new Error('Prompt is required')
-    if (!videoModel) throw new Error('Video model is required')
-    if (!telegram_id) throw new Error('Telegram ID is required')
-    if (!username) throw new Error('Username is required')
-
-    const response = await axios.post<ImageToVideoResponse>(
-      url,
-      {
-        imageUrl,
-        prompt,
-        videoModel,
-        telegram_id,
-        username,
-        is_ru: isRu,
-        bot_name: botName,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
-    )
-
-    console.log('Image to video generation response:', response.data)
-    return response.data
-  } catch (error) {
-    if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      throw new Error(
-        isRu
-          ? 'Произошла ошибка при преобразовании изображения в видео'
-          : 'Error occurred while converting image to video'
-      )
+    const { bot } = getBotByName(bot_name)
+    if (!bot) {
+      throw new Error(`Bot ${bot_name} not found`)
     }
-    console.error('Unexpected error:', error)
+
+    // Check balance and process payment first
+    const { success, error } = await processBalanceVideoOperation({
+      videoModel,
+      telegram_id,
+      is_ru,
+      bot,
+      bot_name,
+      description: 'Payment for generating video',
+    })
+
+    if (!success) {
+      throw new Error(error)
+    }
+
+    // If payment successful, send to Inngest for processing
+    await inngest.send({
+      id: `image-to-video-${params.telegram_id}-${Date.now()}-${uuidv4()}`,
+      name: 'image/video',
+      data: params,
+    })
+
+    logger.info('✅ Image to video request queued', {
+      description: 'Request queued for processing',
+      telegram_id: params.telegram_id,
+    })
+  } catch (error) {
+    logger.error('❌ Error processing image to video request:', {
+      description: 'Failed to process request',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      params,
+    })
     throw error
   }
 }

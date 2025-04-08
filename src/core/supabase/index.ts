@@ -84,7 +84,8 @@ export * from './getFineTuneIdByTelegramId'
 export * from './getUserByTaskId'
 export * from './getTelegramIdFromInvId'
 export * from './getBotGroupFromAvatars'
-
+export * from './getUserSettings'
+export * from './saveVideoUrlToSupabase'
 export * from './getAllUsersData'
 
 export * from './getTranslation'

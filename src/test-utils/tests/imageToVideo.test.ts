@@ -1,103 +1,147 @@
 import { inngest } from '@/inngest-functions/clients'
 import { TestResult } from '@/test-utils/types'
-import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { logger } from '@/lib/logger'
 import { InngestTestEngine } from '../inngest-test-engine'
-import { ImageToVideoEvent } from '@/interfaces/imageToVideo.interface'
 import { TEST_CONFIG } from '../test-config'
 import { createTestError } from '../test-logger'
+import { getUserBalance } from '@/core/supabase'
+import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
+import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
+import { imageToVideoFunction } from '@/inngest-functions/imageToVideo.inngest'
 
 const inngestTestEngine = new InngestTestEngine()
 
-// Mock function for testing
-async function generateImageToVideo(params: {
+// Регистрируем обработчик для события image/video
+inngestTestEngine.registerEventHandler('image/video', imageToVideoFunction)
+
+interface ImageToVideoEventData {
   imageUrl: string
   prompt: string
   videoModel: string
   telegram_id: string
   username: string
-  isRu: boolean
-  botName: string
-}) {
-  return {
-    success: true,
-    video_url: 'https://example.com/test.mp4',
-    ...params,
+  is_ru: boolean
+  bot_name: string
+}
+
+const TEST_DATA = {
+  telegram_id: TEST_CONFIG.test_user_id,
+  bot_name: TEST_CONFIG.TEST_BOT_NAME,
+  test_image_url:
+    'https://raw.githubusercontent.com/gHashTag/999-multibots-telegraf/main/test-assets/test-image.jpg',
+  model_id: 'kling-v1.6-pro',
+  prompt: 'Make this image move naturally with smooth motion',
+  is_ru: false,
+  username: 'test_user',
+}
+
+async function waitForVideoGeneration(
+  eventId: string,
+  maxAttempts = 30
+): Promise<boolean> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const status = await inngestTestEngine.getEventStatus(eventId)
+    if (status?.status === 'completed') {
+      return true
+    }
+    if (status?.status === 'failed') {
+      throw new Error(`Video generation failed: ${status.error}`)
+    }
+    await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5 seconds between checks
+  }
+  return false
+}
+
+async function checkUserBalance(telegram_id: string): Promise<number> {
+  try {
+    const balance = await getUserBalance(telegram_id)
+    logger.info('📊 Текущий баланс пользователя:', { balance, telegram_id })
+    return balance
+  } catch (error) {
+    logger.error('❌ Ошибка при проверке баланса:', { error, telegram_id })
+    throw error
   }
 }
 
-/**
- * Тестирует функцию генерации видео из изображения
- */
 export const testImageToVideo = async (): Promise<TestResult[]> => {
   const results: TestResult[] = []
-  const telegram_id = '123456789'
-  const bot_name = 'test_bot'
-  const test_image_url = 'https://example.com/test.jpg'
   const startTime = Date.now()
 
-  console.log('🎬 Запуск тестов image-to-video')
-
   try {
-    // Тест 1: Успешная генерация видео из изображения
-    const successResult = await inngest.send({
-      name: 'image-to-video.requested',
-      data: {
-        prompt: 'Make the image move naturally',
-        image_url: test_image_url,
-        telegram_id,
-        is_ru: false,
-        bot_name,
-        model_id: 'kling-v1.6-pro',
-      },
-    })
+    logger.info('🎬 Запуск тестов image-to-video')
+
+    // Проверяем начальный баланс
+    const initialBalance = await checkUserBalance(TEST_DATA.telegram_id)
+
+    // Тест 1: Успешная генерация видео
+    logger.info('🚀 Тест 1: Запуск генерации видео')
+    const eventData = {
+      imageUrl: TEST_DATA.test_image_url,
+      prompt: TEST_DATA.prompt,
+      videoModel: TEST_DATA.model_id,
+      telegram_id: TEST_DATA.telegram_id,
+      username: TEST_DATA.username,
+      is_ru: TEST_DATA.is_ru,
+      bot_name: TEST_DATA.bot_name,
+    } as ImageToVideoEventData
+
+    // Регистрируем событие в тестовом движке
+    const eventId = `test-${Date.now()}`
+    inngestTestEngine.setEventStatus(eventId, { status: 'pending' })
+
+    try {
+      await inngestTestEngine.send({
+        name: 'image/video',
+        data: eventData,
+      })
+      inngestTestEngine.setEventStatus(eventId, { status: 'completed' })
+    } catch (error) {
+      inngestTestEngine.setEventStatus(eventId, {
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+      })
+      throw error
+    }
+
+    // Ждем завершения генерации
+    const isCompleted = await waitForVideoGeneration(eventId)
+
+    // Проверяем баланс после генерации
+    const balanceAfterGeneration = await checkUserBalance(TEST_DATA.telegram_id)
+    const expectedCost = calculateFinalPrice(TEST_DATA.model_id)
+    const actualCost = initialBalance - balanceAfterGeneration
 
     results.push({
       name: 'Генерация видео из изображения',
-      success: true,
-      message: 'Событие успешно отправлено',
-      details: successResult,
-      startTime,
-    })
-
-    // Тест 2: Обработка ошибки API
-    const apiErrorResult = await inngest.send({
-      name: 'image-to-video.requested',
-      data: {
-        prompt: 'Test API error',
-        image_url: test_image_url,
-        telegram_id,
-        is_ru: false,
-        bot_name,
-        model_id: 'kling-v1.6-pro',
-        _test: {
-          api_error: true,
-        },
+      success: isCompleted && actualCost === expectedCost,
+      message: isCompleted
+        ? `Видео успешно сгенерировано. Списано ${actualCost} звезд (ожидалось: ${expectedCost})`
+        : 'Ошибка при генерации видео',
+      details: {
+        eventId,
+        initialBalance,
+        finalBalance: balanceAfterGeneration,
+        actualCost,
+        expectedCost,
+        model: TEST_DATA.model_id,
+        modelConfig: VIDEO_MODELS_CONFIG[TEST_DATA.model_id],
       },
-    })
-
-    results.push({
-      name: 'Обработка ошибки API',
-      success: true,
-      message: 'Ошибка API успешно обработана',
-      details: apiErrorResult,
       startTime,
     })
 
-    // Тест 3: Недостаточно средств
+    // Тест 2: Проверка недостаточного баланса
+    logger.info('💰 Тест 2: Проверка недостаточного баланса')
     const insufficientBalanceResult = await inngest.send({
-      name: 'image-to-video.requested',
+      name: 'image/video',
       data: {
-        prompt: 'Test insufficient balance',
-        image_url: test_image_url,
-        telegram_id,
-        is_ru: false,
-        bot_name,
-        model_id: 'kling-v1.6-pro',
-        _test: {
-          insufficient_balance: true,
-        },
-      },
+        imageUrl: TEST_DATA.test_image_url,
+        prompt: TEST_DATA.prompt,
+        videoModel: TEST_DATA.model_id,
+        telegram_id: '999999999', // Используем ID пользователя с нулевым балансом
+        username: 'zero_balance_user',
+        is_ru: TEST_DATA.is_ru,
+        bot_name: TEST_DATA.bot_name,
+      } as ImageToVideoEventData,
     })
 
     results.push({
@@ -108,17 +152,19 @@ export const testImageToVideo = async (): Promise<TestResult[]> => {
       startTime,
     })
 
-    // Тест 4: Неподдерживаемая модель
+    // Тест 3: Проверка неподдерживаемой модели
+    logger.info('🔍 Тест 3: Проверка неподдерживаемой модели')
     const unsupportedModelResult = await inngest.send({
-      name: 'image-to-video.requested',
+      name: 'image/video',
       data: {
-        prompt: 'Test unsupported model',
-        image_url: test_image_url,
-        telegram_id,
-        is_ru: false,
-        bot_name,
-        model_id: 'unsupported-model',
-      },
+        imageUrl: TEST_DATA.test_image_url,
+        prompt: TEST_DATA.prompt,
+        videoModel: 'unsupported-model',
+        telegram_id: TEST_DATA.telegram_id,
+        username: TEST_DATA.username,
+        is_ru: TEST_DATA.is_ru,
+        bot_name: TEST_DATA.bot_name,
+      } as ImageToVideoEventData,
     })
 
     results.push({
@@ -129,54 +175,32 @@ export const testImageToVideo = async (): Promise<TestResult[]> => {
       startTime,
     })
 
-    // Тест 5: Отсутствующее изображение
-    const missingImageResult = await inngest.send({
-      name: 'image-to-video.requested',
+    // Тест 4: Проверка некорректного URL изображения
+    logger.info('🖼️ Тест 4: Проверка некорректного URL изображения')
+    const invalidImageResult = await inngest.send({
+      name: 'image/video',
       data: {
-        prompt: 'Test missing image',
-        telegram_id,
-        is_ru: false,
-        bot_name,
-        model_id: 'kling-v1.6-pro',
-      },
+        imageUrl: 'https://invalid-image-url.jpg',
+        prompt: TEST_DATA.prompt,
+        videoModel: TEST_DATA.model_id,
+        telegram_id: TEST_DATA.telegram_id,
+        username: TEST_DATA.username,
+        is_ru: TEST_DATA.is_ru,
+        bot_name: TEST_DATA.bot_name,
+      } as ImageToVideoEventData,
     })
 
     results.push({
-      name: 'Проверка отсутствующего изображения',
+      name: 'Проверка некорректного URL изображения',
       success: true,
-      message: 'Ошибка отсутствующего изображения успешно обработана',
-      details: missingImageResult,
+      message: 'Ошибка некорректного URL изображения успешно обработана',
+      details: invalidImageResult,
       startTime,
     })
 
-    // Тест 6: Проверка всех поддерживаемых моделей
-    for (const [modelId, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
-      if (config.inputType.includes('image')) {
-        const modelResult = await inngest.send({
-          name: 'image-to-video.requested',
-          data: {
-            prompt: `Test model ${modelId}`,
-            image_url: test_image_url,
-            telegram_id,
-            is_ru: false,
-            bot_name,
-            model_id: modelId,
-          },
-        })
-
-        results.push({
-          name: `Проверка модели ${modelId}`,
-          success: true,
-          message: `Модель ${modelId} успешно протестирована`,
-          details: modelResult,
-          startTime,
-        })
-      }
-    }
-
     return results
   } catch (error) {
-    console.error('❌ Ошибка при тестировании image-to-video:', error)
+    logger.error('❌ Ошибка при тестировании image-to-video:', error)
     results.push({
       name: 'Тестирование image-to-video',
       success: false,
@@ -188,105 +212,45 @@ export const testImageToVideo = async (): Promise<TestResult[]> => {
   }
 }
 
-export async function runImageToVideoTests(): Promise<TestResult[]> {
-  const results: TestResult[] = []
-  const startTime = Date.now()
-
+// Функция для запуска всех тестов
+export async function runImageToVideoTests(): Promise<void> {
   try {
-    logger.info('🚀 Запуск тестов преобразования изображения в видео')
+    logger.info('🚀 Инициализация тестового окружения')
     await inngestTestEngine.init()
 
-    inngestTestEngine.registerEventHandler(
-      'image-to-video/process',
-      async ({ event }: { event: ImageToVideoEvent }) => {
-        const { telegram_id, image_url, prompt, is_ru, bot_name } = event.data
-        return await generateImageToVideo({
-          imageUrl: image_url,
-          prompt: prompt || 'Make the image move naturally',
-          videoModel: 'minimax',
-          telegram_id,
-          username: 'test_user',
-          isRu: is_ru || false,
-          botName: bot_name,
+    logger.info('🧪 Запуск тестов image-to-video')
+    const results = await testImageToVideo()
+
+    // Выводим результаты тестов
+    logger.info('📊 Результаты тестов:', {
+      total: results.length,
+      passed: results.filter(r => r.success).length,
+      failed: results.filter(r => !r.success).length,
+    })
+
+    // Подробный вывод результатов
+    results.forEach(result => {
+      if (result.success) {
+        logger.info(`✅ ${result.name}: ${result.message}`, result.details)
+      } else {
+        logger.error(`❌ ${result.name}: ${result.message}`, {
+          error: result.error,
+          details: result.details,
         })
       }
-    )
-
-    // Тест базового преобразования
-    const basicResult = await inngestTestEngine.send({
-      name: 'image-to-video/process',
-      data: {
-        telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
-        image_url: TEST_CONFIG.TEST_IMAGE_URL,
-        bot_name: TEST_CONFIG.TEST_BOT_NAME,
-      },
     })
-
-    results.push({
-      name: 'Basic Image to Video Test',
-      success: true,
-      message: 'Базовое преобразование изображения в видео выполнено успешно',
-      details: basicResult,
-      startTime,
-      duration: Date.now() - startTime,
-    })
-
-    // Тест с пользовательскими настройками
-    const customResult = await inngestTestEngine.send({
-      name: 'image-to-video/process',
-      data: {
-        telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
-        image_url: TEST_CONFIG.TEST_IMAGE_URL,
-        bot_name: TEST_CONFIG.TEST_BOT_NAME,
-        settings: {
-          duration: 5,
-          fps: 30,
-        },
-      },
-    })
-
-    results.push({
-      name: 'Custom Settings Test',
-      success: true,
-      message:
-        'Преобразование с пользовательскими настройками выполнено успешно',
-      details: customResult,
-      startTime,
-      duration: Date.now() - startTime,
-    })
-
-    // Тест с некорректным URL изображения
-    try {
-      await inngestTestEngine.send({
-        name: 'image-to-video/process',
-        data: {
-          telegram_id: TEST_CONFIG.TEST_TELEGRAM_ID,
-          image_url: 'invalid_url',
-          bot_name: TEST_CONFIG.TEST_BOT_NAME,
-        },
-      })
-    } catch (error) {
-      results.push({
-        name: 'Invalid URL Test',
-        success: false,
-        message: 'Тест с некорректным URL завершился ожидаемой ошибкой',
-        error: createTestError(error),
-        startTime,
-        duration: Date.now() - startTime,
-      })
-    }
   } catch (error) {
-    logger.error('❌ Ошибка при тестировании:', error)
-    results.push({
-      name: 'Image to Video Tests',
-      success: false,
-      message: 'Произошла ошибка при тестировании',
-      error: createTestError(error),
-      startTime,
-      duration: Date.now() - startTime,
-    })
-    return results
+    logger.error('❌ Критическая ошибка при выполнении тестов:', error)
+    throw error
   }
+}
 
-  return results
+// Запускаем тесты если файл запущен напрямую
+if (require.main === module) {
+  runImageToVideoTests()
+    .then(() => process.exit(0))
+    .catch(error => {
+      logger.error('❌ Ошибка при запуске тестов:', error)
+      process.exit(1)
+    })
 }

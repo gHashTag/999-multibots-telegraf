@@ -1,4 +1,6 @@
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { Telegraf } from 'telegraf'
+import { MyContext } from '@/interfaces/context.interface'
 
 /**
  * Типы подписок, доступные для оплаты
@@ -31,10 +33,19 @@ export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
 /**
  * Результат операции с балансом
  */
+export interface BalanceOperationProps {
+  videoModel: string
+  telegram_id: string
+  is_ru: boolean
+  bot: Telegraf<MyContext>
+  bot_name: string
+  description: string
+}
+
 export interface BalanceOperationResult {
   newBalance: number
+  paymentAmount: number
   success: boolean
-  modePrice: number
   error?: string
 }
 

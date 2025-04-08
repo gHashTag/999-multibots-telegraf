@@ -1,128 +1,44 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import {
-  getUserBalance,
-  updateUserBalance,
-  getUserByTelegramIdString,
-} from '@/core/supabase'
+import { getUserBalance } from '@/core/supabase'
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
-import { Telegram, Telegraf } from 'telegraf'
-import { BalanceOperationResult } from '../../interfaces'
 import { isRussian } from '@/helpers'
 
+// Экспортируем только уникальные функции
 export * from './modelsCost'
 export * from './calculateFinalPrice'
 export * from './calculateStars'
-export * from './sendInsufficientStarsMessage'
-export * from './sendPaymentNotification'
+export * from './calculateTrainingCost'
+export * from './costHelpers'
+export * from './handleTrainingCost'
+export * from './handleTrainingCostV2'
+export * from './imageToPrompt'
+export * from './processBalanceVideoOperation'
+export * from './refundUser'
+export * from './sendBalanceMessage'
 export * from './sendCostMessage'
 export * from './sendCurrentBalanceMessage'
-export * from './sendBalanceMessage'
-export * from './refundUser'
-export * from './validateAndCalculateVideoModelPrice'
-export * from './validateAndCalculateImageModelPrice'
-export * from './handleTrainingCost'
+export * from './sendInsufficientStarsMessage'
+export * from './sendPaymentNotification'
+export * from './sendPaymentNotificationToUser'
 export * from './sendPaymentNotificationWithBot'
-export { starAmounts } from './starAmounts'
-export { voiceConversationCost } from './voiceConversationCost'
-export { convertRublesToStars } from './costHelpers'
+export * from './speechCosts'
+export * from './starAmounts'
+export * from './validateAndCalculateImageModelPrice'
+export * from './validateAndCalculateVideoModelPrice'
+export * from './voiceConversationCost'
 
-export async function processBalanceOperation({
-  telegram_id,
-  amount,
-  is_ru,
-  bot,
-  bot_name,
-  description,
-  type,
-}: {
-  telegram_id: TelegramId
-  amount: number
-  is_ru: boolean
-  bot: Telegraf<MyContext>
-  bot_name: string
-  description: string
-  type: string
-}): Promise<BalanceOperationResult> {
-  try {
-    const user = await getUserByTelegramIdString(telegram_id)
-    if (!user) {
-      throw new Error(`User with ID ${telegram_id} not found`)
-    }
-
-    const currentBalance = user.balance || 0
-    if (currentBalance < amount) {
-      const message = is_ru
-        ? `❌ Недостаточно средств. Необходимо: ${amount} руб.`
-        : `❌ Insufficient funds. Required: ${amount} RUB`
-
-      bot.telegram.sendMessage(telegram_id, message)
-      return {
-        success: false,
-        error: 'Insufficient funds',
-        newBalance: currentBalance,
-        modePrice: amount,
-      }
-    }
-
-    const newBalance = currentBalance - amount
-    await updateUserBalance({
-      telegram_id,
-      amount: amount,
-      type: 'money_expense',
-      description: description,
-      bot_name,
-    })
-
-    logger.info({
-      message: '💰 Операция с балансом выполнена',
-      description: 'Balance operation completed',
-      telegram_id,
-      type,
-      amount,
-      oldBalance: currentBalance,
-      newBalance,
-    })
-
-    return {
-      success: true,
-      newBalance,
-      modePrice: amount,
-    }
-  } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при обработке платежа',
-      description: 'Payment processing error',
-      error: error instanceof Error ? error.message : String(error),
-      telegram_id,
-      type,
-    })
-
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-      newBalance: 0,
-      modePrice: amount,
-    }
-  }
-}
-
-export async function sendBalanceMessage(
-  telegram_id: TelegramId,
-  newBalance: number | undefined,
-  amount: number,
-  is_ru: boolean,
-  bot: Telegram
-) {
-  if (typeof newBalance === 'number') {
-    const message = is_ru
-      ? `⭐️ Цена: ${amount} звезд\n💫 Баланс: ${newBalance} звезд`
-      : `⭐️ Price: ${amount} stars\n💫 Balance: ${newBalance} stars`
-
-    bot.sendMessage(telegram_id, message)
-  }
-}
+export {
+  calculateModeCost,
+  ModeEnum,
+  starCost,
+  SYSTEM_CONFIG,
+  calculateCostInStars,
+  modeCosts,
+  minCost,
+  type CostCalculationParams,
+  type CostCalculationResult,
+} from './modelsCost'
 
 export const processPayment = async ({
   ctx,

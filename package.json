@@ -17,6 +17,7 @@
     "build": "swc src -d dist --source-maps --copy-files",
     "build:tsc": "tsc && tsc-alias",
     "test": "NODE_ENV=test ts-node -r tsconfig-paths/register -P tsconfig.test.json src/test-utils/run-all-tests.ts | cat",
+    "test:image-to-video": "NODE_ENV=test ts-node -r tsconfig-paths/register -P tsconfig.test.json src/test-utils/tests/imageToVideo.test.ts | cat",
     "lint": "eslint --ignore-path .gitignore --ext .ts src",
     "lint:fix": "npm run lint -- --fix",
     "ngrok": "ngrok http 2999",

@@ -1,11 +1,12 @@
-import { getUserBalance, updateUserBalance } from '@/core/supabase'
-
+import { getUserBalance } from '@/core/supabase'
+import { inngest } from '@/inngest-functions/clients'
 import { BalanceOperationResult } from '@/interfaces/payments.interface'
-import { VIDEO_MODELS_CONFIG } from '@/helpers/VIDEO_MODELS'
-import { calculateFinalPrice } from './calculateFinalPrice'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { calculateVideoFinalPrice } from '@/helpers'
+import { VIDEO_MODELS_CONFIG } from '@/helpers/VIDEO_MODELS'
+import { ModeEnum } from '@/price/helpers'
+// Функция для расчета окончательной стоимости модели
 
 type BalanceOperationProps = {
   videoModel: string
@@ -43,7 +44,7 @@ export const processBalanceVideoOperation = async ({
       }
     }
 
-    const paymentAmount = calculateFinalPrice(modelConfig.id)
+    const paymentAmount = calculateVideoFinalPrice(modelConfig.id)
 
     // Проверка достаточности средств
     if (currentBalance < paymentAmount) {
@@ -60,24 +61,27 @@ export const processBalanceVideoOperation = async ({
     }
 
     // Рассчитываем новый баланс
-    const newBalance = currentBalance - paymentAmount
 
-    // Обновляем баланс в БД
-    await updateUserBalance({
-      telegram_id,
-      amount: paymentAmount,
-      type: 'money_expense',
-      description,
-      bot_name,
-      service_type: ModeEnum.ImageToVideo,
-      metadata: {
-        language: is_ru ? 'ru' : 'en',
+    // Обновление баланса через централизованную платежную систему
+    await inngest.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: telegram_id,
+        amount: paymentAmount,
+        type: 'money_expense',
+        description: description,
+        bot_name: bot_name,
+        service_type: ModeEnum.ImageToVideo, // Исправлен enum согласно документации
       },
     })
 
-    return { newBalance, paymentAmount, success: true }
+    return {
+      newBalance: currentBalance - paymentAmount,
+      paymentAmount,
+      success: true,
+    }
   } catch (error) {
-    console.error('Error in processBalanceOperation:', error)
+    console.error('Error processing video operation:', error)
     throw error
   }
 }
