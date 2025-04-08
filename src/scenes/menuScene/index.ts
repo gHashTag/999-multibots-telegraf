@@ -185,7 +185,7 @@ const menuNextStep = async (ctx: MyContext) => {
   ctx.scene.leave()
 }
 
-export const menuScene = new Scenes.WizardScene(
+export const menuScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.MainMenu,
   menuCommandStep,
   menuNextStep

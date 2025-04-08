@@ -20,7 +20,7 @@ import { isRussian } from '@/helpers'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
-const helpScene = new Scenes.BaseScene<MyContext>('helpScene')
+export const helpScene = new Scenes.BaseScene<MyContext>(ModeEnum.HelpScene)
 
 helpScene.enter(async ctx => {
   const mode = ctx.session.mode

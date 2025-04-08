@@ -518,6 +518,12 @@ export const SERVICE_DESCRIPTIONS: Record<
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },
+  [ModeEnum.StartScene]: {
+    expense: (amount: number) =>
+      `🎬 Начальная сцена: ${amount} ${getStarsWord(amount)}`,
+    income: (amount: number) =>
+      `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
+  },
   [ModeEnum.PaymentScene]: {
     expense: (amount: number) => `💳 Оплата: ${amount} ${getStarsWord(amount)}`,
     income: (amount: number) =>
