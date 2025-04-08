@@ -7,9 +7,9 @@
   "scripts": {
     "predev": "node scripts/kill-port.js 2999 3001",
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
-    "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME nodemon src/bot.ts",
+    "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME ts-node -r tsconfig-paths/register src/bot.ts",
     "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
-    "bots": "cross-env NODE_ENV=development nodemon src/bot.ts",
+    "bots": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register src/bot.ts",
     "build": "swc src -d dist --source-maps --copy-files",
     "build:tsc": "tsc && tsc-alias",
     "test": "NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/runTests.ts",
