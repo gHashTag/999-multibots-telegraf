@@ -1,10 +1,12 @@
 import axios from 'axios'
 import { ZEP_CONFIG, ZepMemory } from '@/config/zep'
 import { logger } from '@/utils/logger'
+import { Cache } from '@/core/cache'
 
 export class ZepClient {
   private static instance: ZepClient
   private client: any
+  private cache: Cache<ZepMemory>
 
   private constructor() {
     this.client = axios.create({
@@ -13,6 +15,11 @@ export class ZepClient {
         'Authorization': `Bearer ${ZEP_CONFIG.apiKey}`,
         'Content-Type': 'application/json',
       },
+    })
+    this.cache = new Cache<ZepMemory>()
+
+    logger.info('🚀 ZepClient инициализирован:', {
+      description: 'ZepClient initialized with cache'
     })
   }
 
@@ -25,16 +32,32 @@ export class ZepClient {
 
   async getMemory(sessionId: string): Promise<ZepMemory | null> {
     try {
+      // Пробуем получить из кэша
+      const cachedMemory = this.cache.get(sessionId)
+      if (cachedMemory) {
+        logger.info('📝 Память получена из кэша:', {
+          description: 'Memory retrieved from cache',
+          sessionId
+        })
+        return cachedMemory
+      }
+
+      // Если нет в кэше, получаем из API
       const response = await this.client.get(`/memory/${sessionId}`)
-      logger.info('📝 Получена память из ZEP:', {
+      const memory = response.data
+
+      // Сохраняем в кэш
+      this.cache.set(sessionId, memory)
+
+      logger.info('📝 Память получена из ZEP:', {
         description: 'Memory retrieved from ZEP',
         sessionId
       })
-      return response.data
+      return memory
     } catch (error) {
-      logger.error('❌ Ошибка при получении памяти из ZEP:', {
-        description: 'Error retrieving memory from ZEP',
-        error,
+      logger.error('❌ Ошибка при получении памяти:', {
+        description: 'Error retrieving memory',
+        error: error instanceof Error ? error.message : String(error),
         sessionId
       })
       return null
@@ -43,15 +66,20 @@ export class ZepClient {
 
   async saveMemory(sessionId: string, memory: ZepMemory): Promise<void> {
     try {
+      // Сохраняем в API
       await this.client.post(`/memory/${sessionId}`, memory)
-      logger.info('💾 Память сохранена в ZEP:', {
-        description: 'Memory saved to ZEP',
+      
+      // Обновляем кэш
+      this.cache.set(sessionId, memory)
+
+      logger.info('💾 Память сохранена:', {
+        description: 'Memory saved',
         sessionId
       })
     } catch (error) {
-      logger.error('❌ Ошибка при сохранении памяти в ZEP:', {
-        description: 'Error saving memory to ZEP',
-        error,
+      logger.error('❌ Ошибка при сохранении памяти:', {
+        description: 'Error saving memory',
+        error: error instanceof Error ? error.message : String(error),
         sessionId
       })
     }
@@ -59,6 +87,7 @@ export class ZepClient {
 
   async addMessage(sessionId: string, role: 'user' | 'assistant', content: string): Promise<void> {
     try {
+      // Получаем текущую память (сначала из кэша)
       const memory = await this.getMemory(sessionId) || { messages: [] }
       
       // Добавляем новое сообщение
@@ -73,18 +102,50 @@ export class ZepClient {
         memory.messages = memory.messages.slice(-ZEP_CONFIG.memoryWindow)
       }
 
+      // Сохраняем обновленную память
       await this.saveMemory(sessionId, memory)
+
       logger.info('📨 Сообщение добавлено в память:', {
         description: 'Message added to memory',
         sessionId,
-        role
+        role,
+        messageCount: memory.messages.length
       })
     } catch (error) {
-      logger.error('❌ Ошибка при добавлении сообщения в память:', {
-        description: 'Error adding message to memory',
-        error,
+      logger.error('❌ Ошибка при добавлении сообщения:', {
+        description: 'Error adding message',
+        error: error instanceof Error ? error.message : String(error),
         sessionId
       })
     }
+  }
+
+  async clearMemory(sessionId: string): Promise<void> {
+    try {
+      // Очищаем в API
+      await this.client.delete(`/memory/${sessionId}`)
+      
+      // Очищаем кэш
+      this.cache.delete(sessionId)
+
+      logger.info('🧹 Память очищена:', {
+        description: 'Memory cleared',
+        sessionId
+      })
+    } catch (error) {
+      logger.error('❌ Ошибка при очистке памяти:', {
+        description: 'Error clearing memory',
+        error: error instanceof Error ? error.message : String(error),
+        sessionId
+      })
+    }
+  }
+
+  public getMetrics() {
+    return this.cache.getMetrics()
+  }
+
+  public destroy() {
+    this.cache.destroy()
   }
 }
