@@ -146,11 +146,11 @@ export const models: Record<string, ModelConfig> = {
     price: 0.022,
   },
   dpbelarusx: {
-    key: 'ghashtag/neuro_sage:89260ba5e46d2439111ab85686bfed9f08ff3a1cdc684ced5c1d04c639a0270b',
+    key: 'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b',
     word: '',
     description: {
-      ru: '🎨 DPBelarusX - астрологические изображения',
-      en: '🎨 DPBelarusX - astrological images',
+      ru: '🎨 DPBelarusX - фотореалистичные изображения высокого качества',
+      en: '🎨 DPBelarusX - photorealistic high quality images',
     },
     getInput: (prompt, aspect_ratio) =>
       getInput(prompt, aspect_ratio || '16:9'),
