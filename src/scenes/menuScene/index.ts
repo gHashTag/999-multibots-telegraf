@@ -107,10 +107,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     if (!hasFullAccess) {
       console.log('CASE: !hasFullAccess - stars level')
-      const { translation, url } = await getTranslation({
-        key: 'digitalAvatar',
-        ctx,
-      })
+      const { translation, url } = await getTranslation('digitalAvatar', ctx)
 
       message = translation
       const photo_url = url
@@ -143,10 +140,7 @@ const menuCommandStep = async (ctx: MyContext) => {
       if (key) {
         console.log(`CASE ${newLevel}: ${key}`)
 
-        const { translation } = await getTranslation({
-          key,
-          ctx,
-        })
+        const { translation } = await getTranslation(key, ctx)
         await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboard)
       } else {
         console.log(`CASE: default ${newCount}`)

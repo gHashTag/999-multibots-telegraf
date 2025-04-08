@@ -1,5 +1,5 @@
 import { pulseBot } from '@/core/bot'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TelegramId } from '@/interfaces/telegram.interface'
 
 export interface Payments {

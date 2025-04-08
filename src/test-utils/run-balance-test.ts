@@ -1,4 +1,4 @@
-import { logger } from '../utils/logger'
+import { Logger as logger } from '../utils/logger'
 import { runBalanceTest } from './tests/balance-test'
 
 // Устанавливаем тестовое окружение

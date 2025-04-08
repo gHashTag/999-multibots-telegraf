@@ -1,5 +1,5 @@
 import { inngest } from '@/inngest-functions/clients'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 import { getUserBalance } from '@/core/supabase/getUserBalance'

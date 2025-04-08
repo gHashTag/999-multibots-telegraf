@@ -7,7 +7,7 @@ import {
   calculateModeCost,
 } from '@/price/helpers'
 import { getUserInfo } from '@/handlers/getUserInfo'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 //
 export const checkBalanceScene = new Scenes.BaseScene<MyContext>(

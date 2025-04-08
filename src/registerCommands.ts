@@ -69,7 +69,7 @@ import fetch from 'node-fetch'
 import { get100Command } from './commands/get100Command'
 
 import { ModeEnum } from '@/price/helpers/modelsCost'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([

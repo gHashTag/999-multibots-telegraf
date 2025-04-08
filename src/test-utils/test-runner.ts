@@ -17,7 +17,7 @@ import {
 } from './webhook-tests'
 import { DatabaseTester } from './database-tests'
 import { InngestTester } from './inngest-tests'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TEST_CONFIG } from './test-config'
 
 import { TestResult } from './types'

@@ -2,7 +2,7 @@
  * Тесты для функции преобразования текста в видео
  */
 import { TEST_CONFIG } from './test-config'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TestResult } from './test-config'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { inngest } from '@/inngest-functions/clients'

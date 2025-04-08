@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { TEST_CONFIG } from './test-config'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 /**
  * Класс для работы с API сервера

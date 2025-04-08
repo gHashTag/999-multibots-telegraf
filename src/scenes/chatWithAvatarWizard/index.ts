@@ -11,7 +11,7 @@ import { levels } from '@/menu'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { inngest } from '@/inngest-functions/clients'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { ZepClient } from '@/core/zep'
 import { getTranslation } from '@/core/supabase/getTranslation'
@@ -39,14 +39,25 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    const startMessage = await getTranslation('chat_with_avatar_start', ctx)
-
     const isRu = isRussian(ctx)
-    const defaultStartMessage = isRu 
-      ? '👋 Добро пожаловать в чат с аватаром! Я готов общаться с вами. Напишите ваше сообщение, и я постараюсь помочь.'
-      : '👋 Welcome to chat with avatar! I am ready to chat with you. Write your message, and I will try to help.'
+    try {
+      const startMessage = await getTranslation('chat_with_avatar_start', ctx)
 
-    await ctx.reply(startMessage.translation || defaultStartMessage)
+      const defaultStartMessage = isRu 
+        ? '👋 Добро пожаловать в чат с аватаром! Я готов общаться с вами. Напишите ваше сообщение, и я постараюсь помочь.'
+        : '👋 Welcome to chat with avatar! I am ready to chat with you. Write your message, and I will try to help.'
+
+      await ctx.reply(startMessage.translation || defaultStartMessage)
+    } catch (error) {
+      logger.error('Error getting start translation', {
+        error: error instanceof Error ? error.message : String(error),
+        telegramId
+      })
+      const fallbackMessage = isRu
+        ? '👋 Добро пожаловать в чат! Напишите ваше сообщение.'
+        : '👋 Welcome to chat! Write your message.'
+      await ctx.reply(fallbackMessage)
+    }
     return ctx.wizard.next()
   },
   async (ctx) => {
@@ -73,13 +84,25 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     // Handle help request
     if ('text' in ctx.message && ctx.message.text === '/help') {
-      const helpMessage = await getTranslation('chat_with_avatar_help', ctx)
-      
-      const defaultHelpMessage = isRussian(ctx)
-        ? '💡 Это чат с аватаром. Вы можете:\n- Написать сообщение для общения\n- Использовать /cancel для завершения\n- Использовать /help для помощи'
-        : '💡 This is chat with avatar. You can:\n- Write a message to chat\n- Use /cancel to end chat\n- Use /help for assistance'
+      const isRu = isRussian(ctx)
+      try {
+        const helpMessage = await getTranslation('chat_with_avatar_help', ctx)
+        
+        const defaultHelpMessage = isRu
+          ? '💡 Это чат с аватаром. Вы можете:\n- Написать сообщение для общения\n- Использовать /cancel для завершения\n- Использовать /help для помощи'
+          : '💡 This is chat with avatar. You can:\n- Write a message to chat\n- Use /cancel to end chat\n- Use /help for assistance'
 
-      await ctx.reply(helpMessage.translation || defaultHelpMessage)
+        await ctx.reply(helpMessage.translation || defaultHelpMessage)
+      } catch (error) {
+        logger.error('Error getting help translation', {
+          error: error instanceof Error ? error.message : String(error),
+          telegramId
+        })
+        const fallbackMessage = isRu
+          ? '💡 Это чат с аватаром. Используйте /cancel для завершения.'
+          : '💡 This is chat with avatar. Use /cancel to end.'
+        await ctx.reply(fallbackMessage)
+      }
       return
     }
 

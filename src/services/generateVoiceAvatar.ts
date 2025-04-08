@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { inngest } from '@/inngest-functions/clients'
 import { sendGenericErrorMessage } from '@/menu'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TelegramId } from '@/interfaces/telegram.interface'
 interface VoiceAvatarResponse {
   success: boolean

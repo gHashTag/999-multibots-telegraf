@@ -3,7 +3,7 @@ import {
   normalizeTelegramId,
 } from '@/interfaces/telegram.interface'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { v4 as uuid } from 'uuid'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { supabase } from '@/core/supabase'
@@ -16,12 +16,13 @@ import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment
 import { TransactionType } from '@/interfaces/payments.interface'
 import { inngest } from '@/inngest-functions/clients'
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
+import { inngestTestEngine } from '../inngest'
 
 // Создаем экземпляр тестового движка
 const inngestTestEngine = new InngestTestEngine()
 
 // Регистрируем обработчик платежей
-inngestTestEngine.registerFunction(paymentProcessor)
+inngestTestEngine.register('payment/process', paymentProcessor)
 
 const waitForPaymentCompletion = async (inv_id: string, timeout = 30000) => {
   const startTime = Date.now()
@@ -104,7 +105,7 @@ export async function runPaymentTests(): Promise<TestResult> {
 
     // Тест 2: Пополнение баланса (STARS)
     const addInv_id = uuid()
-    await inngest.send({
+    await inngestTestEngine.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,
@@ -135,7 +136,7 @@ export async function runPaymentTests(): Promise<TestResult> {
 
     // Тест 3: Списание средств
     const spendInv_id = uuid()
-    await inngest.send({
+    await inngestTestEngine.send({
       name: 'payment/process',
       data: {
         telegram_id: testTelegramId,

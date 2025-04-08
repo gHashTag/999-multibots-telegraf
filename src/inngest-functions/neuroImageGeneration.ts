@@ -14,7 +14,7 @@ import { ModeEnum, calculateModeCost } from '@/price/helpers'
 import path from 'path'
 import { API_URL } from '@/config'
 import fs from 'fs'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
 import { v4 as uuidv4 } from 'uuid'
 

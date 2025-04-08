@@ -1,6 +1,6 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 const production = async (
   bot: Telegraf<MyContext>,

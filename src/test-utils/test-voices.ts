@@ -1,5 +1,5 @@
 import { elevenlabs } from '@/core/elevenlabs'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TestResult } from './types'
 
 interface Voice {

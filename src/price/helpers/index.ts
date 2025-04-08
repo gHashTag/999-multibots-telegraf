@@ -6,7 +6,7 @@ import {
   getUserByTelegramIdString,
 } from '@/core/supabase'
 import { inngest } from '@/inngest-functions/clients'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { Telegram, Telegraf } from 'telegraf'
 import { BalanceOperationResult } from '../../interfaces'
 import { isRussian } from '@/helpers'

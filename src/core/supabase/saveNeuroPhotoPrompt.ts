@@ -1,6 +1,6 @@
 import { supabase } from '.'
 import { Mode } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TelegramId } from '@/interfaces/telegram.interface'
 export const saveNeuroPhotoPrompt = async (
   id: string,

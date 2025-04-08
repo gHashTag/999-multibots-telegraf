@@ -1,6 +1,6 @@
 import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 // Загружаем переменные окружения из .env-файла
 dotenv.config()

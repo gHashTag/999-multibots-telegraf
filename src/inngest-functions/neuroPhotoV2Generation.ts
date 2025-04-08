@@ -9,7 +9,7 @@ import {
 import { API_URL } from '@/config'
 import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { getBotByName } from '@/core/bot'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { v4 as uuidv4 } from 'uuid'

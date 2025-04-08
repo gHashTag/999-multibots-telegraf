@@ -1,6 +1,6 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from './index'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 interface Payment {
   payment_id: number

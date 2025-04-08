@@ -1,6 +1,6 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '.'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 export const updatePrompt = async (
   task_id: number,

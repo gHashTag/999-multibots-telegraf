@@ -1,4 +1,4 @@
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TEST_CONFIG } from './test-config'
 import axios, { AxiosError } from 'axios'
 import { elevenlabs } from '@/core/elevenlabs'

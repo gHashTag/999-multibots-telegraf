@@ -1,6 +1,6 @@
 import { TEST_CONFIG } from '../test-config'
 import { TestResult } from '../types'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { supabase } from '@/core/supabase'
 import { InngestTestEngine } from '../inngest-test-engine'
 import { voiceToTextProcessor } from '@/inngest-functions/voiceToText.inngest'

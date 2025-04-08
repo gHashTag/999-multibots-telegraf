@@ -7,7 +7,7 @@ import { updateUserSubscription, createPayment } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
 
 import { supabase } from '@/core/supabase'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 import { createBotByName } from '@/core/bot'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
@@ -278,10 +278,8 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       subscriptionType,
     })
 
-    const { buttons } = await getTranslation({
-      key: 'subscriptionScene',
-      ctx,
-    })
+    const translation = await getTranslation('subscriptionScene', ctx)
+    const buttons = translation.buttons || []
 
     const selectedButton = buttons.find(
       button => button.callback_data === subscriptionType

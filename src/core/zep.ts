@@ -1,4 +1,4 @@
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 interface Memory {
   messages: Array<{

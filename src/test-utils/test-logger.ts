@@ -1,4 +1,4 @@
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { TestError, TestLogError, TestResult } from './interfaces'
 import { TEST_CONFIG } from './test-config'
 

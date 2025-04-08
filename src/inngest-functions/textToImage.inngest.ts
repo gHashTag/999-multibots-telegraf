@@ -22,7 +22,7 @@ import path from 'path'
 import fs from 'fs'
 import { inngest } from '@/inngest-functions/clients'
 import { IMAGES_MODELS } from '@/price/models/IMAGES_MODELS'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 
 interface TextToImageEvent {
   data: {

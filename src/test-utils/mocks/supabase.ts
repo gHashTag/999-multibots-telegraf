@@ -1,5 +1,5 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
-import { logger } from '../../utils/logger'
+import { Logger as logger } from '../../utils/logger'
 
 export interface User {
   id: string

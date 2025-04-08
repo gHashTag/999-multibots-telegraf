@@ -1,6 +1,6 @@
 import { inngest } from '@/inngest-functions/clients'
 import { broadcastService } from '@/services/broadcast.service'
-import { logger } from '@/utils/logger'
+import { Logger as logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { BroadcastService } from '@/services/broadcast.class'
