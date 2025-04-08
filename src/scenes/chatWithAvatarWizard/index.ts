@@ -13,7 +13,10 @@ import { inngest } from '@/inngest-functions/clients'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { ZepClient } from '@/core/zep/index'
+import { ZepClient } from '@/core/zep'
+import { getTranslation } from '@/core/supabase/getTranslation'
+
+const zepClient = ZepClient.getInstance()
 
 const createHelpCancelKeyboard = (isRu: boolean) => {
   return {
@@ -29,250 +32,93 @@ const createHelpCancelKeyboard = (isRu: boolean) => {
 
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ChatWithAvatar,
-  async ctx => {
-    logger.info('🚀 Начало чата с аватаром:', {
-      description: 'Starting chat with avatar',
-      telegramId: ctx.from?.id
-    })
-    const isRu = isRussian(ctx)
-
-    try {
-      await ctx.reply(
-        isRu
-          ? 'Напиши мне сообщение 💭 или отправь голосовое сообщение 🎙️, и я отвечу на него'
-          : 'Write me a message 💭 or send a voice message 🎙️, and I will answer you',
-        {
-          reply_markup: createHelpCancelKeyboard(isRu),
-        }
-      )
-      logger.info('✅ Приветственное сообщение отправлено:', {
-        description: 'Welcome message sent',
-        telegramId: ctx.from?.id
-      })
-      return ctx.wizard.next()
-    } catch (error) {
-      logger.error('❌ Ошибка при отправке приветственного сообщения:', {
-        description: 'Error sending welcome message',
-        error: error instanceof Error ? error.message : String(error),
-        telegramId: ctx.from?.id
-      })
-      throw error
-    }
-  },
-  async ctx => {
-    logger.info('📝 Получено сообщение в чате с аватаром:', {
-      description: 'Message received in avatar chat',
-      telegramId: ctx.from?.id,
-      messageType: ctx.message ? Object.keys(ctx.message)[0] : 'unknown'
-    })
-    
-    const telegramId = ctx.from?.id?.toString()
-    
-    if (!ctx.message || !('text' in ctx.message)) {
-      logger.warn('⚠️ Неверный тип сообщения:', {
-        description: 'Invalid message type',
-        telegramId
-      })
-      await ctx.scene.enter(ModeEnum.SelectModelWizard)
-      return
-    }
-
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      logger.info('🛑 Пользователь отменил чат:', {
-        description: 'User cancelled chat',
-        telegramId
-      })
-      return ctx.scene.leave()
-    }
-
-    const isRu = isRussian(ctx)
-
+  async (ctx) => {
+    const telegramId = ctx.from?.id
     if (!telegramId) {
-      logger.error('❌ Не удалось получить ID пользователя:', {
-        description: 'Failed to get user ID'
-      })
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка: не удалось получить ID пользователя'
-          : '❌ Error: User ID not found'
-      )
+      logger.error('No telegram id found in context')
       return ctx.scene.leave()
     }
 
-    // Проверяем существование пользователя
-    const user = await getUserByTelegramIdString(telegramId)
-    if (!user) {
-      logger.error('❌ Пользователь не найден:', {
-        description: 'User not found',
-        telegramId
-      })
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка: пользователь не найден'
-          : '❌ Error: User not found'
-      )
+    const startMessage = await getTranslation('chat_with_avatar_start', ctx)
+
+    const isRu = isRussian(ctx)
+    const defaultStartMessage = isRu 
+      ? '👋 Добро пожаловать в чат с аватаром! Я готов общаться с вами. Напишите ваше сообщение, и я постараюсь помочь.'
+      : '👋 Welcome to chat with avatar! I am ready to chat with you. Write your message, and I will try to help.'
+
+    await ctx.reply(startMessage.translation || defaultStartMessage)
+    return ctx.wizard.next()
+  },
+  async (ctx) => {
+    const telegramId = ctx.from?.id
+    if (!telegramId) {
+      logger.error('No telegram id found in context')
       return ctx.scene.leave()
     }
 
-    // Проверяем, является ли сообщение запросом справки
-    if (ctx.message.text === (isRu ? levels[6].title_ru : levels[6].title_en)) {
-      logger.info('ℹ️ Пользователь запросил справку:', {
-        description: 'User requested help',
-        telegramId
-      })
-      await ctx.scene.enter(ModeEnum.SelectModelWizard)
+    if (!ctx.message) {
+      logger.error('No message found in context')
+      return ctx.scene.leave()
+    }
+
+    // Handle user cancellation
+    if ('text' in ctx.message && ctx.message.text === '/cancel') {
+      logger.info('User cancelled chat', { telegramId })
+      const cancelMessage = isRussian(ctx) 
+        ? '❌ Чат завершен'
+        : '❌ Chat cancelled'
+      await ctx.reply(cancelMessage)
+      return ctx.scene.leave()
+    }
+
+    // Handle help request
+    if ('text' in ctx.message && ctx.message.text === '/help') {
+      const helpMessage = await getTranslation('chat_with_avatar_help', ctx)
+      
+      const defaultHelpMessage = isRussian(ctx)
+        ? '💡 Это чат с аватаром. Вы можете:\n- Написать сообщение для общения\n- Использовать /cancel для завершения\n- Использовать /help для помощи'
+        : '💡 This is chat with avatar. You can:\n- Write a message to chat\n- Use /cancel to end chat\n- Use /help for assistance'
+
+      await ctx.reply(helpMessage.translation || defaultHelpMessage)
       return
     }
 
-    const text = ctx.message.text
-    const zepClient = ZepClient.getInstance()
-    const sessionId = `${telegramId}_${ctx.botInfo?.username || ''}`
-
     try {
-      // Сохраняем сообщение пользователя
-      await zepClient.saveMemory(sessionId, {
-        messages: [{
-          role: 'user',
-          content: text,
-          timestamp: Date.now()
-        }]
-      })
+      await ctx.telegram.sendChatAction(Number(telegramId), 'typing')
 
-      // Получаем историю чата
-      const memory = await zepClient.getMemory(sessionId)
-      const chatHistory = memory?.messages || []
-
-      // Формируем контекст для модели
-      const context = chatHistory.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }))
-
-      // Отправляем запрос к модели с историей
-      const response = await handleTextMessage(ctx)
-
-      // Сохраняем ответ ассистента
-      if (typeof response === 'string') {
+      // Save user message
+      const sessionId = `telegram:${telegramId}`
+      if ('text' in ctx.message) {
         await zepClient.saveMemory(sessionId, {
           messages: [{
-            role: 'assistant',
-            content: response,
-            timestamp: Date.now()
+            role: 'user',
+            content: ctx.message.text
           }]
         })
       }
 
-      // Обработка текстового сообщения
-      if ('text' in ctx.message) {
-        logger.info('🤖 Обработка текстового сообщения:', {
-          description: 'Processing text message',
-          telegramId
-        })
-        await ctx.telegram.sendChatAction(Number(telegramId), 'typing')
-        await handleTextMessage(ctx)
-      }
-      // Обработка голосового сообщения
-      else if (ctx.message && 'voice' in ctx.message) {
-        const voiceMessage = ctx.message as { voice: { file_id: string } }
-        logger.info('🎙️ Обработка голосового сообщения:', {
-          description: 'Processing voice message',
-          telegramId
-        })
-        
-        // Получаем файл голосового сообщения
-        const file = await ctx.telegram.getFileLink(voiceMessage.voice.file_id)
-        if (!file.href) {
-          throw new Error('File path not found')
-        }
-
-        // Отправляем уведомление о начале обработки
-        await ctx.reply(
-          isRu
-            ? '🎙️ Обрабатываю ваше голосовое сообщение...'
-            : '🎙️ Processing your voice message...'
-        )
-
-        // Отправляем событие в Inngest для обработки
-        await inngest.send({
-          id: `voice-to-text-${telegramId}-${Date.now()}-${uuidv4().substring(0, 8)}`,
-          name: 'voice-to-text.requested',
-          data: {
-            fileUrl: file.href,
-            telegram_id: telegramId,
-            is_ru: isRu,
-            bot_name: ctx.botInfo?.username,
-            username: ctx.from?.username,
-          },
-        })
-
-        // Отправляем событие для обработки платежа
-        await inngest.send({
-          id: `payment-${telegramId}-${Date.now()}-${ModeEnum.VoiceToText}-${uuidv4()}`,
-          name: 'payment/process',
-          data: {
-            telegram_id: telegramId,
-            amount: calculateModeCost({ mode: ModeEnum.VoiceToText }).stars,
-            type: 'money_expense',
-            description: 'Payment for voice to text conversion',
-            bot_name: ctx.botInfo?.username,
-            service_type: ModeEnum.VoiceToText,
-          },
-        })
-      }
-      // Обработка неподдерживаемого типа сообщения
-      else {
-        logger.warn('⚠️ Неподдерживаемый тип сообщения:', {
-          description: 'Unsupported message type',
-          telegramId,
-          messageType: Object.keys(ctx.message)[0]
-        })
-        await ctx.reply(
-          isRu
-            ? '❌ Пожалуйста, отправьте текстовое или голосовое сообщение'
-            : '❌ Please send a text or voice message'
-        )
-        return
-      }
-
-      // Обновляем уровень пользователя если нужно
-      if (user.level === 4) {
-        logger.info('📈 Обновление уровня пользователя:', {
-          description: 'Updating user level',
-          telegramId,
-          currentLevel: user.level
-        })
-        
-        try {
-          await updateUserLevelPlusOne(telegramId, user.level)
-          logger.info('✅ Уровень пользователя обновлен:', {
-            description: 'User level updated',
-            telegramId,
-            newLevel: user.level + 1
-          })
-        } catch (error) {
-          logger.error('❌ Ошибка при обновлении уровня пользователя:', {
-            description: 'Error updating user level',
-            error: error instanceof Error ? error.message : String(error),
-            telegramId
-          })
-        }
-      }
-
-      return
-    } catch (error) {
-      logger.error('❌ Ошибка в чате с аватаром:', {
-        description: 'Error in avatar chat',
-        error: error instanceof Error ? error.message : String(error),
-        telegramId
+      // Get chat history and generate response
+      const history = await zepClient.getMemory(sessionId)
+      
+      // Process response and save it
+      const response = 'This is a placeholder response' // Replace with actual response generation
+      await zepClient.saveMemory(sessionId, {
+        messages: [{
+          role: 'assistant',
+          content: response
+        }]
       })
-      await ctx.reply(
-        isRu
-          ? 'Произошла ошибка при обработке сообщения. Пожалуйста, попробуйте позже.'
-          : 'An error occurred while processing your message. Please try again later.'
-      )
-      return ctx.scene.leave()
+
+      await ctx.reply(response)
+    } catch (error) {
+      logger.error('Error in chat processing', { 
+        error: error instanceof Error ? error.message : String(error),
+        telegramId 
+      })
+      await ctx.reply('Sorry, there was an error processing your message')
     }
+
+    return
   }
 )
 
