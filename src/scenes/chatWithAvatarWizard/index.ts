@@ -13,6 +13,7 @@ import { inngest } from '@/inngest-functions/clients'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
+import { ZepClient } from '@/core/zep'
 
 const createHelpCancelKeyboard = (isRu: boolean) => {
   return {
@@ -121,7 +122,29 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       await ctx.scene.enter(ModeEnum.SelectModelWizard)
       return
     }
-
+    const text = ctx.message.text
+    const zepClient = ZepClient.getInstance()
+    const sessionId = `${ctx.from.id}_${ctx.botInfo?.username}`
+  
+    // Сохраняем сообщение пользователя
+    await zepClient.addMessage(sessionId, 'user', text)
+  
+    // Получаем историю чата
+    const memory = await zepClient.getMemory(sessionId)
+    const chatHistory = memory?.messages || []
+  
+    // Формируем контекст для модели
+    const context = chatHistory.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }))
+  
+    // Отправляем запрос к модели с историей
+    const response = await handleTextMessage(ctx, text, context)
+  
+    // Сохраняем ответ ассистента
+    await zepClient.addMessage(sessionId, 'assistant', response)
+  
     try {
       // Обработка текстового сообщения
       if ('text' in ctx.message) {
