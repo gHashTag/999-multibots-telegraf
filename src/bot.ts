@@ -3,6 +3,12 @@ import 'module-alias/register'
 import dotenv from 'dotenv'
 dotenv.config()
 
+// Import environment validation
+import { validateEnv } from './config/env'
+
+// Validate environment variables before importing other modules
+validateEnv()
+
 import { Composer } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { NODE_ENV } from './config'
