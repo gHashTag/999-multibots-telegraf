@@ -13,7 +13,7 @@ import { inngest } from '@/inngest-functions/clients'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { ZepClient } from '@/core/zep'
+import { ZepClient } from '@/core/zep/index'
 
 const createHelpCancelKeyboard = (isRu: boolean) => {
   return {
@@ -66,12 +66,15 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       messageType: ctx.message ? Object.keys(ctx.message)[0] : 'unknown'
     })
     
-    if (!ctx.message) {
-      logger.warn('⚠️ Получено пустое сообщение:', {
-        description: 'Empty message received',
-        telegramId: ctx.from?.id
+    const telegramId = ctx.from?.id?.toString()
+    
+    if (!ctx.message || !('text' in ctx.message)) {
+      logger.warn('⚠️ Неверный тип сообщения:', {
+        description: 'Invalid message type',
+        telegramId
       })
-      return ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.SelectModelWizard)
+      return
     }
 
     const isCancel = await handleHelpCancel(ctx)
@@ -84,7 +87,6 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const isRu = isRussian(ctx)
-    const telegramId = ctx.from?.id.toString()
 
     if (!telegramId) {
       logger.error('❌ Не удалось получить ID пользователя:', {
@@ -124,7 +126,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     }
     const text = ctx.message.text
     const zepClient = ZepClient.getInstance()
-    const sessionId = `${ctx.from.id}_${ctx.botInfo?.username}`
+    const sessionId = `${telegramId || ''}_${ctx.botInfo?.username || ''}`
   
     // Сохраняем сообщение пользователя
     await zepClient.addMessage(sessionId, 'user', text)
@@ -140,10 +142,12 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     }))
   
     // Отправляем запрос к модели с историей
-    const response = await handleTextMessage(ctx, text, context)
+    const response = await handleTextMessage(ctx)
   
     // Сохраняем ответ ассистента
-    await zepClient.addMessage(sessionId, 'assistant', response)
+    if (typeof response === 'string') {
+      await zepClient.addMessage(sessionId, 'assistant', response)
+    }
   
     try {
       // Обработка текстового сообщения
@@ -156,14 +160,15 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         await handleTextMessage(ctx)
       }
       // Обработка голосового сообщения
-      else if ('voice' in ctx.message) {
+      else if (ctx.message && 'voice' in ctx.message) {
+        const voiceMessage = ctx.message as { voice: { file_id: string } }
         logger.info('🎙️ Обработка голосового сообщения:', {
           description: 'Processing voice message',
           telegramId
         })
         
         // Получаем файл голосового сообщения
-        const file = await ctx.telegram.getFileLink(ctx.message.voice.file_id)
+        const file = await ctx.telegram.getFileLink(voiceMessage.voice.file_id)
         if (!file.href) {
           throw new Error('File path not found')
         }
