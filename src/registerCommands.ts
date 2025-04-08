@@ -9,6 +9,10 @@ import {
 } from './commands'
 import { privateChat } from './middlewares/privateChat'
 
+// Import scenes individually to avoid circular dependencies
+import { startScene } from './scenes/startScene'
+import { menuScene } from './scenes/menuScene'
+import { helpScene } from './scenes/helpScene'
 import {
   avatarBrainWizard,
   textToVideoWizard,
@@ -32,11 +36,8 @@ import {
   levelQuestWizard,
   neuroCoderScene,
   lipSyncWizard,
-  startScene,
   chatWithAvatarWizard,
-  helpScene,
   balanceScene,
-  menuScene,
   subscriptionScene,
   inviteScene,
   getRuBillWizard,
@@ -48,6 +49,7 @@ import {
   selectModelScene,
   selectNeuroPhotoScene,
 } from './scenes'
+
 import { imageModelMenu } from './menu/imageModelMenu'
 
 import { generateTextToImage } from './services/generateTextToImage'

@@ -75,13 +75,12 @@ export interface CostCalculationResult {
 }
 
 type BaseCosts = {
-  [key in ModeEnum | 'neuro_photo_2']?: number
+  [key in ModeEnum]?: number
 }
 
 const BASE_COSTS: BaseCosts = {
   [ModeEnum.NeuroPhoto]: 0.08,
   [ModeEnum.NeuroPhotoV2]: 0.14,
-  neuro_photo_2: 0.14,
   [ModeEnum.ImageToPrompt]: 0.03,
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: 0,
@@ -110,25 +109,13 @@ export function calculateModeCost(
       const cost = calculateCost(steps, 'v2')
       stars = cost.stars
     } else {
-      let normalizedMode = mode
-      if (mode === 'neuro_photo_2') {
-        normalizedMode = ModeEnum.NeuroPhotoV2
-        logger.info({
-          message: '🔄 Использован алиас режима',
-          description: 'Mode alias used',
-          originalMode: mode,
-          normalizedMode,
-        })
-      }
-
-      const baseCostInDollars = BASE_COSTS[normalizedMode as keyof BaseCosts]
+      const baseCostInDollars = BASE_COSTS[mode as keyof BaseCosts]
 
       if (baseCostInDollars === undefined) {
         logger.error({
           message: '❌ Неизвестный режим',
           description: 'Unknown mode in cost calculation',
           mode,
-          normalizedMode,
         })
         stars = 0
       } else {
@@ -160,29 +147,21 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.DigitalAvatarBodyV2]: (steps: number) =>
     calculateModeCost({ mode: ModeEnum.DigitalAvatarBodyV2, steps }).stars,
   [ModeEnum.NeuroPhoto]: calculateModeCost({ mode: ModeEnum.NeuroPhoto }).stars,
-  [ModeEnum.NeuroPhotoV2]: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 })
-    .stars,
-  neuro_photo_2: calculateModeCost({ mode: 'neuro_photo_2' }).stars,
-  [ModeEnum.ImageToPrompt]: calculateModeCost({ mode: ModeEnum.ImageToPrompt })
-    .stars,
+  [ModeEnum.NeuroPhotoV2]: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 }).stars,
+  [ModeEnum.ImageToPrompt]: calculateModeCost({ mode: ModeEnum.ImageToPrompt }).stars,
   [ModeEnum.Avatar]: calculateModeCost({ mode: ModeEnum.Avatar }).stars,
   [ModeEnum.ChatWithAvatar]: calculateModeCost({
     mode: ModeEnum.ChatWithAvatar,
   }).stars,
-  [ModeEnum.SelectModel]: calculateModeCost({ mode: ModeEnum.SelectModel })
-    .stars,
+  [ModeEnum.SelectModel]: calculateModeCost({ mode: ModeEnum.SelectModel }).stars,
   [ModeEnum.SelectModelWizard]: calculateModeCost({
     mode: ModeEnum.SelectModelWizard,
   }).stars,
   [ModeEnum.Voice]: calculateModeCost({ mode: ModeEnum.Voice }).stars,
-  [ModeEnum.TextToSpeech]: calculateModeCost({ mode: ModeEnum.TextToSpeech })
-    .stars,
-  [ModeEnum.ImageToVideo]: calculateModeCost({ mode: ModeEnum.ImageToVideo })
-    .stars,
-  [ModeEnum.TextToVideo]: calculateModeCost({ mode: ModeEnum.TextToVideo })
-    .stars,
-  [ModeEnum.TextToImage]: calculateModeCost({ mode: ModeEnum.TextToImage })
-    .stars,
+  [ModeEnum.TextToSpeech]: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
+  [ModeEnum.ImageToVideo]: calculateModeCost({ mode: ModeEnum.ImageToVideo }).stars,
+  [ModeEnum.TextToVideo]: calculateModeCost({ mode: ModeEnum.TextToVideo }).stars,
+  [ModeEnum.TextToImage]: calculateModeCost({ mode: ModeEnum.TextToImage }).stars,
   [ModeEnum.LipSync]: calculateModeCost({ mode: ModeEnum.LipSync }).stars,
 }
 
@@ -196,3 +175,54 @@ export const maxCost = Math.max(
     typeof cost === 'function' ? cost(1) : cost
   )
 )
+
+export function normalizeMode(mode: string): string {
+  return mode
+}
+
+export const MODE_COSTS: Record<ModeEnum, number> = {
+  [ModeEnum.Subscribe]: 0,
+  [ModeEnum.DigitalAvatarBody]: calculateModeCost({ mode: ModeEnum.DigitalAvatarBody, steps: 1 }).stars,
+  [ModeEnum.DigitalAvatarBodyV2]: calculateModeCost({ mode: ModeEnum.DigitalAvatarBodyV2, steps: 1 }).stars,
+  [ModeEnum.NeuroPhoto]: calculateModeCost({ mode: ModeEnum.NeuroPhoto }).stars,
+  [ModeEnum.NeuroPhotoV2]: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 }).stars,
+  [ModeEnum.ImageToPrompt]: calculateModeCost({ mode: ModeEnum.ImageToPrompt }).stars,
+  [ModeEnum.Avatar]: calculateModeCost({ mode: ModeEnum.Avatar }).stars,
+  [ModeEnum.ChatWithAvatar]: calculateModeCost({ mode: ModeEnum.ChatWithAvatar }).stars,
+  [ModeEnum.SelectModel]: 0,
+  [ModeEnum.SelectModelWizard]: 0,
+  [ModeEnum.Voice]: calculateModeCost({ mode: ModeEnum.Voice }).stars,
+  [ModeEnum.TextToSpeech]: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
+  [ModeEnum.ImageToVideo]: calculateModeCost({ mode: ModeEnum.ImageToVideo }).stars,
+  [ModeEnum.TextToVideo]: calculateModeCost({ mode: ModeEnum.TextToVideo }).stars,
+  [ModeEnum.TextToImage]: calculateModeCost({ mode: ModeEnum.TextToImage }).stars,
+  [ModeEnum.LipSync]: calculateModeCost({ mode: ModeEnum.LipSync }).stars,
+  [ModeEnum.SelectNeuroPhoto]: 0,
+  [ModeEnum.ChangeSize]: 0,
+  [ModeEnum.Invite]: 0,
+  [ModeEnum.Help]: 0,
+  [ModeEnum.MainMenu]: 0,
+  [ModeEnum.Balance]: 0,
+  [ModeEnum.ImprovePrompt]: 0,
+  [ModeEnum.TopUpBalance]: 0,
+  [ModeEnum.VideoInUrl]: calculateModeCost({ mode: ModeEnum.VideoInUrl }).stars,
+  [ModeEnum.Tech]: 0,
+  [ModeEnum.Stats]: 0,
+  [ModeEnum.BroadcastWizard]: 0,
+  [ModeEnum.SubscriptionCheckScene]: 0,
+  [ModeEnum.ImprovePromptWizard]: 0,
+  [ModeEnum.SizeWizard]: 0,
+  [ModeEnum.PaymentScene]: 0,
+  [ModeEnum.InviteScene]: 0,
+  [ModeEnum.BalanceScene]: 0,
+  [ModeEnum.Step0]: 0,
+  [ModeEnum.NeuroCoderScene]: 0,
+  [ModeEnum.CheckBalanceScene]: 0,
+  [ModeEnum.HelpScene]: 0,
+  [ModeEnum.CancelPredictionsWizard]: 0,
+  [ModeEnum.EmailWizard]: 0,
+  [ModeEnum.CreateUserScene]: 0,
+  [ModeEnum.GetRuBillWizard]: 0,
+  [ModeEnum.SubscriptionScene]: 0,
+  [ModeEnum.StartScene]: 0
+} as const
