@@ -1,3 +1,5 @@
+import { ModeEnum } from '@/price/helpers/modelsCost'
+
 /**
  * Enum для всех возможных сцен в боте
  */
@@ -13,7 +15,7 @@ export enum SceneEnum {
   SubscriptionScene = 'subscription_scene',
   SubscriptionCheckScene = 'subscription_check_scene',
   PaymentScene = 'payment_scene',
-  
+
   // Сцены сервисов
   NeuroPhoto = 'neuro_photo',
   NeuroPhotoV2 = 'neuro_photo_v2',
@@ -21,12 +23,12 @@ export enum SceneEnum {
   ImageToVideo = 'image_to_video',
   TextToVideo = 'text_to_video',
   TextToImage = 'text_to_image',
-  ImageToPrompt = 'image_to_prompt',
+  ImageToPrompt = 'image_to_prompt_wizard',
   ChatWithAvatar = 'chat_with_avatar',
   Voice = 'voice',
   VoiceToText = 'voice_to_text',
   NeuroCoderScene = 'neuro_coder_scene',
-  
+
   // Вспомогательные сцены
   SelectModel = 'select_model',
   SelectModelWizard = 'select_model_wizard',
@@ -36,7 +38,7 @@ export enum SceneEnum {
   BroadcastWizard = 'broadcast_wizard',
   EmailWizard = 'email_wizard',
   GetRuBillWizard = 'get_ru_bill_wizard',
-  CancelPredictionsWizard = 'cancel_predictions_wizard'
+  CancelPredictionsWizard = 'cancel_predictions_wizard',
 }
 
 /**
@@ -58,19 +60,19 @@ export const sceneMap: Scenes = {
   [SceneEnum.SubscriptionScene]: 'subscription_scene',
   [SceneEnum.SubscriptionCheckScene]: 'subscription_check_scene',
   [SceneEnum.PaymentScene]: 'payment_scene',
-  
+
   [SceneEnum.NeuroPhoto]: 'neuro_photo',
   [SceneEnum.NeuroPhotoV2]: 'neuro_photo_v2',
   [SceneEnum.TextToSpeech]: 'text_to_speech',
   [SceneEnum.ImageToVideo]: 'image_to_video',
   [SceneEnum.TextToVideo]: 'text_to_video',
   [SceneEnum.TextToImage]: 'text_to_image',
-  [SceneEnum.ImageToPrompt]: 'image_to_prompt',
+  [SceneEnum.ImageToPrompt]: 'image_to_prompt_wizard',
   [SceneEnum.ChatWithAvatar]: 'chat_with_avatar',
   [SceneEnum.Voice]: 'voice',
   [SceneEnum.VoiceToText]: 'voice_to_text',
   [SceneEnum.NeuroCoderScene]: 'neuro_coder_scene',
-  
+
   [SceneEnum.SelectModel]: 'select_model',
   [SceneEnum.SelectModelWizard]: 'select_model_wizard',
   [SceneEnum.ImprovePrompt]: 'improve_prompt',
@@ -79,5 +81,5 @@ export const sceneMap: Scenes = {
   [SceneEnum.BroadcastWizard]: 'broadcast_wizard',
   [SceneEnum.EmailWizard]: 'email_wizard',
   [SceneEnum.GetRuBillWizard]: 'get_ru_bill_wizard',
-  [SceneEnum.CancelPredictionsWizard]: 'cancel_predictions_wizard'
-} 
+  [SceneEnum.CancelPredictionsWizard]: 'cancel_predictions_wizard',
+}

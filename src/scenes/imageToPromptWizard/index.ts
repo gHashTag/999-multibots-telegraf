@@ -2,7 +2,6 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 
 import { createHelpCancelKeyboard } from '@/menu'
-import { imageToPromptFunction } from '@/price/helpers/imageToPrompt'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 import { handleMenu } from '@/handlers/handleMenu'
@@ -17,10 +16,10 @@ if (!process.env.HUGGINGFACE_TOKEN) {
 }
 
 export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
-  ModeEnum.ImageToPrompt,
+  'image_to_prompt_wizard',
   async ctx => {
-    logger.info('🎯 Запуск сцены image_to_prompt', {
-      description: 'Starting image_to_prompt scene',
+    logger.info('🎯 Запуск сцены ModeEnum.ImageToPrompt', {
+      description: 'Starting ModeEnum.ImageToPrompt scene',
       telegram_id: ctx.from?.id,
       bot_name: ctx.botInfo?.username,
     })

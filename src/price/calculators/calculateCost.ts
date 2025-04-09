@@ -1,6 +1,10 @@
 import { logger } from '@/utils/logger'
 import { BASE_COSTS, interestRate, starCost } from '../constants'
-import { CostCalculationParams, CostCalculationResult, ModeEnum } from '../types/modes'
+import {
+  CostCalculationParams,
+  CostCalculationResult,
+  ModeEnum,
+} from '../types/modes'
 
 /**
  * Рассчитывает стоимость для определенного режима
@@ -72,12 +76,15 @@ export function calculateModeCost(
 /**
  * Рассчитывает стоимость на основе количества шагов
  */
-function calculateStepsCost(steps: number, version: 'v1' | 'v2'): CostCalculationResult {
+function calculateStepsCost(
+  steps: number,
+  version: 'v1' | 'v2'
+): CostCalculationResult {
   const baseStepCost = version === 'v1' ? 0.1 : 0.2
-  const stars = steps * baseStepCost / starCost
+  const stars = (steps * baseStepCost) / starCost
   const dollars = stars * starCost
   const rubles = dollars * interestRate
-  
+
   return {
     stars: parseFloat(stars.toFixed(2)),
     dollars: parseFloat(dollars.toFixed(2)),
@@ -90,4 +97,4 @@ function calculateStepsCost(steps: number, version: 'v1' | 'v2'): CostCalculatio
  */
 export function calculateCostInStars(costInDollars: number): number {
   return costInDollars / starCost
-} 
+}

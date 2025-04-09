@@ -1,6 +1,5 @@
 import { calculateCost } from './calculateCost'
 import { logger } from '@/utils/logger'
-import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { interestRate } from '../interestRate'
 
 export const starCost = 0.016
@@ -21,7 +20,7 @@ export enum ModeEnum {
   DigitalAvatarBodyV2 = 'digital_avatar_body_v2',
   NeuroPhoto = 'neuro_photo',
   NeuroPhotoV2 = 'neuro_photo_v2',
-  ImageToPrompt = 'image_to_prompt',
+  ImageToPrompt = 'image_to_prompt_wizard',
   Avatar = 'avatar',
   ChatWithAvatar = 'chat_with_avatar',
   SelectModel = 'select_model',
@@ -191,7 +190,8 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.TextToImage]: calculateModeCost({ mode: ModeEnum.TextToImage })
     .stars,
   [ModeEnum.LipSync]: calculateModeCost({ mode: ModeEnum.LipSync }).stars,
-  [ModeEnum.VoiceToText]: calculateModeCost({ mode: ModeEnum.VoiceToText }).stars,
+  [ModeEnum.VoiceToText]: calculateModeCost({ mode: ModeEnum.VoiceToText })
+    .stars,
 }
 
 export const minCost = Math.min(

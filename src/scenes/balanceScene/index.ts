@@ -339,7 +339,6 @@ function getServiceEmoji(service: string): string {
     case 'avatar':
       return '👤'
     case ModeEnum.ImageToPrompt:
-    case 'image_to_prompt':
       return '🔍'
     case ModeEnum.SelectModel:
     case 'select_model':
@@ -392,7 +391,6 @@ function getServiceName(service: string, isRu: boolean): string {
     case 'avatar':
       return isRu ? 'Аватар' : 'Avatar'
     case ModeEnum.ImageToPrompt:
-    case 'image_to_prompt':
       return isRu ? 'Анализ изображения' : 'Image Analysis'
     case ModeEnum.SelectModel:
     case 'select_model':
