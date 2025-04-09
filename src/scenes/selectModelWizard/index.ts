@@ -152,14 +152,11 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       // Сохраняем выбранную модель в сессии
       ctx.session.selected_model = model
 
-      // Устанавливаем режим DigitalAvatarBody
-      ctx.session.mode = ModeEnum.DigitalAvatarBody
-
       logger.info('✅ Модель выбрана, переход к проверке баланса', {
         description: 'Model selected, transitioning to balance check',
         telegram_id: telegramId,
         selected_model: model,
-        new_mode: ctx.session.mode,
+        mode: ctx.session.mode,
       })
 
       // Переходим к проверке баланса
