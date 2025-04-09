@@ -13,9 +13,10 @@ import { logger } from '@/utils/logger'
 const MAX_ATTEMPTS = 10
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
-  'improvePromptWizard',
+  ModeEnum.ImprovePrompt,
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
+    ctx.session.mode = ModeEnum.ImprovePrompt
     logger.info('🎯 Вход в сцену улучшения промпта', {
       telegram_id: ctx.from?.id,
       mode: ctx.session?.mode,
@@ -116,12 +117,23 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             prompt: ctx.session.prompt,
           })
 
-          switch (mode) {
+          // Устанавливаем режим NeuroPhoto для генерации
+          const previousMode = ctx.session.mode
+          ctx.session.mode = ModeEnum.NeuroPhoto
+
+          logger.info('🔄 Изменение режима для генерации', {
+            telegram_id: ctx.from.id,
+            previous_mode: previousMode,
+            new_mode: ctx.session.mode,
+          })
+
+          switch (previousMode) {
             case ModeEnum.NeuroPhoto:
+            case ModeEnum.ImprovePrompt:
               if (!ctx.session.userModel?.model_url) {
                 logger.error('❌ Не удалось определить URL модели', {
                   telegram_id: ctx.from.id,
-                  mode: mode,
+                  mode: previousMode,
                 })
                 throw new Error(
                   isRu
@@ -142,7 +154,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
               if (!ctx.session.videoModel) {
                 logger.error('❌ Не удалось определить видео модель', {
                   telegram_id: ctx.from.id,
-                  mode: mode,
+                  mode: previousMode,
                 })
                 throw new Error(
                   isRu
@@ -163,7 +175,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
               if (!ctx.session.selected_model) {
                 logger.error('❌ Не удалось определить модель', {
                   telegram_id: ctx.from.id,
-                  mode: mode,
+                  mode: previousMode,
                 })
                 throw new Error(
                   isRu
@@ -184,7 +196,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             default:
               logger.error('❌ Неизвестный режим', {
                 telegram_id: ctx.from.id,
-                mode: mode,
+                mode: previousMode,
               })
               throw new Error(
                 isRu

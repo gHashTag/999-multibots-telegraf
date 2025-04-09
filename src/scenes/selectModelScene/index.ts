@@ -1,6 +1,7 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const selectModelScene = new Scenes.BaseScene<MyContext>('select_model')
 
@@ -47,6 +48,7 @@ selectModelScene.on('message', async ctx => {
     })
 
     ctx.session.selected_model = 'FLUX'
+    ctx.session.mode = ModeEnum.TextToImage
     await ctx.scene.enter('check_balance')
   } else if (messageText === 'flux pro') {
     logger.info('🎯 Выбрана модель FLUX PRO', {
@@ -56,6 +58,7 @@ selectModelScene.on('message', async ctx => {
     })
 
     ctx.session.selected_model = 'FLUX PRO'
+    ctx.session.mode = ModeEnum.TextToImage
     await ctx.scene.enter('check_balance')
   } else {
     logger.warn('⚠️ Выбрана неверная модель', {

@@ -19,11 +19,11 @@ checkBalanceScene.enter(async ctx => {
     description: 'Entering balance check scene',
     telegram_id: ctx.from?.id,
     mode: ctx.session.mode,
-    selected_model: ctx.session.selectedModel,
+    selected_model: ctx.session.selected_model,
     current_scene: ctx.scene.current?.id,
     full_session_state: {
       mode: ctx.session?.mode,
-      selectedModel: ctx.session?.selectedModel,
+      selectedModel: ctx.session?.selected_model,
       targetScene: ctx.session?.targetScene,
       memory: ctx.session?.memory,
       email: ctx.session?.email,
@@ -50,11 +50,11 @@ checkBalanceScene.enter(async ctx => {
     description: 'State before balance check',
     telegram_id: ctx.from?.id,
     mode: mode,
-    selected_model: ctx.session.selectedModel,
+    selected_model: ctx.session.selected_model,
     current_balance: currentBalance,
     session_trace: {
       previous_mode: ctx.session?.mode,
-      previous_model: ctx.session?.selectedModel,
+      previous_model: ctx.session?.selected_model,
       previous_scene: ctx.scene?.current?.id,
       target_scene: ctx.session?.targetScene,
     },
@@ -120,7 +120,7 @@ checkBalanceScene.enter(async ctx => {
       cost: cost,
       session_state: {
         mode: ctx.session?.mode,
-        selectedModel: ctx.session?.selectedModel,
+        selectedModel: ctx.session?.selected_model,
         targetScene: ctx.session?.targetScene,
       },
     })
@@ -143,7 +143,7 @@ checkBalanceScene.enter(async ctx => {
     current_mode: mode,
     session_state: {
       mode: ctx.session?.mode,
-      selectedModel: ctx.session?.selectedModel,
+      selectedModel: ctx.session?.selected_model,
       targetScene: ctx.session?.targetScene,
     },
   })
@@ -155,7 +155,7 @@ checkBalanceScene.enter(async ctx => {
         description: 'Switching to select_model scene',
         telegram_id: ctx.from?.id,
         previous_mode: mode,
-        selected_model: ctx.session.selectedModel,
+        selected_model: ctx.session.selected_model,
         action: 'enter_select_model_from_balance',
       })
       return ctx.scene.enter('select_model')
@@ -164,7 +164,7 @@ checkBalanceScene.enter(async ctx => {
         description: 'Switching to digital_avatar_body scene',
         telegram_id: ctx.from?.id,
         previous_mode: mode,
-        selected_model: ctx.session.selectedModel,
+        selected_model: ctx.session.selected_model,
         action: 'enter_digital_avatar_body',
       })
       return ctx.scene.enter('digital_avatar_body')
@@ -173,10 +173,31 @@ checkBalanceScene.enter(async ctx => {
         description: 'Switching to digital_avatar_body_v2 scene',
         telegram_id: ctx.from?.id,
         previous_mode: mode,
-        selected_model: ctx.session.selectedModel,
+        selected_model: ctx.session.selected_model,
         action: 'enter_digital_avatar_body_v2',
       })
       return ctx.scene.enter('digital_avatar_body_v2')
+    case ModeEnum.ImageToPrompt:
+      logger.info({
+        message: '🔄 Переход к сцене image_to_prompt_wizard',
+        description: 'Switching to image_to_prompt_wizard scene',
+        telegram_id: ctx.from?.id,
+      })
+      return ctx.scene.enter('image_to_prompt_wizard')
+    case ModeEnum.ImprovePrompt:
+      logger.info({
+        message: '🔄 Переход к сцене improve_prompt_wizard',
+        description: 'Switching to improve_prompt_wizard scene',
+        telegram_id: ctx.from?.id,
+      })
+      return ctx.scene.enter('improve_prompt_wizard')
+    case ModeEnum.TextToImage:
+      logger.info({
+        message: '🔄 Переход к сцене text_to_image',
+        description: 'Switching to text_to_image scene',
+        telegram_id: ctx.from?.id,
+      })
+      return ctx.scene.enter('text_to_image')
     case ModeEnum.NeuroPhoto:
       logger.info({
         message: '🔄 Переход к сцене neuro_photo',
@@ -191,13 +212,6 @@ checkBalanceScene.enter(async ctx => {
         telegram_id: ctx.from?.id,
       })
       return ctx.scene.enter('neuro_photo_v2')
-    case ModeEnum.ImageToPrompt:
-      logger.info({
-        message: '🔄 Переход к сцене image_to_prompt_wizard',
-        description: 'Switching to image_to_prompt_wizard scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter('image_to_prompt_wizard')
     case ModeEnum.Avatar:
       logger.info({
         message: '🔄 Переход к сцене avatar',
@@ -240,13 +254,6 @@ checkBalanceScene.enter(async ctx => {
         telegram_id: ctx.from?.id,
       })
       return ctx.scene.enter('text_to_video')
-    case ModeEnum.TextToImage:
-      logger.info({
-        message: '🔄 Переход к сцене text_to_image',
-        description: 'Switching to text_to_image scene',
-        telegram_id: ctx.from?.id,
-      })
-      return ctx.scene.enter('text_to_image')
     case ModeEnum.LipSync:
       logger.info({
         message: '🔄 Переход к сцене lip_sync',
