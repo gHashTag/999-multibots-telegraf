@@ -25,4 +25,42 @@ VALUES
 ('photo_neuro_bot', 'chat_with_avatar_start', 'en', '👋 Hi! I am your photo avatar. Ready to help you with image processing and creating unique photographs.', 'specific'),
 
 ('voice_neuro_bot', 'chat_with_avatar_start', 'ru', '👋 Приветствую! Я ваш голосовой аватар. Готов помочь вам с озвучкой и обработкой аудио.', 'specific'),
-('voice_neuro_bot', 'chat_with_avatar_start', 'en', '👋 Greetings! I am your voice avatar. Ready to help you with voiceovers and audio processing.', 'specific'); 
+('voice_neuro_bot', 'chat_with_avatar_start', 'en', '👋 Greetings! I am your voice avatar. Ready to help you with voiceovers and audio processing.', 'specific');
+
+-- Добавляем общие переводы для neuro_blogger_bot
+INSERT INTO translations (bot_name, key, language_code, translation, category) VALUES
+('neuro_blogger_bot', 'chat_with_avatar_start', 'ru', 'Начинаем чат с аватаром. Выберите тему для общения или задайте свой вопрос.', 'SPECIFIC'),
+('neuro_blogger_bot', 'chat_with_avatar_start', 'en', 'Starting chat with avatar. Choose a topic or ask your question.', 'SPECIFIC'),
+('neuro_blogger_bot', 'avatar_brain_description', 'ru', 'Мозг аватара - это нейросеть, обученная на основе личности и знаний реального человека.', 'SPECIFIC'),
+('neuro_blogger_bot', 'avatar_brain_description', 'en', 'Avatar''s brain is a neural network trained on the personality and knowledge of a real person.', 'SPECIFIC'),
+('neuro_blogger_bot', 'avatar_voice_description', 'ru', 'Голос аватара создан с помощью технологии клонирования голоса.', 'SPECIFIC'),
+('neuro_blogger_bot', 'avatar_voice_description', 'en', 'Avatar''s voice is created using voice cloning technology.', 'SPECIFIC'),
+('neuro_blogger_bot', 'avatar_model_description', 'ru', 'Цифровое тело аватара создано с помощью 3D-моделирования.', 'SPECIFIC'),
+('neuro_blogger_bot', 'avatar_model_description', 'en', 'Avatar''s digital body is created using 3D modeling.', 'SPECIFIC'),
+('neuro_blogger_bot', 'avatar_greeting', 'ru', 'Привет! Я цифровой аватар. Чем могу помочь?', 'SPECIFIC'),
+('neuro_blogger_bot', 'avatar_greeting', 'en', 'Hi! I''m a digital avatar. How can I help you?', 'SPECIFIC'),
+('neuro_blogger_bot', 'avatar_help', 'ru', 'Я могу общаться на разные темы, отвечать на вопросы и помогать с задачами.', 'SPECIFIC'),
+('neuro_blogger_bot', 'avatar_help', 'en', 'I can chat about various topics, answer questions and help with tasks.', 'SPECIFIC');
+
+-- Добавляем специфичные переводы для других ботов
+INSERT INTO translations (bot_name, key, language_code, translation, category) VALUES
+('clip_maker_neuro_bot', 'avatar_name', 'ru', 'Клип Мейкер', 'SPECIFIC'),
+('clip_maker_neuro_bot', 'avatar_name', 'en', 'Clip Maker', 'SPECIFIC'),
+('clip_maker_neuro_bot', 'avatar_description', 'ru', 'Я помогаю создавать крутые видеоклипы из ваших фото и текста.', 'SPECIFIC'),
+('clip_maker_neuro_bot', 'avatar_description', 'en', 'I help create cool video clips from your photos and text.', 'SPECIFIC'),
+('clip_maker_neuro_bot', 'avatar_personality', 'ru', 'Креативный, энергичный, всегда готов помочь с созданием видео.', 'SPECIFIC'),
+('clip_maker_neuro_bot', 'avatar_personality', 'en', 'Creative, energetic, always ready to help with video creation.', 'SPECIFIC'),
+
+('photo_neuro_bot', 'avatar_name', 'ru', 'Фото Мастер', 'SPECIFIC'),
+('photo_neuro_bot', 'avatar_name', 'en', 'Photo Master', 'SPECIFIC'),
+('photo_neuro_bot', 'avatar_description', 'ru', 'Я специализируюсь на создании и обработке фотографий с помощью ИИ.', 'SPECIFIC'),
+('photo_neuro_bot', 'avatar_description', 'en', 'I specialize in creating and processing photos using AI.', 'SPECIFIC'),
+('photo_neuro_bot', 'avatar_personality', 'ru', 'Внимательный к деталям, творческий, помогаю воплощать ваши идеи в фотографиях.', 'SPECIFIC'),
+('photo_neuro_bot', 'avatar_personality', 'en', 'Detail-oriented, creative, helping bring your ideas to life in photos.', 'SPECIFIC'),
+
+('voice_neuro_bot', 'avatar_name', 'ru', 'Голосовой Ассистент', 'SPECIFIC'),
+('voice_neuro_bot', 'avatar_name', 'en', 'Voice Assistant', 'SPECIFIC'),
+('voice_neuro_bot', 'avatar_description', 'ru', 'Я помогаю создавать качественные голосовые клоны и озвучку.', 'SPECIFIC'),
+('voice_neuro_bot', 'avatar_description', 'en', 'I help create high-quality voice clones and voiceovers.', 'SPECIFIC'),
+('voice_neuro_bot', 'avatar_personality', 'ru', 'Профессиональный, точный в работе с голосом, всегда готов помочь с озвучкой.', 'SPECIFIC'),
+('voice_neuro_bot', 'avatar_personality', 'en', 'Professional, precise in voice work, always ready to help with voiceovers.', 'SPECIFIC'); 

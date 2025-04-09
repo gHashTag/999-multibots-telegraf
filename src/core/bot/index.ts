@@ -185,6 +185,7 @@ export async function createBotByName(
 export function getBotByName(bot_name: string): {
   bot?: Telegraf<MyContext>
   error?: string | null
+  token?: string
 } {
   // В тестовом окружении возвращаем тестового бота
   if (process.env.NODE_ENV === 'test') {
@@ -193,7 +194,9 @@ export function getBotByName(bot_name: string): {
       description: 'Returning test bot',
       bot_name,
     })
-    return { bot: new Telegraf<MyContext>(process.env.BOT_TOKEN_TEST_1 || '') }
+    return {
+      bot: new Telegraf<MyContext>(process.env.BOT_TOKEN_TEST_1 || ''),
+    }
   }
 
   logger.info({
@@ -229,7 +232,7 @@ export function getBotByName(bot_name: string): {
     return { error: 'Bot instance not found' }
   }
 
-  return { bot }
+  return { bot, token }
 }
 
 export const supportRequest = async (title: string, data: any) => {
