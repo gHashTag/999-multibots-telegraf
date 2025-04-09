@@ -150,7 +150,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       )
 
       // Сохраняем выбранную модель в сессии
-      ctx.session.selectedModel = model
+      ctx.session.selected_model = model
 
       // Устанавливаем режим DigitalAvatarBody
       ctx.session.mode = ModeEnum.DigitalAvatarBody
@@ -163,7 +163,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       })
 
       // Переходим к проверке баланса
-      return ctx.scene.enter('check_balance')
+      return ctx.scene.enter('check_balance_scene')
     } catch (error) {
       logger.error('❌ Ошибка при выборе модели:', {
         description: 'Error selecting model',
