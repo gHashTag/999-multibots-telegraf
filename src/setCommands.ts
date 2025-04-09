@@ -1,6 +1,8 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/types'
 import { supabase } from './core/supabase'
+import { NODE_ENV } from './config'
+import { getBotNameByToken } from './core/bot'
 
 // Резервный ID для тестирования, если владелец не найден в базе
 const FALLBACK_OWNER_ID = '144022504'
@@ -10,6 +12,22 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
     // Получаем информацию о боте
     const botInfo = await bot.telegram.getMe()
     const botName = botInfo.username
+
+    // Проверяем, является ли бот тестовым в продакшн среде
+    if (NODE_ENV === 'production') {
+      const { bot_name } = getBotNameByToken(bot.telegram.token)
+      if (bot_name === process.env.DEV_BOT_NAME) {
+        console.log(
+          '⚠️ Пропускаем установку команд для тестового бота в продакшене:',
+          {
+            description: 'Skipping command setup for test bot in production',
+            botName: bot_name,
+            environment: NODE_ENV,
+          }
+        )
+        return
+      }
+    }
 
     let ownerTelegramId = FALLBACK_OWNER_ID // По умолчанию используем резервный ID
 
