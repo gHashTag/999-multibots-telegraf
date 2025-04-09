@@ -1,2 +1,2 @@
-const test = 'test'
-console.log(test)
+const testHusky = 'test'
+console.log(testHusky)
