@@ -43,7 +43,7 @@ const formatDate = (date: Date) => {
 const SERVICE_TYPES_MAP: Record<string, string> = {
   text_to_image: 'Генерация изображений по тексту',
   neuro_photo: 'Нейрофото',
-  ModeEnum.ImageToPrompt: 'Анализ изображения',
+  image_to_prompt_wizard: 'Анализ изображения',
   text_to_video: 'Генерация видео по тексту',
   image_to_video: 'Анимация изображения',
   voice: 'Голосовой помощник',

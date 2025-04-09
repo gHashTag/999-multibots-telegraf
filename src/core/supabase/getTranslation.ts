@@ -1,13 +1,11 @@
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { supabase } from '@/core/supabase'
-import { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
 import { TranslationButton } from '@/interfaces/supabase.interface'
 import { logger } from '@/utils/logger'
-import { PostgrestError } from '@supabase/supabase-js'
-import { 
+import {
   TranslationCategory,
   TranslationCategoryType,
-  Translation 
+  Translation,
 } from '@/interfaces/translations.interface'
 
 interface TranslationResponse {
@@ -42,32 +40,47 @@ async function fetchTranslation(
     }
   }
 
-  const { data, error } = await query.single()
+  const { data, error } = await query
 
   if (error) {
-    logger.error('Error fetching translation:', { error, key, bot_name, language_code, category })
+    logger.error('Error fetching translation:', {
+      error,
+      key,
+      bot_name,
+      language_code,
+      category,
+    })
     return null
   }
 
-  return data
+  if (!data || data.length === 0) {
+    return null
+  }
+
+  // Возвращаем первый найденный перевод
+  return data[0]
 }
 
 export async function getTranslation({
   key,
   ctx,
   bot_name,
-  category = TranslationCategory.SPECIFIC
 }: {
   key: string
   ctx: MyContext
   bot_name?: string
-  category: TranslationCategoryType
 }): Promise<TranslationResponse> {
   const language_code = ctx.from?.language_code || 'en'
-  const current_bot = bot_name || ctx.botInfo.username || ''
+  const current_bot = bot_name || ctx.botInfo?.username || ''
 
   // Try to find specific override translation for current bot
-  let translation = await fetchTranslation(key, current_bot, language_code, TranslationCategory.SPECIFIC, true)
+  let translation = await fetchTranslation(
+    key,
+    current_bot,
+    language_code,
+    TranslationCategory.SPECIFIC,
+    true
+  )
   if (translation) {
     logger.debug('Found override translation', { key, bot: current_bot })
     return {
@@ -78,7 +91,12 @@ export async function getTranslation({
   }
 
   // Try to find specific translation for current bot
-  translation = await fetchTranslation(key, current_bot, language_code, TranslationCategory.SPECIFIC)
+  translation = await fetchTranslation(
+    key,
+    current_bot,
+    language_code,
+    TranslationCategory.SPECIFIC
+  )
   if (translation) {
     logger.debug('Found specific translation', { key, bot: current_bot })
     return {
@@ -89,7 +107,12 @@ export async function getTranslation({
   }
 
   // Try to find common translation
-  translation = await fetchTranslation(key, current_bot, language_code, TranslationCategory.COMMON)
+  translation = await fetchTranslation(
+    key,
+    current_bot,
+    language_code,
+    TranslationCategory.COMMON
+  )
   if (translation) {
     logger.debug('Found common translation', { key })
     return {
@@ -100,7 +123,12 @@ export async function getTranslation({
   }
 
   // Try to find system translation
-  translation = await fetchTranslation(key, current_bot, language_code, TranslationCategory.SYSTEM)
+  translation = await fetchTranslation(
+    key,
+    current_bot,
+    language_code,
+    TranslationCategory.SYSTEM
+  )
   if (translation) {
     logger.debug('Found system translation', { key })
     return {
@@ -111,7 +139,11 @@ export async function getTranslation({
   }
 
   // No translation found
-  logger.warn('Translation not found', { key, bot: current_bot, language: language_code })
+  logger.warn('Translation not found', {
+    key,
+    bot: current_bot,
+    language: language_code,
+  })
   return {
     translation: `Translation not found for key: ${key}`,
   }
