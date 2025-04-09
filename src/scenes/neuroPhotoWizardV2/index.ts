@@ -27,9 +27,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     const userModel = await getLatestUserModel(telegramId, 'bfl')
     console.log('userModel', userModel)
 
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegramId
-    )
+    const { count, subscription, level } =
+      await getReferalsCountAndUserData(telegramId)
 
     if (!userModel || !userModel.finetune_id || !subscription) {
       await ctx.reply(
@@ -90,8 +89,6 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
       const trigger_word = ctx.session.userModel.trigger_word as string
 
-      const userId = ctx.from?.id
-
       if (trigger_word) {
         const fullPrompt = `${trigger_word}, ${promptText}`
         const telegramId = ctx.from?.id.toString()
@@ -131,7 +128,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     // Обработка кнопок "Улучшить промпт" и "Изменить размер"
     if (text === '⬆️ Улучшить промпт' || text === '⬆️ Improve prompt') {
       console.log('CASE: Улучшить промпт')
-      await ctx.scene.enter('improvePromptWizard')
+      await ctx.scene.enter(ModeEnum.ImprovePrompt)
       return
     }
 

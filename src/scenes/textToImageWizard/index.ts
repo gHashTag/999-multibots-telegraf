@@ -91,7 +91,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       }
 
       const [fullModelId, selectedModelInfo] = selectedModelEntry
-      ctx.session.selectedModel = fullModelId
+      ctx.session.selected_model = fullModelId
 
       if (!selectedModelInfo) {
         await sendGenericErrorMessage(ctx, isRu)
@@ -173,7 +173,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         // Отправляем событие в Inngest вместо прямого вызова API
         await InngestService.sendEvent('text-to-image.requested', {
           prompt: text,
-          model: ctx.session.selectedModel,
+          model: ctx.session.selected_model,
           num_images: 1,
           telegram_id: ctx.from.id.toString(),
           username: ctx.from?.username,

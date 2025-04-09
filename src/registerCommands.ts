@@ -1,6 +1,6 @@
 import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { CallbackQuery } from 'telegraf/types'
-import { MyContext } from './interfaces'
+import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import {
   handleTechSupport,
@@ -143,7 +143,7 @@ export function registerCommands({
       description: 'Start command received',
       telegramId: ctx.from?.id,
     })
-    return enterScene(ctx, ModeEnum.MainMenu, ctx.from?.id)
+    return enterScene(ctx, ModeEnum.MenuScene, ctx.from?.id)
   })
 
   bot.command('stats', async ctx => {
@@ -184,7 +184,7 @@ export function registerCommands({
       description: 'Broadcast command received',
       telegramId: ctx.from?.id,
     })
-    return enterScene(ctx, ModeEnum.MainMenu, ctx.from?.id)
+    return enterScene(ctx, ModeEnum.MenuScene, ctx.from?.id)
   })
 
   composer.command('broadcast', async ctx => {
@@ -192,7 +192,7 @@ export function registerCommands({
       description: 'Broadcast command received (composer)',
       telegramId: ctx.from?.id,
     })
-    return enterScene(ctx, ModeEnum.MainMenu, ctx.from?.id)
+    return enterScene(ctx, ModeEnum.MenuScene, ctx.from?.id)
   })
 
   bot.command('menu', async ctx => {
@@ -200,8 +200,7 @@ export function registerCommands({
       description: 'Menu command received',
       telegramId: ctx.from?.id,
     })
-    ctx.session.mode = ModeEnum.MainMenu
-    return enterScene(ctx, ModeEnum.MainMenu, ctx.from?.id)
+    return enterScene(ctx, ModeEnum.MenuScene, ctx.from?.id)
   })
 
   composer.command('menu', async ctx => {
@@ -209,8 +208,8 @@ export function registerCommands({
       description: 'Menu command received (composer)',
       telegramId: ctx.from?.id,
     })
-    ctx.session.mode = ModeEnum.MainMenu
-    return enterScene(ctx, ModeEnum.MainMenu, ctx.from?.id)
+    ctx.session.mode = ModeEnum.MenuScene
+    return enterScene(ctx, ModeEnum.MenuScene, ctx.from?.id)
   })
 
   bot.command('tech', async ctx => {
@@ -306,8 +305,7 @@ export function registerCommands({
       description: 'Digital avatar body selected',
       level: levels[1].title_ru,
     })
-    ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-    await ctx.scene.enter(ModeEnum.SelectModelWizard)
+    await ctx.scene.enter('select_model')
   })
 
   composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
@@ -454,8 +452,8 @@ export function registerCommands({
       description: 'Main menu requested',
       telegramId: ctx.from?.id,
     })
-    ctx.session.mode = ModeEnum.MainMenu
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    ctx.session.mode = ModeEnum.MenuScene
+    await ctx.scene.enter(ModeEnum.MenuScene)
   })
 
   composer.hears(
@@ -509,8 +507,8 @@ export function registerCommands({
     logger.info('ctx.session.mode:', { mode: ctx.session.mode })
     logger.info('ctx.session.prompt:', { prompt })
     logger.info('ctx.session.userModel:', { userModel: ctx.session.userModel })
-    logger.info('ctx.session.selectedModel:', {
-      selectedModel: ctx.session.selectedModel,
+    logger.info('ctx.session.selected_model:', {
+      selectedModel: ctx.session.selected_model,
     })
 
     // Проверяем наличие необходимых данных
@@ -543,7 +541,7 @@ export function registerCommands({
           ctx.botInfo?.username
         )
       } else {
-        if (!ctx.session.selectedModel) {
+        if (!ctx.session.selected_model) {
           await ctx.reply(
             isRu
               ? '⚠️ Ошибка: модель не выбрана. Пожалуйста, начните сначала.'
@@ -554,7 +552,7 @@ export function registerCommands({
 
         logger.info('Вызов generateTextToImage с параметрами:', {
           prompt,
-          model: ctx.session.selectedModel,
+          model: ctx.session.selected_model,
           numImages: num,
           userId: userId.toString(),
           isRu,
@@ -563,7 +561,7 @@ export function registerCommands({
 
         await generateTextToImage(
           prompt,
-          ctx.session.selectedModel || '',
+          ctx.session.selected_model || '',
           num,
           userId.toString(),
           isRu,
@@ -595,8 +593,8 @@ export function registerCommands({
     logger.info('ctx.session.mode:', { mode: ctx.session.mode })
     logger.info('ctx.session.prompt:', { prompt })
     logger.info('ctx.session.userModel:', { userModel: ctx.session.userModel })
-    logger.info('ctx.session.selectedModel:', {
-      selectedModel: ctx.session.selectedModel,
+    logger.info('ctx.session.selected_model:', {
+      selectedModel: ctx.session.selected_model,
     })
 
     // Проверяем наличие необходимых данных
@@ -629,7 +627,7 @@ export function registerCommands({
           ctx.botInfo?.username
         )
       } else {
-        if (!ctx.session.selectedModel) {
+        if (!ctx.session.selected_model) {
           await ctx.reply(
             isRu
               ? '⚠️ Ошибка: модель не выбрана. Пожалуйста, начните сначала.'
@@ -640,7 +638,7 @@ export function registerCommands({
 
         logger.info('Вызов generateTextToImage с параметрами:', {
           prompt,
-          model: ctx.session.selectedModel,
+          model: ctx.session.selected_model,
           numImages: num,
           userId: userId.toString(),
           isRu,
@@ -649,7 +647,7 @@ export function registerCommands({
 
         await generateTextToImage(
           prompt,
-          ctx.session.selectedModel || '',
+          ctx.session.selected_model || '',
           num,
           userId.toString(),
           isRu,
@@ -854,7 +852,11 @@ export function registerCommands({
         return enterScene(ctx, ModeEnum.ChatWithAvatar, telegramId)
       case 'voice':
         return enterScene(ctx, ModeEnum.Voice, telegramId)
-      case 'text_to_speech':
+      case ModeEnum.TextToSpeech:
+        logger.info('🎙️ Переход к генерации речи:', {
+          description: 'Switching to text-to-speech generation',
+          telegram_id: telegramId,
+        })
         return enterScene(ctx, ModeEnum.TextToSpeech, telegramId)
       case 'image_to_video':
         return enterScene(ctx, ModeEnum.ImageToVideo, telegramId)
@@ -875,7 +877,7 @@ export function registerCommands({
       case 'get_ru_bill':
         return enterScene(ctx, ModeEnum.GetRuBillWizard, telegramId)
       case 'menu':
-        return enterScene(ctx, ModeEnum.MainMenu, telegramId)
+        return enterScene(ctx, ModeEnum.MenuScene, telegramId)
       case 'help':
         return enterScene(ctx, ModeEnum.HelpScene, telegramId)
       case 'balance':

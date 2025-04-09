@@ -3,6 +3,7 @@ import { Subscription } from '@/interfaces/supabase.interface'
 import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 import { MyContext, Level } from '@/interfaces/telegram-bot.interface'
+import { logger } from '@/utils/logger'
 
 export const levels: Record<number, Level> = {
   // digital_avatar_body
@@ -118,6 +119,13 @@ export async function mainMenu({
   ctx: MyContext
   additionalButtons?: Level[]
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
+  logger.info('🚀 Начало формирования главного меню', {
+    description: 'Starting main menu creation',
+    subscription,
+    level,
+    has_additional_buttons: additionalButtons.length > 0,
+  })
+
   console.log('💻 CASE: mainMenu')
 
   // Основная конфигурация меню
@@ -140,13 +148,33 @@ export async function mainMenu({
     neurotester: Object.values(levels),
   }
 
+  logger.info('📋 Определение доступных уровней', {
+    description: 'Determining available levels',
+    subscription,
+    available_levels_count:
+      subscriptionLevelsMap[subscription as keyof typeof subscriptionLevelsMap]
+        ?.length || 0,
+  })
+
   // Получаем основные кнопки для текущей подписки
   let availableLevels =
     subscriptionLevelsMap[subscription as keyof typeof subscriptionLevelsMap] ||
     []
 
+  logger.info('🔍 Проверка уровней для neurophoto', {
+    description: 'Checking neurophoto specific levels',
+    subscription,
+    level,
+    is_neurophoto_with_level_3: subscription === 'neurophoto' && level >= 3,
+  })
+
   // Для neurophoto при уровне 3 добавляем дополнительные кнопки
   if (subscription === 'neurophoto' && level >= 3) {
+    logger.info('➕ Добавление дополнительных кнопок для neurophoto', {
+      description: 'Adding extra buttons for neurophoto',
+      additional_buttons_count: additionalButtons.length,
+    })
+
     availableLevels = [
       ...availableLevels.filter(l => l.title_ru !== mainMenuButton.title_ru),
       ...additionalButtons,
@@ -155,6 +183,13 @@ export async function mainMenu({
 
   // Удаляем дубликаты уровней
   availableLevels = Array.from(new Set(availableLevels))
+
+  logger.info('🎯 Фильтрация уровней по подписке', {
+    description: 'Filtering levels by subscription',
+    subscription,
+    is_full_access: ['neurotester', 'neurobase'].includes(subscription),
+    available_levels_before: availableLevels.length,
+  })
 
   // Для подписок с полным доступом не фильтруем по уровню
   if (!['neurotester', 'neurobase'].includes(subscription)) {
@@ -169,6 +204,12 @@ export async function mainMenu({
     )
   }
 
+  logger.info('🎮 Формирование кнопок меню', {
+    description: 'Creating menu buttons',
+    available_levels_after_filter: availableLevels.length,
+    buttons: availableLevels.map(l => (isRu ? l.title_ru : l.title_en)),
+  })
+
   // Формируем кнопки
   const buttons = availableLevels.map(level =>
     Markup.button.text(isRu ? level.title_ru : level.title_en)
@@ -179,6 +220,12 @@ export async function mainMenu({
   for (let i = 0; i < buttons.length; i += 2) {
     buttonRows.push(buttons.slice(i, i + 2))
   }
+
+  logger.info('✅ Завершение формирования меню', {
+    description: 'Menu creation completed',
+    total_rows: buttonRows.length,
+    total_buttons: buttons.length,
+  })
 
   console.log(
     '👉 Available buttons:',

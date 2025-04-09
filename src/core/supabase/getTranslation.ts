@@ -138,6 +138,22 @@ export async function getTranslation({
     }
   }
 
+  // Try to find default translation from neuro_blogger_bot
+  translation = await fetchTranslation(
+    key,
+    'neuro_blogger_bot',
+    language_code,
+    TranslationCategory.SPECIFIC
+  )
+  if (translation) {
+    logger.debug('Using default translation from neuro_blogger_bot', { key })
+    return {
+      translation: translation.translation,
+      url: translation.url,
+      buttons: translation.buttons,
+    }
+  }
+
   // No translation found
   logger.warn('Translation not found', {
     key,

@@ -1,3 +1,4 @@
+import { errorMessageAdmin } from '@/helpers'
 import { MyContext } from '../interfaces'
 
 export async function sendGenericErrorMessage(
@@ -13,6 +14,6 @@ export async function sendGenericErrorMessage(
     ? `\n${isRu ? 'Ошибка:' : 'Error:'} ${error.message}`
     : ''
 
-  await ctx.reply(baseMessage + errorMessage)
+  await errorMessageAdmin(new Error(baseMessage + errorMessage))
   throw error
 }

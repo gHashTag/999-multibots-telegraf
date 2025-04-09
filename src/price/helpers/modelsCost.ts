@@ -21,7 +21,7 @@ export enum ModeEnum {
   NeuroPhoto = 'neuro_photo',
   NeuroPhotoV2 = 'neuro_photo_v2',
   ImageToPrompt = 'image_to_prompt_wizard',
-  Avatar = 'avatar',
+  AvatarBrainWizard = 'avatar_brain_wizard',
   ChatWithAvatar = 'chat_with_avatar',
   SelectModel = 'select_model',
   SelectModelWizard = 'select_model_wizard',
@@ -35,12 +35,13 @@ export enum ModeEnum {
   ChangeSize = 'change_size',
   Invite = 'invite',
   Help = 'help',
-  MainMenu = 'main_menu',
+  Avatar = 'avatar',
   Balance = 'balance',
   ImprovePrompt = 'improve_prompt',
   TopUpBalance = 'top_up_balance',
   VideoInUrl = 'video_in_url',
   Tech = 'tech',
+  Price = 'price',
   Stats = 'stats',
   BroadcastWizard = 'broadcast_wizard',
   SubscriptionCheckScene = 'subscription_check_scene',
@@ -84,7 +85,7 @@ const BASE_COSTS: BaseCosts = {
   [ModeEnum.NeuroPhotoV2]: 0.14,
   neuro_photo_2: 0.14,
   [ModeEnum.ImageToPrompt]: 0.03,
-  [ModeEnum.Avatar]: 0,
+  [ModeEnum.AvatarBrainWizard]: 0,
   [ModeEnum.ChatWithAvatar]: 0,
   [ModeEnum.SelectModel]: 0,
   [ModeEnum.SelectModelWizard]: 0,
@@ -95,6 +96,8 @@ const BASE_COSTS: BaseCosts = {
   [ModeEnum.TextToImage]: 0.08,
   [ModeEnum.LipSync]: 0.9,
   [ModeEnum.VoiceToText]: 0.08,
+  [ModeEnum.DigitalAvatarBody]: 0,
+  [ModeEnum.DigitalAvatarBodyV2]: 0,
 }
 
 export function calculateModeCost(
@@ -138,10 +141,6 @@ export function calculateModeCost(
       }
     }
 
-    if (mode === ModeEnum.VoiceToText) {
-      stars = 5
-    }
-
     stars = parseFloat(stars.toFixed(2))
     const dollars = parseFloat((stars * starCost).toFixed(2))
     const rubles = parseFloat((dollars * interestRate).toFixed(2))
@@ -171,7 +170,9 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   neuro_photo_2: calculateModeCost({ mode: 'neuro_photo_2' }).stars,
   [ModeEnum.ImageToPrompt]: calculateModeCost({ mode: ModeEnum.ImageToPrompt })
     .stars,
-  [ModeEnum.Avatar]: calculateModeCost({ mode: ModeEnum.Avatar }).stars,
+  [ModeEnum.AvatarBrainWizard]: calculateModeCost({
+    mode: ModeEnum.AvatarBrainWizard,
+  }).stars,
   [ModeEnum.ChatWithAvatar]: calculateModeCost({
     mode: ModeEnum.ChatWithAvatar,
   }).stars,

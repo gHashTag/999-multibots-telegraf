@@ -19,7 +19,7 @@ export interface SessionData {
   model_type: ModelUrl
   selectedSize: string
   userModel: UserModel
-  mode: Mode
+  mode: Mode | null
   videoModel: string
   imageUrl: string
   amount: number
@@ -80,7 +80,7 @@ export interface Memory {
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   memory?: Memory
   email: string
-  selectedModel: string
+  selected_model: string
   prompt: string
   selectedSize: string
   userModel: UserModel
@@ -107,6 +107,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   text?: string
   language_code: string
   targetScene: Mode
+  is_ru: boolean
   selectedPayment: {
     amount: number
     stars: number

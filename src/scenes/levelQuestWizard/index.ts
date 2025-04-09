@@ -29,9 +29,8 @@ const createStepScene = (
   const scene = new Scenes.BaseScene<MyContext>(`step${stepNumber}`)
   scene.enter(async ctx => {
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegram_id
-    )
+    const { count, subscription, level } =
+      await getReferalsCountAndUserData(telegram_id)
     await handler(ctx)
     const isRu = isRussian(ctx)
     await ctx.reply(
@@ -40,8 +39,8 @@ const createStepScene = (
           ? `Нажмите "${nextStepText}", чтобы продолжить.`
           : `Click "${nextStepText}", to continue.`
         : isRu
-        ? `Вы успешно прошли все обучение и достигли максимального уровня! 🌟✨`
-        : `You have successfully completed all training and reached the maximum level! 🌟✨`,
+          ? `Вы успешно прошли все обучение и достигли максимального уровня! 🌟✨`
+          : `You have successfully completed all training and reached the maximum level! 🌟✨`,
       stepNumber < 12
         ? Markup.keyboard([[nextStepText], ['➡️ Завершить']]).resize()
         : await mainMenu({
@@ -89,7 +88,7 @@ export const completeScene = new Scenes.BaseScene<MyContext>('complete')
 
 completeScene.enter(async ctx => {
   await handleQuestComplete(ctx)
-  await ctx.scene.enter(ModeEnum.MainMenu)
+  await ctx.scene.enter(ModeEnum.MenuScene)
 })
 
 // Экспортируем все сцены

@@ -19,8 +19,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     try {
       // Запрашиваем модель
       await ctx.reply(
-        isRu 
-          ? '🎥 Выберите модель для генерации видео:' 
+        isRu
+          ? '🎥 Выберите модель для генерации видео:'
           : '🎥 Choose video generation model:',
         {
           reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
@@ -98,7 +98,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
         // Проверяем, требует ли модель изображение
         const modelConfig = VIDEO_MODELS_CONFIG[modelId]
-        const requiresImage = modelConfig?.inputType.includes('image') && !modelConfig?.inputType.includes('text')
+        const requiresImage =
+          modelConfig?.inputType.includes('image') &&
+          !modelConfig?.inputType.includes('text')
         if (requiresImage) {
           await ctx.reply(
             isRu
@@ -140,7 +142,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     // Проверяем, требует ли модель изображение
     const modelConfig = VIDEO_MODELS_CONFIG[ctx.session.videoModel || '']
-    const requiresImage = modelConfig?.inputType.includes('image') && !modelConfig?.inputType.includes('text')
+    const requiresImage =
+      modelConfig?.inputType.includes('image') &&
+      !modelConfig?.inputType.includes('text')
     if (requiresImage) {
       // Проверяем, что получили изображение
       if (!message || !('photo' in message)) {

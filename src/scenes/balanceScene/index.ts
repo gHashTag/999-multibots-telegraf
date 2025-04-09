@@ -312,7 +312,6 @@ function getServiceEmoji(service: string): string {
     case 'text_to_image':
       return '🎨'
     case ModeEnum.TextToSpeech:
-    case 'text_to_speech':
       return '🔊'
     case ModeEnum.Voice:
     case 'voice':
@@ -364,7 +363,6 @@ function getServiceName(service: string, isRu: boolean): string {
     case 'text_to_image':
       return isRu ? 'Текст в изображение' : 'Text to Image'
     case ModeEnum.TextToSpeech:
-    case 'text_to_speech':
       return isRu ? 'Текст в речь' : 'Text to Speech'
     case ModeEnum.Voice:
     case 'voice':

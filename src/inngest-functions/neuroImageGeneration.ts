@@ -10,7 +10,7 @@ import { processApiResponse } from '@/helpers/processApiResponse'
 
 import { saveFileLocally } from '@/helpers'
 import { pulse } from '@/helpers/pulse'
-import { ModeEnum, calculateModeCost } from '@/price/helpers'
+import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import path from 'path'
 import { API_URL } from '@/config'
 import fs from 'fs'
@@ -323,10 +323,10 @@ export const neuroImageGeneration = inngest.createFunction(
                 ...(aspect_ratio === '1:1'
                   ? { width: 1024, height: 1024 }
                   : aspect_ratio === '16:9'
-                  ? { width: 1368, height: 768 }
-                  : aspect_ratio === '9:16'
-                  ? { width: 768, height: 1368 }
-                  : { width: 1024, height: 1024 }),
+                    ? { width: 1368, height: 768 }
+                    : aspect_ratio === '9:16'
+                      ? { width: 768, height: 1368 }
+                      : { width: 1024, height: 1024 }),
                 sampler: 'flowmatch',
                 num_outputs: 1,
                 aspect_ratio,

@@ -586,16 +586,19 @@ export const handleWebhookNeurophoto = async (req: Request, res: Response) => {
 }
 
 // Очистка множества обработанных задач раз в сутки
-setInterval(() => {
-  if (processedTaskIds.size > 0) {
-    processedTaskIds.clear()
-    logger.info({
-      message: '🧹 Очищен список обработанных задач',
-      description: 'Processed tasks cleared',
-      count: processedTaskIds.size,
-    })
-  }
-}, 24 * 60 * 60 * 1000)
+setInterval(
+  () => {
+    if (processedTaskIds.size > 0) {
+      processedTaskIds.clear()
+      logger.info({
+        message: '🧹 Очищен список обработанных задач',
+        description: 'Processed tasks cleared',
+        count: processedTaskIds.size,
+      })
+    }
+  },
+  24 * 60 * 60 * 1000
+)
 
 /**
  * Обработчик вебхука нейрофото в режиме отладки

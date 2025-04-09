@@ -5,10 +5,9 @@ import { isRussian } from '@/helpers/language'
 import { handleTrainingCost } from '@/price/helpers'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
-import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
-  ModeEnum.DigitalAvatarBody,
+  'digital_avatar_body',
   async ctx => {
     const isRu = isRussian(ctx)
     const costMessage = generateCostMessage(stepOptions.v1, isRu, 'v1')

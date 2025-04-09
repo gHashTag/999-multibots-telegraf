@@ -10,14 +10,6 @@ import {
  */
 export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED'
 
-interface UpdatePaymentStatusProps {
-  inv_id: string
-  status: PaymentStatus
-  stars?: number
-  description?: string
-  metadata?: Record<string, any>
-}
-
 export interface UpdatePaymentStatusParams {
   telegram_id: TelegramId
   inv_id: string

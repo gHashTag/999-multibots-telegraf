@@ -7,17 +7,21 @@ import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
 import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovementFailureMessage'
 import { sendGenericErrorMessage } from '@/menu'
+import { ModeEnum } from '@/price/helpers/modelsCost'
+import { logger } from '@/utils/logger'
 
 const MAX_ATTEMPTS = 10
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
-  'improvePromptWizard',
+  ModeEnum.ImprovePrompt,
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
-    console.log(ctx.session, 'ctx.session')
-    const prompt = ctx.session.prompt
-
-    console.log(prompt, 'prompt')
+    ctx.session.mode = ModeEnum.ImprovePrompt
+    logger.info('🎯 Вход в сцену улучшения промпта', {
+      telegram_id: ctx.from?.id,
+      mode: ctx.session?.mode,
+      prompt: ctx.session?.prompt,
+    })
 
     if (!ctx.from) {
       await ctx.reply(
@@ -30,7 +34,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
 
     await sendPromptImprovementMessage(ctx, isRu)
 
-    const improvedPrompt = await upgradePrompt(prompt)
+    const improvedPrompt = await upgradePrompt(ctx.session.prompt)
     if (!improvedPrompt) {
       await sendPromptImprovementFailureMessage(ctx, isRu)
       return ctx.scene.leave()
@@ -68,7 +72,11 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
 
     if (message && 'text' in message) {
       const text = message.text
-      console.log(text, 'text')
+      logger.info('📩 Получено сообщение в сцене улучшения промпта', {
+        telegram_id: ctx.from?.id,
+        text: text,
+        mode: ctx.session?.mode,
+      })
 
       if (!ctx.from?.id) {
         await ctx.reply(
@@ -82,32 +90,57 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
       switch (text) {
         case isRu ? '✅ Да. Cгенерировать?' : '✅ Yes. Generate?': {
           const mode = ctx.session.mode
-          if (!mode)
+          if (!mode) {
+            logger.error('❌ Не удалось определить режим', {
+              telegram_id: ctx.from.id,
+              mode: mode,
+            })
             throw new Error(
               isRu ? 'Не удалось определить режим' : 'Could not identify mode'
             )
+          }
 
-          if (!ctx.from.id)
-            throw new Error(
-              isRu
-                ? 'improvePromptWizard: Не удалось определить telegram_id'
-                : 'improvePromptWizard: Could not identify telegram_id'
-            )
-          if (!ctx.from.username)
+          if (!ctx.from.username) {
+            logger.error('❌ Не удалось определить username', {
+              telegram_id: ctx.from.id,
+            })
             throw new Error(
               isRu
                 ? 'improvePromptWizard: Не удалось определить username'
                 : 'improvePromptWizard: Could not identify username'
             )
-          if (!isRu)
-            throw new Error(
-              isRu
-                ? 'improvePromptWizard: Не удалось определить isRu'
-                : 'improvePromptWizard: Could not identify isRu'
-            )
-          console.log(mode, 'mode')
-          switch (mode) {
-            case 'neuro_photo':
+          }
+
+          logger.info('🎯 Генерация контента после улучшения промпта', {
+            telegram_id: ctx.from.id,
+            mode: mode,
+            prompt: ctx.session.prompt,
+          })
+
+          // Устанавливаем режим NeuroPhoto для генерации
+          const previousMode = ctx.session.mode
+          ctx.session.mode = ModeEnum.NeuroPhoto
+
+          logger.info('🔄 Изменение режима для генерации', {
+            telegram_id: ctx.from.id,
+            previous_mode: previousMode,
+            new_mode: ctx.session.mode,
+          })
+
+          switch (previousMode) {
+            case ModeEnum.NeuroPhoto:
+            case ModeEnum.ImprovePrompt:
+              if (!ctx.session.userModel?.model_url) {
+                logger.error('❌ Не удалось определить URL модели', {
+                  telegram_id: ctx.from.id,
+                  mode: previousMode,
+                })
+                throw new Error(
+                  isRu
+                    ? 'improvePromptWizard: Не удалось определить URL модели'
+                    : 'improvePromptWizard: Could not identify model URL'
+                )
+              }
               await generateNeuroImage(
                 ctx.session.prompt,
                 ctx.session.userModel.model_url,
@@ -117,21 +150,18 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ctx.botInfo?.username
               )
               break
-            case 'text_to_video':
-              if (!ctx.session.videoModel)
+            case ModeEnum.TextToVideo:
+              if (!ctx.session.videoModel) {
+                logger.error('❌ Не удалось определить видео модель', {
+                  telegram_id: ctx.from.id,
+                  mode: previousMode,
+                })
                 throw new Error(
                   isRu
                     ? 'improvePromptWizard: Не удалось определить видео модель'
                     : 'improvePromptWizard: Could not identify video model'
                 )
-
-              console.log(ctx.session.videoModel, 'ctx.session.videoModel')
-              if (!ctx.session.videoModel)
-                throw new Error(
-                  isRu
-                    ? 'improvePromptWizard: Не удалось определить видео модель'
-                    : 'improvePromptWizard: Could not identify video model'
-                )
+              }
               await generateTextToVideo(
                 ctx.session.prompt,
                 ctx.session.videoModel,
@@ -141,10 +171,21 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ctx.botInfo?.username
               )
               break
-            case 'text_to_image':
+            case ModeEnum.TextToImage:
+              if (!ctx.session.selected_model) {
+                logger.error('❌ Не удалось определить модель', {
+                  telegram_id: ctx.from.id,
+                  mode: previousMode,
+                })
+                throw new Error(
+                  isRu
+                    ? 'improvePromptWizard: Не удалось определить модель'
+                    : 'improvePromptWizard: Could not identify model'
+                )
+              }
               await generateTextToImage(
                 ctx.session.prompt,
-                ctx.session.selectedModel,
+                ctx.session.selected_model,
                 1,
                 ctx.from.id.toString(),
                 isRu,
@@ -153,6 +194,10 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
               )
               break
             default:
+              logger.error('❌ Неизвестный режим', {
+                telegram_id: ctx.from.id,
+                mode: previousMode,
+              })
               throw new Error(
                 isRu
                   ? 'improvePromptWizard: Неизвестный режим'
@@ -166,6 +211,10 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           ctx.session.attempts = (ctx.session.attempts || 0) + 1
 
           if (ctx.session.attempts >= MAX_ATTEMPTS) {
+            logger.warn('⚠️ Достигнут лимит попыток улучшения', {
+              telegram_id: ctx.from.id,
+              attempts: ctx.session.attempts,
+            })
             await ctx.reply(
               isRu
                 ? 'Достигнуто максимальное количество попыток улучшения промпта.'
@@ -212,11 +261,18 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
         }
 
         case isRu ? '❌ Отмена' : '❌ Cancel': {
+          logger.info('🚫 Отмена улучшения промпта', {
+            telegram_id: ctx.from.id,
+          })
           await ctx.reply(isRu ? 'Операция отменена' : 'Operation cancelled')
           return ctx.scene.leave()
         }
 
         default: {
+          logger.warn('⚠️ Неизвестная команда', {
+            telegram_id: ctx.from.id,
+            text: text,
+          })
           await sendGenericErrorMessage(ctx, isRu)
           return ctx.scene.leave()
         }

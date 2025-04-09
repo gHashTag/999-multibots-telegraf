@@ -3,7 +3,7 @@ import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const sceneMap: Record<ModeEnum, string> = {
-  [ModeEnum.MainMenu]: ModeEnum.MenuScene,
+  [ModeEnum.AvatarBrainWizard]: 'avatar_brain_wizard',
   [ModeEnum.CreateUserScene]: 'create_user_scene',
   [ModeEnum.SubscriptionCheckScene]: 'subscription_check_scene',
   [ModeEnum.CheckBalanceScene]: 'check_balance_scene',
@@ -49,6 +49,7 @@ export const sceneMap: Record<ModeEnum, string> = {
   [ModeEnum.Help]: 'help',
   [ModeEnum.Balance]: 'balance',
   [ModeEnum.SizeWizard]: 'size_wizard',
+  [ModeEnum.Price]: 'price',
 }
 
 export async function enterScene(

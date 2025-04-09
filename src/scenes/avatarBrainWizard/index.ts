@@ -15,7 +15,7 @@ interface WizardSessionData extends Scenes.WizardSessionData {
 }
 
 export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
-  ModeEnum.Avatar,
+  ModeEnum.AvatarBrainWizard,
   async ctx => {
     const isRu = isRussian(ctx)
     await ctx.reply(

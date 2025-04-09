@@ -20,7 +20,7 @@ export const STAR_AMOUNTS = {
 export const BASE_COSTS = {
   [ModeEnum.NeuroPhoto]: 0.08,
   [ModeEnum.NeuroPhotoV2]: 0.14,
-  'neuro_photo_2': 0.14, // Legacy support
+  neuro_photo_2: 0.14, // Legacy support
   [ModeEnum.ImageToPrompt]: 0.03,
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: 0,
@@ -48,4 +48,4 @@ export const VOICE_CONVERSATION_COST = 0.5
 export const DIGITAL_AVATAR_COSTS = {
   v1: 0.1, // DigitalAvatarBody
   v2: 0.2, // DigitalAvatarBodyV2
-} as const 
+} as const

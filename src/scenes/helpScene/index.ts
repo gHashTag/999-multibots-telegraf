@@ -26,9 +26,8 @@ helpScene.enter(async ctx => {
   const mode = ctx.session.mode
   const isRu = isRussian(ctx)
   const telegram_id = ctx.from?.id?.toString() || ''
-  const { count, subscription, level } = await getReferalsCountAndUserData(
-    telegram_id
-  )
+  const { count, subscription, level } =
+    await getReferalsCountAndUserData(telegram_id)
   const newSub = subscription || 'stars'
 
   try {

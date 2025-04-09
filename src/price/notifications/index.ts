@@ -12,7 +12,7 @@ export async function sendBalanceMessage(
 ): Promise<void> {
   try {
     const message = isRu
-      ? `💰 Ваш баланс: ${balance} ${getStarsWord(balance)}`
+      ? `💰 Ваш баланс: ${balance} ${getStarsWord(balance, isRu)}`
       : `💰 Your balance: ${balance} stars`
 
     await ctx.reply(message)
@@ -38,7 +38,8 @@ export async function sendInsufficientStarsMessage(
   try {
     const message = isRu
       ? `⚠️ Недостаточно звезд на балансе. Текущий баланс: ${balance} ${getStarsWord(
-          balance
+          balance,
+          isRu
         )}`
       : `⚠️ Insufficient stars balance. Current balance: ${balance} stars`
 
@@ -64,7 +65,7 @@ export async function sendCostMessage(
 ): Promise<void> {
   try {
     const message = isRu
-      ? `💫 Стоимость операции: ${cost} ${getStarsWord(cost)}`
+      ? `💫 Стоимость операции: ${cost} ${getStarsWord(cost, isRu)}`
       : `💫 Operation cost: ${cost} stars`
 
     await ctx.reply(message)
@@ -77,4 +78,4 @@ export async function sendCostMessage(
       isRu,
     })
   }
-} 
+}

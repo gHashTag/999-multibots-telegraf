@@ -1,67 +1,50 @@
-import { TelegramId } from '../interfaces/telegram.interface'
-import { inngest } from './clients'
-import { getBotByName } from '../core/bot'
-import {
-  getUserByTelegramIdString,
-  updateUserLevelPlusOne,
-} from '../core/supabase'
-import { errorMessage } from '../helpers/error/errorMessage'
-import { errorMessageAdmin } from '../helpers/error/errorMessageAdmin'
-import { ModeEnum } from '../price/helpers/modelsCost'
-import { calculateModeCost } from '../price/helpers/calculateCost'
-import { sendBalanceMessage } from '../price/helpers'
-import { VIDEO_MODELS_CONFIG } from '../menu/videoModelMenu'
-import { v4 as uuidv4 } from 'uuid'
+import { inngest } from '@/inngest-functions/clients'
+import { getBotByName } from '@/core/bot'
+import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
+import { updateUserLevelPlusOne } from '@/core/supabase'
+import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
+import { sendBalanceMessage } from '@/price/helpers'
 import axios from 'axios'
-import { TransactionType } from '../interfaces/payments.interface'
-import { EventPayload, Inngest } from 'inngest'
-import { Telegraf } from 'telegraf'
-import { MyContext } from '../interfaces/telegram-bot.interface'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
 
 /**
  * Интерфейс события для генерации видео из изображения
  */
-interface ImageToVideoEvent {
-  name: 'image-to-video/generate'
-  data: {
-    telegram_id: string
-    bot_name: string
-    image_url: string
-    model_id?: string
-    duration?: number
-    is_ru: boolean
-    test?: {
-      skip_balance_check?: boolean
-      skip_payment?: boolean
-      skip_generation?: boolean
-      skip_sending?: boolean
-    }
+interface ImageToVideoEventData {
+  telegram_id: string
+  image_url: string
+  is_ru?: boolean
+  bot_name: string
+  model_id?: string
+  aspect_ratio?: string
+  duration?: number
+  test?: {
+    skip_balance_check?: boolean
+    skip_payment?: boolean
+    skip_generation?: boolean
+    skip_sending?: boolean
   }
 }
 
 /**
  * Результат генерации видео
  */
-interface VideoResult {
-  success: boolean
-  videoUrl?: string
-  previewUrl?: string
-  error?: string
-  operationId?: string
-  telegram_id?: string
+type VideoResult = {
+  url: string
+  duration: number
 }
 
 /**
  * Функция для генерации видео из изображения
  */
 export const imageToVideoFunction = inngest.createFunction(
-  { 
+  {
     id: 'image-to-video-generation',
-    name: 'Image to Video Generation' 
+    name: 'Image to Video Generation',
   },
   { event: 'image-to-video/generate' },
   async ({ event, step }) => {
-    const validatedParams = event.data
+    const validatedParams = event.data as ImageToVideoEventData
 
     if (!validatedParams) {
       throw new Error('🚫 Не переданы параметры')
@@ -69,11 +52,19 @@ export const imageToVideoFunction = inngest.createFunction(
 
     // Получаем информацию о пользователе
     const userResult = await step.run('get-user', async () => {
-      const user = await getUserByTelegramIdString(validatedParams.telegram_id)
+      const user = await getUserByTelegramId(validatedParams.telegram_id)
       if (!user) {
         throw new Error('🚫 Пользователь не найден')
       }
       return user
+    })
+
+    // Получаем баланс пользователя
+    const userBalance = await step.run('get-balance', async () => {
+      return await getUserBalance(
+        validatedParams.telegram_id,
+        validatedParams.bot_name
+      )
     })
 
     // Отправляем уведомление о начале генерации
@@ -85,7 +76,7 @@ export const imageToVideoFunction = inngest.createFunction(
 
       await botResult.bot.telegram.sendMessage(
         validatedParams.telegram_id,
-        validatedParams.is_ru 
+        validatedParams.is_ru
           ? '🎬 Начинаю генерацию видео...'
           : '🎬 Starting video generation...'
       )
@@ -93,94 +84,70 @@ export const imageToVideoFunction = inngest.createFunction(
 
     // Проверяем баланс
     if (!validatedParams.test?.skip_balance_check) {
-      const cost = calculateModeCost(ModeEnum.ImageToVideo).stars
+      const costResult = calculateModeCost({ mode: ModeEnum.ImageToVideo })
+      const cost = costResult.stars
 
-      if (userResult.balance < cost) {
-        const botResult = getBotByName(validatedParams.bot_name)
-        if (!botResult.bot) {
-          throw new Error('🚫 Бот не найден')
+      if (userBalance < cost) {
+        const { bot } = getBotByName(validatedParams.bot_name)
+        if (!bot) {
+          throw new Error(`Bot ${validatedParams.bot_name} not found`)
         }
-
         await sendBalanceMessage(
           validatedParams.telegram_id,
-          userResult.balance,
+          userBalance,
           cost,
-          validatedParams.is_ru,
-          botResult.bot.telegram
+          validatedParams.is_ru || false,
+          bot.telegram
         )
-        return { insufficient_balance: true }
+        return
       }
     }
 
-    // Списываем средства
+    // Обрабатываем платеж
     if (!validatedParams.test?.skip_payment) {
-      await step.run('charge-user', async () => {
-        await inngest.send({
-          name: 'payment/process',
-          data: {
-            telegram_id: validatedParams.telegram_id,
-            amount: calculateModeCost(ModeEnum.ImageToVideo).stars,
-            type: 'money_expense',
-            description: validatedParams.is_ru 
-              ? 'Генерация видео из изображения'
-              : 'Image to video generation',
-            bot_name: validatedParams.bot_name,
-            service_type: ModeEnum.ImageToVideo
-          }
-        })
+      const costResult = calculateModeCost({ mode: ModeEnum.ImageToVideo })
+      await inngest.send({
+        name: 'payment/process',
+        data: {
+          telegram_id: validatedParams.telegram_id,
+          amount: costResult.stars,
+          type: 'money_expense',
+          description: validatedParams.is_ru
+            ? 'Генерация видео из изображения'
+            : 'Image to video generation',
+          bot_name: validatedParams.bot_name,
+          service_type: ModeEnum.ImageToVideo,
+        },
       })
     }
 
     // Генерируем видео
-    let videoResult: VideoResult = { success: false }
+    let videoResult: VideoResult | null = null
 
     if (!validatedParams.test?.skip_generation) {
-      videoResult = await step.run('generate-video', async () => {
-        try {
-          const operationId = uuidv4()
-          const response = await axios.post(
-            'https://api.d-id.com/talks',
-            {
-              script: {
-                type: 'text',
-                input: 'Hello',
-                provider: {
-                  type: 'microsoft',
-                  voice_id: 'en-US-JennyNeural'
-                }
-              },
-              config: {
-                result_format: 'mp4'
-              },
-              source_url: validatedParams.image_url
-            },
-            {
-              headers: {
-                Authorization: `Basic ${process.env.D_ID_API_KEY}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          )
+      try {
+        const response = await axios.post(
+          process.env.VIDEO_API_URL + '/image-to-video',
+          {
+            image_url: validatedParams.image_url,
+            model_id: validatedParams.model_id,
+            aspect_ratio: validatedParams.aspect_ratio,
+            duration: validatedParams.duration,
+          }
+        )
 
-          return {
-            success: true,
-            videoUrl: response.data.result_url,
-            previewUrl: response.data.preview_url,
-            operationId,
-            telegram_id: validatedParams.telegram_id
-          }
-        } catch (error) {
-          console.error('Error generating video:', error)
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
+        videoResult = {
+          url: response.data.url,
+          duration: response.data.duration,
         }
-      })
+      } catch (error) {
+        console.error('Error generating video:', error)
+        throw error
+      }
     }
 
     // Отправляем результат
-    if (!validatedParams.test?.skip_sending && videoResult.videoUrl) {
+    if (!validatedParams.test?.skip_sending && videoResult) {
       await step.run('send-result', async () => {
         const botResult = getBotByName(validatedParams.bot_name)
         if (!botResult.bot) {
@@ -189,19 +156,22 @@ export const imageToVideoFunction = inngest.createFunction(
 
         await botResult.bot.telegram.sendVideo(
           validatedParams.telegram_id,
-          videoResult.videoUrl!,
+          videoResult.url,
           {
             caption: validatedParams.is_ru
               ? '✨ Ваше видео готово!'
-              : '✨ Your video is ready!'
+              : '✨ Your video is ready!',
           }
         )
 
         // Увеличиваем уровень пользователя
-        await updateUserLevelPlusOne(validatedParams.telegram_id, validatedParams.bot_name)
+        await updateUserLevelPlusOne(
+          validatedParams.telegram_id,
+          userResult.level || 0
+        )
       })
     }
 
     return videoResult
   }
-) 
+)

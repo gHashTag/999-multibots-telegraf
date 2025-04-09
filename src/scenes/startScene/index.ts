@@ -8,9 +8,7 @@ import {
 import { mainMenuButton } from '@/menu/mainMenu'
 import { BOT_URLS } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-import { isRussian } from '@/helpers/language'
-import { mainMenu } from '@/menu'
-import { TranslationCategory } from '@/interfaces/translations.interface'
+
 async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
   const botName = ctx.botInfo.username
   let postUrl = ''
@@ -52,7 +50,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     const { translation, url } = await getTranslation({
       key: 'start',
       ctx,
-      category: TranslationCategory.SPECIFIC,
+      bot_name: ctx.botInfo.username,
     })
 
     await ctx.replyWithPhoto(url || '', {
@@ -76,9 +74,8 @@ export const startScene = new Scenes.WizardScene<MyContext>(
   async (ctx: MyContext) => {
     const isRu = ctx.from?.language_code === 'ru'
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { subscription, isExist } = await getReferalsCountAndUserData(
-      telegram_id
-    )
+    const { subscription, isExist } =
+      await getReferalsCountAndUserData(telegram_id)
     console.log('isExist', isExist)
     if (!isExist) {
       await ctx.scene.enter(ModeEnum.CreateUserScene)

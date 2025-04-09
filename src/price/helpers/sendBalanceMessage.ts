@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface';
 import { MyContext } from '@/interfaces'
 import { Telegram } from 'telegraf/typings/telegram'
 

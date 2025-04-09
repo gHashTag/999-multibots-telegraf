@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
 import { Telegraf } from 'telegraf'
 import { MyContext } from './interfaces'
 import { supabase } from './core/supabase'
@@ -110,13 +109,13 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
         {
           command: 'broadcast',
           description: '📢 Broadcast / Рассылка сообщений',
-        }
+        },
       ],
       {
         scope: {
           type: 'chat',
-          chat_id: parseInt(ownerTelegramId)
-        }
+          chat_id: parseInt(ownerTelegramId),
+        },
       }
     )
 

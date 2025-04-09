@@ -21,7 +21,7 @@ import {
   neuroCoderScene,
   cancelPredictionsWizard,
   selectModelScene,
-  selectNeuroPhotoScene
+  selectNeuroPhotoScene,
 } from './scenes'
 
 export const stage = new Scenes.Stage<MyContext>([
@@ -45,5 +45,5 @@ export const stage = new Scenes.Stage<MyContext>([
   neuroCoderScene,
   cancelPredictionsWizard,
   selectModelScene,
-  selectNeuroPhotoScene
-]) 
+  selectNeuroPhotoScene,
+])

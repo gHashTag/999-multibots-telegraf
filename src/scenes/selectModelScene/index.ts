@@ -1,77 +1,75 @@
-import { Markup, Scenes } from 'telegraf'
+import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { isRussian } from '@/helpers/language'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
-export const selectModelScene = new Scenes.WizardScene<MyContext>(
-  ModeEnum.SelectModelWizard,
-  async ctx => {
-    const isRu = isRussian(ctx)
+export const selectModelScene = new Scenes.BaseScene<MyContext>('select_model')
 
-    const message = isRu
-      ? '🤖 Какую модель вы хотите обучить?\n\n' +
-        '1. FLUX - базовая модель\n' +
-        '•❗️Если вы новичок, рекомендуем использовать модель FLUX❗️\n' +
-        '• Идеальна для создания фотореалистичных изображений\n' +
-        '• Быстрая обработка\n' +
-        '• Подходит для большинства задач\n' +
-        '• Рекомендуем от 2000 шагов\n\n' +
-        '2. FLUX PRO - продвинутая модель\n' +
-        '•❗️Рекомендуется для профессионального использования ❗️\n' +
-        '• Высокий уровень детализации\n' +
-        '• Уникальный художественный стиль\n' +
-        '• Поддержка сложных текстур и эффектов\n\n'
-      : '🤖 Which model do you want to train?\n\n' +
-        '1. FLUX - basic model\n' +
-        '• ❗️If you are a beginner, we recommend using the FLUX model❗️\n' +
-        '• Perfect for photorealistic images\n' +
-        '• Fast processing\n' +
-        '• Suitable for most tasks\n' +
-        '• Recommended for 2000 steps\n' +
-        '2. FLUX PRO - advanced model\n' +
-        '• ❗️Recommended for professional use❗️\n' +
-        '• High level of detail\n' +
-        '• Unique artistic style\n' +
-        '• Supports complex textures and effects\n' +
-        '• Recommended for professional use'
+selectModelScene.enter(async ctx => {
+  logger.info('🎯 Вход в сцену выбора модели', {
+    telegram_id: ctx.from?.id,
+    mode: ctx.session?.mode,
+    current_scene: ctx.scene.current?.id,
+    selected_model: ctx.session?.selected_model,
+  })
+
+  await ctx.reply(
+    'Выберите модель для создания цифрового тела:\n\n' +
+      '1. FLUX - базовая модель\n' +
+      '2. FLUX PRO - продвинутая модель с улучшенным качеством'
+  )
+})
+
+selectModelScene.on('message', async ctx => {
+  if (!ctx.message || !('text' in ctx.message)) {
+    logger.warn('⚠️ Получено сообщение без текста', {
+      telegram_id: ctx.from?.id,
+      messageType: ctx.message ? typeof ctx.message : 'undefined',
+    })
+    await ctx.reply(
+      'Пожалуйста, отправьте текстовое сообщение с выбором модели'
+    )
+    return
+  }
+
+  logger.info('📩 Получено сообщение в сцене выбора модели', {
+    telegram_id: ctx.from?.id,
+    messageText: ctx.message.text,
+    mode: ctx.session?.mode,
+  })
+
+  const messageText = ctx.message.text.toLowerCase()
+
+  if (messageText === 'flux') {
+    logger.info('🎯 Выбрана модель FLUX', {
+      telegram_id: ctx.from?.id,
+      previousMode: ctx.session?.mode,
+      selected_model: 'FLUX',
+    })
+
+    ctx.session.selected_model = 'FLUX'
+    ctx.session.mode = ModeEnum.TextToImage
+    await ctx.scene.enter('check_balance')
+  } else if (messageText === 'flux pro') {
+    logger.info('🎯 Выбрана модель FLUX PRO', {
+      telegram_id: ctx.from?.id,
+      previousMode: ctx.session?.mode,
+      selected_model: 'FLUX PRO',
+    })
+
+    ctx.session.selected_model = 'FLUX PRO'
+    ctx.session.mode = ModeEnum.TextToImage
+    await ctx.scene.enter('check_balance')
+  } else {
+    logger.warn('⚠️ Выбрана неверная модель', {
+      telegram_id: ctx.from?.id,
+      messageText: ctx.message.text,
+    })
 
     await ctx.reply(
-      message,
-      Markup.keyboard([isRu ? ['FLUX', 'FLUX PRO'] : ['FLUX', 'FLUX PRO']])
-        .oneTime()
-        .resize()
+      'Пожалуйста, выберите одну из доступных моделей:\nFLUX или FLUX PRO'
     )
-
-    return ctx.wizard.next()
-  },
-  async ctx => {
-    const isRu = isRussian(ctx)
-
-    if (ctx.message && 'text' in ctx.message) {
-      const modelChoice = ctx.message.text.toLowerCase()
-
-      if (modelChoice.includes('flux pro')) {
-        ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-        await ctx.scene.enter('checkBalanceScene')
-        return
-      } else if (modelChoice.includes('flux')) {
-        ctx.session.mode = ModeEnum.DigitalAvatarBody
-        await ctx.scene.enter('checkBalanceScene')
-        return
-      }
-    }
-
-    const isCancel = await handleHelpCancel(ctx)
-
-    if (!isCancel) {
-      await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, выберите модель (FLUX или FLUX PRO)'
-          : '❌ Please select a model (FLUX or FLUX PRO)'
-      )
-    }
-
-    return ctx.scene.leave()
   }
-)
+})
+
+export default selectModelScene
