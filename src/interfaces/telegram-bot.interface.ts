@@ -19,7 +19,7 @@ export interface SessionData {
   model_type: ModelUrl
   selectedSize: string
   userModel: UserModel
-  mode: Mode
+  mode: Mode | null
   videoModel: string
   imageUrl: string
   amount: number

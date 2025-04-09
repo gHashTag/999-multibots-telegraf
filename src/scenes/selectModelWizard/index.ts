@@ -5,9 +5,10 @@ import { sendGenericErrorMessage } from '@/menu'
 import { isRussian } from '@/helpers/language'
 import { getUserByTelegramIdString, setModel } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'
-import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+import { updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-
+import { logger } from '@/utils/logger'
+//
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.SelectModelWizard,
   async ctx => {
@@ -104,17 +105,21 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      const userExists = await getUserByTelegramIdString(telegramId)
+      // Сохраняем выбранную модель в сессии
+      ctx.session.selectedModel = model
 
-      if (!userExists) {
-        throw new Error(`User with ID ${telegramId} does not exist.`)
-      }
-      const level = userExists.level
-      if (level === 5) {
-        await updateUserLevelPlusOne(telegramId, level)
-      }
-      ctx.scene.enter('chat_with_avatar')
-      return
+      // Устанавливаем режим DigitalAvatarBody
+      ctx.session.mode = ModeEnum.DigitalAvatarBody
+
+      logger.info('✅ Модель выбрана, переход к проверке баланса', {
+        description: 'Model selected, transitioning to balance check',
+        telegram_id: telegramId,
+        selected_model: model,
+        new_mode: ctx.session.mode
+      })
+
+      // Переходим к проверке баланса
+      return ctx.scene.enter('check_balance')
     }
   }
 )

@@ -41,6 +41,7 @@ export enum ModeEnum {
   TopUpBalance = 'top_up_balance',
   VideoInUrl = 'video_in_url',
   Tech = 'tech',
+  Price = 'price',
   Stats = 'stats',
   BroadcastWizard = 'broadcast_wizard',
   SubscriptionCheckScene = 'subscription_check_scene',
@@ -95,6 +96,8 @@ const BASE_COSTS: BaseCosts = {
   [ModeEnum.TextToImage]: 0.08,
   [ModeEnum.LipSync]: 0.9,
   [ModeEnum.VoiceToText]: 0.08,
+  [ModeEnum.DigitalAvatarBody]: 0,
+  [ModeEnum.DigitalAvatarBodyV2]: 0,
 }
 
 export function calculateModeCost(
@@ -136,10 +139,6 @@ export function calculateModeCost(
       } else {
         stars = (baseCostInDollars / starCost) * numImages
       }
-    }
-
-    if (mode === ModeEnum.VoiceToText) {
-      stars = 5
     }
 
     stars = parseFloat(stars.toFixed(2))

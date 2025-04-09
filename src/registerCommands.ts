@@ -306,8 +306,7 @@ export function registerCommands({
       description: 'Digital avatar body selected',
       level: levels[1].title_ru,
     })
-    ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-    await ctx.scene.enter(ModeEnum.SelectModelWizard)
+    await ctx.scene.enter('select_model')
   })
 
   composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {

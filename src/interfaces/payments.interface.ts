@@ -160,6 +160,7 @@ export const DETAILED_TRANSACTION_DESCRIPTIONS: Record<
     [ModeEnum.TextToVideo]:
       '🎬 Пополнение баланса для создания видео из текста',
     [ModeEnum.ImageToPrompt]: '🔍 Пополнение баланса для анализа изображения',
+    [ModeEnum.Price]: '💰 Просмотр цен и тарифов',
     default: '💰 Пополнение баланса',
   },
   money_expense: {
@@ -174,6 +175,7 @@ export const DETAILED_TRANSACTION_DESCRIPTIONS: Record<
     [ModeEnum.Voice]: '🗣️ Голосовой аватар',
     [ModeEnum.TextToVideo]: '🎬 Создание видео из текста',
     [ModeEnum.ImageToPrompt]: '🔍 Анализ изображения',
+    [ModeEnum.Price]: '💰 Просмотр цен и тарифов',
     default: '💸 Списание средств',
   },
   subscription_purchase: {
@@ -272,6 +274,7 @@ export const COMMAND_TO_SERVICE_MAP: Partial<Record<ModeEnum, ContentService>> =
     [ModeEnum.ChatWithAvatar]: ModeEnum.ChatWithAvatar,
     [ModeEnum.LipSync]: ModeEnum.LipSync,
     [ModeEnum.Voice]: ModeEnum.Voice,
+    [ModeEnum.Price]: ModeEnum.Price,
   } as const
 
 /**
@@ -607,7 +610,14 @@ export const SERVICE_DESCRIPTIONS: Record<
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },
-} as const
+  price: {
+    expense: () => `💰 Просмотр цен и тарифов`,
+    income: (amount: number) => `💰 Пополнение баланса на ${amount} звезд`,
+  },
+} as const satisfies Record<
+  ModeEnum,
+  { expense: (amount: number) => string; income: (amount: number) => string }
+>
 
 /**
  * Получает правильное склонение слова "звезда" в зависимости от количества
