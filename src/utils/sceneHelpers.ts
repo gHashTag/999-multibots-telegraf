@@ -3,6 +3,7 @@ import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export const sceneMap: Record<ModeEnum, string> = {
+  [ModeEnum.AvatarBrainWizard]: 'avatar_brain_wizard',
   [ModeEnum.MainMenu]: 'menu_scene',
   [ModeEnum.CreateUserScene]: 'create_user_scene',
   [ModeEnum.SubscriptionCheckScene]: 'subscription_check_scene',

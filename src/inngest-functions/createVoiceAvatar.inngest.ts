@@ -5,7 +5,7 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { supabase } from '@/core/supabase'
-import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
+import { createVoiceElevenLabs } from '@/core/elevenlabs'
 
 import { getBotByName } from '@/core/bot'
 import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
@@ -141,8 +141,10 @@ export const createVoiceAvatarFunction = inngest.createFunction(
           })
 
           const voiceId = await createVoiceElevenLabs({
+            name: validatedParams.username,
+            description: `Voice avatar for ${validatedParams.username}`,
             fileUrl: validatedParams.fileUrl,
-            username: validatedParams.username,
+            labels: 'neutral accent',
           })
 
           if (!voiceId) {

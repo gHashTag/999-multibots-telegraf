@@ -235,11 +235,11 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter('voice')
     case ModeEnum.TextToSpeech:
       logger.info({
-        message: '🔄 Переход к сцене text_to_speech',
-        description: 'Switching to text_to_speech scene',
+        message: '🔄 Переход к сцене TextToSpeech',
+        description: 'Switching to TextToSpeech scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('text_to_speech')
+      return ctx.scene.enter(ModeEnum.TextToSpeech)
     case ModeEnum.ImageToVideo:
       logger.info({
         message: '🔄 Переход к сцене image_to_video',

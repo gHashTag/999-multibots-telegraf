@@ -4,7 +4,7 @@ import {
   supabase,
   updateUserLevelPlusOne,
 } from '@/core/supabase'
-import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
+import { createVoiceElevenLabs } from '@/core/elevenlabs'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
@@ -39,8 +39,10 @@ export async function createVoiceAvatar(
     )
 
     const voiceId = await createVoiceElevenLabs({
+      name: username,
+      description: `Voice avatar for ${username}`,
       fileUrl,
-      username,
+      labels: 'neutral accent',
     })
 
     console.log('📣 Получен voiceId:', {

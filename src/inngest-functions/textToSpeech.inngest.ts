@@ -10,7 +10,7 @@ import { InputFile } from 'telegraf/typings/core/types/typegram'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { sendBalanceMessage } from '@/price/helpers'
 import { v4 as uuidv4 } from 'uuid'
-import { elevenlabs } from '@/core/elevenlabs'
+import { elevenLabsService } from '@/core/elevenlabs'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 
 import { createWriteStream } from 'fs'
@@ -37,7 +37,7 @@ type SpeechResult =
   | { success: true; audioBuffer: Buffer | BufferLike }
   | { success: false; error: Error }
 
-export const textToSpeech = inngest.createFunction(
+export const textToSpeechFunction = inngest.createFunction(
   {
     name: 'text-to-speech-generation',
     id: 'text-to-speech',
@@ -124,15 +124,14 @@ export const textToSpeech = inngest.createFunction(
           console.log('🎯 Запрос к ElevenLabs API:', {
             description: 'Making request to ElevenLabs API',
             voice_id: params.voice_id,
-            model: 'eleven_turbo_v2_5',
+            model: 'eleven_multilingual_v2',
             text_length: params.text.length,
           })
 
-          const audioStream = await elevenlabs.generate({
-            voice: params.voice_id,
-            model_id: 'eleven_turbo_v2_5',
-            text: params.text,
-          })
+          const audioStream = await elevenLabsService.generateSpeech(
+            params.text,
+            params.voice_id
+          )
 
           console.log('✅ Получен ответ от ElevenLabs API:', {
             description: 'Received response from ElevenLabs API',
@@ -153,7 +152,14 @@ export const textToSpeech = inngest.createFunction(
               path: audioUrl,
             })
 
-            audioStream.pipe(writeStream)
+            // Обработка ошибок потока
+            audioStream.on('error', error => {
+              console.error('🔥 Ошибка аудио потока:', {
+                description: 'Audio stream error',
+                error: error.message,
+              })
+              reject(error)
+            })
 
             writeStream.on('error', error => {
               console.error('🔥 Ошибка записи файла:', {
@@ -164,7 +170,8 @@ export const textToSpeech = inngest.createFunction(
               reject(error)
             })
 
-            writeStream.on('finish', () => {
+            // Pipe с обработкой событий
+            audioStream.pipe(writeStream).on('finish', () => {
               try {
                 console.log('✅ Аудио файл создан:', {
                   description: 'Audio file created',

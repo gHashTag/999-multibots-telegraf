@@ -107,6 +107,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   text?: string
   language_code: string
   targetScene: Mode
+  is_ru: boolean
   selectedPayment: {
     amount: number
     stars: number

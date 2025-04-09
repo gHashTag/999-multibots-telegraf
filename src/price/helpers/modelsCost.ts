@@ -36,6 +36,7 @@ export enum ModeEnum {
   Invite = 'invite',
   Help = 'help',
   MainMenu = 'main_menu',
+  Avatar = 'avatar',
   Balance = 'balance',
   ImprovePrompt = 'improve_prompt',
   TopUpBalance = 'top_up_balance',

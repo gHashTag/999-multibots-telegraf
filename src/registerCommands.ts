@@ -853,7 +853,11 @@ export function registerCommands({
         return enterScene(ctx, ModeEnum.ChatWithAvatar, telegramId)
       case 'voice':
         return enterScene(ctx, ModeEnum.Voice, telegramId)
-      case 'text_to_speech':
+      case ModeEnum.TextToSpeech:
+        logger.info('🎙️ Переход к генерации речи:', {
+          description: 'Switching to text-to-speech generation',
+          telegram_id: telegramId,
+        })
         return enterScene(ctx, ModeEnum.TextToSpeech, telegramId)
       case 'image_to_video':
         return enterScene(ctx, ModeEnum.ImageToVideo, telegramId)

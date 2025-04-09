@@ -10,7 +10,7 @@ export function registerHearsActions(bot: Telegraf<MyContext>) {
     async (ctx: MyContext) => {
       console.log('CASE bot: 🎙️ Текст в голос')
       ctx.session.mode = ModeEnum.TextToSpeech
-      await ctx.scene.enter('text_to_speech')
+      await ctx.scene.enter(ModeEnum.TextToSpeech)
     }
   )
 
