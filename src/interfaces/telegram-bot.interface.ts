@@ -80,7 +80,7 @@ export interface Memory {
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   memory?: Memory
   email: string
-  selectedModel: string
+  selected_model: string
   prompt: string
   selectedSize: string
   userModel: UserModel

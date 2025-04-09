@@ -132,7 +132,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     // Обработка кнопок "Улучшить промпт" и "Изменить размер"
     if (text === '⬆️ Улучшить промпт' || text === '⬆️ Improve prompt') {
       console.log('CASE: Улучшить промпт')
-      await ctx.scene.enter('improvePromptWizard')
+      await ctx.scene.enter(ModeEnum.ImprovePrompt)
       return
     }
 
@@ -171,6 +171,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         ctx,
         ctx.botInfo?.username
       )
+      ctx.session.mode = ModeEnum.NeuroPhoto
     }
 
     if (numImages >= 1 && numImages <= 4) {

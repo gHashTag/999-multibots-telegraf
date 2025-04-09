@@ -508,8 +508,8 @@ export function registerCommands({
     logger.info('ctx.session.mode:', { mode: ctx.session.mode })
     logger.info('ctx.session.prompt:', { prompt })
     logger.info('ctx.session.userModel:', { userModel: ctx.session.userModel })
-    logger.info('ctx.session.selectedModel:', {
-      selectedModel: ctx.session.selectedModel,
+    logger.info('ctx.session.selected_model:', {
+      selectedModel: ctx.session.selected_model,
     })
 
     // Проверяем наличие необходимых данных
@@ -542,7 +542,7 @@ export function registerCommands({
           ctx.botInfo?.username
         )
       } else {
-        if (!ctx.session.selectedModel) {
+        if (!ctx.session.selected_model) {
           await ctx.reply(
             isRu
               ? '⚠️ Ошибка: модель не выбрана. Пожалуйста, начните сначала.'
@@ -553,7 +553,7 @@ export function registerCommands({
 
         logger.info('Вызов generateTextToImage с параметрами:', {
           prompt,
-          model: ctx.session.selectedModel,
+          model: ctx.session.selected_model,
           numImages: num,
           userId: userId.toString(),
           isRu,
@@ -562,7 +562,7 @@ export function registerCommands({
 
         await generateTextToImage(
           prompt,
-          ctx.session.selectedModel || '',
+          ctx.session.selected_model || '',
           num,
           userId.toString(),
           isRu,
@@ -594,8 +594,8 @@ export function registerCommands({
     logger.info('ctx.session.mode:', { mode: ctx.session.mode })
     logger.info('ctx.session.prompt:', { prompt })
     logger.info('ctx.session.userModel:', { userModel: ctx.session.userModel })
-    logger.info('ctx.session.selectedModel:', {
-      selectedModel: ctx.session.selectedModel,
+    logger.info('ctx.session.selected_model:', {
+      selectedModel: ctx.session.selected_model,
     })
 
     // Проверяем наличие необходимых данных
@@ -628,7 +628,7 @@ export function registerCommands({
           ctx.botInfo?.username
         )
       } else {
-        if (!ctx.session.selectedModel) {
+        if (!ctx.session.selected_model) {
           await ctx.reply(
             isRu
               ? '⚠️ Ошибка: модель не выбрана. Пожалуйста, начните сначала.'
@@ -639,7 +639,7 @@ export function registerCommands({
 
         logger.info('Вызов generateTextToImage с параметрами:', {
           prompt,
-          model: ctx.session.selectedModel,
+          model: ctx.session.selected_model,
           numImages: num,
           userId: userId.toString(),
           isRu,
@@ -648,7 +648,7 @@ export function registerCommands({
 
         await generateTextToImage(
           prompt,
-          ctx.session.selectedModel || '',
+          ctx.session.selected_model || '',
           num,
           userId.toString(),
           isRu,
