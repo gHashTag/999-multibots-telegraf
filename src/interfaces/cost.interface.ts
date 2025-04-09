@@ -1,7 +1,6 @@
 import { VideoModel } from '@/interfaces'
 import { ModeEnum } from '../price/helpers/modelsCost'
 
-
 export interface VideoModelConfig {
   name: VideoModel
   title: string

@@ -2,51 +2,134 @@ import { MyContext } from '@/interfaces'
 import { ModeEnum, calculateModeCost } from '@/price/helpers'
 import { logger } from '@/utils/logger'
 
-export async function priceCommand(ctx: MyContext) {
-  const isRu = ctx.from?.language_code === 'ru'
+/** Диапазон цен с минимальным и максимальным значением */
+type PriceRange = { min: number; max: number }
 
-  // Рассчитываем стоимость для разных количеств шагов
-  const stepsRange = {
-    min: 1000,
-    max: 6000,
-    step: 1000,
-  }
+/** Цены для разных режимов */
+type Prices = Record<string, number | PriceRange>
 
-  // Получаем стоимость для каждого режима
-  const prices = Object.entries(ModeEnum).reduce((acc, [key, mode]) => {
-    // Для режимов с шагами рассчитываем диапазон цен
-    if (
-      mode === ModeEnum.DigitalAvatarBody ||
-      mode === ModeEnum.DigitalAvatarBodyV2
-    ) {
-      const minStepsCost = calculateModeCost({
-        mode,
-        steps: stepsRange.min,
-      }).stars
-      const maxStepsCost = calculateModeCost({
-        mode,
-        steps: stepsRange.max,
-      }).stars
-      acc[mode] = { min: minStepsCost, max: maxStepsCost }
-    } else {
-      // Для остальных режимов считаем обычную стоимость
-      const result = calculateModeCost({ mode })
-      acc[mode] = result.stars
-    }
-    return acc
-  }, {} as Record<string, number | { min: number; max: number }>)
+/** Категории услуг */
+type ServiceCategory = {
+  emoji: string
+  title: { ru: string; en: string }
+  services: Array<{
+    mode: ModeEnum
+    name: { ru: string; en: string }
+  }>
+}
 
-  logger.info('💰 Расчет стоимости услуг', {
-    description: 'Calculating service costs',
-    prices,
-    telegram_id: ctx.from?.id,
-  })
+/** Конфигурация шагов для обучения модели */
+const STEPS_RANGE = {
+  min: 1000,
+  max: 6000,
+  step: 1000,
+} as const
 
-  // Создаем таблицу стоимости шагов
+/** Категории услуг с локализацией */
+const SERVICE_CATEGORIES: ServiceCategory[] = [
+  {
+    emoji: '🤖',
+    title: { ru: 'Нейросети', en: 'Neural Networks' },
+    services: [
+      {
+        mode: ModeEnum.NeuroPhoto,
+        name: { ru: 'Нейрофото', en: 'NeuroPhoto' },
+      },
+      {
+        mode: ModeEnum.NeuroPhotoV2,
+        name: {
+          ru: 'Нейрофото V2 (улучшенное)',
+          en: 'NeuroPhoto V2 (enhanced)',
+        },
+      },
+      {
+        mode: ModeEnum.ImageToPrompt,
+        name: { ru: 'Генерация промпта', en: 'Prompt Generation' },
+      },
+    ],
+  },
+  {
+    emoji: '🎭',
+    title: { ru: 'Аватары', en: 'Avatars' },
+    services: [
+      {
+        mode: ModeEnum.DigitalAvatarBody,
+        name: { ru: 'Обучение модели V1', en: 'Model Training V1' },
+      },
+      {
+        mode: ModeEnum.DigitalAvatarBodyV2,
+        name: { ru: 'Обучение модели V2', en: 'Model Training V2' },
+      },
+      {
+        mode: ModeEnum.ChatWithAvatar,
+        name: { ru: 'Чат с аватаром', en: 'Chat with Avatar' },
+      },
+      {
+        mode: ModeEnum.Avatar,
+        name: { ru: 'Базовый аватар', en: 'Basic Avatar' },
+      },
+    ],
+  },
+  {
+    emoji: '🎬',
+    title: { ru: 'Видео и аудио', en: 'Video & Audio' },
+    services: [
+      {
+        mode: ModeEnum.TextToVideo,
+        name: { ru: 'Текст в видео', en: 'Text to Video' },
+      },
+      {
+        mode: ModeEnum.ImageToVideo,
+        name: { ru: 'Изображение в видео', en: 'Image to Video' },
+      },
+      {
+        mode: ModeEnum.LipSync,
+        name: { ru: 'Синхронизация губ', en: 'Lip Sync' },
+      },
+      {
+        mode: ModeEnum.Voice,
+        name: { ru: 'Голос', en: 'Voice' },
+      },
+      {
+        mode: ModeEnum.TextToSpeech,
+        name: { ru: 'Текст в речь', en: 'Text to Speech' },
+      },
+    ],
+  },
+  {
+    emoji: '🎨',
+    title: { ru: 'Изображения', en: 'Images' },
+    services: [
+      {
+        mode: ModeEnum.TextToImage,
+        name: { ru: 'Текст в изображение', en: 'Text to Image' },
+      },
+    ],
+  },
+]
+
+/**
+ * Форматирует цену для отображения
+ * @param mode Режим услуги
+ * @param prices Объект с ценами
+ * @returns Отформатированная цена
+ */
+function formatPrice(mode: ModeEnum, prices: Prices): string {
+  const price = prices[mode]
+  if (typeof price === 'number') return price.toString()
+  return `${price.min} - ${price.max}`
+}
+
+/**
+ * Генерирует таблицу стоимости шагов
+ * @param isRu Флаг русского языка
+ * @returns Текст таблицы
+ */
+function generateStepsTable(isRu: boolean): string {
   const stepsTable = Array.from(
-    { length: (stepsRange.max - stepsRange.min) / stepsRange.step + 1 },
+    { length: (STEPS_RANGE.max - STEPS_RANGE.min) / STEPS_RANGE.step + 1 },
     (_, i) => {
-      const steps = stepsRange.min + i * stepsRange.step
+      const steps = STEPS_RANGE.min + i * STEPS_RANGE.step
       const costV1 = calculateModeCost({
         mode: ModeEnum.DigitalAvatarBody,
         steps,
@@ -59,85 +142,86 @@ export async function priceCommand(ctx: MyContext) {
     }
   )
 
-  const stepsTableText = isRu
-    ? stepsTable
-        .map(
-          ({ steps, costV1, costV2 }) =>
-            `• ${steps} шагов: ${costV1} ⭐️ (V1) / ${costV2} ⭐️ (V2)`
-        )
-        .join('\n')
-    : stepsTable
-        .map(
-          ({ steps, costV1, costV2 }) =>
-            `• ${steps} steps: ${costV1} ⭐️ (V1) / ${costV2} ⭐️ (V2)`
-        )
-        .join('\n')
+  return stepsTable
+    .map(({ steps, costV1, costV2 }) =>
+      isRu
+        ? `• ${steps} шагов: ${costV1} ⭐️ (V1) / ${costV2} ⭐️ (V2)`
+        : `• ${steps} steps: ${costV1} ⭐️ (V1) / ${costV2} ⭐️ (V2)`
+    )
+    .join('\n')
+}
 
-  const message = isRu
-    ? `
-<b>💰 Прайс-лист на услуги:</b>
+/**
+ * Генерирует сообщение с ценами
+ * @param isRu Флаг русского языка
+ * @param prices Объект с ценами
+ * @returns Отформатированное сообщение
+ */
+function generatePriceMessage(isRu: boolean, prices: Prices): string {
+  const title = isRu ? '💰 Прайс-лист на услуги:' : '💰 Service Price List:'
+  const stepsTitle = isRu
+    ? '📊 Стоимость обучения модели (шаги):'
+    : '📊 Model Training Cost (steps):'
+  const buyCommand = isRu
+    ? '💵 Пополнить баланс: /buy'
+    : '💵 Top up balance: /buy'
 
-🤖 Нейросети:
-• Нейрофото (NeuroPhoto): ${prices[ModeEnum.NeuroPhoto]} ⭐️
-• Нейрофото V2 (улучшенное): ${prices[ModeEnum.NeuroPhotoV2]} ⭐️
-• Генерация промпта: ${prices[ModeEnum.ImageToPrompt]} ⭐️
+  const categoriesText = SERVICE_CATEGORIES.map(category => {
+    const categoryTitle = `${category.emoji} ${isRu ? category.title.ru : category.title.en}:`
+    const servicesText = category.services
+      .map(service => {
+        const name = isRu ? service.name.ru : service.name.en
+        const price = formatPrice(service.mode, prices)
+        return `• ${name}: ${price} ⭐️`
+      })
+      .join('\n')
+    return `${categoryTitle}\n${servicesText}`
+  }).join('\n\n')
 
-🎭 Аватары:
-• Обучение модели V1: ${(prices[ModeEnum.DigitalAvatarBody] as any).min} - ${
-        (prices[ModeEnum.DigitalAvatarBody] as any).max
-      } ⭐️
-• Обучение модели V2: ${(prices[ModeEnum.DigitalAvatarBodyV2] as any).min} - ${
-        (prices[ModeEnum.DigitalAvatarBodyV2] as any).max
-      } ⭐️
-• Чат с аватаром: ${prices[ModeEnum.ChatWithAvatar]} ⭐️
-• Базовый аватар: ${prices[ModeEnum.Avatar]} ⭐️
+  const stepsTable = generateStepsTable(isRu)
 
-📊 Стоимость обучения модели (шаги):
-${stepsTableText}
+  return `
+<b>${title}</b>
 
-🎬 Видео и аудио:
-• Текст в видео: ${prices[ModeEnum.TextToVideo]} ⭐️
-• Изображение в видео: ${prices[ModeEnum.ImageToVideo]} ⭐️
-• Синхронизация губ: ${prices[ModeEnum.LipSync]} ⭐️
-• Голос: ${prices[ModeEnum.Voice]} ⭐️
-• Текст в речь: ${prices[ModeEnum.TextToSpeech]} ⭐️
+${categoriesText}
 
-🎨 Изображения:
-• Текст в изображение: ${prices[ModeEnum.TextToImage]} ⭐️
+${stepsTitle}
+${stepsTable}
 
-💵 Пополнить баланс: /buy`
-    : `
-<b>💰 Service Price List:</b>
+${buyCommand}`
+}
 
-🤖 Neural Networks:
-• NeuroPhoto: ${prices[ModeEnum.NeuroPhoto]} ⭐️
-• NeuroPhoto V2 (enhanced): ${prices[ModeEnum.NeuroPhotoV2]} ⭐️
-• Prompt Generation: ${prices[ModeEnum.ImageToPrompt]} ⭐️
+export async function priceCommand(ctx: MyContext) {
+  const isRu = ctx.from?.language_code === 'ru'
 
-🎭 Avatars:
-• Model Training V1: ${(prices[ModeEnum.DigitalAvatarBody] as any).min} - ${
-        (prices[ModeEnum.DigitalAvatarBody] as any).max
-      } ⭐️
-• Model Training V2: ${(prices[ModeEnum.DigitalAvatarBodyV2] as any).min} - ${
-        (prices[ModeEnum.DigitalAvatarBodyV2] as any).max
-      } ⭐️
-• Chat with Avatar: ${prices[ModeEnum.ChatWithAvatar]} ⭐️
-• Basic Avatar: ${prices[ModeEnum.Avatar]} ⭐️
+  // Рассчитываем цены для всех режимов
+  const prices = Object.entries(ModeEnum).reduce((acc, [, mode]) => {
+    if (
+      mode === ModeEnum.DigitalAvatarBody ||
+      mode === ModeEnum.DigitalAvatarBodyV2
+    ) {
+      const minStepsCost = calculateModeCost({
+        mode,
+        steps: STEPS_RANGE.min,
+      }).stars
+      const maxStepsCost = calculateModeCost({
+        mode,
+        steps: STEPS_RANGE.max,
+      }).stars
+      acc[mode] = { min: minStepsCost, max: maxStepsCost }
+    } else {
+      const result = calculateModeCost({ mode })
+      acc[mode] = result.stars
+    }
+    return acc
+  }, {} as Prices)
 
-📊 Model Training Cost (steps):
-${stepsTableText}
+  logger.info('💰 Расчет стоимости услуг', {
+    description: 'Calculating service costs',
+    prices,
+    telegram_id: ctx.from?.id,
+  })
 
-🎬 Video & Audio:
-• Text to Video: ${prices[ModeEnum.TextToVideo]} ⭐️
-• Image to Video: ${prices[ModeEnum.ImageToVideo]} ⭐️
-• Lip Sync: ${prices[ModeEnum.LipSync]} ⭐️
-• Voice: ${prices[ModeEnum.Voice]} ⭐️
-• Text to Speech: ${prices[ModeEnum.TextToSpeech]} ⭐️
-
-🎨 Images:
-• Text to Image: ${prices[ModeEnum.TextToImage]} ⭐️
-
-💵 Top up balance: /buy`
-
+  const message = generatePriceMessage(isRu, prices)
   await ctx.reply(message, { parse_mode: 'HTML' })
 }

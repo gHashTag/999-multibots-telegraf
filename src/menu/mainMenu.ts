@@ -123,7 +123,7 @@ export async function mainMenu({
     description: 'Starting main menu creation',
     subscription,
     level,
-    has_additional_buttons: additionalButtons.length > 0
+    has_additional_buttons: additionalButtons.length > 0,
   })
 
   console.log('💻 CASE: mainMenu')
@@ -151,7 +151,9 @@ export async function mainMenu({
   logger.info('📋 Определение доступных уровней', {
     description: 'Determining available levels',
     subscription,
-    available_levels_count: subscriptionLevelsMap[subscription as keyof typeof subscriptionLevelsMap]?.length || 0
+    available_levels_count:
+      subscriptionLevelsMap[subscription as keyof typeof subscriptionLevelsMap]
+        ?.length || 0,
   })
 
   // Получаем основные кнопки для текущей подписки
@@ -163,14 +165,14 @@ export async function mainMenu({
     description: 'Checking neurophoto specific levels',
     subscription,
     level,
-    is_neurophoto_with_level_3: subscription === 'neurophoto' && level >= 3
+    is_neurophoto_with_level_3: subscription === 'neurophoto' && level >= 3,
   })
 
   // Для neurophoto при уровне 3 добавляем дополнительные кнопки
   if (subscription === 'neurophoto' && level >= 3) {
     logger.info('➕ Добавление дополнительных кнопок для neurophoto', {
       description: 'Adding extra buttons for neurophoto',
-      additional_buttons_count: additionalButtons.length
+      additional_buttons_count: additionalButtons.length,
     })
 
     availableLevels = [
@@ -186,7 +188,7 @@ export async function mainMenu({
     description: 'Filtering levels by subscription',
     subscription,
     is_full_access: ['neurotester', 'neurobase'].includes(subscription),
-    available_levels_before: availableLevels.length
+    available_levels_before: availableLevels.length,
   })
 
   // Для подписок с полным доступом не фильтруем по уровню
@@ -205,7 +207,7 @@ export async function mainMenu({
   logger.info('🎮 Формирование кнопок меню', {
     description: 'Creating menu buttons',
     available_levels_after_filter: availableLevels.length,
-    buttons: availableLevels.map(l => isRu ? l.title_ru : l.title_en)
+    buttons: availableLevels.map(l => (isRu ? l.title_ru : l.title_en)),
   })
 
   // Формируем кнопки
@@ -222,7 +224,7 @@ export async function mainMenu({
   logger.info('✅ Завершение формирования меню', {
     description: 'Menu creation completed',
     total_rows: buttonRows.length,
-    total_buttons: buttons.length
+    total_buttons: buttons.length,
   })
 
   console.log(

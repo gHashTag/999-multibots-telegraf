@@ -1,14 +1,13 @@
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/logger'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { levels } from '@/menu/mainMenu'
-import { isRussian } from '@/helpers/language'
+import { isRussian } from '@/helpers'
 import { priceCommand } from '@/commands/priceCommand'
 import { handleTechSupport } from '@/commands/handleTechSupport'
 import { mainMenuButton } from '@/menu/mainMenu'
 import { get100Command } from '@/commands'
 import { getStatsCommand } from '@/commands/stats'
-import { ModeEnum } from '@/price/helpers/modelsCost'
-import { logger } from '@/utils/logger'
-import { Telegraf } from 'telegraf'
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
@@ -25,108 +24,29 @@ export const handleMenu = async (ctx: MyContext) => {
         ctx.session.mode = ModeEnum.SubscriptionScene
         await ctx.scene.enter(ModeEnum.SubscriptionScene)
       },
-      [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
-        logger.info('🎯 Начало обработки цифрового тела', {
-          description: 'Starting digital body handler',
-          telegram_id: ctx.from?.id,
-          current_mode: ctx.session?.mode,
-          current_scene: ctx.scene?.current?.id,
-          action: 'digital_body_start'
-        })
-
-        console.log('CASE: 🤖 Цифровое тело')
-        
-        // Сохраняем состояние до очистки для логов
-        logger.info('📊 Состояние до очистки', {
-          description: 'Session state before cleanup',
+      [levels[1].title_ru]: async () => {
+        logger.info('🤖 Автоматический выбор модели FLUX', {
+          description: 'Auto-selecting FLUX model',
           telegram_id: ctx.from?.id,
           previous_mode: ctx.session?.mode,
-          previous_model: ctx.session?.selectedModel,
-          previous_scene: ctx.scene?.current?.id,
-          action: 'pre_cleanup_state'
+          new_mode: ModeEnum.DigitalAvatarBody,
+          action: 'auto_select_flux',
         })
-        
-        // Очищаем контекст сессии
-        logger.info('🧹 Очистка контекста сессии', {
-          description: 'Clearing session context',
+        console.log('CASE: 🤖 Цифровое тело (Auto FLUX)')
+
+        // Автоматически устанавливаем FLUX
+        ctx.session.selectedModel = 'FLUX'
+        ctx.session.mode = ModeEnum.DigitalAvatarBody
+
+        logger.info('✅ Модель установлена автоматически', {
+          description: 'Model set automatically',
           telegram_id: ctx.from?.id,
-          previous_mode: ctx.session?.mode,
-          previous_model: ctx.session?.selectedModel
-        })
-        
-        // Сохраняем только важные данные и сбрасываем остальное
-        const { subscription } = ctx.session
-        ctx.session = {
-          subscription,
-          mode: ModeEnum.SelectModel,
-          selectedModel: '',
-          // Добавляем обязательные поля из MySession с пустыми значениями
-          memory: undefined,
-          email: '',
-          prompt: '',
-          selectedSize: '',
-          userModel: {
-            model_name: '',
-            trigger_word: '',
-            model_url: 'default/model:latest'
-          },
-          numImages: 0,
-          telegram_id: ctx.from?.id?.toString() || '',
-          attempts: 0,
-          videoModel: '',
-          imageUrl: '',
-          videoUrl: '',
-          audioUrl: '',
-          amount: 0,
-          images: [],
-          modelName: '',
-          targetUserId: 0,
-          username: '',
-          triggerWord: '',
-          steps: 0,
-          inviter: '',
-          inviteCode: '',
-          invoiceURL: '',
-          buttons: [],
-          language_code: '',
-          targetScene: ModeEnum.SelectModel,
-          selectedPayment: {
-            amount: 0,
-            stars: 0
-          }
-        }
-        
-        logger.info('📊 Состояние после очистки', {
-          description: 'Session state after cleanup',
-          telegram_id: ctx.from?.id,
-          new_mode: ctx.session.mode,
-          new_model: ctx.session.selectedModel,
-          new_target_scene: ctx.session.targetScene,
-          action: 'post_cleanup_state'
+          selected_model: ctx.session?.selectedModel,
+          mode: ctx.session?.mode,
+          action: 'model_auto_set',
         })
 
-        logger.info('🔄 Подготовка к переходу в select_model', {
-          description: 'Preparing to enter select_model scene',
-          telegram_id: ctx.from?.id,
-          current_mode: ctx.session.mode,
-          selected_model: ctx.session.selectedModel,
-          current_scene: ctx.scene?.current?.id,
-          target_scene: 'select_model',
-          action: 'pre_enter_model_selection'
-        })
-
-        await ctx.scene.enter('select_model')
-
-        logger.info('✅ Завершение обработки цифрового тела', {
-          description: 'Completed digital body handler',
-          telegram_id: ctx.from?.id,
-          final_mode: ctx.session.mode,
-          final_model: ctx.session.selectedModel,
-          final_scene: ctx.scene?.current?.id,
-          action: 'digital_body_complete'
-        })
-        
-        return
+        await ctx.scene.enter('check_balance_scene')
       },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         console.log('CASE handleMenu: 📸 Нейрофото')
@@ -241,37 +161,48 @@ export const handleMenu = async (ctx: MyContext) => {
           description: 'Entering main menu',
           telegram_id: ctx.from?.id,
           previous_mode: ctx.session?.mode,
-          new_mode: ModeEnum.MenuScene,
+          new_mode: ModeEnum.MainMenu,
           action: 'enter_menu_scene',
           session_state: {
             mode: ctx.session?.mode,
             selectedModel: ctx.session?.selectedModel,
-            targetScene: ctx.session?.targetScene
-          }
+            targetScene: ctx.session?.targetScene,
+          },
         })
         console.log('CASE: 🏠 Главное меню')
-        
+
+        // Если мы уже в меню, не делаем повторный переход
+        if (ctx.scene?.current?.id === 'menu_scene') {
+          logger.info('🚫 Пропуск повторного входа в меню', {
+            description: 'Skipping repeated menu entry',
+            telegram_id: ctx.from?.id,
+            current_scene: ctx.scene?.current?.id,
+            action: 'skip_menu_reentry',
+          })
+          return
+        }
+
         // Сохраняем режим меню
-        ctx.session.mode = ModeEnum.MenuScene
-        
+        ctx.session.mode = ModeEnum.MainMenu
+
         logger.info('🔄 Состояние перед входом в меню', {
           description: 'State before entering menu',
           telegram_id: ctx.from?.id,
           mode: ctx.session?.mode,
           selected_model: ctx.session?.selectedModel,
           target_scene: ctx.session?.targetScene,
-          action: 'pre_menu_enter'
+          action: 'pre_menu_enter',
         })
-        
+
         await ctx.scene.enter('menu_scene')
-        
+
         logger.info('✅ Завершение перехода в меню', {
           description: 'Menu transition completed',
           telegram_id: ctx.from?.id,
           final_mode: ctx.session?.mode,
           final_model: ctx.session?.selectedModel,
           final_scene: ctx.scene?.current?.id,
-          action: 'menu_enter_complete'
+          action: 'menu_enter_complete',
         })
       },
       [isRu ? mainMenuButton.title_ru : mainMenuButton.title_en]: async () => {
@@ -279,11 +210,11 @@ export const handleMenu = async (ctx: MyContext) => {
           description: 'Entering main menu via button',
           telegram_id: ctx.from?.id,
           previous_mode: ctx.session?.mode,
-          new_mode: ModeEnum.MenuScene,
-          action: 'enter_menu_scene_button'
+          new_mode: ModeEnum.MainMenu,
+          action: 'enter_menu_scene_button',
         })
         console.log('CASE: 🏠 Главное меню')
-        ctx.session.mode = ModeEnum.MenuScene
+        ctx.session.mode = ModeEnum.MainMenu
         await ctx.scene.enter('menu_scene')
       },
       '/tech': async () => {
@@ -314,7 +245,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: handleMenuCommand.else', text)
       }
     }
-  } 
+  }
 }
 
 export default handleMenu

@@ -12,12 +12,12 @@ const production = async (
     logger.info('🔄 Удаляем старый вебхук...', {
       description: 'Deleting old webhook',
       webhookUrl,
-      path
+      path,
     })
-    
+
     await bot.telegram.deleteWebhook({ drop_pending_updates: true })
     logger.info('✅ Старый вебхук удален', {
-      description: 'Old webhook deleted'
+      description: 'Old webhook deleted',
     })
 
     // Ждем 3 секунды перед установкой нового вебхука
@@ -26,7 +26,7 @@ const production = async (
     logger.info('🔄 Устанавливаем новый вебхук...', {
       description: 'Setting up new webhook',
       webhookUrl,
-      path
+      path,
     })
 
     await bot.launch({
@@ -41,14 +41,14 @@ const production = async (
     logger.info('✅ Бот запущен в режиме webhook', {
       description: 'Bot launched in webhook mode',
       webhookUrl,
-      path
+      path,
     })
 
     return
   } catch (e) {
     logger.error('❌ Ошибка при настройке production режима:', {
       description: 'Error in production setup',
-      error: e instanceof Error ? e.message : String(e)
+      error: e instanceof Error ? e.message : String(e),
     })
     throw e
   }
@@ -57,12 +57,12 @@ const production = async (
 const development = async (bot: Telegraf<MyContext>): Promise<void> => {
   try {
     logger.info('🔄 Удаляем вебхук для development режима...', {
-      description: 'Deleting webhook for development mode'
+      description: 'Deleting webhook for development mode',
     })
 
     await bot.telegram.deleteWebhook({ drop_pending_updates: true })
     logger.info('✅ Вебхук удален, запускаем polling...', {
-      description: 'Webhook deleted, starting polling'
+      description: 'Webhook deleted, starting polling',
     })
 
     // Ждем 2 секунды перед запуском polling
@@ -70,14 +70,14 @@ const development = async (bot: Telegraf<MyContext>): Promise<void> => {
 
     await bot.launch()
     logger.info('✅ Бот запущен в режиме polling', {
-      description: 'Bot launched in polling mode'
+      description: 'Bot launched in polling mode',
     })
-    
+
     return
   } catch (e) {
     logger.error('❌ Ошибка при настройке development режима:', {
       description: 'Error in development setup',
-      error: e instanceof Error ? e.message : String(e)
+      error: e instanceof Error ? e.message : String(e),
     })
     throw e
   }

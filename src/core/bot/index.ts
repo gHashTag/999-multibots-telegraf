@@ -5,7 +5,6 @@ dotenv.config()
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { logger } from '@/utils/logger'
-import { TEST_CONFIG } from '@/test-utils/test-config'
 import { NODE_ENV } from '@/config'
 import { getBotGroupFromAvatars } from '@/core/supabase'
 
@@ -21,8 +20,10 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.BOT_TOKEN_7) throw new Error('❌ BOT_TOKEN_7 must be set')
 } else {
   // Check test tokens
-  if (!process.env.BOT_TOKEN_TEST_1) throw new Error('❌ BOT_TOKEN_TEST_1 must be set')
-  if (!process.env.BOT_TOKEN_TEST_2) throw new Error('❌ BOT_TOKEN_TEST_2 must be set')
+  if (!process.env.BOT_TOKEN_TEST_1)
+    throw new Error('❌ BOT_TOKEN_TEST_1 must be set')
+  if (!process.env.BOT_TOKEN_TEST_2)
+    throw new Error('❌ BOT_TOKEN_TEST_2 must be set')
 }
 
 const BOT_TOKENS_PROD = [
@@ -185,14 +186,14 @@ export function getBotByName(bot_name: string): {
   bot?: Telegraf<MyContext>
   error?: string | null
 } {
-  // В тестовом окружении возвращаем мок
+  // В тестовом окружении возвращаем тестового бота
   if (process.env.NODE_ENV === 'test') {
     logger.info({
-      message: '🧪 Возвращаем мок бота для тестов',
-      description: 'Returning mock bot for tests',
+      message: '🧪 Возвращаем тестового бота',
+      description: 'Returning test bot',
       bot_name,
     })
-    return { bot: TEST_CONFIG.mocks.bot }
+    return { bot: new Telegraf<MyContext>(process.env.BOT_TOKEN_TEST_1 || '') }
   }
 
   logger.info({

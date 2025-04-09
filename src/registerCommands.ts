@@ -1,6 +1,6 @@
 import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { CallbackQuery } from 'telegraf/types'
-import { MyContext } from './interfaces'
+import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import {
   handleTechSupport,

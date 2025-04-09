@@ -16,7 +16,10 @@ if (INNGEST_EVENT_KEY) {
 const createInngestClient = () => {
   const config = {
     id: process.env.NODE_ENV === 'test' ? 'test-client' : 'neuro-blogger',
-    eventKey: process.env.NODE_ENV === 'test' ? 'test-key' : (INNGEST_EVENT_KEY || 'development-key'),
+    eventKey:
+      process.env.NODE_ENV === 'test'
+        ? 'test-key'
+        : INNGEST_EVENT_KEY || 'development-key',
   }
   return new Inngest(config)
 }

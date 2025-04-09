@@ -399,8 +399,8 @@ async function sendGenerationStatus(
         ? `⏳ Генерация изображения ${index + 1} из ${params.num_images}`
         : `⏳ Generating image ${index + 1} of ${params.num_images}`
       : params.is_ru
-      ? '⏳ Генерация...'
-      : '⏳ Generating...'
+        ? '⏳ Генерация...'
+        : '⏳ Generating...'
 
   await bot.telegram.sendMessage(params.telegram_id, message)
 }

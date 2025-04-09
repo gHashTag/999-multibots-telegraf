@@ -8,7 +8,6 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
-  
   if (!ctx.from?.id) {
     logger.info('CASE: user not found')
     return ctx.scene.enter(ModeEnum.CreateUserScene)
@@ -17,7 +16,6 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   const existingUser = await getUserByTelegramIdString(
     ctx.from?.id.toString() || ''
   )
-  
 
   // Если пользователь не существует, то переходим к созданию пользователя
   if (!existingUser) {

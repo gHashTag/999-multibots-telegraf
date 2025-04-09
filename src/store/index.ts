@@ -1,10 +1,9 @@
 import { MySession } from '../interfaces'
 import { ModeEnum } from '../price/helpers/modelsCost'
-import { LocalSubscription } from '../scenes/getRuBillWizard'
 
 export const defaultSession = (): MySession => ({
   memory: {
-    messages: []
+    messages: [],
   },
   email: '',
   selectedModel: '',
@@ -16,7 +15,7 @@ export const defaultSession = (): MySession => ({
     model_name: '',
     trigger_word: '',
     model_url: '' as `${string}/${string}:${string}`,
-    model_key: '' as `${string}/${string}:${string}`
+    model_key: '' as `${string}/${string}:${string}`,
   },
   numImages: 1,
   telegram_id: '',
@@ -40,6 +39,6 @@ export const defaultSession = (): MySession => ({
   buttons: [],
   selectedPayment: {
     amount: 0,
-    stars: 0
-  }
+    stars: 0,
+  },
 })

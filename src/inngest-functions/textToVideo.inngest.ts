@@ -11,7 +11,6 @@ import { sendBalanceMessage } from '@/price/helpers'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { v4 as uuidv4 } from 'uuid'
 import axios from 'axios'
-import { TransactionType } from '@/interfaces/payments.interface'
 
 /**
  * Интерфейс события для генерации видео из текста
@@ -72,7 +71,8 @@ export const textToVideoFunction = inngest.createFunction(
 
         // Проверяем, что модель поддерживает текст
         const modelId = event.data.model_id || 'kling-v1.6-pro'
-        const modelConfig = VIDEO_MODELS_CONFIG[modelId as keyof typeof VIDEO_MODELS_CONFIG]
+        const modelConfig =
+          VIDEO_MODELS_CONFIG[modelId as keyof typeof VIDEO_MODELS_CONFIG]
         if (!modelConfig || !modelConfig.inputType.includes('text')) {
           throw new Error(`Model ${modelId} does not support text input`)
         }
@@ -143,7 +143,10 @@ export const textToVideoFunction = inngest.createFunction(
       // Шаг 4: Расчет стоимости операции
       const costCalculation = await step.run('calculate-cost', async () => {
         // Получаем модель из конфигурации
-        const selectedModel = VIDEO_MODELS_CONFIG[params.model_id as keyof typeof VIDEO_MODELS_CONFIG]
+        const selectedModel =
+          VIDEO_MODELS_CONFIG[
+            params.model_id as keyof typeof VIDEO_MODELS_CONFIG
+          ]
         if (!selectedModel) {
           throw new Error(`Model ${params.model_id} not found in configuration`)
         }
@@ -218,7 +221,7 @@ export const textToVideoFunction = inngest.createFunction(
       })
 
       // Шаг 7: Генерация видео
-      const generationResult = await step.run('generate-video', async () => {
+      await step.run('generate-video', async () => {
         // Тестовый случай для ошибки API
         if (params._test?.api_error) {
           throw new Error('API error (test)')
@@ -318,7 +321,11 @@ export const textToVideoFunction = inngest.createFunction(
           )
 
           // Отправляем уведомление администратору
-          await errorMessageAdmin(new Error(`Error in text-to-video generation: ${errorMsg}${operationId ? `. Operation ID: ${operationId}` : ''}`))
+          await errorMessageAdmin(
+            new Error(
+              `Error in text-to-video generation: ${errorMsg}${operationId ? `. Operation ID: ${operationId}` : ''}`
+            )
+          )
         }
       } catch (notifyError) {
         console.error('❌ Error sending error notification:', notifyError)

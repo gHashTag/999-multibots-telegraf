@@ -179,8 +179,8 @@ export const broadcastMessage = inngest.createFunction(
         message: params.test_mode
           ? 'Test broadcast completed'
           : params.bot_name
-          ? `Broadcast completed for bot ${params.bot_name}`
-          : 'Broadcast completed for all users',
+            ? `Broadcast completed for bot ${params.bot_name}`
+            : 'Broadcast completed for all users',
         statistics: summary,
         contentType: params.contentType || 'photo',
         bot_name: params.bot_name || 'all',

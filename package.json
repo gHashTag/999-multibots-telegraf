@@ -5,6 +5,7 @@
   "author": "",
   "license": "ISC",
   "scripts": {
+    "prepare": "husky",
     "predev": "node scripts/kill-port.js 2999 3001",
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
     "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME ts-node -r tsconfig-paths/register src/bot.ts",
@@ -19,7 +20,15 @@
     "ngrok": "ngrok http 2999",
     "tunnel": "ssh -R 80:localhost:2999 localhost.run",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "pre-commit": "lint-staged"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write",
+      "tsc --noEmit"
+    ]
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",
@@ -83,7 +92,8 @@
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",
-    "lint-staged": "^13.0.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^13.3.0",
     "node-config": "^0.0.2",
     "node-gyp": "^9.1.0",
     "nodemon": "^2.0.19",

@@ -27,9 +27,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     const userModel = await getLatestUserModel(telegramId, 'bfl')
     console.log('userModel', userModel)
 
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegramId
-    )
+    const { count, subscription, level } =
+      await getReferalsCountAndUserData(telegramId)
 
     if (!userModel || !userModel.finetune_id || !subscription) {
       await ctx.reply(
@@ -89,8 +88,6 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       ctx.session.prompt = promptText
 
       const trigger_word = ctx.session.userModel.trigger_word as string
-
-      const userId = ctx.from?.id
 
       if (trigger_word) {
         const fullPrompt = `${trigger_word}, ${promptText}`

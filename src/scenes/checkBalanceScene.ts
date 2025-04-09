@@ -37,8 +37,8 @@ checkBalanceScene.enter(async ctx => {
       videoUrl: ctx.session?.videoUrl,
       audioUrl: ctx.session?.audioUrl,
       amount: ctx.session?.amount,
-      subscription: ctx.session?.subscription
-    }
+      subscription: ctx.session?.subscription,
+    },
   })
 
   const isRu = ctx.from?.language_code === 'ru'
@@ -56,8 +56,8 @@ checkBalanceScene.enter(async ctx => {
       previous_mode: ctx.session?.mode,
       previous_model: ctx.session?.selectedModel,
       previous_scene: ctx.scene?.current?.id,
-      target_scene: ctx.session?.targetScene
-    }
+      target_scene: ctx.session?.targetScene,
+    },
   })
 
   // Нормализуем режим для обратной совместимости
@@ -68,7 +68,7 @@ checkBalanceScene.enter(async ctx => {
     telegram_id: ctx.from?.id,
     mode: mode,
     normalized_mode: normalizedMode,
-    action: 'calculate_cost'
+    action: 'calculate_cost',
   })
 
   // Используем единую функцию расчета стоимости
@@ -81,7 +81,7 @@ checkBalanceScene.enter(async ctx => {
     mode: mode,
     cost: cost,
     current_balance: currentBalance,
-    action: 'cost_calculated'
+    action: 'cost_calculated',
   })
 
   // Отправляем сообщение о балансе только если стоимость определена и не равна 0
@@ -90,19 +90,19 @@ checkBalanceScene.enter(async ctx => {
       logger.error('❌ Отсутствует ID пользователя', {
         description: 'User ID not found',
         telegram_id: ctx.from?.id,
-        action: 'user_id_missing'
+        action: 'user_id_missing',
       })
       throw new Error('User ID not found')
     }
-    
+
     logger.info('💬 Отправка сообщения о балансе', {
       description: 'Sending balance message',
       telegram_id: ctx.from?.id,
       current_balance: currentBalance,
       cost: cost,
-      action: 'send_balance_message'
+      action: 'send_balance_message',
     })
-    
+
     await sendBalanceMessage(
       ctx.from.id.toString(),
       currentBalance,
@@ -121,18 +121,18 @@ checkBalanceScene.enter(async ctx => {
       session_state: {
         mode: ctx.session?.mode,
         selectedModel: ctx.session?.selectedModel,
-        targetScene: ctx.session?.targetScene
-      }
+        targetScene: ctx.session?.targetScene,
+      },
     })
 
     await sendInsufficientStarsMessage(ctx, currentBalance, cost)
-    
+
     logger.info('🔄 Переход к сцене оплаты', {
       description: 'Switching to payment scene',
       telegram_id: ctx.from?.id,
-      action: 'enter_payment_scene'
+      action: 'enter_payment_scene',
     })
-    
+
     return ctx.scene.enter('payment_scene')
   }
 
@@ -144,8 +144,8 @@ checkBalanceScene.enter(async ctx => {
     session_state: {
       mode: ctx.session?.mode,
       selectedModel: ctx.session?.selectedModel,
-      targetScene: ctx.session?.targetScene
-    }
+      targetScene: ctx.session?.targetScene,
+    },
   })
 
   // Переход к соответствующей сцене в зависимости от режима
@@ -156,7 +156,7 @@ checkBalanceScene.enter(async ctx => {
         telegram_id: ctx.from?.id,
         previous_mode: mode,
         selected_model: ctx.session.selectedModel,
-        action: 'enter_select_model_from_balance'
+        action: 'enter_select_model_from_balance',
       })
       return ctx.scene.enter('select_model')
     case ModeEnum.DigitalAvatarBody:
@@ -165,7 +165,7 @@ checkBalanceScene.enter(async ctx => {
         telegram_id: ctx.from?.id,
         previous_mode: mode,
         selected_model: ctx.session.selectedModel,
-        action: 'enter_digital_avatar_body'
+        action: 'enter_digital_avatar_body',
       })
       return ctx.scene.enter('digital_avatar_body')
     case ModeEnum.DigitalAvatarBodyV2:
@@ -174,7 +174,7 @@ checkBalanceScene.enter(async ctx => {
         telegram_id: ctx.from?.id,
         previous_mode: mode,
         selected_model: ctx.session.selectedModel,
-        action: 'enter_digital_avatar_body_v2'
+        action: 'enter_digital_avatar_body_v2',
       })
       return ctx.scene.enter('digital_avatar_body_v2')
     case ModeEnum.NeuroPhoto:
