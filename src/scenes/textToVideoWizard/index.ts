@@ -83,18 +83,32 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           ctx,
           'text'
         )
-        if (!result) {
-          return ctx.scene.leave()
+
+        if (!result.success) {
+          // Если есть ошибка, показываем сообщение об ошибке
+          let errorMessage = result.error.message
+          
+          // Если есть список доступных моделей, добавляем их к сообщению
+          if (result.error.availableModels) {
+            errorMessage += isRu 
+              ? '\n\nДоступные модели:'
+              : '\n\nAvailable models:'
+          }
+
+          await ctx.reply(errorMessage, {
+            reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
+          })
+          return // Остаемся на текущем шаге
         }
+
+        // Теперь TypeScript знает, что amount и modelId существуют
         const { amount, modelId } = result
         console.log('💵 Generation cost:', amount)
         console.log('🆔 Model ID:', modelId)
-        if (amount === null) {
-          return ctx.scene.leave()
-        }
 
         // Устанавливаем videoModel в сессии
         ctx.session.videoModel = modelId as VideoModel
+        ctx.session.amount = amount
 
         // Проверяем, требует ли модель изображение
         const modelConfig = VIDEO_MODELS_CONFIG[modelId]
@@ -108,7 +122,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
               : '🖼️ This model requires an image for video generation. Please send an image.',
             Markup.removeKeyboard()
           )
-          ctx.session.amount = amount
           return ctx.wizard.next()
         }
 
@@ -127,7 +140,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
             : '✍️ Please send a text description for video generation',
           Markup.removeKeyboard()
         )
-        ctx.session.amount = amount
         return ctx.wizard.next()
       }
     } else {

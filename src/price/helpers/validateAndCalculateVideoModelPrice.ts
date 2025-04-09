@@ -1,7 +1,23 @@
 import { MyContext } from '@/interfaces'
 import { calculateFinalPrice } from '@/price/helpers'
-import { findModelByTitle } from '@/menu/videoModelMenu'
+import { findModelByTitle, VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { IMAGES_MODELS } from '@/price/models/IMAGES_MODELS'
+
+export type ValidationSuccess = {
+  success: true
+  amount: number
+  modelId: string
+}
+
+export type ValidationError = {
+  success: false
+  error: {
+    message: string
+    availableModels?: string[]
+  }
+}
+
+export type ValidationResult = ValidationSuccess | ValidationError
 
 export async function validateAndCalculateVideoModelPrice(
   videoModel: string,
@@ -9,7 +25,7 @@ export async function validateAndCalculateVideoModelPrice(
   isRu: boolean,
   ctx: MyContext,
   inputType: 'text' | 'image'
-): Promise<{ amount: number; modelId: string } | null> {
+): Promise<ValidationResult> {
   console.log('🚀 Начало валидации модели:', {
     description: 'Starting model validation',
     videoModel,
@@ -24,12 +40,14 @@ export async function validateAndCalculateVideoModelPrice(
       description: 'Attempt to use image model for video',
       model: videoModel,
     })
-    await ctx.reply(
-      isRu
-        ? '❌ Эта модель предназначена для генерации изображений. Пожалуйста, используйте команду /image для генерации изображений.'
-        : '❌ This model is for image generation. Please use the /image command for image generation.'
-    )
-    return null
+    return {
+      success: false,
+      error: {
+        message: isRu
+          ? '❌ Эта модель предназначена для генерации изображений. Пожалуйста, используйте команду /image для генерации изображений.'
+          : '❌ This model is for image generation. Please use the /image command for image generation.'
+      }
+    }
   }
 
   const modelId = findModelByTitle(videoModel, inputType)
@@ -46,8 +64,21 @@ export async function validateAndCalculateVideoModelPrice(
       videoModel,
       inputType,
     })
-    await ctx.reply('❌ Модель не найдена')
-    return null
+
+    // Получаем список доступных моделей для текущего типа ввода
+    const availableModels = Object.values(VIDEO_MODELS_CONFIG)
+      .filter(model => model.inputType.includes(inputType))
+      .map(model => model.title)
+
+    return {
+      success: false,
+      error: {
+        message: isRu
+          ? `❌ Модель "${videoModel}" не найдена`
+          : `❌ Model "${videoModel}" not found`,
+        availableModels
+      }
+    }
   }
 
   const amount = calculateFinalPrice(modelId)
@@ -58,7 +89,6 @@ export async function validateAndCalculateVideoModelPrice(
     currentBalance,
   })
 
-  ctx.session.amount = amount
   if (currentBalance < amount) {
     console.log('❌ Недостаточно средств:', {
       description: 'Insufficient funds',
@@ -66,10 +96,14 @@ export async function validateAndCalculateVideoModelPrice(
       amount,
       difference: amount - currentBalance,
     })
-    await ctx.reply(
-      isRu ? 'Недостаточно средств на балансе' : 'Insufficient balance'
-    )
-    return null
+    return {
+      success: false,
+      error: {
+        message: isRu 
+          ? 'Недостаточно средств на балансе' 
+          : 'Insufficient balance'
+      }
+    }
   }
 
   console.log('✅ Валидация успешна:', {
@@ -79,6 +113,7 @@ export async function validateAndCalculateVideoModelPrice(
   })
 
   return {
+    success: true,
     amount,
     modelId,
   }

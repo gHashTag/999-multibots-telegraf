@@ -29,10 +29,3 @@ export const inngest: Inngest = createInngestClient()
 
 // Проверка экспорта
 console.log('✅ Inngest client created:', !!inngest)
-
-// Экспорт всех функций Inngest
-// Когда функции импортируются в файле serve.ts, они будут автоматически зарегистрированы
-export const functions = []
-
-// ВАЖНО: Не импортируем функции здесь напрямую, чтобы избежать циклических зависимостей
-// Функции будут импортированы в serve.ts

@@ -211,3 +211,55 @@ curl http://localhost:2999/api
 # Проверка статуса сервера
 curl http://localhost:2999/api/status
 ```
+
+# Multibots Telegraf
+
+## Доступ к Inngest функциям
+
+### Локальный доступ
+Для доступа к Inngest функциям локально:
+
+1. Запустите Inngest Dev Server:
+```bash
+npx inngest-cli@latest dev
+```
+
+2. Откройте веб-интерфейс Inngest:
+```
+http://localhost:8288
+```
+
+### Продакшн доступ
+В продакшене используйте URL из переменной окружения `INNGEST_URL`:
+```
+https://api.inngest.com
+```
+
+### Мониторинг функций
+1. Откройте веб-интерфейс Inngest
+2. Перейдите в раздел "Functions"
+3. Найдите функцию `text-to-video-generation`
+4. В деталях функции вы увидите:
+   - Все запуски функции
+   - Логи каждого запуска
+   - Статус выполнения
+   - Время выполнения
+   - Ошибки и их детали
+
+### Важные заметки
+- Каждый запуск функции имеет уникальный `operationId`
+- Все логи структурированы и содержат эмодзи для визуального разделения этапов
+- В случае ошибок проверяйте:
+  - Раздел "Error" в деталях запуска
+  - Логи с пометкой "❌"
+  - Сообщения об ошибках, отправленные пользователю и администратору
+
+### Переменные окружения для Inngest
+```env
+INNGEST_EVENT_KEY=your_event_key
+INNGEST_SIGNING_KEY=your_signing_key
+INNGEST_URL=https://api.inngest.com
+INNGEST_WEBHOOK_URL=your_webhook_url
+INNGEST_DEV=1 # для локальной разработки
+INNGEST_BASE_URL=http://localhost:8288 # для локальной разработки
+```

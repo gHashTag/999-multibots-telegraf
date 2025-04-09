@@ -141,16 +141,39 @@ export const findModelByTitle = (
     inputType: type,
   })
 
-  const foundModel = Object.values(VIDEO_MODELS_CONFIG).find(model => {
-    const normalizedInput = title.toLowerCase().trim()
-    const normalizedModelTitle = model.title.toLowerCase().trim()
+  // Нормализуем входной текст
+  const normalizedInput = title.toLowerCase().trim()
+    .replace(/\s+/g, '') // Убираем все пробелы
+    .replace(/-/g, '') // Убираем дефисы
+    .replace(/\./g, '') // Убираем точки
 
-    const titleMatch = normalizedModelTitle === normalizedInput
+  const foundModel = Object.values(VIDEO_MODELS_CONFIG).find(model => {
+    // Нормализуем название модели
+    const normalizedModelTitle = model.title.toLowerCase()
+      .replace(/\s+/g, '')
+      .replace(/-/g, '')
+      .replace(/\./g, '')
+
+    // Нормализуем ID модели
+    const normalizedModelId = model.id.toLowerCase()
+      .replace(/\s+/g, '')
+      .replace(/-/g, '')
+      .replace(/\./g, '')
+
+    const titleMatch = 
+      normalizedModelTitle === normalizedInput || 
+      normalizedModelId === normalizedInput ||
+      normalizedModelTitle.includes(normalizedInput) ||
+      normalizedModelId.includes(normalizedInput)
+    
     const typeMatch = model.inputType.includes(type)
 
     console.log(`🔄 Проверка "${model.title}" [${model.inputType}]:`, {
       titleMatch,
       typeMatch,
+      normalizedInput,
+      normalizedModelTitle,
+      normalizedModelId
     })
 
     return titleMatch && typeMatch

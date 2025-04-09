@@ -11,7 +11,7 @@ import { sendBalanceMessage } from '@/price/helpers'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { v4 as uuidv4 } from 'uuid'
 import axios from 'axios'
-
+import { logger } from '@/utils/logger'
 /**
  * Интерфейс события для генерации видео из текста
  */
@@ -56,9 +56,24 @@ export const textToVideoFunction = inngest.createFunction(
     let videoUrl: string | null = null
     let previewUrl: string | null = null
 
+    logger.info('🚀 Starting text-to-video generation process:', {
+      event_id: event.id,
+      telegram_id: event.data?.telegram_id,
+      model_id: event.data?.model_id,
+      username: event.data?.username
+    })
+
     try {
       // Шаг 1: Валидация входных параметров
+      logger.info('📝 Step 1: Validating input parameters...')
       validatedParams = (await step.run('validate-input', () => {
+        logger.info('Input validation - Received parameters:', {
+          prompt: event.data?.prompt,
+          telegram_id: event.data?.telegram_id,
+          is_ru: event.data?.is_ru,
+          bot_name: event.data?.bot_name,
+          model_id: event.data?.model_id
+        })
         if (
           !event.data ||
           !event.data.prompt ||
@@ -99,18 +114,36 @@ export const textToVideoFunction = inngest.createFunction(
       })) as TextToVideoEvent['data']
 
       if (!validatedParams) {
+        logger.error('❌ Validation failed - missing required parameters')
         throw new Error('Validation failed - missing required parameters')
       }
 
       const params = validatedParams
+      logger.info('✅ Input validation successful:', {
+        model_id: params.model_id,
+        aspect_ratio: params.aspect_ratio,
+        duration: params.duration
+      })
 
       // Шаг 2: Получение информации о пользователе
+      logger.info('👤 Step 2: Getting user information...')
       const user = await step.run('get-user-info', async () => {
+        logger.info('Fetching user info for telegram_id:', params.telegram_id)
         const userResult = await getUserByTelegramIdString(params.telegram_id)
-        if (!userResult) throw new Error('User not found')
+        if (!userResult) {
+          logger.error('❌ User not found:', params.telegram_id)
+          throw new Error('User not found')
+        }
+
+        logger.info('User info retrieved:', {
+          telegram_id: userResult.telegram_id,
+          level: userResult.level,
+          username: userResult.username
+        })
 
         // Увеличиваем уровень пользователя, если это его первый запрос на создание видео
         if (userResult.level === 9) {
+          logger.info('🆙 Upgrading user level from 9 to 10')
           await updateUserLevelPlusOne(userResult.telegram_id, userResult.level)
         }
 
@@ -119,10 +152,13 @@ export const textToVideoFunction = inngest.createFunction(
 
       // Генерируем уникальный ID операции
       operationId = await step.run('generate-operation-id', () => {
-        return uuidv4()
+        const id = uuidv4()
+        logger.info('🔑 Generated operation ID:', id)
+        return id
       })
 
       // Шаг 3: Отправляем уведомление о начале генерации
+      logger.info('📨 Step 3: Sending generation start notification...')
       await step.run('send-generating-notification', async () => {
         const botResult = getBotByName(params.bot_name)
         if (!botResult?.bot) {
@@ -157,7 +193,7 @@ export const textToVideoFunction = inngest.createFunction(
           numImages: 1,
         })
 
-        console.log('💰 Стоимость операции:', {
+        logger.info('💰 Стоимость операции:', {
           description: 'Operation cost',
           cost,
           model: selectedModel.id,
@@ -201,7 +237,14 @@ export const textToVideoFunction = inngest.createFunction(
       })
 
       // Шаг 6: Списание средств с баланса пользователя
+      logger.info('💳 Step 6: Processing payment...')
       await step.run('charge-user', async () => {
+        logger.info('Initiating payment process:', {
+          telegram_id: params.telegram_id,
+          amount: costCalculation.cost.stars,
+          operation_id: operationId
+        })
+        
         await inngest.send({
           name: 'payment/process',
           data: {
@@ -217,13 +260,16 @@ export const textToVideoFunction = inngest.createFunction(
           },
         })
 
+        logger.info('✅ Payment processed successfully')
         return { charged: true }
       })
 
       // Шаг 7: Генерация видео
+      logger.info('🎬 Step 7: Starting video generation...')
       await step.run('generate-video', async () => {
         // Тестовый случай для ошибки API
         if (params._test?.api_error) {
+          logger.error('🧪 Test API error triggered')
           throw new Error('API error (test)')
         }
 
@@ -235,6 +281,8 @@ export const textToVideoFunction = inngest.createFunction(
             aspect_ratio: params.aspect_ratio,
             duration: params.duration,
           }
+          
+          logger.info('Sending API request with data:', apiData)
 
           // Отправляем запрос к API
           const response = await axios.post(
@@ -248,7 +296,14 @@ export const textToVideoFunction = inngest.createFunction(
             }
           )
 
+          logger.info('📥 Received API response:', {
+            status: response.status,
+            hasVideoUrl: !!response.data?.videoUrl,
+            hasPreviewUrl: !!response.data?.previewUrl
+          })
+
           if (!response.data || !response.data.videoUrl) {
+            logger.error('❌ Invalid API response:', response.data)
             throw new Error('Invalid API response')
           }
 
@@ -257,27 +312,39 @@ export const textToVideoFunction = inngest.createFunction(
             previewUrl = response.data.previewUrl
           }
 
+          logger.info('✅ Video generation successful:', {
+            hasVideo: !!videoUrl,
+            hasPreview: !!previewUrl
+          })
+
           return {
             success: true,
             videoUrl,
             previewUrl,
           } as VideoResult
         } catch (error) {
-          console.error('❌ Ошибка при генерации видео:', String(error))
+          logger.error('❌ Error during video generation:', {
+            error: String(error),
+            operationId
+          })
           throw error
         }
       })
 
       // Шаг 8: Отправка результата пользователю
+      logger.info('📤 Step 8: Sending results to user...')
       await step.run('send-result', async () => {
+        logger.info('Getting bot instance for:', params.bot_name)
         const botResult = getBotByName(params.bot_name)
         if (!botResult?.bot) {
+          logger.error('❌ Bot not found:', params.bot_name)
           throw new Error(`Bot ${params.bot_name} not found`)
         }
         const { bot } = botResult
 
         // Отправляем превью, если есть
         if (previewUrl) {
+          logger.info('Sending preview image to user')
           await bot.telegram.sendPhoto(params.telegram_id, previewUrl, {
             caption: params.is_ru
               ? '🎬 Превью сгенерированного видео'
@@ -287,6 +354,7 @@ export const textToVideoFunction = inngest.createFunction(
 
         // Отправляем видео
         if (videoUrl) {
+          logger.info('Sending video to user')
           await bot.telegram.sendVideo(params.telegram_id, videoUrl, {
             caption: params.is_ru
               ? '✨ Ваше видео готово!'
@@ -294,10 +362,16 @@ export const textToVideoFunction = inngest.createFunction(
           })
         }
 
+        logger.info('✅ Results sent successfully to user')
         return { sent: true }
       })
 
       // Возвращаем успешный результат
+      logger.info('🎉 Text-to-video generation completed successfully:', {
+        operationId,
+        telegram_id: params.telegram_id
+      })
+      
       return {
         success: true,
         videoUrl,
@@ -307,11 +381,17 @@ export const textToVideoFunction = inngest.createFunction(
       }
     } catch (error) {
       // Обработка ошибок
-      console.error('❌ Error in text-to-video generation:', error)
+      logger.error('❌ Error in text-to-video generation:', {
+        error: error instanceof Error ? error.message : String(error),
+        operationId,
+        telegram_id: validatedParams?.telegram_id
+      })
+      
       const errorMsg = error instanceof Error ? error.message : String(error)
 
       // Отправляем сообщение об ошибке пользователю
       try {
+        logger.info('Attempting to send error message to user')
         const botResult = getBotByName(validatedParams?.bot_name || '')
         if (botResult?.bot && validatedParams) {
           await errorMessage(
@@ -326,9 +406,10 @@ export const textToVideoFunction = inngest.createFunction(
               `Error in text-to-video generation: ${errorMsg}${operationId ? `. Operation ID: ${operationId}` : ''}`
             )
           )
+          logger.info('Error messages sent to user and admin')
         }
       } catch (notifyError) {
-        console.error('❌ Error sending error notification:', notifyError)
+        logger.error('❌ Error sending error notification:', notifyError)
       }
 
       // Возвращаем ошибку
