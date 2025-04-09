@@ -225,7 +225,7 @@ checkBalanceScene.enter(async ctx => {
         description: 'Switching to chat_with_avatar scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('chat_with_avatar')
+      return ctx.scene.enter(ModeEnum.ChatWithAvatar)
     case ModeEnum.Voice:
       logger.info({
         message: '🔄 Переход к сцене voice',
