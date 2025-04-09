@@ -49,7 +49,9 @@
       "@/scenes/*": ["scenes/*"]
     },
     "moduleResolution": "node",
-    "resolveJsonModule": true,
+    "rootDir": "src",
+    "noImplicitAny": true,
+    "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "allowJs": true,
     "downlevelIteration": true
