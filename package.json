@@ -9,20 +9,20 @@
     "packages/*"
   ],
   "scripts": {
-    "predev": "node scripts/kill-port.js 2999 3001",
-    "dev": "cross-env NODE_ENV=development nodemon -r tsconfig-paths/register",
+    "predev": "node scripts/kill-port.js 2999 3001 8288",
+    "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
+    "bots": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register src/bot.ts",
     "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME ts-node -r tsconfig-paths/register src/bot.ts",
     "start": "npm run build && cross-env NODE_ENV=production node -r tsconfig-paths/register dist/server.js",
-    "bots": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register src/bot.ts",
     "build": "swc src -d dist --source-maps --copy-files && tsc-alias -p tsconfig.paths.json && tsc --emitDeclarationOnly -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json && tsc-alias",
-    "test": "jest --forceExit --detectOpenHandles",
+    "test": "npm run test:translations",
     "test:memory": "NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/zepMemory.test.ts",
     "lint": "eslint --ignore-path .gitignore --ext .ts src/",
     "lint:fix": "npm run lint -- --fix",
     "ngrok": "ngrok http 2999",
     "tunnel": "ssh -R 80:localhost:2999 localhost.run",
-    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
+    "dev:inngest": "inngest-cli@latest dev",
     "type-check": "ts-node -r tsconfig-paths/register ./node_modules/.bin/tsc --noEmit -p tsconfig.json",
     "check-staged-types": "ts-node scripts/check-staged-types.ts",
     "prepare": "husky install",
@@ -30,7 +30,9 @@
     "deploy:prod": "npm run build && pm2 start ecosystem.config.js --only prod",
     "deploy:dev": "pm2 start ecosystem.config.js --only dev",
     "deploy": "./deploy.sh",
-    "tsc": "tsc --noEmit -p tsconfig.json"
+    "tsc": "tsc --noEmit -p tsconfig.json",
+    "test:translations": "ts-node -r tsconfig-paths/register src/test-utils/index.ts",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "lint-staged": {
     "*.ts": [
