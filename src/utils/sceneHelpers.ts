@@ -35,7 +35,7 @@ export const sceneMap: Record<ModeEnum, string> = {
   [ModeEnum.MenuScene]: 'menu_scene',
   [ModeEnum.StartScene]: 'start_scene',
   [ModeEnum.Subscribe]: 'subscribe',
-  [ModeEnum.ImageToPrompt]: 'image_to_prompt',
+  [ModeEnum.ImageToPrompt]: 'image_to_prompt_wizard',
   [ModeEnum.Avatar]: 'avatar',
   [ModeEnum.LipSync]: 'lip_sync',
   [ModeEnum.Tech]: 'tech',
@@ -48,18 +48,22 @@ export const sceneMap: Record<ModeEnum, string> = {
   [ModeEnum.Invite]: 'invite',
   [ModeEnum.Help]: 'help',
   [ModeEnum.Balance]: 'balance',
-  [ModeEnum.SizeWizard]: 'size_wizard'
+  [ModeEnum.SizeWizard]: 'size_wizard',
 }
 
-export async function enterScene(ctx: MyContext, scene: ModeEnum, telegramId?: string | number) {
+export async function enterScene(
+  ctx: MyContext,
+  scene: ModeEnum,
+  telegramId?: string | number
+) {
   const sceneName = sceneMap[scene] || scene
   if (!sceneName) {
     logger.error('❌ Unknown scene for transition', {
       scene,
-      telegramId: telegramId || ctx.from?.id
+      telegramId: telegramId || ctx.from?.id,
     })
     return
   }
 
   await ctx.scene.enter(sceneName)
-} 
+}

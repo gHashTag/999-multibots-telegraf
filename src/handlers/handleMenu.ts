@@ -192,7 +192,7 @@ export const handleMenu = async (ctx: MyContext) => {
     logger.error('Error in handleMenu', {
       error: error instanceof Error ? error.message : String(error),
       telegram_id: telegramId,
-      text
+      text,
     })
     const isRu = isRussian(ctx)
     await ctx.reply(

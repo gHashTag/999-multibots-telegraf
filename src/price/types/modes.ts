@@ -4,7 +4,7 @@ export enum ModeEnum {
   DigitalAvatarBodyV2 = 'digital_avatar_body_v2',
   NeuroPhoto = 'neuro_photo',
   NeuroPhotoV2 = 'neuro_photo_v2',
-  ImageToPrompt = 'image_to_prompt',
+  ImageToPrompt = 'image_to_prompt_wizard',
   Avatar = 'avatar',
   ChatWithAvatar = 'chat_with_avatar',
   SelectModel = 'select_model',
@@ -19,7 +19,7 @@ export enum ModeEnum {
   ChangeSize = 'change_size',
   Invite = 'invite',
   Help = 'help',
-  MainMenu = ModeEnum.MenuScene,
+  MainMenu = 'menu_scene',
   Balance = 'balance',
   ImprovePrompt = 'improve_prompt',
   TopUpBalance = 'top_up_balance',
@@ -61,4 +61,4 @@ export interface CostCalculationResult {
 
 export type BaseCosts = {
   [key in ModeEnum | 'neuro_photo_2']?: number
-} 
+}

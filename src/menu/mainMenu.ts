@@ -15,7 +15,7 @@ export const levels: Record<number, Level> = {
     title_ru: '📸 Нейрофото',
     title_en: '📸 NeuroPhoto',
   },
-  // image_to_prompt
+  // ModeEnum.ImageToPrompt
   3: {
     title_ru: '🔍 Промпт из фото',
     title_en: '🔍 Prompt from Photo',
