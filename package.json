@@ -16,7 +16,7 @@
     "bots": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register src/bot.ts",
     "build": "swc src -d dist --source-maps --copy-files && tsc-alias -p tsconfig.paths.json && tsc --emitDeclarationOnly -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json && tsc-alias",
-    "test": "jest --forceExit --detectOpenHandles",
+    "test": "npm run test:translations",
     "test:memory": "NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/zepMemory.test.ts",
     "lint": "eslint --ignore-path .gitignore --ext .ts src/",
     "lint:fix": "npm run lint -- --fix",
@@ -30,7 +30,9 @@
     "deploy:prod": "npm run build && pm2 start ecosystem.config.js --only prod",
     "deploy:dev": "pm2 start ecosystem.config.js --only dev",
     "deploy": "./deploy.sh",
-    "tsc": "tsc --noEmit -p tsconfig.json"
+    "tsc": "tsc --noEmit -p tsconfig.json",
+    "test:translations": "ts-node -r tsconfig-paths/register src/test-utils/index.ts",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "lint-staged": {
     "*.ts": [

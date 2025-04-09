@@ -73,6 +73,12 @@ export async function getTranslation({
   const language_code = ctx.from?.language_code || 'en'
   const current_bot = bot_name || ctx.botInfo?.username || ''
 
+  logger.debug('Getting translation', {
+    key,
+    bot: current_bot,
+    language: language_code,
+  })
+
   // Try to find specific override translation for current bot
   let translation = await fetchTranslation(
     key,
@@ -146,11 +152,37 @@ export async function getTranslation({
     TranslationCategory.SPECIFIC
   )
   if (translation) {
-    logger.debug('Using default translation from neuro_blogger_bot', { key })
+    logger.debug('Using default translation from neuro_blogger_bot', {
+      key,
+      bot: current_bot,
+      language: language_code,
+    })
     return {
       translation: translation.translation,
       url: translation.url,
       buttons: translation.buttons,
+    }
+  }
+
+  // Try to find English translation from neuro_blogger_bot as last resort
+  if (language_code !== 'en') {
+    translation = await fetchTranslation(
+      key,
+      'neuro_blogger_bot',
+      'en',
+      TranslationCategory.SPECIFIC
+    )
+    if (translation) {
+      logger.debug('Using English default translation from neuro_blogger_bot', {
+        key,
+        bot: current_bot,
+        requested_language: language_code,
+      })
+      return {
+        translation: translation.translation,
+        url: translation.url,
+        buttons: translation.buttons,
+      }
     }
   }
 
@@ -160,7 +192,14 @@ export async function getTranslation({
     bot: current_bot,
     language: language_code,
   })
+
+  // Return a user-friendly message instead of technical key
+  const defaultMessage =
+    language_code === 'ru'
+      ? 'Извините, текст пока не доступен. Мы работаем над этим.'
+      : 'Sorry, the text is not available yet. We are working on it.'
+
   return {
-    translation: `Translation not found for key: ${key}`,
+    translation: defaultMessage,
   }
 }

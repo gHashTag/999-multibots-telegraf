@@ -41,32 +41,34 @@ service_type: ModeEnum // Service Type from ModeEnum
 ## Examples of correct use
 
 ### Write-off of funds
+
 ```typescript
 await inngest.send({
-name: 'payment/process',
-data: {
-telegram_id: user.telegram_id,
-amount: cost, // Positive number
-type: 'money_expense',
-description: 'Payment for service',
-bot_name: 'mybot',
-service_type: ModeEnum.TextToVideo
-}
+  name: 'payment/process',
+  data: {
+    telegram_id: user.telegram_id,
+    amount: cost, // Positive number
+    type: 'money_expense',
+    description: 'Payment for service',
+    bot_name: 'mybot',
+    service_type: ModeEnum.TextToVideo,
+  },
 })
 ```
 
 ### Balance replenishment
+
 ```typescript
 await inngest.send({
-name: 'payment/process',
-data: {
-telegram_id: user.telegram_id,
-amount: amount, // Positive number
-type: 'money_income',
-description: 'Balance replenishment',
-bot_name: 'mybot',
-service_type: ModeEnum.TopUpBalance
-}
+  name: 'payment/process',
+  data: {
+    telegram_id: user.telegram_id,
+    amount: amount, // Positive number
+    type: 'money_income',
+    description: 'Balance replenishment',
+    bot_name: 'mybot',
+    service_type: ModeEnum.TopUpBalance,
+  },
 })
 ```
 
@@ -81,6 +83,7 @@ service_type: ModeEnum.TopUpBalance
 ## 📝 Logging
 
 All operations with payments must be logged using emoji:
+
 - 🚀 Payment processing started
 - ✅ Successful completion
 - ❌ Error
