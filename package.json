@@ -5,7 +5,6 @@
   "author": "",
   "license": "ISC",
   "scripts": {
-    "prepare": "husky",
     "predev": "node scripts/kill-port.js 2999 3001",
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
     "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME ts-node -r tsconfig-paths/register src/bot.ts",
@@ -92,7 +91,6 @@
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",
-    "husky": "^9.1.7",
     "lint-staged": "^13.3.0",
     "node-config": "^0.0.2",
     "node-gyp": "^9.1.0",
