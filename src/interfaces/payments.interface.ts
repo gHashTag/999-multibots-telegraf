@@ -456,7 +456,7 @@ export const SERVICE_DESCRIPTIONS: Record<
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },
-  [ModeEnum.MainMenu]: {
+  [ModeEnum.MenuScene]: {
     expense: (amount: number) =>
       `📋 Главное меню: ${amount} ${getStarsWord(amount)}`,
     income: (amount: number) =>
@@ -524,12 +524,6 @@ export const SERVICE_DESCRIPTIONS: Record<
   [ModeEnum.SizeWizard]: {
     expense: (amount: number) =>
       `📐 Мастер размера: ${amount} ${getStarsWord(amount)}`,
-    income: (amount: number) =>
-      `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
-  },
-  [ModeEnum.MenuScene]: {
-    expense: (amount: number) =>
-      `📋 Главное меню: ${amount} ${getStarsWord(amount)}`,
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },

@@ -170,7 +170,7 @@ const menuNextStep = async (ctx: MyContext) => {
     const text = ctx.update.callback_query.data
     console.log('text 1', text)
     if (text === 'unlock_features') {
-      console.log('CASE: 🔓 Разблокировать все функции')
+      console.log('CASE: 🔓 unlock_features')
       await ctx.scene.enter('subscriptionScene')
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
@@ -185,7 +185,7 @@ const menuNextStep = async (ctx: MyContext) => {
 }
 
 export const menuScene = new WizardScene(
-  'menuScene',
+  ModeEnum.MenuScene,
   menuCommandStep,
   menuNextStep
 )

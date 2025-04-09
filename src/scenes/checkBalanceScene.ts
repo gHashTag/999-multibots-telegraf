@@ -133,7 +133,7 @@ checkBalanceScene.enter(async ctx => {
       action: 'enter_payment_scene',
     })
 
-    return ctx.scene.enter('payment_scene')
+    return ctx.scene.enter(ModeEnum.PaymentScene)
   }
 
   // Переход к соответствующей сцене в зависимости от режима
@@ -167,7 +167,7 @@ checkBalanceScene.enter(async ctx => {
         selected_model: ctx.session.selected_model,
         action: 'enter_digital_avatar_body',
       })
-      return ctx.scene.enter('digital_avatar_body')
+      return ctx.scene.enter(ModeEnum.DigitalAvatarBody)
     case ModeEnum.DigitalAvatarBodyV2:
       logger.info('🔄 Переход к сцене digital_avatar_body_v2', {
         description: 'Switching to digital_avatar_body_v2 scene',
@@ -176,42 +176,42 @@ checkBalanceScene.enter(async ctx => {
         selected_model: ctx.session.selected_model,
         action: 'enter_digital_avatar_body_v2',
       })
-      return ctx.scene.enter('digital_avatar_body_v2')
+      return ctx.scene.enter(ModeEnum.DigitalAvatarBodyV2)
     case ModeEnum.ImageToPrompt:
       logger.info({
         message: '🔄 Переход к сцене image_to_prompt_wizard',
         description: 'Switching to image_to_prompt_wizard scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('image_to_prompt_wizard')
+      return ctx.scene.enter(ModeEnum.ImageToPrompt)
     case ModeEnum.ImprovePrompt:
       logger.info({
         message: '🔄 Переход к сцене improve_prompt_wizard',
         description: 'Switching to improve_prompt_wizard scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('improve_prompt_wizard')
+      return ctx.scene.enter(ModeEnum.ImprovePromptWizard)
     case ModeEnum.TextToImage:
       logger.info({
         message: '🔄 Переход к сцене text_to_image',
         description: 'Switching to text_to_image scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('text_to_image')
+      return ctx.scene.enter(ModeEnum.TextToImage)
     case ModeEnum.NeuroPhoto:
       logger.info({
         message: '🔄 Переход к сцене neuro_photo',
         description: 'Switching to neuro_photo scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('neuro_photo')
+      return ctx.scene.enter(ModeEnum.NeuroPhoto)
     case ModeEnum.NeuroPhotoV2:
       logger.info({
         message: '🔄 Переход к сцене neuroPhotoWizardV2',
         description: 'Switching to neuroPhotoWizardV2 scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('neuro_photo_v2')
+      return ctx.scene.enter(ModeEnum.NeuroPhotoV2)
     case ModeEnum.AvatarBrainWizard:
       logger.info({
         message: '🔄 Переход к сцене avatarBrainWizard',
@@ -232,7 +232,7 @@ checkBalanceScene.enter(async ctx => {
         description: 'Switching to voice scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('voice')
+      return ctx.scene.enter(ModeEnum.Voice)
     case ModeEnum.TextToSpeech:
       logger.info({
         message: '🔄 Переход к сцене TextToSpeech',
@@ -246,21 +246,21 @@ checkBalanceScene.enter(async ctx => {
         description: 'Switching to image_to_video scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('image_to_video')
+      return ctx.scene.enter(ModeEnum.ImageToVideo)
     case ModeEnum.TextToVideo:
       logger.info({
         message: '🔄 Переход к сцене text_to_video',
         description: 'Switching to text_to_video scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('text_to_video')
+      return ctx.scene.enter(ModeEnum.TextToVideo)
     case ModeEnum.LipSync:
       logger.info({
         message: '🔄 Переход к сцене lip_sync',
         description: 'Switching to lip_sync scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('lip_sync')
+      return ctx.scene.enter(ModeEnum.LipSync)
     case ModeEnum.SelectModelWizard:
       logger.info({
         message: '🔄 Переход к сцене select_model_wizard',

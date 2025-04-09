@@ -47,7 +47,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'model_auto_set',
         })
 
-        await ctx.scene.enter('check_balance_scene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         console.log('CASE handleMenu: 📸 Нейрофото')
@@ -71,7 +71,7 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[6].title_ru : levels[6].title_en]: async () => {
         console.log('CASE: 🤖 Выбор модели ИИ')
         ctx.session.mode = ModeEnum.SelectModel
-        await ctx.scene.enter('select_model_wizard')
+        await ctx.scene.enter(ModeEnum.SelectModelWizard)
       },
       [isRu ? levels[7].title_ru : levels[7].title_en]: async () => {
         console.log('CASE: 🎤 Голос аватара')
@@ -111,7 +111,7 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[100].title_ru : levels[100].title_en]: async () => {
         console.log('CASE: 💎 Пополнить баланс')
         ctx.session.mode = ModeEnum.TopUpBalance
-        await ctx.scene.enter('paymentScene')
+        await ctx.scene.enter(ModeEnum.PaymentScene)
       },
       [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
         console.log('CASE: 🤑 Баланс')
@@ -121,12 +121,12 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[102].title_ru : levels[102].title_en]: async () => {
         console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = ModeEnum.Invite
-        await ctx.scene.enter('inviteScene')
+        await ctx.scene.enter(ModeEnum.InviteScene)
       },
       [isRu ? levels[103].title_ru : levels[103].title_en]: async () => {
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
-        await ctx.scene.enter('helpScene')
+        await ctx.scene.enter(ModeEnum.HelpScene)
       },
       [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
         console.log('CASE: 🛠 Техподдержка')
@@ -136,7 +136,7 @@ export const handleMenu = async (ctx: MyContext) => {
       '/invite': async () => {
         console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = ModeEnum.Invite
-        await ctx.scene.enter('inviteScene')
+        await ctx.scene.enter(ModeEnum.InviteScene)
       },
       '/price': async () => {
         console.log('CASE: 💰 Цена')
@@ -145,7 +145,7 @@ export const handleMenu = async (ctx: MyContext) => {
       '/buy': async () => {
         console.log('CASE: 💰 Пополнить баланс')
         ctx.session.mode = ModeEnum.TopUpBalance
-        await ctx.scene.enter('paymentScene')
+        await ctx.scene.enter(ModeEnum.PaymentScene)
       },
       '/balance': async () => {
         console.log('CASE: 💰 Баланс')
@@ -155,7 +155,7 @@ export const handleMenu = async (ctx: MyContext) => {
       '/help': async () => {
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
-        await ctx.scene.enter('helpScene')
+        await ctx.scene.enter(ModeEnum.HelpScene)
       },
       '/menu': async () => {
         logger.info('🏠 Переход в главное меню', {
@@ -200,7 +200,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'pre_menu_enter',
         })
 
-        await ctx.scene.enter('menu_scene')
+        await ctx.scene.enter(ModeEnum.MenuScene)
 
         logger.info('✅ Завершение перехода в меню', {
           description: 'Menu transition completed',
@@ -221,7 +221,7 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🏠 Главное меню')
         ctx.session.mode = ModeEnum.MenuScene
-        await ctx.scene.enter('menu_scene')
+        await ctx.scene.enter(ModeEnum.MenuScene)
       },
       '/tech': async () => {
         console.log('CASE: 🛠 Техподдержка')
@@ -230,7 +230,7 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       '/start': async () => {
         console.log('CASE: 🚀 Начать обучение')
-        await ctx.scene.enter('startScene')
+        await ctx.scene.enter(ModeEnum.StartScene)
       },
       '/stats': async () => {
         console.log('CASE: 🔍 Получение информации о сервере Glama MCP')

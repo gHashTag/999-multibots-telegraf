@@ -4,6 +4,10 @@
   "description": "Neuro Blogger Telegram Bot",
   "author": "",
   "license": "ISC",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "predev": "node scripts/kill-port.js 2999 3001",
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
@@ -20,7 +24,8 @@
     "tunnel": "ssh -R 80:localhost:2999 localhost.run",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
     "type-check": "tsc --noEmit",
-    "pre-commit": "lint-staged"
+    "pre-commit": "lint-staged",
+    "deploy": "./deploy.sh"
   },
   "lint-staged": {
     "*.ts": [
