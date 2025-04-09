@@ -143,7 +143,7 @@ export function registerCommands({
       description: 'Start command received',
       telegramId: ctx.from?.id,
     })
-    return enterScene(ctx, ModeEnum.MainMenu, ctx.from?.id)
+    return enterScene(ctx, ModeEnum.MenuScene, ctx.from?.id)
   })
 
   bot.command('stats', async ctx => {
@@ -184,7 +184,7 @@ export function registerCommands({
       description: 'Broadcast command received',
       telegramId: ctx.from?.id,
     })
-    return enterScene(ctx, ModeEnum.MainMenu, ctx.from?.id)
+    return enterScene(ctx, ModeEnum.MenuScene, ctx.from?.id)
   })
 
   composer.command('broadcast', async ctx => {
@@ -192,7 +192,7 @@ export function registerCommands({
       description: 'Broadcast command received (composer)',
       telegramId: ctx.from?.id,
     })
-    return enterScene(ctx, ModeEnum.MainMenu, ctx.from?.id)
+    return enterScene(ctx, ModeEnum.MenuScene, ctx.from?.id)
   })
 
   bot.command('menu', async ctx => {
@@ -200,8 +200,7 @@ export function registerCommands({
       description: 'Menu command received',
       telegramId: ctx.from?.id,
     })
-    ctx.session.mode = ModeEnum.MainMenu
-    return enterScene(ctx, ModeEnum.MainMenu, ctx.from?.id)
+    return enterScene(ctx, ModeEnum.MenuScene, ctx.from?.id)
   })
 
   composer.command('menu', async ctx => {
@@ -209,8 +208,8 @@ export function registerCommands({
       description: 'Menu command received (composer)',
       telegramId: ctx.from?.id,
     })
-    ctx.session.mode = ModeEnum.MainMenu
-    return enterScene(ctx, ModeEnum.MainMenu, ctx.from?.id)
+    ctx.session.mode = ModeEnum.MenuScene
+    return enterScene(ctx, ModeEnum.MenuScene, ctx.from?.id)
   })
 
   bot.command('tech', async ctx => {
@@ -453,8 +452,8 @@ export function registerCommands({
       description: 'Main menu requested',
       telegramId: ctx.from?.id,
     })
-    ctx.session.mode = ModeEnum.MainMenu
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    ctx.session.mode = ModeEnum.MenuScene
+    await ctx.scene.enter(ModeEnum.MenuScene)
   })
 
   composer.hears(
@@ -878,7 +877,7 @@ export function registerCommands({
       case 'get_ru_bill':
         return enterScene(ctx, ModeEnum.GetRuBillWizard, telegramId)
       case 'menu':
-        return enterScene(ctx, ModeEnum.MainMenu, telegramId)
+        return enterScene(ctx, ModeEnum.MenuScene, telegramId)
       case 'help':
         return enterScene(ctx, ModeEnum.HelpScene, telegramId)
       case 'balance':

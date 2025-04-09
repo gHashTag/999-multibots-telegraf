@@ -8,6 +8,7 @@ import { handleTechSupport } from '@/commands/handleTechSupport'
 import { mainMenuButton } from '@/menu/mainMenu'
 import { get100Command } from '@/commands'
 import { getStatsCommand } from '@/commands/stats'
+import { logAction } from '@/utils/logger'
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
@@ -161,7 +162,7 @@ export const handleMenu = async (ctx: MyContext) => {
           description: 'Entering main menu',
           telegram_id: ctx.from?.id,
           previous_mode: ctx.session?.mode,
-          new_mode: ModeEnum.MainMenu,
+          new_mode: ModeEnum.MenuScene,
           action: 'enter_menu_scene',
           session_state: {
             mode: ctx.session?.mode,
@@ -183,7 +184,12 @@ export const handleMenu = async (ctx: MyContext) => {
         }
 
         // Сохраняем режим меню
-        ctx.session.mode = ModeEnum.MainMenu
+        logAction('menu_mode_change', Number(ctx.from?.id), {
+          old_mode: ctx.session.mode,
+          new_mode: ModeEnum.MenuScene,
+          bot_name: ctx.botInfo?.username || '',
+        })
+        ctx.session.mode = ModeEnum.MenuScene
 
         logger.info('🔄 Состояние перед входом в меню', {
           description: 'State before entering menu',
@@ -210,11 +216,11 @@ export const handleMenu = async (ctx: MyContext) => {
           description: 'Entering main menu via button',
           telegram_id: ctx.from?.id,
           previous_mode: ctx.session?.mode,
-          new_mode: ModeEnum.MainMenu,
+          new_mode: ModeEnum.MenuScene,
           action: 'enter_menu_scene_button',
         })
         console.log('CASE: 🏠 Главное меню')
-        ctx.session.mode = ModeEnum.MainMenu
+        ctx.session.mode = ModeEnum.MenuScene
         await ctx.scene.enter('menu_scene')
       },
       '/tech': async () => {

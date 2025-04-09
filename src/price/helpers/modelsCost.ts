@@ -35,7 +35,6 @@ export enum ModeEnum {
   ChangeSize = 'change_size',
   Invite = 'invite',
   Help = 'help',
-  MainMenu = 'main_menu',
   Avatar = 'avatar',
   Balance = 'balance',
   ImprovePrompt = 'improve_prompt',

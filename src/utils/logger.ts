@@ -72,3 +72,19 @@ export const logger = winston.createLogger({
   ),
   transports,
 })
+
+// Function to log user actions
+export const logAction = (
+  action: string,
+  userId?: number,
+  additionalInfo?: any
+) => {
+  const logMessage = {
+    action,
+    userId,
+    ...(additionalInfo && { additionalInfo }),
+    timestamp: new Date().toISOString(),
+  }
+
+  logger.info('User Action:', logMessage)
+}

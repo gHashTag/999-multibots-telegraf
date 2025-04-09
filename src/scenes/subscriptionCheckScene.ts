@@ -49,13 +49,13 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     if (!isSubscribed) {
       // Если подписка не существует, то переходим в главное меню
       console.log('CASE: not subscribed')
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      return ctx.scene.enter(ModeEnum.MenuScene)
     }
   }
 
   // If we reach here, subscription is valid
-  if (ctx.session.mode === ModeEnum.MainMenu) {
-    return ctx.scene.enter(ModeEnum.MainMenu)
+  if (ctx.session.mode === ModeEnum.MenuScene) {
+    return ctx.scene.enter(ModeEnum.MenuScene)
   } else {
     // If we have a target scene in session, go there
     const targetScene = ctx.session.targetScene || ModeEnum.StartScene
