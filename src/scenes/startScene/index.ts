@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { Markup, Scenes } from 'telegraf'
 import {
   checkPaymentStatus,
@@ -7,7 +7,7 @@ import {
 } from '@/core/supabase'
 import { mainMenuButton } from '@/menu/mainMenu'
 import { BOT_URLS } from '@/core/bot'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
   const botName = ctx.botInfo.username

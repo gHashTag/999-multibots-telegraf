@@ -1,7 +1,7 @@
 import axios, { isAxiosError } from 'axios'
 import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
-import { ImageToVideoResponse, VideoModel } from '@/interfaces'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { ImageToVideoResponse, VideoModel } from '@/types'
+import { TelegramId } from '@/types/telegram.interface'
 
 export async function generateImageToVideo({
   imageUrl,

@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { Markup } from 'telegraf'
 
 export async function handleSubscriptionMessage(

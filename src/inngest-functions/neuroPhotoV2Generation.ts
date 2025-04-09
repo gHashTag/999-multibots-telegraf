@@ -7,11 +7,12 @@ import {
   getAspectRatio,
 } from '@/core/supabase'
 import { API_URL } from '@/config'
-import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 import fetch from 'node-fetch'
 

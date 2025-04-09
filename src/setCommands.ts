@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf'
-import { MyContext } from './interfaces'
+import { MyContext } from '@/types'
 import { supabase } from './core/supabase'
 
 // Резервный ID для тестирования, если владелец не найден в базе

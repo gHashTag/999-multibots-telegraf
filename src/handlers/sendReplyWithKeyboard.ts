@@ -1,5 +1,5 @@
 import { isRussian } from '@/helpers'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { Markup } from 'telegraf'
 import type {
   InlineKeyboardMarkup,

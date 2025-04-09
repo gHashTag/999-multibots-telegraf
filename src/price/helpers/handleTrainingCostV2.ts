@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 
 import { calculateTrainingCost } from './calculateTrainingCost'
 import { getUserBalance } from '@/core/supabase'

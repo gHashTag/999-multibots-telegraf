@@ -1,22 +1,21 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { v4 as uuidv4 } from 'uuid'
+import path from 'path'
+import os from 'os'
 import { inngest } from '@/inngest-functions/clients'
 import { getBotByName } from '@/core/bot'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
+import { elevenLabsService } from '@/core/elevenlabs'
+import { TelegramId } from '@/types/telegram.interface'
 import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { InputFile } from 'telegraf/typings/core/types/typegram'
-import { ModeEnum } from '@/price/helpers/modelsCost'
 import { sendBalanceMessage } from '@/price/helpers'
-import { v4 as uuidv4 } from 'uuid'
-import { elevenLabsService } from '@/core/elevenlabs'
-import { calculateModeCost } from '@/price/helpers/modelsCost'
-
-import { createWriteStream } from 'fs'
-import * as path from 'path'
-import * as os from 'os'
 import { Telegram } from 'telegraf'
+
 interface TextToSpeechEvent {
   data: {
     text: string
@@ -128,88 +127,37 @@ export const textToSpeechFunction = inngest.createFunction(
             text_length: params.text.length,
           })
 
-          const audioStream = await elevenLabsService.generateSpeech(
+          const audioBuffer = await elevenLabsService.textToSpeech(
             params.text,
             params.voice_id
           )
 
           console.log('✅ Получен ответ от ElevenLabs API:', {
             description: 'Received response from ElevenLabs API',
-            stream_received: !!audioStream,
+            buffer_received: !!audioBuffer,
+            buffer_size: audioBuffer.byteLength,
           })
 
-          return new Promise<SpeechResult>((resolve, reject) => {
-            if (!audioStream) {
-              reject(new Error('Audio stream is null'))
-              return
-            }
+          // Создаем временный файл
+          const audioUrl = path.join(os.tmpdir(), `audio_${Date.now()}.mp3`)
 
-            const audioUrl = path.join(os.tmpdir(), `audio_${Date.now()}.mp3`)
-            const writeStream = createWriteStream(audioUrl)
-
-            console.log('📝 Создание временного файла:', {
-              description: 'Creating temporary file',
-              path: audioUrl,
-            })
-
-            // Обработка ошибок потока
-            audioStream.on('error', error => {
-              console.error('🔥 Ошибка аудио потока:', {
-                description: 'Audio stream error',
-                error: error.message,
-              })
-              reject(error)
-            })
-
-            writeStream.on('error', error => {
-              console.error('🔥 Ошибка записи файла:', {
-                description: 'File write error',
-                error: error.message,
-                path: audioUrl,
-              })
-              reject(error)
-            })
-
-            // Pipe с обработкой событий
-            audioStream.pipe(writeStream).on('finish', () => {
-              try {
-                console.log('✅ Аудио файл создан:', {
-                  description: 'Audio file created',
-                  path: audioUrl,
-                })
-
-                // Читаем файл в буфер для отправки
-                const audioBuffer = require('fs').readFileSync(audioUrl)
-
-                console.log('📦 Аудио буфер создан:', {
-                  description: 'Audio buffer created',
-                  buffer_size: audioBuffer.length,
-                  buffer_type: typeof audioBuffer,
-                  is_buffer: Buffer.isBuffer(audioBuffer),
-                })
-
-                // Проверяем, что у нас действительно есть буфер
-                if (!Buffer.isBuffer(audioBuffer)) {
-                  throw new Error('Invalid audio buffer type')
-                }
-
-                // Удаляем временный файл
-                require('fs').unlinkSync(audioUrl)
-
-                resolve({
-                  success: true,
-                  audioBuffer,
-                })
-              } catch (error) {
-                console.error('🔥 Ошибка при обработке аудио файла:', {
-                  description: 'Error processing audio file',
-                  error: error instanceof Error ? error.message : String(error),
-                  stack: error instanceof Error ? error.stack : undefined,
-                })
-                reject(error)
-              }
-            })
+          console.log('📝 Создание временного файла:', {
+            description: 'Creating temporary file',
+            path: audioUrl,
           })
+
+          // Записываем буфер в файл
+          require('fs').writeFileSync(audioUrl, Buffer.from(audioBuffer))
+
+          console.log('✅ Аудио файл создан:', {
+            description: 'Audio file created',
+            path: audioUrl,
+          })
+
+          return {
+            success: true,
+            audioBuffer: Buffer.from(audioBuffer),
+          }
         } catch (error) {
           console.error('🔥 Ошибка при генерации речи:', {
             description: 'Error generating speech',

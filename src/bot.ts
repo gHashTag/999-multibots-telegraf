@@ -1,7 +1,7 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { NODE_ENV } from './config'
 import { Composer } from 'telegraf'
 import { development, production } from '@/utils/launch'

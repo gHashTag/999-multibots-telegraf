@@ -1,6 +1,6 @@
 import { sendGenericErrorMessage } from '@/menu'
 import { isRussian } from '../../helpers/language'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 
 export async function handleCallback(ctx: MyContext) {
   const isRu = isRussian(ctx)

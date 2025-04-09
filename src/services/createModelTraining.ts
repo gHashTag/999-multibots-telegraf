@@ -1,12 +1,12 @@
 import fs from 'fs'
 import path from 'path'
 import { UPLOAD_DIR, API_URL } from '@/config'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { ModeEnum } from '@/price/helpers/modelsCost'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { ModeEnum } from '@/types/modes'
+import { TelegramId } from '@/types/telegram.interface'
 interface ModelTrainingRequest {
   filePath: string
   triggerWord: string

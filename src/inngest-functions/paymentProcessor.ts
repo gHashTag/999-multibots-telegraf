@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 import { supabase } from '@/core/supabase'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 export interface PaymentProcessEvent {
   data: {

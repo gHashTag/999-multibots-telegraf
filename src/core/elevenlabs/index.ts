@@ -1,5 +1,6 @@
 import { ElevenLabsService } from './ElevenLabsService'
 import { logger } from '@/utils/logger'
+import fetch from 'node-fetch'
 
 // Проверяем наличие API ключа
 if (!process.env.ELEVENLABS_API_KEY) {
@@ -21,6 +22,13 @@ logger.info('✅ ElevenLabs service initialized:', {
   success: !!elevenLabsService,
 })
 
+// Вспомогательная функция для конвертации URL в Blob
+async function urlToBlob(url: string): Promise<Blob> {
+  const response = await fetch(url)
+  const buffer = await response.buffer()
+  return new Blob([buffer])
+}
+
 // Интерфейс для обратной совместимости
 interface CreateVoiceParams {
   name: string
@@ -35,11 +43,18 @@ export async function createVoiceElevenLabs(
   params: CreateVoiceParams
 ): Promise<string> {
   const files = params.files || (params.fileUrl ? [params.fileUrl] : [])
+  const blobs = await Promise.all(files.map(urlToBlob))
+  return await elevenLabsService.addVoice(params.name, blobs)
+}
 
-  return await elevenLabsService.addVoice(
-    params.name,
-    params.description,
-    files,
-    params.labels
-  )
+export interface AddVoiceParams {
+  name: string
+  files: string[]
+  labels?: Record<string, string>
+}
+
+export async function addVoice(params: AddVoiceParams): Promise<string> {
+  const service = ElevenLabsService.getInstance()
+  const blobs = await Promise.all(params.files.map(urlToBlob))
+  return await service.addVoice(params.name, blobs)
 }

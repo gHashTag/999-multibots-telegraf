@@ -1,12 +1,12 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 
 import { isRussian } from '@/helpers/language'
 import { handleTrainingCost } from '@/price/helpers'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
 import { getStepSelectionMenuV2 } from '@/menu'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
   ModeEnum.DigitalAvatarBodyV2,
   async ctx => {

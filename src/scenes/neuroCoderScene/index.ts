@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import { generateNeuroImage } from '../../services/generateNeuroImage'
 import { isRussian } from '@/helpers'
 import { handleHelpCancel } from '@/handlers'

@@ -1,6 +1,6 @@
 import { Markup } from 'telegraf'
 
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { getUserBalance } from '@/core/supabase'
 
 import { calculateCost } from '@/price/priceCalculator'

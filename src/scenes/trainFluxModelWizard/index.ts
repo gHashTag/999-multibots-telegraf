@@ -1,5 +1,5 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { isRussian } from '@/helpers'
 import { getBotToken } from '@/handlers'
 import { isValidImage } from '@/helpers/images'

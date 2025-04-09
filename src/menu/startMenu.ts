@@ -1,4 +1,4 @@
-import { MyContext } from '../interfaces'
+import { MyContext } from '@/types'
 import { Markup } from 'telegraf'
 import { mainMenuButton } from './mainMenu'
 

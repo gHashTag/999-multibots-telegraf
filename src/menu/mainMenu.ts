@@ -1,8 +1,8 @@
-import { Subscription } from '@/interfaces/supabase.interface'
+import { Subscription } from '@/types/supabase.interface'
 
 import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
-import { MyContext, Level } from '@/interfaces/telegram-bot.interface'
+import { MyContext, Level } from '@/types/telegram-bot.interface'
 import { logger } from '@/utils/logger'
 
 export const levels: Record<number, Level> = {

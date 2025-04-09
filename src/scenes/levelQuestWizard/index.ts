@@ -14,11 +14,11 @@ import {
   handleQuestComplete,
   handleQuestRules,
 } from './handlers'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import { isRussian } from '@/helpers'
 import { mainMenu } from '@/menu'
 import { getReferalsCountAndUserData } from '@/core/supabase'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 // Создаем сцены для каждого шага
 const createStepScene = (

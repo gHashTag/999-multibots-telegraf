@@ -1,5 +1,5 @@
-import { MySession } from '../interfaces'
-import { ModeEnum } from '../price/helpers/modelsCost'
+import { MySession } from '@/types'
+import { ModeEnum } from '@/types/modes'
 
 export const defaultSession = (): MySession => ({
   memory: {

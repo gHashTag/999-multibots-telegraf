@@ -1,9 +1,9 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { isRussian } from '@/helpers/language'
 import { logger } from '@/utils/logger'
 import { handleHelpCancel } from '@/handlers'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 //
 export const selectNeuroPhotoScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.SelectNeuroPhoto,

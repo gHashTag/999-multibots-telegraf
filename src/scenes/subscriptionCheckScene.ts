@@ -1,10 +1,10 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { WizardScene } from 'telegraf/scenes'
 import { getUserByTelegramIdString } from '@/core/supabase'
 import { verifySubscription } from '@/middlewares/verifySubscription'
 import { getSubScribeChannel } from '@/core/supabase'
 import { isDev } from '@/helpers'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 import { logger } from '@/utils/logger'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {

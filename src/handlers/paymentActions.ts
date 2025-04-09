@@ -1,7 +1,7 @@
 import { handlePaymentPolicyInfo } from './paymentHandlers/handlePaymentPolicyInfo'
 import { handlePreCheckoutQuery } from './paymentHandlers/handlePreCheckoutQuery'
 import { handleSuccessfulPayment } from './paymentHandlers'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { Telegraf } from 'telegraf'
 
 import { handleTopUp } from './paymentHandlers/handleTopUp'

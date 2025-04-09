@@ -1,5 +1,6 @@
-import { MyContext } from '@/interfaces'
-import { ModeEnum, calculateModeCost } from '@/price/helpers'
+import { MyContext } from '@/types'
+import { ModeEnum } from '@/types/modes'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
 
 /** Диапазон цен с минимальным и максимальным значением */

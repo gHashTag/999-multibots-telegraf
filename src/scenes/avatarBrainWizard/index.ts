@@ -1,5 +1,5 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import { updateUserSoul } from '@/core/supabase'
 import { isRussian } from '../../helpers/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
@@ -8,7 +8,7 @@ import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
 } from '@/core/supabase'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 interface WizardSessionData extends Scenes.WizardSessionData {
   company?: string
   position?: string

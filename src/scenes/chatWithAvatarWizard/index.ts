@@ -1,10 +1,10 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import { isRussian } from '../../helpers/language'
 import { handleTextMessage } from '../../handlers/handleTextMessage'
 import { handleHelpCancel } from '@/handlers'
 import { getTranslation } from '@/core/supabase/getTranslation'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 import { logger } from '@/utils/logger'
 
 import {

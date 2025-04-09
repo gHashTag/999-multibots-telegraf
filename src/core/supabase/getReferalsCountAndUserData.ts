@@ -1,7 +1,7 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
-import { Subscription } from '@/interfaces/supabase.interface'
+import { TelegramId } from '@/types/telegram.interface'
+import { Subscription } from '@/types/supabase.interface'
 import { supabase } from '.'
-import { UserType } from '@/interfaces/supabase.interface'
+import { UserType } from '@/types/supabase.interface'
 import { logger } from '@/utils/logger'
 
 interface ReferralsResponse {

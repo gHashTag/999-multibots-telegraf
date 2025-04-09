@@ -1,10 +1,6 @@
 import { logger } from '@/utils/logger'
 import { BASE_COSTS, interestRate, starCost } from '../constants'
-import {
-  CostCalculationParams,
-  CostCalculationResult,
-  ModeEnum,
-} from '../types/modes'
+import { ModeEnum, CostCalculationParams, CostCalculationResult } from '@/types'
 
 /**
  * Рассчитывает стоимость для определенного режима

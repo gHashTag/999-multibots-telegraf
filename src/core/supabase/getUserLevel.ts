@@ -1,5 +1,5 @@
 import { supabase } from '.'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 /**
  * Функция для получения уровня пользователя по его telegram_id.
  * @param telegram_id - Идентификатор пользователя в Telegram.

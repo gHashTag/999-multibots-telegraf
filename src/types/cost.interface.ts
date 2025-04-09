@@ -1,5 +1,5 @@
-import { VideoModel } from '@/interfaces'
-import { ModeEnum } from '../price/helpers/modelsCost'
+import { VideoModel } from '@/types'
+import { ModeEnum } from '@/types/modes'
 
 export interface VideoModelConfig {
   name: VideoModel

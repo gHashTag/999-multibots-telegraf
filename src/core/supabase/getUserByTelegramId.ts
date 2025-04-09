@@ -1,7 +1,7 @@
 import { supabase } from '.'
 import { logger } from '@/utils/logger'
-import { User } from '@/interfaces/user.interface'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { User } from '@/types/user.interface'
+import { TelegramId } from '@/types/telegram.interface'
 
 /**
  * Получает информацию о пользователе по его Telegram ID

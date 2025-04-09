@@ -1,5 +1,5 @@
-import { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { MyContext } from '@/types'
+import { ModeEnum } from '@/types/modes'
 import { getUserByTelegramIdString, getSubScribeChannel } from '@/core/supabase'
 import { verifySubscription } from '@/middlewares/verifySubscription'
 import { isDev } from '@/helpers'

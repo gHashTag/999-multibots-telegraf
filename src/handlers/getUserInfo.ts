@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 
 export function getUserInfo(ctx: MyContext): {
   telegramId: string
