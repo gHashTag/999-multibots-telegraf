@@ -7,6 +7,7 @@ import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
 import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovementFailureMessage'
 import { sendGenericErrorMessage } from '@/menu'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 const MAX_ATTEMPTS = 10
 
@@ -107,7 +108,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             )
           console.log(mode, 'mode')
           switch (mode) {
-            case 'neuro_photo':
+            case ModeEnum.NeuroPhoto:
               await generateNeuroImage(
                 ctx.session.prompt,
                 ctx.session.userModel.model_url,
@@ -117,7 +118,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ctx.botInfo?.username
               )
               break
-            case 'text_to_video':
+            case ModeEnum.TextToVideo:
               if (!ctx.session.videoModel)
                 throw new Error(
                   isRu
@@ -141,16 +142,19 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ctx.botInfo?.username
               )
               break
-            case 'text_to_image':
+            case ModeEnum.TextToImage:
               await generateTextToImage(
                 ctx.session.prompt,
-                ctx.session.selectedModel,
+                ctx.session.selected_model,
                 1,
                 ctx.from.id.toString(),
                 isRu,
                 ctx,
                 ctx.botInfo?.username
               )
+              break
+            case ModeEnum.MainMenu:
+              await ctx.scene.enter('menu_scene')
               break
             default:
               throw new Error(
