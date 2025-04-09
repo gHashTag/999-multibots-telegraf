@@ -35,7 +35,6 @@
     ]
   },
   "dependencies": {
-    "@inngest/test": "^0.1.6",
     "@mtproto/core": "^6.3.0",
     "@supabase/supabase-js": "^2.49.4",
     "@types/multer": "^1.4.12",
