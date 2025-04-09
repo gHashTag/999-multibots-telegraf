@@ -151,14 +151,14 @@ checkBalanceScene.enter(async ctx => {
   // Переход к соответствующей сцене в зависимости от режима
   switch (mode) {
     case ModeEnum.SelectModel:
-      logger.info('🔄 Переход к сцене select_model', {
-        description: 'Switching to select_model scene',
+      logger.info('🔄 Переход к сцене select_model_wizard', {
+        description: 'Switching to select_model_wizard scene',
         telegram_id: ctx.from?.id,
         previous_mode: mode,
         selected_model: ctx.session.selected_model,
-        action: 'enter_select_model_from_balance',
+        action: 'enter_select_model_wizard_from_balance',
       })
-      return ctx.scene.enter('select_model')
+      return ctx.scene.enter('select_model_wizard')
     case ModeEnum.DigitalAvatarBody:
       logger.info('🔄 Переход к сцене digital_avatar_body', {
         description: 'Switching to digital_avatar_body scene',

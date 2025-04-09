@@ -35,13 +35,13 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 🤖 Цифровое тело (Auto FLUX)')
 
         // Автоматически устанавливаем FLUX
-        ctx.session.selectedModel = 'FLUX'
+        ctx.session.selected_model = 'FLUX'
         ctx.session.mode = ModeEnum.DigitalAvatarBody
 
         logger.info('✅ Модель установлена автоматически', {
           description: 'Model set automatically',
           telegram_id: ctx.from?.id,
-          selected_model: ctx.session?.selectedModel,
+          selected_model: ctx.session?.selected_model,
           mode: ctx.session?.mode,
           action: 'model_auto_set',
         })
@@ -59,7 +59,7 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[4].title_ru : levels[4].title_en]: async () => {
         console.log('CASE: 🧠 Мозг аватара')
-        ctx.session.mode = ModeEnum.Avatar
+        ctx.session.mode = ModeEnum.AvatarBrainWizard
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[5].title_ru : levels[5].title_en]: async () => {
@@ -165,7 +165,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'enter_menu_scene',
           session_state: {
             mode: ctx.session?.mode,
-            selectedModel: ctx.session?.selectedModel,
+            selected_model: ctx.session?.selected_model,
             targetScene: ctx.session?.targetScene,
           },
         })
@@ -189,7 +189,7 @@ export const handleMenu = async (ctx: MyContext) => {
           description: 'State before entering menu',
           telegram_id: ctx.from?.id,
           mode: ctx.session?.mode,
-          selected_model: ctx.session?.selectedModel,
+          selected_model: ctx.session?.selected_model,
           target_scene: ctx.session?.targetScene,
           action: 'pre_menu_enter',
         })
@@ -200,7 +200,7 @@ export const handleMenu = async (ctx: MyContext) => {
           description: 'Menu transition completed',
           telegram_id: ctx.from?.id,
           final_mode: ctx.session?.mode,
-          final_model: ctx.session?.selectedModel,
+          final_model: ctx.session?.selected_model,
           final_scene: ctx.scene?.current?.id,
           action: 'menu_enter_complete',
         })
