@@ -13,7 +13,7 @@ import {
   neuroPhotoV2Generation,
   textToImageFunction,
   createVoiceAvatarFunction,
-  textToSpeech,
+  textToSpeechFunction,
   ruPaymentProcessPayment,
   imageToPromptFunction,
 } from './inngest-functions'
@@ -403,7 +403,7 @@ app.use(
     client: inngest,
     functions: [
       textToImageFunction,
-      textToSpeech,
+      textToSpeechFunction,
       neuroImageGeneration,
       generateModelTraining,
       modelTrainingV2,

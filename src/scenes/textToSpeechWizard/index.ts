@@ -6,8 +6,67 @@ import { getUserByTelegramIdString } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
+const MAX_RETRIES = 3
+const INITIAL_RETRY_DELAY = 1000 // 1 секунда
+
+async function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function sendEventWithRetry(eventData: any, telegramId: number) {
+  let lastError
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      logger.info('🔄 Попытка отправки события в Inngest:', {
+        attempt,
+        description: 'Attempting to send event to Inngest',
+        telegram_id: telegramId,
+        mode: ModeEnum.TextToSpeech,
+      })
+
+      await inngest.send({
+        id: `tts-${telegramId}-${Date.now()}-${uuidv4().substring(0, 8)}`,
+        name: 'text-to-speech.requested',
+        data: eventData,
+      })
+
+      logger.info('✅ Событие успешно отправлено в Inngest:', {
+        attempt,
+        description: 'Event successfully sent to Inngest',
+        telegram_id: telegramId,
+        mode: ModeEnum.TextToSpeech,
+      })
+
+      return true
+    } catch (error) {
+      lastError = error
+      logger.error('❌ Ошибка при отправке события в Inngest:', {
+        attempt,
+        description: 'Error sending event to Inngest',
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        telegram_id: telegramId,
+        mode: ModeEnum.TextToSpeech,
+      })
+
+      if (attempt < MAX_RETRIES) {
+        const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt - 1)
+        logger.info('⏳ Ожидание перед повторной попыткой:', {
+          delay_ms: delay,
+          next_attempt: attempt + 1,
+          telegram_id: telegramId,
+          mode: ModeEnum.TextToSpeech,
+        })
+        await sleep(delay)
+      }
+    }
+  }
+
+  throw lastError
+}
+
 export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
-  ModeEnum.TextToSpeech,
+  'text_to_speech',
   async ctx => {
     const message = ctx.message
     if (!message || !('text' in message)) {
@@ -78,18 +137,16 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         mode: ModeEnum.TextToSpeech,
       })
 
-      await inngest.send({
-        id: `tts-${telegramId}-${Date.now()}-${uuidv4().substring(0, 8)}`,
-        name: 'text-to-speech.requested',
-        data: {
-          text: message.text,
-          voice_id,
-          telegram_id: telegramId,
-          is_ru: isRu,
-          bot_name: ctx.botInfo?.username,
-          mode: ModeEnum.TextToSpeech,
-        },
-      })
+      const eventData = {
+        text: message.text,
+        voice_id,
+        telegram_id: telegramId,
+        is_ru: isRu,
+        bot_name: ctx.botInfo?.username,
+        mode: ModeEnum.TextToSpeech,
+      }
+
+      await sendEventWithRetry(eventData, telegramId)
 
       await ctx.reply(
         isRu

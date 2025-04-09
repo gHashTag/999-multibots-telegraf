@@ -6,10 +6,11 @@ export const defaultSession = (): MySession => ({
     messages: [],
   },
   email: '',
-  selectedModel: '',
+  selected_model: '',
   prompt: '',
   selectedSize: '',
   language_code: 'en',
+  is_ru: false,
   targetScene: ModeEnum.StartScene,
   userModel: {
     model_name: '',
