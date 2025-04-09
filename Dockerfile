@@ -4,7 +4,7 @@ FROM node:20-alpine as builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci --ignore-scripts
 
 COPY . .
 
@@ -13,8 +13,6 @@ RUN npm run build
 
 # Финальный этап
 FROM node:20-alpine
-
-WORKDIR /app
 
 # Устанавливаем зависимости для Ansible
 RUN apk add --no-cache \
@@ -29,8 +27,10 @@ RUN python3 -m venv /opt/ansible-venv \
     && . /opt/ansible-venv/bin/activate \
     && pip install --no-cache-dir ansible
 
+WORKDIR /app
+
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --ignore-scripts --omit=dev
 
 # Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
