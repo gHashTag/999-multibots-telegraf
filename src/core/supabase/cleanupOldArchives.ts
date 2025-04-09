@@ -1,5 +1,5 @@
 import { supabase } from '.'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 
 export async function cleanupOldArchives(userId: TelegramId) {
   try {

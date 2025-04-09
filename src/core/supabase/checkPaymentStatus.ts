@@ -1,4 +1,4 @@
-import { MyContext, Subscription } from '@/interfaces'
+import { MyContext, Subscription } from '@/types'
 import { supabase } from '.'
 import { isRussian } from '@/helpers/language'
 import { checkFullAccess } from '@/handlers/checkFullAccess'

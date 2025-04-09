@@ -1,4 +1,4 @@
-import { ModelUrl, UserModel } from '@/interfaces'
+import { ModelUrl, UserModel } from '@/types'
 
 import { generateNeuroImage } from '@/services/generateNeuroImage'
 import {
@@ -9,8 +9,8 @@ import { mainMenuButton, mainMenu } from '@/menu'
 import { sendGenericErrorMessage, sendPhotoDescriptionRequest } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
-import { ModeEnum } from '@/price/helpers/modelsCost'
-import { MyContext } from '@/interfaces'
+import { ModeEnum } from '@/types/modes'
+import { MyContext } from '@/types'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
 

@@ -1,6 +1,6 @@
 import { logger } from '@/utils/logger'
-import { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { MyContext } from '@/types'
+import { ModeEnum } from '@/types/modes'
 
 export const sceneMap: Record<ModeEnum, string> = {
   [ModeEnum.AvatarBrainWizard]: 'avatar_brain_wizard',

@@ -1,4 +1,4 @@
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import { isOwner } from '@/core/supabase'
 import { isRussian } from '@/helpers'
 import { isDev } from '@/config'

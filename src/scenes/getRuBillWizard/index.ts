@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { MyContext } from '@/types/telegram-bot.interface'
 import { isRussian } from '@/helpers'
 import {
   getInvoiceId,
@@ -12,7 +12,7 @@ import {
 import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'

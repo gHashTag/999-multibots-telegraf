@@ -1,5 +1,5 @@
 import { Composer } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { InngestService } from '../../services/inngest.service'
 
 export const composer = new Composer<MyContext>()

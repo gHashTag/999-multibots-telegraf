@@ -1,8 +1,8 @@
 import { v4 as uuidv4 } from 'uuid'
 import { inngest } from '@/inngest-functions/clients'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 import { isRussian } from '@/helpers/language'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { logger } from '@/utils/logger'
 
 export async function generateNeuroImageV2(

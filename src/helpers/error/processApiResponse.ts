@@ -1,4 +1,4 @@
-import { ApiResponse } from '@/interfaces'
+import { ApiResponse } from '@/types'
 
 export async function processApiResponse(output: ApiResponse): Promise<string> {
   if (typeof output === 'string') return output

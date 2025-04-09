@@ -1,5 +1,5 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
-import { GenerationResult } from '@/interfaces'
+import { TelegramId } from '@/types/telegram.interface'
+import { GenerationResult } from '@/types'
 import { getBotByName } from '@/core/bot'
 import { v4 as uuidv4 } from 'uuid'
 import {
@@ -16,7 +16,8 @@ import {
   saveFileLocally,
 } from '@/helpers'
 import { replicate } from '@/core/replicate'
-import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { API_URL } from '@/config'
 import path from 'path'
 import fs from 'fs'

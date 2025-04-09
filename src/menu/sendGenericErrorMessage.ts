@@ -1,5 +1,5 @@
 import { errorMessageAdmin } from '@/helpers'
-import { MyContext } from '../interfaces'
+import { MyContext } from '@/types'
 
 export async function sendGenericErrorMessage(
   ctx: MyContext,

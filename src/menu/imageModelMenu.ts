@@ -1,5 +1,5 @@
 import { Markup } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { imageModelPrices } from '@/price/models'
 
 export async function imageModelMenu(ctx: MyContext) {

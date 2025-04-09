@@ -1,5 +1,5 @@
 import { getReferalsCountAndUserData } from '@/core/supabase'
-import { MyContext } from '../interfaces'
+import { MyContext } from '@/types'
 import { mainMenu } from './mainMenu'
 
 export const sendGenerationCancelledMessage = async (

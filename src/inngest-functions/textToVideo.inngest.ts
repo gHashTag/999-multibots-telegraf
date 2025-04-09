@@ -1,4 +1,4 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 import { inngest } from '@/inngest-functions/clients'
 import { getBotByName } from '@/core/bot'
 import {
@@ -6,7 +6,8 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
-import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { sendBalanceMessage } from '@/price/helpers'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { v4 as uuidv4 } from 'uuid'

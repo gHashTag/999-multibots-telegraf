@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { logger } from '@/utils/logger'
 
 const production = async (

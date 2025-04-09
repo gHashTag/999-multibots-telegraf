@@ -1,5 +1,5 @@
 import { getUserBalance } from '@/core/supabase'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 
 export interface BalanceCheckOptions {
   notifyUser?: boolean

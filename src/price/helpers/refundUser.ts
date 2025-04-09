@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { MyContext } from '@/types/telegram-bot.interface'
 import { getUserBalance } from '@/core/supabase'
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'

@@ -1,6 +1,6 @@
-import { Payment } from '@/interfaces/payments.interface'
+import { Payment } from '@/types/payments.interface'
 import { supabase } from '.'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 
 export async function sendPaymentInfo(
   user_id: TelegramId,

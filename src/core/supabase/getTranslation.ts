@@ -1,12 +1,12 @@
-import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { MyContext } from '@/types/telegram-bot.interface'
 import { supabase } from '@/core/supabase'
-import { TranslationButton } from '@/interfaces/supabase.interface'
+import { TranslationButton } from '@/types/supabase.interface'
 import { logger } from '@/utils/logger'
 import {
   TranslationCategory,
   TranslationCategoryType,
   Translation,
-} from '@/interfaces/translations.interface'
+} from '@/types/translations.interface'
 
 interface TranslationResponse {
   translation: string

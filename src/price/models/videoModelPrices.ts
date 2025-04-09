@@ -1,4 +1,4 @@
-import { VideoModel } from '@/interfaces'
+import { VideoModel } from '@/types'
 
 // Определяем базовую стоимость для каждой модели
 export const videoModelPrices: Record<VideoModel, number> = {

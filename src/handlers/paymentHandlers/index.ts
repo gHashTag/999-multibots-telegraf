@@ -1,10 +1,10 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 import { Context, Scenes } from 'telegraf'
 import { isRussian } from '@/helpers'
 import { getTranslation } from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
 import { updateUserSubscription, createPayment } from '@/core/supabase'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'

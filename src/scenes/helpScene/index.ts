@@ -1,5 +1,5 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import {
   handleLevel1,
   handleLevel2,
@@ -18,7 +18,7 @@ import {
 import { mainMenu } from '@/menu'
 import { isRussian } from '@/helpers'
 import { getReferalsCountAndUserData } from '@/core/supabase'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 export const helpScene = new Scenes.BaseScene<MyContext>(ModeEnum.HelpScene)
 

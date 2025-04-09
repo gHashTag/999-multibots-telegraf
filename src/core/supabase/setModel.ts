@@ -1,4 +1,4 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 import { supabase } from '.'
 
 export async function setModel(telegram_id: TelegramId, model: string) {

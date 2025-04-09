@@ -7,7 +7,7 @@ import { logger } from '@/utils/logger'
 import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
 import { getTelegramIdFromInvId } from '@/helpers/getTelegramIdFromInvId'
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { createBotByName } from '@/core/bot'
 
 // Константы для вариантов оплаты

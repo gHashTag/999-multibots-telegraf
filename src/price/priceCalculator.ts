@@ -1,4 +1,4 @@
-import { Subscription } from '@/interfaces/supabase.interface'
+import { Subscription } from '@/types/supabase.interface'
 
 // Базовые константы
 const COST_PER_STEP_IN_STARS = 0.22

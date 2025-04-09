@@ -3,7 +3,7 @@ import { supabase } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 
 interface InngestError extends Error {
   message: string

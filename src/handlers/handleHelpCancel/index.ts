@@ -1,5 +1,5 @@
-import { MyContext } from '../../interfaces'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { MyContext } from '@/types'
+import { ModeEnum } from '@/types/modes'
 export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
   if (ctx.message && 'text' in ctx.message) {
     const isRu = ctx.from?.language_code === 'ru'

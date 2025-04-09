@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { sendGenericErrorMessage } from '@/menu'

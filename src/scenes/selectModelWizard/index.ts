@@ -1,11 +1,11 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import { getAvailableModels } from '../../commands/selectModelCommand/getAvailableModels'
 import { sendGenericErrorMessage } from '@/menu'
 import { isRussian } from '@/helpers/language'
 import { setModel } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 import { logger } from '@/utils/logger'
 //
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(

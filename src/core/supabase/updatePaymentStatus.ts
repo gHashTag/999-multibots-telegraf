@@ -1,9 +1,6 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
-import {
-  TelegramId,
-  normalizeTelegramId,
-} from '@/interfaces/telegram.interface'
+import { TelegramId, normalizeTelegramId } from '@/types/telegram.interface'
 
 /**
  * 🔄 Обновляет статус платежа

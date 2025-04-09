@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 
 interface BuyParams {
   ctx: MyContext

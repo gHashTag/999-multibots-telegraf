@@ -1,4 +1,4 @@
-import { ModeEnum } from '../types/modes'
+import { ModeEnum } from '@/types/modes'
 
 // System configuration
 export const SYSTEM_CONFIG = {

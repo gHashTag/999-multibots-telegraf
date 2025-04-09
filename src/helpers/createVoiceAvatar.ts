@@ -1,4 +1,4 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 import {
   getUserByTelegramIdString,
   supabase,
@@ -7,7 +7,7 @@ import {
 import { createVoiceElevenLabs } from '@/core/elevenlabs'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 
 export async function createVoiceAvatar(
   fileUrl: string,

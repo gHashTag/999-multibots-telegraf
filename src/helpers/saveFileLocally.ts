@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { promisify } from 'util'
 import { downloadFile } from '@/helpers/downloadFile'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 const mkdir = promisify(fs.mkdir)
 const writeFile = promisify(fs.writeFile)
 

@@ -1,5 +1,5 @@
 // src/handlers/modelHandler.ts
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import { setModel } from '../../core/supabase'
 
 export async function handleModelCallback(ctx: MyContext, model: string) {

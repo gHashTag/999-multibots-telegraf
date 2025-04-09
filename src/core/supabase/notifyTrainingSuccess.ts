@@ -1,7 +1,7 @@
 import { supabase } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { getUserByTelegramIdString } from '@/core/supabase'
 import { getTelegramIdFromFinetune } from '@/core/bfl'
 import { logger } from '@/utils/logger'

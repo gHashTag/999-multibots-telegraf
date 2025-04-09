@@ -1,6 +1,6 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 import { levels } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers'
 import { priceCommand } from '@/commands/priceCommand'
@@ -172,13 +172,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🏠 Главное меню')
 
-        // Если мы уже в меню, не делаем повторный переход
+        // Если мы уже в меню, просто обновляем его
         if (ctx.scene?.current?.id === 'menu_scene') {
-          logger.info('🚫 Пропуск повторного входа в меню', {
-            description: 'Skipping repeated menu entry',
+          logger.info('🔄 Обновление главного меню', {
+            description: 'Refreshing main menu',
             telegram_id: ctx.from?.id,
             current_scene: ctx.scene?.current?.id,
-            action: 'skip_menu_reentry',
+            action: 'refresh_menu',
           })
           return
         }

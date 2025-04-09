@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { WizardScene } from 'telegraf/scenes'
 import {
   createUser,
@@ -7,7 +7,7 @@ import {
   CreateUserParams,
 } from '@/core/supabase'
 
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 import { isRussian } from '@/helpers/language'
 import { pulseBot } from '@/core'
 

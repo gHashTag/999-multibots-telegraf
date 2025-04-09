@@ -1,5 +1,5 @@
 import { logger } from '@/utils/logger'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { Telegraf } from 'telegraf'
 
 export const errorMessageAdmin = async (error: Error) => {

@@ -1,6 +1,6 @@
 import { answerAi, model } from '../../core/openai'
 import { getUserData } from '../../core/supabase'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 
 /**
  * Функция для безопасной обработки Markdown в сообщениях Telegram

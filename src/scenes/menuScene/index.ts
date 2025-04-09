@@ -1,18 +1,17 @@
-import { Mode, MyContext, Subscription } from '../../interfaces'
+import { Mode, MyContext, Subscription } from '@/types'
 import { sendGenericErrorMessage } from '@/menu'
-import { levels, mainMenu } from '../../menu/mainMenu'
+import { levels, mainMenu } from '@/menu/mainMenu'
 import { getReferalsCountAndUserData } from '@/core/supabase/getReferalsCountAndUserData'
 import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
-
 import { WizardScene } from 'telegraf/scenes'
 
 import { handleMenu } from '@/handlers'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
 import { sendTutorialMessage } from '@/handlers/sendTutorialMessage'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -176,6 +175,14 @@ const menuNextStep = async (ctx: MyContext) => {
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
     console.log('CASE menuNextStep: text 2', text)
+
+    if (text === '/menu') {
+      console.log('CASE: Обновление главного меню')
+      // Перезапускаем первый шаг сцены для обновления меню
+      await menuCommandStep(ctx)
+      return
+    }
+
     await handleMenu(ctx)
     return
   } else {

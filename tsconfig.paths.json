@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "baseUrl": "src",
+    "paths": {
+      "@/*": ["*"],
+      "@/utils/*": ["utils/*"],
+      "@/config": ["config"],
+      "@/controllers/*": ["controllers/*"],
+      "@/dtos/*": ["dtos/*"],
+      "@/exceptions/*": ["exceptions/*"],
+      "@/interfaces/*": ["interfaces/*"],
+      "@/middlewares/*": ["middlewares/*"],
+      "@/models/*": ["models/*"],
+      "@/routes/*": ["routes/*"],
+      "@/services/*": ["services/*"],
+      "@/core/*": ["core/*"],
+      "@/axios/*": ["axios/*"],
+      "@/price/*": ["price/*"],
+      "@/store/*": ["store/*"],
+      "@/handlers/*": ["handlers/*"],
+      "@/helpers/*": ["helpers/*"],
+      "@/commands/*": ["commands/*"],
+      "@/inngest-functions/*": ["inngest-functions/*"],
+      "@/types/*": ["types/*"],
+      "@/test-utils/*": ["test-utils/*"],
+      "@/menu/*": ["menu/*"],
+      "@/scenes/*": ["scenes/*"]
+    }
+  }
+}
