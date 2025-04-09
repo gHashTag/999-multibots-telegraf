@@ -497,6 +497,12 @@ export const SERVICE_DESCRIPTIONS: Record<
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },
+  [ModeEnum.AvatarBrainWizard]: {
+    expense: (amount: number) =>
+      `🧠 Мастер создания аватара: ${amount} ${getStarsWord(amount)}`,
+    income: (amount: number) =>
+      `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
+  },
   [ModeEnum.BroadcastWizard]: {
     expense: (amount: number) =>
       `📢 Мастер рассылки: ${amount} ${getStarsWord(amount)}`,
