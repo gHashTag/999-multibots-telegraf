@@ -2,14 +2,14 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { logger } from '@/utils/logger'
 
-const selectModelScene = new Scenes.BaseScene<MyContext>('select_model')
+export const selectModelScene = new Scenes.BaseScene<MyContext>('select_model')
 
 selectModelScene.enter(async ctx => {
   logger.info('🎯 Вход в сцену выбора модели', {
     telegram_id: ctx.from?.id,
     mode: ctx.session?.mode,
-    currentScene: ctx.scene.current?.id,
-    selectedModel: ctx.session?.selectedModel,
+    current_scene: ctx.scene.current?.id,
+    selected_model: ctx.session?.selected_model,
   })
 
   await ctx.reply(
@@ -43,19 +43,19 @@ selectModelScene.on('message', async ctx => {
     logger.info('🎯 Выбрана модель FLUX', {
       telegram_id: ctx.from?.id,
       previousMode: ctx.session?.mode,
-      selectedModel: 'FLUX',
+      selected_model: 'FLUX',
     })
 
-    ctx.session.selectedModel = 'FLUX'
+    ctx.session.selected_model = 'FLUX'
     await ctx.scene.enter('check_balance')
   } else if (messageText === 'flux pro') {
     logger.info('🎯 Выбрана модель FLUX PRO', {
       telegram_id: ctx.from?.id,
       previousMode: ctx.session?.mode,
-      selectedModel: 'FLUX PRO',
+      selected_model: 'FLUX PRO',
     })
 
-    ctx.session.selectedModel = 'FLUX PRO'
+    ctx.session.selected_model = 'FLUX PRO'
     await ctx.scene.enter('check_balance')
   } else {
     logger.warn('⚠️ Выбрана неверная модель', {
