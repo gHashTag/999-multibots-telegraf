@@ -214,11 +214,11 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter('neuro_photo_v2')
     case ModeEnum.Avatar:
       logger.info({
-        message: '🔄 Переход к сцене avatar',
-        description: 'Switching to avatar scene',
+        message: '🔄 Переход к сцене avatarBrainWizard',
+        description: 'Switching to avatarBrainWizard scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter('avatar')
+      return ctx.scene.enter(ModeEnum.Avatar)
     case ModeEnum.ChatWithAvatar:
       logger.info({
         message: '🔄 Переход к сцене chat_with_avatar',
