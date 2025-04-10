@@ -29,6 +29,10 @@ services:
     environment:
       - NODE_ENV=test
       - LOG_DIR=/tmp/logs
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/testdb
+      - SUPABASE_URL=http://postgres:5432
+      - SUPABASE_KEY=test-key
+      - PAYMENT_TEST_MODE=true
     volumes:
       - ./logs:/tmp/logs
     ports:
@@ -40,6 +44,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm run test:payment-processor
 
 volumes:
   test-logs: 
