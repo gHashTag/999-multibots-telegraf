@@ -105,7 +105,7 @@ alwaysApply: false
 
 ### Development Ports
 - 3000: Основное приложение
-- 8288: Inngest Dev Server
+- 2999: Inngest Dev Server
 - 80: Nginx прокси
 - 54322: Supabase Studio
 - 54321: Supabase API
@@ -281,7 +281,7 @@ alwaysApply: false
 
 1. Development Ports
    - 3000: Main App
-   - 8288: Inngest Dev
+   - 2999: Inngest Dev
    - 80: Nginx
    - 54322: Supabase Studio
    - 54321: Supabase API
