@@ -8,6 +8,7 @@ import os from 'os'
 import fs from 'fs'
 import { createWriteStream } from 'fs'
 import { getBotByName } from '@/core/bot'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 
 /**
  * Интерфейс для результатов теста
@@ -31,6 +32,29 @@ interface TextToSpeechParams {
   is_ru: boolean
   bot_name: string
   username?: string
+}
+
+/**
+ * Интерфейс для параметров платежа
+ */
+interface PaymentParams {
+  telegram_id: string
+  amount: number
+  stars?: number
+  type:
+    | 'money_income'
+    | 'money_expense'
+    | 'subscription_purchase'
+    | 'subscription_renewal'
+    | 'refund'
+    | 'bonus'
+    | 'referral'
+    | 'system'
+  description: string
+  bot_name: string
+  service_type: ModeEnum
+  inv_id?: string
+  metadata?: Record<string, any>
 }
 
 /**
@@ -678,38 +702,54 @@ export class InngestTester {
    * Запускает все тесты
    */
   async runAllTests(): Promise<TestResult[]> {
-    logger.info('🚀 Запуск всех тестов', {
-      description: 'Starting all tests',
+    const startTime = Date.now()
+    logger.info({
+      message: '🧪 Запуск всех тестов Inngest функций',
+      description: 'Running all Inngest function tests',
     })
 
     const results: TestResult[] = []
 
-    // Тесты для тренировки моделей
-    results.push(...(await this.runModelTrainingTests()))
+    try {
+      // Тесты генерации изображений
+      const imageResults = await this.runImageGenerationTests()
+      results.push(...imageResults)
 
-    // Тесты для генерации изображений
-    results.push(...(await this.runImageGenerationTests()))
+      // Тесты генерации видео
+      const videoResults = await this.runTextToVideoTests()
+      results.push(...videoResults)
 
-    // Тесты для голосовых аватаров
-    results.push(...(await this.runVoiceAvatarTests()))
+      // Тесты голосовых функций
+      const voiceResults = await this.runVoiceAvatarTests()
+      results.push(...voiceResults)
 
-    // Тесты для text-to-speech
-    results.push(...(await this.runTextToSpeechTests()))
+      // Тесты тренировки моделей
+      const trainingResults = await this.runModelTrainingTests()
+      results.push(...trainingResults)
 
-    // Тесты для text-to-video
-    results.push(...(await this.runTextToVideoTests()))
+      // Тесты платежной системы
+      const paymentResults = await this.runPaymentProcessorTests()
+      results.push(...paymentResults)
 
-    // Анализ результатов
-    const successCount = results.filter(r => r.success).length
-    const failureCount = results.filter(r => !r.success).length
+      // Вычисляем статистику
+      const successTests = results.filter(r => r.success).length
+      const totalTests = results.length
+      const duration = Date.now() - startTime
 
-    logger.info('📊 Результаты тестирования:', {
-      description: 'Test results summary',
-      total: results.length,
-      success: successCount,
-      failure: failureCount,
-      successRate: `${((successCount / results.length) * 100).toFixed(2)}%`,
-    })
+      logger.info({
+        message: `✅ Все тесты завершены: ${successTests}/${totalTests} успешно за ${duration}мс`,
+        description: 'All tests completed',
+        success: successTests,
+        total: totalTests,
+        duration,
+      })
+    } catch (error) {
+      logger.error({
+        message: '❌ Ошибка при выполнении тестов',
+        description: 'Error running tests',
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
 
     return results
   }
@@ -1135,6 +1175,149 @@ export class InngestTester {
 
     // Прямой вызов функции тренировки V2
     results.push(await this.testModelTrainingV2DirectInvoke())
+
+    return results
+  }
+
+  /**
+   * Тестирует функцию обработки платежа (пополнение)
+   */
+  async testPaymentProcessorIncome(): Promise<TestResult> {
+    const paymentData: PaymentParams = {
+      telegram_id: TEST_CONFIG.user.telegramId,
+      amount: 100,
+      stars: 100,
+      type: 'money_income',
+      description: 'Тестовое пополнение баланса',
+      bot_name: TEST_CONFIG.user.botName,
+      service_type: ModeEnum.TopUpBalance,
+      metadata: {
+        test: true,
+        operation_id: `test-income-${Date.now()}`,
+      },
+    }
+
+    logger.info({
+      message: '🧪 Тест функции обработки платежа (пополнение)',
+      description: 'Payment processor income test',
+      paymentData: {
+        ...paymentData,
+        telegram_id: `${paymentData.telegram_id.substring(0, 3)}***`,
+      },
+    })
+
+    return this.sendEvent('payment/process', paymentData)
+  }
+
+  /**
+   * Тестирует функцию обработки платежа (списание)
+   */
+  async testPaymentProcessorExpense(): Promise<TestResult> {
+    const paymentData: PaymentParams = {
+      telegram_id: TEST_CONFIG.user.telegramId,
+      amount: 50,
+      stars: 50,
+      type: 'money_expense',
+      description: 'Тестовое списание средств',
+      bot_name: TEST_CONFIG.user.botName,
+      service_type: ModeEnum.TextToImage,
+      metadata: {
+        test: true,
+        operation_id: `test-expense-${Date.now()}`,
+      },
+    }
+
+    logger.info({
+      message: '🧪 Тест функции обработки платежа (списание)',
+      description: 'Payment processor expense test',
+      paymentData: {
+        ...paymentData,
+        telegram_id: `${paymentData.telegram_id.substring(0, 3)}***`,
+      },
+    })
+
+    return this.sendEvent('payment/process', paymentData)
+  }
+
+  /**
+   * Тестирует функцию обработки платежа напрямую
+   */
+  async testPaymentProcessorDirectInvoke(): Promise<TestResult> {
+    const paymentData: PaymentParams = {
+      telegram_id: TEST_CONFIG.user.telegramId,
+      amount: 100,
+      stars: 100,
+      type: 'money_income',
+      description: 'Тестовое пополнение баланса (прямой вызов)',
+      bot_name: TEST_CONFIG.user.botName,
+      service_type: ModeEnum.TopUpBalance,
+      metadata: {
+        test: true,
+        direct_invoke: true,
+        operation_id: `test-direct-${Date.now()}`,
+      },
+    }
+
+    logger.info({
+      message: '🧪 Тест прямого вызова функции обработки платежа',
+      description: 'Direct invoke payment processor test',
+      paymentData: {
+        ...paymentData,
+        telegram_id: `${paymentData.telegram_id.substring(0, 3)}***`,
+      },
+    })
+
+    return this.invokeFunction('payment-processor', {
+      name: 'payment/process',
+      data: paymentData,
+    })
+  }
+
+  /**
+   * Запускает тесты платежной системы
+   */
+  async runPaymentProcessorTests(): Promise<TestResult[]> {
+    logger.info({
+      message: '🧪 Запуск тестов платежной системы',
+      description: 'Running payment processor tests',
+    })
+
+    const results: TestResult[] = []
+
+    try {
+      // Тест пополнения баланса
+      results.push(await this.testPaymentProcessorIncome())
+
+      // Тест списания средств
+      results.push(await this.testPaymentProcessorExpense())
+
+      // Тест прямого вызова
+      results.push(await this.testPaymentProcessorDirectInvoke())
+
+      // Вычисляем статистику
+      const successTests = results.filter(r => r.success).length
+      const totalTests = results.length
+
+      logger.info({
+        message: `✅ Тесты платежной системы завершены: ${successTests}/${totalTests} успешно`,
+        description: 'Payment processor tests completed',
+        success: successTests,
+        total: totalTests,
+      })
+    } catch (error) {
+      logger.error({
+        message: '❌ Ошибка при выполнении тестов платежной системы',
+        description: 'Error running payment processor tests',
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      results.push({
+        testName: 'Ошибка выполнения тестов платежной системы',
+        success: false,
+        message: 'Произошла ошибка при выполнении тестов',
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
 
     return results
   }

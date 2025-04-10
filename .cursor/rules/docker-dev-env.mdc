@@ -29,7 +29,7 @@ alwaysApply: false
 
    # MCP Services
    INNGEST_DEV=1
-   INNGEST_BASE_URL=http://inngest:8288
+   INNGEST_BASE_URL=http://inngest:2999
    ```
 
 ## Docker Services Configuration 🔧
@@ -129,12 +129,12 @@ docker compose -f docker-compose.dev.yml [command]
 
 1. Exposed Ports
    - 3000: Main application
-   - 8288: Inngest Dev Server
+   - 2999: Inngest Dev Server
    - 80: Nginx proxy
 
 2. Internal Communication
    - Services can communicate using container names
-   - Example: http://inngest:8288
+   - Example: http://inngest:2999
 
 ## Development Workflow 🔄
 

@@ -36,7 +36,9 @@
     "prebuild": "rm -rf dist",
     "prepare:assets": "node scripts/prepare-assets.js",
     "test": "npx tsx src/test-utils/run-tests.ts",
-    "test:payment-processor": "npx tsx src/test-utils/run-payment-processor-test.ts",
+    "test:payment": "npx tsx src/test-utils/index.ts --category=payment",
+    "test:payment-processor": "npx tsx src/test-utils/index.ts --category=payment-processor",
+    "test:ru-payment": "npx tsx src/test-utils/index.ts --category=ru-payment",
     "test:neurophoto": "npx tsx src/test-utils/run-neurophoto-test.ts"
   },
   "dependencies": {

@@ -1,85 +1,142 @@
 import { logger } from '@/utils/logger'
-import { runPaymentProcessorTests } from './paymentProcessorTest'
+import { TestResult } from '../../types'
+
+// Комментарий: проверяем наличие файлов перед импортом
+// Если файлы paymentProcessorTest.ts или paymentProcessorMockTest.ts не существуют,
+// мы должны создать их или обновить импорты
+
+// Тесты платежного процессора
+let runPaymentProcessorTests: () => Promise<TestResult[]>
+try {
+  // Пытаемся импортировать
+  runPaymentProcessorTests =
+    require('./paymentProcessorTest').runPaymentProcessorTests
+  logger.info('✅ Тесты платежного процессора загружены', {
+    description: 'Payment processor tests loaded',
+  })
+} catch (error) {
+  // Если не удалось, создаем заглушку
+  logger.warn('⚠️ Тесты платежного процессора не найдены', {
+    description: 'Payment processor tests not found',
+    error: error instanceof Error ? error.message : String(error),
+  })
+  runPaymentProcessorTests = async () => {
+    return [
+      {
+        success: false,
+        name: 'Тесты платежного процессора недоступны',
+        message: 'Файл тестов не найден',
+      },
+    ]
+  }
+}
+
+// Тесты с моками платежного процессора
+let runPaymentProcessorMockTests: () => Promise<TestResult[]>
+try {
+  // Пытаемся импортировать
+  runPaymentProcessorMockTests =
+    require('./paymentProcessorMockTest').runPaymentProcessorMockTests
+  logger.info('✅ Тесты с моками платежного процессора загружены', {
+    description: 'Payment processor mock tests loaded',
+  })
+} catch (error) {
+  // Если не удалось, создаем заглушку
+  logger.warn('⚠️ Тесты с моками платежного процессора не найдены', {
+    description: 'Payment processor mock tests not found',
+    error: error instanceof Error ? error.message : String(error),
+  })
+  runPaymentProcessorMockTests = async () => {
+    return [
+      {
+        success: false,
+        name: 'Тесты с моками платежного процессора недоступны',
+        message: 'Файл тестов не найден',
+      },
+    ]
+  }
+}
+
+// Тесты RuPayment
 import { runRuPaymentTests } from './ruPaymentTest'
 
 /**
- * Запускает все тесты для платежных функций
- * @param options Опции запуска тестов
- * @returns Результаты выполнения тестов
+ * Запуск всех тестов платежной системы
  */
-export async function runPaymentTests(options: { verbose?: boolean } = {}): Promise<any> {
-  logger.info('🚀 Запуск тестов платежных функций...', {
-    description: 'Starting Payment Function Tests...',
+export async function runPaymentTests(
+  options: { verbose?: boolean } = {}
+): Promise<{
+  success: boolean
+  results: TestResult[][]
+}> {
+  logger.info('🧪 Запуск всех тестов платежной системы', {
+    description: 'Running all payment system tests',
+    verbose: options.verbose,
   })
 
   const startTime = Date.now()
-  const results = []
+  const results: TestResult[][] = []
 
   try {
-    // Запуск тестов Payment Processor
-    logger.info('🔄 Запуск тестов Payment Processor', {
-      description: 'Running Payment Processor tests',
+    // Запускаем тесты платежного процессора
+    logger.info('💰 Запуск тестов платежного процессора', {
+      description: 'Running payment processor tests',
     })
+    results.push(await runPaymentProcessorTests())
 
-    const paymentProcessorResults = await runPaymentProcessorTests(options)
-    results.push({
-      name: 'Payment Processor',
-      success: paymentProcessorResults.success,
-      results: paymentProcessorResults.results,
+    // Запускаем тесты с моками платежного процессора
+    logger.info('🧩 Запуск тестов с моками платежного процессора', {
+      description: 'Running payment processor mock tests',
     })
+    results.push(await runPaymentProcessorMockTests())
 
-    // Запуск тестов RU Payment Service
-    logger.info('🔄 Запуск тестов RU Payment Service', {
-      description: 'Running RU Payment Service tests',
+    // Запускаем тесты RuPayment
+    logger.info('🇷🇺 Запуск тестов RuPayment', {
+      description: 'Running RuPayment tests',
     })
+    results.push(await runRuPaymentTests())
 
-    const ruPaymentResults = await runRuPaymentTests(options)
-    results.push({
-      name: 'RU Payment Service',
-      success: ruPaymentResults.success,
-      results: ruPaymentResults.results,
-    })
+    // Собираем статистику
+    const duration = Date.now() - startTime
+    const totalGroups = results.length
+    const totalTests = results.reduce((acc, group) => acc + group.length, 0)
+    const totalSuccessfulTests = results.reduce(
+      (acc, group) => acc + group.filter(t => t.success).length,
+      0
+    )
 
-    const endTime = Date.now()
-    const duration = endTime - startTime
-    const successCount = results.filter(r => r.success).length
-    const totalCount = results.length
-
-    logger.info('✅ Тесты платежных функций завершены', {
-      description: 'Payment function tests completed',
+    logger.info('✅ Все тесты платежной системы завершены', {
+      description: 'All payment system tests completed',
       duration,
-      successCount,
-      totalCount,
+      totalGroups,
+      totalTests,
+      totalSuccessfulTests,
+      success_rate: `${Math.round((totalSuccessfulTests / totalTests) * 100)}%`,
     })
 
     return {
-      success: successCount === totalCount,
+      success: totalSuccessfulTests === totalTests,
       results,
-      stats: {
-        duration,
-        successCount,
-        totalCount,
-      }
     }
   } catch (error) {
-    const endTime = Date.now()
-    const duration = endTime - startTime
+    const duration = Date.now() - startTime
 
-    logger.error('❌ Ошибка при выполнении тестов платежных функций', {
-      description: 'Error running payment function tests',
+    logger.error('❌ Ошибка при запуске тестов платежной системы', {
+      description: 'Error running payment system tests',
       error: error instanceof Error ? error.message : String(error),
       duration,
     })
 
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
       results,
-      stats: {
-        duration,
-        successCount: results.filter(r => r.success).length,
-        totalCount: results.length,
-      }
     }
   }
-} 
+}
+
+// Экспортируем те функции, которые удалось импортировать
+export {
+  runPaymentProcessorTests,
+  runPaymentProcessorMockTests,
+  runRuPaymentTests,
+}

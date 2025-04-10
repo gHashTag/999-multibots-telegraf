@@ -83,12 +83,19 @@ if (isInCategory(TestCategory.Inngest, args.category)) {
    - Тестирует синтез речи из текста с разными параметрами
    - Проверяет различные голоса и языки
 
+6. **paymentProcessorTest.ts** - Тест для функции обработки платежей
+   - Проверяет корректное пополнение баланса пользователя
+   - Проверяет корректное списание средств с баланса пользователя
+   - Тестирует обработку ошибок при недостаточном балансе
+   - Проверяет корректность ведения истории операций
+
 ### Использование в тестах:
 
 ```typescript
 // Пример запуска нескольких тестов Inngest функций
 import { testTextToImage } from './textToImageTest'
 import { testTextToVideo } from './textToVideoTest'
+import { testPaymentProcessorIncome } from './paymentProcessorTest'
 
 export async function runAllInngestTests() {
   const results = []
@@ -96,6 +103,7 @@ export async function runAllInngestTests() {
   // Запуск тестов последовательно
   results.push(await testTextToImage())
   results.push(await testTextToVideo())
+  results.push(await testPaymentProcessorIncome())
   
   return results
 }
