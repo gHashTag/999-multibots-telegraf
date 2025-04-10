@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import path from 'path'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { mcpManager } from '@/core/mcp'
 
 logger.info('🔍 Загрузка переменных окружения:', {
