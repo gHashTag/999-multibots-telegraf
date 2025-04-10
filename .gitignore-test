@@ -1,0 +1,10 @@
+# Testing logs
+logs/
+test-data-*/
+
+# Docker test volumes
+pgdata-test/
+
+# Temporary files
+*.log
+*.tmp 
