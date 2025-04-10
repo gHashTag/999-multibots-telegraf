@@ -31,12 +31,20 @@ export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
 /**
  * Результат операции с балансом
  */
-export interface BalanceOperationResult {
+export interface BalanceOperationSuccessResult {
+  success: true
   newBalance: number
-  success: boolean
   modePrice: number
-  error?: string
 }
+
+export interface BalanceOperationErrorResult {
+  success: false
+  newBalance: number
+  modePrice: number
+  error: string
+}
+
+export type BalanceOperationResult = BalanceOperationSuccessResult | BalanceOperationErrorResult
 
 /**
  * Платежные системы

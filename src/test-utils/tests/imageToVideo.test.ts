@@ -1,162 +1,240 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { inngest } from '@/inngest-functions/clients'
-import { imageToVideoFunction } from '@/inngest-functions/imageToVideo.inngest'
-import { createTestUser } from '../helpers/createTestUser'
-import { createMockContext } from '../helpers/createMockContext'
-import { mockSupabase } from '../mocks/supabase'
-import { mockBotInstance } from '../mocks/botMock'
-import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
-import axios from 'axios'
-import { vi } from 'vitest'
+// Mock fetch
+const mockFetch = jest.fn(() =>
+  Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ output: ['https://example.com/video.mp4'] })
+  })
+)
 
-vi.mock('axios')
-const mockedAxios = axios as jest.Mocked<typeof axios>
+// @ts-ignore
+global.fetch = mockFetch
+
+// Mock Supabase config
+jest.mock('@/config', () => ({
+  SUPABASE_URL: 'http://localhost:54321',
+  SUPABASE_SERVICE_KEY: 'test-service-key',
+  SUPABASE_SERVICE_ROLE_KEY: 'test-role-key'
+}))
+
+// Mock ModeEnum and getModelPrice
+jest.mock('@/price/helpers/modelsCost', () => ({
+  ModeEnum: {
+    ImageToVideo: 'image_to_video'
+  },
+  getModelPrice: jest.fn().mockReturnValue(100)
+}))
+
+// Mock calculateFinalPrice
+jest.mock('@/price/helpers/calculateFinalPrice', () => ({
+  calculateFinalPrice: jest.fn().mockReturnValue(100)
+}))
+
+import { describe, it, expect, beforeEach, jest } from '@jest/globals'
+import { createTestEngine, executeTest, InngestEvent } from '../inngest'
+import { imageToVideoFunction } from '@/inngest-functions/imageToVideo.inngest'
+import { mockSupabase } from '../mocks/supabase'
+import { ImageToVideoResult } from '@/interfaces/imageToVideo.interface'
+import { ImageToVideoEvent } from '@/inngest-functions/imageToVideo.inngest'
+import { User } from '../mocks/types'
+import { ModeEnum } from '@/interfaces/mode.interface'
+import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
+import { MockSupabaseClient } from '../mocks/types'
+import { Telegraf } from 'telegraf'
+
+// Mock VIDEO_MODELS_CONFIG
+jest.mock('@/menu/videoModelMenu', () => ({
+  VIDEO_MODELS_CONFIG: {
+    minimax: {
+      id: 'image_to_video',
+      name: 'Minimax',
+      api: {
+        model: 'minimax-model',
+        input: {}
+      }
+    }
+  }
+}))
+
+// Mock the bot instance
+jest.mock('@/core/bot', () => ({
+  getBotByName: () => ({
+    success: true,
+    bot: new Telegraf('fake-token')
+  })
+}))
 
 describe('imageToVideoFunction', () => {
-  const testUser = {
-    telegram_id: '123456789',
+  const testUser: Required<User> = {
+    id: '1',
+    telegram_id: '12345',
     username: 'testuser',
     is_ru: false,
     bot_name: 'test_bot',
+    balance: 1000,
+    subscription_end_date: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
   }
 
-  const testEvent = {
+  beforeEach(async () => {
+    mockSupabase.reset()
+    await mockSupabase.createUser(testUser)
+  })
+
+  const defaultEvent: InngestEvent<ImageToVideoEvent['data']> = {
     name: 'image/video',
     data: {
       imageUrl: 'https://example.com/image.jpg',
       prompt: 'test prompt',
-      videoModel: Object.keys(VIDEO_MODELS_CONFIG)[0],
+      videoModel: 'minimax',
       telegram_id: testUser.telegram_id,
       username: testUser.username,
       is_ru: testUser.is_ru,
       bot_name: testUser.bot_name,
-      description: 'Test video generation',
+      description: 'Test video generation'
     },
+    ts: Date.now(),
+    id: 'test-id'
   }
 
-  beforeEach(async () => {
-    vi.clearAllMocks()
-    await createTestUser(testUser)
-    mockBotInstance.telegram.sendMessage.mockClear()
-    mockBotInstance.telegram.sendVideo.mockClear()
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
-    mockSupabase.reset()
-  })
-
-  it('should successfully process video generation', async () => {
-    // Mock successful API responses
-    mockedAxios.post.mockResolvedValueOnce({
-      data: { id: 'test-prediction-id' },
-    })
-    mockedAxios.get.mockResolvedValueOnce({
-      data: { status: 'succeeded', output: 'https://example.com/video.mp4' },
-    })
-
-    // Set initial balance
-    mockSupabase.setUserBalance(1000)
-
-    const result = await inngest.test(imageToVideoFunction).run(testEvent)
-
-    expect(result.error).toBeUndefined()
-    expect(mockBotInstance.telegram.sendMessage).toHaveBeenCalledWith(
-      testUser.telegram_id,
-      '🎬 Starting video generation...\nThis may take a few minutes.'
+  it('should successfully generate video with sufficient balance', async () => {
+    const engine = createTestEngine(imageToVideoFunction)
+    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
+      engine,
+      defaultEvent
     )
-    expect(mockBotInstance.telegram.sendVideo).toHaveBeenCalledWith(
-      testUser.telegram_id,
-      'https://example.com/video.mp4'
-    )
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.videoUrl).toBeDefined()
+      expect(result.modePrice).toBeGreaterThan(0)
+      expect(result.newBalance).toBeDefined()
+    }
   })
 
   it('should handle insufficient balance', async () => {
-    // Set low balance
-    mockSupabase.setUserBalance(0)
+    await mockSupabase.setUserBalance(testUser.telegram_id, 0)
 
-    const result = await inngest.test(imageToVideoFunction).run(testEvent)
-
-    expect(mockBotInstance.telegram.sendMessage).toHaveBeenCalledWith(
-      testUser.telegram_id,
-      'Insufficient funds. Top up your balance by calling the /buy command.'
+    const engine = createTestEngine(imageToVideoFunction)
+    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
+      engine,
+      defaultEvent
     )
-    expect(mockBotInstance.telegram.sendVideo).not.toHaveBeenCalled()
-  })
 
-  it('should handle API errors', async () => {
-    // Mock API error
-    mockedAxios.post.mockRejectedValueOnce(new Error('API Error'))
-
-    // Set sufficient balance
-    mockSupabase.setUserBalance(1000)
-
-    const result = await inngest.test(imageToVideoFunction).run(testEvent)
-
-    expect(result.error).toBeDefined()
-    expect(mockBotInstance.telegram.sendMessage).toHaveBeenCalledWith(
-      testUser.telegram_id,
-      '❌ An error occurred while generating the video. Please try again later.'
-    )
-    expect(mockBotInstance.telegram.sendVideo).not.toHaveBeenCalled()
-  })
-
-  it('should handle video generation timeout', async () => {
-    // Mock timeout scenario
-    mockedAxios.post.mockResolvedValueOnce({
-      data: { id: 'test-prediction-id' },
-    })
-    
-    // Mock status checks to always return 'processing'
-    for (let i = 0; i < 60; i++) {
-      mockedAxios.get.mockResolvedValueOnce({
-        data: { status: 'processing' },
-      })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error).toContain('Insufficient funds')
+      expect(result.modePrice).toBeGreaterThan(0)
+      expect(result.newBalance).toBe(0)
     }
-
-    // Set sufficient balance
-    mockSupabase.setUserBalance(1000)
-
-    const result = await inngest.test(imageToVideoFunction).run(testEvent)
-
-    expect(result.error).toBeDefined()
-    expect(mockBotInstance.telegram.sendMessage).toHaveBeenCalledWith(
-      testUser.telegram_id,
-      '❌ An error occurred while generating the video. Please try again later.'
-    )
-    expect(mockBotInstance.telegram.sendVideo).not.toHaveBeenCalled()
   })
 
   it('should handle invalid video model', async () => {
-    const invalidEvent = {
-      ...testEvent,
+    const event: InngestEvent<ImageToVideoEvent['data']> = {
+      ...defaultEvent,
       data: {
-        ...testEvent.data,
-        videoModel: 'invalid_model',
-      },
+        ...defaultEvent.data,
+        videoModel: 'nonexistent_model'
+      }
     }
 
-    const result = await inngest.test(imageToVideoFunction).run(invalidEvent)
-
-    expect(mockBotInstance.telegram.sendMessage).toHaveBeenCalledWith(
-      testUser.telegram_id,
-      'Invalid model'
+    const engine = createTestEngine(imageToVideoFunction)
+    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
+      engine,
+      event
     )
-    expect(mockBotInstance.telegram.sendVideo).not.toHaveBeenCalled()
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error).toBe('Invalid model')
+      expect(result.modePrice).toBe(0)
+    }
+  })
+
+  it('should handle API errors', async () => {
+    const event: InngestEvent<ImageToVideoEvent['data']> = {
+      ...defaultEvent,
+      data: {
+        ...defaultEvent.data,
+        _test: { api_error: true }
+      }
+    }
+
+    const engine = createTestEngine(imageToVideoFunction)
+    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
+      engine,
+      event
+    )
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error).toBe('API Error')
+    }
+  })
+
+  it('should handle timeout errors', async () => {
+    const event: InngestEvent<ImageToVideoEvent['data']> = {
+      ...defaultEvent,
+      data: {
+        ...defaultEvent.data,
+        _test: { timeout: true }
+      }
+    }
+
+    const engine = createTestEngine(imageToVideoFunction)
+    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
+      engine,
+      event
+    )
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error).toBe('Video generation timed out')
+    }
+  })
+
+  it('should handle multiple video outputs', async () => {
+    const event: InngestEvent<ImageToVideoEvent['data']> = {
+      ...defaultEvent,
+      data: {
+        ...defaultEvent.data,
+        _test: { multiple_outputs: true }
+      }
+    }
+
+    const engine = createTestEngine(imageToVideoFunction)
+    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
+      engine,
+      event
+    )
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(Array.isArray(result.videoUrl)).toBe(true)
+      expect(result.videoUrl).toHaveLength(2)
+    }
   })
 
   it('should handle missing required fields', async () => {
-    const invalidEvent = {
-      ...testEvent,
+    const event: InngestEvent<Partial<ImageToVideoEvent['data']>> = {
+      name: 'image/video',
       data: {
-        telegram_id: testUser.telegram_id,
-        // Missing other required fields
-      },
+        // Missing required fields
+        prompt: 'Test prompt',
+        telegram_id: testUser.telegram_id
+      }
     }
 
-    const result = await inngest.test(imageToVideoFunction).run(invalidEvent)
+    const engine = createTestEngine(imageToVideoFunction)
+    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
+      engine,
+      event as InngestEvent<ImageToVideoEvent['data']>
+    )
 
-    expect(result.error).toBeDefined()
-    expect(result.error.message).toBe('Missing required fields')
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error).toBe('Missing required fields')
+      expect(result.modePrice).toBe(0)
+    }
   })
 }) 

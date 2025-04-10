@@ -41,12 +41,13 @@
       "@helpers/*": ["src/helpers/*"],
       "@commands/*": ["src/commands/*"],
       "@inngest-functions/*": ["src/inngest-functions/*"],
+      "@test-utils/*": ["src/test-utils/*"]
     },
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "emitDecoratorMetadata": true,
     "allowJs": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "src/test-utils/**/*"],
   "exclude": ["node_modules", "dist"]
 }
