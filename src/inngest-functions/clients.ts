@@ -17,14 +17,18 @@ const createInngestClient = () => {
     // В режиме разработки используем локальный URL
     baseUrl:
       process.env.NODE_ENV === 'development'
-        ? 'http://localhost:8288'
+        ? 'http://localhost:2999/api/inngest'
         : INNGEST_URL || 'https://api.inngest.com',
     fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
       try {
         const url = typeof input === 'string' ? input : input.toString()
 
         // Разрешаем как локальные URL для разработки, так и production URL
-        const allowedUrls = ['http://localhost:8288', 'https://api.inngest.com']
+        const allowedUrls = [
+          'http://localhost:2999/api/inngest',
+          'http://localhost:2999',
+          'https://api.inngest.com',
+        ]
         const isAllowedUrl = allowedUrls.some(allowed =>
           url.startsWith(allowed)
         )
@@ -91,7 +95,7 @@ logger.info('✅ Inngest клиент создан:', {
   isInitialized: !!inngest,
   baseUrl:
     process.env.NODE_ENV === 'development'
-      ? 'http://localhost:8288'
+      ? 'http://localhost:2999/api/inngest'
       : INNGEST_URL || 'https://api.inngest.com',
 })
 
