@@ -297,7 +297,7 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
         
         // Обрабатываем результаты
         if (result && result.results && Array.isArray(result.results)) {
-          const totalTests = result.results.reduce((total, group) => {
+          const totalTests = result.results.reduce((total: number, group: any) => {
             return total + (Array.isArray(group.results) ? group.results.length : 0)
           }, 0)
           
