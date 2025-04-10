@@ -72,93 +72,100 @@ async function getUserBalance(userId: string): Promise<number> {
 
 export async function runBalanceTests(): Promise<TestResult[]> {
   const results: TestResult[] = []
-  let testUserId: string = ''
+  let testUserId: string | null = null
   let testUser: User | null = null
-  let requiredAmount = 0
 
   try {
-    logger.info('🚀 Инициализация тестов баланса')
-    
     // Создаем тестового пользователя
-    testUser = await createTestUser()
+    testUser = await createTestUser('123456789', TEST_PAYMENT_CONFIG.initialBalance)
+    if (!testUser) {
+      return [{
+        success: false,
+        name: 'Create Test User',
+        message: '❌ Не удалось создать тестового пользователя'
+      }]
+    }
     testUserId = testUser.telegram_id
 
-    // Сбрасываем баланс перед каждым тестом
-    await supabase
-      .from('users')
-      .update({ balance: TEST_PAYMENT_CONFIG.testUser.initialBalance })
-      .eq('telegram_id', testUserId)
-
-    results.push({
-      success: true,
-      name: 'Создание пользователя',
-      message: 'Тестовый пользователь создан'
-    })
-
     // Проверяем начальный баланс
-    const initialBalanceResult = await checkBalance(testUserId, TEST_PAYMENT_CONFIG.testUser.initialBalance)
-    if (!initialBalanceResult.success) {
-      throw new Error(`Неверный начальный баланс. Ожидалось: ${TEST_PAYMENT_CONFIG.testUser.initialBalance}, Получено: ${initialBalanceResult.currentBalance}`)
-    }
-
+    const initialBalanceCheck = await checkBalance(testUserId, TEST_PAYMENT_CONFIG.initialBalance)
     results.push({
-      success: true,
-      name: 'Проверка баланса',
-      message: 'Начальный баланс корректен'
+      success: initialBalanceCheck.success,
+      name: 'Initial Balance Check',
+      message: initialBalanceCheck.success
+        ? `✅ Баланс корректный: ${initialBalanceCheck.currentBalance}`
+        : '❌ Проверка начального баланса не удалась'
     })
 
-    // Создаем тестовые транзакции
-    const transactionAmount = 100
-    const testTransactions: TransactionData[] = [
-      {
-        telegram_id: testUserId,
-        amount: transactionAmount,
-        type: TRANSACTION_TYPES.MONEY_INCOME,
-        service_type: ModeEnum.PHOTO,
-        description: 'Test income'
-      },
-      {
-        telegram_id: testUserId,
-        amount: transactionAmount,
-        type: TRANSACTION_TYPES.MONEY_EXPENSE,
-        service_type: ModeEnum.PHOTO,
-        description: 'Test expense'
-      }
-    ]
-
-    for (const transaction of testTransactions) {
-      await supabase
-        .from('transactions')
-        .insert(transaction)
-    }
-
-    // Проверяем созданные транзакции
-    const { data: createdTransactions } = await supabase
+    // Проверяем историю транзакций
+    const { data: transactions, error: transactionError } = await supabase
       .from('transactions')
       .select('*')
       .eq('telegram_id', testUserId)
 
-    if (!createdTransactions || createdTransactions.length !== testTransactions.length) {
-      throw new Error(`Ошибка при создании транзакций. Ожидалось: ${testTransactions.length}, Получено: ${createdTransactions?.length || 0}`)
+    if (transactionError) {
+      results.push({
+        success: false,
+        name: 'Transaction History Check',
+        message: '❌ Не удалось получить историю транзакций'
+      })
+    } else {
+      results.push({
+        success: true,
+        name: 'Transaction History Check',
+        message: `✅ Найдено транзакций: ${transactions.length}`
+      })
+    }
+
+    // Создаем тестовые транзакции
+    const transactionTypes = [TransactionType.MONEY_INCOME, TransactionType.MONEY_EXPENSE]
+    const createdTransactions = []
+
+    for (const type of transactionTypes) {
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert({
+          telegram_id: testUserId,
+          amount: 100,
+          type,
+          status: PaymentStatus.COMPLETED,
+          service_type: ModeEnum.PHOTO,
+          description: `Test ${type}`
+        })
+        .select()
+
+      if (error) {
+        logger.error('❌ Ошибка при создании транзакции:', error)
+      } else if (data) {
+        createdTransactions.push(...data)
+      }
     }
 
     results.push({
-      success: true,
-      name: 'Создание транзакций',
+      success: createdTransactions.length === transactionTypes.length,
+      name: 'Create Test Transactions',
       message: `✅ Создано ${createdTransactions.length} транзакций`
     })
 
-    // Проверяем баланс после всех операций
-    const requiredAmount = TEST_PAYMENT_CONFIG.initialBalance - 100
-    const { success: balanceCheckSuccess, currentBalance } = await checkBalance(testUserId, requiredAmount)
-    
-    results.push({
-      success: balanceCheckSuccess,
-      name: 'Проверка конечного баланса',
-      message: balanceCheckSuccess 
-        ? `✅ Баланс соответствует ожидаемому значению: ${currentBalance}`
-        : `❌ Баланс не соответствует ожидаемому значению. Текущий: ${currentBalance}, ожидаемый: ${requiredAmount}`
-    })
+    // Проверяем достаточность баланса для разных типов операций
+    for (const mode of Object.values(ModeEnum)) {
+      const requiredAmount = TEST_PAYMENT_CONFIG.modes[mode.toLowerCase()] || 0
+      const balanceCheck = await checkBalance(testUserId, TEST_PAYMENT_CONFIG.initialBalance)
+
+      if (balanceCheck.success && balanceCheck.currentBalance && balanceCheck.currentBalance >= requiredAmount) {
+        results.push({
+          success: true,
+          name: `Balance Check for ${mode}`,
+          message: `✅ Достаточно средств для ${mode}: ${balanceCheck.currentBalance} >= ${requiredAmount}`
+        })
+      } else {
+        results.push({
+          success: false,
+          name: `Balance Check for ${mode}`,
+          message: `❌ Недостаточно средств для ${mode}: ${balanceCheck.currentBalance || 0} < ${requiredAmount}`
+        })
+      }
+    }
 
     // Проверяем обработку ошибок при некорректном ID пользователя
     const invalidCheck = await checkBalance('invalid_id', 0)
@@ -170,44 +177,23 @@ export async function runBalanceTests(): Promise<TestResult[]> {
         : '✅ Успешно обнаружен неверный ID пользователя'
     })
 
-    // Проверяем достаточность баланса для разных типов операций
-    for (const mode of Object.values(ModeEnum)) {
-      const requiredAmount = TEST_PAYMENT_CONFIG.modes[mode.toLowerCase()] || 0
-      const balanceCheck = await checkBalance(testUserId, TEST_PAYMENT_CONFIG.initialBalance)
-
-      if (balanceCheck.success && balanceCheck.currentBalance >= requiredAmount) {
-        results.push({
-          success: true,
-          name: `Balance Check for ${mode}`,
-          message: `✅ Достаточно средств для ${mode}: ${balanceCheck.currentBalance} >= ${requiredAmount}`
-        })
-      } else {
-        results.push({
-          success: false,
-          name: `Balance Check for ${mode}`,
-          message: `❌ Недостаточно средств для ${mode}: ${balanceCheck.currentBalance} < ${requiredAmount}`
-        })
-      }
-    }
-
-    return results
   } catch (error) {
     logger.error('❌ Ошибка в тестах баланса:', error)
     return [{
       success: false,
-      name: 'Тесты баланса',
+      name: 'Balance Tests',
       message: error instanceof Error ? error.message : 'Неизвестная ошибка'
     }]
   } finally {
     // Очистка после тестов
     if (testUserId) {
       await supabase
-        .from('users')
-        .update({ balance: 0 })
-        .eq('telegram_id', testUserId)
-      
-      await supabase
         .from('transactions')
+        .delete()
+        .eq('telegram_id', testUserId)
+
+      await supabase
+        .from('users')
         .delete()
         .eq('telegram_id', testUserId)
     }

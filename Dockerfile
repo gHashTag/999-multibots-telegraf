@@ -1,32 +1,41 @@
+# Этап сборки
+FROM node:20-alpine as builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+# Выполняем сборку TypeScript
+RUN npm run build
+
+# Финальный этап
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Установка глобальных пакетов
-RUN npm install -g tsx
+# Устанавливаем зависимости для Ansible
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    openssh-client \
+    sshpass \
+    nginx
 
-# Копируем файлы package.json и package-lock.json
+# Создаем виртуальное окружение и устанавливаем Ansible
+RUN python3 -m venv /opt/ansible-venv \
+    && . /opt/ansible-venv/bin/activate \
+    && pip install --no-cache-dir ansible
+
 COPY package*.json ./
+RUN npm install --omit=dev
 
-# Устанавливаем зависимости (включая рабочие и dev зависимости, но пропуская husky)
-RUN npm ci --ignore-scripts
+# Копируем только необходимые файлы из этапа сборки
+COPY --from=builder /app/dist ./dist
 
-# Копируем исходный код приложения
-COPY . .
+# Экспортируем порт для API и боты
+EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 
-# Создаем директорию для логов внутри контейнера
-RUN mkdir -p /app/logs && \
-    chmod -R 777 /app/logs
-
-# Делаем скрипт проверки переменных окружения исполняемым
-RUN chmod +x /app/scripts/check-env.js
-
-# Устанавливаем переменные окружения для production
-ENV NODE_ENV=production
-ENV LOG_DIR=/app/logs
-
-# Экспонируем порты
-EXPOSE 2999 3008
-
-# Проверяем переменные окружения перед запуском ботов
-CMD node /app/scripts/check-env.js && npm run bots
+CMD ["node", "dist/bot.js"]
