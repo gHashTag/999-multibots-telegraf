@@ -2,11 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Установка глобальных пакетов
+RUN npm install -g tsx
+
 # Копируем файлы package.json и package-lock.json
 COPY package*.json ./
 
-# Устанавливаем зависимости (пропуская husky)
-RUN npm ci --omit=dev --ignore-scripts
+# Устанавливаем зависимости (включая рабочие и dev зависимости, но пропуская husky)
+RUN npm ci --ignore-scripts
 
 # Копируем исходный код приложения
 COPY . .
@@ -23,4 +26,4 @@ ENV LOG_DIR=/app/logs
 EXPOSE 2999 3008
 
 # Запускаем приложение
-CMD ["npm", "start"]
+CMD ["npm", "run", "bots"]

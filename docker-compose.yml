@@ -1,77 +1,55 @@
-version: '3.9'
-
 services:
   app:
-    container_name: neuro-blogger-telegram-bot
+    container_name: 999-multibots
     build:
-      context: .
+      context: ./
       dockerfile: Dockerfile
-    restart: always
+    ports:
+      - '2999:2999'
+      - '3000:3000'
+      - '3001:3001'
+      - '3002:3002'
+      - '3003:3003'
+      - '3004:3004'
+      - '3005:3005'
+      - '3006:3006'
+      - '3007:3007'
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-      - HOST_URL=${HOST_URL}
-      - INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
-      - INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - GOOGLE_CSE_ID=${GOOGLE_CSE_ID}
-      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_WEBVIEW_TOKEN=${TELEGRAM_WEBVIEW_TOKEN}
-      - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
-      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
-    volumes:
-      - ./logs:/app/logs
-    ports:
-      - "2999:2999"
-      - "3008:3008"
+      - PORT=3000
+      - LOG_DIR=/var/logs
+      - SECRET_KEY=${SECRET_KEY}
+      - CREDENTIALS=${CREDENTIALS}
+      - ORIGIN=${ORIGIN}
+      - LOG_FORMAT=${LOG_FORMAT}
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    extra_hosts:
+      - "api.elevenlabs.io:127.0.0.1"
     networks:
       - app-network
-    mem_limit: 4g
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2999/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    restart: unless-stopped
 
   nginx:
-    image: nginx:stable-alpine
-    container_name: neuro-blogger-nginx
-    restart: always
+    image: nginx:latest
+    container_name: nginx-proxy
     ports:
-      - "80:80"
-      - "443:443"
+      - '8443:443'
+      - '8080:80'
     volumes:
-      - ./configs/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./certbot/conf:/etc/letsencrypt:ro
-      - ./certbot/www:/var/www/certbot:ro
-    depends_on:
-      - app
+      - /etc/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - /etc/nginx/conf.d/:/etc/nginx/conf.d/
+      - /etc/pki/:/etc/pki/
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-
-  certbot:
-    image: certbot/certbot
-    container_name: neuro-blogger-certbot
     restart: unless-stopped
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 networks:
   app-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.27.0.0/16
