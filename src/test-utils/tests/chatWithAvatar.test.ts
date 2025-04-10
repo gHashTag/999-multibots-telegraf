@@ -1,36 +1,77 @@
 import { TEST_CONFIG } from '../test-config'
 import { TestResult } from '../types'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { supabase } from '@/core/supabase'
-import { InngestTestEngine } from '../inngest-test-engine'
-import { voiceToTextProcessor } from '@/inngest-functions/voiceToText.inngest'
+import { InngestTestEngine } from '../inngest/inngest-test-engine'
+import { voiceToTextFunction } from '@/inngest-functions/voiceToText'
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+
 import { handleTextMessage } from '@/handlers/handleTextMessage'
-import { Context } from 'telegraf'
-import { Update } from 'telegraf/typings/core/types/typegram'
+import { MyContext } from '@/types'
+
 import { createUser } from '@/core/supabase/createUser'
 import * as fs from 'fs'
 import * as path from 'path'
-import * as http from 'http'
 
 // Минимальный заголовок OGG файла (OggS + версия + тип заголовка)
 const OGG_HEADER = Buffer.from([
-  0x4f, 0x67, 0x67, 0x53, // OggS
+  0x4f,
+  0x67,
+  0x67,
+  0x53, // OggS
   0x00, // Версия
   0x02, // Тип заголовка
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Гранулированная позиция
-  0x00, 0x00, 0x00, 0x00, // Серийный номер
-  0x00, 0x00, 0x00, 0x00, // Порядковый номер страницы
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00, // Гранулированная позиция
+  0x00,
+  0x00,
+  0x00,
+  0x00, // Серийный номер
+  0x00,
+  0x00,
+  0x00,
+  0x00, // Порядковый номер страницы
   0x01, // Контрольная сумма
   0x01, // Количество сегментов
   0x1e, // Размер сегмента
   // Минимальные аудио данные
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-]);
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+])
 
 interface TextMessageEvent {
   telegram_id: string
@@ -51,7 +92,7 @@ export async function testChatWithAvatar(): Promise<TestResult> {
       telegram_id,
       username,
       language_code: 'en',
-      bot_name: 'test_bot'
+      bot_name: 'test_bot',
     })
 
     if (!user) {
@@ -69,10 +110,50 @@ export async function testChatWithAvatar(): Promise<TestResult> {
     })
 
     // Регистрируем обработчики
-    testEngine.register('text-message.requested', async ({ event }: { event: TextMessageEvent }) => {
-      try {
-        const ctx = {
-          update: {
+    testEngine.register(
+      'text-message.requested',
+      async ({ event }: { event: TextMessageEvent }) => {
+        try {
+          const ctx = {
+            update: {
+              message: {
+                text: event.text,
+                chat: {
+                  id: event.telegram_id,
+                  type: 'private',
+                },
+                from: {
+                  id: event.telegram_id,
+                  username: 'test_user',
+                  language_code: 'en',
+                },
+                message_id: 1,
+              },
+            },
+            telegram: {
+              token: 'test_token',
+              sendMessage: async (
+                chatId: string | number,
+                text: string,
+                options?: any
+              ) => {
+                logger.info('🤖 Отправка сообщения', { text, options, chatId })
+                return { message_id: 1 }
+              },
+            },
+            botInfo: {
+              username: 'test_bot',
+            },
+            state: {},
+            chat: {
+              id: event.telegram_id,
+              type: 'private',
+            },
+            from: {
+              id: event.telegram_id,
+              username: 'test_user',
+              language_code: 'en',
+            },
             message: {
               text: event.text,
               chat: {
@@ -86,53 +167,21 @@ export async function testChatWithAvatar(): Promise<TestResult> {
               },
               message_id: 1,
             },
-          },
-          telegram: {
-            token: 'test_token',
-            sendMessage: async (chatId: string | number, text: string, options?: any) => {
+            reply: async (text: string) => {
               logger.info('🤖 Отправка сообщения', { text })
               return { message_id: 1 }
             },
-          },
-          botInfo: {
-            username: 'test_bot',
-          },
-          state: {},
-          chat: {
-            id: event.telegram_id,
-            type: 'private',
-          },
-          from: {
-            id: event.telegram_id,
-            username: 'test_user',
-            language_code: 'en',
-          },
-          message: {
-            text: event.text,
-            chat: {
-              id: event.telegram_id,
-              type: 'private',
-            },
-            from: {
-              id: event.telegram_id,
-              username: 'test_user',
-              language_code: 'en',
-            },
-            message_id: 1,
-          },
-          reply: async (text: string) => {
-            logger.info('🤖 Отправка сообщения', { text })
-            return { message_id: 1 }
-          },
-        } as unknown as Context<Update>
+          } as unknown as MyContext
 
-        await handleTextMessage(ctx)
-      } catch (error) {
-        logger.error('❌ Error in text message handler:', { error })
-        throw error
+          await handleTextMessage(ctx)
+        } catch (error) {
+          logger.error('❌ Error in text message handler:', { error })
+          throw error
+        }
       }
-    })
-    testEngine.register('voice-to-text.requested', voiceToTextProcessor)
+    )
+    console.log('🔄 Регистрация обработчиков')
+    testEngine.register('voice-to-text.requested', voiceToTextFunction)
     testEngine.register('payment/process', paymentProcessor)
 
     // Отправляем текстовое сообщение
@@ -141,8 +190,8 @@ export async function testChatWithAvatar(): Promise<TestResult> {
       data: {
         telegram_id,
         text: '/start',
-        bot_name: 'test_bot'
-      }
+        bot_name: 'test_bot',
+      },
     })
 
     // Отправляем голосовое сообщение
@@ -151,20 +200,9 @@ export async function testChatWithAvatar(): Promise<TestResult> {
       data: {
         telegram_id,
         fileUrl: `file://${testAudioPath}`,
-        bot_name: 'test_bot'
-      }
+        bot_name: 'test_bot',
+      },
     })
-
-    // Check user balance
-    const { data: updatedUser, error: balanceError } = await supabase
-      .from('users')
-      .select()
-      .eq('telegram_id', telegram_id)
-      .single()
-
-    if (balanceError) {
-      throw new Error(`Failed to check user balance: ${balanceError.message}`)
-    }
 
     // Cleanup test data if configured
     if (TEST_CONFIG.mockBot) {
@@ -193,8 +231,9 @@ export async function testChatWithAvatar(): Promise<TestResult> {
     return {
       name: testName,
       success: false,
-      message: error instanceof Error ? error.message : 'Unknown error occurred',
+      message:
+        error instanceof Error ? error.message : 'Unknown error occurred',
       error: error instanceof Error ? error : new Error(String(error)),
     }
   }
-} 
+}

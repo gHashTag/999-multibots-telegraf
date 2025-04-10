@@ -1,132 +1,144 @@
 import { inngest } from '@/inngest-functions/clients'
-import { TestResult } from '@/test-utils/types'
+import { textToVideoFunction } from '@/inngest-functions/textToVideo.inngest'
+import { InngestTestEngine } from '@inngest/test'
+import { mockSupabase } from '../mocks/supabase'
+import { mockBotInstance } from '../mocks/botMock'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
+import axios from 'axios'
+import { describe, expect, it } from '@jest/globals'
+import { TextToVideoResult } from '@/interfaces/textToVideo.interface'
+import { createTestEvent, createTestExecutionContext } from '@inngest/test'
+import { executeTest } from '@/test-utils/inngest'
 
-/**
- * Тестирует функцию генерации видео из текста
- */
-export const testTextToVideo = async (): Promise<TestResult[]> => {
-  const results: TestResult[] = []
-  const telegram_id = '123456789'
-  const bot_name = 'test_bot'
+// Mock axios
+jest.mock('axios')
+const mockedAxios = axios as jest.Mocked<typeof axios>
 
-  console.log('🎬 Запуск тестов text-to-video')
-
-  try {
-    // Тест 1: Успешная генерация видео
-    const successResult = await inngest.send({
-      name: 'text-to-video.requested',
-      data: {
-        prompt: 'A beautiful sunset over the ocean',
-        telegram_id,
-        is_ru: false,
-        bot_name,
-        model_id: 'kling-v1.6-pro',
-      },
-    })
-
-    results.push({
-      name: 'Генерация видео из текста',
-        success: true,
-      message: 'Событие успешно отправлено',
-      details: successResult,
-    })
-
-    // Тест 2: Обработка ошибки API
-    const apiErrorResult = await inngest.send({
-      name: 'text-to-video.requested',
-      data: {
-        prompt: 'Test API error',
-        telegram_id,
-        is_ru: false,
-        bot_name,
-        model_id: 'kling-v1.6-pro',
-        _test: {
-          api_error: true,
-        },
-      },
-    })
-
-    results.push({
-      name: 'Обработка ошибки API',
-        success: true,
-      message: 'Ошибка API успешно обработана',
-      details: apiErrorResult,
-    })
-
-    // Тест 3: Недостаточно средств
-    const insufficientBalanceResult = await inngest.send({
-      name: 'text-to-video.requested',
-      data: {
-        prompt: 'Test insufficient balance',
-        telegram_id,
-        is_ru: false,
-        bot_name,
-        model_id: 'kling-v1.6-pro',
-        _test: {
-          insufficient_balance: true,
-        },
-      },
-    })
-
-    results.push({
-      name: 'Проверка недостаточного баланса',
-      success: true,
-      message: 'Ошибка недостаточного баланса успешно обработана',
-      details: insufficientBalanceResult,
-    })
-
-    // Тест 4: Неподдерживаемая модель
-    const unsupportedModelResult = await inngest.send({
-      name: 'text-to-video.requested',
-      data: {
-        prompt: 'Test unsupported model',
-        telegram_id,
-        is_ru: false,
-        bot_name,
-        model_id: 'unsupported-model',
-      },
-    })
-
-    results.push({
-      name: 'Проверка неподдерживаемой модели',
-        success: true,
-      message: 'Ошибка неподдерживаемой модели успешно обработана',
-      details: unsupportedModelResult,
-    })
-
-    // Тест 5: Проверка всех поддерживаемых моделей
-    for (const [modelId, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
-      if (config.inputType.includes('text')) {
-        const modelResult = await inngest.send({
-          name: 'text-to-video.requested',
-          data: {
-            prompt: `Test model ${modelId}`,
-            telegram_id,
-            is_ru: false,
-            bot_name,
-            model_id: modelId,
-          },
-        })
-
-        results.push({
-          name: `Проверка модели ${modelId}`,
-          success: true,
-          message: `Модель ${modelId} успешно протестирована`,
-          details: modelResult,
-        })
-      }
-    }
-
-    return results
-  } catch (error) {
-    console.error('❌ Ошибка при тестировании text-to-video:', error)
-    results.push({
-      name: 'Тестирование text-to-video',
-      success: false,
-      message: 'Произошла ошибка при тестировании',
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return results
-  }
+interface TestResult {
+  success: boolean
+  videoUrl?: string
+  error?: string
 }
+
+describe('textToVideoFunction', () => {
+  const testUser = {
+    telegram_id: '123456789',
+    username: 'testuser',
+    is_ru: false,
+    bot_name: 'test_bot',
+    level: 9,
+    balance: 1000
+  }
+
+  const testEvent = {
+    name: 'text-to-video.requested',
+    data: {
+      prompt: 'A beautiful sunset over the ocean',
+      telegram_id: testUser.telegram_id,
+      is_ru: testUser.is_ru,
+      bot_name: testUser.bot_name,
+      model_id: Object.keys(VIDEO_MODELS_CONFIG)[0],
+      aspect_ratio: '16:9',
+      duration: 6,
+      username: testUser.username
+    }
+  }
+
+  const testEngine = new InngestTestEngine()
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockSupabase.setUserBalance(testUser.balance)
+    mockBotInstance.telegram.sendMessage.mockClear()
+    mockBotInstance.telegram.sendVideo.mockClear()
+  })
+
+  afterEach(() => {
+    jest.clearAllMocks()
+    mockSupabase.reset()
+  })
+
+  it('should process video generation successfully', async () => {
+    const result = await executeTest<TextToVideoResult>(
+      textToVideoFunction,
+      'text.to.video',
+      {
+        prompt: 'test prompt',
+        videoModel: 'test_model',
+        telegram_id: 123456,
+        username: 'testuser',
+        is_ru: false,
+        bot_name: 'test_bot'
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.videoUrl).toBeDefined()
+  })
+
+  it('should handle insufficient balance', async () => {
+    mockSupabase.setUserBalance(0)
+
+    const { result } = await testEngine.execute({
+      events: [{
+        ...testEvent,
+        data: {
+          ...testEvent.data,
+          _test: { insufficient_balance: true }
+        }
+      }]
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('insufficient balance')
+    expect(mockBotInstance.telegram.sendVideo).not.toHaveBeenCalled()
+  })
+
+  it('should handle API error', async () => {
+    const { result } = await testEngine.execute({
+      events: [{
+        ...testEvent,
+        data: {
+          ...testEvent.data,
+          _test: { api_error: true }
+        }
+      }]
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBeDefined()
+    expect(mockBotInstance.telegram.sendVideo).not.toHaveBeenCalled()
+  })
+
+  it('should handle invalid parameters', async () => {
+    const { result } = await testEngine.execute({
+      events: [{
+        ...testEvent,
+        data: {
+          // Missing required fields
+          telegram_id: testUser.telegram_id
+        }
+      }]
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Missing required fields')
+    expect(mockBotInstance.telegram.sendVideo).not.toHaveBeenCalled()
+  })
+
+  it('should handle unsupported model', async () => {
+    const { result } = await testEngine.execute({
+      events: [{
+        ...testEvent,
+        data: {
+          ...testEvent.data,
+          model_id: 'unsupported-model'
+        }
+      }]
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('does not support text input')
+    expect(mockBotInstance.telegram.sendVideo).not.toHaveBeenCalled()
+  })
+}) 

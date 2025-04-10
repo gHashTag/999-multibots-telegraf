@@ -1,50 +1,133 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
-import { Logger as logger } from '../../utils/logger'
+import { createClient } from '@supabase/supabase-js'
+import { jest } from '@jest/globals'
+import { User, Operation } from './types'
 
-export interface User {
-  id: string
-  telegram_id: TelegramId
-  level: number
+class MockSupabase {
+  private users: User[] = []
+  private operations: Operation[] = []
+
+  async createUser(user: Partial<User>) {
+    const newUser: User = {
+      id: user.id || 'test_id',
+      telegram_id: user.telegram_id || 'test_id',
+      username: user.username || 'test_user',
+      is_ru: user.is_ru || false,
+      bot_name: user.bot_name || 'test_bot',
+      balance: user.balance || 0,
+      subscription_end_date: user.subscription_end_date || null,
+      created_at: user.created_at || new Date().toISOString(),
+      updated_at: user.updated_at || new Date().toISOString()
+    }
+    this.users.push(newUser)
+    return newUser
+  }
+
+  async getUserByTelegramId(telegram_id: string) {
+    return this.users.find(u => u.telegram_id === telegram_id) || null
+  }
+
+  async updateUser(telegram_id: string, updates: Partial<User>) {
+    const userIndex = this.users.findIndex(u => u.telegram_id === telegram_id)
+    if (userIndex === -1) return null
+
+    this.users[userIndex] = {
+      ...this.users[userIndex],
+      ...updates,
+      updated_at: new Date().toISOString()
+    }
+    return this.users[userIndex]
+  }
+
+  async setUserBalance(telegram_id: string, balance: number) {
+    const user = await this.getUserByTelegramId(telegram_id)
+    if (!user) return null
+
+    return this.updateUser(telegram_id, { balance })
+  }
+
+  async createOperation(operation: Partial<Operation>) {
+    const newOperation: Operation = {
+      id: operation.id || 'test_op_id',
+      user_id: operation.user_id || 'test_id',
+      amount: operation.amount || 0,
+      type: operation.type || 'test',
+      status: operation.status || 'completed',
+      description: operation.description,
+      bot_name: operation.bot_name,
+      metadata: operation.metadata,
+      created_at: operation.created_at || new Date().toISOString(),
+      updated_at: operation.updated_at || new Date().toISOString()
+    }
+    this.operations.push(newOperation)
+    return newOperation
+  }
+
+  async updateOperation(id: string, updates: Partial<Operation>) {
+    const opIndex = this.operations.findIndex(op => op.id === id)
+    if (opIndex === -1) return null
+
+    this.operations[opIndex] = {
+      ...this.operations[opIndex],
+      ...updates,
+      updated_at: new Date().toISOString()
+    }
+    return this.operations[opIndex]
+  }
+
+  reset() {
+    this.users = []
+    this.operations = []
+  }
 }
 
-const mockUser: User = {
-  id: '123',
-  telegram_id: '123456789',
-  level: 7,
-}
+export const mockSupabase = new MockSupabase()
 
-export async function getUserByTelegramId(
-  telegram_id: TelegramId
-): Promise<User | null> {
-  logger.info({
-    message: '🔍 Поиск пользователя в базе данных (мок)',
-    description: 'Looking up user in database (mock)',
-    telegram_id,
+// Mock the Supabase client
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: () => ({
+    from: (table: string) => ({
+      select: () => ({
+        eq: (field: string, value: any) => ({
+          single: async () => {
+            if (table === 'users') {
+              const user = await mockSupabase.getUserByTelegramId(value)
+              return { data: user }
+            }
+            return { data: null }
+          }
+        }),
+        update: (updates: any) => ({
+          eq: (field: string, value: any) => ({
+            select: () => ({
+              single: async () => {
+                if (table === 'users') {
+                  const user = await mockSupabase.updateUser(value, updates)
+                  return { data: user }
+                }
+                return { data: null }
+              }
+            })
+          })
+        })
+      }),
+      insert: (data: any) => ({
+        select: () => ({
+          single: async () => {
+            if (table === 'operations') {
+              const operation = await mockSupabase.createOperation(data)
+              return { data: operation }
+            }
+            return { data: null }
+          }
+        })
+      })
+    }),
+    rpc: async (functionName: string, params: any) => {
+      if (functionName === 'get_user_balance') {
+        const user = await mockSupabase.getUserByTelegramId(params.user_telegram_id)
+        return { data: user?.balance || 0, error: null }
+      }
+      return { data: null, error: null }
+    }
   })
-  return mockUser
-}
-
-export async function updateUserLevelPlusOne(
-  telegram_id: TelegramId,
-  level: number
-): Promise<void> {
-  logger.info({
-    message: '📈 Обновление уровня пользователя (мок)',
-    description: 'Updating user level (mock)',
-    telegram_id,
-    oldLevel: level,
-    newLevel: level + 1,
-  })
-}
-
-export async function updateUserBalance(
-  telegram_id: TelegramId,
-  newBalance: number
-): Promise<void> {
-  logger.info({
-    message: '💰 Обновление записей платежей (мок)',
-    description: 'Updating payment records (mock)',
-    telegram_id,
-    newBalance,
-  })
-}
+})) 

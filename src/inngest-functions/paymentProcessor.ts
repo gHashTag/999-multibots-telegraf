@@ -1,14 +1,11 @@
 import { inngest } from '@/inngest-functions/clients'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { v4 as uuidv4 } from 'uuid'
 
-import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
-import { getPaymentByInvId } from '@/core/supabase/getPaymentByInvId'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
-import { supabase } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
 export interface PaymentProcessEvent {
@@ -37,8 +34,15 @@ export const paymentProcessor = inngest.createFunction(
   },
   { event: 'payment/process' },
   async ({ event, step }) => {
-    const { telegram_id, amount, type, description, bot_name, service_type, stars } =
-      event.data
+    const {
+      telegram_id,
+      amount,
+      type,
+      description,
+      bot_name,
+      service_type,
+      stars,
+    } = event.data
 
     logger.info('🚀 Начало обработки платежа', {
       description: 'Starting payment processing',
@@ -52,12 +56,16 @@ export const paymentProcessor = inngest.createFunction(
     try {
       // Проверяем, что amount положительное
       if (amount <= 0) {
-        throw new Error(`Некорректная сумма платежа: ${amount}. Сумма должна быть положительной.`)
+        throw new Error(
+          `Некорректная сумма платежа: ${amount}. Сумма должна быть положительной.`
+        )
       }
 
       // Проверяем, что stars положительное, если указано
       if (stars !== undefined && stars <= 0) {
-        throw new Error(`Некорректное количество звезд: ${stars}. Количество должно быть положительным.`)
+        throw new Error(
+          `Некорректное количество звезд: ${stars}. Количество должно быть положительным.`
+        )
       }
 
       // Получаем текущий баланс
@@ -109,33 +117,6 @@ export const paymentProcessor = inngest.createFunction(
         })
       })
 
-      // Обновляем баланс пользователя
-      await step.run('update-balance', async () => {
-        logger.info('💰 Обновление баланса', {
-          description: 'Updating balance',
-          telegram_id,
-          type,
-          amount,
-        })
-
-        const updateQuery = supabase
-          .from('users')
-          .update({
-            balance: type === 'money_expense' 
-              ? currentBalance - amount 
-              : currentBalance + amount,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('telegram_id', telegram_id)
-          .eq('bot_name', bot_name)
-
-        const { error } = await updateQuery
-
-        if (error) {
-          throw new Error(`Ошибка обновления баланса: ${error.message}`)
-        }
-      })
-
       // Получаем новый баланс
       const newBalance = await step.run('get-new-balance', async () => {
         return getUserBalance(telegram_id)
@@ -172,14 +153,14 @@ export const paymentProcessor = inngest.createFunction(
         newBalance,
       })
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         payment,
         balanceChange: {
           before: currentBalance,
           after: newBalance,
-          difference: newBalance - currentBalance
-        }
+          difference: newBalance - currentBalance,
+        },
       }
     } catch (error) {
       logger.error('❌ Ошибка при обработке платежа', {

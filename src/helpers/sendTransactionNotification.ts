@@ -1,4 +1,4 @@
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { createBotByName } from '@/core/bot'
 
 interface TransactionNotificationParams {
@@ -102,24 +102,49 @@ export async function sendTransactionNotificationTest(
 ): Promise<{ success: boolean }> {
   // В тестовом окружении просто логируем и возвращаем успех
   if (process.env.NODE_ENV === 'test') {
-    const { description, ...rest } = params
     logger.info('📨 Мок уведомления о транзакции:', {
       description: 'Mock transaction notification',
-      ...rest,
+      telegram_id: params.telegram_id,
+      operationId: params.operationId,
+      amount: params.amount,
+      currentBalance: params.currentBalance,
+      newBalance: params.newBalance,
     })
     return { success: true }
   }
 
   // Реальная реализация для продакшена
   try {
-    // ... существующий код ...
+    const {
+      telegram_id,
+      operationId,
+      amount,
+      currentBalance,
+      newBalance,
+      description,
+      isRu = true,
+      bot_name = 'default',
+    } = params
+
+    await sendTransactionNotification({
+      telegram_id,
+      operationId,
+      amount,
+      currentBalance,
+      newBalance,
+      description,
+      isRu,
+      bot_name,
+    })
+
     return { success: true }
   } catch (error) {
-    const { description, ...rest } = params
     logger.error('❌ Ошибка при отправке уведомления о транзакции:', {
       description: 'Error sending transaction notification',
       error: error instanceof Error ? error.message : String(error),
-      ...rest,
+      telegram_id: params.telegram_id,
+      operationId: params.operationId,
+      amount: params.amount,
     })
     return { success: false }
   }
