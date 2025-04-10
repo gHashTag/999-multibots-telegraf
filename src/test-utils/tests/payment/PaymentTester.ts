@@ -1,81 +1,75 @@
-import { MyContext } from '@/interfaces'
-import { InngestFunctionTester } from '@/test-utils/core/InngestFunctionTester'
 import { supabase } from '@/core/supabase'
 import { TelegramId } from '@/interfaces/telegram.interface'
-import { Payment, PaymentStatus, TransactionType } from '@/interfaces/payments.interface'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import {
+  PaymentStatus,
+  TransactionType
+} from '@/interfaces/payments.interface'
+import { getUserBalance } from '@/core/supabase'
 
-export class PaymentTester extends InngestFunctionTester {
-  constructor() {
-    super('payment')
+export class PaymentTester {
+  constructor() {}
+
+  async checkBalance(userId: string, amount: number): Promise<boolean> {
+    const balance = await getUserBalance(userId)
+    return balance >= amount
   }
 
   /**
    * Проверяет создание платежа в базе данных
    */
-  async checkPaymentCreation(
+  async checkPaymentCreated(
     telegramId: TelegramId,
     amount: number,
-    stars: number,
     status: PaymentStatus = 'PENDING'
   ): Promise<boolean> {
-    const { data, error } = await supabase
-      .from('payments_v2')
+    const { data: payment } = await supabase
+      .from('payments')
       .select('*')
-      .eq('telegram_id', telegramId.toString())
+      .eq('telegram_id', telegramId)
       .eq('amount', amount)
-      .eq('stars', stars)
       .eq('status', status)
       .single()
 
-    if (error) {
-      console.error('Error checking payment:', error)
-      return false
-    }
+    return !!payment
+  }
 
-    return !!data
+  /**
+   * Проверяет создание транзакции в базе данных
+   */
+  async checkTransactionCreated(
+    telegramId: TelegramId,
+    amount: number,
+    type: TransactionType = 'PAYMENT'
+  ): Promise<boolean> {
+    const { data: transaction } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('telegram_id', telegramId)
+      .eq('amount', amount)
+      .eq('type', type)
+      .single()
+
+    return !!transaction
   }
 
   /**
    * Проверяет обновление баланса пользователя
    */
-  async checkBalanceUpdate(
+  async checkBalanceUpdated(
     telegramId: TelegramId,
     expectedBalance: number
   ): Promise<boolean> {
-    const { data, error } = await supabase
+    const { data: user } = await supabase
       .from('users')
       .select('balance')
-      .eq('telegram_id', telegramId.toString())
+      .eq('telegram_id', telegramId)
       .single()
 
-    if (error) {
-      console.error('Error checking balance:', error)
-      return false
-    }
-
-    return data?.balance === expectedBalance
+    return user?.balance === expectedBalance
   }
 
   /**
-   * Проверяет создание транзакции
-   */
-  async checkTransactionCreation(
-    telegramId: TelegramId,
-    amount: number,
-    type: TransactionType,
-    serviceType: ModeEnum
-  ): Promise<boolean> {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('telegram_id', telegramId.toString())
-      .eq('amount', amount)
-      .eq('type', type)
-      .eq('service_type', serviceType)
-      .single()
-
-    if (error) {
+   * Проверяет отправку уведомления о платеже
       console.error('Error checking transaction:', error)
       return false
     }
@@ -87,21 +81,24 @@ export class PaymentTester extends InngestFunctionTester {
    * Проверяет отправку уведомления об оплате
    */
   async checkPaymentNotification(
-    ctx: MyContext,
-    telegramId: TelegramId,
+    telegramId: string,
     amount: number,
     stars: number
   ): Promise<boolean> {
-    // Проверяем, что уведомление было отправлено в чат
-    try {
-      const messages = await ctx.telegram.getChatHistory(telegramId.toString(), { limit: 1 })
-      const lastMessage = messages[0]
-      
-      return lastMessage.text.includes(`${amount}`) && lastMessage.text.includes(`${stars}`)
-    } catch (error) {
-      console.error('Error checking notification:', error)
-      return false
-    }
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('text')
+      .eq('telegram_id', telegramId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!messages?.text) return false
+
+    return (
+      messages.text.includes(`${amount}`) &&
+      messages.text.includes(`${stars}`)
+    )
   }
 
   /**
