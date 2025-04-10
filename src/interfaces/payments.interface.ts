@@ -26,7 +26,7 @@ export function isValidPaymentSubscription(
 /**
  * Статусы платежа
  */
-export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED' | 'CANCELLED'
 
 /**
  * Результат операции с балансом
@@ -115,6 +115,10 @@ export type Payment = BasePayment
  * Типы транзакций в системе
  */
 export type TransactionType =
+  | 'PAYMENT'
+  | 'REFUND'
+  | 'BONUS'
+  | 'REFERRAL'
   | 'money_income' // 💰 Пополнение баланса
   | 'money_expense' // 💸 Списание средств
   | 'subscription_purchase' // ⭐️ Покупка подписки
