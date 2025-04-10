@@ -3,7 +3,7 @@ import {
   normalizeTelegramId,
 } from '@/interfaces/telegram.interface'
 import { supabase } from './index'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 // Кэш для хранения балансов пользователей
 type BalanceCache = {

@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { getUserBalance } from '@/core/supabase'
 import { inngest } from '@/inngest-functions/clients'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { isRussian } from '@/helpers'
 
 export async function refundUser(ctx: MyContext, amount: number) {

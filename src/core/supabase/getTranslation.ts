@@ -2,7 +2,7 @@ import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { supabase } from '@/core/supabase'
 import { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
 import { TranslationButton } from '@/interfaces/supabase.interface'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { PostgrestError } from '@supabase/supabase-js'
 import { 
   TranslationCategory,

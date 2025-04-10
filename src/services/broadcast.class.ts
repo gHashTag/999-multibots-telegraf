@@ -2,7 +2,7 @@ import { Telegraf } from 'telegraf'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '@/core/supabase'
 import { TelegramId } from '@/interfaces/telegram.interface'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { getErrorMessage, getErrorDetails } from '@/utils/error'
 import { fetch } from 'undici'
 

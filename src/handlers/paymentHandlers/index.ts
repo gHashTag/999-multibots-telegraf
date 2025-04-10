@@ -7,7 +7,7 @@ import { updateUserSubscription, createPayment } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
 
 import { supabase } from '@/core/supabase'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 import { createBotByName } from '@/core/bot'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
