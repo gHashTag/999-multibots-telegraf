@@ -18,6 +18,9 @@ COPY . .
 RUN mkdir -p /app/logs && \
     chmod -R 777 /app/logs
 
+# Делаем скрипт проверки переменных окружения исполняемым
+RUN chmod +x /app/scripts/check-env.js
+
 # Устанавливаем переменные окружения для production
 ENV NODE_ENV=production
 ENV LOG_DIR=/app/logs
@@ -25,5 +28,5 @@ ENV LOG_DIR=/app/logs
 # Экспонируем порты
 EXPOSE 2999 3008
 
-# Запускаем приложение
-CMD ["npm", "run", "bots"]
+# Проверяем переменные окружения перед запуском ботов
+CMD node /app/scripts/check-env.js && npm run bots

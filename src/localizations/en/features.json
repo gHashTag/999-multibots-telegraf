@@ -1,0 +1,31 @@
+{
+  "features": {
+    "title": "Features",
+    "description": "List of available features",
+    "list": {
+      "neuro_photo": "Neuro photo",
+      "neuro_photo_v2": "Neuro photo v2",
+      "neuro_video": "Neuro video",
+      "neuro_text": "Neuro text",
+      "neuro_speech": "Neuro speech",
+      "image_to_prompt": "Image to prompt",
+      "voice_to_text": "Voice to text",
+      "text_to_speech": "Text to speech",
+      "digital_avatar": "Digital avatar",
+      "voice_avatar": "Voice avatar"
+    }
+  },
+  "buttons": {
+    "back": "Back",
+    "next": "Next",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "start": "Start",
+    "done": "Done"
+  },
+  "errors": {
+    "not_found": "Not found",
+    "insufficient_funds": "Insufficient funds",
+    "invalid_input": "Invalid format"
+  }
+} 

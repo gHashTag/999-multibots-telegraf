@@ -1,0 +1,31 @@
+{
+  "features": {
+    "title": "Функции",
+    "description": "Список доступных функций",
+    "list": {
+      "neuro_photo": "Нейро фото",
+      "neuro_photo_v2": "Нейро фото v2",
+      "neuro_video": "Нейро видео",
+      "neuro_text": "Нейро текст",
+      "neuro_speech": "Нейро речь",
+      "image_to_prompt": "Изображение в подсказку",
+      "voice_to_text": "Голос в текст",
+      "text_to_speech": "Текст в речь",
+      "digital_avatar": "Цифровой аватар",
+      "voice_avatar": "Голосовой аватар"
+    }
+  },
+  "buttons": {
+    "back": "Назад",
+    "next": "Далее",
+    "cancel": "Отмена",
+    "confirm": "Подтвердить",
+    "start": "Начать",
+    "done": "Готово"
+  },
+  "errors": {
+    "not_found": "Не найдено",
+    "insufficient_funds": "Недостаточно средств",
+    "invalid_input": "Неверный формат"
+  }
+} 

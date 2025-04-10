@@ -1,11 +1,14 @@
 services:
   app:
-    container_name: 999-multibots
+    container_name: neuro-blogger-telegram-bot
     build:
       context: ./
       dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
       - '2999:2999'
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - BOT_TOKEN_1=${BOT_TOKEN_1}
@@ -15,11 +18,46 @@ services:
       - BOT_TOKEN_5=${BOT_TOKEN_5}
       - BOT_TOKEN_6=${BOT_TOKEN_6}
       - BOT_TOKEN_7=${BOT_TOKEN_7}
+      - INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
+      - INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
+      - INNGEST_URL=${INNGEST_URL}
+      - INNGEST_BASE_URL=${INNGEST_BASE_URL}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - SUPABASE_KEY=${SUPABASE_KEY}
+      - ORIGIN=${ORIGIN}
+      - ADMIN_IDS=${ADMIN_IDS}
+      - SECRET_KEY=${SECRET_KEY}
+      - LOG_FORMAT=${LOG_FORMAT}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
+    volumes:
+      - ./logs:/app/logs
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: neuro-blogger-nginx
     restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/ssl:ro
+      - ./data/certbot/conf:/etc/letsencrypt:ro
+      - ./data/certbot/www:/var/www/certbot:ro
+
+  certbot:
+    image: certbot/certbot
+    container_name: neuro-blogger-certbot
+    restart: unless-stopped
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 #  nginx:
 #    image: nginx:latest
