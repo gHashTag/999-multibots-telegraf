@@ -1,5 +1,20 @@
+import { jest } from '@jest/globals'
+import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 
+export const mockBotInstance = {
+  telegram: {
+    sendMessage: jest.fn(),
+    sendVideo: jest.fn(),
+    sendPhoto: jest.fn(),
+    editMessageText: jest.fn(),
+    deleteMessage: jest.fn()
+  }
+}
+
+export const getMockBot = () => {
+  return mockBotInstance as unknown as Telegraf<MyContext>
+} 
 /**
  * Мок-объект телеграм-бота для тестирования Inngest функций
  */
@@ -56,7 +71,7 @@ export class MockTelegram {
 /**
  * Мок-класс Telegraf для тестирования
  */
-export class MockTelegraf<T extends MyContext> {
+export class MockTelegraf {
   telegram: MockTelegram
 
   constructor(token?: string) {
@@ -81,6 +96,6 @@ export class MockTelegraf<T extends MyContext> {
 /**
  * Создает мок-бот для тестирования
  */
-export function createMockBot(token?: string): MockTelegraf<MyContext> {
-  return new MockTelegraf<MyContext>(token)
+export function createMockBot(token?: string): MockTelegraf {
+  return new MockTelegraf(token)
 }
