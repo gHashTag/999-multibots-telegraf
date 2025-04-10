@@ -1,8 +1,22 @@
 import dotenv from 'dotenv'
-dotenv.config()
+import { logger } from '@/utils/logger'
 
-// Мокаем глобальные зависимости
-jest.mock('@/core/elevenlabs', () => require('./mocks/elevenlabs.mock'))
+// Импортируем типы
+import './types/global'
 
-// Устанавливаем тайм-аут для тестов
-jest.setTimeout(30000)
+// Устанавливаем тестовое окружение
+process.env.NODE_ENV = 'test'
+
+// Загружаем переменные окружения для тестов
+dotenv.config({ path: '.env.test' })
+
+// Устанавливаем мок-ключ для ElevenLabs API
+process.env.ELEVENLABS_API_KEY = 'mock_key'
+
+// Мокаем ElevenLabs API
+const { elevenlabs } = require('./mocks/elevenlabs.mock')
+
+// Устанавливаем моки в глобальное пространство
+;(global as any).elevenlabs = elevenlabs
+
+logger.info('🛠 Тестовое окружение настроено')

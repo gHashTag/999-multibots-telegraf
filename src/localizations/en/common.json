@@ -1,0 +1,1 @@
+{\n  "payment": {\n    "success": "Payment processed successfully",\n    "error": "Error processing payment",\n    "invalid_amount": "Invalid payment amount"\n  }\n}
