@@ -66,7 +66,7 @@ export const createBots = async () => {
     })
 
     setBotCommands(bot)
-    registerCommands(bot)
+    registerCommands({ bot, composer })
 
     registerCallbackActions(bot)
     registerPaymentActions(bot)
