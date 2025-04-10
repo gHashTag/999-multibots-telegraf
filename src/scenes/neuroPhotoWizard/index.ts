@@ -1,3 +1,13 @@
+/**
+ * ⚠️⚠️⚠️ ВНИМАНИЕ! ⚠️⚠️⚠️
+ *
+ * Этот файл реализует сцену NeuroPhoto V1 (Flux)!
+ *
+ * Его нельзя путать со сценой NeuroPhoto V2 (Flux Pro).
+ * Файл содержит логику генерации нейрофото с использованием
+ * Replicate API для версии Flux.
+ */
+
 import { ModelUrl, UserModel } from '@/interfaces'
 
 import { generateNeuroImage } from '@/services/generateNeuroImage'
@@ -13,11 +23,24 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
 import { MyContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
+import { Markup } from 'telegraf'
+import { Logger as logger } from '@/utils/logger'
 
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const isRu = ctx.from?.language_code === 'ru'
   try {
     console.log('CASE 1: neuroPhotoConversation')
+
+    const logger = require('@/utils/logger').Logger
+    logger.info({
+      message: '🚀 ЗАПУСК neuroPhotoWizard (v1)',
+      description: 'Starting neuroPhotoWizard (v1)',
+      telegram_id: ctx.from?.id,
+      session_data: {
+        mode: ctx.session.mode,
+        user_model: ctx.session.userModel ? 'exists' : 'not exists',
+      },
+    })
 
     const { telegramId } = getUserInfo(ctx)
     if (!telegramId) {
@@ -30,9 +53,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     }
     const userModel = await getLatestUserModel(telegramId, 'replicate')
 
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegramId
-    )
+    const { count, subscription, level } =
+      await getReferalsCountAndUserData(telegramId)
 
     if (!userModel || !userModel.model_url) {
       await ctx.reply(

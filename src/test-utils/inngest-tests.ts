@@ -73,7 +73,7 @@ export class InngestTester {
   private inngestClient: Inngest
 
   constructor() {
-    this.inngestDevUrl = process.env.INNGEST_DEV_URL || 'http://localhost:8288'
+    this.inngestDevUrl = process.env.INNGEST_DEV_URL || 'http://localhost:2999'
     this.eventKey = process.env.INNGEST_EVENT_KEY || 'test-event-key'
     this.inngestClient = new Inngest({
       id: 'test-inngest',
@@ -693,10 +693,10 @@ export class InngestTester {
     try {
       // Запускаем тесты для text-to-video
       const textToVideoResults = await testTextToVideo()
-      
+
       // Запускаем тесты для image-to-video
       const imageToVideoResults = await testImageToVideo()
-      
+
       // Объединяем результаты
       const results = [...textToVideoResults, ...imageToVideoResults]
 
@@ -715,12 +715,14 @@ export class InngestTester {
         error: error instanceof Error ? error.message : String(error),
       })
 
-      return [{
-        name: 'Тесты генерации видео',
-        success: false,
-        message: 'Критическая ошибка при выполнении тестов',
-        error: error instanceof Error ? error.message : String(error),
-      }]
+      return [
+        {
+          name: 'Тесты генерации видео',
+          success: false,
+          message: 'Критическая ошибка при выполнении тестов',
+          error: error instanceof Error ? error.message : String(error),
+        },
+      ]
     }
   }
 

@@ -94,7 +94,7 @@ export const selectNeuroPhotoScene = new Scenes.WizardScene<MyContext>(
         telegram_id: ctx.from?.id,
       })
       ctx.session.mode = ModeEnum.NeuroPhotoV2
-      await ctx.scene.enter('checkBalanceScene')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       return
     } else if (text.includes('flux')) {
       logger.info({
@@ -103,7 +103,7 @@ export const selectNeuroPhotoScene = new Scenes.WizardScene<MyContext>(
         telegram_id: ctx.from?.id,
       })
       ctx.session.mode = ModeEnum.NeuroPhoto
-      await ctx.scene.enter('checkBalanceScene')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       return
     }
 

@@ -185,7 +185,7 @@ async function main() {
   }
 
   if (['inngest', 'neuro', 'all'].includes(testType)) {
-    const inngestUrl = process.env.INNGEST_DEV_URL || 'http://localhost:8288'
+    const inngestUrl = process.env.INNGEST_DEV_URL || 'http://localhost:2999'
     console.log(
       `URL Inngest Dev Server: ${colors.cyan}${inngestUrl}${colors.reset}`
     )
@@ -282,9 +282,8 @@ async function main() {
       })
 
       // Добавляем результаты тестов NeuroPhoto V2 к результатам обычных тестов
-      const neuroPhotoV2Results = await inngestTester.runSpecificFunctionTests(
-        'neurophoto-v2'
-      )
+      const neuroPhotoV2Results =
+        await inngestTester.runSpecificFunctionTests('neurophoto-v2')
       const allNeuroResults = [...neuroResults, ...neuroPhotoV2Results]
 
       formatResults(allNeuroResults, 'генерации изображений')
@@ -297,9 +296,8 @@ async function main() {
       })
 
       const inngestTester = new InngestTester()
-      const neuroPhotoV2Results = await inngestTester.runSpecificFunctionTests(
-        'neurophoto-v2'
-      )
+      const neuroPhotoV2Results =
+        await inngestTester.runSpecificFunctionTests('neurophoto-v2')
       formatResults(neuroPhotoV2Results, 'генерации нейрофото V2')
     }
 
@@ -325,9 +323,8 @@ async function main() {
       }
 
       const inngestTester = new InngestTester()
-      const functionResults = await inngestTester.runSpecificFunctionTests(
-        functionName
-      )
+      const functionResults =
+        await inngestTester.runSpecificFunctionTests(functionName)
       formatResults(functionResults, `Inngest функции "${functionName}"`)
     }
 
@@ -368,7 +365,10 @@ async function main() {
 
       const inngestTester = new InngestTester()
       const textToVideoResults = await inngestTester.runTextToVideoTests()
-      const { successful, total } = formatResults(textToVideoResults, 'Текст-в-видео')
+      const { successful, total } = formatResults(
+        textToVideoResults,
+        'Текст-в-видео'
+      )
 
       if (successful < total) {
         allSuccessful = false

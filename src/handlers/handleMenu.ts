@@ -1,3 +1,14 @@
+/**
+ * ⚠️⚠️⚠️ ВНИМАНИЕ! КРИТИЧЕСКИ ВАЖНЫЙ ФАЙЛ! ⚠️⚠️⚠️
+ *
+ * КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО МЕНЯТЬ МАРШРУТИЗАЦИЮ
+ * БЕЗ СОГЛАСОВАНИЯ С ВЕДУЩИМ РАЗРАБОТЧИКОМ!
+ *
+ * Данный файл содержит корректную маршрутизацию всех
+ * команд меню, нарушение которой может привести к
+ * некорректной работе бота.
+ */
+
 import { MyContext } from '@/interfaces'
 import { levels } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
@@ -8,84 +19,78 @@ import { get100Command } from '@/commands'
 import { getStatsCommand } from '@/commands/stats'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { Logger as logger } from '@/utils/logger'
-import { Message } from 'telegraf/typings/core/types/typegram'
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
-  const telegramId = ctx.from?.id
-  if (!telegramId) {
-    logger.error('No telegram id found in context')
-    return
-  }
-
-  const message = ctx.message as Message.TextMessage
-  if (!message || !('text' in message)) {
-    logger.error('No text in message', { telegram_id: telegramId })
-    return
-  }
-
-  const text = message.text
-  logger.info('Menu selection', { text, telegram_id: telegramId })
-
-  try {
-    if (text === levels[5].title_ru || text === levels[5].title_en) {
-      logger.info('Chat with avatar selected', { telegram_id: telegramId })
-      ctx.session.mode = ModeEnum.ChatWithAvatar
-      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      return
-    }
+  console.log('CASE: handleMenuCommand')
+  const isRu = isRussian(ctx)
+  if (ctx.message && 'text' in ctx.message) {
+    const text = ctx.message.text || ''
+    console.log('CASE: handleMenuCommand.text', text)
 
     // Создаем объект для сопоставления текста с действиями
     const actions = {
-      [levels[105].title_ru]: async () => {
+      [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
         console.log('CASE: 💫 Оформление подписки')
         ctx.session.mode = 'subscribe' as any
         await ctx.scene.enter(ModeEnum.SubscriptionScene)
       },
-      [levels[1].title_ru]: async () => {
+      [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         console.log('CASE: 🤖 Цифровое тело')
         await ctx.scene.enter(ModeEnum.SelectModelWizard)
       },
-      [levels[2].title_ru]: async () => {
+      [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         console.log('CASE handleMenu: 📸 Нейрофото')
-        await ctx.scene.enter(ModeEnum.NeuroPhoto)
+        logger.info({
+          message: '📸 Выбрана команда Нейрофото из меню',
+          description: 'NeuroPhoto command selected from menu',
+          telegram_id: ctx.from?.id,
+          should_enter: ModeEnum.SelectNeuroPhoto,
+          action: 'Entering selection scene',
+        })
+        await ctx.scene.enter(ModeEnum.SelectNeuroPhoto)
       },
-      [levels[3].title_ru]: async () => {
+      [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
         console.log('CASE: 🔍 Промпт из фото')
         ctx.session.mode = ModeEnum.ImageToPrompt
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
-      [levels[4].title_ru]: async () => {
+      [isRu ? levels[4].title_ru : levels[4].title_en]: async () => {
         console.log('CASE: 🧠 Мозг аватара')
         ctx.session.mode = ModeEnum.Avatar
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
-      [levels[6].title_ru]: async () => {
+      [isRu ? levels[5].title_ru : levels[5].title_en]: async () => {
+        console.log('CASE: 💭 Чат с аватаром')
+        ctx.session.mode = ModeEnum.ChatWithAvatar
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+      },
+      [isRu ? levels[6].title_ru : levels[6].title_en]: async () => {
         console.log('CASE: 🤖 Выбор модели ИИ')
         ctx.session.mode = ModeEnum.SelectModelWizard
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
-      [levels[7].title_ru]: async () => {
+      [isRu ? levels[7].title_ru : levels[7].title_en]: async () => {
         console.log('CASE: 🎤 Голос аватара')
         ctx.session.mode = ModeEnum.Voice
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
-      [levels[8].title_ru]: async () => {
+      [isRu ? levels[8].title_ru : levels[8].title_en]: async () => {
         console.log('CASE: 🎙️ Текст в голос')
         ctx.session.mode = ModeEnum.TextToSpeech
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
-      [levels[9].title_ru]: async () => {
+      [isRu ? levels[9].title_ru : levels[9].title_en]: async () => {
         console.log('CASE: 🎥 Фото в видео')
         ctx.session.mode = ModeEnum.ImageToVideo
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
-      [levels[10].title_ru]: async () => {
+      [isRu ? levels[10].title_ru : levels[10].title_en]: async () => {
         console.log('CASE:  Видео из текста')
         ctx.session.mode = ModeEnum.TextToVideo
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
-      [levels[11].title_ru]: async () => {
+      [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
         console.log('CASE: 🖼️ Текст в фото')
         ctx.session.mode = ModeEnum.TextToImage
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
@@ -100,27 +105,27 @@ export const handleMenu = async (ctx: MyContext) => {
       //   ctx.session.mode = 'video_in_url'
       //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       // },
-      [levels[100].title_ru]: async () => {
+      [isRu ? levels[100].title_ru : levels[100].title_en]: async () => {
         console.log('CASE: 💎 Пополнить баланс')
         ctx.session.mode = 'top_up_balance' as any
         await ctx.scene.enter('paymentScene')
       },
-      [levels[101].title_ru]: async () => {
+      [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
         console.log('CASE: 🤑 Баланс')
         ctx.session.mode = 'balance' as any
         await ctx.scene.enter(ModeEnum.BalanceScene)
       },
-      [levels[102].title_ru]: async () => {
+      [isRu ? levels[102].title_ru : levels[102].title_en]: async () => {
         console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = 'invite' as any
         await ctx.scene.enter('inviteScene')
       },
-      [levels[103].title_ru]: async () => {
+      [isRu ? levels[103].title_ru : levels[103].title_en]: async () => {
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = 'help' as any
         await ctx.scene.enter('helpScene')
       },
-      [levels[104].title_ru]: async () => {
+      [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
         console.log('CASE: 🛠 Техподдержка')
         ctx.session.mode = 'tech' as any
         await handleTechSupport(ctx)
@@ -155,7 +160,7 @@ export const handleMenu = async (ctx: MyContext) => {
         ctx.session.mode = 'main_menu' as any
         await ctx.scene.enter('menuScene')
       },
-      [mainMenuButton.title_ru]: async () => {
+      [isRu ? mainMenuButton.title_ru : mainMenuButton.title_en]: async () => {
         console.log('CASE: 🏠 Главное меню')
         ctx.session.mode = 'main_menu' as any
         await ctx.scene.enter('menuScene')
@@ -188,18 +193,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: handleMenuCommand.else', text)
       }
     }
-  } catch (error) {
-    logger.error('Error in handleMenu', {
-      error: error instanceof Error ? error.message : String(error),
-      telegram_id: telegramId,
-      text
-    })
-    const isRu = isRussian(ctx)
-    await ctx.reply(
-      isRu
-        ? '❌ Произошла ошибка. Пожалуйста, попробуйте снова.'
-        : '❌ Error occurred. Please try again.'
-    )
   }
 }
 
