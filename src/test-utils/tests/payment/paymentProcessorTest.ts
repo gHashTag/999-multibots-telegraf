@@ -10,6 +10,7 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
  * Тесты проверяют:
  * 1. Обработку операций пополнения баланса
  * 2. Обработку операций списания средств
+ * 3. Обработку платежей с использованием моков
  *
  * Для запуска используйте:
  * - npm run test:payment
@@ -68,6 +69,11 @@ export async function testPaymentProcessorIncome(): Promise<TestResult> {
       success: true,
       name: testName,
       message: 'Пополнение баланса через процессор платежей работает корректно',
+      details: {
+        telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
+        amount: TEST_CONFIG.TEST_DATA.TEST_AMOUNT,
+        duration,
+      },
     }
   } catch (error) {
     const duration = Date.now() - startTime
@@ -84,6 +90,10 @@ export async function testPaymentProcessorIncome(): Promise<TestResult> {
       success: false,
       name: testName,
       message: `Ошибка при пополнении баланса: ${errorMessage}`,
+      details: {
+        error: errorMessage,
+        duration,
+      },
     }
   }
 }
@@ -135,6 +145,11 @@ export async function testPaymentProcessorExpense(): Promise<TestResult> {
       success: true,
       name: testName,
       message: 'Списание средств через процессор платежей работает корректно',
+      details: {
+        telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
+        amount: TEST_CONFIG.TEST_DATA.TEST_AMOUNT / 2,
+        duration,
+      },
     }
   } catch (error) {
     const duration = Date.now() - startTime
@@ -151,6 +166,115 @@ export async function testPaymentProcessorExpense(): Promise<TestResult> {
       success: false,
       name: testName,
       message: `Ошибка при списании средств: ${errorMessage}`,
+      details: {
+        error: errorMessage,
+        duration,
+      },
+    }
+  }
+}
+
+/**
+ * Тестирует обработку некорректного платежа (с отрицательной суммой)
+ * @returns Результат теста
+ */
+export async function testPaymentProcessorNegativeAmount(): Promise<TestResult> {
+  const testName = 'Тест обработки платежа с отрицательной суммой'
+  const startTime = Date.now()
+
+  logger.info('🧪 Запуск теста обработки некорректного платежа', {
+    description: 'Starting invalid payment test',
+    test: testName,
+  })
+
+  try {
+    // Подготовка данных для теста с отрицательной суммой
+    const paymentData = {
+      telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
+      amount: -50, // Отрицательная сумма
+      stars: 50,
+      type: 'money_income',
+      description: 'Тестовый некорректный платеж',
+      bot_name: TEST_CONFIG.TEST_DATA.TEST_BOT_NAME,
+      service_type: ModeEnum.TopUpBalance,
+    }
+
+    // Отправляем событие пополнения баланса
+    const result = await inngestTestEngine.sendEvent(
+      'payment/process',
+      paymentData
+    )
+
+    // В этом тесте мы ожидаем ошибку, так что если результат успешный - тест не пройден
+    if (result && result.success) {
+      throw new Error('Платеж с отрицательной суммой был принят, это ошибка')
+    }
+
+    const duration = Date.now() - startTime
+    logger.info('✅ Тест обработки некорректного платежа успешно выполнен', {
+      description: 'Invalid payment test successfully completed',
+      test: testName,
+      duration,
+    })
+
+    return {
+      success: true,
+      name: testName,
+      message:
+        'Обработка некорректного платежа работает правильно (платеж отклонен)',
+      details: {
+        telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
+        amount: -50,
+        duration,
+      },
+    }
+  } catch (error) {
+    const duration = Date.now() - startTime
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    // Проверяем, содержит ли сообщение об ошибке ожидаемый текст
+    if (
+      errorMessage.includes('сумма') &&
+      errorMessage.includes('положительной')
+    ) {
+      logger.info('✅ Тест обработки некорректного платежа успешно выполнен', {
+        description:
+          'Invalid payment test successfully completed with expected error',
+        test: testName,
+        duration,
+        error: errorMessage,
+      })
+
+      return {
+        success: true,
+        name: testName,
+        message:
+          'Обработка некорректного платежа работает правильно (ожидаемая ошибка получена)',
+        details: {
+          error: errorMessage,
+          duration,
+        },
+      }
+    }
+
+    logger.error(
+      '❌ Ошибка при выполнении теста обработки некорректного платежа',
+      {
+        description: 'Error executing invalid payment test',
+        error: errorMessage,
+        test: testName,
+        duration,
+      }
+    )
+
+    return {
+      success: false,
+      name: testName,
+      message: `Неожиданная ошибка при тестировании некорректного платежа: ${errorMessage}`,
+      details: {
+        error: errorMessage,
+        duration,
+      },
     }
   }
 }
@@ -195,6 +319,10 @@ export async function runPaymentProcessorTests(
         message: 'Тест пропущен из-за ошибки в тесте пополнения баланса',
       })
     }
+
+    // Запускаем тест обработки некорректного платежа
+    const invalidResult = await testPaymentProcessorNegativeAmount()
+    results.push(invalidResult)
 
     // Собираем статистику
     const duration = Date.now() - startTime
