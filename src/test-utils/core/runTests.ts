@@ -3,7 +3,6 @@ import { config } from 'dotenv'
 import path from 'path'
 import { TestRunner } from './TestRunner'
 import { TestCategory, isInCategory } from './categories'
-import { runTranslationTests } from '../tests/translations'
 import { TestResult, RunnerOptions } from './types'
 import { logger } from '@/utils/logger'
 import { TestDiscovery } from './TestDiscovery'
@@ -72,7 +71,7 @@ function printHelp() {
 Опции:
   --help, -h          Показать эту справку
   --verbose, -v       Включить подробный вывод
-  --category=XXX      Категория тестов для запуска (например, translations, database, webhook)
+  --category=XXX      Категория тестов для запуска (например, database, webhook, inngest)
   --only=XXX          Запустить только тесты, содержащие указанную строку в названии
   --skip=XXX          Пропустить тесты, содержащие указанную строку в названии
   --parallel=N        Запустить тесты параллельно с указанным уровнем параллелизма (по умолчанию: 4)
@@ -85,15 +84,14 @@ function printHelp() {
 
 Категории:
   all                 Все тесты
-  translations        Тесты переводов
   database            Тесты базы данных
   webhook             Тесты вебхуков
   inngest             Тесты Inngest функций
   payment             Тесты платежных функций
 
 Примеры:
-  ts-node -r tsconfig-paths/register src/test-utils --category=translations
-  ts-node -r tsconfig-paths/register src/test-utils --category=database --verbose
+  ts-node -r tsconfig-paths/register src/test-utils --category=database
+  ts-node -r tsconfig-paths/register src/test-utils --category=inngest --verbose
   ts-node -r tsconfig-paths/register src/test-utils --discover --test-dir=src/test-utils/tests
   ts-node -r tsconfig-paths/register src/test-utils --json --output=test-results.json
   `
@@ -184,52 +182,6 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
             })))
           }
         }
-      }
-    }
-
-    // Запускаем тесты переводов, если выбрана соответствующая категория
-    if (category === TestCategory.All || category === TestCategory.Translations) {
-      logger.info('🌐 Загрузка тестов переводов...')
-      logger.info('🌐 Loading translation tests...')
-      
-      try {
-        // Запускаем тесты переводов
-        const translationResults = runTranslationTests()
-        
-        // Обрабатываем результаты
-        if (Array.isArray(translationResults)) {
-          logger.info(`✅ Добавлено тестов переводов: ${translationResults.length}`)
-          logger.info(`✅ Added translation tests: ${translationResults.length}`)
-          
-          // Добавляем каждый тест в TestRunner
-          for (const result of translationResults) {
-            runner.addTests([{
-              name: result.name || 'Translation Test',
-              category: TestCategory.Translations,
-              description: result.message || 'Translation validation',
-              run: async () => {
-                if (!result.success) {
-                  throw new Error(result.message || 'Translation test failed')
-                }
-                return result
-              }
-            }])
-          }
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error(`❌ Ошибка при запуске тестов переводов: ${errorMessage}`)
-        logger.error(`❌ Error running translation tests: ${errorMessage}`)
-        
-        // Добавляем ошибку как тест
-        runner.addTests([{
-          name: 'Translation Tests',
-          category: TestCategory.Translations,
-          description: 'Running translation tests',
-          run: async () => {
-            throw new Error(`Failed to run translation tests: ${errorMessage}`)
-          }
-        }])
       }
     }
 

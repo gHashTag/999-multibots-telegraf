@@ -13,7 +13,6 @@ export enum TestCategory {
   Payment = 'payment',
   Speech = 'speech',
   Api = 'api',
-  Translations = 'translations',
   
   // Подкатегории
   NeuroPhoto = 'neurophoto',
