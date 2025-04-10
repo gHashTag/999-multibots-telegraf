@@ -6,12 +6,12 @@ COPY package*.json ./
 RUN npm install
 
 # Создаем директорию для логов с правильными правами
-RUN mkdir -p /tmp/logs && \
-    chown -R node:node /tmp/logs
+RUN mkdir -p /tmp/logs
 
-USER node
+# Не переключаемся на пользователя node
+# USER node
 
-COPY --chown=node:node . .
+COPY . .
 
 EXPOSE 3000
 

@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "replicate": {
+      "command": "mcp-replicate",
+      "env": {
+        "REPLICATE_API_TOKEN": "your_replicate_token_here"
+      }
+    },
+    "googlesheets_composio": {
+      "url": "your_googlesheets_url_here"
+    },
+    "googlesuper_composio": {
+      "url": "your_googlesuper_url_here"
+    },
+    "supabase_composio": {
+      "url": "your_supabase_url_here"
+    },
+    "gmail_composio": {
+      "url": "your_gmail_url_here"
+    },
+    "telegram-mcp": {
+      "command": "telegram-mcp",
+      "env": {
+        "TG_APP_ID": "your_app_id_here",
+        "TG_API_HASH": "your_api_hash_here"
+      }
+    },
+    "googlemeet_composio": {
+      "url": "your_googlemeet_url_here"
+    }
+  }
+}

@@ -1,57 +1,45 @@
-version: '3.9'
+version: '3.8'
 
 services:
-  app:
+  # Тестовая база данных PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: neuro-blogger-test-postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: testdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Сервис для тестирования
+  neuro-blogger-telegram-bot-test:
     container_name: neuro-blogger-telegram-bot-test
     build:
-      context: ./
-      dockerfile: Dockerfile.dev
-    ports:
-      - '2999:2999'  # API порт и Inngest порт
-      - '3008:3008'  # Тестовый бот
-    volumes:
-      - .:/app
-      - /app/node_modules
-    env_file:
-      - .env.test
+      context: .
+      dockerfile: Dockerfile.test
     environment:
       - NODE_ENV=test
-      - PORT=3008
       - LOG_DIR=/tmp/logs
-      - SECRET_KEY=testSecretKey
-      - CREDENTIALS=true
-      - ORIGIN=*
-      - LOG_FORMAT=combined
-      - INNGEST_DEV_URL=http://localhost:2999/api/inngest
-      - GLAMA_API_KEY=test-key
-      - TEST_MODE=true
-      - DEBUG=true
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-    command: npm run test:payment-processor
-    user: 'node'
-
-    networks:
-      - test-network
-    restart: 'no'
-
-  nginx:
-    container_name: nginx-proxy-test
-    image: nginx:alpine
-    ports:
-      - '8443:443'
-      - '8080:80'
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d/:/etc/nginx/conf.d/:ro
-      - /etc/pki/:/etc/pki/:ro
-    networks:
-      - test-network
-    depends_on:
-      - app
-    restart: 'no'
+      - ./logs:/tmp/logs
+    ports:
+      - "2999:2999"
+      - "3008:3008"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:3008/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
-networks:
-  test-network:
-    driver: bridge 
+volumes:
+  test-logs: 

@@ -1,8 +1,53 @@
-# compiled output
+# Игнорируем системные файлы
+.git
+.gitignore
+.github
+.env.local
+.env.development
+.env.production.local
+.env.test.local
 .vscode
-/node_modules
+.idea
+.DS_Store
 
-# code formatter
+# Игнорируем node_modules и логи
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs
+*.log
+
+# Игнорируем временные директории и файлы сборки
+.next
+dist
+out
+build
+.vercel
+.cache
+tmp
+temp
+
+# Игнорируем документацию и тестовые файлы
+docs
+**/*.test.ts
+**/*.spec.ts
+__tests__
+coverage
+
+# Игнорируем Docker файлы (кроме основного)
+docker-compose.test.yml
+docker-compose.override.yml
+Dockerfile.dev
+Dockerfile.test
+
+# Игнорируем другие ненужные файлы
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+
+# compiled output
 .eslintrc
 .eslintignore
 .editorconfig

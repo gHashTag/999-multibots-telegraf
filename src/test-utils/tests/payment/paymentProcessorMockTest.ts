@@ -1,8 +1,7 @@
-import { TestResult } from '../types'
-import { TEST_CONFIG } from '../test-config'
-import { inngestTestEngine } from '../test-config'
-import { createMockFn } from '../test-config'
-import { logger } from '../../utils/logger'
+import { TestResult } from '../../types'
+import { TEST_CONFIG } from '../../test-config'
+import { createMockFn } from '../../test-config'
+import { logger } from '@/utils/logger'
 
 /**
  * Тест для проверки вызова обработчика платежей с мокированием функций
