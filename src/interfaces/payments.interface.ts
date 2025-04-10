@@ -26,7 +26,13 @@ export function isValidPaymentSubscription(
 /**
  * Статусы платежа
  */
-export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED' | 'CANCELLED'
+export enum PaymentStatus {
+  PENDING = 'PENDING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  REFUNDED = 'REFUNDED',
+  CANCELLED = 'CANCELLED'
+}
 
 /**
  * Результат операции с балансом
@@ -114,33 +120,28 @@ export type Payment = BasePayment
 /**
  * Типы транзакций в системе
  */
-export type TransactionType =
-  | 'PAYMENT'
-  | 'REFUND'
-  | 'BONUS'
-  | 'REFERRAL'
-  | 'money_income' // 💰 Пополнение баланса
-  | 'money_expense' // 💸 Списание средств
-  | 'subscription_purchase' // ⭐️ Покупка подписки
-  | 'subscription_renewal' // 🔄 Продление подписки
-  | 'refund' // ↩️ Возврат средств
-  | 'bonus' // 🎁 Бонусное начисление
-  | 'referral' // 👥 Реферальное начисление
-  | 'system' // 💫 Системная операция
+export enum TransactionType {
+  MONEY_INCOME = 'MONEY_INCOME',
+  MONEY_EXPENSE = 'MONEY_EXPENSE',
+  SUBSCRIPTION_PAYMENT = 'SUBSCRIPTION_PAYMENT',
+  REFUND = 'REFUND',
+  BONUS = 'BONUS',
+  REFERRAL = 'REFERRAL',
+  TRANSFER = 'TRANSFER'
+}
 
 /**
  * Описания для каждого типа транзакции
  */
 export const TRANSACTION_DESCRIPTIONS: Record<TransactionType, string> = {
-  money_income: '💰 Пополнение баланса',
-  money_expense: '💸 Списание средств',
-  subscription_purchase: '⭐️ Покупка подписки',
-  subscription_renewal: '🔄 Продление подписки',
-  refund: '↩️ Возврат средств',
-  bonus: '🎁 Бонусное начисление',
-  referral: '👥 Реферальное начисление',
-  system: '💫 Системная операция',
-} as const
+  [TransactionType.MONEY_INCOME]: '💰 Пополнение баланса',
+  [TransactionType.MONEY_EXPENSE]: '💸 Списание средств',
+  [TransactionType.SUBSCRIPTION_PAYMENT]: '⭐️ Оплата подписки',
+  [TransactionType.REFUND]: '↩️ Возврат средств',
+  [TransactionType.BONUS]: '🎁 Бонусное начисление',
+  [TransactionType.REFERRAL]: '👥 Реферальное начисление',
+  [TransactionType.TRANSFER]: '💫 Перевод средств'
+}
 
 /**
  * Детальные описания для каждого типа транзакции
