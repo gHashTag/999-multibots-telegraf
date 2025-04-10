@@ -76,7 +76,19 @@ const REQUIRED_KEYS = [
   'userServerChat',
 ]
 
-const LOCALIZATIONS_PATH = resolve(process.cwd(), 'src/localizations')
+// Исправленный путь к локализациям, учитывая возможный запуск из src/
+const LOCALIZATIONS_PATH = (() => {
+  const basePath = process.cwd()
+  const relativePath = 'localizations'
+  
+  // Проверяем, находимся ли мы в 'src'
+  if (basePath.endsWith('/src')) {
+    return resolve(basePath, relativePath)
+  }
+  
+  // Иначе используем полный путь с /src/
+  return resolve(basePath, 'src', relativePath)
+})()
 
 /**
  * Проверяет переводы для указанного языка
