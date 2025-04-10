@@ -14,12 +14,12 @@ import {
   ReplicateWebhookTester,
   BFLWebhookTester,
   NeurophotoWebhookTester,
-} from './webhook.test'
-import { DatabaseTester } from './database-tests.test'
-import { testSpeechGeneration } from './audio-tests.test'
-import { TestResult } from './types'
-import { runPaymentTests } from './payment/paymentProcessor.test'
-import { logger } from '../utils/logger'
+} from '../tests/webhooks/webhook.test'
+import { DatabaseTester } from '../tests/database/database-tests.test'
+import { testSpeechGeneration } from '../tests/audio/audio-tests.test'
+import { TestResult } from '../types'
+import { runPaymentTests } from '../tests/payment/paymentProcessor.test'
+import { logger } from '@/utils/logger'
 
 // Цвета для вывода в консоль
 const colors = {
@@ -135,15 +135,32 @@ ${colors.bright}Доступные Inngest функции для тестиро�
 }
 
 /**
- * Главная функция запуска тестов
+ * Получает доступные типы тестов
  */
-async function main() {
-  const args = process.argv.slice(2)
-  const testType = args[0] || 'all'
+export function getTestTypesAvailable(): string[] {
+  return Object.keys(testTypes)
+}
+
+/**
+ * Запускает конкретный тест по типу
+ */
+export async function runTest(type: string, options?: any): Promise<any> {
+  if (testTypes[type] && typeof testTypes[type] === 'function') {
+    return await testTypes[type](options)
+  }
+  throw new Error(`Тип теста "${type}" не найден`)
+}
+
+/**
+ * Основная функция запуска тестов
+ */
+export async function main(args: string[] = []): Promise<boolean> {
+  const cliArgs = args.length ? args : process.argv.slice(2)
+  const testType = cliArgs[0] || 'all'
 
   if (testType === '--help' || testType === '-h') {
     printHelp()
-    return
+    return false
   }
 
   try {
@@ -175,26 +192,36 @@ async function main() {
           `${colors.red}Неизвестный тип теста: ${testType}${colors.reset}`
         )
         printHelp()
-        process.exit(1)
+        return false
     }
 
     formatResults(results)
 
     const failedTests = results.filter(r => !r.passed)
     if (failedTests.length > 0) {
-      process.exit(1)
+      return false
     }
+    return true
   } catch (error) {
     console.error(
       `${colors.red}Ошибка при выполнении тестов: ${
         error instanceof Error ? error.message : String(error)
       }${colors.reset}`
     )
-    process.exit(1)
+    return false
   }
 }
 
-// Запускаем основную функцию, если файл запущен напрямую
+/**
+ * Обеспечиваем явный экспорт функции main для внешних модулей
+ */
+module.exports = {
+  main,
+  getTestTypesAvailable,
+  runTest
+};
+
+// Если файл запущен напрямую, а не импортирован
 if (require.main === module) {
   main().catch(error => {
     console.error(`Critical error: ${error.message}`)
@@ -209,7 +236,7 @@ async function runSpeechGenerationTest(): Promise<TestResult> {
       name: 'Тест генерации речи',
       testName: 'Speech Generation Test',
       passed: result.passed,
-      success: result.passed,
+      success: result.passed === true,
       error: result.error,
       details: result.details || {},
       duration: 0,

@@ -42,7 +42,7 @@ export class ReplicateWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить статус тренировки до теста',
             description: 'Failed to get training status before test',
-            error: error.message,
+            error: error instanceof Error ? error.message : String(error),
           })
         }
       }
@@ -81,7 +81,7 @@ export class ReplicateWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить статус тренировки после теста',
             description: 'Failed to get training status after test',
-            error: error.message,
+            error: error instanceof Error ? error.message : String(error),
           })
         }
       }
@@ -107,7 +107,7 @@ export class ReplicateWebhookTester {
       logger.error({
         message: '❌ Ошибка при отправке вебхука',
         description: 'Error during webhook test',
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         payload,
       })
 
@@ -204,7 +204,7 @@ export class ReplicateWebhookTester {
       version:
         'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
       status: 'ERROR',
-      error: sample.result,
+      error: sample.result ? sample.result : undefined,
     }
 
     return this.sendWebhook(payload)
@@ -288,7 +288,7 @@ export class ReplicateWebhookTester {
       logger.error({
         message: '❌ Критическая ошибка при выполнении тестов вебхуков',
         description: 'Critical error during webhook tests',
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       })
       throw error
     }
@@ -333,7 +333,7 @@ export class BFLWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить статус тренировки до теста',
             description: 'Failed to get training status before test',
-            error: error.message,
+            error: error instanceof Error ? error.message : String(error),
           })
         }
       }
@@ -372,7 +372,7 @@ export class BFLWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить статус тренировки после теста',
             description: 'Failed to get training status after test',
-            error: error.message,
+            error: error instanceof Error ? error.message : String(error),
           })
         }
       }
@@ -400,10 +400,10 @@ export class BFLWebhookTester {
         passed: false,
         success: false,
         message: 'Ошибка при обработке вебхука',
-        error: 'Invalid webhook data',
+        error: error instanceof Error ? error.message : String(error),
         duration,
         testName: 'BFLWebhookTest',
-        details: { error: 'Invalid webhook data' },
+        details: { error: error instanceof Error ? error.message : String(error) },
       }
     }
   }
@@ -488,7 +488,7 @@ export class BFLWebhookTester {
       version:
         'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
       status: 'ERROR',
-      error: sample.result,
+      error: sample.result ? sample.result : undefined,
     }
 
     return this.sendWebhook(payload)
@@ -601,7 +601,7 @@ export class NeurophotoWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить данные промпта до теста',
             description: 'Failed to get prompt data before test',
-            error: error.message,
+            error: error instanceof Error ? error.message : String(error),
           })
         }
       }
@@ -641,7 +641,7 @@ export class NeurophotoWebhookTester {
           logger.warn({
             message: '⚠️ Не удалось получить данные промпта после теста',
             description: 'Failed to get prompt data after test',
-            error: error.message,
+            error: error instanceof Error ? error.message : String(error),
           })
         }
       }
@@ -671,7 +671,7 @@ export class NeurophotoWebhookTester {
       logger.error({
         message: '❌ Ошибка при отправке вебхука нейрофото',
         description: 'Error during neurophoto webhook test',
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         payload,
       })
 
@@ -729,7 +729,7 @@ export class NeurophotoWebhookTester {
         logger.error({
           message: '❌ Ошибка при создании тестовой записи',
           description: 'Error creating test record',
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         })
 
         return {
@@ -737,7 +737,7 @@ export class NeurophotoWebhookTester {
           passed: false,
           success: false,
           message: 'Не удалось создать тестовую запись в базе данных',
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           duration: 0,
           testName: 'NeurophotoWebhookTest',
           details: { error: 'No sample found' },
@@ -766,7 +766,7 @@ export class NeurophotoWebhookTester {
     const payload = {
       task_id: taskId,
       status: sample.status,
-      result: sample.result,
+      result: 'result' in sample ? sample.result : undefined,
     }
 
     return this.sendWebhook(payload)
@@ -815,7 +815,7 @@ export class NeurophotoWebhookTester {
           passed: false,
           success: false,
           message: 'Не удалось создать тестовую запись в базе данных',
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           duration: 0,
           testName: 'NeurophotoWebhookTest',
           details: { error: 'No sample found' },
@@ -892,7 +892,7 @@ export class NeurophotoWebhookTester {
           passed: false,
           success: false,
           message: 'Не удалось создать тестовую запись в базе данных',
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           duration: 0,
           testName: 'NeurophotoWebhookTest',
           details: { error: 'No sample found' },
@@ -904,7 +904,7 @@ export class NeurophotoWebhookTester {
         passed: false,
         success: false,
         message: 'Не удалось создать тестовую запись в базе данных',
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         duration: 0,
         testName: 'NeurophotoWebhookTest',
         details: { error: 'No sample found' },

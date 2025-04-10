@@ -24,7 +24,10 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 // Создаем клиент Supabase для тестов
-export const testSupabase = createClient(supabaseUrl, supabaseKey)
+export const testSupabase = createClient(
+  supabaseUrl || 'https://example.com',
+  supabaseKey || 'dummy-key'
+)
 
 logger.info({
   message: '🔌 Тестовый клиент Supabase инициализирован',
