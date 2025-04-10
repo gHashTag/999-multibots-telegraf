@@ -1,7 +1,7 @@
 import { supabase } from '.'
 import { logger } from '@/utils/logger'
-import { TelegramId } from '@/interfaces/telegram.interface'
-import { TransactionType } from '@/interfaces/payments.interface'
+import { TelegramId } from '@/types/telegram.interface'
+import { TransactionType } from '@/types/payments.interface'
 
 interface CreateSuccessfulPaymentParams {
   telegram_id: TelegramId

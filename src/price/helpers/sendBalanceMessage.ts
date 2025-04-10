@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { Telegram } from 'telegraf/typings/telegram'
 
 export const sendBalanceMessage = async (

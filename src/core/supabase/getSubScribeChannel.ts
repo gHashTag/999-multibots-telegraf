@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 
 import { supabase } from '@/core/supabase'
 

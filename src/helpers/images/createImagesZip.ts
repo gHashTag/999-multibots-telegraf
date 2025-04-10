@@ -2,7 +2,7 @@ import { createWriteStream } from 'fs'
 import path from 'path'
 import archiver from 'archiver'
 import * as fs from 'fs/promises'
-import { BufferType } from '../../interfaces'
+import { BufferType } from '@/types'
 import { logger } from '@/utils/logger'
 
 export async function createImagesZip(images: BufferType): Promise<string> {

@@ -1,4 +1,4 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 import { supabase } from '.'
 
 export const getGeneratedImages = async (telegram_id: TelegramId) => {

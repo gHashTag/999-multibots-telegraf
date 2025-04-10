@@ -1,7 +1,10 @@
 import { calculateCost } from './calculateCost'
 import { logger } from '@/utils/logger'
-import { interestRate } from '../interestRate'
+import { CostCalculationParams, CostCalculationResult } from '@/types'
+import { ModeEnum } from '@/types/modes'
+import { interestRate } from '@/price/constants'
 
+export { ModeEnum }
 export const starCost = 0.016
 
 export const SYSTEM_CONFIG = {
@@ -12,68 +15,6 @@ export const SYSTEM_CONFIG = {
 
 export function calculateCostInStars(costInDollars: number): number {
   return costInDollars / starCost
-}
-
-export enum ModeEnum {
-  Subscribe = 'subscribe',
-  DigitalAvatarBody = 'digital_avatar_body',
-  DigitalAvatarBodyV2 = 'digital_avatar_body_v2',
-  NeuroPhoto = 'neuro_photo',
-  NeuroPhotoV2 = 'neuro_photo_v2',
-  ImageToPrompt = 'image_to_prompt_wizard',
-  AvatarBrainWizard = 'avatar_brain_wizard',
-  ChatWithAvatar = 'chat_with_avatar',
-  SelectModel = 'select_model',
-  SelectModelWizard = 'select_model_wizard',
-  Voice = 'voice',
-  TextToSpeech = 'text_to_speech',
-  ImageToVideo = 'image_to_video',
-  TextToVideo = 'text_to_video',
-  TextToImage = 'text_to_image',
-  LipSync = 'lip_sync',
-  SelectNeuroPhoto = 'select_neuro_photo',
-  ChangeSize = 'change_size',
-  Invite = 'invite',
-  Help = 'help',
-  Avatar = 'avatar',
-  Balance = 'balance',
-  ImprovePrompt = 'improve_prompt',
-  TopUpBalance = 'top_up_balance',
-  VideoInUrl = 'video_in_url',
-  Tech = 'tech',
-  Price = 'price',
-  Stats = 'stats',
-  BroadcastWizard = 'broadcast_wizard',
-  SubscriptionCheckScene = 'subscription_check_scene',
-  ImprovePromptWizard = 'improve_prompt_wizard',
-  SizeWizard = 'size_wizard',
-  PaymentScene = 'payment_scene',
-  InviteScene = 'invite_scene',
-  BalanceScene = 'balance_scene',
-  Step0 = 'step0',
-  NeuroCoderScene = 'neuro_coder_scene',
-  CheckBalanceScene = 'check_balance_scene',
-  HelpScene = 'help_scene',
-  CancelPredictionsWizard = 'cancel_predictions_wizard',
-  EmailWizard = 'email_wizard',
-  GetRuBillWizard = 'get_ru_bill_wizard',
-  SubscriptionScene = 'subscription_scene',
-  CreateUserScene = 'create_user_scene',
-  VoiceToText = 'voice_to_text',
-  MenuScene = 'menu_scene',
-  StartScene = 'start_scene',
-}
-
-export interface CostCalculationParams {
-  mode: ModeEnum | string
-  steps?: number
-  numImages?: number
-}
-
-export interface CostCalculationResult {
-  stars: number
-  rubles: number
-  dollars: number
 }
 
 type BaseCosts = {
@@ -200,6 +141,7 @@ export const minCost = Math.min(
     typeof cost === 'function' ? cost(1) : cost
   )
 )
+
 export const maxCost = Math.max(
   ...Object.values(modeCosts).map(cost =>
     typeof cost === 'function' ? cost(1) : cost

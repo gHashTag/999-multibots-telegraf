@@ -1,5 +1,5 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { getUserBalance } from '@/core/supabase'
 import {
   sendInsufficientStarsMessage,
@@ -8,7 +8,7 @@ import {
 } from '@/price/helpers'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 export const checkBalanceScene = new Scenes.BaseScene<MyContext>(
   'check_balance_scene'

@@ -1,6 +1,6 @@
 import { Composer } from 'telegraf'
 import { glamaMcpService } from '@/services/glamaMcpService'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { logger } from '@/utils/logger'
 
 /**

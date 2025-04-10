@@ -1,13 +1,13 @@
 import { Scenes, Markup } from 'telegraf'
 import { upgradePrompt } from '@/core/openai/upgradePrompt'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { generateTextToImage } from '@/services/generateTextToImage'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
 import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
 import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovementFailureMessage'
 import { sendGenericErrorMessage } from '@/menu'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 import { logger } from '@/utils/logger'
 
 const MAX_ATTEMPTS = 10

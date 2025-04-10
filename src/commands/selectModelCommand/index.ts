@@ -1,5 +1,5 @@
 import { Markup } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 
 import { getAvailableModels } from './getAvailableModels'
 import { sendGenericErrorMessage } from '@/menu'

@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { BOT_URLS } from '@/core/bot'
 export const sendTutorialMessage = async (ctx: MyContext, isRu: boolean) => {
   const botName = ctx.botInfo.username

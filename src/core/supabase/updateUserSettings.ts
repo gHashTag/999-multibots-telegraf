@@ -1,9 +1,6 @@
 import { supabase } from '.'
 import { logger } from '@/utils/logger'
-import {
-  TelegramId,
-  normalizeTelegramId,
-} from '@/interfaces/telegram.interface'
+import { TelegramId, normalizeTelegramId } from '@/types/telegram.interface'
 
 export interface UpdateUserSettingsParams {
   telegram_id: TelegramId

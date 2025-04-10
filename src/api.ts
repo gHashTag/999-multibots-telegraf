@@ -16,6 +16,7 @@ import {
   textToSpeechFunction,
   ruPaymentProcessPayment,
   imageToPromptFunction,
+  voiceToTextFunction,
   textToVideoFunction,
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
@@ -415,6 +416,7 @@ app.use(
       ruPaymentProcessPayment,
       imageToPromptFunction,
       textToVideoFunction,
+      voiceToTextFunction,
     ],
   })
 )

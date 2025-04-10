@@ -1,5 +1,5 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import { getStepSelectionMenu } from '../../menu/getStepSelectionMenu'
 import { isRussian } from '@/helpers/language'
 import { handleTrainingCost } from '@/price/helpers'

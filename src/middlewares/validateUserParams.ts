@@ -1,5 +1,5 @@
 import { Request } from 'express'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 interface ValidationResult {
   isValid: boolean
   message?: string

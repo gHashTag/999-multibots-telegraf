@@ -1,10 +1,10 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { inngest } from '@/inngest-functions/clients'
 import { v4 as uuidv4 } from 'uuid'
 import { getUserByTelegramIdString } from '@/core/supabase'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 const MAX_RETRIES = 3
 const INITIAL_RETRY_DELAY = 1000 // 1 секунда

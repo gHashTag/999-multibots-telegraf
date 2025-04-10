@@ -1,5 +1,5 @@
-import { MyContext } from '../interfaces'
-import { createHelpCancelKeyboard } from '@/menu/'
+import { MyContext } from '@/types'
+import { createHelpCancelKeyboard } from './createHelpCancelKeyboard'
 
 export const sendPhotoDescriptionRequest = async (
   ctx: MyContext,

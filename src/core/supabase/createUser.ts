@@ -1,7 +1,4 @@
-import {
-  TelegramId,
-  normalizeTelegramId,
-} from '@/interfaces/telegram.interface'
+import { TelegramId, normalizeTelegramId } from '@/types/telegram.interface'
 import { supabase } from '.'
 import { logger } from '@/utils/logger'
 

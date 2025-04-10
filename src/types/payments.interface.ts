@@ -1,4 +1,4 @@
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 /**
  * Типы подписок, доступные для оплаты

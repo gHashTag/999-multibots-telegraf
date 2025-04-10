@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { BOT_TOKENS, BOT_NAMES } from '@/core/bot'
 
 export function getBotToken(ctxOrBotName: MyContext | string): string {

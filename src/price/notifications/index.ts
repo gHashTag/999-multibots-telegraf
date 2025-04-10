@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { logger } from '@/utils/logger'
 import { getStarsWord } from '@/utils/getStarsWord'
 

@@ -1,6 +1,6 @@
 import { Scenes, Markup } from 'telegraf'
 
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { logger } from '@/utils/logger'
 import { broadcastService, BroadcastResult } from '@/services/broadcast.service'
 

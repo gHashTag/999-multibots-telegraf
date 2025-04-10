@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { logger } from '@/utils/logger'
 
 const production = async (
@@ -56,21 +56,35 @@ const production = async (
 
 const development = async (bot: Telegraf<MyContext>): Promise<void> => {
   try {
-    logger.info('🔄 Удаляем вебхук для development режима...', {
-      description: 'Deleting webhook for development mode',
+    logger.info('🔄 Проверяем текущий webhook...', {
+      description: 'Checking current webhook',
     })
 
-    await bot.telegram.deleteWebhook({ drop_pending_updates: true })
-    logger.info('✅ Вебхук удален, запускаем polling...', {
-      description: 'Webhook deleted, starting polling',
-    })
+    const webhookInfo = await bot.telegram.getWebhookInfo()
 
-    // Ждем 2 секунды перед запуском polling
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    if (webhookInfo.url) {
+      logger.info('🔄 Найден активный webhook, удаляем...', {
+        description: 'Found active webhook, deleting',
+        url: webhookInfo.url,
+      })
+
+      await bot.telegram.deleteWebhook({ drop_pending_updates: true })
+
+      // Увеличиваем время ожидания до 5 секунд
+      logger.info('⏳ Ждем 5 секунд перед запуском polling...', {
+        description: 'Waiting 5 seconds before starting polling',
+      })
+      await new Promise(resolve => setTimeout(resolve, 5000))
+    }
+
+    logger.info('🚀 Запускаем бота в режиме polling...', {
+      description: 'Starting bot in polling mode',
+    })
 
     await bot.launch()
-    logger.info('✅ Бот запущен в режиме polling', {
-      description: 'Bot launched in polling mode',
+
+    logger.info('✅ Бот успешно запущен в режиме polling', {
+      description: 'Bot successfully launched in polling mode',
     })
 
     return

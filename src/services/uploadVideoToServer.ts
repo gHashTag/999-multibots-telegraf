@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { isDev, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 
 interface UploadVideoRequest {
   videoUrl: string

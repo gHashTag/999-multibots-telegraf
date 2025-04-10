@@ -1,6 +1,6 @@
 import { Composer } from 'telegraf'
 import axios from 'axios'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { logger } from '@/utils/logger'
 
 /**

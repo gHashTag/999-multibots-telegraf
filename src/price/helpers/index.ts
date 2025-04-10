@@ -1,5 +1,5 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
-import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { TelegramId } from '@/types/telegram.interface'
+import { MyContext } from '@/types/telegram-bot.interface'
 import {
   getUserBalance,
   updateUserBalance,
@@ -8,7 +8,7 @@ import {
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { Telegram, Telegraf } from 'telegraf'
-import { BalanceOperationResult } from '../../interfaces'
+import { BalanceOperationResult } from '@/types'
 import { isRussian } from '@/helpers'
 
 export * from './modelsCost'
@@ -27,6 +27,7 @@ export * from './sendPaymentNotificationWithBot'
 export { starAmounts } from './starAmounts'
 export { voiceConversationCost } from './voiceConversationCost'
 export { convertRublesToStars } from './costHelpers'
+export { ModeEnum } from '../../types/modes'
 
 export async function processBalanceOperation({
   telegram_id,

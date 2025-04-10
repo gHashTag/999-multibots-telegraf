@@ -1,7 +1,7 @@
 import { logger } from '@/utils/logger'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 
 export const errorMessage = async (
   error: Error,

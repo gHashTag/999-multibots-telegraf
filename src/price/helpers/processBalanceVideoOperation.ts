@@ -1,8 +1,8 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 import { getUserBalance } from '@/core/supabase'
-import { MyContext } from '@/interfaces'
-import { VideoModel } from '@/interfaces/models.interface'
-import { BalanceOperationResult } from '@/interfaces/payments.interface'
+import { MyContext } from '@/types'
+import { VideoModel } from '@/types/models.interface'
+import { BalanceOperationResult } from '@/types/payments.interface'
 
 import { calculateFinalPrice } from './calculateFinalPrice'
 

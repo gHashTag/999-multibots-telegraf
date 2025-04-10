@@ -1,7 +1,7 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 import { supabase } from './index'
 import { logger } from '@/utils/logger'
-import { TransactionType } from '@/interfaces/payments.interface'
+import { TransactionType } from '@/types/payments.interface'
 
 interface UpdateUserBalanceParams {
   telegram_id: TelegramId

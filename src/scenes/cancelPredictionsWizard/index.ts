@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios'
-import { MyContext } from '@/interfaces'
-import { ModeEnum, refundUser } from '@/price/helpers'
+import { MyContext } from '@/types'
+import { ModeEnum } from '@/types/modes'
+import { refundUser } from '@/price/helpers'
 import { Scenes } from 'telegraf'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage } from '@/menu'

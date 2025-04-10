@@ -1,8 +1,8 @@
 import { Scenes } from 'telegraf'
 import { getReferalsCountAndUserData } from '../../core/supabase'
-import { MyContext } from '../../interfaces'
-import { ModeEnum } from '@/price/helpers/modelsCost'
-export const inviteScene = new Scenes.BaseScene<MyContext>('inviteScene')
+import { MyContext } from '@/types'
+import { ModeEnum } from '@/types/modes'
+export const inviteScene = new Scenes.BaseScene<MyContext>(ModeEnum.InviteScene)
 
 inviteScene.enter(async ctx => {
   const isRu = ctx.from?.language_code === 'ru'

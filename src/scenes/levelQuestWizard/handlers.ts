@@ -2,7 +2,7 @@ import { errorMessage } from '@/helpers/error'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { getSubScribeChannel } from '@/core/supabase'
 import { mainMenu } from '@/menu'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 
 export async function handleQuestRules(ctx: MyContext) {
   try {

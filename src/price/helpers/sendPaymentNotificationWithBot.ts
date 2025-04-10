@@ -1,6 +1,6 @@
 import { pulseBot } from '@/core/bot'
 import { logger } from '@/utils/logger'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 
 export interface Payments {
   telegram_id: TelegramId

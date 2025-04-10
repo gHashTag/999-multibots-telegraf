@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { calculateFinalPrice } from '@/price/helpers'
 import { findModelByTitle, VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { IMAGES_MODELS } from '@/price/models/IMAGES_MODELS'

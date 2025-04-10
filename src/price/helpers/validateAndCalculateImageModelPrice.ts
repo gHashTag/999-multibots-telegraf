@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { imageModelPrices } from '@/price/models/imageModelPrices'
 
 export async function validateAndCalculateImageModelPrice(

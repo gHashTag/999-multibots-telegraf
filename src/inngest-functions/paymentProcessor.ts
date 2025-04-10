@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 import { supabase } from '@/core/supabase'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 export interface PaymentProcessEvent {
   data: {
@@ -157,16 +157,18 @@ export const paymentProcessor = inngest.createFunction(
           operationId,
         })
 
-        return sendTransactionNotification({
-          telegram_id: Number(telegram_id),
-          operationId,
-          amount,
-          currentBalance,
-          newBalance,
-          description,
-          isRu: true,
-          bot_name,
-        })
+        if (service_type !== ModeEnum.VoiceToText) {
+          return sendTransactionNotification({
+            telegram_id: Number(telegram_id),
+            operationId,
+            amount,
+            currentBalance,
+            newBalance,
+            description,
+            isRu: true,
+            bot_name,
+          })
+        }
       })
 
       logger.info('✅ Платеж успешно обработан', {

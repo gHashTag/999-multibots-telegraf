@@ -1,7 +1,7 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/types'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 export const selectModelScene = new Scenes.BaseScene<MyContext>('select_model')
 

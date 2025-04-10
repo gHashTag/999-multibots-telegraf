@@ -1,5 +1,5 @@
 import { BroadcastService as BroadcastServiceClass } from './broadcast.class'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 
 export interface BroadcastResult {
   success: boolean

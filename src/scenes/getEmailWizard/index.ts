@@ -1,10 +1,10 @@
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import { isRussian } from '@/helpers'
 import { handleHelpCancel } from '@/handlers'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { WizardScene } from 'telegraf/scenes'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
 const selectPaymentOptionStep = async (ctx: MyContext) => {
   console.log('CASE 3: selectPaymentOptionStep')

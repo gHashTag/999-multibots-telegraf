@@ -1,13 +1,13 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/types'
 import { handleMenu } from '@/handlers'
 import { getTranslation } from '@/core/supabase'
 import { isRussian } from '@/helpers'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/types/modes'
 
-import { isValidPaymentSubscription } from '@/interfaces/payments.interface'
+import { isValidPaymentSubscription } from '@/types/payments.interface'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
-import { TranslationButton } from '@/interfaces/supabase.interface'
+import { TranslationButton } from '@/types/supabase.interface'
 interface KeyboardButton {
   text: string
   callback_data: string

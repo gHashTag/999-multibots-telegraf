@@ -1,6 +1,6 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 import { supabase } from '.'
-import { ModelTraining } from '@/interfaces'
+import { ModelTraining } from '@/types'
 import { logger } from '@/utils/logger'
 
 export async function getLatestUserModel(

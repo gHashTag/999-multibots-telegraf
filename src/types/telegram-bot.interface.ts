@@ -1,4 +1,4 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 import { Context, NarrowedContext, Scenes } from 'telegraf'
 import { ModelUrl, Subscription, UserModel } from './index'
 import type { Update, Message } from 'telegraf/typings/core/types/typegram'

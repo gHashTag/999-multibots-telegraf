@@ -1,5 +1,5 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
-import { MyContext } from '@/interfaces'
+import { TelegramId } from '@/types/telegram.interface'
+import { MyContext } from '@/types'
 
 export const sendCurrentBalanceMessage = async (
   ctx: MyContext,

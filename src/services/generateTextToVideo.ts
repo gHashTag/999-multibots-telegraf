@@ -1,6 +1,6 @@
 import axios, { isAxiosError } from 'axios'
 import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/types/telegram.interface'
 interface TextToVideoResponse {
   success: boolean
   videoUrl?: string

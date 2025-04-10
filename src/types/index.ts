@@ -5,5 +5,5 @@ export * from './telegram-bot.interface'
 export * from './supabase.interface'
 export * from './api.interface'
 export * from './translations.interface'
-
-export * from './translations.interface'
+export * from './modes'
+export * from './scenes'
