@@ -17,7 +17,7 @@ services:
     env_file:
       - .env
     environment:
-     - NODE_ENV=production
+      - NODE_ENV=production
       - BOT_TOKEN_1=${BOT_TOKEN_1}
       - BOT_TOKEN_2=${BOT_TOKEN_2}
       - BOT_TOKEN_3=${BOT_TOKEN_3}

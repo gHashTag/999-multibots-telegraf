@@ -2,19 +2,23 @@
 FROM node:20-alpine as builder
 
 WORKDIR /app
+ENV HOME=/app
+ENV HUSKY=0
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --no-package-lock --no-audit --ignore-scripts
 
 COPY . .
 
 # Выполняем сборку TypeScript
-RUN npm run build
+RUN npx swc src -d dist --source-maps --copy-files
 
 # Финальный этап
 FROM node:20-alpine
 
 WORKDIR /app
+ENV HOME=/app
+ENV HUSKY=0
 
 # Устанавливаем зависимости для Ansible
 RUN apk add --no-cache \
@@ -30,7 +34,7 @@ RUN python3 -m venv /opt/ansible-venv \
     && pip install --no-cache-dir ansible
 
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev --ignore-scripts --no-package-lock --no-audit
 
 # Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
