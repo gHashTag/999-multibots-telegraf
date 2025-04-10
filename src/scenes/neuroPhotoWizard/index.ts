@@ -23,7 +23,7 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
 import { MyContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
-import { Markup } from 'telegraf'
+
 import { logger } from '@/utils/logger'
 
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
@@ -31,7 +31,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
   try {
     console.log('CASE 1: neuroPhotoConversation')
 
-    const logger = require('@/utils/logger').Logger
+  
     logger.info({
       message: '🚀 ЗАПУСК neuroPhotoWizard (v1)',
       description: 'Starting neuroPhotoWizard (v1)',
