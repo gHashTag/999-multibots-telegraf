@@ -4,9 +4,11 @@ import { runAllPaymentTests } from './tests/payment.test'
 import { runBalanceTests } from './tests/balance.test'
 import { testChatWithAvatar } from './tests/chatWithAvatar.test'
 import { testVoiceToText } from './tests/voiceToText.test'
+import { testNeuroPhotoGeneration } from './tests/neuroPhoto.test'
 import { InngestTestEngine } from './inngest-test-engine'
 import { paymentProcessor } from '@/inngest-functions/paymentProcessor'
 import { voiceToTextProcessor } from '@/inngest-functions/voiceToText.inngest'
+import { neuroImageGeneration } from '@/inngest-functions/neuroImageGeneration'
 
 // Создаем экземпляр тестового движка
 const inngestTestEngine = new InngestTestEngine()
@@ -14,6 +16,7 @@ const inngestTestEngine = new InngestTestEngine()
 // Регистрируем обработчики событий
 inngestTestEngine.register('payment/process', paymentProcessor)
 inngestTestEngine.register('voice-to-text.requested', voiceToTextProcessor)
+inngestTestEngine.register('neuro/photo.generate', neuroImageGeneration)
 
 /**
  * Запускает все тесты
@@ -41,6 +44,10 @@ export const runAllTests = async () => {
     // Запускаем тест распознавания голоса
     const voiceToTextResult = await testVoiceToText()
     results.push(voiceToTextResult)
+
+    // Запускаем тест генерации нейрофото
+    const neuroPhotoResult = await testNeuroPhotoGeneration()
+    results.push(neuroPhotoResult)
 
     // Выводим общие результаты
     const successCount = results.filter(r => r.success).length

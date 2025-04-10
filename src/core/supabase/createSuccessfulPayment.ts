@@ -39,7 +39,7 @@ export const createSuccessfulPayment = async (
       status,
       metadata = {},
       currency = 'STARS',
-      subscription = 'none',
+      subscription,
       language = 'ru',
       inv_id,
     } = params
@@ -59,6 +59,11 @@ export const createSuccessfulPayment = async (
     // Нормализуем telegram_id к строке
     const normalizedTelegramId = String(telegram_id)
 
+    // Если подписка передана, добавляем её в метаданные
+    if (subscription) {
+      metadata.subscription = subscription
+    }
+
     // Создаем запись в таблице payments_v2
     const { data, error } = await supabase
       .from('payments_v2')
@@ -75,7 +80,6 @@ export const createSuccessfulPayment = async (
         payment_date: new Date().toISOString(),
         metadata,
         currency,
-        subscription,
         language,
         inv_id: inv_id || `${normalizedTelegramId}-${Date.now()}`,
       })

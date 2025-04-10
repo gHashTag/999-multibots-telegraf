@@ -21,20 +21,18 @@ BEGIN
     END;
 
     -- Получаем сумму всех транзакций для пользователя
-    -- ВАЖНО: здесь расчет производится ТОЛЬКО на основе записей payment_method != 'system'
-    -- Это предотвращает дублирование и неправильный расчет баланса
+    -- Обновлено: расчет учитывает все транзакции, включая системные
     SELECT COALESCE(SUM(
         CASE WHEN p.status = 'COMPLETED' THEN 
             CASE 
-                WHEN p.type = 'money_income' THEN COALESCE(p.stars, 0)
-                WHEN p.type = 'money_expense' THEN -COALESCE(ABS(p.stars), 0)
+                WHEN p.type = 'money_income' OR p.type = 'system' THEN COALESCE(p.stars, 0)
+                WHEN p.type = 'money_expense' THEN -COALESCE(p.stars, 0)
                 ELSE 0
             END
         ELSE 0 END
     ), 0) INTO v_balance
     FROM payments_v2 p
-    WHERE p.telegram_id = v_user_id
-    AND p.payment_method != 'system';
+    WHERE p.telegram_id = v_user_id;
 
     RETURN v_balance;
 END;
@@ -68,6 +66,7 @@ $function$
 
 1. **money_income** - пополнение баланса (положительное значение)
 2. **money_expense** - списание средств (отрицательное значение)
+3. **system** - системная операция (положительное или отрицательное значение)
 
 ## Решение проблем
 
@@ -79,4 +78,4 @@ $function$
 
 При любых изменениях в системе оплаты обязательно обновляйте эту документацию и проводите полное тестирование на тестовой базе данных.
 
-Дата последнего обновления: 07.04.2025
+Дата последнего обновления: 21.06.2024

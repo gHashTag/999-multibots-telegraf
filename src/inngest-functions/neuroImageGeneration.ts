@@ -28,6 +28,14 @@ export const neuroImageGeneration = inngest.createFunction(
   },
   { event: 'neuro/photo.generate' },
   async ({ event, step }) => {
+    logger.info('🎬 Начало обработки события neuro/photo.generate', {
+      description: 'Starting neuro image generation event processing',
+      event_id: event.id || '(отсутствует)',
+      event_name: event.name,
+      event_data: JSON.stringify(event.data),
+      timestamp: new Date().toISOString(),
+    })
+
     try {
       const {
         prompt,
@@ -38,6 +46,19 @@ export const neuroImageGeneration = inngest.createFunction(
         is_ru,
         bot_name,
       } = event.data
+
+      logger.info('📥 Получены данные для генерации', {
+        description: 'Received data for generation',
+        prompt: prompt ? prompt.substring(0, 50) + '...' : '(отсутствует)',
+        model_url: model_url
+          ? model_url.substring(0, 50) + '...'
+          : '(отсутствует)',
+        numImages,
+        telegram_id,
+        is_ru,
+        bot_name,
+        timestamp: new Date().toISOString(),
+      })
 
       // Проверяем, не обрабатывается ли уже этот запрос
       const isProcessing = await step.run('check-processing', async () => {
@@ -59,6 +80,7 @@ export const neuroImageGeneration = inngest.createFunction(
           description: 'Request is already being processed',
           telegram_id,
           prompt: prompt.substring(0, 50) + '...',
+          timestamp: new Date().toISOString(),
         })
         return { success: false, error: 'Request is already being processed' }
       }
@@ -86,6 +108,7 @@ export const neuroImageGeneration = inngest.createFunction(
         num_images: validNumImages,
         original_numImages: numImages,
         original_numImages_type: typeof numImages,
+        timestamp: new Date().toISOString(),
       })
 
       const botData = (await step.run('get-bot', async () => {
@@ -93,6 +116,7 @@ export const neuroImageGeneration = inngest.createFunction(
           description: 'Retrieving bot instance by name',
           botName: bot_name,
           step: 'get-bot',
+          timestamp: new Date().toISOString(),
         })
 
         return getBotByName(bot_name)
@@ -105,12 +129,14 @@ export const neuroImageGeneration = inngest.createFunction(
           description: 'Bot instance not found by name',
           bot_name,
           telegram_id,
+          timestamp: new Date().toISOString(),
         })
       } else {
         logger.info('✅ Bot instance found', {
           description: 'Successfully found bot instance by name',
           bot_name,
           telegram_id,
+          timestamp: new Date().toISOString(),
         })
       }
 
@@ -323,10 +349,10 @@ export const neuroImageGeneration = inngest.createFunction(
                 ...(aspect_ratio === '1:1'
                   ? { width: 1024, height: 1024 }
                   : aspect_ratio === '16:9'
-                  ? { width: 1368, height: 768 }
-                  : aspect_ratio === '9:16'
-                  ? { width: 768, height: 1368 }
-                  : { width: 1024, height: 1024 }),
+                    ? { width: 1368, height: 768 }
+                    : aspect_ratio === '9:16'
+                      ? { width: 768, height: 1368 }
+                      : { width: 1024, height: 1024 }),
                 sampler: 'flowmatch',
                 num_outputs: 1,
                 aspect_ratio,

@@ -74,6 +74,13 @@ export async function generateNeuroImageV2(
       stack: error instanceof Error ? error.stack : undefined,
     })
 
+    // Отправляем пользователю сообщение об ошибке
+    await ctx.reply(
+      isRussian(ctx)
+        ? '😔 Произошла ошибка при отправке запроса. Пожалуйста, попробуйте позже.'
+        : '😔 An error occurred while sending the request. Please try again later.'
+    )
+
     return null
   }
 }

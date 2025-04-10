@@ -1,3 +1,13 @@
+/**
+ * ⚠️⚠️⚠️ ВНИМАНИЕ! ⚠️⚠️⚠️
+ *
+ * Этот файл реализует сцену NeuroPhoto V2 (Flux Pro)!
+ *
+ * Его нельзя путать с обычной сценой NeuroPhoto (Flux).
+ * Файл содержит логику генерации нейрофото с использованием
+ * API BFL для версии Flux Pro.
+ */
+
 import { UserModel } from '../../interfaces'
 import { mainMenuButton } from '@/menu'
 import { generateNeuroImageV2 } from '@/services/generateNeuroImageV2'
@@ -23,13 +33,23 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
   try {
     console.log('CASE 1: neuroPhotoConversationV2')
 
+    const logger = require('@/utils/logger').Logger
+    logger.info({
+      message: '🚀 ЗАПУСК neuroPhotoWizardV2 (v2)',
+      description: 'Starting neuroPhotoWizardV2 (v2)',
+      telegram_id: ctx.from?.id,
+      session_data: {
+        mode: ctx.session.mode,
+        user_model: ctx.session.userModel ? 'exists' : 'not exists',
+      },
+    })
+
     const { telegramId } = getUserInfo(ctx)
     const userModel = await getLatestUserModel(telegramId, 'bfl')
     console.log('userModel', userModel)
 
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegramId
-    )
+    const { count, subscription, level } =
+      await getReferalsCountAndUserData(telegramId)
 
     if (!userModel || !userModel.finetune_id || !subscription) {
       await ctx.reply(
@@ -90,8 +110,6 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
       const trigger_word = ctx.session.userModel.trigger_word as string
 
-      const userId = ctx.from?.id
-
       if (trigger_word) {
         const fullPrompt = `${trigger_word}, ${promptText}`
         const telegramId = ctx.from?.id.toString()
@@ -103,13 +121,18 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
           )
           return ctx.scene.leave()
         }
-        await generateNeuroImageV2(
+        const result = await generateNeuroImageV2(
           fullPrompt,
           1,
           telegramId,
           ctx,
           ctx.botInfo?.username
         )
+
+        if (result === null) {
+          return
+        }
+
         ctx.wizard.next()
         return
       } else {
@@ -165,13 +188,15 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         )
         return ctx.scene.leave()
       }
-      await generateNeuroImageV2(
+      const result = await generateNeuroImageV2(
         fullPrompt,
         num,
         telegramId,
         ctx,
         ctx.botInfo?.username
       )
+
+      return result !== null
     }
 
     if (numImages >= 1 && numImages <= 4) {
