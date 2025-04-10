@@ -2,6 +2,17 @@ import { TestResult } from '../../types'
 import { TEST_CONFIG } from '../../test-config'
 import { createMockFn } from '../../test-config'
 import { logger } from '@/utils/logger'
+import { v4 as uuidv4 } from 'uuid'
+
+/**
+ * Модуль для тестирования платежного процессора с использованием моков
+ *
+ * Тесты проверяют:
+ * 1. Обработку операций пополнения баланса с помощью моков
+ * 2. Обработку платежей с недостаточным балансом
+ *
+ * @module src/test-utils/tests/payment/paymentProcessorMockTest
+ */
 
 /**
  * Тест для проверки вызова обработчика платежей с мокированием функций
@@ -41,7 +52,7 @@ export async function testPaymentProcessorWithMocks(): Promise<TestResult> {
       },
     }
 
-    // Симулируем вызов обработчика платежа (в реальной ситуации это бы зарегистрировали через inngestTestEngine.registerHandler)
+    // Симулируем вызов обработчика платежа
     const handlerResult = await mockProcessPayment(event, {
       getUserBalance: mockGetUserBalance,
       createPayment: mockCreatePayment,
@@ -105,6 +116,115 @@ export async function testPaymentProcessorWithMocks(): Promise<TestResult> {
 }
 
 /**
+ * Тест для проверки отклонения платежа при недостаточном балансе
+ */
+export async function testInsufficientBalancePayment(): Promise<TestResult> {
+  try {
+    logger.info('🚀 [TEST]: Запуск теста платежа с недостаточным балансом', {
+      description: 'Starting insufficient balance payment test',
+    })
+
+    // Создаем моки для функций
+    const mockGetUserBalance = createMockFn<any, number>()
+    const mockCreatePayment = createMockFn()
+    const mockSendNotification = createMockFn()
+
+    // Настраиваем мок функции получения баланса - баланс будет меньше суммы списания
+    mockGetUserBalance.mockReturnValue(10)
+
+    const {
+      TEST_USER_TELEGRAM_ID,
+      TEST_AMOUNT,
+      TEST_BOT_NAME,
+      TEST_DESCRIPTION,
+    } = TEST_CONFIG.TEST_DATA
+
+    // Создаем объект события payment/process для списания средств
+    const event = {
+      name: 'payment/process',
+      data: {
+        telegram_id: TEST_USER_TELEGRAM_ID,
+        amount: TEST_AMOUNT, // Сумма больше баланса (10)
+        stars: TEST_AMOUNT,
+        type: 'money_expense', // Важно! Это списание средств
+        description: TEST_DESCRIPTION,
+        bot_name: TEST_BOT_NAME,
+        service_type: 'TextToImage',
+      },
+    }
+
+    try {
+      // Симулируем вызов обработчика платежа - должен выдать ошибку
+      await mockProcessPayment(event, {
+        getUserBalance: mockGetUserBalance,
+        createPayment: mockCreatePayment,
+        sendNotification: mockSendNotification,
+      })
+
+      // Если нет ошибки, это проблема
+      return {
+        success: false,
+        name: 'Тест платежа с недостаточным балансом',
+        message:
+          'Ожидалась ошибка о недостаточном балансе, но платеж был обработан успешно',
+      }
+    } catch (paymentError) {
+      // Ошибка должна содержать сообщение о недостаточных средствах
+      const errorMessage =
+        paymentError instanceof Error
+          ? paymentError.message
+          : String(paymentError)
+
+      if (errorMessage.includes('Недостаточно средств')) {
+        logger.info(
+          '✅ [TEST]: Получена ожидаемая ошибка о недостаточном балансе',
+          {
+            description: 'Received expected insufficient funds error',
+            error: errorMessage,
+          }
+        )
+
+        return {
+          success: true,
+          name: 'Тест платежа с недостаточным балансом',
+          message:
+            'Тест пройден успешно - получена ожидаемая ошибка о недостаточном балансе',
+          details: {
+            balance: 10,
+            requiredAmount: TEST_AMOUNT,
+            error: errorMessage,
+          },
+        }
+      } else {
+        // Получена неожидаемая ошибка
+        return {
+          success: false,
+          name: 'Тест платежа с недостаточным балансом',
+          message: `Получена неожидаемая ошибка: ${errorMessage}`,
+          details: {
+            error: errorMessage,
+          },
+        }
+      }
+    }
+  } catch (error) {
+    logger.error(
+      '❌ [TEST]: Ошибка при выполнении теста платежа с недостаточным балансом',
+      {
+        description: 'Error during insufficient balance payment test',
+        error: error instanceof Error ? error.message : String(error),
+      }
+    )
+
+    return {
+      success: false,
+      name: 'Тест платежа с недостаточным балансом',
+      message: `Ошибка при выполнении теста: ${error instanceof Error ? error.message : String(error)}`,
+    }
+  }
+}
+
+/**
  * Мок функция для обработки платежа
  */
 async function mockProcessPayment(
@@ -115,7 +235,15 @@ async function mockProcessPayment(
     sendNotification: any
   }
 ): Promise<any> {
-  const { telegram_id, amount, stars, type, description, bot_name } = event.data
+  const {
+    telegram_id,
+    amount,
+    stars,
+    type,
+    description,
+    bot_name,
+    service_type,
+  } = event.data
 
   // Проверка параметров платежа
   if (amount <= 0) {
@@ -125,15 +253,20 @@ async function mockProcessPayment(
   // Получение текущего баланса пользователя
   const currentBalance = await mocks.getUserBalance(telegram_id)
 
+  // Проверяем баланс для списания
+  if (type === 'money_expense') {
+    if (currentBalance < amount) {
+      throw new Error(
+        `Недостаточно средств. Баланс: ${currentBalance}, требуется: ${amount}`
+      )
+    }
+  }
+
   // Вычисление нового баланса в зависимости от типа операции
   let newBalance: number
   if (type === 'money_income') {
     newBalance = currentBalance + (stars || amount)
   } else if (type === 'money_expense') {
-    // Проверка достаточности баланса
-    if (currentBalance < (stars || amount)) {
-      throw new Error('Недостаточно средств на балансе')
-    }
     newBalance = currentBalance - (stars || amount)
   } else {
     newBalance = currentBalance
@@ -143,10 +276,14 @@ async function mockProcessPayment(
   const payment = await mocks.createPayment({
     telegram_id,
     amount,
-    stars,
+    stars: stars || amount,
     type,
     description,
     bot_name,
+    service_type,
+    status: 'COMPLETED',
+    payment_method: 'balance',
+    inv_id: `test-${telegram_id}-${Date.now()}-${uuidv4()}`,
   })
 
   // Отправка уведомления о транзакции
@@ -161,38 +298,63 @@ async function mockProcessPayment(
 
   return {
     success: true,
-    payment,
     currentBalance,
     newBalance,
   }
 }
 
 /**
- * Запуск тестов с моками
+ * Запускает все тесты платежного процессора с моками
+ * @returns Массив результатов тестов
  */
 export async function runPaymentProcessorMockTests(): Promise<TestResult[]> {
+  const startTime = Date.now()
+  const results: TestResult[] = []
+
   logger.info('🧪 [TEST_RUNNER]: Запуск тестов обработчика платежей с моками', {
     description: 'Running payment processor tests with mocks',
   })
 
-  const results: TestResult[] = []
+  try {
+    // Тест стандартного платежа с моками
+    const standardResult = await testPaymentProcessorWithMocks()
+    results.push(standardResult)
 
-  // Запускаем тест
-  results.push(await testPaymentProcessorWithMocks())
+    // Тест платежа с недостаточным балансом
+    const insufficientResult = await testInsufficientBalancePayment()
+    results.push(insufficientResult)
 
-  // Выводим результаты
-  const passedTests = results.filter(r => r.success).length
-  const failedTests = results.filter(r => !r.success).length
+    // Собираем статистику
+    const passedTests = results.filter(r => r.success).length
+    const totalTests = results.length
+    const failedTests = totalTests - passedTests
 
-  logger.info(
-    `📊 [TEST_RUNNER]: Результаты тестов обработчика платежей с моками: ${passedTests} успешно, ${failedTests} не пройдено`,
-    {
-      description: 'Payment processor mock test results',
-      passed: passedTests,
-      failed: failedTests,
-      total: results.length,
-    }
-  )
+    logger.info(
+      '📊 [TEST_RUNNER]: Результаты тестов обработчика платежей с моками:',
+      {
+        description: 'Payment processor mock test results',
+        total: totalTests,
+        passed: passedTests,
+        failed: failedTests,
+      }
+    )
 
-  return results
+    return results
+  } catch (error) {
+    logger.error(
+      '❌ [TEST_RUNNER]: Ошибка при запуске тестов обработчика платежей с моками',
+      {
+        description: 'Error running payment processor mock tests',
+        error: error instanceof Error ? error.message : String(error),
+      }
+    )
+
+    return [
+      {
+        success: false,
+        name: 'Тесты обработчика платежей с моками',
+        message: `Ошибка при запуске тестов: ${error instanceof Error ? error.message : String(error)}`,
+      },
+    ]
+  }
 }
