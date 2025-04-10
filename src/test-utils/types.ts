@@ -2,26 +2,22 @@
  * Результат выполнения теста
  */
 export interface TestResult {
-  /** Название теста */
   name: string
-  /** Успешно ли выполнен тест */
+  passed: boolean
   success: boolean
-  /** Сообщение о результате */
+  error?: string
+  duration: number
+  testName: string
   message: string
-  /** Ошибка, если тест не прошел */
-  error?: Error
+  details: Record<string, any>
 }
 
-/**
- * Конфигурация тестового окружения
- */
-export interface TestConfig {
-  /** Использовать ли мок-бота вместо реального */
-  mockBot: boolean
-  /** Таймаут ожидания ответа от бота (мс) */
-  botResponseTimeout: number
-  /** Таймаут ожидания обработки события (мс) */
-  eventProcessingTimeout: number
-  /** Размер буфера событий */
-  eventBufferSize: number
+export interface TestCase {
+  name: string
+  test: () => Promise<TestResult>
+}
+
+export interface TestSuite {
+  name: string
+  tests: TestCase[]
 }
