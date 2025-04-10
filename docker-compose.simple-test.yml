@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: neuro-blogger-test-postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: testdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  test:
+    image: neuro-blogger-telegram-bot:test
+    container_name: neuro-blogger-telegram-bot-test
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/testdb
+    ports:
+      - "2999:2999"
+    depends_on:
+      - postgres 

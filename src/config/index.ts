@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import path from 'path'
 import { Logger as logger } from '@/utils/logger'
+import { mcpManager } from '@/core/mcp'
 
 logger.info('🔍 Загрузка переменных окружения:', {
   description: 'Loading environment variables',
@@ -16,6 +17,8 @@ logger.info('🔍 Переменные окружения в config/index.ts:', 
 })
 
 // Экспортируем переменные окружения
+export { mcpManager }
+
 export const {
   NODE_ENV,
   PORT,

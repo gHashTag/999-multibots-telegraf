@@ -1,0 +1,23 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Копируем только package.json файлы
+COPY package*.json ./
+RUN npm install --ignore-scripts
+
+# Копируем весь код
+COPY . .
+
+# Устанавливаем переменные окружения
+ENV NODE_ENV=test
+ENV LOG_DIR=/app/logs
+
+# Создаем директорию для логов
+RUN mkdir -p /app/logs && chmod -R 777 /app/logs
+
+# Экспортируем порты
+EXPOSE 2999 3008
+
+# Запускаем тесты
+CMD ["npm", "run", "test:payment-processor"] 

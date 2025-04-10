@@ -1,4 +1,5 @@
 import { Inngest } from 'inngest'
+import fetch from 'node-fetch'
 
 /**
  * Конфигурация для тестов
@@ -111,4 +112,8 @@ export const inngestTestEngine = new InngestTestEngineMock()
 /**
  * Тестовый клиент Inngest
  */
-export const testInngestClient = new Inngest()
+export const testInngestClient = new Inngest({
+  id: 'test-app',
+  eventKey: 'test-key',
+  fetch: fetch as any,
+})

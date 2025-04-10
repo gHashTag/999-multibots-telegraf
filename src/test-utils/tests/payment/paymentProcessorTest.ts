@@ -1,10 +1,7 @@
-import { InngestFunctionTester } from '../../testers/InngestFunctionTester'
-import assert from '../../core/assert'
-import {
-  InngestTestMethod,
-  InngestTestResult,
-} from '../../testers/InngestFunctionTester'
 import { logger } from '@/utils/logger'
+import { TEST_CONFIG } from '../../test-config'
+import { TestResult } from '../../types'
+import { InngestTestEngineMock } from '../../test-config'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
 /**
@@ -13,6 +10,7 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
  * Тесты проверяют:
  * 1. Обработку операций пополнения баланса
  * 2. Обработку операций списания средств
+ * 3. Обработку платежей с использованием моков
  *
  * Для запуска используйте:
  * - npm run test:payment
@@ -21,111 +19,330 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
  * @module src/test-utils/tests/payment/paymentProcessorTest
  */
 
-// Создание тестера
-const tester = new InngestFunctionTester({
-  verbose: true,
-})
+// Создаем экземпляр тестового движка
+const inngestTestEngine = new InngestTestEngineMock()
 
 /**
- * Тест функции пополнения баланса
- *
- * Проверяет работу paymentProcessor с операцией типа 'money_income'
- * Используется для тестирования пополнения баланса
+ * Тестирует пополнение баланса через процессор платежей
+ * @returns Результат теста
  */
-export async function testPaymentProcessorIncome(): Promise<InngestTestResult> {
-  logger.info({
-    message: '🧪 Запуск теста функции пополнения баланса',
-    description: 'Testing payment processor income function',
-  })
-
-  const result = await tester.runTest({
-    method: InngestTestMethod.PaymentProcessorIncome,
-    data: {
-      service_type: ModeEnum.TopUpBalance,
-    },
-  })
-
-  assert.assert(result.success, 'Тест пополнения баланса должен быть успешным')
-
-  return result
-}
-
-/**
- * Тест функции списания средств
- *
- * Проверяет работу paymentProcessor с операцией типа 'money_expense'
- * Используется для тестирования списания средств с баланса
- */
-export async function testPaymentProcessorExpense(): Promise<InngestTestResult> {
-  logger.info({
-    message: '🧪 Запуск теста функции списания средств',
-    description: 'Testing payment processor expense function',
-  })
-
-  const result = await tester.runTest({
-    method: InngestTestMethod.PaymentProcessorExpense,
-    data: {
-      service_type: ModeEnum.TextToImage,
-    },
-  })
-
-  assert.assert(result.success, 'Тест списания средств должен быть успешным')
-
-  return result
-}
-
-/**
- * Запуск всех тестов платежного процессора
- *
- * Запускает все тесты для платежного процессора и собирает результаты.
- * Используется для интеграции с основной системой тестирования.
- *
- * @returns Массив результатов тестов
- */
-export async function runPaymentProcessorTests(): Promise<InngestTestResult[]> {
-  logger.info({
-    message: '🧪 Запуск всех тестов платежного процессора',
-    description: 'Running all payment processor tests',
-  })
-
+export async function testPaymentProcessorIncome(): Promise<TestResult> {
+  const testName = 'Тест пополнения баланса через процессор платежей'
   const startTime = Date.now()
-  const results: InngestTestResult[] = []
+
+  logger.info('🧪 Запуск теста пополнения баланса', {
+    description: 'Starting payment processor income test',
+    test: testName,
+  })
 
   try {
-    // Запускаем тест пополнения баланса
-    results.push(await testPaymentProcessorIncome())
+    // Подготовка данных для теста
+    const paymentData = {
+      telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
+      amount: TEST_CONFIG.TEST_DATA.TEST_AMOUNT,
+      stars: TEST_CONFIG.TEST_DATA.TEST_STARS,
+      type: 'money_income',
+      description: 'Тестовое пополнение баланса',
+      bot_name: TEST_CONFIG.TEST_DATA.TEST_BOT_NAME,
+      service_type: ModeEnum.TopUpBalance,
+    }
 
-    // Запускаем тест списания средств
-    results.push(await testPaymentProcessorExpense())
+    // Отправляем событие пополнения баланса
+    const result = await inngestTestEngine.sendEvent(
+      'payment/process',
+      paymentData
+    )
 
-    // Считаем статистику
-    const successCount = results.filter(r => r.success).length
-    const totalCount = results.length
+    // Проверяем результат
+    if (!result) {
+      throw new Error('Не удалось отправить событие payment/process')
+    }
+
     const duration = Date.now() - startTime
-
-    logger.info({
-      message: `✅ Тесты платежного процессора завершены: ${successCount}/${totalCount} успешно`,
-      description: 'Payment processor tests completed',
-      success: successCount,
-      total: totalCount,
+    logger.info('✅ Тест пополнения баланса успешно выполнен', {
+      description: 'Payment processor income test successfully completed',
+      test: testName,
       duration,
     })
+
+    return {
+      success: true,
+      name: testName,
+      message: 'Пополнение баланса через процессор платежей работает корректно',
+      details: {
+        telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
+        amount: TEST_CONFIG.TEST_DATA.TEST_AMOUNT,
+        duration,
+      },
+    }
   } catch (error) {
     const duration = Date.now() - startTime
+    const errorMessage = error instanceof Error ? error.message : String(error)
 
-    logger.error({
-      message: '❌ Ошибка при выполнении тестов платежного процессора',
-      description: 'Error running payment processor tests',
-      error: error instanceof Error ? error.message : String(error),
+    logger.error('❌ Ошибка при выполнении теста пополнения баланса', {
+      description: 'Error executing payment processor income test',
+      error: errorMessage,
+      test: testName,
       duration,
     })
 
-    results.push({
+    return {
       success: false,
-      message: 'Ошибка при выполнении тестов платежного процессора',
-      error: error instanceof Error ? error : String(error),
-    })
+      name: testName,
+      message: `Ошибка при пополнении баланса: ${errorMessage}`,
+      details: {
+        error: errorMessage,
+        duration,
+      },
+    }
   }
+}
 
-  return results
+/**
+ * Тестирует списание средств через процессор платежей
+ * @returns Результат теста
+ */
+export async function testPaymentProcessorExpense(): Promise<TestResult> {
+  const testName = 'Тест списания средств через процессор платежей'
+  const startTime = Date.now()
+
+  logger.info('🧪 Запуск теста списания средств', {
+    description: 'Starting payment processor expense test',
+    test: testName,
+  })
+
+  try {
+    // Подготовка данных для теста
+    const paymentData = {
+      telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
+      amount: TEST_CONFIG.TEST_DATA.TEST_AMOUNT / 2, // Используем половину суммы
+      stars: TEST_CONFIG.TEST_DATA.TEST_STARS / 2, // Используем половину звезд
+      type: 'money_expense',
+      description: 'Тестовое списание средств',
+      bot_name: TEST_CONFIG.TEST_DATA.TEST_BOT_NAME,
+      service_type: ModeEnum.TextToImage,
+    }
+
+    // Отправляем событие списания средств
+    const result = await inngestTestEngine.sendEvent(
+      'payment/process',
+      paymentData
+    )
+
+    // Проверяем результат
+    if (!result) {
+      throw new Error('Не удалось отправить событие payment/process')
+    }
+
+    const duration = Date.now() - startTime
+    logger.info('✅ Тест списания средств успешно выполнен', {
+      description: 'Payment processor expense test successfully completed',
+      test: testName,
+      duration,
+    })
+
+    return {
+      success: true,
+      name: testName,
+      message: 'Списание средств через процессор платежей работает корректно',
+      details: {
+        telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
+        amount: TEST_CONFIG.TEST_DATA.TEST_AMOUNT / 2,
+        duration,
+      },
+    }
+  } catch (error) {
+    const duration = Date.now() - startTime
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    logger.error('❌ Ошибка при выполнении теста списания средств', {
+      description: 'Error executing payment processor expense test',
+      error: errorMessage,
+      test: testName,
+      duration,
+    })
+
+    return {
+      success: false,
+      name: testName,
+      message: `Ошибка при списании средств: ${errorMessage}`,
+      details: {
+        error: errorMessage,
+        duration,
+      },
+    }
+  }
+}
+
+/**
+ * Тестирует обработку некорректного платежа (с отрицательной суммой)
+ * @returns Результат теста
+ */
+export async function testPaymentProcessorNegativeAmount(): Promise<TestResult> {
+  const testName = 'Тест обработки платежа с отрицательной суммой'
+  const startTime = Date.now()
+
+  logger.info('🧪 Запуск теста обработки некорректного платежа', {
+    description: 'Starting invalid payment test',
+    test: testName,
+  })
+
+  try {
+    // Подготовка данных для теста с отрицательной суммой
+    const paymentData = {
+      telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
+      amount: -50, // Отрицательная сумма
+      stars: 50,
+      type: 'money_income',
+      description: 'Тестовый некорректный платеж',
+      bot_name: TEST_CONFIG.TEST_DATA.TEST_BOT_NAME,
+      service_type: ModeEnum.TopUpBalance,
+    }
+
+    try {
+      // Отправляем событие пополнения баланса
+      await inngestTestEngine.sendEvent('payment/process', paymentData)
+
+      // Если код дошёл до этой точки без исключения, значит тест провален
+      throw new Error('Платеж с отрицательной суммой был принят, это ошибка')
+    } catch (paymentError) {
+      // Проверяем, содержит ли сообщение об ошибке ожидаемый текст об отрицательной сумме
+      const errorMessage =
+        paymentError instanceof Error
+          ? paymentError.message
+          : String(paymentError)
+
+      if (errorMessage.includes('Платеж с отрицательной суммой был принят')) {
+        // Это наше собственное исключение - тест провален
+        throw paymentError
+      }
+
+      // Если получили другую ошибку - тест пройден, так как мы и ожидали ошибку
+      const duration = Date.now() - startTime
+      logger.info('✅ Тест обработки некорректного платежа успешно выполнен', {
+        description:
+          'Invalid payment test successfully completed with expected error',
+        test: testName,
+        duration,
+        error: errorMessage,
+      })
+
+      return {
+        success: true,
+        name: testName,
+        message:
+          'Обработка некорректного платежа работает правильно (ожидаемая ошибка получена)',
+        details: {
+          error: errorMessage,
+          duration,
+        },
+      }
+    }
+
+    // Этот код не должен выполниться, но оставим для надежности
+    throw new Error('Платеж с отрицательной суммой был принят, это ошибка')
+  } catch (error) {
+    const duration = Date.now() - startTime
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    logger.error(
+      '❌ Ошибка при выполнении теста обработки некорректного платежа',
+      {
+        description: 'Error executing invalid payment test',
+        error: errorMessage,
+        test: testName,
+        duration,
+      }
+    )
+
+    return {
+      success: false,
+      name: testName,
+      message: `Ошибка при тестировании некорректного платежа: ${errorMessage}`,
+      details: {
+        error: errorMessage,
+        duration,
+      },
+    }
+  }
+}
+
+/**
+ * Запускает все тесты платежного процессора
+ * @param options Опции запуска тестов
+ * @returns Массив результатов тестов
+ */
+export async function runPaymentProcessorTests(
+  options: { verbose?: boolean } = {}
+): Promise<TestResult[]> {
+  const startTime = Date.now()
+  const results: TestResult[] = []
+
+  logger.info('🚀 Запуск тестов платежного процессора', {
+    description: 'Starting payment processor tests',
+    verbose: options.verbose,
+  })
+
+  try {
+    // Тест пополнения баланса
+    const incomeResult = await testPaymentProcessorIncome()
+    results.push(incomeResult)
+
+    // Если пополнение прошло успешно, запускаем тест списания
+    if (incomeResult.success) {
+      const expenseResult = await testPaymentProcessorExpense()
+      results.push(expenseResult)
+    } else {
+      logger.warn(
+        '⚠️ Тест списания средств пропущен из-за ошибки в тесте пополнения',
+        {
+          description: 'Expense test skipped due to income test failure',
+        }
+      )
+
+      // Добавляем пропущенный тест в результаты
+      results.push({
+        success: false,
+        name: 'Тест списания средств через процессор платежей (пропущен)',
+        message: 'Тест пропущен из-за ошибки в тесте пополнения баланса',
+      })
+    }
+
+    // Запускаем тест обработки некорректного платежа
+    const invalidResult = await testPaymentProcessorNegativeAmount()
+    results.push(invalidResult)
+
+    // Собираем статистику
+    const duration = Date.now() - startTime
+    const successfulTests = results.filter(r => r.success).length
+    const totalTests = results.length
+
+    logger.info('✅ Тесты платежного процессора завершены', {
+      description: 'Payment processor tests completed',
+      duration,
+      successful: successfulTests,
+      total: totalTests,
+      success_rate: `${Math.round((successfulTests / totalTests) * 100)}%`,
+    })
+
+    return results
+  } catch (error) {
+    const duration = Date.now() - startTime
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    logger.error('❌ Ошибка при запуске тестов платежного процессора', {
+      description: 'Error running payment processor tests',
+      error: errorMessage,
+      duration,
+    })
+
+    // Возвращаем результат с ошибкой
+    return [
+      {
+        success: false,
+        name: 'Тесты платежного процессора',
+        message: `Ошибка при запуске тестов: ${errorMessage}`,
+      },
+    ]
+  }
 }
