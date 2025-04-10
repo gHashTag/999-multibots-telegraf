@@ -8,6 +8,7 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
 import { createPendingPayment } from '@/core/supabase/createPendingPayment'
 import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, TEST_PASSWORD1, isDev } from '@/config'
+import { generateUniqueShortInvId } from '@/scenes/getRuBillWizard/helper'
 
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
@@ -15,33 +16,6 @@ const testPassword1 = TEST_PASSWORD1
 
 // Флаг для использования тестового режима Robokassa
 const useTestMode = isDev
-
-/**
- * Генерирует короткий ID для заказа, подходящий для Robokassa
- * Создает ID заказа на основе времени и случайного числа, но с меньшей длиной
- * @param userId ID пользователя
- * @param amount Сумма заказа
- * @returns Короткий ID заказа (до 9 цифр)
- */
-function generateShortInvId(userId: string | number, amount: number): number {
-  try {
-    // Берем последние 5 цифр timestamp
-    const timestamp = Date.now() % 100000
-    // Случайное число от 1000 до 9999
-    const random = Math.floor(Math.random() * 9000) + 1000
-    // Объединяем в одно число и возвращаем как целое число
-    return parseInt(`${timestamp}${random}`)
-  } catch (error) {
-    console.error('❌ Ошибка при генерации короткого inv_id', {
-      description: 'Error generating short inv_id',
-      error,
-      userId,
-      amount,
-    })
-    // В случае ошибки возвращаем случайное число до 1 миллиона
-    return Math.floor(Math.random() * 1000000) + 1
-  }
-}
 
 function generateRobokassaUrl(
   merchantLogin: string,
@@ -78,6 +52,24 @@ function generateRobokassaUrl(
     invId = Math.floor(invId % 1000000)
   }
 
+  // Убеждаемся, что сумма положительная
+  if (outSum <= 0) {
+    console.error('❌ Ошибка: Сумма должна быть положительной', {
+      description: 'Error: Sum must be positive',
+      originalSum: outSum,
+    })
+    outSum = Math.abs(outSum) || 1 // Используем абсолютное значение или 1 если 0
+  }
+
+  // Проверяем description
+  if (!description || description.trim() === '') {
+    console.warn('⚠️ Предупреждение: Описание пустое, используем значение по умолчанию', {
+      description: 'Warning: Description is empty, using default',
+    })
+    description = 'Покупка звезд'
+  }
+
+  // Формируем строку для подписи с корректными значениями
   const signatureString = `${merchantLogin}:${outSum}:${invId}:${actualPassword}`
   console.log('📝 Строка для подписи:', {
     description: 'Signature string',
@@ -89,21 +81,50 @@ function generateRobokassaUrl(
   // Формируем базовый URL Robokassa
   const baseUrl = 'https://auth.robokassa.ru/Merchant/Index.aspx'
 
-  // Создаем параметры запроса - ВАЖНО: без ResultUrl2
-  const params = new URLSearchParams({
-    MerchantLogin: merchantLogin,
-    OutSum: outSum.toString(),
-    InvId: invId.toString(),
-    Description: description,
-    SignatureValue: signatureValue,
-  })
-
+  // Создаем параметры запроса
+  const params = new URLSearchParams()
+  
+  // Добавляем все параметры
+  params.append('MerchantLogin', merchantLogin)
+  params.append('OutSum', outSum.toString())
+  params.append('InvId', invId.toString())
+  params.append('Description', description)
+  params.append('SignatureValue', signatureValue)
+  
   // Добавляем параметр IsTest только если включен тестовый режим
   if (isTest) {
     params.append('IsTest', '1')
   }
 
   const url = `${baseUrl}?${params.toString()}`
+  
+  // Проверяем готовый URL
+  try {
+    const parsedUrl = new URL(url)
+    const requiredParams = ['MerchantLogin', 'OutSum', 'InvId', 'Description', 'SignatureValue']
+    const missingParams = []
+
+    for (const param of requiredParams) {
+      if (!parsedUrl.searchParams.has(param)) {
+        missingParams.push(param)
+      }
+    }
+
+    if (missingParams.length > 0) {
+      console.error('❌ Ошибка: В URL отсутствуют обязательные параметры', {
+        description: 'Error: URL is missing required parameters',
+        missingParams,
+      })
+      throw new Error(`URL не содержит обязательные параметры: ${missingParams.join(', ')}`)
+    }
+  } catch (error) {
+    console.error('❌ Ошибка при проверке URL:', {
+      description: 'Error checking URL',
+      error,
+    })
+    throw error
+  }
+
   console.log('✅ URL сформирован для Robokassa:', {
     message: 'URL generated for Robokassa',
     testMode: isTest,
@@ -189,7 +210,8 @@ paymentScene.enter(async ctx => {
       }
 
       const userId = ctx.from.id
-      const invId = generateShortInvId(userId, amount)
+      // Используем асинхронную функцию для генерации уникального ID
+      const invId = await generateUniqueShortInvId(userId, amount)
       const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
       const numericInvId = Number(invId)
 
@@ -348,8 +370,9 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
 
   try {
     const userId = ctx.from.id
-    const invId = generateShortInvId(userId, amount)
-    const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
+    // Создаем специальный платеж для звезд с проверкой уникальности ID
+    const invId = await generateUniqueShortInvId(userId, amount)
+    const description = isRu ? 'Покупка звезд' : 'Purchase stars'
     const numericInvId = Number(invId)
 
     if (!merchantLogin || !password1) {

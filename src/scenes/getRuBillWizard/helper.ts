@@ -8,6 +8,7 @@ import {
 
 import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'
+import { generateUniqueInvoiceId } from '@/core/supabase/generateUniqueInvoiceId'
 
 export const merchantLogin = MERCHANT_LOGIN
 export const password1 = PASSWORD1
@@ -30,11 +31,9 @@ export const subscriptionTitles = (isRu: boolean) => ({
  * @param userId ID пользователя
  * @param amount Сумма заказа
  * @returns Короткий ID заказа (до 9 цифр)
+ * @deprecated Используйте асинхронную функцию generateUniqueShortInvId вместо этой
  */
-export function generateShortInvId(
-  userId: string | number,
-  amount: number
-): number {
+export function generateShortInvId(userId: string | number, amount: number): number {
   try {
     // Берем последние 5 цифр timestamp
     const timestamp = Date.now() % 100000
@@ -51,6 +50,41 @@ export function generateShortInvId(
     })
     // В случае ошибки возвращаем случайное число до 1 миллиона
     return Math.floor(Math.random() * 1000000) + 1
+  }
+}
+
+/**
+ * Генерирует короткий ID заказа с проверкой уникальности
+ * @param userId ID пользователя
+ * @param amount Сумма заказа
+ * @returns Promise с коротким ID заказа
+ */
+export async function generateUniqueShortInvId(
+  userId: string | number, 
+  amount: number
+): Promise<number> {
+  try {
+    // Используем нашу новую функцию для генерации уникального ID
+    const uniqueId = await generateUniqueInvoiceId(userId, amount)
+    
+    // Преобразуем в число, ограничиваем длину до 9 цифр если необходимо
+    const numericId = parseInt(uniqueId)
+    
+    // Если ID слишком длинный для Robokassa, обрезаем его
+    if (numericId > 999999999) {
+      return numericId % 1000000000 // Берем только последние 9 цифр
+    }
+    
+    return numericId
+  } catch (error) {
+    console.error('❌ Ошибка при генерации уникального ID инвойса', {
+      description: 'Error generating unique invoice ID',
+      error,
+      userId,
+      amount,
+    })
+    // В случае ошибки используем старый метод как запасной вариант
+    return generateShortInvId(userId, amount)
   }
 }
 
