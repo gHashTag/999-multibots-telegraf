@@ -1,6 +1,6 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from '@/core/supabase'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 export interface Avatar {
   telegram_id: TelegramId

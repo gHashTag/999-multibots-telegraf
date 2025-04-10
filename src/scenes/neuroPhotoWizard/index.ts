@@ -24,7 +24,7 @@ import { MyContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
 import { Markup } from 'telegraf'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const isRu = ctx.from?.language_code === 'ru'

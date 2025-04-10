@@ -6,7 +6,7 @@ import { getBotByName } from '@/core/bot'
 import { errorMessageAdmin } from '@/helpers'
 import fs from 'fs'
 import path from 'path'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 // Множество для хранения обработанных задач, чтобы избежать дублирования
 const processedTaskIds = new Set<string>()

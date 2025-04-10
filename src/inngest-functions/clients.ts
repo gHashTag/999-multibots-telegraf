@@ -2,7 +2,7 @@ import { Inngest } from 'inngest'
 import { INNGEST_EVENT_KEY } from '@/config'
 import fetch, { Response } from 'node-fetch'
 import type { RequestInit } from 'node-fetch'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 // Добавляем лог для проверки инициализации
 console.log('🔄 Initializing Inngest client...')
 console.log('🔑 INNGEST_EVENT_KEY available:', !!INNGEST_EVENT_KEY)

@@ -5,7 +5,7 @@ import {
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_SERVICE_KEY,
 } from '../../config'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 if (
   !SUPABASE_URL ||

@@ -1,6 +1,6 @@
 import { serve } from 'inngest/next'
 import { inngest } from './clients'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { Response } from 'node-fetch'
 // Импортируем реестр функций и используем все функции
 import { functions } from './registry'

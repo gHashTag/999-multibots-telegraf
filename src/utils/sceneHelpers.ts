@@ -1,5 +1,5 @@
 import { SceneEnum } from '@/types/scenes'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { MyContext } from '@/interfaces'
 
 export async function enterScene(ctx: MyContext, scene: SceneEnum, telegramId?: string | number) {

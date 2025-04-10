@@ -15,7 +15,7 @@ import { setBotCommands } from './setCommands'
 import { getBotNameByToken } from './core/bot'
 import startApiServer from './api'
 import { bots } from './core/bot'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 dotenv.config()
 

@@ -1,5 +1,5 @@
 import { getBotByName } from '@/core/bot'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 export class NotificationService {
   /**
