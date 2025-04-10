@@ -89,6 +89,7 @@ function printHelp() {
   database            Тесты базы данных
   webhook             Тесты вебхуков
   inngest             Тесты Inngest функций
+  payment             Тесты платежных функций
 
 Примеры:
   ts-node -r tsconfig-paths/register src/test-utils --category=translations
@@ -193,18 +194,18 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
       
       try {
         // Запускаем тесты переводов
-        const results = runTranslationTests()
+        const translationResults = runTranslationTests()
         
         // Обрабатываем результаты
-        if (Array.isArray(results)) {
-          logger.info(`✅ Добавлено тестов переводов: ${results.length}`)
-          logger.info(`✅ Added translation tests: ${results.length}`)
+        if (Array.isArray(translationResults)) {
+          logger.info(`✅ Добавлено тестов переводов: ${translationResults.length}`)
+          logger.info(`✅ Added translation tests: ${translationResults.length}`)
           
-          // Преобразуем результаты в тесты для TestRunner
-          for (const result of results) {
+          // Добавляем каждый тест в TestRunner
+          for (const result of translationResults) {
             runner.addTests([{
               name: result.name || 'Translation Test',
-              category: 'translations',
+              category: TestCategory.Translations,
               description: result.message || 'Translation validation',
               run: async () => {
                 if (!result.success) {
@@ -223,7 +224,7 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
         // Добавляем ошибку как тест
         runner.addTests([{
           name: 'Translation Tests',
-          category: 'translations',
+          category: TestCategory.Translations,
           description: 'Running translation tests',
           run: async () => {
             throw new Error(`Failed to run translation tests: ${errorMessage}`)
@@ -243,7 +244,7 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
         const { runInngestTests } = await import('../tests/inngest')
         
         // Запускаем тесты Inngest функций
-        const results = await runInngestTests(options.verbose)
+        const results = await runInngestTests({ verbose: options.verbose })
         
         // Обрабатываем результаты
         if (Array.isArray(results)) {
@@ -277,6 +278,77 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
           description: 'Running Inngest function tests',
           run: async () => {
             throw new Error(`Failed to run Inngest function tests: ${errorMessage}`)
+          }
+        }])
+      }
+    }
+
+    // Запускаем тесты платежных функций, если выбрана соответствующая категория
+    if (category === TestCategory.All || category === TestCategory.Payment) {
+      logger.info('💰 Загрузка тестов платежных функций...')
+      logger.info('💰 Loading payment function tests...')
+      
+      try {
+        // Импортируем динамически, чтобы избежать циклических зависимостей
+        const { runPaymentTests } = await import('../tests/payment')
+        
+        // Запускаем тесты платежных функций
+        const result = await runPaymentTests({ verbose: options.verbose })
+        
+        // Обрабатываем результаты
+        if (result && result.results && Array.isArray(result.results)) {
+          const totalTests = result.results.reduce((total, group) => {
+            return total + (Array.isArray(group.results) ? group.results.length : 0)
+          }, 0)
+          
+          logger.info(`✅ Добавлено тестов платежных функций: ${totalTests}`)
+          logger.info(`✅ Added payment function tests: ${totalTests}`)
+          
+          // Преобразуем результаты в тесты для TestRunner
+          for (const group of result.results) {
+            if (Array.isArray(group.results)) {
+              // Если у нас есть результаты для этой группы платежных тестов
+              for (const test of group.results) {
+                runner.addTests([{
+                  name: test.name || `${group.name} Test`,
+                  category: 'payment',
+                  description: test.description || `Testing ${group.name}`,
+                  run: async () => {
+                    if (!test.success) {
+                      throw new Error(test.error || `${group.name} test failed`)
+                    }
+                    return test
+                  }
+                }])
+              }
+            } else {
+              // Для группы без детальных результатов, добавляем общий тест
+              runner.addTests([{
+                name: group.name || 'Payment Test',
+                category: 'payment',
+                description: `Testing ${group.name}`,
+                run: async () => {
+                  if (!group.success) {
+                    throw new Error(group.error || 'Payment test failed')
+                  }
+                  return group
+                }
+              }])
+            }
+          }
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error(`❌ Ошибка при запуске тестов платежных функций: ${errorMessage}`)
+        logger.error(`❌ Error running payment function tests: ${errorMessage}`)
+        
+        // Добавляем ошибку как тест
+        runner.addTests([{
+          name: 'Payment Function Tests',
+          category: 'payment',
+          description: 'Running payment function tests',
+          run: async () => {
+            throw new Error(`Failed to run payment function tests: ${errorMessage}`)
           }
         }])
       }

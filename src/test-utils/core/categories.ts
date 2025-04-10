@@ -19,12 +19,17 @@ export enum TestCategory {
   NeuroPhoto = 'neurophoto',
   NeuroPhotoV2 = 'neurophoto-v2',
   TextToVideo = 'text-to-video',
+  TextToImage = 'text-to-image',
   BFLWebhook = 'bfl-webhook',
   ReplicateWebhook = 'replicate-webhook',
   NeuroPhotoWebhook = 'neurophoto-webhook',
   ModelTraining = 'model-training',
   VoiceAvatar = 'voice-avatar',
   TextToSpeech = 'text-to-speech',
+  
+  // Подкатегории для платежей
+  PaymentProcessor = 'payment-processor',
+  RuPayment = 'ru-payment',
 }
 
 /**
@@ -41,6 +46,7 @@ export function getSubcategories(category: TestCategory): TestCategory[] {
         TestCategory.NeuroPhoto,
         TestCategory.NeuroPhotoV2,
         TestCategory.TextToVideo,
+        TestCategory.TextToImage,
       ];
       
     case TestCategory.Webhook:
@@ -53,12 +59,19 @@ export function getSubcategories(category: TestCategory): TestCategory[] {
     case TestCategory.Inngest:
       return [
         TestCategory.ModelTraining,
+        TestCategory.TextToImage,
       ];
       
     case TestCategory.Speech:
       return [
         TestCategory.VoiceAvatar,
         TestCategory.TextToSpeech,
+      ];
+      
+    case TestCategory.Payment:
+      return [
+        TestCategory.PaymentProcessor,
+        TestCategory.RuPayment,
       ];
       
     default:
