@@ -5,9 +5,24 @@ import {
 import { supabase } from './index'
 import { Logger as logger } from '@/utils/logger'
 
+// Кэш для хранения балансов пользователей
+type BalanceCache = {
+  [key: string]: {
+    balance: number
+    timestamp: number
+  }
+}
+
+// Время жизни кэша баланса в миллисекундах (30 секунд)
+const BALANCE_CACHE_TTL = 30 * 1000
+
+// Кэш балансов пользователей
+const balanceCache: BalanceCache = {}
+
 /**
  * Получает баланс пользователя на основе транзакций в payments_v2
  * Вызывает SQL-функцию get_user_balance
+ * Использует локальный кэш для уменьшения количества запросов к БД
  */
 export const getUserBalance = async (
   telegram_id: TelegramId,
@@ -24,9 +39,25 @@ export const getUserBalance = async (
 
     // Нормализуем telegram_id в строку
     const normalizedId = normalizeTelegramId(telegram_id)
+    const cacheKey = `${normalizedId}`
+    const now = Date.now()
 
-    logger.info('🔍 Получение баланса пользователя:', {
-      description: 'Getting user balance',
+    // Проверяем, есть ли данные в кэше и не истек ли срок их действия
+    if (
+      balanceCache[cacheKey] &&
+      now - balanceCache[cacheKey].timestamp < BALANCE_CACHE_TTL
+    ) {
+      logger.info('💾 Получение баланса из кэша:', {
+        description: 'Getting user balance from cache',
+        telegram_id: normalizedId,
+        bot_name,
+        cached_balance: balanceCache[cacheKey].balance,
+      })
+      return balanceCache[cacheKey].balance
+    }
+
+    logger.info('🔍 Получение баланса пользователя из БД:', {
+      description: 'Getting user balance from database',
       telegram_id: normalizedId,
       bot_name,
     })
@@ -46,14 +77,22 @@ export const getUserBalance = async (
       return 0
     }
 
-    logger.info('✅ Баланс пользователя получен:', {
-      description: 'User balance retrieved',
+    const balance = stars || 0
+
+    // Сохраняем результат в кэш
+    balanceCache[cacheKey] = {
+      balance,
+      timestamp: now,
+    }
+
+    logger.info('✅ Баланс пользователя получен и кэширован:', {
+      description: 'User balance retrieved and cached',
       telegram_id: normalizedId,
-      stars: stars || 0,
+      stars: balance,
       bot_name,
     })
 
-    return stars || 0
+    return balance
   } catch (error) {
     logger.error('❌ Ошибка в getUserBalance:', {
       description: 'Error in getUserBalance function',
@@ -62,6 +101,23 @@ export const getUserBalance = async (
       telegram_id,
     })
     return 0
+  }
+}
+
+/**
+ * Инвалидирует кэш баланса для указанного пользователя
+ * Должен вызываться после всех операций, изменяющих баланс
+ */
+export const invalidateBalanceCache = (telegram_id: TelegramId): void => {
+  const normalizedId = normalizeTelegramId(telegram_id)
+  const cacheKey = `${normalizedId}`
+
+  if (balanceCache[cacheKey]) {
+    delete balanceCache[cacheKey]
+    logger.info('🔄 Кэш баланса инвалидирован:', {
+      description: 'Balance cache invalidated',
+      telegram_id: normalizedId,
+    })
   }
 }
 

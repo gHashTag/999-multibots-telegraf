@@ -31,7 +31,7 @@ services:
       - LOG_DIR=/app/logs
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
       - SUPABASE_URL=https://example.com
-      - SUPABASE_KEY=example_key
+      - SUPABASE_SERVICE_KEY=example_key
       - PAYMENT_TEST_MODE=true
       - ENABLE_TEST_MODE=true
       - TEST_RETRY_COUNT=3

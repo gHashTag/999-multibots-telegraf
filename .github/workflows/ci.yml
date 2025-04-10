@@ -32,7 +32,7 @@ jobs:
       run: npm run test
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         TEST_BOT_TOKEN: ${{ secrets.TEST_BOT_TOKEN }}
         TEST_BOT_NAME: ${{ secrets.TEST_BOT_NAME }}
         TEST_OWNER_ID: ${{ secrets.TEST_OWNER_ID }}

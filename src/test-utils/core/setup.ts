@@ -6,7 +6,7 @@ process.env.INNGEST_EVENT_KEY = 'test-key'
 process.env.SUPABASE_URL = 'http://localhost:54321'
 process.env.SUPABASE_SERVICE_KEY = 'test-service-key'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
-process.env.SUPABASE_KEY = 'test-anon-key'
+process.env.SUPABASE_SERVICE_KEY = 'test-anon-key'
 
 // Mock Telegram bot environment variables
 process.env.BOT_TOKEN_1 = 'test-bot-token'
