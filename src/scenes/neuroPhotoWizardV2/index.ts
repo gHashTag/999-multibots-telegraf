@@ -27,13 +27,13 @@ import { MyContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-
+import { logger } from '@/utils/logger'
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const isRu = ctx.from?.language_code === 'ru'
   try {
     console.log('CASE 1: neuroPhotoConversationV2')
 
-    const logger = require('@/utils/logger').Logger
+    
     logger.info({
       message: '🚀 ЗАПУСК neuroPhotoWizardV2 (v2)',
       description: 'Starting neuroPhotoWizardV2 (v2)',
