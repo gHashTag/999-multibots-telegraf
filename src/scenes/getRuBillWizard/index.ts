@@ -8,6 +8,9 @@ import {
   subscriptionTitles,
   generateShortInvId,
   useTestMode,
+  generateSignature,
+  generateRobokassaUrl,
+  generateUniqueShortInvId,
 } from './helper'
 import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
@@ -62,7 +65,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     })
 
     // Генерируем короткий InvId для Robokassa
-    const numericInvId = generateShortInvId(userId, stars)
+    const numericInvId = await generateUniqueShortInvId(userId, stars)
     const invId = numericInvId.toString()
 
     logger.info('🔢 Сгенерирован ID счета:', {

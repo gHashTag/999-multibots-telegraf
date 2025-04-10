@@ -57,6 +57,32 @@ try {
   }
 }
 
+// Тесты для дублирующихся ID инвойсов
+let runDuplicateInvoiceIdTests: (options?: { verbose?: boolean }) => Promise<TestResult[]>
+try {
+  // Пытаемся импортировать
+  runDuplicateInvoiceIdTests =
+    require('./duplicateInvoiceId.test').runDuplicateInvoiceIdTests
+  logger.info('✅ Тесты дублирующихся ID инвойсов загружены', {
+    description: 'Duplicate invoice ID tests loaded',
+  })
+} catch (error) {
+  // Если не удалось, создаем заглушку
+  logger.warn('⚠️ Тесты дублирующихся ID инвойсов не найдены', {
+    description: 'Duplicate invoice ID tests not found',
+    error: error instanceof Error ? error.message : String(error),
+  })
+  runDuplicateInvoiceIdTests = async () => {
+    return [
+      {
+        success: false,
+        name: 'Тесты дублирующихся ID инвойсов недоступны',
+        message: 'Файл тестов не найден',
+      },
+    ]
+  }
+}
+
 // Тесты RuPayment
 import { runRuPaymentTests } from './ruPaymentTest'
 
@@ -95,6 +121,12 @@ export async function runPaymentTests(
       description: 'Running RuPayment tests',
     })
     results.push(await runRuPaymentTests())
+
+    // Запускаем тесты дублирующихся ID инвойсов
+    logger.info('🔢 Запуск тестов дублирующихся ID инвойсов', {
+      description: 'Running duplicate invoice ID tests',
+    })
+    results.push(await runDuplicateInvoiceIdTests(options))
 
     // Собираем статистику
     const duration = Date.now() - startTime
@@ -139,4 +171,5 @@ export {
   runPaymentProcessorTests,
   runPaymentProcessorMockTests,
   runRuPaymentTests,
+  runDuplicateInvoiceIdTests
 }

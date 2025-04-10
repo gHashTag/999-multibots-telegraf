@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { jest } from '@jest/globals'
+import mock from '@/test-utils/core/mock'
 import { User, Operation } from './types'
 
 class MockSupabase {
@@ -83,7 +83,7 @@ class MockSupabase {
 export const mockSupabase = new MockSupabase()
 
 // Mock the Supabase client
-jest.mock('@supabase/supabase-js', () => ({
+mock.object({
   createClient: () => ({
     from: (table: string) => ({
       select: () => ({
@@ -130,4 +130,4 @@ jest.mock('@supabase/supabase-js', () => ({
       return { data: null, error: null }
     }
   })
-})) 
+});
