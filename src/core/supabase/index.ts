@@ -3,7 +3,7 @@ import {
   SUPABASE_URL,
   SUPABASE_SERVICE_KEY,
   SUPABASE_SERVICE_ROLE_KEY,
-  SUPABASE_KEY,
+  SUPABASE_SERVICE_KEY,
 } from '../../config'
 import { Logger as logger } from '@/utils/logger'
 
@@ -11,7 +11,7 @@ if (
   !SUPABASE_URL ||
   !SUPABASE_SERVICE_KEY ||
   !SUPABASE_SERVICE_ROLE_KEY ||
-  !SUPABASE_KEY
+  !SUPABASE_SERVICE_KEY
 ) {
   throw new Error('Missing Supabase environment variables')
 }
@@ -25,8 +25,8 @@ export const supabaseAdmin = createClient(
   SUPABASE_SERVICE_ROLE_KEY
 )
 
-// Создаем обычный клиент с anon key (теперь SUPABASE_KEY)
-export const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY)
+// Создаем обычный клиент с anon key (теперь SUPABASE_SERVICE_KEY)
+export const supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 logger.info('🔌 Supabase клиент инициализирован', {
   description: 'Supabase client initialized',

@@ -32,7 +32,7 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - ORIGIN=${ORIGIN}
       - ADMIN_IDS=${ADMIN_IDS}
       - SECRET_KEY=${SECRET_KEY}
@@ -56,9 +56,8 @@ services:
       - '8443:443'
       - '8080:80'
     volumes:
-      - /etc/nginx/nginx.conf:/etc/nginx/nginx.conf
-      - /etc/nginx/conf.d/:/etc/nginx/conf.d/
-      - /etc/pki/:/etc/pki/
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d/:/etc/nginx/conf.d/
     networks:
       - app-network
     restart: unless-stopped
