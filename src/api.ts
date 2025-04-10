@@ -174,8 +174,8 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
       req.body instanceof Buffer
         ? req.body.toString('utf8')
         : typeof req.body === 'string'
-        ? req.body
-        : JSON.stringify(req.body)
+          ? req.body
+          : JSON.stringify(req.body)
 
     // Проверяем, не является ли тело JWT токеном
     if (rawBody.startsWith('eyJ')) {
