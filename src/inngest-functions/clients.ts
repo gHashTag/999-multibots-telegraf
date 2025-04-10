@@ -16,8 +16,20 @@ if (INNGEST_EVENT_KEY) {
 const createInngestClient = () => {
   const config = {
     id: process.env.NODE_ENV === 'test' ? 'test-client' : 'neuro-blogger',
-    eventKey: process.env.NODE_ENV === 'test' ? 'test-key' : (INNGEST_EVENT_KEY || 'development-key'),
+    eventKey:
+      process.env.NODE_ENV === 'test'
+        ? 'test-key'
+        : INNGEST_EVENT_KEY || 'development-key',
   }
+
+  // Используем порт 2999 для локальной разработки вместо порта 8288
+  if (process.env.NODE_ENV === 'development') {
+    return new Inngest({
+      ...config,
+      baseUrl: 'http://localhost:2999/api/inngest',
+    })
+  }
+
   return new Inngest(config)
 }
 
