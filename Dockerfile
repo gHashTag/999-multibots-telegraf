@@ -2,45 +2,45 @@
 FROM node:20-alpine as builder
 
 WORKDIR /app
-ENV HOME=/app
-ENV HUSKY=0
 
 COPY package*.json ./
-# Устанавливаем ВСЕ зависимости, включая devDependencies, для этапа сборки
-RUN npm install --no-package-lock --no-audit --ignore-scripts
+RUN npm install
 
 COPY . .
 
 # Выполняем сборку TypeScript
-RUN npx swc src -d dist --source-maps --copy-files
+RUN npm run build
 
-# Финальный этап (версия с tsconfig-paths)
+# Финальный этап
 FROM node:20-alpine
 
 WORKDIR /app
-ENV HOME=/app
-ENV HUSKY=0
 
-# Устанавливаем Ansible и его зависимости через apk
-RUN apk add --no-cache ansible openssh-client
+# Устанавливаем зависимости для Ansible
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    openssh-client \
+    sshpass \
+    nginx
 
-# Копируем tsconfig.prod.json ПЕРЕД установкой зависимостей
-COPY tsconfig.prod.json ./
+# Создаем виртуальное окружение и устанавливаем Ansible
+RUN python3 -m venv /opt/ansible-venv \
+    && . /opt/ansible-venv/bin/activate \
+    && pip install --no-cache-dir ansible
 
-# Копируем package.json и package-lock.json
 COPY package*.json ./
+RUN npm install --omit=dev
 
-# Устанавливаем только production зависимости (включая tsconfig-paths)
-RUN npm install --omit=dev --ignore-scripts --no-package-lock --no-audit
-
-# Копируем скомпилированное приложение из этапа сборки
+# Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
 
-# Экспортируем порты
+# Исправляем пути импорта внутри контейнера (Alpine Linux)
+RUN echo "🔧 Fixing import paths in dist directory..." && \
+    find dist -type f -name "*.js" -exec sed -i 's|\\.\\./src/|../|g' {} + && \
+    echo "✅ Import paths fixed."
+
+# Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 
-# Устанавливаем переменную окружения для tsconfig-paths
-ENV TS_NODE_PROJECT=tsconfig.prod.json
-
-# Используем CMD с tsconfig-paths/register
-CMD ["node", "-r", "tsconfig-paths/register", "dist/bot.js"]
+CMD ["node", "dist/bot.js"]

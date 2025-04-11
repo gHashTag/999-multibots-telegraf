@@ -18,38 +18,12 @@ services:
       - .env
     environment:
       - NODE_ENV=production
-      - BOT_TOKEN_1=${BOT_TOKEN_1}
-      - BOT_TOKEN_2=${BOT_TOKEN_2}
-      - BOT_TOKEN_3=${BOT_TOKEN_3}
-      - BOT_TOKEN_4=${BOT_TOKEN_4}
-      - BOT_TOKEN_5=${BOT_TOKEN_5}
-      - BOT_TOKEN_6=${BOT_TOKEN_6}
-      - BOT_TOKEN_7=${BOT_TOKEN_7}
-      - INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
-      - INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
-      - INNGEST_URL=${INNGEST_URL}
-      - INNGEST_BASE_URL=${INNGEST_BASE_URL}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - ORIGIN=${ORIGIN}
-      - ADMIN_IDS=${ADMIN_IDS}
+      - PORT=3000
+      - LOG_DIR=/var/logs
       - SECRET_KEY=${SECRET_KEY}
+      - CREDENTIALS=${CREDENTIALS}
+      - ORIGIN=${ORIGIN}
       - LOG_FORMAT=${LOG_FORMAT}
-      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /etc/nginx:/etc/nginx
-      - /etc/pki:/etc/pki
-      - /root/.ssh:/app/.ssh:ro
-      # Монтируем volume для сгенерированных Nginx конфигов (для записи Ansible)
-      - nginx-config-volume:/etc/nginx-generated
-      # Монтируем файлы Ansible
-      - ./playbook.yml:/app/playbook.yml:ro
-      - ./inventory:/app/inventory:ro
-      - ./roles:/app/roles:ro
     dns:
       - 8.8.8.8
       - 8.8.4.4
@@ -66,13 +40,9 @@ services:
       - '8443:443'
       - '8080:80'
     volumes:
-      # Читаем конфиги из Docker Volume, куда пишет Ansible
-      - nginx-config-volume:/etc/nginx:ro
-      # Пути к сертификатам с хоста остаются
-      - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
-      - /etc/pki/key.pem:/etc/pki/key.pem:ro
-    depends_on:
-      - app
+      - /etc/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - /etc/nginx/conf.d/:/etc/nginx/conf.d/
+      - /etc/pki/:/etc/pki/
     networks:
       - app-network
     restart: unless-stopped
@@ -83,7 +53,3 @@ networks:
     ipam:
       config:
         - subnet: 172.27.0.0/16
-
-# Объявляем Docker Volume
-volumes:
-  nginx-config-volume:
