@@ -57,6 +57,9 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/conf.d/:/etc/nginx/conf.d/
+      - ./nginx/pki/:/etc/pki/
+    depends_on:
+      - app
     networks:
       - app-network
     restart: unless-stopped

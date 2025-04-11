@@ -6,12 +6,16 @@ ENV HOME=/app
 ENV HUSKY=0
 
 COPY package*.json ./
+# Устанавливаем ВСЕ зависимости, включая devDependencies, для этапа сборки
 RUN npm install --no-package-lock --no-audit --ignore-scripts
 
 COPY . .
 
 # Выполняем сборку TypeScript
 RUN npx swc src -d dist --source-maps --copy-files
+
+# Исправляем пути с помощью tsc-alias
+RUN npx tsc-alias
 
 # Финальный этап
 FROM node:20-alpine
@@ -34,9 +38,10 @@ RUN python3 -m venv /opt/ansible-venv \
     && pip install --no-cache-dir ansible
 
 COPY package*.json ./
+# Устанавливаем только production зависимости для финального образа
 RUN npm install --omit=dev --ignore-scripts --no-package-lock --no-audit
 
-# Копируем только необходимые файлы из этапа сборки
+# Копируем ТОЛЬКО скомпилированные и исправленные файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
 
 # Экспортируем порт для API и боты

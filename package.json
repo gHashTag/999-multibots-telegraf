@@ -61,7 +61,8 @@
     "docker:test:logs": "docker logs -f neuro-blogger-telegram-bot-test",
     "docker:test:payment": "bash run-tests.sh payment-processor",
     "docker:test:all": "bash run-tests.sh",
-    "docker:run-test": "bash run-tests.sh"
+    "docker:run-test": "bash run-tests.sh",
+    "ansible:deploy": "ansible-playbook playbook.yml --vault-password-file ../vault_password.txt"
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",
