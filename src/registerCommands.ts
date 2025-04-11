@@ -308,8 +308,8 @@ export function registerCommands({
       description: 'Digital avatar body selected',
       level: levels[1].title_ru,
     })
-    ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-    await ctx.scene.enter(ModeEnum.SelectModelWizard)
+    ctx.session.mode = ModeEnum.DigitalAvatarBody
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
@@ -353,7 +353,7 @@ export function registerCommands({
       description: 'Select model selected',
       level: levels[6].title_ru,
     })
-    ctx.session.mode = ModeEnum.SelectModelWizard
+    ctx.session.mode = ModeEnum.DigitalAvatarBody
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
@@ -406,7 +406,7 @@ export function registerCommands({
   // composer.hears([levels[12].title_ru, levels[12].title_en], async ctx => {
   //   console.log('CASE: Синхронизация губ')
   //   ctx.session.mode = 'lip_sync'
-  //   await ctx.scene.enter('checkBalanceScene')
+  //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   // })
 
   // composer.hears([levels[13].title_ru, levels[13].title_en], async ctx => {

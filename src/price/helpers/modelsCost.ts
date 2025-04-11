@@ -189,7 +189,8 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.TextToImage]: calculateModeCost({ mode: ModeEnum.TextToImage })
     .stars,
   [ModeEnum.LipSync]: calculateModeCost({ mode: ModeEnum.LipSync }).stars,
-  [ModeEnum.VoiceToText]: calculateModeCost({ mode: ModeEnum.VoiceToText }).stars,
+  [ModeEnum.VoiceToText]: calculateModeCost({ mode: ModeEnum.VoiceToText })
+    .stars,
 }
 
 export const minCost = Math.min(
