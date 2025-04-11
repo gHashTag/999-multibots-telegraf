@@ -27,12 +27,13 @@ RUN apk add --no-cache \
     py3-pip \
     openssh-client \
     sshpass \
-    nginx
+    nginx \
+    docker-cli # Добавляем docker-cli для выполнения docker exec изнутри
 
 # Создаем виртуальное окружение и устанавливаем Ansible
 RUN python3 -m venv /opt/ansible-venv \
     && . /opt/ansible-venv/bin/activate \
-    && pip install --no-cache-dir ansible
+    && pip install --no-cache-dir ansible docker # Добавляем docker SDK для Ansible
 
 # Копируем tsconfig.prod.json (вместо tsconfig.json) ДО установки зависимостей
 COPY tsconfig.prod.json ./
