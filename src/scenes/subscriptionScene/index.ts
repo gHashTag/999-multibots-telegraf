@@ -4,11 +4,10 @@ import { handleMenu } from '@/handlers'
 import { getTranslation } from '@/core/supabase'
 import { isRussian } from '@/helpers'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-import { paymentOptionsPlans } from '@/price/priceCalculator'
+
 import { isValidPaymentSubscription } from '@/interfaces/payments.interface'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
 import { TranslationButton } from '@/interfaces/supabase.interface'
-import { TranslationCategory } from '@/interfaces/translations.interface'
 
 interface KeyboardButton {
   text: string
@@ -21,7 +20,11 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
   async ctx => {
     console.log('CASE: subscriptionScene', ctx)
     const isRu = isRussian(ctx)
-    const { translation, buttons } = await getTranslation('subscriptionScene', ctx, undefined, TranslationCategory.SPECIFIC)
+    const { translation, buttons } = await getTranslation(
+      'subscriptionScene',
+      ctx,
+      undefined
+    )
     console.log('buttons!!!', buttons)
 
     // Проверяем, является ли пользователь администратором
@@ -123,7 +126,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     ctx.session.selectedPayment = {
       amount: price,
       stars: selectedButton.stars_price,
-      subscription: data as LocalSubscription
+      subscription: data as LocalSubscription,
     }
 
     if (!isValidPaymentSubscription(data as LocalSubscription)) {
