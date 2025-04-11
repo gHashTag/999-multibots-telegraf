@@ -12,6 +12,27 @@ import axios from 'axios'
 import { TransactionType } from '../interfaces/payments.interface'
 
 /**
+ * Интерфейс события для генерации видео из изображения
+ */
+export interface ImageToVideoEvent {
+  name: 'image-to-video/generate'
+  data: {
+    telegram_id: string
+    bot_name: string
+    image_url: string
+    model_id?: string
+    duration?: number
+    is_ru: boolean
+    test?: {
+      skip_balance_check?: boolean
+      skip_payment?: boolean
+      skip_generation?: boolean
+      skip_sending?: boolean
+    }
+  }
+}
+
+/**
  * Результат генерации видео
  */
 interface VideoResult {

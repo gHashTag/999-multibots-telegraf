@@ -7,7 +7,7 @@
   "scripts": {
     "predev": "node scripts/kill-port.js 2999 3001",
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
-    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
+    "dev:inngest": "npx inngest-cli@latest dev",
     "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME ts-node -r tsconfig-paths/register src/bot.ts",
     "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
     "bots": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register src/bot.ts",

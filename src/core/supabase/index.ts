@@ -83,8 +83,6 @@ export * from './getBotGroupFromAvatars'
 
 export * from './getAllUsersData'
 
-export * from './getTranslation'
-export * from './updateUserSubscription'
 export * from './getUser'
 export * from './createPayment'
 
