@@ -185,3 +185,17 @@ export const testInngestClient = new Inngest({
   eventKey: 'test-key',
   fetch: fetch as any,
 })
+
+/**
+ * Константы для тестирования аватар-ботов
+ */
+export const AVATAR_BOT_DEFAULTS = {
+  /** Имя бота для тестирования */
+  botName: 'test_avatar_bot',
+  /** ID амбассадора для тестирования */
+  ambassadorId: 12345,
+  /** URL аватара для тестирования */
+  avatarUrl: 'https://example.com/avatar.jpg',
+  /** ID пользователя для тестирования */
+  userId: 67890,
+}
