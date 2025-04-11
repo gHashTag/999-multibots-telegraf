@@ -73,7 +73,7 @@ export const createSuccessfulPayment = async (
         stars,
         payment_method,
         description,
-        type,
+        type: type.toLowerCase(),
         service_type,
         bot_name,
         status,
