@@ -19,11 +19,14 @@ RUN npx tsc-alias
 
 # ---- ОТЛАДОЧНЫЕ КОМАНДЫ ----
 # Показываем содержимое папки dist
-RUN echo "--- Content of dist directory after tsc-alias ---" && ls -R dist
-# Ищем путь к логгеру в скомпилированном config/index.js
-RUN echo "--- Grepping for logger path in dist/config/index.js ---" && \
-    grep -E "'../src/utils/logger'|'@/utils/logger'|'./utils/logger'" dist/config/index.js || echo "--- Logger path not found in dist/config/index.js ---"
-# ---------------------------
+# ---- ОТЛАДОЧНЫЕ КОМАНДЫ (Запись в файлы) ----
+# Сохраняем содержимое папки dist в файл
+RUN echo "--- Content of dist directory after tsc-alias ---" > /tmp/dist_content.txt && ls -R dist >> /tmp/dist_content.txt
+# Ищем путь к логгеру и сохраняем результат в файл
+RUN echo "--- Grepping for logger path in dist/config/index.js ---" > /tmp/grep_result.txt && \
+    (grep -E "'../src/utils/logger'|'@/utils/logger'|'./utils/logger'" dist/config/index.js || echo "--- Logger path not found in dist/config/index.js ---") >> /tmp/grep_result.txt
+# --------------------------
+
 
 # Финальный этап
 FROM node:20-alpine
