@@ -2,6 +2,8 @@
 FROM node:20-alpine as builder
 
 WORKDIR /app
+ENV HOME=/app
+ENV HUSKY=0
 
 COPY package*.json ./
 RUN npm install
@@ -15,6 +17,11 @@ RUN npm run build
 FROM node:20-alpine
 
 WORKDIR /app
+ENV HOME=/app
+ENV HUSKY=0
+
+# Устанавливаем Ansible и его зависимости через apk
+RUN apk add --no-cache ansible openssh-client
 
 # Устанавливаем зависимости для Ansible
 RUN apk add --no-cache \
@@ -38,6 +45,7 @@ COPY --from=builder /app/dist ./dist
 # Исправляем пути импорта внутри контейнера (Alpine Linux)
 RUN echo "🔧 Fixing import paths in dist directory..." && \
     find dist -type f -name "*.js" -exec sed -i 's|\\.\\./src/|../|g' {} + && \
+    find dist -type f -name "*.js" -exec sed -i 's|@/utils/|../utils/|g' {} + && \
     echo "✅ Import paths fixed."
 
 # Экспортируем порт для API и боты

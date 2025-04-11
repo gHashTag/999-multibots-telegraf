@@ -13,7 +13,7 @@ interface MCPConfig {
 }
 
 class MCPManager {
-  private config: MCPConfig;
+  private config: MCPConfig
 
   constructor() {
     try {
@@ -51,8 +51,8 @@ class MCPManager {
       config.mcpServers.replicate = {
         command: 'mcp-replicate',
         env: {
-          REPLICATE_API_TOKEN: process.env.REPLICATE_API_TOKEN
-        }
+          REPLICATE_API_TOKEN: process.env.REPLICATE_API_TOKEN,
+        },
       }
     }
 
@@ -62,8 +62,8 @@ class MCPManager {
         command: 'telegram-mcp',
         env: {
           TG_APP_ID: process.env.TG_APP_ID,
-          TG_API_HASH: process.env.TG_API_HASH
-        }
+          TG_API_HASH: process.env.TG_API_HASH,
+        },
       }
     }
 
@@ -77,7 +77,7 @@ class MCPManager {
       'github',
       'hackernews',
       'zoom',
-      'coinbase'
+      'coinbase',
     ]
 
     for (const service of urlServices) {
