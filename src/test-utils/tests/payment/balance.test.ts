@@ -1,5 +1,5 @@
 import { supabase } from '../../../supabase'
-import { logger } from '../../../utils/logger'
+import { logger } from '@/utils/logger'
 import { TEST_PAYMENT_CONFIG } from '../../../config/test'
 import { createTestUser } from '../../helpers/users'
 import { TestResult, TestUser } from '../../../types/tests'

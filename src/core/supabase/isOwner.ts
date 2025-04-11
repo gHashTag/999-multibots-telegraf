@@ -1,5 +1,5 @@
 import { supabase } from '.'
-import { logger } from '../../utils/logger'
+import { logger } from '@/utils/logger'
 
 export async function isOwner(
   userId: number,
