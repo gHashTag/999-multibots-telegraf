@@ -1,21 +1,72 @@
 /**
- * Интерфейс результата теста
+ * Интерфейс результата выполнения теста
  */
 export interface TestResult {
-  /** Успешно ли выполнен тест */
+  /** Успешность выполнения теста */
   success: boolean
-  /** Имя теста */
+
+  /** Название теста */
   name: string
-  /** Сообщение о результате теста */
+
+  /** Сообщение о результате выполнения */
   message: string
-  /** Подробности выполнения теста (опционально) */
+
+  /** Дополнительные детали теста */
   details?: any
 }
 
 /**
- * Тип функции для запуска теста
+ * Типы для тестовых моков
+ */
+export interface MockFunction<Args = any, ReturnValue = any> {
+  (...args: Args[]): ReturnValue
+  calls: Args[][]
+  returnValue: ReturnValue
+  mockReturnValue: (value: ReturnValue) => MockFunction<Args, ReturnValue>
+  mockClear: () => MockFunction<Args, ReturnValue>
+}
+
+/**
+ * Функция тестирования
  */
 export type TestFunction = () => Promise<TestResult>
+
+/**
+ * Параметры запуска тестов
+ */
+export interface TestRunOptions {
+  /** Категория тестов для запуска */
+  category?: string
+
+  /** Обнаружить и запустить все доступные тесты */
+  discover?: boolean
+
+  /** Запустить тесты в параллельном режиме */
+  parallel?: boolean
+
+  /** Таймаут выполнения теста в миллисекундах */
+  timeout?: number
+}
+
+/**
+ * Результаты выполнения группы тестов
+ */
+export interface TestRunResults {
+  /** Общее количество тестов */
+  total: number
+
+  /** Количество успешных тестов */
+  passed: number
+
+  /** Количество неуспешных тестов */
+  failed: number
+
+  /** Полные результаты тестов */
+  results: TestResult[]
+
+  /** Время выполнения в миллисекундах */
+  duration: number
+}
 
 /**
  * Интерфейс для события платежа
@@ -52,8 +103,3 @@ export type TransactionType =
   | 'bonus'
   | 'referral'
   | 'system'
-
-/**
- * Интерфейс для мока функции
- */
-export type MockFunction<T = any, R = any> = (...args: T[]) => R

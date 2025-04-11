@@ -3,21 +3,22 @@ version: '3.8'
 services:
   # Тестовая база данных PostgreSQL
   postgres:
-    image: postgres:16-alpine
-    container_name: nb-postgres-test
+    image: postgres:13-alpine
+    container_name: neuro-blogger-postgres-test
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
     ports:
-      - 5433:5432
+      - 5432:5432
     volumes:
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   # Сервис для тестирования
   neuro-blogger-telegram-bot-test:
@@ -54,5 +55,37 @@ services:
       retries: 3
       start_period: 10s
 
+  redis:
+    image: redis:alpine
+    restart: "no"
+    ports:
+      - "6379:6379"
+
+  supabase-test:
+    image: supabase/postgres:latest
+    restart: "no"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./supabase/sql:/docker-entrypoint-initdb.d
+      - supabase-test-db:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: "no"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - supabase-test
+
 volumes:
-  test-logs: 
+  test-logs:
+  supabase-test-db:
+  postgres-data: 
