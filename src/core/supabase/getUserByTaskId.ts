@@ -1,5 +1,5 @@
 import { supabase } from '.'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 /**
  * Получает информацию о пользователе по ID задачи нейрофото

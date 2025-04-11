@@ -1,4 +1,4 @@
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'

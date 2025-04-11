@@ -1,4 +1,4 @@
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { CACHE_CONFIG, CacheEntry, CacheMetrics } from '@/config/cache'
 
 export class Cache<T> {

@@ -1,5 +1,5 @@
 import { supabase } from '@/core/supabase'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 

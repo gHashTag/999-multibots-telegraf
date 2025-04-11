@@ -1,7 +1,7 @@
 import { Composer } from 'telegraf'
 import { glamaMcpService } from '@/services/glamaMcpService'
 import { MyContext } from '@/interfaces'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 /**
  * Команда для работы с Glama MCP серверами

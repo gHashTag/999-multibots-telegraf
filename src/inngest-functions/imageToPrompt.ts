@@ -1,6 +1,6 @@
 import { inngest } from '@/inngest-functions/clients'
 import { getBotByName } from '@/core/bot'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import axios from 'axios'
 
 import { errorMessage, errorMessageAdmin } from '@/helpers'

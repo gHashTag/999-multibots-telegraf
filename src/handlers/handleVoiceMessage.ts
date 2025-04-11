@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { OpenAI } from 'openai'
 import { v4 as uuidv4 } from 'uuid'
 import { inngest } from '@/inngest-functions/clients'

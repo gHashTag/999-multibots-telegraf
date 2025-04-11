@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 
 import { MyContext } from '@/interfaces'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { broadcastService, BroadcastResult } from '@/services/broadcast.service'
 
 // Типы контента для рассылки

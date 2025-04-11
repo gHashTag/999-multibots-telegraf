@@ -1,7 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { handleHelpCancel } from '@/handlers'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 //

@@ -1,32 +1,55 @@
+# Этап сборки
+FROM node:20-alpine as builder
+
+WORKDIR /app
+ENV HOME=/app
+ENV HUSKY=0
+
+COPY package*.json ./
+# Устанавливаем ВСЕ зависимости, включая devDependencies, для этапа сборки
+RUN npm install --no-package-lock --no-audit --ignore-scripts
+
+COPY . .
+
+# Выполняем сборку TypeScript
+RUN npx swc src -d dist --source-maps --copy-files
+
+# Финальный этап
 FROM node:20-alpine
 
 WORKDIR /app
+ENV HOME=/app
+ENV HUSKY=0
 
-# Установка глобальных пакетов
-RUN npm install -g tsx
+# Устанавливаем зависимости для Ansible
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    openssh-client \
+    sshpass \
+    nginx
 
-# Копируем файлы package.json и package-lock.json
+# Создаем виртуальное окружение и устанавливаем Ansible
+RUN python3 -m venv /opt/ansible-venv \
+    && . /opt/ansible-venv/bin/activate \
+    && pip install --no-cache-dir ansible
+
+# Копируем tsconfig.prod.json (вместо tsconfig.json) ДО установки зависимостей
+COPY tsconfig.prod.json ./
+
+# Копируем package.json и package-lock.json
 COPY package*.json ./
 
-# Устанавливаем зависимости (включая рабочие и dev зависимости, но пропуская husky)
-RUN npm ci --ignore-scripts
+# Устанавливаем только production зависимости (включая tsconfig-paths)
+RUN npm install --omit=dev --ignore-scripts --no-package-lock --no-audit
 
-# Копируем исходный код приложения
-COPY . .
+# Копируем скомпилированное приложение из этапа сборки
+COPY --from=builder /app/dist ./dist
 
-# Создаем директорию для логов внутри контейнера
-RUN mkdir -p /app/logs && \
-    chmod -R 777 /app/logs
+# Экспортируем порт для API и боты
+EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 
-# Делаем скрипт проверки переменных окружения исполняемым
-RUN chmod +x /app/scripts/check-env.js
+# Устанавливаем переменную окружения для tsconfig-paths
+ENV TS_NODE_PROJECT=tsconfig.prod.json
 
-# Устанавливаем переменные окружения для production
-ENV NODE_ENV=production
-ENV LOG_DIR=/app/logs
-
-# Экспонируем порты
-EXPOSE 2999 3008
-
-# Проверяем переменные окружения перед запуском ботов
-CMD node /app/scripts/check-env.js && npm run bots
+CMD ["node", "-r", "tsconfig-paths/register", "dist/bot.js"]

@@ -3,7 +3,7 @@ import { inngest } from '@/inngest-functions/clients'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { isRussian } from '@/helpers/language'
 import { MyContext } from '@/interfaces'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 export async function generateNeuroImageV2(
   prompt: string,

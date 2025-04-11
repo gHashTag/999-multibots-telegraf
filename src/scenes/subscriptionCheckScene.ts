@@ -5,7 +5,7 @@ import { verifySubscription } from '@/middlewares/verifySubscription'
 import { getSubScribeChannel } from '@/core/supabase'
 import { isDev } from '@/helpers'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { SceneEnum } from '@/types/scenes'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {

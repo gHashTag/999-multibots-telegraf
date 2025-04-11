@@ -3,7 +3,7 @@ import { sendPaymentNotificationToUser } from '@/price/helpers/sendPaymentNotifi
 import { inngest } from '@/inngest-functions/clients'
 import { updateUserSubscription } from '@/core/supabase'
 import { updatePaymentStatus } from '@/core/supabase/updatePaymentStatus'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
 import { getTelegramIdFromInvId } from '@/helpers/getTelegramIdFromInvId'
 import { Telegraf } from 'telegraf'

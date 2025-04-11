@@ -1,7 +1,7 @@
 import { Middleware } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { ZepClient } from '@/core/zep'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 export const zepMemoryMiddleware: Middleware<MyContext> = async (ctx, next) => {
   if (!ctx.from) {

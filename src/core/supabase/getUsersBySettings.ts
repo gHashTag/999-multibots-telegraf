@@ -1,5 +1,5 @@
 import { supabase } from '.'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 export interface GetUsersBySettingsParams {
   settings: Record<string, any>

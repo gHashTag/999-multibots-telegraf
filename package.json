@@ -5,19 +5,23 @@
   "author": "",
   "license": "ISC",
   "scripts": {
-    "bots": "concurrently \"npm run dev:bots\" \"npm run dev:api\"",
-    "services": "tsx src/api-server.ts",
-    "check-port": "node scripts/check-webhook.js",
     "predev": "node scripts/kill-port.js 2999 3001",
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
-    "dev:services": "tsx src/api-server.ts",
+    "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME ts-node -r tsconfig-paths/register src/bot.ts",
+    "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
+    "bots": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register src/bot.ts",
+    "build": "npx cross-env NODE_ENV=development swc src -d dist --source-maps --copy-files",
+    "build:tsc": "tsc && tsc-alias",
+    "test:memory": "NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/zepMemory.test.ts",
+    "lint": "eslint --ignore-path .gitignore --ext .ts src",
+    "lint:fix": "npm run lint -- --fix",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
+    "services": "tsx src/api-server.ts",
+    "check-port": "node scripts/check-webhook.js",
+    "dev:services": "tsx src/api-server.ts",
     "dev:web": "next dev -p 3000",
     "dev:bots": "cd src && tsx watch bots.ts",
     "dev:api": "cd src && tsx watch api.ts",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
     "prettier": "prettier --write .",
     "debug": "NODE_OPTIONS='--inspect' next dev",
     "generateTypes": "supabase gen types typescript --linked > src/types/supabase.ts",
@@ -32,7 +36,7 @@
     "ngrok": "ngrok http 2999",
     "tunnel": "ssh -R 80:localhost:2999 localhost.run",
     "type-check": "tsc --noEmit",
-    "prepare": "husky install",
+    "prepare": "husky install || true",
     "prebuild": "rm -rf dist",
     "prepare:assets": "node scripts/prepare-assets.js",
     "test": "npx tsx src/test-utils/index.ts",
@@ -70,6 +74,8 @@
     "pretgwebhook:dev": "npm run check:ports",
     "predocker:up": "npm run check:ports",
     "prestart": "npm run check:ports"
+    "docker:run-test": "bash run-tests.sh",
+    "ansible:deploy": "ansible-playbook playbook.yml --vault-password-file ../vault_password.txt"
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",
@@ -102,7 +108,8 @@
     "tslib": "^2.8.1",
     "undici": "^7.7.0",
     "uuid": "^11.1.0",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "tsconfig-paths": "^4.2.0"
   },
   "devDependencies": {
     "@inngest/test": "^0.1.6",
@@ -139,9 +146,9 @@
     "pm2": "^5.2.0",
     "prettier": "^3.0.0",
     "supertest": "^6.2.4",
+    "swc-plugin-pre-paths": "^3.0.1",
     "ts-node": "^10.9.2",
     "tsc-alias": "^1.7.0",
-    "tsconfig-paths": "^4.2.0",
     "tsx": "^4.19.3",
     "typescript": "^4.9.5"
   }

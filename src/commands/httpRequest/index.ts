@@ -1,7 +1,7 @@
 import { Composer } from 'telegraf'
 import axios from 'axios'
 import { MyContext } from '@/interfaces'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 /**
  * Команда для отправки HTTP-запросов прямо из чата

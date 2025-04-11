@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { GLAMA_API_KEY } from '@/config'
 
 // Базовый URL для Glama MCP API

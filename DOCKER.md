@@ -15,7 +15,7 @@
 
 ```
 SUPABASE_URL=ваш_url
-SUPABASE_KEY=ваш_ключ
+SUPABASE_SERVICE_KEY=ваш_ключ
 STRIPE_SECRET_KEY=ваш_ключ
 STRIPE_WEBHOOK_SECRET=ваш_ключ
 HOST_URL=ваш_url
@@ -139,4 +139,4 @@ docker logs neuro-blogger-telegram-bot
 
 ### Проблемы с соединением к базе данных
 
-Убедитесь, что переменные `SUPABASE_URL` и `SUPABASE_KEY` указаны корректно. 
+Убедитесь, что переменные `SUPABASE_URL` и `SUPABASE_SERVICE_KEY` указаны корректно. 

@@ -42,7 +42,7 @@ BOT_TOKEN_7=ваш_токен_бота_7
 SUPABASE_URL=ваш_url_supabase
 SUPABASE_SERVICE_KEY=ваш_service_key
 SUPABASE_SERVICE_ROLE_KEY=ваш_service_role_key
-SUPABASE_KEY=ваш_api_key
+SUPABASE_SERVICE_KEY=ваш_api_key
 
 # INNGEST
 INNGEST_EVENT_KEY=ваш_event_key

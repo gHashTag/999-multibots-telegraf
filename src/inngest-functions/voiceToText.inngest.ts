@@ -1,6 +1,6 @@
 import { inngest } from './clients'
 import { OpenAI, toFile } from 'openai'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { sendSafeFormattedMessage } from '@/handlers/handleTextMessage'
 import { answerAi } from '@/core/openai'
 import { getUserByTelegramIdString } from '@/core/supabase'

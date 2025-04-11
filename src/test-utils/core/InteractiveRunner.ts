@@ -1,7 +1,7 @@
 import readline from 'readline'
-import { TestCategory, getSubcategories } from './categories'
+import { TestCategory,  } from './categories'
 import { TestRunner } from './TestRunner'
-import { logger } from '@/utils/logger'
+
 
 /**
  * Интерактивный запуск тестов
