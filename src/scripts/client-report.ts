@@ -2,7 +2,7 @@ import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import fs from 'fs'
 import path from 'path'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 import * as Excel from 'exceljs'
 
 /**
@@ -87,7 +87,7 @@ async function generateClientReport(telegramId: string) {
       .select('*')
       .eq('telegram_id', telegramId)
       .eq('status', 'COMPLETED')
-      .eq('type', 'money_expense')
+      .eq('type', TransactionType.MONEY_EXPENSE)
       .order('payment_date', { ascending: true })
 
     if (expenseError) {

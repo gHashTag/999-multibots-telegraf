@@ -11,6 +11,7 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
 import { sendBalanceMessage } from '@/price/helpers'
 import { v4 as uuidv4 } from 'uuid'
 import { elevenlabs } from '@/core/elevenlabs'
+import { TransactionType } from '@/interfaces/payments.interface'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 
 import { createWriteStream } from 'fs'
@@ -243,7 +244,7 @@ export const textToSpeechFunction = inngest.createFunction(
           data: {
             telegram_id: params.telegram_id,
             amount: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
-            type: 'money_expense',
+            type: TransactionType.MONEY_EXPENSE,
             description: 'Payment for text to speech conversion',
             bot_name: params.bot_name,
             metadata: {
@@ -416,7 +417,7 @@ export const textToSpeechFunction = inngest.createFunction(
               is_ru: validatedParams.is_ru,
               bot_name: validatedParams.bot_name,
               description: `Refund for failed text to speech generation`,
-              type: 'money_income',
+              type: TransactionType.MONEY_INCOME,
               amount: calculateModeCost({ mode: ModeEnum.TextToSpeech }).stars,
               metadata: {
                 service_type: ModeEnum.TextToSpeech,

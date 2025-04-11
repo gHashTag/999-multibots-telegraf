@@ -4,7 +4,7 @@ import { logger } from '@/utils/logger'
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { v4 as uuidv4 } from 'uuid'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
@@ -78,7 +78,7 @@ export const paymentProcessor = inngest.createFunction(
       })
 
       // Проверяем баланс для списания
-      if (type === 'money_expense') {
+      if (type === TransactionType.MONEY_EXPENSE) {
         logger.info('💰 Проверка баланса для списания', {
           description: 'Checking balance for expense',
           telegram_id,

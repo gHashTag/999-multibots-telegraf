@@ -2,7 +2,7 @@ import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 interface CreatePendingPaymentParams {
   telegram_id: string | number
   amount: number
@@ -58,7 +58,7 @@ export async function createPendingPayment(
       status: 'PENDING',
       email: params.email,
       invoice_url: params.invoice_url,
-      type: 'money_income',
+      type: TransactionType.MONEY_INCOME,
       service_type: ModeEnum.NeuroPhoto,
       inv_id: params.inv_id,
       operation_id: params.inv_id,

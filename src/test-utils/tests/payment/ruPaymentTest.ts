@@ -135,7 +135,7 @@ class RuPaymentTester extends BaseInngestFunctionTester<
           telegram_id: userInfo.telegram_id,
           amount,
           stars,
-          type: 'money_income',
+          type: TransactionType.MONEY_INCOME,
           description: subscription
             ? `Оплата подписки ${subscription}`
             : 'Пополнение баланса',

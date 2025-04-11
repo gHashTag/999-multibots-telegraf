@@ -1,16 +1,16 @@
 import { ModeEnum } from '@/price/helpers/modelsCost'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 export const TEST_PAYMENT_CONFIG = {
   // Тестовые суммы платежей
   amounts: {
     small: 100,
     medium: 1000,
-    large: 5000
+    large: 5000,
   },
 
   // Коэффициенты конвертации в звезды
   starConversion: {
-    rate: 100 // 1 рубль = 100 звезд
+    rate: 100, // 1 рубль = 100 звезд
   },
 
   // Тестовые сервисы
@@ -18,7 +18,7 @@ export const TEST_PAYMENT_CONFIG = {
     ModeEnum.NeuroPhoto,
     ModeEnum.TextToImage,
     ModeEnum.TextToVideo,
-    ModeEnum.ImageToVideo
+    ModeEnum.ImageToVideo,
   ],
 
   // Тестовые статусы платежей
@@ -29,18 +29,18 @@ export const TEST_PAYMENT_CONFIG = {
 
   // Тестовые типы транзакций
   transactionTypes: [
-    'money_income',
-    'money_expense',
-    'subscription_purchase',
-    'bonus',
-    'refund'
+    TransactionType.MONEY_INCOME,
+    TransactionType.MONEY_EXPENSE,
+    TransactionType.SUBSCRIPTION_PURCHASE,
+    TransactionType.BONUS,
+    TransactionType.REFUND,
   ],
 
   // Тестовые данные пользователя
   testUser: {
     initialBalance: 1000,
     language: 'ru',
-    botName: 'test_bot'
+    botName: 'test_bot',
   },
 
   // Тестовые уведомления
@@ -49,12 +49,12 @@ export const TEST_PAYMENT_CONFIG = {
     templates: {
       ru: {
         success: '💸 Пользователь получил {stars} звезд за {amount} рублей.',
-        failed: '❌ Ошибка при обработке платежа на сумму {amount} рублей.'
+        failed: '❌ Ошибка при обработке платежа на сумму {amount} рублей.',
       },
       en: {
         success: '💸 User received {stars} stars for {amount} RUB.',
-        failed: '❌ Error processing payment for {amount} RUB.'
-      }
-    }
-  }
+        failed: '❌ Error processing payment for {amount} RUB.',
+      },
+    },
+  },
 }
