@@ -231,6 +231,14 @@ export const TRANSACTION_KEYS = {
 } as const
 
 /**
+ * Преобразует тип транзакции из enum с заглавными буквами
+ * в нижний регистр для совместимости с БД
+ */
+export function normalizeTransactionType(type: TransactionType): string {
+  return type.toLowerCase()
+}
+
+/**
  * Ключи для сервисов
  */
 export const SERVICE_KEYS: Record<string, ContentService> = {
