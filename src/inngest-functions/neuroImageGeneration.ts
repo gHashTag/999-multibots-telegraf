@@ -9,7 +9,6 @@ import {
 import { processApiResponse } from '@/helpers/processApiResponse'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { saveFileLocally } from '@/helpers'
-import { pulse } from '@/helpers/pulse'
 import { ModeEnum, calculateModeCost } from '@/price/helpers'
 import path from 'path'
 import { API_URL } from '@/config'
@@ -20,6 +19,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { supabase } from '@/core/supabase'
+import { sendMediaToPulse } from '@/helpers/pulse'
 
 export const neuroImageGeneration = inngest.createFunction(
   {
@@ -384,15 +384,19 @@ export const neuroImageGeneration = inngest.createFunction(
                 throw new Error('Prompt save failed')
               }
 
-              await pulse(
-                localPath,
-                prompt,
-                `/${model_url}`,
-                telegram_id,
+              await sendMediaToPulse({
+                mediaType: 'photo',
+                mediaSource: localPath,
+                telegramId: telegram_id,
                 username,
-                is_ru,
-                bot_name
-              )
+                language: is_ru ? 'ru' : 'en',
+                serviceType: ModeEnum.NeuroPhoto,
+                prompt,
+                botName: bot_name,
+                additionalInfo: {
+                  Модель: model_url,
+                },
+              })
 
               return {
                 url: `${API_URL}/uploads/${telegram_id}/neuro-photo/${path.basename(
