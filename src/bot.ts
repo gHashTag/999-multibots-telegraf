@@ -37,21 +37,21 @@ export const createBots = async () => {
   }
 
   // В режиме разработки используем только один тестовый бот
-  const testBot = NODE_ENV === 'development' 
-    ? bots.find(bot => {
-        const { bot_name } = getBotNameByToken(bot.telegram.token)
-        return bot_name ===  process.env.DEV_BOT_NAME
-      })
-    : null
+  const testBot =
+    NODE_ENV === 'development'
+      ? bots.find(bot => {
+          const { bot_name } = getBotNameByToken(bot.telegram.token)
+          return bot_name === process.env.DEV_BOT_NAME
+        })
+      : null
 
-  const activeBots = NODE_ENV === 'development' 
-    ? (testBot ? [testBot] : [])
-    : bots
+  const activeBots =
+    NODE_ENV === 'development' ? (testBot ? [testBot] : []) : bots
 
   if (NODE_ENV === 'development' && activeBots.length === 0) {
     logger.error('❌ Тестовый бот не найден', {
       description: 'Test bot not found',
-      environment: NODE_ENV
+      environment: NODE_ENV,
     })
     throw new Error('Test bot not found')
   }
