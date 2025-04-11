@@ -63,9 +63,12 @@ function generateRobokassaUrl(
 
   // Проверяем description
   if (!description || description.trim() === '') {
-    console.warn('⚠️ Предупреждение: Описание пустое, используем значение по умолчанию', {
-      description: 'Warning: Description is empty, using default',
-    })
+    console.warn(
+      '⚠️ Предупреждение: Описание пустое, используем значение по умолчанию',
+      {
+        description: 'Warning: Description is empty, using default',
+      }
+    )
     description = 'Покупка звезд'
   }
 
@@ -83,25 +86,31 @@ function generateRobokassaUrl(
 
   // Создаем параметры запроса
   const params = new URLSearchParams()
-  
+
   // Добавляем все параметры
   params.append('MerchantLogin', merchantLogin)
   params.append('OutSum', outSum.toString())
   params.append('InvId', invId.toString())
   params.append('Description', description)
   params.append('SignatureValue', signatureValue)
-  
+
   // Добавляем параметр IsTest только если включен тестовый режим
   if (isTest) {
     params.append('IsTest', '1')
   }
 
   const url = `${baseUrl}?${params.toString()}`
-  
+
   // Проверяем готовый URL
   try {
     const parsedUrl = new URL(url)
-    const requiredParams = ['MerchantLogin', 'OutSum', 'InvId', 'Description', 'SignatureValue']
+    const requiredParams = [
+      'MerchantLogin',
+      'OutSum',
+      'InvId',
+      'Description',
+      'SignatureValue',
+    ]
     const missingParams = []
 
     for (const param of requiredParams) {
@@ -115,7 +124,9 @@ function generateRobokassaUrl(
         description: 'Error: URL is missing required parameters',
         missingParams,
       })
-      throw new Error(`URL не содержит обязательные параметры: ${missingParams.join(', ')}`)
+      throw new Error(
+        `URL не содержит обязательные параметры: ${missingParams.join(', ')}`
+      )
     }
   } catch (error) {
     console.error('❌ Ошибка при проверке URL:', {
@@ -240,26 +251,41 @@ paymentScene.enter(async ctx => {
         },
       })
 
-      await ctx.reply(
-        isRu
-          ? `<b>💵 Оплата ${amount} р</b>
+      await ctx
+        .reply(
+          isRu
+            ? `<b>💵 Оплата ${amount} р</b>
 Нажмите на кнопку ниже, чтобы перейти к оплате. После успешной оплаты звезды автоматически будут зачислены на ваш баланс.`
-          : `<b>💵 Payment ${amount} RUB</b>
+            : `<b>💵 Payment ${amount} RUB</b>
 Click the button below to proceed with payment. After successful payment, stars will be automatically credited to your balance.`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: isRu ? `Оплатить ${amount} р` : `Pay ${amount} RUB`,
-                  url: invoiceURL,
-                },
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: isRu ? `Оплатить ${amount} р` : `Pay ${amount} RUB`,
+                    url: invoiceURL,
+                  },
+                ],
               ],
-            ],
-          },
-          parse_mode: 'HTML',
-        }
-      )
+            },
+            parse_mode: 'HTML',
+          }
+        )
+        .catch(async sendError => {
+          console.error('❌ Ошибка при отправке кнопки оплаты:', {
+            description: 'Error sending payment button',
+            error: sendError,
+          })
+
+          // Повторная попытка с упрощенным URL
+          await ctx.reply(
+            isRu
+              ? `<b>💵 Оплата ${amount} р</b>\nДля оплаты перейдите по ссылке: ${invoiceURL}`
+              : `<b>💵 Payment ${amount} RUB</b>\nTo pay, follow this link: ${invoiceURL}`,
+            { parse_mode: 'HTML' }
+          )
+        })
       return ctx.scene.leave()
     }
 
@@ -404,26 +430,41 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
       },
     })
 
-    await ctx.reply(
-      isRu
-        ? `<b>💵 Оплата ${amount} р</b>
+    await ctx
+      .reply(
+        isRu
+          ? `<b>💵 Оплата ${amount} р</b>
 Нажмите на кнопку ниже, чтобы перейти к оплате. После успешной оплаты звезды автоматически будут зачислены на ваш баланс.`
-        : `<b>💵 Payment ${amount} RUB</b>
+          : `<b>💵 Payment ${amount} RUB</b>
 Click the button below to proceed with payment. After successful payment, stars will be automatically credited to your balance.`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: isRu ? `Оплатить ${amount} р` : `Pay ${amount} RUB`,
-                url: invoiceURL,
-              },
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: isRu ? `Оплатить ${amount} р` : `Pay ${amount} RUB`,
+                  url: invoiceURL,
+                },
+              ],
             ],
-          ],
-        },
-        parse_mode: 'HTML',
-      }
-    )
+          },
+          parse_mode: 'HTML',
+        }
+      )
+      .catch(async sendError => {
+        console.error('❌ Ошибка при отправке кнопки оплаты:', {
+          description: 'Error sending payment button',
+          error: sendError,
+        })
+
+        // Повторная попытка с упрощенным URL
+        await ctx.reply(
+          isRu
+            ? `<b>💵 Оплата ${amount} р</b>\nДля оплаты перейдите по ссылке: ${invoiceURL}`
+            : `<b>💵 Payment ${amount} RUB</b>\nTo pay, follow this link: ${invoiceURL}`,
+          { parse_mode: 'HTML' }
+        )
+      })
   } catch (error) {
     console.error('Error in creating payment:', error)
     await ctx.reply(

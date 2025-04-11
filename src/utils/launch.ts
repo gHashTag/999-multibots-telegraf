@@ -60,15 +60,50 @@ const development = async (bot: Telegraf<MyContext>): Promise<void> => {
       description: 'Deleting webhook for development mode',
     })
 
-    await bot.telegram.deleteWebhook({ drop_pending_updates: true })
-    logger.info('✅ Вебхук удален, запускаем polling...', {
-      description: 'Webhook deleted, starting polling',
-    })
+    // Получаем информацию о текущем webhook
+    const webhookInfo = await bot.telegram.getWebhookInfo()
 
-    // Ждем 2 секунды перед запуском polling
+    if (webhookInfo.url) {
+      logger.info('📡 Обнаружен активный webhook:', {
+        description: 'Active webhook detected',
+        url: webhookInfo.url,
+        has_custom_certificate: webhookInfo.has_custom_certificate,
+        pending_update_count: webhookInfo.pending_update_count,
+      })
+    }
+
+    // Принудительно удаляем webhook с опцией drop_pending_updates
+    await bot.telegram.deleteWebhook({ drop_pending_updates: true })
+
+    // Дополнительная проверка удаления webhook
+    const webhookInfoAfter = await bot.telegram.getWebhookInfo()
+
+    if (webhookInfoAfter.url) {
+      logger.warn('⚠️ Не удалось полностью удалить webhook:', {
+        description: 'Failed to completely remove webhook',
+        url: webhookInfoAfter.url,
+      })
+
+      // Повторная попытка удаления
+      await bot.telegram.deleteWebhook({ drop_pending_updates: true })
+
+      // Даем Telegram API время на обработку запроса
+      await new Promise(resolve => setTimeout(resolve, 3000))
+    } else {
+      logger.info('✅ Вебхук успешно удален', {
+        description: 'Webhook successfully deleted',
+      })
+    }
+
+    // Ждем дополнительное время перед запуском polling
     await new Promise(resolve => setTimeout(resolve, 2000))
 
+    logger.info('🚀 Запускаем бота в режиме polling...', {
+      description: 'Starting bot in polling mode',
+    })
+
     await bot.launch()
+
     logger.info('✅ Бот запущен в режиме polling', {
       description: 'Bot launched in polling mode',
     })

@@ -3,23 +3,17 @@ import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
 import { handleTextMessage } from '../../handlers/handleTextMessage'
 import { handleHelpCancel } from '@/handlers'
-import {
-  getUserByTelegramIdString,
-  updateUserLevelPlusOne,
-} from '@/core/supabase'
-import { levels } from '@/menu'
-import { ModeEnum } from '@/price/helpers/modelsCost'
-import { inngest } from '@/inngest-functions/clients'
-import { calculateModeCost } from '@/price/helpers/modelsCost'
-import { logger } from '@/utils/logger'
-import { v4 as uuidv4 } from 'uuid'
-import { ZepClient } from '@/core/zep'
-import { getTranslation } from '@/core/supabase/getTranslation'
-import { getUserBalance } from '@/core/supabase'
-import { sendInsufficientStarsMessage } from '@/price/helpers'
-import { ReplyKeyboardMarkup, Message } from 'telegraf/typings/core/types/typegram'
 
-const zepClient = ZepClient.getInstance()
+import { ModeEnum } from '@/price/helpers/modelsCost'
+import { logger } from '@/utils/logger'
+import { getTranslation } from '@/core/supabase/getTranslation'
+
+import {
+  ReplyKeyboardMarkup,
+  Message,
+} from 'telegraf/typings/core/types/typegram'
+
+// const zepClient = ZepClient.getInstance()
 
 const createHelpCancelKeyboard = (isRu: boolean): ReplyKeyboardMarkup => {
   return {
@@ -34,20 +28,20 @@ const createHelpCancelKeyboard = (isRu: boolean): ReplyKeyboardMarkup => {
 
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ChatWithAvatar,
-  async (ctx) => {
+  async ctx => {
     const telegramId = ctx.from?.id
     logger.info('🎯 Entering chat with avatar wizard', {
       description: 'Starting chat wizard first step',
       telegram_id: telegramId,
       session_mode: ctx.session?.mode,
       session_state: ctx.session,
-      wizard_state: ctx.wizard?.state
+      wizard_state: ctx.wizard?.state,
     })
 
     if (!telegramId) {
       logger.error('❌ No telegram ID in chat wizard', {
         description: 'Missing telegram ID in chat wizard',
-        context: ctx
+        context: ctx,
       })
       return ctx.scene.leave()
     }
@@ -59,11 +53,11 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         expected: ModeEnum.ChatWithAvatar,
         actual: ctx.session.mode,
         telegram_id: telegramId,
-        session_state: ctx.session
+        session_state: ctx.session,
       })
       const isRu = isRussian(ctx)
       await ctx.reply(
-        isRu 
+        isRu
           ? '❌ Произошла ошибка при входе в чат. Пожалуйста, попробуйте снова через главное меню.'
           : '❌ Error entering chat. Please try again through the main menu.'
       )
@@ -76,12 +70,12 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       logger.info('🗣 Getting welcome message translation', {
         description: 'Fetching chat welcome message',
         telegram_id: telegramId,
-        language: isRu ? 'ru' : 'en'
+        language: isRu ? 'ru' : 'en',
       })
 
       const startMessage = await getTranslation('chat_with_avatar_start', ctx)
 
-      const defaultStartMessage = isRu 
+      const defaultStartMessage = isRu
         ? '👋 Добро пожаловать в чат с аватаром! Я готов общаться с вами. Напишите ваше сообщение, и я постараюсь помочь.'
         : '👋 Welcome to chat with avatar! I am ready to chat with you. Write your message, and I will try to help.'
 
@@ -89,18 +83,18 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         description: 'Preparing to send welcome message',
         telegram_id: telegramId,
         using_default: !startMessage.translation,
-        message: startMessage.translation || defaultStartMessage
+        message: startMessage.translation || defaultStartMessage,
       })
 
       await ctx.reply(startMessage.translation || defaultStartMessage, {
-        reply_markup: createHelpCancelKeyboard(isRu)
+        reply_markup: createHelpCancelKeyboard(isRu),
       })
 
       logger.info('➡️ Moving to next wizard step', {
         description: 'Transitioning to chat interaction step',
         telegram_id: telegramId,
         session_state: ctx.session,
-        wizard_state: ctx.wizard?.state
+        wizard_state: ctx.wizard?.state,
       })
 
       return ctx.wizard.next()
@@ -110,7 +104,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         telegram_id: telegramId,
         error: error instanceof Error ? error.message : String(error),
         session_state: ctx.session,
-        wizard_state: ctx.wizard?.state
+        wizard_state: ctx.wizard?.state,
       })
       const fallbackMessage = isRu
         ? '👋 Добро пожаловать в чат! Напишите ваше сообщение.'
@@ -119,7 +113,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       return ctx.wizard.next()
     }
   },
-  async (ctx) => {
+  async ctx => {
     const telegramId = ctx.from?.id
     const isRu = isRussian(ctx)
 
@@ -128,7 +122,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       telegram_id: telegramId,
       message_type: ctx.message && 'text' in ctx.message ? 'text' : 'other',
       session_state: ctx.session,
-      wizard_state: ctx.wizard?.state
+      wizard_state: ctx.wizard?.state,
     })
 
     try {
@@ -137,19 +131,19 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       if (isCancel) {
         logger.info('🚫 Chat cancelled by user', {
           description: 'User cancelled chat session',
-          telegram_id: telegramId
+          telegram_id: telegramId,
         })
         return ctx.scene.leave()
       }
 
       // Process the message
-      if (ctx.message && ('text' in ctx.message)) {
+      if (ctx.message && 'text' in ctx.message) {
         const messageText = (ctx.message as Message.TextMessage).text
 
         logger.info('💬 Processing text message', {
           description: 'Handling text message in chat',
           telegram_id: telegramId,
-          message_length: messageText.length
+          message_length: messageText.length,
         })
 
         // Handle the text message
@@ -160,7 +154,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       logger.warn('⚠️ Unsupported message type', {
         description: 'Received non-text message in chat',
         telegram_id: telegramId,
-        message_type: ctx.message ? typeof ctx.message : 'unknown'
+        message_type: ctx.message ? typeof ctx.message : 'unknown',
       })
 
       await ctx.reply(
@@ -174,7 +168,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         telegram_id: telegramId,
         error: error instanceof Error ? error.message : String(error),
         session_state: ctx.session,
-        wizard_state: ctx.wizard?.state
+        wizard_state: ctx.wizard?.state,
       })
 
       await ctx.reply(
