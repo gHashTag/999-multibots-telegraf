@@ -17,6 +17,14 @@ RUN npx swc src -d dist --source-maps --copy-files
 # Исправляем пути с помощью tsc-alias
 RUN npx tsc-alias
 
+# ---- ОТЛАДОЧНЫЕ КОМАНДЫ ----
+# Показываем содержимое папки dist
+RUN echo "--- Content of dist directory after tsc-alias ---" && ls -R dist
+# Ищем путь к логгеру в скомпилированном config/index.js
+RUN echo "--- Grepping for logger path in dist/config/index.js ---" && \
+    grep -E "'../src/utils/logger'|'@/utils/logger'|'./utils/logger'" dist/config/index.js || echo "--- Logger path not found in dist/config/index.js ---"
+# ---------------------------
+
 # Финальный этап
 FROM node:20-alpine
 
