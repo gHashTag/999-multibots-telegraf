@@ -44,9 +44,7 @@ services:
       - /etc/nginx:/etc/nginx
       - /etc/pki:/etc/pki
       - /root/.ssh:/app/.ssh:ro
-      # Монтируем volume для сгенерированных Nginx конфигов (для записи Ansible)
-      - nginx-config-volume:/etc/nginx-generated
-      # Монтируем файлы Ansible
+      # Файлы Ansible
       - ./playbook.yml:/app/playbook.yml:ro
       - ./inventory:/app/inventory:ro
       - ./roles:/app/roles:ro
@@ -61,13 +59,13 @@ services:
 
   nginx:
     image: nginx:latest
-    container_name: nginx-proxy
+    container_name: bot-proxy
     ports:
       - '8443:443'
       - '8080:80'
     volumes:
-      # Читаем конфиги из Docker Volume, куда пишет Ansible
-      - nginx-config-volume:/etc/nginx:ro
+      # Используем нашу кастомную конфигурацию
+      - ./nginx-config:/etc/nginx/conf.d:ro
       # Пути к сертификатам с хоста остаются
       - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
       - /etc/pki/key.pem:/etc/pki/key.pem:ro
@@ -86,4 +84,4 @@ networks:
 
 # Объявляем Docker Volume
 volumes:
-  nginx-config-volume:
+  nginx-config-volume: 
