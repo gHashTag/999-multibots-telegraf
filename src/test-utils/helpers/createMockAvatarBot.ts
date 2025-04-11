@@ -1,6 +1,5 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
-import { Ambassador } from './createMockAmbassador'
 
 /**
  * Интерфейс для аватара бота
@@ -11,6 +10,7 @@ export interface AvatarBot {
   bot_name: string
   created_at: string
   is_active: boolean
+  avatar_url?: string
 }
 
 /**
@@ -20,6 +20,7 @@ export interface CreateMockAvatarBotParams {
   ambassadorId: string
   botName: string
   isActive?: boolean
+  avatarUrl?: string
 }
 
 /**
@@ -55,6 +56,7 @@ export async function createMockAvatarBot(
       bot_name: params.botName,
       is_active: params.isActive !== undefined ? params.isActive : true,
       created_at: new Date().toISOString(),
+      avatar_url: params.avatarUrl,
     }
 
     const { data, error } = await supabase
