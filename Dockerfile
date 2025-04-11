@@ -14,18 +14,6 @@ COPY . .
 # Выполняем сборку TypeScript
 RUN npx swc src -d dist --source-maps --copy-files
 
-# Исправляем пути с помощью tsc-alias
-RUN npx tsc-alias
-
-# ---- ОТЛАДОЧНЫЕ КОМАНДЫ (Запись в файлы) ----
-# Сохраняем содержимое папки dist в файл
-RUN echo "--- Content of dist directory after tsc-alias --- $(date) ---" > /tmp/dist_content.txt && ls -R dist >> /tmp/dist_content.txt
-# Ищем путь к логгеру и сохраняем результат в файл
-RUN echo "--- Grepping for logger path in dist/config/index.js --- $(date) ---" > /tmp/grep_result.txt && \
-    (grep -E "'../src/utils/logger'|'@/utils/logger'|'./utils/logger'" dist/config/index.js || echo "--- Logger path not found in dist/config/index.js ---") >> /tmp/grep_result.txt
-# --------------------------
-
-
 # Финальный этап
 FROM node:20-alpine
 
@@ -46,8 +34,8 @@ RUN python3 -m venv /opt/ansible-venv \
     && . /opt/ansible-venv/bin/activate \
     && pip install --no-cache-dir ansible
 
-# Копируем tsconfig.json ДО установки зависимостей
-COPY tsconfig.json ./
+# Копируем tsconfig.prod.json (вместо tsconfig.json) ДО установки зависимостей
+COPY tsconfig.prod.json ./
 
 # Копируем package.json и package-lock.json
 COPY package*.json ./
@@ -61,4 +49,7 @@ COPY --from=builder /app/dist ./dist
 # Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 
-CMD ["node", "-r", "./node_modules/tsconfig-paths/register", "dist/bot.js"]
+# Устанавливаем переменную окружения для tsconfig-paths
+ENV TS_NODE_PROJECT=tsconfig.prod.json
+
+CMD ["node", "-r", "tsconfig-paths/register", "dist/bot.js"]
