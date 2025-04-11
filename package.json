@@ -57,6 +57,7 @@
     "test:robokassa": "bash scripts/test-robokassa.sh",
     "test:select-model": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/runSelectModelTests.ts",
     "test:ambassador": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/runAmbassadorNotificationTests.ts",
+    "test:rubill": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/runRuBillTests.ts",
     "docker:test:build": "docker-compose -f docker-compose.test.yml build",
     "docker:test:up": "docker-compose -f docker-compose.test.yml up -d",
     "docker:test:down": "docker-compose -f docker-compose.test.yml down -v",
@@ -65,7 +66,15 @@
     "docker:test:all": "bash run-tests.sh",
     "docker:run-test": "bash run-tests.sh",
     "docker:test:select-model": "bash scripts/run-select-model-tests.sh",
-    "docker:test:ambassador": "bash scripts/run-ambassador-tests.sh"
+    "docker:test:ambassador": "bash scripts/run-ambassador-tests.sh",
+    "docker:test:rubill": "bash scripts/run-rubill-tests.sh",
+    "test:receipt": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/payment/runPaymentReceiptTestsOnly.ts",
+    "docker:test:receipt": "bash scripts/run-receipt-tests.sh",
+    "test:simple-receipt": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/payment/runSimpleReceiptTest.ts",
+    "test:payment-receipt": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/payment/runPaymentReceiptTestsOnly.ts",
+    "test:all-payments": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/payment/runPaymentTests.ts",
+    "payment-tests": "bash scripts/run-payment-tests.sh",
+    "simple-receipt-test": "bash scripts/run-simple-receipt-test.sh"
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",
