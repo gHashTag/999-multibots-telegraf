@@ -21,10 +21,8 @@ WORKDIR /app
 ENV HOME=/app
 ENV HUSKY=0
 
-# Устанавливаем python и pip для Ansible
-RUN apk add --no-cache python3 py3-pip
-# Устанавливаем Ansible
-RUN pip install --no-cache-dir ansible
+# Устанавливаем Ansible и его зависимости через apk
+RUN apk add --no-cache ansible openssh-client
 
 # Копируем tsconfig.prod.json (вместо tsconfig.json) ДО установки зависимостей
 COPY tsconfig.prod.json ./
