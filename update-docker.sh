@@ -14,7 +14,7 @@ sleep 10
 
 # Запустить Ansible изнутри контейнера app
 echo "🔧 Запускаем Ansible внутри контейнера app для генерации конфигов Nginx в volume..."
-docker exec 999-multibots ansible-playbook /app/playbook.yml -i /app/inventory
+docker exec -e ANSIBLE_HOST_KEY_CHECKING=False 999-multibots ansible-playbook /app/playbook.yml -i /app/inventory
 ANSIBLE_EXIT_CODE=$?
 
 if [ $ANSIBLE_EXIT_CODE -ne 0 ]; then
