@@ -6,7 +6,7 @@
 - name: Deploy bot1 location config
   template:
     src: bot1.locations.j2
-    dest: /etc/nginx/conf.d/bot1.locations
+    dest: /etc/nginx/conf.d/bot1.locations  
 
 - name: Deploy bot2 location config
   template:
@@ -65,6 +65,12 @@
     provider: selfsigned
     path: /etc/pki/cert.crt
 
+- name: Ensure /etc/nginx-generated/conf.d directory exists
+  file:
+    path: /etc/nginx-generated/conf.d
+    state: directory
+    mode: '0755'
+
 - name: Copy Nginx location configurations
   ansible.builtin.template:
     src: "{{ item.src }}"
@@ -82,6 +88,14 @@
     - { src: bot6.locations.j2, dest: bot6.locations }
     - { src: bot7.locations.j2, dest: bot7.locations }
   notify: Restart nginx
+
+- name: Copy API location configuration
+  template:
+    src: api.locations.j2
+    dest: /etc/nginx/conf.d/api.locations
+    owner: root
+    group: root
+    mode: 0644
 
 - name: Reload nginx
   shell: docker exec nginx-proxy nginx -s reload
