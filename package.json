@@ -62,7 +62,7 @@
     "docker:test:payment": "bash run-tests.sh payment-processor",
     "docker:test:all": "bash run-tests.sh",
     "docker:run-test": "bash run-tests.sh",
-    "ansible:deploy": "ansible-playbook playbook.yml --vault-password-file ../vault_password.txt"
+    "ansible:deploy": "ansible-playbook playbook.yml -i inventory"
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",
