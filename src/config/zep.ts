@@ -1,4 +1,4 @@
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 export const ZEP_CONFIG = {
   baseUrl: process.env.ZEP_API_URL || 'https://api.getzep.com',

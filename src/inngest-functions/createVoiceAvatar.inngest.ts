@@ -10,7 +10,7 @@ import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
 import { getBotByName } from '@/core/bot'
 import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { v4 as uuidv4 } from 'uuid'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 interface CreateVoiceAvatarEvent {
   data: {

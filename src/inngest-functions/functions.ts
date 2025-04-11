@@ -1,6 +1,6 @@
 import { inngest } from '@/inngest-functions/clients'
 import { getBotByName } from '@/core/bot'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { supabase } from '@/core/supabase'
 
 // Пример функции, которая реагирует на событие "test/hello.world"

@@ -1,5 +1,5 @@
 import { calculateCost } from './calculateCost'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { interestRate } from '../interestRate'
 

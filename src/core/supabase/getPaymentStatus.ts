@@ -1,5 +1,5 @@
 import { supabase } from '@/core/supabase'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 export const getPaymentStatus = async (inv_id: string) => {
   try {

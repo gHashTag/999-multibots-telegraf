@@ -1,12 +1,19 @@
 services:
   app:
-    container_name: neuro-blogger-telegram-bot
+    container_name: 999-multibots
     build:
       context: ./
       dockerfile: Dockerfile
-    restart: unless-stopped
     ports:
       - '2999:2999'
+      - '3000:3000'
+      - '3001:3001'
+      - '3002:3002'
+      - '3003:3003'
+      - '3004:3004'
+      - '3005:3005'
+      - '3006:3006'
+      - '3007:3007'
     env_file:
       - .env
     environment:
@@ -25,7 +32,6 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - SUPABASE_KEY=${SUPABASE_KEY}
       - ORIGIN=${ORIGIN}
       - ADMIN_IDS=${ADMIN_IDS}
       - SECRET_KEY=${SECRET_KEY}
@@ -33,45 +39,28 @@ services:
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
-    volumes:
-      - ./logs:/app/logs
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    extra_hosts:
+      - "api.elevenlabs.io:127.0.0.1"
+    networks:
+      - app-network
+    restart: unless-stopped
 
   nginx:
-    image: nginx:stable-alpine
-    container_name: neuro-blogger-nginx
-    restart: unless-stopped
+    image: nginx:latest
+    container_name: nginx-proxy
     ports:
-      - '80:80'
-      - '443:443'
+      - '8443:443'
+      - '8080:80'
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/ssl:/etc/ssl:ro
-      - ./data/certbot/conf:/etc/letsencrypt:ro
-      - ./data/certbot/www:/var/www/certbot:ro
-
-  certbot:
-    image: certbot/certbot
-    container_name: neuro-blogger-certbot
+      - ./nginx/pki/:/etc/pki/
+    depends_on:
+      - app
+    networks:
+      - app-network
     restart: unless-stopped
-    volumes:
-      - ./data/certbot/conf:/etc/letsencrypt
-      - ./data/certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-
-#  nginx:
-#    image: nginx:latest
-#    container_name: nginx-proxy
-#    ports:
-#      - '8443:443'
-#      - '8080:80'
-#    volumes:
-#      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-#      - ./nginx/conf.d/:/etc/nginx/conf.d/
-#      - ./nginx/ssl/:/etc/pki/
-#    networks:
-#      - app-network
-#    restart: unless-stopped
 
 networks:
   app-network:

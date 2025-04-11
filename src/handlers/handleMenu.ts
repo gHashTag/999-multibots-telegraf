@@ -18,7 +18,7 @@ import { mainMenuButton } from '@/menu/mainMenu'
 import { get100Command } from '@/commands'
 import { getStatsCommand } from '@/commands/stats'
 import { ModeEnum } from '@/price/helpers/modelsCost'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {

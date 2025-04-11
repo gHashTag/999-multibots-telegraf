@@ -2,7 +2,7 @@ import { TelegramId } from '@/interfaces/telegram.interface'
 import { Subscription } from '@/interfaces/supabase.interface'
 import { supabase } from '.'
 import { UserType } from '@/interfaces/supabase.interface'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 interface ReferralsResponse {
   count: number

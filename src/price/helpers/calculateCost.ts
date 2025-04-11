@@ -1,5 +1,5 @@
 import { ModeEnum } from '@/price/helpers/modelsCost'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import {
   conversionRates,
   conversionRatesV2,

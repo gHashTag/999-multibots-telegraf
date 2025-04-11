@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import path from 'path'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { mcpManager } from '@/core/mcp'
 
 logger.info('🔍 Загрузка переменных окружения:', {
@@ -28,10 +28,9 @@ export const {
   LOG_DIR,
   ORIGIN,
   SUPABASE_URL,
-  SUPABASE_ANON_KEY,
+  SUPABASE_SERVICE_KEY,
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_STORAGE_BUCKET,
-  SUPABASE_SERVICE_KEY,
   RUNWAY_API_KEY,
   ELEVENLABS_API_KEY,
   ELESTIO_URL,

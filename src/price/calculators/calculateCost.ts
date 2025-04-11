@@ -1,4 +1,4 @@
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { BASE_COSTS, interestRate, starCost } from '../constants'
 import { CostCalculationParams, CostCalculationResult, ModeEnum } from '../types/modes'
 

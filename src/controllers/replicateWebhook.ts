@@ -1,5 +1,5 @@
 import { Request, Response } from 'express'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
 import { updateLatestModelTraining, getTrainingWithUser } from '@/core/supabase'
 import { NotificationService } from '@/services'

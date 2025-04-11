@@ -3,7 +3,7 @@ import path from 'path'
 import archiver from 'archiver'
 import * as fs from 'fs/promises'
 import { BufferType } from '../../interfaces'
-import { Logger as logger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 
 export async function createImagesZip(images: BufferType): Promise<string> {
   const tmpDir = path.join(process.cwd(), 'tmp')
