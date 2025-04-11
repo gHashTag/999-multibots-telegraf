@@ -7,6 +7,7 @@
   "scripts": {
     "predev": "node scripts/kill-port.js 2999 3001",
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
+    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
     "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME ts-node -r tsconfig-paths/register src/bot.ts",
     "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
     "bots": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register src/bot.ts",
@@ -15,11 +16,9 @@
     "test:memory": "NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/zepMemory.test.ts",
     "lint": "eslint --ignore-path .gitignore --ext .ts src",
     "lint:fix": "npm run lint -- --fix",
-    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
     "services": "tsx src/api-server.ts",
     "check-port": "node scripts/check-webhook.js",
     "dev:services": "tsx src/api-server.ts",
-    "dev:web": "next dev -p 3000",
     "dev:bots": "cd src && tsx watch bots.ts",
     "dev:api": "cd src && tsx watch api.ts",
     "prettier": "prettier --write .",
@@ -31,8 +30,6 @@
     "telegrambot:debug": "npx tsc && node --inspect dist/bot/index.js",
     "tgwebhook:dev": "NODE_ENV=development tsc-watch --onSuccess \"node --experimental-specifier-resolution=node dist/webhook/index.js\"",
     "tgwebhook": "NODE_ENV=production node dist/webhook/index.js",
-    "inngest:dev": "inngest-cli dev -u http://localhost:3000/api/inngest --no-discovery --no-watch --no-telemetry",
-    "inngest:debug": "NODE_OPTIONS='--inspect' inngest-cli dev -u http://localhost:3000/api/inngest --no-discovery --no-watch --no-telemetry",
     "ngrok": "ngrok http 2999",
     "tunnel": "ssh -R 80:localhost:2999 localhost.run",
     "type-check": "tsc --noEmit",
@@ -75,6 +72,7 @@
     "predocker:up": "npm run check:ports",
     "prestart": "npm run check:ports",
     "ansible:deploy": "ansible-playbook playbook.yml --vault-password-file ../vault_password.txt"
+    "docker:run-test": "bash run-tests.sh"
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",

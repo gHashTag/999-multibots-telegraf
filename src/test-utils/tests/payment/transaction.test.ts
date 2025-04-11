@@ -55,7 +55,7 @@ describe('Transaction Validation Tests', () => {
         .insert({
           telegram_id: testUserId,
           amount: invalidAmount,
-          type: 'money_income',
+          type: TransactionType.MONEY_INCOME,
           service_type: ModeEnum.NeuroPhoto,
           description: 'Test invalid amount'
         })
@@ -94,7 +94,7 @@ describe('Transaction Validation Tests', () => {
         .insert({
           telegram_id: testUserId,
           amount: TEST_PAYMENT_CONFIG.amounts.small,
-          type: 'money_income',
+          type: TransactionType.MONEY_INCOME,
           service_type: ModeEnum.NeuroPhoto,
           description: 'Test with metadata',
           metadata
@@ -114,7 +114,7 @@ describe('Transaction Validation Tests', () => {
         .insert({
           telegram_id: '',
           amount: TEST_PAYMENT_CONFIG.amounts.small,
-          type: 'money_income',
+          type: TransactionType.MONEY_INCOME,
           service_type: ModeEnum.NeuroPhoto,
           description: 'Test invalid telegram_id'
         })
@@ -128,7 +128,7 @@ describe('Transaction Validation Tests', () => {
         .insert({
           telegram_id: testUserId,
           amount: TEST_PAYMENT_CONFIG.amounts.small,
-          type: 'money_income',
+          type: TransactionType.MONEY_INCOME,
           service_type: 'invalid_service',
           description: 'Test invalid service'
         })
@@ -157,17 +157,17 @@ describe('Transaction Validation Tests', () => {
       const transactions = [
         {
           amount: 100,
-          type: 'money_income' as TransactionType,
+          type: TransactionType.MONEY_INCOME as TransactionType,
           description: 'First transaction'
         },
         {
           amount: 50,
-          type: 'money_expense' as TransactionType,
+          type: TransactionType.MONEY_EXPENSE as TransactionType,
           description: 'Second transaction'
         },
         {
           amount: 200,
-          type: 'money_income' as TransactionType,
+          type: TransactionType.MONEY_INCOME as TransactionType,
           description: 'Third transaction'
         }
       ]
@@ -196,9 +196,9 @@ describe('Transaction Validation Tests', () => {
 
     it('should calculate running balance correctly', async () => {
       const transactions = [
-        { amount: 100, type: 'money_income' as TransactionType },
-        { amount: 30, type: 'money_expense' as TransactionType },
-        { amount: 50, type: 'money_income' as TransactionType }
+        { amount: 100, type: TransactionType.MONEY_INCOME as TransactionType },
+        { amount: 30, type: TransactionType.MONEY_EXPENSE as TransactionType },
+        { amount: 50, type: TransactionType.MONEY_INCOME as TransactionType }
       ]
 
       let runningBalance = 0

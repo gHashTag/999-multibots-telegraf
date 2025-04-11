@@ -11,6 +11,7 @@ import { supabase } from '@/core/supabase'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
 import fetch from 'node-fetch'
+import { TransactionType } from '@/interfaces/payments.interface'
 
 import axios from 'axios'
 
@@ -158,7 +159,7 @@ export const modelTrainingV2 = inngest.createFunction(
           is_ru,
           bot_name,
           description: `Payment for model training ${modelName} (steps: ${steps})`,
-          type: 'money_expense',
+          type: TransactionType.MONEY_EXPENSE,
           metadata: {
             service_type: ModeEnum.DigitalAvatarBodyV2,
             model_name: modelName,
@@ -397,7 +398,7 @@ export const modelTrainingV2 = inngest.createFunction(
           description: `Refund for failed model training: ${
             error instanceof Error ? error.message : String(error)
           }`,
-          type: 'money_income',
+          type: TransactionType.MONEY_INCOME,
           amount: calculateModeCost({
             mode: ModeEnum.DigitalAvatarBodyV2,
             steps,

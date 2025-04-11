@@ -2,7 +2,7 @@ import { inngest } from '@/inngest-functions/clients'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import axios from 'axios'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { v4 as uuidv4 } from 'uuid'
 import { ModeEnum } from '@/price/helpers/modelsCost'
@@ -56,7 +56,7 @@ export const imageToPromptFunction = inngest.createFunction(
             amount: cost_per_image,
             is_ru,
             bot_name,
-            type: 'money_expense',
+            type: TransactionType.MONEY_EXPENSE,
             description: 'Payment for image to prompt conversion',
             operation_id: payment_operation_id,
             service_type: ModeEnum.ImageToPrompt,

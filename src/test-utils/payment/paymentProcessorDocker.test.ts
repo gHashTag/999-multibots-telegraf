@@ -1,16 +1,17 @@
-import { inngest } from '../../core/inngest/clients'
-import { logger } from '../../utils/logger'
-import { supabase } from '../../core/supabase'
+import { inngest } from '@/inngest-functions/clients'
+import { logger } from '@/utils/logger'
+import { supabase } from '@/core/supabase'
 import { v4 as uuidv4 } from 'uuid'
 import { TestResult } from '../types'
 import { TEST_CONFIG } from '../test-config'
+import { TransactionType } from '@/interfaces/payments.interface'
 
 interface DockerPaymentTestCase {
   name: string
   input: {
     telegram_id: string
     amount: number
-    type: 'money_income' | 'money_expense'
+    type: TransactionType.MONEY_INCOME | TransactionType.MONEY_EXPENSE
     description: string
     bot_name: string
     service_type?: string
@@ -28,7 +29,7 @@ const DOCKER_TEST_CASES: DockerPaymentTestCase[] = [
     input: {
       telegram_id: '123456789',
       amount: 100,
-      type: 'money_income',
+      type: TransactionType.MONEY_INCOME,
       description: 'Тестовое пополнение в Docker',
       bot_name: 'test_bot',
       service_type: 'TopUpBalance',
@@ -47,7 +48,7 @@ const DOCKER_TEST_CASES: DockerPaymentTestCase[] = [
     input: {
       telegram_id: '123456789',
       amount: 50,
-      type: 'money_expense',
+      type: TransactionType.MONEY_EXPENSE,
       description: 'Тестовое списание в Docker',
       bot_name: 'test_bot',
       service_type: 'TextToImage',
@@ -66,7 +67,7 @@ const DOCKER_TEST_CASES: DockerPaymentTestCase[] = [
     input: {
       telegram_id: '987654321',
       amount: 1000,
-      type: 'money_expense',
+      type: TransactionType.MONEY_EXPENSE,
       description: 'Тестовое списание с недостаточным балансом в Docker',
       bot_name: 'test_bot',
       service_type: 'TextToImage',
@@ -99,7 +100,9 @@ async function runDockerPaymentTest(
 
     // Преобразование типа для соответствия ожидаемым значениям
     const paymentType =
-      testCase.input.type === 'money_income' ? 'money_income' : 'money_expense'
+      testCase.input.type === TransactionType.MONEY_INCOME
+        ? TransactionType.MONEY_INCOME
+        : TransactionType.MONEY_EXPENSE
 
     // Отправляем событие в процессор платежей
     await inngest.send({
@@ -123,7 +126,7 @@ async function runDockerPaymentTest(
 
     // Даем время на обработку платежа
     await new Promise(resolve =>
-      setTimeout(resolve, TEST_CONFIG.TIMEOUTS.ASYNC)
+      setTimeout(resolve, TEST_CONFIG.TIMEOUTS.MEDIUM)
     )
 
     // Проверяем результат в базе данных

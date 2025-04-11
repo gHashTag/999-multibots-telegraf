@@ -1,7 +1,7 @@
 import { ElevenLabsClient } from 'elevenlabs'
 
 // Используем мок в тестовом окружении
-let elevenlabs
+let elevenlabs: ElevenLabsClient
 
 if (process.env.NODE_ENV === 'test') {
   const {

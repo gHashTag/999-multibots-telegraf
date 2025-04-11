@@ -39,6 +39,15 @@ services:
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/nginx:/etc/nginx
+      - /etc/pki:/etc/pki
+      - /root/.ssh:/app/.ssh:ro
+      # Файлы Ansible
+      - ./playbook.yml:/app/playbook.yml:ro
+      - ./inventory:/app/inventory:ro
+      - ./roles:/app/roles:ro
     dns:
       - 8.8.8.8
       - 8.8.4.4
@@ -50,12 +59,16 @@ services:
 
   nginx:
     image: nginx:latest
-    container_name: nginx-proxy
+    container_name: bot-proxy
     ports:
       - '8443:443'
       - '8080:80'
     volumes:
-      - ./nginx/pki/:/etc/pki/
+      # Используем нашу кастомную конфигурацию
+      - ./nginx-config:/etc/nginx/conf.d:ro
+      # Пути к сертификатам с хоста остаются
+      - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
+      - /etc/pki/key.pem:/etc/pki/key.pem:ro
     depends_on:
       - app
     networks:
@@ -68,3 +81,7 @@ networks:
     ipam:
       config:
         - subnet: 172.27.0.0/16
+
+# Объявляем Docker Volume
+volumes:
+  nginx-config-volume: 

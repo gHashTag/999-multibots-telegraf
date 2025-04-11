@@ -5,7 +5,7 @@ import { getTranslation } from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
 import { updateUserSubscription, createPayment } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
@@ -322,7 +322,7 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       data: {
         telegram_id: String(ctx.from?.id),
         amount: Number(stars),
-        type: 'money_income',
+        type: TransactionType.MONEY_INCOME,
         description: `Purchase and sale:: ${stars}`,
         bot_name: ctx.botInfo.username,
         inv_id: ctx.message?.successful_payment?.invoice_payload,
