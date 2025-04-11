@@ -12,13 +12,13 @@ docker compose up --build -d
 echo "⏳ Ждем запуска сервисов (15 секунд)..."
 sleep 15
 
-# Запустить Ansible изнутри контейнера app
-echo "🚀 Запускаем Ansible внутри контейнера app для конфигурации хоста..."
-# Отключаем проверку ключа хоста и запускаем ansible-playbook
-docker exec 999-multibots /bin/sh -c "export ANSIBLE_HOST_KEY_CHECKING=False; . /opt/ansible-venv/bin/activate && ansible-playbook playbook.yml -i inventory"
+# Запустить Ansible Ping изнутри контейнера app
+echo "🚀 Проверяем Ansible Ping из контейнера app..."
+# Отключаем проверку ключа хоста и запускаем ping
+docker exec 999-multibots /bin/sh -c "export ANSIBLE_HOST_KEY_CHECKING=False; . /opt/ansible-venv/bin/activate && ansible elestio_server -i inventory -m ping"
 
-# Перезапустить nginx, чтобы он подхватил конфиги (если Ansible отработал)
-echo "🔄 Перезапускаем nginx-proxy..."
-docker compose up -d --force-recreate nginx-proxy
+# Перезапустить nginx...
+# echo "🔄 Перезапускаем nginx-proxy..."
+# docker compose up -d --force-recreate nginx-proxy
 
-echo "✅ Скрипт update-docker.sh завершен." 
+echo "✅ Скрипт update-docker.sh (тест ping) завершен." 
