@@ -1,11 +1,35 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "baseUrl": "./dist",
+    "baseUrl": ".",
+    "outDir": "./dist",
     "paths": {
-      "@/*": ["*"]
+      "@/*": ["dist/*"],
+      "@utils/*": ["dist/utils/*"],
+      "@config": ["dist/config"],
+      "@controllers/*": ["dist/controllers/*"],
+      "@dtos/*": ["dist/dtos/*"],
+      "@exceptions/*": ["dist/exceptions/*"],
+      "@interfaces/*": ["dist/interfaces/*"],
+      "@middlewares/*": ["dist/middlewares/*"],
+      "@models/*": ["dist/models/*"],
+      "@routes/*": ["dist/routes/*"],
+      "@services/*": ["dist/services/*"],
+      "@core/*": ["dist/core/*"],
+      "@axios/*": ["dist/axios/*"],
+      "@price/*": ["dist/price/*"],
+      "@store/*": ["dist/store/*"],
+      "@handlers/*": ["dist/handlers/*"],
+      "@helpers/*": ["dist/helpers/*"],
+      "@commands/*": ["dist/commands/*"],
+      "@inngest-functions/*": ["dist/inngest-functions/*"]
     }
   },
-  "include": ["dist/**/*"],
-  "exclude": ["node_modules", "src"]
+  "include": ["src/**/*"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/test-utils",
+    "**/*.test.ts"
+  ]
 } 
