@@ -13,7 +13,7 @@ import {
 } from '@/interfaces/payments.interface'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 import { normalizeTransactionType } from '@/interfaces/payments.interface'
-import { isDev } from '@/config'
+
 import { notifyAmbassadorAboutPayment } from '@/services/ambassadorPaymentNotifier'
 
 /**
@@ -205,22 +205,10 @@ export const paymentProcessor = inngest.createFunction(
       })
 
       // Отправляем уведомление пользователю (только если не локальное окружение)
-      if (!isDev) {
-        await step.run('send-notification', async () => {
-          await sendPaymentNotification(payment, currentBalance, newBalance)
-        })
-      } else {
-        logger.info(
-          '📨 Уведомление пользователю в локальном окружении пропущено',
-          {
-            description: 'User notification skipped in dev environment',
-            telegram_id,
-            amount,
-            currentBalance,
-            newBalance,
-          }
-        )
-      }
+
+      await step.run('send-notification', async () => {
+        await sendPaymentNotification(payment, currentBalance, newBalance)
+      })
 
       // Отправляем уведомление амбассадору, если платеж совершен в его боте
       await step.run('send-ambassador-notification', async () => {

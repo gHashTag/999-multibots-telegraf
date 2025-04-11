@@ -73,7 +73,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         language: isRu ? 'ru' : 'en',
       })
 
-      const startMessage = await getTranslation('chat_with_avatar_start', ctx)
+      const startMessage = await getTranslation('chat_with_avatar', ctx)
 
       const defaultStartMessage = isRu
         ? '👋 Добро пожаловать в чат с аватаром! Я готов общаться с вами. Напишите ваше сообщение, и я постараюсь помочь.'
