@@ -58,10 +58,9 @@ services:
       # Используем конфиги, созданные Ansible на хосте
       - /etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - /etc/nginx/conf.d:/etc/nginx/conf.d:ro
-      # Используем сертификаты/ключи, созданные Ansible на хосте
-      # Убедитесь, что эти пути верны для вашего сервера!
-      - /etc/pki/nginx:/etc/pki/nginx:ro
-      - /etc/pki/nginx/private:/etc/pki/nginx/private:ro
+      # Используем сертификат и ключ, сгенерированные Ansible
+      - /etc/pki/cert.crt:/etc/pki/cert.crt:ro # Правильный путь к сертификату
+      - /etc/pki/key.pem:/etc/pki/key.pem:ro   # Правильный путь к ключу
       # Локальные пути удалены или закомментированы, т.к. они конфликтовали
       # - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       # - ./nginx/conf.d:/etc/nginx/conf.d:ro
