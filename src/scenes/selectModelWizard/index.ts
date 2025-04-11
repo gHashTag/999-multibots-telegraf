@@ -5,7 +5,7 @@ import { sendGenericErrorMessage } from '@/menu'
 import { isRussian } from '@/helpers/language'
 import { getUserByTelegramIdString, setModel } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'
-import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+import { updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
 
@@ -18,7 +18,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       const models = await getAvailableModels()
       logger.info('🔄 Получены доступные модели:', {
         description: 'Available models fetched',
-        models
+        models,
       })
 
       // Создаем кнопки для каждой модели, по 3 в ряд
@@ -55,7 +55,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
     } catch (error) {
       logger.error('❌ Ошибка при создании меню выбора модели:', {
         description: 'Error creating model selection menu',
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
       await ctx.reply(
         isRu
@@ -81,7 +81,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
 
     const model = message.text
     const models = await getAvailableModels()
-    
+
     if (!models.includes(model)) {
       await ctx.reply(isRu ? '❌ Модель не найдена' : '❌ Model not found')
       return ctx.scene.leave()
@@ -103,7 +103,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       if (!user) {
         logger.error('❌ Пользователь не найден:', {
           description: 'User not found',
-          telegramId
+          telegramId,
         })
         await ctx.reply(
           isRu
@@ -118,7 +118,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       logger.info('✅ Модель успешно установлена:', {
         description: 'Model successfully set',
         telegramId,
-        model
+        model,
       })
 
       // Обновляем уровень пользователя если нужно
@@ -127,7 +127,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
         logger.info('✅ Уровень пользователя обновлен:', {
           description: 'User level updated',
           telegramId,
-          newLevel: user.level + 1
+          newLevel: user.level + 1,
         })
       }
 
@@ -149,12 +149,10 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
         description: 'Error setting model',
         error: error instanceof Error ? error.message : String(error),
         telegramId,
-        model
+        model,
       })
       await ctx.reply(
-        isRu
-          ? '❌ Ошибка при установке модели'
-          : '❌ Error setting model'
+        isRu ? '❌ Ошибка при установке модели' : '❌ Error setting model'
       )
       return ctx.scene.leave()
     }

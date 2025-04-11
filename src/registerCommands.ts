@@ -317,7 +317,7 @@ export function registerCommands({
       description: 'Neurophoto selected',
       level: levels[2].title_ru,
     })
-    await ctx.scene.enter(ModeEnum.SelectNeuroPhoto)
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   composer.hears([levels[3].title_ru, levels[3].title_en], async ctx => {
