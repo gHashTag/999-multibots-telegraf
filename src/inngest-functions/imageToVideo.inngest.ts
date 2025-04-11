@@ -1,6 +1,5 @@
 import { inngest } from './clients'
 import { getBotByName } from '@/core/bot'
-import { pulseBot } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import {
   getUserByTelegramIdString,
@@ -12,6 +11,7 @@ import { sendBalanceMessage } from '../price/helpers'
 import { v4 as uuidv4 } from 'uuid'
 import axios from 'axios'
 import { TransactionType } from '../interfaces/payments.interface'
+import { sendMediaToPulse } from '@/helpers/pulse'
 
 /**
  * Интерфейс события для генерации видео из изображения
@@ -88,7 +88,9 @@ export const imageToVideoFunction = inngest.createFunction(
 
     // Проверяем баланс
     if (!validatedParams.test?.skip_balance_check) {
-      const cost = calculateModeCost(ModeEnum.ImageToVideo).stars
+      const cost = calculateModeCost({
+        mode: ModeEnum.ImageToVideo,
+      }).stars
 
       if (userResult.balance < cost) {
         const botResult = getBotByName(validatedParams.bot_name)
@@ -114,7 +116,9 @@ export const imageToVideoFunction = inngest.createFunction(
           name: 'payment/process',
           data: {
             telegram_id: validatedParams.telegram_id,
-            amount: calculateModeCost(ModeEnum.ImageToVideo).stars,
+            amount: calculateModeCost({
+              mode: ModeEnum.ImageToVideo,
+            }).stars,
             type: TransactionType.MONEY_EXPENSE.toLowerCase(),
             description: validatedParams.is_ru
               ? 'Генерация видео из изображения'
@@ -191,6 +195,36 @@ export const imageToVideoFunction = inngest.createFunction(
               : '✨ Your video is ready!',
           }
         )
+
+        // Отправляем видео в Pulse
+        try {
+          await sendMediaToPulse({
+            mediaType: 'video',
+            mediaSource: videoResult.videoUrl!,
+            telegramId: validatedParams.telegram_id,
+            username: userResult.username || '',
+            language: validatedParams.is_ru ? 'ru' : 'en',
+            serviceType: ModeEnum.ImageToVideo.toString(),
+            botName: validatedParams.bot_name,
+            additionalInfo: {
+              'Исходное изображение': validatedParams.image_url,
+            },
+          })
+
+          logger.info({
+            message: '✅ Видео успешно отправлено в Pulse',
+            description: 'Video successfully sent to Pulse channel',
+            telegram_id: validatedParams.telegram_id,
+            service: ModeEnum.ImageToVideo,
+          })
+        } catch (error) {
+          logger.error({
+            message: '❌ Ошибка при отправке видео в Pulse',
+            description: 'Error sending video to Pulse channel',
+            error: (error as Error).message,
+            telegram_id: validatedParams.telegram_id,
+          })
+        }
 
         // Увеличиваем уровень пользователя
         await updateUserLevelPlusOne(
