@@ -21,6 +21,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "baseUrl": ".",
+    "outDir": "./dist",
     "paths": {
       "@/*": ["src/*"],
       "@utils/*": ["src/utils/*"],
