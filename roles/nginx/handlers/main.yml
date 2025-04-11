@@ -1,3 +1,0 @@
----
-- name: Restart nginx
-  shell: docker exec nginx-proxy nginx -s reload

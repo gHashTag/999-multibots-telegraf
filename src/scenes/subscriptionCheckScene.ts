@@ -6,7 +6,6 @@ import { getSubScribeChannel } from '@/core/supabase'
 import { isDev } from '@/helpers'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
-import { SceneEnum } from '@/types/scenes'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
   if (!ctx.from?.id) {
@@ -57,9 +56,9 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   }
 
   if (ctx.session.mode === ModeEnum.MainMenu) {
-    return ctx.scene.enter(ModeEnum.MainMenu)
+    return ctx.scene.enter('menuScene')
   } else {
-    return ctx.scene.enter(SceneEnum.MainMenu)
+    return ctx.scene.enter(ctx.session.mode)
   }
 }
 
