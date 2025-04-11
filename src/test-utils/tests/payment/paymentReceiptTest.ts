@@ -2,7 +2,7 @@ import { TestResult } from '@/test-utils/types'
 import { createMockContext } from '@/test-utils/helpers/createMockContext'
 import { logger } from '@/utils/logger'
 import { supabase } from '@/supabase'
-import { getPaymentReceiptUrl } from '@/helpers/getPaymentReceiptUrl'
+import { generateReceiptUrl } from '@/helpers/generateReceiptUrl'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 import { generateInvId } from '@/utils/generateInvId'
 
@@ -57,8 +57,15 @@ export async function testPaymentReceiptGeneration(): Promise<TestResult> {
       operationId: payment.inv_id,
     })
 
-    // Получаем URL чека
-    const receiptUrl = await getPaymentReceiptUrl(payment.id)
+    // Генерируем URL чека напрямую вместо использования getPaymentReceiptUrl
+    const receiptUrl = generateReceiptUrl({
+      operationId: payment.id.toString(),
+      amount: payment.amount,
+      stars: payment.stars,
+      botName: payment.bot_name,
+      telegramId: payment.telegram_id,
+      timestamp: payment.created_at,
+    })
 
     logger.info('🔍 Получен URL чека', {
       description: 'Receipt URL generated',
