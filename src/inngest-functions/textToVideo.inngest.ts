@@ -30,6 +30,9 @@ interface TextToVideoEvent {
     _test?: {
       insufficient_balance?: boolean
       api_error?: boolean
+      skip_generation?: boolean
+      skip_sending?: boolean
+      skip_payment?: boolean
     }
     username?: string
   }
@@ -106,6 +109,58 @@ export const textToVideoFunction = inngest.createFunction(
       }
 
       const params = validatedParams
+
+      // Прямое отправление платежного события для тестов
+      if (params._test && !params._test.skip_payment) {
+        try {
+          const cost = calculateModeCost({
+            mode: ModeEnum.TextToVideo,
+          }).stars
+
+          logger.info(
+            '💰 [ТЕСТ] Отправка платежного события для тестирования',
+            {
+              description: 'Sending payment event for testing',
+              telegram_id: params.telegram_id,
+              cost,
+            }
+          )
+
+          await inngest.send({
+            name: 'payment/process',
+            data: {
+              telegram_id: params.telegram_id,
+              amount: cost,
+              stars: cost,
+              type: TransactionType.MONEY_EXPENSE,
+              description: params.is_ru
+                ? 'Создание видео из текста (тест)'
+                : 'Text to video generation (test)',
+              bot_name: params.bot_name,
+              service_type: ModeEnum.TextToVideo,
+              metadata: {
+                prompt: params.prompt || 'Test prompt',
+                is_test: true,
+                operation_id: operationId || uuidv4(),
+              },
+            },
+          })
+
+          logger.info('✅ [ТЕСТ] Платежное событие успешно отправлено', {
+            description: 'Test payment event successfully sent',
+            telegram_id: params.telegram_id,
+          })
+        } catch (error) {
+          logger.error(
+            '❌ [ТЕСТ] Ошибка при отправке тестового платежного события',
+            {
+              description: 'Error sending test payment event',
+              telegram_id: params.telegram_id,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          )
+        }
+      }
 
       // Шаг 2: Получение информации о пользователе
       const user = await step.run('get-user-info', async () => {
@@ -203,25 +258,55 @@ export const textToVideoFunction = inngest.createFunction(
         return { sufficient: true }
       })
 
-      // Шаг 6: Списание средств с баланса пользователя
-      await step.run('charge-user', async () => {
-        await inngest.send({
-          name: 'payment/process',
-          data: {
-            telegram_id: params.telegram_id,
-            amount: costCalculation.cost.stars,
-            type: TransactionType.MONEY_EXPENSE,
-            description: params.is_ru
-              ? 'Создание видео из текста'
-              : 'Text to video generation',
-            bot_name: params.bot_name,
-            service_type: ModeEnum.TextToVideo,
-            operation_id: operationId,
-          },
-        })
+      // Шаг 6: Списание средств с баланса пользователя (если не в тестовом режиме пропуска оплаты)
+      if (!params._test?.skip_payment) {
+        await step.run('charge-user', async () => {
+          // Рассчитываем стоимость заново для гарантии точности
+          const cost = calculateModeCost({
+            mode: ModeEnum.TextToVideo,
+            numImages: 1,
+          }).stars
 
-        return { charged: true }
-      })
+          logger.info('💰 Отправка платежного события для Text-to-Video', {
+            description: 'Sending payment event for Text-to-Video',
+            cost,
+            telegram_id: params.telegram_id,
+          })
+
+          await inngest.send({
+            name: 'payment/process',
+            data: {
+              telegram_id: params.telegram_id,
+              amount: cost,
+              stars: cost,
+              type: TransactionType.MONEY_EXPENSE,
+              description: params.is_ru
+                ? 'Создание видео из текста'
+                : 'Text to video generation',
+              bot_name: params.bot_name,
+              service_type: ModeEnum.TextToVideo,
+              operation_id: operationId,
+              metadata: {
+                prompt: params.prompt,
+                model: params.model_id,
+              },
+            },
+          })
+
+          logger.info('✅ Платежное событие успешно отправлено', {
+            description: 'Payment event successfully sent',
+            telegram_id: params.telegram_id,
+            operation_id: operationId,
+          })
+
+          return { charged: true }
+        })
+      } else {
+        logger.info('🔄 Пропуск оплаты в тестовом режиме', {
+          description: 'Skipping payment in test mode',
+          telegram_id: params.telegram_id,
+        })
+      }
 
       // Шаг 7: Генерация видео
       await step.run('generate-video', async () => {

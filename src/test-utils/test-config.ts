@@ -37,24 +37,41 @@ export class InngestTestEngineMock {
     // Проверка обязательных полей для платежных операций
     if (eventName === 'payment/process') {
       if (!data.telegram_id) {
+        console.log(
+          '❌ [TEST_ENGINE_MOCK]: Отсутствует обязательное поле telegram_id'
+        )
         throw new Error('Отсутствует обязательное поле telegram_id')
       }
 
       if (!data.amount && data.amount !== 0) {
+        console.log(
+          '❌ [TEST_ENGINE_MOCK]: Отсутствует обязательное поле amount'
+        )
         throw new Error('Отсутствует обязательное поле amount')
       }
 
       if (!data.type) {
+        console.log('❌ [TEST_ENGINE_MOCK]: Отсутствует обязательное поле type')
         throw new Error('Отсутствует обязательное поле type')
       }
 
       if (data.amount < 0) {
+        console.log(
+          '❌ [TEST_ENGINE_MOCK]: Сумма платежа должна быть положительной'
+        )
         throw new Error('Сумма платежа должна быть положительной')
       }
 
       if (data.stars < 0) {
+        console.log(
+          '❌ [TEST_ENGINE_MOCK]: Количество звезд должно быть положительным'
+        )
         throw new Error('Количество звезд должно быть положительным')
       }
+
+      console.log(
+        `✅ [TEST_ENGINE_MOCK]: Платежное событие "${eventName}" успешно создано для пользователя ${data.telegram_id}, сумма: ${data.amount} звезд, тип: ${data.type}`
+      )
     }
 
     // Добавляем событие в список отправленных
@@ -63,9 +80,6 @@ export class InngestTestEngineMock {
       data,
       timestamp: Date.now(),
     })
-
-    // В реальной системе здесь может быть логика обработки события
-    // Но для тестов просто имитируем успешную отправку
 
     return true
   }
@@ -139,7 +153,55 @@ export const TEST_CONFIG = {
 }
 
 // Создаем и экспортируем тестовый движок Inngest
-export const inngestTestEngine = new InngestTestEngineMock()
+export const inngestTestEngine = {
+  events: [] as any[],
+  clearEvents: () => {
+    inngestTestEngine.events = []
+    logger.info('🧹 [TEST_ENGINE_MOCK]: История событий очищена')
+  },
+  sendEvent: async (name: string, data: any) => {
+    const event = { name, data }
+    inngestTestEngine.events.push(event)
+
+    // Вывод информации о событии
+    if (name === 'payment/process') {
+      logger.info(
+        `🚀 [TEST_ENGINE_MOCK]: Отправка события "${name}" с данными:`,
+        data
+      )
+      logger.info(
+        `✅ [TEST_ENGINE_MOCK]: Платежное событие "${name}" успешно создано для пользователя ${data.telegram_id}, сумма: ${data.stars} звезд, тип: ${data.type}`
+      )
+    } else {
+      logger.info(
+        `🚀 [TEST_ENGINE_MOCK]: Отправка события "${name}" с данными:`,
+        data
+      )
+    }
+
+    return { success: true, event }
+  },
+  getEventsByName: (name: string) => {
+    return inngestTestEngine.events.filter(event => event.name === name)
+  },
+  getEventsForTelegramId: (telegramId: string) => {
+    return inngestTestEngine.events.filter(
+      event => event.data?.telegram_id === telegramId
+    )
+  },
+  getAllEvents: () => {
+    return inngestTestEngine.events
+  },
+  printEvents: (message: string = 'Текущие события в тестовом движке:') => {
+    logger.info(`📋 ${message}`)
+    logger.info(`💾 Всего событий: ${inngestTestEngine.events.length}`)
+    inngestTestEngine.events.forEach((event, index) => {
+      logger.info(`📝 Событие #${index + 1}: ${event.name}`, {
+        data: event.data,
+      })
+    })
+  },
+}
 
 // Настройка логирования для тестов
 export const configureTestLogging = () => {
