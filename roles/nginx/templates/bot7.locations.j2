@@ -1,10 +1,13 @@
    # {{ ansible_managed }}
 
    location /{{ bot7.telegram.bot_name }} {
-       proxy_set_header Host $http_host;
-       proxy_redirect   off;
-       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       # Устанавливаем заголовки для проксирования
+       proxy_set_header Host $host;
        proxy_set_header X-Real-IP $remote_addr;
-       proxy_set_header X-Scheme $scheme;
-       proxy_pass       http://999-multibots:3007/{{ bot7.telegram.bot_name }};
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+       proxy_redirect   off;
+
+       # Проксируем запрос на соответствующий порт контейнера app
+       proxy_pass http://app:3007;
    }
