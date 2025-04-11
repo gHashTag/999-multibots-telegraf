@@ -61,4 +61,4 @@ COPY --from=builder /app/dist ./dist
 # Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 
-CMD ["node", "-r", "tsconfig-paths/register", "dist/bot.js"]
+CMD ["node", "-r", "./node_modules/tsconfig-paths/register", "dist/bot.js"]
