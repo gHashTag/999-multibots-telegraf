@@ -1,0 +1,22 @@
+{
+  "server": {
+    "start": "Server started on port",
+    "stop": "Server stopped",
+    "error": "Server error"
+  },
+  "api": {
+    "request": "Request received",
+    "response": "Response sent",
+    "error": "API error"
+  },
+  "database": {
+    "connected": "Database connection established",
+    "disconnected": "Database disconnected",
+    "error": "Database error"
+  },
+  "auth": {
+    "success": "Authentication successful",
+    "failed": "Authentication failed",
+    "token": "Invalid token"
+  }
+} 

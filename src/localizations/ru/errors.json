@@ -1,0 +1,22 @@
+{
+  "common": {
+    "unknown": "Произошла неизвестная ошибка",
+    "invalidInput": "Неверный формат входных данных",
+    "notFound": "Ресурс не найден",
+    "unauthorized": "Необходима авторизация",
+    "forbidden": "Доступ запрещен",
+    "serverError": "Ошибка сервера"
+  },
+  "payment": {
+    "insufficientFunds": "Недостаточно средств",
+    "invalidAmount": "Неверная сумма",
+    "transactionFailed": "Ошибка при проведении транзакции",
+    "paymentDeclined": "Платеж отклонен"
+  },
+  "voice": {
+    "invalidSample": "Неверный формат аудио сэмпла",
+    "processingError": "Ошибка при обработке голоса",
+    "tooShort": "Аудио сэмпл слишком короткий",
+    "tooLong": "Аудио сэмпл слишком длинный"
+  }
+} 

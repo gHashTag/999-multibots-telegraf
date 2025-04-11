@@ -1,129 +1,243 @@
-import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { createMockBot, MockTelegraf } from '../mocks/botMock'
-import { logger } from '@/utils/logger'
+import { Context } from 'telegraf'
+import { Update, User, Message, Chat } from 'telegraf/types'
 
-/**
- * Создает мок-контекст Telegram для тестирования сцен
- * @param options - Опции для настройки контекста
- * @returns Мок-контекст MyContext
- */
-export function createMockContext(options: {
-  userId?: number
-  username?: string
-  firstName?: string
-  lastName?: string
-  languageCode?: string
-  sessionData?: Partial<MyContext['session']>
-  messageText?: string
-  mockReplies?: boolean
-  chatId?: number
-}): MyContext {
-  const {
-    userId = 12345678,
-    username = 'test_user',
-    firstName = 'Test',
-    lastName = 'User',
-    languageCode = 'ru',
-    sessionData = {},
-    messageText = '',
-    mockReplies = true,
-    chatId = userId,
-  } = options
+export interface TestUser {
+  telegram_id: string
+  username: string
+  balance?: number
+  subscription_end_date?: Date
+  created_at?: Date
+  updated_at?: Date
+}
 
-  const mockBot = createMockBot('mock_token') as MockTelegraf
-  const sentReplies: any[] = []
+// Конфигурация для методов
+interface MethodConfig {
+  success?: boolean
+  delay?: number
+  error?: Error
+  response?: any
+}
 
-  const mockContext: Partial<MyContext> = {
-    telegram: mockBot.telegram,
-    from: {
-      id: userId,
-      is_bot: false,
-      first_name: firstName,
-      last_name: lastName,
-      username: username,
-      language_code: languageCode,
-    },
-    chat: {
-      id: chatId,
-      type: 'private',
-      first_name: firstName,
-      last_name: lastName,
-      username: username,
-    },
-    message: messageText
-      ? {
-          message_id: 1,
-          from: {
-            id: userId,
-            is_bot: false,
-            first_name: firstName,
-            last_name: lastName,
-            username: username,
-            language_code: languageCode,
-          },
-          chat: {
-            id: chatId,
-            type: 'private',
-            first_name: firstName,
-            last_name: lastName,
-            username: username,
-          },
-          date: Math.floor(Date.now() / 1000),
-          text: messageText,
-        }
-      : undefined,
-    session: {
-      __scenes: {
-        current: undefined,
-        state: {},
-      },
-      ...sessionData,
-    },
-    scene: {
-      state: {},
-      enter: async (sceneId: string, defaultState?: any, silent?: boolean) => {
-        logger.info(`🎬 Вход в сцену [${sceneId}]`, {
-          description: `Entering scene [${sceneId}]`,
-          defaultState,
-          silent,
-        })
-        mockContext.session!.__scenes.current = sceneId
-        mockContext.session!.__scenes.state = defaultState || {}
-        return Promise.resolve()
-      },
-      reenter: async () => {
-        logger.info('🔄 Повторный вход в сцену', {
-          description: 'Re-entering scene',
-        })
-        return Promise.resolve()
-      },
-      leave: async () => {
-        const currentScene = mockContext.session!.__scenes.current
-        logger.info(`🚪 Выход из сцены [${currentScene}]`, {
-          description: `Leaving scene [${currentScene}]`,
-        })
-        mockContext.session!.__scenes.current = undefined
-        return Promise.resolve()
-      },
-    },
+interface TelegramConfig {
+  sendMessage?: MethodConfig
+  editMessageText?: MethodConfig
+  deleteMessage?: MethodConfig
+  answerCallbackQuery?: MethodConfig
+  sendPhoto?: MethodConfig
+  sendDocument?: MethodConfig
+  sendVoice?: MethodConfig
+  sendSticker?: MethodConfig
+  sendLocation?: MethodConfig
+  getMe?: MethodConfig
+  getFile?: MethodConfig
+  getFileLink?: MethodConfig
+  getUpdates?: MethodConfig
+  setWebhook?: MethodConfig
+  deleteWebhook?: MethodConfig
+  getWebhookInfo?: MethodConfig
+}
+
+interface CreateMockContextParams {
+  user: TestUser
+  text?: string
+  photo?: {
+    file_id: string
+    width: number
+    height: number
+  }
+  document?: {
+    file_id: string
+    file_name: string
+  }
+  voice?: {
+    file_id: string
+    duration: number
+  }
+  sticker?: {
+    file_id: string
+    set_name: string
+  }
+  location?: {
+    latitude: number
+    longitude: number
+  }
+  callbackData?: string
+  isGroupChat?: boolean
+  config?: TelegramConfig
+}
+
+// Создаем базовый контекст с общими полями
+const createBaseContext = (user: TestUser, isGroupChat: boolean = false): Partial<Context> => {
+  const telegramUser: User = {
+    id: parseInt(user.telegram_id),
+    is_bot: false,
+    first_name: user.username,
+    username: user.username
   }
 
-  // Добавляем метод reply, если требуется мокирование ответов
-  if (mockReplies) {
-    mockContext.reply = async (text: string, extra?: any) => {
-      const reply = { text, extra, timestamp: Date.now() }
-      sentReplies.push(reply)
-      logger.info('📩 Мок-ответ бота:', {
-        description: 'Mock bot reply',
-        text,
-        extra,
-      })
-      return { message_id: sentReplies.length } as any
+  const chat: Chat.PrivateChat | Chat.GroupChat = isGroupChat ? {
+    id: parseInt(user.telegram_id),
+    type: 'group',
+    title: 'Test Group'
+  } : {
+    id: parseInt(user.telegram_id),
+    type: 'private',
+    first_name: user.username,
+    username: user.username
+  }
+
+  return {
+    from: telegramUser,
+    chat
+  }
+}
+
+// Создаем метод с конфигурацией
+const createMethod = (defaultResponse: any, config?: MethodConfig) => {
+  return async (...args: any[]) => {
+    if (config?.delay) {
+      await new Promise(resolve => setTimeout(resolve, config.delay))
     }
 
-    // Добавляем доступ к отправленным ответам для проверки в тестах
-    ;(mockContext as any).sentReplies = sentReplies
+    if (config?.error) {
+      throw config.error
+    }
+
+    if (config?.success === false) {
+      throw new Error('Method failed')
+    }
+
+    return config?.response ?? defaultResponse
+  }
+}
+
+export const createMockContext = (params: CreateMockContextParams): Context<Update> => {
+  const { 
+    user, 
+    text, 
+    photo, 
+    document, 
+    voice, 
+    sticker, 
+    location,
+    callbackData,
+    isGroupChat = false,
+    config = {}
+  } = params
+
+  const baseContext = createBaseContext(user, isGroupChat)
+  const update: Update = {} as Update
+
+  // Добавляем различные типы сообщений в update
+  if (text) {
+    const message = {
+      ...baseContext as any,
+      message_id: 1,
+      date: Math.floor(Date.now() / 1000),
+      text
+    }
+    Object.assign(update, { message })
   }
 
-  return mockContext as MyContext
-}
+  if (photo) {
+    const message = {
+      ...baseContext as any,
+      message_id: 1,
+      date: Math.floor(Date.now() / 1000),
+      photo: [photo]
+    }
+    Object.assign(update, { message })
+  }
+
+  if (document) {
+    const message = {
+      ...baseContext as any,
+      message_id: 1,
+      date: Math.floor(Date.now() / 1000),
+      document
+    }
+    Object.assign(update, { message })
+  }
+
+  if (voice) {
+    const message = {
+      ...baseContext as any,
+      message_id: 1,
+      date: Math.floor(Date.now() / 1000),
+      voice
+    }
+    Object.assign(update, { message })
+  }
+
+  if (sticker) {
+    const message = {
+      ...baseContext as any,
+      message_id: 1,
+      date: Math.floor(Date.now() / 1000),
+      sticker
+    }
+    Object.assign(update, { message })
+  }
+
+  if (location) {
+    const message = {
+      ...baseContext as any,
+      message_id: 1,
+      date: Math.floor(Date.now() / 1000),
+      location
+    }
+    Object.assign(update, { message })
+  }
+
+  if (callbackData) {
+    const callbackQuery = {
+      ...baseContext,
+      id: '1',
+      chat_instance: '1',
+      data: callbackData
+    }
+    Object.assign(update, { callback_query: callbackQuery })
+  }
+
+  // Создаем базовые методы Telegram с конфигурируемыми ответами
+  const telegram = {
+    sendMessage: createMethod({ message_id: 1 }, config.sendMessage),
+    editMessageText: createMethod({ message_id: 1 }, config.editMessageText),
+    deleteMessage: createMethod(true, config.deleteMessage),
+    answerCallbackQuery: createMethod(true, config.answerCallbackQuery),
+    sendPhoto: createMethod({ message_id: 1 }, config.sendPhoto),
+    sendDocument: createMethod({ message_id: 1 }, config.sendDocument),
+    sendVoice: createMethod({ message_id: 1 }, config.sendVoice),
+    sendSticker: createMethod({ message_id: 1 }, config.sendSticker),
+    sendLocation: createMethod({ message_id: 1 }, config.sendLocation),
+    getMe: createMethod({
+      id: 1,
+      is_bot: true,
+      first_name: 'Test Bot',
+      username: 'test_bot',
+      can_join_groups: true,
+      can_read_all_group_messages: true,
+      supports_inline_queries: false
+    }, config.getMe),
+    getFile: createMethod({ 
+      file_id: 'test_file', 
+      file_size: 100, 
+      file_path: 'test/path' 
+    }, config.getFile),
+    getFileLink: createMethod('https://test.com/file', config.getFileLink),
+    getUpdates: createMethod([], config.getUpdates),
+    setWebhook: createMethod(true, config.setWebhook),
+    deleteWebhook: createMethod(true, config.deleteWebhook),
+    getWebhookInfo: createMethod({ 
+      url: '', 
+      has_custom_certificate: false, 
+      pending_update_count: 0 
+    }, config.getWebhookInfo)
+  }
+
+  return {
+    ...baseContext,
+    update,
+    telegram
+  } as unknown as Context<Update>
+} 

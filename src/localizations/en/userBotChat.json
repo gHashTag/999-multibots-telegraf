@@ -1,0 +1,21 @@
+{
+  "greeting": {
+    "welcome": "Welcome to the chat!",
+    "start": "Let's start chatting"
+  },
+  "chat": {
+    "input": "Enter your message",
+    "processing": "Processing your message...",
+    "error": "Error processing message"
+  },
+  "commands": {
+    "help": "List of available commands",
+    "settings": "Settings",
+    "balance": "Balance",
+    "profile": "Profile"
+  },
+  "notifications": {
+    "newMessage": "New message",
+    "systemUpdate": "System update"
+  }
+} 
