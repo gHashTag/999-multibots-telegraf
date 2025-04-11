@@ -1,8 +1,8 @@
-- name: Configure Nginx
-  hosts: webservers
-  vars_files:
-    - vault.yml
+---
+- name: Configure Nginx Server
+  hosts: elestio_server # Имя группы хостов (зададим в inventory)
+  become: yes # Выполнять с sudo
   roles:
-    - nginx
+    - nginx # Указываем использовать роль из папки roles/nginx
 
 # ansible-playbook playbook.yml --vault-password-file Users/playra/vault_password.txt
