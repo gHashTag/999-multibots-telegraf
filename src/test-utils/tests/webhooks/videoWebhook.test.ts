@@ -1,9 +1,9 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { supabase } from '@/core/supabase'
 import path from 'path'
 import fs from 'fs'
-import { TEST_CONFIG } from './test-config'
+import { TEST_CONFIG } from '@/test-utils/test-config'
 
 interface TestResult {
   passed: boolean

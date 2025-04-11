@@ -204,7 +204,7 @@ export const textToVideoFunction = inngest.createFunction(
           data: {
             telegram_id: params.telegram_id,
             amount: costCalculation.cost.stars,
-            type: 'money_expense',
+            type: TransactionType.MONEY_EXPENSE,
             description: params.is_ru
               ? 'Создание видео из текста'
               : 'Text to video generation',

@@ -1,2 +1,16 @@
-[webservers]
-999-multibots-u14194.vm.elestio.app ansible_user=root ansible_ssh_private_key_file=~/.ssh/id_rsa public_ip=138.199.145.157
+[elestio_server]
+999-multibots-u14194.vm.elestio.app ansible_user=root ansible_ssh_private_key_file=~/.ssh/id_rsa ansible_host_key_checking=False
+
+[all:vars]
+# Сюда можно добавить переменные, если они нужны для шаблонов nginx,
+# например, public_ip={{ ansible_default_ipv4.address }} или конкретный IP
+public_ip=138.199.145.157
+
+# Данные для ботов
+bot1={"telegram":{"bot_name":"neuro_blogger_bot"}}
+bot2={"telegram":{"bot_name":"MetaMuse_Manifest_bot"}}
+bot3={"telegram":{"bot_name":"ZavaraBot"}}
+bot4={"telegram":{"bot_name":"LeeSolarbot"}}
+bot5={"telegram":{"bot_name":"NeuroLenaAssistant_bot"}}
+bot6={"telegram":{"bot_name":"NeurostylistShtogrina_bot"}}
+bot7={"telegram":{"bot_name":"Gaia_Kamskaia_bot"}}

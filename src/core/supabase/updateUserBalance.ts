@@ -108,7 +108,7 @@ export const updateUserBalance = async ({
 
     // Проверяем достаточность баланса при списании
     if (
-      type === 'money_expense' &&
+      type === TransactionType.MONEY_EXPENSE &&
       currentBalance < Math.abs(normalizedAmount)
     ) {
       const errorMessage = `Недостаточно средств. Текущий баланс: ${currentBalance}, требуется: ${Math.abs(

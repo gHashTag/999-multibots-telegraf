@@ -1,7 +1,7 @@
 import { supabase } from '.'
 import { logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 interface PaymentData {
   telegram_id: string
   amount: number
@@ -66,7 +66,7 @@ export async function createPayment(data: PaymentData) {
       bot_name: data.bot_name,
       status: data.status,
       invoice_url: data.invoice_url,
-      type: 'money_income',
+      type: TransactionType.MONEY_INCOME,
       inv_id: data.inv_id,
       operation_id: data.InvId || data.inv_id,
       language: data.language,

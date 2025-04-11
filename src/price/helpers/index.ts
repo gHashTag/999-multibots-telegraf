@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger'
 import { Telegram, Telegraf } from 'telegraf'
 import { BalanceOperationResult } from '../../interfaces'
 import { isRussian } from '@/helpers'
+import { TransactionType } from '@/interfaces/payments.interface'
 
 export * from './modelsCost'
 export * from './calculateFinalPrice'
@@ -43,7 +44,7 @@ export async function processBalanceOperation({
   bot: Telegraf<MyContext>
   bot_name: string
   description: string
-  type: string
+  type: TransactionType
 }): Promise<BalanceOperationResult> {
   try {
     const user = await getUserByTelegramIdString(telegram_id)
@@ -70,7 +71,7 @@ export async function processBalanceOperation({
     await updateUserBalance({
       telegram_id,
       amount: amount,
-      type: 'money_expense',
+      type: TransactionType.MONEY_EXPENSE,
       description: description,
       bot_name,
     })
@@ -127,13 +128,13 @@ export async function sendBalanceMessage(
 export const processPayment = async ({
   ctx,
   amount,
-  type = 'money_expense',
+  type = TransactionType.MONEY_EXPENSE,
   description,
   metadata = {},
 }: {
   ctx: MyContext
   amount: number
-  type?: 'money_income' | 'money_expense'
+  type?: TransactionType.MONEY_INCOME | TransactionType.MONEY_EXPENSE
   description?: string
   metadata?: Record<string, any>
 }) => {

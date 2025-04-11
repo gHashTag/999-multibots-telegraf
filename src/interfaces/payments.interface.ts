@@ -31,7 +31,7 @@ export enum PaymentStatus {
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
   REFUNDED = 'REFUNDED',
-  CANCELLED = 'CANCELLED'
+  CANCELLED = 'CANCELLED',
 }
 
 /**
@@ -124,10 +124,13 @@ export enum TransactionType {
   MONEY_INCOME = 'MONEY_INCOME',
   MONEY_EXPENSE = 'MONEY_EXPENSE',
   SUBSCRIPTION_PAYMENT = 'SUBSCRIPTION_PAYMENT',
+  SUBSCRIPTION_PURCHASE = 'SUBSCRIPTION_PURCHASE',
+  SUBSCRIPTION_RENEWAL = 'SUBSCRIPTION_RENEWAL',
   REFUND = 'REFUND',
   BONUS = 'BONUS',
   REFERRAL = 'REFERRAL',
-  TRANSFER = 'TRANSFER'
+  TRANSFER = 'TRANSFER',
+  SYSTEM = 'SYSTEM',
 }
 
 /**
@@ -137,20 +140,23 @@ export const TRANSACTION_DESCRIPTIONS: Record<TransactionType, string> = {
   [TransactionType.MONEY_INCOME]: '💰 Пополнение баланса',
   [TransactionType.MONEY_EXPENSE]: '💸 Списание средств',
   [TransactionType.SUBSCRIPTION_PAYMENT]: '⭐️ Оплата подписки',
+  [TransactionType.SUBSCRIPTION_PURCHASE]: '⭐️ Покупка подписки',
+  [TransactionType.SUBSCRIPTION_RENEWAL]: '🔄 Продление подписки',
   [TransactionType.REFUND]: '↩️ Возврат средств',
   [TransactionType.BONUS]: '🎁 Бонусное начисление',
   [TransactionType.REFERRAL]: '👥 Реферальное начисление',
-  [TransactionType.TRANSFER]: '💫 Перевод средств'
+  [TransactionType.TRANSFER]: '💫 Перевод средств',
+  [TransactionType.SYSTEM]: '⚙️ Системная операция',
 }
 
 /**
  * Детальные описания для каждого типа транзакции
  */
 export const DETAILED_TRANSACTION_DESCRIPTIONS: Record<
-  TransactionType,
+  string,
   Record<string, string>
 > = {
-  money_income: {
+  [TransactionType.MONEY_INCOME]: {
     [ModeEnum.NeuroPhoto]: '🖼️ Пополнение баланса для генерации изображений',
     [ModeEnum.TextToSpeech]: '🗣️ Пополнение баланса для озвучки текста',
     [ModeEnum.ImageToVideo]: '🎬 Пополнение баланса для создания видео',
@@ -167,7 +173,7 @@ export const DETAILED_TRANSACTION_DESCRIPTIONS: Record<
     [ModeEnum.ImageToPrompt]: '🔍 Пополнение баланса для анализа изображения',
     default: '💰 Пополнение баланса',
   },
-  money_expense: {
+  [TransactionType.MONEY_EXPENSE]: {
     [ModeEnum.NeuroPhoto]: '🖼️ Генерация изображений',
     [ModeEnum.TextToSpeech]: '🗣️ Преобразование текста в речь',
     [ModeEnum.ImageToVideo]: '🎬 Создание видео',
@@ -195,18 +201,18 @@ export const DETAILED_TRANSACTION_DESCRIPTIONS: Record<
     neurotester: '🧪 Продление тестовой подписки',
     default: '🔄 Продление подписки',
   },
-  refund: {
+  [TransactionType.REFUND]: {
     default: '↩️ Возврат средств',
   },
-  bonus: {
+  [TransactionType.BONUS]: {
     default: '🎁 Бонусное начисление',
   },
-  referral: {
+  [TransactionType.REFERRAL]: {
     default: '👥 Реферальное начисление',
   },
-  system: {
+  [TransactionType.SYSTEM]: {
     migration: '🔄 Миграция баланса пользователя',
-    default: '💫 Системная операция',
+    default: '⚙️ Системная операция',
   },
 } as const
 
@@ -214,14 +220,14 @@ export const DETAILED_TRANSACTION_DESCRIPTIONS: Record<
  * Ключи для описаний транзакций
  */
 export const TRANSACTION_KEYS = {
-  MONEY_INCOME: 'money_income',
-  MONEY_EXPENSE: 'money_expense',
+  MONEY_INCOME: TransactionType.MONEY_INCOME,
+  MONEY_EXPENSE: TransactionType.MONEY_EXPENSE,
   SUBSCRIPTION_PURCHASE: 'subscription_purchase',
   SUBSCRIPTION_RENEWAL: 'subscription_renewal',
-  REFUND: 'refund',
-  BONUS: 'bonus',
-  REFERRAL: 'referral',
-  SYSTEM: 'system',
+  REFUND: TransactionType.REFUND,
+  BONUS: TransactionType.BONUS,
+  REFERRAL: TransactionType.REFERRAL,
+  SYSTEM: TransactionType.SYSTEM,
 } as const
 
 /**
@@ -285,20 +291,20 @@ export const COMMAND_TO_SERVICE_MAP: Partial<Record<ModeEnum, ContentService>> =
 export const COMMAND_TO_TRANSACTION_TYPE: Partial<
   Record<ModeEnum, TransactionType>
 > = {
-  [ModeEnum.NeuroPhoto]: 'money_expense',
-  [ModeEnum.NeuroPhotoV2]: 'money_expense',
-  [ModeEnum.TextToSpeech]: 'money_expense',
-  [ModeEnum.ImageToVideo]: 'money_expense',
-  [ModeEnum.TextToVideo]: 'money_expense',
-  [ModeEnum.TextToImage]: 'money_expense',
-  [ModeEnum.ImageToPrompt]: 'money_expense',
-  [ModeEnum.DigitalAvatarBody]: 'money_expense',
-  [ModeEnum.DigitalAvatarBodyV2]: 'money_expense',
-  [ModeEnum.ChatWithAvatar]: 'money_expense',
-  [ModeEnum.LipSync]: 'money_expense',
-  [ModeEnum.Voice]: 'money_expense',
-  [ModeEnum.Subscribe]: 'subscription_purchase',
-  [ModeEnum.TopUpBalance]: 'money_income',
+  [ModeEnum.NeuroPhoto]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.NeuroPhotoV2]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.TextToSpeech]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.ImageToVideo]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.TextToVideo]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.TextToImage]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.ImageToPrompt]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.DigitalAvatarBody]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.DigitalAvatarBodyV2]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.ChatWithAvatar]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.LipSync]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.Voice]: TransactionType.MONEY_EXPENSE,
+  [ModeEnum.Subscribe]: TransactionType.SUBSCRIPTION_PURCHASE,
+  [ModeEnum.TopUpBalance]: TransactionType.MONEY_INCOME,
 } as const
 
 /**
@@ -309,7 +315,8 @@ export function getTransactionInfoByCommand(command: ModeEnum): {
   service: ContentService
   description: string
 } {
-  const transactionType = COMMAND_TO_TRANSACTION_TYPE[command] || 'system'
+  const transactionType =
+    COMMAND_TO_TRANSACTION_TYPE[command] || TransactionType.SYSTEM
   const service = COMMAND_TO_SERVICE_MAP[command]
 
   if (!service) {

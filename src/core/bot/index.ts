@@ -4,8 +4,8 @@ dotenv.config()
 
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { createMockBot } from '@/test-utils/mocks/botMock'
 import { logger } from '@/utils/logger'
-import { TEST_CONFIG } from '@/test-utils/test-config'
 import { NODE_ENV } from '@/config'
 import { getBotGroupFromAvatars } from '@/core/supabase'
 
@@ -21,8 +21,10 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.BOT_TOKEN_7) throw new Error('❌ BOT_TOKEN_7 must be set')
 } else {
   // Check test tokens
-  if (!process.env.BOT_TOKEN_TEST_1) throw new Error('❌ BOT_TOKEN_TEST_1 must be set')
-  if (!process.env.BOT_TOKEN_TEST_2) throw new Error('❌ BOT_TOKEN_TEST_2 must be set')
+  if (!process.env.BOT_TOKEN_TEST_1)
+    throw new Error('❌ BOT_TOKEN_TEST_1 must be set')
+  if (!process.env.BOT_TOKEN_TEST_2)
+    throw new Error('❌ BOT_TOKEN_TEST_2 must be set')
 }
 
 const BOT_TOKENS_PROD = [
@@ -192,7 +194,9 @@ export function getBotByName(bot_name: string): {
       description: 'Returning mock bot for tests',
       bot_name,
     })
-    return { bot: TEST_CONFIG.mocks.bot }
+    return {
+      bot: createMockBot('test-token') as unknown as Telegraf<MyContext>,
+    }
   }
 
   logger.info({

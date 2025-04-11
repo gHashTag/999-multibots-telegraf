@@ -7,7 +7,7 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { processApiResponse } from '@/helpers/processApiResponse'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 import { saveFileLocally } from '@/helpers'
 import { pulse } from '@/helpers/pulse'
 import { ModeEnum, calculateModeCost } from '@/price/helpers'
@@ -270,7 +270,7 @@ export const neuroImageGeneration = inngest.createFunction(
             telegram_id,
             amount: Math.abs(paymentAmount),
             stars: Math.abs(paymentAmount),
-            type: 'money_expense',
+            type: TransactionType.MONEY_EXPENSE,
             description: `Payment for generating ${numImages} image${
               numImages > 1 ? 's' : ''
             } with prompt: ${prompt.slice(0, 50)}...`,
@@ -442,7 +442,7 @@ export const neuroImageGeneration = inngest.createFunction(
               data: {
                 telegram_id,
                 amount: refundAmount,
-                type: 'refund',
+                type: TransactionType.REFUND,
                 description: `Возврат за неудачную генерацию изображения ${
                   i + 1
                 }/${numImagesToGenerate}`,
@@ -681,7 +681,7 @@ export const neuroImageGeneration = inngest.createFunction(
           data: {
             telegram_id,
             amount: refundAmount,
-            type: 'refund',
+            type: TransactionType.REFUND,
             description: `Возврат средств за неудачную генерацию ${validNumImages} изображений`,
             bot_name,
             metadata: {
