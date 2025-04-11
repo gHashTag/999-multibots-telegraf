@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
  * Основной файл для запуска тестов
- * 
+ *
  * Этот файл предоставляет простой интерфейс для запуска доступных тестов
  * с использованием новой модульной системы тестирования.
- * 
+ *
  * Структура директорий для тестов:
  * - tests/neuro - Тесты нейрофункций
  * - tests/database - Тесты БД
@@ -12,7 +12,7 @@
  * - tests/inngest - Тесты Inngest функций
  * - tests/speech - Тесты аудио
  * - tests/translations - Тесты переводов
- * 
+ *
  * Использование:
  *   npm run test:all - запуск всех тестов
  *   npm run test:discover - автоматическое обнаружение и запуск тестов
@@ -24,6 +24,8 @@ import path from 'path'
 import { logger } from '@/utils/logger'
 import { TestCategory } from './core/categories'
 import { runTests } from './core/runTests'
+import { runBalanceTests } from './tests/payment/balance.test'
+import { runPaymentNotificationTests } from './tests/payment/paymentNotification.test'
 
 // Загружаем переменные окружения
 config({ path: path.resolve('.env.test') })
@@ -86,13 +88,18 @@ export { default as assert } from './core/assert'
 export { default as mock } from './core/mock/index'
 export { default as snapshot } from './core/snapshot'
 
+export const paymentTests = {
+  runBalanceTests,
+  runPaymentNotificationTests,
+}
+
 /**
  * Запуск тестов
  */
 async function start() {
   logger.info('📊 Запуск тестов проекта')
   logger.info('📊 Running project tests')
-  
+
   try {
     const exitCode = await runTests(process.argv.slice(2))
     process.exit(exitCode)
