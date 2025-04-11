@@ -245,7 +245,7 @@ curl http://localhost:2999/api/status
 
 В продакшен-среде Nginx настраивается с использованием Ansible, который применяет шаблон `nginx.conf.j2` с учетом переменных конкретного сервера.
 
-## �� Docker
+## Docker
 
 Проект поддерживает запуск в Docker. Подробные инструкции по настройке и запуску в Docker доступны в [DOCKER.md](DOCKER.md).
 
@@ -267,3 +267,10 @@ npm run docker:down
 # Запуск тестов в Docker
 npm run test:docker
 ```
+
+## Документация
+
+- [Тестирование](docs/README-TESTS.md) - Документация по тестированию
+- [Сервер](docs/README-server.md) - Документация по серверной части
+- [Docker](docs/DOCKER.md) - Документация по Docker
+- [Конфигурация Inngest](docs/configuration/inngest.md) - Настройка Inngest для локального и Docker-окружения
