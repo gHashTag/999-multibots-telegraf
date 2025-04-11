@@ -119,18 +119,20 @@ export type Payment = BasePayment
 
 /**
  * Типы транзакций в системе
+ *
+ * ВАЖНО: значения должны быть в нижнем регистре, так как они используются в БД
  */
 export enum TransactionType {
-  MONEY_INCOME = 'MONEY_INCOME',
-  MONEY_EXPENSE = 'MONEY_EXPENSE',
-  SUBSCRIPTION_PAYMENT = 'SUBSCRIPTION_PAYMENT',
-  SUBSCRIPTION_PURCHASE = 'SUBSCRIPTION_PURCHASE',
-  SUBSCRIPTION_RENEWAL = 'SUBSCRIPTION_RENEWAL',
-  REFUND = 'REFUND',
-  BONUS = 'BONUS',
-  REFERRAL = 'REFERRAL',
-  TRANSFER = 'TRANSFER',
-  SYSTEM = 'SYSTEM',
+  MONEY_INCOME = 'money_income',
+  MONEY_EXPENSE = 'money_expense',
+  SUBSCRIPTION_PAYMENT = 'subscription_payment',
+  SUBSCRIPTION_PURCHASE = 'subscription_purchase',
+  SUBSCRIPTION_RENEWAL = 'subscription_renewal',
+  REFUND = 'refund',
+  BONUS = 'bonus',
+  REFERRAL = 'referral',
+  TRANSFER = 'transfer',
+  SYSTEM = 'system',
 }
 
 /**
@@ -233,9 +235,15 @@ export const TRANSACTION_KEYS = {
 /**
  * Преобразует тип транзакции из enum с заглавными буквами
  * в нижний регистр для совместимости с БД
+ *
+ * ПРИМЕЧАНИЕ: Эта функция остается для обратной совместимости,
+ * теперь значения TransactionType уже в нижнем регистре
  */
-export function normalizeTransactionType(type: TransactionType): string {
-  return type.toLowerCase()
+export function normalizeTransactionType(
+  type: TransactionType | string
+): string {
+  // Простое приведение к строке и нижнему регистру
+  return (type as string).toLowerCase()
 }
 
 /**
