@@ -113,7 +113,7 @@ export const imageToVideoFunction = inngest.createFunction(
           data: {
             telegram_id: validatedParams.telegram_id,
             amount: calculateModeCost(ModeEnum.ImageToVideo).stars,
-            type: TransactionType.MONEY_EXPENSE,
+            type: TransactionType.MONEY_EXPENSE.toLowerCase(),
             description: validatedParams.is_ru
               ? 'Генерация видео из изображения'
               : 'Image to video generation',

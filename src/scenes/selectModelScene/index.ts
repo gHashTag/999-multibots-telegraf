@@ -49,19 +49,18 @@ export const selectModelScene = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
 
     if (ctx.message && 'text' in ctx.message) {
+      // const modelChoice = ctx.message.text.toLowerCase()
       const modelChoice = 'flux' // ctx.message.text.toLowerCase()
 
-      await ctx.reply(
-        isRu
-          ? 'Вы выбрали модель: ' + modelChoice
-          : 'You selected model: ' + modelChoice
-      )
-
-      await ctx.reply(
-        isRu ? '✓ Модель успешно выбрана' : '✓ Model successfully selected'
-      )
-
-      return ctx.scene.enter('checkBalanceScene')
+      if (modelChoice.includes('flux pro')) {
+        ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        return
+      } else if (modelChoice.includes('flux')) {
+        ctx.session.mode = ModeEnum.DigitalAvatarBody
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        return
+      }
     }
 
     const isCancel = await handleHelpCancel(ctx)

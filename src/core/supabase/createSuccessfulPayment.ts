@@ -1,89 +1,96 @@
-import { supabase } from '.'
-import { logger } from '@/utils/logger'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { supabase } from '@/supabase'
+import { getUserByTelegramId } from './getUserByTelegramId'
+import { normalizeTransactionType } from '@/interfaces/payments.interface'
+import { logger } from '@/utils/logger'
 
 interface CreateSuccessfulPaymentParams {
   telegram_id: TelegramId
   amount: number
-  stars: number
-  payment_method: string
+  type: TransactionType | string
   description: string
-  type: TransactionType
+  service_type?: string
+  stars?: number
+  payment_method?: string
   bot_name: string
-  status: 'COMPLETED' | 'PENDING' | 'FAILED'
   metadata?: Record<string, any>
-  currency?: string
-  subscription?: string
-  language?: string
+  status?: string
   inv_id?: string
-  service_type: string
+  currency?: string
+  invoice_url?: string
 }
 
 /**
- * Создает запись об успешном платеже в таблице payments_v2
+ * Создает успешный платеж в системе
+ * @param params Параметры платежа
+ * @returns Результат создания платежа
  */
-export const createSuccessfulPayment = async (
-  params: CreateSuccessfulPaymentParams
-) => {
+export async function createSuccessfulPayment({
+  telegram_id,
+  amount,
+  type,
+  description,
+  service_type,
+  stars,
+  payment_method = 'Telegram',
+  bot_name,
+  metadata,
+  status = 'COMPLETED',
+  inv_id,
+  currency = 'XTR',
+  invoice_url,
+}: CreateSuccessfulPaymentParams) {
   try {
-    const {
-      telegram_id,
-      amount,
-      stars,
-      payment_method,
-      description,
-      service_type,
-      type,
-      bot_name,
-      status,
-      metadata = {},
-      currency = 'STARS',
-      subscription,
-      language = 'ru',
-      inv_id,
-    } = params
-
-    logger.info('💰 Создание записи о платеже:', {
-      description: 'Creating payment record',
-      telegram_id,
-      amount,
-      stars,
-      payment_method,
-      payment_description: description,
-      type,
-      bot_name,
-      status,
-    })
-
-    // Нормализуем telegram_id к строке
-    const normalizedTelegramId = String(telegram_id)
-
-    // Если подписка передана, добавляем её в метаданные
-    if (subscription) {
-      metadata.subscription = subscription
+    // Получаем пользователя для проверки
+    const user = await getUserByTelegramId(telegram_id)
+    if (!user) {
+      throw new Error(`User not found for telegram_id: ${telegram_id}`)
     }
 
-    // Создаем запись в таблице payments_v2
+    // Создаем копию параметров для модификации
+    const params = {
+      telegram_id,
+      amount,
+      type,
+      description,
+      service_type,
+      stars,
+      payment_method,
+      bot_name,
+      metadata,
+      status,
+      inv_id,
+      currency,
+      invoice_url,
+    }
+
+    // Нормализуем тип транзакции в нижний регистр для совместимости с БД
+    params.type = normalizeTransactionType(type as TransactionType)
+
+    // Нормализуем telegram_id к строке
+    const telegramIdStr = String(telegram_id)
+
+    const numericStars = stars !== undefined ? Number(stars) : amount
+
     const { data, error } = await supabase
       .from('payments_v2')
       .insert({
-        telegram_id: normalizedTelegramId,
+        telegram_id: telegramIdStr,
         amount,
-        stars,
+        stars: numericStars,
         payment_method,
         description,
-        type: type.toLowerCase(),
+        type: params.type,
         service_type,
         bot_name,
         status,
-        payment_date: new Date().toISOString(),
         metadata,
         currency,
-        language,
-        inv_id: inv_id || `${normalizedTelegramId}-${Date.now()}`,
+        inv_id,
+        invoice_url,
       })
-      .select('*')
+      .select()
       .single()
 
     if (error) {
@@ -104,7 +111,7 @@ export const createSuccessfulPayment = async (
       payment_id: data.payment_id,
       telegram_id,
       amount,
-      type,
+      type: params.type,
       bot_name,
     })
 
