@@ -47,6 +47,11 @@ RUN npm install --omit=dev --ignore-scripts --no-package-lock --no-audit
 # Копируем скомпилированное приложение из этапа сборки
 COPY --from=builder /app/dist ./dist
 
+# Копируем файлы Ansible для запуска изнутри контейнера
+COPY playbook.yml ./
+COPY inventory ./
+COPY roles ./roles
+
 # Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 
