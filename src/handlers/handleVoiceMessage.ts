@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
 import { logger } from '@/utils/logger'
-import { OpenAI } from 'openai'
+import { TransactionType } from '@/interfaces/payments.interface'
 import { v4 as uuidv4 } from 'uuid'
 import { inngest } from '@/inngest-functions/clients'
 import { ModeEnum } from '@/price/helpers/modelsCost'
@@ -9,7 +9,7 @@ import { calculateModeCost } from '@/price/helpers/modelsCost'
 
 export async function handleVoiceMessage(ctx: MyContext) {
   const isRu = isRussian(ctx)
-  
+
   try {
     // Проверяем, что сообщение содержит голос
     if (!ctx.message || !('voice' in ctx.message)) {
@@ -57,13 +57,12 @@ export async function handleVoiceMessage(ctx: MyContext) {
       data: {
         telegram_id: ctx.from?.id.toString(),
         amount: calculateModeCost({ mode: ModeEnum.VoiceToText }).stars,
-        type: 'money_expense',
+        type: TransactionType.MONEY_EXPENSE,
         description: 'Payment for voice to text conversion',
         bot_name: ctx.botInfo?.username,
         service_type: ModeEnum.VoiceToText,
       },
     })
-
   } catch (error) {
     logger.error('❌ Ошибка при обработке голосового сообщения:', {
       description: 'Error processing voice message',
@@ -77,4 +76,4 @@ export async function handleVoiceMessage(ctx: MyContext) {
         : '❌ An error occurred while processing your voice message. Please try again later.'
     )
   }
-} 
+}

@@ -1,18 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 import {
   SUPABASE_URL,
-  SUPABASE_SERVICE_KEY,
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_SERVICE_KEY,
 } from '../../config'
 import { logger } from '@/utils/logger'
 
-if (
-  !SUPABASE_URL ||
-  !SUPABASE_SERVICE_KEY ||
-  !SUPABASE_SERVICE_ROLE_KEY ||
-  !SUPABASE_SERVICE_KEY
-) {
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_SERVICE_KEY) {
   throw new Error('Missing Supabase environment variables')
 }
 

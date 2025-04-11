@@ -13,7 +13,7 @@ import { API_URL, isDev } from '@/config'
 import { BalanceHelper } from '@/helpers/inngest/balanceHelpers'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 import type { Prediction } from 'replicate'
 
 // В начале файла добавим интерфейс для ошибок
@@ -852,7 +852,7 @@ export const generateModelTraining = inngest.createFunction(
           data: {
             telegram_id: eventData.telegram_id,
             amount: paymentAmount,
-            type: 'money_expense',
+            type: TransactionType.MONEY_EXPENSE,
             description: `Оплата тренировки модели ${modelName} (${steps} шагов)`,
             bot_name: eventData.bot_name,
             service_type: ModeEnum.DigitalAvatarBody,
@@ -1037,7 +1037,7 @@ export const generateModelTraining = inngest.createFunction(
           data: {
             telegram_id: eventData.telegram_id,
             amount: paymentAmount, // положительное значение для возврата
-            type: 'refund',
+            type: TransactionType.REFUND,
             description: `Возврат средств за неудавшуюся тренировку модели ${eventData.modelName}`,
             bot_name: eventData.bot_name,
             metadata: {

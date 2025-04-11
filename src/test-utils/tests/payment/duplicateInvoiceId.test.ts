@@ -347,7 +347,7 @@ class DuplicateInvoiceIdTester {
           telegram_id: this.testUserId,
           amount: 1,
           stars: 1,
-          type: 'money_income',
+          type: TransactionType.MONEY_INCOME,
           description: 'Test payment processing',
           bot_name: 'test_bot',
           inv_id: invId.toString()

@@ -96,7 +96,7 @@ async function testPositivePayment(): Promise<TestResult> {
       telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
       amount: TEST_CONFIG.TEST_DATA.TEST_AMOUNT,
       stars: TEST_CONFIG.TEST_DATA.TEST_STARS,
-      type: 'money_income',
+      type: TransactionType.MONEY_INCOME,
       description: 'Тестовое пополнение баланса',
       bot_name: TEST_CONFIG.TEST_DATA.TEST_BOT_NAME,
       service_type: ModeEnum.TopUpBalance,
@@ -172,7 +172,7 @@ async function testNegativePayment(): Promise<TestResult> {
       telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
       amount: -TEST_CONFIG.TEST_DATA.TEST_AMOUNT, // Отрицательная сумма
       stars: TEST_CONFIG.TEST_DATA.TEST_STARS,
-      type: 'money_income',
+      type: TransactionType.MONEY_INCOME,
       description: 'Тестовое пополнение с отрицательной суммой',
       bot_name: TEST_CONFIG.TEST_DATA.TEST_BOT_NAME,
       service_type: ModeEnum.TopUpBalance,
@@ -241,7 +241,7 @@ async function testInvalidPaymentData(): Promise<TestResult> {
       // telegram_id отсутствует
       amount: TEST_CONFIG.TEST_DATA.TEST_AMOUNT,
       stars: TEST_CONFIG.TEST_DATA.TEST_STARS,
-      type: 'money_income',
+      type: TransactionType.MONEY_INCOME,
       description: 'Тестовое пополнение с неполными данными',
       bot_name: TEST_CONFIG.TEST_DATA.TEST_BOT_NAME,
       service_type: ModeEnum.TopUpBalance,

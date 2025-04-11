@@ -6,7 +6,7 @@ import {
 } from '@/core/supabase'
 import { supabase } from '@/core/supabase'
 import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 import { getBotByName } from '@/core/bot'
 import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { v4 as uuidv4 } from 'uuid'
@@ -98,7 +98,7 @@ export const createVoiceAvatarFunction = inngest.createFunction(
             is_ru: validatedParams.is_ru,
             bot_name: validatedParams.bot_name,
             description: 'Payment for voice avatar creation',
-            type: 'money_expense',
+            type: TransactionType.MONEY_EXPENSE,
             amount: calculateModeCost({ mode: ModeEnum.Voice }).stars,
             metadata: {
               service_type: ModeEnum.Voice,
@@ -243,7 +243,7 @@ export const createVoiceAvatarFunction = inngest.createFunction(
             data: {
               telegram_id: validatedParams.telegram_id,
               amount: refundAmount,
-              type: 'refund',
+              type: TransactionType.REFUND,
               description:
                 'Возврат средств за неудачное создание голосового аватара',
               bot_name: validatedParams.bot_name,

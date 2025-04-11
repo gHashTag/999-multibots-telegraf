@@ -6,17 +6,13 @@ import {
   password1,
   description,
   subscriptionTitles,
-  generateShortInvId,
   useTestMode,
-  generateSignature,
-  generateRobokassaUrl,
   generateUniqueShortInvId,
 } from './helper'
 import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
-
-import { v4 as uuidv4 } from 'uuid'
+import { TransactionType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
 
@@ -172,7 +168,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       data: {
         telegram_id: String(userId),
         amount: Number(stars),
-        type: 'money_income',
+        type: TransactionType.MONEY_INCOME,
         description: `RuBill payment:: ${stars}`,
         bot_name,
         inv_id: invId,

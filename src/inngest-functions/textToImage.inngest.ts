@@ -9,6 +9,7 @@ import {
   getUserByTelegramIdString,
   getUserBalance,
 } from '@/core/supabase'
+import { TransactionType } from '@/interfaces/payments.interface'
 import {
   downloadFile,
   processApiResponse,
@@ -140,7 +141,7 @@ export const textToImageFunction = inngest.createFunction(
             amount: cost,
             is_ru: params.is_ru,
             bot_name: params.bot_name,
-            type: 'money_expense',
+            type: TransactionType.MONEY_EXPENSE,
             description: 'Payment for text to image generation',
             metadata: {
               service_type: ModeEnum.TextToImage,
@@ -331,7 +332,7 @@ export const textToImageFunction = inngest.createFunction(
               data: {
                 telegram_id: validatedParams.telegram_id,
                 amount: refundAmount.toString(), // положительное значение для возврата
-                type: 'refund',
+                type: TransactionType.REFUND,
                 description: `Возврат средств за неудачную генерацию ${validatedParams.num_images} изображений`,
                 bot_name: validatedParams.bot_name,
                 metadata: {
@@ -399,8 +400,8 @@ async function sendGenerationStatus(
         ? `⏳ Генерация изображения ${index + 1} из ${params.num_images}`
         : `⏳ Generating image ${index + 1} of ${params.num_images}`
       : params.is_ru
-      ? '⏳ Генерация...'
-      : '⏳ Generating...'
+        ? '⏳ Генерация...'
+        : '⏳ Generating...'
 
   await bot.telegram.sendMessage(params.telegram_id, message)
 }

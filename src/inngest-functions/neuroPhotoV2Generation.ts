@@ -14,7 +14,7 @@ import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { v4 as uuidv4 } from 'uuid'
 import fetch from 'node-fetch'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 /**
  * Inngest функция для генерации нейрофото V2
  */
@@ -175,7 +175,7 @@ export const neuroPhotoV2Generation = inngest.createFunction(
             amount: costCalculation.totalCost,
             is_ru,
             bot_name,
-            type: 'money_expense',
+            type: TransactionType.MONEY_EXPENSE,
             description: `Payment for generating ${numImagesToGenerate} image${
               numImagesToGenerate === 1 ? '' : 's'
             } with prompt: ${prompt.substring(0, 30)}...`,
@@ -418,7 +418,7 @@ export const neuroPhotoV2Generation = inngest.createFunction(
           data: {
             telegram_id,
             amount: refundAmount, // положительное значение для возврата
-            type: 'refund',
+            type: TransactionType.REFUND,
             description: `Возврат средств за неудачную генерацию ${numImagesToGenerate} изображений V2`,
             bot_name,
             metadata: {

@@ -2,6 +2,9 @@ import { Inngest } from 'inngest'
 import fetch from 'node-fetch'
 import { ModeEnum } from '../price/helpers/modelsCost'
 import { logger } from '../utils/logger'
+import { MockTelegraf } from './mocks/botMock'
+import { MyContext } from '../interfaces'
+import { Telegraf } from 'telegraf'
 
 /**
  * Константы для конфигурации тестов
@@ -106,6 +109,7 @@ export const TEST_CONFIG = {
     TEST_USER_USERNAME: 'testuser',
     TEST_USER_FIRST_NAME: 'Test',
     TEST_USER_LAST_NAME: 'User',
+    TEST_DESCRIPTION: 'Test description',
 
     TEST_AMOUNT: 100, // Сумма для тестовых платежей
     TEST_STARS: 100, // Количество звезд для тестовых платежей
@@ -126,6 +130,11 @@ export const TEST_CONFIG = {
       TEXT_TO_IMAGE: 10,
       TEXT_TO_VIDEO: 20,
     },
+  },
+
+  // Моки для тестов
+  mocks: {
+    bot: new MockTelegraf('test-token') as unknown as Telegraf<MyContext>, // Мок объекта бота для тестов
   },
 }
 

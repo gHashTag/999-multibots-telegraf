@@ -3,7 +3,7 @@ import { getUserBalance } from '@/core/supabase'
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { isRussian } from '@/helpers'
-
+import { TransactionType } from '@/interfaces/payments.interface'
 export async function refundUser(ctx: MyContext, amount: number) {
   try {
     if (!ctx.from?.id) {
@@ -26,7 +26,7 @@ export async function refundUser(ctx: MyContext, amount: number) {
       data: {
         telegram_id: ctx.from?.id.toString(),
         amount,
-        type: 'money_income',
+        type: TransactionType.MONEY_INCOME,
         description: 'Refund for cancelled operation',
         bot_name: ctx.botInfo.username,
       },

@@ -9,6 +9,7 @@ import { getTelegramIdFromInvId } from '@/helpers/getTelegramIdFromInvId'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { createBotByName } from '@/core/bot'
+import { TransactionType } from '@/interfaces/payments.interface'
 
 // Константы для вариантов оплаты
 export const PAYMENT_OPTIONS = [
@@ -158,7 +159,7 @@ export const ruPaymentProcessPayment = inngest.createFunction(
           data: {
             amount: stars,
             telegram_id: telegram_id.toString(),
-            type: 'money_income',
+            type: TransactionType.MONEY_INCOME,
             description: subscription
               ? `Покупка подписки ${subscription}`
               : `Пополнение баланса на ${stars} звезд`,

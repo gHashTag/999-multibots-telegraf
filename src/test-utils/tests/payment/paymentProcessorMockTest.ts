@@ -3,6 +3,7 @@ import { TEST_CONFIG } from '../../test-config'
 import { createMockFn } from '../../test-config'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
+import { TransactionType } from '@/interfaces/payments.interface'
 
 /**
  * Модуль для тестирования платежного процессора с использованием моков
@@ -45,7 +46,7 @@ export async function testPaymentProcessorWithMocks(): Promise<TestResult> {
         telegram_id: TEST_USER_TELEGRAM_ID,
         amount: TEST_AMOUNT,
         stars: TEST_AMOUNT,
-        type: 'money_income',
+        type: TransactionType.MONEY_INCOME,
         description: TEST_DESCRIPTION,
         bot_name: TEST_BOT_NAME,
         service_type: 'TopUpBalance',
@@ -146,7 +147,7 @@ export async function testInsufficientBalancePayment(): Promise<TestResult> {
         telegram_id: TEST_USER_TELEGRAM_ID,
         amount: TEST_AMOUNT, // Сумма больше баланса (10)
         stars: TEST_AMOUNT,
-        type: 'money_expense', // Важно! Это списание средств
+        type: TransactionType.MONEY_EXPENSE, // Важно! Это списание средств
         description: TEST_DESCRIPTION,
         bot_name: TEST_BOT_NAME,
         service_type: 'TextToImage',
@@ -254,7 +255,7 @@ async function mockProcessPayment(
   const currentBalance = await mocks.getUserBalance(telegram_id)
 
   // Проверяем баланс для списания
-  if (type === 'money_expense') {
+  if (type === TransactionType.MONEY_EXPENSE) {
     if (currentBalance < amount) {
       throw new Error(
         `Недостаточно средств. Баланс: ${currentBalance}, требуется: ${amount}`
@@ -264,16 +265,16 @@ async function mockProcessPayment(
 
   // Вычисление нового баланса в зависимости от типа операции
   let newBalance: number
-  if (type === 'money_income') {
+  if (type === TransactionType.MONEY_INCOME) {
     newBalance = currentBalance + (stars || amount)
-  } else if (type === 'money_expense') {
+  } else if (type === TransactionType.MONEY_EXPENSE) {
     newBalance = currentBalance - (stars || amount)
   } else {
     newBalance = currentBalance
   }
 
   // Создание записи о платеже
-  const payment = await mocks.createPayment({
+  await mocks.createPayment({
     telegram_id,
     amount,
     stars: stars || amount,
@@ -308,7 +309,6 @@ async function mockProcessPayment(
  * @returns Массив результатов тестов
  */
 export async function runPaymentProcessorMockTests(): Promise<TestResult[]> {
-  const startTime = Date.now()
   const results: TestResult[] = []
 
   logger.info('🧪 [TEST_RUNNER]: Запуск тестов обработчика платежей с моками', {
