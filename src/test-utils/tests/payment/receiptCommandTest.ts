@@ -18,11 +18,11 @@ export async function testReceiptCommand(): Promise<TestResult> {
 
   // Создаем мок-контекст
   const ctx = await createMockContext({
-    userId: Number(TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID),
-    firstName: TEST_CONFIG.TEST_DATA.TEST_USER_FIRST_NAME,
-    lastName: TEST_CONFIG.TEST_DATA.TEST_USER_LAST_NAME,
-    username: TEST_CONFIG.TEST_DATA.TEST_USER_USERNAME,
-    messageText: `/receipt ${TEST_CONFIG.TEST_DATA.TEST_OPERATION_ID}`,
+    user: {
+      telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
+      username: TEST_CONFIG.TEST_DATA.TEST_USER_USERNAME,
+    },
+    text: `/receipt ${TEST_CONFIG.TEST_DATA.TEST_OPERATION_ID}`,
   })
 
   try {
