@@ -42,6 +42,43 @@ export async function createSuccessfulPayment({
   invoice_url,
 }: CreateSuccessfulPaymentParams) {
   try {
+    // Если передан inv_id, проверяем, не существует ли уже платеж с таким ID
+    if (inv_id) {
+      const { data: existingPayment } = await supabase
+        .from('payments_v2')
+        .select('id, inv_id')
+        .eq('inv_id', inv_id)
+        .maybeSingle()
+
+      if (existingPayment) {
+        logger.info('🔄 [ДУБЛИКАТ]: Обнаружен платеж с тем же inv_id:', {
+          description:
+            'Attempt to create payment with existing inv_id (duplicate prevented)',
+          inv_id,
+          existing_payment_id: existingPayment.id,
+        })
+
+        // Возвращаем найденный платеж, чтобы избежать дублирования
+        const { data: paymentData } = await supabase
+          .from('payments_v2')
+          .select('*')
+          .eq('id', existingPayment.id)
+          .single()
+
+        logger.info(
+          '✅ Возвращаем существующий платеж вместо создания дубликата:',
+          {
+            description:
+              'Returning existing payment instead of creating duplicate',
+            payment_id: existingPayment.id,
+            inv_id,
+          }
+        )
+
+        return paymentData
+      }
+    }
+
     // Получаем пользователя для проверки
     const user = await getUserByTelegramId(telegram_id)
     if (!user) {
@@ -94,21 +131,49 @@ export async function createSuccessfulPayment({
       .single()
 
     if (error) {
-      logger.error('❌ Ошибка при создании записи о платеже:', {
-        description: 'Error creating payment record',
-        error: error.message,
-        error_details: error,
-        telegram_id,
-        amount,
-        type,
-        bot_name,
-      })
+      // Для дублирования inv_id
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === '23505'
+      ) {
+        logger.info('🔄 [ДУБЛИКАТ]: Предотвращено дублирование платежа:', {
+          description:
+            'Duplicate payment prevented (unique constraint violation)',
+          error: error instanceof Error ? error.message : String(error),
+          code: error.code,
+          details: 'details' in error ? error.details : 'Unknown details',
+        })
+      }
+      // Для несуществующего пользователя
+      else if (
+        error instanceof Error &&
+        error.message.includes('User not found')
+      ) {
+        logger.info('👤 [ПРОВЕРКА]: Пользователь не найден:', {
+          description: 'User not found check (expected in some test cases)',
+          error: error.message,
+        })
+      }
+      // Для всех других ошибок
+      else {
+        logger.error('❌ Ошибка при создании записи о платеже:', {
+          description: 'Error creating payment record',
+          error: error instanceof Error ? error.message : String(error),
+          error_details: error,
+          telegram_id,
+          amount,
+          type,
+          bot_name,
+        })
+      }
       throw error
     }
 
     logger.info('✅ Запись о платеже успешно создана:', {
       description: 'Payment record created successfully',
-      payment_id: data.payment_id,
+      payment_id: data.id,
       telegram_id,
       amount,
       type: params.type,
@@ -117,11 +182,39 @@ export async function createSuccessfulPayment({
 
     return data
   } catch (error) {
-    logger.error('❌ Ошибка в createSuccessfulPayment:', {
-      description: 'Error in createSuccessfulPayment function',
-      error: error instanceof Error ? error.message : String(error),
-      error_details: error,
-    })
+    // Для дублирования inv_id
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === '23505'
+    ) {
+      logger.info('🔄 [ДУБЛИКАТ]: Предотвращено дублирование платежа:', {
+        description:
+          'Duplicate payment prevented (unique constraint violation)',
+        error: error instanceof Error ? error.message : String(error),
+        code: error.code,
+        details: 'details' in error ? error.details : 'Unknown details',
+      })
+    }
+    // Для несуществующего пользователя
+    else if (
+      error instanceof Error &&
+      error.message.includes('User not found')
+    ) {
+      logger.info('👤 [ПРОВЕРКА]: Пользователь не найден:', {
+        description: 'User not found check (expected in some test cases)',
+        error: error.message,
+      })
+    }
+    // Для всех других ошибок
+    else {
+      logger.error('❌ Ошибка в createSuccessfulPayment:', {
+        description: 'Error in createSuccessfulPayment function',
+        error: error instanceof Error ? error.message : String(error),
+        error_details: error,
+      })
+    }
     throw error
   }
 }

@@ -7,24 +7,77 @@ import {
   invalidateBalanceCache,
 } from '@/core/supabase/getUserBalance'
 import { v4 as uuidv4 } from 'uuid'
-import { TransactionType } from '@/interfaces/payments.interface'
+import {
+  PaymentProcessParams,
+  TransactionType,
+} from '@/interfaces/payments.interface'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
-import { ModeEnum } from '@/price/helpers/modelsCost'
 import { normalizeTransactionType } from '@/interfaces/payments.interface'
 import { isDev } from '@/config'
+import { notifyAmbassadorAboutPayment } from '@/services/ambassadorPaymentNotifier'
 
+/**
+ * Интерфейс события обработки платежа
+ */
 export interface PaymentProcessEvent {
-  data: {
+  name: 'payment/process'
+  data: PaymentProcessParams
+}
+
+/**
+ * Результат обработки платежа
+ */
+export interface PaymentProcessResult {
+  success: boolean
+  payment?: {
+    payment_id: number
     telegram_id: string
-    amount: number // Всегда положительное число
-    stars?: number // Всегда положительное число
+    amount: number
+    stars: number
     type: string
-    description: string
-    bot_name: string
-    inv_id?: string
-    metadata?: any
-    service_type: ModeEnum // Используем ModeEnum для типизации
+    status: string
   }
+  balanceChange?: {
+    before: number
+    after: number
+    difference: number
+  }
+  operation_id?: string
+  error?: string
+  telegram_id?: string
+  amount?: number
+  type?: string
+}
+
+/**
+ * Отправляет уведомление пользователю о платеже
+ *
+ * @param payment Данные платежа
+ * @param currentBalance Текущий баланс до операции
+ * @param newBalance Новый баланс после операции
+ */
+async function sendPaymentNotification(
+  payment: any,
+  currentBalance: number,
+  newBalance: number
+): Promise<void> {
+  logger.info('📨 Отправка уведомления пользователю', {
+    description: 'Sending notification to user',
+    telegram_id: payment.telegram_id,
+    amount: payment.amount,
+    paymentId: payment.id,
+  })
+
+  await sendTransactionNotificationTest({
+    telegram_id: Number(payment.telegram_id),
+    operationId: payment.operation_id || uuidv4(),
+    amount: payment.amount,
+    currentBalance,
+    newBalance,
+    description: payment.description,
+    isRu: true,
+    bot_name: payment.bot_name,
+  })
 }
 
 /**
@@ -39,11 +92,13 @@ export const paymentProcessor = inngest.createFunction(
   },
   { event: 'payment/process' },
   async ({ event, step }) => {
-    const validatedParams = event.data
+    const validatedParams = event.data as PaymentProcessParams
 
     // Нормализуем тип транзакции в нижний регистр
     if (validatedParams.type) {
-      validatedParams.type = normalizeTransactionType(validatedParams.type)
+      validatedParams.type = normalizeTransactionType(
+        validatedParams.type as TransactionType
+      )
     }
 
     if (!validatedParams) {
@@ -59,6 +114,9 @@ export const paymentProcessor = inngest.createFunction(
       service_type,
       stars,
     } = validatedParams
+
+    // Генерируем операционный ID, если не задан
+    const operationId = validatedParams.inv_id || uuidv4()
 
     logger.info('🚀 Начало обработки платежа', {
       description: 'Starting payment processing',
@@ -128,7 +186,7 @@ export const paymentProcessor = inngest.createFunction(
           service_type,
           payment_method: 'balance',
           status: 'COMPLETED',
-          inv_id: validatedParams.inv_id,
+          inv_id: operationId,
           metadata: validatedParams.metadata,
         })
       })
@@ -146,66 +204,83 @@ export const paymentProcessor = inngest.createFunction(
         return getUserBalance(telegram_id)
       })
 
-      // Отправляем уведомление только если это не локальное окружение
+      // Отправляем уведомление пользователю (только если не локальное окружение)
       if (!isDev) {
         await step.run('send-notification', async () => {
-          const operationId = uuidv4()
-          logger.info('📨 Отправка уведомления', {
-            description: 'Sending notification',
+          await sendPaymentNotification(payment, currentBalance, newBalance)
+        })
+      } else {
+        logger.info(
+          '📨 Уведомление пользователю в локальном окружении пропущено',
+          {
+            description: 'User notification skipped in dev environment',
             telegram_id,
-            amount,
-            operationId,
-          })
-
-          return sendTransactionNotificationTest({
-            telegram_id: Number(telegram_id),
-            operationId,
             amount,
             currentBalance,
             newBalance,
-            description,
-            isRu: true,
-            bot_name,
-          })
-        })
-      } else {
-        logger.info('📨 Уведомление в локальном окружении пропущено', {
-          description: 'Notification skipped in dev environment',
-          telegram_id,
-          amount,
-          currentBalance,
-          newBalance,
-        })
+          }
+        )
       }
 
-      logger.info('✅ Платеж успешно обработан', {
-        description: 'Payment processed successfully',
-        telegram_id,
-        amount,
-        type,
-        currentBalance,
-        newBalance,
+      // Отправляем уведомление амбассадору, если платеж совершен в его боте
+      await step.run('send-ambassador-notification', async () => {
+        try {
+          if (payment.bot_name) {
+            const hasAmbassador = await notifyAmbassadorAboutPayment(payment)
+
+            if (hasAmbassador) {
+              logger.info('✅ Уведомление для амбассадора отправлено', {
+                description: 'Ambassador notification sent successfully',
+                paymentId: payment.id,
+                botName: payment.bot_name,
+              })
+            }
+          }
+        } catch (error: any) {
+          // Логируем ошибку, но не прерываем обработку платежа
+          logger.error('❌ Ошибка при отправке уведомления амбассадору', {
+            description: 'Error sending notification to ambassador',
+            error: error.message,
+            stack: error.stack,
+            paymentId: payment.id,
+            botName: payment.bot_name || 'unknown',
+          })
+        }
       })
 
       return {
         success: true,
-        payment,
+        payment: {
+          payment_id: payment.id,
+          telegram_id,
+          amount,
+          stars: stars || amount,
+          type,
+          status: 'COMPLETED',
+        },
         balanceChange: {
           before: currentBalance,
           after: newBalance,
           difference: newBalance - currentBalance,
         },
+        operation_id: operationId,
       }
     } catch (error) {
-      logger.error('❌ Ошибка при обработке платежа', {
+      logger.error('❌ Ошибка обработки платежа:', {
         description: 'Error processing payment',
+        error: error instanceof Error ? error.message : String(error),
         telegram_id,
         amount,
         type,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
       })
-      throw error
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        telegram_id,
+        amount,
+        type,
+      }
     }
   }
 )

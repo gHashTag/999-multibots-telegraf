@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # Тестовая база данных PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: nb-postgres-test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - 5433:5432
+    volumes:
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Сервис для тестирования
+  neuro-blogger-telegram-bot-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    volumes:
+      - ./logs:/opt/app/logs
+      - ./src:/opt/app/src
+      - ./test-results:/opt/app/test-results
+      - ./.env.test:/opt/app/.env
+    environment:
+      - NODE_ENV=test
+      - LOG_LEVEL=info
+      - ENVIRONMENT=test
+      - PAYMENT_PROCESS_ENABLED=true
+    command: >
+      sh -c "
+      echo '🚀 Starting tests...' &&
+      node ./dist/test-utils/runPaymentTests.js &&
+      node ./dist/test-utils/runSelectModelTests.js &&
+      echo '✅ All tests completed successfully'
+      "
+    restart: "no"
+    depends_on:
+      - redis
+      - supabase-test
+
+  redis:
+    image: redis:alpine
+    restart: "no"
+    ports:
+      - "6379:6379"
+
+  supabase-test:
+    image: supabase/postgres:latest
+    restart: "no"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./supabase/sql:/docker-entrypoint-initdb.d
+      - supabase-test-db:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: "no"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - supabase-test
+
+volumes:
+  test-logs:
+  supabase-test-db: 
