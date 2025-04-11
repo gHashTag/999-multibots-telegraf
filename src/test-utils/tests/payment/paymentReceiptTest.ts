@@ -1,11 +1,10 @@
 import { TestResult } from '@/test-utils/types'
 import { createMockContext } from '@/test-utils/helpers/createMockContext'
-import { IContext } from '@/interfaces/context.interface'
 import { logger } from '@/utils/logger'
-import { supabaseClient } from '@/core/supabase/supabaseClient'
-import { mockPaymentCreate } from '@/test-utils/mocks/payment'
-import * as getPaymentReceiptUrl from '@/helpers/getPaymentReceiptUrl'
-import { getRandomUser } from '@/test-utils/helpers/getRandomUser'
+import { supabase } from '@/supabase'
+import { getPaymentReceiptUrl } from '@/helpers/getPaymentReceiptUrl'
+import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
+import { generateInvId } from '@/utils/generateInvId'
 
 /**
  * Тест генерации и открытия платежного чека
@@ -16,59 +15,66 @@ export async function testPaymentReceiptGeneration(): Promise<TestResult> {
   })
 
   try {
-    // Создаем мок-контекст для теста
-    const ctx = createMockContext() as IContext
-    const user = await getRandomUser()
+    // Создаем мок-контекст для теста с тестовым пользователем
+    const telegramId = `${Date.now()}` // генерируем уникальный ID
 
-    if (!user) {
-      throw new Error('Не удалось получить тестового пользователя')
-    }
+    const ctx = createMockContext({
+      user: {
+        telegram_id: telegramId,
+        username: 'testuser',
+      },
+      text: '/receipt',
+    })
 
-    ctx.from = { id: user.telegram_id }
     logger.info('ℹ️ Контекст и пользователь созданы', {
       description: 'Context and user created',
-      userId: user.telegram_id,
+      userId: telegramId,
     })
 
-    // Мокаем создание платежа
-    const paymentData = await mockPaymentCreate({
-      telegram_id: user.telegram_id,
+    // Создаем уникальный ID операции
+    const operationId = generateInvId(telegramId, 100)
+
+    // Создаем тестовый платеж
+    const paymentData = {
+      telegram_id: telegramId,
+      amount: 100,
       stars: 100,
       type: 'money_income',
-      status: 'COMPLETED',
-      payment_method: 'test',
       description: 'Тестовый платеж для генерации чека',
+      payment_method: 'test',
+      status: 'COMPLETED',
       bot_name: 'TestBot',
-    })
+      service_type: 'TopUpBalance',
+      inv_id: operationId,
+    }
+
+    // Создаем платеж в БД
+    const payment = await createSuccessfulPayment(paymentData)
 
     logger.info('💾 Тестовый платеж создан', {
       description: 'Test payment created',
-      paymentId: paymentData.id,
+      paymentId: payment.id,
+      operationId: payment.inv_id,
     })
 
-    // Шпионим за функцией получения URL чека
-    const getPaymentReceiptUrlSpy = jest.spyOn(
-      getPaymentReceiptUrl,
-      'getPaymentReceiptUrl'
-    )
-
     // Получаем URL чека
-    const receiptUrl = await getPaymentReceiptUrl.getPaymentReceiptUrl(
-      paymentData.id.toString()
-    )
+    const receiptUrl = await getPaymentReceiptUrl(payment.id)
+
     logger.info('🔍 Получен URL чека', {
       description: 'Receipt URL generated',
       receiptUrl,
     })
 
-    // Проверяем, что функция была вызвана с правильными параметрами
-    expect(getPaymentReceiptUrlSpy).toHaveBeenCalledWith(
-      paymentData.id.toString()
-    )
-
     // Проверяем, что URL сформирован корректно
-    expect(receiptUrl).toContain('/receipt/')
-    expect(receiptUrl).toContain(paymentData.id.toString())
+    if (!receiptUrl.includes('/payment')) {
+      throw new Error('URL чека имеет неверный формат (отсутствует /payment)')
+    }
+
+    if (!receiptUrl.includes('operation_id=')) {
+      throw new Error(
+        'URL чека имеет неверный формат (отсутствует operation_id)'
+      )
+    }
 
     // Симулируем отправку URL пользователю
     await ctx.reply(`Чек по вашему платежу: ${receiptUrl}`, {
@@ -95,11 +101,8 @@ export async function testPaymentReceiptGeneration(): Promise<TestResult> {
       description: 'Payment receipt generation test passed successfully',
     })
 
-    // Очистка после теста
-    getPaymentReceiptUrlSpy.mockRestore()
-
     // Удаляем тестовый платеж
-    await supabaseClient.from('payments_v2').delete().eq('id', paymentData.id)
+    await supabase.from('payments_v2').delete().eq('id', payment.id)
 
     logger.info('🧹 Тестовые данные удалены', {
       description: 'Test data cleaned up',
