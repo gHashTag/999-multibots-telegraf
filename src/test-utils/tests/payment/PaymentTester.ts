@@ -4,14 +4,43 @@ import {
   PaymentStatus,
   TransactionType
 } from '@/interfaces/payments.interface'
-import { getUserBalance } from '@/core/supabase'
+import { logger } from '@/utils/logger'
+
+interface BalanceCheckResult {
+  success: boolean
+  currentBalance?: number
+}
 
 export class PaymentTester {
   constructor() {}
 
   async checkBalance(userId: string, amount: number): Promise<boolean> {
-    const balance = await getUserBalance(userId)
-    return balance >= amount
+    try {
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('balance')
+        .eq('telegram_id', userId)
+        .single()
+
+      if (error) {
+        logger.error('❌ Error checking balance:', { error, userId })
+        return false
+      }
+
+      if (!user) {
+        logger.warn('❓ User not found when checking balance:', { userId })
+        return false
+      }
+
+      const currentBalance = user.balance || 0
+      return currentBalance >= amount
+    } catch (error) {
+      logger.error('❌ Critical error while checking balance:', {
+        error,
+        userId,
+      })
+      return false
+    }
   }
 
   /**
@@ -20,7 +49,7 @@ export class PaymentTester {
   async checkPaymentCreated(
     telegramId: TelegramId,
     amount: number,
-    status: PaymentStatus = 'PENDING'
+    status: PaymentStatus = PaymentStatus.PENDING
   ): Promise<boolean> {
     const { data: payment } = await supabase
       .from('payments')
@@ -39,7 +68,7 @@ export class PaymentTester {
   async checkTransactionCreated(
     telegramId: TelegramId,
     amount: number,
-    type: TransactionType = 'PAYMENT'
+    type: TransactionType = TransactionType.MONEY_INCOME
   ): Promise<boolean> {
     const { data: transaction } = await supabase
       .from('transactions')
@@ -70,15 +99,6 @@ export class PaymentTester {
 
   /**
    * Проверяет отправку уведомления о платеже
-      console.error('Error checking transaction:', error)
-      return false
-    }
-
-    return !!data
-  }
-
-  /**
-   * Проверяет отправку уведомления об оплате
    */
   async checkPaymentNotification(
     telegramId: string,

@@ -24,15 +24,12 @@ export const BalanceHelper = {
       required: requiredAmount,
     })
 
-    if (currentBalance === null) throw new Error('User not found')
     if (currentBalance < requiredAmount) {
       if (options?.notifyUser && options.botInstance) {
-        await options.botInstance.telegram.sendMessage(
-          telegram_id,
-          options.isRu
-            ? `❌ Недостаточно звёзд. Требуется: ${requiredAmount}`
-            : `❌ Not enough stars. Required: ${requiredAmount}`
-        )
+        const message = options.isRu
+          ? `❌ Недостаточно звёзд. Требуется: ${requiredAmount}`
+          : `❌ Not enough stars. Required: ${requiredAmount}`
+        await options.botInstance.telegram.sendMessage(telegram_id, message)
       }
       return { success: false, currentBalance }
     }

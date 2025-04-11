@@ -1,0 +1,29 @@
+{
+  "welcome": "Welcome to the Voice Avatar Bot! 🎙️",
+  "menu": {
+    "createVoice": "Create Voice Avatar",
+    "myVoices": "My Voice Avatars",
+    "settings": "Settings",
+    "help": "Help"
+  },
+  "voice": {
+    "creation": {
+      "start": "Let's create your voice avatar! Please send me a voice message.",
+      "processing": "Processing your voice sample...",
+      "success": "Your voice avatar has been created successfully!",
+      "failed": "Failed to create voice avatar. Please try again."
+    },
+    "list": {
+      "empty": "You don't have any voice avatars yet.",
+      "header": "Your voice avatars:"
+    }
+  },
+  "settings": {
+    "language": "Select language",
+    "notifications": "Notification settings"
+  },
+  "help": {
+    "main": "Need help? Here's what you can do with our bot:",
+    "commands": "Available commands:"
+  }
+} 

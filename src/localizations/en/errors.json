@@ -1,0 +1,22 @@
+{
+  "common": {
+    "unknown": "An unknown error occurred",
+    "invalidInput": "Invalid input format",
+    "notFound": "Resource not found",
+    "unauthorized": "Authorization required",
+    "forbidden": "Access denied",
+    "serverError": "Server error"
+  },
+  "payment": {
+    "insufficientFunds": "Insufficient funds",
+    "invalidAmount": "Invalid amount",
+    "transactionFailed": "Transaction failed",
+    "paymentDeclined": "Payment declined"
+  },
+  "voice": {
+    "invalidSample": "Invalid audio sample format",
+    "processingError": "Error processing voice",
+    "tooShort": "Audio sample is too short",
+    "tooLong": "Audio sample is too long"
+  }
+} 
