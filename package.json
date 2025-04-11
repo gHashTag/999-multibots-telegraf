@@ -72,10 +72,10 @@
     "predocker:up": "npm run check:ports",
     "prestart": "npm run check:ports",
     "ansible:deploy": "ansible-playbook playbook.yml --vault-password-file ../vault_password.txt"
-    "docker:run-test": "bash run-tests.sh"
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",
+    "@modelcontextprotocol/sdk": "^1.9.0",
     "@mtproto/core": "^6.3.0",
     "@supabase/supabase-js": "^2.49.4",
     "@types/multer": "^1.4.12",
@@ -102,11 +102,11 @@
     "pinata-web3": "^0.5.4",
     "replicate": "^0.32.0",
     "telegraf": "^4.16.3",
+    "tsconfig-paths": "^4.2.0",
     "tslib": "^2.8.1",
     "undici": "^7.7.0",
     "uuid": "^11.1.0",
-    "winston": "^3.17.0",
-    "tsconfig-paths": "^4.2.0"
+    "winston": "^3.17.0"
   },
   "devDependencies": {
     "@inngest/test": "^0.1.6",
