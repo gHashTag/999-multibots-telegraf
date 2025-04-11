@@ -21,20 +21,6 @@ WORKDIR /app
 ENV HOME=/app
 ENV HUSKY=0
 
-# Устанавливаем зависимости для Ansible
-RUN apk add --no-cache \
-    python3 \
-    py3-pip \
-    openssh-client \
-    sshpass \
-    nginx \
-    docker-cli # Добавляем docker-cli для выполнения docker exec изнутри
-
-# Создаем виртуальное окружение и устанавливаем Ansible
-RUN python3 -m venv /opt/ansible-venv \
-    && . /opt/ansible-venv/bin/activate \
-    && pip install --no-cache-dir ansible docker # Добавляем docker SDK для Ansible
-
 # Копируем tsconfig.prod.json (вместо tsconfig.json) ДО установки зависимостей
 COPY tsconfig.prod.json ./
 
@@ -46,14 +32,6 @@ RUN npm install --omit=dev --ignore-scripts --no-package-lock --no-audit
 
 # Копируем скомпилированное приложение из этапа сборки
 COPY --from=builder /app/dist ./dist
-
-# Копируем файлы Ansible для запуска изнутри контейнера
-COPY playbook.yml ./
-COPY inventory ./
-COPY roles ./roles
-
-# Экспортируем порт для API и боты
-EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 
 # Устанавливаем переменную окружения для tsconfig-paths
 ENV TS_NODE_PROJECT=tsconfig.prod.json
