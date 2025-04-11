@@ -13,8 +13,6 @@ export const pulse = async (
   bot_name?: string
 ) => {
   try {
-    if (process.env.NODE_ENV === 'development') return
-
     // Проверяем новый формат (объект)
     if (typeof imageOrOptions === 'object') {
       const options = imageOrOptions as PulseOptions

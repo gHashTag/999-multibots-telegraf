@@ -90,7 +90,10 @@
     "payment-tests": "bash scripts/run-payment-tests.sh",
     "simple-receipt-test": "bash scripts/run-simple-receipt-test.sh",
     "test:avatar-bot": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/runAvatarBotTests.ts",
-    "docker:test:avatar-bot": "bash scripts/run-avatar-bot-tests.sh"
+    "docker:test:avatar-bot": "bash scripts/run-avatar-bot-tests.sh",
+    "test:watch": "jest --watch",
+    "test:pulse": "node scripts/test-pulse.js",
+    "check": "npm run lint && npm run build"
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",
