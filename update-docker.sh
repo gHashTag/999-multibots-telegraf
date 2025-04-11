@@ -14,8 +14,8 @@ sleep 15
 
 # Запустить Ansible изнутри контейнера app
 echo "🚀 Запускаем Ansible внутри контейнера app для конфигурации хоста..."
-# Активируем venv и запускаем ansible-playbook
-docker exec 999-multibots /bin/sh -c ". /opt/ansible-venv/bin/activate && ansible-playbook playbook.yml -i inventory"
+# Отключаем проверку ключа хоста и запускаем ansible-playbook
+docker exec 999-multibots /bin/sh -c "export ANSIBLE_HOST_KEY_CHECKING=False; . /opt/ansible-venv/bin/activate && ansible-playbook playbook.yml -i inventory"
 
 # Перезапустить nginx, чтобы он подхватил конфиги (если Ansible отработал)
 echo "🔄 Перезапускаем nginx-proxy..."
