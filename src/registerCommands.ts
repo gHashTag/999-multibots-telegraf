@@ -71,6 +71,8 @@ import { get100Command } from './commands/get100Command'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
 
+import { handleReceiptCommand } from './handlers/handleReceiptCommand'
+
 /**
  * ВНИМАНИЕ! ⚠️
  * ФАЙЛ registerCommands.ts НЕЛЬЗЯ ПРАВИТЬ БЕЗ СОГЛАСОВАНИЯ!
@@ -827,4 +829,20 @@ export function registerCommands({
   //   console.log('CASE: text')
   //   handleTextMessage(ctx)
   // })
+
+  bot.command('receipt', async ctx => {
+    logger.info('🧾 Команда receipt:', {
+      description: 'Receipt command received',
+      telegramId: ctx.from?.id,
+    })
+    await handleReceiptCommand(ctx)
+  })
+
+  composer.command('receipt', async ctx => {
+    logger.info('🧾 Команда receipt (composer):', {
+      description: 'Receipt command received (composer)',
+      telegramId: ctx.from?.id,
+    })
+    await handleReceiptCommand(ctx)
+  })
 }

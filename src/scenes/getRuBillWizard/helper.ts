@@ -33,7 +33,10 @@ export const subscriptionTitles = (isRu: boolean) => ({
  * @returns Короткий ID заказа (до 9 цифр)
  * @deprecated Используйте асинхронную функцию generateUniqueShortInvId вместо этой
  */
-export function generateShortInvId(userId: string | number, amount: number): number {
+export function generateShortInvId(
+  userId: string | number,
+  amount: number
+): number {
   try {
     // Берем последние 5 цифр timestamp
     const timestamp = Date.now() % 100000
@@ -60,21 +63,21 @@ export function generateShortInvId(userId: string | number, amount: number): num
  * @returns Promise с коротким ID заказа
  */
 export async function generateUniqueShortInvId(
-  userId: string | number, 
+  userId: string | number,
   amount: number
 ): Promise<number> {
   try {
     // Используем нашу новую функцию для генерации уникального ID
     const uniqueId = await generateUniqueInvoiceId(userId, amount)
-    
+
     // Преобразуем в число, ограничиваем длину до 9 цифр если необходимо
     const numericId = parseInt(uniqueId)
-    
+
     // Если ID слишком длинный для Robokassa, обрезаем его
     if (numericId > 999999999) {
       return numericId % 1000000000 // Берем только последние 9 цифр
     }
-    
+
     return numericId
   } catch (error) {
     console.error('❌ Ошибка при генерации уникального ID инвойса', {
