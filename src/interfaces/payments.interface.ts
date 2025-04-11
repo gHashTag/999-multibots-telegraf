@@ -638,3 +638,71 @@ function getStarsWord(amount: number): string {
 
   return 'звезд'
 }
+
+/**
+ * Параметры для события обработки платежа
+ * Используется для строгой типизации входных данных платежного процессора
+ */
+export interface PaymentProcessParams {
+  /** ID пользователя в Telegram (обязательно) */
+  telegram_id: string
+
+  /** Сумма операции (ВСЕГДА положительное число) */
+  amount: number
+
+  /** Количество звезд (ВСЕГДА положительное число, если указано) */
+  stars?: number
+
+  /** Тип транзакции из TransactionType */
+  type: TransactionType | string
+
+  /** Описание транзакции */
+  description: string
+
+  /** Название бота, который инициировал транзакцию */
+  bot_name: string
+
+  /** ID инвойса (используется для предотвращения дублирования платежей) */
+  inv_id?: string
+
+  /** Дополнительные метаданные платежа */
+  metadata?: Record<string, any>
+
+  /** Тип сервиса из ModeEnum */
+  service_type: ModeEnum
+}
+
+/**
+ * Результат обработки платежа
+ * Возвращается платежным процессором после успешной обработки
+ */
+export interface PaymentProcessResult {
+  /** Успешность операции */
+  success: boolean
+
+  /** Данные созданного платежа */
+  payment: {
+    payment_id: number
+    telegram_id: string
+    amount: number
+    stars: number
+    type: string
+    status: string
+    [key: string]: any
+  }
+
+  /** Информация об изменении баланса */
+  balanceChange: {
+    /** Баланс до операции */
+    before: number
+
+    /** Баланс после операции */
+    after: number
+
+    /** Разница в балансе */
+    difference: number
+  }
+
+  /** Сообщение об ошибке (если есть) */
+  error?: string
+}

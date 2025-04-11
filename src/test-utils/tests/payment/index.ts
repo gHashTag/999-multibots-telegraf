@@ -58,7 +58,9 @@ try {
 }
 
 // Тесты для дублирующихся ID инвойсов
-let runDuplicateInvoiceIdTests: (options?: { verbose?: boolean }) => Promise<TestResult[]>
+let runDuplicateInvoiceIdTests: (options?: {
+  verbose?: boolean
+}) => Promise<TestResult[]>
 try {
   // Пытаемся импортировать
   runDuplicateInvoiceIdTests =
@@ -85,6 +87,9 @@ try {
 
 // Тесты RuPayment
 import { runRuPaymentTests } from './ruPaymentTest'
+
+// Тесты уведомлений о платежах
+import { runPaymentNotificationTests } from './paymentNotification.test'
 
 /**
  * Запуск всех тестов платежной системы
@@ -127,6 +132,12 @@ export async function runPaymentTests(
       description: 'Running duplicate invoice ID tests',
     })
     results.push(await runDuplicateInvoiceIdTests(options))
+
+    // Запускаем тесты уведомлений о платежах
+    logger.info('📣 Запуск тестов уведомлений о платежах', {
+      description: 'Running payment notification tests',
+    })
+    results.push(await runPaymentNotificationTests())
 
     // Собираем статистику
     const duration = Date.now() - startTime
@@ -171,5 +182,6 @@ export {
   runPaymentProcessorTests,
   runPaymentProcessorMockTests,
   runRuPaymentTests,
-  runDuplicateInvoiceIdTests
+  runDuplicateInvoiceIdTests,
+  runPaymentNotificationTests,
 }
