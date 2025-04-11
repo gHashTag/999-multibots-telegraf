@@ -73,8 +73,7 @@
     "pretgwebhook": "npm run check:ports",
     "pretgwebhook:dev": "npm run check:ports",
     "predocker:up": "npm run check:ports",
-    "prestart": "npm run check:ports"
-    "docker:run-test": "bash run-tests.sh",
+    "prestart": "npm run check:ports",
     "ansible:deploy": "ansible-playbook playbook.yml --vault-password-file ../vault_password.txt"
   },
   "dependencies": {
