@@ -126,6 +126,16 @@ export async function sendTransactionNotificationTest(
       bot_name = 'default',
     } = params
 
+    logger.info('📨 Начало отправки уведомления о транзакции:', {
+      description: 'Starting to send transaction notification',
+      telegram_id,
+      operationId,
+      amount,
+      currentBalance,
+      newBalance,
+      bot_name,
+    })
+
     await sendTransactionNotification({
       telegram_id,
       operationId,
@@ -135,6 +145,13 @@ export async function sendTransactionNotificationTest(
       description,
       isRu,
       bot_name,
+    })
+
+    logger.info('✅ Уведомление о транзакции успешно отправлено:', {
+      description: 'Transaction notification successfully sent',
+      telegram_id,
+      operationId,
+      amount,
     })
 
     return { success: true }

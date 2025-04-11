@@ -1,120 +1,220 @@
-import { supabase } from '.'
-import { logger } from '@/utils/logger'
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { supabase } from '@/supabase'
+import { getUserByTelegramId } from './getUserByTelegramId'
+import { normalizeTransactionType } from '@/interfaces/payments.interface'
+import { logger } from '@/utils/logger'
 
 interface CreateSuccessfulPaymentParams {
   telegram_id: TelegramId
   amount: number
-  stars: number
-  payment_method: string
+  type: TransactionType | string
   description: string
-  type: TransactionType
+  service_type?: string
+  stars?: number
+  payment_method?: string
   bot_name: string
-  status: 'COMPLETED' | 'PENDING' | 'FAILED'
   metadata?: Record<string, any>
-  currency?: string
-  subscription?: string
-  language?: string
+  status?: string
   inv_id?: string
-  service_type: string
+  currency?: string
+  invoice_url?: string
 }
 
 /**
- * Создает запись об успешном платеже в таблице payments_v2
+ * Создает успешный платеж в системе
+ * @param params Параметры платежа
+ * @returns Результат создания платежа
  */
-export const createSuccessfulPayment = async (
-  params: CreateSuccessfulPaymentParams
-) => {
+export async function createSuccessfulPayment({
+  telegram_id,
+  amount,
+  type,
+  description,
+  service_type,
+  stars,
+  payment_method = 'Telegram',
+  bot_name,
+  metadata,
+  status = 'COMPLETED',
+  inv_id,
+  currency = 'XTR',
+  invoice_url,
+}: CreateSuccessfulPaymentParams) {
   try {
-    const {
-      telegram_id,
-      amount,
-      stars,
-      payment_method,
-      description,
-      service_type,
-      type,
-      bot_name,
-      status,
-      metadata = {},
-      currency = 'STARS',
-      subscription,
-      language = 'ru',
-      inv_id,
-    } = params
+    // Если передан inv_id, проверяем, не существует ли уже платеж с таким ID
+    if (inv_id) {
+      const { data: existingPayment } = await supabase
+        .from('payments_v2')
+        .select('id, inv_id')
+        .eq('inv_id', inv_id)
+        .maybeSingle()
 
-    logger.info('💰 Создание записи о платеже:', {
-      description: 'Creating payment record',
-      telegram_id,
-      amount,
-      stars,
-      payment_method,
-      payment_description: description,
-      type,
-      bot_name,
-      status,
-    })
+      if (existingPayment) {
+        logger.info('🔄 [ДУБЛИКАТ]: Обнаружен платеж с тем же inv_id:', {
+          description:
+            'Attempt to create payment with existing inv_id (duplicate prevented)',
+          inv_id,
+          existing_payment_id: existingPayment.id,
+        })
 
-    // Нормализуем telegram_id к строке
-    const normalizedTelegramId = String(telegram_id)
+        // Возвращаем найденный платеж, чтобы избежать дублирования
+        const { data: paymentData } = await supabase
+          .from('payments_v2')
+          .select('*')
+          .eq('id', existingPayment.id)
+          .single()
 
-    // Если подписка передана, добавляем её в метаданные
-    if (subscription) {
-      metadata.subscription = subscription
+        logger.info(
+          '✅ Возвращаем существующий платеж вместо создания дубликата:',
+          {
+            description:
+              'Returning existing payment instead of creating duplicate',
+            payment_id: existingPayment.id,
+            inv_id,
+          }
+        )
+
+        return paymentData
+      }
     }
 
-    // Создаем запись в таблице payments_v2
+    // Получаем пользователя для проверки
+    const user = await getUserByTelegramId(telegram_id)
+    if (!user) {
+      throw new Error(`User not found for telegram_id: ${telegram_id}`)
+    }
+
+    // Создаем копию параметров для модификации
+    const params = {
+      telegram_id,
+      amount,
+      type,
+      description,
+      service_type,
+      stars,
+      payment_method,
+      bot_name,
+      metadata,
+      status,
+      inv_id,
+      currency,
+      invoice_url,
+    }
+
+    // Нормализуем тип транзакции в нижний регистр для совместимости с БД
+    params.type = normalizeTransactionType(type as TransactionType)
+
+    // Нормализуем telegram_id к строке
+    const telegramIdStr = String(telegram_id)
+
+    const numericStars = stars !== undefined ? Number(stars) : amount
+
     const { data, error } = await supabase
       .from('payments_v2')
       .insert({
-        telegram_id: normalizedTelegramId,
+        telegram_id: telegramIdStr,
         amount,
-        stars,
+        stars: numericStars,
         payment_method,
         description,
-        type,
+        type: params.type,
         service_type,
         bot_name,
         status,
-        payment_date: new Date().toISOString(),
         metadata,
         currency,
-        language,
-        inv_id: inv_id || `${normalizedTelegramId}-${Date.now()}`,
+        inv_id,
+        invoice_url,
       })
-      .select('*')
+      .select()
       .single()
 
     if (error) {
-      logger.error('❌ Ошибка при создании записи о платеже:', {
-        description: 'Error creating payment record',
-        error: error.message,
-        error_details: error,
-        telegram_id,
-        amount,
-        type,
-        bot_name,
-      })
+      // Для дублирования inv_id
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === '23505'
+      ) {
+        logger.info('🔄 [ДУБЛИКАТ]: Предотвращено дублирование платежа:', {
+          description:
+            'Duplicate payment prevented (unique constraint violation)',
+          error: error instanceof Error ? error.message : String(error),
+          code: error.code,
+          details: 'details' in error ? error.details : 'Unknown details',
+        })
+      }
+      // Для несуществующего пользователя
+      else if (
+        error instanceof Error &&
+        error.message.includes('User not found')
+      ) {
+        logger.info('👤 [ПРОВЕРКА]: Пользователь не найден:', {
+          description: 'User not found check (expected in some test cases)',
+          error: error.message,
+        })
+      }
+      // Для всех других ошибок
+      else {
+        logger.error('❌ Ошибка при создании записи о платеже:', {
+          description: 'Error creating payment record',
+          error: error instanceof Error ? error.message : String(error),
+          error_details: error,
+          telegram_id,
+          amount,
+          type,
+          bot_name,
+        })
+      }
       throw error
     }
 
     logger.info('✅ Запись о платеже успешно создана:', {
       description: 'Payment record created successfully',
-      payment_id: data.payment_id,
+      payment_id: data.id,
       telegram_id,
       amount,
-      type,
+      type: params.type,
       bot_name,
     })
 
     return data
   } catch (error) {
-    logger.error('❌ Ошибка в createSuccessfulPayment:', {
-      description: 'Error in createSuccessfulPayment function',
-      error: error instanceof Error ? error.message : String(error),
-      error_details: error,
-    })
+    // Для дублирования inv_id
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === '23505'
+    ) {
+      logger.info('🔄 [ДУБЛИКАТ]: Предотвращено дублирование платежа:', {
+        description:
+          'Duplicate payment prevented (unique constraint violation)',
+        error: error instanceof Error ? error.message : String(error),
+        code: error.code,
+        details: 'details' in error ? error.details : 'Unknown details',
+      })
+    }
+    // Для несуществующего пользователя
+    else if (
+      error instanceof Error &&
+      error.message.includes('User not found')
+    ) {
+      logger.info('👤 [ПРОВЕРКА]: Пользователь не найден:', {
+        description: 'User not found check (expected in some test cases)',
+        error: error.message,
+      })
+    }
+    // Для всех других ошибок
+    else {
+      logger.error('❌ Ошибка в createSuccessfulPayment:', {
+        description: 'Error in createSuccessfulPayment function',
+        error: error instanceof Error ? error.message : String(error),
+        error_details: error,
+      })
+    }
     throw error
   }
 }

@@ -25,7 +25,7 @@ const inngestConfig: any = {
 if (process.env.NODE_ENV === 'development') {
   // baseUrl - для обработки функций через API сервер (в соответствии с документацией)
   inngestConfig.baseUrl = 'http://localhost:2999/api/inngest'
-
+  //
   // eventKey всегда должен быть доступен
   if (!inngestConfig.eventKey) {
     inngestConfig.eventKey = 'dev-key'
@@ -57,7 +57,24 @@ if (process.env.NODE_ENV === 'development') {
         // Эндпоинт для отправки событий: /e/[key]
         // https://www.inngest.com/docs/dev-server
         const devKey = inngestConfig.eventKey || 'dev-key'
-        const devServerUrl = `http://localhost:8288/e/${devKey}`
+
+        // Выбираем правильный URL в зависимости от среды запуска
+        // process.env.DOCKER_ENVIRONMENT будет установлен в docker-compose.yml
+        const isDockerEnvironment = process.env.DOCKER_ENVIRONMENT === 'true'
+        const baseUrl = isDockerEnvironment
+          ? process.env.INNGEST_BASE_DOCKER_URL ||
+            'http://host.docker.internal:8288'
+          : process.env.INNGEST_BASE_URL || 'http://localhost:8288'
+
+        const devServerUrl = `${baseUrl}/e/${devKey}`
+
+        logger.info('📌 Используем URL для Inngest', {
+          description: 'Using Inngest URL',
+          is_docker: isDockerEnvironment,
+          base_url: baseUrl,
+          dev_server_url: devServerUrl,
+          timestamp: new Date().toISOString(),
+        })
 
         const requestBody = init.body
           ? typeof init.body === 'string'

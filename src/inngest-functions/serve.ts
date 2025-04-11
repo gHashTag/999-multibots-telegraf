@@ -20,6 +20,8 @@ export const initializeInngestServer = async () => {
     })
 
     // Для разработки указываем явно, что сервер работает на порту 2999
+    const isDockerEnvironment = process.env.DOCKER_ENVIRONMENT === 'true'
+
     const serveOptions =
       process.env.NODE_ENV === 'development'
         ? {
@@ -31,6 +33,7 @@ export const initializeInngestServer = async () => {
       description: 'Inngest server options',
       baseUrl: serveOptions?.baseUrl || 'default',
       is_development: process.env.NODE_ENV === 'development',
+      is_docker: isDockerEnvironment,
       timestamp: new Date().toISOString(),
     })
 

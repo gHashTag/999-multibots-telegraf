@@ -5,9 +5,10 @@
   "author": "",
   "license": "ISC",
   "scripts": {
-    "predev": "node scripts/kill-port.js 2999 3001",
+    "predev": "node scripts/kill-port.js 2999 3001 8288",
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
-    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest",
+    "inngest:dev": "inngest-cli dev -u http://localhost:3000/api/inngest --no-discovery --no-watch --no-telemetry",
+    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest --port 8288",
     "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME ts-node -r tsconfig-paths/register src/bot.ts",
     "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
     "bots": "cross-env NODE_ENV=development ts-node -r tsconfig-paths/register src/bot.ts",
@@ -38,7 +39,9 @@
     "prepare:assets": "node scripts/prepare-assets.js",
     "test": "npx tsx src/test-utils/index.ts",
     "test:payment": "npx tsx src/test-utils/index.ts --category=payment",
-    "test:payment-processor": "npx tsx src/test-utils/index.ts --category=payment-processor",
+    "test:payment-processor": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/payment/paymentProcessorTest.ts",
+    "test:payment-create": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/payment/createSuccessfulPaymentTest.ts",
+    "test:payment-notification": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/payment/paymentNotification.test.ts",
     "test:ru-payment": "npx tsx src/test-utils/index.ts --category=ru-payment",
     "test:neurophoto": "npx tsx src/test-utils/index.ts --category=neurophoto",
     "test:translations": "npx tsx src/test-utils/index.ts --category=translations",
@@ -52,6 +55,8 @@
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "test:robokassa": "bash scripts/test-robokassa.sh",
+    "test:select-model": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/runSelectModelTests.ts",
+    "test:ambassador": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/runAmbassadorNotificationTests.ts",
     "docker:test:build": "docker-compose -f docker-compose.test.yml build",
     "docker:test:up": "docker-compose -f docker-compose.test.yml up -d",
     "docker:test:down": "docker-compose -f docker-compose.test.yml down -v",
@@ -72,6 +77,9 @@
     "predocker:up": "npm run check:ports",
     "prestart": "npm run check:ports",
     "ansible:deploy": "ansible-playbook playbook.yml --vault-password-file ../vault_password.txt"
+    "docker:run-test": "bash run-tests.sh",
+    "docker:test:select-model": "bash scripts/run-select-model-tests.sh",
+    "docker:test:ambassador": "bash scripts/run-ambassador-tests.sh"
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",

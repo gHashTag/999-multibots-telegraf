@@ -39,11 +39,12 @@ services:
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
+      - DOCKER_ENVIRONMENT=true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/nginx:/etc/nginx
       - /etc/pki:/etc/pki
-      - /root/.ssh:/app/.ssh:ro
+      # - /root/.ssh:/app/.ssh:ro
       # Файлы Ansible
       - ./playbook.yml:/app/playbook.yml:ro
       - ./inventory:/app/inventory:ro

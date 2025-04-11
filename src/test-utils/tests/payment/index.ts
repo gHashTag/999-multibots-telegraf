@@ -58,7 +58,9 @@ try {
 }
 
 // Тесты для дублирующихся ID инвойсов
-let runDuplicateInvoiceIdTests: (options?: { verbose?: boolean }) => Promise<TestResult[]>
+let runDuplicateInvoiceIdTests: (options?: {
+  verbose?: boolean
+}) => Promise<TestResult[]>
 try {
   // Пытаемся импортировать
   runDuplicateInvoiceIdTests =
@@ -85,6 +87,42 @@ try {
 
 // Тесты RuPayment
 import { runRuPaymentTests } from './ruPaymentTest'
+
+// Тесты уведомлений о платежах
+import { runPaymentNotificationTests } from './paymentNotification.test'
+
+// Функция для запуска тестов createSuccessfulPayment
+let runCreateSuccessfulPaymentTests: () => Promise<TestResult[]>
+try {
+  // Пытаемся импортировать тесты для createSuccessfulPayment
+  runCreateSuccessfulPaymentTests =
+    require('./createSuccessfulPaymentTest').runCreateSuccessfulPaymentTests
+  logger.info('✅ Загружен модуль тестов для createSuccessfulPayment', {
+    description: 'createSuccessfulPayment test module loaded',
+    module: './createSuccessfulPaymentTest',
+  })
+} catch (e) {
+  // Если файла нет, создаем заглушку
+  logger.warn(
+    '⚠️ Не удалось загрузить модуль тестов для createSuccessfulPayment',
+    {
+      description: 'Failed to load createSuccessfulPayment test module',
+      error: e instanceof Error ? e.message : String(e),
+    }
+  )
+  runCreateSuccessfulPaymentTests = async () => {
+    logger.warn('⚠️ Тесты для createSuccessfulPayment не найдены', {
+      description: 'createSuccessfulPayment tests not found',
+    })
+    return [
+      {
+        success: false,
+        name: 'CreateSuccessfulPayment Tests',
+        message: 'Тесты не найдены или не могут быть загружены',
+      },
+    ]
+  }
+}
 
 /**
  * Запуск всех тестов платежной системы
@@ -127,6 +165,18 @@ export async function runPaymentTests(
       description: 'Running duplicate invoice ID tests',
     })
     results.push(await runDuplicateInvoiceIdTests(options))
+
+    // Запускаем тесты уведомлений о платежах
+    logger.info('📣 Запуск тестов уведомлений о платежах', {
+      description: 'Running payment notification tests',
+    })
+    results.push(await runPaymentNotificationTests())
+
+    // Запускаем тесты для createSuccessfulPayment
+    logger.info('🚀 Запуск тестов для createSuccessfulPayment', {
+      description: 'Running createSuccessfulPayment tests',
+    })
+    results.push(await runCreateSuccessfulPaymentTests())
 
     // Собираем статистику
     const duration = Date.now() - startTime
@@ -171,5 +221,7 @@ export {
   runPaymentProcessorTests,
   runPaymentProcessorMockTests,
   runRuPaymentTests,
-  runDuplicateInvoiceIdTests
+  runDuplicateInvoiceIdTests,
+  runPaymentNotificationTests,
+  runCreateSuccessfulPaymentTests,
 }
