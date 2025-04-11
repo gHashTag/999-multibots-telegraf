@@ -19,6 +19,6 @@ docker exec 999-multibots /bin/sh -c "export ANSIBLE_HOST_KEY_CHECKING=False; . 
 
 # Перезапустить nginx, чтобы он подхватил конфиги (если Ansible отработал)
 echo "🔄 Перезапускаем nginx-proxy..."
-docker compose restart nginx-proxy
+docker compose up -d --force-recreate nginx-proxy
 
 echo "✅ Скрипт update-docker.sh завершен." 

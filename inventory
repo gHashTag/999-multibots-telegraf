@@ -1,5 +1,5 @@
 [elestio_server]
-999-multibots-u14194.vm.elestio.app ansible_user=root ansible_ssh_private_key_file=~/.ssh/id_rsa
+999-multibots-u14194.vm.elestio.app ansible_user=root ansible_ssh_private_key_file=/app/.ssh/id_rsa
 
 [all:vars]
 # Сюда можно добавить переменные, если они нужны для шаблонов nginx,
