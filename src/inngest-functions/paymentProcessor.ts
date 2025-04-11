@@ -2,11 +2,16 @@ import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
-import { getUserBalance } from '@/core/supabase/getUserBalance'
+import {
+  getUserBalance,
+  invalidateBalanceCache,
+} from '@/core/supabase/getUserBalance'
 import { v4 as uuidv4 } from 'uuid'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { normalizeTransactionType } from '@/interfaces/payments.interface'
+import { isDev } from '@/config'
 
 export interface PaymentProcessEvent {
   data: {
@@ -34,6 +39,17 @@ export const paymentProcessor = inngest.createFunction(
   },
   { event: 'payment/process' },
   async ({ event, step }) => {
+    const validatedParams = event.data
+
+    // Нормализуем тип транзакции в нижний регистр
+    if (validatedParams.type) {
+      validatedParams.type = normalizeTransactionType(validatedParams.type)
+    }
+
+    if (!validatedParams) {
+      throw new Error('🚫 Не переданы параметры')
+    }
+
     const {
       telegram_id,
       amount,
@@ -42,7 +58,7 @@ export const paymentProcessor = inngest.createFunction(
       bot_name,
       service_type,
       stars,
-    } = event.data
+    } = validatedParams
 
     logger.info('🚀 Начало обработки платежа', {
       description: 'Starting payment processing',
@@ -112,37 +128,55 @@ export const paymentProcessor = inngest.createFunction(
           service_type,
           payment_method: 'balance',
           status: 'COMPLETED',
-          inv_id: event.data.inv_id,
-          metadata: event.data.metadata,
+          inv_id: validatedParams.inv_id,
+          metadata: validatedParams.metadata,
         })
       })
 
-      // Получаем новый баланс
+      // Инвалидируем кэш баланса и получаем новый баланс
       const newBalance = await step.run('get-new-balance', async () => {
+        // Сначала инвалидируем кэш баланса, чтобы получить свежие данные
+        logger.info('🔄 Инвалидация кэша баланса:', {
+          description: 'Invalidating balance cache',
+          telegram_id,
+        })
+        invalidateBalanceCache(telegram_id)
+
+        // Теперь получаем обновленный баланс
         return getUserBalance(telegram_id)
       })
 
-      // Отправляем уведомление
-      await step.run('send-notification', async () => {
-        const operationId = uuidv4()
-        logger.info('📨 Отправка уведомления', {
-          description: 'Sending notification',
-          telegram_id,
-          amount,
-          operationId,
-        })
+      // Отправляем уведомление только если это не локальное окружение
+      if (!isDev) {
+        await step.run('send-notification', async () => {
+          const operationId = uuidv4()
+          logger.info('📨 Отправка уведомления', {
+            description: 'Sending notification',
+            telegram_id,
+            amount,
+            operationId,
+          })
 
-        return sendTransactionNotificationTest({
-          telegram_id: Number(telegram_id),
-          operationId,
+          return sendTransactionNotificationTest({
+            telegram_id: Number(telegram_id),
+            operationId,
+            amount,
+            currentBalance,
+            newBalance,
+            description,
+            isRu: true,
+            bot_name,
+          })
+        })
+      } else {
+        logger.info('📨 Уведомление в локальном окружении пропущено', {
+          description: 'Notification skipped in dev environment',
+          telegram_id,
           amount,
           currentBalance,
           newBalance,
-          description,
-          isRu: true,
-          bot_name,
         })
-      })
+      }
 
       logger.info('✅ Платеж успешно обработан', {
         description: 'Payment processed successfully',

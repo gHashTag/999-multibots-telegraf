@@ -10,6 +10,12 @@ import {
   // PaymentStatus, // Закомментировано, так как не используется
 } from '../../../interfaces/payments.interface'
 // import { runTest } from '../../helpers/runner' // Удален импорт несуществующего хелпера
+import {
+  getUserBalance,
+  invalidateBalanceCache,
+} from '@/core/supabase/getUserBalance'
+import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
+import { v4 as uuidv4 } from 'uuid'
 
 // type User = TestUser // Закомментировано, так как не используется
 
@@ -202,6 +208,83 @@ async function testInvalidUserIdCheck(): Promise<TestResult> {
   }
 }
 
+/**
+ * Тест инвалидации кэша баланса при создании платежа
+ * Проверяет, что при создании платежа кэш баланса инвалидируется
+ */
+async function testBalanceCacheInvalidation(
+  testUserId: string
+): Promise<TestResult> {
+  const testName = 'Balance Cache Invalidation'
+  try {
+    // Получаем текущий баланс (это закэширует значение)
+    const initialBalance = await getUserBalance(testUserId)
+    logger.info('💰 Получен начальный баланс (кэширование):', {
+      description: 'Cached initial balance',
+      testUserId,
+      initialBalance,
+    })
+
+    // Создаем платеж напрямую
+    const paymentAmount = 10
+    const paymentId = uuidv4()
+    await createSuccessfulPayment({
+      telegram_id: testUserId,
+      amount: paymentAmount,
+      type: TransactionType.MONEY_EXPENSE,
+      description: 'Test payment for cache invalidation',
+      bot_name: 'test_bot',
+      service_type: ModeEnum.PHOTO,
+      stars: paymentAmount,
+      payment_method: 'test',
+      status: 'COMPLETED',
+      inv_id: paymentId,
+    })
+
+    logger.info('💾 Создан тестовый платеж:', {
+      description: 'Created test payment',
+      testUserId,
+      paymentAmount,
+      paymentId,
+    })
+
+    // Инвалидируем кэш
+    invalidateBalanceCache(testUserId)
+    logger.info('🔄 Кэш баланса инвалидирован вручную', {
+      description: 'Balance cache invalidated manually',
+      testUserId,
+    })
+
+    // Получаем баланс снова (должен быть обновлен)
+    const newBalance = await getUserBalance(testUserId)
+    logger.info('💰 Получен новый баланс после инвалидации кэша:', {
+      description: 'Got new balance after cache invalidation',
+      testUserId,
+      newBalance,
+    })
+
+    // Проверяем, что баланс изменился
+    const balanceDifference = initialBalance - newBalance
+    if (balanceDifference !== paymentAmount) {
+      throw new Error(
+        `Ошибка: баланс изменился на ${balanceDifference}, ожидалось ${paymentAmount}`
+      )
+    }
+
+    return {
+      success: true,
+      name: testName,
+      message: `✅ Кэш баланса корректно инвалидируется: изменение ${balanceDifference}`,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      name: testName,
+      message: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 export async function runBalanceTests(): Promise<TestResult[]> {
   const allResults: TestResult[] = []
   let testUserId: string | null = null
@@ -224,6 +307,7 @@ export async function runBalanceTests(): Promise<TestResult[]> {
     allResults.push(await testCreateTransactions(testUserId))
     allResults.push(...(await testBalanceSufficiencyForModes(testUserId)))
     allResults.push(await testInvalidUserIdCheck())
+    allResults.push(await testBalanceCacheInvalidation(testUserId))
   } catch (error) {
     logger.error('❌ Критическая ошибка во время выполнения тестов баланса:', {
       error,
