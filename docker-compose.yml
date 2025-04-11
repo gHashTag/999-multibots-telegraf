@@ -55,7 +55,17 @@ services:
       - '8443:443'
       - '8080:80'
     volumes:
-      - ./nginx/pki/:/etc/pki/
+      # Используем конфиги, созданные Ansible на хосте
+      - /etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/nginx/conf.d:/etc/nginx/conf.d:ro
+      # Используем сертификаты/ключи, созданные Ansible на хосте
+      # Убедитесь, что эти пути верны для вашего сервера!
+      - /etc/pki/nginx:/etc/pki/nginx:ro
+      - /etc/pki/nginx/private:/etc/pki/nginx/private:ro
+      # Локальные пути удалены или закомментированы, т.к. они конфликтовали
+      # - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # - ./nginx/pki/:/etc/pki/
     depends_on:
       - app
     networks:
