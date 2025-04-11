@@ -5,110 +5,89 @@ import { createMockFn } from '@/test-utils/mocks/telegrafMock'
 import { TEST_CONFIG } from '@/test-utils/test-config'
 import { inngestTestEngine } from '@/test-utils/test-config'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { createSuccessfulPayment } from '@/inngest-functions/paymentProcessor'
+import { getRandomUser } from '@/test-utils/helpers/getRandomUser'
+import { generateUniqueId } from '@/test-utils/helpers/generateUniqueId'
+import { getPaymentReceiptUrl } from '@/helpers/getPaymentReceiptUrl'
 
 /**
- * Тест простой генерации платежного чека
- *
- * @returns Результат выполнения теста
+ * Тест создания простого чека для тестирования
+ * @returns TestResult - результат выполнения теста
  */
 export async function testSimpleReceiptGeneration(): Promise<TestResult> {
-  logger.info('🚀 Запуск теста простой генерации платежного чека', {
-    description: 'Starting simple payment receipt generation test',
-  })
-
-  // Создаем мок-контекст
-  const ctx = await createMockContext({
-    userId: Number(TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID),
-    firstName: TEST_CONFIG.TEST_DATA.TEST_USER_FIRST_NAME,
-    lastName: TEST_CONFIG.TEST_DATA.TEST_USER_LAST_NAME,
-    username: TEST_CONFIG.TEST_DATA.TEST_USER_USERNAME,
+  logger.info('🔍 Начало теста генерации простого чека', {
+    description: 'Starting simple receipt generation test',
   })
 
   try {
-    // Мок для функции генерации URL чека
-    const mockGenerateReceiptUrl = createMockFn().mockResolvedValue(
-      'https://example.com/receipt/123456'
-    )
-
-    // Очистка событий перед тестом
-    inngestTestEngine.clearEvents()
-
-    // 1. Симулируем создание платежа
-    logger.info('💰 Симуляция создания платежа', {
-      description: 'Simulating payment creation',
+    // Создаем тестового пользователя и контекст
+    const user = getRandomUser()
+    const ctx = createMockContext({
+      user: user,
+      text: '/receipt',
     })
 
-    const paymentEvent = {
-      telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
-      amount: TEST_CONFIG.TEST_DATA.TEST_AMOUNT,
-      stars: TEST_CONFIG.TEST_DATA.TEST_STARS,
-      type: TransactionType.MONEY_INCOME,
-      description: 'Тестовый платеж для проверки простого чека',
-      bot_name: TEST_CONFIG.TEST_DATA.TEST_BOT_NAME,
-      operation_id: 'test-simple-receipt-' + Date.now(),
+    // Данные для тестовой оплаты
+    const paymentData = {
+      operation_id: generateUniqueId(),
+      telegram_id: user.telegram_id,
+      amount: 100,
+      stars: 100,
+      type: 'money_income',
+      description: 'Тестовый платеж',
+      payment_method: 'test',
+      status: 'COMPLETED',
+      bot_name: 'test_bot',
+      service_type: 'TopUpBalance',
     }
 
-    await inngestTestEngine.sendEvent('payment/process', paymentEvent)
-
-    // 2. Симулируем запрос на генерацию чека
-    logger.info('🧾 Симуляция запроса чека', {
-      description: 'Simulating receipt request',
+    // Создаем тестовый платеж
+    logger.info('💵 Создание тестового платежа', {
+      description: 'Creating test payment',
+      payment: paymentData,
     })
 
-    const receiptUrl = await mockGenerateReceiptUrl(paymentEvent.operation_id)
+    // Создаем платеж в БД
+    const payment = await createSuccessfulPayment(paymentData)
 
-    // 3. Проверяем формат URL чека
-    logger.info('🔍 Проверка формата URL чека', {
-      description: 'Checking receipt URL format',
-      receiptUrl,
+    logger.info('✅ Тестовый платеж успешно создан', {
+      description: 'Test payment successfully created',
+      payment_id: payment.id,
     })
 
-    if (
-      !receiptUrl ||
-      typeof receiptUrl !== 'string' ||
-      !receiptUrl.startsWith('http')
-    ) {
-      throw new Error(`Некорректный URL чека: ${receiptUrl}`)
+    // Получаем URL чека
+    const receiptUrl = await getPaymentReceiptUrl(payment.id)
+
+    logger.info('🧾 Получен URL чека', {
+      description: 'Receipt URL retrieved',
+      url: receiptUrl,
+    })
+
+    // Проверяем, что URL содержит правильный формат
+    if (!receiptUrl || !receiptUrl.includes('/receipt/')) {
+      return {
+        success: false,
+        message: `Некорректный URL чека: ${receiptUrl}`,
+        name: 'Тест генерации простого чека',
+      }
     }
-
-    // 4. Симулируем отправку URL чека пользователю
-    logger.info('📤 Симуляция отправки URL чека пользователю', {
-      description: 'Simulating sending receipt URL to user',
-    })
-
-    await ctx.reply(`Ваш чек: ${receiptUrl}`, {
-      parse_mode: 'HTML',
-      reply_markup: {
-        inline_keyboard: [[{ text: 'Открыть чек', url: receiptUrl }]],
-      },
-    })
-
-    // Проверяем, что наша мок-функция была вызвана
-    if (mockGenerateReceiptUrl.mock.calls.length === 0) {
-      throw new Error('Функция генерации URL чека не была вызвана')
-    }
-
-    logger.info('✅ Тест простой генерации платежного чека успешно завершен', {
-      description:
-        'Simple payment receipt generation test completed successfully',
-    })
 
     return {
       success: true,
-      name: 'testSimpleReceiptGeneration',
-      message: 'Тест простой генерации платежного чека прошел успешно',
+      message: 'Чек успешно сгенерирован',
+      name: 'Тест генерации простого чека',
     }
   } catch (error: any) {
-    logger.error('❌ Ошибка в тесте простой генерации платежного чека', {
-      description: 'Error in simple payment receipt generation test',
+    logger.error('❌ Ошибка в тесте генерации простого чека', {
+      description: 'Error in simple receipt generation test',
       error: error.message,
       stack: error.stack,
     })
 
     return {
       success: false,
-      name: 'testSimpleReceiptGeneration',
-      message: `Ошибка теста: ${error.message}`,
+      message: `Ошибка: ${error.message}`,
+      name: 'Тест генерации простого чека',
     }
   }
 }

@@ -77,7 +77,7 @@
     "pretgwebhook:dev": "npm run check:ports",
     "predocker:up": "npm run check:ports",
     "prestart": "npm run check:ports",
-    "ansible:deploy": "ansible-playbook playbook.yml --vault-password-file ../vault_password.txt"
+    "ansible:deploy": "ansible-playbook playbook.yml --vault-password-file ../vault_password.txt",
     "docker:run-test": "bash run-tests.sh",
     "docker:test:select-model": "bash scripts/run-select-model-tests.sh",
     "docker:test:ambassador": "bash scripts/run-ambassador-tests.sh",
