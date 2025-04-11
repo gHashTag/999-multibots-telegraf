@@ -1,5 +1,7 @@
 import { inngest } from './clients'
-import { getBotByName } from '../core/bot'
+import { getBotByName } from '@/core/bot'
+import { pulseBot } from '@/core/bot'
+import { logger } from '@/utils/logger'
 import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,

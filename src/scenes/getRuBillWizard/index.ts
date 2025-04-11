@@ -187,6 +187,8 @@ const generateInvoiceStep = async (ctx: MyContext) => {
         ? 'Ошибка при создании чека. Пожалуйста, попробуйте снова.'
         : 'Error creating invoice. Please try again.'
     )
+    ctx.scene.leave()
+    return
   }
 }
 
