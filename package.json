@@ -63,7 +63,8 @@
     "docker:test:all": "bash run-tests.sh",
     "docker:run-test": "bash run-tests.sh",
     "ansible:deploy": "ansible-playbook playbook.yml -i inventory",
-    "deploy:local": "bash ./update-docker.sh"
+    "deploy:local": "bash ./update-docker.sh",
+    "deploy:prod": "ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app 'cd /opt/app/999-multibots-telegraf && git pull && chmod +x *.sh && ./update-docker.sh"
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",
