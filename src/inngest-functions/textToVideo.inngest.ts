@@ -12,6 +12,8 @@ import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { v4 as uuidv4 } from 'uuid'
 import axios from 'axios'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { logger } from '@/utils/logger'
+import { sendMediaToPulse } from '@/helpers/pulse'
 
 /**
  * Интерфейс события для генерации видео из текста
@@ -72,7 +74,8 @@ export const textToVideoFunction = inngest.createFunction(
 
         // Проверяем, что модель поддерживает текст
         const modelId = event.data.model_id || 'kling-v1.6-pro'
-        const modelConfig = VIDEO_MODELS_CONFIG[modelId as keyof typeof VIDEO_MODELS_CONFIG]
+        const modelConfig =
+          VIDEO_MODELS_CONFIG[modelId as keyof typeof VIDEO_MODELS_CONFIG]
         if (!modelConfig || !modelConfig.inputType.includes('text')) {
           throw new Error(`Model ${modelId} does not support text input`)
         }
@@ -143,7 +146,10 @@ export const textToVideoFunction = inngest.createFunction(
       // Шаг 4: Расчет стоимости операции
       const costCalculation = await step.run('calculate-cost', async () => {
         // Получаем модель из конфигурации
-        const selectedModel = VIDEO_MODELS_CONFIG[params.model_id as keyof typeof VIDEO_MODELS_CONFIG]
+        const selectedModel =
+          VIDEO_MODELS_CONFIG[
+            params.model_id as keyof typeof VIDEO_MODELS_CONFIG
+          ]
         if (!selectedModel) {
           throw new Error(`Model ${params.model_id} not found in configuration`)
         }
@@ -218,7 +224,7 @@ export const textToVideoFunction = inngest.createFunction(
       })
 
       // Шаг 7: Генерация видео
-      const generationResult = await step.run('generate-video', async () => {
+      await step.run('generate-video', async () => {
         // Тестовый случай для ошибки API
         if (params._test?.api_error) {
           throw new Error('API error (test)')
@@ -289,6 +295,46 @@ export const textToVideoFunction = inngest.createFunction(
               ? '✨ Ваше видео готово!'
               : '✨ Your video is ready!',
           })
+
+          // Отправка видео в Pulse для мониторинга
+          try {
+            const username = params.username || 'User'
+
+            // Используем новую функцию sendMediaToPulse
+            await sendMediaToPulse({
+              mediaType: 'video',
+              mediaSource: videoUrl,
+              telegramId: params.telegram_id,
+              username: username,
+              language: params.is_ru ? 'ru' : 'en',
+              serviceType: 'TextToVideo',
+              prompt: params.prompt,
+              botName: params.bot_name || 'unknown',
+              additionalInfo: {
+                Модель: params.model_id || 'unknown',
+                'Соотношение сторон': params.aspect_ratio || '16:9',
+                Длительность: `${params.duration || 6}s`,
+              },
+            })
+
+            logger.info('✅ Видео отправлено в @neuro_blogger_pulse', {
+              description: 'Video sent to pulse group using sendMediaToPulse',
+              telegram_id: params.telegram_id,
+              prompt_preview: params.prompt.slice(0, 50) + '...',
+            })
+          } catch (pulseError) {
+            logger.error(
+              '❌ Ошибка при отправке видео в @neuro_blogger_pulse',
+              {
+                description: 'Error sending video to pulse group',
+                error:
+                  pulseError instanceof Error
+                    ? pulseError.message
+                    : String(pulseError),
+                telegram_id: params.telegram_id,
+              }
+            )
+          }
         }
 
         return { sent: true }
@@ -317,8 +363,12 @@ export const textToVideoFunction = inngest.createFunction(
             validatedParams.is_ru
           )
 
-          // Отправляем уведомлени                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            е администратору
-          await errorMessageAdmin(new Error(`Error in text-to-video generation: ${errorMsg}${operationId ? `. Operation ID: ${operationId}` : ''}`))
+          // Отправляем уведомление администратору
+          await errorMessageAdmin(
+            new Error(
+              `Error in text-to-video generation: ${errorMsg}${operationId ? `. Operation ID: ${operationId}` : ''}`
+            )
+          )
         }
       } catch (notifyError) {
         console.error('❌ Error sending error notification:', notifyError)

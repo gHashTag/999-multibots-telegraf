@@ -10,12 +10,7 @@ import {
   getUserBalance,
 } from '@/core/supabase'
 import { TransactionType } from '@/interfaces/payments.interface'
-import {
-  downloadFile,
-  processApiResponse,
-  pulse,
-  saveFileLocally,
-} from '@/helpers'
+import { downloadFile, processApiResponse, saveFileLocally } from '@/helpers'
 import { replicate } from '@/core/replicate'
 import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
 import { API_URL } from '@/config'
@@ -24,6 +19,7 @@ import fs from 'fs'
 import { inngest } from '@/inngest-functions/clients'
 import { IMAGES_MODELS } from '@/price/models/IMAGES_MODELS'
 import { logger } from '@/utils/logger'
+import { sendMediaToPulse } from '@/helpers/pulse'
 
 interface TextToImageEvent {
   data: {
@@ -285,14 +281,20 @@ export const textToImageFunction = inngest.createFunction(
 
       await step.run('finalize', async () => {
         if (results.length > 0) {
-          await pulse(
-            results[0].image.toString('base64'),
-            generationParams.prompt,
-            `/${params.model}`,
-            params.telegram_id,
-            params.username || '',
-            params.is_ru
-          )
+          await sendMediaToPulse({
+            mediaType: 'photo',
+            mediaSource: results[0].image,
+            telegramId: params.telegram_id,
+            username: params.username || '',
+            language: params.is_ru ? 'ru' : 'en',
+            serviceType: ModeEnum.TextToImage,
+            prompt: generationParams.prompt,
+            botName: params.bot_name,
+            additionalInfo: {
+              Модель: params.model,
+              'Количество изображений': params.num_images.toString(),
+            },
+          })
         }
         return { success: true, results }
       })

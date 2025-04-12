@@ -4,7 +4,6 @@ import { InngestFunctionTester as BaseInngestFunctionTester } from '../../core/I
 import { TestResult } from '../../types'
 import { v4 as uuidv4 } from 'uuid'
 import { TransactionType } from '@/interfaces/payments.interface'
-
 /**
  * Интерфейс для результата теста RuPayment
  */

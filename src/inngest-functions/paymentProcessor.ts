@@ -14,7 +14,7 @@ import {
 } from '@/interfaces/payments.interface'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 import { normalizeTransactionType } from '@/interfaces/payments.interface'
-import { isDev } from '@/config'
+
 import { notifyAmbassadorAboutPayment } from '@/services/ambassadorPaymentNotifier'
 
 /**
@@ -215,6 +215,10 @@ export const paymentProcessor = inngest.createFunction(
           type: payment.type as TransactionType,
           description: payment.description || (payment.type === TransactionType.MONEY_INCOME ? 'пополнил баланс' : 'списал средства')
         })
+      })
+
+      await step.run('send-notification', async () => {
+        await sendPaymentNotification(payment, currentBalance, newBalance)
       })
 
       // Отправляем уведомление амбассадору, если платеж совершен в его боте
