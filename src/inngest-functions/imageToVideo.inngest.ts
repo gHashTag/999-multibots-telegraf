@@ -6,7 +6,7 @@ import {
   updateUserLevelPlusOne,
 } from '../core/supabase'
 import { ModeEnum } from '../price/helpers/modelsCost'
-import { calculateModeCost } from '../price/helpers/calculateCost'
+import { calculateModeCost } from '../price/calculators/modeCalculator'
 import { sendBalanceMessage } from '../price/helpers'
 import { v4 as uuidv4 } from 'uuid'
 import axios from 'axios'
@@ -62,15 +62,22 @@ export const imageToVideoFunction = inngest.createFunction(
       throw new Error('🚫 Не переданы параметры')
     }
 
+    // Используем 'minimax' как модель по умолчанию, если не указана
+    const modelId = validatedParams.model_id || 'minimax'
+
     // Прямое отправление платежного события для тестов
     if (validatedParams._test && !validatedParams._test.skip_payment) {
       try {
-        const cost = calculateModeCost(ModeEnum.ImageToVideo).stars
+        const cost = calculateModeCost({
+          mode: ModeEnum.ImageToVideo,
+          modelId: modelId,
+        }).stars
 
         logger.info('💰 [ТЕСТ] Отправка платежного события для тестирования', {
           description: 'Sending payment event for testing',
           telegram_id: validatedParams.telegram_id,
           cost,
+          modelId,
         })
 
         await inngest.send({
@@ -136,7 +143,10 @@ export const imageToVideoFunction = inngest.createFunction(
 
     // Проверяем баланс
     if (!validatedParams._test?.skip_balance_check) {
-      const cost = calculateModeCost(ModeEnum.ImageToVideo).stars
+      const cost = calculateModeCost({
+        mode: ModeEnum.ImageToVideo,
+        modelId: modelId,
+      }).stars
 
       if (userResult.balance < cost) {
         const botResult = getBotByName(validatedParams.bot_name)
@@ -163,12 +173,16 @@ export const imageToVideoFunction = inngest.createFunction(
     // Списываем средства
     if (!validatedParams._test?.skip_payment) {
       await step.run('charge-user', async () => {
-        const cost = calculateModeCost(ModeEnum.ImageToVideo).stars
+        const cost = calculateModeCost({
+          mode: ModeEnum.ImageToVideo,
+          modelId: modelId,
+        }).stars
 
         logger.info('💰 Отправка платежного события', {
           description: 'Sending payment event',
           telegram_id: validatedParams.telegram_id,
           cost,
+          modelId,
           service_type: ModeEnum.ImageToVideo,
         })
 

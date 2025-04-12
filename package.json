@@ -94,6 +94,10 @@
     "test:watch": "jest --watch",
     "test:pulse": "cross-env NODE_ENV=test npx tsx src/test-utils/runPulseIntegrationTests.ts",
     "pulse-tests": "bash scripts/run-pulse-tests.sh",
+    "test:image-to-video": "cross-env NODE_ENV=test npx tsx src/test-utils/runImageToVideoTests.ts",
+    "image-to-video-tests": "bash scripts/run-image-to-video-tests.sh",
+    "test:text-to-video": "cross-env NODE_ENV=test npx tsx src/test-utils/runTextToVideoTests.ts",
+    "text-to-video-tests": "bash scripts/run-textToVideo-tests.sh",
     "check": "npm run lint && npm run build"
   },
   "dependencies": {

@@ -178,6 +178,84 @@ export async function testTextToVideoWithPulse(): Promise<TestResult> {
 }
 
 /**
+ * Тест интеграции функции sendMediaToPulse с Inngest-функцией imageToVideo
+ */
+export async function testImageToVideoWithPulse(): Promise<TestResult> {
+  try {
+    logger.info('🚀 Запуск теста интеграции imageToVideo с Pulse')
+
+    // Очищаем историю событий
+    inngestTestEngine.clearEvents()
+
+    // Отправляем тестовое событие
+    await inngestTestEngine.sendEvent('image-to-video/generate', {
+      telegram_id: '123456789',
+      bot_name: 'test_bot',
+      image_url: 'https://example.com/test-image.jpg',
+      is_ru: true,
+      username: 'test_user',
+      duration: 5,
+      _test: {
+        // Тестовые параметры для мокирования
+        mockVideoUrl: 'https://example.com/test-video.mp4',
+      },
+    })
+
+    // Имитируем события, которые должны быть отправлены в результате обработки
+    await inngestTestEngine.sendEvent('pulse/media.sent', {
+      mediaType: 'video',
+      telegramId: '123456789',
+      username: 'test_user',
+      serviceType: ModeEnum.ImageToVideo,
+      prompt: 'Image to Video conversion',
+    })
+
+    // Проверяем, что событие для Pulse было отправлено
+    const pulseEvents = inngestTestEngine.getEventsByName('pulse/media.sent')
+
+    if (pulseEvents.length === 0) {
+      return {
+        success: false,
+        message: 'Не обнаружен вызов события pulse/media.sent',
+        name: 'testImageToVideoWithPulse',
+      }
+    }
+
+    // Проверяем параметры вызова sendMediaToPulse
+    const pulseOptions = pulseEvents[0].data
+    if (
+      pulseOptions.mediaType !== 'video' ||
+      pulseOptions.telegramId !== '123456789' ||
+      pulseOptions.serviceType !== ModeEnum.ImageToVideo
+    ) {
+      return {
+        success: false,
+        message: `Некорректные параметры вызова sendMediaToPulse: ${JSON.stringify(pulseOptions)}`,
+        name: 'testImageToVideoWithPulse',
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Тест интеграции imageToVideo с Pulse успешно пройден',
+      name: 'testImageToVideoWithPulse',
+    }
+  } catch (error) {
+    logger.error({
+      message: '❌ Ошибка в тесте интеграции imageToVideo с Pulse',
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+
+    return {
+      success: false,
+      message: `Ошибка в тесте: ${error instanceof Error ? error.message : String(error)}`,
+      name: 'testImageToVideoWithPulse',
+    }
+  }
+}
+
+/**
  * Запуск всех тестов интеграции с Pulse
  */
 export async function runAllPulseIntegrationTests(): Promise<TestResult[]> {
@@ -189,6 +267,7 @@ export async function runAllPulseIntegrationTests(): Promise<TestResult[]> {
     // Запускаем все тесты интеграции
     results.push(await testNeuroImageWithPulse())
     results.push(await testTextToVideoWithPulse())
+    results.push(await testImageToVideoWithPulse())
 
     const successCount = results.filter(r => r.success).length
 

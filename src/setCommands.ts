@@ -1,4 +1,3 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
 import { Telegraf } from 'telegraf'
 import { MyContext } from './interfaces'
 import { supabase } from './core/supabase'
@@ -76,10 +75,10 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
           command: 'price',
           description: '⭐️ Price / Цена',
         },
-        {
-          command: 'receipt',
-          description: '🧾 Payment Receipt / Платежный чек',
-        },
+        // {
+        //   command: 'receipt',
+        //   description: '🧾 Payment Receipt / Платежный чек',
+        // },
       ],
       {
         scope: {
@@ -107,18 +106,18 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
           command: 'price',
           description: '⭐️ Price / Цена',
         },
-        {
-          command: 'receipt',
-          description: '🧾 Payment Receipt / Платежный чек',
-        },
-        {
-          command: 'stats',
-          description: '📊 Statistics / Статистика',
-        },
-        {
-          command: 'broadcast',
-          description: '📢 Broadcast / Рассылка сообщений',
-        },
+        // {
+        //   command: 'receipt',
+        //   description: '🧾 Payment Receipt / Платежный чек',
+        // },
+        // {
+        //   command: 'stats',
+        //   description: '📊 Statistics / Статистика',
+        // },
+        // {
+        //   command: 'broadcast',
+        //   description: '📢 Broadcast / Рассылка сообщений',
+        // },
       ],
       {
         scope: {
