@@ -7,7 +7,7 @@
   "scripts": {
     "predev": "node scripts/kill-port.js 2999 3001 8288",
     "dev": "concurrently \"npm run bots\" \"npm run dev:inngest\"",
-    "deploy": "ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app 'cd /opt/app/999-multibots-telegraf && git pull && chmod +x *.sh && ./update-docker.sh",
+    "deploy": "ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app 'cd /opt/app/999-multibots-telegraf && git pull && chmod +x *.sh && ./update-docker.sh'",
     "inngest:dev": "inngest-cli dev -u http://localhost:3000/api/inngest --no-discovery --no-watch --no-telemetry",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:2999/api/inngest --port 8288",
     "dev:single": "cross-env NODE_ENV=development BOT_NAME=$BOT_NAME ts-node -r tsconfig-paths/register src/bot.ts",
@@ -47,6 +47,8 @@
     "test:neurophoto": "npx tsx src/test-utils/index.ts --category=neurophoto",
     "test:translations": "npx tsx src/test-utils/index.ts --category=translations",
     "test:webhook": "npx tsx src/test-utils/index.ts --category=webhook",
+    "test:api": "cross-env NODE_ENV=test npx tsx src/test-utils/scripts/test-api.ts",
+    "test:api:detailed": "cross-env NODE_ENV=test npx tsx src/test-utils/scripts/test-api.ts --detailed --report",
     "test:inngest": "npx tsx src/test-utils/tests/runInngestTests.ts",
     "test:inngest:direct": "npx tsx src/test-utils/tests/runInngestTests.ts direct",
     "test:inngest:sdk": "npx tsx src/test-utils/tests/runInngestTests.ts sdk",
@@ -102,6 +104,9 @@
     "image-to-video-tests": "bash scripts/run-image-to-video-tests.sh",
     "test:text-to-video": "cross-env NODE_ENV=test npx tsx src/test-utils/runTextToVideoTests.ts",
     "text-to-video-tests": "bash scripts/run-textToVideo-tests.sh",
+    "api-tests": "bash scripts/run-api-tests.sh",
+    "api-tests:detailed": "bash scripts/run-api-tests.sh --detailed --report",
+    "docker:test:api": "bash scripts/run-api-tests-docker.sh",
     "check": "npm run lint && npm run build"
   },
   "dependencies": {

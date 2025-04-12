@@ -1,56 +1,44 @@
-import { runTests } from '../runTests'
-import { runPaymentProcessorTests } from './paymentProcessorTest'
-import { runPaymentProcessorMockTests } from './paymentProcessorMockTest'
 import { logger } from '../../utils/logger'
+import { testApiHealth } from './apiHealthTest'
+import { TestResult } from '../types'
 
 /**
- * Запуск всех тестов платежного процессора
+ * Запуск тестов API
  */
-export async function runAllPaymentProcessorTests() {
-  logger.info('🚀 [TEST_RUNNER]: Запуск всех тестов платежного процессора', {
-    description: 'Running all payment processor tests',
+export async function runApiTests(): Promise<TestResult[]> {
+  logger.info('🚀 [TEST_RUNNER]: Запуск тестов API', {
+    description: 'Running API tests',
   })
 
-  // Запускаем основные тесты
-  const results1 = await runPaymentProcessorTests()
-
-  // Запускаем тесты с моками
-  const results2 = await runPaymentProcessorMockTests()
-
-  // Объединяем результаты
-  const allResults = [...results1, ...results2]
-
-  // Выводим общие результаты
-  const passedTests = allResults.filter(r => r.success).length
-  const failedTests = allResults.filter(r => !r.success).length
+  // Запускаем тест API
+  const result = await testApiHealth()
 
   logger.info(
-    `📊 [TEST_RUNNER]: Общие результаты тестов платежного процессора: ${passedTests} успешно, ${failedTests} не пройдено`,
+    `📊 [TEST_RUNNER]: Результаты теста API: ${result.success ? 'успешно' : 'не пройден'}`,
     {
-      description: 'Overall payment processor test results',
-      passed: passedTests,
-      failed: failedTests,
-      total: allResults.length,
+      description: 'API test results',
+      success: result.success,
+      message: result.message,
     }
   )
 
-  return allResults
+  return [result]
 }
 
 /**
  * Главная функция для запуска всех тестов
  */
-export async function runAllTests() {
+export async function runAllTests(): Promise<TestResult[]> {
   logger.info('🚀 [TEST_RUNNER]: Запуск всех тестов', {
     description: 'Running all tests',
   })
 
   const testSuites = [
-    { name: 'Payment Processor Tests', fn: runAllPaymentProcessorTests },
+    { name: 'API Tests', fn: runApiTests },
     // Здесь можно добавить другие наборы тестов
   ]
 
-  const allResults = []
+  const allResults: TestResult[] = []
 
   for (const suite of testSuites) {
     logger.info(`🧪 [TEST_RUNNER]: Запуск набора тестов: ${suite.name}`, {
@@ -81,5 +69,11 @@ export async function runAllTests() {
 
 // Если файл запущен напрямую, запускаем все тесты
 if (require.main === module) {
-  runTests([runAllTests])
+  runAllTests().catch(error => {
+    logger.error('❌ Ошибка при запуске тестов:', error)
+    process.exit(1)
+  })
 }
+
+// Экспортируем функции для запуска тестов
+export { testApiHealth }

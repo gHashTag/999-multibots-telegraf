@@ -2,6 +2,8 @@ import { TestResult } from '../../types'
 import { TestCategory } from '../../core/categories'
 import { logger } from '@/utils/logger'
 import { runInngestAvailabilityTest } from './basicInngestTests'
+import { testInngestSdk } from './inngestSdkTest'
+import { testInngestHttpApi, runHttpApiTests } from './httpApiTest'
 
 /**
  * Опции для запуска тестов Inngest
@@ -16,6 +18,7 @@ export interface InngestTestOptions {
     | 'all'
     | 'availability'
     | 'api'
+    | 'http'
 }
 
 /**
@@ -43,6 +46,23 @@ export async function runInngestTests(
       case 'availability':
         testsToRun = [runInngestAvailabilityTest]
         logger.info('📋 Запуск теста доступности Inngest')
+        break
+      case 'sdk':
+        testsToRun = [testInngestSdk]
+        logger.info('📋 Запуск теста SDK Inngest')
+        break
+      case 'http':
+      case 'api':
+        testsToRun = [testInngestHttpApi]
+        logger.info('📋 Запуск теста HTTP API Inngest')
+        break
+      case 'all':
+        testsToRun = [
+          runInngestAvailabilityTest,
+          testInngestSdk,
+          testInngestHttpApi,
+        ]
+        logger.info('📋 Запуск всех тестов Inngest')
         break
       default:
         // По умолчанию запускаем только тест доступности
@@ -112,7 +132,12 @@ export async function runInngestTests(
 }
 
 // Экспортируем тесты
-export { runInngestAvailabilityTest }
+export {
+  runInngestAvailabilityTest,
+  testInngestSdk,
+  testInngestHttpApi,
+  runHttpApiTests,
+}
 
 // Запускаем тесты если файл запущен напрямую
 if (require.main === module) {

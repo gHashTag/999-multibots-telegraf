@@ -165,7 +165,7 @@ const menuNextStep = async (ctx: MyContext) => {
     console.log('text 1', text)
     if (text === 'unlock_features') {
       console.log('CASE: 🔓 Разблокировать все функции')
-      await ctx.scene.enter('subscriptionScene')
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text

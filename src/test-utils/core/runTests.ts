@@ -93,6 +93,7 @@ function printHelp() {
   inngest             Тесты Inngest функций
   payment             Тесты платежных функций
   payment-processor   Тесты обработчика платежей
+  api                 Тесты API эндпоинтов
 
 Примеры:
   ts-node -r tsconfig-paths/register src/test-utils --category=translations
@@ -270,10 +271,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
       )
 
       // Проверяем, нужно ли запускать тесты валидации URL Robokassa
-      const shouldRunRobokassaFormTests = isInCategory(
-        TestCategory.Payment,
-        options.category
-      ) || options.category === 'robokassa'
+      const shouldRunRobokassaFormTests =
+        isInCategory(TestCategory.Payment, options.category) ||
+        options.category === 'robokassa'
 
       // Запускаем тесты переводов, если выбрана соответствующая категория
       if (shouldRunTranslationTests) {
@@ -302,7 +302,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
                   description: result.message || 'Translation validation',
                   run: async () => {
                     if (!result.success) {
-                      throw new Error(result.message || 'Translation test failed')
+                      throw new Error(
+                        result.message || 'Translation test failed'
+                      )
                     }
                     return result
                   },
@@ -313,7 +315,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : String(error)
-          logger.error(`❌ Ошибка при запуске тестов переводов: ${errorMessage}`)
+          logger.error(
+            `❌ Ошибка при запуске тестов переводов: ${errorMessage}`
+          )
           logger.error(`❌ Error running translation tests: ${errorMessage}`)
 
           // Добавляем ошибку как тест
@@ -407,7 +411,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
 
           // Обрабатываем результаты
           if (Array.isArray(results)) {
-            logger.info(`✅ Добавлено тестов Inngest функций: ${results.length}`)
+            logger.info(
+              `✅ Добавлено тестов Inngest функций: ${results.length}`
+            )
             logger.info(`✅ Added Inngest function tests: ${results.length}`)
 
             // Преобразуем результаты в тесты для TestRunner
@@ -435,7 +441,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
           logger.error(
             `❌ Ошибка при запуске тестов Inngest функций: ${errorMessage}`
           )
-          logger.error(`❌ Error running Inngest function tests: ${errorMessage}`)
+          logger.error(
+            `❌ Error running Inngest function tests: ${errorMessage}`
+          )
 
           // Добавляем ошибку как тест
           runner.addTests([
@@ -525,7 +533,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
           logger.error(
             `❌ Ошибка при запуске тестов платежных функций: ${errorMessage}`
           )
-          logger.error(`❌ Error running payment function tests: ${errorMessage}`)
+          logger.error(
+            `❌ Error running payment function tests: ${errorMessage}`
+          )
 
           // Добавляем ошибку как тест
           runner.addTests([
@@ -562,18 +572,81 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
                 description: 'Проверка валидности URL формы Robokassa',
                 run: async () => {
                   if (!test.success) {
-                    throw new Error(test.error || 'Тест URL Robokassa не пройден')
+                    throw new Error(
+                      test.error || 'Тест URL Robokassa не пройден'
+                    )
                   }
                   return {
                     success: true,
                     name: test.name,
                     message: 'Тест URL Robokassa успешно пройден',
-                    details: test
+                    details: test,
                   }
                 },
               },
             ])
           }
+        }
+      }
+
+      // Проверяем, нужно ли запускать тесты API
+      const shouldRunApiTests = isInCategory(TestCategory.Api, options.category)
+
+      // Если нужно запустить тесты API
+      if (shouldRunApiTests) {
+        logger.info('🌐 Загрузка тестов API...', {
+          description: 'Loading API tests',
+        })
+
+        try {
+          // Импортируем динамически, чтобы избежать циклических зависимостей
+          const { runAllApiTests } = await import('../tests/api')
+
+          // Запускаем тесты API
+          const apiResults = await runAllApiTests()
+
+          // Обрабатываем результаты
+          if (Array.isArray(apiResults)) {
+            logger.info(`✅ Добавлено тестов API: ${apiResults.length}`, {
+              description: `Added API tests: ${apiResults.length}`,
+            })
+
+            // Преобразуем результаты в тесты для TestRunner
+            for (const result of apiResults) {
+              runner.addTests([
+                {
+                  name: result.name || 'API Test',
+                  category: TestCategory.Api,
+                  description: result.message || 'API testing',
+                  run: async () => {
+                    if (!result.success) {
+                      throw new Error(result.error || 'API test failed')
+                    }
+                    return result
+                  },
+                },
+              ])
+            }
+          }
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          logger.error(`❌ Ошибка при запуске тестов API: ${errorMessage}`, {
+            description: `Error running API tests: ${errorMessage}`,
+            stack: error instanceof Error ? error.stack : undefined,
+          })
+
+          // Добавляем ошибку как тест
+          runner.addTests([
+            {
+              name: 'API Tests',
+              category: TestCategory.Api,
+              description: 'Running API tests',
+              run: async () => {
+                throw new Error(`Failed to run API tests: ${errorMessage}`)
+              },
+            },
+          ])
         }
       }
     }
