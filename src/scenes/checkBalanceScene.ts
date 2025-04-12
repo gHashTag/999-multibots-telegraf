@@ -178,13 +178,13 @@ checkBalanceScene.enter(async ctx => {
         telegram_id: ctx.from?.id,
       })
       return ctx.scene.enter(ModeEnum.LipSync)
-    case ModeEnum.SelectModelWizard:
+    case ModeEnum.SelectAiTextModel:
       logger.info({
-        message: '🔄 Переход к сцене select_model_wizard',
-        description: 'Switching to select_model_wizard scene',
+        message: '🔄 Переход к сцене select_ai_text_model',
+        description: 'Switching to select_ai_text_model scene',
         telegram_id: ctx.from?.id,
       })
-      return ctx.scene.enter(ModeEnum.SelectModelWizard)
+      return ctx.scene.enter(ModeEnum.SelectAiTextModel)
     default:
       logger.warn({
         message: '⚠️ Неизвестный режим',

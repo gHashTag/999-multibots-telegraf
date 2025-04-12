@@ -25,7 +25,7 @@ export const BASE_COSTS = {
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: 0,
   [ModeEnum.SelectModel]: 0,
-  [ModeEnum.SelectModelWizard]: 0,
+  [ModeEnum.SelectAiTextModel]: 0,
   [ModeEnum.Voice]: 0.9,
   [ModeEnum.TextToSpeech]: 0.12,
   [ModeEnum.ImageToVideo]: 0,

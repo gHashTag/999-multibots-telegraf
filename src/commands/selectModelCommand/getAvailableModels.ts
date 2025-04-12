@@ -1,5 +1,3 @@
-import { openai } from '@/core/openai'
-
 // Тип для модели с рейтингом
 interface ModelWithRating {
   id: string

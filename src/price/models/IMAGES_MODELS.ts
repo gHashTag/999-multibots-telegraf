@@ -1,4 +1,4 @@
-import { SYSTEM_CONFIG } from '../helpers/modelsCost'
+import { SYSTEM_CONFIG } from '../constants'
 
 export function calculateFinalImageCostInStars(baseCost: number): number {
   const finalCostInDollars = baseCost * (1 + SYSTEM_CONFIG.interestRate)

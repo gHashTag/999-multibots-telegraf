@@ -54,7 +54,7 @@ const SERVICE_TYPES_MAP: Record<string, string> = {
   avatar: 'Аватар',
   chat_with_avatar: 'Чат с аватаром',
   select_model: 'Выбор модели',
-  select_model_wizard: 'Мастер выбора модели',
+  select_ai_text_model: 'Мастер выбора модели',
 }
 
 async function generateClientReport(telegramId: string) {

@@ -17,7 +17,7 @@ export const MODE_PRICING_STRATEGY: Partial<Record<ModeEnum, PricingStrategy>> =
     [ModeEnum.Avatar]: PricingStrategy.FREE,
     [ModeEnum.ChatWithAvatar]: PricingStrategy.FREE,
     [ModeEnum.SelectModel]: PricingStrategy.FREE,
-    [ModeEnum.SelectModelWizard]: PricingStrategy.FREE,
+    [ModeEnum.SelectAiTextModel]: PricingStrategy.FREE,
     [ModeEnum.Voice]: PricingStrategy.FIXED,
     [ModeEnum.TextToSpeech]: PricingStrategy.FIXED,
     [ModeEnum.ImageToVideo]: PricingStrategy.MODEL_BASED, // Нужно указать modelId
