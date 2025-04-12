@@ -11,6 +11,11 @@ import {
   createAgentState,
   AgentState,
   Task,
+  addTask,
+  decomposeTask,
+  delegateTask,
+  updateTaskStatus,
+  TaskDependency,
 } from '../../../core/mcp/agent/state'
 import { logger } from '../../../utils/logger'
 import { TestResult } from '../../types'
@@ -389,34 +394,225 @@ export async function testErrorHandling(): Promise<TestResult> {
 }
 
 /**
- * Запускает все тесты для Agent Router
+ * Тест функциональности бумеранг-задач (декомпозиция задачи на подзадачи)
  */
-export async function runAgentRouterTests(): Promise<TestResult[]> {
-  logger.info('🚀 Запуск тестов для Agent Router...')
+export async function testTaskDecompositionAndDelegation(): Promise<TestResult> {
+  try {
+    logger.info(
+      '🚀 Запуск теста декомпозиции задач и делегирования подзадач (бумеранг)'
+    )
 
-  const results: TestResult[] = []
+    // Создаем экземпляр сервиса и роутера
+    const mockService = createMockService()
+    const router = createAgentRouter({
+      mcpService: mockService,
+    })
 
-  // Тестирование регистрации и базовых функций
-  results.push(await testAgentRegistration())
-  results.push(await testTaskRouting())
-  results.push(await testBestAgentSelection())
-  results.push(await testEventHandling())
-  results.push(await testErrorHandling())
+    // Создаем состояние агента
+    const state = createAgentState('main-agent')
 
-  // Тестирование расширенных функций
-  results.push(await testMultipleTaskRouting())
-  results.push(await testPriorityTaskRouting())
-  results.push(await testNextTaskSelection())
+    // Регистрируем несколько специализированных агентов
+    const codeAgent = {
+      id: 'code-agent',
+      name: 'Code Generator',
+      description: 'Specialized in generating code',
+      capabilities: ['code_generation', 'code_analysis'],
+      canHandle: createMockFn().mockReturnValue(
+        Promise.resolve(true)
+      ) as MockFn,
+      handle: createMockFn().mockReturnValue(
+        Promise.resolve({
+          success: true,
+          result: 'Code generated successfully',
+        })
+      ) as MockFn,
+    }
 
-  // Вывод общих результатов
-  const passed = results.filter(r => r.success).length
-  const failed = results.length - passed
+    const documentationAgent = {
+      id: 'documentation-agent',
+      name: 'Documentation Expert',
+      description: 'Specialized in writing documentation',
+      capabilities: ['documentation'],
+      canHandle: createMockFn().mockReturnValue(
+        Promise.resolve(true)
+      ) as MockFn,
+      handle: createMockFn().mockReturnValue(
+        Promise.resolve({
+          success: true,
+          result: 'Documentation written successfully',
+        })
+      ) as MockFn,
+    }
 
-  logger.info(
-    `🏁 Завершены тесты Agent Router: всего ${results.length}, пройдено ${passed}, не пройдено ${failed}`
-  )
+    const testAgent = {
+      id: 'test-agent',
+      name: 'Testing Expert',
+      description: 'Specialized in writing tests',
+      capabilities: ['test_generation'],
+      canHandle: createMockFn().mockReturnValue(
+        Promise.resolve(true)
+      ) as MockFn,
+      handle: createMockFn().mockReturnValue(
+        Promise.resolve({ success: true, result: 'Tests written successfully' })
+      ) as MockFn,
+    }
 
-  return results
+    // Регистрируем агентов в роутере
+    router.registerAgent(codeAgent)
+    router.registerAgent(documentationAgent)
+    router.registerAgent(testAgent)
+
+    // 1. Создаем сложную задачу, которая будет декомпозирована
+    const complexTask = addTask(state, {
+      type: TaskType.BOOMERANG,
+      description:
+        'Implement a complete feature with code, tests and documentation',
+      priority: 10,
+      dependencies: [],
+      metadata: {
+        projectName: 'Test Project',
+        feature: 'Authentication',
+      },
+    })
+
+    // 2. Декомпозируем задачу на подзадачи
+    const subtaskDescriptions = [
+      'Write authentication code (login/register)',
+      'Create unit tests for authentication',
+      'Write documentation for authentication API',
+    ]
+
+    const subtasks = decomposeTask(state, complexTask.id, subtaskDescriptions)
+
+    // Проверяем правильность декомпозиции
+    if (subtasks.length !== 3) {
+      return {
+        success: false,
+        name: 'Тест декомпозиции и делегирования задач',
+        message: `Ошибка в декомпозиции: ожидалось 3 подзадачи, получено ${subtasks.length}`,
+      }
+    }
+
+    if (complexTask.status !== TaskStatus.DECOMPOSED) {
+      return {
+        success: false,
+        name: 'Тест декомпозиции и делегирования задач',
+        message: `Ошибка в статусе родительской задачи: ожидался DECOMPOSED, получен ${complexTask.status}`,
+      }
+    }
+
+    // 3. Делегируем каждую подзадачу специализированному агенту
+    // Маршрутизируем первую подзадачу (код) к code-agent
+    const codeTask = subtasks[0]
+    const codeTaskAgent = await router.routeTask(codeTask, state)
+    if (!codeTaskAgent || codeTaskAgent.id !== 'code-agent') {
+      return {
+        success: false,
+        name: 'Тест декомпозиции и делегирования задач',
+        message: `Первая подзадача не направлена к code-agent, направлена к ${codeTaskAgent?.id || 'неизвестному агенту'}`,
+      }
+    }
+
+    // Делегируем задачу агенту
+    delegateTask(state, codeTask.id, codeTaskAgent.id)
+
+    // Маршрутизируем вторую подзадачу (тесты) к test-agent
+    const testTask = subtasks[1]
+    const testTaskAgent = await router.routeTask(testTask, state)
+    if (!testTaskAgent || testTaskAgent.id !== 'test-agent') {
+      return {
+        success: false,
+        name: 'Тест декомпозиции и делегирования задач',
+        message: `Вторая подзадача не направлена к test-agent, направлена к ${testTaskAgent?.id || 'неизвестному агенту'}`,
+      }
+    }
+
+    // Делегируем задачу агенту
+    delegateTask(state, testTask.id, testTaskAgent.id)
+
+    // Маршрутизируем третью подзадачу (документация) к documentation-agent
+    const docTask = subtasks[2]
+    const docTaskAgent = await router.routeTask(docTask, state)
+    if (!docTaskAgent || docTaskAgent.id !== 'documentation-agent') {
+      return {
+        success: false,
+        name: 'Тест декомпозиции и делегирования задач',
+        message: `Третья подзадача не направлена к documentation-agent, направлена к ${docTaskAgent?.id || 'неизвестному агенту'}`,
+      }
+    }
+
+    // Делегируем задачу агенту
+    delegateTask(state, docTask.id, docTaskAgent.id)
+
+    // 4. Имитируем выполнение подзадач
+    // Выполняем первую подзадачу (код)
+    await codeTaskAgent.handle(codeTask, state)
+    updateTaskStatus(state, codeTask.id, TaskStatus.COMPLETED, {
+      code: 'function authenticate() { return true; }',
+    })
+
+    // Выполняем вторую подзадачу (тесты)
+    await testTaskAgent.handle(testTask, state)
+    updateTaskStatus(state, testTask.id, TaskStatus.COMPLETED, {
+      tests: 'test("auth works", () => { expect(authenticate()).toBe(true); })',
+    })
+
+    // Выполняем третью подзадачу (документация)
+    await docTaskAgent.handle(docTask, state)
+    updateTaskStatus(state, docTask.id, TaskStatus.COMPLETED, {
+      docs: '# Authentication API\n\nCall authenticate() to verify user.',
+    })
+
+    // 5. Проверяем, что родительская задача автоматически обновила статус
+    const updatedComplexTask = state.tasks.get(complexTask.id)
+    if (
+      !updatedComplexTask ||
+      updatedComplexTask.status !== TaskStatus.COMPLETED
+    ) {
+      return {
+        success: false,
+        name: 'Тест декомпозиции и делегирования задач',
+        message: `Ошибка в статусе родительской задачи после выполнения подзадач: ожидался COMPLETED, получен ${updatedComplexTask ? updatedComplexTask.status : 'task not found'}`,
+      }
+    }
+
+    // 6. Проверяем, что результаты подзадач собраны в родительской задаче
+    const updatedTask = state.tasks.get(complexTask.id)
+    if (!updatedTask || !updatedTask.subtaskResults) {
+      return {
+        success: false,
+        name: 'Тест декомпозиции и делегирования задач',
+        message: 'Результаты подзадач не были собраны в родительской задаче',
+      }
+    }
+
+    // Проверяем наличие всех трех результатов
+    const subtaskIds = subtasks.map((task: Task) => task.id)
+    for (const subtaskId of subtaskIds) {
+      if (!updatedTask.subtaskResults[subtaskId]) {
+        return {
+          success: false,
+          name: 'Тест декомпозиции и делегирования задач',
+          message: `Результат подзадачи ${subtaskId} отсутствует в родительской задаче`,
+        }
+      }
+    }
+
+    logger.info('✅ Тест декомпозиции и делегирования задач успешно пройден')
+    return {
+      success: true,
+      name: 'Тест декомпозиции и делегирования задач',
+      message: 'Функциональность бумеранг-задач работает корректно',
+    }
+  } catch (error: any) {
+    logger.error('❌ Ошибка в тесте декомпозиции и делегирования задач:', error)
+    return {
+      success: false,
+      name: 'Тест декомпозиции и делегирования задач',
+      message: `Ошибка: ${error.message}`,
+      error: error.stack,
+    }
+  }
 }
 
 /**
@@ -963,6 +1159,224 @@ export async function testNextTaskSelection(): Promise<TestResult> {
       message: `Произошла ошибка: ${error.message}`,
     }
   }
+}
+
+/**
+ * Тестирует правильную обработку зависимостей между задачами
+ */
+async function testTaskDependencies(): Promise<TestResult> {
+  logger.info(
+    '🚀 [AGENT_ROUTER_TEST]: Запуск теста зависимостей между задачами'
+  )
+
+  try {
+    // Создаем сервис для тестирования
+    const service = createTestService('dependency-test-service')
+
+    // Создаем экземпляр маршрутизатора
+    const router = createAgentRouter({
+      serviceName: 'test-router-service',
+    } as RouterConfig)
+
+    // Регистрируем тестового агента
+    router.registerAgent({
+      id: 'general-agent',
+      capabilities: ['CODE_GENERATION', 'DOCUMENTATION', 'TEST_GENERATION'],
+      priority: 1,
+      maxLoad: 5,
+    })
+
+    // Создаем родительскую задачу
+    const parentTask: Task = {
+      id: 'parent-task',
+      type: TaskType.CODE_GENERATION,
+      description: 'Create main application code',
+      status: TaskStatus.PENDING,
+      dependencies: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      priority: 1,
+      metadata: {},
+    }
+
+    // Создаем дочерние задачи, зависящие от родительской
+    const childTask1: Task = {
+      id: 'child-task-1',
+      type: TaskType.TEST_GENERATION,
+      description: 'Create tests for the application',
+      status: TaskStatus.PENDING,
+      dependencies: [
+        {
+          taskId: 'parent-task',
+          type: 'REQUIRED',
+        } as TaskDependency,
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      priority: 2,
+      metadata: {},
+    }
+
+    const childTask2: Task = {
+      id: 'child-task-2',
+      type: TaskType.DOCUMENTATION,
+      description: 'Create documentation for the application',
+      status: TaskStatus.PENDING,
+      dependencies: [
+        {
+          taskId: 'parent-task',
+          type: 'REQUIRED',
+        } as TaskDependency,
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      priority: 3,
+      metadata: {},
+    }
+
+    // Добавляем задачи в маршрутизатор
+    router.addTask(parentTask)
+    router.addTask(childTask1)
+    router.addTask(childTask2)
+
+    // Получаем следующую задачу для обработки
+    // Должна быть родительская задача, так как у неё нет зависимостей
+    const nextTask = await router.getNextTaskToProcess()
+
+    if (!nextTask) {
+      throw new Error('Следующая задача не найдена')
+    }
+
+    if (nextTask.id !== 'parent-task') {
+      throw new Error(`Ожидалась задача parent-task, получено: ${nextTask.id}`)
+    }
+
+    logger.info(
+      `✅ [AGENT_ROUTER_TEST]: Корректно выбрана родительская задача: ${nextTask.id}`
+    )
+
+    // Пытаемся получить дочернюю задачу, но она не должна быть доступна,
+    // так как родительская задача еще не выполнена
+
+    // Помечаем родительскую задачу как в процессе выполнения
+    router.updateTaskStatus('parent-task', TaskStatus.IN_PROGRESS)
+
+    // Проверяем, что дочерние задачи до сих пор не доступны
+    const unavailableTask = await router.getNextTaskToProcess()
+
+    if (
+      unavailableTask &&
+      (unavailableTask.id === 'child-task-1' ||
+        unavailableTask.id === 'child-task-2')
+    ) {
+      throw new Error(
+        `Дочерняя задача ${unavailableTask.id} доступна до завершения родительской задачи`
+      )
+    }
+
+    logger.info(
+      '✅ [AGENT_ROUTER_TEST]: Дочерние задачи недоступны до завершения родительской задачи'
+    )
+
+    // Помечаем родительскую задачу как выполненную
+    router.updateTaskStatus('parent-task', TaskStatus.COMPLETED)
+
+    // Теперь дочерние задачи должны быть доступны
+    // Должна быть выбрана задача с наивысшим приоритетом (child-task-2)
+    const childTask = await router.getNextTaskToProcess()
+
+    if (!childTask) {
+      throw new Error(
+        'Не найдена дочерняя задача после завершения родительской'
+      )
+    }
+
+    if (childTask.id !== 'child-task-2') {
+      throw new Error(
+        `Ожидалась задача child-task-2 (наивысший приоритет), получено: ${childTask.id}`
+      )
+    }
+
+    logger.info(
+      `✅ [AGENT_ROUTER_TEST]: Корректно выбрана дочерняя задача с наивысшим приоритетом: ${childTask.id}`
+    )
+
+    // Помечаем первую дочернюю задачу как выполненную
+    router.updateTaskStatus('child-task-2', TaskStatus.COMPLETED)
+
+    // Получаем вторую дочернюю задачу
+    const secondChildTask = await router.getNextTaskToProcess()
+
+    if (!secondChildTask) {
+      throw new Error('Не найдена вторая дочерняя задача')
+    }
+
+    if (secondChildTask.id !== 'child-task-1') {
+      throw new Error(
+        `Ожидалась задача child-task-1, получено: ${secondChildTask.id}`
+      )
+    }
+
+    logger.info(
+      `✅ [AGENT_ROUTER_TEST]: Корректно выбрана вторая дочерняя задача: ${secondChildTask.id}`
+    )
+
+    return {
+      success: true,
+      message: 'Тест зависимостей между задачами пройден успешно',
+      name: 'Тест зависимостей между задачами',
+    }
+  } catch (error: any) {
+    logger.error(
+      `❌ [AGENT_ROUTER_TEST]: Ошибка при тестировании зависимостей между задачами: ${error.message}`
+    )
+    return {
+      success: false,
+      message: `Ошибка при тестировании зависимостей между задачами: ${error.message}`,
+      name: 'Тест зависимостей между задачами',
+    }
+  }
+}
+
+/**
+ * Запускает все тесты маршрутизатора агентов
+ */
+export async function runAgentRouterTests(): Promise<TestResult[]> {
+  logger.info('🚀 [AGENT_ROUTER_TEST]: Запуск тестов маршрутизатора агентов')
+
+  // Список тестов для запуска
+  const tests = [
+    testAgentRegistration,
+    testTaskRouting,
+    testBestAgentSelection,
+    testEventHandling,
+    testErrorHandling,
+    testMultipleTaskRouting,
+    testPriorityTaskRouting,
+    testNextTaskSelection,
+    testTaskDependencies,
+  ]
+
+  const results: TestResult[] = []
+
+  // Запускаем тесты
+  for (const test of tests) {
+    results.push(await test())
+  }
+
+  // Выводим общий результат
+  const failedTests = results.filter(result => !result.success)
+
+  if (failedTests.length > 0) {
+    logger.error('❌ Тесты маршрутизатора агентов завершены с ошибками:')
+    failedTests.forEach(test => {
+      logger.error(`  ❌ ${test.name}: ${test.message}`)
+    })
+  } else {
+    logger.info('✅ Все тесты маршрутизатора агентов успешно пройдены')
+  }
+
+  return results
 }
 
 /**
