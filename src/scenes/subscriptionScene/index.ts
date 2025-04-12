@@ -81,7 +81,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     const cleanedKeyboardRows = keyboardRows.filter(
       row => row && row.length > 0
     )
-
+    //
     cleanedKeyboardRows.push([
       {
         text: isRu ? '🏠 Главное меню' : '🏠 Main menu',
@@ -134,6 +134,6 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    await ctx.scene.enter(isRu ? 'getRuBillWizard' : 'getEnBillWizard')
+    await ctx.scene.enter('getRuBillWizard')
   }
 )
