@@ -108,7 +108,7 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[100].title_ru : levels[100].title_en]: async () => {
         console.log('CASE: 💎 Пополнить баланс')
         ctx.session.mode = 'top_up_balance' as any
-        await ctx.scene.enter('paymentScene')
+        await ctx.scene.enter(ModeEnum.PaymentScene)
       },
       [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
         console.log('CASE: 🤑 Баланс')
@@ -143,7 +143,7 @@ export const handleMenu = async (ctx: MyContext) => {
       '/buy': async () => {
         console.log('CASE: 💰 Пополнить баланс')
         ctx.session.mode = 'top_up_balance' as any
-        await ctx.scene.enter('paymentScene')
+        await ctx.scene.enter(ModeEnum.PaymentScene)
       },
       '/balance': async () => {
         console.log('CASE: 💰 Баланс')
