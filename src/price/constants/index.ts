@@ -1,15 +1,24 @@
-import { ModeEnum } from '../types/modes'
+// Объявления констант без циклических зависимостей
+// Объявляем примитивные значения самыми первыми
 
-// Экспортируем примитивные значения первыми
-export const starCost = 0.016
-export const interestRate = 50
+// Стоимость звезды и курс обмена
+const _starCost = 0.016
+const _interestRate = 50
+const _currency = 'RUB'
 
-// Затем определяем объект SYSTEM_CONFIG, использующий эти переменные
+// Экспортируем примитивные значения
+export const starCost = _starCost
+export const interestRate = _interestRate
+
+// Теперь создаем объект конфигурации на основе этих значений
 export const SYSTEM_CONFIG = {
-  starCost: starCost,
-  interestRate: interestRate,
-  currency: 'RUB',
+  starCost: _starCost,
+  interestRate: _interestRate,
+  currency: _currency,
 }
+
+// Импорт типов после объявления примитивных констант
+import { ModeEnum } from '../types/modes'
 
 // Star purchase limits
 export const STAR_AMOUNTS = {
