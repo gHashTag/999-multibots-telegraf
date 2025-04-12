@@ -106,6 +106,8 @@
     "text-to-video-tests": "bash scripts/run-textToVideo-tests.sh",
     "api-tests": "bash scripts/run-api-tests.sh",
     "api-tests:detailed": "bash scripts/run-api-tests.sh --detailed --report",
+    "inngest-tests": "bash scripts/run-inngest-tests.sh",
+    "docker:test:inngest": "bash scripts/run-inngest-tests.sh",
     "docker:test:api": "bash scripts/run-api-tests-docker.sh",
     "check": "npm run lint && npm run build"
   },
