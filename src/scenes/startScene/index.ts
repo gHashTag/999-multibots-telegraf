@@ -8,6 +8,8 @@ import {
 import { mainMenuButton } from '@/menu/mainMenu'
 import { BOT_URLS } from '@/core/bot'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { logger } from '@/utils/logger'
+
 async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
   const botName = ctx.botInfo.username
   let postUrl = ''
@@ -45,41 +47,60 @@ async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
 export const startScene = new Scenes.WizardScene<MyContext>(
   'startScene',
   async ctx => {
-    const isRu = ctx.from?.language_code === 'ru'
-    const { translation, url } = await getTranslation('start', ctx)
+    try {
+      const isRu = ctx.from?.language_code === 'ru'
+      const { translation } = await getTranslation('start', ctx)
 
-    if (url) {
-      await ctx.replyWithPhoto(url, {
-        caption: translation,
-        parse_mode: 'Markdown',
-        reply_markup: Markup.keyboard([
-          [
-            Markup.button.text(
-              isRu ? mainMenuButton.title_ru : mainMenuButton.title_en
-            ),
-          ],
-        ])
-          .resize()
-          .oneTime().reply_markup,
+      // Отправляем только текстовое сообщение, без фото
+      await ctx.reply(
+        translation ||
+          (isRu
+            ? '🤖 Привет! Я ваш помощник с технологиями нейросетей. Давайте начнем!'
+            : "🤖 Hello! I am your assistant with neural network technologies. Let's get started!"),
+        {
+          parse_mode: 'Markdown',
+          reply_markup: Markup.keyboard([
+            [
+              Markup.button.text(
+                isRu ? mainMenuButton.title_ru : mainMenuButton.title_en
+              ),
+            ],
+          ])
+            .resize()
+            .oneTime().reply_markup,
+        }
+      )
+
+      await sendTutorialMessage(ctx, isRu)
+
+      ctx.wizard.next()
+    } catch (error) {
+      logger.error({
+        message: '❌ Ошибка в сцене старта',
+        description: 'Error in start scene',
+        error: error instanceof Error ? error.message : String(error),
       })
-    } else {
-      await ctx.reply(translation, {
-        parse_mode: 'Markdown',
-        reply_markup: Markup.keyboard([
-          [
-            Markup.button.text(
-              isRu ? mainMenuButton.title_ru : mainMenuButton.title_en
-            ),
-          ],
-        ])
-          .resize()
-          .oneTime().reply_markup,
-      })
+
+      // Запасной вариант, если произошла ошибка
+      const isRu = ctx.from?.language_code === 'ru'
+      await ctx.reply(
+        isRu
+          ? '🤖 Привет! Добро пожаловать в нейросистему. Нажмите кнопку ниже, чтобы продолжить.'
+          : '🤖 Hello! Welcome to the neural system. Press the button below to continue.',
+        {
+          reply_markup: Markup.keyboard([
+            [
+              Markup.button.text(
+                isRu ? mainMenuButton.title_ru : mainMenuButton.title_en
+              ),
+            ],
+          ])
+            .resize()
+            .oneTime().reply_markup,
+        }
+      )
+      ctx.wizard.next()
     }
-
-    await sendTutorialMessage(ctx, isRu)
-
-    ctx.wizard.next()
   },
   async (ctx: MyContext) => {
     const isRu = ctx.from?.language_code === 'ru'

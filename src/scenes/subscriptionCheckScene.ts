@@ -56,7 +56,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   }
 
   if (ctx.session.mode === ModeEnum.MainMenu) {
-    return ctx.scene.enter(ModeEnum.MainMenu)
+    return ctx.scene.enter('menuScene')
   } else {
     return ctx.scene.enter('menuScene')
   }
