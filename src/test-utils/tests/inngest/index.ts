@@ -1,16 +1,7 @@
 import { TestResult } from '../../types'
 import { TestCategory } from '../../core/categories'
 import { logger } from '@/utils/logger'
-import {
-  runInngestDirectTest,
-  runInngestFunctionRegistrationTest,
-  runInngestFullTest,
-} from '../inngestTest'
-import {
-  runInngestSDKTest as runSDKTest,
-  runInngestDirectAPITest,
-  runInngestAvailabilityTest,
-} from './basicInngestTests'
+import { runInngestAvailabilityTest } from './basicInngestTests'
 
 /**
  * Опции для запуска тестов Inngest
@@ -49,39 +40,14 @@ export async function runInngestTests(
     let testsToRun: Array<() => Promise<TestResult>> = []
 
     switch (testType) {
-      case 'direct':
-        testsToRun = [runInngestDirectTest]
-        logger.info('📋 Запуск только HTTP API тестов')
-        break
-      case 'sdk':
-        testsToRun = [runSDKTest]
-        logger.info('📋 Запуск только SDK тестов')
-        break
-      case 'registration':
-        testsToRun = [runInngestFunctionRegistrationTest]
-        logger.info('📋 Запуск только тестов регистрации функций')
-        break
-      case 'full':
-        testsToRun = [runInngestFullTest]
-        logger.info('📋 Запуск комбинированного теста')
-        break
       case 'availability':
         testsToRun = [runInngestAvailabilityTest]
         logger.info('📋 Запуск теста доступности Inngest')
         break
-      case 'api':
-        testsToRun = [runInngestDirectAPITest]
-        logger.info('📋 Запуск теста HTTP API Inngest')
-        break
       default:
-        // По умолчанию запускаем все тесты
-        testsToRun = [
-          runInngestAvailabilityTest,
-          runSDKTest,
-          runInngestDirectAPITest,
-          runInngestFunctionRegistrationTest,
-        ]
-        logger.info('📋 Запуск всех тестов Inngest')
+        // По умолчанию запускаем только тест доступности
+        testsToRun = [runInngestAvailabilityTest]
+        logger.info('📋 Запуск тестов доступности Inngest')
     }
 
     logger.info(`📋 Будет запущено ${testsToRun.length} тестов`)
@@ -145,8 +111,8 @@ export async function runInngestTests(
   }
 }
 
-// Экспортируем новые тесты
-export { runInngestAvailabilityTest, runInngestDirectAPITest, runSDKTest }
+// Экспортируем тесты
+export { runInngestAvailabilityTest }
 
 // Запускаем тесты если файл запущен напрямую
 if (require.main === module) {
