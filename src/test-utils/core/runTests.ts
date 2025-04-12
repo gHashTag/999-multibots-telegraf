@@ -4,30 +4,74 @@ import path from 'path'
 import { TestRunner } from './TestRunner'
 import { TestCategory, isInCategory } from './categories'
 import { runTranslationTests } from '../tests/translations'
-import { TestResult, RunnerOptions } from './types'
+import { TestResult } from './types'
 import { logger } from '@/utils/logger'
 import { TestDiscovery } from './TestDiscovery'
 import { TestReporter } from './TestReporter'
-import fs from 'fs'
-import { InngestFunctionTester } from '../testers/InngestFunctionTester'
 import { runPaymentProcessorTests } from '../tests/payment/paymentProcessorTest'
-import { runRobokassaFormTests } from '../tests/payment/robokassaFormValidator.test'
+import { runSystemTests } from '../tests/system'
+import { runAgentRouterTests } from '../tests/system/agentRouterTest'
 
 // Загружаем переменные окружения
 config({ path: path.resolve('.env.test') })
 
 /**
+ * Разбор категории тестов
+ */
+function parseCategory(category?: string): TestCategory {
+  if (!category) return TestCategory.All
+
+  // Проверяем, есть ли такая категория в enum
+  if (Object.values(TestCategory).includes(category as TestCategory)) {
+    return category as TestCategory
+  }
+
+  // Обрабатываем специальные случаи
+  switch (category.toLowerCase()) {
+    case 'all':
+      return TestCategory.All
+    case 'translations':
+      return TestCategory.Translations
+    case 'database':
+      return TestCategory.Database
+    case 'webhook':
+      return TestCategory.Webhook
+    case 'inngest':
+      return TestCategory.Inngest
+    case 'payment':
+      return TestCategory.Payment
+    case 'payment-processor':
+      return TestCategory.PaymentProcessor
+    case 'api':
+      return TestCategory.Api
+    case 'system':
+      return TestCategory.System
+    case 'agent-router':
+      return TestCategory.AgentRouter
+    default:
+      return TestCategory.All
+  }
+}
+
+/**
  * Разбор аргументов командной строки
  */
-function parseArgs(args: string[]): RunnerOptions {
+function parseArgs(args: string[]) {
   // значения по умолчанию
-  const result: RunnerOptions = {
+  const result = {
     verbose: false,
-    only: [],
-    skip: [],
+    only: [] as string[],
+    skip: [] as string[],
     category: TestCategory.All,
     parallel: 4,
-    outputFormat: 'text',
+    json: false,
+    html: false,
+    outputFile: undefined as string | undefined,
+    discover: false,
+    testDir: undefined as string | undefined,
+    timeout: 30000,
+    tags: [] as string[],
+    help: false,
   }
 
   // Парсим аргументы командной строки
@@ -43,13 +87,13 @@ function parseArgs(args: string[]): RunnerOptions {
     } else if (arg.startsWith('--skip=')) {
       result.skip = [arg.split('=')[1]]
     } else if (arg.startsWith('--category=')) {
-      result.category = arg.split('=')[1] as TestCategory
+      result.category = parseCategory(arg.split('=')[1])
     } else if (arg.startsWith('--parallel=')) {
       result.parallel = parseInt(arg.split('=')[1], 10)
     } else if (arg === '--json') {
-      result.outputFormat = 'json'
+      result.json = true
     } else if (arg === '--html') {
-      result.outputFormat = 'html'
+      result.html = true
     } else if (arg.startsWith('--output=')) {
       result.outputFile = arg.split('=')[1]
     } else if (arg.startsWith('--tags=')) {
@@ -94,6 +138,7 @@ function printHelp() {
   payment             Тесты платежных функций
   payment-processor   Тесты обработчика платежей
   api                 Тесты API эндпоинтов
+  system              Системные тесты (агент, роутер, валидаторы)
 
 Примеры:
   ts-node -r tsconfig-paths/register src/test-utils --category=translations
@@ -101,6 +146,7 @@ function printHelp() {
   ts-node -r tsconfig-paths/register src/test-utils --discover --test-dir=src/test-utils/tests
   ts-node -r tsconfig-paths/register src/test-utils --json --output=test-results.json
   ts-node -r tsconfig-paths/register src/test-utils --category=payment-processor
+  ts-node -r tsconfig-paths/register src/test-utils --category=system
   `
 
   console.log(message)
@@ -112,34 +158,29 @@ function printHelp() {
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function testPaymentProcessorIncome(): Promise<TestResult> {
-  logger.info('🧪 Тест функции обработки платежей (пополнение)')
-  logger.info('🧪 Testing payment processor function (income)')
+  logger.info('🚀 Запуск теста пополнения баланса')
 
-  const tester = new InngestFunctionTester({ verbose: true })
+  // Генерируем случайный Telegram ID и проверяем пополнение баланса
+  const telegramId = Math.floor(Math.random() * 10000000000).toString()
+  const amount = 100
+  const stars = 100
 
   try {
-    const result = await tester.testPaymentProcessorIncome()
+    // Проверка корректности обработки платежа
+    const result = await runPaymentProcessorTests(telegramId, amount, stars)
 
     return {
-      name: 'Тест обработки платежей (пополнение)',
-      category: TestCategory.PaymentProcessor,
       success: result.success,
-      message: result.message || 'Тест успешно выполнен',
-      details: result.data,
-      error: result.error ? String(result.error) : undefined,
+      name: 'Тест пополнения баланса',
+      message: result.message || 'Успешно',
     }
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании обработки платежей (пополнение)', {
-      description: 'Error during payment processor test (income)',
-      error: error instanceof Error ? error.message : String(error),
-    })
-
+  } catch (error: any) {
+    logger.error('❌ Ошибка в тесте пополнения баланса:', error)
     return {
-      name: 'Тест обработки платежей (пополнение)',
-      category: TestCategory.PaymentProcessor,
       success: false,
-      message: 'Ошибка при выполнении теста',
-      error: error instanceof Error ? error.message : String(error),
+      name: 'Тест пополнения баланса',
+      message: error.message || 'Неизвестная ошибка',
+      error: error.stack,
     }
   }
 }
@@ -150,35 +191,134 @@ async function testPaymentProcessorIncome(): Promise<TestResult> {
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function testPaymentProcessorExpense(): Promise<TestResult> {
-  logger.info('🧪 Тест функции обработки платежей (списание)')
-  logger.info('🧪 Testing payment processor function (expense)')
+  logger.info('🚀 Запуск теста списания средств')
 
-  const tester = new InngestFunctionTester({ verbose: true })
+  // Генерируем случайный Telegram ID и проверяем списание баланса
+  const telegramId = Math.floor(Math.random() * 10000000000).toString()
+  const amount = 50 // Сумма списания
+  const stars = 50 // Количество списываемых звезд
 
   try {
-    const result = await tester.testPaymentProcessorExpense()
+    // Проверка корректности обработки платежа
+    const result = await runPaymentProcessorTests(
+      telegramId,
+      amount,
+      stars,
+      'money_expense'
+    )
 
     return {
-      name: 'Тест обработки платежей (списание)',
-      category: TestCategory.PaymentProcessor,
       success: result.success,
-      message: result.message || 'Тест успешно выполнен',
-      details: result.data,
-      error: result.error ? String(result.error) : undefined,
+      name: 'Тест списания средств',
+      message: result.message || 'Успешно',
     }
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании обработки платежей (списание)', {
-      description: 'Error during payment processor test (expense)',
-      error: error instanceof Error ? error.message : String(error),
-    })
-
+  } catch (error: any) {
+    logger.error('❌ Ошибка в тесте списания средств:', error)
     return {
-      name: 'Тест обработки платежей (списание)',
-      category: TestCategory.PaymentProcessor,
       success: false,
-      message: 'Ошибка при выполнении теста',
-      error: error instanceof Error ? error.message : String(error),
+      name: 'Тест списания средств',
+      message: error.message || 'Неизвестная ошибка',
+      error: error.stack,
     }
+  }
+}
+
+/**
+ * Регистрирует системные тесты
+ */
+async function registerSystemTests(runner: TestRunner) {
+  logger.info('🚀 Запуск системных тестов')
+  logger.info('🚀 Running system tests')
+
+  // Получаем результаты системных тестов
+  try {
+    const results = await runSystemTests()
+
+    if (Array.isArray(results) && results.length > 0) {
+      runner.addTests([
+        {
+          name: 'Системные тесты',
+          category: TestCategory.System,
+          description: 'Общие системные тесты проекта',
+          run: async () => {
+            const failed = results.filter(r => !r.success)
+
+            if (failed.length > 0) {
+              const errors = failed
+                .map(f => `${f.name}: ${f.message}`)
+                .join('\n')
+              throw new Error(`Ошибки в системных тестах:\n${errors}`)
+            }
+
+            return {
+              name: 'Системные тесты',
+              category: TestCategory.System,
+              success: true,
+              message: `✅ Все системные тесты успешно пройдены (${results.length} тестов)`,
+            }
+          },
+        },
+      ])
+
+      logger.info(`✅ Зарегистрировано ${results.length} системных тестов`)
+      logger.info(`✅ Registered ${results.length} system tests`)
+    } else {
+      logger.warn('⚠️ Не найдено системных тестов для выполнения')
+      logger.warn('⚠️ No system tests found to run')
+    }
+
+    // Регистрация тестов маршрутизатора агентов
+    runner.addTests([
+      {
+        name: 'Тесты маршрутизатора агентов',
+        category: TestCategory.AgentRouter,
+        description: 'Тесты функциональности маршрутизатора агентов',
+        run: async () => {
+          console.log('🚀 Запуск тестов маршрутизатора агентов...')
+          const results = await runAgentRouterTests()
+
+          // Проверяем результаты
+          const failedTests = results.filter(test => !test.success)
+
+          if (failedTests.length > 0) {
+            logger.error(
+              '❌ Обнаружены ошибки в тестах маршрутизатора агентов:'
+            )
+            failedTests.forEach(test => {
+              logger.error(`  ❌ ${test.name}: ${test.message}`)
+            })
+            return {
+              success: false,
+              message: `Ошибок в тестах маршрутизатора агентов: ${failedTests.length}`,
+              name: 'Тесты маршрутизатора агентов',
+            }
+          }
+
+          return {
+            success: true,
+            message: `Успешно выполнено тестов маршрутизатора агентов: ${results.filter(t => t.success).length}`,
+            name: 'Тесты маршрутизатора агентов',
+          }
+        },
+      },
+    ])
+  } catch (error) {
+    logger.error('❌ Ошибка при регистрации системных тестов:', error)
+    logger.error('❌ Error registering system tests:', error)
+
+    // Добавляем тест с ошибкой, чтобы пользователь увидел проблему
+    runner.addTests([
+      {
+        name: 'Ошибка в системных тестах',
+        category: TestCategory.System,
+        description: 'Тест для отображения ошибок в системных тестах',
+        run: async () => ({
+          success: false,
+          name: 'Системные тесты',
+          message: `Ошибка при запуске системных тестов: ${error instanceof Error ? error.message : String(error)}`,
+        }),
+      },
+    ])
   }
 }
 
@@ -186,52 +326,43 @@ async function testPaymentProcessorExpense(): Promise<TestResult> {
  * Основная функция для запуска тестов
  */
 export async function runTests(args = process.argv.slice(2)): Promise<number> {
-  // Парсим аргументы командной строки
-  const options = parseArgs(args)
-
-  // Выводим справку, если запрошена
-  if (options.help) {
-    printHelp()
-    return 0
-  }
-
-  // Инициализируем репортер
-  const reporter = new TestReporter(options.outputFormat, options.outputFile)
-
-  // Запоминаем время начала тестов
-  const startTime = Date.now()
-  reporter.setStartTime(startTime)
-
-  // Создаем экземпляр TestRunner
-  const runner = new TestRunner({
-    verbose: options.verbose,
-    only: options.only || [],
-    skip: options.skip || [],
-  })
-
-  // Инициализируем TestRunner
-  await runner.init()
-
   try {
-    logger.info('🚀 Запуск тестов', {
-      description: 'Starting tests',
-      category: options.category,
+    const options = parseArgs(args)
+    const reporter = new TestReporter({
       verbose: options.verbose,
+      json: options.json,
+      html: options.html,
+      output: options.outputFile,
     })
 
-    // Автоматическое обнаружение тестов
+    // Инициализируем запуск тестов
+    logger.info('📝 Инициализация тестов', {
+      options,
+      description: 'Initializing tests',
+    })
+
+    // Создаем экземпляр TestRunner
+    const runner = new TestRunner({
+      verbose: options.verbose,
+      parallel: options.parallel,
+      reporter,
+      timeout: options.timeout,
+      tags: options.tags,
+      only: options.only,
+      skip: options.skip,
+    })
+
+    await runner.init()
+
+    // Если нужно обнаружить тесты автоматически
     if (options.discover) {
-      logger.info('🔍 Автоматическое обнаружение тестов', {
-        description: 'Auto-discovering tests',
-        testDir: options.testDir,
-      })
+      logger.info('🔍 Автоматическое обнаружение тестов...')
 
-      const discovery = new TestDiscovery({
-        testDir: options.testDir,
-        verbose: options.verbose,
-      })
+      const discovery = new TestDiscovery()
+      discovery.testDir = options.testDir || 'src/test-utils/tests'
+      discovery.verbose = options.verbose || false
 
-      const discoveredTests = await discovery.discoverTests()
+      const discoveredTests = await discovery.discover()
       logger.info(`🔍 Обнаружено ${discoveredTests.length} тестов`, {
         description: 'Discovered tests',
         count: discoveredTests.length,
@@ -244,464 +375,66 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
           test.category === options.category
       )
 
+      logger.info(
+        `📝 Отфильтровано ${filteredTests.length} тестов для категории ${options.category}`,
+        {
+          description: 'Filtered tests',
+          count: filteredTests.length,
+          category: options.category,
+        }
+      )
+
+      // Добавляем отфильтрованные тесты
       runner.addTests(filteredTests)
     } else {
-      // Запускаем тесты, относящиеся к нужной категории
-      logger.info('📦 Подготовка тестов из категории', {
-        description: 'Preparing tests from category',
-        category: options.category,
-      })
+      // Определяем категорию тестов
+      const category = parseCategory(options.category)
 
-      // Проверяем, нужно ли запускать тесты переводов
-      const shouldRunTranslationTests = isInCategory(
-        TestCategory.Translations,
-        options.category
+      // Проверяем, нужно ли запускать системные тесты
+      const shouldRunSystemTests = isInCategory(
+        TestCategory.System,
+        category as TestCategory
       )
-
-      // Проверяем, нужно ли запускать тесты платежной системы
-      const shouldRunPaymentProcessorTests = isInCategory(
-        TestCategory.PaymentProcessor,
-        options.category
-      )
-
-      // Проверяем, нужно ли запускать тесты платежной системы
-      const shouldRunPaymentTests = isInCategory(
-        TestCategory.Payment,
-        options.category
-      )
-
-      // Проверяем, нужно ли запускать тесты валидации URL Robokassa
-      const shouldRunRobokassaFormTests =
-        isInCategory(TestCategory.Payment, options.category) ||
-        options.category === 'robokassa'
-
-      // Запускаем тесты переводов, если выбрана соответствующая категория
-      if (shouldRunTranslationTests) {
-        logger.info('🌐 Загрузка тестов переводов...')
-        logger.info('🌐 Loading translation tests...')
-
-        try {
-          // Запускаем тесты переводов
-          const translationResults = runTranslationTests()
-
-          // Обрабатываем результаты
-          if (Array.isArray(translationResults)) {
-            logger.info(
-              `✅ Добавлено тестов переводов: ${translationResults.length}`
-            )
-            logger.info(
-              `✅ Added translation tests: ${translationResults.length}`
-            )
-
-            // Добавляем каждый тест в TestRunner
-            for (const result of translationResults) {
-              runner.addTests([
-                {
-                  name: result.name || 'Translation Test',
-                  category: TestCategory.Translations,
-                  description: result.message || 'Translation validation',
-                  run: async () => {
-                    if (!result.success) {
-                      throw new Error(
-                        result.message || 'Translation test failed'
-                      )
-                    }
-                    return result
-                  },
-                },
-              ])
-            }
-          }
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error)
-          logger.error(
-            `❌ Ошибка при запуске тестов переводов: ${errorMessage}`
-          )
-          logger.error(`❌ Error running translation tests: ${errorMessage}`)
-
-          // Добавляем ошибку как тест
-          runner.addTests([
-            {
-              name: 'Translation Tests',
-              category: TestCategory.Translations,
-              description: 'Running translation tests',
-              run: async () => {
-                throw new Error(
-                  `Failed to run translation tests: ${errorMessage}`
-                )
-              },
-            },
-          ])
-        }
-      }
-
-      // Запускаем тесты платежного процессора, если выбрана соответствующая категория
-      if (shouldRunPaymentProcessorTests) {
-        logger.info('💰 Загрузка тестов платежного процессора...')
-        logger.info('💰 Loading payment processor tests...')
-
-        try {
-          // Запускаем тесты платежного процессора
-          const paymentResults = await runPaymentProcessorTests()
-
-          // Добавляем тесты в runner
-          runner.addTests([
-            {
-              name: 'Тест функции пополнения баланса',
-              category: TestCategory.PaymentProcessor,
-              description:
-                'Проверка корректности работы функции пополнения баланса',
-              run: async () => {
-                const result = paymentResults[0]
-                return {
-                  success: result.success,
-                  message: result.message || '',
-                  details: result.data,
-                }
-              },
-            },
-            {
-              name: 'Тест функции списания средств',
-              category: TestCategory.PaymentProcessor,
-              description:
-                'Проверка корректности работы функции списания средств',
-              run: async () => {
-                const result = paymentResults[1]
-                return {
-                  success: result.success,
-                  message: result.message || '',
-                  details: result.data,
-                }
-              },
-            },
-          ])
-
-          logger.info(
-            `✅ Добавлены тесты платежного процессора: ${paymentResults.length}`
-          )
-          logger.info(
-            `✅ Added payment processor tests: ${paymentResults.length}`
-          )
-        } catch (error) {
-          logger.error(
-            '❌ Ошибка при загрузке тестов платежного процессора',
-            error
-          )
-          logger.error('❌ Error loading payment processor tests', error)
-        }
-      }
-
-      // Запускаем тесты Inngest функций, если выбрана соответствующая категория
-      if (
-        options.category === TestCategory.All ||
-        options.category === TestCategory.Inngest ||
-        options.category === TestCategory.NeuroPhoto ||
-        options.category === TestCategory.NeuroPhotoV2
-      ) {
-        logger.info('🤖 Загрузка тестов Inngest функций...')
-        logger.info('🤖 Loading Inngest function tests...')
-
-        try {
-          // Импортируем динамически, чтобы избежать циклических зависимостей
-          const { runInngestTests } = await import('../tests/inngest')
-
-          // Запускаем тесты Inngest функций
-          const results = await runInngestTests({ verbose: options.verbose })
-
-          // Обрабатываем результаты
-          if (Array.isArray(results)) {
-            logger.info(
-              `✅ Добавлено тестов Inngest функций: ${results.length}`
-            )
-            logger.info(`✅ Added Inngest function tests: ${results.length}`)
-
-            // Преобразуем результаты в тесты для TestRunner
-            for (const result of results) {
-              runner.addTests([
-                {
-                  name: result.name || 'Inngest Function Test',
-                  category: result.category || 'inngest',
-                  description: result.message || 'Inngest function testing',
-                  run: async () => {
-                    if (!result.success) {
-                      throw new Error(
-                        result.message || 'Inngest function test failed'
-                      )
-                    }
-                    return result
-                  },
-                },
-              ])
-            }
-          }
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error)
-          logger.error(
-            `❌ Ошибка при запуске тестов Inngest функций: ${errorMessage}`
-          )
-          logger.error(
-            `❌ Error running Inngest function tests: ${errorMessage}`
-          )
-
-          // Добавляем ошибку как тест
-          runner.addTests([
-            {
-              name: 'Inngest Function Tests',
-              category: 'inngest',
-              description: 'Running Inngest function tests',
-              run: async () => {
-                throw new Error(
-                  `Failed to run Inngest function tests: ${errorMessage}`
-                )
-              },
-            },
-          ])
-        }
-      }
-
-      // Запускаем тесты платежных функций, если выбрана соответствующая категория
-      if (shouldRunPaymentTests) {
-        logger.info('💰 Загрузка тестов платежных функций...')
-        logger.info('💰 Loading payment function tests...')
-
-        try {
-          // Импортируем динамически, чтобы избежать циклических зависимостей
-          const { runPaymentTests } = await import('../tests/payment')
-
-          // Запускаем тесты платежных функций
-          const result = await runPaymentTests({ verbose: options.verbose })
-
-          // Обрабатываем результаты
-          if (result && result.results && Array.isArray(result.results)) {
-            const totalTests = result.results.reduce(
-              (total: number, group: any) => {
-                return (
-                  total +
-                  (Array.isArray(group.results) ? group.results.length : 0)
-                )
-              },
-              0
-            )
-
-            logger.info(`✅ Добавлено тестов платежных функций: ${totalTests}`)
-            logger.info(`✅ Added payment function tests: ${totalTests}`)
-
-            // Преобразуем результаты в тесты для TestRunner
-            for (const group of result.results) {
-              if (Array.isArray(group.results)) {
-                // Если у нас есть результаты для этой группы платежных тестов
-                for (const test of group.results) {
-                  runner.addTests([
-                    {
-                      name: test.name || `${group.name} Test`,
-                      category: 'payment',
-                      description: test.description || `Testing ${group.name}`,
-                      run: async () => {
-                        if (!test.success) {
-                          throw new Error(
-                            test.error || `${group.name} test failed`
-                          )
-                        }
-                        return test
-                      },
-                    },
-                  ])
-                }
-              } else {
-                // Для группы без детальных результатов, добавляем общий тест
-                runner.addTests([
-                  {
-                    name: group.name || 'Payment Test',
-                    category: 'payment',
-                    description: `Testing ${group.name}`,
-                    run: async () => {
-                      if (!group.success) {
-                        throw new Error(group.error || 'Payment test failed')
-                      }
-                      return group
-                    },
-                  },
-                ])
-              }
-            }
-          }
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error)
-          logger.error(
-            `❌ Ошибка при запуске тестов платежных функций: ${errorMessage}`
-          )
-          logger.error(
-            `❌ Error running payment function tests: ${errorMessage}`
-          )
-
-          // Добавляем ошибку как тест
-          runner.addTests([
-            {
-              name: 'Payment Function Tests',
-              category: 'payment',
-              description: 'Running payment function tests',
-              run: async () => {
-                throw new Error(
-                  `Failed to run payment function tests: ${errorMessage}`
-                )
-              },
-            },
-          ])
-        }
-      }
-
-      // Если нужно запустить тесты проверки URL формы Robokassa
-      if (shouldRunRobokassaFormTests) {
-        logger.info('🧪 Запуск тестов валидации URL формы Robokassa', {
-          description: 'Running Robokassa form URL validation tests',
-        })
-
-        // Запускаем тесты Robokassa
-        const results = await runRobokassaFormTests()
-
-        // Преобразуем результаты в тесты для TestRunner
-        if (results.results && Array.isArray(results.results)) {
-          for (const test of results.results) {
-            runner.addTests([
-              {
-                name: test.name || 'Тест URL Robokassa',
-                category: 'payment',
-                description: 'Проверка валидности URL формы Robokassa',
-                run: async () => {
-                  if (!test.success) {
-                    throw new Error(
-                      test.error || 'Тест URL Robokassa не пройден'
-                    )
-                  }
-                  return {
-                    success: true,
-                    name: test.name,
-                    message: 'Тест URL Robokassa успешно пройден',
-                    details: test,
-                  }
-                },
-              },
-            ])
-          }
-        }
-      }
-
-      // Проверяем, нужно ли запускать тесты API
-      const shouldRunApiTests = isInCategory(TestCategory.Api, options.category)
-
-      // Если нужно запустить тесты API
-      if (shouldRunApiTests) {
-        logger.info('🌐 Загрузка тестов API...', {
-          description: 'Loading API tests',
-        })
-
-        try {
-          // Импортируем динамически, чтобы избежать циклических зависимостей
-          const { runAllApiTests } = await import('../tests/api')
-
-          // Запускаем тесты API
-          const apiResults = await runAllApiTests()
-
-          // Обрабатываем результаты
-          if (Array.isArray(apiResults)) {
-            logger.info(`✅ Добавлено тестов API: ${apiResults.length}`, {
-              description: `Added API tests: ${apiResults.length}`,
-            })
-
-            // Преобразуем результаты в тесты для TestRunner
-            for (const result of apiResults) {
-              runner.addTests([
-                {
-                  name: result.name || 'API Test',
-                  category: TestCategory.Api,
-                  description: result.message || 'API testing',
-                  run: async () => {
-                    if (!result.success) {
-                      throw new Error(result.error || 'API test failed')
-                    }
-                    return result
-                  },
-                },
-              ])
-            }
-          }
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error)
-          logger.error(`❌ Ошибка при запуске тестов API: ${errorMessage}`, {
-            description: `Error running API tests: ${errorMessage}`,
-            stack: error instanceof Error ? error.stack : undefined,
-          })
-
-          // Добавляем ошибку как тест
-          runner.addTests([
-            {
-              name: 'API Tests',
-              category: TestCategory.Api,
-              description: 'Running API tests',
-              run: async () => {
-                throw new Error(`Failed to run API tests: ${errorMessage}`)
-              },
-            },
-          ])
-        }
+      if (shouldRunSystemTests) {
+        await registerSystemTests(runner)
       }
     }
 
-    // Проверяем, есть ли тесты для запуска
-    if (runner.getTestCount() === 0) {
-      logger.warn('⚠️ Нет тестов для запуска!')
-      logger.warn('⚠️ No tests to run!')
-      return 0
-    }
+    // Запускаем тесты и получаем результаты
+    logger.info('🚀 Запуск тестов...')
+    const results = await runner.runAllTests()
 
-    // Запускаем тесты
-    const results = await runner.runTests()
-
-    // Запоминаем время окончания тестов
-    const endTime = Date.now()
-    reporter.setEndTime(endTime)
-
-    // Добавляем результаты в репортер
-    reporter.addResults(results)
-
-    // Генерируем отчет
-    if (options.outputFormat !== 'text' || options.outputFile) {
-      const report = await reporter.generateReport()
-
-      // Если указан файл, сохраняем отчет
-      if (options.outputFile) {
-        await reporter.saveReport(report)
-      } else {
-        // Иначе выводим в консоль
-        console.log(report)
+    // Анализируем результаты
+    const { passed, failed, total } = results
+    logger.info(
+      `📊 Результаты тестирования: успешно - ${passed}, не пройдено - ${failed}, всего - ${total}`,
+      {
+        description: 'Test results',
+        passed,
+        failed,
+        total,
       }
-    }
+    )
 
-    // Подсчитываем результаты
-    const successCount = results.filter(r => r.success).length
-    const failCount = results.length - successCount
-
-    // Завершаем с соответствующим кодом
-    return failCount > 0 ? 1 : 0
-  } finally {
-    // Очищаем ресурсы
+    // Завершаем работу
     await runner.cleanup()
+
+    // Возвращаем статус выполнения
+    return failed === 0 ? 0 : 1
+  } catch (error) {
+    logger.error('❌ Критическая ошибка при запуске тестов:', error)
+    return 1
   }
 }
 
-// Запускаем тесты, если файл запущен напрямую
+// Запускаем напрямую, если файл запущен как скрипт
 if (require.main === module) {
   runTests()
     .then(exitCode => {
       process.exit(exitCode)
     })
     .catch(error => {
-      logger.error('🔥 Критическая ошибка при запуске тестов:', error)
-      logger.error('🔥 Critical error running tests:', error)
+      logger.error('🔥 Неперехваченная ошибка:', error)
       process.exit(1)
     })
 }
