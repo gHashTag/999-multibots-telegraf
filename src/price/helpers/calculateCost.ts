@@ -1,5 +1,7 @@
+// Меняем импорт ModeEnum, чтобы избежать циклической зависимости
 import { ModeEnum } from '../types/modes'
-
+// Используем относительный импорт вместо алиаса
+import { logger } from '../../utils/logger'
 import {
   conversionRates,
   conversionRatesV2,
