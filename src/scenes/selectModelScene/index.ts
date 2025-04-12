@@ -5,7 +5,7 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { ModeEnum } from '@/interfaces/modes'
 
 export const selectModelScene = new Scenes.WizardScene<MyContext>(
-  ModeEnum.SelectModelWizard,
+  ModeEnum.SelectModel,
   // async ctx => {
   //   const isRu = isRussian(ctx)
 

@@ -344,7 +344,7 @@ function getServiceEmoji(service: string): string {
     case ModeEnum.SelectModel:
     case 'select_model':
       return '📋'
-    case ModeEnum.SelectModelWizard:
+    case ModeEnum.SelectAiTextModel:
       return '🧙‍♂️'
     case 'system':
       return '⚙️'
@@ -397,8 +397,8 @@ function getServiceName(service: string, isRu: boolean): string {
     case ModeEnum.SelectModel:
     case 'select_model':
       return isRu ? 'Выбор модели' : 'Model Selection'
-    case ModeEnum.SelectModelWizard:
-      return isRu ? 'Мастер выбора модели' : 'Model Selection Wizard'
+    case ModeEnum.SelectAiTextModel:
+      return isRu ? 'Выбор ИИ модели' : 'Model Selection'
     case 'system':
       return isRu ? 'Системные операции' : 'System Operations'
     default:
