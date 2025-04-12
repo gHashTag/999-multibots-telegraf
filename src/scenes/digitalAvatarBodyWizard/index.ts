@@ -5,7 +5,7 @@ import { isRussian } from '@/helpers/language'
 import { handleTrainingCost } from '@/price/helpers'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from './price/types/modes'
 
 export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.DigitalAvatarBody,

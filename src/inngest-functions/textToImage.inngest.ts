@@ -12,7 +12,7 @@ import {
 import { TransactionType } from '@/interfaces/payments.interface'
 import { downloadFile, processApiResponse, saveFileLocally } from '@/helpers'
 import { replicate } from '@/core/replicate'
-import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/price/types/modes'; import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { API_URL } from '@/config'
 import path from 'path'
 import fs from 'fs'

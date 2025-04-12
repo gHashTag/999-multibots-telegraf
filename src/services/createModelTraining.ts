@@ -5,7 +5,7 @@ import { MyContext } from '@/interfaces'
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from './price/types/modes'
 import { TelegramId } from '@/interfaces/telegram.interface'
 interface ModelTrainingRequest {
   filePath: string

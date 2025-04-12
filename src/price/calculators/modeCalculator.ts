@@ -1,11 +1,11 @@
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '../helpers/modelsCost'
+import { ModeEnum } from '../types/modes'
 import { PricingStrategy } from '../types/strategies'
 import { CostCalculationParams, CostCalculationResult } from '../types/common'
 import { MODE_PRICING_STRATEGY } from '../constants/pricingStrategies'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { calculateCost } from '../helpers/calculateCost'
-import { starCost, BASE_COSTS } from '../helpers/modelsCost'
+import { starCost, BASE_COSTS } from '../constants'
 import { SYSTEM_CONFIG } from '../constants'
 
 /**

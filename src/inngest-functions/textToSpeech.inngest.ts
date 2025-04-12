@@ -7,7 +7,7 @@ import {
 } from '@/core/supabase'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { InputFile } from 'telegraf/typings/core/types/typegram'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from './price/types/modes'
 import { sendBalanceMessage } from '@/price/helpers'
 import { v4 as uuidv4 } from 'uuid'
 import { elevenlabs } from '@/core/elevenlabs'

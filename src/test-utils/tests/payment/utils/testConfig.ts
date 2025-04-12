@@ -1,4 +1,4 @@
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from './price/types/modes'
 import { TransactionType } from '@/interfaces/payments.interface'
 
 /**

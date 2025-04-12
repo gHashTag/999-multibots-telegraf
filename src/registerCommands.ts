@@ -30,7 +30,7 @@ import { stage } from './stage'
 
 import { get100Command } from './commands/get100Command'
 
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from './price/types/modes'
 import { logger } from '@/utils/logger'
 
 import { handleReceiptCommand } from './handlers/handleReceiptCommand'

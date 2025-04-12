@@ -8,7 +8,7 @@ import { supabase } from '@/core/supabase'
 import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { getBotByName } from '@/core/bot'
-import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/price/types/modes'; import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/utils/logger'
 

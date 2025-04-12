@@ -4,7 +4,7 @@ import { inngestTestEngine } from '../../test-config'
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from './price/types/modes'
 
 /**
  * Тест интеграции функции sendMediaToPulse с Inngest-функцией neuroImageGeneration

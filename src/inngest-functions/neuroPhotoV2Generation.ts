@@ -7,7 +7,7 @@ import {
   getAspectRatio,
 } from '@/core/supabase'
 import { API_URL } from '@/config'
-import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/price/types/modes'; import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'

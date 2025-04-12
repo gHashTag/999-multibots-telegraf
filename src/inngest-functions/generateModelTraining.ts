@@ -7,7 +7,7 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
-import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/price/types/modes'; import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { inngest } from '@/inngest-functions/clients'
 import { API_URL, isDev } from '@/config'
 import { BalanceHelper } from '@/helpers/inngest/balanceHelpers'

@@ -1,7 +1,7 @@
 import { PaymentTester } from './PaymentTester'
 import { createTestUser } from '@/test-utils/helpers/createTestUser'
 import { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from './price/types/modes'
 import { supabase } from '@/core/supabase'
 import { createMockContext } from '@/test-utils/helpers/createMockContext'
 import { sendPaymentNotification } from '@/price/helpers/sendPaymentNotification'
