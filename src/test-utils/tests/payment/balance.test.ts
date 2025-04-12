@@ -4,7 +4,7 @@ import { TEST_PAYMENT_CONFIG } from '../../../config/test'
 import { createTestUser } from '../../helpers/users'
 import { TestResult, TestUser } from '../../../types/tests'
 // import { getBotByName } from '../../../utils/bot' // Закомментировано, так как не используется
-import { ModeEnum } from '../../../price/helpers/modelsCost'
+import { ModeEnum } from '../../../price/types/modes'
 import {
   TransactionType,
   // PaymentStatus, // Закомментировано, так как не используется

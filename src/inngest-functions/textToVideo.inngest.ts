@@ -6,7 +6,7 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from './price/types/modes'
 import { calculateModeCost } from '@/price/calculators/modeCalculator'
 import { sendBalanceMessage } from '@/price/helpers'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'

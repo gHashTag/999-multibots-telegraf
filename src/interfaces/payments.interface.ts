@@ -1,4 +1,4 @@
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/price/types/modes'
 
 /**
  * Типы подписок, доступные для оплаты
@@ -454,7 +454,7 @@ export const SERVICE_DESCRIPTIONS: Partial<
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },
-  [ModeEnum.SelectModelWizard]: {
+  [ModeEnum.SelectAiTextModel]: {
     expense: (amount: number) =>
       `🎯 Мастер выбора модели: ${amount} ${getStarsWord(amount)}`,
     income: (amount: number) =>

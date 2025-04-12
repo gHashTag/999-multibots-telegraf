@@ -1,7 +1,7 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from './price/types/modes'
 import { TransactionType } from '@/interfaces/payments.interface'
 interface CreatePendingPaymentParams {
   telegram_id: string | number

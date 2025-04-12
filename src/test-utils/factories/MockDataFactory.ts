@@ -1,5 +1,5 @@
 import { MockManager } from '../core/MockManager'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/price/types/modes'
 import { v4 } from 'uuid'
 import { NeuroPromptStatus } from '../../types/enums'
 

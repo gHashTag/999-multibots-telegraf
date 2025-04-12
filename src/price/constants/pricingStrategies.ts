@@ -1,4 +1,4 @@
-import { ModeEnum } from '../helpers/modelsCost'
+import { ModeEnum } from '../types/modes'
 import { PricingStrategy } from '../types/strategies'
 
 /**

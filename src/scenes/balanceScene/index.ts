@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { Scenes } from 'telegraf'
 import { getUserBalanceStats } from '@/core/supabase'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from './price/types/modes'
 import { logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { isDev } from '@/config'

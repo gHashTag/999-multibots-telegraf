@@ -16,8 +16,6 @@ export * from './constants/pricingStrategies'
 export { calculateModeCost } from './calculators/modeCalculator'
 export * from './calculators/modeCalculator'
 
-// Выборочно экспортируем из helpers для избегания конфликтов
-export { ModeEnum, calculateCostInStars } from './helpers/modelsCost'
 export { calculateCost } from './helpers/calculateCost'
 
 export * from './models/imageModelPrices'

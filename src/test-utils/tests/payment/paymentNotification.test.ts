@@ -8,7 +8,7 @@ import {
   TransactionType,
   PaymentProcessParams,
 } from '@/interfaces/payments.interface'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from './price/types/modes'
 
 /**
  * Тест проверки отправки уведомлений о платежах

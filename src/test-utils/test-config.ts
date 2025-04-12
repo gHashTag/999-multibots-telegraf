@@ -1,6 +1,6 @@
 import { Inngest } from 'inngest'
 import fetch from 'node-fetch'
-import { ModeEnum } from '../price/helpers/modelsCost'
+import { ModeEnum } from '../price/types/modes'
 import { logger } from '../utils/logger'
 import { MockTelegraf } from './mocks/botMock'
 import { MyContext } from '../interfaces'

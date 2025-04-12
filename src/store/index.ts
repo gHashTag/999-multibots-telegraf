@@ -1,5 +1,5 @@
 import { MySession } from '../interfaces'
-import { ModeEnum } from '../price/helpers/modelsCost'
+import { ModeEnum } from '../price/types/modes'
 import { LocalSubscription } from '../scenes/getRuBillWizard'
 
 export const defaultSession = (): MySession => ({

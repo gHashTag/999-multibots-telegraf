@@ -7,7 +7,7 @@ import {
 } from '@/core/supabase'
 import { mainMenuButton } from '@/menu/mainMenu'
 import { BOT_URLS } from '@/core/bot'
-import { ModeEnum } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/price/types/modes'
 import { logger } from '@/utils/logger'
 
 async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
