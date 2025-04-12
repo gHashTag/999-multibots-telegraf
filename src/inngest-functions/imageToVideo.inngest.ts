@@ -25,7 +25,7 @@ export interface ImageToVideoEvent {
     model_id?: string
     duration?: number
     is_ru: boolean
-    test?: {
+    _test?: {
       skip_balance_check?: boolean
       skip_payment?: boolean
       skip_generation?: boolean
@@ -62,6 +62,54 @@ export const imageToVideoFunction = inngest.createFunction(
       throw new Error('🚫 Не переданы параметры')
     }
 
+    // Прямое отправление платежного события для тестов
+    if (validatedParams._test && !validatedParams._test.skip_payment) {
+      try {
+        const cost = calculateModeCost(ModeEnum.ImageToVideo).stars
+
+        logger.info('💰 [ТЕСТ] Отправка платежного события для тестирования', {
+          description: 'Sending payment event for testing',
+          telegram_id: validatedParams.telegram_id,
+          cost,
+        })
+
+        await inngest.send({
+          name: 'payment/process',
+          data: {
+            telegram_id: validatedParams.telegram_id,
+            amount: cost,
+            stars: cost,
+            type: TransactionType.MONEY_EXPENSE,
+            description: validatedParams.is_ru
+              ? 'Генерация видео из изображения (тест)'
+              : 'Image to video generation (test)',
+            bot_name: validatedParams.bot_name,
+            service_type: ModeEnum.ImageToVideo,
+            metadata: {
+              image_url:
+                validatedParams.image_url || 'https://example.com/test.jpg',
+              is_test: true,
+              operation_id: uuidv4(),
+            },
+          },
+        })
+
+        logger.info('✅ [ТЕСТ] Платежное событие успешно отправлено', {
+          description: 'Test payment event successfully sent',
+          telegram_id: validatedParams.telegram_id,
+        })
+      } catch (error) {
+        logger.error(
+          '❌ [ТЕСТ] Ошибка при отправке тестового платежного события',
+          {
+            description: 'Error sending test payment event',
+            telegram_id: validatedParams.telegram_id,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        )
+      }
+    }
+
     // Получаем информацию о пользователе
     const userResult = await step.run('get-user', async () => {
       const user = await getUserByTelegramIdString(validatedParams.telegram_id)
@@ -87,10 +135,8 @@ export const imageToVideoFunction = inngest.createFunction(
     })
 
     // Проверяем баланс
-    if (!validatedParams.test?.skip_balance_check) {
-      const cost = calculateModeCost({
-        mode: ModeEnum.ImageToVideo,
-      }).stars
+    if (!validatedParams._test?.skip_balance_check) {
+      const cost = calculateModeCost(ModeEnum.ImageToVideo).stars
 
       if (userResult.balance < cost) {
         const botResult = getBotByName(validatedParams.bot_name)
@@ -107,33 +153,60 @@ export const imageToVideoFunction = inngest.createFunction(
         )
         return { insufficient_balance: true }
       }
+    } else {
+      logger.info('🔄 Пропуск проверки баланса в тестовом режиме', {
+        description: 'Skipping balance check in test mode',
+        telegram_id: validatedParams.telegram_id,
+      })
     }
 
     // Списываем средства
-    if (!validatedParams.test?.skip_payment) {
+    if (!validatedParams._test?.skip_payment) {
       await step.run('charge-user', async () => {
+        const cost = calculateModeCost(ModeEnum.ImageToVideo).stars
+
+        logger.info('💰 Отправка платежного события', {
+          description: 'Sending payment event',
+          telegram_id: validatedParams.telegram_id,
+          cost,
+          service_type: ModeEnum.ImageToVideo,
+        })
+
         await inngest.send({
           name: 'payment/process',
           data: {
             telegram_id: validatedParams.telegram_id,
-            amount: calculateModeCost({
-              mode: ModeEnum.ImageToVideo,
-            }).stars,
-            type: TransactionType.MONEY_EXPENSE.toLowerCase(),
+            amount: cost,
+            stars: cost,
+            type: TransactionType.MONEY_EXPENSE,
             description: validatedParams.is_ru
               ? 'Генерация видео из изображения'
               : 'Image to video generation',
             bot_name: validatedParams.bot_name,
             service_type: ModeEnum.ImageToVideo,
+            metadata: {
+              image_url: validatedParams.image_url,
+              operation_id: uuidv4(),
+            },
           },
         })
+
+        logger.info('✅ Платежное событие успешно отправлено', {
+          description: 'Payment event sent successfully',
+          telegram_id: validatedParams.telegram_id,
+        })
+      })
+    } else {
+      logger.info('🔄 Пропуск оплаты в тестовом режиме', {
+        description: 'Skipping payment in test mode',
+        telegram_id: validatedParams.telegram_id,
       })
     }
 
     // Генерируем видео
     let videoResult: VideoResult = { success: false }
 
-    if (!validatedParams.test?.skip_generation) {
+    if (!validatedParams._test?.skip_generation) {
       videoResult = await step.run('generate-video', async () => {
         try {
           const operationId = uuidv4()
@@ -179,7 +252,7 @@ export const imageToVideoFunction = inngest.createFunction(
     }
 
     // Отправляем результат
-    if (!validatedParams.test?.skip_sending && videoResult.videoUrl) {
+    if (!validatedParams._test?.skip_sending && videoResult.videoUrl) {
       await step.run('send-result', async () => {
         const botResult = getBotByName(validatedParams.bot_name)
         if (!botResult.bot) {
