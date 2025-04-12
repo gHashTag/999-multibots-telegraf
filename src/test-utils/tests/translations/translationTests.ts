@@ -1,6 +1,4 @@
 import { TestResult } from '../../core/types'
-import { supabase } from '@/core/supabase'
-import { ModeEnum } from '@/price/types/modes'
 import { logger } from '@/utils/logger'
 import { readFileSync, readdirSync } from 'fs'
 import { join, resolve } from 'path'
@@ -18,51 +16,6 @@ const REQUIRED_BOTS = [
   'NeurostylistShtogrina_bot',
   'ZavaraBot',
 ]
-
-// Все ключи, которые используются в приложении
-const REQUIRED_TRANSLATION_KEYS = [
-  // Общие ключи
-  'help',
-  'start',
-  'cancel',
-  'error',
-  'success',
-
-  // Системные ключи
-  'maintenance',
-  'rate_limit',
-  'subscription_required',
-
-  // Ключи для сцен и режимов
-  'subscriptionScene',
-  'digitalAvatar',
-  'chat_with_avatar_start',
-  'avatar_brain_description',
-  'avatar_voice_description',
-  'avatar_model_description',
-  'avatar_greeting',
-  'avatar_help',
-
-  // Ключи из ModeEnum
-  ModeEnum.Subscribe,
-  ModeEnum.DigitalAvatarBody,
-  ModeEnum.NeuroPhoto,
-  ModeEnum.ImageToPrompt,
-  ModeEnum.Avatar,
-  ModeEnum.ChatWithAvatar,
-  ModeEnum.SelectModel,
-  ModeEnum.Voice,
-  ModeEnum.TextToSpeech,
-  ModeEnum.ImageToVideo,
-  ModeEnum.TextToVideo,
-  ModeEnum.TextToImage,
-]
-
-interface MissingTranslation {
-  bot: string
-  key: string
-  language: string
-}
 
 // Константы для путей и конфигурации
 const LOCALES_PATH = resolve(process.cwd(), 'locales')
@@ -325,86 +278,4 @@ export function checkTranslations(): TestResult {
       category: TestCategory.Translations,
     }
   }
-}
-
-/**
- * Проверяет полноту перевода для данного объекта локализации
- */
-function validateTranslationCompleteness(
-  obj: any,
-  path: string,
-  lang: string
-): void {
-  if (typeof obj === 'object' && obj !== null) {
-    Object.entries(obj).forEach(([key, value]) => {
-      const currentPath = path ? `${path}.${key}` : key
-
-      if (typeof value === 'object' && value !== null) {
-        validateTranslationCompleteness(value, currentPath, lang)
-      } else if (value === '' || value === null || value === undefined) {
-        throw new Error(
-          `Пустой перевод для ключа "${currentPath}" в языке "${lang}"`
-        )
-      }
-    })
-  }
-}
-
-/**
- * Извлекает все ключи локализации для указанного языка
- */
-function extractAllTranslationKeys(lang: string): string[] {
-  const allKeys: string[] = []
-  const langPath = join(LOCALES_PATH, lang)
-
-  for (const bot of REQUIRED_BOTS) {
-    const botPath = join(langPath, bot)
-
-    for (const key of REQUIRED_KEYS) {
-      const keyPath = join(botPath, `${key}.json`)
-
-      try {
-        const translationFile = readFileSync(keyPath, 'utf-8')
-        const translationData = JSON.parse(translationFile)
-
-        // Извлекаем все пути ключей из объекта перевода
-        const keyPaths = extractKeyPaths(translationData, `${bot}.${key}`)
-        allKeys.push(...keyPaths)
-      } catch (error) {
-        throw new Error(
-          `Ошибка при извлечении ключей из файла перевода: ${keyPath}`
-        )
-      }
-    }
-  }
-
-  return allKeys
-}
-
-/**
- * Извлекает все пути ключей из объекта перевода
- */
-function extractKeyPaths(obj: any, basePath: string = ''): string[] {
-  let paths: string[] = []
-
-  if (typeof obj === 'object' && obj !== null) {
-    Object.entries(obj).forEach(([key, value]) => {
-      const currentPath = basePath ? `${basePath}.${key}` : key
-
-      if (typeof value === 'object' && value !== null) {
-        paths = paths.concat(extractKeyPaths(value, currentPath))
-      } else {
-        paths.push(currentPath)
-      }
-    })
-  }
-
-  return paths
-}
-
-/**
- * Находит ключи, которые отсутствуют во втором наборе
- */
-function findMissingKeys(sourceKeys: string[], targetKeys: string[]): string[] {
-  return sourceKeys.filter(key => !targetKeys.includes(key))
 }

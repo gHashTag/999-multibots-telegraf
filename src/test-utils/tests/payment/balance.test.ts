@@ -4,7 +4,7 @@ import { TEST_PAYMENT_CONFIG } from '../../../config/test'
 import { createTestUser } from '../../helpers/users'
 import { TestResult, TestUser } from '../../../types/tests'
 // import { getBotByName } from '../../../utils/bot' // Закомментировано, так как не используется
-import { ModeEnum } from '../../../types/modes'
+import { ModeEnum } from '../../../price/helpers/modelsCost'
 import {
   TransactionType,
   // PaymentStatus, // Закомментировано, так как не используется
@@ -122,7 +122,7 @@ async function testCreateTransactions(testUserId: string): Promise<TestResult> {
           amount: 100,
           type,
           // status: PaymentStatus.COMPLETED, // Убрали статус, так как PaymentStatus закомментирован
-          service_type: ModeEnum.PHOTO,
+          service_type: ModeEnum.NeuroPhotoV2,
           description: `Test ${type}`,
         })
         .select()
@@ -234,7 +234,7 @@ async function testBalanceCacheInvalidation(
       type: TransactionType.MONEY_EXPENSE,
       description: 'Test payment for cache invalidation',
       bot_name: 'test_bot',
-      service_type: ModeEnum.PHOTO,
+      service_type: ModeEnum.NeuroPhotoV2,
       stars: paymentAmount,
       payment_method: 'test',
       status: 'COMPLETED',

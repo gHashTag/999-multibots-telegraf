@@ -98,6 +98,11 @@ export const bots = Object.entries(BOT_NAMES)
 
     const bot = new Telegraf<MyContext>(token)
 
+    bot.use((ctx, next) => {
+      console.log('RAW REQUEST:', ctx.update)
+      return next()
+    })
+
     logger.info('🤖 Инициализация бота:', {
       description: 'Bot initialization',
       bot_name: name,

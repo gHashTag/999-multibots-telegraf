@@ -1,4 +1,4 @@
-import { Telegraf, Scenes, session, Composer } from 'telegraf'
+import { Telegraf, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
 import {
   handleTechSupport,
@@ -9,45 +9,6 @@ import {
 } from './commands'
 import { privateChat } from './middlewares/privateChat'
 import { zepMemoryMiddleware } from './middlewares/zepMemory'
-import {
-  avatarBrainWizard,
-  textToVideoWizard,
-  broadcastWizard,
-  neuroPhotoWizard,
-  neuroPhotoWizardV2,
-  imageToPromptWizard,
-  improvePromptWizard,
-  sizeWizard,
-  textToImageWizard,
-  imageToVideoWizard,
-  cancelPredictionsWizard,
-  trainFluxModelWizard,
-  uploadTrainFluxModelScene,
-  digitalAvatarBodyWizard,
-  digitalAvatarBodyWizardV2,
-  selectModelWizard,
-  voiceAvatarWizard,
-  textToSpeechWizard,
-  paymentScene,
-  levelQuestWizard,
-  neuroCoderScene,
-  lipSyncWizard,
-  startScene,
-  chatWithAvatarWizard,
-  helpScene,
-  balanceScene,
-  menuScene,
-  subscriptionScene,
-  inviteScene,
-  getRuBillWizard,
-  getEmailWizard,
-  subscriptionCheckScene,
-  createUserScene,
-  checkBalanceScene,
-  uploadVideoScene,
-  selectModelScene,
-  selectNeuroPhotoScene,
-} from './scenes'
 import { imageModelMenu } from './menu/imageModelMenu'
 
 import { generateTextToImage } from './services/generateTextToImage'
@@ -64,6 +25,7 @@ import { setupLevelHandlers } from './handlers/setupLevelHandlers'
 import { defaultSession } from './store'
 import { getTrainingCancelUrl } from './core/supabase'
 import fetch from 'node-fetch'
+import { stage } from './stage'
 // import { handleTextMessage } from './handlers'
 
 import { get100Command } from './commands/get100Command'
@@ -81,46 +43,6 @@ import { handleReceiptCommand } from './handlers/handleReceiptCommand'
  * Согласуйте все изменения с команией разработки.
  * И не удалять этот комментарий!!!
  */
-
-export const stage = new Scenes.Stage<MyContext>([
-  startScene,
-  subscriptionScene,
-  subscriptionCheckScene,
-  createUserScene,
-  checkBalanceScene,
-  chatWithAvatarWizard,
-  menuScene,
-  getEmailWizard,
-  getRuBillWizard,
-  balanceScene,
-  avatarBrainWizard,
-  imageToPromptWizard,
-  textToImageWizard,
-  improvePromptWizard,
-  sizeWizard,
-  neuroPhotoWizard,
-  neuroPhotoWizardV2,
-  textToVideoWizard,
-  imageToVideoWizard,
-  cancelPredictionsWizard,
-  trainFluxModelWizard,
-  uploadTrainFluxModelScene,
-  digitalAvatarBodyWizard,
-  digitalAvatarBodyWizardV2,
-  selectModelWizard,
-  voiceAvatarWizard,
-  textToSpeechWizard,
-  paymentScene,
-  neuroCoderScene,
-  lipSyncWizard,
-  helpScene,
-  inviteScene,
-  selectModelScene,
-  selectNeuroPhotoScene,
-  broadcastWizard,
-  ...levelQuestWizard,
-  uploadVideoScene,
-])
 
 export function registerCommands({
   bot,
@@ -151,7 +73,7 @@ export function registerCommands({
       description: 'Start command received',
       telegramId: ctx.from?.id,
     })
-    await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
+    await ctx.scene.enter(ModeEnum.StartScene)
   })
 
   bot.command('stats', async ctx => {
