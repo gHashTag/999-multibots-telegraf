@@ -12,6 +12,9 @@ export async function testTextToVideoPaymentDirect(): Promise<TestResult> {
     logger.info(
       '🚀 Запуск теста прямой отправки платежа для генерации видео из текста'
     )
+    console.log(
+      '🚀 Запуск теста прямой отправки платежа для генерации видео из текста'
+    )
 
     // Очищаем события
     inngestTestEngine.clearEvents()
@@ -109,6 +112,7 @@ export async function testTextToVideoPaymentDirect(): Promise<TestResult> {
  */
 export async function runTextToVideoFuncTests(): Promise<TestResult[]> {
   logger.info('🚀 Запуск функциональных тестов для textToVideo')
+  console.log('🚀 Запуск функциональных тестов для textToVideo')
 
   const results: TestResult[] = []
 
@@ -129,6 +133,14 @@ export async function runTextToVideoFuncTests(): Promise<TestResult[]> {
         })),
       }
     )
+    console.log(
+      `✅ Тесты textToVideo: ${successCount}/${results.length} успешно прошли`
+    )
+    results.forEach((result, index) => {
+      console.log(
+        `${index + 1}. ${result.name}: ${result.success ? '✓' : '✗'} - ${result.message}`
+      )
+    })
 
     return results
   } catch (error) {
