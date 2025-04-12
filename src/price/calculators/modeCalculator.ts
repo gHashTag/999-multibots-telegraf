@@ -5,7 +5,8 @@ import { CostCalculationParams, CostCalculationResult } from '../types/common'
 import { MODE_PRICING_STRATEGY } from '../constants/pricingStrategies'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { calculateCost } from '../helpers/calculateCost'
-import { starCost, BASE_COSTS, interestRate } from '../helpers/modelsCost'
+import { starCost, BASE_COSTS } from '../helpers/modelsCost'
+import { SYSTEM_CONFIG } from '../constants'
 
 /**
  * Рассчитывает стоимость для фиксированной стратегии ценообразования
@@ -29,7 +30,7 @@ function calculateFixedCost(
   const stars = (baseCostInDollars / starCost) * numImages
   const roundedStars = parseFloat(stars.toFixed(2))
   const dollars = parseFloat((roundedStars * starCost).toFixed(2))
-  const rubles = parseFloat((dollars * interestRate).toFixed(2))
+  const rubles = parseFloat((dollars * SYSTEM_CONFIG.interestRate).toFixed(2))
 
   return { stars: roundedStars, dollars, rubles }
 }
@@ -60,7 +61,7 @@ function calculateModelBasedCost(
   const stars = (baseCostInDollars / starCost) * numImages
   const roundedStars = parseFloat(stars.toFixed(2))
   const dollars = parseFloat((roundedStars * starCost).toFixed(2))
-  const rubles = parseFloat((dollars * interestRate).toFixed(2))
+  const rubles = parseFloat((dollars * SYSTEM_CONFIG.interestRate).toFixed(2))
 
   return { stars: roundedStars, dollars, rubles }
 }

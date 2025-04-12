@@ -1,7 +1,7 @@
 import { MockManager } from '../core/MockManager'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 import { v4 } from 'uuid'
-import { NeuroPromptStatus } from '@/types/enums'
+import { NeuroPromptStatus } from '../../types/enums'
 
 /**
  * Фабрика для создания моков данных

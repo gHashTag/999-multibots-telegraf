@@ -9,7 +9,7 @@ export enum SceneEnum {
   NeuroPhoto = 'neuro_photo',
   NeuroPhotoV2 = 'neuro_photo_v2',
   SelectModel = 'select_model',
-  SelectModelWizard = 'select_model_wizard',
+  SelectModelWizard = 'select_ai_text_model',
   Voice = 'voice',
   TextToSpeech = 'text_to_speech',
   ImageToVideo = 'image_to_video',
@@ -27,5 +27,5 @@ export enum SceneEnum {
   Email = 'email_wizard',
   GetRuBill = 'get_ru_bill_wizard',
   Subscription = 'subscription_scene',
-  VoiceToText = 'voice_to_text'
-} 
+  VoiceToText = 'voice_to_text',
+}

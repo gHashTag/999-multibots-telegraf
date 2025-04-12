@@ -35,8 +35,8 @@ function getPaidModelConfig(modelName: string): PaidModelConfig | null {
   return PAID_MODELS.find(model => model.name === modelName) || null
 }
 
-export const selectModelWizard = new Scenes.WizardScene<MyContext>(
-  ModeEnum.SelectModelWizard,
+export const selectAiTextModel = new Scenes.WizardScene<MyContext>(
+  ModeEnum.SelectAiTextModel,
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
 
@@ -306,7 +306,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
               ? `🎯 Выбор модели ${selectedModel}`
               : `🎯 Model selection ${selectedModel}`,
             bot_name: ctx.botInfo?.username || 'unknown_bot',
-            service_type: ModeEnum.SelectModelWizard,
+            service_type: ModeEnum.SelectAiTextModel,
             metadata: {
               model_name: selectedModel,
               operation_id: operationId,
@@ -363,4 +363,4 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default selectModelWizard
+export default selectAiTextModel

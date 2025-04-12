@@ -37,7 +37,7 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         console.log('CASE: 🤖 Цифровое тело')
-        await ctx.scene.enter(ModeEnum.SelectModelWizard)
+        await ctx.scene.enter(ModeEnum.SelectAiTextModel)
       },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         console.log('CASE handleMenu: 📸 Нейрофото')
@@ -67,7 +67,7 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[6].title_ru : levels[6].title_en]: async () => {
         console.log('CASE: 🤖 Выбор модели ИИ')
-        ctx.session.mode = ModeEnum.SelectModelWizard
+        ctx.session.mode = ModeEnum.SelectAiTextModel
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[7].title_ru : levels[7].title_en]: async () => {

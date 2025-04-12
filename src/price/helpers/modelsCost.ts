@@ -1,15 +1,9 @@
 import { calculateCost } from './calculateCost'
 import { logger } from '@/utils/logger'
 
-import { interestRate } from '../constants'
+import { SYSTEM_CONFIG } from '../constants'
 
-export const starCost = 0.016
-
-export const SYSTEM_CONFIG = {
-  starCost,
-  interestRate,
-  currency: 'RUB',
-}
+export const starCost = SYSTEM_CONFIG.starCost
 
 export function calculateCostInStars(costInDollars: number): number {
   return costInDollars / starCost
@@ -21,11 +15,12 @@ export enum ModeEnum {
   DigitalAvatarBodyV2 = 'digital_avatar_body_v2',
   NeuroPhoto = 'neuro_photo',
   NeuroPhotoV2 = 'neuro_photo_v2',
+  NeuroAudio = 'neuro_audio',
   ImageToPrompt = 'image_to_prompt',
   Avatar = 'avatar',
   ChatWithAvatar = 'chat_with_avatar',
   SelectModel = 'select_model',
-  SelectModelWizard = 'select_model_wizard',
+  SelectAiTextModel = 'select_ai_text_model',
   Voice = 'voice',
   TextToSpeech = 'text_to_speech',
   ImageToVideo = 'image_to_video',
@@ -82,11 +77,12 @@ type BaseCosts = {
 export const BASE_COSTS: BaseCosts = {
   [ModeEnum.NeuroPhoto]: 0.08,
   [ModeEnum.NeuroPhotoV2]: 0.14,
+  [ModeEnum.NeuroAudio]: 0.12,
   [ModeEnum.ImageToPrompt]: 0.03,
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: 0,
   [ModeEnum.SelectModel]: 0,
-  [ModeEnum.SelectModelWizard]: 0,
+  [ModeEnum.SelectAiTextModel]: 0,
   [ModeEnum.Voice]: 0.9,
   [ModeEnum.TextToSpeech]: 0.12,
   [ModeEnum.ImageToVideo]: 0,
@@ -95,9 +91,6 @@ export const BASE_COSTS: BaseCosts = {
   [ModeEnum.LipSync]: 0.9,
   [ModeEnum.VoiceToText]: 0.08,
 }
-
-// Реэкспортируем interestRate для совместимости
-export { interestRate }
 
 export function calculateModeCost(
   params: CostCalculationParams
@@ -146,7 +139,7 @@ export function calculateModeCost(
 
     stars = parseFloat(stars.toFixed(2))
     const dollars = parseFloat((stars * starCost).toFixed(2))
-    const rubles = parseFloat((dollars * interestRate).toFixed(2))
+    const rubles = parseFloat((dollars * SYSTEM_CONFIG.interestRate).toFixed(2))
 
     return { stars, dollars, rubles }
   } catch (error) {
@@ -170,6 +163,7 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.NeuroPhoto]: calculateModeCost({ mode: ModeEnum.NeuroPhoto }).stars,
   [ModeEnum.NeuroPhotoV2]: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 })
     .stars,
+  [ModeEnum.NeuroAudio]: calculateModeCost({ mode: ModeEnum.NeuroAudio }).stars,
   neuro_photo_2: calculateModeCost({ mode: 'neuro_photo_2' }).stars,
   [ModeEnum.ImageToPrompt]: calculateModeCost({ mode: ModeEnum.ImageToPrompt })
     .stars,
@@ -179,8 +173,8 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   }).stars,
   [ModeEnum.SelectModel]: calculateModeCost({ mode: ModeEnum.SelectModel })
     .stars,
-  [ModeEnum.SelectModelWizard]: calculateModeCost({
-    mode: ModeEnum.SelectModelWizard,
+  [ModeEnum.SelectAiTextModel]: calculateModeCost({
+    mode: ModeEnum.SelectAiTextModel,
   }).stars,
   [ModeEnum.Voice]: calculateModeCost({ mode: ModeEnum.Voice }).stars,
   [ModeEnum.TextToSpeech]: calculateModeCost({ mode: ModeEnum.TextToSpeech })

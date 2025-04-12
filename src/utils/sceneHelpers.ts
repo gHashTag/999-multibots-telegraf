@@ -14,7 +14,7 @@ export async function enterScene(ctx: MyContext, scene: SceneEnum, telegramId?: 
     [SceneEnum.NeuroPhoto]: 'neuro_photo',
     [SceneEnum.NeuroPhotoV2]: 'neuro_photo_v2',
     [SceneEnum.SelectModel]: 'select_model',
-    [SceneEnum.SelectModelWizard]: 'select_model_wizard',
+    [SceneEnum.SelectModelWizard]: 'select_ai_text_model',
     [SceneEnum.Voice]: 'voice',
     [SceneEnum.TextToSpeech]: 'text_to_speech',
     [SceneEnum.ImageToVideo]: 'image_to_video',

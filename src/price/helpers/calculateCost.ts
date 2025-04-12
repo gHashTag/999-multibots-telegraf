@@ -1,5 +1,5 @@
-import { ModeEnum } from '@/price/helpers/modelsCost'
-import { logger } from '@/utils/logger'
+import { ModeEnum } from '../types/modes'
+
 import {
   conversionRates,
   conversionRatesV2,
@@ -92,11 +92,7 @@ export function calculateCost(
   }
 }
 
-export function calculateModeCost(
-  mode: ModeEnum,
-  steps?: number,
-  numImages = 1
-): CostDetails {
+export function calculateModeCost(mode: ModeEnum, steps?: number): CostDetails {
   // Определяем версию на основе режима
   const version = mode === ModeEnum.NeuroPhotoV2 ? 'v2' : 'v1'
   const rates = version === 'v1' ? conversionRates : conversionRatesV2
