@@ -9,6 +9,7 @@ import { createPendingPayment } from '@/core/supabase/createPendingPayment'
 import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, TEST_PASSWORD1, isDev } from '@/config'
 import { generateUniqueShortInvId } from '@/scenes/getRuBillWizard/helper'
+import { paymentOptions } from '@/price/priceCalculator'
 
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
@@ -354,36 +355,180 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
     throw new Error('Bot username is not defined')
   }
 
-  // Получаем сумму из сессии или используем значение по умолчанию
+  // Получаем подписку из сессии
   const subscription = ctx.session.subscription
-  let amount = 0
-  let stars = 0
 
-  if (subscription === 'neurobase') {
-    amount = 2999
-    stars = 1303
-  } else if (subscription === 'neurophoto') {
-    amount = 1110
-    stars = 476
-  } else if (subscription === 'neuroblogger') {
-    amount = 75000
-    stars = 32608
-  } else {
-    // Если нет подписки, возвращаемся в главное меню
+  // Разделяем логику в зависимости от выбранного пути
+  // Случай 1: Пользователь покупает подписку
+  if (subscription && subscription !== 'stars') {
+    let amount = 0
+    let stars = 0
+
+    if (subscription === 'neurobase') {
+      amount = 2999
+      stars = 1303
+    } else if (subscription === 'neurophoto') {
+      amount = 1110
+      stars = 476
+    } else if (subscription === 'neuroblogger') {
+      amount = 75000
+      stars = 32608
+    } else if (subscription === 'neurotester') {
+      amount = 5
+      stars = 5
+    } else if (subscription === 'neuromeeting') {
+      // Добавьте соответствующую сумму
+      amount = 1500
+      stars = 650
+    } else if (subscription === 'neuromentor') {
+      // Добавьте соответствующую сумму
+      amount = 3000
+      stars = 1300
+    } else {
+      // Неизвестная подписка
+      await ctx.reply(
+        isRu
+          ? 'Неизвестный тип подписки. Пожалуйста, выберите подписку снова.'
+          : 'Unknown subscription type. Please select a subscription again.'
+      )
+      await ctx.scene.enter('subscriptionScene')
+      return
+    }
+
+    try {
+      const userId = ctx.from.id
+      // Создаем специальный платеж для подписки
+      const invId = await generateUniqueShortInvId(userId, amount)
+      const description = isRu
+        ? `Подписка ${subscription}`
+        : `Subscription ${subscription}`
+      const numericInvId = Number(invId)
+
+      if (!merchantLogin || !password1) {
+        throw new Error('merchantLogin or password1 is not defined')
+      }
+
+      // Получение invoiceID
+      const invoiceURL = await getInvoiceId(
+        merchantLogin,
+        amount,
+        numericInvId,
+        description,
+        password1
+      )
+
+      // Создаем платеж в статусе PENDING
+      await createPendingPayment({
+        telegram_id: userId.toString(),
+        amount,
+        stars,
+        inv_id: numericInvId.toString(),
+        description,
+        bot_name: ctx.botInfo.username,
+        language: ctx.from.language_code || 'ru',
+        invoice_url: invoiceURL,
+        metadata: {
+          payment_method: 'Robokassa',
+          subscription,
+        },
+      })
+
+      await ctx.reply(
+        isRu
+          ? `<b>💵 Оплата подписки ${subscription} (${amount} р)</b>\nНажмите на кнопку ниже, чтобы перейти к оплате. После успешной оплаты звезды автоматически будут зачислены на ваш баланс.`
+          : `<b>💵 Payment for subscription ${subscription} (${amount} RUB)</b>\nClick the button below to proceed with payment. After successful payment, stars will be automatically credited to your balance.`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: isRu ? `Оплатить ${amount} р` : `Pay ${amount} RUB`,
+                  url: invoiceURL,
+                },
+              ],
+            ],
+          },
+          parse_mode: 'HTML',
+        }
+      )
+    } catch (error) {
+      console.error('Error in creating subscription payment:', error)
+      await ctx.reply(
+        isRu
+          ? 'Ошибка при создании чека для подписки. Пожалуйста, попробуйте снова.'
+          : 'Error creating subscription invoice. Please try again.'
+      )
+    }
+  }
+  // Случай 2: Пользователь просто пополняет баланс
+  else {
+    // Предлагаем выбор суммы для пополнения баланса
+    const options = paymentOptions.map(option => {
+      const starsNum = parseInt(option.stars)
+      return [
+        {
+          text: isRu
+            ? `${option.amount}₽ → ${option.stars}⭐`
+            : `${option.amount}₽ → ${option.stars}⭐`,
+          callback_data: `pay_rub_${option.amount}_${starsNum}`,
+        },
+      ]
+    })
+
+    // Добавляем кнопку возврата в меню
+    options.push([
+      {
+        text: isRu ? '🔙 Назад' : '🔙 Back',
+        callback_data: 'back_to_payment',
+      },
+    ])
+
     await ctx.reply(
       isRu
-        ? 'Пожалуйста, сначала выберите тариф.'
-        : 'Please select a subscription plan first.'
+        ? '💰 Выберите сумму пополнения в рублях:'
+        : '💰 Choose the amount to top up in rubles:',
+      {
+        reply_markup: {
+          inline_keyboard: options,
+        },
+      }
     )
-    await ctx.scene.enter('menuScene')
+
+    // Не выходим из сцены, чтобы обработать выбор суммы
+    return
+  }
+
+  await ctx.scene.leave()
+})
+
+// Добавляем обработчик для выбора суммы пополнения в рублях
+paymentScene.action(/pay_rub_(\d+)_(\d+)/, async ctx => {
+  if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
+    return
+  }
+
+  const isRu = isRussian(ctx)
+
+  if (!ctx.from || !ctx.botInfo?.username) {
+    await ctx.answerCbQuery('Error: User or bot data missing')
     return
   }
 
   try {
+    // Получаем сумму и звезды из callback данных
+    const match = ctx.callbackQuery.data.match(/pay_rub_(\d+)_(\d+)/)
+    if (!match) {
+      await ctx.answerCbQuery('Invalid data')
+      return
+    }
+
+    const amount = parseInt(match[1])
+    const stars = parseInt(match[2])
+
+    // Создаем платеж
     const userId = ctx.from.id
-    // Создаем специальный платеж для звезд с проверкой уникальности ID
     const invId = await generateUniqueShortInvId(userId, amount)
-    const description = isRu ? 'Покупка звезд' : 'Purchase stars'
+    const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
     const numericInvId = Number(invId)
 
     if (!merchantLogin || !password1) {
@@ -411,16 +556,18 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
       invoice_url: invoiceURL,
       metadata: {
         payment_method: 'Robokassa',
-        subscription,
+        subscription: 'stars',
       },
     })
 
+    // Удаляем сообщение с выбором суммы
+    await ctx.deleteMessage()
+
+    // Отправляем новое сообщение с ссылкой на оплату
     await ctx.reply(
       isRu
-        ? `<b>💵 Оплата ${amount} р</b>
-Нажмите на кнопку ниже, чтобы перейти к оплате. После успешной оплаты звезды автоматически будут зачислены на ваш баланс.`
-        : `<b>💵 Payment ${amount} RUB</b>
-Click the button below to proceed with payment. After successful payment, stars will be automatically credited to your balance.`,
+        ? `<b>💵 Пополнение баланса на ${amount} р (${stars}⭐)</b>\nНажмите на кнопку ниже, чтобы перейти к оплате. После успешной оплаты звезды автоматически будут зачислены на ваш баланс.`
+        : `<b>💵 Balance top-up for ${amount} RUB (${stars}⭐)</b>\nClick the button below to proceed with payment. After successful payment, stars will be automatically credited to your balance.`,
       {
         reply_markup: {
           inline_keyboard: [
@@ -435,16 +582,50 @@ Click the button below to proceed with payment. After successful payment, stars 
         parse_mode: 'HTML',
       }
     )
+
+    // Выходим из сцены
+    await ctx.scene.leave()
   } catch (error) {
-    console.error('Error in creating payment:', error)
-    await ctx.reply(
+    console.error('Error in creating top-up payment:', error)
+    await ctx.answerCbQuery(
       isRu
-        ? 'Ошибка при создании чека. Пожалуйста, попробуйте снова.'
-        : 'Error creating invoice. Please try again.'
+        ? 'Ошибка при создании платежа. Попробуйте снова.'
+        : 'Error creating payment. Please try again.'
     )
   }
+})
 
-  await ctx.scene.leave()
+// Добавляем обработчик для кнопки "Назад"
+paymentScene.action('back_to_payment', async ctx => {
+  const isRu = isRussian(ctx)
+
+  // Удаляем сообщение с выбором суммы
+  await ctx.deleteMessage()
+
+  // Отправляем новое сообщение с выбором способа оплаты
+  const message = isRu ? 'Как вы хотите оплатить?' : 'How do you want to pay?'
+
+  const keyboard = Markup.keyboard([
+    [
+      Markup.button.text(isRu ? '⭐️ Звездами' : '⭐️ Stars'),
+      {
+        text: isRu ? 'Что такое звезды❓' : 'What are stars❓',
+        web_app: {
+          url: `https://telegram.org/blog/telegram-stars/${
+            isRu ? 'ru' : 'en'
+          }?ln=a`,
+        },
+      },
+    ],
+    [
+      Markup.button.text(isRu ? '💳 Рублями' : '💳 In rubles'),
+      Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu'),
+    ],
+  ]).resize()
+
+  await ctx.reply(message, {
+    reply_markup: keyboard.reply_markup,
+  })
 })
 
 paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
