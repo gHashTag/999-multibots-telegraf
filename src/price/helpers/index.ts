@@ -11,54 +11,62 @@ import { Telegram, Telegraf } from 'telegraf'
 import { BalanceOperationResult } from '../../interfaces'
 import { isRussian } from '@/helpers'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { supabase } from '@/core/supabase'
 
-export * from './modelsCost'
+export { calculateCostInStars, calculateModeCost, calculateCost } from './calculateCost'
 export * from './calculateFinalPrice'
 export * from './calculateStars'
-export * from './sendInsufficientStarsMessage'
-export * from './sendPaymentNotification'
+export * from './costHelpers'
+export * from './handleTrainingCost'
+export { ModeEnum } from './modelsCost'
+export * from './refundUser'
+export * from './sendBalanceMessage'
 export * from './sendCostMessage'
 export * from './sendCurrentBalanceMessage'
-export * from './sendBalanceMessage'
-export * from './refundUser'
-export * from './validateAndCalculateVideoModelPrice'
+export * from './sendInsufficientStarsMessage'
+export * from './sendPaymentNotification'
+export * from './starAmounts'
 export * from './validateAndCalculateImageModelPrice'
-export * from './handleTrainingCost'
-export * from './sendPaymentNotificationWithBot'
-export { starAmounts } from './starAmounts'
-export { voiceConversationCost } from './voiceConversationCost'
-export { convertRublesToStars } from './costHelpers'
+export * from './validateAndCalculateVideoModelPrice'
+export * from './voiceConversationCost'
 
 export async function processBalanceOperation({
-  telegram_id,
+  ctx,
   amount,
-  is_ru,
-  bot,
-  bot_name,
-  description,
   type,
+  description,
+  metadata,
 }: {
-  telegram_id: TelegramId
+  ctx: MyContext
   amount: number
-  is_ru: boolean
-  bot: Telegraf<MyContext>
-  bot_name: string
-  description: string
   type: TransactionType
+  description: string
+  metadata?: Record<string, any>
 }): Promise<BalanceOperationResult> {
+  if (!ctx.from) {
+    throw new Error('User not found')
+  }
+
   try {
-    const user = await getUserByTelegramIdString(telegram_id)
-    if (!user) {
-      throw new Error(`User with ID ${telegram_id} not found`)
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('balance')
+      .eq('telegram_id', ctx.from.id)
+      .single()
+
+    if (userError || !userData) {
+      throw new Error('Failed to retrieve user data')
     }
 
-    const currentBalance = user.balance || 0
+    const currentBalance = userData.balance || 0
+
     if (currentBalance < amount) {
-      const message = is_ru
+      const message = isRussian(ctx)
         ? `❌ Недостаточно средств. Необходимо: ${amount} руб.`
         : `❌ Insufficient funds. Required: ${amount} RUB`
 
-      bot.telegram.sendMessage(telegram_id, message)
+      await ctx.reply(message)
+
       return {
         success: false,
         error: 'Insufficient funds',
@@ -68,22 +76,17 @@ export async function processBalanceOperation({
     }
 
     const newBalance = currentBalance - amount
-    await updateUserBalance({
-      telegram_id,
-      amount: amount,
-      type: TransactionType.MONEY_EXPENSE,
-      description: description,
-      bot_name,
-    })
 
-    logger.info({
-      message: '💰 Операция с балансом выполнена',
-      description: 'Balance operation completed',
-      telegram_id,
-      type,
-      amount,
-      oldBalance: currentBalance,
-      newBalance,
+    await inngest.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: ctx.from.id.toString(),
+        amount,
+        type,
+        description,
+        metadata,
+        bot_name: ctx.botInfo?.username,
+      },
     })
 
     return {
@@ -92,17 +95,15 @@ export async function processBalanceOperation({
       modePrice: amount,
     }
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при обработке платежа',
-      description: 'Payment processing error',
-      error: error instanceof Error ? error.message : String(error),
-      telegram_id,
-      type,
+    logger.error('❌ Ошибка при обработке платежа:', {
+      description: 'Error processing payment',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      modePrice: amount,
     })
 
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error.message : 'Unknown error',
       newBalance: 0,
       modePrice: amount,
     }
@@ -145,56 +146,34 @@ export const processPayment = async ({
 
     const currentBalance = await getUserBalance(
       ctx.from.id.toString(),
-      ctx.botInfo.username
+      ctx.botInfo?.username
     )
 
-    if (!currentBalance || currentBalance < amount) {
+    if (currentBalance === null || currentBalance < amount) {
       const message = isRussian(ctx)
         ? `❌ Недостаточно средств. Необходимо: ${amount} руб.`
         : `❌ Insufficient funds. Required: ${amount} RUB`
 
       await ctx.reply(message)
-
-      return {
-        success: false,
-        error: 'Insufficient funds',
-        currentBalance: currentBalance || 0,
-        modePrice: amount,
-      }
-    }
-
-    const newBalance = currentBalance - amount
-
-    // Отправляем событие для обработки платежа
-    await inngest.send({
-      name: 'payment/process',
-      data: {
-        telegram_id: ctx.from.id.toString(),
-        amount,
-        type,
-        description,
-        metadata,
-        bot_name: ctx.botInfo.username,
-      },
-    })
-
-    return {
-      success: true,
-      currentBalance,
-      newBalance,
-      modePrice: amount,
+    } else {
+      await inngest.send({
+        name: 'payment/process',
+        data: {
+          telegram_id: ctx.from.id.toString(),
+          amount,
+          type,
+          description: description || 'Списание средств',
+          metadata,
+          bot_name: ctx.botInfo?.username,
+        },
+      })
     }
   } catch (error) {
-    logger.error('❌ Ошибка при обработке платежа:', {
-      description: 'Error processing payment',
+    logger.error('❌ Ошибка при обработке платежа (processPayment):', {
+      description: 'Error in processPayment',
       error: error instanceof Error ? error.message : 'Unknown error',
-      modePrice: amount,
+      amount,
+      userId: ctx.from?.id,
     })
-
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      modePrice: amount,
-    }
   }
 }

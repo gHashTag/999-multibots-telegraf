@@ -1,7 +1,8 @@
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 
-import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
+import { notifyUserAboutSuccess } from '@/helpers/notifications/userNotifier'
+import { notifyAdminsAboutPayment } from '@/helpers/notifications/adminNotifier'
 import {
   getUserBalance,
   invalidateBalanceCache,
@@ -47,37 +48,6 @@ export interface PaymentProcessResult {
   telegram_id?: string
   amount?: number
   type?: string
-}
-
-/**
- * Отправляет уведомление пользователю о платеже
- *
- * @param payment Данные платежа
- * @param currentBalance Текущий баланс до операции
- * @param newBalance Новый баланс после операции
- */
-async function sendPaymentNotification(
-  payment: any,
-  currentBalance: number,
-  newBalance: number
-): Promise<void> {
-  logger.info('📨 Отправка уведомления пользователю', {
-    description: 'Sending notification to user',
-    telegram_id: payment.telegram_id,
-    amount: payment.amount,
-    paymentId: payment.id,
-  })
-
-  await sendTransactionNotificationTest({
-    telegram_id: Number(payment.telegram_id),
-    operationId: payment.operation_id || uuidv4(),
-    amount: payment.amount,
-    currentBalance,
-    newBalance,
-    description: payment.description,
-    isRu: true,
-    bot_name: payment.bot_name,
-  })
 }
 
 /**
@@ -204,10 +174,20 @@ export const paymentProcessor = inngest.createFunction(
         return getUserBalance(telegram_id)
       })
 
-      // Отправляем уведомление пользователю (только если не локальное окружение)
+      // Отправляем уведомление пользователю через новую функцию
       if (!isDev) {
-        await step.run('send-notification', async () => {
-          await sendPaymentNotification(payment, currentBalance, newBalance)
+        await step.run('send-user-notification', async () => {
+          await notifyUserAboutSuccess({
+            telegram_id: Number(payment.telegram_id),
+            bot_name: payment.bot_name,
+            amount: payment.amount,
+            stars: payment.stars,
+            type: payment.type as TransactionType,
+            description: payment.description || 'Обновление баланса',
+            operationId: payment.operation_id,
+            currentBalance: currentBalance,
+            newBalance: newBalance,
+          })
         })
       } else {
         logger.info(
@@ -221,6 +201,21 @@ export const paymentProcessor = inngest.createFunction(
           }
         )
       }
+
+      // Отправляем уведомление администраторам/группам через новую функцию
+      await step.run('send-admin-notification', async () => {
+        await notifyAdminsAboutPayment({
+          telegram_id: payment.telegram_id,
+          bot_name: payment.bot_name,
+          username: 'TODO: Get username',
+          amount: payment.amount,
+          stars: payment.stars,
+          currency: payment.type === TransactionType.MONEY_INCOME ? 'RUB' : '⭐️',
+          subscription: payment.metadata?.subscription,
+          type: payment.type as TransactionType,
+          description: payment.description || (payment.type === TransactionType.MONEY_INCOME ? 'пополнил баланс' : 'списал средства')
+        })
+      })
 
       // Отправляем уведомление амбассадору, если платеж совершен в его боте
       await step.run('send-ambassador-notification', async () => {

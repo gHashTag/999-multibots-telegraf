@@ -1,40 +1,54 @@
 import { MyContext, Subscription } from '@/interfaces'
-import { supabase } from '.'
+import { supabase as defaultSupabaseClient } from '.'
 import { isRussian } from '@/helpers/language'
-import { checkFullAccess } from '@/handlers/checkFullAccess'
-import { isDev } from '@/config'
+import { checkFullAccess as checkFullAccessHandler } from '@/handlers/checkFullAccess'
+import { isDev as isDevConfig } from '@/config'
+import { logger as defaultLogger } from '@/utils/logger'
+import { SupabaseClient } from '@supabase/supabase-js'
+import { Logger } from 'winston'
+
+// Определяем тип функции checkFullAccess
+type CheckFullAccessFn = (subscription: Subscription) => boolean;
 
 export const checkPaymentStatus = async (
   ctx: MyContext,
-  subscription: Subscription
+  subscription: Subscription,
+  dependencies: {
+      supabase?: SupabaseClient
+      logger?: Logger
+      isDevelopment?: boolean
+      checkFullAccess?: CheckFullAccessFn
+  } = {}
 ): Promise<boolean> => {
-  // Проверяем, что ctx и ctx.from определены
+  const supabase = dependencies.supabase || defaultSupabaseClient;
+  const logger = dependencies.logger || defaultLogger;
+  const isDevelopment = dependencies.isDevelopment ?? isDevConfig;
+  const checkFullAccess = dependencies.checkFullAccess || checkFullAccessHandler;
+
   if (!ctx || !ctx.from || !ctx.from.id) {
-    console.error('Ошибка: ctx или ctx.from или ctx.from.id не определены')
+    logger.error('Ошибка: ctx или ctx.from или ctx.from.id не определены')
     return false
   }
 
-  // Если подписка "нейротестер", пропускаем проверку оплаты
   if (subscription === 'neurotester') {
-    console.log(
+    logger.info(
       'Пользователь с подпиской "нейротестер", пропускаем проверку оплаты'
     )
     return true
   }
 
   try {
-    // Получаем последнюю запись оплаты для пользователя
     const { data: paymentData, error } = await supabase
-      .from('payments_v2') // TODO: изменить на payments_history
+      .from('payments_v2')
       .select('payment_date')
       .eq('telegram_id', ctx.from.id.toString())
       .order('payment_date', { ascending: false })
       .limit(1)
       .single()
-    console.log('paymentData', paymentData)
+    logger.debug('paymentData', paymentData)
 
     if (error || !paymentData) {
-      console.error('Ошибка при получении данных о последней оплате:', error)
+      logger.error('Ошибка при получении данных о последней оплате:', error)
       return false
     }
 
@@ -42,15 +56,13 @@ export const checkPaymentStatus = async (
     const currentDate = new Date()
     const differenceInDays =
       (currentDate.getTime() - lastPaymentDate.getTime()) / (1000 * 3600 * 24)
-    console.log('differenceInDays', differenceInDays)
+    logger.debug('differenceInDays', { differenceInDays })
 
     if (differenceInDays > 30) {
-      // differenceInDays > 30
-      // Обновляем уровень подписки на 'stars']
       const isFullAccess = checkFullAccess(subscription)
       if (isFullAccess) {
         const isRu = isRussian(ctx)
-        if (!isDev) {
+        if (!isDevelopment) {
           //@ts-ignore
           if (subscription !== 'neurotester') {
             await ctx.reply(
@@ -60,22 +72,13 @@ export const checkPaymentStatus = async (
             )
           }
         }
-
         return false
       }
     }
-    // const { error: updateError } = await supabase
-    //   .from('users')
-    //   .update({ subscription: 'stars' })
-    //   .eq('telegram_id', ctx.from.id.toString())
-
-    // if (updateError) {
-    //   console.error('Ошибка при обновлении уровня подписки:', updateError)
-    // }
-
+    
     return true
   } catch (error) {
-    console.error('Ошибка при проверке статуса оплаты:', error)
+    logger.error('Ошибка при проверке статуса оплаты:', error)
     return false
   }
 }

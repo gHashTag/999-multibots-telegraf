@@ -35,7 +35,7 @@ export interface ImageToVideoEvent {
 /**
  * Результат генерации видео
  */
-interface VideoResult {
+export interface VideoResult {
   success: boolean
   videoUrl?: string
   previewUrl?: string

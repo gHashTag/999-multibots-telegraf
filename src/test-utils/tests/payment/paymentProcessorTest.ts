@@ -2,6 +2,7 @@ import { logger } from '@/utils/logger'
 import { TEST_CONFIG, inngestTestEngine } from '../../test-config'
 import { TestResult } from '../../types'
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { TransactionType } from '@/interfaces/payments.interface'
 
 /**
  * Модуль содержит тесты для функции обработки платежей (paymentProcessor)
@@ -307,7 +308,7 @@ export async function runPaymentProcessorTests(
   options: { verbose?: boolean } = {}
 ): Promise<TestResult[]> {
   const startTime = Date.now()
-  const results: TestResult[] = []
+  const allResults: TestResult[] = [] // Переименовываем для ясности
 
   logger.info('🚀 Запуск тестов платежного процессора', {
     description: 'Starting payment processor tests',
@@ -315,14 +316,23 @@ export async function runPaymentProcessorTests(
   })
 
   try {
-    // Тест пополнения баланса
-    const incomeResult = await testPaymentProcessor()
-    results.push(incomeResult)
+    // Очищаем историю событий перед запуском тестов
+    inngestTestEngine.clearEvents()
+
+    // Запускаем отдельные подтесты и собираем их результаты
+    const positiveResult = await testPositivePayment()
+    allResults.push(positiveResult)
+
+    const negativeResult = await testNegativePayment()
+    allResults.push(negativeResult)
+
+    const invalidDataResult = await testInvalidPaymentData()
+    allResults.push(invalidDataResult)
 
     // Собираем статистику
     const duration = Date.now() - startTime
-    const successfulTests = results.filter(r => r.success).length
-    const totalTests = results.length
+    const successfulTests = allResults.filter(r => r.success).length
+    const totalTests = allResults.length
 
     logger.info('✅ Тесты платежного процессора завершены', {
       description: 'Payment processor tests completed',
@@ -332,7 +342,7 @@ export async function runPaymentProcessorTests(
       success_rate: `${Math.round((successfulTests / totalTests) * 100)}%`,
     })
 
-    return results
+    return allResults // Возвращаем массив результатов всех подтестов
   } catch (error) {
     const duration = Date.now() - startTime
     const errorMessage = error instanceof Error ? error.message : String(error)

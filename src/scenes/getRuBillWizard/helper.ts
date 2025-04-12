@@ -145,8 +145,8 @@ export const getInvoiceId = async (
 
   // Убеждаемся, что invId - целое число и не слишком длинное
   if (!Number.isInteger(invId) || invId > 2147483647) {
-    console.error('❌ Ошибка: InvId некорректный, будет преобразован', {
-      description: 'Error: InvId is incorrect, will be converted',
+    console.warn('⚠️ InvId некорректный, будет преобразован', {
+      description: 'Warning: InvId is incorrect, will be converted',
       originalInvId: invId,
     })
     // Преобразуем в целое число если это не так и ограничиваем длину

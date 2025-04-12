@@ -211,40 +211,17 @@ async function processPayment(
 
   await updateUserSubscription(userId, subscriptionName)
 
-  // Для всех платежей через Robokassa используем валюту RUB
-  const paymentMethod = 'Robokassa'
-
-  await createPayment({
-    telegram_id: userId.toString(),
-    amount: Number(amount),
-    OutSum: amount.toString(),
-    InvId: payload || '',
-    inv_id: payload || '',
-    currency: 'RUB', // Для Robokassa всегда используем RUB
-    stars: Number(stars),
-    status: 'SUCCESS',
-    payment_method: paymentMethod,
-    bot_name: ctx.botInfo.username,
-    description: `Payment completed - ${amount.toString()} RUB`,
-    metadata: {
-      payment_method: paymentMethod,
-      email: ctx.session.email,
-    },
-    language: 'ru',
-    invoice_url: '',
-  })
-
   await sendNotification(
     ctx,
     `💫 Пользователь: @${username} (ID: ${userId})\n` +
       `📦 Купил: ${subscriptionName}\n и получил ${stars} звезд 🌟`
-  )
+  )                                                                                                                                                                                                                           
   const isRu = isRussian(ctx)
   await ctx.reply(
     isRu
       ? `✅ **Спасибо за покупку! На ваш баланс добавлено ${stars} ⭐️!**\n` +
           `✨ Теперь вы можете использовать свою подписку. Для этого перейдите в главное меню, нажав на кнопку ниже:\n` +
-          `🏠 /menu\n` +
+          `🏠 /menu\n` +   
           `❓ Если у вас есть вопросы, не стесняйтесь обращаться за помощью /tech\n` +
           `Мы всегда рады помочь!`
       : `✅ **Thank you for your purchase! ${stars} stars added to your balance!**\n` +
@@ -293,40 +270,38 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       const { stars_price, callback_data } = selectedButton
       await processPayment(ctx, stars_price, callback_data, stars)
     } else {
-      logger.info('💰 Создание платежа через Robokassa', {
-        description: 'Creating Robokassa payment',
+      logger.info('💰 Обработка покупки звезд (вероятно)', {
+        description: 'Processing stars purchase (likely)',
         stars,
         subscriptionType,
       })
-
-      // Переходим в сцену создания счета
-      await ctx.scene.enter('getRuBillWizard')
-
-      // Устанавливаем данные для сцены
-      ctx.session.selectedPayment = {
-        amount: stars,
-        stars: stars,
-        subscription: subscriptionType as LocalSubscription,
-      }
     }
 
-    logger.info('✅ Обработка успешного платежа:', {
-      description: 'Processing successful payment',
+    logger.info('✅ Завершение обработки успешного платежа (до отправки события)', {
+      description: 'Finishing successful payment processing (before sending event)',
       telegram_id: ctx.from?.id,
       amount: stars,
       inv_id: ctx.message?.successful_payment?.invoice_payload,
     })
 
+    // Отправляем событие в Inngest для окончательной обработки (баланс и т.д.)
     await inngest.send({
       name: 'payment/process',
       data: {
         telegram_id: String(ctx.from?.id),
-        amount: Number(stars),
-        type: TransactionType.MONEY_INCOME,
-        description: `Purchase and sale:: ${stars}`,
-        bot_name: ctx.botInfo.username,
-        inv_id: ctx.message?.successful_payment?.invoice_payload,
+        amount: Number(stars), // Сумма здесь - это количество звезд
         stars: Number(stars),
+        type: TransactionType.MONEY_INCOME,
+        description: `Покупка ${stars} звезд через Telegram Payments`,
+        bot_name: ctx.botInfo.username,
+        inv_id: ctx.message?.successful_payment?.invoice_payload, // Используем payload как inv_id
+        metadata: {
+          payment_method: 'Telegram Payments',
+          invoice_payload: ctx.message?.successful_payment?.invoice_payload,
+          total_amount_paid: ctx.message?.successful_payment?.total_amount,
+          // Добавляем информацию о подписке, если она была
+          subscription_type: subscriptionType || undefined,
+        }
       },
     })
   } catch (error) {

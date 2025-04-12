@@ -43,8 +43,8 @@ export async function runRobokassaFormTests(): Promise<any> {
 
     // Убеждаемся, что invId - целое число и не слишком длинное
     if (!Number.isInteger(invId) || invId > 2147483647) {
-      logger.error('❌ Ошибка: InvId некорректный, будет преобразован', {
-        description: 'Error: InvId is incorrect, will be converted',
+      logger.warn('⚠️ InvId некорректный, будет преобразован', {
+        description: 'Warning: InvId is incorrect, will be converted',
         originalInvId: invId,
       });
       // Преобразуем в целое число если это не так и ограничиваем длину

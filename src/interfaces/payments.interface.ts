@@ -1,4 +1,8 @@
 import { ModeEnum } from '@/price/helpers/modelsCost'
+import { MyContext } from '@/interfaces'
+
+// Экспортируем ModeEnum напрямую
+export { ModeEnum }
 
 /**
  * Типы подписок, доступные для оплаты
