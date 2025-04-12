@@ -26,6 +26,7 @@ import { TestCategory } from './core/categories'
 import { runTests } from './core/runTests'
 import { runBalanceTests } from './tests/payment/balance.test'
 import { runPaymentNotificationTests } from './tests/payment/paymentNotification.test'
+import { TestResult } from './types'
 
 // Загружаем переменные окружения
 config({ path: path.resolve('.env.test') })
@@ -88,9 +89,33 @@ export { default as assert } from './core/assert'
 export { default as mock } from './core/mock/index'
 export { default as snapshot } from './core/snapshot'
 
+// Импортируем тесты Inngest
+import {
+  runInngestDirectTest,
+  runInngestSDKTest,
+  runInngestFunctionRegistrationTest,
+  runInngestFullTest,
+} from './tests/inngestTest'
+
 export const paymentTests = {
   runBalanceTests,
   runPaymentNotificationTests,
+}
+
+// Экспортируем тесты Inngest
+export const inngestTests = {
+  runInngestDirectTest,
+  runInngestSDKTest,
+  runInngestFunctionRegistrationTest,
+  runInngestFullTest,
+}
+
+// Экспортируем функции тестов Inngest напрямую
+export {
+  runInngestDirectTest,
+  runInngestSDKTest,
+  runInngestFunctionRegistrationTest,
+  runInngestFullTest,
 }
 
 /**
