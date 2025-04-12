@@ -26,6 +26,7 @@ import { TestCategory } from './core/categories'
 import { runTests } from './core/runTests'
 import { runBalanceTests } from './tests/payment/balance.test'
 import { runPaymentNotificationTests } from './tests/payment/paymentNotification.test'
+import { runNeuroPhotoTests } from './tests/neuro/runNeuroPhotoTests'
 import { TestResult } from './types'
 
 // Загружаем переменные окружения
@@ -66,6 +67,7 @@ function printHelp() {
 
 Доступные категории:
   all                          : Все тесты
+  neuro                        : Тесты нейрофункций
   translations                 : Тесты переводов
   database                     : Тесты базы данных
   webhook                      : Тесты вебхуков
@@ -76,6 +78,7 @@ function printHelp() {
   ts-node -r tsconfig-paths/register src/test-utils --category=database --verbose
   ts-node -r tsconfig-paths/register src/test-utils --discover --test-dir=src/test-utils/tests
   ts-node -r tsconfig-paths/register src/test-utils --json --output=test-results.json
+  ts-node -r tsconfig-paths/register src/test-utils --category=neuro --verbose
   `
 
   console.log(message)
@@ -102,6 +105,11 @@ export const paymentTests = {
   runPaymentNotificationTests,
 }
 
+// Экспортируем тесты нейрофункций
+export const neuroTests = {
+  runNeuroPhotoTests,
+}
+
 // Экспортируем тесты Inngest
 export const inngestTests = {
   runInngestDirectTest,
@@ -117,6 +125,12 @@ export {
   runInngestFunctionRegistrationTest,
   runInngestFullTest,
 }
+
+// Экспортируем функции тестов нейрофункций напрямую
+export { runNeuroPhotoTests }
+
+// Экспортируем API тесты
+export * from './tests/api'
 
 /**
  * Запуск тестов

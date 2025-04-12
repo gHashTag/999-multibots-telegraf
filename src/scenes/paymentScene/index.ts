@@ -391,7 +391,7 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
           ? 'Неизвестный тип подписки. Пожалуйста, выберите подписку снова.'
           : 'Unknown subscription type. Please select a subscription again.'
       )
-      await ctx.scene.enter('subscriptionScene')
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
       return
     }
 
