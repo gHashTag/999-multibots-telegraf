@@ -1,25 +1,19 @@
 import { calculateCost } from './calculateCost'
 import { logger } from '../../utils/logger'
 
-import { SYSTEM_CONFIG } from '../constants'
-import { ModeEnum } from '../types/modes'
-
-export const starCost = SYSTEM_CONFIG.starCost
+import { starCost, SYSTEM_CONFIG } from '../constants'
+import {
+  ModeEnum,
+  CostCalculationParams,
+  CostCalculationResult,
+} from '../types/modes'
 
 export function calculateCostInStars(costInDollars: number): number {
   return costInDollars / starCost
 }
 
-export interface CostCalculationParams {
-  mode: ModeEnum | string
-  steps?: number
-  numImages?: number
-}
-
-export interface CostCalculationResult {
-  stars: number
-  rubles: number
-  dollars: number
+export interface CostCalculationParamsInternal extends CostCalculationParams {
+  // Внутренние параметры, если нужны
 }
 
 type BaseCosts = {

@@ -47,15 +47,22 @@ export enum ModeEnum {
   StartScene = 'start_scene',
 }
 
-import {
-  CostCalculationParams,
-  CostCalculationResult,
-} from '../helpers/modelsCost'
+// Определяем интерфейсы прямо здесь для предотвращения циклических зависимостей
+export interface CostCalculationParams {
+  mode: ModeEnum | string
+  steps?: number
+  numImages?: number
+  modelId?: string
+}
+
+export interface CostCalculationResult {
+  stars: number
+  rubles: number
+  dollars: number
+}
 
 export type Mode = ModeEnum | string
 
 export type BaseCosts = {
   [key in ModeEnum | 'neuro_photo_2']?: number
 }
-
-export { CostCalculationParams, CostCalculationResult }
