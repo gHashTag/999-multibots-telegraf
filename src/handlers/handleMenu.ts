@@ -17,7 +17,7 @@ import { handleTechSupport } from '@/commands/handleTechSupport'
 import { mainMenuButton } from '@/menu/mainMenu'
 import { get100Command } from '@/commands'
 import { getStatsCommand } from '@/commands/stats'
-import { ModeEnum } from '@/price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 
 // Функция, которая обрабатывает логику сцены

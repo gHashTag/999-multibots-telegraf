@@ -8,7 +8,7 @@ import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
 } from '@/core/supabase'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 interface WizardSessionData extends Scenes.WizardSessionData {
   company?: string
   position?: string

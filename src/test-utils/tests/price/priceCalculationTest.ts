@@ -1,6 +1,6 @@
 import { TestResult } from '../../types'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { calculateModeCost } from '@/price/calculators/modeCalculator'
 import { PricingStrategy } from '@/price/types/strategies'
 

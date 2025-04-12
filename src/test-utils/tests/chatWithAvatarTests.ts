@@ -1,5 +1,5 @@
 import { TestResult } from '../types'
-import { ModeEnum } from '../../types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 
 export async function testChatWithAvatar(): Promise<TestResult> {
   try {

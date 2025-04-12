@@ -6,7 +6,7 @@ import { handleTrainingCost } from '@/price/helpers'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
 import { getStepSelectionMenuV2 } from '@/menu'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
   ModeEnum.DigitalAvatarBodyV2,
   async ctx => {

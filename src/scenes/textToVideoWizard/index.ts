@@ -7,7 +7,7 @@ import {
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { getUserBalance } from '@/core/supabase'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { handleHelpCancel } from '@/handlers'
 import { inngest } from '@/inngest-functions/clients'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'

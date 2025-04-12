@@ -4,7 +4,7 @@ import {
   CostCalculationParams,
   CostCalculationResult,
   ModeEnum,
-} from '../types/modes'
+} from '../../interfaces/modes'
 
 /**
  * Рассчитывает стоимость для определенного режима

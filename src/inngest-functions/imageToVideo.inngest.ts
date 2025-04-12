@@ -5,7 +5,7 @@ import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
 } from '../core/supabase'
-import { ModeEnum } from '../price/types/modes'
+import { ModeEnum } from '../interfaces/modes'
 import { calculateModeCost } from '../price/calculators/modeCalculator'
 import { sendBalanceMessage } from '../price/helpers'
 import { v4 as uuidv4 } from 'uuid'

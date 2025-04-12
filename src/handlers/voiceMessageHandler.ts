@@ -4,7 +4,7 @@ import { logger } from '@/utils/logger'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { v4 as uuidv4 } from 'uuid'
 import { inngest } from '@/inngest-functions/clients'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 
 export async function handleVoiceMessage(ctx: MyContext) {

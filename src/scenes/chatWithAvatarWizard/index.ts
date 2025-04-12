@@ -4,7 +4,7 @@ import { isRussian } from '../../helpers/language'
 import { handleTextMessage } from '../../handlers/handleTextMessage'
 import { handleHelpCancel } from '@/handlers'
 
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { getTranslation } from '@/core/supabase/getTranslation'
 

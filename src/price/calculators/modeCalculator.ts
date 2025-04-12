@@ -1,5 +1,5 @@
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '../types/modes'
+import { ModeEnum } from '../../interfaces/modes'
 import { PricingStrategy } from '../types/strategies'
 import { CostCalculationParams, CostCalculationResult } from '../types/common'
 import { MODE_PRICING_STRATEGY } from '../constants/pricingStrategies'

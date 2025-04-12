@@ -7,7 +7,7 @@ import {
   CreateUserParams,
 } from '@/core/supabase'
 
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { isRussian } from '@/helpers/language'
 
 // const BONUS_AMOUNT = 100

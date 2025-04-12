@@ -1,7 +1,8 @@
 import { TestResult } from '../../types'
 import { TEST_CONFIG, inngestTestEngine } from '../../test-config'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/price/types/modes'; import { calculateModeCost } from '@/price/helpers'
+import { ModeEnum } from '@/interfaces/modes'
+import { calculateModeCost } from '@/price/helpers'
 import { TransactionType } from '@/interfaces/payments.interface'
 
 /**

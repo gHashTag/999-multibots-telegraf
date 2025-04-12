@@ -6,7 +6,7 @@ import {
   ModeEnum,
   CostCalculationParams,
   CostCalculationResult,
-} from '../types/modes'
+} from '../../interfaces/modes'
 
 export function calculateCostInStars(costInDollars: number): number {
   return costInDollars / starCost
