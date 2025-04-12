@@ -1,7 +1,7 @@
 import { calculateCost } from './calculateCost'
 import { logger } from '@/utils/logger'
-import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
-import { interestRate } from '../interestRate'
+
+import { interestRate } from '../constants'
 
 export const starCost = 0.016
 
@@ -78,10 +78,9 @@ type BaseCosts = {
   [key in ModeEnum | 'neuro_photo_2']?: number
 }
 
-const BASE_COSTS: BaseCosts = {
+export const BASE_COSTS: BaseCosts = {
   [ModeEnum.NeuroPhoto]: 0.08,
   [ModeEnum.NeuroPhotoV2]: 0.14,
-  neuro_photo_2: 0.14,
   [ModeEnum.ImageToPrompt]: 0.03,
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: 0,
@@ -95,6 +94,9 @@ const BASE_COSTS: BaseCosts = {
   [ModeEnum.LipSync]: 0.9,
   [ModeEnum.VoiceToText]: 0.08,
 }
+
+// Реэкспортируем interestRate для совместимости
+export { interestRate }
 
 export function calculateModeCost(
   params: CostCalculationParams

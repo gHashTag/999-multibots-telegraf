@@ -13,28 +13,31 @@ export async function priceCommand(ctx: MyContext) {
   }
 
   // Получаем стоимость для каждого режима
-  const prices = Object.entries(ModeEnum).reduce((acc, [key, mode]) => {
-    // Для режимов с шагами рассчитываем диапазон цен
-    if (
-      mode === ModeEnum.DigitalAvatarBody ||
-      mode === ModeEnum.DigitalAvatarBodyV2
-    ) {
-      const minStepsCost = calculateModeCost({
-        mode,
-        steps: stepsRange.min,
-      }).stars
-      const maxStepsCost = calculateModeCost({
-        mode,
-        steps: stepsRange.max,
-      }).stars
-      acc[mode] = { min: minStepsCost, max: maxStepsCost }
-    } else {
-      // Для остальных режимов считаем обычную стоимость
-      const result = calculateModeCost({ mode })
-      acc[mode] = result.stars
-    }
-    return acc
-  }, {} as Record<string, number | { min: number; max: number }>)
+  const prices = Object.entries(ModeEnum).reduce(
+    (acc, [key, mode]) => {
+      // Для режимов с шагами рассчитываем диапазон цен
+      if (
+        mode === ModeEnum.DigitalAvatarBody ||
+        mode === ModeEnum.DigitalAvatarBodyV2
+      ) {
+        const minStepsCost = calculateModeCost({
+          mode,
+          steps: stepsRange.min,
+        }).stars
+        const maxStepsCost = calculateModeCost({
+          mode,
+          steps: stepsRange.max,
+        }).stars
+        acc[mode] = { min: minStepsCost, max: maxStepsCost }
+      } else {
+        // Для остальных режимов считаем обычную стоимость
+        const result = calculateModeCost({ mode })
+        acc[mode] = result.stars
+      }
+      return acc
+    },
+    {} as Record<string, number | { min: number; max: number }>
+  )
 
   logger.info('💰 Расчет стоимости услуг', {
     description: 'Calculating service costs',

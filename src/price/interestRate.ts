@@ -1,1 +1,3 @@
-export const interestRate = 1.5
+import { interestRate } from './constants'
+
+export { interestRate }

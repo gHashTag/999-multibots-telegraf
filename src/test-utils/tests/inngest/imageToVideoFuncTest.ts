@@ -1,7 +1,8 @@
 import { TestResult } from '../../types'
 import { TEST_CONFIG, inngestTestEngine } from '../../test-config'
 import { logger } from '@/utils/logger'
-import { ModeEnum, calculateModeCost } from '@/price/helpers'
+import { ModeEnum } from '@/price/helpers'
+import { calculateModeCost } from '@/price/calculators/modeCalculator'
 import { TransactionType } from '@/interfaces/payments.interface'
 
 /**
@@ -30,14 +31,16 @@ export async function testImageToVideoPayment(): Promise<TestResult> {
       mode: ModeEnum.ImageToVideo,
     })
 
-    // Рассчитываем ожидаемую стоимость
+    // Рассчитываем ожидаемую стоимость с указанием modelId
     const expectedCost = calculateModeCost({
       mode: ModeEnum.ImageToVideo,
+      modelId: 'minimax', // Используем модель по умолчанию
     }).stars
 
     console.log('💲 Рассчитанная стоимость операции:', {
       cost: expectedCost,
       mode: ModeEnum.ImageToVideo,
+      modelId: 'minimax',
     })
 
     // Отправляем событие для запуска функции
@@ -48,6 +51,7 @@ export async function testImageToVideoPayment(): Promise<TestResult> {
       image_url: 'https://example.com/test.jpg',
       is_ru: true,
       username: 'testuser',
+      model_id: 'minimax', // Добавляем modelId
       _test: {
         skip_generation: true,
         skip_sending: true,
@@ -58,7 +62,7 @@ export async function testImageToVideoPayment(): Promise<TestResult> {
 
     console.log('⌛ Ждем обработку событий...')
     // Небольшая задержка для обработки событий - увеличиваем для обеспечения обработки
-    await new Promise(resolve => setTimeout(resolve, 1000)) // Увеличиваем с 100мс до 1000мс
+    await new Promise(resolve => setTimeout(resolve, 2000)) // Увеличиваем с 1000мс до 2000мс для более надежной обработки
 
     console.log(
       '🔄 Поскольку тестовый движок не вызывает обработчики событий автоматически, отправляем платежное событие напрямую'
@@ -77,6 +81,9 @@ export async function testImageToVideoPayment(): Promise<TestResult> {
         operation_id: 'test-id-123',
       },
     })
+
+    // Дополнительная задержка после отправки платежного события
+    await new Promise(resolve => setTimeout(resolve, 1000))
 
     // Выводим все события в истории для отладки
     console.log('📊 История событий:')
@@ -242,15 +249,18 @@ export async function runImageToVideoFuncTests(): Promise<TestResult[]> {
       const testBotName = TEST_CONFIG.TEST_DATA.TEST_BOT_NAME
       const cost = calculateModeCost({
         mode: ModeEnum.ImageToVideo,
+        modelId: 'minimax',
       }).stars
 
       logger.info('💲 Тестирование прямой отправки платежного события', {
         cost,
         telegram_id: testTelegramId,
+        modelId: 'minimax',
       })
       console.log('💲 Тестирование прямой отправки платежного события', {
         cost,
         telegram_id: testTelegramId,
+        modelId: 'minimax',
       })
 
       // Очищаем события перед тестом

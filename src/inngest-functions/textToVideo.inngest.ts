@@ -6,7 +6,8 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
-import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/price/helpers/modelsCost'
+import { calculateModeCost } from '@/price/calculators/modeCalculator'
 import { sendBalanceMessage } from '@/price/helpers'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { v4 as uuidv4 } from 'uuid'
@@ -115,6 +116,7 @@ export const textToVideoFunction = inngest.createFunction(
         try {
           const cost = calculateModeCost({
             mode: ModeEnum.TextToVideo,
+            modelId: params.model_id || 'kling-v1.6-pro',
           }).stars
 
           logger.info(
@@ -123,6 +125,7 @@ export const textToVideoFunction = inngest.createFunction(
               description: 'Sending payment event for testing',
               telegram_id: params.telegram_id,
               cost,
+              modelId: params.model_id || 'kling-v1.6-pro',
             }
           )
 
@@ -204,7 +207,8 @@ export const textToVideoFunction = inngest.createFunction(
         const selectedModel =
           VIDEO_MODELS_CONFIG[
             params.model_id as keyof typeof VIDEO_MODELS_CONFIG
-          ]
+          ] || VIDEO_MODELS_CONFIG['kling-v1.6-pro']
+
         if (!selectedModel) {
           throw new Error(`Model ${params.model_id} not found in configuration`)
         }
@@ -212,6 +216,7 @@ export const textToVideoFunction = inngest.createFunction(
         // Рассчитываем стоимость операции
         const cost = calculateModeCost({
           mode: ModeEnum.TextToVideo,
+          modelId: selectedModel.id,
           numImages: 1,
         })
 
@@ -264,6 +269,7 @@ export const textToVideoFunction = inngest.createFunction(
           // Рассчитываем стоимость заново для гарантии точности
           const cost = calculateModeCost({
             mode: ModeEnum.TextToVideo,
+            modelId: params.model_id || 'kling-v1.6-pro',
             numImages: 1,
           }).stars
 
@@ -271,6 +277,7 @@ export const textToVideoFunction = inngest.createFunction(
             description: 'Sending payment event for Text-to-Video',
             cost,
             telegram_id: params.telegram_id,
+            modelId: params.model_id || 'kling-v1.6-pro',
           })
 
           await inngest.send({
