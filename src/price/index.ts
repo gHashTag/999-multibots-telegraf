@@ -23,5 +23,3 @@ export { calculateCost } from './helpers/calculateCost'
 export * from './models/imageModelPrices'
 export * from './models/videoModelPrices'
 // Предпочитаем версию из корневых файлов
-export { starCost } from './starCost'
-export { interestRate } from './interestRate'
