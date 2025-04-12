@@ -209,7 +209,31 @@ export const neuroPhotoV2Generation = inngest.createFunction(
         telegram_id,
         aspectRatio,
         finetuneId,
+        hasFineTune: !!finetuneId,
       })
+
+      // Уведомляем пользователя, если personalized модель недоступна
+      if (!finetuneId) {
+        const botResult = getBotByName(bot_name)
+        if (botResult.bot) {
+          try {
+            await botResult.bot.telegram.sendMessage(
+              telegram_id,
+              is_ru
+                ? '⚠️ У вас нет персонализированной модели. Будет использована стандартная модель FLUX1.1 Pro. Для получения персонализированной модели, обратитесь в поддержку.'
+                : "⚠️ You don't have a personalized model. Standard FLUX1.1 Pro model will be used. Contact support to get a personalized model."
+            )
+          } catch (error) {
+            logger.warn({
+              message:
+                '⚠️ Ошибка при отправке уведомления о стандартной модели',
+              description: 'Error sending standard model notification',
+              error: error instanceof Error ? error.message : 'Unknown error',
+              telegram_id,
+            })
+          }
+        }
+      }
 
       // Определяем размеры изображения в зависимости от соотношения сторон
       const dimensions = await step.run('calculate-dimensions', () => {
@@ -225,9 +249,7 @@ export const neuroPhotoV2Generation = inngest.createFunction(
       })
 
       // Формируем входные данные для API
-      const input = {
-        finetune_id: finetuneId,
-        finetune_strength: 2,
+      const input: Record<string, any> = {
         prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
         aspect_ratio: aspectRatio,
         width: dimensions.width,
@@ -237,6 +259,30 @@ export const neuroPhotoV2Generation = inngest.createFunction(
         prompt_upsampling: true,
         webhook_url: `${API_URL}/webhooks/neurophoto`,
         webhook_secret: process.env.BFL_WEBHOOK_SECRET,
+      }
+
+      // Определяем API endpoint в зависимости от наличия finetune_id
+      const apiEndpoint = finetuneId
+        ? 'https://api.us1.bfl.ai/v1/flux-pro-1.1-ultra-finetuned'
+        : 'https://api.us1.bfl.ai/v1/flux-pro-1.1-ultra'
+
+      logger.info({
+        message: '🔄 Использую API endpoint',
+        description: 'Using API endpoint',
+        apiEndpoint,
+        hasFinetuneId: !!finetuneId,
+        finetuneId: finetuneId || 'STANDARD_MODEL',
+      })
+
+      // Добавляем параметры для fine-tuned модели для любого API endpoint
+      if (finetuneId) {
+        input.finetune_id = finetuneId
+        input.finetune_strength = 2
+      } else {
+        // Для стандартного API также нужно предоставить finetune_id согласно новым требованиям API
+        // Используем "default" или другое подходящее значение по умолчанию
+        input.finetune_id = 'default'
+        input.finetune_strength = 0.5 // Меньшая сила для стандартной модели
       }
 
       // Генерируем изображения
@@ -314,14 +360,11 @@ export const neuroPhotoV2Generation = inngest.createFunction(
               'X-Key': process.env.BFL_API_KEY ?? '',
             }
 
-            const response = await fetch(
-              'https://api.us1.bfl.ai/v1/flux-pro-1.1-ultra-finetuned',
-              {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(input),
-              }
-            )
+            const response = await fetch(apiEndpoint, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify(input),
+            })
 
             if (!response.ok) {
               const errorText = await response.text()

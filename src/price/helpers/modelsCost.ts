@@ -60,6 +60,7 @@ export enum ModeEnum {
   SubscriptionScene = 'subscription_scene',
   CreateUserScene = 'create_user_scene',
   VoiceToText = 'voice_to_text',
+  StartScene = 'start_scene',
 }
 
 export interface CostCalculationParams {

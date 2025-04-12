@@ -172,7 +172,7 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       '/start': async () => {
         console.log('CASE: 🚀 Start')
-        await ctx.scene.enter('startScene')
+        await ctx.scene.enter(ModeEnum.StartScene)
       },
       '/stats': async () => {
         console.log('CASE: 🔍 Получение информации о сервере Glama MCP')

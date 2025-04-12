@@ -355,12 +355,14 @@ export function getTransactionInfoByCommand(command: ModeEnum): {
 /**
  * Описания для разных типов сервисов с эмодзи
  */
-export const SERVICE_DESCRIPTIONS: Record<
-  ModeEnum,
-  {
-    expense: (amount: number) => string
-    income: (amount: number) => string
-  }
+export const SERVICE_DESCRIPTIONS: Partial<
+  Record<
+    ModeEnum,
+    {
+      expense: (amount: number) => string
+      income: (amount: number) => string
+    }
+  >
 > = {
   [ModeEnum.NeuroPhoto]: {
     expense: (amount: number) =>
@@ -620,6 +622,12 @@ export const SERVICE_DESCRIPTIONS: Record<
   [ModeEnum.VoiceToText]: {
     expense: (amount: number) =>
       `🎤 Преобразование голоса в текст: ${amount} ${getStarsWord(amount)}`,
+    income: (amount: number) =>
+      `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
+  },
+  [ModeEnum.StartScene]: {
+    expense: (amount: number) =>
+      `🚀 Стартовая сцена: ${amount} ${getStarsWord(amount)}`,
     income: (amount: number) =>
       `⭐️ Пополнение баланса на ${amount} ${getStarsWord(amount)}`,
   },

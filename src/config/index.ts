@@ -3,18 +3,18 @@ import path from 'path'
 import { logger } from '@/utils/logger'
 import { mcpManager } from '@/core/mcp'
 
-logger.info('🔍 Загрузка переменных окружения:', {
-  description: 'Loading environment variables',
-  env_path: path.resolve(process.cwd(), '.env'),
-  cwd: process.cwd(),
-})
+// logger.info('🔍 Загрузка переменных окружения:', {
+//   description: 'Loading environment variables',
+//   env_path: path.resolve(process.cwd(), '.env'),
+//   cwd: process.cwd(),
+// })
 
-logger.info('🔍 Переменные окружения в config/index.ts:', {
-  description: 'Environment variables in config/index.ts',
-  SUPABASE_URL: process.env.SUPABASE_URL,
-  NODE_ENV: process.env.NODE_ENV,
-  all_env_keys: Object.keys(process.env),
-})
+// logger.info('🔍 Переменные окружения в config/index.ts:', {
+//   description: 'Environment variables in config/index.ts',
+//   SUPABASE_URL: process.env.SUPABASE_URL,
+//   NODE_ENV: process.env.NODE_ENV,
+//   all_env_keys: Object.keys(process.env),
+// })
 
 // Экспортируем переменные окружения
 export { mcpManager }

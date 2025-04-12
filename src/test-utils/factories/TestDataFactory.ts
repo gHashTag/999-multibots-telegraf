@@ -1,9 +1,9 @@
-import { ModeEnum } from '@/types/modes'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { API_URL } from '@/config'
 
 /**
  * Фабрика для создания тестовых данных
- * 
+ *
  * Используется для генерации тестовых данных и моков для тестирования различных компонентов системы
  */
 export class TestDataFactory {
@@ -17,7 +17,7 @@ export class TestDataFactory {
       level: 1,
       bot_name: 'test_bot',
       username: 'test_user',
-      ...overrides
+      ...overrides,
     }
   }
 
@@ -27,13 +27,14 @@ export class TestDataFactory {
   static createNeuroPhotoData(overrides?: Partial<any>) {
     return {
       prompt: 'Тестовый промпт для нейрофото - портрет в городе',
-      model_url: 'stability-ai/sdxl:c221b2b8ef527988fb59bf24a8b97c4561f1c671f73bd389f866bfb27c061316',
+      model_url:
+        'stability-ai/sdxl:c221b2b8ef527988fb59bf24a8b97c4561f1c671f73bd389f866bfb27c061316',
       numImages: 1,
       telegram_id: '144022504',
       username: 'test_user',
       is_ru: true,
       bot_name: 'test_bot',
-      ...overrides
+      ...overrides,
     }
   }
 
@@ -48,14 +49,18 @@ export class TestDataFactory {
       username: 'test_user',
       is_ru: true,
       bot_name: 'test_bot',
-      ...overrides
+      ...overrides,
     }
   }
 
   /**
    * Создает данные для вебхука нейрофото
    */
-  static createNeuroPhotoWebhookData(options: { taskId: string, status: string, withResult?: boolean }) {
+  static createNeuroPhotoWebhookData(options: {
+    taskId: string
+    status: string
+    withResult?: boolean
+  }) {
     const payload: any = {
       task_id: options.taskId,
       status: options.status,
@@ -80,8 +85,8 @@ export class TestDataFactory {
       step: {
         run: async (name: string, fn: () => Promise<any>) => {
           return await fn()
-        }
-      }
+        },
+      },
     }
   }
 
@@ -111,14 +116,14 @@ export class TestDataFactory {
               eq: () => ({
                 gte: () => ({
                   order: () => ({
-                    limit: async () => ({ data: [] })
-                  })
-                })
-              })
-            })
-          })
-        })
-      }
+                    limit: async () => ({ data: [] }),
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
+      },
     }
   }
 
@@ -128,9 +133,9 @@ export class TestDataFactory {
   static createReplicateMocks() {
     return {
       replicate: {
-        run: async () => ['https://example.com/test-image.jpg']
+        run: async () => ['https://example.com/test-image.jpg'],
       },
-      processApiResponse: async () => 'https://example.com/test-image.jpg'
+      processApiResponse: async () => 'https://example.com/test-image.jpg',
     }
   }
 
@@ -144,9 +149,9 @@ export class TestDataFactory {
           telegram: {
             sendMessage: async () => true,
             sendPhoto: async () => true,
-          }
-        }
-      })
+          },
+        },
+      }),
     }
   }
 
@@ -166,11 +171,12 @@ export class TestDataFactory {
   static createFetchMock(responseData?: any) {
     return async () => ({
       ok: true,
-      json: async () => responseData || {
-        id: 'test-task-id-1234',
-        status: 'processing',
-      },
-      text: async () => 'OK'
+      json: async () =>
+        responseData || {
+          id: 'test-task-id-1234',
+          status: 'processing',
+        },
+      text: async () => 'OK',
     })
   }
 
@@ -186,4 +192,4 @@ export class TestDataFactory {
       fetch: TestDataFactory.createFetchMock(),
     }
   }
-} 
+}

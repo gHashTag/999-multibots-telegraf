@@ -45,7 +45,7 @@ async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
 }
 
 export const startScene = new Scenes.WizardScene<MyContext>(
-  'startScene',
+  ModeEnum.StartScene,
   async ctx => {
     try {
       const isRu = ctx.from?.language_code === 'ru'
