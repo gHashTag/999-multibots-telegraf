@@ -1,13 +1,15 @@
 import { ModeEnum } from '../types/modes'
 
-// System configuration
-export const SYSTEM_CONFIG = {
+// Константы объявляем без экспорта сначала
+const SYSTEM_CONFIG_OBJ = {
   starCost: 0.016,
   interestRate: 50,
   currency: 'RUB',
 }
 
-export const { starCost, interestRate } = SYSTEM_CONFIG
+// Экспортируем объект и переменные после их объявления
+export const SYSTEM_CONFIG = SYSTEM_CONFIG_OBJ
+export const { starCost, interestRate } = SYSTEM_CONFIG_OBJ
 
 // Star purchase limits
 export const STAR_AMOUNTS = {
