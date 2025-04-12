@@ -12,11 +12,13 @@
  * - tests/inngest - Тесты Inngest функций
  * - tests/speech - Тесты аудио
  * - tests/translations - Тесты переводов
+ * - tests/api - Тесты API эндпоинтов
  *
  * Использование:
  *   npm run test:all - запуск всех тестов
  *   npm run test:discover - автоматическое обнаружение и запуск тестов
  *   npm run test:translations - запуск тестов переводов
+ *   npm run test:api - запуск тестов API
  */
 
 import { config } from 'dotenv'
@@ -27,27 +29,17 @@ import { runTests } from './core/runTests'
 import { runBalanceTests } from './tests/payment/balance.test'
 import { runPaymentNotificationTests } from './tests/payment/paymentNotification.test'
 import { runNeuroPhotoTests } from './tests/neuro/runNeuroPhotoTests'
-import { TestResult } from './types'
+
+// Импортируем тесты API
+import { runApiTests, runApiMonitoring } from './tests/api'
 
 // Загружаем переменные окружения
 config({ path: path.resolve('.env.test') })
 
-// Цвета для консоли
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m',
-}
-
 /**
  * Выводим справку по использованию
  */
-function printHelp() {
+function showHelp() {
   const message = `
 Использование: ts-node -r tsconfig-paths/register src/test-utils [опции]
 
@@ -72,6 +64,7 @@ function printHelp() {
   database                     : Тесты базы данных
   webhook                      : Тесты вебхуков
   inngest                      : Тесты Inngest функций
+  api                          : Тесты API эндпоинтов
 
 Примеры:
   ts-node -r tsconfig-paths/register src/test-utils --category=translations
@@ -79,6 +72,7 @@ function printHelp() {
   ts-node -r tsconfig-paths/register src/test-utils --discover --test-dir=src/test-utils/tests
   ts-node -r tsconfig-paths/register src/test-utils --json --output=test-results.json
   ts-node -r tsconfig-paths/register src/test-utils --category=neuro --verbose
+  ts-node -r tsconfig-paths/register src/test-utils --category=api --verbose
   `
 
   console.log(message)
@@ -118,6 +112,12 @@ export const inngestTests = {
   runInngestFullTest,
 }
 
+// Экспортируем API тесты
+export const apiTests = {
+  runApiTests,
+  runApiMonitoring,
+}
+
 // Экспортируем функции тестов Inngest напрямую
 export {
   runInngestDirectTest,
@@ -129,13 +129,19 @@ export {
 // Экспортируем функции тестов нейрофункций напрямую
 export { runNeuroPhotoTests }
 
-// Экспортируем API тесты
-export * from './tests/api'
+// Экспортируем API тесты напрямую
+export { runApiTests, runApiMonitoring }
 
 /**
  * Запуск тестов
  */
 async function start() {
+  // Проверяем, нужно ли вывести справку
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    showHelp()
+    process.exit(0)
+  }
+
   logger.info('📊 Запуск тестов проекта')
   logger.info('📊 Running project tests')
 
