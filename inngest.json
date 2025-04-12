@@ -1,0 +1,25 @@
+{
+  "name": "neuro-blogger-app",
+  "runtime": "node",
+  "version": "1.0.0",
+  "functions": [
+    {
+      "name": "text-to-image-generation",
+      "id": "text-to-image",
+      "triggers": [
+        {
+          "event": "text-to-image.requested"
+        }
+      ]
+    },
+    {
+      "name": "test-hello-world",
+      "id": "test-hello-world",
+      "triggers": [
+        {
+          "event": "test/hello.world"
+        }
+      ]
+    }
+  ]
+} 

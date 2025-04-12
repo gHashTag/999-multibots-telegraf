@@ -17,7 +17,7 @@ if (INNGEST_EVENT_KEY) {
 
 // Создаем базовую конфигурацию Inngest - используем конфигурацию, которая работала три дня назад
 const inngestConfig: any = {
-  id: 'neuro-blogger',
+  id: 'neuro-blogger-2.0',
   eventKey: INNGEST_EVENT_KEY || 'development-key',
 }
 

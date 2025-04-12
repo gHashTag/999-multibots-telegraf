@@ -11,6 +11,12 @@ export interface TestResult {
   /** Сообщение о результате выполнения */
   message: string
 
+  /** Категория теста */
+  category?: string
+
+  /** Сообщение об ошибке (если тест не пройден) */
+  error?: string
+
   /** Дополнительные детали теста */
   details?: any
 }

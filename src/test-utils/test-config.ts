@@ -1,5 +1,5 @@
-import { Inngest } from 'inngest'
-import fetch from 'node-fetch'
+// import { Inngest } from 'inngest'
+// import fetch from 'node-fetch'
 import { ModeEnum } from '../interfaces/modes'
 import { logger } from '../utils/logger'
 import { MockTelegraf } from './mocks/botMock'
@@ -242,11 +242,25 @@ export const createMockFn = <T = any, R = any>() => {
 /**
  * Тестовый клиент Inngest
  */
-export const testInngestClient = new Inngest({
+export const testInngestClient = {
   id: 'test-app',
   eventKey: 'test-key',
-  fetch: fetch as any,
-})
+  send: async (event: any) => {
+    logger.info('📤 [TEST_INNGEST_CLIENT]: Отправка события', event)
+    return { success: true, event }
+  },
+  // Добавляем мок метода createFunction для тестирования
+  createFunction: (
+    options: any,
+    trigger: any,
+    /* eslint-disable-next-line @typescript-eslint/no-unused-vars */ _handler: any
+  ) => {
+    return {
+      id: options.id || 'test-function',
+      event: trigger.event || 'test-event',
+    }
+  },
+}
 
 /**
  * Константы для тестирования аватар-ботов
