@@ -17,6 +17,29 @@
     "minify": {
       "compress": false,
       "mangle": false
+    },
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@utils/*": ["src/utils/*"],
+      "@config": ["src/config"],
+      "@controllers/*": ["src/controllers/*"],
+      "@dtos/*": ["src/dtos/*"],
+      "@exceptions/*": ["src/exceptions/*"],
+      "@interfaces/*": ["src/interfaces/*"],
+      "@middlewares/*": ["src/middlewares/*"],
+      "@models/*": ["src/models/*"],
+      "@routes/*": ["src/routes/*"],
+      "@services/*": ["src/services/*"],
+      "@core/*": ["src/core/*"],
+      "@axios/*": ["src/axios/*"],
+      "@price/*": ["src/price/*"],
+      "@store/*": ["src/store/*"],
+      "@handlers/*": ["src/handlers/*"],
+      "@helpers/*": ["src/helpers/*"],
+      "@commands/*": ["src/commands/*"],
+      "@inngest-functions/*": ["src/inngest-functions/*"],
+      "@test-utils/*": ["src/test-utils/*"]
     }
   },
   "module": {
