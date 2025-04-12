@@ -171,7 +171,7 @@ export const handleMenu = async (ctx: MyContext) => {
         await handleTechSupport(ctx)
       },
       '/start': async () => {
-        console.log('CASE: 🚀 Начать обучение')
+        console.log('CASE: 🚀 Start')
         await ctx.scene.enter('startScene')
       },
       '/stats': async () => {
