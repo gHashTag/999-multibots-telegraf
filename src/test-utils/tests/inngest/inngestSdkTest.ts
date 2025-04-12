@@ -1,4 +1,5 @@
-import { Inngest, NonRetriableError } from 'inngest'
+// Импортируем библиотеку Inngest, используя require
+const { Inngest, NonRetriableError } = require('inngest')
 import { logger } from '../../../utils/logger'
 import { TestResult } from '../../types'
 import { TestCategory } from '../../core/categories'
@@ -93,7 +94,7 @@ export async function testInngestSdk(): Promise<TestResult> {
  * @param inngest - Инициализированный клиент Inngest
  * @returns Promise<any> - Результат отправки события
  */
-async function sendTestEvent(inngest: Inngest): Promise<any> {
+async function sendTestEvent(inngest: any): Promise<any> {
   try {
     logger.info('🚀 [INNGEST_SDK_TEST]: Отправка тестового события', {
       description: 'Sending test event',
@@ -115,7 +116,7 @@ async function sendTestEvent(inngest: Inngest): Promise<any> {
     })
 
     return result
-  } catch (error) {
+  } catch (error: unknown) {
     // Обрабатываем специфические ошибки Inngest
     if (error instanceof NonRetriableError) {
       logger.error(

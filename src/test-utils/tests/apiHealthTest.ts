@@ -45,13 +45,15 @@ const ENVIRONMENTS = {
   production: 'https://999-multibots-u14194.vm.elestio.app',
 }
 
-// URL для внешних API
-const EXTERNAL_API = {
-  bfl: 'https://api.us1.bfl.ai/v1',
+const API = {
+  base: process.env.API_BASE_URL || 'http://localhost:3000',
+  inngest: process.env.INNGEST_BASE_URL || 'http://localhost:8288',
+  inngestDev: process.env.INNGEST_DEV_URL || 'http://localhost:8288/dev',
+  webhook: process.env.WEBHOOK_BASE_URL || 'http://localhost:3000/webhook',
 }
 
 // Определяем базовое окружение на основе переменной окружения или используем локальное по умолчанию
-const DEFAULT_ENV = process.env.API_ENV || 'local'
+const BASE_URL = API.base
 
 /**
  * Интерфейс для описания API-эндпоинта
@@ -71,6 +73,8 @@ interface ApiEndpoint {
   headers?: Record<string, string>
   /** Отключен ли эндпоинт для проверки (опционально) */
   disabled?: boolean
+  /** Дополнительные данные (опционально) */
+  data?: any
 }
 
 /**
@@ -78,18 +82,27 @@ interface ApiEndpoint {
  */
 const API_ENDPOINTS: ApiEndpoint[] = [
   {
-    name: 'Основной API',
-    path: '/api',
+    name: 'Main API',
+    path: `${BASE_URL}/`,
     method: 'GET',
     expectedStatus: 200,
-    description: 'Основной API сервера',
+    description: 'Main API endpoint',
+  },
+  {
+    name: 'Content Generation API',
+    path: `${BASE_URL}/api/generate`,
+    method: 'POST',
+    expectedStatus: 200,
+    description: 'Content generation endpoint',
+    headers: { 'Content-Type': 'application/json' },
+    data: { prompt: 'Test prompt' },
   },
   {
     name: 'Inngest API',
-    path: '/api/inngest',
+    path: `${API.inngest}/api/events`,
     method: 'GET',
     expectedStatus: 200,
-    description: 'API Inngest для обработки событий',
+    description: 'Inngest API endpoint',
   },
   {
     name: 'Webhook API',
@@ -113,28 +126,27 @@ const API_ENDPOINTS: ApiEndpoint[] = [
 const EXTERNAL_API_ENDPOINTS: ApiEndpoint[] = [
   {
     name: 'BFL API - Flux Pro',
-    path: `${EXTERNAL_API.bfl}/flux-pro-1.1-ultra`,
+    path: 'https://api.getimg.ai/v1/text-to-image/flux-pro',
     method: 'GET',
-    expectedStatus: 401, // Без ключа API ожидаем 401 Unauthorized
-    description: 'API для генерации изображений Flux Pro',
-    disabled: !process.env.BFL_API_KEY, // Отключаем если нет ключа API
+    expectedStatus: 405, // Без API ключа ожидаем 405 Method Not Allowed (только POST)
+    description: 'BFL API для генерации изображений Flux Pro',
   },
   {
     name: 'BFL API - Flux Pro Finetuned',
-    path: `${EXTERNAL_API.bfl}/flux-pro-1.1-ultra-finetuned`,
+    path: 'https://api.getimg.ai/v1/text-to-image/flux-pro-finetuned',
     method: 'GET',
-    expectedStatus: 401, // Без ключа API ожидаем 401 Unauthorized
-    description: 'API для генерации изображений с fine-tuning',
-    disabled: !process.env.BFL_API_KEY, // Отключаем если нет ключа API
+    expectedStatus: 405, // Без API ключа ожидаем 405 Method Not Allowed (только POST)
+    description: 'BFL API для генерации изображений Flux Pro Finetuned',
   },
   {
     name: 'BFL API с ключом',
-    path: `${EXTERNAL_API.bfl}/flux-pro-1.1-ultra`,
+    path: 'https://api.getimg.ai/v1/text-to-image/flux-pro',
     method: 'GET',
-    expectedStatus: 400, // С ключом API ожидаем 400 Bad Request (нет тела запроса)
-    description: 'Проверка доступа к API с ключом',
-    headers: { 'X-Key': process.env.BFL_API_KEY || '' },
-    disabled: !process.env.BFL_API_KEY, // Отключаем если нет ключа API
+    expectedStatus: 405, // API принимает только POST запросы
+    description: 'BFL API для генерации изображений с ключом',
+    headers: {
+      Authorization: `Bearer ${process.env.BFL_API_KEY || ''}`,
+    },
   },
 ]
 
@@ -336,22 +348,19 @@ function generateApiTestReport(
 
 /**
  * Запускает тесты API эндпоинтов
+ * @returns Результат проверки API
  */
-export async function runApiTests(
-  options: {
-    generateReport?: boolean
-    environment?: 'local' | 'production' | 'both'
-    customUrl?: string
-    testExternalApi?: boolean
-  } = {}
-): Promise<TestResult | TestResult[]> {
-  const {
-    generateReport = false,
-    environment = DEFAULT_ENV as 'local' | 'production' | 'both',
-    customUrl,
-    testExternalApi = true,
-  } = options
-
+export async function runApiTests({
+  generateReport = false,
+  environment = 'local' as 'local' | 'production' | 'both',
+  customUrl,
+  testExternalApi = true,
+}: {
+  generateReport?: boolean
+  environment?: 'local' | 'production' | 'both'
+  customUrl?: string
+  testExternalApi?: boolean
+} = {}): Promise<TestResult> {
   // Определяем URL(ы) для тестирования
   const urlsToTest: { env: string; url: string }[] = []
 
@@ -476,7 +485,7 @@ export async function runApiTests(
   }
 
   // Возвращаем один результат или массив результатов
-  return environment === 'both' ? allResults : allResults[0]
+  return environment === 'both' ? allResults[0] : allResults[0]
 }
 
 // Экспортируем функцию тестирования для использования в общей системе тестов
