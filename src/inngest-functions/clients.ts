@@ -16,7 +16,12 @@ if (INNGEST_EVENT_KEY) {
 }
 
 // Создаем базовую конфигурацию Inngest - используем конфигурацию, которая работала три дня назад
-const inngestConfig: any = {
+const inngestConfig: {
+  id: string
+  eventKey: string
+  baseUrl?: string
+  fetch?: (url: string, init: RequestInit) => Promise<Response>
+} = {
   id: 'neuro-blogger-2.0',
   eventKey: INNGEST_EVENT_KEY || 'development-key',
 }
