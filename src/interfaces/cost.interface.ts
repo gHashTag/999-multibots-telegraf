@@ -1,5 +1,5 @@
 import { VideoModel } from '@/interfaces'
-import { ModeEnum } from '../price/types/modes'
+
 import { ServiceEnum } from '@/types/services'
 import { SceneEnum } from '@/types/scenes'
 

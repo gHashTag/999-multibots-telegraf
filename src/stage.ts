@@ -39,7 +39,7 @@ import {
   levelQuestWizard,
   uploadVideoScene,
 } from './scenes'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from './interfaces/modes'
 
 export const stage = new Scenes.Stage<MyContext>(
   [

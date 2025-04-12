@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 
 import { Telegraf } from 'telegraf'
 

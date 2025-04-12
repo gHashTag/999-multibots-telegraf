@@ -1,4 +1,4 @@
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { API_URL } from '@/config'
 
 /**

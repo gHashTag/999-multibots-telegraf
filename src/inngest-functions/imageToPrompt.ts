@@ -5,7 +5,7 @@ import axios from 'axios'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
 import { v4 as uuidv4 } from 'uuid'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { getUserBalance } from '@/core/supabase'
 
 if (!process.env.ELESTIO_URL) {

@@ -18,7 +18,7 @@ import {
 import { mainMenu } from '@/menu'
 import { isRussian } from '@/helpers'
 import { getReferalsCountAndUserData } from '@/core/supabase'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 
 export const helpScene = new Scenes.BaseScene<MyContext>('helpScene')
 

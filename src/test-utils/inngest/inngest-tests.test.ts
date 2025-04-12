@@ -8,7 +8,7 @@ import os from 'os'
 import fs from 'fs'
 import { createWriteStream } from 'fs'
 import { getBotByName } from '@/core/bot'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 
 /**
  * Интерфейс для результатов теста

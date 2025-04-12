@@ -1,36 +1,48 @@
 import { inngest } from './clients'
 import { OpenAI, toFile } from 'openai'
-import { logger } from '@/utils/logger'
+
 import { sendSafeFormattedMessage } from '@/handlers/handleTextMessage'
 import { answerAi } from '@/core/openai'
 import { getUserByTelegramIdString } from '@/core/supabase'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import fetch from 'node-fetch'
 import { Context } from 'telegraf'
 import { Update } from 'telegraf/typings/core/types/typegram'
 import * as fs from 'fs'
 import * as path from 'path'
 import { getBotByName } from '@/core/bot'
-import { supabase } from '@/core/supabase'
 
 // Поддерживаемые форматы аудио
-const SUPPORTED_FORMATS = ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm']
+const SUPPORTED_FORMATS = [
+  'flac',
+  'm4a',
+  'mp3',
+  'mp4',
+  'mpeg',
+  'mpga',
+  'oga',
+  'ogg',
+  'wav',
+  'webm',
+]
 const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB - максимальный размер для Whisper API
 
 export const voiceToTextProcessor = inngest.createFunction(
-  { 
+  {
     id: 'voice-to-text-processor',
-    name: 'voice-to-text.requested' 
+    name: 'voice-to-text.requested',
   },
   { event: 'voice-to-text.requested' },
   async ({ event }) => {
-    console.log('🚀 Начало обработки голосового сообщения [Starting voice message processing]')
+    console.log(
+      '🚀 Начало обработки голосового сообщения [Starting voice message processing]'
+    )
     console.log('📦 Данные события:', {
       fileUrl: event.data.fileUrl,
       telegram_id: event.data.telegram_id,
       is_ru: event.data.is_ru,
       bot_name: event.data.bot_name,
-      username: event.data.username
+      username: event.data.username,
     })
 
     const { fileUrl, telegram_id, is_ru, bot_name, username } = event.data
@@ -64,17 +76,21 @@ export const voiceToTextProcessor = inngest.createFunction(
         const filePath = fileUrl.slice(7) // Убираем 'file://'
         fileExtension = path.extname(filePath).slice(1).toLowerCase()
         console.log('📄 Расширение файла:', fileExtension)
-        
+
         if (!SUPPORTED_FORMATS.includes(fileExtension)) {
           console.error('❌ Неподдерживаемый формат файла:', fileExtension)
-          throw new Error(`Неподдерживаемый формат файла. Поддерживаемые форматы: ${SUPPORTED_FORMATS.join(', ')}`)
+          throw new Error(
+            `Неподдерживаемый формат файла. Поддерживаемые форматы: ${SUPPORTED_FORMATS.join(', ')}`
+          )
         }
 
         const stats = fs.statSync(filePath)
         console.log('📊 Размер файла:', stats.size)
         if (stats.size > MAX_FILE_SIZE) {
           console.error('❌ Файл слишком большой:', stats.size)
-          throw new Error(`Файл слишком большой. Максимальный размер: ${MAX_FILE_SIZE / 1024 / 1024}MB`)
+          throw new Error(
+            `Файл слишком большой. Максимальный размер: ${MAX_FILE_SIZE / 1024 / 1024}MB`
+          )
         }
 
         audioBuffer = fs.readFileSync(filePath)
@@ -93,7 +109,7 @@ export const voiceToTextProcessor = inngest.createFunction(
         const url = new URL(fileUrl)
         const pathname = url.pathname.toLowerCase()
         console.log('🔍 Анализ URL:', { pathname })
-        
+
         if (pathname.includes('.oga')) {
           fileExtension = 'oga'
         } else if (pathname.includes('.ogg')) {
@@ -111,14 +127,18 @@ export const voiceToTextProcessor = inngest.createFunction(
 
         if (!SUPPORTED_FORMATS.includes(fileExtension)) {
           console.error('❌ Неподдерживаемый формат файла:', fileExtension)
-          throw new Error(`Неподдерживаемый формат файла. Поддерживаемые форматы: ${SUPPORTED_FORMATS.join(', ')}`)
+          throw new Error(
+            `Неподдерживаемый формат файла. Поддерживаемые форматы: ${SUPPORTED_FORMATS.join(', ')}`
+          )
         }
 
         const contentLength = audioResponse.headers.get('content-length')
         console.log('📊 Размер файла:', contentLength)
         if (contentLength && parseInt(contentLength) > MAX_FILE_SIZE) {
           console.error('❌ Файл слишком большой:', contentLength)
-          throw new Error(`Файл слишком большой. Максимальный размер: ${MAX_FILE_SIZE / 1024 / 1024}MB`)
+          throw new Error(
+            `Файл слишком большой. Максимальный размер: ${MAX_FILE_SIZE / 1024 / 1024}MB`
+          )
         }
 
         audioBuffer = Buffer.from(await audioResponse.arrayBuffer())
@@ -159,9 +179,11 @@ export const voiceToTextProcessor = inngest.createFunction(
 
       if (gptResponse) {
         // Отправляем ответ пользователю
-        console.log('📤 Подготовка к отправке сообщения... [Preparing to send message]')
+        console.log(
+          '📤 Подготовка к отправке сообщения... [Preparing to send message]'
+        )
         console.log('📝 Текст ответа:', gptResponse)
-        
+
         try {
           // Получаем бота по имени
           const botResult = getBotByName(bot_name)
@@ -172,9 +194,13 @@ export const voiceToTextProcessor = inngest.createFunction(
 
           // Отправляем индикатор набора текста
           await bot.telegram.sendChatAction(Number(telegram_id), 'typing')
-          
+
           // Отправляем сообщение напрямую через bot.telegram.sendMessage
-          const result = await bot.telegram.sendMessage(Number(telegram_id), gptResponse, { parse_mode: 'HTML' })
+          const result = await bot.telegram.sendMessage(
+            Number(telegram_id),
+            gptResponse,
+            { parse_mode: 'HTML' }
+          )
           console.log('✅ Сообщение успешно отправлено:', result)
         } catch (error) {
           console.error('❌ Ошибка при отправке сообщения:', error)
@@ -187,29 +213,33 @@ export const voiceToTextProcessor = inngest.createFunction(
       return { success: true }
     } catch (error) {
       console.error('❌ Ошибка обработки голосового сообщения:', error)
-      
+
       // Отправляем сообщение об ошибке пользователю
       const errorMessage = is_ru
         ? 'Извините, произошла ошибка при обработке голосового сообщения. Пожалуйста, попробуйте еще раз.'
         : 'Sorry, an error occurred while processing your voice message. Please try again.'
-      
+
       await sendSafeFormattedMessage(
         {
           from: {
             id: Number(telegram_id),
             username: username,
-            language_code: is_ru ? 'ru' : 'en'
+            language_code: is_ru ? 'ru' : 'en',
           },
           message: {
             text: '',
             chat: {
-              id: Number(telegram_id)
-            }
+              id: Number(telegram_id),
+            },
           },
           reply: async (text: string, options?: any) => {
-            console.log('📤 Отправка сообщения об ошибке:', { chatId: telegram_id, text, options })
+            console.log('📤 Отправка сообщения об ошибке:', {
+              chatId: telegram_id,
+              text,
+              options,
+            })
             return { message_id: Date.now() }
-          }
+          },
         } as unknown as Context<Update>,
         errorMessage
       )
@@ -217,4 +247,4 @@ export const voiceToTextProcessor = inngest.createFunction(
       throw error
     }
   }
-) 
+)

@@ -3,7 +3,7 @@ import { MyContext } from '../../interfaces'
 import { handleMenu } from '@/handlers'
 import { getTranslation } from '@/core/supabase'
 import { isRussian } from '@/helpers'
-import { ModeEnum } from '@/price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 
 import { isValidPaymentSubscription } from '@/interfaces/payments.interface'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'

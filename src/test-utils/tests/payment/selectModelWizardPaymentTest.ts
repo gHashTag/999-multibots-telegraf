@@ -4,7 +4,7 @@ import { createMockFn } from '../../test-config'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { TransactionType } from '@/interfaces/payments.interface'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { inngestTestEngine } from '../../test-config'
 import { ModelSelectionPaymentResult } from '@/interfaces/selectModelWizard.interface'
 

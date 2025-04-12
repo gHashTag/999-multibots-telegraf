@@ -9,7 +9,7 @@ import {
 import { processApiResponse } from '@/helpers/processApiResponse'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { saveFileLocally } from '@/helpers'
-import { ModeEnum } from '@/price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { calculateModeCost } from '@/price/helpers'
 import path from 'path'
 import { API_URL } from '@/config'

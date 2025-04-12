@@ -2,7 +2,7 @@
 import { TEST_CONFIG } from './test-config'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/core/inngest/clients'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { v4 as uuidv4 } from 'uuid'
 
 interface TextToVideoTestCase {

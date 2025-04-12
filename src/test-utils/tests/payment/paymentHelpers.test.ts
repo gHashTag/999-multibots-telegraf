@@ -1,7 +1,7 @@
 import { describe, expect, it, jest, beforeEach } from '@jest/globals'
 import { processPayment, deductFunds, addFunds } from '@/helpers/paymentHelpers'
 import { TransactionType } from '@/interfaces/payments.interface'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 
 // Мокаем зависимости
 jest.mock('@/core/inngest', () => ({

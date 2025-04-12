@@ -1,7 +1,7 @@
 import { PaymentTester } from './PaymentTester'
 import { createTestUser } from '@/test-utils/helpers/createTestUser'
 import { supabase } from '@/core/supabase'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { TEST_PAYMENT_CONFIG } from './test-config'
 import { TransactionType } from '@/interfaces/payments.interface'
 

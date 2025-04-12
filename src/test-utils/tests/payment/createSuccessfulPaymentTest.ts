@@ -5,7 +5,7 @@ import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment
 import { TransactionType } from '@/interfaces/payments.interface'
 import { supabase } from '@/supabase'
 import { v4 as uuidv4 } from 'uuid'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 
 /**
  * Модуль тестов для функции createSuccessfulPayment

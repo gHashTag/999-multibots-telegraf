@@ -1,7 +1,7 @@
 import { logger } from '@/utils/logger'
 import { TEST_CONFIG, inngestTestEngine } from '../../test-config'
 import { TestResult } from '../../types'
-import { ModeEnum } from './price/types/modes'
+import { ModeEnum } from '@/interfaces/modes'
 
 /**
  * Модуль содержит тесты для функции обработки платежей (paymentProcessor)
