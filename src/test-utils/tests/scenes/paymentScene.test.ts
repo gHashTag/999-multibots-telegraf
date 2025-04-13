@@ -1,644 +1,402 @@
 import { MyContext } from '@/interfaces';
-import { getTestContext } from '@/test-utils/helpers/context';
-import { initMockBot } from '@/test-utils/helpers/mockBot';
-import mockApi from '@/test-utils/core/mock';
-import { TestResult } from '@/test-utils/core/types';
-import { TestCategory } from '@/test-utils/core/categories';
-import { paymentScene } from '@/scenes/paymentScene';
-import * as supabaseModule from '@/core/supabase';
-import * as configModule from '@/config';
-import * as invoiceHelper from '@/scenes/getRuBillWizard/helper';
-import { ModeEnum } from '@/price/helpers/modelsCost';
-import * as handleSelectStarsModule from '@/handlers/handleSelectStars';
-import * as handleBuySubscriptionModule from '@/handlers/handleBuySubscription';
+import { createMockContext } from '../../core/mockContext';
+import { TestResult } from '../../core/types';
+import { assertReplyContains, assertReplyMarkupContains } from '../../core/assertions';
+import { create as mockFunction } from '../../core/mock';
+import { TestCategory } from '../../core/categories';
+import { logger } from '@/utils/logger';
+import { createPendingPayment } from '@/core/supabase/createPendingPayment';
+import { handleSelectStars } from '@/handlers/handleSelectStars';
+import { handleBuySubscription } from '@/handlers/handleBuySubscription';
+import { generateUniqueShortInvId } from '@/scenes/getRuBillWizard/helper';
 
-// Mock functions
-let mockCreatePendingPayment: ReturnType<typeof mockApi.create>;
-let mockGenerateUniqueShortInvId: ReturnType<typeof mockApi.create>;
-let mockHandleSelectStars: ReturnType<typeof mockApi.create>;
-let mockHandleBuySubscription: ReturnType<typeof mockApi.create>;
+// Мокированные функции
+const mockedCreatePendingPayment = mockFunction<typeof createPendingPayment>();
+const mockedHandleSelectStars = mockFunction<typeof handleSelectStars>();
+const mockedHandleBuySubscription = mockFunction<typeof handleBuySubscription>();
+const mockedGenerateUniqueShortInvId = mockFunction<typeof generateUniqueShortInvId>();
 
-// Constants for testing
+// Константы для тестирования
 const TEST_USER_ID = 123456789;
-const TEST_PAYMENT_AMOUNT = 999;
-const TEST_STARS_AMOUNT = 433;
+const TEST_USERNAME = 'test_user';
+const TEST_AMOUNT = 100;
+const TEST_STARS = 50;
+const TEST_INVOICE_URL = 'https://test-payment-url.com/invoice/12345';
 const TEST_INV_ID = '12345';
-const TEST_URL = 'https://test-payment-url.com';
-
-const setupTest = () => {
-  // Reset and initialize mock bot
-  initMockBot();
-  
-  // Mock createPendingPayment function
-  mockCreatePendingPayment = mockApi.create({
-    name: 'createPendingPayment',
-    implementation: async () => ({ success: true })
-  });
-  Object.defineProperty(supabaseModule, 'createPendingPayment', {
-    value: mockCreatePendingPayment,
-    configurable: true
-  });
-  
-  // Mock generateUniqueShortInvId function
-  mockGenerateUniqueShortInvId = mockApi.create({
-    name: 'generateUniqueShortInvId',
-    implementation: async () => TEST_INV_ID
-  });
-  Object.defineProperty(invoiceHelper, 'generateUniqueShortInvId', {
-    value: mockGenerateUniqueShortInvId,
-    configurable: true
-  });
-  
-  // Mock configuration values
-  Object.defineProperty(configModule, 'MERCHANT_LOGIN', {
-    value: 'test_merchant',
-    configurable: true
-  });
-  Object.defineProperty(configModule, 'PASSWORD1', {
-    value: 'test_password',
-    configurable: true
-  });
-  
-  // Mock handleSelectStars and handleBuySubscription
-  mockHandleSelectStars = mockApi.create({
-    name: 'handleSelectStars',
-    implementation: async () => true
-  });
-  // Assuming handleSelectStars is exported as default or has a default property
-  Object.defineProperty(handleSelectStarsModule, 'handleSelectStars', {
-    value: mockHandleSelectStars,
-    configurable: true
-  });
-  
-  mockHandleBuySubscription = mockApi.create({
-    name: 'handleBuySubscription',
-    implementation: async () => true
-  });
-  // Assuming handleBuySubscription is exported as default or has a default property
-  Object.defineProperty(handleBuySubscriptionModule, 'handleBuySubscription', {
-    value: mockHandleBuySubscription, 
-    configurable: true
-  });
-};
 
 /**
- * Test for entering the payment scene
+ * Настройка тестовой среды
  */
-export async function testPaymentScene_Enter(): Promise<TestResult> {
-  const testName = 'paymentScene: Enter Scene';
+function setupTest() {
+  // Настройка моков
+  mockedCreatePendingPayment.mockReturnValue(Promise.resolve());
+  mockedHandleSelectStars.mockReturnValue(Promise.resolve());
+  mockedHandleBuySubscription.mockReturnValue(Promise.resolve());
+  mockedGenerateUniqueShortInvId.mockReturnValue(Promise.resolve(TEST_INV_ID));
   
+  // Сброс моков между тестами
+  mockedCreatePendingPayment.mockClear();
+  mockedHandleSelectStars.mockClear();
+  mockedHandleBuySubscription.mockClear();
+  mockedGenerateUniqueShortInvId.mockClear();
+  
+  // Мокируем env переменные
+  process.env.MERCHANT_LOGIN = 'test_merchant';
+  process.env.PASSWORD1 = 'test_password';
+}
+
+/**
+ * Тест для входа в сцену без выбранного платежа
+ */
+export async function testPaymentSceneEnter(): Promise<TestResult> {
   try {
     setupTest();
     
-    // Create context with mocked reply function
-    const ctx = getTestContext({
-      from: {
-        id: TEST_USER_ID,
-        username: 'testuser',
-        language_code: 'en'
-      }
-    });
-    
-    // Make reply a mock function that we can check
-    const replyMock = mockApi.create({
-      name: 'reply',
-      implementation: async () => ({ message_id: 123 })
-    });
-    ctx.reply = replyMock as any;
-    
-    // Set session data
-    ctx.session = {
-      language: 'en',
-      mode: ModeEnum.PaymentScene,
-      // Add additional required properties for MySession
-      email: '',
-      selectedModel: '',
-      audioToText: false,
-      prompt: '',
-      userId: '',
-      telegramId: '',
-      subscription: null,
-      selectedPayment: null,
-      discount: 0,
-      ambassador: null,
-      notificationSettings: null,
-      trialEnded: false,
-      __scenes: {
-        current: 'payment',
-        state: {}
-      }
+    // Создаем мок-контекст
+    const ctx = createMockContext();
+    ctx.from = { 
+      id: TEST_USER_ID, 
+      is_bot: false, 
+      first_name: 'Test', 
+      username: TEST_USERNAME, 
+      language_code: 'ru' 
     };
+    ctx.session = {};
     
-    // Enter the scene
-    await paymentScene.enter(ctx);
+    // Запускаем обработчик сцены
+    const paymentScene = (await import('@/scenes/paymentScene')).paymentScene;
+    await paymentScene.emit('enter', ctx as unknown as MyContext);
     
-    // Check that the reply contains payment options
-    if (!replyMock) {
-      throw new Error('replyMock is not defined');
-    }
-    
-    // Check the mock calls
-    const replyCalls = replyMock.mock.calls || [];
-    const hasPaymentOptions = replyCalls.some((call: any[]) => 
-      call && 
-      Array.isArray(call) && 
-      call[0] && 
-      typeof call[0] === 'string' && 
-      call[0].includes('How do you want to pay?')
-    );
-    
-    if (!hasPaymentOptions) {
-      throw new Error('Payment options message was not found');
-    }
+    // Проверки
+    assertReplyContains(ctx, 'Как вы хотите оплатить?');
+    assertReplyMarkupContains(ctx, '⭐️ Звездами');
+    assertReplyMarkupContains(ctx, '💳 Рублями');
+    assertReplyMarkupContains(ctx, '🏠 Главное меню');
     
     return {
-      name: testName,
+      name: 'paymentScene: Enter без выбранного платежа',
+      category: TestCategory.All,
       success: true,
-      message: 'Test passed successfully'
+      message: 'Тест входа в сцену успешно пройден'
     };
   } catch (error) {
-    console.error(`Error in ${testName}:`, error);
+    logger.error('Ошибка в тесте входа в сцену:', error);
     return {
-      name: testName,
+      name: 'paymentScene: Enter без выбранного платежа',
+      category: TestCategory.All,
       success: false,
-      message: `Test failed: ${error}`
+      message: String(error)
     };
   }
 }
-testPaymentScene_Enter.meta = { category: TestCategory.All };
 
 /**
- * Test for the payment scene with a selected payment already in session
+ * Тест для входа в сцену с выбранным платежом
  */
-export async function testPaymentScene_WithSelectedPayment(): Promise<TestResult> {
-  const testName = 'paymentScene: With Selected Payment';
-  
+export async function testPaymentSceneEnterWithSelectedPayment(): Promise<TestResult> {
   try {
     setupTest();
     
-    // Create context with mocked reply function
-    const ctx = getTestContext({
-      from: {
-        id: TEST_USER_ID,
-        username: 'testuser',
-        language_code: 'en'
-      }
-    });
-    
-    // Make reply a mock function that we can check
-    const replyMock = mockApi.create({
-      name: 'reply',
-      implementation: async () => ({ message_id: 123 })
-    });
-    ctx.reply = replyMock as any;
-    
-    // Set session data with selected payment
+    // Создаем мок-контекст
+    const ctx = createMockContext();
+    ctx.from = { 
+      id: TEST_USER_ID, 
+      is_bot: false, 
+      first_name: 'Test', 
+      username: TEST_USERNAME, 
+      language_code: 'ru' 
+    };
+    ctx.botInfo = { username: 'test_bot' } as any;
     ctx.session = {
-      language: 'en',
-      mode: ModeEnum.PaymentScene,
-      // Add additional required properties for MySession
-      email: '',
-      selectedModel: '',
-      audioToText: false,
-      prompt: '',
-      userId: '',
-      telegramId: '',
-      subscription: null,
       selectedPayment: {
-        amount: TEST_PAYMENT_AMOUNT,
-        stars: TEST_STARS_AMOUNT,
-        subscription: null // Subscription should be a valid type or null
-      },
-      discount: 0,
-      ambassador: null,
-      notificationSettings: null,
-      trialEnded: false,
-      __scenes: {
-        current: 'payment',
-        state: {}
+        amount: TEST_AMOUNT,
+        stars: TEST_STARS,
+        subscription: 'stars'
       }
     };
     
-    // Mock getBotInfo to return username
-    Object.defineProperty(ctx, 'botInfo', {
-      value: {
-        username: 'test_bot',
-        id: 1234567890,
-        is_bot: true,
-        first_name: 'Test Bot'
-      },
-      configurable: true
-    });
+    // Патчим md5 и URL для тестирования
+    const md5Mock = jest.fn().mockReturnValue('test_hash');
+    jest.doMock('md5', () => md5Mock);
     
-    // Enter the scene
-    await paymentScene.enter(ctx);
+    // Запускаем обработчик сцены
+    const paymentScene = (await import('@/scenes/paymentScene')).paymentScene;
+    await paymentScene.emit('enter', ctx as unknown as MyContext);
     
-    // Check that createPendingPayment was called
-    const createPaymentCalls = mockCreatePendingPayment.mock.calls || [];
-    if (createPaymentCalls.length === 0) {
-      throw new Error('createPendingPayment was not called');
-    }
-    
-    // Check the reply contains payment information
-    const replyCalls = replyMock.mock.calls || [];
-    const hasPaymentInfo = replyCalls.some((call: any[]) => 
-      call &&
-      Array.isArray(call) && 
-      call[0] && 
-      typeof call[0] === 'string' && 
-      call[0].includes(`Payment ${TEST_PAYMENT_AMOUNT}`)
-    );
-    
-    if (!hasPaymentInfo) {
-      throw new Error('Payment information message was not found');
-    }
+    // Проверки
+    assertReplyContains(ctx, 'Оплата');
+    assertReplyContains(ctx, TEST_AMOUNT.toString());
+    expect(mockedCreatePendingPayment).toHaveBeenCalled();
     
     return {
-      name: testName,
+      name: 'paymentScene: Enter с выбранным платежом',
+      category: TestCategory.All,
       success: true,
-      message: 'Test passed successfully'
+      message: 'Тест входа в сцену с выбранным платежом успешно пройден'
     };
   } catch (error) {
-    console.error(`Error in ${testName}:`, error);
+    logger.error('Ошибка в тесте входа в сцену с выбранным платежом:', error);
     return {
-      name: testName,
+      name: 'paymentScene: Enter с выбранным платежом',
+      category: TestCategory.All,
       success: false,
-      message: `Test failed: ${error}`
+      message: String(error)
     };
   }
 }
-testPaymentScene_WithSelectedPayment.meta = { category: TestCategory.All };
 
 /**
- * Test for paying with stars
+ * Тест для оплаты звездами
  */
-export async function testPaymentScene_PayWithStars(): Promise<TestResult> {
-  const testName = 'paymentScene: Pay With Stars';
-  
+export async function testPaymentScenePayWithStars(): Promise<TestResult> {
   try {
     setupTest();
     
-    // Create a context that simulates a "⭐️ Stars" message
-    const ctx = getTestContext({
-      from: {
-        id: TEST_USER_ID,
-        username: 'testuser',
-        language_code: 'en'
-      },
-      message: {
-        text: '⭐️ Stars',
-        message_id: 123,
-        date: Date.now()
-      }
-    });
-    
-    // Set session data
-    ctx.session = {
-      language: 'en',
-      mode: ModeEnum.PaymentScene,
-      // Add additional required properties for MySession
-      email: '',
-      selectedModel: '',
-      audioToText: false,
-      prompt: '',
-      userId: '',
-      telegramId: '',
-      subscription: null,
-      selectedPayment: null,
-      discount: 0,
-      ambassador: null,
-      notificationSettings: null,
-      trialEnded: false,
-      __scenes: {
-        current: 'payment',
-        state: {}
-      }
+    // Создаем мок-контекст
+    const ctx = createMockContext();
+    ctx.from = { 
+      id: TEST_USER_ID, 
+      is_bot: false, 
+      first_name: 'Test', 
+      username: TEST_USERNAME, 
+      language_code: 'ru' 
     };
+    ctx.session = {};
+    ctx.message = { text: '⭐️ Звездами' } as any;
     
-    // Manually call the hears handler to avoid middleware issues
-    const hearsHandler = paymentScene._handlers?.hears?.find(h => 
-      (h.triggers as string[]).includes('⭐️ Stars') || 
-      (h.triggers as string[]).includes('⭐️ Звездами')
-    );
+    // Запускаем обработчик сцены
+    const paymentScene = (await import('@/scenes/paymentScene')).paymentScene;
+    await paymentScene.emit('text', ctx as unknown as MyContext, {}, '⭐️ Звездами');
     
-    if (!hearsHandler || !hearsHandler.middleware) {
-      throw new Error('Stars handler not found');
-    }
-    
-    // Call the handler directly
-    await hearsHandler.middleware(ctx, async () => {});
-    
-    // Check that handleSelectStars was called
-    const handleStarsCalls = mockHandleSelectStars.mock.calls || [];
-    if (handleStarsCalls.length === 0) {
-      throw new Error('handleSelectStars was not called');
-    }
+    // Проверки
+    expect(mockedHandleSelectStars).toHaveBeenCalled();
+    expect(ctx.scene.leave).toHaveBeenCalled();
     
     return {
-      name: testName,
+      name: 'paymentScene: Оплата звездами',
+      category: TestCategory.All,
       success: true,
-      message: 'Test passed successfully'
+      message: 'Тест оплаты звездами успешно пройден'
     };
   } catch (error) {
-    console.error(`Error in ${testName}:`, error);
+    logger.error('Ошибка в тесте оплаты звездами:', error);
     return {
-      name: testName,
+      name: 'paymentScene: Оплата звездами',
+      category: TestCategory.All,
       success: false,
-      message: `Test failed: ${error}`
+      message: String(error)
     };
   }
 }
-testPaymentScene_PayWithStars.meta = { category: TestCategory.All };
 
 /**
- * Test for paying with subscription
+ * Тест для оплаты звездами с подпиской
  */
-export async function testPaymentScene_PayWithSubscription(): Promise<TestResult> {
-  const testName = 'paymentScene: Pay With Subscription';
-  
+export async function testPaymentScenePayWithStarsSubscription(): Promise<TestResult> {
   try {
     setupTest();
     
-    // Create a context that simulates a "⭐️ Stars" message
-    const ctx = getTestContext({
-      from: {
-        id: TEST_USER_ID,
-        username: 'testuser',
-        language_code: 'en'
-      },
-      message: {
-        text: '⭐️ Stars',
-        message_id: 123,
-        date: Date.now()
-      }
-    });
-    
-    // Set session data with subscription
-    ctx.session = {
-      language: 'en',
-      mode: ModeEnum.PaymentScene,
-      // Add additional required properties for MySession
-      email: '',
-      selectedModel: '',
-      audioToText: false,
-      prompt: '',
-      userId: '',
-      telegramId: '',
-      subscription: 'neurobase',
-      selectedPayment: null,
-      discount: 0,
-      ambassador: null,
-      notificationSettings: null,
-      trialEnded: false,
-      __scenes: {
-        current: 'payment',
-        state: {}
-      }
+    // Создаем мок-контекст
+    const ctx = createMockContext();
+    ctx.from = { 
+      id: TEST_USER_ID, 
+      is_bot: false, 
+      first_name: 'Test', 
+      username: TEST_USERNAME, 
+      language_code: 'ru' 
     };
+    ctx.session = {
+      subscription: 'neurophoto'
+    };
+    ctx.message = { text: '⭐️ Звездами' } as any;
     
-    // Manually call the hears handler to avoid middleware issues
-    const hearsHandler = paymentScene._handlers?.hears?.find(h => 
-      (h.triggers as string[]).includes('⭐️ Stars') || 
-      (h.triggers as string[]).includes('⭐️ Звездами')
-    );
+    // Запускаем обработчик сцены
+    const paymentScene = (await import('@/scenes/paymentScene')).paymentScene;
+    await paymentScene.emit('text', ctx as unknown as MyContext, {}, '⭐️ Звездами');
     
-    if (!hearsHandler || !hearsHandler.middleware) {
-      throw new Error('Stars handler not found');
-    }
-    
-    // Call the handler directly
-    await hearsHandler.middleware(ctx, async () => {});
-    
-    // Check that handleBuySubscription was called
-    const handleSubscriptionCalls = mockHandleBuySubscription.mock.calls || [];
-    if (handleSubscriptionCalls.length === 0) {
-      throw new Error('handleBuySubscription was not called');
-    }
+    // Проверки
+    expect(mockedHandleBuySubscription).toHaveBeenCalled();
+    expect(ctx.scene.leave).toHaveBeenCalled();
     
     return {
-      name: testName,
+      name: 'paymentScene: Оплата звездами с подпиской',
+      category: TestCategory.All,
       success: true,
-      message: 'Test passed successfully'
+      message: 'Тест оплаты звездами с подпиской успешно пройден'
     };
   } catch (error) {
-    console.error(`Error in ${testName}:`, error);
+    logger.error('Ошибка в тесте оплаты звездами с подпиской:', error);
     return {
-      name: testName,
+      name: 'paymentScene: Оплата звездами с подпиской',
+      category: TestCategory.All,
       success: false,
-      message: `Test failed: ${error}`
+      message: String(error)
     };
   }
 }
-testPaymentScene_PayWithSubscription.meta = { category: TestCategory.All };
 
 /**
- * Test for paying with rubles
+ * Тест для оплаты рублями
  */
-export async function testPaymentScene_PayWithRubles(): Promise<TestResult> {
-  const testName = 'paymentScene: Pay With Rubles';
-  
+export async function testPaymentScenePayWithRubles(): Promise<TestResult> {
   try {
     setupTest();
     
-    // Create a context that simulates a "💳 In rubles" message
-    const ctx = getTestContext({
-      from: {
-        id: TEST_USER_ID,
-        username: 'testuser',
-        language_code: 'en'
-      },
-      message: {
-        text: '💳 In rubles',
-        message_id: 123,
-        date: Date.now()
-      }
-    });
-    
-    // Make reply a mock function that we can check
-    const replyMock = mockApi.create({
-      name: 'reply',
-      implementation: async () => ({ message_id: 123 })
-    });
-    ctx.reply = replyMock as any;
-    
-    // Mock getBotInfo to return username
-    Object.defineProperty(ctx, 'botInfo', {
-      value: {
-        username: 'test_bot',
-        id: 1234567890,
-        is_bot: true,
-        first_name: 'Test Bot'
-      },
-      configurable: true
-    });
-    
-    // Set session data with subscription
-    ctx.session = {
-      language: 'en',
-      mode: ModeEnum.PaymentScene,
-      // Add additional required properties for MySession
-      email: '',
-      selectedModel: '',
-      audioToText: false,
-      prompt: '',
-      userId: '',
-      telegramId: '',
-      subscription: 'neurobase',
-      selectedPayment: null,
-      discount: 0,
-      ambassador: null,
-      notificationSettings: null,
-      trialEnded: false,
-      __scenes: {
-        current: 'payment',
-        state: {}
-      }
+    // Создаем мок-контекст
+    const ctx = createMockContext();
+    ctx.from = { 
+      id: TEST_USER_ID, 
+      is_bot: false, 
+      first_name: 'Test', 
+      username: TEST_USERNAME, 
+      language_code: 'ru' 
     };
+    ctx.botInfo = { username: 'test_bot' } as any;
+    ctx.session = {
+      subscription: 'neurophoto'
+    };
+    ctx.message = { text: '💳 Рублями' } as any;
     
-    // Manually call the hears handler to avoid middleware issues
-    const hearsHandler = paymentScene._handlers?.hears?.find(h => 
-      (h.triggers as string[]).includes('💳 In rubles') || 
-      (h.triggers as string[]).includes('💳 Рублями')
-    );
+    // Запускаем обработчик сцены
+    const paymentScene = (await import('@/scenes/paymentScene')).paymentScene;
+    await paymentScene.emit('text', ctx as unknown as MyContext, {}, '💳 Рублями');
     
-    if (!hearsHandler || !hearsHandler.middleware) {
-      throw new Error('Rubles handler not found');
-    }
-    
-    // Call the handler directly
-    await hearsHandler.middleware(ctx, async () => {});
-    
-    // Check that createPendingPayment was called
-    const createPaymentCalls = mockCreatePendingPayment.mock.calls || [];
-    if (createPaymentCalls.length === 0) {
-      throw new Error('createPendingPayment was not called');
-    }
-    
-    // Check if reply contains payment URL
-    const replyCalls = replyMock.mock.calls || [];
-    const hasPaymentInfo = replyCalls.some((call: any[]) => 
-      call &&
-      Array.isArray(call) && 
-      call[0] && 
-      typeof call[0] === 'string' && 
-      call[0].includes('Payment')
-    );
-    
-    if (!hasPaymentInfo) {
-      throw new Error('Payment information message was not found');
-    }
+    // Проверки
+    expect(mockedCreatePendingPayment).toHaveBeenCalled();
+    expect(mockedGenerateUniqueShortInvId).toHaveBeenCalled();
+    assertReplyContains(ctx, 'Оплата');
+    expect(ctx.scene.leave).toHaveBeenCalled();
     
     return {
-      name: testName,
+      name: 'paymentScene: Оплата рублями',
+      category: TestCategory.All,
       success: true,
-      message: 'Test passed successfully'
+      message: 'Тест оплаты рублями успешно пройден'
     };
   } catch (error) {
-    console.error(`Error in ${testName}:`, error);
+    logger.error('Ошибка в тесте оплаты рублями:', error);
     return {
-      name: testName,
+      name: 'paymentScene: Оплата рублями',
+      category: TestCategory.All,
       success: false,
-      message: `Test failed: ${error}`
+      message: String(error)
     };
   }
 }
-testPaymentScene_PayWithRubles.meta = { category: TestCategory.All };
 
 /**
- * Test for returning to the main menu
+ * Тест для оплаты рублями без выбранной подписки
  */
-export async function testPaymentScene_ReturnToMainMenu(): Promise<TestResult> {
-  const testName = 'paymentScene: Return To Main Menu';
-  
+export async function testPaymentScenePayWithRublesNoSubscription(): Promise<TestResult> {
   try {
     setupTest();
     
-    // Create a context that simulates a "🏠 Main menu" message
-    const ctx = getTestContext({
-      from: {
-        id: TEST_USER_ID,
-        username: 'testuser',
-        language_code: 'en'
-      },
-      message: {
-        text: '🏠 Main menu',
-        message_id: 123,
-        date: Date.now()
-      }
-    });
-    
-    // Set session data
-    ctx.session = {
-      language: 'en',
-      mode: ModeEnum.PaymentScene,
-      // Add additional required properties for MySession
-      email: '',
-      selectedModel: '',
-      audioToText: false,
-      prompt: '',
-      userId: '',
-      telegramId: '',
-      subscription: null,
-      selectedPayment: null, 
-      discount: 0,
-      ambassador: null,
-      notificationSettings: null,
-      trialEnded: false,
-      __scenes: {
-        current: 'payment',
-        state: {}
-      }
+    // Создаем мок-контекст
+    const ctx = createMockContext();
+    ctx.from = { 
+      id: TEST_USER_ID, 
+      is_bot: false, 
+      first_name: 'Test', 
+      username: TEST_USERNAME, 
+      language_code: 'ru' 
     };
+    ctx.botInfo = { username: 'test_bot' } as any;
+    ctx.session = {};
+    ctx.message = { text: '💳 Рублями' } as any;
     
-    // Mock scene.enter method
-    const enterMock = mockApi.create({
-      name: 'scene.enter',
-      implementation: async () => true
-    });
+    // Запускаем обработчик сцены
+    const paymentScene = (await import('@/scenes/paymentScene')).paymentScene;
+    await paymentScene.emit('text', ctx as unknown as MyContext, {}, '💳 Рублями');
     
-    ctx.scene = {
-      enter: enterMock,
-      leave: mockApi.create({
-        name: 'scene.leave',
-        implementation: async () => true
-      })
-    } as any;
-    
-    // Manually call the hears handler to avoid middleware issues
-    const hearsHandler = paymentScene._handlers?.hears?.find(h => 
-      (h.triggers as string[]).includes('🏠 Main menu') || 
-      (h.triggers as string[]).includes('🏠 Главное меню')
-    );
-    
-    if (!hearsHandler || !hearsHandler.middleware) {
-      throw new Error('Main menu handler not found');
-    }
-    
-    // Call the handler directly
-    await hearsHandler.middleware(ctx, async () => {});
-    
-    // Check that scene.enter was called with menuScene
-    const sceneEnterCalls = enterMock.mock.calls || [];
-    const hasMenuScene = sceneEnterCalls.some((call: any[]) => 
-      call && Array.isArray(call) && call[0] === 'menuScene'
-    );
-    
-    if (!hasMenuScene) {
-      throw new Error('scene.enter was not called with menuScene');
-    }
+    // Проверки
+    assertReplyContains(ctx, 'Пожалуйста, сначала выберите тариф');
+    expect(ctx.scene.enter).toHaveBeenCalledWith('menuScene');
     
     return {
-      name: testName,
+      name: 'paymentScene: Оплата рублями без подписки',
+      category: TestCategory.All,
       success: true,
-      message: 'Test passed successfully'
+      message: 'Тест оплаты рублями без подписки успешно пройден'
     };
   } catch (error) {
-    console.error(`Error in ${testName}:`, error);
+    logger.error('Ошибка в тесте оплаты рублями без подписки:', error);
     return {
-      name: testName,
+      name: 'paymentScene: Оплата рублями без подписки',
+      category: TestCategory.All,
       success: false,
-      message: `Test failed: ${error}`
+      message: String(error)
     };
   }
 }
-testPaymentScene_ReturnToMainMenu.meta = { category: TestCategory.All }; 
+
+/**
+ * Тест для возврата в главное меню
+ */
+export async function testPaymentSceneBackToMainMenu(): Promise<TestResult> {
+  try {
+    setupTest();
+    
+    // Создаем мок-контекст
+    const ctx = createMockContext();
+    ctx.from = { 
+      id: TEST_USER_ID, 
+      is_bot: false, 
+      first_name: 'Test', 
+      username: TEST_USERNAME, 
+      language_code: 'ru' 
+    };
+    ctx.session = {};
+    ctx.message = { text: '🏠 Главное меню' } as any;
+    
+    // Запускаем обработчик сцены
+    const paymentScene = (await import('@/scenes/paymentScene')).paymentScene;
+    await paymentScene.emit('text', ctx as unknown as MyContext, {}, '🏠 Главное меню');
+    
+    // Проверки
+    expect(ctx.scene.enter).toHaveBeenCalledWith('menuScene');
+    
+    return {
+      name: 'paymentScene: Возврат в главное меню',
+      category: TestCategory.All,
+      success: true,
+      message: 'Тест возврата в главное меню успешно пройден'
+    };
+  } catch (error) {
+    logger.error('Ошибка в тесте возврата в главное меню:', error);
+    return {
+      name: 'paymentScene: Возврат в главное меню',
+      category: TestCategory.All,
+      success: false,
+      message: String(error)
+    };
+  }
+}
+
+/**
+ * Запуск всех тестов для paymentScene
+ */
+export async function runPaymentSceneTests(): Promise<TestResult[]> {
+  const results: TestResult[] = [];
+  
+  try {
+    results.push(await testPaymentSceneEnter());
+    results.push(await testPaymentSceneEnterWithSelectedPayment());
+    results.push(await testPaymentScenePayWithStars());
+    results.push(await testPaymentScenePayWithStarsSubscription());
+    results.push(await testPaymentScenePayWithRubles());
+    results.push(await testPaymentScenePayWithRublesNoSubscription());
+    results.push(await testPaymentSceneBackToMainMenu());
+  } catch (error) {
+    logger.error('Ошибка при запуске тестов paymentScene:', error);
+    results.push({
+      name: 'paymentScene: Общая ошибка',
+      category: TestCategory.All,
+      success: false,
+      message: String(error)
+    });
+  }
+  
+  return results;
+}
+
+export default runPaymentSceneTests; 

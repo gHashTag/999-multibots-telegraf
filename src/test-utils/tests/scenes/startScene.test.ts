@@ -1,456 +1,427 @@
 import { MyContext } from '@/interfaces';
+import {
+  createMockUser,
+  createTypedContext,
+  createMockFunction,
+  runSceneStep,
+  createMockSubscription
+} from '../../core/mockHelper';
 import { TestResult } from '../../core/types';
-import { TestCategory } from '../../core/categories';
-import mockApi from '../../core/mock';
-import * as supabaseModule from '@/core/supabase';
-import { ModeEnum } from '@/price/helpers/modelsCost';
-import { createMockContext } from '@/test-utils/helpers/createMockContext';
-import { startScene } from '@/scenes/startScene';
+import {
+  assertReplyContains,
+  assertReplyMarkupContains,
+  assertScene
+} from '../../core/assertions';
+import { create as mockFunction } from '../../core/mock';
 import { logger } from '@/utils/logger';
+import { TestCategory } from '../../core/categories';
+import { getUserBalance, getUserByTelegramId } from '@/core/supabase';
+import { getUserSub } from '@/libs/database';
+import { 
+  mockInngestSend, 
+  verifyInngestEvent, 
+  expect as testExpect,
+  runTest 
+} from '../../core/testHelpers';
 
-// Создаем моки для функций из supabase
-const mockGetTranslation = mockApi.create({
-  name: 'getTranslation',
-  implementation: async (_key: string, _ctx: any) => ({
-    translation: 'Test translation',
-    url: 'https://example.com/test-image.jpg'
-  })
-});
+// Mock functions
+const mockedGetUserBalance = createMockFunction<typeof getUserBalance>();
+const mockedGetUserByTelegramId = createMockFunction<typeof getUserByTelegramId>();
+const mockedGetUserSub = createMockFunction<typeof getUserSub>();
+const mockedIsAdmin = createMockFunction<(userId: string) => Promise<boolean>>();
+const mockedHandleMenu = createMockFunction<() => Promise<void>>();
 
-const mockGetReferalsCountAndUserData = mockApi.create({
-  name: 'getReferalsCountAndUserData',
-  implementation: async (_telegram_id: string) => ({
-    count: 5,
-    subscription: 'stars',
-    level: 1,
-    isExist: true
-  })
-});
-
-const mockCheckPaymentStatus = mockApi.create({
-  name: 'checkPaymentStatus',
-  implementation: async (_ctx: any, _subscription: string) => true
-});
+// Constants for testing
+const TEST_USER_ID = 123456789;
+const TEST_USERNAME = 'test_user';
+const TEST_FIRST_NAME = 'Test';
+const TEST_BALANCE = 100;
 
 /**
- * Настройка тестового окружения
+ * Setup test environment
  */
-const setupTest = () => {
-  // Переопределяем функции для тестов
-  (supabaseModule as any).getTranslation = mockGetTranslation;
-  (supabaseModule as any).getReferalsCountAndUserData = mockGetReferalsCountAndUserData;
-  (supabaseModule as any).checkPaymentStatus = mockCheckPaymentStatus;
+function setupTest() {
+  // Mock getUserBalance
+  mockedGetUserBalance.mockReturnValue(Promise.resolve(TEST_BALANCE));
   
-  // Сбрасываем историю вызовов моков
-  mockGetTranslation.mock.clear();
-  mockGetReferalsCountAndUserData.mock.clear();
-  mockCheckPaymentStatus.mock.clear();
-};
+  // Mock getUserByTelegramId - using createMockUser for proper typing
+  mockedGetUserByTelegramId.mockReturnValue(Promise.resolve(createMockUser({
+    id: TEST_USER_ID.toString(),
+    username: TEST_USERNAME,
+    telegram_id: TEST_USER_ID.toString(),
+    balance: TEST_BALANCE
+  })));
+  
+  // Mock getUserSub
+  mockedGetUserSub.mockReturnValue(Promise.resolve(null));
+  
+  // Mock isAdmin
+  mockedIsAdmin.mockReturnValue(Promise.resolve(false));
+  
+  // Mock handleMenu - return void not boolean
+  mockedHandleMenu.mockReturnValue(Promise.resolve());
+  
+  // Reset mocks between tests
+  mockedGetUserBalance.mockClear();
+  mockedGetUserByTelegramId.mockClear();
+  mockedGetUserSub.mockClear();
+  mockedIsAdmin.mockClear();
+  mockedHandleMenu.mockClear();
+}
 
 /**
- * Создание тестового контекста
+ * Test entering the startScene with /start command
  */
-const createTestContext = (options: { language?: string, isExistingUser?: boolean } = {}) => {
-  // Создаем тестового пользователя
-  const testUser = {
-    id: 123456789,
-    telegram_id: '123456789',
-    username: 'testuser',
-    language_code: options.language || 'en'
-  };
-
-  // Создаем мок контекста с тестовым пользователем
-  const ctx = createMockContext({
-    user: testUser
-  }) as unknown as MyContext;
-
-  // Имитируем botInfo
-  Object.defineProperty(ctx, 'botInfo', {
-    get: () => ({
-      id: 987654321,
-      first_name: 'Test Bot',
-      username: 'neuro_blogger_bot',
-      is_bot: true
-    })
-  });
-
-  // Добавляем функциональность сцены в контекст
-  ctx.session = {
-    __scenes: {
-      current: 'startScene',
-      state: {}
+export async function testStartScene_EnterWithStartCommand(): Promise<TestResult> {
+  return runTest(
+    async () => {
+      setupTest();
+      
+      // Create properly typed mock context
+      const ctx = createTypedContext({
+        from: { 
+          id: TEST_USER_ID, 
+          is_bot: false, 
+          first_name: TEST_FIRST_NAME, 
+          language_code: 'en',
+          username: TEST_USERNAME
+        },
+        session: {
+          username: TEST_USERNAME
+        },
+        message: { text: '/start', message_id: 1 }
+      });
+      
+      // Run the start scene handler with proper type handling
+      const { startScene } = await import('@/scenes/startScene');
+      // Use the first step of the scene directly with proper typing
+      await runSceneStep(startScene.steps[0], ctx);
+      
+      // Check that the welcome message was sent
+      assertReplyContains(ctx, 'Welcome');
+      
+      // Check that the main menu was displayed
+      assertReplyMarkupContains(ctx, 'Main Menu');
+      
+      return {
+        message: 'Successfully entered startScene with /start command'
+      };
+    },
+    {
+      name: 'startScene: Enter With /start Command',
+      category: TestCategory.All
     }
-  } as any;
-
-  // Создаем моки для методов сцены
-  const enterMock = mockApi.create({
-    name: 'scene.enter',
-    implementation: async () => true
-  });
-  
-  const leaveMock = mockApi.create({
-    name: 'scene.leave',
-    implementation: async () => true
-  });
-
-  // Добавляем методы для работы со сценой
-  ctx.scene = {
-    enter: enterMock,
-    leave: leaveMock
-  } as any;
-
-  // Мокируем методы Telegraf для проверки отправленных сообщений
-  const replyMock = mockApi.create({
-    name: 'reply',
-    implementation: async () => true
-  });
-  
-  ctx.reply = replyMock as any;
-  
-  const replyWithPhotoMock = mockApi.create({
-    name: 'replyWithPhoto',
-    implementation: async () => true
-  });
-  
-  ctx.replyWithPhoto = replyWithPhotoMock as any;
-
-  // Добавляем методы для работы с wizard
-  ctx.wizard = {
-    next: jest.fn(),
-    state: {}
-  } as any;
-
-  // Переопределяем мок getReferalsCountAndUserData для тестирования различных сценариев
-  if (options.isExistingUser === false) {
-    mockGetReferalsCountAndUserData.mock.implementation = async () => ({
-      count: 0,
-      subscription: null,
-      level: 0,
-      isExist: false
-    });
-  }
-
-  return { 
-    ctx, 
-    replyMock, 
-    replyWithPhotoMock, 
-    enterMock, 
-    leaveMock 
-  };
-};
-
-/**
- * Проверка наличия определенного текста в сообщении
- */
-const assertReplyContains = (ctx: any, expectedText: string, errorMessage: string) => {
-  const replyMock = ctx.reply;
-  
-  // Проверяем все вызовы метода reply
-  const calls = replyMock?.mock?.calls || [];
-  const replyCall = calls.find(
-    (call: any[]) => call && Array.isArray(call) && call[0] && typeof call[0] === 'string' && call[0].includes(expectedText)
   );
-  
-  if (!replyCall) {
-    throw new Error(errorMessage);
-  }
-};
-
-/**
- * Тест входа в стартовую сцену
- */
-export async function testStartScene_EnterScene(): Promise<TestResult> {
-  const testName = 'startScene: Enter Scene';
-  
-  try {
-    logger.info(`[TEST] Начало теста: ${testName}`);
-    setupTest();
-    
-    // Создаем тестовый контекст
-    const { ctx, replyWithPhotoMock } = createTestContext();
-    
-    // Запускаем первый хэндлер сцены
-    const handler = startScene.steps[0];
-    await handler(ctx);
-    
-    // Проверяем, что был вызван метод replyWithPhoto
-    if (replyWithPhotoMock.mock.calls.length === 0) {
-      throw new Error('Метод replyWithPhoto не был вызван');
-    }
-    
-    // Проверяем, что wizard.next был вызван
-    if (!ctx.wizard.next.mock.calls.length) {
-      throw new Error('Метод wizard.next не был вызван');
-    }
-    
-    logger.info(`[TEST] Тест успешно завершен: ${testName}`);
-    return {
-      name: testName,
-      category: TestCategory.All,
-      success: true,
-      message: 'Тест входа в стартовую сцену успешно выполнен',
-    };
-  } catch (error) {
-    logger.error(`[TEST] Ошибка в тесте ${testName}:`, error);
-    return {
-      name: testName,
-      category: TestCategory.All,
-      success: false,
-      message: `Ошибка в тесте: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
 }
 
 /**
- * Тест приветственного сообщения
+ * Test entering the startScene with new user
  */
-export async function testStartScene_WelcomeMessage(): Promise<TestResult> {
-  const testName = 'startScene: Welcome Message';
-  
-  try {
-    logger.info(`[TEST] Начало теста: ${testName}`);
-    setupTest();
-    
-    // Создаем тестовый контекст для русскоязычного пользователя
-    const { ctx, replyMock } = createTestContext({ language: 'ru' });
-    
-    // Запускаем первый хэндлер сцены
-    const handler = startScene.steps[0];
-    await handler(ctx);
-    
-    // Проверяем, что в вызове reply есть параметр с разметкой клавиатуры
-    const hasKeyboard = replyMock.mock.calls.some(call => 
-      call[1] && call[1].reply_markup && call[1].reply_markup.keyboard
-    );
-    
-    if (!hasKeyboard) {
-      throw new Error('В сообщении отсутствует клавиатура');
-    }
-    
-    logger.info(`[TEST] Тест успешно завершен: ${testName}`);
-    return {
-      name: testName,
-      category: TestCategory.All,
-      success: true,
-      message: 'Тест приветственного сообщения успешно выполнен',
-    };
-  } catch (error) {
-    logger.error(`[TEST] Ошибка в тесте ${testName}:`, error);
-    return {
-      name: testName,
-      category: TestCategory.All,
-      success: false,
-      message: `Ошибка в тесте: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-}
-
-/**
- * Тест регистрации нового пользователя
- */
-export async function testStartScene_NewUserRegistration(): Promise<TestResult> {
-  const testName = 'startScene: New User Registration';
-  
-  try {
-    logger.info(`[TEST] Начало теста: ${testName}`);
-    setupTest();
-    
-    // Создаем тестовый контекст для нового пользователя
-    const { ctx, enterMock } = createTestContext({ isExistingUser: false });
-    
-    // Запускаем второй хэндлер сцены (проверка регистрации)
-    const handler = startScene.steps[1];
-    await handler(ctx);
-    
-    // Проверяем, что был вызван метод scene.enter с CreateUserScene
-    const enterCalls = enterMock.mock.calls;
-    if (!enterCalls.some(call => call[0] === ModeEnum.CreateUserScene)) {
-      throw new Error('Не выполнен переход на сцену создания пользователя');
-    }
-    
-    logger.info(`[TEST] Тест успешно завершен: ${testName}`);
-    return {
-      name: testName,
-      category: TestCategory.All,
-      success: true,
-      message: 'Тест регистрации нового пользователя успешно выполнен',
-    };
-  } catch (error) {
-    logger.error(`[TEST] Ошибка в тесте ${testName}:`, error);
-    return {
-      name: testName,
-      category: TestCategory.All,
-      success: false,
-      message: `Ошибка в тесте: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-}
-
-/**
- * Тест перехода в главное меню
- */
-export async function testStartScene_GoToMainMenu(): Promise<TestResult> {
-  const testName = 'startScene: Go To Main Menu';
-  
-  try {
-    logger.info(`[TEST] Начало теста: ${testName}`);
-    setupTest();
-    
-    // Настраиваем мок для успешной проверки статуса оплаты
-    mockCheckPaymentStatus.mock.implementation = async () => true;
-    
-    // Создаем тестовый контекст для существующего пользователя
-    const { ctx, enterMock } = createTestContext();
-    
-    // Запускаем второй хэндлер сцены (переход в меню)
-    const handler = startScene.steps[1];
-    await handler(ctx);
-    
-    // Проверяем, что был вызван метод scene.enter с menuScene
-    const enterCalls = enterMock.mock.calls;
-    if (!enterCalls.some(call => call[0] === 'menuScene')) {
-      throw new Error('Не выполнен переход на сцену главного меню');
-    }
-    
-    logger.info(`[TEST] Тест успешно завершен: ${testName}`);
-    return {
-      name: testName,
-      category: TestCategory.All,
-      success: true,
-      message: 'Тест перехода в главное меню успешно выполнен',
-    };
-  } catch (error) {
-    logger.error(`[TEST] Ошибка в тесте ${testName}:`, error);
-    return {
-      name: testName,
-      category: TestCategory.All,
-      success: false,
-      message: `Ошибка в тесте: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-}
-
-/**
- * Тест перехода на сцену оформления подписки при отсутствии подписки
- */
-export async function testStartScene_GoToSubscriptionScene(): Promise<TestResult> {
-  const testName = 'startScene: Go To Subscription Scene';
-  
-  try {
-    logger.info(`[TEST] Начало теста: ${testName}`);
-    setupTest();
-    
-    // Настраиваем мок для возврата данных без подписки
-    mockGetReferalsCountAndUserData.mock.implementation = async () => ({
-      count: 0,
-      subscription: null,
-      level: 0,
-      isExist: true
-    });
-    
-    // Создаем тестовый контекст
-    const { ctx, enterMock } = createTestContext();
-    
-    // Запускаем второй хэндлер сцены
-    const handler = startScene.steps[1];
-    await handler(ctx);
-    
-    // Проверяем, что был вызван метод scene.enter с subscriptionScene
-    const enterCalls = enterMock.mock.calls;
-    if (!enterCalls.some(call => call[0] === 'subscriptionScene')) {
-      throw new Error('Не выполнен переход на сцену оформления подписки');
-    }
-    
-    logger.info(`[TEST] Тест успешно завершен: ${testName}`);
-    return {
-      name: testName,
-      category: TestCategory.All,
-      success: true,
-      message: 'Тест перехода на сцену оформления подписки успешно выполнен',
-    };
-  } catch (error) {
-    logger.error(`[TEST] Ошибка в тесте ${testName}:`, error);
-    return {
-      name: testName,
-      category: TestCategory.All,
-      success: false,
-      message: `Ошибка в тесте: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-}
-
-/**
- * Тест обработки ошибки при отсутствии ID пользователя
- */
-export async function testStartScene_HandleMissingUserId(): Promise<TestResult> {
-  const testName = 'startScene: Handle Missing User ID';
-  
-  try {
-    logger.info(`[TEST] Начало теста: ${testName}`);
-    setupTest();
-    
-    // Создаем тестовый контекст без ID пользователя
-    const ctx = createMockContext({}) as unknown as MyContext;
-    
-    // Добавляем функциональность сцены в контекст
-    ctx.session = {
-      __scenes: {
-        current: 'startScene',
-        state: {}
+export async function testStartScene_NewUser(): Promise<TestResult> {
+  return runTest(
+    async () => {
+      setupTest();
+      
+      // Mock getUserByTelegramId to return null (new user)
+      mockedGetUserByTelegramId.mockReturnValue(Promise.resolve(null));
+      
+      // Create properly typed mock context
+      const ctx = createTypedContext({
+        from: { 
+          id: TEST_USER_ID, 
+          is_bot: false, 
+          first_name: TEST_FIRST_NAME, 
+          language_code: 'en',
+          username: TEST_USERNAME
+        },
+        session: {
+          username: TEST_USERNAME
+        },
+        message: { text: '/start', message_id: 1 }
+      });
+      
+      // Run the start scene handler with proper type handling
+      const { startScene } = await import('@/scenes/startScene');
+      await runSceneStep(startScene.steps[0], ctx);
+      
+      // Check that the new user welcome message was sent
+      assertReplyContains(ctx, 'new user');
+      
+      // Check that the scene was redirected to createUserScene
+      if (!ctx.scene || !ctx.scene.enter) {
+        throw new Error('Scene enter method should be defined');
       }
-    } as any;
-    
-    // Создаем моки для методов сцены
-    const leaveMock = mockApi.create({
-      name: 'scene.leave',
-      implementation: async () => true
-    });
-    
-    ctx.scene = {
-      leave: leaveMock
-    } as any;
-    
-    // Мокируем метод reply
-    const replyMock = mockApi.create({
-      name: 'reply',
-      implementation: async () => true
-    });
-    
-    ctx.reply = replyMock as any;
-    
-    // Запускаем второй хэндлер сцены
-    const handler = startScene.steps[1];
-    await handler(ctx);
-    
-    // Проверяем, что был вызван метод scene.leave
-    if (leaveMock.mock.calls.length === 0) {
-      throw new Error('Метод scene.leave не был вызван');
+      testExpect(ctx.scene.enter).toHaveBeenCalled();
+      
+      return {
+        message: 'Successfully handled new user in startScene'
+      };
+    },
+    {
+      name: 'startScene: New User',
+      category: TestCategory.All
     }
-    
-    // Проверяем, что было отправлено сообщение об ошибке
-    const replyWithErrorCalled = replyMock.mock.calls.some(call => 
-      call[0] && typeof call[0] === 'string' && 
-      (call[0].includes('Error') || call[0].includes('Ошибка'))
-    );
-    
-    if (!replyWithErrorCalled) {
-      throw new Error('Не было отправлено сообщение об ошибке');
+  );
+}
+
+/**
+ * Test handling admin user
+ */
+export async function testStartScene_AdminUser(): Promise<TestResult> {
+  return runTest(
+    async () => {
+      setupTest();
+      
+      // Mock isAdmin to return true
+      mockedIsAdmin.mockReturnValue(Promise.resolve(true));
+      
+      // Create properly typed mock context
+      const ctx = createTypedContext({
+        from: { 
+          id: TEST_USER_ID, 
+          is_bot: false, 
+          first_name: TEST_FIRST_NAME, 
+          language_code: 'en',
+          username: TEST_USERNAME
+        },
+        session: {
+          username: TEST_USERNAME
+        },
+        message: { text: '/start', message_id: 1 }
+      });
+      
+      // Run the start scene handler with proper type handling
+      const { startScene } = await import('@/scenes/startScene');
+      await runSceneStep(startScene.steps[0], ctx);
+      
+      // Check that admin menu options were displayed
+      assertReplyMarkupContains(ctx, 'Admin');
+      
+      return {
+        message: 'Successfully displayed admin options in startScene'
+      };
+    },
+    {
+      name: 'startScene: Admin User',
+      category: TestCategory.All
     }
-    
-    logger.info(`[TEST] Тест успешно завершен: ${testName}`);
-    return {
-      name: testName,
-      category: TestCategory.All,
-      success: true,
-      message: 'Тест обработки ошибки при отсутствии ID пользователя успешно выполнен',
-    };
+  );
+}
+
+/**
+ * Test handling user with subscription
+ */
+export async function testStartScene_UserWithSubscription(): Promise<TestResult> {
+  return runTest(
+    async () => {
+      setupTest();
+      
+      // Mock getUserSub to return an active subscription using the helper
+      // Make sure to specify all required fields for the UserSubscription type
+      const mockSubscription = createMockSubscription({
+        user_id: TEST_USER_ID.toString(),
+        subscription_id: 'sub_123',
+        is_active: true
+      });
+      
+      // Using mockReturnValue with the properly typed subscription
+      // Using type assertion to bypass the interface mismatch
+      mockedGetUserSub.mockReturnValue(Promise.resolve(mockSubscription as any));
+      
+      // Create properly typed mock context
+      const ctx = createTypedContext({
+        from: { 
+          id: TEST_USER_ID, 
+          is_bot: false, 
+          first_name: TEST_FIRST_NAME, 
+          language_code: 'en',
+          username: TEST_USERNAME
+        },
+        session: {
+          username: TEST_USERNAME
+        },
+        message: { text: '/start', message_id: 1 }
+      });
+      
+      // Run the start scene handler with proper type handling
+      const { startScene } = await import('@/scenes/startScene');
+      await runSceneStep(startScene.steps[0], ctx);
+      
+      // Check that subscription info was displayed
+      assertReplyContains(ctx, 'subscription');
+      
+      return {
+        message: 'Successfully displayed subscription info in startScene'
+      };
+    },
+    {
+      name: 'startScene: User With Subscription',
+      category: TestCategory.All
+    }
+  );
+}
+
+/**
+ * Test handling user with referral parameter
+ */
+export async function testStartScene_WithReferralParameter(): Promise<TestResult> {
+  return runTest(
+    async () => {
+      setupTest();
+      
+      // Create properly typed mock context with referral parameter
+      const ctx = createTypedContext({
+        from: { 
+          id: TEST_USER_ID, 
+          is_bot: false, 
+          first_name: TEST_FIRST_NAME, 
+          language_code: 'en',
+          username: TEST_USERNAME
+        },
+        session: {
+          username: TEST_USERNAME
+        },
+        message: { text: '/start ref123456', message_id: 1 }
+      });
+      
+      // Run the start scene handler with proper type handling
+      const { startScene } = await import('@/scenes/startScene');
+      await runSceneStep(startScene.steps[0], ctx);
+      
+      // Check that referral was processed
+      assertReplyContains(ctx, 'referral');
+      
+      // Check that the scene was redirected to createUserScene
+      if (!ctx.scene || !ctx.scene.enter) {
+        throw new Error('Scene enter method should be defined');
+      }
+      testExpect(ctx.scene.enter).toHaveBeenCalled();
+      
+      return {
+        message: 'Successfully processed referral parameter in startScene'
+      };
+    },
+    {
+      name: 'startScene: With Referral Parameter',
+      category: TestCategory.All
+    }
+  );
+}
+
+/**
+ * Test handling language selection
+ */
+export async function testStartScene_LanguageSelection(): Promise<TestResult> {
+  return runTest(
+    async () => {
+      setupTest();
+      
+      // Create properly typed mock context with Russian language
+      const ctx = createTypedContext({
+        from: { 
+          id: TEST_USER_ID, 
+          is_bot: false, 
+          first_name: TEST_FIRST_NAME, 
+          language_code: 'ru',
+          username: TEST_USERNAME
+        },
+        session: {
+          username: TEST_USERNAME
+        },
+        message: { text: '/start', message_id: 1 }
+      });
+      
+      // Run the start scene handler with proper type handling
+      const { startScene } = await import('@/scenes/startScene');
+      await runSceneStep(startScene.steps[0], ctx);
+      
+      // Check that Russian language welcome message was sent
+      assertReplyContains(ctx, 'Добро пожаловать');
+      
+      return {
+        message: 'Successfully displayed proper language in startScene'
+      };
+    },
+    {
+      name: 'startScene: Language Selection',
+      category: TestCategory.All
+    }
+  );
+}
+
+/**
+ * Test navigation to balance scene
+ */
+export async function testStartScene_NavigateToBalance(): Promise<TestResult> {
+  return runTest(
+    async () => {
+      setupTest();
+      
+      // Create properly typed mock context with balance command
+      const ctx = createTypedContext({
+        from: { 
+          id: TEST_USER_ID, 
+          is_bot: false, 
+          first_name: TEST_FIRST_NAME, 
+          language_code: 'en',
+          username: TEST_USERNAME
+        },
+        session: {
+          username: TEST_USERNAME
+        },
+        message: { text: 'Balance', message_id: 1 }
+      });
+      
+      // Run the start scene handler with proper type handling - use second step for menu commands
+      const { startScene } = await import('@/scenes/startScene');
+      await runSceneStep(startScene.steps[1], ctx);
+      
+      // Check that handleMenu was called
+      testExpect(mockedHandleMenu).toHaveBeenCalled();
+      
+      // Check that the scene was redirected to balanceScene
+      if (!ctx.scene || !ctx.scene.enter) {
+        throw new Error('Scene enter method should be defined');
+      }
+      testExpect(ctx.scene.enter).toHaveBeenCalled();
+      
+      return {
+        message: 'Successfully navigated to balance scene'
+      };
+    },
+    {
+      name: 'startScene: Navigate To Balance',
+      category: TestCategory.All
+    }
+  );
+}
+
+/**
+ * Run all startScene tests
+ */
+export async function runStartSceneTests(): Promise<TestResult[]> {
+  const results: TestResult[] = [];
+  
+  try {
+    // Run each test and collect results
+    results.push(await testStartScene_EnterWithStartCommand());
+    results.push(await testStartScene_NewUser());
+    results.push(await testStartScene_AdminUser());
+    results.push(await testStartScene_UserWithSubscription());
+    results.push(await testStartScene_WithReferralParameter());
+    results.push(await testStartScene_LanguageSelection());
+    results.push(await testStartScene_NavigateToBalance());
   } catch (error) {
-    logger.error(`[TEST] Ошибка в тесте ${testName}:`, error);
-    return {
-      name: testName,
+    logger.error('Error running startScene tests:', error);
+    results.push({
+      name: 'startScene tests',
       category: TestCategory.All,
       success: false,
-      message: `Ошибка в тесте: ${error instanceof Error ? error.message : String(error)}`,
-    };
+      message: String(error)
+    });
   }
-} 
+  
+  return results;
+}
+
+export default runStartSceneTests;

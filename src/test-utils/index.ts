@@ -28,6 +28,7 @@ export { default as runLipSyncWizardTests } from './tests/scenes/lipSyncWizard.t
 export { default as runStartSceneTests } from './tests/scenes/startScene.test';
 export { default as runSelectModelSceneTests } from './tests/scenes/selectModelScene.test';
 export { default as runMenuSceneTests } from './tests/scenes/menuScene.test';
+export { default as runHelpSceneTests } from './tests/scenes/helpScene.test';
 
 // Экспорты для которых нужно проверить структуру
 // Если функции не экспортируются по-умолчанию, импортируем их явно

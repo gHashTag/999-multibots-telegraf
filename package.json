@@ -104,7 +104,9 @@
     "test:custom": "cross-env NODE_ENV=test npx ts-node -r tsconfig-paths/register src/test-utils/run-tests.ts",
     "test:custom:all": "cross-env NODE_ENV=test npx ts-node -r tsconfig-paths/register src/test-utils/run-tests.ts --all",
     "test:custom:video": "cross-env NODE_ENV=test npx ts-node -r tsconfig-paths/register src/test-utils/run-tests.ts text-to-video",
-    "test:audio-to-text": "NODE_ENV=test ./src/test-utils/run-audio-to-text-tests.sh"
+    "test:audio-to-text": "NODE_ENV=test ./src/test-utils/run-audio-to-text-tests.sh",
+    "test:neuroImages": "cd scripts && sh neuroImageLookalike.sh",
+    "test:imageToVideoWizard": "tsx -r tsconfig-paths/register src/test-utils/tests/scenes/imageToVideoWizard.run.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.9.0",

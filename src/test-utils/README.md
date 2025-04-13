@@ -778,3 +778,196 @@ process.exit(failed > 0 ? 1 : 0);
 - Добавление CI/CD интеграции через GitHub Actions
 - Расширение покрытия тестами других функций бота
 - Реализация механизма для тестирования взаимодействия между сценами
+
+# Testing Utilities
+
+This directory contains utilities and helpers for testing the Telegram bot application.
+
+## Core Utilities
+
+### Test Helpers (`core/testHelpers.ts`)
+
+New centralized utilities for making tests more consistent and maintainable:
+
+- `mockInngestSend()`: Creates a temporary mock for Inngest event sending
+  ```typescript
+  // Example usage
+  const restoreInngest = mockInngestSend();
+  try {
+    // Test code that calls inngest.send
+    await someFunction();
+  } finally {
+    // Restore original function
+    restoreInngest();
+  }
+  ```
+
+- `verifyInngestEvent()`: Validates events sent via Inngest
+  ```typescript
+  // Example usage
+  verifyInngestEvent(inngest.send, {
+    eventName: 'text-to-video.requested',
+    requiredData: {
+      prompt: 'Test prompt',
+      telegram_id: '123456789'
+    }
+  });
+  ```
+
+- `expect()`: Enhanced assertions that replace custom implementations
+  ```typescript
+  // Example usage
+  expect(value).toBe(expectedValue);
+  expect(mockFunction).toHaveBeenCalled();
+  expect(object).toEqual({ key: 'value' });
+  ```
+
+- `runTest()`: Standardized function for executing tests with error handling
+  ```typescript
+  // Example usage
+  return runTest(
+    async () => {
+      // Test implementation
+      return { message: 'Success message' };
+    },
+    {
+      name: 'Test Name',
+      category: TestCategory.All
+    }
+  );
+  ```
+
+- `logTestResults()`: Consistent logging of test results
+  ```typescript
+  // Example usage
+  logTestResults(results, 'Scene Name');
+  ```
+
+### Mock Helpers (`core/mockHelper.ts`)
+
+Functions for creating properly typed mocks:
+
+- `createTypedContext()`: Creates a mock context with proper typing
+- `createMockFunction()`: Creates a typed mock function
+- `runSceneStep()`: Safely runs a scene step with proper typing
+- `createMockUser()`: Creates a mock user with standard fields
+
+## Best Practices for Testing Scenes
+
+1. **Use `createTypedContext` instead of `createMockWizardContext`**
+   ```typescript
+   const ctx = createTypedContext({
+     from: { id: TEST_USER_ID, username: TEST_USERNAME },
+     session: { /* session properties */ }
+   });
+   ```
+
+2. **Use `runSceneStep` to invoke scene steps**
+   ```typescript
+   const { someScene } = await import('@/scenes/someScene');
+   await runSceneStep(someScene.steps[0], ctx);
+   ```
+
+3. **Use `mockInngestSend` for testing event sending**
+   ```typescript
+   const restore = mockInngestSend();
+   try {
+     // Test code
+   } finally {
+     restore();
+   }
+   ```
+
+4. **Use `runTest` to standardize test structure**
+   ```typescript
+   export async function testSomeFeature(): Promise<TestResult> {
+     return runTest(
+       async () => {
+         // Test implementation
+       },
+       {
+         name: 'Feature: Specific Test',
+         category: TestCategory.All
+       }
+     );
+   }
+   ```
+
+5. **Use `assertReplyContains` to verify bot responses**
+   ```typescript
+   assertReplyContains(ctx, 'Expected text in reply');
+   ```
+
+## Example Test Implementation
+
+```typescript
+import { createTypedContext, runSceneStep } from '../core/mockHelper';
+import { mockInngestSend, verifyInngestEvent, runTest } from '../core/testHelpers';
+import { TestCategory } from '../core/categories';
+import { TestResult } from '../core/types';
+
+export async function testExampleScene_Action(): Promise<TestResult> {
+  return runTest(
+    async () => {
+      // Setup test environment
+      const ctx = createTypedContext({
+        from: { id: 123456789, username: 'test_user' },
+        message: { text: 'test message' }
+      });
+      
+      // Mock external services
+      const restoreInngest = mockInngestSend();
+      
+      try {
+        // Run the scene step
+        const { exampleScene } = await import('@/scenes/exampleScene');
+        await runSceneStep(exampleScene.steps[0], ctx);
+        
+        // Verify results
+        verifyInngestEvent(inngest.send, {
+          eventName: 'example.event',
+          requiredData: { key: 'value' }
+        });
+        
+        return { message: 'Success' };
+      } finally {
+        // Clean up
+        restoreInngest();
+      }
+    },
+    {
+      name: 'ExampleScene: Action',
+      category: TestCategory.All
+    }
+  );
+}
+```
+
+## Running Tests
+
+To run all scene tests:
+```bash
+npm run test:scenes
+```
+
+To run a specific scene test:
+```bash
+npm run test:custom -- --scene=sceneName
+```
+
+## Migrating Old Tests
+
+When updating old tests to the new patterns:
+
+1. Replace custom `expect` functions with imports from `testHelpers`
+2. Refactor test functions to use `runTest` for standardized structure
+3. Replace direct mocking of external functions with helpers like `mockInngestSend`
+4. Use `verifyInngestEvent` instead of manual verification
+
+## Troubleshooting
+
+Common issues and solutions:
+
+- **Type errors with mocked functions**: Use `createMockFunction<typeof originalFunction>()` for proper typing
+- **Scene step invocation errors**: Make sure to use `runSceneStep` instead of direct invocation
+- **Context property errors**: Ensure all required context properties are set in `createTypedContext`

@@ -25,6 +25,18 @@ export interface TestResult {
 }
 
 /**
+ * Категории тестов
+ */
+export enum TestCategory {
+  SCENE = 'scene',
+  SERVICE = 'service',
+  API = 'api',
+  INTEGRATION = 'integration',
+  UNIT = 'unit',
+  E2E = 'e2e'
+}
+
+/**
  * Конфигурация для тестирования
  */
 export interface TestConfig {

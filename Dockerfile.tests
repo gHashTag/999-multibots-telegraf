@@ -1,0 +1,19 @@
+FROM node:16-alpine
+
+WORKDIR /app
+
+# Копируем package.json и package-lock.json
+COPY package*.json ./
+
+# Устанавливаем зависимости
+RUN npm install
+
+# Копируем исходный код
+COPY . .
+
+# Устанавливаем переменные окружения для тестов
+ENV NODE_ENV=test
+ENV TESTING=true
+
+# Команда по умолчанию
+CMD ["npm", "run", "test:scenes"] 

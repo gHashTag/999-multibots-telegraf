@@ -8,5 +8,6 @@ export enum SCENES {
   BALANCE_NOTIFIER = 'balanceNotifierScene',
   BALANCE_CHECK = 'balanceCheckScene',
   SUBSCRIPTION_CHECK = 'subscriptionCheckScene',
-  SELECT_NEURO_PHOTO = 'selectNeuroPhotoScene'
+  SELECT_NEURO_PHOTO = 'selectNeuroPhotoScene',
+  IDEAS_GENERATOR = 'ideasGeneratorScene'
 } 

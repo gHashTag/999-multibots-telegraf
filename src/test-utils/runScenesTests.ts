@@ -3,566 +3,519 @@
  * Запуск тестов для телеграм-сцен
  */
 import { loggerTest as logger } from '@/utils/logger';
-import { TestResult } from './core/types';
-import * as sceneTests from './tests/scenes/subscriptionCheckScene.test';
-import * as balanceNotifierTests from './tests/scenes/balanceNotifierScene.test';
-import * as checkBalanceTests from './tests/scenes/checkBalanceScene.test';
-import * as menuSceneTests from './tests/scenes/menuScene.test';
-import * as startSceneTests from './tests/scenes/startScene.test';  // Раскомментировано
-import * as helpSceneTests from './tests/scenes/helpScene.test';    // Раскомментировано
-import * as selectNeuroPhotoTests from './tests/scenes/selectNeuroPhotoScene.test';
+import { TestResult, TestCategory } from './core/types';
+import { TestCategory as TestCategoryCore } from './core/categories';
 import mockApi from './core/mock';
 import * as database from '@/libs/database';
 import * as supabaseModule from '@/supabase';
+import { inngest } from '@/inngest-functions/clients';
+import { setupTestEnvironment } from './core/setupTests';
 
-// Импорт специфичных тестов из selectNeuroPhotoScene.test.ts
-import {
-  runSelectNeuroPhotoSceneTests,
-  testSelectNeuroPhotoScene_EmptyString,
-  testSelectNeuroPhotoScene_SpecialCharacters,
-  testSelectNeuroPhotoScene_VeryLongInput,
-  testSelectNeuroPhotoScene_StatePersistence
-} from './tests/scenes/selectNeuroPhotoScene.test';
+// Импортируем тесты для сцен
+import * as languageSceneTests from './tests/scenes/languageScene.test';
+import * as createUserSceneTests from './tests/scenes/createUserScene.test';
+import { runTextToVideoWizardTests } from './tests/scenes/textToVideoWizard.test';
+import { runTextToImageWizardTests } from './tests/scenes/textToImageWizard.test';
+import { runNeuroPhotoWizardTests } from './tests/scenes/neuroPhotoWizard.test';
+import { runTextToSpeechWizardTests } from './tests/scenes/textToSpeechWizard.test';
+import { runSubscriptionSceneTests } from './tests/scenes/subscriptionScene.test';
+import runNeuroPhotoWizardV2Tests from './tests/scenes/neuroPhotoWizardV2.test';
+import runCheckBalanceSceneTests from './tests/scenes/checkBalanceScene.test';
+import runPaymentSceneTests from './tests/scenes/paymentScene.test';
+import runImageToVideoWizardTests from './tests/scenes/imageToVideoWizard.test';
+import runAudioToTextSceneTests from './tests/scenes/audioToTextScene.test';
+import runStartSceneTests from './tests/scenes/startScene.test';
+import runBalanceSceneTests from './tests/scenes/balanceScene.test';
+import runSelectModelSceneTests from './tests/scenes/selectModelScene.test';
+import runCreateUserSceneTests from './tests/scenes/createUserScene.test';
+import runImageToPromptWizardTests from './tests/scenes/imageToPromptWizard.test';
+import runVoiceAvatarWizardTests from './tests/scenes/voiceAvatarWizard.test';
+import runHelpSceneTests from './tests/scenes/helpScene.test';
+import runIdeasGeneratorTests from './tests/scenes/ideasGeneratorScene.test';
+import runMenuSceneTests from './tests/scenes/menuScene.test';
+import runLipSyncWizardTests from './tests/scenes/lipSyncWizard.test';
 
-// Import our new payment scene tests
-import * as paymentSceneTests from './tests/scenes/paymentScene.test';
-
-// Mock Supabase to avoid credentials error - проверяем, не был ли уже определен объект
-if (!Object.getOwnPropertyDescriptor(supabaseModule, 'supabase')?.configurable === false) {
-  try {
-    Object.defineProperty(supabaseModule, 'supabase', {
-      value: mockApi.mockSupabase(),
-      configurable: true,
-    });
-  } catch (error) {
-    console.log('Supabase mock already defined, skipping redefinition');
-  }
+// Мокируем Supabase, чтобы избежать ошибок с учетными данными
+try {
+  Object.defineProperty(supabaseModule, 'supabase', {
+    value: mockApi.mockSupabase(),
+    configurable: true,
+  });
+} catch (error) {
+  console.log('Supabase mock уже определен, пропускаем переопределение');
 }
 
-// Переопределяем функцию getUserSub для тестов, чтобы избежать обращения к Supabase
+// Мокируем функции базы данных
 try {
   Object.defineProperty(database, 'getUserSub', {
     value: mockApi.create(),
     configurable: true,
   });
-} catch (error) {
-  console.log('getUserSub mock already defined, skipping redefinition');
-}
-
-// Переопределяем функцию getUserBalance для тестов
-try {
   Object.defineProperty(database, 'getUserBalance', {
     value: mockApi.create(),
     configurable: true,
   });
-} catch (error) {
-  console.log('getUserBalance mock already defined, skipping redefinition');
-}
-
-// Переопределяем функцию getUserByTelegramId для тестов
-try {
   Object.defineProperty(database, 'getUserByTelegramId', {
     value: mockApi.create(),
     configurable: true,
   });
 } catch (error) {
-  console.log('getUserByTelegramId mock already defined, skipping redefinition');
+  console.log('Моки базы данных уже определены, пропускаем переопределение');
 }
 
+/**
+ * Запускает тесты и возвращает результаты
+ */
 export async function runScenesTests(): Promise<TestResult[]> {
-  console.log('📱 Запуск тестов Telegram сцен...');
-  logger.info('📱 Запуск тестов Telegram сцен...');
+  console.log('🤖 Запуск тестов Telegram сцен...');
+  logger.info('🤖 Запуск тестов Telegram сцен...');
   
   const results: TestResult[] = [];
   
-  // Запускаем тест проверки подписки - активная подписка
+  // Запускаем тесты для языковой сцены
+  await runTestsGroup('Тесты языковой сцены', [
+    languageSceneTests.testLanguageScene_EnterScene,
+    languageSceneTests.testLanguageScene_ChangeToRussian,
+    languageSceneTests.testLanguageScene_ChangeToEnglish,
+    languageSceneTests.testLanguageScene_UnsupportedLanguage,
+    languageSceneTests.testLanguageScene_BackToMenu,
+    languageSceneTests.testLanguageScene_CurrentLanguageIndicator
+  ], results);
+  
+  // Запускаем тесты для сцены создания пользователя
+  await runTestsGroup('Тесты сцены создания пользователя', [
+    createUserSceneTests.testCreateUserScene_CreateUserWithoutReferral,
+    createUserSceneTests.testCreateUserScene_CreateUserWithReferral,
+    createUserSceneTests.testCreateUserScene_HandleMissingUserData,
+    createUserSceneTests.testCreateUserScene_HandleMissingMessageText,
+    createUserSceneTests.testCreateUserScene_CreateUserWithFullReferralLink
+  ], results);
+  
+  // Run textToVideoWizard tests
+  console.log('\n🧪 Running textToVideoWizard tests...');
   try {
-    console.log('Тест: Проверка активной подписки...');
-    const activeSubscriptionResult = await sceneTests.testSubscriptionCheckScene_ActiveSubscription();
-    results.push(activeSubscriptionResult);
-    console.log(`✅ ${activeSubscriptionResult.name}: ${activeSubscriptionResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${activeSubscriptionResult.message}`);
+    const textToVideoWizardResults = await runTextToVideoWizardTests();
+    textToVideoWizardResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
   } catch (error) {
-    logger.error('❌ Ошибка при тестировании активной подписки:', error);
-    console.log('❌ Ошибка при тестировании активной подписки:', error);
+    console.error('❌ Error running textToVideoWizard tests:', error);
     results.push({
-      name: 'subscriptionCheckScene: Active Subscription',
+      success: false,
+      name: 'textToVideoWizard tests',
+      message: String(error)
+    });
+  }
+  
+  // Run audioToTextScene tests
+  console.log('\n🧪 Running audioToTextScene tests...');
+  try {
+    const audioToTextSceneResults = await runAudioToTextSceneTests();
+    audioToTextSceneResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
+  } catch (error) {
+    console.error('❌ Error running audioToTextScene tests:', error);
+    results.push({
+      success: false,
+      name: 'audioToTextScene tests',
+      message: String(error)
+    });
+  }
+  
+  // Run textToImageWizard tests
+  console.log('\n🧪 Running textToImageWizard tests...');
+  try {
+    const textToImageWizardResults = await runTextToImageWizardTests();
+    textToImageWizardResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
+  } catch (error) {
+    console.error('❌ Error running textToImageWizard tests:', error);
+    results.push({
+      success: false,
+      name: 'textToImageWizard tests',
+      message: String(error)
+    });
+  }
+  
+  // Run neuroPhotoWizard tests
+  console.log('\n🧪 Running neuroPhotoWizard tests...');
+  try {
+    const neuroPhotoWizardResults = await runNeuroPhotoWizardTests();
+    neuroPhotoWizardResults.forEach(result => {
+      if (result.success) {
+        console.log(`✅ ${result.name}: ${result.message}`);
+      } else {
+        console.error(`❌ ${result.name}: ${result.message}`);
+        results.push(result);
+      }
+    });
+  } catch (error) {
+    console.error(`❌ Error running neuroPhotoWizard tests: ${error}`);
+    results.push({
+      name: 'neuroPhotoWizard tests',
       success: false,
       message: String(error)
     });
   }
   
-  // Запускаем тест проверки подписки - нет подписки
+  // Run textToSpeechWizard tests
+  console.log('\n🧪 Running textToSpeechWizard tests...');
   try {
-    console.log('Тест: Проверка отсутствия подписки...');
-    const noSubscriptionResult = await sceneTests.testSubscriptionCheckScene_NoSubscription();
-    results.push(noSubscriptionResult);
-    console.log(`✅ ${noSubscriptionResult.name}: ${noSubscriptionResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${noSubscriptionResult.message}`);
+    const textToSpeechWizardResults = await runTextToSpeechWizardTests();
+    textToSpeechWizardResults.forEach(result => {
+      if (result.success) {
+        console.log(`✅ ${result.name}: ${result.message}`);
+      } else {
+        console.error(`❌ ${result.name}: ${result.message}`);
+        results.push(result);
+      }
+    });
   } catch (error) {
-    logger.error('❌ Ошибка при тестировании отсутствия подписки:', error);
-    console.log('❌ Ошибка при тестировании отсутствия подписки:', error);
+    console.error(`❌ Error running textToSpeechWizard tests: ${error}`);
     results.push({
-      name: 'subscriptionCheckScene: No Subscription',
+      name: 'textToSpeechWizard tests',
       success: false,
       message: String(error)
     });
   }
   
-  // Запускаем тест проверки подписки - истекшая подписка
+  // Run subscriptionScene tests
+  console.log('\n🧪 Running subscriptionScene tests...');
   try {
-    console.log('Тест: Проверка истекшей подписки...');
-    const expiredSubscriptionResult = await sceneTests.testSubscriptionCheckScene_ExpiredSubscription();
-    results.push(expiredSubscriptionResult);
-    console.log(`✅ ${expiredSubscriptionResult.name}: ${expiredSubscriptionResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${expiredSubscriptionResult.message}`);
+    const subscriptionSceneResults = await runSubscriptionSceneTests();
+    subscriptionSceneResults.forEach(result => {
+      if (result.success) {
+        console.log(`✅ ${result.name}: ${result.message}`);
+      } else {
+        console.error(`❌ ${result.name}: ${result.message}`);
+        results.push(result);
+      }
+    });
   } catch (error) {
-    logger.error('❌ Ошибка при тестировании истекшей подписки:', error);
-    console.log('❌ Ошибка при тестировании истекшей подписки:', error);
+    console.error(`❌ Error running subscriptionScene tests: ${error}`);
     results.push({
-      name: 'subscriptionCheckScene: Expired Subscription',
+      name: 'subscriptionScene tests',
       success: false,
       message: String(error)
     });
   }
   
-  // Запускаем тест уведомлений о балансе - вход в сцену
+  // Run neuroPhotoWizardV2 tests
+  console.log('\n🧪 Running neuroPhotoWizardV2 tests...');
   try {
-    console.log('Тест: Вход в сцену уведомлений о балансе...');
-    const enterBalanceNotifierResult = await balanceNotifierTests.testBalanceNotifierScene_EnterScene();
-    results.push(enterBalanceNotifierResult);
-    console.log(`✅ ${enterBalanceNotifierResult.name}: ${enterBalanceNotifierResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${enterBalanceNotifierResult.message}`);
+    const neuroPhotoWizardV2Results = await runNeuroPhotoWizardV2Tests();
+    neuroPhotoWizardV2Results.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
   } catch (error) {
-    logger.error('❌ Ошибка при тестировании входа в сцену уведомлений о балансе:', error);
-    console.log('❌ Ошибка при тестировании входа в сцену уведомлений о балансе:', error);
+    console.error('❌ Error running neuroPhotoWizardV2 tests:', error);
     results.push({
-      name: 'balanceNotifierScene: Enter Scene',
+      success: false,
+      name: 'neuroPhotoWizardV2 tests',
+      message: String(error)
+    });
+  }
+  
+  // Run imageToVideoWizard tests
+  console.log('\n🧪 Running imageToVideoWizard tests...');
+  try {
+    const imageToVideoWizardResults = await runImageToVideoWizardTests();
+    imageToVideoWizardResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
+  } catch (error) {
+    console.error('❌ Error running imageToVideoWizard tests:', error);
+    results.push({
+      success: false,
+      name: 'imageToVideoWizard tests',
+      message: String(error)
+    });
+  }
+  
+  // Run imageToPromptWizard tests
+  console.log('\n🧪 Running imageToPromptWizard tests...');
+  try {
+    const imageToPromptWizardResults = await runImageToPromptWizardTests();
+    imageToPromptWizardResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
+  } catch (error) {
+    console.error('❌ Error running imageToPromptWizard tests:', error);
+    results.push({
+      success: false,
+      name: 'imageToPromptWizard tests',
+      message: String(error)
+    });
+  }
+  
+  // Run startScene tests
+  console.log('\n🧪 Running startScene tests...');
+  try {
+    const startSceneResults = await runStartSceneTests();
+    startSceneResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
+  } catch (error) {
+    console.error('❌ Error running startScene tests:', error);
+    results.push({
+      success: false,
+      name: 'startScene tests',
+      message: String(error)
+    });
+  }
+  
+  // Run payment scene tests
+  console.log('\n🧪 Running paymentScene tests...');
+  try {
+    const paymentSceneResults = await runPaymentSceneTests();
+    paymentSceneResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
+  } catch (error) {
+    console.error('❌ Error running paymentScene tests:', error);
+    results.push({
+      success: false,
+      name: 'paymentScene tests',
+      message: String(error)
+    });
+  }
+  
+  // Run Text to Video Wizard tests
+  console.log('\n🔹 Running Text to Video Wizard tests...');
+  try {
+    const textToVideoResults = await runTextToVideoWizardTests();
+    results.push(...textToVideoResults);
+    console.log(`✅ Text to Video Wizard tests completed: ${textToVideoResults.filter(r => r.success).length} passed, ${textToVideoResults.filter(r => !r.success).length} failed`);
+  } catch (error) {
+    console.error('❌ Error running Text to Video Wizard tests:', error);
+    results.push({
+      name: 'Text to Video Wizard tests',
+      category: TestCategory.All,
       success: false,
       message: String(error)
     });
   }
   
-  // Запускаем тест уведомлений о балансе - включение/выключение уведомлений
+  // Run Image to Video Wizard tests
+  console.log('\n🔹 Running Image to Video Wizard tests...');
   try {
-    console.log('Тест: Переключение уведомлений о балансе...');
-    const toggleNotificationsResult = await balanceNotifierTests.testBalanceNotifierScene_ToggleNotifications();
-    results.push(toggleNotificationsResult);
-    console.log(`✅ ${toggleNotificationsResult.name}: ${toggleNotificationsResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${toggleNotificationsResult.message}`);
+    const imageToVideoResults = await runImageToVideoWizardTests();
+    results.push(...imageToVideoResults);
+    console.log(`✅ Image to Video Wizard tests completed: ${imageToVideoResults.filter(r => r.success).length} passed, ${imageToVideoResults.filter(r => !r.success).length} failed`);
   } catch (error) {
-    logger.error('❌ Ошибка при тестировании переключения уведомлений о балансе:', error);
-    console.log('❌ Ошибка при тестировании переключения уведомлений о балансе:', error);
+    console.error('❌ Error running Image to Video Wizard tests:', error);
     results.push({
-      name: 'balanceNotifierScene: Toggle Notifications',
+      name: 'Image to Video Wizard tests',
+      category: TestCategory.All,
       success: false,
       message: String(error)
     });
   }
   
-  // Запускаем тест уведомлений о балансе - изменение порога
+  // Run Image to Prompt Wizard tests
+  console.log('\n🔹 Running Image to Prompt Wizard tests...');
   try {
-    console.log('Тест: Изменение порога уведомлений о балансе...');
-    const changeThresholdResult = await balanceNotifierTests.testBalanceNotifierScene_ChangeThreshold();
-    results.push(changeThresholdResult);
-    console.log(`✅ ${changeThresholdResult.name}: ${changeThresholdResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${changeThresholdResult.message}`);
+    const imageToPromptResults = await runImageToPromptWizardTests();
+    results.push(...imageToPromptResults);
+    console.log(`✅ Image to Prompt Wizard tests completed: ${imageToPromptResults.filter(r => r.success).length} passed, ${imageToPromptResults.filter(r => !r.success).length} failed`);
   } catch (error) {
-    logger.error('❌ Ошибка при тестировании изменения порога уведомлений о балансе:', error);
-    console.log('❌ Ошибка при тестировании изменения порога уведомлений о балансе:', error);
+    console.error('❌ Error running Image to Prompt Wizard tests:', error);
     results.push({
-      name: 'balanceNotifierScene: Change Threshold',
+      name: 'Image to Prompt Wizard tests',
+      category: TestCategory.All,
       success: false,
       message: String(error)
     });
   }
   
-  // Остальные тесты временно закомментированы для исправления ошибок
-  // Вместо этого добавляем заглушки для проверки работоспособности
-
+  // Run neuroPhotoWizardV2 tests
+  console.log('⏱️ Running neuroPhotoWizardV2 tests...');
   try {
-    console.log('Тест: Проверка ввода порога уведомлений...');
-    const thresholdInputResult = await balanceNotifierTests.testBalanceNotifierScene_ThresholdInput();
-    results.push(thresholdInputResult);
-    console.log(`✅ ${thresholdInputResult.name}: ${thresholdInputResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${thresholdInputResult.message}`);
+    const neuroPhotoWizardV2Results = await runNeuroPhotoWizardV2Tests();
+    results.push(...neuroPhotoWizardV2Results);
+    console.log(`✅ NeuroPhoto wizard V2 tests completed: ${neuroPhotoWizardV2Results.filter(r => r.success).length} passed, ${neuroPhotoWizardV2Results.filter(r => !r.success).length} failed`);
   } catch (error) {
-    console.log('❌ Ошибка при тестировании ввода порога уведомлений:', error);
+    console.error('❌ Error running neuroPhotoWizardV2 tests:', error);
+  }
+  
+  // Run voiceAvatarWizard tests
+  console.log('\n🧪 Running voiceAvatarWizard tests...');
+  try {
+    const voiceAvatarWizardResults = await runVoiceAvatarWizardTests();
+    voiceAvatarWizardResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
+  } catch (error) {
+    console.error('❌ Error running voiceAvatarWizard tests:', error);
     results.push({
-      name: 'balanceNotifierScene: Threshold Input',
+      name: 'voiceAvatarWizard tests',
       success: false,
       message: String(error)
     });
   }
-
+  
+  // Run helpScene tests
+  console.log('\n🧪 Running helpScene tests...');
   try {
-    console.log('Тест: Возврат в меню из сцены уведомлений...');
-    const backToMenuResult = await balanceNotifierTests.testBalanceNotifierScene_BackToMenu();
-    results.push(backToMenuResult);
-    console.log(`✅ ${backToMenuResult.name}: ${backToMenuResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${backToMenuResult.message}`);
+    const helpSceneResults = await runHelpSceneTests();
+    helpSceneResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
   } catch (error) {
-    console.log('❌ Ошибка при тестировании возврата в меню:', error);
+    console.error('❌ Error running helpScene tests:', error);
     results.push({
-      name: 'balanceNotifierScene: Back To Menu',
+      name: 'helpScene tests',
       success: false,
       message: String(error)
     });
   }
-
+  
+  // Run selectModelScene tests
+  console.log('\n🧪 Running selectModelScene tests...');
   try {
-    console.log('Тест: Команды выхода из сцены уведомлений...');
-    const exitCommandsResult = await balanceNotifierTests.testBalanceNotifierScene_ExitCommands();
-    results.push(exitCommandsResult);
-    console.log(`✅ ${exitCommandsResult.name}: ${exitCommandsResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${exitCommandsResult.message}`);
+    const selectModelSceneResults = await runSelectModelSceneTests();
+    selectModelSceneResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
   } catch (error) {
-    console.log('❌ Ошибка при тестировании команд выхода:', error);
+    console.error('❌ Error running selectModelScene tests:', error);
     results.push({
-      name: 'balanceNotifierScene: Exit Commands',
+      name: 'selectModelScene tests',
       success: false,
       message: String(error)
     });
   }
-
-  // Тесты меню сцены
+  
+  // Run Idea Generator tests
+  console.log('\n🧪 Running ideasGeneratorScene tests...');
   try {
-    console.log('Тест: Вход в меню...');
-    const enterMenuResult = await menuSceneTests.testMenuScene_EnterScene();
-    results.push(enterMenuResult);
-    console.log(`✅ ${enterMenuResult.name}: ${enterMenuResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${enterMenuResult.message}`);
+    const ideasGeneratorResults = await runIdeasGeneratorTests();
+    ideasGeneratorResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
   } catch (error) {
-    console.log('❌ Ошибка при тестировании входа в меню:', error);
+    console.error('❌ Error running ideasGeneratorScene tests:', error);
     results.push({
-      name: 'menuScene: Enter Scene',
+      name: 'ideasGeneratorScene tests',
       success: false,
       message: String(error)
     });
   }
-
+  
+  // Run Menu Scene tests
+  console.log('\n🧪 Running menuScene tests...');
   try {
-    console.log('Тест: Проверка баланса...');
-    const checkBalanceResult = await checkBalanceTests.testCheckBalanceScene_EnterScene();
-    results.push(checkBalanceResult);
-    console.log(`✅ ${checkBalanceResult.name}: ${checkBalanceResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${checkBalanceResult.message}`);
+    const menuSceneResults = await runMenuSceneTests();
+    menuSceneResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
   } catch (error) {
-    console.log('❌ Ошибка при тестировании проверки баланса:', error);
+    console.error('❌ Error running menuScene tests:', error);
     results.push({
-      name: 'checkBalanceScene: Enter Scene',
+      name: 'menuScene tests',
       success: false,
       message: String(error)
     });
   }
-
-  // Payment Scene Tests
+  
+  // Run LipSync Wizard tests
+  console.log('\n🧪 Running lipSyncWizard tests...');
   try {
-    console.log('Тест: Вход в сцену оплаты...');
-    const enterPaymentResult = await paymentSceneTests.testPaymentScene_Enter();
-    results.push(enterPaymentResult);
-    console.log(`✅ ${enterPaymentResult.name}: ${enterPaymentResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${enterPaymentResult.message}`);
+    const lipSyncWizardResults = await runLipSyncWizardTests();
+    lipSyncWizardResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
   } catch (error) {
-    console.log('❌ Ошибка при тестировании входа в сцену оплаты:', error);
+    console.error('❌ Error running lipSyncWizard tests:', error);
     results.push({
-      name: 'paymentScene: Enter Scene',
+      name: 'lipSyncWizard tests',
       success: false,
       message: String(error)
     });
   }
-
-  try {
-    console.log('Тест: Оплата сцены с выбранным платежом...');
-    const withSelectedPaymentResult = await paymentSceneTests.testPaymentScene_WithSelectedPayment();
-    results.push(withSelectedPaymentResult);
-    console.log(`✅ ${withSelectedPaymentResult.name}: ${withSelectedPaymentResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${withSelectedPaymentResult.message}`);
-  } catch (error) {
-    console.log('❌ Ошибка при тестировании оплаты с выбранным платежом:', error);
-    results.push({
-      name: 'paymentScene: With Selected Payment',
-      success: false,
-      message: String(error)
+  
+  // Выводим общую статистику
+  const successCount = results.filter(r => r.success).length;
+  const failCount = results.length - successCount;
+  
+  console.log('');
+  console.log(`📊 Результаты тестирования: Всего ${results.length}, Успех: ${successCount}, Ошибки: ${failCount}`);
+  logger.info(`📊 Результаты тестирования: Всего ${results.length}, Успех: ${successCount}, Ошибки: ${failCount}`);
+  
+  if (failCount > 0) {
+    console.log('❌ Обнаружены ошибки в следующих тестах:');
+    results.filter(r => !r.success).forEach(result => {
+      console.log(`   - ${result.name}: ${result.message}`);
     });
+  } else {
+    console.log('✅ Все тесты успешно пройдены!');
   }
-
-  try {
-    console.log('Тест: Оплата звездами...');
-    const payWithStarsResult = await paymentSceneTests.testPaymentScene_PayWithStars();
-    results.push(payWithStarsResult);
-    console.log(`✅ ${payWithStarsResult.name}: ${payWithStarsResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${payWithStarsResult.message}`);
-  } catch (error) {
-    console.log('❌ Ошибка при тестировании оплаты звездами:', error);
-    results.push({
-      name: 'paymentScene: Pay With Stars',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  try {
-    console.log('Тест: Оплата по подписке...');
-    const payWithSubscriptionResult = await paymentSceneTests.testPaymentScene_PayWithSubscription();
-    results.push(payWithSubscriptionResult);
-    console.log(`✅ ${payWithSubscriptionResult.name}: ${payWithSubscriptionResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${payWithSubscriptionResult.message}`);
-  } catch (error) {
-    console.log('❌ Ошибка при тестировании оплаты по подписке:', error);
-    results.push({
-      name: 'paymentScene: Pay With Subscription',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  try {
-    console.log('Тест: Оплата рублями...');
-    const payWithRublesResult = await paymentSceneTests.testPaymentScene_PayWithRubles();
-    results.push(payWithRublesResult);
-    console.log(`✅ ${payWithRublesResult.name}: ${payWithRublesResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${payWithRublesResult.message}`);
-  } catch (error) {
-    console.log('❌ Ошибка при тестировании оплаты рублями:', error);
-    results.push({
-      name: 'paymentScene: Pay With Rubles',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  try {
-    console.log('Тест: Возврат в главное меню из сцены оплаты...');
-    const returnToMainMenuResult = await paymentSceneTests.testPaymentScene_ReturnToMainMenu();
-    results.push(returnToMainMenuResult);
-    console.log(`✅ ${returnToMainMenuResult.name}: ${returnToMainMenuResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${returnToMainMenuResult.message}`);
-  } catch (error) {
-    console.log('❌ Ошибка при тестировании возврата в главное меню из сцены оплаты:', error);
-    results.push({
-      name: 'paymentScene: Return To Main Menu',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Добавляем запуск тестов для startScene
-  // Тест входа в стартовую сцену
-  try {
-    console.log('Тест: Вход в стартовую сцену...');
-    const enterStartSceneResult = await startSceneTests.testStartScene_EnterScene();
-    results.push(enterStartSceneResult);
-    console.log(`✅ ${enterStartSceneResult.name}: ${enterStartSceneResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${enterStartSceneResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании входа в стартовую сцену:', error);
-    console.log('❌ Ошибка при тестировании входа в стартовую сцену:', error);
-    results.push({
-      name: 'startScene: Enter Scene',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Тест приветственного сообщения
-  try {
-    console.log('Тест: Приветственное сообщение...');
-    const welcomeMessageResult = await startSceneTests.testStartScene_WelcomeMessage();
-    results.push(welcomeMessageResult);
-    console.log(`✅ ${welcomeMessageResult.name}: ${welcomeMessageResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${welcomeMessageResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании приветственного сообщения:', error);
-    console.log('❌ Ошибка при тестировании приветственного сообщения:', error);
-    results.push({
-      name: 'startScene: Welcome Message',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Тест регистрации нового пользователя
-  try {
-    console.log('Тест: Регистрация нового пользователя...');
-    const newUserRegistrationResult = await startSceneTests.testStartScene_NewUserRegistration();
-    results.push(newUserRegistrationResult);
-    console.log(`✅ ${newUserRegistrationResult.name}: ${newUserRegistrationResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${newUserRegistrationResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании регистрации нового пользователя:', error);
-    console.log('❌ Ошибка при тестировании регистрации нового пользователя:', error);
-    results.push({
-      name: 'startScene: New User Registration',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Тест перехода в главное меню
-  try {
-    console.log('Тест: Переход в главное меню...');
-    const goToMainMenuResult = await startSceneTests.testStartScene_GoToMainMenu();
-    results.push(goToMainMenuResult);
-    console.log(`✅ ${goToMainMenuResult.name}: ${goToMainMenuResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${goToMainMenuResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании перехода в главное меню:', error);
-    console.log('❌ Ошибка при тестировании перехода в главное меню:', error);
-    results.push({
-      name: 'startScene: Go To Main Menu',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Тест перехода на сцену оформления подписки
-  try {
-    console.log('Тест: Переход на сцену оформления подписки...');
-    const goToSubscriptionSceneResult = await startSceneTests.testStartScene_GoToSubscriptionScene();
-    results.push(goToSubscriptionSceneResult);
-    console.log(`✅ ${goToSubscriptionSceneResult.name}: ${goToSubscriptionSceneResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${goToSubscriptionSceneResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании перехода на сцену оформления подписки:', error);
-    console.log('❌ Ошибка при тестировании перехода на сцену оформления подписки:', error);
-    results.push({
-      name: 'startScene: Go To Subscription Scene',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Тест обработки ошибки при отсутствии ID пользователя
-  try {
-    console.log('Тест: Обработка ошибки при отсутствии ID пользователя...');
-    const handleMissingUserIdResult = await startSceneTests.testStartScene_HandleMissingUserId();
-    results.push(handleMissingUserIdResult);
-    console.log(`✅ ${handleMissingUserIdResult.name}: ${handleMissingUserIdResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${handleMissingUserIdResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании обработки ошибки при отсутствии ID пользователя:', error);
-    console.log('❌ Ошибка при тестировании обработки ошибки при отсутствии ID пользователя:', error);
-    results.push({
-      name: 'startScene: Handle Missing User ID',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Добавляем запуск тестов для helpScene
-  // Тест входа в сцену помощи
-  try {
-    console.log('Тест: Вход в сцену помощи...');
-    const enterHelpSceneResult = await helpSceneTests.testHelpScene_EnterScene();
-    results.push(enterHelpSceneResult);
-    console.log(`✅ ${enterHelpSceneResult.name}: ${enterHelpSceneResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${enterHelpSceneResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании входа в сцену помощи:', error);
-    console.log('❌ Ошибка при тестировании входа в сцену помощи:', error);
-    results.push({
-      name: 'helpScene: Enter Scene',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Тест отображения справочной информации
-  try {
-    console.log('Тест: Отображение справочной информации...');
-    const displayHelpResult = await helpSceneTests.testHelpScene_DisplayHelp();
-    results.push(displayHelpResult);
-    console.log(`✅ ${displayHelpResult.name}: ${displayHelpResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${displayHelpResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании отображения справочной информации:', error);
-    console.log('❌ Ошибка при тестировании отображения справочной информации:', error);
-    results.push({
-      name: 'helpScene: Display Help',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Тест навигации по разделам справки
-  try {
-    console.log('Тест: Навигация по разделам справки...');
-    const navigationResult = await helpSceneTests.testHelpScene_Navigation();
-    results.push(navigationResult);
-    console.log(`✅ ${navigationResult.name}: ${navigationResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${navigationResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании навигации по разделам справки:', error);
-    console.log('❌ Ошибка при тестировании навигации по разделам справки:', error);
-    results.push({
-      name: 'helpScene: Navigation',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Тест возврата в меню
-  try {
-    console.log('Тест: Возврат в меню из сцены помощи...');
-    const backToMenuFromHelpResult = await helpSceneTests.testHelpScene_BackToMenu();
-    results.push(backToMenuFromHelpResult);
-    console.log(`✅ ${backToMenuFromHelpResult.name}: ${backToMenuFromHelpResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${backToMenuFromHelpResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании возврата в меню из сцены помощи:', error);
-    console.log('❌ Ошибка при тестировании возврата в меню из сцены помощи:', error);
-    results.push({
-      name: 'helpScene: Back To Menu',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Тест обработки неизвестного режима
-  try {
-    console.log('Тест: Обработка неизвестного режима в сцене помощи...');
-    const handlesUnknownModeResult = await helpSceneTests.testHelpScene_HandlesUnknownMode();
-    results.push(handlesUnknownModeResult);
-    console.log(`✅ ${handlesUnknownModeResult.name}: ${handlesUnknownModeResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${handlesUnknownModeResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании обработки неизвестного режима в сцене помощи:', error);
-    console.log('❌ Ошибка при тестировании обработки неизвестного режима в сцене помощи:', error);
-    results.push({
-      name: 'helpScene: Handles Unknown Mode',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  // Тест обработки ошибок
-  try {
-    console.log('Тест: Обработка ошибок в сцене помощи...');
-    const handlesErrorsResult = await helpSceneTests.testHelpScene_HandlesErrors();
-    results.push(handlesErrorsResult);
-    console.log(`✅ ${handlesErrorsResult.name}: ${handlesErrorsResult.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-    console.log(`   Сообщение: ${handlesErrorsResult.message}`);
-  } catch (error) {
-    logger.error('❌ Ошибка при тестировании обработки ошибок в сцене помощи:', error);
-    console.log('❌ Ошибка при тестировании обработки ошибок в сцене помощи:', error);
-    results.push({
-      name: 'helpScene: Handles Errors',
-      success: false,
-      message: String(error)
-    });
-  }
-
-  logger.info('📱 Тесты Telegram сцен завершены');
-  console.log('📱 Тесты Telegram сцен завершены');
-
+  
   return results;
 }
 
-// Запускаем тесты если файл выполняется напрямую
+/**
+ * Вспомогательная функция для запуска группы тестов
+ */
+async function runTestsGroup(
+  groupName: string,
+  tests: Array<() => Promise<TestResult>>,
+  results: TestResult[]
+): Promise<void> {
+  console.log('');
+  console.log(`🔍 ${groupName}...`);
+  
+  for (const testFn of tests) {
+    try {
+      const result = await testFn();
+      results.push(result);
+      
+      // Выводим результат каждого теста
+      const icon = result.success ? '✅' : '❌';
+      console.log(`${icon} ${result.name}: ${result.success ? 'УСПЕХ' : 'ОШИБКА'}`);
+      if (!result.success) {
+        console.log(`   Сообщение: ${result.message}`);
+      }
+    } catch (error) {
+      // В случае неожиданной ошибки добавляем информацию о ней
+      logger.error(`❌ Неожиданная ошибка при выполнении теста:`, error);
+      console.log(`❌ Неожиданная ошибка:`, error);
+      results.push({
+        name: testFn.name || 'Неизвестный тест',
+        category: TestCategoryCore.All,
+        success: false,
+        message: String(error)
+      });
+    }
+  }
+}
+
+// Запускаем тесты, если файл вызван напрямую
 if (require.main === module) {
-  runScenesTests().catch(error => {
-    console.error('Ошибка при запуске тестов:', error);
-    process.exit(1);
-  });
+  runScenesTests()
+    .then(() => {
+      console.log('');
+      console.log('🏁 Тестирование завершено');
+      process.exit(0);
+    })
+    .catch(error => {
+      console.error('❌ Ошибка при запуске тестов:', error);
+      process.exit(1);
+    });
 } 
