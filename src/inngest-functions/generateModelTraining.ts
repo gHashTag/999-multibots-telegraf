@@ -241,6 +241,23 @@ function getFullUrlFromRelative(relativePath: string): string {
   return fullUrl
 }
 
+// Объявляем базовые типы для Inngest (можно импортировать вместо переопределения)
+interface InngestEvent {
+  name: string
+  data: any
+  user?: any
+  version?: string
+  id?: string
+  ts?: number
+  [key: string]: any
+}
+
+interface InngestStep {
+  run: <T>(id: string, fn: () => Promise<T>) => Promise<T>
+  sleep: (id: string, duration: string) => Promise<void>
+  [key: string]: any
+}
+
 // Определяем функцию с правильной идемпотентностью
 export const generateModelTraining = inngest.createFunction(
   {
@@ -248,7 +265,7 @@ export const generateModelTraining = inngest.createFunction(
     concurrency: 2,
   },
   { event: 'model-training/start' },
-  async ({ event, step }) => {
+  async ({ event, step }: { event: InngestEvent; step: InngestStep }) => {
     // Проверяем API_URL
     if (!API_URL) {
       logger.error({

@@ -4,6 +4,7 @@
 import { logger } from '@/utils/logger'
 import { TestResult } from '../../types'
 import { runAgentRouterTests } from './agentRouterTest'
+import { runMockFunctionTest } from '../mockFnTest'
 
 /**
  * Запускает все системные тесты
@@ -14,12 +15,18 @@ export async function runSystemTests(): Promise<TestResult[]> {
   // Запускаем тесты агентского роутера
   const agentRouterResults = await runAgentRouterTests()
 
+  // Запускаем тесты мок-функций
+  const mockFunctionResults = await runMockFunctionTest()
+  // Преобразуем в массив, так как функция возвращает один результат
+  const mockFunctionResultsArray = [mockFunctionResults]
+
   // Здесь можно добавить другие системные тесты
   // const otherSystemResults = await runOtherSystemTests()
 
   // Объединяем результаты всех тестов
   const results = [
     ...agentRouterResults,
+    ...mockFunctionResultsArray,
     // ...otherSystemResults,
   ]
 
@@ -36,4 +43,4 @@ export async function runSystemTests(): Promise<TestResult[]> {
 }
 
 // Экспортируем функции тестов
-export { runAgentRouterTests }
+export { runAgentRouterTests, runMockFunctionTest }

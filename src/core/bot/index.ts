@@ -6,11 +6,11 @@ import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { createMockBot } from '@/test-utils/mocks/botMock'
 import { logger } from '@/utils/logger'
-import { NODE_ENV } from '@/config'
+import { isProduction, isTest } from '@/config'
 import { getBotGroupFromAvatars } from '@/core/supabase'
 
 // Проверяем токены в зависимости от окружения
-if (process.env.NODE_ENV === 'production') {
+if (isProduction) {
   // Check production tokens
   if (!process.env.BOT_TOKEN_1) throw new Error('❌ BOT_TOKEN_1 must be set')
   if (!process.env.BOT_TOKEN_2) throw new Error('❌ BOT_TOKEN_2 must be set')
@@ -61,8 +61,7 @@ export const BOT_URLS = {
   ai_koshey_bot: 'https://t.me/neuro_coder_ai/1212',
 }
 
-export const BOT_TOKENS =
-  NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_TEST
+export const BOT_TOKENS = isProduction ? BOT_TOKENS_PROD : BOT_TOKENS_TEST
 
 export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
 if (!DEFAULT_BOT_TOKEN) throw new Error('❌ DEFAULT_BOT_TOKEN must be set')
@@ -193,7 +192,7 @@ export function getBotByName(bot_name: string): {
   error?: string | null
 } {
   // В тестовом окружении возвращаем мок
-  if (process.env.NODE_ENV === 'test') {
+  if (isTest) {
     logger.info({
       message: '🧪 Возвращаем мок бота для тестов',
       description: 'Returning mock bot for tests',

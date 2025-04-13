@@ -91,7 +91,7 @@ export const paymentProcessor = inngest.createFunction(
     retries: 3,
   },
   { event: 'payment/process' },
-  async ({ event, step }) => {
+  async ({ event, step }: { event: { data: any }; step: any }) => {
     const validatedParams = event.data as PaymentProcessParams
 
     // Нормализуем тип транзакции в нижний регистр

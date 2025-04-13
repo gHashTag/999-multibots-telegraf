@@ -1,4 +1,6 @@
 import { runApiMonitoring } from './apiMonitoringTest'
+import { runApiEndpointTests } from './apiEndpointTest'
+import { runInngestApiTest } from './inngestApiTest'
 import { logger } from '../../../utils/logger'
 import { TestResult } from '../../types'
 import { TestCategory } from '../../core/categories'
@@ -33,7 +35,28 @@ export async function runApiTests(): Promise<TestResult> {
       })
     }
 
-    if (monitoringResult.success) {
+    // Запускаем тест API эндпоинтов
+    const endpointTestResult = await runApiEndpointTests({
+      generateReport: true,
+    })
+
+    // Запускаем тест Inngest API
+    const inngestApiResult = await runInngestApiTest()
+
+    // Выводим результат теста Inngest API
+    logger.info({
+      message: `${inngestApiResult.success ? '✅' : '❌'} Тест Inngest API: ${inngestApiResult.message}`,
+      description: `Inngest API test: ${inngestApiResult.message}`,
+      success: inngestApiResult.success,
+    })
+
+    // Результат всех тестов API
+    const allSuccess =
+      monitoringResult.success &&
+      endpointTestResult.success &&
+      inngestApiResult.success
+
+    if (allSuccess) {
       logger.info({
         message: '✅ Все тесты API успешно пройдены',
         description: 'All API tests passed successfully',
@@ -46,11 +69,20 @@ export async function runApiTests(): Promise<TestResult> {
     }
 
     return {
-      success: monitoringResult.success,
+      success: allSuccess,
       name: 'API тесты',
-      message: monitoringResult.message,
+      message: allSuccess
+        ? 'Все тесты API успешно пройдены'
+        : 'Некоторые тесты API не пройдены',
       category: TestCategory.Api,
-      details: { report: monitoringResult.report },
+      details: {
+        monitoringReport: monitoringResult.report,
+        endpointReport: endpointTestResult.details?.report,
+        inngestApiTest: {
+          success: inngestApiResult.success,
+          message: inngestApiResult.message,
+        },
+      },
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -73,7 +105,7 @@ export async function runApiTests(): Promise<TestResult> {
 /**
  * Экспорт тестов API
  */
-export { runApiMonitoring }
+export { runApiMonitoring, runApiEndpointTests, runInngestApiTest }
 
 /**
  * Функция для запуска из CLI

@@ -53,7 +53,7 @@ export class TestRunner {
       skip: [],
       verbose: false,
       noExit: false,
-      ...options
+      ...options,
     }
   }
 
@@ -85,61 +85,65 @@ export class TestRunner {
   async runTestsInParallel(concurrency = 4): Promise<TestResult[]> {
     const results: TestResult[] = []
     const { only, skip, verbose } = this.options
-    
-    logger.info(`🚀 Running ${this.tests.length} tests with concurrency ${concurrency}`)
-    
+
+    logger.info(
+      `🚀 Running ${this.tests.length} tests with concurrency ${concurrency}`
+    )
+
     // Фильтруем тесты, которые нужно запустить
     const testsToRun = this.tests.filter(test => {
       if (only && only.length > 0) {
-        return only.some(pattern => 
-          test.name.includes(pattern) || 
-          test.category.includes(pattern)
+        return only.some(
+          pattern =>
+            test.name.includes(pattern) || test.category.includes(pattern)
         )
       }
-      
+
       if (skip && skip.length > 0) {
-        return !skip.some(pattern => 
-          test.name.includes(pattern) || 
-          test.category.includes(pattern)
+        return !skip.some(
+          pattern =>
+            test.name.includes(pattern) || test.category.includes(pattern)
         )
       }
-      
+
       return true
     })
-    
+
     logger.info(`🧪 Selected ${testsToRun.length} tests to run`)
-    
+
     // Группируем тесты по категориям для удобства отчетности
     const groupedTests = this.groupTestsByCategory(testsToRun)
-    
+
     // Создаем плоский список тестов для выполнения
     const allTests = Object.values(groupedTests).flat()
-    
+
     // Разбиваем тесты на группы для параллельного выполнения
     const chunks = this.chunkTests(allTests, concurrency)
-    
+
     // Запускаем каждую группу последовательно, но тесты внутри группы - параллельно
     for (const [chunkIndex, chunk] of chunks.entries()) {
-      logger.info(`⏳ Processing chunk ${chunkIndex + 1}/${chunks.length} (${chunk.length} tests)`)
-      
+      logger.info(
+        `⏳ Processing chunk ${chunkIndex + 1}/${chunks.length} (${chunk.length} tests)`
+      )
+
       // Запускаем параллельно тесты в текущей группе
       const chunkResults = await Promise.all(
         chunk.map(async test => {
-          let startTime = Date.now()
-          
+          const startTime = Date.now()
+
           try {
             if (verbose) {
               logger.info({
                 message: `📋 Starting test: ${test.name}`,
                 category: test.category,
-                description: test.description
+                description: test.description,
               })
             } else {
               logger.info(`🔍 Running test: ${test.name}`)
             }
-            
+
             await test.run()
-            
+
             const duration = Date.now() - startTime
             const result: TestResult = {
               name: test.name,
@@ -150,21 +154,22 @@ export class TestRunner {
               message: '✅ Test passed successfully',
               details: {
                 category: test.category,
-                description: test.description
-              }
+                description: test.description,
+              },
             }
-            
+
             if (verbose) {
               logger.info(`✅ Test ${test.name} completed in ${duration}ms`)
             }
-            
+
             return result
           } catch (error) {
             const duration = Date.now() - startTime
-            const errorMessage = error instanceof Error ? error.message : String(error)
-            
+            const errorMessage =
+              error instanceof Error ? error.message : String(error)
+
             logger.error(`❌ Test ${test.name} failed: ${errorMessage}`)
-            
+
             return {
               name: test.name,
               testName: test.name,
@@ -176,19 +181,19 @@ export class TestRunner {
               details: {
                 category: test.category,
                 description: test.description,
-                error: errorMessage
-              }
+                error: errorMessage,
+              },
             }
           }
         })
       )
-      
+
       results.push(...chunkResults)
     }
-    
+
     // Выводим итоги
     this.printResults(results)
-    
+
     return results
   }
 
@@ -197,17 +202,17 @@ export class TestRunner {
    */
   private groupTestsByCategory(tests: Test[]): Record<string, Test[]> {
     const grouped: Record<string, Test[]> = {}
-    
+
     for (const test of tests) {
       if (!grouped[test.category]) {
         grouped[test.category] = []
       }
       grouped[test.category].push(test)
     }
-    
+
     return grouped
   }
-  
+
   /**
    * Разбивает массив тестов на группы для параллельного запуска
    */
@@ -218,17 +223,17 @@ export class TestRunner {
     }
     return chunks
   }
-  
+
   /**
    * Выводит результаты тестирования в консоль
    */
   private printResults(results: TestResult[]): void {
     const successful = results.filter(r => r.passed).length
     const failed = results.length - successful
-    
+
     // Группируем ошибки по категориям для удобного просмотра
     const failedByCategory: Record<string, TestResult[]> = {}
-    
+
     for (const result of results.filter(r => !r.passed)) {
       const category = result.details?.category || 'Unknown'
       if (!failedByCategory[category]) {
@@ -236,21 +241,21 @@ export class TestRunner {
       }
       failedByCategory[category].push(result)
     }
-    
+
     logger.info(`
 📊 Tests completed:
   ✅ Passed: ${successful}
   ❌ Failed: ${failed}
   🕒 Total: ${results.length}
     `)
-    
+
     // Выводим детали ошибок, если они есть
     if (failed > 0) {
       logger.error('❌ Failed tests details:')
-      
+
       for (const [category, tests] of Object.entries(failedByCategory)) {
         logger.error(`  Category: ${category} (${tests.length} failed)`)
-        
+
         for (const test of tests) {
           logger.error(`    - ${test.name}: ${test.error}`)
         }
@@ -261,34 +266,34 @@ export class TestRunner {
   async runTests(): Promise<TestResult[]> {
     const results: TestResult[] = []
     const { only, skip, verbose } = this.options
-    
+
     logger.info(`🚀 Running ${this.tests.length} tests`)
-    
+
     // Фильтруем тесты, которые нужно запустить
     const testsToRun = this.tests.filter(test => {
       if (only && only.length > 0) {
-        return only.some(pattern => 
-          test.name.includes(pattern) || 
-          test.category.includes(pattern)
+        return only.some(
+          pattern =>
+            test.name.includes(pattern) || test.category.includes(pattern)
         )
       }
-      
+
       if (skip && skip.length > 0) {
-        return !skip.some(pattern => 
-          test.name.includes(pattern) || 
-          test.category.includes(pattern)
+        return !skip.some(
+          pattern =>
+            test.name.includes(pattern) || test.category.includes(pattern)
         )
       }
-      
+
       return true
     })
-    
+
     logger.info(`🧪 Selected ${testsToRun.length} tests to run`)
-    
+
     // Запускаем тесты
     for (const test of testsToRun) {
-      let startTime = Date.now()
-      
+      const startTime = Date.now()
+
       try {
         if (verbose) {
           logger.info(`📋 Test: ${test.name}`)
@@ -297,9 +302,9 @@ export class TestRunner {
         } else {
           logger.info(`🔍 Running test: ${test.name}`)
         }
-        
+
         await test.run()
-        
+
         const duration = Date.now() - startTime
         const result: TestResult = {
           name: test.name,
@@ -310,21 +315,22 @@ export class TestRunner {
           message: '✅ Test passed successfully',
           details: {
             category: test.category,
-            description: test.description
-          }
+            description: test.description,
+          },
         }
-        
+
         results.push(result)
-        
+
         if (verbose) {
           logger.info(`✅ Test ${test.name} completed in ${duration}ms`)
         }
       } catch (error) {
         const duration = Date.now() - startTime
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+
         logger.error(`❌ Test ${test.name} failed: ${errorMessage}`)
-        
+
         const result: TestResult = {
           name: test.name,
           testName: test.name,
@@ -336,25 +342,25 @@ export class TestRunner {
           details: {
             category: test.category,
             description: test.description,
-            error: errorMessage
-          }
+            error: errorMessage,
+          },
         }
-        
+
         results.push(result)
       }
     }
-    
+
     // Выводим итоги
     const successful = results.filter(r => r.passed).length
     const failed = results.length - successful
-    
+
     logger.info(`
 📊 Tests completed:
   ✅ Passed: ${successful}
   ❌ Failed: ${failed}
   🕒 Total: ${results.length}
     `)
-    
+
     // Возвращаем результаты
     return results
   }
@@ -445,35 +451,61 @@ export class TestRunner {
   setOptions(options: Partial<TestOptions>): void {
     this.options = {
       ...this.options,
-      ...options
+      ...options,
     }
   }
-  
+
   /**
    * Включает подробный режим вывода
    */
   setVerbose(verbose: boolean): void {
     this.options.verbose = verbose
   }
-  
+
   /**
    * Устанавливает фильтр "только" для тестов
    */
   setOnly(only: string[]): void {
     this.options.only = only
   }
-  
+
   /**
    * Устанавливает фильтр "пропустить" для тестов
    */
   setSkip(skip: string[]): void {
     this.options.skip = skip
   }
-  
+
   /**
    * Получает текущие опции запуска тестов
    */
   getOptions(): TestOptions {
     return { ...this.options }
+  }
+
+  /**
+   * Запускает все тесты и возвращает результаты
+   */
+  async runAllTests(): Promise<{
+    passed: number
+    failed: number
+    total: number
+    results: TestResult[]
+  }> {
+    // Запускаем все тесты с использованием существующего метода
+    const results = await this.runTests()
+
+    // Собираем статистику
+    const passed = results.filter(r => r.passed || r.success).length
+    const failed = results.length - passed
+    const total = results.length
+
+    // Возвращаем результаты и статистику
+    return {
+      passed,
+      failed,
+      total,
+      results,
+    }
   }
 }

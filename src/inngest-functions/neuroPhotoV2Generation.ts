@@ -16,6 +16,24 @@ import { MyContext } from '@/interfaces'
 import { v4 as uuidv4 } from 'uuid'
 import fetch from 'node-fetch'
 import { TransactionType } from '@/interfaces/payments.interface'
+
+// Объявляем базовые типы для Inngest
+interface InngestEvent {
+  name: string
+  data: any
+  user?: any
+  version?: string
+  id?: string
+  ts?: number
+  [key: string]: any
+}
+
+interface InngestStep {
+  run: <T>(id: string, fn: () => Promise<T>) => Promise<T>
+  sleep: (id: string, duration: string) => Promise<void>
+  [key: string]: any
+}
+
 /**
  * Inngest функция для генерации нейрофото V2
  */
@@ -25,7 +43,7 @@ export const neuroPhotoV2Generation = inngest.createFunction(
     retries: 3,
   },
   { event: 'neuro/photo-v2.generate' },
-  async ({ event, step }) => {
+  async ({ event, step }: { event: InngestEvent; step: InngestStep }) => {
     try {
       const { prompt, num_images, telegram_id, is_ru, bot_name } = event.data
 
@@ -237,15 +255,15 @@ export const neuroPhotoV2Generation = inngest.createFunction(
       }
 
       // Определяем размеры изображения в зависимости от соотношения сторон
-      const dimensions = await step.run('calculate-dimensions', () => {
+      const dimensions = await step.run('calculate-dimensions', async () => {
         if (aspectRatio === '1:1') {
-          return { width: 1024, height: 1024 }
+          return Promise.resolve({ width: 1024, height: 1024 })
         } else if (aspectRatio === '16:9') {
-          return { width: 1368, height: 768 }
+          return Promise.resolve({ width: 1368, height: 768 })
         } else if (aspectRatio === '9:16') {
-          return { width: 768, height: 1368 }
+          return Promise.resolve({ width: 768, height: 1368 })
         } else {
-          return { width: 1024, height: 1024 }
+          return Promise.resolve({ width: 1024, height: 1024 })
         }
       })
 
@@ -253,8 +271,8 @@ export const neuroPhotoV2Generation = inngest.createFunction(
       const input: Record<string, any> = {
         prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
         aspect_ratio: aspectRatio,
-        width: dimensions.width,
-        height: dimensions.height,
+        width: (dimensions as { width: number; height: number }).width,
+        height: (dimensions as { width: number; height: number }).height,
         safety_tolerance: 0,
         output_format: 'jpeg',
         prompt_upsampling: true,

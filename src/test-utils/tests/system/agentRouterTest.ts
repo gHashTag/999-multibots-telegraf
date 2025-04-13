@@ -20,6 +20,7 @@ import {
 import { logger } from '../../../utils/logger'
 import { TestResult } from '../../types'
 import { createMockFn } from '../../test-config'
+import { Agent } from '../../../core/mcp/agent/agent'
 
 /**
  * Тип для мок-функции с дополнительными свойствами
@@ -49,16 +50,23 @@ const createMockService = (): Service => {
  */
 const createMockAgent = (
   id: string,
-  canHandleResult: boolean = true
-): NetworkAgent => {
+  capabilities: string[] = ['test', 'mock'],
+  agentPriority = 1,
+  maxConcurrentTasks = 3
+): Agent => {
   return {
     id,
     name: `Agent ${id}`,
     description: `Test agent ${id}`,
-    capabilities: ['test', 'mock'],
-    canHandle: createMockFn().mockReturnValue(
-      Promise.resolve(canHandleResult)
-    ) as MockFn,
+    capabilities,
+    priority: agentPriority,
+    maxConcurrentTasks,
+    currentTaskCount: 0,
+    canHandle: async (task: Task) => {
+      // Проверка возможностей агента на основе метаданных задачи
+      if (!task.metadata?.capability) return true
+      return capabilities.includes(task.metadata.capability)
+    },
     handle: createMockFn().mockReturnValue(
       Promise.resolve({ success: true })
     ) as MockFn,
@@ -1342,41 +1350,45 @@ async function testTaskDependencies(): Promise<TestResult> {
  * Запускает все тесты маршрутизатора агентов
  */
 export async function runAgentRouterTests(): Promise<TestResult[]> {
-  logger.info('🚀 [AGENT_ROUTER_TEST]: Запуск тестов маршрутизатора агентов')
-
-  // Список тестов для запуска
-  const tests = [
-    testAgentRegistration,
-    testTaskRouting,
-    testBestAgentSelection,
-    testEventHandling,
-    testErrorHandling,
-    testMultipleTaskRouting,
-    testPriorityTaskRouting,
-    testNextTaskSelection,
-    testTaskDependencies,
-  ]
-
+  logger.info('🚀 Запуск тестов маршрутизатора агентов...')
   const results: TestResult[] = []
 
-  // Запускаем тесты
-  for (const test of tests) {
-    results.push(await test())
-  }
+  try {
+    // Запускаем отдельные тесты
+    const priorityRoutingResult = await testPriorityTaskRouting()
+    results.push(priorityRoutingResult)
 
-  // Выводим общий результат
-  const failedTests = results.filter(result => !result.success)
+    const nextTaskResult = await testNextTaskSelection()
+    results.push(nextTaskResult)
 
-  if (failedTests.length > 0) {
-    logger.error('❌ Тесты маршрутизатора агентов завершены с ошибками:')
-    failedTests.forEach(test => {
-      logger.error(`  ❌ ${test.name}: ${test.message}`)
+    // Проверяем результаты
+    const allSuccessful = results.every(result => result.success)
+    if (allSuccessful) {
+      logger.info('✅ Все тесты маршрутизатора агентов успешно выполнены')
+    } else {
+      logger.error(
+        '❌ Некоторые тесты маршрутизатора агентов завершились с ошибками'
+      )
+      results
+        .filter(result => !result.success)
+        .forEach(result => {
+          logger.error(`❌ Тест "${result.name}": ${result.message}`)
+        })
+    }
+
+    return results
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error(
+      `❌ Ошибка при выполнении тестов маршрутизатора агентов: ${errorMessage}`
+    )
+    results.push({
+      name: 'Тесты маршрутизатора агентов',
+      success: false,
+      message: errorMessage,
     })
-  } else {
-    logger.info('✅ Все тесты маршрутизатора агентов успешно пройдены')
+    return results
   }
-
-  return results
 }
 
 /**

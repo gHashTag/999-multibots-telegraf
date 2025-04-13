@@ -1,5 +1,5 @@
 import { serve } from 'inngest/next'
-import { inngest } from './clients'
+import { inngest, createInngestConnection } from './clients'
 import { logger } from '@/utils/logger'
 import { Response } from 'node-fetch'
 // Импортируем реестр функций и используем все функции
@@ -19,38 +19,76 @@ export const initializeInngestServer = async () => {
       timestamp: new Date().toISOString(),
     })
 
-    // Для разработки указываем явно, что сервер работает на порту 2999
-    const isDockerEnvironment = process.env.DOCKER_ENVIRONMENT === 'true'
+    // Для режима разработки используем serve API, для продакшн - connect API
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.USE_SERVE === 'true'
+    ) {
+      logger.info('⚙️ Используем режим serve для локальной разработки', {
+        description: 'Using serve mode for local development',
+        timestamp: new Date().toISOString(),
+      })
 
-    const serveOptions =
-      process.env.NODE_ENV === 'development'
-        ? {
-            baseUrl: 'http://localhost:2999/api/inngest',
-          }
-        : undefined
+      // Для разработки указываем явно, что сервер работает на порту 2999
+      const serveOptions = {
+        baseUrl: 'http://localhost:2999/api/inngest',
+      }
 
-    logger.info('⚙️ Параметры Inngest сервера', {
-      description: 'Inngest server options',
-      baseUrl: serveOptions?.baseUrl || 'default',
-      is_development: process.env.NODE_ENV === 'development',
-      is_docker: isDockerEnvironment,
-      timestamp: new Date().toISOString(),
-    })
+      // Возвращаем обработчик serve со всеми зарегистрированными функциями
+      const handler = serve({
+        client: inngest,
+        functions: functions,
+        ...serveOptions,
+      })
 
-    // Возвращаем обработчик serve со всеми зарегистрированными функциями
-    const handler = serve({
-      client: inngest,
-      functions: functions,
-      ...serveOptions,
-    })
+      logger.info('✅ Inngest сервер (serve) успешно инициализирован', {
+        description: 'Inngest server (serve) successfully initialized',
+        functions_registered: functions.length,
+        timestamp: new Date().toISOString(),
+      })
 
-    logger.info('✅ Inngest сервер успешно инициализирован', {
-      description: 'Inngest server successfully initialized',
-      functions_registered: functions.length,
-      timestamp: new Date().toISOString(),
-    })
+      return handler
+    } else {
+      // Используем connect API
+      logger.info('⚙️ Используем режим connect для постоянного соединения', {
+        description: 'Using connect mode for persistent connection',
+        timestamp: new Date().toISOString(),
+      })
 
-    return handler
+      // Создаем соединение с Inngest
+      const connection = await createInngestConnection(functions)
+
+      // Создаем простой обработчик для обратной совместимости
+      // ВНИМАНИЕ: Этот обработчик не обрабатывает события в режиме connect,
+      // он только возвращает статус 200 и информативное сообщение
+      const compatHandler = {
+        POST: async () => {
+          return new Response(
+            JSON.stringify({
+              message:
+                'Inngest is running in connect mode. Events are handled via persistent connection.',
+              timestamp: new Date().toISOString(),
+            }),
+            {
+              status: 200,
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            }
+          )
+        },
+      }
+
+      logger.info('✅ Inngest сервер (connect) успешно инициализирован', {
+        description: 'Inngest server (connect) successfully initialized',
+        functions_registered: functions.length,
+        connection_state: connection.state,
+        timestamp: new Date().toISOString(),
+      })
+
+      // Возвращаем совместимый обработчик
+      return compatHandler
+    }
   } catch (error) {
     logger.error('❌ Ошибка при инициализации Inngest сервера', {
       description: 'Error initializing Inngest server',
@@ -59,11 +97,23 @@ export const initializeInngestServer = async () => {
       timestamp: new Date().toISOString(),
     })
 
-    // В случае ошибки возвращаем пустой обработчик
-    return serve({
-      client: inngest,
-      functions: [],
-    })
+    // В случае ошибки возвращаем заглушку обработчика
+    return {
+      POST: async () => {
+        return new Response(
+          JSON.stringify({
+            error: 'Inngest server initialization failed',
+            timestamp: new Date().toISOString(),
+          }),
+          {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+      },
+    }
   }
 }
 
@@ -84,13 +134,23 @@ try {
     timestamp: new Date().toISOString(),
   })
 
-  // Создаем пустой обработчик в случае ошибки
-  serverPromise = Promise.resolve(
-    serve({
-      client: inngest,
-      functions: [],
-    })
-  )
+  // Создаем заглушку в случае ошибки
+  serverPromise = Promise.resolve({
+    POST: async () => {
+      return new Response(
+        JSON.stringify({
+          error: 'Inngest server promise creation failed',
+          timestamp: new Date().toISOString(),
+        }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+    },
+  })
 }
 
 // Обработчик POST-запросов для Next.js

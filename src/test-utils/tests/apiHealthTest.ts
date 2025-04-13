@@ -5,13 +5,16 @@
  * включая основной API, Inngest API, вебхуки и эндпоинты ботов.
  */
 
-import axios from 'axios'
-import { logger } from '@/utils/logger'
 import { TestResult } from '../types'
+import fetch from 'node-fetch'
+import { logger } from '../../utils/logger'
 import { TestCategory } from '../core/categories'
 
-// Базовый URL для API-запросов
-const BASE_API_URL = process.env.API_URL || 'http://localhost:2999'
+// Базовый URL для API запросов
+const BASE_URL =
+  process.env.NODE_ENV === 'production'
+    ? 'https://api.neuroblogger.com'
+    : 'http://localhost:2999'
 
 /**
  * Интерфейс для описания API-эндпоинта
@@ -35,6 +38,10 @@ interface ApiEndpoint {
   disabled?: boolean
   /** Функция для дополнительной проверки ответа (опционально) */
   validate?: (response: any) => { success: boolean; message?: string }
+  /** Категория эндпоинта (опционально) */
+  category?: TestCategory
+  /** Требует ли эндпоинт авторизацию (опционально) */
+  requiresAuth?: boolean
 }
 
 /**
@@ -42,362 +49,293 @@ interface ApiEndpoint {
  */
 const API_ENDPOINTS: ApiEndpoint[] = [
   {
-    name: 'Главный API',
-    path: '/',
+    name: 'Main API',
+    path: '/api',
     method: 'GET',
     expectedStatus: 200,
-    description: 'Основной эндпоинт API',
+    description: 'Основной API эндпоинт',
   },
   {
-    name: 'Генерация контента',
-    path: '/api/generate',
-    method: 'POST',
+    name: 'API Health',
+    path: '/api/health',
+    method: 'GET',
     expectedStatus: 200,
-    description: 'API для генерации контента',
-    data: {
-      type: 'test',
-      prompt: 'Test prompt',
-      telegramId: '123456789',
-    },
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    description: 'Эндпоинт проверки состояния API',
   },
   {
     name: 'Inngest API',
     path: '/api/inngest',
     method: 'GET',
     expectedStatus: 200,
-    description: 'Эндпоинт для Inngest функций',
+    description: 'Эндпоинт Inngest API',
   },
   {
-    name: 'Webhook',
-    path: '/api/webhook',
-    method: 'POST',
+    name: 'Webhooks',
+    path: '/api/webhooks',
+    method: 'GET',
     expectedStatus: 200,
     description: 'Эндпоинт для вебхуков',
-    data: {
-      test: true,
-      source: 'api-test',
-      timestamp: Date.now(),
-    },
-    headers: {
-      'Content-Type': 'application/json',
-    },
   },
   {
-    name: 'Webhook нейрофото',
-    path: '/webhooks/neurophoto',
-    method: 'POST',
-    expectedStatus: 400, // Без правильных данных должен вернуть ошибку
-    description: 'Вебхук для нейрофото',
-    data: {
-      test: true,
-      source: 'api-test',
-      timestamp: Date.now(),
-    },
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  },
-  {
-    name: 'Webhook Replicate',
-    path: '/webhooks/replicate',
-    method: 'POST',
-    expectedStatus: 400, // Без правильных данных должен вернуть ошибку
-    description: 'Вебхук для Replicate',
-    data: {
-      test: true,
-      source: 'api-test',
-      timestamp: Date.now(),
-    },
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  },
-  {
-    name: 'Бот Telegram',
-    path: '/bot',
-    method: 'POST',
+    name: 'Bot Webhook',
+    path: '/api/bot-webhook',
+    method: 'GET',
     expectedStatus: 200,
-    description: 'Эндпоинт для Telegram бота',
-    disabled: true, // Требует правильных Telegram Update данных
+    description: 'Эндпоинт для вебхуков бота',
   },
 ]
 
 /**
- * Тестирует один эндпоинт
- *
- * @param endpoint - Описание эндпоинта для тестирования
- * @returns Promise<TestResult> - Результат теста
+ * Тестирует доступность и функциональность указанного API эндпоинта
+ * @param endpoint Эндпоинт для тестирования
+ * @returns Promise<{success: boolean, error?: string}>
  */
-async function testEndpoint(endpoint: ApiEndpoint): Promise<TestResult> {
-  const url = `${BASE_API_URL}${endpoint.path}`
-
-  // Если эндпоинт отключен, пропускаем тест
-  if (endpoint.disabled) {
-    logger.info(
-      `🔘 [API_TEST]: Эндпоинт ${endpoint.name} отключен для проверки`
-    )
-    return {
-      success: true,
-      message: `Эндпоинт ${endpoint.name} отключен для проверки`,
-      name: `API Test: ${endpoint.name}`,
-      category: TestCategory.Api,
-    }
-  }
-
-  logger.info(
-    `🚀 [API_TEST]: Проверка эндпоинта ${endpoint.name} (${endpoint.method} ${url})`
-  )
+async function testEndpoint(
+  endpoint: ApiEndpoint
+): Promise<{ success: boolean; error?: string }> {
+  const url = `${BASE_URL}${endpoint.path}`
 
   try {
-    const response = await axios({
-      method: endpoint.method.toLowerCase(),
+    logger.info({
+      message: `🔍 Тестирование API эндпоинта: ${endpoint.name}`,
+      description: `Testing API endpoint: ${endpoint.name}`,
       url,
-      headers: endpoint.headers,
-      data: endpoint.method !== 'GET' ? endpoint.data : undefined,
-      validateStatus: () => true, // Не выбрасывать исключения для HTTP ошибок
-      timeout: 5000, // Таймаут 5 секунд
+      method: endpoint.method,
     })
 
-    // Проверка статуса ответа
-    const statusMatch = response.status === endpoint.expectedStatus
+    const response = await fetch(url, { method: endpoint.method })
+    const status = response.status
 
-    if (!statusMatch) {
-      logger.error(
-        `❌ [API_TEST]: Эндпоинт ${endpoint.name} вернул неожиданный статус ${response.status} (ожидался ${endpoint.expectedStatus})`
-      )
+    if (status === endpoint.expectedStatus) {
+      logger.info({
+        message: `✅ API эндпоинт доступен: ${endpoint.name}`,
+        description: `API endpoint available: ${endpoint.name}`,
+        statusCode: status,
+      })
+      return { success: true }
+    } else {
+      logger.error({
+        message: `❌ API эндпоинт вернул неправильный статус: ${endpoint.name}`,
+        description: `API endpoint returned wrong status: ${endpoint.name}`,
+        expectedStatus: endpoint.expectedStatus,
+        actualStatus: status,
+      })
       return {
         success: false,
-        message: `Эндпоинт ${endpoint.name} вернул статус ${response.status}, ожидался ${endpoint.expectedStatus}`,
-        name: `API Test: ${endpoint.name}`,
-        category: TestCategory.Api,
-        error: new Error(`Неожиданный статус ${response.status}`),
+        error: `Expected status ${endpoint.expectedStatus}, got ${status}`,
       }
-    }
-
-    // Если есть функция валидации, используем ее
-    if (endpoint.validate) {
-      const validationResult = endpoint.validate(response)
-      if (!validationResult.success) {
-        logger.error(
-          `❌ [API_TEST]: Эндпоинт ${endpoint.name} не прошел валидацию: ${validationResult.message}`
-        )
-        return {
-          success: false,
-          message: `Эндпоинт ${endpoint.name} не прошел валидацию: ${validationResult.message}`,
-          name: `API Test: ${endpoint.name}`,
-          category: TestCategory.Api,
-          error: new Error(validationResult.message),
-        }
-      }
-    }
-
-    logger.info(
-      `✅ [API_TEST]: Эндпоинт ${endpoint.name} доступен (статус ${response.status})`
-    )
-    return {
-      success: true,
-      message: `Эндпоинт ${endpoint.name} доступен (статус ${response.status})`,
-      name: `API Test: ${endpoint.name}`,
-      category: TestCategory.Api,
     }
   } catch (error) {
-    logger.error(
-      `❌ [API_TEST]: Ошибка при проверке эндпоинта ${endpoint.name}:`,
-      error
-    )
+    logger.error({
+      message: `❌ Ошибка при тестировании API эндпоинта: ${endpoint.name}`,
+      description: `Error testing API endpoint: ${endpoint.name}`,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
     return {
       success: false,
-      message: `Ошибка при проверке эндпоинта ${endpoint.name}: ${error.message}`,
-      name: `API Test: ${endpoint.name}`,
-      category: TestCategory.Api,
-      error,
+      error: error instanceof Error ? error.message : 'Unknown error',
     }
+  }
+}
+
+/**
+ * Запускает тесты для всех API эндпоинтов
+ * @param generateReport Флаг для генерации отчета
+ * @returns Promise<TestResult>
+ */
+export async function runApiTests(
+  generateReport: boolean = false
+): Promise<TestResult> {
+  try {
+    logger.info({
+      message: '🚀 Запуск тестов API эндпоинтов',
+      description: 'Starting API endpoints tests',
+      timestamp: new Date().toISOString(),
+    })
+
+    const results = await Promise.all(API_ENDPOINTS.map(testEndpoint))
+    const failedTests = results.filter(result => !result.success)
+
+    if (failedTests.length === 0) {
+      const successMessage = '✅ Все API эндпоинты доступны'
+      logger.info({
+        message: successMessage,
+        description: 'All API endpoints are available',
+        timestamp: new Date().toISOString(),
+      })
+
+      if (generateReport) {
+        await generateApiTestReport(results, API_ENDPOINTS)
+      }
+
+      return {
+        success: true,
+        message: successMessage,
+        name: 'API Health Test',
+        category: TestCategory.API,
+      }
+    } else {
+      const failedEndpoints = API_ENDPOINTS.filter(
+        (_, index) => !results[index].success
+      )
+        .map(endpoint => endpoint.name)
+        .join(', ')
+
+      const errorMessage = `❌ Некоторые API эндпоинты недоступны: ${failedEndpoints}`
+      logger.error({
+        message: errorMessage,
+        description: 'Some API endpoints are not available',
+        failedEndpoints,
+        timestamp: new Date().toISOString(),
+      })
+
+      if (generateReport) {
+        await generateApiTestReport(results, API_ENDPOINTS)
+      }
+
+      return {
+        success: false,
+        message: errorMessage,
+        name: 'API Health Test',
+        category: TestCategory.API,
+        error: new Error(errorMessage),
+      }
+    }
+  } catch (error) {
+    const errorMessage = '❌ Ошибка при запуске тестов API эндпоинтов'
+    logger.error({
+      message: errorMessage,
+      description: 'Error running API endpoints tests',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    })
+
+    return {
+      success: false,
+      message: errorMessage,
+      name: 'API Health Test',
+      category: TestCategory.API,
+      error: error instanceof Error ? error : new Error(String(error)),
+    }
+  }
+}
+
+/**
+ * Генерирует отчет о результатах тестирования API эндпоинтов
+ * @param results Результаты тестирования
+ * @param endpoints Список эндпоинтов
+ */
+async function generateApiTestReport(
+  results: { success: boolean; error?: string }[],
+  endpoints: ApiEndpoint[]
+): Promise<void> {
+  try {
+    logger.info({
+      message: '📊 Генерация отчета о тестировании API',
+      description: 'Generating API test report',
+      timestamp: new Date().toISOString(),
+    })
+
+    const report = {
+      timestamp: new Date().toISOString(),
+      totalEndpoints: endpoints.length,
+      successful: results.filter(r => r.success).length,
+      failed: results.filter(r => !r.success).length,
+      details: endpoints.map((endpoint, index) => ({
+        name: endpoint.name,
+        path: endpoint.path,
+        method: endpoint.method,
+        success: results[index].success,
+        error: results[index].error || null,
+      })),
+    }
+
+    // Выводим отчет в консоль
+    logger.info({
+      message: '📑 Отчет о тестировании API',
+      description: 'API test report',
+      report,
+      timestamp: new Date().toISOString(),
+    })
+
+    // Здесь можно добавить сохранение отчета в файл или отправку его куда-либо
+    // ...
+  } catch (error) {
+    logger.error({
+      message: '❌ Ошибка при генерации отчета о тестировании API',
+      description: 'Error generating API test report',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    })
   }
 }
 
 /**
  * Тестирует доступность Inngest API
- *
- * @returns Promise<TestResult> - Результат теста
+ * @returns Promise<TestResult>
  */
 async function testInngestAvailability(): Promise<TestResult> {
-  const inngestUrl = process.env.INNGEST_DEV_URL || 'http://localhost:8288/dev'
-
-  logger.info(`🚀 [API_TEST]: Проверка доступности Inngest API (${inngestUrl})`)
-
   try {
-    const response = await axios({
-      method: 'GET',
-      url: inngestUrl,
-      validateStatus: () => true,
-      timeout: 5000,
+    logger.info({
+      message: '🚀 Проверка доступности Inngest API',
+      description: 'Testing Inngest API availability',
+      timestamp: new Date().toISOString(),
     })
 
-    // Для Inngest обычно 200 или 302 статус
-    const validStatus = response.status === 200 || response.status === 302
+    const url = `${BASE_URL}/api/inngest`
+    const response = await fetch(url)
 
-    if (!validStatus) {
-      logger.error(
-        `❌ [API_TEST]: Inngest API недоступен (статус ${response.status})`
-      )
-      return {
-        success: false,
-        message: `Inngest API недоступен (статус ${response.status})`,
-        name: 'API Test: Inngest Availability',
-        category: TestCategory.Api,
-        error: new Error(`Неожиданный статус ${response.status}`),
-      }
-    }
-
-    logger.info(
-      `✅ [API_TEST]: Inngest API доступен (статус ${response.status})`
-    )
-    return {
-      success: true,
-      message: `Inngest API доступен (статус ${response.status})`,
-      name: 'API Test: Inngest Availability',
-      category: TestCategory.Api,
-    }
-  } catch (error) {
-    logger.error(`❌ [API_TEST]: Ошибка при проверке Inngest API:`, error)
-    return {
-      success: false,
-      message: `Ошибка при проверке Inngest API: ${error.message}`,
-      name: 'API Test: Inngest Availability',
-      category: TestCategory.Api,
-      error,
-    }
-  }
-}
-
-/**
- * Генерирует отчет о результатах тестирования API
- *
- * @param results - Результаты тестов
- * @returns string - Текст отчета
- */
-function generateApiTestReport(results: TestResult[]): string {
-  const totalTests = results.length
-  const passedTests = results.filter(r => r.success).length
-  const failedTests = totalTests - passedTests
-
-  let report = `\n📊 Отчет о тестировании API (${new Date().toLocaleString()})\n\n`
-  report += `Всего проверено эндпоинтов: ${totalTests}\n`
-  report += `✅ Успешно: ${passedTests}\n`
-  report += `❌ Ошибок: ${failedTests}\n\n`
-
-  if (failedTests > 0) {
-    report += '🚨 Проблемные эндпоинты:\n'
-    results
-      .filter(r => !r.success)
-      .forEach(result => {
-        report += `- ${result.name}: ${result.message}\n`
+    if (response.status === 200) {
+      const successMessage = '✅ Inngest API доступен'
+      logger.info({
+        message: successMessage,
+        description: 'Inngest API is available',
+        timestamp: new Date().toISOString(),
       })
-    report += '\n'
-  }
 
-  report += '📝 Детали проверки:\n'
-  results.forEach(result => {
-    const icon = result.success ? '✅' : '❌'
-    report += `${icon} ${result.name}: ${result.message}\n`
-  })
-
-  return report
-}
-
-/**
- * Запускает тесты API и возвращает результаты
- *
- * @param options - Опции запуска тестов
- * @returns Promise<TestResult[]> - Результаты тестов
- */
-export async function runApiTests(
-  options: {
-    generateReport?: boolean // Генерировать отчет
-    baseUrl?: string // Альтернативный базовый URL
-  } = {}
-): Promise<TestResult[]> {
-  // Устанавливаем базовый URL если передан
-  if (options.baseUrl) {
-    process.env.API_URL = options.baseUrl
-  }
-
-  logger.info('🚀 [API_TEST]: Запуск тестирования API эндпоинтов')
-
-  // Тестируем все эндпоинты
-  const endpointResults = await Promise.all(
-    API_ENDPOINTS.map(endpoint => testEndpoint(endpoint))
-  )
-
-  // Тестируем доступность Inngest
-  const inngestResult = await testInngestAvailability()
-
-  // Объединяем результаты
-  const allResults = [...endpointResults, inngestResult]
-
-  // Статистика
-  const totalTests = allResults.length
-  const passedTests = allResults.filter(r => r.success).length
-
-  logger.info(`🏁 [API_TEST]: Тестирование API завершено`)
-  logger.info(
-    `📊 [API_TEST]: Всего проверено эндпоинтов: ${totalTests}, успешно: ${passedTests}, ошибок: ${totalTests - passedTests}`
-  )
-
-  // Генерируем отчет если нужно
-  if (options.generateReport) {
-    const report = generateApiTestReport(allResults)
-    logger.info(report)
-  }
-
-  return allResults
-}
-
-/**
- * Запускает тест API и возвращает общий результат
- *
- * @returns Promise<TestResult> - Результат теста
- */
-export async function runApiHealthTest(): Promise<TestResult> {
-  try {
-    const results = await runApiTests()
-    const totalTests = results.length
-    const passedTests = results.filter(r => r.success).length
-    const failedTests = totalTests - passedTests
-
-    // Если все тесты прошли успешно
-    if (failedTests === 0) {
       return {
         success: true,
-        message: `Все API эндпоинты (${totalTests}) доступны и работают корректно`,
-        name: 'API Health Test',
-        category: TestCategory.Api,
-        details: { results },
+        message: successMessage,
+        name: 'Inngest API Availability Test',
+        category: TestCategory.Inngest,
+      }
+    } else {
+      const errorMessage = `❌ Inngest API недоступен (статус: ${response.status})`
+      logger.error({
+        message: errorMessage,
+        description: 'Inngest API is not available',
+        statusCode: response.status,
+        timestamp: new Date().toISOString(),
+      })
+
+      return {
+        success: false,
+        message: errorMessage,
+        name: 'Inngest API Availability Test',
+        category: TestCategory.Inngest,
+        error: new Error(errorMessage),
       }
     }
-
-    // Если есть ошибки
-    return {
-      success: false,
-      message: `${failedTests} из ${totalTests} API эндпоинтов недоступны или возвращают ошибки`,
-      name: 'API Health Test',
-      category: TestCategory.Api,
-      details: { results },
-      error: new Error(`${failedTests} API эндпоинтов не работают`),
-    }
   } catch (error) {
+    const errorMessage = '❌ Ошибка при проверке доступности Inngest API'
+    logger.error({
+      message: errorMessage,
+      description: 'Error testing Inngest API availability',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    })
+
     return {
       success: false,
-      message: `Ошибка при выполнении теста API: ${error.message}`,
-      name: 'API Health Test',
-      category: TestCategory.Api,
-      error,
+      message: errorMessage,
+      name: 'Inngest API Availability Test',
+      category: TestCategory.Inngest,
+      error: error instanceof Error ? error : new Error(String(error)),
     }
   }
 }
+
+export { testInngestAvailability, runApiTests }
 
 // Прямой запуск файла
 if (require.main === module) {

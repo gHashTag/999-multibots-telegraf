@@ -3,14 +3,10 @@ import { config } from 'dotenv'
 import path from 'path'
 import { TestRunner } from './TestRunner'
 import { TestCategory, isInCategory } from './categories'
-import { runTranslationTests } from '../tests/translations'
-import { TestResult } from './types'
 import { logger } from '@/utils/logger'
-import { TestDiscovery } from './TestDiscovery'
-import { TestReporter } from './TestReporter'
-import { runPaymentProcessorTests } from '../tests/payment/paymentProcessorTest'
 import { runSystemTests } from '../tests/system'
 import { runAgentRouterTests } from '../tests/system/agentRouterTest'
+import { TestResult } from '../types'
 
 // Загружаем переменные окружения
 config({ path: path.resolve('.env.test') })
@@ -109,327 +105,52 @@ function parseArgs(args: string[]) {
 }
 
 /**
- * Выводит справку по использованию
- */
-function printHelp() {
-  const message = `
-Использование: ts-node -r tsconfig-paths/register src/test-utils [опции]
-
-Опции:
-  --help, -h          Показать эту справку
-  --verbose, -v       Включить подробный вывод
-  --category=XXX      Категория тестов для запуска (например, translations, database, webhook)
-  --only=XXX          Запустить только тесты, содержащие указанную строку в названии
-  --skip=XXX          Пропустить тесты, содержащие указанную строку в названии
-  --parallel=N        Запустить тесты параллельно с указанным уровнем параллелизма (по умолчанию: 4)
-  --json              Вывести результаты в формате JSON
-  --html              Сгенерировать HTML-отчет
-  --output=FILE       Сохранить результаты в файл
-  --tags=TAG1,TAG2    Запустить только тесты с указанными тегами
-  --discover          Автоматически обнаружить и запустить тесты
-  --test-dir=DIR      Указать директорию для поиска тестов (для --discover)
-
-Категории:
-  all                 Все тесты
-  translations        Тесты переводов
-  database            Тесты базы данных
-  webhook             Тесты вебхуков
-  inngest             Тесты Inngest функций
-  payment             Тесты платежных функций
-  payment-processor   Тесты обработчика платежей
-  api                 Тесты API эндпоинтов
-  system              Системные тесты (агент, роутер, валидаторы)
-
-Примеры:
-  ts-node -r tsconfig-paths/register src/test-utils --category=translations
-  ts-node -r tsconfig-paths/register src/test-utils --category=database --verbose
-  ts-node -r tsconfig-paths/register src/test-utils --discover --test-dir=src/test-utils/tests
-  ts-node -r tsconfig-paths/register src/test-utils --json --output=test-results.json
-  ts-node -r tsconfig-paths/register src/test-utils --category=payment-processor
-  ts-node -r tsconfig-paths/register src/test-utils --category=system
-  `
-
-  console.log(message)
-}
-
-/**
- * Тест для функции обработки платежей (пополнение)
- * @deprecated Используйте тесты из src/test-utils/tests/payment/paymentProcessorTest.ts
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function testPaymentProcessorIncome(): Promise<TestResult> {
-  logger.info('🚀 Запуск теста пополнения баланса')
-
-  // Генерируем случайный Telegram ID и проверяем пополнение баланса
-  const telegramId = Math.floor(Math.random() * 10000000000).toString()
-  const amount = 100
-  const stars = 100
-
-  try {
-    // Проверка корректности обработки платежа
-    const result = await runPaymentProcessorTests(telegramId, amount, stars)
-
-    return {
-      success: result.success,
-      name: 'Тест пополнения баланса',
-      message: result.message || 'Успешно',
-    }
-  } catch (error: any) {
-    logger.error('❌ Ошибка в тесте пополнения баланса:', error)
-    return {
-      success: false,
-      name: 'Тест пополнения баланса',
-      message: error.message || 'Неизвестная ошибка',
-      error: error.stack,
-    }
-  }
-}
-
-/**
- * Тест для функции обработки платежей (списание)
- * @deprecated Используйте тесты из src/test-utils/tests/payment/paymentProcessorTest.ts
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function testPaymentProcessorExpense(): Promise<TestResult> {
-  logger.info('🚀 Запуск теста списания средств')
-
-  // Генерируем случайный Telegram ID и проверяем списание баланса
-  const telegramId = Math.floor(Math.random() * 10000000000).toString()
-  const amount = 50 // Сумма списания
-  const stars = 50 // Количество списываемых звезд
-
-  try {
-    // Проверка корректности обработки платежа
-    const result = await runPaymentProcessorTests(
-      telegramId,
-      amount,
-      stars,
-      'money_expense'
-    )
-
-    return {
-      success: result.success,
-      name: 'Тест списания средств',
-      message: result.message || 'Успешно',
-    }
-  } catch (error: any) {
-    logger.error('❌ Ошибка в тесте списания средств:', error)
-    return {
-      success: false,
-      name: 'Тест списания средств',
-      message: error.message || 'Неизвестная ошибка',
-      error: error.stack,
-    }
-  }
-}
-
-/**
- * Регистрирует системные тесты
- */
-async function registerSystemTests(runner: TestRunner) {
-  logger.info('🚀 Запуск системных тестов')
-  logger.info('🚀 Running system tests')
-
-  // Получаем результаты системных тестов
-  try {
-    const results = await runSystemTests()
-
-    if (Array.isArray(results) && results.length > 0) {
-      runner.addTests([
-        {
-          name: 'Системные тесты',
-          category: TestCategory.System,
-          description: 'Общие системные тесты проекта',
-          run: async () => {
-            const failed = results.filter(r => !r.success)
-
-            if (failed.length > 0) {
-              const errors = failed
-                .map(f => `${f.name}: ${f.message}`)
-                .join('\n')
-              throw new Error(`Ошибки в системных тестах:\n${errors}`)
-            }
-
-            return {
-              name: 'Системные тесты',
-              category: TestCategory.System,
-              success: true,
-              message: `✅ Все системные тесты успешно пройдены (${results.length} тестов)`,
-            }
-          },
-        },
-      ])
-
-      logger.info(`✅ Зарегистрировано ${results.length} системных тестов`)
-      logger.info(`✅ Registered ${results.length} system tests`)
-    } else {
-      logger.warn('⚠️ Не найдено системных тестов для выполнения')
-      logger.warn('⚠️ No system tests found to run')
-    }
-
-    // Регистрация тестов маршрутизатора агентов
-    runner.addTests([
-      {
-        name: 'Тесты маршрутизатора агентов',
-        category: TestCategory.AgentRouter,
-        description: 'Тесты функциональности маршрутизатора агентов',
-        run: async () => {
-          console.log('🚀 Запуск тестов маршрутизатора агентов...')
-          const results = await runAgentRouterTests()
-
-          // Проверяем результаты
-          const failedTests = results.filter(test => !test.success)
-
-          if (failedTests.length > 0) {
-            logger.error(
-              '❌ Обнаружены ошибки в тестах маршрутизатора агентов:'
-            )
-            failedTests.forEach(test => {
-              logger.error(`  ❌ ${test.name}: ${test.message}`)
-            })
-            return {
-              success: false,
-              message: `Ошибок в тестах маршрутизатора агентов: ${failedTests.length}`,
-              name: 'Тесты маршрутизатора агентов',
-            }
-          }
-
-          return {
-            success: true,
-            message: `Успешно выполнено тестов маршрутизатора агентов: ${results.filter(t => t.success).length}`,
-            name: 'Тесты маршрутизатора агентов',
-          }
-        },
-      },
-    ])
-  } catch (error) {
-    logger.error('❌ Ошибка при регистрации системных тестов:', error)
-    logger.error('❌ Error registering system tests:', error)
-
-    // Добавляем тест с ошибкой, чтобы пользователь увидел проблему
-    runner.addTests([
-      {
-        name: 'Ошибка в системных тестах',
-        category: TestCategory.System,
-        description: 'Тест для отображения ошибок в системных тестах',
-        run: async () => ({
-          success: false,
-          name: 'Системные тесты',
-          message: `Ошибка при запуске системных тестов: ${error instanceof Error ? error.message : String(error)}`,
-        }),
-      },
-    ])
-  }
-}
-
-/**
  * Основная функция для запуска тестов
  */
-export async function runTests(args = process.argv.slice(2)): Promise<number> {
-  try {
-    const options = parseArgs(args)
-    const reporter = new TestReporter({
-      verbose: options.verbose,
-      json: options.json,
-      html: options.html,
-      output: options.outputFile,
-    })
+export async function runTests(args: string[]) {
+  const testRunner = new TestRunner({
+    filter: args,
+    parallel: false,
+    timeout: 30000,
+  })
 
-    // Инициализируем запуск тестов
-    logger.info('📝 Инициализация тестов', {
-      options,
-      description: 'Initializing tests',
-    })
+  // Регистрируем системные тесты
+  testRunner.addTest({
+    name: 'Тесты маршрутизатора агентов',
+    category: TestCategory.AgentRouter,
+    run: async () => {
+      const results = await runSystemTests()
 
-    // Создаем экземпляр TestRunner
-    const runner = new TestRunner({
-      verbose: options.verbose,
-      parallel: options.parallel,
-      reporter,
-      timeout: options.timeout,
-      tags: options.tags,
-      only: options.only,
-      skip: options.skip,
-    })
+      // Проверяем, все ли тесты прошли успешно
+      const allSuccess = results.every(result => result.success)
 
-    await runner.init()
-
-    // Если нужно обнаружить тесты автоматически
-    if (options.discover) {
-      logger.info('🔍 Автоматическое обнаружение тестов...')
-
-      const discovery = new TestDiscovery()
-      discovery.testDir = options.testDir || 'src/test-utils/tests'
-      discovery.verbose = options.verbose || false
-
-      const discoveredTests = await discovery.discover()
-      logger.info(`🔍 Обнаружено ${discoveredTests.length} тестов`, {
-        description: 'Discovered tests',
-        count: discoveredTests.length,
-      })
-
-      // Фильтруем тесты по категории
-      const filteredTests = discoveredTests.filter(
-        test =>
-          options.category === TestCategory.All ||
-          test.category === options.category
-      )
-
-      logger.info(
-        `📝 Отфильтровано ${filteredTests.length} тестов для категории ${options.category}`,
-        {
-          description: 'Filtered tests',
-          count: filteredTests.length,
-          category: options.category,
+      if (allSuccess) {
+        return {
+          success: true,
+          message: 'Все системные тесты успешно пройдены',
+          name: 'Системные тесты',
         }
-      )
+      } else {
+        const failedTests = results.filter(result => !result.success)
+        const failMessages = failedTests
+          .map(test => `${test.name}: ${test.message}`)
+          .join(', ')
 
-      // Добавляем отфильтрованные тесты
-      runner.addTests(filteredTests)
-    } else {
-      // Определяем категорию тестов
-      const category = parseCategory(options.category)
-
-      // Проверяем, нужно ли запускать системные тесты
-      const shouldRunSystemTests = isInCategory(
-        TestCategory.System,
-        category as TestCategory
-      )
-      if (shouldRunSystemTests) {
-        await registerSystemTests(runner)
+        return {
+          success: false,
+          message: `Системные тесты завершились с ошибками: ${failMessages}`,
+          name: 'Системные тесты',
+        }
       }
-    }
+    },
+  })
 
-    // Запускаем тесты и получаем результаты
-    logger.info('🚀 Запуск тестов...')
-    const results = await runner.runAllTests()
-
-    // Анализируем результаты
-    const { passed, failed, total } = results
-    logger.info(
-      `📊 Результаты тестирования: успешно - ${passed}, не пройдено - ${failed}, всего - ${total}`,
-      {
-        description: 'Test results',
-        passed,
-        failed,
-        total,
-      }
-    )
-
-    // Завершаем работу
-    await runner.cleanup()
-
-    // Возвращаем статус выполнения
-    return failed === 0 ? 0 : 1
-  } catch (error) {
-    logger.error('❌ Критическая ошибка при запуске тестов:', error)
-    return 1
-  }
+  await testRunner.run()
 }
 
 // Запускаем напрямую, если файл запущен как скрипт
 if (require.main === module) {
-  runTests()
+  runTests(process.argv.slice(2))
     .then(exitCode => {
       process.exit(exitCode)
     })

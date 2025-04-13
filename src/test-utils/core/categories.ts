@@ -14,6 +14,7 @@ export enum TestCategory {
   Speech = 'speech',
   Api = 'api',
   Translations = 'translations',
+  System = 'system',
 
   // Подкатегории
   NeuroPhoto = 'neurophoto',
@@ -36,6 +37,22 @@ export enum TestCategory {
   ApiHealth = 'api-health',
   ApiEndpoints = 'api-endpoints',
   ApiWebhooks = 'api-webhooks',
+
+  // Подкатегории для системных тестов
+  AgentRouter = 'agent-router',
+
+  // Подкатегории для тестов базы данных
+  DatabaseUsers = 'database-users',
+  DatabasePayments = 'database-payments',
+  DatabaseConversations = 'database-conversations',
+
+  // Подкатегории для тестов вебхуков
+  WebhookTelegram = 'webhook-telegram',
+  WebhookPayment = 'webhook-payment',
+
+  // Подкатегории для тестов API
+  ApiValidation = 'api-validation',
+  ApiRateLimiting = 'api-rate-limiting',
 }
 
 /**
@@ -78,6 +95,9 @@ export function getSubcategories(category: TestCategory): TestCategory[] {
         TestCategory.ApiEndpoints,
         TestCategory.ApiWebhooks,
       ]
+
+    case TestCategory.System:
+      return [TestCategory.AgentRouter]
 
     default:
       return []

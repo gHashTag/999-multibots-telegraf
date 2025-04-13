@@ -3,11 +3,32 @@ import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { supabase } from '@/core/supabase'
 
+// Объявляем базовые типы для Inngest
+interface InngestEvent {
+  name: string
+  data: any
+  user?: any
+  version?: string
+  [key: string]: any
+}
+
+interface InngestStep {
+  run: <T>(id: string, fn: () => Promise<T>) => Promise<T>
+  sleep: (id: string, duration: string) => Promise<void>
+  [key: string]: any
+}
+
+interface BatchResult {
+  success: boolean
+  telegram_id: string | number
+  error?: string
+}
+
 // Пример функции, которая реагирует на событие "test/hello.world"
 export const helloWorldFunction = inngest.createFunction(
   { id: 'hello-world-handler' },
   { event: 'test/hello.world' },
-  async ({ event, step }) => {
+  async ({ event, step }: { event: InngestEvent; step: InngestStep }) => {
     console.log('🎉 Получено событие hello.world:', event)
     await step.sleep('подождем-секунду', '1s')
 
@@ -25,7 +46,7 @@ export const helloWorldFunction = inngest.createFunction(
 export const broadcastFunction = inngest.createFunction(
   { id: 'broadcast-handler' },
   { event: 'broadcast.start' },
-  async ({ event, step }) => {
+  async ({ event, step }: { event: InngestEvent; step: InngestStep }) => {
     try {
       const { imageUrl, textRu, options } = event.data
       const {
@@ -299,8 +320,10 @@ export const broadcastFunction = inngest.createFunction(
             description: 'Batch processed',
             batchIndex: batchIndex + 1,
             totalBatches: batches.length,
-            successInBatch: batchResults.filter(r => r.success).length,
-            errorsInBatch: batchResults.filter(r => !r.success).length,
+            successInBatch: batchResults.filter((r: BatchResult) => r.success)
+              .length,
+            errorsInBatch: batchResults.filter((r: BatchResult) => !r.success)
+              .length,
           }
         )
       }

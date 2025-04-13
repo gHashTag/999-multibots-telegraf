@@ -57,6 +57,58 @@ try {
   }
 }
 
+// Тесты Inngest для платежей
+let runPaymentInngestTests: () => Promise<TestResult[]>
+try {
+  // Пытаемся импортировать
+  runPaymentInngestTests =
+    require('./paymentInngestTest').runPaymentInngestTests
+  logger.info('✅ Тесты Inngest для платежей загружены', {
+    description: 'Payment Inngest tests loaded',
+  })
+} catch (error) {
+  // Если не удалось, создаем заглушку
+  logger.warn('⚠️ Тесты Inngest для платежей не найдены', {
+    description: 'Payment Inngest tests not found',
+    error: error instanceof Error ? error.message : String(error),
+  })
+  runPaymentInngestTests = async () => {
+    return [
+      {
+        success: false,
+        name: 'Тесты Inngest для платежей недоступны',
+        message: 'Файл тестов не найден',
+      },
+    ]
+  }
+}
+
+// Расширенные тесты Inngest для платежей
+let runAdvancedPaymentInngestTests: () => Promise<TestResult[]>
+try {
+  // Пытаемся импортировать
+  runAdvancedPaymentInngestTests =
+    require('./paymentAdvancedInngestTest').runAdvancedPaymentInngestTests
+  logger.info('✅ Расширенные тесты Inngest для платежей загружены', {
+    description: 'Advanced Payment Inngest tests loaded',
+  })
+} catch (error) {
+  // Если не удалось, создаем заглушку
+  logger.warn('⚠️ Расширенные тесты Inngest для платежей не найдены', {
+    description: 'Advanced Payment Inngest tests not found',
+    error: error instanceof Error ? error.message : String(error),
+  })
+  runAdvancedPaymentInngestTests = async () => {
+    return [
+      {
+        success: false,
+        name: 'Расширенные тесты Inngest для платежей недоступны',
+        message: 'Файл тестов не найден',
+      },
+    ]
+  }
+}
+
 // Тесты для дублирующихся ID инвойсов
 let runDuplicateInvoiceIdTests: (options?: {
   verbose?: boolean
@@ -154,6 +206,18 @@ export async function runPaymentTests(
     })
     results.push(await runPaymentProcessorMockTests())
 
+    // Запускаем тесты Inngest для платежей
+    logger.info('⚡ Запуск тестов Inngest для платежей', {
+      description: 'Running payment Inngest tests',
+    })
+    results.push(await runPaymentInngestTests())
+
+    // Запускаем расширенные тесты Inngest для платежей
+    logger.info('🔄 Запуск расширенных тестов Inngest для платежей', {
+      description: 'Running advanced payment Inngest tests',
+    })
+    results.push(await runAdvancedPaymentInngestTests())
+
     // Запускаем тесты RuPayment
     logger.info('🇷🇺 Запуск тестов RuPayment', {
       description: 'Running RuPayment tests',
@@ -220,6 +284,8 @@ export async function runPaymentTests(
 export {
   runPaymentProcessorTests,
   runPaymentProcessorMockTests,
+  runPaymentInngestTests,
+  runAdvancedPaymentInngestTests,
   runRuPaymentTests,
   runDuplicateInvoiceIdTests,
   runPaymentNotificationTests,

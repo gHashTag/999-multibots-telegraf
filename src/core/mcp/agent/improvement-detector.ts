@@ -3,64 +3,73 @@
  * Анализирует код и предлагает возможные улучшения
  */
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { Service } from '../types.js';
-import { ImprovementType } from './self-improvement.js';
+import fs from 'fs'
+import path from 'path'
+
+import { Service } from '../types'
+import { ImprovementType } from './self-improvement.js'
 
 // Типы для системы обнаружения улучшений
 export interface ImprovementSuggestion {
-  id: string;
-  title: string;
-  description: string;
-  type: ImprovementType;
-  priority: number; // От 1 (низкий) до 10 (высокий)
-  affected_files: string[];
-  detected_at: Date;
-  estimate_complexity: 'LOW' | 'MEDIUM' | 'HIGH';
-  suggested_action: string;
-  is_implemented?: boolean;
-  tags?: string[]; // Теги для категоризации улучшений
-  confidence_score?: number; // Уверенность в предлагаемом улучшении (0-1)
-  potential_impact?: 'LOW' | 'MEDIUM' | 'HIGH'; // Потенциальное влияние улучшения
-  estimated_effort_hours?: number; // Оценка трудозатрат в часах
-  test_impact?: boolean; // Влияет ли на тесты
-  dependencies?: string[]; // ID улучшений, от которых зависит текущее
-  repository?: string; // Репозиторий, если анализируется несколько
+  id: string
+  title: string
+  description: string
+  type: ImprovementType
+  priority: number // От 1 (низкий) до 10 (высокий)
+  affected_files: string[]
+  detected_at: Date
+  estimate_complexity: 'LOW' | 'MEDIUM' | 'HIGH'
+  suggested_action: string
+  is_implemented?: boolean
+  tags?: string[] // Теги для категоризации улучшений
+  confidence_score?: number // Уверенность в предлагаемом улучшении (0-1)
+  potential_impact?: 'LOW' | 'MEDIUM' | 'HIGH' // Потенциальное влияние улучшения
+  estimated_effort_hours?: number // Оценка трудозатрат в часах
+  test_impact?: boolean // Влияет ли на тесты
+  dependencies?: string[] // ID улучшений, от которых зависит текущее
+  repository?: string // Репозиторий, если анализируется несколько
 }
 
 export interface CodebaseAnalysisResult {
-  suggestions: ImprovementSuggestion[];
-  total_files_analyzed: number;
-  errors: string[];
-  analysis_date: Date;
-  analysis_duration_ms?: number; // Длительность анализа в миллисекундах
-  analyzed_repositories?: string[]; // Анализируемые репозитории
-  stats?: { // Статистика по типам улучшений
-    by_type: Record<string, number>;
-    by_priority: Record<string, number>;
-    by_complexity: Record<string, number>;
-  };
-  filter_criteria?: Record<string, any>; // Критерии фильтрации
+  suggestions: ImprovementSuggestion[]
+  total_files_analyzed: number
+  errors: string[]
+  analysis_date: Date
+  analysis_duration_ms?: number // Длительность анализа в миллисекундах
+  analyzed_repositories?: string[] // Анализируемые репозитории
+  stats?: {
+    // Статистика по типам улучшений
+    by_type: Record<string, number>
+    by_priority: Record<string, number>
+    by_complexity: Record<string, number>
+  }
+  filter_criteria?: Record<string, any> // Критерии фильтрации
 }
 
 // Интерфейс для анализа кода по различным аспектам
 export interface CodeAnalysisAspect {
-  name: string; // Название аспекта
-  analyze(file: string, content: string, fileExt: string): Promise<ImprovementSuggestion[]>;
+  name: string // Название аспекта
+  analyze(
+    file: string,
+    content: string,
+    fileExt: string
+  ): Promise<ImprovementSuggestion[]>
 }
 
 // Класс для реализации конкретного аспекта анализа кода
 class CodeQualityAnalysisAspect implements CodeAnalysisAspect {
-  name = 'CodeQuality';
-  private mcpService: Service;
-  
+  name = 'CodeQuality'
+  private mcpService: Service
+
   constructor(mcpService: Service) {
-    this.mcpService = mcpService;
+    this.mcpService = mcpService
   }
-  
-  async analyze(filePath: string, content: string, fileExt: string): Promise<ImprovementSuggestion[]> {
+
+  async analyze(
+    filePath: string,
+    content: string,
+    fileExt: string
+  ): Promise<ImprovementSuggestion[]> {
     // Формируем промпт для анализа качества кода
     const analysisPrompt = `
 You are an autonomous agent analyzing a source code file to detect potential code quality improvements.
@@ -96,34 +105,38 @@ IMPACT: [LOW|MEDIUM|HIGH]
 EFFORT: [Estimated hours]
 
 Limit your response to the 3 most important code quality improvements. If no significant improvements are needed, respond with "NO_IMPROVEMENTS_NEEDED".
-    `;
-    
+    `
+
     try {
       // @ts-ignore
-      const analysisResult = await this.mcpService.processTask(analysisPrompt);
-      
+      const analysisResult = await this.mcpService.processTask(analysisPrompt)
+
       if (analysisResult.includes('NO_IMPROVEMENTS_NEEDED')) {
-        return [];
+        return []
       }
-      
-      return parseImprovementSuggestions(analysisResult, filePath);
+
+      return parseImprovementSuggestions(analysisResult, filePath)
     } catch (error) {
-      console.error(`Error analyzing code quality for ${filePath}:`, error);
-      return [];
+      console.error(`Error analyzing code quality for ${filePath}:`, error)
+      return []
     }
   }
 }
 
 // Класс для анализа производительности кода
 class PerformanceAnalysisAspect implements CodeAnalysisAspect {
-  name = 'Performance';
-  private mcpService: Service;
-  
+  name = 'Performance'
+  private mcpService: Service
+
   constructor(mcpService: Service) {
-    this.mcpService = mcpService;
+    this.mcpService = mcpService
   }
-  
-  async analyze(filePath: string, content: string, fileExt: string): Promise<ImprovementSuggestion[]> {
+
+  async analyze(
+    filePath: string,
+    content: string,
+    fileExt: string
+  ): Promise<ImprovementSuggestion[]> {
     // Формируем промпт для анализа производительности
     const analysisPrompt = `
 You are an autonomous agent analyzing a source code file to detect potential performance improvements.
@@ -159,34 +172,38 @@ IMPACT: [LOW|MEDIUM|HIGH]
 EFFORT: [Estimated hours]
 
 Limit your response to the 2 most important performance improvements. If no significant improvements are needed, respond with "NO_IMPROVEMENTS_NEEDED".
-    `;
-    
+    `
+
     try {
       // @ts-ignore
-      const analysisResult = await this.mcpService.processTask(analysisPrompt);
-      
+      const analysisResult = await this.mcpService.processTask(analysisPrompt)
+
       if (analysisResult.includes('NO_IMPROVEMENTS_NEEDED')) {
-        return [];
+        return []
       }
-      
-      return parseImprovementSuggestions(analysisResult, filePath);
+
+      return parseImprovementSuggestions(analysisResult, filePath)
     } catch (error) {
-      console.error(`Error analyzing performance for ${filePath}:`, error);
-      return [];
+      console.error(`Error analyzing performance for ${filePath}:`, error)
+      return []
     }
   }
 }
 
 // Класс для анализа безопасности кода
 class SecurityAnalysisAspect implements CodeAnalysisAspect {
-  name = 'Security';
-  private mcpService: Service;
-  
+  name = 'Security'
+  private mcpService: Service
+
   constructor(mcpService: Service) {
-    this.mcpService = mcpService;
+    this.mcpService = mcpService
   }
-  
-  async analyze(filePath: string, content: string, fileExt: string): Promise<ImprovementSuggestion[]> {
+
+  async analyze(
+    filePath: string,
+    content: string,
+    fileExt: string
+  ): Promise<ImprovementSuggestion[]> {
     // Формируем промпт для анализа безопасности
     const analysisPrompt = `
 You are an autonomous agent analyzing a source code file to detect potential security vulnerabilities.
@@ -222,94 +239,120 @@ IMPACT: [LOW|MEDIUM|HIGH]
 EFFORT: [Estimated hours]
 
 Limit your response to the 2 most critical security improvements. If no significant issues are found, respond with "NO_IMPROVEMENTS_NEEDED".
-    `;
-    
+    `
+
     try {
       // @ts-ignore
-      const analysisResult = await this.mcpService.processTask(analysisPrompt);
-      
+      const analysisResult = await this.mcpService.processTask(analysisPrompt)
+
       if (analysisResult.includes('NO_IMPROVEMENTS_NEEDED')) {
-        return [];
+        return []
       }
-      
-      return parseImprovementSuggestions(analysisResult, filePath);
+
+      return parseImprovementSuggestions(analysisResult, filePath)
     } catch (error) {
-      console.error(`Error analyzing security for ${filePath}:`, error);
-      return [];
+      console.error(`Error analyzing security for ${filePath}:`, error)
+      return []
     }
   }
 }
 
 // Общая функция для парсинга результатов анализа в структурированные предложения
 function parseImprovementSuggestions(
-  analysisResult: string, 
+  analysisResult: string,
   primaryFilePath: string
 ): ImprovementSuggestion[] {
-  const suggestions: ImprovementSuggestion[] = [];
-  const improvementSections = analysisResult.split('IMPROVEMENT:').slice(1);
-  
+  const suggestions: ImprovementSuggestion[] = []
+  const improvementSections = analysisResult.split('IMPROVEMENT:').slice(1)
+
   for (const section of improvementSections) {
     try {
-      const titleMatch = section.trim().split('\n')[0].trim();
-      const typeMatch = /TYPE:\s*([A-Z_]+)/.exec(section);
-      const descriptionMatch = /DESCRIPTION:\s*(.+?)(?=PRIORITY:|TYPE:|COMPLEXITY:|AFFECTED_FILES:|SUGGESTED_ACTION:|TAGS:|CONFIDENCE:|IMPACT:|EFFORT:|$)/s.exec(section);
-      const priorityMatch = /PRIORITY:\s*([0-9]+)/.exec(section);
-      const complexityMatch = /COMPLEXITY:\s*(LOW|MEDIUM|HIGH)/.exec(section);
-      const affectedFilesMatch = /AFFECTED_FILES:\s*(.+?)(?=SUGGESTED_ACTION:|TAGS:|CONFIDENCE:|IMPACT:|EFFORT:|$)/s.exec(section);
-      const suggestedActionMatch = /SUGGESTED_ACTION:\s*(.+?)(?=TAGS:|CONFIDENCE:|IMPACT:|EFFORT:|$)/s.exec(section);
-      const tagsMatch = /TAGS:\s*(.+?)(?=CONFIDENCE:|IMPACT:|EFFORT:|$)/s.exec(section);
-      const confidenceMatch = /CONFIDENCE:\s*([0-9.]+)/.exec(section);
-      const impactMatch = /IMPACT:\s*(LOW|MEDIUM|HIGH)/.exec(section);
-      const effortMatch = /EFFORT:\s*([0-9.]+)/.exec(section);
-      
+      const titleMatch = section.trim().split('\n')[0].trim()
+      const typeMatch = /TYPE:\s*([A-Z_]+)/.exec(section)
+      const descriptionMatch =
+        /DESCRIPTION:\s*(.+?)(?=PRIORITY:|TYPE:|COMPLEXITY:|AFFECTED_FILES:|SUGGESTED_ACTION:|TAGS:|CONFIDENCE:|IMPACT:|EFFORT:|$)/s.exec(
+          section
+        )
+      const priorityMatch = /PRIORITY:\s*([0-9]+)/.exec(section)
+      const complexityMatch = /COMPLEXITY:\s*(LOW|MEDIUM|HIGH)/.exec(section)
+      const affectedFilesMatch =
+        /AFFECTED_FILES:\s*(.+?)(?=SUGGESTED_ACTION:|TAGS:|CONFIDENCE:|IMPACT:|EFFORT:|$)/s.exec(
+          section
+        )
+      const suggestedActionMatch =
+        /SUGGESTED_ACTION:\s*(.+?)(?=TAGS:|CONFIDENCE:|IMPACT:|EFFORT:|$)/s.exec(
+          section
+        )
+      const tagsMatch = /TAGS:\s*(.+?)(?=CONFIDENCE:|IMPACT:|EFFORT:|$)/s.exec(
+        section
+      )
+      const confidenceMatch = /CONFIDENCE:\s*([0-9.]+)/.exec(section)
+      const impactMatch = /IMPACT:\s*(LOW|MEDIUM|HIGH)/.exec(section)
+      const effortMatch = /EFFORT:\s*([0-9.]+)/.exec(section)
+
       if (titleMatch) {
         const suggestion: ImprovementSuggestion = {
           id: generateImprovementId(),
           title: titleMatch,
-          description: descriptionMatch ? descriptionMatch[1].trim() : 'No description provided',
-          type: typeMatch ? typeMatch[1] as ImprovementType : ImprovementType.CODE_QUALITY,
+          description: descriptionMatch
+            ? descriptionMatch[1].trim()
+            : 'No description provided',
+          type: typeMatch
+            ? (typeMatch[1] as ImprovementType)
+            : ImprovementType.CODE_QUALITY,
           priority: priorityMatch ? parseInt(priorityMatch[1]) : 5,
           affected_files: [primaryFilePath],
           detected_at: new Date(),
-          estimate_complexity: complexityMatch ? complexityMatch[1] as 'LOW' | 'MEDIUM' | 'HIGH' : 'MEDIUM',
-          suggested_action: suggestedActionMatch ? suggestedActionMatch[1].trim() : 'Review and refactor as needed'
-        };
-        
+          estimate_complexity: complexityMatch
+            ? (complexityMatch[1] as 'LOW' | 'MEDIUM' | 'HIGH')
+            : 'MEDIUM',
+          suggested_action: suggestedActionMatch
+            ? suggestedActionMatch[1].trim()
+            : 'Review and refactor as needed',
+        }
+
         // Добавляем дополнительные поля, если они есть
         if (tagsMatch && tagsMatch[1]) {
-          suggestion.tags = tagsMatch[1].trim().split(/\s*,\s*/).filter(Boolean);
+          suggestion.tags = tagsMatch[1]
+            .trim()
+            .split(/\s*,\s*/)
+            .filter(Boolean)
         }
-        
+
         if (confidenceMatch && confidenceMatch[1]) {
-          suggestion.confidence_score = parseFloat(confidenceMatch[1]);
+          suggestion.confidence_score = parseFloat(confidenceMatch[1])
         }
-        
+
         if (impactMatch && impactMatch[1]) {
-          suggestion.potential_impact = impactMatch[1] as 'LOW' | 'MEDIUM' | 'HIGH';
+          suggestion.potential_impact = impactMatch[1] as
+            | 'LOW'
+            | 'MEDIUM'
+            | 'HIGH'
         }
-        
+
         if (effortMatch && effortMatch[1]) {
-          suggestion.estimated_effort_hours = parseFloat(effortMatch[1]);
+          suggestion.estimated_effort_hours = parseFloat(effortMatch[1])
         }
-        
+
         // Парсим дополнительные затронутые файлы, если они указаны
         if (affectedFilesMatch) {
-          const additionalFiles = affectedFilesMatch[1].trim()
+          const additionalFiles = affectedFilesMatch[1]
+            .trim()
             .split(/[,\n]/)
             .map((file: string) => file.trim())
-            .filter((file: string) => file && file !== primaryFilePath);
-            
-          suggestion.affected_files = [primaryFilePath, ...additionalFiles];
+            .filter((file: string) => file && file !== primaryFilePath)
+
+          suggestion.affected_files = [primaryFilePath, ...additionalFiles]
         }
-        
-        suggestions.push(suggestion);
+
+        suggestions.push(suggestion)
       }
     } catch (parseError) {
-      console.error('Error parsing improvement suggestion:', parseError);
+      console.error('Error parsing improvement suggestion:', parseError)
     }
   }
-  
-  return suggestions;
+
+  return suggestions
 }
 
 /**
@@ -321,18 +364,19 @@ function parseImprovementSuggestions(
  * @returns Массив предложений по улучшению
  */
 async function analyzeFile(
-  mcpService: Service, 
-  filePath: string, 
+  mcpService: Service,
+  filePath: string,
   fileContent: string
 ): Promise<ImprovementSuggestion[]> {
-  const fileExtension = path.extname(filePath).toLowerCase();
-  const fileName = path.basename(filePath);
-  
+  const fileExtension = path.extname(filePath).toLowerCase()
+  const fileName = path.basename(filePath)
+
   // Формируем промпт для анализа файла
   const analysisPrompt = `
 You are an autonomous agent analyzing a source code file to detect potential improvements.
 
 File: ${filePath}
+File Name: ${fileName}
 Language: ${getLanguageByExtension(fileExtension)}
 
 CODE CONTENT:
@@ -360,20 +404,20 @@ AFFECTED_FILES: [List of files that would need to be modified, with this file as
 SUGGESTED_ACTION: [Brief description of the recommended action]
 
 Limit your response to the 3 most important improvements. If no significant improvements are needed, respond with "NO_IMPROVEMENTS_NEEDED".
-  `;
-  
+  `
+
   try {
     // @ts-ignore
-    const analysisResult = await mcpService.processTask(analysisPrompt);
-    
+    const analysisResult = await mcpService.processTask(analysisPrompt)
+
     if (analysisResult.includes('NO_IMPROVEMENTS_NEEDED')) {
-      return [];
+      return []
     }
-    
-    return parseImprovementSuggestions(analysisResult, filePath);
+
+    return parseImprovementSuggestions(analysisResult, filePath)
   } catch (error) {
-    console.error(`Error analyzing file ${filePath}:`, error);
-    return [];
+    console.error(`Error analyzing file ${filePath}:`, error)
+    return []
   }
 }
 
@@ -386,37 +430,36 @@ Limit your response to the 3 most important improvements. If no significant impr
  * @returns Массив предложений по улучшению
  */
 async function analyzeFileWithAspects(
-  mcpService: Service, 
-  filePath: string, 
+  mcpService: Service,
+  filePath: string,
   fileContent: string,
   aspects: CodeAnalysisAspect[] = []
 ): Promise<ImprovementSuggestion[]> {
   if (aspects.length === 0) {
     // Если аспекты не указаны, используем обычный анализ
-    return analyzeFile(mcpService, filePath, fileContent);
+    return analyzeFile(mcpService, filePath, fileContent)
   }
-  
-  const fileExtension = path.extname(filePath).toLowerCase();
-  const allSuggestions: ImprovementSuggestion[] = [];
-  
+
+  const fileExtension = path.extname(filePath).toLowerCase()
+  const allSuggestions: ImprovementSuggestion[] = []
+
   // Запускаем анализ по каждому аспекту параллельно
-  const aspectPromises = aspects.map(aspect => 
-    aspect.analyze(filePath, fileContent, fileExtension)
-      .catch(error => {
-        console.error(`Error in aspect ${aspect.name}:`, error);
-        return [] as ImprovementSuggestion[];
-      })
-  );
-  
+  const aspectPromises = aspects.map(aspect =>
+    aspect.analyze(filePath, fileContent, fileExtension).catch(error => {
+      console.error(`Error in aspect ${aspect.name}:`, error)
+      return [] as ImprovementSuggestion[]
+    })
+  )
+
   // Ждем завершения всех анализов
-  const aspectResults = await Promise.all(aspectPromises);
-  
+  const aspectResults = await Promise.all(aspectPromises)
+
   // Объединяем результаты
   for (let i = 0; i < aspectResults.length; i++) {
-    allSuggestions.push(...aspectResults[i]);
+    allSuggestions.push(...aspectResults[i])
   }
-  
-  return allSuggestions;
+
+  return allSuggestions
 }
 
 /**
@@ -430,16 +473,16 @@ export async function analyzeCodebase(
   mcpService: Service,
   directory: string = 'src',
   options: {
-    ignore?: string[],
-    extensions?: string[],
-    limit?: number,
-    aspectTypes?: ('code_quality' | 'performance' | 'security')[],
-    repository?: string,
+    ignore?: string[]
+    extensions?: string[]
+    limit?: number
+    aspectTypes?: ('code_quality' | 'performance' | 'security')[]
+    repository?: string
     filterMinPriority?: number
   } = {}
 ): Promise<CodebaseAnalysisResult> {
-  const startTime = Date.now();
-  
+  const startTime = Date.now()
+
   const result: CodebaseAnalysisResult = {
     suggestions: [],
     total_files_analyzed: 0,
@@ -448,120 +491,129 @@ export async function analyzeCodebase(
     stats: {
       by_type: {},
       by_priority: {},
-      by_complexity: {}
+      by_complexity: {},
     },
-    filter_criteria: { ...options }
-  };
-  
+    filter_criteria: { ...options },
+  }
+
   if (options.repository) {
-    result.analyzed_repositories = [options.repository];
+    result.analyzed_repositories = [options.repository]
   }
-  
-  const ignorePaths = options.ignore || ['node_modules', 'dist', '.git'];
-  const fileExtensions = options.extensions || ['.ts', '.js', '.tsx', '.jsx'];
-  const maxSuggestions = options.limit || 10;
-  const filterMinPriority = options.filterMinPriority || 0;
-  
+
+  const ignorePaths = options.ignore || ['node_modules', 'dist', '.git']
+  const fileExtensions = options.extensions || ['.ts', '.js', '.tsx', '.jsx']
+  const maxSuggestions = options.limit || 10
+  const filterMinPriority = options.filterMinPriority || 0
+
   // Создаем аспекты анализа на основе запрошенных типов
-  const aspects: CodeAnalysisAspect[] = [];
-  
+  const aspects: CodeAnalysisAspect[] = []
+
   if (!options.aspectTypes || options.aspectTypes.includes('code_quality')) {
-    aspects.push(new CodeQualityAnalysisAspect(mcpService));
+    aspects.push(new CodeQualityAnalysisAspect(mcpService))
   }
-  
+
   if (options.aspectTypes && options.aspectTypes.includes('performance')) {
-    aspects.push(new PerformanceAnalysisAspect(mcpService));
+    aspects.push(new PerformanceAnalysisAspect(mcpService))
   }
-  
+
   if (options.aspectTypes && options.aspectTypes.includes('security')) {
-    aspects.push(new SecurityAnalysisAspect(mcpService));
+    aspects.push(new SecurityAnalysisAspect(mcpService))
   }
-  
+
   try {
     // Нормализуем путь к директории
-    const basePath = path.isAbsolute(directory) 
-      ? directory 
-      : path.join(process.cwd(), directory);
-    
+    const basePath = path.isAbsolute(directory)
+      ? directory
+      : path.join(process.cwd(), directory)
+
     // Получаем список файлов для анализа
-    const files = await findSourceFiles(basePath, fileExtensions, ignorePaths);
-    console.log(`Found ${files.length} files for analysis`);
-    
+    const files = await findSourceFiles(basePath, fileExtensions, ignorePaths)
+    console.log(`Found ${files.length} files for analysis`)
+
     // Анализируем каждый файл
     for (const file of files) {
       try {
-        console.log(`Analyzing file: ${file}`);
-        
+        console.log(`Analyzing file: ${file}`)
+
         // Читаем содержимое файла
-        const content = await fs.promises.readFile(file, 'utf-8');
-        
+        const content = await fs.promises.readFile(file, 'utf-8')
+
         // Анализируем файл с использованием выбранных аспектов
-        const fileSuggestions = await analyzeFileWithAspects(mcpService, file, content, aspects);
-        
+        const fileSuggestions = await analyzeFileWithAspects(
+          mcpService,
+          file,
+          content,
+          aspects
+        )
+
         // Фильтруем предложения по минимальному приоритету
-        const filteredSuggestions = fileSuggestions.filter(s => s.priority >= filterMinPriority);
-        
+        const filteredSuggestions = fileSuggestions.filter(
+          s => s.priority >= filterMinPriority
+        )
+
         // Добавляем информацию о репозитории, если указан
         if (options.repository) {
           for (const suggestion of filteredSuggestions) {
-            suggestion.repository = options.repository;
+            suggestion.repository = options.repository
           }
         }
-        
+
         // Добавляем предложения к общему результату
-        result.suggestions.push(...filteredSuggestions);
-        result.total_files_analyzed++;
-        
+        result.suggestions.push(...filteredSuggestions)
+        result.total_files_analyzed++
+
         // Обновляем статистику
         for (const suggestion of filteredSuggestions) {
           // По типу
           if (!result.stats!.by_type[suggestion.type]) {
-            result.stats!.by_type[suggestion.type] = 0;
+            result.stats!.by_type[suggestion.type] = 0
           }
-          result.stats!.by_type[suggestion.type]++;
-          
+          result.stats!.by_type[suggestion.type]++
+
           // По приоритету
-          const priorityBucket = `${Math.floor(suggestion.priority / 3) * 3 + 1}-${Math.min(Math.floor(suggestion.priority / 3) * 3 + 3, 10)}`;
+          const priorityBucket = `${Math.floor(suggestion.priority / 3) * 3 + 1}-${Math.min(Math.floor(suggestion.priority / 3) * 3 + 3, 10)}`
           if (!result.stats!.by_priority[priorityBucket]) {
-            result.stats!.by_priority[priorityBucket] = 0;
+            result.stats!.by_priority[priorityBucket] = 0
           }
-          result.stats!.by_priority[priorityBucket]++;
-          
+          result.stats!.by_priority[priorityBucket]++
+
           // По сложности
           if (!result.stats!.by_complexity[suggestion.estimate_complexity]) {
-            result.stats!.by_complexity[suggestion.estimate_complexity] = 0;
+            result.stats!.by_complexity[suggestion.estimate_complexity] = 0
           }
-          result.stats!.by_complexity[suggestion.estimate_complexity]++;
+          result.stats!.by_complexity[suggestion.estimate_complexity]++
         }
-        
+
         // Если достигли лимита предложений, останавливаем анализ
         if (result.suggestions.length >= maxSuggestions) {
-          console.log(`Reached maximum number of suggestions (${maxSuggestions}). Stopping analysis.`);
-          break;
+          console.log(
+            `Reached maximum number of suggestions (${maxSuggestions}). Stopping analysis.`
+          )
+          break
         }
       } catch (fileError) {
-        const errorMessage = `Error analyzing file ${file}: ${fileError instanceof Error ? fileError.message : String(fileError)}`;
-        console.error(errorMessage);
-        result.errors.push(errorMessage);
+        const errorMessage = `Error analyzing file ${file}: ${fileError instanceof Error ? fileError.message : String(fileError)}`
+        console.error(errorMessage)
+        result.errors.push(errorMessage)
       }
     }
-    
+
     // Сортируем предложения по приоритету (по убыванию)
-    result.suggestions.sort((a, b) => b.priority - a.priority);
-    
+    result.suggestions.sort((a, b) => b.priority - a.priority)
+
     // Вычисляем длительность анализа
-    result.analysis_duration_ms = Date.now() - startTime;
-    
-    return result;
+    result.analysis_duration_ms = Date.now() - startTime
+
+    return result
   } catch (error) {
-    const errorMessage = `Error analyzing codebase: ${error instanceof Error ? error.message : String(error)}`;
-    console.error(errorMessage);
-    result.errors.push(errorMessage);
-    
+    const errorMessage = `Error analyzing codebase: ${error instanceof Error ? error.message : String(error)}`
+    console.error(errorMessage)
+    result.errors.push(errorMessage)
+
     // Вычисляем длительность анализа даже при ошибке
-    result.analysis_duration_ms = Date.now() - startTime;
-    
-    return result;
+    result.analysis_duration_ms = Date.now() - startTime
+
+    return result
   }
 }
 
@@ -577,41 +629,42 @@ async function findSourceFiles(
   extensions: string[],
   ignorePaths: string[]
 ): Promise<string[]> {
-  const files: string[] = [];
-  
+  const files: string[] = []
+
   async function scan(dir: string) {
     try {
-      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-      
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true })
+
       for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        
+        const fullPath = path.join(dir, entry.name)
+
         // Проверяем, нужно ли игнорировать путь
-        const shouldIgnore = ignorePaths.some(ignorePath => 
-          fullPath.includes(path.sep + ignorePath) || 
-          fullPath.endsWith(path.sep + ignorePath)
-        );
-        
+        const shouldIgnore = ignorePaths.some(
+          ignorePath =>
+            fullPath.includes(path.sep + ignorePath) ||
+            fullPath.endsWith(path.sep + ignorePath)
+        )
+
         if (shouldIgnore) {
-          continue;
+          continue
         }
-        
+
         if (entry.isDirectory()) {
-          await scan(fullPath);
+          await scan(fullPath)
         } else if (entry.isFile()) {
-          const ext = path.extname(entry.name).toLowerCase();
+          const ext = path.extname(entry.name).toLowerCase()
           if (extensions.includes(ext)) {
-            files.push(fullPath);
+            files.push(fullPath)
           }
         }
       }
     } catch (error) {
-      console.error(`Error scanning directory ${dir}:`, error);
+      console.error(`Error scanning directory ${dir}:`, error)
     }
   }
-  
-  await scan(directory);
-  return files;
+
+  await scan(directory)
+  return files
 }
 
 /**
@@ -619,7 +672,11 @@ async function findSourceFiles(
  * @returns Уникальный идентификатор
  */
 function generateImprovementId(): string {
-  return 'imp-' + Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+  return (
+    'imp-' +
+    Date.now().toString(36) +
+    Math.random().toString(36).substring(2, 7)
+  )
 }
 
 /**
@@ -650,10 +707,10 @@ function getLanguageByExtension(extension: string): string {
     '.scss': 'SCSS',
     '.json': 'JSON',
     '.md': 'Markdown',
-    '.sql': 'SQL'
-  };
-  
-  return extensionMap[extension.toLowerCase()] || 'Unknown';
+    '.sql': 'SQL',
+  }
+
+  return extensionMap[extension.toLowerCase()] || 'Unknown'
 }
 
 /**
@@ -666,24 +723,26 @@ export async function saveImprovementSuggestions(
   outputPath: string = 'improvements.json'
 ): Promise<void> {
   try {
-    const outputDir = path.dirname(outputPath);
-    
+    const outputDir = path.dirname(outputPath)
+
     // Создаем директорию, если она не существует
     if (!fs.existsSync(outputDir)) {
-      await fs.promises.mkdir(outputDir, { recursive: true });
+      await fs.promises.mkdir(outputDir, { recursive: true })
     }
-    
+
     // Сохраняем в JSON формате
     await fs.promises.writeFile(
       outputPath,
       JSON.stringify(suggestions, null, 2),
       'utf-8'
-    );
-    
-    console.log(`Saved ${suggestions.length} improvement suggestions to ${outputPath}`);
+    )
+
+    console.log(
+      `Saved ${suggestions.length} improvement suggestions to ${outputPath}`
+    )
   } catch (error) {
-    console.error('Error saving improvement suggestions:', error);
-    throw error;
+    console.error('Error saving improvement suggestions:', error)
+    throw error
   }
 }
 
@@ -697,21 +756,21 @@ export async function loadImprovementSuggestions(
 ): Promise<ImprovementSuggestion[]> {
   try {
     if (!fs.existsSync(inputPath)) {
-      return [];
+      return []
     }
-    
-    const content = await fs.promises.readFile(inputPath, 'utf-8');
-    const suggestions = JSON.parse(content) as ImprovementSuggestion[];
-    
+
+    const content = await fs.promises.readFile(inputPath, 'utf-8')
+    const suggestions = JSON.parse(content) as ImprovementSuggestion[]
+
     // Преобразуем строки дат в объекты Date
     for (const suggestion of suggestions) {
-      suggestion.detected_at = new Date(suggestion.detected_at);
+      suggestion.detected_at = new Date(suggestion.detected_at)
     }
-    
-    return suggestions;
+
+    return suggestions
   } catch (error) {
-    console.error('Error loading improvement suggestions:', error);
-    return [];
+    console.error('Error loading improvement suggestions:', error)
+    return []
   }
 }
 
@@ -726,85 +785,89 @@ export async function generateImprovementReport(
 ): Promise<void> {
   try {
     // Создаем содержимое отчета
-    let report = `# Предложения по улучшению кодовой базы\n\n`;
-    report += `*Дата генерации: ${new Date().toISOString().split('T')[0]}*\n\n`;
-    report += `## Сводка\n\n`;
-    report += `Всего предложений: ${suggestions.length}\n\n`;
-    
+    let report = `# Предложения по улучшению кодовой базы\n\n`
+    report += `*Дата генерации: ${new Date().toISOString().split('T')[0]}*\n\n`
+    report += `## Сводка\n\n`
+    report += `Всего предложений: ${suggestions.length}\n\n`
+
     // Группируем предложения по типу
-    const groupedByType: Record<string, ImprovementSuggestion[]> = {};
-    
+    const groupedByType: Record<string, ImprovementSuggestion[]> = {}
+
     for (const suggestion of suggestions) {
       if (!groupedByType[suggestion.type]) {
-        groupedByType[suggestion.type] = [];
+        groupedByType[suggestion.type] = []
       }
-      
-      groupedByType[suggestion.type].push(suggestion);
+
+      groupedByType[suggestion.type].push(suggestion)
     }
-    
+
     // Добавляем статистику по типам
-    report += `### По типам\n\n`;
-    
+    report += `### По типам\n\n`
+
     for (const type in groupedByType) {
-      report += `- **${type}**: ${groupedByType[type].length} предложений\n`;
+      report += `- **${type}**: ${groupedByType[type].length} предложений\n`
     }
-    
-    report += `\n### По приоритету\n\n`;
-    
+
+    report += `\n### По приоритету\n\n`
+
     // Группируем по приоритету
-    const highPriority = suggestions.filter(s => s.priority >= 8).length;
-    const mediumPriority = suggestions.filter(s => s.priority >= 4 && s.priority < 8).length;
-    const lowPriority = suggestions.filter(s => s.priority < 4).length;
-    
-    report += `- **Высокий приоритет (8-10)**: ${highPriority} предложений\n`;
-    report += `- **Средний приоритет (4-7)**: ${mediumPriority} предложений\n`;
-    report += `- **Низкий приоритет (1-3)**: ${lowPriority} предложений\n\n`;
-    
+    const highPriority = suggestions.filter(s => s.priority >= 8).length
+    const mediumPriority = suggestions.filter(
+      s => s.priority >= 4 && s.priority < 8
+    ).length
+    const lowPriority = suggestions.filter(s => s.priority < 4).length
+
+    report += `- **Высокий приоритет (8-10)**: ${highPriority} предложений\n`
+    report += `- **Средний приоритет (4-7)**: ${mediumPriority} предложений\n`
+    report += `- **Низкий приоритет (1-3)**: ${lowPriority} предложений\n\n`
+
     // Добавляем детали по каждому предложению, отсортированные по приоритету
-    report += `## Детальные предложения\n\n`;
-    
+    report += `## Детальные предложения\n\n`
+
     // Сортируем предложения по приоритету
-    const sortedSuggestions = [...suggestions].sort((a, b) => b.priority - a.priority);
-    
+    const sortedSuggestions = [...suggestions].sort(
+      (a, b) => b.priority - a.priority
+    )
+
     for (const suggestion of sortedSuggestions) {
-      report += `### ${suggestion.title}\n\n`;
-      report += `- **ID**: \`${suggestion.id}\`\n`;
-      report += `- **Тип**: ${suggestion.type}\n`;
-      report += `- **Приоритет**: ${suggestion.priority}/10\n`;
-      report += `- **Сложность**: ${suggestion.estimate_complexity}\n`;
-      report += `- **Обнаружено**: ${suggestion.detected_at.toISOString().split('T')[0]}\n\n`;
-      
-      report += `**Описание**:\n${suggestion.description}\n\n`;
-      
-      report += `**Затронутые файлы**:\n`;
+      report += `### ${suggestion.title}\n\n`
+      report += `- **ID**: \`${suggestion.id}\`\n`
+      report += `- **Тип**: ${suggestion.type}\n`
+      report += `- **Приоритет**: ${suggestion.priority}/10\n`
+      report += `- **Сложность**: ${suggestion.estimate_complexity}\n`
+      report += `- **Обнаружено**: ${suggestion.detected_at.toISOString().split('T')[0]}\n\n`
+
+      report += `**Описание**:\n${suggestion.description}\n\n`
+
+      report += `**Затронутые файлы**:\n`
       for (const file of suggestion.affected_files) {
-        report += `- \`${file}\`\n`;
+        report += `- \`${file}\`\n`
       }
-      
-      report += `\n**Рекомендуемое действие**:\n${suggestion.suggested_action}\n\n`;
-      
+
+      report += `\n**Рекомендуемое действие**:\n${suggestion.suggested_action}\n\n`
+
       // Разделитель между предложениями
-      report += `---\n\n`;
+      report += `---\n\n`
     }
-    
+
     // Добавляем заключение
-    report += `## Заключение\n\n`;
-    report += `Рекомендуется начать с исправления проблем с высоким приоритетом, `;
-    report += `поскольку они представляют наиболее важные улучшения для кодовой базы.`;
-    
+    report += `## Заключение\n\n`
+    report += `Рекомендуется начать с исправления проблем с высоким приоритетом, `
+    report += `поскольку они представляют наиболее важные улучшения для кодовой базы.`
+
     // Создаем директорию, если она не существует
-    const outputDir = path.dirname(outputPath);
+    const outputDir = path.dirname(outputPath)
     if (!fs.existsSync(outputDir)) {
-      await fs.promises.mkdir(outputDir, { recursive: true });
+      await fs.promises.mkdir(outputDir, { recursive: true })
     }
-    
+
     // Сохраняем отчет
-    await fs.promises.writeFile(outputPath, report, 'utf-8');
-    
-    console.log(`Generated improvement report at ${outputPath}`);
+    await fs.promises.writeFile(outputPath, report, 'utf-8')
+
+    console.log(`Generated improvement report at ${outputPath}`)
   } catch (error) {
-    console.error('Error generating improvement report:', error);
-    throw error;
+    console.error('Error generating improvement report:', error)
+    throw error
   }
 }
 
@@ -816,16 +879,16 @@ export async function generateImprovementReport(
  */
 export async function analyzeMultipleRepositories(
   mcpService: Service,
-  repositories: { path: string, name: string }[],
+  repositories: { path: string; name: string }[],
   options: {
-    ignore?: string[],
-    extensions?: string[],
-    limit?: number,
+    ignore?: string[]
+    extensions?: string[]
+    limit?: number
     aspectTypes?: ('code_quality' | 'performance' | 'security')[]
   } = {}
 ): Promise<CodebaseAnalysisResult> {
-  const startTime = Date.now();
-  
+  const startTime = Date.now()
+
   const combinedResult: CodebaseAnalysisResult = {
     suggestions: [],
     total_files_analyzed: 0,
@@ -835,69 +898,74 @@ export async function analyzeMultipleRepositories(
     stats: {
       by_type: {},
       by_priority: {},
-      by_complexity: {}
-    }
-  };
-  
+      by_complexity: {},
+    },
+  }
+
   // Анализируем каждый репозиторий
   for (const repo of repositories) {
-    console.log(`Analyzing repository: ${repo.name} at ${repo.path}`);
-    
+    console.log(`Analyzing repository: ${repo.name} at ${repo.path}`)
+
     try {
       const repoResult = await analyzeCodebase(mcpService, repo.path, {
         ...options,
-        repository: repo.name
-      });
-      
+        repository: repo.name,
+      })
+
       // Объединяем результаты
-      combinedResult.suggestions.push(...repoResult.suggestions);
-      combinedResult.total_files_analyzed += repoResult.total_files_analyzed;
-      combinedResult.errors.push(...repoResult.errors);
-      combinedResult.analyzed_repositories!.push(repo.name);
-      
+      combinedResult.suggestions.push(...repoResult.suggestions)
+      combinedResult.total_files_analyzed += repoResult.total_files_analyzed
+      combinedResult.errors.push(...repoResult.errors)
+      combinedResult.analyzed_repositories!.push(repo.name)
+
       // Объединяем статистику
       if (repoResult.stats) {
         // По типу
         for (const type in repoResult.stats.by_type) {
           if (!combinedResult.stats!.by_type[type]) {
-            combinedResult.stats!.by_type[type] = 0;
+            combinedResult.stats!.by_type[type] = 0
           }
-          combinedResult.stats!.by_type[type] += repoResult.stats.by_type[type];
+          combinedResult.stats!.by_type[type] += repoResult.stats.by_type[type]
         }
-        
+
         // По приоритету
         for (const priority in repoResult.stats.by_priority) {
           if (!combinedResult.stats!.by_priority[priority]) {
-            combinedResult.stats!.by_priority[priority] = 0;
+            combinedResult.stats!.by_priority[priority] = 0
           }
-          combinedResult.stats!.by_priority[priority] += repoResult.stats.by_priority[priority];
+          combinedResult.stats!.by_priority[priority] +=
+            repoResult.stats.by_priority[priority]
         }
-        
+
         // По сложности
         for (const complexity in repoResult.stats.by_complexity) {
           if (!combinedResult.stats!.by_complexity[complexity]) {
-            combinedResult.stats!.by_complexity[complexity] = 0;
+            combinedResult.stats!.by_complexity[complexity] = 0
           }
-          combinedResult.stats!.by_complexity[complexity] += repoResult.stats.by_complexity[complexity];
+          combinedResult.stats!.by_complexity[complexity] +=
+            repoResult.stats.by_complexity[complexity]
         }
       }
     } catch (error) {
-      const errorMessage = `Error analyzing repository ${repo.name}: ${error instanceof Error ? error.message : String(error)}`;
-      console.error(errorMessage);
-      combinedResult.errors.push(errorMessage);
+      const errorMessage = `Error analyzing repository ${repo.name}: ${error instanceof Error ? error.message : String(error)}`
+      console.error(errorMessage)
+      combinedResult.errors.push(errorMessage)
     }
   }
-  
+
   // Сортируем предложения по приоритету (по убыванию)
-  combinedResult.suggestions.sort((a, b) => b.priority - a.priority);
-  
+  combinedResult.suggestions.sort((a, b) => b.priority - a.priority)
+
   // Ограничиваем количество предложений, если указан лимит
   if (options.limit && combinedResult.suggestions.length > options.limit) {
-    combinedResult.suggestions = combinedResult.suggestions.slice(0, options.limit);
+    combinedResult.suggestions = combinedResult.suggestions.slice(
+      0,
+      options.limit
+    )
   }
-  
+
   // Вычисляем длительность анализа
-  combinedResult.analysis_duration_ms = Date.now() - startTime;
-  
-  return combinedResult;
-} 
+  combinedResult.analysis_duration_ms = Date.now() - startTime
+
+  return combinedResult
+}

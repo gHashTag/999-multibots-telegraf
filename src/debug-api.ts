@@ -1,10 +1,13 @@
+#!/usr/bin/env node
 // Скрипт для отладки API сервера
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import dotenv from 'dotenv'
 import { logger } from './utils/logger'
+import { startInngestConnect } from './inngest-connect'
 
-dotenv.config()
+// Регистрируем tsconfig paths для правильного разрешения импортов
+require('tsconfig-paths/register')
 
 const app = express()
 const port = 2999
@@ -38,11 +41,20 @@ app.get('/api/status', (req, res) => {
 })
 
 // Запуск сервера
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`🚀 Отладочный API сервер запущен на порту ${port}`)
   console.log('📌 Доступные маршруты:')
   console.log('   - GET / - Корневой эндпоинт')
   console.log('   - GET /api/status - Проверка статуса')
+
+  // Запускаем Inngest Connect после запуска сервера
+  startInngestConnect()
+    .then(() => {
+      console.log('🔌 Inngest Connect успешно запущен')
+    })
+    .catch(error => {
+      console.error('❌ Ошибка при запуске Inngest Connect:', error)
+    })
 })
 
 // Обработка ошибок
@@ -50,6 +62,23 @@ process.on('uncaughtException', error => {
   console.error('❌ Необработанное исключение:', error)
 })
 
-process.on('unhandledRejection', (reason, _promise) => {
+process.on('unhandledRejection', reason => {
   console.error('❌ Необработанное отклонение Promise:', reason)
+})
+
+// Корректное завершение работы приложения
+process.on('SIGTERM', () => {
+  logger.info('👋 Получен сигнал SIGTERM, закрываем сервер...')
+  server.close(() => {
+    logger.info('✅ Сервер успешно закрыт')
+    process.exit(0)
+  })
+})
+
+process.on('SIGINT', () => {
+  logger.info('👋 Получен сигнал SIGINT, закрываем сервер...')
+  server.close(() => {
+    logger.info('✅ Сервер успешно закрыт')
+    process.exit(0)
+  })
 })

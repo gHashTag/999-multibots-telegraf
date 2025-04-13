@@ -12,6 +12,15 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { getBotByName } from '@/core/bot'
 
+// Определение интерфейса для данных события
+interface VoiceToTextEventData {
+  fileUrl: string
+  telegram_id: string
+  is_ru: boolean
+  bot_name: string
+  username: string
+}
+
 // Поддерживаемые форматы аудио
 const SUPPORTED_FORMATS = [
   'flac',
@@ -33,7 +42,7 @@ export const voiceToTextProcessor = inngest.createFunction(
     name: 'voice-to-text.requested',
   },
   { event: 'voice-to-text.requested' },
-  async ({ event }) => {
+  async ({ event }: { event: { data: VoiceToTextEventData } }) => {
     console.log(
       '🚀 Начало обработки голосового сообщения [Starting voice message processing]'
     )

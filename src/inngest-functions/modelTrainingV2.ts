@@ -18,6 +18,23 @@ import axios from 'axios'
 
 const MAX_ACTIVE_TRAININGS = 3
 
+// Объявляем базовые типы для Inngest
+interface InngestEvent {
+  name: string
+  data: any
+  user?: any
+  version?: string
+  id?: string
+  ts?: number
+  [key: string]: any
+}
+
+interface InngestStep {
+  run: <T>(id: string, fn: () => Promise<T>) => Promise<T>
+  sleep: (id: string, duration: string) => Promise<void>
+  [key: string]: any
+}
+
 // Функция для кодирования файла в base64
 async function encodeFileToBase64(url: string): Promise<string> {
   const response = await axios.get(url, { responseType: 'arraybuffer' })
@@ -31,7 +48,7 @@ export const modelTrainingV2 = inngest.createFunction(
     id: 'model-training-v2',
   },
   { event: 'model-training/v2/requested' },
-  async ({ event, step }) => {
+  async ({ event, step }: { event: InngestEvent; step: InngestStep }) => {
     logger.info({
       message: '🚀 Model training initiated',
       eventId: event.id,

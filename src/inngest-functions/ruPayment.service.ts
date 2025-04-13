@@ -60,6 +60,23 @@ export const SUBSCRIPTION_PLANS = [
   },
 ] as const
 
+// Объявляем базовые типы для Inngest
+interface InngestEvent {
+  name: string
+  data: any
+  user?: any
+  version?: string
+  id?: string
+  ts?: number
+  [key: string]: any
+}
+
+interface InngestStep {
+  run: <T>(id: string, fn: () => Promise<T>) => Promise<T>
+  sleep: (id: string, duration: string) => Promise<void>
+  [key: string]: any
+}
+
 // Функция Inngest для обработки платежей
 export const ruPaymentProcessPayment = inngest.createFunction(
   {
@@ -68,7 +85,7 @@ export const ruPaymentProcessPayment = inngest.createFunction(
     retries: 3, // Автоматические повторы при сбоях
   },
   { event: 'ru-payment/process-payment' }, // Триггерное событие
-  async ({ event, step }) => {
+  async ({ event, step }: { event: InngestEvent; step: InngestStep }) => {
     const { IncSum, inv_id } = event.data
     // Преобразуем строку в число и округляем до целого
     const roundedIncSum = Math.round(Number(IncSum))

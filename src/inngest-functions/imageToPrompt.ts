@@ -8,6 +8,23 @@ import { v4 as uuidv4 } from 'uuid'
 import { ModeEnum } from '@/interfaces/modes'
 import { getUserBalance } from '@/core/supabase'
 
+// Объявляем базовые типы для Inngest
+interface InngestEvent {
+  name: string
+  data: any
+  user?: any
+  version?: string
+  id?: string
+  ts?: number
+  [key: string]: any
+}
+
+interface InngestStep {
+  run: <T>(id: string, fn: () => Promise<T>) => Promise<T>
+  sleep: (id: string, duration: string) => Promise<void>
+  [key: string]: any
+}
+
 if (!process.env.ELESTIO_URL) {
   throw new Error('ELESTIO_URL is not set')
 }
@@ -19,7 +36,7 @@ export const imageToPromptFunction = inngest.createFunction(
     retries: 3,
   },
   { event: 'image/to-prompt.generate' },
-  async ({ event, step }) => {
+  async ({ event, step }: { event: InngestEvent; step: InngestStep }) => {
     try {
       const { image, telegram_id, username, is_ru, bot_name, cost_per_image } =
         event.data

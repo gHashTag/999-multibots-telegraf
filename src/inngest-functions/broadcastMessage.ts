@@ -5,6 +5,23 @@ import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { BroadcastService } from '@/services/broadcast.class'
 
+// Объявляем базовые типы для Inngest
+interface InngestEvent {
+  name: string
+  data: any
+  user?: any
+  version?: string
+  id?: string
+  ts?: number
+  [key: string]: any
+}
+
+interface InngestStep {
+  run: <T>(id: string, fn: () => Promise<T>) => Promise<T>
+  sleep: (id: string, duration: string) => Promise<void>
+  [key: string]: any
+}
+
 // Интерфейс для данных события
 export interface BroadcastEventData {
   imageUrl?: string
@@ -28,6 +45,12 @@ interface BroadcastError extends Error {
   step?: string
 }
 
+// Интерфейс для пользователя
+interface BroadcastUser {
+  telegram_id: string
+  bot_name: string
+}
+
 // Функция для рассылки сообщений
 export const broadcastMessage = inngest.createFunction(
   {
@@ -35,7 +58,7 @@ export const broadcastMessage = inngest.createFunction(
     retries: 3,
   },
   { event: 'broadcast/send-message' },
-  async ({ event, step }) => {
+  async ({ event, step }: { event: InngestEvent; step: InngestStep }) => {
     try {
       // Шаг 1: Валидация входных данных
       const params = await step.run('validate-input', async () => {
@@ -101,12 +124,14 @@ export const broadcastMessage = inngest.createFunction(
 
       // Шаг 4: Подготовка ботов
       await step.run('prepare-bots', async () => {
-        const uniqueBotNames = [...new Set(users.map(u => u.bot_name))]
+        const uniqueBotNames = [
+          ...new Set(users.map((u: BroadcastUser) => u.bot_name)),
+        ]
         const results: BotResults = {}
 
         for (const botName of uniqueBotNames) {
           const bot = new Telegraf<MyContext>(process.env.BOT_TOKEN || '')
-          results[botName] = bot
+          results[botName as string] = bot
         }
 
         return results
@@ -179,8 +204,8 @@ export const broadcastMessage = inngest.createFunction(
         message: params.test_mode
           ? 'Test broadcast completed'
           : params.bot_name
-          ? `Broadcast completed for bot ${params.bot_name}`
-          : 'Broadcast completed for all users',
+            ? `Broadcast completed for bot ${params.bot_name}`
+            : 'Broadcast completed for all users',
         statistics: summary,
         contentType: params.contentType || 'photo',
         bot_name: params.bot_name || 'all',

@@ -22,13 +22,30 @@ import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { supabase } from '@/core/supabase'
 import { sendMediaToPulse } from '@/helpers/pulse'
 
+// Объявляем базовые типы для Inngest
+interface InngestEvent {
+  name: string
+  data: any
+  user?: any
+  version?: string
+  id?: string
+  ts?: number
+  [key: string]: any
+}
+
+interface InngestStep {
+  run: <T>(id: string, fn: () => Promise<T>) => Promise<T>
+  sleep: (id: string, duration: string) => Promise<void>
+  [key: string]: any
+}
+
 export const neuroImageGeneration = inngest.createFunction(
   {
     id: `neuro-image-generation`,
     retries: 1,
   },
   { event: 'neuro/photo.generate' },
-  async ({ event, step }) => {
+  async ({ event, step }: { event: InngestEvent; step: InngestStep }) => {
     logger.info('🎬 Начало обработки события neuro/photo.generate', {
       description: 'Starting neuro image generation event processing',
       event_id: event.id || '(отсутствует)',
