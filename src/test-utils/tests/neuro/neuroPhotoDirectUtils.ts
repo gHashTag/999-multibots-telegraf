@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from 'uuid'
-import { randomInt } from 'crypto'
 import { generateNeuroPhotoDirect } from '../../../services/generateNeuroPhotoDirect'
 import { logger } from '../../../utils/logger'
 import { Telegraf } from 'telegraf'
@@ -42,49 +41,218 @@ const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || ''
 const bot = BOT_TOKEN ? new Telegraf(BOT_TOKEN) : null
 
 /**
- * Генерирует творческий промт для тестирования
+ * Генерирует случайный креативный промпт для NeuroPhoto
+ * @returns {string} промпт
  */
-export function generateCreativePrompt(): string {
-  const prompts = [
-    'мужчина в стиле киберпанк, высококачественная детализация, неоновое освещение',
-    'мужской портрет в стиле акварели, художественное изображение, плавные переходы',
-    'мужчина-воин, фэнтези, стиль игры престолов, детализированная броня',
-    'мужчина-ученый в лаборатории, научно-фантастический стиль, высокая детализация',
-    'стильный бизнесмен в костюме, городской фон, профессиональное освещение',
-    'мужчина в винтажном костюме, ретро стиль, мягкое освещение',
+export const generateCreativePrompt = (): string => {
+  const subjects = [
+    'handsome businessman in luxury suit',
+    'elegant model with perfect facial features',
+    'confident male model with strong jawline',
+    'stylish entrepreneur with sophisticated look',
+    'attractive man with charismatic smile',
+    'professional male model with defined facial features',
+    'fashionable gentleman in tailored outfit',
+    'photogenic male with striking features',
+    'sophisticated executive in premium attire',
+    'charming male model with perfect bone structure',
   ]
 
-  return prompts[randomInt(0, prompts.length)]
+  const poses = [
+    'looking directly at camera',
+    'with confident pose',
+    'with slight smile',
+    'with serious expression',
+    'with head slightly tilted',
+    'with penetrating gaze',
+    'with professional posture',
+    'with charismatic expression',
+    'with determined look',
+    'with friendly but professional expression',
+  ]
+
+  const styles = [
+    'GQ cover style photoshoot',
+    'professional magazine cover lighting',
+    'high-end fashion editorial style',
+    'luxury brand advertisement look',
+    'premium magazine portrait style',
+    'executive portrait photography',
+    'professional headshot style',
+    'high contrast fashion photography',
+    'sophisticated magazine feature',
+    'corporate leader portrait style',
+  ]
+
+  const lighting = [
+    'with perfect studio lighting',
+    'with dramatic side lighting',
+    'with professional three-point lighting',
+    'with soft beauty lighting',
+    'with glamour portrait lighting',
+    'with cinematic lighting setup',
+    'with professional flash photography',
+    'with premium portrait lighting',
+    'with perfect face illumination',
+    'with magazine quality lighting',
+  ]
+
+  const quality = [
+    'ultra detailed, sharp focus on face',
+    '4k resolution, perfect clarity',
+    'professional photography, high definition',
+    'studio quality, flawless details',
+    'crisp details, professional retouching',
+    'perfect exposure, stunning details',
+    'high fashion quality, sharp focus',
+    'commercial photography standard, pristine details',
+    'photorealistic quality, stunning resolution',
+    'portrait perfection, lifelike details',
+  ]
+
+  // Выбираем случайные элементы из каждой категории
+  const randomSubject = subjects[Math.floor(Math.random() * subjects.length)]
+  const randomPose = poses[Math.floor(Math.random() * poses.length)]
+  const randomStyle = styles[Math.floor(Math.random() * styles.length)]
+  const randomLighting = lighting[Math.floor(Math.random() * lighting.length)]
+  const randomQuality = quality[Math.floor(Math.random() * quality.length)]
+
+  // Формируем промпт
+  return `NEUROCODER ${randomSubject}, ${randomPose}, ${randomStyle}, ${randomLighting}, ${randomQuality}, portrait orientation, head and shoulders framing, face clearly visible`
 }
 
 /**
- * Генерирует промт для дизайна
+ * Генерирует случайный промпт для интерьеров и дизайна для NeuroPhoto
+ * @returns {string} промпт
  */
 export function generateDesignPrompt(): string {
-  const prompts = [
-    'сайт о технологиях, векторная графика, яркие цвета, профессиональный дизайн',
-    'мобильное приложение, минималистичный дизайн, современный интерфейс, UI/UX',
-    'логотип для IT компании, минимализм, геометрические формы',
-    'баннер для сайта, яркий дизайн, технологическая тематика',
-    'дизайн приложения, тёмная тема, неоновые акценты, современные элементы интерфейса',
+  const designs = [
+    'sleek modern website design',
+    'elegant mobile app interface',
+    'minimalist logo design',
+    'professional business card layout',
+    'luxury brand identity',
+    'modern UI dashboard',
+    'clean web application interface',
+    'corporate branding elements',
+    'premium product package design',
+    'high-end digital marketing material',
   ]
 
-  return prompts[randomInt(0, prompts.length)]
+  const styles = [
+    'with modern typography',
+    'with luxury color palette',
+    'with professional layout',
+    'with elegant visual hierarchy',
+    'with sophisticated design elements',
+    'with premium visual balance',
+    'with perfect proportions',
+    'with strategic negative space',
+    'with expert color theory application',
+    'with refined design aesthetics',
+  ]
+
+  const elements = [
+    'incorporating geometric elements',
+    'using subtle gradient transitions',
+    'featuring professional iconography',
+    'with balanced composition',
+    'with cohesive visual language',
+    'with strategic brand positioning',
+    'with thoughtful UX considerations',
+    'with polished visual details',
+    'with innovative design solutions',
+    'with intuitive navigation elements',
+  ]
+
+  const quality = [
+    'high resolution mockup',
+    'professional design presentation',
+    'detailed design specifications',
+    'pixel-perfect execution',
+    'industry-standard quality',
+    'print-ready resolution',
+    'premium design quality',
+    'perfect for professional portfolio',
+    'showcase quality presentation',
+    'client presentation ready',
+  ]
+
+  // Выбираем случайные элементы из каждой категории
+  const randomDesign = designs[Math.floor(Math.random() * designs.length)]
+  const randomStyle = styles[Math.floor(Math.random() * styles.length)]
+  const randomElement = elements[Math.floor(Math.random() * elements.length)]
+  const randomQuality = quality[Math.floor(Math.random() * quality.length)]
+
+  // Формируем промпт
+  return `NEUROCODER ${randomDesign}, ${randomStyle}, ${randomElement}, ${randomQuality}, clean background, perfect composition, highly detailed`
 }
 
 /**
- * Генерирует промт для архитектуры
+ * Генерирует случайный промпт для архитектуры для NeuroPhoto
+ * @returns {string} промпт
  */
 export function generateArchitecturePrompt(): string {
-  const prompts = [
-    'современное здание, минимализм, стекло и бетон, архитектурное освещение',
-    'футуристический небоскрёб, закатное освещение, высокодетализированный рендер',
-    'органическая архитектура, природные формы, зелёная крыша, экологический дизайн',
-    'брутализм, монументальная архитектура, контрастное освещение, бетонные формы',
-    'жилой комплекс в стиле хай-тек, ночное освещение, городской пейзаж',
+  const buildings = [
+    'modern luxury residence',
+    'contemporary urban skyscraper',
+    'innovative commercial building',
+    'elegant residential complex',
+    'cutting-edge corporate headquarters',
+    'sustainable architectural design',
+    'high-end urban apartment building',
+    'futuristic architectural concept',
+    'premium hotel exterior design',
+    'sophisticated mixed-use development',
   ]
 
-  return prompts[randomInt(0, prompts.length)]
+  const styles = [
+    'minimalist architectural style',
+    'with clean geometric lines',
+    'featuring glass and steel elements',
+    'with innovative structural design',
+    'combining form and function perfectly',
+    'with sustainable design features',
+    'with dramatic architectural statement',
+    'with perfect proportions and balance',
+    'with striking visual impact',
+    'with harmonious integration to surroundings',
+  ]
+
+  const contexts = [
+    'in urban setting',
+    'against dramatic skyline',
+    'in perfect natural environment',
+    'with professional landscaping',
+    'in evening lighting',
+    'with perfect sky background',
+    'showcasing innovative materials',
+    'highlighting structural elegance',
+    'emphasizing spatial relationships',
+    'with perfect perspective view',
+  ]
+
+  const quality = [
+    'architectural visualization',
+    'high-resolution 3D render',
+    'photorealistic quality',
+    'professional architectural photography style',
+    'detailed structural elements',
+    'professional lighting and shadows',
+    'perfect material textures',
+    'studio quality presentation',
+    'architectural competition standard',
+    'portfolio showcase quality',
+  ]
+
+  // Выбираем случайные элементы из каждой категории
+  const randomBuilding = buildings[Math.floor(Math.random() * buildings.length)]
+  const randomStyle = styles[Math.floor(Math.random() * styles.length)]
+  const randomContext = contexts[Math.floor(Math.random() * contexts.length)]
+  const randomQuality = quality[Math.floor(Math.random() * quality.length)]
+
+  // Формируем промпт
+  return `NEUROCODER ${randomBuilding}, ${randomStyle}, ${randomContext}, ${randomQuality}, precise details, perfect composition, high definition, award-winning design`
 }
 
 /**
@@ -580,6 +748,119 @@ export async function testWithRealUserAndAdmin(
       success: false,
       message: errorMsg,
       name: 'testWithRealUserAndAdmin',
+      error: errorMessage,
+    }
+  }
+}
+
+/**
+ * Тестирует прямую генерацию и отправляет отчет администратору
+ */
+export async function testDirectGenerationAndReport(input: {
+  mode: any // ModeEnum.NeuroPhoto
+  prompt: string
+  model_url: string
+  numImages: number
+  telegram_id: string
+  username: string
+  amount: number
+  bot_name: string
+  selectedModel: string
+  selectedSize: string
+  is_ru?: string
+}): Promise<SimpleTestResult> {
+  try {
+    const startTime = new Date()
+    console.log(`🚀 [TEST]: Запуск теста прямой генерации нейрофото`)
+    console.log(`ℹ️ [TEST]: Промпт: "${input.prompt}"`)
+    console.log(`ℹ️ [TEST]: Модель: ${input.model_url}`)
+    console.log(`ℹ️ [TEST]: Количество изображений: ${input.numImages}`)
+
+    // Создаем моки для Telegram ctx
+    const mockContext = {
+      from: {
+        id: parseInt(input.telegram_id),
+        username: input.username || 'test_user',
+      },
+      session: {
+        mode: input.mode,
+      },
+    }
+
+    // Вызываем функцию прямой генерации с правильными параметрами
+    const result = await generateNeuroPhotoDirect(
+      input.prompt,
+      input.model_url,
+      input.numImages,
+      input.telegram_id,
+      mockContext as any,
+      input.bot_name
+    )
+
+    const endTime = new Date()
+    const executionTime = (endTime.getTime() - startTime.getTime()) / 1000
+
+    if (!result || !result.success) {
+      const errorMsg = `❌ Тест не пройден: ${result ? (result as any).error || 'Неизвестная ошибка' : 'Результат равен null'}`
+      console.error(`❌ [TEST]: ${errorMsg}`)
+
+      return {
+        success: false,
+        message: errorMsg,
+        name: 'testDirectGenerationAndReport',
+        error: errorMsg,
+      }
+    }
+
+    // Сообщение об успехе
+    const successMsg = `✅ Тест успешно пройден за ${executionTime.toFixed(2)} сек. Сгенерировано изображений: ${result.urls ? result.urls.length : 0}`
+    console.log(`✅ [TEST]: ${successMsg}`)
+
+    // Отправка результата админу если есть ADMIN_TELEGRAM_ID
+    const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID
+    if (ADMIN_TELEGRAM_ID && bot) {
+      try {
+        await bot.telegram.sendMessage(
+          ADMIN_TELEGRAM_ID,
+          `✅ Тест генерации нейрофото:\n` +
+            `Промпт: "${input.prompt}"\n` +
+            `Время выполнения: ${executionTime.toFixed(2)} сек\n` +
+            `Параметры: ${input.numImages} изображений, размер ${input.selectedSize}`
+        )
+
+        // Отправляем изображения
+        if (result.urls && result.urls.length > 0) {
+          for (const url of result.urls) {
+            await bot.telegram.sendPhoto(ADMIN_TELEGRAM_ID, url)
+          }
+        }
+
+        console.log(`✅ [ADMIN]: Результаты отправлены администратору`)
+      } catch (error) {
+        console.error(
+          `❌ [ADMIN]: Ошибка при отправке результатов: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
+    }
+
+    return {
+      success: true,
+      message: successMsg,
+      name: 'testDirectGenerationAndReport',
+      details: {
+        urls: result.urls,
+        executionTime,
+      },
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMsg = `❌ Ошибка при тестировании: ${errorMessage}`
+    console.error(`❌ [TEST]: ${errorMsg}`)
+
+    return {
+      success: false,
+      message: errorMsg,
+      name: 'testDirectGenerationAndReport',
       error: errorMessage,
     }
   }
