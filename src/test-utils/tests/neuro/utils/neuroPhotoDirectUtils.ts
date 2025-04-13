@@ -418,7 +418,7 @@ export async function testWithPrompt(
       telegram_id: testTelegramId,
       username: 'test_user',
       is_ru: 'true',
-      bot_name: 'test_bot',
+      bot_name: 'neuro_blogger_bot',
     }
 
     // Создаем моки для Telegram ctx
@@ -660,7 +660,7 @@ export async function testWithRealUserAndAdmin(
     telegram_id,
     username,
     is_ru,
-    bot_name = 'test_bot',
+    bot_name = 'neuro_blogger_bot',
   } = input
   const botToken = process.env.TELEGRAM_BOT_TOKEN
   const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '123456789'
