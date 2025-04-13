@@ -34,6 +34,8 @@ import runHelpSceneTests from './tests/scenes/helpScene.test';
 import runIdeasGeneratorTests from './tests/scenes/ideasGeneratorScene.test';
 import runMenuSceneTests from './tests/scenes/menuScene.test';
 import runLipSyncWizardTests from './tests/scenes/lipSyncWizard.test';
+import runErrorSceneTests from './tests/scenes/errorScene.test';
+import runBotStartSceneTests from './tests/scenes/botStartScene.test';
 
 // Мокируем Supabase, чтобы избежать ошибок с учетными данными
 try {
@@ -445,6 +447,42 @@ export async function runScenesTests(): Promise<TestResult[]> {
     console.error('❌ Error running lipSyncWizard tests:', error);
     results.push({
       name: 'lipSyncWizard tests',
+      success: false,
+      message: String(error)
+    });
+  }
+  
+  // Run Error Scene tests
+  console.log('\n🧪 Running errorScene tests...');
+  try {
+    const errorSceneResults = await runErrorSceneTests();
+    errorSceneResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
+  } catch (error) {
+    console.error('❌ Error running errorScene tests:', error);
+    results.push({
+      name: 'errorScene tests',
+      category: TestCategory.All,
+      success: false,
+      message: String(error)
+    });
+  }
+  
+  // Run botStartScene tests
+  console.log('\n🧪 Running botStartScene tests...');
+  try {
+    const botStartSceneResults = await runBotStartSceneTests();
+    botStartSceneResults.forEach(result => {
+      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
+      results.push(result);
+    });
+  } catch (error) {
+    console.error('❌ Error running botStartScene tests:', error);
+    results.push({
+      name: 'botStartScene tests',
+      category: TestCategory.All,
       success: false,
       message: String(error)
     });
