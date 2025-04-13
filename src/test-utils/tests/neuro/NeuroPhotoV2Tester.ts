@@ -393,7 +393,7 @@ export class NeuroPhotoV2Tester extends InngestFunctionTester<
     }
 
     // Сохраняем и заменяем глобальный fetch
-    const originalFetch = global.fetch
+    const originalFetch = (global as any).fetch
     ;(global as any).fetch = mocks.fetch as any
 
     try {
