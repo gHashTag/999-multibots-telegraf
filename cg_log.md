@@ -1150,3 +1150,36 @@
 3. Расширить систему отчетов о тестировании
 4. Интегрировать запуск Docker-тестов в GitHub Actions
 5. Оптимизировать процесс подготовки тестового окружения
+
+## 06.08.2024 - Fixing Test Runner System and Module Compatibility Issues
+
+### Completed Tasks:
+1. **Diagnosed test runner issues** - Identified module system compatibility problems causing errors when running scene tests. The project uses ES modules in TypeScript configuration, but many tests expect CommonJS.
+
+2. **Improved helpScene test implementation**:
+   - Refactored to use proper mock functions from the codebase's test utilities
+   - Removed Jest dependencies and added compatibility for both testing environments
+   - Fixed assertions to work with the project's mock system
+   - Made test more resilient to different runtime environments
+
+3. **Created workaround scripts**:
+   - Added custom shell script `scripts/run-help-scene-test.sh` to properly execute the helpScene test
+   - Script handles transpilation with correct module settings and Jest global setup
+
+4. **Updated documentation**:
+   - Added detailed information to `src/test-utils/ROADMAP.md` about the discovered issues
+   - Documented workarounds and next steps for fixing the test system
+
+### Issues Identified:
+- Module system mismatch between TypeScript configuration (ES modules) and test framework expectations (CommonJS)
+- Path resolution issues with direct test execution
+- Missing mock implementations for essential services
+- Jest dependency in tests without actual Jest framework in place
+
+### Next Steps:
+1. Apply similar fixes to other scene tests that face the same issues
+2. Create a standardized approach to writing tests that works in both environments
+3. Update main test runners to handle module system compatibility
+4. Add script to project for easily running individual tests with proper settings
+
+Current progress: Developed working workaround for running scene tests independently, starting with helpScene
