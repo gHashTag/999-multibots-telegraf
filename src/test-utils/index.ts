@@ -1,137 +1,76 @@
-#!/usr/bin/env node
 /**
- * Основной файл для запуска тестов
- *
- * Этот файл предоставляет простой интерфейс для запуска доступных тестов
- * с использованием новой модульной системы тестирования.
- *
- * Структура директорий для тестов:
- * - tests/neuro - Тесты нейрофункций
- * - tests/database - Тесты БД
- * - tests/webhooks - Тесты вебхуков
- * - tests/inngest - Тесты Inngest функций
- * - tests/speech - Тесты аудио
- * - tests/translations - Тесты переводов
- * - tests/scenes - Тесты телеграм-сцен
- *
- * Использование:
- *   npm run test:all - запуск всех тестов
- *   npm run test:discover - автоматическое обнаружение и запуск тестов
- *   npm run test:translations - запуск тестов переводов
- *   npm run test:scenes - запуск тестов телеграм-сцен
+ * Основной экспортный файл тестовых утилит
+ * Файл обеспечивает доступ к основным компонентам тестовой системы
  */
 
-import { config } from 'dotenv'
-import path from 'path'
-import { logger } from '@/utils/logger'
-import { TestCategory } from './core/categories'
-import { runTests } from './core/runTests'
-import { runBalanceTests } from './tests/payment/balance.test'
-import { runPaymentNotificationTests } from './tests/payment/paymentNotification.test'
+// Экспорт основных типов
+export * from './types';
 
-// Условный импорт runScenesTests для предотвращения ошибки
-let runScenesTests: any = null;
-try {
-  const scenesTestModule = require('./runScenesTests');
-  runScenesTests = scenesTestModule.runScenesTests;
-} catch (error) {
-  console.warn('❌ Предупреждение: Не удалось загрузить модуль сцен. Тесты сцен будут пропущены.');
-  console.warn('Детали ошибки:', error);
-}
+// Экспорт ядра тестовой системы
+// Избегаем конфликты с одинаковыми именами
+import { TestCategory } from './core/categories';
+import { TestFunction, TestResult } from './core/types';
+export { TestCategory };
+export { TestFunction, TestResult };
 
-// Загружаем переменные окружения
-config({ path: path.resolve('.env.test') })
+export * from './core/mock';
+export * from './core/assertions';
+export * from './core/mockContext';
 
-// Цвета для консоли
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m',
-}
+// Экспорт функций запуска тестов
+import * as scenesTests from './runScenesTests';
+import { runTest } from './runTests';
 
-/**
- * Выводим справку по использованию
- */
-function printHelp() {
-  const message = `
-Использование: ts-node -r tsconfig-paths/register src/test-utils [опции]
+export { scenesTests, runTest };
 
-Опции:
-  --help, -h                   : Показать эту справку
-  --verbose, -v                : Показать подробный вывод результатов
-  --category=XXX               : Запуск тестов для конкретной категории
-  --only=XXX                   : Запустить только тесты с указанным названием
-  --skip=XXX                   : Пропустить тесты с указанным названием
-  --parallel=N                 : Запустить тесты параллельно (по умолчанию: 4)
-  --json                       : Вывести результаты в формате JSON
-  --html                       : Сгенерировать HTML-отчет
-  --output=FILE                : Сохранить результаты в файл
-  --tags=TAG1,TAG2             : Запустить только тесты с указанными тегами
-  --discover                   : Автоматически обнаружить и запустить тесты
-  --test-dir=DIR               : Указать директорию для поиска тестов (для --discover)
+// Экспорт тестов сцен
+export { default as runLipSyncWizardTests } from './tests/scenes/lipSyncWizard.test';
+export { default as runStartSceneTests } from './tests/scenes/startScene.test';
+export { default as runSelectModelSceneTests } from './tests/scenes/selectModelScene.test';
+export { default as runMenuSceneTests } from './tests/scenes/menuScene.test';
 
-Доступные категории:
-  all                          : Все тесты
-  translations                 : Тесты переводов
-  database                     : Тесты базы данных
-  webhook                      : Тесты вебхуков
-  inngest                      : Тесты Inngest функций
-  scenes                       : Тесты телеграм-сцен
+// Экспорты для которых нужно проверить структуру
+// Если функции не экспортируются по-умолчанию, импортируем их явно
+import * as ideasGeneratorTests from './tests/scenes/ideasGeneratorScene.test';
+import * as voiceAvatarWizardTests from './tests/scenes/voiceAvatarWizard.test';
+import * as textToVideoWizardTests from './tests/scenes/textToVideoWizard.test';
+import * as textToImageWizardTests from './tests/scenes/textToImageWizard.test';
+import * as imageToVideoWizardTests from './tests/scenes/imageToVideoWizard.test';
+import * as imageToPromptWizardTests from './tests/scenes/imageToPromptWizard.test';
+import * as neuroPhotoWizardTests from './tests/scenes/neuroPhotoWizard.test';
+import * as neuroPhotoWizardV2Tests from './tests/scenes/neuroPhotoWizardV2.test';
+import * as textToSpeechWizardTests from './tests/scenes/textToSpeechWizard.test';
+import * as audioToTextSceneTests from './tests/scenes/audioToTextScene.test';
+import * as paymentSceneTests from './tests/scenes/paymentScene.test';
+import * as subscriptionSceneTests from './tests/scenes/subscriptionScene.test';
 
-Примеры:
-  ts-node -r tsconfig-paths/register src/test-utils --category=translations
-  ts-node -r tsconfig-paths/register src/test-utils --category=database --verbose
-  ts-node -r tsconfig-paths/register src/test-utils --discover --test-dir=src/test-utils/tests
-  ts-node -r tsconfig-paths/register src/test-utils --json --output=test-results.json
-  ts-node -r tsconfig-paths/register src/test-utils --category=scenes
-  `
-
-  console.log(message)
-}
-
-// Экспортируем основные компоненты новой системы
-export { TestRunner } from './core/TestRunner'
-export { TestCategory }
-export { TestResult, RunnerOptions } from './core/types'
-export { default as assert } from './core/assert'
-export { default as mock } from './core/mock/index'
-export { default as snapshot } from './core/snapshot'
-
-export const paymentTests = {
-  runBalanceTests,
-  runPaymentNotificationTests,
-}
-
-export const telegramTests = {
-  runScenesTests: runScenesTests || (() => Promise.resolve([])),
-}
+export {
+  ideasGeneratorTests,
+  voiceAvatarWizardTests,
+  textToVideoWizardTests,
+  textToImageWizardTests,
+  imageToVideoWizardTests,
+  imageToPromptWizardTests,
+  neuroPhotoWizardTests,
+  neuroPhotoWizardV2Tests,
+  textToSpeechWizardTests,
+  audioToTextSceneTests,
+  paymentSceneTests,
+  subscriptionSceneTests
+};
 
 /**
- * Запуск тестов
+ * Запуск всех тестов, если файл вызван напрямую
  */
-async function start() {
-  logger.info('📊 Запуск тестов проекта')
-  logger.info('📊 Running project tests')
-
-  try {
-    // Проверяем окружение
-    console.log('Environment check:', { nodeEnv: process.env.NODE_ENV });
-    
-    const exitCode = await runTests(process.argv.slice(2))
-    process.exit(exitCode)
-  } catch (error) {
-    logger.error('🔥 Критическая ошибка при запуске тестов:', error)
-    logger.error('🔥 Critical error running tests:', error)
-    process.exit(1)
-  }
-}
-
-// Запуск тестов, если файл запущен напрямую
 if (require.main === module) {
-  start()
-}
+  scenesTests.runScenesTests()
+    .then(() => {
+      console.log('');
+      console.log('🏁 Тестирование завершено');
+      process.exit(0);
+    })
+    .catch(error => {
+      console.error('❌ Ошибка при запуске тестов:', error);
+      process.exit(1);
+    });
+} 
