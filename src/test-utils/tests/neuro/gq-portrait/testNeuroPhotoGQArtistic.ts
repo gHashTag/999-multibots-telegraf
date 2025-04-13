@@ -28,7 +28,7 @@ export async function testGQArtisticPortrait() {
 
   // Художественный портрет в стиле GQ
   const artisticPrompt =
-    'NEUROCODER artistic portrait photograph of a man in GQ magazine style editorial, dramatic chiaroscuro lighting, moody atmosphere, artistic composition, high fashion aesthetic, strong contrast, film grain, captured on medium format, cinematic color grading, professional retouching, fashion photography, creative expression, portrait orientation, 8k, high resolution, perfect details'
+    'NEUROCODER artistic portrait photograph of a bald man with confident expression, masculine features, no hair, strong jawline, in GQ magazine style editorial, dramatic chiaroscuro lighting, moody atmosphere, artistic composition, high fashion aesthetic, strong contrast, film grain, captured on medium format, cinematic color grading, professional retouching, fashion photography, creative expression, portrait orientation, 8k, high resolution, perfect details'
 
   // В тестовом режиме не делаем реальный вызов API
   if (TEST_MODE) {

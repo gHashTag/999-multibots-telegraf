@@ -93,7 +93,7 @@ async function runAllGQTests(): Promise<TestResult> {
 
     // Пакетный тест GQ портретов (разные вариации)
     logger.info('\n📌 [5/5] Запуск пакетного теста GQ Portrait Batch')
-    await testNeuroPhotoGQBatch()
+    await testNeuroPhotoGQBatch(TEST_MODE)
     logger.info('✅ [5/5] Тест пакетной генерации GQ портретов завершен')
 
     logger.info('🏁 Все тесты для GQ портретов успешно завершены')

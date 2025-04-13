@@ -327,6 +327,10 @@ export async function sendResultsToAdmin(
   const groupId =
     telegram_group_id || process.env.TELEGRAM_GROUP_ID || '-1001234567890'
 
+  // Обязательно отправляем сообщение напрямую администратору
+  const adminId = process.env.ADMIN_TELEGRAM_ID || ADMIN_TELEGRAM_ID
+  console.log(`📧 Отправка результатов администратору с ID: ${adminId}`)
+
   try {
     // Сначала отправляем результаты в админ-чат
     const message = `${result.success ? '✅' : '❌'} Тест: ${testName}
@@ -334,33 +338,40 @@ ${result.success ? 'Успешно' : 'Ошибка'}: ${result.message}
 ${result.error ? `Ошибка: ${result.error}` : ''}
 Время: ${new Date().toISOString()}`
 
-    await bot.telegram.sendMessage(ADMIN_TELEGRAM_ID, message)
+    await bot.telegram.sendMessage(adminId, message)
+    console.log(
+      `✅ [ADMIN_DIRECT]: Текстовое сообщение отправлено администратору ${adminId}`
+    )
 
     // Отправляем изображения админу, если они есть
     if (urls && urls.length > 0) {
       for (const url of urls) {
         console.log(
-          `📤 [ADMIN]: Отправка изображения админу: ${url.substring(0, 50)}...`
+          `📤 [ADMIN_DIRECT]: Отправка изображения админу напрямую: ${url.substring(0, 50)}...`
         )
         try {
           // Отправляем изображение по URL напрямую
-          await bot.telegram.sendPhoto(ADMIN_TELEGRAM_ID, { url })
-          console.log(`✅ [ADMIN]: Изображение отправлено админу`)
+          await bot.telegram.sendPhoto(adminId, { url })
+          console.log(
+            `✅ [ADMIN_DIRECT]: Изображение отправлено админу напрямую (ID: ${adminId})`
+          )
         } catch (error) {
           console.error(
-            `❌ [ADMIN]: Ошибка при отправке фото админу: ${error instanceof Error ? error.message : String(error)}`
+            `❌ [ADMIN_DIRECT]: Ошибка при отправке фото админу напрямую (ID: ${adminId}): ${error instanceof Error ? error.message : String(error)}`
           )
 
           // Если не получилось отправить как фото, отправляем как текст
           try {
             await bot.telegram.sendMessage(
-              ADMIN_TELEGRAM_ID,
+              adminId,
               `Ссылка на изображение: ${url}`
             )
-            console.log(`✅ [ADMIN]: Ссылка на изображение отправлена админу`)
+            console.log(
+              `✅ [ADMIN_DIRECT]: Ссылка на изображение отправлена админу напрямую (ID: ${adminId})`
+            )
           } catch (textError) {
             console.error(
-              `❌ [ADMIN]: Ошибка при отправке ссылки админу: ${textError instanceof Error ? textError.message : String(textError)}`
+              `❌ [ADMIN_DIRECT]: Ошибка при отправке ссылки админу напрямую (ID: ${adminId}): ${textError instanceof Error ? textError.message : String(textError)}`
             )
           }
         }
@@ -369,7 +380,8 @@ ${result.error ? `Ошибка: ${result.error}` : ''}
 
     logger.info({
       message: '✅ Результаты отправлены администратору',
-      description: 'Results sent to admin',
+      description: 'Results sent to admin directly',
+      admin_id: adminId,
     })
 
     // ВСЕГДА отправляем в группу @neuro_blogger_pulse
@@ -396,7 +408,7 @@ ${result.error ? `Ошибка: ${result.error}` : ''}
       // Отправляем одно сообщение со всей информацией
       await bot.telegram.sendMessage(groupId, messageText)
       console.log(
-        `✅ [GROUP]: Сообщение со ссылками на изображения отправлено в группу`
+        `✅ [GROUP]: Сообщение со ссылками на изображения отправлено в группу @neuro_blogger_pulse`
       )
 
       // Пробуем также отправить изображения как фото
