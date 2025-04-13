@@ -92,6 +92,18 @@
 
 ## [Unreleased]
 
+### Added
+- Создан утилитарный модуль `createMockFn` для тестирования:
+  - Реализован в `src/test-utils/mocks/mockFn.ts`
+  - Полная поддержка API аналогично Jest.fn() (mockReturnValue, mockResolvedValue, mockRejectedValue, mockImplementation)
+  - Отслеживание вызовов функции и их аргументов
+  - Типизация для улучшения опыта разработки
+  - Поддержка сброса состояния мока (mockReset, mockClear)
+- Добавлен тест для проверки функциональности `createMockFn` в `src/test-utils/tests/mockFnTest.ts`
+- Добавлена команда `test:mock` в package.json для прямого запуска тестов мок-функций
+- Обновлен `src/test-utils/index.ts` для поддержки параметра `--test=mockFnTest`
+- Интеграция с существующей системой тестирования через `src/test-utils/tests/system/index.ts`
+
 ### Fixed
 - Исправлен расчет баланса пользователя: теперь функция `get_user_balance` использует тот же алгоритм, что и `get_user_balance_stats`, включая учет системных транзакций. Это устраняет несоответствие между отображаемыми значениями баланса в разных частях приложения.
 - Исправлена ошибка линтера в `src/test-utils/tests/payment/paymentProcessorMockTest.ts` - удален неиспользуемый импорт `inngestTestEngine`.
