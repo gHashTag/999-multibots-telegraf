@@ -28,14 +28,13 @@ const mockInngestClient = {
 }
 
 // Пытаемся создать настоящий клиент Inngest
-let inngestClient: any;
+let inngestClient: any
 try {
   console.log('🔄 Пробуем создать клиент Inngest...')
-  
+
   // Используем правильный синтаксис для Inngest 3.35.0
   inngestClient = new Inngest({
     id: 'neuro-blogger-2.0',
-    eventKey: INNGEST_EVENT_KEY,
   })
   console.log('✅ Клиент Inngest успешно создан')
 } catch (error) {
