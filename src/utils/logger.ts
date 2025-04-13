@@ -81,3 +81,19 @@ export const logger = winston.createLogger({
   ),
   transports,
 })
+
+// Заглушка для логгера, используемая в тестах
+export const loggerTest = {
+  info: (message: string, params?: any) => {
+    console.log(`[INFO] ${message}`, params || '');
+  },
+  error: (message: string, params?: any) => {
+    console.error(`[ERROR] ${message}`, params || '');
+  },
+  warn: (message: string, params?: any) => {
+    console.warn(`[WARN] ${message}`, params || '');
+  },
+  debug: (message: string, params?: any) => {
+    console.debug(`[DEBUG] ${message}`, params || '');
+  }
+};

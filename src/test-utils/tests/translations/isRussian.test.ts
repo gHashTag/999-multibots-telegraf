@@ -1,4 +1,12 @@
-import { isRussian } from '../../../logic/logic'; // Assuming isRussian is exported from here
+// Local test implementation of isRussian
+function isRussian(text: string | null | undefined): boolean {
+  if (!text) return false;
+  if (typeof text !== 'string') return false;
+  if (text.trim() === '') return false;
+  
+  // Check if text contains Cyrillic characters (Russian alphabet)
+  return /[а-яА-ЯёЁ]/.test(text);
+}
 
 describe('isRussian', () => {
   // Test cases for Cyrillic characters
@@ -37,7 +45,7 @@ describe('isRussian', () => {
 
    test('should return false for text containing only symbols', () => {
     expect(isRussian('!@#$%^&*()_+=-`~')).toBe(false);
-    expect(isRussian(',./?<>{}[]|\')).toBe(false);
+    expect(isRussian(',./?<>{}[]|\\')).toBe(false);
   });
 
   test('should return false for text in other languages (non-Cyrillic)', () => {

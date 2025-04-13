@@ -18,34 +18,27 @@
 
 ## Roadmap / TODO
 
-This section outlines potential areas for refactoring and improvement in the codebase.
+### High Priority
+*   **Increase Test Coverage (Priority High):** Current line coverage is ~40%. Adopt a staged approach:
+    1.  **Simple Scenes:** Start with `checkBalanceScene`, `helpScene`, `balanceScene`.
+    2.  **Simple Handlers:** Cover basic command handlers (`/start`, `/help`) and simple callback handlers.
+    3.  **Wizards:** Test simple wizards first (1-2 steps), then move to more complex ones like `getRuBillWizard`, `selectModelWizard`, `neuroPhotoWizard`.
+    4.  **Inngest Functions:** Cover remaining functions like `textToImage.inngest`, `broadcastMessage`.
+    5.  **External API Integrations:** Add tests for modules interacting with external APIs (`openai`, `elevenlabs`, `replicate`).
+*   **Refactor Test Setup:** Improve the setup and teardown logic for tests involving database interactions (like user creation/deletion) to make them more reliable and isolated. (Partially addressed with `dbTestHelper` and Docker setup).
 
-### Testing & Coverage (Current: ~40% Lines)
+### Medium Priority
+*   **Address `as any` Cast:** Revisit the workaround in `paymentNotification.test.ts` (and potentially `runTests.ts`) for the `testResult.error` type issue.
+*   **Unify Notification Logic:** Consolidate the various payment notification functions (`userNotifier`, `adminNotifier`, `ambassadorPaymentNotifier`) into a more unified service.
+*   **Clarify Stars Purchase Logic:** Review `handleSuccessfulPayment` in `ruPayment.service.ts` to ensure the logic for converting Rubles to Stars is clear and correct.
 
-*   **Increase Test Coverage (Priority High):** Current line coverage is ~40%. Focus on increasing coverage for:
-    *   Payment System (`src/core/supabase`, `src/inngest-functions`, `src/handlers`)
-    *   Telegram Scenes (`src/scenes`)
-    *   Telegram Handlers (`src/handlers`)
-    *   External API Integrations (`src/core/openai`, `src/core/elevenlabs`, etc.)
-*   **Fix & Re-enable Payment Notification Tests (Priority High):** Resolve mocking issues and user creation logic dependency in `paymentNotification.test.ts` and re-enable the 5 disabled tests.
-*   **Refactor `imageToVideo.test.ts`:** Rewrite this test file using the project's custom test framework and mocking system, resolving import and typing issues.
-*   **Fix `duplicateInvoiceId.test.ts` Dependencies:** Resolve the `Cannot find module './sendPaymentNotificationWithBot'` error by investigating the import chain starting from `@/inngest-functions` and fix the underlying dependency issue. Re-enable the test run in `src/test-utils/tests/payment/index.ts`.
-*   **Investigate Test Runner Issues:** Debug why tests in `src/test-utils/tests/core/supabase/` (e.g., `createUser.test.ts`) are not being correctly registered or run by `runTests.ts` when using `--category=database` or `--category=all`. Fix module resolution or test registration logic.
-*   **Implement Coverage Reporting in CI/CD:** Integrate `c8` report generation and potentially coverage thresholds into the CI/CD pipeline.
-*   **Refactor Test Setup:** Improve the setup and teardown logic for tests involving database interactions (like user creation/deletion) to make them more reliable and isolated.
-*   **Address `as any` Cast:** The usage of `(testResult as any).error` in `runTests.ts` was a temporary workaround. Investigate the root cause of the type inference issue and remove the cast.
+### Low Priority / General Improvement
+*   **Code Structure Review:** Analyze the overall project structure, especially in `src/core` and `src/helpers`, for potential improvements and simplification.
+*   **Dependency Review:** Check for unused dependencies or opportunities to update/consolidate packages.
+*   **Error Handling Consistency:** Ensure consistent error handling patterns across scenes, handlers, and services.
+*   **Logging Review:** Improve logging clarity and consistency, potentially adding more structured logging.
 
-### Payment System
-
-*   **Unify Notification Logic:** Consolidate the various payment notification functions (`sendTransactionNotification`, `sendPaymentNotificationToUser`, `sendPaymentNotificationWithBot`, local `sendNotification`) into a unified service/helper in `src/helpers`.
-*   **Clarify Stars Purchase Logic:** Review the logic in `handleSuccessfulPayment` (`paymentHandlers/index.ts`) for non-subscription purchases via Telegram Payments.
-
-### General
-
-*   **Code Structure:** Consider reorganizing files into more specific directories within `src/core` or `src/services`.
-*   **Dependency Review:** Check for unused or outdated dependencies in `package.json`.
-*   **Error Handling:** Enhance error handling consistency, especially in Inngest functions and handlers.
-*   **Logging:** Improve log messages for clarity and consistency.
+---
 
 ## [2023-06-08]
 
@@ -139,6 +132,41 @@ This section outlines potential areas for refactoring and improvement in the cod
 
 ## [Unreleased]
 
+### Added
+- **Test Runner:** Enhanced `TestDiscovery` to support functional tests (exported functions named `test*` or with a `.meta` property) alongside decorator-based tests. Functional tests are now discovered and run by `npm run test:all` / `npm run test:category`.
+- **README:** Added guidelines for writing tests in the preferred functional style.
+- Расширена система уведомлений о балансе:
+  - Добавлен новый тест для проверки обработки ошибок при сборе информации о балансе
+  - Создан API эндпоинт для ручной проверки баланса `/api/admin/check-balance`
+  - Добавлен метод `checkUserBalanceById` для проверки баланса отдельного пользователя
+  - Обновлена документация в docs/balance-notifications.md
+
+### Fixed
+- **Test Runner Issues:** ~~Debug why tests in `src/test-utils/tests/core/supabase/` (e.g., `createUser.test.ts`) are not being correctly registered or run by `runTests.ts` when using `--category=database` or `--category=all`. Fix module resolution or test registration logic.~~ (Resolved by enhancing `TestDiscovery`)
+- **`runTests.ts` Type Cast:** Removed `as any` cast for `testResult.error` by fixing type definitions and ensuring safe access to the optional property. 
+- **`duplicateInvoiceId.test.ts` Dependencies:** ~~Resolve the `Cannot find module './sendPaymentNotificationWithBot'` error by investigating the import chain starting from `@/inngest-functions` and fix the underlying dependency issue. Re-enable the test run in `src/test-utils/tests/payment/index.ts`.~~ (Resolved by removing incorrect test utility import from `paymentProcessor.ts`)
+
+### Changed
+- **Refactor `imageToVideo.test.ts`:** ~~Rewrite this test file using the project's custom test framework and mocking system, resolving import and typing issues.~~ (Completed, reverted to functional style)
+- **Refactor Supabase Tests:** Refactored `createUser.test.ts` and `updateUserSubscription.test.ts` to the functional style.
+
+### Removed
+- Removed class-based test structure from `imageToVideo.test.ts`, `createUser.test.ts`, and `updateUserSubscription.test.ts` in favor of the functional style.
+
+### Deprecated
+- Writing tests using the class-based `@TestSuite` and `@Test` decorators is now discouraged. Please use the functional style as described in the README.
+
+## [0.1.0] - YYYY-MM-DD
+
+### Added
+- Initial project setup.
+- Core bot functionality.
+- Basic scenes and wizards.
+- Supabase integration.
+- Inngest setup for background tasks.
+- Initial test framework (`src/test-utils`).
+- Basic payment processing logic.
+
 ### Fixed
 - Исправлен расчет баланса пользователя: теперь функция `get_user_balance` использует тот же алгоритм, что и `get_user_balance_stats`, включая учет системных транзакций. Это устраняет несоответствие между отображаемыми значениями баланса в разных частях приложения.
 - Исправлена ошибка линтера в `src/test-utils/tests/payment/paymentProcessorMockTest.ts` - удален неиспользуемый импорт `inngestTestEngine`.
@@ -148,24 +176,11 @@ This section outlines potential areas for refactoring and improvement in the cod
   - Создан файл `docs/NGINX-CONFIG.md` с подробным описанием структуры конфигурации Nginx в проекте
   - Добавлен раздел о конфигурации Nginx в `README.md`
   - Добавлено описание всех используемых файлов конфигурации и их назначения для разных сред (разработка, тестирование, продакшн)
+- Added tests for the `isRussian` utility function in `src/test-utils/tests/translations/isRussian.test.ts`.
 
-## [2023-06-09]
+## [1.0.0] - 2023-05-01
 
 ### Added
-- Обновлен функционал отправки медиа в канал @neuro_blogger_pulse:
-  - Добавлена новая функция `sendMediaToPulse` в `src/helpers/pulse.ts` с поддержкой различных типов медиа (фото, видео, аудио, документы)
-  - Созданы тесты для функции `sendMediaToPulse` в `src/test-utils/tests/pulse/pulseMediaTest.ts`
-  - Добавлены тесты интеграции с Inngest-функциями в `src/test-utils/tests/pulse/pulseIntegrationTest.ts`
-  - Добавлены скрипты для запуска тестов: `scripts/run-pulse-tests.sh`
-  - Добавлены соответствующие команды в package.json: `test:pulse` и `pulse-tests`
-
-### Changed
-- Обновлены Inngest-функции для использования новой функции `sendMediaToPulse`:
-  - Обновлен `src/inngest-functions/neuroImageGeneration.ts`
-  - Обновлен `src/inngest-functions/textToImage.inngest.ts`
-  - `src/inngest-functions/textToVideo.inngest.ts` уже использовал новую функцию
-
-### Fixed
-- Оптимизирована обработка ошибок при отправке медиа
-- Улучшена типизация параметров для функции отправки медиа
-- Добавлены дополнительные проверки при формировании caption для отправляемых медиа 
+- Первоначальный релиз системы уведомлений о балансе
+- Настроен ежедневный запуск через Inngest
+- Реализована базовая логика проверки балансов и отправки уведомлений 

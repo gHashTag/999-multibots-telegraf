@@ -57,17 +57,13 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
           ? '❌ У вас нет обученных моделей.\n\nИспользуйте команду "🤖 Цифровое тело аватара", в главном меню, чтобы создать свою ИИ модель для генерации нейрофото в вашим лицом. '
           : "❌ You don't have any trained models.\n\nUse the '🤖  Digital avatar body' command in the main menu to create your AI model for generating neurophotos with your face.",
         {
-          reply_markup: {
-            keyboard: (
-              await mainMenu({
-                isRu,
-                inviteCount: count,
-                subscription: subscription || 'stars',
-                ctx,
-                level,
-              })
-            ).reply_markup.keyboard,
-          },
+          reply_markup: mainMenu({
+            isRu,
+            inviteCount: count,
+            subscription: subscription || 'stars',
+            ctx,
+            level,
+          }).reply_markup
         }
       )
 
@@ -215,13 +211,20 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         return ctx.scene.leave()
       }
 
-      await mainMenu({
+      const keyboard = mainMenu({
         isRu,
         inviteCount: count,
         subscription: subscription || 'stars',
         ctx,
         level,
       })
+      
+      await ctx.reply(
+        isRu 
+          ? '❌ Пожалуйста, выберите от 1 до 4 изображений'
+          : '❌ Please select between 1 and 4 images',
+        { reply_markup: keyboard.reply_markup }
+      )
     }
   }
 }

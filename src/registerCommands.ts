@@ -47,11 +47,13 @@ import {
   uploadVideoScene,
   selectModelScene,
   selectNeuroPhotoScene,
+  languageScene,
+  audioToTextScene as createAudioToTextScene,
 } from './scenes'
 import { imageModelMenu } from './menu/imageModelMenu'
 
 import { generateTextToImage } from './services/generateTextToImage'
-import { isRussian } from './helpers/language'
+import { isRussian, getUserLanguage } from './helpers/language'
 
 import { generateNeuroImage } from './services/generateNeuroImage'
 
@@ -81,6 +83,9 @@ import { handleReceiptCommand } from './handlers/handleReceiptCommand'
  * Согласуйте все изменения с команией разработки.
  * И не удалять этот комментарий!!!
  */
+
+// Create instances of function-based scenes
+const audioToTextSceneInstance = createAudioToTextScene()
 
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
@@ -114,12 +119,14 @@ export const stage = new Scenes.Stage<MyContext>([
   neuroCoderScene,
   lipSyncWizard,
   helpScene,
+  audioToTextSceneInstance,
   inviteScene,
   selectModelScene,
   selectNeuroPhotoScene,
   broadcastWizard,
   ...levelQuestWizard,
   uploadVideoScene,
+  languageScene,
 ])
 
 export function registerCommands({
@@ -730,7 +737,8 @@ export function registerCommands({
       )
       return ctx.scene.leave()
     }
-    await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+    const keyboard = mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+    await ctx.reply(isRu ? 'Операция отменена' : 'Operation cancelled', { reply_markup: keyboard.reply_markup })
     return ctx.scene.leave()
   })
 
@@ -845,4 +853,35 @@ export function registerCommands({
     })
     await handleReceiptCommand(ctx)
   })
+
+  bot.command('language', async ctx => {
+    logger.info('🌐 Команда language:', {
+      description: 'Language command received',
+      telegramId: ctx.from?.id,
+      current_language: getUserLanguage(ctx)
+    })
+    await ctx.scene.enter('languageScene')
+  })
+
+  composer.command('language', async ctx => {
+    logger.info('🌐 Команда language (composer):', {
+      description: 'Language command received (composer)',
+      telegramId: ctx.from?.id,
+      current_language: getUserLanguage(ctx)
+    })
+    await ctx.scene.enter('languageScene')
+  })
+
+  // Регистрируем команду для аудио-в-текст
+  composer.command('audio_to_text', async (ctx) => {
+    logger.info('🎙️ Команда audio_to_text:', {
+      description: 'Audio to text command received',
+      telegramId: ctx.from?.id,
+    });
+    await ctx.scene.enter('audioToTextScene');
+  });
+
+
+
+
 }

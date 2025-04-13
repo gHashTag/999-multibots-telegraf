@@ -34,143 +34,157 @@ helpScene.enter(async ctx => {
     switch (mode) {
       case ModeEnum.DigitalAvatarBody:
         await handleLevel1(ctx)
-        await mainMenu({
+        const keyboard = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboard.reply_markup })
         break
       case ModeEnum.DigitalAvatarBodyV2:
         await handleLevel1(ctx)
-        await mainMenu({
+        const keyboardBodyV2 = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardBodyV2.reply_markup })
         break
       case ModeEnum.NeuroPhoto:
         await handleLevel2(ctx)
-        await mainMenu({
+        const keyboardNeuroPhoto = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardNeuroPhoto.reply_markup })
         break
       case ModeEnum.ImageToPrompt:
         await handleLevel3(ctx)
-        await mainMenu({
+        const keyboardImageToPrompt = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardImageToPrompt.reply_markup })
         break
       case ModeEnum.Avatar:
         await handleLevel4(ctx)
-        await mainMenu({
+        const keyboardAvatar = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardAvatar.reply_markup })
         break
       case ModeEnum.ChatWithAvatar:
         await handleLevel5(ctx)
-        await mainMenu({
+        const keyboardChatWithAvatar = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardChatWithAvatar.reply_markup })
         break
       case ModeEnum.SelectModel:
         await handleLevel6(ctx)
-        await mainMenu({
+        const keyboardSelectModel = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardSelectModel.reply_markup })
         break
       case ModeEnum.Voice:
         await handleLevel7(ctx)
-        await mainMenu({
+        const keyboardVoice = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardVoice.reply_markup })
         break
       case ModeEnum.TextToSpeech:
         await handleLevel8(ctx)
-        await mainMenu({
+        const keyboardTextToSpeech = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardTextToSpeech.reply_markup })
         break
       case ModeEnum.ImageToVideo:
         await handleLevel9(ctx)
-        await mainMenu({
+        const keyboardImageToVideo = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardImageToVideo.reply_markup })
         break
       case ModeEnum.TextToImage:
         await handleLevel10(ctx)
-        await mainMenu({
+        const keyboardTextToImage = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardTextToImage.reply_markup })
         break
       case ModeEnum.TextToVideo:
         await handleLevel11(ctx)
-        await mainMenu({
+        const keyboardTextToVideo = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardTextToVideo.reply_markup })
         break
       case ModeEnum.ChangeSize:
         await handleLevel12(ctx)
-        await mainMenu({
+        const keyboardChangeSize = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardChangeSize.reply_markup })
         break
       case ModeEnum.Invite:
         await handleLevel13(ctx)
-        await mainMenu({
+        const keyboardInvite = mainMenu({
           isRu,
           inviteCount: count,
           subscription: newSub,
           ctx,
           level,
         })
+        await ctx.reply(isRu ? '👆 Справка по команде' : '👆 Command help', { reply_markup: keyboardInvite.reply_markup })
         break
       case ModeEnum.Help:
         ctx.scene.enter('step0')

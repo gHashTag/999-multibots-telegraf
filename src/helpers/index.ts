@@ -18,3 +18,24 @@ export * from './pulseNeuroImageV2'
 export * from './processApiResponse'
 export * from './error/errorMessage'
 export * from './createVoiceAvatar'
+
+
+/**
+ * Форматирует результат транскрипции для отображения пользователю
+ * @param transcriptionResult Результат транскрипции
+ * @returns Отформатированный текст
+ */
+export const formatTranscriptionResult = (transcriptionResult: any): string => {
+  if (!transcriptionResult || !transcriptionResult.text) {
+    return 'Текст не распознан.';
+  }
+
+  let formattedText = `<b>📝 Результат транскрипции:</b>\n\n`;
+  formattedText += transcriptionResult.text;
+
+  if (transcriptionResult.language) {
+    formattedText += `\n\n<i>Определенный язык: ${transcriptionResult.language}</i>`;
+  }
+
+  return formattedText;
+};

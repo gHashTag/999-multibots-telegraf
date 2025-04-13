@@ -5,6 +5,7 @@ import {
   SUPABASE_SERVICE_KEY,
 } from '../../config'
 import { logger } from '@/utils/logger'
+import fs from 'fs'
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_SERVICE_KEY) {
   throw new Error('Missing Supabase environment variables')
@@ -90,3 +91,65 @@ export * from './createPayment'
 // Именно их не хватает в paymentProcessor.ts
 export { getPaymentByInvId } from './getPaymentByInvId'
 export { createSuccessfulPayment } from './createSuccessfulPayment'
+
+/**
+ * Получает пользователя по ID
+ * @param userId ID пользователя
+ * @param botName Имя бота
+ * @returns Данные пользователя или null, если пользователь не найден
+ */
+export const getUserById = async (userId: number, botName: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .eq('bot_name', botName)
+      .single();
+
+    if (error) {
+      console.error('Ошибка при получении пользователя:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Ошибка при получении пользователя:', error);
+    return null;
+  }
+};
+
+/**
+ * Скачивает файл по URL
+ * @param url URL файла
+ * @param destinationPath Путь для сохранения файла
+ * @returns true если файл успешно скачан
+ */
+export const downloadFile = async (url: string, destinationPath: string): Promise<boolean> => {
+  try {
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Ошибка при скачивании файла: ${response.status} ${response.statusText}`);
+    }
+    
+    const fileStream = fs.createWriteStream(destinationPath);
+    const buffer = await response.arrayBuffer();
+    
+    return new Promise((resolve, reject) => {
+      fileStream.write(Buffer.from(buffer), (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        
+        fileStream.close(() => {
+          resolve(true);
+        });
+      });
+    });
+  } catch (error) {
+    console.error('Ошибка при скачивании файла:', error);
+    throw error;
+  }
+};

@@ -1,9 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext, VideoModel } from '@/interfaces'
-import {
-  sendBalanceMessage,
-  validateAndCalculateVideoModelPrice,
-} from '@/price/helpers'
+import { sendBalanceMessage } from '@/price/helpers/sendBalanceMessage'
+import { validateAndCalculateVideoModelPrice } from '@/price/helpers/validateAndCalculateVideoModelPrice'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { getUserBalance } from '@/core/supabase'

@@ -14,7 +14,7 @@ import { getTranslation } from '@/core'
 import { sendTutorialMessage } from '@/handlers/sendTutorialMessage'
 import { ModeEnum } from '@/price/helpers/modelsCost'
 
-const menuCommandStep = async (ctx: MyContext) => {
+export const menuCommandStep = async (ctx: MyContext): Promise<void> => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
   try {
@@ -46,7 +46,7 @@ const menuCommandStep = async (ctx: MyContext) => {
       levels[104], // Техподдержка
     ]
 
-    const keyboard = await mainMenu({
+    const keyboardMarkup = mainMenu({
       isRu,
       inviteCount: newCount,
       subscription: newSubscription,
@@ -61,7 +61,8 @@ const menuCommandStep = async (ctx: MyContext) => {
       console.log('CASE: newLevel === 3 && newSubscription === neurophoto')
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
-      await ctx.reply(message, keyboard)
+      await ctx.reply(message, { reply_markup: keyboardMarkup.reply_markup })
+      return;
     }
 
     // Проверка условий для отправки сообщения
@@ -69,7 +70,7 @@ const menuCommandStep = async (ctx: MyContext) => {
       console.log('CASE: newSubscription === neurotester')
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
-      await ctx.reply(message, keyboard)
+      await ctx.reply(message, { reply_markup: keyboardMarkup.reply_markup })
       ctx.wizard.next()
       return
     }
@@ -114,7 +115,7 @@ const menuCommandStep = async (ctx: MyContext) => {
         ctx,
         message,
         inlineKeyboard,
-        keyboard,
+        keyboardMarkup.reply_markup,
         photo_url
       )
       await sendTutorialMessage(ctx, isRu)
@@ -140,25 +141,42 @@ const menuCommandStep = async (ctx: MyContext) => {
         console.log(`CASE ${newLevel}: ${key}`)
 
         const { translation } = await getTranslation(key, ctx)
-        await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboard)
+        await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboardMarkup.reply_markup)
       } else {
         console.log(`CASE: default ${newCount}`)
         // const message = getText(isRu, 'mainMenu')
         // console.log('message', message)
-        // await ctx.reply(message, keyboard)
+        // await ctx.reply(message, { reply_markup: keyboard })
         ctx.wizard.next()
         return
       }
     }
+
+    const finalKeyboardMarkup = mainMenu({
+      isRu,
+      inviteCount: newCount,
+      subscription: newSubscription || 'stars',
+      ctx,
+      level: newLevel,
+    })
+
+    await ctx.reply(
+      isRu
+        ? `Ваш уровень: ${newLevel}/\n🌟 ${newCount}`
+        : `Your level: ${newLevel}/\n🌟 ${newCount}`,
+      {
+        reply_markup: finalKeyboardMarkup.reply_markup
+      }
+    )
   } catch (error) {
-    console.error('Error in menu command:', error)
+    console.error('Error in menuCommandStep:', error)
     await sendGenericErrorMessage(ctx, isRu, error as Error)
     ctx.scene.leave()
     throw error
   }
 }
 
-const menuNextStep = async (ctx: MyContext) => {
+export const menuNextStep = async (ctx: MyContext): Promise<void> => {
   console.log('CASE 1: menuScene.next')
   if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
     const text = ctx.update.callback_query.data
@@ -170,6 +188,14 @@ const menuNextStep = async (ctx: MyContext) => {
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
     console.log('CASE menuNextStep: text 2', text)
+    
+    // Handle language selection
+    const isRu = isRussian(ctx)
+    if (text === '🌐 Выбор языка' || text === '🌐 Language') {
+      await ctx.scene.enter('languageScene')
+      return
+    }
+    
     await handleMenu(ctx)
     return
   } else {

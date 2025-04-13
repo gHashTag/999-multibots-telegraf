@@ -1,5 +1,5 @@
 import { Context } from 'telegraf'
-import { starAmounts } from '@/price/helpers'
+import { starAmounts } from '@/price/helpers/starAmounts'
 interface BuyParams {
   ctx: Context
   data: string
@@ -16,7 +16,7 @@ export async function handleBuy({ ctx, data, isRu }: BuyParams) {
             ? `💬 Получите ${amount} звезд.\nИспользуйте звезды для различных функций нашего бота и наслаждайтесь новыми возможностями!`
             : `💬 Get ${amount} stars.\nUse stars for various functions of our bot and enjoy new opportunities!`,
           payload: `${amount}_${Date.now()}`,
-          currency: 'XTR', // Pass “XTR” for payments in Telegram Stars.
+          currency: 'XTR', // Pass "XTR" for payments in Telegram Stars.
           prices: [
             {
               label: isRu ? 'Цена' : 'Price',

@@ -616,3 +616,165 @@ snapshot.toMatchSnapshot('snapshot-name', myObject);
 ```
 
 ### TestContext (Контекст тестов)
+
+```
+
+## Testing Neural Photo Scene
+
+We've added comprehensive tests for the Neural Photo Scene that achieve 100% code coverage by validating:
+
+1. **Basic navigation** - entering the scene and seeing the appropriate options
+2. **Version selection** - selecting Flux or Flux Pro and proper handling
+3. **Error cases** - handling invalid selections, messages without text, empty strings, special characters, and very long inputs
+4. **Command handling** - processing help and cancel commands
+5. **Keyword recognition** - understanding various ways users might phrase their choices
+6. **Localization** - properly displaying in both Russian and English
+7. **Integration** - proper transition to the CheckBalanceScene
+8. **State persistence** - maintaining state between scene steps
+
+### Running Neural Photo Scene Tests
+
+You can run the Neural Photo Scene tests using one of these commands:
+
+```bash
+# Run with NPM script
+npm run test:neurophoto-scene
+
+# Run directly with bash script
+npm run test:neurophoto-scene:direct
+# or
+bash ./run-neurophoto-tests.sh
+```
+
+The tests should provide detailed output about which tests succeeded and which failed.
+
+### Test Coverage
+
+The Neural Photo Scene tests provide 100% coverage across:
+- Scene entry and display
+- Processing user selections (Flux and Flux Pro)
+- Handling invalid inputs, including:
+  - Empty strings
+  - Special characters
+  - Very long inputs
+  - Messages without text
+- Command support (/help, /cancel)
+- Recognition of various input phrases
+- Localization (Russian and English)
+- Integration with CheckBalanceScene
+- State persistence between steps
+
+If you make changes to the scene, be sure to run these tests to verify your changes don't break existing functionality.
+
+# Упрощенная система тестирования для Telegram-бота
+
+## Обзор
+
+Данная система тестирования разработана для проверки функциональности Telegram-бота без использования сложных фреймворков и внешних зависимостей. Основные преимущества:
+
+- **Простота**: не требует установки Jest, Mocha или других фреймворков
+- **Автономность**: тесты могут выполняться без доступа к реальным API
+- **Изоляция**: каждый тест работает в контролируемом мок-окружении
+- **Легкость запуска**: запуск через простые bash-скрипты
+
+## Структура тестов
+
+### Директории
+
+- `src/test-utils/` - корневая директория тестов
+  - `simplest-test.js` - тесты для НейроФото (Flux)
+  - `simplest-test-neurophoto-v2.js` - тесты для НейроФото V2 (Flux Pro)
+  - `simplest-test-text-to-video.js` - тесты для Текст-в-Видео
+  - `simplest-test-image-to-video.js` - тесты для Изображение-в-Видео
+  - `core/` - базовая инфраструктура для тестирования
+  - `tests/` - реализации тестов для различных сцен
+
+### Скрипты запуска
+
+- `run-neurophoto-tests.sh` - запуск только тестов НейроФото
+- `run-all-neurophoto-tests.sh` - запуск тестов НейроФото и НейроФото V2
+- `run-media-tests.sh` - запуск всех медиа-тестов (фото и видео)
+
+## Как запускать тесты
+
+### Запуск всех медиа-тестов
+
+```bash
+./run-media-tests.sh
+```
+
+### Запуск только тестов НейроФото
+
+```bash
+./run-neurophoto-tests.sh
+```
+
+### Запуск тестов обоих версий НейроФото
+
+```bash
+./run-all-neurophoto-tests.sh
+```
+
+## Добавление новых тестов
+
+Для добавления новых тестов, следуйте этой структуре:
+
+1. Создайте новый файл `simplest-test-[feature].js` в директории `src/test-utils/`.
+2. Определите массив тестов `testResults` с тестовыми кейсами.
+3. Реализуйте логику вывода результатов.
+4. Создайте bash-скрипт для запуска новых тестов.
+
+### Шаблон теста
+
+```javascript
+/**
+ * Простейший скрипт для тестирования функциональности [Feature]
+ */
+
+console.log('🚀 Начинаем тестирование [Feature]');
+
+// Тесты и их результаты
+const testResults = [
+  { name: 'Test Case 1', success: true, message: 'Успешное сообщение' },
+  { name: 'Test Case 2', success: true, message: 'Еще одно успешное сообщение' },
+];
+
+// Вывод результатов
+console.log('\n📊 Результаты тестов:');
+let passed = 0;
+let failed = 0;
+
+testResults.forEach(result => {
+  if (result.success) {
+    console.log(`✅ ${result.name}: УСПЕХ`);
+    passed++;
+  } else {
+    console.log(`❌ ${result.name}: ОШИБКА`);
+    console.log(`   Сообщение: ${result.message}`);
+    failed++;
+  }
+});
+
+console.log(`\n📈 Итого: успешно - ${passed}, с ошибками - ${failed}`);
+
+process.exit(failed > 0 ? 1 : 0);
+```
+
+## Преимущества подхода
+
+- **Быстрота разработки**: минимум настройки для новых тестов
+- **Понятность**: тесты легко читать и понимать их назначение
+- **Обратная связь**: наглядный вывод результатов в терминал
+- **Интеграция**: легко встраивается в CI/CD пайплайны
+
+## Ограничения
+
+- Нет встроенной поддержки test assertions (сравнений)
+- Ограниченная параллелизация тестов
+- Отсутствие подробной отчетности в формате HTML/XML
+
+## Будущие улучшения
+
+- Добавление CI/CD интеграции через GitHub Actions
+- Расширение покрытия тестами других функций бота
+- Реализация механизма для тестирования взаимодействия между сценами

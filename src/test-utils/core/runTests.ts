@@ -494,14 +494,13 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
                         description: testResult.message || '',
                         run: async () => {
                           if (!testResult.success) {
-                            // Используем приведение к any для обхода ошибки линтера
-                            const errorObj = (testResult as any).error 
-                            const errorMessage = errorObj
-                              ? errorObj instanceof Error
-                                ? errorObj.message
-                                : String(errorObj)
-                              : testResult.message || 'Payment test failed'
-                            throw new Error(errorMessage)
+                            // Safely determine the error message
+                            let errorMessage = testResult.message || 'Payment test failed';
+                            if ('error' in testResult && testResult.error) {
+                              const errorObj = testResult.error;
+                              errorMessage = errorObj instanceof Error ? errorObj.message : String(errorObj);
+                            }
+                            throw new Error(errorMessage);
                           }
                           return testResult
                         },
@@ -559,14 +558,13 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
                   description: 'Проверка валидности URL формы Robokassa',
                   run: async () => {
                     if (!testResult.success) {
-                      // Используем приведение к any для обхода ошибки линтера
-                      const errorObj = (testResult as any).error
-                      const errorMessage = errorObj
-                        ? errorObj instanceof Error 
-                          ? errorObj.message 
-                          : String(errorObj)
-                        : 'Тест URL Robokassa не пройден'
-                      throw new Error(errorMessage)
+                      // Safely determine the error message
+                      let errorMessage = testResult.message || 'Тест URL Robokassa не пройден';
+                      if ('error' in testResult && testResult.error) {
+                        const errorObj = testResult.error;
+                        errorMessage = errorObj instanceof Error ? errorObj.message : String(errorObj);
+                      }
+                      throw new Error(errorMessage);
                     }
                     return {
                       success: true,
@@ -665,6 +663,7 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
   } finally {
     // Очищаем ресурсы
     await runner.cleanup()
+    logger.info('🧹 Test resources cleanup finished.');
   }
 }
 

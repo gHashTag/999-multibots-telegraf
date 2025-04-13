@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import mock from '@/test-utils/core/mock'
 import { User, Operation } from './types'
+import { mockSupabase } from './mockSupabase'
 
 class MockSupabase {
   private users: User[] = []
@@ -131,3 +132,5 @@ mock.object({
     }
   })
 });
+
+export const supabase = mockSupabase;

@@ -5,7 +5,7 @@ import { ModeEnum } from '@/price/helpers/modelsCost'
 import { logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { isDev } from '@/config'
-import { convertRublesToStars } from '@/price/helpers'
+import { convertRublesToStars } from '@/price/helpers/costHelpers'
 
 import { isRubPayment } from '@/price/helpers/costHelpers'
 

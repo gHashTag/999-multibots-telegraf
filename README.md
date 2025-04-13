@@ -476,3 +476,83 @@ await sendMediaToPulse({
 # Запуск тестов Text-to-Video с проверкой отправки в Pulse
 ./scripts/run-textToVideo-tests.sh
 ```
+
+## Running Tests
+
+This project uses a custom test framework located in `src/test-utils`. Tests should be placed in relevant subdirectories within `src/test-utils/tests`.
+
+### Functional Test Style (Preferred)
+
+We prefer writing tests in a functional style. To ensure your tests are automatically discovered and run by the main test runner (`npm run test:all` or `npm run test:category -- --category=YourCategory`), follow these guidelines:
+
+1.  **File Naming:** Use the `.test.ts` or `.spec.ts` suffix (e.g., `myFeature.test.ts`).
+2.  **Export Test Functions:** Export each test case as an `async` function.
+3.  **Naming Convention:** Name the exported test functions starting with `test` (e.g., `export async function testMyFeature_SuccessCase()`).
+4.  **Return Type:** Test functions should return a `Promise<TestResult>` (import from `@/test-utils/core/types`).
+5.  **Categorization (Required):** Assign a category to each test function using a `.meta` property. Import categories from `@/test-utils/core/categories`. This is crucial for filtering tests.
+    ```typescript
+    import { TestResult } from '@/test-utils/core/types';
+    import { TestCategory } from '@/test-utils/core/categories';
+
+    export async function testLogin_Success(): Promise<TestResult> {
+      // ... test logic using assert ...
+      return { name: 'testLogin_Success', success: true, message: 'Passed' };
+    }
+    testLogin_Success.meta = { category: TestCategory.Auth }; // Assign category
+    ```
+6.  **Setup/Teardown:** Since `BeforeEach`/`AfterEach` hooks are not automatically applied to functional tests by the discovery mechanism, call any necessary setup (e.g., `setupMocks()`) or teardown functions *within* each test function.
+7.  **Assertions:** Use the custom assertion library: `import assert from '@/test-utils/core/assert';`.
+8.  **Mocks:** Use the custom mocking utilities: `import mockApi from '@/test-utils/core/mock';`.
+9.  **(Optional) Local Runner Function:** You can still include an exported `runMyFeatureTests` function within the file to easily run *only* the tests in that specific file using `ts-node src/test-utils/tests/myFeature.test.ts`. However, this runner function is **not** used by the main test discovery process.
+
+### Decorator-Based Style (Legacy/Discouraged)
+
+Previously, tests were written using `@TestSuite` and `@Test` decorators. While the test runner can still discover these, **please use the functional style for new tests**. Existing decorator-based tests may be refactored to the functional style over time.
+
+```typescript
+// Example (Legacy - Do not use for new tests)
+import { TestSuite, Test, BeforeEach } from '@/test-utils/core/types';
+import { TestCategory } from '@/test-utils/core/categories';
+
+@TestSuite('My Feature Suite', { category: TestCategory.FeatureX })
+export class MyFeatureTests {
+  @BeforeEach()
+  setup() { /* ... */ }
+
+  @Test('Success Case')
+  async testSuccess() { /* ... */ }
+}
+```
+
+## Running Tests
+
+// ... (existing commands) ...
+
+### Test Database Setup (Using Docker)
+
+For integration tests that interact with the database (using `src/test-utils/helpers/dbTestHelper.ts`), we utilize a **local Supabase instance running in Docker** to ensure isolation and consistency. This avoids polluting any cloud development or production databases.
+
+**1. Docker Compose for Testing:**
+   - A dedicated Docker Compose file (e.g., `docker-compose.test.yml` - needs to be created if not present) should define the Supabase services (Kong, Postgres, Auth, Realtime, etc.) required for testing.
+   - This setup should be based on the official Supabase Docker guide: [https://supabase.com/docs/guides/self-hosting/docker](https://supabase.com/docs/guides/self-hosting/docker)
+
+**2. Environment Configuration (`.env.test`):**
+   - Configure your `.env.test` file to point to the local Docker Supabase instance. The default ports for Supabase running locally are usually:
+     ```bash
+     # .env.test (Example for local Docker Supabase)
+     SUPABASE_URL=http://localhost:54321
+     SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+     SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+     # Use the default keys provided by Supabase Docker setup
+     ```
+
+**3. Running Tests with Docker DB:**
+   - The test scripts in `package.json` (e.g., `npm run test:db`, `npm run test:all`) should be updated to automatically manage the test database container:
+     - Start the container before running tests: `docker compose -f docker-compose.test.yml up -d`
+     - Run the test command (e.g., `ts-node ... src/test-utils/core/runTests.ts ...`)
+     - Stop and remove the container (including volumes to ensure clean state): `docker compose -f docker-compose.test.yml down -v`
+
+**4. Automatic Cleanup:**
+   - The `dbTestHelper.ts` includes cleanup logic (`cleanupDbTests`) that runs automatically via `runTests.ts` after the test suite finishes, removing any data created *during that specific test run* from the test database container.
+
+## Project Structure

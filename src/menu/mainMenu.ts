@@ -60,12 +60,17 @@ export const levels: Record<number, Level> = {
     title_ru: '🖼️ Текст в фото',
     title_en: '🖼️ Text to Image',
   },
+  // audio_to_text
+  12: {
+    title_ru: '🎙️ Аудио в текст',
+    title_en: '🎙️ Audio to Text',
+  },
   // lip_sync
-  // 12: {
+  // 13: {
   //   title_ru: '🎤 Синхронизация губ',
   //   title_en: '🎤 Lip Sync',
   // },
-  // 13: {
+  // 14: {
   //   title_ru: '🎥 Видео в URL',
   //   title_en: '🎥 Video in URL',
   // },
@@ -98,91 +103,106 @@ export const levels: Record<number, Level> = {
     title_ru: '💫 Оформить подписку',
     title_en: '💫 Subscribe',
   },
+  // languageCommand
+  106: {
+    title_ru: '🌐 Выбор языка',
+    title_en: '🌐 Language',
+  },
 }
+
+// Инвертированный объект для поиска уровня по названию
+export const levelsInverse: { [key: string]: number } = Object.entries(
+  levels
+).reduce((acc, [level, { title_ru, title_en }]) => {
+  acc[title_ru] = Number(level)
+  acc[title_en] = Number(level)
+  return acc
+}, {} as { [key: string]: number })
 
 export const mainMenuButton = {
   title_ru: '🏠 Главное меню',
   title_en: '🏠 Main menu',
 }
 
-export async function mainMenu({
-  isRu,
-  subscription = 'stars',
-  level,
-  additionalButtons = [],
-}: {
-  isRu: boolean
-  inviteCount: number
-  subscription: Subscription
-  level: number
-  ctx: MyContext
-  additionalButtons?: Level[]
-}): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
-  console.log('💻 CASE: mainMenu')
+// Функция для получения кнопок меню
+export const mainMenu = (options: {
+  isRu: boolean;
+  inviteCount: number;
+  subscription: Subscription;
+  ctx: MyContext;
+  level: number;
+  additionalButtons?: Level[]; 
+}) => {
+  try {
+    const { isRu, level, subscription, additionalButtons = [] } = options;
+    const isSubscribed = subscription !== 'stars';
+    const rows: string[][] = []
 
-  // Основная конфигурация меню
-  const subscriptionLevelsMap = {
-    stars: [levels[105], levels[104]],
-    neurophoto: [
-      levels[1],
-      levels[2],
-      levels[3],
-      levels[100],
-      levels[101],
-      levels[102],
-      levels[103],
-      levels[104],
-      levels[105],
-    ],
-    neurobase: Object.values(levels),
-    neuromeeting: Object.values(levels),
-    neuroblogger: Object.values(levels),
-    neurotester: Object.values(levels),
+    // Создаем первую строку кнопок (базовая функциональность)
+    const row1 = []
+    row1.push(isRu ? levels[2].title_ru : levels[2].title_en) // Нейрофото
+
+    // Если есть подписка или уровень >= 3
+    if (isSubscribed || level >= 3) {
+      row1.push(isRu ? levels[3].title_ru : levels[3].title_en) // Промпт из фото
+    }
+    rows.push(row1)
+
+    // Вторая строка - с аватаром и чатом
+    if (isSubscribed || level >= 5) {
+      const row2 = []
+      row2.push(isRu ? levels[4].title_ru : levels[4].title_en) // Мозг аватара
+      row2.push(isRu ? levels[5].title_ru : levels[5].title_en) // Чат с аватаром
+      rows.push(row2)
+    }
+
+    // Третья строка - с цифровым телом и моделью
+    if (isSubscribed || level >= 7) {
+      const row3 = []
+      row3.push(isRu ? levels[1].title_ru : levels[1].title_en) // Цифровое тело
+      row3.push(isRu ? levels[6].title_ru : levels[6].title_en) // Выбор модели
+      rows.push(row3)
+    }
+
+    // Четвертая строка - голос аватара и текст в голос
+    if (isSubscribed || level >= 9) {
+      const row4 = []
+      row4.push(isRu ? levels[7].title_ru : levels[7].title_en) // Голос аватара
+      row4.push(isRu ? levels[8].title_ru : levels[8].title_en) // Текст в голос
+      rows.push(row4)
+    }
+
+    // Пятая строка - фото в видео и видео из текста
+    if (isSubscribed || level >= 11) {
+      const row5 = []
+      row5.push(isRu ? levels[9].title_ru : levels[9].title_en) // Фото в видео
+      row5.push(isRu ? levels[10].title_ru : levels[10].title_en) // Видео из текста
+      rows.push(row5)
+    }
+
+    // Шестая строка - текст в фото и аудио в текст
+    if (isSubscribed || level >= 13) {
+      const row6 = []
+      row6.push(isRu ? levels[11].title_ru : levels[11].title_en) // Текст в фото
+      row6.push(isRu ? levels[12].title_ru : levels[12].title_en) // Аудио в текст
+      rows.push(row6)
+    }
+
+    // Всегда добавляем строку с балансом и пополнением
+    const row7 = []
+    row7.push(isRu ? levels[101].title_ru : levels[101].title_en) // Баланс
+    row7.push(isRu ? levels[100].title_ru : levels[100].title_en) // Пополнить баланс
+    rows.push(row7)
+
+    // Добавляем кнопку выбора языка
+    const row8 = []
+    row8.push(isRu ? levels[106].title_ru : levels[106].title_en) // Язык
+    rows.push(row8)
+
+    return Markup.keyboard(rows).resize()
+  } catch (error) {
+    console.error('Error in mainMenu:', error)
+    // Возвращаем базовую клавиатуру в случае ошибки
+    return Markup.keyboard([[levels[2].title_ru, levels[100].title_ru]]).resize()
   }
-
-  // Получаем основные кнопки для текущей подписки
-  let availableLevels =
-    subscriptionLevelsMap[subscription as keyof typeof subscriptionLevelsMap] ||
-    []
-
-  // Для neurophoto при уровне 3 добавляем дополнительные кнопки
-  if (subscription === 'neurophoto' && level >= 3) {
-    availableLevels = [
-      ...availableLevels.filter(l => l.title_ru !== mainMenuButton.title_ru),
-      ...additionalButtons,
-    ]
-  }
-
-  // Удаляем дубликаты уровней
-  availableLevels = Array.from(new Set(availableLevels))
-
-  // Для подписок с полным доступом не фильтруем по уровню
-  if (!['neurotester', 'neurobase'].includes(subscription)) {
-    availableLevels = availableLevels.filter(
-      l =>
-        // Оставляем кнопки, которые есть в subscriptionLevelsMap
-        subscriptionLevelsMap[
-          subscription as keyof typeof subscriptionLevelsMap
-        ].includes(l) ||
-        // Или это дополнительные кнопки
-        additionalButtons.includes(l)
-    )
-  }
-
-  // Формируем кнопки
-  const buttons = availableLevels.map(level =>
-    Markup.button.text(isRu ? level.title_ru : level.title_en)
-  )
-
-  // Разбиваем на строки по 2 кнопки
-  const buttonRows = []
-  for (let i = 0; i < buttons.length; i += 2) {
-    buttonRows.push(buttons.slice(i, i + 2))
-  }
-
-  console.log(
-    '👉 Available buttons:',
-    buttons.map(b => b.text)
-  )
-  return Markup.keyboard(buttonRows).resize()
 }

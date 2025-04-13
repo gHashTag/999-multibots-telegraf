@@ -16,7 +16,7 @@ import {
 } from './state.js';
 import { TaskScheduler, TaskHandler, createTaskScheduler } from './scheduler.js';
 import { createMcpService } from '../services/mcp.js';
-import { Service } from '../types.js';
+import { Service } from '../types';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -32,7 +32,7 @@ import {
   analyzeCodebase,
   saveImprovementSuggestions,
   loadImprovementSuggestions,
-  generateImprovementReport,
+  generateImprovementReport as generateImprovementReportFromDetector,
   ImprovementSuggestion,
   CodebaseAnalysisResult,
   analyzeMultipleRepositories
@@ -274,6 +274,7 @@ Please provide:
 5. Recommendations for improvement
       `;
       
+      // @ts-ignore
       const analysis = await processMcpRequest(mcpService, prompt);
       
       return {
@@ -303,6 +304,7 @@ Please provide fully functional, production-ready code that follows best practic
 Include necessary imports, error handling, and comments.
       `;
       
+      // @ts-ignore
       const generatedCode = await processMcpRequest(mcpService, prompt);
       
       return {
@@ -390,6 +392,7 @@ Include specific patterns to look for, proposed changes, and reasoning.
       }
       
       try {
+        // @ts-ignore
         const refactoredCode = await processMcpRequest(mcpService, prompt);
         
         // Если был указан путь к файлу и флаг автоматического применения изменений
@@ -470,6 +473,7 @@ Include setup, teardown, and all necessary imports.
       `;
       
       try {
+        // @ts-ignore
         const testCode = await processMcpRequest(mcpService, prompt);
         
         // Если нужно автоматически создать файл с тестами
@@ -562,6 +566,7 @@ Format the documentation in Markdown.
       `;
       
       try {
+        // @ts-ignore
         const documentation = await processMcpRequest(mcpService, prompt);
         
         // Если нужно автоматически создать файл с документацией
@@ -625,6 +630,7 @@ Please provide:
       `;
       
       try {
+        // @ts-ignore
         const result = await processMcpRequest(mcpService, prompt);
         
         return {
@@ -662,6 +668,7 @@ Please provide:
       `;
       
       try {
+        // @ts-ignore
         const result = await processMcpRequest(mcpService, prompt);
         
         return {
@@ -714,6 +721,7 @@ Please analyze this improvement request and provide:
       `;
       
       try {
+        // @ts-ignore
         const result = await processMcpRequest(mcpService, prompt);
         
         return {
@@ -1135,7 +1143,7 @@ async function performSelfImprovement(
   if (improvementRequest.files && improvementRequest.files.length > 0) {
     for (const file of improvementRequest.files) {
       try {
-        const fileExists = await fileUtils.exists(file);
+        const fileExists = await fileUtils.fileExists(file);
         
         if (fileExists) {
           // Файл существует - модифицируем его
@@ -1158,7 +1166,7 @@ Return ONLY the complete updated file content without any explanations.
           `;
           
           // @ts-ignore
-          const updatedContent = await agentState.mcpService.processTask(updatePrompt);
+          const updatedContent = await processMcpRequest(agentState.mcpService, updatePrompt);
           
           // Сохраняем изменения только если содержимое действительно изменилось
           if (updatedContent !== currentContent) {
@@ -1181,7 +1189,7 @@ Return ONLY the file content without any explanations.
           `;
           
           // @ts-ignore
-          const newFileContent = await agentState.mcpService.processTask(createPrompt);
+          const newFileContent = await processMcpRequest(agentState.mcpService, createPrompt);
           
           // Создаем директории, если они не существуют
           await fileUtils.ensureDirectoryExists(path.dirname(file));
@@ -1281,7 +1289,7 @@ async function rateImprovement(
   });
   
   // Рассчитываем среднюю оценку
-  const totalScore = improvement.ratings.reduce((sum, rating) => sum + rating.score, 0);
+  const totalScore = improvement.ratings.reduce((sum: number, rating: { score: number }) => sum + rating.score, 0);
   improvement.average_rating = totalScore / improvement.ratings.length;
   
   // Сохраняем обновленное улучшение
@@ -1304,7 +1312,7 @@ async function updateImprovementLearningData(
 ): Promise<void> {
   try {
     // Путь к файлу данных для обучения
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const __dirname = path.resolve(path.dirname(''));
     const learningDataPath = path.join(__dirname, '../../data/improvement-feedback.json');
     
     // Создаем директорию data, если она не существует
@@ -1371,7 +1379,7 @@ async function generateImprovementReport(agentState: AgentInternalState): Promis
   }
   
   // Загружаем данные о рейтингах
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const __dirname = path.resolve(path.dirname(''));
   const learningDataPath = path.join(__dirname, '../../data/improvement-feedback.json');
   let ratings: { improvementId: string; score: number }[] = [];
   
@@ -1396,13 +1404,13 @@ async function generateImprovementReport(agentState: AgentInternalState): Promis
   const fullReportPath = path.join(reportsDir, `improvement-report-${Date.now()}.md`);
   
   // Генерируем сводку
-  const summary = await generateImprovementReport(suggestions, ratings);
+  const summaryText = await generateImprovementReportFromDetector(suggestions, ratings);
   
   // Генерируем и сохраняем полный отчет
   const fullReport = await generateFullImprovementReport(agentState, suggestions, ratings);
   fs.writeFileSync(fullReportPath, fullReport);
   
-  return { summary, fullReportPath };
+  return { summary: summaryText, fullReportPath };
 }
 
 /**
@@ -1574,68 +1582,6 @@ async function applyImprovement(
   }, 0);
   
   return task.id;
-}
-
-/**
- * Обновление данных для обучения системы улучшений
- */
-async function updateImprovementLearningData(
-  agentState: AgentInternalState,
-  improvement: ImprovementSuggestion,
-  score: number,
-  feedback?: string
-): Promise<void> {
-  try {
-    // Путь к файлу данных для обучения
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    const learningDataPath = path.join(__dirname, '../../data/improvement-feedback.json');
-    
-    // Создаем директорию data, если она не существует
-    const dataDir = path.join(__dirname, '../../data');
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    
-    // Загружаем существующие данные или создаем новый объект
-    let learningData = {
-      version: 1,
-      feedback: [] as Array<{
-        improvementId: string;
-        type: string;
-        priority: number;
-        score: number;
-        feedback?: string;
-        timestamp: string;
-      }>
-    };
-    
-    // Проверяем существование файла данных
-    if (fs.existsSync(learningDataPath)) {
-      const fileContent = fs.readFileSync(learningDataPath, 'utf-8');
-      try {
-        learningData = JSON.parse(fileContent);
-      } catch (parseError) {
-        console.error('Error parsing learning data:', parseError);
-      }
-    }
-    
-    // Добавляем новую запись обратной связи
-    learningData.feedback.push({
-      improvementId: improvement.id,
-      type: improvement.type,
-      priority: improvement.priority,
-      score,
-      feedback,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Сохраняем обновленные данные
-    fs.writeFileSync(learningDataPath, JSON.stringify(learningData, null, 2));
-    
-    console.log(`Learning data updated for improvement ${improvement.id}`);
-  } catch (error) {
-    console.error('Error updating learning data:', error);
-  }
 }
 
 /**

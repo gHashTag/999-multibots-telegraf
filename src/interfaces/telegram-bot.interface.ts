@@ -57,6 +57,7 @@ export interface MyWizardSession extends Scenes.WizardSessionData {
   videoFileId?: string
   postLink?: string
   botName?: string
+  waitingForThreshold?: boolean
 }
 
 export interface Button {
@@ -81,6 +82,18 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   memory?: Memory
   email: string
   selectedModel: string
+  audioToText: {
+    audioFileId?: string
+    audioFileUrl?: string
+    transcription?: string
+    duration?: number
+    filePath?: string
+    isLongAudio?: boolean
+    transcriptionLanguage?: string
+    transcriptionModel?: string
+    accuracy?: string
+    amount?: number
+  }
   prompt: string
   selectedSize: string
   userModel: UserModel
@@ -105,10 +118,16 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   invoiceURL: string
   buttons: Button[]
   text?: string
+  language?: string
+  referralsCount?: number
   selectedPayment: {
     amount: number
     stars: number
     subscription?: LocalSubscription
+  }
+  balanceNotifications?: {
+    enabled: boolean
+    threshold: number
   }
 }
 

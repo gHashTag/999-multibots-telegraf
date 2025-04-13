@@ -6,14 +6,15 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import { errorMessage, errorMessageAdmin } from '@/helpers'
-import { ModeEnum, calculateModeCost } from '@/price/helpers/modelsCost'
-import { sendBalanceMessage } from '@/price/helpers'
+import { ModeEnum } from '@/interfaces'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { VIDEO_MODELS_CONFIG } from '@/menu/videoModelMenu'
 import { v4 as uuidv4 } from 'uuid'
 import axios from 'axios'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 import { sendMediaToPulse } from '@/helpers/pulse'
+import { sendBalanceMessage } from '@/price/helpers/sendBalanceMessage'
 
 /**
  * Интерфейс события для генерации видео из текста

@@ -2,6 +2,7 @@
 export * from './broadcastWizard'
 
 // Существующие экспорты
+export * from './audioToTextScene'
 export * from './avatarBrainWizard'
 export * from './imageToPromptWizard'
 export * from './improvePromptWizard'
@@ -38,3 +39,4 @@ export * from './checkBalanceScene'
 export * from './uploadVideoScene'
 export * from './selectModelScene'
 export * from './selectNeuroPhotoScene'
+export * from './languageScene'

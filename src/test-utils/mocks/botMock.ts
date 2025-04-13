@@ -1,14 +1,14 @@
-import mock from '@/test-utils/core/mock'
+import { create } from '@/test-utils/core/mock'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 
 export const mockBotInstance = {
   telegram: {
-    sendMessage: mock.create(),
-    sendVideo: mock.create(),
-    sendPhoto: mock.create(),
-    editMessageText: mock.create(),
-    deleteMessage: mock.create()
+    sendMessage: create(),
+    sendVideo: create(),
+    sendPhoto: create(),
+    editMessageText: create(),
+    deleteMessage: create()
   }
 }
 

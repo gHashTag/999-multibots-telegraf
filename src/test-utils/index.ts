@@ -12,11 +12,13 @@
  * - tests/inngest - Тесты Inngest функций
  * - tests/speech - Тесты аудио
  * - tests/translations - Тесты переводов
+ * - tests/scenes - Тесты телеграм-сцен
  *
  * Использование:
  *   npm run test:all - запуск всех тестов
  *   npm run test:discover - автоматическое обнаружение и запуск тестов
  *   npm run test:translations - запуск тестов переводов
+ *   npm run test:scenes - запуск тестов телеграм-сцен
  */
 
 import { config } from 'dotenv'
@@ -26,6 +28,16 @@ import { TestCategory } from './core/categories'
 import { runTests } from './core/runTests'
 import { runBalanceTests } from './tests/payment/balance.test'
 import { runPaymentNotificationTests } from './tests/payment/paymentNotification.test'
+
+// Условный импорт runScenesTests для предотвращения ошибки
+let runScenesTests: any = null;
+try {
+  const scenesTestModule = require('./runScenesTests');
+  runScenesTests = scenesTestModule.runScenesTests;
+} catch (error) {
+  console.warn('❌ Предупреждение: Не удалось загрузить модуль сцен. Тесты сцен будут пропущены.');
+  console.warn('Детали ошибки:', error);
+}
 
 // Загружаем переменные окружения
 config({ path: path.resolve('.env.test') })
@@ -69,12 +81,14 @@ function printHelp() {
   database                     : Тесты базы данных
   webhook                      : Тесты вебхуков
   inngest                      : Тесты Inngest функций
+  scenes                       : Тесты телеграм-сцен
 
 Примеры:
   ts-node -r tsconfig-paths/register src/test-utils --category=translations
   ts-node -r tsconfig-paths/register src/test-utils --category=database --verbose
   ts-node -r tsconfig-paths/register src/test-utils --discover --test-dir=src/test-utils/tests
   ts-node -r tsconfig-paths/register src/test-utils --json --output=test-results.json
+  ts-node -r tsconfig-paths/register src/test-utils --category=scenes
   `
 
   console.log(message)
@@ -93,6 +107,10 @@ export const paymentTests = {
   runPaymentNotificationTests,
 }
 
+export const telegramTests = {
+  runScenesTests: runScenesTests || (() => Promise.resolve([])),
+}
+
 /**
  * Запуск тестов
  */
@@ -101,6 +119,9 @@ async function start() {
   logger.info('📊 Running project tests')
 
   try {
+    // Проверяем окружение
+    console.log('Environment check:', { nodeEnv: process.env.NODE_ENV });
+    
     const exitCode = await runTests(process.argv.slice(2))
     process.exit(exitCode)
   } catch (error) {

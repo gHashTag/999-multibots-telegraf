@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Service } from '../types.js';
+import { Service } from '../types/index.js';
 
 // Типы для системы самосовершенствования
 export enum ImprovementType {
@@ -32,6 +32,7 @@ export interface ImprovementResult {
   score?: number;
   recommendations?: string[];
   timestamp?: Date;
+  evaluation?: ImprovementEvaluation;
 }
 
 // Оценка качества самосовершенствования
@@ -51,6 +52,15 @@ export async function analyzeImprovementRequest(mcpService: Service, description
   improvementType: string;
   affectedComponents: string[];
   requiredFiles: string[];
+  implementationPlan: string;
+  isLongAudio: boolean;
+  transcriptionLanguage: string;
+  transcriptionModel: string;
+  accuracy: string;
+  amount: number;
+  isValid: boolean;
+  reason: string;
+  files: string[];
 }> {
   const analysisPrompt = `
 You are an autonomous agent analyzing a self-improvement request. You need to determine:
@@ -82,13 +92,31 @@ Please analyze this request and provide a structured plan with these sections:
       improvementType: typeMatch ? typeMatch[1] : ImprovementType.OTHER,
       affectedComponents: componentsMatch ? componentsMatch[1].split(',').map(c => c.trim()) : [],
       requiredFiles: filesMatch ? filesMatch[1].split(',').map(f => f.trim()) : [],
+      implementationPlan: '',
+      isLongAudio: false,
+      transcriptionLanguage: '',
+      transcriptionModel: '',
+      accuracy: '',
+      amount: 0,
+      isValid: false,
+      reason: '',
+      files: []
     };
   } catch (error) {
     console.error('Error analyzing improvement request:', error);
     return {
       improvementType: ImprovementType.OTHER,
       affectedComponents: [],
-      requiredFiles: []
+      requiredFiles: [],
+      implementationPlan: '',
+      isLongAudio: false,
+      transcriptionLanguage: '',
+      transcriptionModel: '',
+      accuracy: '',
+      amount: 0,
+      isValid: false,
+      reason: '',
+      files: []
     };
   }
 }
@@ -288,10 +316,17 @@ export async function logSelfImprovement(description: string, result: Improvemen
   }
 }
 
+type FileUtils = {
+  fileExists: (filePath: string) => Promise<boolean>;
+  ensureDirectoryExists: (dirPath: string) => Promise<void>;
+  readFile: (filePath: string) => Promise<string>;
+  writeFile: (filePath: string, content: string) => Promise<void>;
+}
+
 /**
  * Утилиты для работы с файловой системой при самосовершенствовании
  */
-export const fileUtils = {
+export const fileUtils: FileUtils = {
   /**
    * Проверяет, существует ли файл
    * @param filePath Путь к файлу

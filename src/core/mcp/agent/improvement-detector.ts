@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Service } from '../types.js';
+import { Service } from '@/core/mcp/types';
 import { ImprovementType } from './self-improvement.js';
 
 // Типы для системы обнаружения улучшений
@@ -28,6 +28,12 @@ export interface ImprovementSuggestion {
   test_impact?: boolean; // Влияет ли на тесты
   dependencies?: string[]; // ID улучшений, от которых зависит текущее
   repository?: string; // Репозиторий, если анализируется несколько
+  ratings?: Array<{
+    score: number;
+    feedback: string;
+    timestamp: Date;
+  }>; // Рейтинги улучшения
+  average_rating?: number; // Средняя оценка рейтинга
 }
 
 export interface CodebaseAnalysisResult {
@@ -718,12 +724,13 @@ export async function loadImprovementSuggestions(
 /**
  * Создание отчета в формате Markdown с предложениями по улучшению
  * @param suggestions Предложения по улучшению
- * @param outputPath Путь к файлу отчета
+ * @param ratings Рейтинги улучшений
+ * @returns Отчет в формате строки
  */
 export async function generateImprovementReport(
   suggestions: ImprovementSuggestion[],
-  outputPath: string = 'improvements-report.md'
-): Promise<void> {
+  ratings?: { improvementId: string; score: number }[]
+): Promise<string> {
   try {
     // Создаем содержимое отчета
     let report = `# Предложения по улучшению кодовой базы\n\n`;
@@ -767,7 +774,10 @@ export async function generateImprovementReport(
     const sortedSuggestions = [...suggestions].sort((a, b) => b.priority - a.priority);
     
     for (const suggestion of sortedSuggestions) {
-      report += `### ${suggestion.title}\n\n`;
+      const rating = ratings?.find(r => r.improvementId === suggestion.id);
+      const ratingText = rating ? ` ⭐ ${rating.score}/5` : '';
+      
+      report += `### ${suggestion.title}${ratingText}\n\n`;
       report += `- **ID**: \`${suggestion.id}\`\n`;
       report += `- **Тип**: ${suggestion.type}\n`;
       report += `- **Приоритет**: ${suggestion.priority}/10\n`;
@@ -792,16 +802,8 @@ export async function generateImprovementReport(
     report += `Рекомендуется начать с исправления проблем с высоким приоритетом, `;
     report += `поскольку они представляют наиболее важные улучшения для кодовой базы.`;
     
-    // Создаем директорию, если она не существует
-    const outputDir = path.dirname(outputPath);
-    if (!fs.existsSync(outputDir)) {
-      await fs.promises.mkdir(outputDir, { recursive: true });
-    }
-    
-    // Сохраняем отчет
-    await fs.promises.writeFile(outputPath, report, 'utf-8');
-    
-    console.log(`Generated improvement report at ${outputPath}`);
+    console.log(`Generated improvement report summary`);
+    return report;
   } catch (error) {
     console.error('Error generating improvement report:', error);
     throw error;

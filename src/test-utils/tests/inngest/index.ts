@@ -11,6 +11,7 @@ import { runImageToVideoTests } from './imageToVideoTest'
 import { runModelTrainingTests } from './modelTrainingTest'
 import { runDigitalAvatarTests } from './digitalAvatarTest'
 import { runVoiceAvatarTests } from './createVoiceAvatarTest'
+import { runBalanceNotifierTests } from './balanceNotifierTest'
 
 /**
  * Запускает все тесты для Inngest функций
@@ -56,6 +57,10 @@ export async function runInngestTests(options: { verbose?: boolean } = {}): Prom
     // Create Voice Avatar
     const voiceAvatarCreationResults = await runVoiceAvatarTests(options)
     results.push(...voiceAvatarCreationResults)
+    
+    // Balance Notifier
+    const balanceNotifierResults = await runBalanceNotifierTests(options)
+    results.push(...balanceNotifierResults)
     
     const passedTests = results.filter(r => r.passed).length
     

@@ -250,7 +250,7 @@ export function object<T extends object>(obj: T): MockedObject<T> {
 
       (result as any)[key] = mockFn;
     } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-      (result as any)[key] = object(value as object);
+      (result as any)[key] = object(value as any);
     }
   });
 
@@ -258,7 +258,7 @@ export function object<T extends object>(obj: T): MockedObject<T> {
 }
 
 /**
- * Создает заглушку с указанными методами
+ * Создает заглушку с методами
  */
 export function stub<T extends object>(methods: Partial<{ [K in keyof T]: T[K] }>): StubObject<T> {
   const result = {} as StubObject<T>;
@@ -266,10 +266,9 @@ export function stub<T extends object>(methods: Partial<{ [K in keyof T]: T[K] }
   Object.entries(methods).forEach(([key, value]) => {
     if (typeof value === 'function') {
       const mockFn = create({
-        name: `Stub.${key}`,
+        name: key,
         implementation: value as any,
       });
-
       (result as any)[key] = mockFn;
     } else {
       (result as any)[key] = value;
@@ -279,10 +278,111 @@ export function stub<T extends object>(methods: Partial<{ [K in keyof T]: T[K] }
   return result;
 }
 
-// Экспортируем API для работы с моками
+// Функция для создания упрощенного мока (переименована, чтобы избежать конфликта с экспортированной функцией create)
+function createMockFunction<T extends (...args: any[]) => any>(...args: any[]): MockedFunction<T> {
+  const mock = {
+    calls: [] as never[],
+    instances: [] as never[],
+    invocationCallOrder: [] as never[],
+    results: [] as never[],
+  };
+
+  const mockFn = function(value: any) {
+    return mockFn.mockReturnValue(value);
+  } as any;
+
+  mockFn.mock = mock;
+
+  mockFn.mockReset = () => mockFn;
+
+  mockFn.mockReturnValue = (value: any) => {
+    mockFn.mockReturnValueOnce = () => mockFn;
+    return mockFn;
+  };
+
+  mockFn.mockReturnValueOnce = (value: any) => {
+    mockFn.mockReturnValue(value);
+    return mockFn;
+  };
+
+  mockFn.mockResolvedValue = (value: any) => {
+    return mockFn.mockReturnValue(Promise.resolve(value));
+  };
+
+  mockFn.mockResolvedValueOnce = (value: any) => {
+    return mockFn.mockReturnValueOnce(Promise.resolve(value));
+  };
+
+  mockFn.mockRejectedValue = (value: any) => {
+    return mockFn.mockReturnValue(Promise.reject(value));
+  };
+
+  mockFn.mockRejectedValueOnce = (value: any) => {
+    return mockFn.mockReturnValueOnce(Promise.reject(value));
+  };
+
+  return mockFn;
+}
+
+// Экспортируем createSimpleMock под другим именем
+export const createSimpleMock = () => {
+  const mockFn = function() {
+    return true;
+  };
+
+  mockFn.mockReturnValue = (val: any) => {
+    return mockFn;
+  };
+
+  mockFn.mockReturnValueOnce = (val: any) => {
+    return mockFn;
+  };
+
+  mockFn.mockImplementation = (fn: any) => {
+    return mockFn;
+  };
+
+  return mockFn;
+};
+
+// Экспортируем mockSupabase
+export const mockSupabase = () => {
+  // Создаем базовые моки для Supabase
+  const from = (table: any) => {
+    const api = {
+      select: (columns: any) => api,
+      eq: (field: any, value: any) => api,
+      order: (field: any) => api,
+      limit: (limit: any) => api,
+      single: () => api,
+      match: (column: any, options: any) => api,
+      range: (limit: any) => api,
+      data: null as any,
+      insert: (data: any) => api,
+      upsert: (data: any) => api,
+      update: (field: any, value: any) => api,
+      delete: () => api,
+      in: (field: any, value: any) => api,
+      neq: (field: any) => api,
+      then: (data: any) => Promise.resolve({ data: api.data, error: null }),
+    };
+    return api;
+  };
+
+  return {
+    from,
+    auth: {
+      signUp: () => Promise.resolve({ user: null, session: null, error: null }),
+      signIn: () => Promise.resolve({ user: null, session: null, error: null }),
+    },
+  };
+};
+
+// Export all functions as a default export object
 export default {
   create,
   method,
   object,
-  stub,
+  createSimpleMock,
+  mockSupabase
 }; 

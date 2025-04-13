@@ -1,4 +1,5 @@
 import { logger } from '@/utils/logger'
+import { create as mockFn } from '@/test-utils/core/mock'
 
 /**
  * Создает функцию-мок с заданным поведением
@@ -22,7 +23,7 @@ export function createMockFn<T extends (...args: any[]) => any>(
     errorMessage = 'Mock Error',
   } = options
 
-  const mockFunction = jest.fn(
+  const mockFunction = mockFn(
     implementation ||
       ((...args: Parameters<T>) => {
         logger.info(`🔍 Вызов мок-функции: ${name}`, {
@@ -36,7 +37,7 @@ export function createMockFn<T extends (...args: any[]) => any>(
 
         return returnValue
       })
-  ) as jest.MockedFunction<T>
+  )
 
   return mockFunction
 }
@@ -46,16 +47,16 @@ export function createMockFn<T extends (...args: any[]) => any>(
  */
 export function createMockSupabaseClient() {
   return {
-    from: jest.fn().mockReturnThis(),
-    select: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    order: jest.fn().mockReturnThis(),
-    insert: jest.fn().mockReturnThis(),
-    update: jest.fn().mockReturnThis(),
-    delete: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    single: jest.fn().mockReturnThis(),
-    rpc: jest.fn().mockReturnThis(),
+    from: mockFn().mockReturnThis(),
+    select: mockFn().mockReturnThis(),
+    eq: mockFn().mockReturnThis(),
+    order: mockFn().mockReturnThis(),
+    insert: mockFn().mockReturnThis(),
+    update: mockFn().mockReturnThis(),
+    delete: mockFn().mockReturnThis(),
+    limit: mockFn().mockReturnThis(),
+    single: mockFn().mockReturnThis(),
+    rpc: mockFn().mockReturnThis(),
     data: null,
     error: null,
   }
@@ -67,7 +68,7 @@ export function createMockSupabaseClient() {
  * @returns Мок функции getUserBalance
  */
 export function createMockGetUserBalance(balance: number) {
-  return jest.fn().mockResolvedValue(balance)
+  return mockFn().mockResolvedValue(balance)
 }
 
 /**
@@ -76,7 +77,7 @@ export function createMockGetUserBalance(balance: number) {
  * @returns Мок функции createSuccessfulPayment
  */
 export function createMockCreateSuccessfulPayment(success: boolean = true) {
-  return jest.fn().mockResolvedValue({
+  return mockFn().mockResolvedValue({
     success,
     payment: success ? { id: 'mock-payment-id', status: 'COMPLETED' } : null,
     error: success ? null : new Error('Failed to create payment'),
@@ -89,7 +90,7 @@ export function createMockCreateSuccessfulPayment(success: boolean = true) {
  * @returns Мок функции checkPaymentExists
  */
 export function createMockCheckPaymentExists(exists: boolean = false) {
-  return jest.fn().mockResolvedValue({
+  return mockFn().mockResolvedValue({
     exists,
     payment: exists ? { id: 'mock-payment-id', status: 'COMPLETED' } : null,
   })
@@ -101,7 +102,7 @@ export function createMockCheckPaymentExists(exists: boolean = false) {
  * @returns Мок функции updateUserBalance
  */
 export function createMockUpdateUserBalance(success: boolean = true) {
-  return jest.fn().mockResolvedValue({
+  return mockFn().mockResolvedValue({
     success,
     oldBalance: 1000,
     newBalance: 1500,
@@ -115,7 +116,7 @@ export function createMockUpdateUserBalance(success: boolean = true) {
  * @returns Мок функции sendPaymentNotification
  */
 export function createMockSendPaymentNotification(success: boolean = true) {
-  return jest.fn().mockResolvedValue({
+  return mockFn().mockResolvedValue({
     success,
     error: success ? null : new Error('Failed to send notification'),
   })

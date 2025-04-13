@@ -164,9 +164,7 @@ export async function runPaymentTests(
     logger.info('🔢 Запуск тестов дублирующихся ID инвойсов', {
       description: 'Running duplicate invoice ID tests',
     })
-    // TODO: Раскомментировать после исправления ошибки импорта
-    // results.push(await runDuplicateInvoiceIdTests(options))
-    logger.warn('⚠️ Тесты дублирующихся ID инвойсов временно отключены')
+    results.push(await runDuplicateInvoiceIdTests(options))
 
     // Запускаем тесты уведомлений о платежах
     logger.info('📣 Запуск тестов уведомлений о платежах', {

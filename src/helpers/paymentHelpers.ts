@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest'
+import { inngest } from '@/inngest-functions/clients'
 import { ModeEnum, TransactionType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 
@@ -27,7 +27,7 @@ export async function processPayment(
       telegramId, amount, type, description, botName, serviceType 
     })
 
-    const { data, error } = await inngest.send({
+    const result = await inngest.send({
       name: 'payment/process',
       data: {
         telegram_id: telegramId,
@@ -39,12 +39,7 @@ export async function processPayment(
       }
     })
 
-    if (error) {
-      logger.error('❌ Error processing payment', { error, telegramId, amount, type })
-      return false
-    }
-
-    logger.info('✅ Successful payment processing', { telegramId, amount, type, data })
+    logger.info('✅ Successful payment processing', { telegramId, amount, type, result })
     return true
   } catch (error) {
     logger.error('❌ Critical error during payment processing', { error, telegramId, amount, type })

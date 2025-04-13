@@ -12,6 +12,8 @@ import { textToSpeechFunction } from './textToSpeech.inngest'
 import { ruPaymentProcessPayment } from './ruPayment.service'
 import { imageToPromptFunction } from './imageToPrompt'
 import { textToVideoFunction } from './textToVideo.inngest'
+import { balanceNotifierScheduledTask } from './balanceNotifier'
+import { audioToTextFunction } from './audioToText.inngest'
 
 // Регистрируем все функции Inngest
 export const functions = [
@@ -28,5 +30,7 @@ export const functions = [
   textToSpeechFunction,
   ruPaymentProcessPayment,
   imageToPromptFunction,
-  textToVideoFunction
+  textToVideoFunction,
+  balanceNotifierScheduledTask,
+  audioToTextFunction
 ] 

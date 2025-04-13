@@ -17,6 +17,7 @@ import {
   ruPaymentProcessPayment,
   imageToPromptFunction,
   voiceToTextProcessor,
+  balanceNotifierScheduledTask
 } from './inngest-functions'
 import { uploadZipFile } from './controllers/uploadZipFile'
 import { handleReplicateWebhook } from './controllers/replicateWebhook'
@@ -30,6 +31,9 @@ import { logger } from '@/utils/logger'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
+import { BalanceNotifierService } from './services/balanceNotifierService'
+import { supabase } from './core/supabase'
+import { normalizeTelegramId } from './interfaces/telegram.interface'
 
 dotenv.config()
 
@@ -165,6 +169,104 @@ app.post('/webhooks/bfl', handleBFLWebhook)
 // Маршрут для обработки веб-хуков от сервиса нейрофото
 app.post('/webhooks/neurophoto', handleWebhookNeurophoto)
 app.post('/webhooks/neurophoto-debug', handleWebhookNeurophotoDebug)
+
+// Маршрут для ручной проверки баланса пользователя
+const checkAdminAccess = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const adminToken = req.headers['x-admin-token'] || req.query.admin_token
+  const validToken = process.env.ADMIN_API_TOKEN || 'admin-secret-token'
+  
+  if (adminToken !== validToken) {
+    logger.warn({
+      message: '🚫 Попытка несанкционированного доступа к админскому API',
+      description: 'Unauthorized access attempt to admin API',
+      ip: req.ip,
+      path: req.path,
+    })
+    return res.status(401).json({ 
+      error: 'Unauthorized', 
+      message: 'Admin token required' 
+    })
+  }
+  
+  next()
+}
+
+// API для ручной проверки баланса пользователя
+app.post('/api/admin/check-balance', checkAdminAccess, async (req, res) => {
+  try {
+    const { userId, botName = 'main', force = false } = req.body
+    
+    if (!userId) {
+      return res.status(400).json({ 
+        error: 'Bad Request', 
+        message: 'User ID is required'
+      })
+    }
+    
+    logger.info({
+      message: '👤 Запрос на ручную проверку баланса',
+      description: 'Manual balance check requested',
+      userId,
+      botName,
+      force,
+      requestedBy: req.ip,
+    })
+    
+    const result = await BalanceNotifierService.checkUserBalanceById(userId, botName)
+    
+    if (result.error) {
+      return res.status(404).json({
+        error: 'Check Failed',
+        message: result.error
+      })
+    }
+    
+    // Если force=true, отправлять уведомление независимо от баланса
+    if (force && !result.notified) {
+      // Получаем пользователя напрямую из базы
+      const { data: user } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single()
+        
+      if (user && user.telegram_id) {
+        const telegramId = normalizeTelegramId(user.telegram_id)
+        const notificationSettings = await BalanceNotifierService.getUserNotificationSettings(telegramId)
+        
+        // Принудительно отправляем уведомление
+        const forcedNotification = await BalanceNotifierService.sendLowBalanceNotification(
+          telegramId,
+          user.balance || 0,
+          notificationSettings.threshold,
+          user.is_ru || false,
+          botName
+        )
+        
+        result.notified = forcedNotification
+      }
+    }
+    
+    res.json({
+      success: true,
+      result: {
+        ...result,
+        force_requested: force,
+      }
+    })
+  } catch (error) {
+    logger.error({
+      message: '❌ Ошибка при проверке баланса',
+      description: 'Error checking user balance',
+      error: error instanceof Error ? error.message : String(error),
+    })
+    
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    })
+  }
+})
 
 // Маршрут для обработки веб-хуков от Robokassa
 app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
@@ -415,6 +517,7 @@ app.use(
       ruPaymentProcessPayment,
       imageToPromptFunction,
       voiceToTextProcessor,
+      balanceNotifierScheduledTask
     ],
   })
 )

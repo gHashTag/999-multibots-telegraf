@@ -1,7 +1,16 @@
 import fs from 'fs';
 import path from 'path';
-import { TEST_REGISTRY, TestCase, TestSuite } from './types';
+import { TEST_REGISTRY, TestCase, TestSuite, TestResult } from './types';
 import { logger } from '@/utils/logger';
+
+// Registry for functional tests found
+interface FunctionalTestInfo {
+  name: string;
+  category?: string;
+  testFn: () => Promise<TestResult>;
+  filePath: string;
+}
+const FUNCTIONAL_TEST_REGISTRY: FunctionalTestInfo[] = [];
 
 /**
  * Класс для автоматического обнаружения тестов
@@ -75,30 +84,58 @@ export class TestDiscovery {
   }
 
   /**
-   * Загружает все тестовые файлы
-   * 
+   * Загружает все тестовые файлы и регистрирует тесты (декораторы + функциональные)
+   *
    * @param files Массив путей к тестовым файлам
    */
   static async loadTestFiles(files: string[]): Promise<void> {
-    logger.info(`📂 Loading ${files.length} test files`);
+    logger.info(`📂 Loading ${files.length} test files and discovering tests`);
+    FUNCTIONAL_TEST_REGISTRY.length = 0; // Clear previous functional tests
 
     for (const file of files) {
       try {
         logger.debug(`🔄 Loading test file: ${file}`);
-        await import(file);
+        const module = await import(file);
+
+        // Look for functional tests in the loaded module
+        for (const exportName in module) {
+          const exportedItem = module[exportName];
+          // Check if it's a function and has a .meta property or follows test* naming
+          if (
+            typeof exportedItem === 'function' &&
+            (exportName.startsWith('test') || (exportedItem.meta && typeof exportedItem.meta === 'object'))
+          ) {
+            // Basic check to avoid registering the runner function itself
+            if (exportName.startsWith('run') && exportName.endsWith('Tests')) {
+                continue;
+            }
+            
+            const meta = exportedItem.meta || {};
+            const testInfo: FunctionalTestInfo = {
+                name: exportName, // Use function name as test name
+                category: meta.category, 
+                testFn: exportedItem as () => Promise<TestResult>,
+                filePath: file
+            };
+            FUNCTIONAL_TEST_REGISTRY.push(testInfo);
+            logger.debug(`  -> Discovered functional test: ${testInfo.name} in ${path.basename(file)}`);
+          }
+        }
       } catch (error) {
         logger.error(`❌ Error loading test file ${file}:`, error);
       }
     }
+    logger.info(`✅ Found ${FUNCTIONAL_TEST_REGISTRY.length} functional tests during load.`);
   }
 
   /**
-   * Преобразует найденные тесты в формат для TestRunner
+   * Преобразует найденные тесты (декораторы) в формат для TestRunner
    */
-  static collectTestSuites(): TestSuite[] {
+  static collectDecoratorTestSuites(): TestSuite[] {
     const suites: TestSuite[] = [];
+    logger.info(`Collecting ${TEST_REGISTRY.suites.size} suites from decorator registry.`);
 
-    // Перебираем все зарегистрированные наборы тестов
+    // Перебираем все зарегистрированные наборы тестов (декораторы)
     for (const [target, suiteMetadata] of TEST_REGISTRY.suites.entries()) {
       const tests = TEST_REGISTRY.tests.get(target) || [];
       
@@ -191,29 +228,75 @@ export class TestDiscovery {
 
       suites.push(suite);
     }
-
+    logger.info(`Collected ${suites.length} suites with ${suites.reduce((sum, suite) => sum + suite.tests.length, 0)} decorator tests.`);
     return suites;
   }
 
   /**
+   * Преобразует найденные функциональные тесты в формат для TestRunner
+   */
+  static collectFunctionalTestSuites(): TestSuite[] {
+    logger.info(`Collecting ${FUNCTIONAL_TEST_REGISTRY.length} functional tests.`);
+    const suitesMap = new Map<string, TestSuite>();
+
+    for (const testInfo of FUNCTIONAL_TEST_REGISTRY) {
+      // Group by file path for now, can be refined (e.g., by category)
+      const suiteKey = testInfo.filePath; // Use file path as suite key
+      const suiteName = path.relative(process.cwd(), testInfo.filePath); // Use relative path for suite name
+
+      if (!suitesMap.has(suiteKey)) {
+        suitesMap.set(suiteKey, {
+          name: suiteName,
+          category: testInfo.category || 'functional', // Use test category or default
+          tests: [],
+        });
+      }
+
+      const suite = suitesMap.get(suiteKey)!;
+      const testCase: TestCase = {
+        name: testInfo.name,
+        category: testInfo.category || suite.category, // Inherit category
+        test: async () => {
+           // NOTE: Functional tests currently don't have before/after hooks via this discovery
+           // The setup is assumed to be called within the test function itself
+           const result = await testInfo.testFn(); 
+           // We might need to adapt the TestResult format or how TestRunner handles it
+           return result; // Assuming TestResult is compatible enough
+        },
+        // Add other properties like timeout, skip, only if available in meta
+        // timeout: testInfo.meta?.timeout, 
+        // skip: testInfo.meta?.skip,
+        // only: testInfo.meta?.only,
+      };
+      suite.tests.push(testCase);
+    }
+    const functionalSuites = Array.from(suitesMap.values());
+    logger.info(`Collected ${functionalSuites.length} suites with ${functionalSuites.reduce((sum, suite) => sum + suite.tests.length, 0)} functional tests.`);
+    return functionalSuites;
+  }
+
+  /**
    * Инициализирует все тестовые наборы из указанной директории
-   * 
+   *
    * @param baseDir Базовая директория для поиска
    * @param recursive Искать в поддиректориях
-   * @returns Массив найденных тестовых наборов
+   * @returns Массив найденных тестовых наборов (декораторы + функциональные)
    */
   static async initializeTests(baseDir: string, recursive: boolean = true): Promise<TestSuite[]> {
     // Находим тестовые файлы
     const files = await this.discoverTestFiles(baseDir, recursive);
-    
-    // Загружаем все тестовые файлы
+
+    // Загружаем все тестовые файлы и регистрируем оба типа тестов
     await this.loadTestFiles(files);
-    
-    // Преобразуем найденные тесты в наборы
-    const suites = this.collectTestSuites();
-    
-    logger.info(`✅ Initialized ${suites.length} test suites with ${suites.reduce((sum, suite) => sum + suite.tests.length, 0)} tests`);
-    
-    return suites;
+
+    // Собираем тесты из обоих источников
+    const decoratorSuites = this.collectDecoratorTestSuites();
+    const functionalSuites = this.collectFunctionalTestSuites();
+
+    const allSuites = [...decoratorSuites, ...functionalSuites];
+
+    logger.info(`✅ Initialized ${allSuites.length} total test suites with ${allSuites.reduce((sum, suite) => sum + suite.tests.length, 0)} total tests`);
+
+    return allSuites;
   }
 } 

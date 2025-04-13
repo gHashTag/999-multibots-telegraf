@@ -39,5 +39,12 @@ export const defaultSession = (): MySession => ({
   selectedPayment: {
     amount: 0,
     stars: 0
+  },
+  audioToText: {
+    audioFileId: '',
+    audioFileUrl: '',
+    transcription: '',
+    duration: 0,
+    filePath: '',
   }
 })

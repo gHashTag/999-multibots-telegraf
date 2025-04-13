@@ -1,6 +1,93 @@
-import { Telegraf } from 'telegraf'\nimport { MyContext, Subscription } from '@/interfaces'\nimport { logger } from '@/utils/logger'\nimport { createBotByName, pulseBot } from '@/core/bot'\nimport { supabase } from '@/core/supabase'\nimport { isRussian } from '@/helpers/language'\nimport { TransactionType } from '@/interfaces/payments.interface'\n\n// TODO: Implement notification logic here\n\nconsole.log('paymentNotifier.ts loaded');
+import { Telegraf } from 'telegraf'
+import { MyContext, Subscription } from '@/interfaces'
+import { logger } from '@/utils/logger'
+import { createBotByName, pulseBot } from '@/core/bot'
+import { supabase } from '@/core/supabase'
+import { isRussian } from '@/helpers/language'
+import { TransactionType } from '@/interfaces/payments.interface'
 
-// --- Вспомогательные типы --- \n\ninterface BasePaymentDetails {\n  telegram_id: number | string\n  bot_name: string\n  language_code?: string\n  username?: string | null\n}\n\ninterface SuccessfulPaymentDetails extends BasePaymentDetails {\n  amount: number // Сумма операции (может быть звезды или рубли)\n  stars?: number // Количество звезд (если отличается от amount)\n  currency?: string // '⭐️' или 'RUB'\n  description: string\n  operationId?: string\n  currentBalance?: number\n  newBalance?: number\n  subscription?: string // Название купленной подписки\n  type: TransactionType // Добавлен тип транзакции\n}\n\ninterface FailedPaymentDetails extends BasePaymentDetails {\n  error: Error | string\n  operationId?: string\n  attemptedAmount?: number\n  attemptedAction?: string\n}\n\n// --- Уведомления пользователю --- \n\n/**\n * Отправляет пользователю уведомление об успешной операции с балансом/покупке.\n */\nexport async function notifyUserAboutSuccess(\n  details: SuccessfulPaymentDetails\n): Promise<void> {\n  logger.info('notifyUserAboutSuccess called (implementation pending)');
-}\n\n/**\n * Отправляет пользователю уведомление об ошибке операции.\n */\nexport async function notifyUserAboutFailure(\n  details: FailedPaymentDetails\n): Promise<void> {\n  logger.warn('notifyUserAboutFailure called (implementation pending)');
-}\n\n// --- Уведомления администраторам/группам --- \n\n/**\n * Получает список владельцев бота из таблицы users (заменяет getBotOwners)\n */\nasync function getBotOwnerIds(botName: string): Promise<string[]> {\n  try {\n    const { data, error } = await supabase\n      .from('users') // Убрал экранирование\n      .select('telegram_id')\n      .eq('bot_name', botName)\n      .eq('is_bot_owner', true)\n\n    if (error) {\n      logger.error('❌ Ошибка при получении владельцев бота из users:', { error, botName });\n      return []\n    }\n    return data.map(owner => owner.telegram_id?.toString()).filter((id): id is string => !!id); // Улучшенная проверка типа\n  } catch (error) {\n    logger.error('❌ Непредвиденная ошибка при получении владельцев бота:', { error, botName });\n    return []\n  }\n}\n\n/**\n * Отправляет уведомление о платеже администраторам и в группы.\n */\nexport async function notifyAdminsAboutPayment(\n  details: SuccessfulPaymentDetails\n): Promise<void> {\n  logger.info('notifyAdminsAboutPayment called (implementation pending)');
-}\n 
+// TODO: Implement notification logic here
+
+console.log('paymentNotifier.ts loaded');
+
+// --- Вспомогательные типы --- 
+
+interface BasePaymentDetails {
+  telegram_id: number | string
+  bot_name: string
+  language_code?: string
+  username?: string | null
+}
+
+interface SuccessfulPaymentDetails extends BasePaymentDetails {
+  amount: number // Сумма операции (может быть звезды или рубли)
+  stars?: number // Количество звезд (если отличается от amount)
+  currency?: string // '⭐️' или 'RUB'
+  description: string
+  operationId?: string
+  currentBalance?: number
+  newBalance?: number
+  subscription?: string // Название купленной подписки
+  type: TransactionType // Добавлен тип транзакции
+}
+
+interface FailedPaymentDetails extends BasePaymentDetails {
+  error: Error | string
+  operationId?: string
+  attemptedAmount?: number
+  attemptedAction?: string
+}
+
+// --- Уведомления пользователю --- 
+
+/**
+ * Отправляет пользователю уведомление об успешной операции с балансом/покупке.
+ */
+export async function notifyUserAboutSuccess(
+  details: SuccessfulPaymentDetails
+): Promise<void> {
+  logger.info('notifyUserAboutSuccess called (implementation pending)');
+}
+
+/**
+ * Отправляет пользователю уведомление об ошибке операции.
+ */
+export async function notifyUserAboutFailure(
+  details: FailedPaymentDetails
+): Promise<void> {
+  logger.warn('notifyUserAboutFailure called (implementation pending)');
+}
+
+// --- Уведомления администраторам/группам --- 
+
+/**
+ * Получает список владельцев бота из таблицы users (заменяет getBotOwners)
+ */
+async function getBotOwnerIds(botName: string): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('users') // Убрал экранирование
+      .select('telegram_id')
+      .eq('bot_name', botName)
+      .eq('is_bot_owner', true)
+
+    if (error) {
+      logger.error('❌ Ошибка при получении владельцев бота из users:', { error, botName });
+      return []
+    }
+    return data.map(owner => owner.telegram_id?.toString()).filter((id): id is string => !!id); // Улучшенная проверка типа
+  } catch (error) {
+    logger.error('❌ Непредвиденная ошибка при получении владельцев бота:', { error, botName });
+    return []
+  }
+}
+
+/**
+ * Отправляет уведомление о платеже администраторам и в группы.
+ */
+export async function notifyAdminsAboutPayment(
+  details: SuccessfulPaymentDetails
+): Promise<void> {
+  logger.info('notifyAdminsAboutPayment called (implementation pending)');
+}
+ 

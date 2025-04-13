@@ -2,7 +2,7 @@ import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 
 import { isRussian } from '@/helpers/language'
-import { handleTrainingCost } from '@/price/helpers'
+import { handleTrainingCost } from '@/price/helpers/handleTrainingCost'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
 import { getStepSelectionMenuV2 } from '@/menu'

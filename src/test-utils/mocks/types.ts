@@ -4,8 +4,9 @@ export interface User {
   balance: number
   subscription_end_date: string | null
   username?: string
-  is_ru?: boolean
-  bot_name?: string
+  is_ru: boolean
+  bot_name: string
+  level: number
   created_at: string
   updated_at: string
 }

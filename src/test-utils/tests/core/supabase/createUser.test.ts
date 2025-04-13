@@ -1,15 +1,14 @@
 import { createUser, CreateUserParams } from '@/core/supabase/createUser';
-import { supabase as supabaseClient } from '@/core/supabase'; // Импортируем для мокирования
-import { logger as loggerInstance } from '@/utils/logger'; // Импортируем для мокирования
-import mockApi from '@/test-utils/core/mock';
+import { supabase as supabaseClient } from '@/core/supabase';
+import { logger as loggerInstance } from '@/utils/logger';
+import mockApi, { MockedFunction } from '@/test-utils/core/mock';
 import assert from '@/test-utils/core/assert';
-import { TestResult } from '@/test-utils/core/types';
+import { TestResult } from '@/test-utils/core/types'; // Remove decorator imports
 import { TestCategory } from '@/test-utils/core/categories';
-import { MockedFunction } from '@/test-utils/core/mock';
 
-// --- Моки и Хелперы --- 
+// --- Mocks and Helpers ---
 
-// Переменные для моков
+// Top-level variables for mocks
 let mockSupabaseSelect: MockedFunction<any>;
 let mockSupabaseEq: MockedFunction<any>;
 let mockSupabaseSingle: MockedFunction<any>;
@@ -23,15 +22,15 @@ const setupMocks = () => {
   allMocks.forEach(m => m.mockReset());
   allMocks = [];
 
-  // Мокируем Supabase клиент chaining
+  // Mock Supabase client chaining
   mockSupabaseSingle = mockApi.create();
   mockSupabaseEq = mockApi.create().mockReturnValue({ single: mockSupabaseSingle });
   mockSupabaseSelect = mockApi.create().mockReturnValue({ eq: mockSupabaseEq });
-  // Мок для insert().select().single()
-  const insertSelectSingleMock = mockApi.create(); 
+  // Mock for insert().select().single()
+  const insertSelectSingleMock = mockApi.create();
   const insertSelectMock = mockApi.create().mockReturnValue({ single: insertSelectSingleMock });
-  mockSupabaseInsert = mockApi.create().mockReturnValue({ select: insertSelectMock }); 
-  
+  mockSupabaseInsert = mockApi.create().mockReturnValue({ select: insertSelectMock });
+
   mockSupabaseFrom = mockApi.create((tableName: string) => {
     if (tableName === 'users') {
       return {
@@ -41,11 +40,10 @@ const setupMocks = () => {
     }
     return { select: mockApi.create(), insert: mockApi.create() };
   });
-  // Мокируем сам клиент supabase
   Object.defineProperty(supabaseClient, 'supabase', { value: { from: mockSupabaseFrom }, configurable: true });
   allMocks.push(mockSupabaseSingle, mockSupabaseEq, mockSupabaseSelect, mockSupabaseInsert, mockSupabaseFrom, insertSelectMock, insertSelectSingleMock);
 
-  // Мокируем логгер
+  // Mock logger
   mockLoggerError = mockApi.create();
   mockLoggerInfo = mockApi.create();
   const mockLoggerWarn = mockApi.create();
@@ -57,7 +55,7 @@ const setupMocks = () => {
   });
 };
 
-// --- Тестовые данные --- 
+// Test Data
 const testUserData: CreateUserParams = {
     telegram_id: '123456789',
     username: 'testuser',
@@ -71,7 +69,7 @@ const existingUserData = {
     id: 1,
     created_at: new Date().toISOString(),
     level: 1,
-    telegram_id: '123456789', // Убедимся, что ID совпадает
+    telegram_id: '123456789',
 };
 
 const newUserDataResponse = [{
@@ -80,7 +78,7 @@ const newUserDataResponse = [{
     created_at: new Date().toISOString(),
     level: 1,
     telegram_id: '123456789',
-    chat_id: '123456789', // Значения по умолчанию
+    chat_id: '123456789',
     mode: 'clean',
     model: 'gpt-4-turbo',
     count: 0,
@@ -90,40 +88,37 @@ const newUserDataResponse = [{
     language_code: 'ru',
 }];
 
-// --- Тестовые функции --- 
+// --- Test Functions (Exported) ---
 
 export async function testCreateUser_SuccessNew(): Promise<TestResult> {
   const testName = 'createUser: Success New User';
-  setupMocks();
+  setupMocks(); // Call setup
   try {
-    mockSupabaseSingle.mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } }); 
-    // Настраиваем мок для insert().select().single() -> возвращает нового пользователя
-    const insertSelectSingleMock = mockSupabaseInsert.mock.results[0]?.value?.select?.mock?.results[0]?.value?.single; 
+    mockSupabaseSingle.mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } });
+    const insertSelectSingleMock = mockSupabaseInsert.mock.results[0]?.value?.select?.mock?.results[0]?.value?.single;
     if (insertSelectSingleMock) {
         insertSelectSingleMock.mockResolvedValueOnce({ data: newUserDataResponse[0], error: null });
     } else {
-        // Если цепочка моков не создалась как ожидалось, добавляем мок напрямую
          mockSupabaseInsert.mockReturnValueOnce({ select: mockApi.create().mockReturnValue({ single: mockApi.create().mockResolvedValueOnce({ data: newUserDataResponse[0], error: null}) }) });
     }
-   
+
     const result = await createUser(testUserData);
 
     assert.deepEqual(result, newUserDataResponse, `${testName} - should return new user data array`);
     assert.isTrue(mockSupabaseFrom.mock.calls.length >= 2, `${testName} - supabase.from called check and insert`);
     assert.isTrue(mockSupabaseInsert.mock.calls.length === 1, `${testName} - insert called once`);
-    // Проверяем, что insert был вызван с правильными данными (учитывая значения по умолчанию)
     assert.deepEqual(mockSupabaseInsert.mock.calls[0][0][0], { 
-        ...testUserData, 
-        chat_id: '123456789', 
-        mode: 'clean', 
-        model: 'gpt-4-turbo', 
-        count: 0, 
-        aspect_ratio: '9:16',
-        photo_url: '',
-        is_bot: false,
-        language_code: 'ru',
-        level: 1
-     }, `${testName} - insert args check`);
+      ...testUserData, 
+      chat_id: '123456789', 
+      mode: 'clean', 
+      model: 'gpt-4-turbo', 
+      count: 0, 
+      aspect_ratio: '9:16',
+      photo_url: '',
+      is_bot: false,
+      language_code: 'ru',
+      level: 1
+   }, `${testName} - insert args check`);
     assert.isTrue(mockLoggerInfo.mock.calls.length > 0, `${testName} - logger.info called`);
     assert.contains(mockLoggerInfo.mock.calls[mockLoggerInfo.mock.calls.length - 1][0], 'Пользователь успешно создан', `${testName} - success log`);
     return { name: testName, success: true, message: 'Passed' };
@@ -131,13 +126,13 @@ export async function testCreateUser_SuccessNew(): Promise<TestResult> {
     return { name: testName, success: false, message: error.message, error };
   }
 }
-testCreateUser_SuccessNew.meta = { category: TestCategory.Database };
+testCreateUser_SuccessNew.meta = { category: TestCategory.Database }; // Add meta
 
 export async function testCreateUser_ExistingUser(): Promise<TestResult> {
   const testName = 'createUser: Existing User';
-  setupMocks();
+  setupMocks(); // Call setup
   try {
-    mockSupabaseSingle.mockResolvedValueOnce({ data: existingUserData, error: null }); 
+    mockSupabaseSingle.mockResolvedValueOnce({ data: existingUserData, error: null });
     const result = await createUser(testUserData);
 
     assert.deepEqual(result, existingUserData, `${testName} - should return existing user data`);
@@ -151,11 +146,11 @@ export async function testCreateUser_ExistingUser(): Promise<TestResult> {
     return { name: testName, success: false, message: error.message, error };
   }
 }
-testCreateUser_ExistingUser.meta = { category: TestCategory.Database };
+testCreateUser_ExistingUser.meta = { category: TestCategory.Database }; // Add meta
 
 export async function testCreateUser_CheckError(): Promise<TestResult> {
   const testName = 'createUser: Check Error';
-  setupMocks();
+  setupMocks(); // Call setup
   const checkError = { message: 'DB check error', code: 'OTHER_ERROR' };
   try {
     mockSupabaseSingle.mockResolvedValueOnce({ data: null, error: checkError });
@@ -177,11 +172,11 @@ export async function testCreateUser_CheckError(): Promise<TestResult> {
     return { name: testName, success: false, message: `Test failed unexpectedly: ${error?.message}`, error };
   }
 }
-testCreateUser_CheckError.meta = { category: TestCategory.Database };
+testCreateUser_CheckError.meta = { category: TestCategory.Database }; // Add meta
 
 export async function testCreateUser_InsertError(): Promise<TestResult> {
   const testName = 'createUser: Insert Error';
-  setupMocks();
+  setupMocks(); // Call setup
   const insertError = new Error('DB insert error');
   try {
     mockSupabaseSingle.mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } });
@@ -204,6 +199,20 @@ export async function testCreateUser_InsertError(): Promise<TestResult> {
     return { name: testName, success: false, message: `Test failed unexpectedly: ${error?.message}`, error };
   }
 }
-testCreateUser_InsertError.meta = { category: TestCategory.Database };
+testCreateUser_InsertError.meta = { category: TestCategory.Database }; // Add meta
 
-// Функция для запуска всех тестов этого модуля\nexport async function runCreateUserTests(options: { verbose?: boolean } = {}): Promise<TestResult[]> {\n  const tests = [\n    testCreateUser_SuccessNew,\n    testCreateUser_ExistingUser,\n    testCreateUser_CheckError,\n    testCreateUser_InsertError,\n  ];\n  const results: TestResult[] = [];\n  for (const test of tests) {\n    allMocks.forEach(m => m.mockReset()); // Сброс моков перед каждым тестом\n    results.push(await test());\n  }\n  return results;\n} 
+// --- Test Runner Function ---
+
+export async function runCreateUserTests(options: { verbose?: boolean } = {}): Promise<TestResult[]> {
+  const tests = [
+    testCreateUser_SuccessNew,
+    testCreateUser_ExistingUser,
+    testCreateUser_CheckError,
+    testCreateUser_InsertError,
+  ];
+  const results: TestResult[] = [];
+  for (const test of tests) {
+    results.push(await test()); // Mocks are reset inside setupMocks called by each test now
+  }
+  return results;
+} 

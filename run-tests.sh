@@ -66,4 +66,13 @@ else
     echo "${ERROR} Тесты категории '${TEST_CATEGORY}' завершились с ошибками. Код: ${TEST_EXIT_CODE}"
     echo "${INFO} Для деталей проверьте файл logs/test-${TEST_CATEGORY}.log"
     exit $TEST_EXIT_CODE
-fi 
+fi
+
+# Установка корневой директории проекта для импортов
+export NODE_PATH=../..
+
+# Установка окружения для тестов
+export NODE_ENV=test
+
+# Запуск тестов с помощью ts-node
+npx ts-node -r tsconfig-paths/register runScenesTests.ts 

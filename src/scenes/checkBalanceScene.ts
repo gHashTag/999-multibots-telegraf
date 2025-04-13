@@ -19,11 +19,9 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { getUserBalance } from '@/core/supabase'
-import {
-  sendInsufficientStarsMessage,
-  sendBalanceMessage,
-  calculateModeCost,
-} from '@/price/helpers'
+import { sendInsufficientStarsMessage } from '@/price/helpers/sendInsufficientStarsMessage'
+import { sendBalanceMessage } from '@/price/helpers/sendBalanceMessage'
+import { calculateModeCost } from '@/price/helpers/calculateCost'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/price/helpers/modelsCost'
@@ -49,7 +47,7 @@ checkBalanceScene.enter(async ctx => {
   const normalizedMode = mode
 
   // Используем единую функцию расчета стоимости
-  const costResult = calculateModeCost({ mode })
+  const costResult = calculateModeCost(normalizedMode)
   const cost = costResult.stars
 
   // Отправляем сообщение о балансе только если стоимость определена и не равна 0

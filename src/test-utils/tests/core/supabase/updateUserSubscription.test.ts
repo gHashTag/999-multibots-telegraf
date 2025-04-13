@@ -1,13 +1,12 @@
 import { updateUserSubscription } from '@/core/supabase/updateUserSubscription';
 import { supabase as supabaseClient } from '@/core/supabase';
 import { logger as loggerInstance } from '@/utils/logger';
-import mockApi from '@/test-utils/core/mock';
+import mockApi, { MockedFunction } from '@/test-utils/core/mock';
 import assert from '@/test-utils/core/assert';
 import { TestResult } from '@/test-utils/core/types';
 import { TestCategory } from '@/test-utils/core/categories';
-import { MockedFunction } from '@/test-utils/core/mock';
 
-// --- Моки --- 
+// --- Mocks ---
 
 let mockSupabaseUpdate: MockedFunction<any>;
 let mockSupabaseEq: MockedFunction<any>;
@@ -19,7 +18,7 @@ const setupMocks = () => {
   allMocks.forEach(m => m.mockReset());
   allMocks = [];
 
-  // Мокируем Supabase
+  // Mock Supabase
   mockSupabaseEq = mockApi.create();
   mockSupabaseUpdate = mockApi.create().mockReturnValue({ eq: mockSupabaseEq });
   mockSupabaseFrom = mockApi.create((tableName: string) => {
@@ -31,7 +30,7 @@ const setupMocks = () => {
   Object.defineProperty(supabaseClient, 'supabase', { value: { from: mockSupabaseFrom }, configurable: true });
   allMocks.push(mockSupabaseEq, mockSupabaseUpdate, mockSupabaseFrom);
 
-  // Мокируем логгер
+  // Mock logger
   mockLoggerError = mockApi.create();
   const mockLoggerInfo = mockApi.create();
   const mockLoggerWarn = mockApi.create();
@@ -43,15 +42,15 @@ const setupMocks = () => {
   });
 };
 
-// --- Тесты --- 
+// --- Test Functions (Exported) ---
 
 export async function testUpdateUserSubscription_Success(): Promise<TestResult> {
   const testName = 'updateUserSubscription: Success';
-  setupMocks();
+  setupMocks(); // Call setup
   try {
     const telegramId = '987654';
     const newSubscription = 'neurobase';
-    mockSupabaseEq.mockResolvedValue({ error: null }); // Мок успешного update
+    mockSupabaseEq.mockResolvedValue({ error: null }); // Mock successful update
 
     await updateUserSubscription(telegramId, newSubscription);
 
@@ -67,18 +66,17 @@ export async function testUpdateUserSubscription_Success(): Promise<TestResult> 
     return { name: testName, success: false, message: `Test failed: ${error.message}`, error };
   }
 }
-testUpdateUserSubscription_Success.meta = { category: TestCategory.Database };
+testUpdateUserSubscription_Success.meta = { category: TestCategory.Database }; // Add meta
 
 export async function testUpdateUserSubscription_SupabaseError(): Promise<TestResult> {
   const testName = 'updateUserSubscription: Supabase Error';
-  setupMocks();
+  setupMocks(); // Call setup
   const dbError = new Error('Supabase DB Error');
   try {
     const telegramId = '112233';
     const newSubscription = 'neurophoto';
-    mockSupabaseEq.mockResolvedValue({ error: dbError }); // Мок ошибки update
+    mockSupabaseEq.mockResolvedValue({ error: dbError }); // Mock update error
 
-    // Используем try/catch вместо assert.rejects
     let thrownError: any;
     try {
       await updateUserSubscription(telegramId, newSubscription);
@@ -96,9 +94,9 @@ export async function testUpdateUserSubscription_SupabaseError(): Promise<TestRe
     return { name: testName, success: false, message: `Test failed unexpectedly: ${error.message}`, error };
   }
 }
-testUpdateUserSubscription_SupabaseError.meta = { category: TestCategory.Database };
+testUpdateUserSubscription_SupabaseError.meta = { category: TestCategory.Database }; // Add meta
 
-// --- Функция запуска --- 
+// --- Test Runner Function ---
 
 export async function runUpdateUserSubscriptionTests(options: { verbose?: boolean } = {}): Promise<TestResult[]> {
   const tests = [
@@ -107,7 +105,6 @@ export async function runUpdateUserSubscriptionTests(options: { verbose?: boolea
   ];
   const results: TestResult[] = [];
   for (const test of tests) {
-    allMocks.forEach(m => m.mockReset());
     results.push(await test());
   }
   return results;

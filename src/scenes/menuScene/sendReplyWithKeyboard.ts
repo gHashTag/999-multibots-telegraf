@@ -1,10 +1,11 @@
 import { MyContext } from '@/interfaces'
+import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 
 export const sendReplyWithKeyboard = async (
   ctx: MyContext,
   message: string,
-  inlineKeyboard: any,
-  menu: any,
+  inlineKeyboard: any[][],
+  menu: ReplyKeyboardMarkup,
   photo_url?: string
 ) => {
   if (photo_url) {
@@ -15,7 +16,11 @@ export const sendReplyWithKeyboard = async (
         inline_keyboard: inlineKeyboard,
       },
       parse_mode: 'HTML',
-      ...menu,
+    })
+    
+    // Send the reply keyboard separately after sending the photo
+    await ctx.reply('👇', {
+      reply_markup: menu,
     })
   } else {
     // Если фото нет, отправляем только текст
@@ -24,7 +29,11 @@ export const sendReplyWithKeyboard = async (
         inline_keyboard: inlineKeyboard,
       },
       parse_mode: 'HTML',
-      ...menu,
+    })
+    
+    // Send the reply keyboard separately after sending the inline keyboard
+    await ctx.reply('👇', {
+      reply_markup: menu,
     })
   }
   return ctx.wizard.next()

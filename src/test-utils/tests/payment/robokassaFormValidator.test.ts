@@ -5,15 +5,20 @@ import { MERCHANT_LOGIN, PASSWORD1, TEST_PASSWORD1, isDev } from '@/config';
 import md5 from 'md5';
 // Удаляем импорт Jest globals
 import assert from '@/test-utils/core/assert';
+import { TestResult } from '@/test-utils/core/types';
 
 /**
  * Тест для проверки валидности URL платежной формы Robokassa
  */
 // Используем собственную систему тестирования вместо Jest
-export async function runRobokassaFormTests(): Promise<any> {
-  const testResults = {
+export async function runRobokassaFormTests(): Promise<{ 
+  success: boolean; 
+  results: TestResult[]; 
+  error?: string | Error;
+}> {
+  const testResults: { success: boolean; results: TestResult[]; error?: string | Error } = {
     success: true,
-    results: [] as any[],
+    results: [],
   };
   
   const merchantLogin = MERCHANT_LOGIN;
@@ -140,7 +145,7 @@ export async function runRobokassaFormTests(): Promise<any> {
   /**
    * Тест на создание валидного URL с правильными параметрами
    */
-  async function testValidUrlGeneration() {
+  async function testValidUrlGeneration(): Promise<TestResult> {
     logger.info('🧪 Запуск теста: генерация валидного URL Robokassa');
     
     try {
@@ -155,6 +160,7 @@ export async function runRobokassaFormTests(): Promise<any> {
       assert.isTrue(paramsCheck.isValid, 'URL должен содержать все параметры');
       
       if (!paramsCheck.isValid) {
+        const errMsg = `URL не содержит параметры: ${paramsCheck.missingParams.join(', ')}`;
         logger.error('❌ URL не содержит все необходимые параметры', {
           url,
           missingParams: paramsCheck.missingParams
@@ -163,8 +169,9 @@ export async function runRobokassaFormTests(): Promise<any> {
         return {
           name: 'Генерация валидного URL',
           success: false,
-          error: `URL не содержит параметры: ${paramsCheck.missingParams.join(', ')}`
-        };
+          message: errMsg,
+          error: errMsg
+        } as TestResult;
       }
 
       // Проверяем доступность URL
@@ -172,6 +179,7 @@ export async function runRobokassaFormTests(): Promise<any> {
 
       // Логируем результат для диагностики
       if (!result.isValid) {
+        const errMsg = `URL недоступен: ${result.error || `Код ответа: ${result.statusCode}`}`;
         logger.error('❌ URL платежной формы недоступен или невалиден', {
           url,
           statusCode: result.statusCode,
@@ -187,8 +195,10 @@ export async function runRobokassaFormTests(): Promise<any> {
         return {
           name: 'Генерация валидного URL',
           success: false,
-          error: `URL недоступен: ${result.error || `Код ответа: ${result.statusCode}`}`
-        };
+          message: errMsg,
+          error: errMsg,
+          details: { statusCode: result.statusCode }
+        } as TestResult;
       }
 
       logger.info('✅ Тест пройден: URL валиден и доступен', { url });
@@ -196,27 +206,32 @@ export async function runRobokassaFormTests(): Promise<any> {
       return {
         name: 'Генерация валидного URL',
         success: true,
-        url
-      };
+        message: 'URL валиден и доступен',
+        details: { url }
+      } as TestResult;
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
       logger.error('❌ Ошибка при выполнении теста', {
-        error: error instanceof Error ? error.message : String(error)
+        error: errMsg
       });
       
       return {
         name: 'Генерация валидного URL',
         success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+        message: 'Ошибка при выполнении теста',
+        error: errMsg
+      } as TestResult;
     }
   }
 
   /**
    * Тест с различными суммами платежа
    */
-  async function testDifferentAmounts() {
+  async function testDifferentAmounts(): Promise<TestResult> {
     logger.info('🧪 Запуск теста: проверка различных сумм платежа');
-    
+    const testName = 'Проверка различных сумм';
+    const resultsLog = [];
+
     try {
       const testAmounts = [
         TEST_PAYMENT_CONFIG.amounts.small,
@@ -225,8 +240,6 @@ export async function runRobokassaFormTests(): Promise<any> {
         10000 // Крупная сумма
       ];
       
-      const results = [];
-
       for (const amount of testAmounts) {
         const invId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
         const description = `Тест оплаты ${amount} руб.`;
@@ -239,48 +252,48 @@ export async function runRobokassaFormTests(): Promise<any> {
           statusCode: result.statusCode
         });
         
-        results.push({
-          amount,
-          isValid: result.isValid,
-          statusCode: result.statusCode
-        });
+        resultsLog.push({ amount, isValid: result.isValid, statusCode: result.statusCode });
         
         if (!result.isValid) {
+          const errMsg = `Ошибка при сумме ${amount}: ${result.error || `Код ответа: ${result.statusCode}`}`;
           return {
-            name: 'Проверка различных сумм',
+            name: testName,
             success: false,
-            error: `Ошибка при сумме ${amount}: ${result.error || `Код ответа: ${result.statusCode}`}`,
-            results
-          };
+            message: errMsg,
+            error: errMsg,
+            details: { results: resultsLog }
+          } as TestResult;
         }
       }
       
       logger.info('✅ Тест пройден: все суммы обрабатываются корректно');
       
       return {
-        name: 'Проверка различных сумм',
+        name: testName,
         success: true,
-        results
-      };
+        message: 'Все суммы обрабатываются корректно',
+        details: { results: resultsLog }
+      } as TestResult;
     } catch (error) {
-      logger.error('❌ Ошибка при выполнении теста проверки различных сумм', {
-        error: error instanceof Error ? error.message : String(error)
-      });
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`❌ Ошибка при выполнении теста ${testName}`, { error: errMsg });
       
       return {
-        name: 'Проверка различных сумм',
+        name: testName,
         success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+        message: `Ошибка при выполнении теста ${testName}`,
+        error: errMsg
+      } as TestResult;
     }
   }
 
   /**
    * Тест на проверку некорректных InvId
    */
-  function testInvalidInvId() {
+  function testInvalidInvId(): TestResult {
     logger.info('🧪 Запуск теста: обработка некорректных InvId');
-    
+    const testName = 'Обработка некорректных InvId';
+
     try {
       const amount = TEST_PAYMENT_CONFIG.amounts.small;
       const description = 'Тест с некорректным InvId';
@@ -298,30 +311,31 @@ export async function runRobokassaFormTests(): Promise<any> {
       logger.info('✅ Тест пройден: некорректные InvId обрабатываются правильно');
       
       return {
-        name: 'Обработка некорректных InvId',
+        name: testName,
         success: true,
-        originalInvId: hugeInvId,
-        correctedInvId: invIdParam
-      };
+        message: 'Некорректные InvId обрабатываются правильно',
+        details: { originalInvId: hugeInvId, correctedInvId: invIdParam }
+      } as TestResult;
     } catch (error) {
-      logger.error('❌ Ошибка при выполнении теста обработки некорректных InvId', {
-        error: error instanceof Error ? error.message : String(error)
-      });
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`❌ Ошибка при выполнении теста ${testName}`, { error: errMsg });
       
       return {
-        name: 'Обработка некорректных InvId',
+        name: testName,
         success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+        message: `Ошибка при выполнении теста ${testName}`,
+        error: errMsg
+      } as TestResult;
     }
   }
 
   /**
    * Тест проверки сигнатуры (подписи)
    */
-  function testSignatureGeneration() {
+  function testSignatureGeneration(): TestResult {
     logger.info('🧪 Запуск теста: проверка генерации подписи');
-    
+    const testName = 'Генерация подписи';
+
     try {
       const amount = TEST_PAYMENT_CONFIG.amounts.small;
       const invId = Math.floor(Date.now() / 1000);
@@ -352,29 +366,31 @@ export async function runRobokassaFormTests(): Promise<any> {
       logger.info('✅ Тест пройден: генерация подписи работает корректно');
       
       return {
-        name: 'Генерация подписи',
+        name: testName,
         success: true,
-        signature: urlSignatureValue
-      };
+        message: 'Генерация подписи работает корректно',
+        details: { signature: urlSignatureValue }
+      } as TestResult;
     } catch (error) {
-      logger.error('❌ Ошибка при выполнении теста генерации подписи', {
-        error: error instanceof Error ? error.message : String(error)
-      });
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`❌ Ошибка при выполнении теста ${testName}`, { error: errMsg });
       
       return {
-        name: 'Генерация подписи',
+        name: testName,
         success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+        message: `Ошибка при выполнении теста ${testName}`,
+        error: errMsg
+      } as TestResult;
     }
   }
 
   /**
    * Тест на работу тестового режима
    */
-  function testTestModeFlag() {
+  function testTestModeFlag(): TestResult {
     logger.info('🧪 Запуск теста: проверка работы флага тестового режима');
-    
+    const testName = 'Проверка флага IsTest';
+
     try {
       const amount = TEST_PAYMENT_CONFIG.amounts.small;
       const invId = Math.floor(Date.now() / 1000);
@@ -393,29 +409,29 @@ export async function runRobokassaFormTests(): Promise<any> {
       logger.info('✅ Тест пройден: флаг тестового режима работает корректно');
       
       return {
-        name: 'Проверка флага IsTest',
+        name: testName,
         success: true,
-        urlWithTest: urlWithTestMode,
-        urlWithoutTest: urlWithoutTestMode
-      };
+        message: 'Флаг тестового режима работает корректно',
+        details: { urlWithTest: urlWithTestMode, urlWithoutTest: urlWithoutTestMode }
+      } as TestResult;
     } catch (error) {
-      logger.error('❌ Ошибка при выполнении теста проверки флага IsTest', {
-        error: error instanceof Error ? error.message : String(error)
-      });
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`❌ Ошибка при выполнении теста ${testName}`, { error: errMsg });
       
       return {
-        name: 'Проверка флага IsTest',
+        name: testName,
         success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+        message: `Ошибка при выполнении теста ${testName}`,
+        error: errMsg
+      } as TestResult;
     }
   }
 
   // Запускаем все тесты
   try {
-    logger.info('🚀 Запуск тестов формы Robokassa...');
+    logger.info('�� Запуск тестов формы Robokassa...');
     
-    // Запускаем тесты последовательно
+    // Запускаем тесты последовательно и добавляем в results
     testResults.results.push(await testValidUrlGeneration());
     testResults.results.push(await testDifferentAmounts());
     testResults.results.push(testInvalidInvId());
@@ -427,6 +443,7 @@ export async function runRobokassaFormTests(): Promise<any> {
     
     if (failedTests.length > 0) {
       testResults.success = false;
+      testResults.error = `Некоторые тесты не пройдены: ${failedTests.map(test => test.name).join(', ')}`;
       logger.error('❌ Некоторые тесты не пройдены:', {
         failedCount: failedTests.length,
         failedTests: failedTests.map(test => test.name)
@@ -437,14 +454,15 @@ export async function runRobokassaFormTests(): Promise<any> {
     
     return testResults;
   } catch (error) {
-    logger.error('❌ Критическая ошибка при выполнении тестов:', {
-      error: error instanceof Error ? error.message : String(error)
-    });
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error('❌ Критическая ошибка при выполнении тестов:', { error: errorMsg });
     
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error)
-    };
+    // Ensure results array exists even in case of critical error before pushing results
+    if (!testResults.results) { testResults.results = []; } 
+    
+    testResults.success = false;
+    testResults.error = errorMsg;
+    return testResults;
   }
 }
 
