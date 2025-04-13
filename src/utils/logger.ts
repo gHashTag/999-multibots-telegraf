@@ -1,5 +1,5 @@
-import winston from 'winston'
-import path from 'path'
+import * as winston from 'winston'
+import * as path from 'path'
 
 // Log levels
 const levels = {
@@ -29,7 +29,7 @@ const colors = {
 winston.addColors(colors)
 
 // Define format for console transport
-const consoleFormat = winston.format.combine(
+winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:ms' }),
   winston.format.colorize({ all: true }),
   winston.format.printf(
