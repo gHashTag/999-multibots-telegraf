@@ -1014,7 +1014,7 @@ export async function testDirectGenerationAndReport(
       })
 
       console.log(`📸 [DIRECT]: URL изображений для отправки:`)
-      urlsToSend.forEach((url, i) => {
+      urlsToSend.forEach((url: string, i: number) => {
         console.log(`📷 [${i + 1}/${urlsToSend.length}]: ${url}`)
       })
 
