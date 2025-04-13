@@ -36,6 +36,23 @@ import runMenuSceneTests from './tests/scenes/menuScene.test';
 import runLipSyncWizardTests from './tests/scenes/lipSyncWizard.test';
 import runErrorSceneTests from './tests/scenes/errorScene.test';
 import runBotStartSceneTests from './tests/scenes/botStartScene.test';
+import runIdeasGeneratorSceneTests from './tests/scenes/ideasGeneratorScene.test';
+import runIdeaGeneratorSceneTests from './tests/scenes/ideaGeneratorScene.test';
+import runBroadcastSendMessageSceneTests from './tests/scenes/broadcastSendMessageScene.test';
+import runMergeVideoAndAudioSceneTests from './tests/scenes/mergeVideoAndAudioScene.test';
+import runRegisterSceneTests from './tests/scenes/registerScene.test';
+import runAutopaySuccessSceneTests from './tests/scenes/autopaySuccessScene.test';
+import runAutopayFailureSceneTests from './tests/scenes/autopayFailureScene.test';
+import runSuccessPayLinkSceneTests from './tests/scenes/successPayLinkScene.test';
+import runSuccessPayQRSceneTests from './tests/scenes/successPayQRScene.test';
+import runJoinPromoSceneTests from './tests/scenes/joinPromoScene.test';
+import runSelectNeuroPhotoSceneTests from './tests/scenes/selectNeuroPhotoScene.test';
+import runImageGeneratorSceneTests from './tests/scenes/imageGeneratorScene.test';
+import runPersonalCabinetSceneTests from './tests/scenes/personalCabinetScene.test';
+import runSelectLanguageSceneTests from './tests/scenes/selectLanguageScene.test';
+import runManagePromocodesSceneTests from './tests/scenes/managePromocodesScene.test';
+import runShowPromocodesSceneTests from './tests/scenes/showPromocodesScene.test';
+import runStatisticsSceneTests from './tests/scenes/statisticsScene.test';
 
 // Мокируем Supabase, чтобы избежать ошибок с учетными данными
 try {
@@ -436,17 +453,16 @@ export async function runScenesTests(): Promise<TestResult[]> {
   }
   
   // Run LipSync Wizard tests
-  console.log('\n🧪 Running lipSyncWizard tests...');
+  console.log('\n🔹 Running Lip Sync Wizard tests...');
   try {
     const lipSyncWizardResults = await runLipSyncWizardTests();
-    lipSyncWizardResults.forEach(result => {
-      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
-      results.push(result);
-    });
+    results.push(...lipSyncWizardResults);
+    console.log(`✅ Lip Sync Wizard tests completed: ${lipSyncWizardResults.filter(r => r.success).length} passed, ${lipSyncWizardResults.filter(r => !r.success).length} failed`);
   } catch (error) {
-    console.error('❌ Error running lipSyncWizard tests:', error);
+    console.error('❌ Error running Lip Sync Wizard tests:', error);
     results.push({
-      name: 'lipSyncWizard tests',
+      name: 'Lip Sync Wizard tests',
+      category: TestCategory.Scenes,
       success: false,
       message: String(error)
     });
@@ -483,6 +499,25 @@ export async function runScenesTests(): Promise<TestResult[]> {
     results.push({
       name: 'botStartScene tests',
       category: TestCategory.All,
+      success: false,
+      message: String(error)
+    });
+  }
+  
+  // Run Help Scene tests
+  console.log('\n🔹 Running Help Scene tests...');
+  try {
+    const helpSceneResults = await runHelpSceneTests();
+    helpSceneResults.forEach(result => {
+      result.category = TestCategory.Scenes;
+    });
+    results.push(...helpSceneResults);
+    console.log(`✅ Help Scene tests completed: ${helpSceneResults.filter(r => r.success).length} passed, ${helpSceneResults.filter(r => !r.success).length} failed`);
+  } catch (error) {
+    console.error('❌ Error running Help Scene tests:', error);
+    results.push({
+      name: 'Help Scene tests',
+      category: TestCategory.Scenes,
       success: false,
       message: String(error)
     });
