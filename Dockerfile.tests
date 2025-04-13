@@ -1,12 +1,16 @@
-FROM node:16-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Копируем package.json и package-lock.json
+# Копируем package.json и package-lock.json для оптимизации кэширования
 COPY package*.json ./
 
-# Устанавливаем зависимости
-RUN npm install
+# Устанавливаем зависимости с более подробным логированием
+RUN npm install && \
+    npm cache clean --force
+
+# Создаем директорию для логов и отчетов тестирования
+RUN mkdir -p /app/logs /app/test-reports
 
 # Копируем исходный код
 COPY . .
@@ -14,6 +18,18 @@ COPY . .
 # Устанавливаем переменные окружения для тестов
 ENV NODE_ENV=test
 ENV TESTING=true
+ENV LOG_LEVEL=debug
+ENV TEST_TIMEOUT=30000
+ENV TEST_RETRY_COUNT=3
+ENV SUPABASE_MOCK_ENABLED=true
+ENV DATABASE_MOCK=true
+ENV RUNNING_IN_TEST_ENV=true
 
-# Команда по умолчанию
-CMD ["npm", "run", "test:scenes"] 
+# Экспонируем порт для возможной отладки
+EXPOSE 9229
+
+# Команда по умолчанию - запуск тестов сцен
+CMD ["npm", "run", "test:scenes"]
+
+# Альтернативная команда для запуска только определенных тестов
+# Использование: docker run -e TEST_FILE=tests/scenes/helpScene.test.ts telegram-bot-tests npm run test:custom -- $TEST_FILE 
