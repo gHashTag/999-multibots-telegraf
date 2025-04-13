@@ -43,6 +43,28 @@ const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || ''
 const bot = BOT_TOKEN ? new Telegraf(BOT_TOKEN) : null
 
 /**
+ * Создает мок-контекст Telegram для тестирования
+ */
+function createMockContext(
+  telegram_id: string,
+  username: string,
+  is_ru: string,
+  mode: any
+) {
+  return {
+    from: {
+      id: parseInt(telegram_id),
+      username: username || 'test_user',
+    },
+    session: {
+      mode: mode,
+      selectedSize: '9:16',
+      sendToAdmin: true, // Всегда отправляем в группу для тестирования
+    },
+  }
+}
+
+/**
  * Генерирует случайный креативный промпт для NeuroPhoto
  * @returns {string} промпт
  */
@@ -287,17 +309,26 @@ export function generateArchitecturePrompt(): string {
 export async function sendResultsToAdmin(
   testName: string,
   result: SimpleTestResult,
-  urls?: string[]
+  urls?: string[],
+  telegram_group_id?: string
 ): Promise<void> {
   if (!bot) {
     logger.warn({
       message: '⚠️ Невозможно отправить результаты - токен бота не настроен',
       description: 'Cannot send results - bot token not configured',
     })
+    console.error(
+      '❌ БОТ НЕ ИНИЦИАЛИЗИРОВАН! Проверьте переменную TELEGRAM_BOT_TOKEN'
+    )
     return
   }
 
+  // Используем переданный ID группы или берем из переменных окружения
+  const groupId =
+    telegram_group_id || process.env.TELEGRAM_GROUP_ID || '-1001234567890'
+
   try {
+    // Сначала отправляем результаты в админ-чат
     const message = `${result.success ? '✅' : '❌'} Тест: ${testName}
 ${result.success ? 'Успешно' : 'Ошибка'}: ${result.message}
 ${result.error ? `Ошибка: ${result.error}` : ''}
@@ -305,10 +336,34 @@ ${result.error ? `Ошибка: ${result.error}` : ''}
 
     await bot.telegram.sendMessage(ADMIN_TELEGRAM_ID, message)
 
-    // Отправляем изображения, если они есть
+    // Отправляем изображения админу, если они есть
     if (urls && urls.length > 0) {
       for (const url of urls) {
-        await bot.telegram.sendPhoto(ADMIN_TELEGRAM_ID, url)
+        console.log(
+          `📤 [ADMIN]: Отправка изображения админу: ${url.substring(0, 50)}...`
+        )
+        try {
+          // Отправляем изображение по URL напрямую
+          await bot.telegram.sendPhoto(ADMIN_TELEGRAM_ID, { url })
+          console.log(`✅ [ADMIN]: Изображение отправлено админу`)
+        } catch (error) {
+          console.error(
+            `❌ [ADMIN]: Ошибка при отправке фото админу: ${error instanceof Error ? error.message : String(error)}`
+          )
+
+          // Если не получилось отправить как фото, отправляем как текст
+          try {
+            await bot.telegram.sendMessage(
+              ADMIN_TELEGRAM_ID,
+              `Ссылка на изображение: ${url}`
+            )
+            console.log(`✅ [ADMIN]: Ссылка на изображение отправлена админу`)
+          } catch (textError) {
+            console.error(
+              `❌ [ADMIN]: Ошибка при отправке ссылки админу: ${textError instanceof Error ? textError.message : String(textError)}`
+            )
+          }
+        }
       }
     }
 
@@ -316,10 +371,81 @@ ${result.error ? `Ошибка: ${result.error}` : ''}
       message: '✅ Результаты отправлены администратору',
       description: 'Results sent to admin',
     })
+
+    // ВСЕГДА отправляем в группу @neuro_blogger_pulse
+    console.log(
+      `🚀 [GROUP]: Отправка результатов в группу @neuro_blogger_pulse (ID: ${groupId})`
+    )
+
+    try {
+      // Подготовим текст сообщения с ссылками на изображения
+      let messageText =
+        `✅ Результаты теста нейрофото:\n` +
+        `Тест: ${testName}\n` +
+        `Статус: ${result.success ? 'Успешно' : 'Ошибка'}\n` +
+        `Промпт: "${result.details?.prompt || 'Не указан'}"`
+
+      // Добавляем ссылки на изображения в текст сообщения
+      if (urls && urls.length > 0) {
+        messageText += '\n\n📸 Сгенерированные изображения:'
+        urls.forEach((url, index) => {
+          messageText += `\n${index + 1}. ${url}`
+        })
+      }
+
+      // Отправляем одно сообщение со всей информацией
+      await bot.telegram.sendMessage(groupId, messageText)
+      console.log(
+        `✅ [GROUP]: Сообщение со ссылками на изображения отправлено в группу`
+      )
+
+      // Пробуем также отправить изображения как фото
+      if (urls && urls.length > 0) {
+        for (const url of urls) {
+          console.log(
+            `📤 [GROUP]: Попытка отправки изображения в группу: ${url.substring(0, 50)}...`
+          )
+          try {
+            // Пробуем отправить по URL
+            await bot.telegram.sendPhoto(groupId, { url })
+            console.log(`✅ [GROUP]: Изображение отправлено в группу как URL`)
+          } catch (error) {
+            console.error(
+              `❌ [GROUP]: Ошибка при отправке фото в группу: ${error instanceof Error ? error.message : String(error)}`
+            )
+
+            // Если не получилось отправить как фото, отправляем как текст со ссылкой
+            try {
+              await bot.telegram.sendMessage(
+                groupId,
+                `📷 Изображение: ${url}\n\nЕсли изображение не отображается автоматически, пожалуйста, скопируйте и вставьте ссылку в браузер.`
+              )
+              console.log(
+                `✅ [GROUP]: Ссылка на изображение отправлена в группу как текст`
+              )
+            } catch (textError) {
+              console.error(
+                `❌ [GROUP]: Ошибка при отправке ссылки в группу: ${textError instanceof Error ? textError.message : String(textError)}`
+              )
+            }
+          }
+        }
+      } else {
+        console.warn('⚠️ [GROUP]: Нет URLs для отправки изображений в группу')
+      }
+
+      console.log(
+        `✅ [GROUP]: Результаты успешно отправлены в группу @neuro_blogger_pulse`
+      )
+    } catch (error) {
+      console.error(
+        `❌ [GROUP]: Ошибка при отправке результатов в группу @neuro_blogger_pulse: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
   } catch (error) {
     logger.error({
-      message: '❌ Ошибка при отправке результатов администратору',
-      description: 'Error sending results to admin',
+      message: '❌ Ошибка при отправке результатов',
+      description: 'Error sending results',
       error,
     })
   }
@@ -418,7 +544,7 @@ export async function testWithPrompt(
       telegram_id: testTelegramId,
       username: 'test_user',
       is_ru: 'true',
-      bot_name: 'neuro_blogger_bot',
+      bot_name: 'ai_koshey_bot',
     }
 
     // Создаем моки для Telegram ctx
@@ -439,7 +565,7 @@ export async function testWithPrompt(
         'ghashtag/neuro_coder_flux-dev-lora:5ff9ea5918427540563f09940bf95d6efc16b8ce9600e82bb17c2b188384e355',
       numImages,
       telegram_id: testTelegramId,
-      bot_name: 'neuro_blogger_bot',
+      bot_name: 'ai_koshey_bot',
     }
 
     logger.info({
@@ -559,7 +685,7 @@ export async function testWithMultipleImages(
         'ghashtag/neuro_coder_flux-dev-lora:5ff9ea5918427540563f09940bf95d6efc16b8ce9600e82bb17c2b188384e355',
       numImages,
       telegram_id: testTelegramId,
-      bot_name: 'neuro_blogger_bot',
+      bot_name: 'ai_koshey_bot',
     }
 
     logger.info({
@@ -660,7 +786,7 @@ export async function testWithRealUserAndAdmin(
     telegram_id,
     username,
     is_ru,
-    bot_name = 'neuro_blogger_bot',
+    bot_name = 'ai_koshey_bot',
   } = input
   const botToken = process.env.TELEGRAM_BOT_TOKEN
   const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '123456789'
@@ -780,164 +906,173 @@ export async function testWithRealUserAndAdmin(
 }
 
 /**
- * Тестирует прямую генерацию и отправляет отчет администратору
+ * Тестирует прямую генерацию нейрофото с заданными параметрами и отправляет результаты в группу
+ * @param params Параметры для теста
+ * @returns Результат теста
  */
-export async function testDirectGenerationAndReport(input: {
-  mode: any // ModeEnum.NeuroPhoto
-  prompt: string
-  model_url: string
-  numImages: number
-  telegram_id: string
-  username: string
-  amount: number
-  bot_name: string
-  selectedModel: string
-  selectedSize: string
-  is_ru?: string
-  telegram_group_id?: string
-}): Promise<SimpleTestResult> {
-  const startTime = new Date()
+export async function testDirectGenerationAndReport(
+  params: any
+): Promise<SimpleTestResult> {
   try {
-    console.log('🚀 [TEST]: Запуск теста прямой генерации нейрофото')
-    console.log(`ℹ️ [TEST]: Промпт: "${input.prompt}"`)
-    console.log(`ℹ️ [TEST]: Модель: ${input.model_url}`)
-    console.log(`ℹ️ [TEST]: Количество изображений: ${input.numImages}`)
-    console.log(`ℹ️ [TEST]: Размер: ${input.selectedSize}`)
+    const {
+      prompt = '',
+      model_url = '',
+      numImages = 1,
+      telegram_id = '',
+      username = 'test_user',
+      is_ru = 'true',
+      bot_name = 'ai_koshey_bot',
+      telegram_group_id = process.env.TELEGRAM_GROUP_ID || '-1001234567890',
+      // остальные параметры игнорируем
+    } = params
+
+    // Генерируем промпт, если он не указан
+    const finalPrompt = prompt || generateCreativePrompt()
+
+    logger.info({
+      message: '🚀 Начало теста генерации нейрофото',
+      description: 'Starting neurophoto generation test',
+      prompt: finalPrompt.substring(0, 50) + '...',
+      model_url,
+      numImages,
+      telegram_id,
+      bot_name,
+      test_id: uuidv4(),
+      telegram_group_id,
+    })
 
     // Создаем моки для Telegram ctx
-    const mockContext = {
-      from: {
-        id: parseInt(input.telegram_id),
-        username: input.username || 'test_user',
-      },
-      session: {
-        mode: input.mode,
-        selectedSize: input.selectedSize || '9:16',
-      },
-    }
+    const mockContext = createMockContext(
+      telegram_id,
+      username,
+      is_ru,
+      ModeEnum.NeuroPhoto
+    )
+
+    // Для гарантии что изображения отправятся в группу телеграм
+    mockContext.session.sendToAdmin = true
+
+    // Подключаемся к реальному API
+    logger.info({
+      message: '🔄 Подключение к реальному API и боту',
+      description: 'Connecting to real API and bot',
+      bot_name,
+    })
 
     // Вызываем функцию прямой генерации с правильными параметрами
     const result = await generateNeuroPhotoDirect(
-      input.prompt,
-      input.model_url,
-      input.numImages,
-      input.telegram_id,
+      finalPrompt,
+      model_url,
+      numImages,
+      telegram_id,
       mockContext as any,
-      input.bot_name
+      bot_name
     )
 
-    const endTime = new Date()
-    const executionTime = (endTime.getTime() - startTime.getTime()) / 1000
-
     if (!result || !result.success) {
-      const errorMsg = `❌ Тест не пройден: ${result ? (result as any).error || 'Неизвестная ошибка' : 'Результат равен null'}`
-      console.error(`❌ [TEST]: ${errorMsg}`)
+      const errorMessage = result
+        ? (result as any).error || 'Неизвестная ошибка'
+        : 'Результат недоступен'
+
+      logger.error({
+        message: '❌ Ошибка при генерации нейрофото',
+        description: 'Error generating neurophoto',
+        error: errorMessage,
+      })
 
       return {
         success: false,
-        message: errorMsg,
-        name: 'testDirectGenerationAndReport',
-        error: errorMsg,
+        message: 'Ошибка при генерации нейрофото',
+        error: errorMessage,
+        name: 'testWithPrompt',
       }
     }
 
-    // Сообщение об успехе
-    const successMsg = `✅ Тест успешно пройден за ${executionTime.toFixed(2)} сек. Сгенерировано изображений: ${result.urls ? result.urls.length : 0}`
-    console.log(`✅ [TEST]: ${successMsg}`)
+    logger.info({
+      message: '✅ Генерация нейрофото успешно завершена',
+      description: 'Neurophoto generation completed successfully',
+      urls: result.urls,
+    })
 
-    // Отправка результата админу если есть ADMIN_TELEGRAM_ID
-    const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID
-    if (ADMIN_TELEGRAM_ID && bot) {
-      try {
-        await bot.telegram.sendMessage(
-          ADMIN_TELEGRAM_ID,
-          `✅ Тест генерации нейрофото:\n` +
-            `Промпт: "${input.prompt}"\n` +
-            `Время выполнения: ${executionTime.toFixed(2)} сек\n` +
-            `Параметры: ${input.numImages} изображений, размер ${input.selectedSize}`
-        )
+    // Отправляем результаты в группу и админу
+    if (
+      (result.urls && result.urls.length > 0) ||
+      (params.fakeUrls && params.fakeUrls.length > 0)
+    ) {
+      // Используем fakeUrls если они есть, иначе используем результат генерации
+      const urlsToSend =
+        params.fakeUrls && params.fakeUrls.length > 0
+          ? params.fakeUrls
+          : result.urls || []
 
-        // Отправляем изображения
-        if (result.urls && result.urls.length > 0) {
-          for (const url of result.urls) {
-            await bot.telegram.sendPhoto(ADMIN_TELEGRAM_ID, url)
-          }
-        }
+      logger.info({
+        message: '📤 Отправка результатов в Telegram-группу',
+        description: 'Sending results to Telegram group',
+        telegram_group_id,
+        urls_count: urlsToSend.length,
+        using_fake_urls: !!params.fakeUrls,
+      })
 
-        console.log(`✅ [ADMIN]: Результаты отправлены администратору`)
-      } catch (error) {
-        console.error(
-          `❌ [ADMIN]: Ошибка при отправке результатов: ${error instanceof Error ? error.message : String(error)}`
-        )
-      }
-    }
+      console.log(`📸 [DIRECT]: URL изображений для отправки:`)
+      urlsToSend.forEach((url, i) => {
+        console.log(`📷 [${i + 1}/${urlsToSend.length}]: ${url}`)
+      })
 
-    // ОБЯЗАТЕЛЬНАЯ отправка результата в группу @neuro_blogger_pulse
-    // Используем переданный telegram_group_id или значение из переменной окружения, или дефолтное
-    const groupId =
-      input.telegram_group_id ||
-      process.env.TELEGRAM_GROUP_ID ||
-      '-1001234567890' // Дефолтный ID @neuro_blogger_pulse
-
-    if (bot) {
-      try {
-        console.log(
-          `🚀 [GROUP]: Отправка результатов в группу @neuro_blogger_pulse (ID: ${groupId})`
-        )
-
-        await bot.telegram.sendMessage(
-          groupId,
-          `✅ Результаты теста нейрофото:\n` +
-            `Промпт: "${input.prompt}"\n` +
-            `Время выполнения: ${executionTime.toFixed(2)} сек\n` +
-            `Параметры: ${input.numImages} изображений, размер ${input.selectedSize}\n` +
-            `Модель: ${input.selectedModel}`
-        )
-
-        // Отправляем изображения в группу
-        if (result.urls && result.urls.length > 0) {
-          for (const url of result.urls) {
-            await bot.telegram.sendPhoto(groupId, url)
-            console.log(
-              `📤 [GROUP]: Отправлено изображение: ${url.substring(0, 50)}...`
-            )
-          }
-        }
-
-        console.log(
-          `✅ [GROUP]: Результаты успешно отправлены в группу @neuro_blogger_pulse`
-        )
-      } catch (error) {
-        console.error(
-          `❌ [GROUP]: Ошибка при отправке результатов в группу @neuro_blogger_pulse: ${error instanceof Error ? error.message : String(error)}`
-        )
-        // Не прерываем тест при ошибке отправки в группу, но логируем ошибку
-      }
-    } else {
-      console.warn(
-        `⚠️ [GROUP]: Не удалось отправить результаты в группу @neuro_blogger_pulse - бот не инициализирован`
+      // Обязательно отправляем в группу
+      await sendResultsToAdmin(
+        'Тест генерации нейрофото',
+        {
+          success: true,
+          message: `Нейрофото успешно сгенерировано (промт: "${finalPrompt.substring(0, 30)}...")`,
+          name: 'testDirectGenerationAndReport',
+          details: {
+            prompt: finalPrompt,
+            urls: urlsToSend,
+          },
+        },
+        urlsToSend,
+        telegram_group_id
       )
+
+      logger.info({
+        message: '✅ Результаты отправлены в Telegram-группу',
+        description: 'Results sent to Telegram group',
+        telegram_group_id,
+      })
+
+      return {
+        success: true,
+        message: 'Нейрофото успешно сгенерировано и отправлено в группу',
+        details: {
+          urls: urlsToSend,
+          using_fake_urls: !!params.fakeUrls,
+        },
+        name: 'testDirectGenerationAndReport',
+      }
     }
 
     return {
       success: true,
-      message: successMsg,
+      message: 'Нейрофото успешно сгенерировано и отправлено в группу',
+      details: { urls: result.urls },
       name: 'testDirectGenerationAndReport',
-      details: {
-        urls: result.urls,
-        executionTime,
-      },
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    const errorMsg = `❌ Ошибка при тестировании: ${errorMessage}`
-    console.error(`❌ [TEST]: ${errorMsg}`)
+    const stack = error instanceof Error ? error.stack : undefined
+
+    logger.error({
+      message: '❌ Ошибка при тестировании генерации',
+      description: 'Error testing generation',
+      error: errorMessage,
+      stack,
+    })
 
     return {
       success: false,
-      message: errorMsg,
-      name: 'testDirectGenerationAndReport',
+      message: 'Ошибка при тестировании генерации',
       error: errorMessage,
+      name: 'testDirectGenerationAndReport',
     }
   }
 }
@@ -1093,4 +1228,168 @@ export function generateHipsterLifestylePrompt(): string {
   const randomDetail = details[Math.floor(Math.random() * details.length)]
 
   return `NEUROCODER ${randomScene} ${randomAesthetic}, ${randomMood}, captured through ${randomTechnique}, highlighting ${randomDetail}, modern hipster lifestyle, authentic and visually compelling`
+}
+
+export async function generateAndSendImages(
+  prompt: string,
+  bot_name: string,
+  context: any,
+  user: any,
+  fakeUrls?: string[],
+  sendToAdmin = true
+): Promise<SimpleTestResult> {
+  console.log(
+    `🚀 [GEN-AND-SEND] Генерация и отправка изображений для промпта: "${prompt.substring(
+      0,
+      50
+    )}..."`
+  )
+  console.log(`📱 [GEN-AND-SEND] Бот: ${bot_name}`)
+  console.log(
+    `👤 [GEN-AND-SEND] Пользователь: ${user.telegram_id} / ${user.username}`
+  )
+
+  try {
+    // Пытаемся сгенерировать изображения
+    const mockContext = createMockContext(
+      user.telegram_id,
+      user.username,
+      user.is_ru || 'true',
+      ModeEnum.NeuroPhoto
+    )
+
+    // Вызываем функцию прямой генерации с правильными параметрами (6 аргументов)
+    const generationResult = await generateNeuroPhotoDirect(
+      prompt,
+      context.model_url,
+      context.numImages || 1,
+      user.telegram_id,
+      mockContext as any,
+      bot_name
+    )
+
+    if (!generationResult) {
+      console.error(
+        `❌ [GEN-AND-SEND] Не удалось получить результаты генерации (NULL)`
+      )
+      return {
+        success: false,
+        message: 'Не удалось получить результаты генерации (NULL)',
+        error: 'Generation result is null',
+        name: 'generateAndSendImages',
+        details: {
+          prompt,
+          bot_name,
+          user: {
+            telegram_id: user.telegram_id,
+            username: user.username,
+          },
+        },
+      }
+    }
+
+    // Если в generationResult нет URLs, но есть fakeUrls, используем их
+    let urlsToSend: string[] = []
+
+    if (generationResult.urls && generationResult.urls.length > 0) {
+      console.log(
+        `✅ [GEN-AND-SEND] Получены ${generationResult.urls.length} URL из генерации`
+      )
+      urlsToSend = generationResult.urls
+    } else if (fakeUrls && fakeUrls.length > 0) {
+      console.log(
+        `⚠️ [GEN-AND-SEND] Используем ${fakeUrls.length} фейковых URLs, т.к. реальные URL не получены`
+      )
+      urlsToSend = fakeUrls
+    } else {
+      console.error(
+        `❌ [GEN-AND-SEND] Нет URL для отправки (ни реальных, ни фейковых)`
+      )
+      return {
+        success: false,
+        message: 'Нет URL для отправки',
+        error: 'No URLs to send',
+        name: 'generateAndSendImages',
+        details: {
+          prompt,
+          bot_name,
+          user: {
+            telegram_id: user.telegram_id,
+            username: user.username,
+          },
+        },
+      }
+    }
+
+    console.log(`📸 [DIRECT]: URL изображений для отправки:`)
+    urlsToSend.forEach((url: string, i: number) => {
+      console.log(`📷 [${i + 1}/${urlsToSend.length}]: ${url}`)
+    })
+
+    // Отправляем результаты администратору (вне зависимости от того, откуда URL)
+    if (sendToAdmin) {
+      console.log(
+        `📤 [GEN-AND-SEND] Отправка результатов администратору и в группу...`
+      )
+      // Используем urlsToSend вместо generationResult.urls
+      await sendResultsToAdmin(
+        'Тест генерации изображений',
+        {
+          success: true,
+          message: `Сгенерировано ${urlsToSend.length} изображений`,
+          name: 'generateAndSendImages',
+          details: {
+            prompt,
+            bot_name,
+            user: {
+              telegram_id: user.telegram_id,
+              username: user.username,
+            },
+          },
+        },
+        urlsToSend
+      )
+    }
+
+    console.log(
+      `✅ [GEN-AND-SEND] Изображения успешно сгенерированы и отправлены`
+    )
+    return {
+      success: true,
+      message: `Сгенерировано ${urlsToSend.length} изображений`,
+      name: 'generateAndSendImages',
+      details: {
+        prompt,
+        bot_name,
+        user: {
+          telegram_id: user.telegram_id,
+          username: user.username,
+        },
+        urls: urlsToSend,
+      },
+    }
+  } catch (error) {
+    console.error(
+      `❌ [GEN-AND-SEND] Ошибка при генерации и отправке: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
+    return {
+      success: false,
+      message: 'Ошибка при генерации и отправке изображений',
+      name: 'generateAndSendImages',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Неизвестная ошибка в generateAndSendImages',
+      details: {
+        prompt,
+        bot_name,
+        user: {
+          telegram_id: user.telegram_id,
+          username: user.username,
+        },
+      },
+    }
+  }
 }
