@@ -50,8 +50,8 @@ $function$
 
 1. **Создание платежа**:
    - Основной файл: `/src/inngest-functions/paymentProcessor.ts` 
-   - Метод создания записи о платеже: `createSuccessfulPayment`
-   - Не использует `updateUserBalance`, который создает дублирующие записи
+   - Метод создания записи о платеже: `updateUserBalance`
+   
 
 2. **Обработка платежа**:
    - Баланс рассчитывается динамически из `payments_v2`
