@@ -3,7 +3,7 @@ dotenv.config()
 
 import { Composer } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { isDevelopment } from './config'
+import { isDev } from './config/index'
 
 import { development, production } from '@/utils/launch'
 import express from 'express'
@@ -37,16 +37,16 @@ export const createBots = async () => {
   }
 
   // В режиме разработки используем только один тестовый бот
-  const testBot = isDevelopment
+  const testBot = isDev
     ? bots.find(bot => {
         const { bot_name } = getBotNameByToken(bot.telegram.token)
         return bot_name === process.env.DEV_BOT_NAME
       })
     : null
 
-  const activeBots = isDevelopment ? (testBot ? [testBot] : []) : bots
+  const activeBots = isDev ? (testBot ? [testBot] : []) : bots
 
-  if (isDevelopment && activeBots.length === 0) {
+  if (isDev && activeBots.length === 0) {
     logger.error('❌ Тестовый бот не найден', {
       description: 'Test bot not found',
       environment: process.env.NODE_ENV,
@@ -81,7 +81,7 @@ export const createBots = async () => {
     const webhookPath = `/${bot_name}`
     const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app`
 
-    if (isDevelopment) {
+    if (isDev) {
       development(bot)
     } else {
       production(bot, port, webhookUrl, webhookPath)
