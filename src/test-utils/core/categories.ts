@@ -15,6 +15,8 @@ export enum TestCategory {
   Api = 'api',
   Translations = 'translations',
   System = 'system',
+  Agents = 'agents',
+  Tasks = 'tasks',
 
   // Подкатегории
   NeuroPhoto = 'neurophoto',
@@ -40,6 +42,12 @@ export enum TestCategory {
 
   // Подкатегории для системных тестов
   AgentRouter = 'agent-router',
+
+  // Подкатегории для агентов
+  MessageAgent = 'message-agent',
+
+  // Подкатегории для тестов задач
+  MessageOwnerTask = 'message-owner-task',
 
   // Подкатегории для тестов базы данных
   DatabaseUsers = 'database-users',
@@ -98,6 +106,12 @@ export function getSubcategories(category: TestCategory): TestCategory[] {
 
     case TestCategory.System:
       return [TestCategory.AgentRouter]
+
+    case TestCategory.Agents:
+      return [TestCategory.MessageAgent]
+
+    case TestCategory.Tasks:
+      return [TestCategory.MessageOwnerTask]
 
     default:
       return []

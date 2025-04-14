@@ -29,11 +29,16 @@ export const createBots = async () => {
     description: 'Public API server started',
   })
 
-  if (!process.env.DEV_BOT_NAME) {
-    logger.error('❌ DEV_BOT_NAME не установлен', {
-      description: 'DEV_BOT_NAME is not set',
-    })
-    throw new Error('DEV_BOT_NAME is required')
+  // Проверяем наличие переменной TEST_BOT_NAME, используем ai_koshey_bot как значение по умолчанию
+  if (!process.env.TEST_BOT_NAME) {
+    process.env.TEST_BOT_NAME = 'ai_koshey_bot' // Значение по умолчанию
+    logger.warn(
+      '⚠️ TEST_BOT_NAME не установлен, используем значение по умолчанию',
+      {
+        description: 'TEST_BOT_NAME is not set, using default value',
+        default_value: process.env.TEST_BOT_NAME,
+      }
+    )
   }
 
   // В режиме разработки используем только один тестовый бот
@@ -41,7 +46,7 @@ export const createBots = async () => {
     NODE_ENV === 'development'
       ? bots.find(bot => {
           const { bot_name } = getBotNameByToken(bot.telegram.token)
-          return bot_name === process.env.DEV_BOT_NAME
+          return bot_name === process.env.TEST_BOT_NAME
         })
       : null
 

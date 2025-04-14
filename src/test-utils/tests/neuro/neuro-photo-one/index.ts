@@ -6,11 +6,11 @@ import { Telegraf } from 'telegraf'
 import dotenv from 'dotenv'
 import path from 'path'
 import fs from 'fs'
-import { generateNeuroPhotoDirect } from '@/services/generateNeuroPhotoDirect'
+import { generateNeuroPhotoDirect } from '../../../../../services/generateNeuroPhotoDirect'
 import { generateGptPrompt } from './gptPromptGenerator'
-import { ModeEnum } from '@/interfaces/modes'
-import { MyContext } from '@/interfaces'
-import { TestResult } from '@/test-utils/types'
+import { ModeEnum } from '../../../../../interfaces/modes'
+import { MyContext } from '../../../../../interfaces'
+import { TestResult } from '../../../types'
 
 // Загружаем переменные окружения
 dotenv.config({

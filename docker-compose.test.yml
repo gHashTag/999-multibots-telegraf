@@ -40,6 +40,7 @@ services:
       - PAYMENT_SERVICE_URL=http://localhost:3008
       - INNGEST_DEV_MODE=true
       - INNGEST_EVENT_KEY=test_event_key
+      - TEST_BOT_NAME=ai_koshey_bot
     volumes:
       - test-logs:/app/logs
     ports:

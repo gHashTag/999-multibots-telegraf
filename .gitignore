@@ -153,3 +153,6 @@ pgdata-test/
 # Temporary files
 *.log
 *.tmp 
+*.dev
+
+.env.test

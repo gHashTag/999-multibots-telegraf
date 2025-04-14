@@ -1,4 +1,4 @@
-import express from 'express'
+import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { serve } from 'inngest/express'
@@ -93,7 +93,7 @@ app.post('/uploads', upload.single('file'), (req, res) => {
       })
       return res.status(400).json({
         message: 'No file uploaded',
-        status: 'error',
+        status: 400,
       })
     }
 
@@ -109,7 +109,7 @@ app.post('/uploads', upload.single('file'), (req, res) => {
 
     res.json({
       message: 'File uploaded successfully',
-      status: 'success',
+      status: 200,
       url: fileUrl,
       path: req.file.path,
     })
@@ -120,7 +120,7 @@ app.post('/uploads', upload.single('file'), (req, res) => {
     })
     res.status(500).json({
       message: 'Error uploading file',
-      status: 'error',
+      status: 500,
     })
   }
 })
@@ -136,7 +136,7 @@ app.get('/api', (req, res) => {
   })
   res.json({
     message: 'Hello World API!',
-    status: 'success',
+    status: 200,
     timestamp: new Date().toISOString(),
   })
 })
@@ -148,7 +148,7 @@ app.get('/api/status', (req, res) => {
     description: 'Server status check',
   })
   res.json({
-    status: 'online',
+    status: 200,
     timestamp: new Date().toISOString(),
   })
 })
@@ -397,27 +397,91 @@ app.post('/payment-success', express.raw({ type: '*/*' }), async (req, res) => {
   }
 })
 
-// Настраиваем Inngest middleware
-app.use(
-  '/api/inngest',
-  serve({
-    client: inngest,
-    functions: [
-      textToImageFunction,
-      textToSpeechFunction,
-      neuroImageGeneration,
-      generateModelTraining,
-      modelTrainingV2,
-      broadcastMessage,
-      paymentProcessor,
-      neuroPhotoV2Generation,
-      createVoiceAvatarFunction,
-      ruPaymentProcessPayment,
-      imageToPromptFunction,
-      voiceToTextProcessor,
-    ],
-  })
-)
+// Настраиваем Inngest middleware для основного маршрута
+const inngestHandler = serve({
+  client: inngest,
+  functions: [
+    textToImageFunction,
+    textToSpeechFunction,
+    neuroImageGeneration,
+    generateModelTraining,
+    modelTrainingV2,
+    broadcastMessage,
+    paymentProcessor,
+    neuroPhotoV2Generation,
+    createVoiceAvatarFunction,
+    ruPaymentProcessPayment,
+    imageToPromptFunction,
+    voiceToTextProcessor,
+  ],
+})
+
+// Оборачиваем inngestHandler в промежуточное ПО с обработкой ошибок
+const inngestErrorHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    logger.info('📥 Получен запрос к Inngest', {
+      description: 'Received request to Inngest',
+      path: req.originalUrl,
+      method: req.method,
+      body: req.body
+        ? JSON.stringify(req.body).substring(0, 200) + '...'
+        : null,
+      headers: {
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent'],
+      },
+    })
+
+    inngestHandler(req, res, (err: Error | null) => {
+      if (err) {
+        logger.error('❌ Ошибка при обработке запроса Inngest', {
+          description: 'Error processing Inngest request',
+          error: err instanceof Error ? err.message : 'Unknown error',
+          stack: err instanceof Error ? err.stack : undefined,
+          path: req.originalUrl,
+          method: req.method,
+        })
+
+        // Отправляем ответ с ошибкой
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: 'Internal server error',
+            status: 500,
+            timestamp: new Date().toISOString(),
+          })
+        }
+      } else {
+        next()
+      }
+    })
+  } catch (error) {
+    logger.error('❌ Критическая ошибка при обработке запроса Inngest', {
+      description: 'Critical error in Inngest request handler',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      path: req.originalUrl,
+      method: req.method,
+    })
+
+    // Отправляем ответ с ошибкой
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'Internal server error',
+        status: 500,
+        timestamp: new Date().toISOString(),
+      })
+    }
+  }
+}
+
+// Используем промежуточное ПО с обработкой ошибок для всех маршрутов Inngest
+app.use('/api/inngest', inngestErrorHandler)
+app.use('/fn/register', inngestErrorHandler)
+app.use('/api/e/:eventKey', inngestErrorHandler)
 
 // Обработка ошибки 404
 app.use((req, res) => {
@@ -429,7 +493,7 @@ app.use((req, res) => {
   })
   res.status(404).json({
     message: 'Route not found',
-    status: 'error',
+    status: 404,
   })
 })
 

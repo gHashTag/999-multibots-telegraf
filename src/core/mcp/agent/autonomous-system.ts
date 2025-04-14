@@ -7,6 +7,8 @@ import { Task, TaskType, TaskStatus } from './state.js'
 import { createAgentNetwork, AgentNetwork } from './network.js'
 import { NetworkAgent } from './router.js'
 import { createCodeGeneratorAgent } from './specialized/code-generator.js'
+import { createMessageAgent } from './specialized/message-agent.js'
+import { createCodeAnalysisAgent } from './specialized/code-analysis-agent.js'
 import { Service } from '../types/index.js'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -167,7 +169,11 @@ export function createAutonomousSystem(
   // Добавляем базовые специализированные агенты
   system.addAgent(createCodeGeneratorAgent(config.mcpService))
 
-  // Здесь можно добавить другие специализированные агенты
+  // Добавляем агента для обработки сообщений
+  system.addAgent(createMessageAgent())
+
+  // Добавляем агента для статического анализа кода
+  system.addAgent(createCodeAnalysisAgent())
 
   return system
 }

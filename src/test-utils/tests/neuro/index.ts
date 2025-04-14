@@ -6,13 +6,7 @@
  * @module test-utils/tests/neuro
  */
 
-// Экспортируем основные утилиты
-export * from './neuroPhotoDirectUtils'
-
-// Экспортируем компоненты тестов
-export { testGQPortrait } from './testNeuroPhotoGQ'
-export { testGQPortraitBatch } from './testNeuroPhotoGQBatch'
-export { runTest as runNeuroPhotoGeneration } from './testNeuroPhotoGeneration'
+export * from './neuro-photo-one'
 
 /**
  * @fileoverview

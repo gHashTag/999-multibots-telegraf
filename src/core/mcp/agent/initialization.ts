@@ -9,6 +9,7 @@ import {
 } from './autonomous-system.js'
 import { createMcpService } from '../services/mcp.js'
 import { createCodeGeneratorAgent } from './specialized/code-generator.js'
+import { createMessageAgent } from './specialized/message-agent.js'
 import { v4 as uuidv4 } from 'uuid'
 
 /**
@@ -46,7 +47,8 @@ export async function initializeAutonomousSystem(
   // Добавляем специализированных агентов
   system.addAgent(createCodeGeneratorAgent(mcpService))
 
-  // Здесь можно добавить другие специализированные агенты
+  // Добавляем агента для обработки сообщений
+  system.addAgent(createMessageAgent())
 
   // Инициализируем систему
   await system.initialize()

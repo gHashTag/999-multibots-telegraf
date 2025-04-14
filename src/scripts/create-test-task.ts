@@ -3,7 +3,7 @@
  * и настройки отправки уведомлений в Telegram
  */
 
-import { createTask } from '@/core/supabase/task/createTask'
+import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { TaskType } from '@/core/mcp/agent/state'
 import { getBotByName } from '@/core/bot'
@@ -46,6 +46,73 @@ async function sendTelegramNotification(message: string) {
 }
 
 /**
+ * Создает задачу через Supabase RPC
+ */
+async function createAgentTask(params: {
+  telegram_id: string | number
+  bot_name: string
+  type: string
+  description: string
+  priority?: number
+  metadata?: Record<string, any>
+  external_id?: string
+}): Promise<string | null> {
+  try {
+    const {
+      telegram_id,
+      bot_name,
+      type,
+      description,
+      priority,
+      metadata,
+      external_id,
+    } = params
+
+    logger.info('🚀 Создание новой задачи агента в Supabase', {
+      telegram_id,
+      bot_name,
+      type,
+      description: description.substring(0, 50) + '...',
+    })
+
+    // Преобразуем telegram_id в число, если он передан как строка
+    const tgId =
+      typeof telegram_id === 'string' ? parseInt(telegram_id, 10) : telegram_id
+
+    // Вызываем RPC функцию
+    const { data, error } = await supabase.rpc('create_agent_task', {
+      p_telegram_id: tgId,
+      p_bot_name: bot_name,
+      p_type: type,
+      p_description: description,
+      p_priority: priority || 1,
+      p_metadata: metadata || {},
+      p_external_id: external_id || null,
+    })
+
+    if (error) {
+      logger.error('❌ Ошибка при создании задачи в Supabase', {
+        error: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        params,
+      })
+      return null
+    }
+
+    logger.info('✅ Задача успешно создана в Supabase', { task_id: data })
+    return data
+  } catch (error) {
+    logger.error('❌ Необработанная ошибка при создании задачи', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    return null
+  }
+}
+
+/**
  * Создает тестовую задачу для автономного агента
  */
 async function createTestTask() {
@@ -58,7 +125,7 @@ async function createTestTask() {
     )
 
     // Создаем задачу в Supabase
-    const taskId = await createTask({
+    const taskId = await createAgentTask({
       telegram_id: TELEGRAM_ID,
       bot_name: BOT_NAME,
       type: TaskType.CODE_GENERATION,

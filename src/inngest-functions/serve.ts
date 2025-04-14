@@ -20,10 +20,7 @@ export const initializeInngestServer = async () => {
     })
 
     // Для режима разработки используем serve API, для продакшн - connect API
-    if (
-      process.env.NODE_ENV === 'development' &&
-      process.env.USE_SERVE === 'true'
-    ) {
+    if (process.env.NODE_ENV === 'development') {
       logger.info('⚙️ Используем режим serve для локальной разработки', {
         description: 'Using serve mode for local development',
         timestamp: new Date().toISOString(),

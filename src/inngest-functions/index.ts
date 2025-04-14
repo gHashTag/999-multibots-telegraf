@@ -1,9 +1,3 @@
-import { inngest } from './clients'
-import { functions } from './registry'
-
-export { inngest }
-export { functions }
-
 export * from './generateModelTraining'
 export * from './modelTrainingV2'
 export * from './neuroImageGeneration'

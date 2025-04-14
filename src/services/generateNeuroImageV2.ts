@@ -12,18 +12,6 @@ export async function generateNeuroImageV2(
   ctx: MyContext,
   botName: string
 ): Promise<{ data: string } | null> {
-  if (!ctx.session.prompt) {
-    throw new Error('Prompt not found')
-  }
-
-  if (!ctx.session.userModel) {
-    throw new Error('User model not found')
-  }
-
-  if (!numImages) {
-    throw new Error('Num images not found')
-  }
-
   logger.info({
     message: '🚀 Начало генерации NeurophotoV2',
     description: 'Starting NeurophotoV2 generation',
@@ -31,9 +19,35 @@ export async function generateNeuroImageV2(
     numImages,
     telegram_id,
     botName,
+    hasPrompt: !!ctx.session.prompt,
+    hasUserModel: !!ctx.session.userModel,
   })
 
   try {
+    // Проверяем наличие промпта
+    if (!prompt && !ctx.session.prompt) {
+      logger.error({
+        message: '❌ Отсутствует промпт для генерации',
+        description: 'No prompt found for generation',
+        telegram_id,
+        session_data: JSON.stringify(ctx.session || {}),
+      })
+      throw new Error('Prompt not found')
+    }
+
+    // Проверка модели пользователя не должна быть блокирующей
+    if (!ctx.session.userModel) {
+      logger.warn({
+        message: '⚠️ Модель пользователя не найдена, но продолжаем генерацию',
+        description: 'User model not found, but continuing generation',
+        telegram_id,
+        session_data: JSON.stringify(ctx.session || {}),
+      })
+    }
+
+    // Убедимся что numImages имеет разумное значение
+    const validNumImages = numImages && numImages > 0 ? numImages : 1
+
     // Создаем уникальный идентификатор для события
     const uniqueId = `neuro-photo-v2-${uuidv4()}`
 
@@ -42,8 +56,8 @@ export async function generateNeuroImageV2(
       id: uniqueId,
       name: 'neuro/photo-v2.generate',
       data: {
-        prompt,
-        num_images: numImages || 1,
+        prompt: prompt || ctx.session.prompt,
+        num_images: validNumImages,
         telegram_id,
         is_ru: isRussian(ctx),
         bot_name: botName,
@@ -72,13 +86,15 @@ export async function generateNeuroImageV2(
       description: 'Error sending event to Inngest',
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
+      telegram_id,
+      session_data: JSON.stringify(ctx.session || {}),
     })
 
     // Отправляем пользователю сообщение об ошибке
     await ctx.reply(
       isRussian(ctx)
-        ? '😔 Произошла ошибка при отправке запроса. Пожалуйста, попробуйте позже.'
-        : '😔 An error occurred while sending the request. Please try again later.'
+        ? '😔 Произошла ошибка при отправке запроса. Пожалуйста, попробуйте позже. Нейрофото 1.1.1'
+        : '😔 An error occurred while sending the request. Please try again later. Neurophoto 1.1.1'
     )
 
     return null

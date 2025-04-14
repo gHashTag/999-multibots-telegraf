@@ -4,11 +4,12 @@ dotenv.config()
 
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { createMockBot } from '@/test-utils/mocks/botMock'
+// import { createMockBot } from '@/test-utils/mocks/botMock'
 import { logger } from '@/utils/logger'
-import { isProduction, isTest } from '@/config'
+import { isProduction } from '@/config'
 import { getBotGroupFromAvatars } from '@/core/supabase'
 
+process.env.DISABLE_INNGEST = 'true'
 // Проверяем токены в зависимости от окружения
 if (isProduction) {
   // Check production tokens
@@ -192,16 +193,16 @@ export function getBotByName(bot_name: string): {
   error?: string | null
 } {
   // В тестовом окружении возвращаем мок
-  if (isTest) {
-    logger.info({
-      message: '🧪 Возвращаем мок бота для тестов',
-      description: 'Returning mock bot for tests',
-      bot_name,
-    })
-    return {
-      bot: createMockBot('test-token') as unknown as Telegraf<MyContext>,
-    }
-  }
+  // if (isTest) {
+  //   logger.info({
+  //     message: '🧪 Возвращаем мок бота для тестов',
+  //     description: 'Returning mock bot for tests',
+  //     bot_name,
+  //   })
+  //   return {
+  //     bot: createMockBot('test-token') as unknown as Telegraf<MyContext>,
+  //   }
+  // }
 
   logger.info({
     message: '🔎 getBotByName запрошен для',

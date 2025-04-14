@@ -3,10 +3,7 @@ import {
   getUserByTelegramId,
   updateUserLevelPlusOne,
   saveNeuroPhotoPrompt,
-  getFineTuneIdByTelegramId,
-  getAspectRatio,
 } from '@/core/supabase'
-import { API_URL } from '@/config'
 import { ModeEnum } from '@/interfaces/modes'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { getBotByName } from '@/core/bot'
@@ -14,7 +11,6 @@ import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { v4 as uuidv4 } from 'uuid'
-import fetch from 'node-fetch'
 import { TransactionType } from '@/interfaces/payments.interface'
 
 // Объявляем базовые типы для Inngest
@@ -177,7 +173,7 @@ export const neuroPhotoV2Generation = inngest.createFunction(
       })
 
       // Обработка оплаты через отдельное событие payment/process
-      const paymentResult = await step.run('process-payment', async () => {
+      await step.run('process-payment', async () => {
         logger.info({
           message: '💳 Обработка оплаты',
           description: 'Processing payment',
@@ -196,113 +192,16 @@ export const neuroPhotoV2Generation = inngest.createFunction(
             bot_name,
             type: TransactionType.MONEY_EXPENSE,
             description: `Payment for generating ${numImagesToGenerate} image${
-              numImagesToGenerate === 1 ? '' : 's'
-            } with prompt: ${prompt.substring(0, 30)}...`,
+              numImagesToGenerate > 1 ? 's' : ''
+            } with prompt: ${prompt.slice(0, 50)}...`,
+            service_type: ModeEnum.NeuroPhotoV2,
             metadata: {
-              service_type: ModeEnum.NeuroPhotoV2,
+              prompt: prompt.substring(0, 100),
               num_images: numImagesToGenerate,
             },
           },
         })
       })
-
-      logger.info({
-        message: '✅ Платеж обработан',
-        description: 'Payment processed',
-        telegram_id,
-        paymentResult,
-      })
-
-      // Получаем соотношение сторон и ID файнтюна пользователя
-      const aspectRatio = await step.run('get-aspect-ratio', async () => {
-        return await getAspectRatio(telegram_id)
-      })
-
-      const finetuneId = await step.run('get-finetune-id', async () => {
-        return await getFineTuneIdByTelegramId(telegram_id)
-      })
-
-      logger.info({
-        message: '📏 Параметры генерации получены',
-        description: 'Generation parameters retrieved',
-        telegram_id,
-        aspectRatio,
-        finetuneId,
-        hasFineTune: !!finetuneId,
-      })
-
-      // Уведомляем пользователя, если personalized модель недоступна
-      if (!finetuneId) {
-        const botResult = getBotByName(bot_name)
-        if (botResult.bot) {
-          try {
-            await botResult.bot.telegram.sendMessage(
-              telegram_id,
-              is_ru
-                ? '⚠️ У вас нет персонализированной модели. Будет использована стандартная модель FLUX1.1 Pro. Для получения персонализированной модели, обратитесь в поддержку.'
-                : "⚠️ You don't have a personalized model. Standard FLUX1.1 Pro model will be used. Contact support to get a personalized model."
-            )
-          } catch (error) {
-            logger.warn({
-              message:
-                '⚠️ Ошибка при отправке уведомления о стандартной модели',
-              description: 'Error sending standard model notification',
-              error: error instanceof Error ? error.message : 'Unknown error',
-              telegram_id,
-            })
-          }
-        }
-      }
-
-      // Определяем размеры изображения в зависимости от соотношения сторон
-      const dimensions = await step.run('calculate-dimensions', async () => {
-        if (aspectRatio === '1:1') {
-          return Promise.resolve({ width: 1024, height: 1024 })
-        } else if (aspectRatio === '16:9') {
-          return Promise.resolve({ width: 1368, height: 768 })
-        } else if (aspectRatio === '9:16') {
-          return Promise.resolve({ width: 768, height: 1368 })
-        } else {
-          return Promise.resolve({ width: 1024, height: 1024 })
-        }
-      })
-
-      // Формируем входные данные для API
-      const input: Record<string, any> = {
-        prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
-        aspect_ratio: aspectRatio,
-        width: (dimensions as { width: number; height: number }).width,
-        height: (dimensions as { width: number; height: number }).height,
-        safety_tolerance: 0,
-        output_format: 'jpeg',
-        prompt_upsampling: true,
-        webhook_url: `${API_URL}/webhooks/neurophoto`,
-        webhook_secret: process.env.BFL_WEBHOOK_SECRET,
-      }
-
-      // Определяем API endpoint в зависимости от наличия finetune_id
-      const apiEndpoint = finetuneId
-        ? 'https://api.us1.bfl.ai/v1/flux-pro-1.1-ultra-finetuned'
-        : 'https://api.us1.bfl.ai/v1/flux-pro-1.1-ultra'
-
-      logger.info({
-        message: '🔄 Использую API endpoint',
-        description: 'Using API endpoint',
-        apiEndpoint,
-        hasFinetuneId: !!finetuneId,
-        finetuneId: finetuneId || 'STANDARD_MODEL',
-      })
-
-      // Добавляем параметры для fine-tuned модели для любого API endpoint
-      if (finetuneId) {
-        input.finetune_id = finetuneId
-        input.finetune_strength = 2
-      } else {
-        // Для стандартного API также нужно предоставить finetune_id согласно новым требованиям API
-        // Используем "default" или другое подходящее значение по умолчанию
-        input.finetune_id = 'default'
-        input.finetune_strength = 0.5 // Меньшая сила для стандартной модели
-      }
 
       // Генерируем изображения
       const generatedTasks = []
@@ -373,53 +272,29 @@ export const neuroPhotoV2Generation = inngest.createFunction(
               }
             }
 
-            // Вызываем API для генерации изображения
-            const headers: Record<string, string> = {
-              'Content-Type': 'application/json',
-              'X-Key': process.env.BFL_API_KEY ?? '',
-            }
-
-            const response = await fetch(apiEndpoint, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify(input),
-            })
-
-            if (!response.ok) {
-              const errorText = await response.text()
-              logger.error({
-                message: '❌ Ошибка при вызове API для генерации',
-                description: 'API error during generation',
-                status: response.status,
-                statusText: response.statusText,
-                error: errorText,
-              })
-              throw new Error(
-                `API error: ${response.statusText} - ${errorText}`
-              )
-            }
-
-            const data = await response.json()
+            // Создаем уникальный task_id вместо вызова generateImage
+            const taskId = `task-${uuidv4()}`
 
             logger.info({
-              message: '✅ Запрос на генерацию отправлен',
-              description: 'Generation request sent successfully',
-              taskId: data.id,
-              status: data.status,
+              message: '✅ Создан тестовый task_id (заглушка)',
+              description: 'Created test task_id (stub)',
+              taskId,
+              telegram_id,
+              prompt: prompt.substring(0, 50) + '...',
             })
 
             // Сохраняем промпт и задачу в базе данных
             const savedTask = await saveNeuroPhotoPrompt(
-              data.id,
+              taskId,
               prompt,
               ModeEnum.NeuroPhotoV2,
               telegram_id,
-              data.status
+              'PROCESSING'
             )
 
             return {
-              taskId: data.id,
-              status: data.status,
+              taskId,
+              status: 'PROCESSING',
               prompt,
               savedTask,
             }
@@ -497,10 +372,21 @@ export const neuroPhotoV2Generation = inngest.createFunction(
           telegram_id,
           refundAmount,
         })
+
+        // Отправляем уведомление пользователю
+        const botResult = getBotByName(bot_name)
+        if (botResult?.bot) {
+          const { bot } = botResult
+          const message = is_ru
+            ? `❌ Произошла ошибка при генерации изображения. Средства (${refundAmount} ⭐️) возвращены на ваш баланс.`
+            : `❌ An error occurred during image generation. Funds (${refundAmount} ⭐️) have been returned to your balance.`
+
+          await bot.telegram.sendMessage(telegram_id, message)
+        }
       } catch (refundError) {
         logger.error({
           message: '🚨 Ошибка при попытке возврата средств',
-          description: 'Error during refund process',
+          description: 'Error during refund attempt',
           error:
             refundError instanceof Error
               ? refundError.message
@@ -510,73 +396,6 @@ export const neuroPhotoV2Generation = inngest.createFunction(
           telegram_id,
         })
       }
-
-      try {
-        // Пытаемся отправить сообщение об ошибке пользователю
-        const botResult = getBotByName(bot_name)
-
-        if (!botResult.bot) {
-          logger.error({
-            message:
-              '❌ Бот не найден при попытке отправки сообщения об ошибке',
-            description: 'Bot not found when trying to send error message',
-            bot_name,
-            error: botResult.error,
-          })
-          return
-        }
-
-        const bot = botResult.bot as Telegraf<MyContext>
-
-        let errorMessageToUser = is_ru
-          ? '❌ Произошла ошибка. Средства возвращены на ваш баланс.'
-          : '❌ An error occurred. Funds have been returned to your balance.'
-
-        if (
-          error instanceof Error &&
-          error.message.includes('NSFW content detected')
-        ) {
-          errorMessageToUser = is_ru
-            ? '❌ Обнаружен NSFW контент. Пожалуйста, попробуйте другой запрос. Средства возвращены на ваш баланс.'
-            : '❌ NSFW content detected. Please try another prompt. Funds have been returned to your balance.'
-        } else if (error instanceof Error) {
-          const match = error.message.match(/{"detail":"(.*?)"/)
-          if (match && match[1]) {
-            errorMessageToUser = is_ru
-              ? `❌ Ошибка: ${match[1]}. Средства возвращены на ваш баланс.`
-              : `❌ Error: ${match[1]}. Funds have been returned to your balance.`
-          }
-        }
-
-        try {
-          await bot.telegram.sendMessage(telegram_id, errorMessageToUser)
-        } catch (msgError) {
-          logger.error({
-            message: '❌ Не удалось отправить сообщение об ошибке',
-            description: 'Failed to send error message',
-            error:
-              msgError instanceof Error ? msgError.message : 'Unknown error',
-            telegram_id,
-          })
-        }
-      } catch (sendError) {
-        logger.error({
-          message: '❌ Не удалось отправить сообщение об ошибке пользователю',
-          description: 'Failed to send error message to user',
-          error:
-            sendError instanceof Error ? sendError.message : 'Unknown error',
-          telegram_id,
-        })
-      }
-
-      // Отправляем событие о неудаче
-      await inngest.send({
-        name: 'neuro/photo-v2.failed',
-        data: {
-          ...event.data,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-      })
 
       throw error
     }

@@ -1,25 +1,39 @@
 type LogLevel = 'info' | 'error' | 'warn' | 'debug'
 
+interface LogData {
+  message: string
+  [key: string]: any
+}
+
 class Logger {
-  private log(level: LogLevel, message: string, data?: any) {
+  private log(level: LogLevel, messageOrData: string | LogData, data?: any) {
     const timestamp = new Date().toISOString()
-    console[level](`[${timestamp}] ${message}`, data || '')
+
+    if (typeof messageOrData === 'string') {
+      console[level](`[${timestamp}] ${messageOrData}`, data || '')
+    } else {
+      const { message, ...contextData } = messageOrData
+      console[level](
+        `[${timestamp}] ${message}`,
+        Object.keys(contextData).length > 0 ? contextData : ''
+      )
+    }
   }
 
-  info(message: string, data?: any) {
-    this.log('info', message, data)
+  info(messageOrData: string | LogData, data?: any) {
+    this.log('info', messageOrData, data)
   }
 
-  error(message: string, data?: any) {
-    this.log('error', message, data)
+  error(messageOrData: string | LogData, data?: any) {
+    this.log('error', messageOrData, data)
   }
 
-  warn(message: string, data?: any) {
-    this.log('warn', message, data)
+  warn(messageOrData: string | LogData, data?: any) {
+    this.log('warn', messageOrData, data)
   }
 
-  debug(message: string, data?: any) {
-    this.log('debug', message, data)
+  debug(messageOrData: string | LogData, data?: any) {
+    this.log('debug', messageOrData, data)
   }
 }
 

@@ -30,8 +30,6 @@ import { TestCategory } from './core/categories'
 import { runTests } from './core/runTests'
 import { runBalanceTests } from './tests/payment/balance.test'
 import { runPaymentNotificationTests } from './tests/payment/paymentNotification.test'
-import { runNeuroPhotoTests } from './tests/neuro/runNeuroPhotoTests'
-
 // Импортируем тесты API
 import { runApiTests, runApiMonitoring, runApiEndpointTests } from './tests/api'
 
@@ -108,11 +106,6 @@ export const paymentTests = {
   runPaymentNotificationTests,
 }
 
-// Экспортируем тесты нейрофункций
-export const neuroTests = {
-  runNeuroPhotoTests,
-}
-
 // Экспортируем тесты Inngest
 export const inngestTests = {
   runInngestDirectTest,
@@ -141,9 +134,6 @@ export {
   runInngestFunctionRegistrationTest,
   runInngestFullTest,
 }
-
-// Экспортируем функции тестов нейрофункций напрямую
-export { runNeuroPhotoTests }
 
 // Экспортируем API тесты напрямую
 export { runApiTests, runApiMonitoring, runApiEndpointTests }

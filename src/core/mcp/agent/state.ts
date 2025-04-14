@@ -16,6 +16,7 @@ export enum TaskType {
   BACKGROUND_IMPROVEMENT = 'BACKGROUND_IMPROVEMENT',
   SUBTASK = 'SUBTASK',
   BOOMERANG = 'BOOMERANG',
+  MESSAGE_OWNER = 'MESSAGE_OWNER', // Новый тип для отправки сообщения владельцу
 }
 
 // Статусы задач

@@ -33,29 +33,37 @@ async function runTestsForCategory(category: TestCategory): Promise<void> {
 
     switch (category) {
       case 'api':
-        results = await apiTests.runApiTests()
+        results = (await apiTests.runApiTests()) as unknown as TestResult[]
         break
       case 'database':
         console.log('ℹ️ Тесты базы данных пока не реализованы')
         results = []
         break
-      case 'inngest':
-        results = await Promise.all([
+      case 'inngest': {
+        const inngestResults = await Promise.all([
           inngestTests.runInngestDirectTest(),
           inngestTests.runInngestSDKTest(),
           inngestTests.runInngestFunctionRegistrationTest(),
           inngestTests.runInngestFullTest(),
         ])
+        results = inngestResults.flat()
         break
-      case 'neuro':
-        results = await Promise.all([neuroTests.runNeuroPhotoTests()])
+      }
+      case 'neuro': {
+        const neuroResults = await Promise.all([
+          neuroTests.runNeuroPhotoTests(),
+        ])
+        results = neuroResults.flat()
         break
-      case 'payment':
-        results = await Promise.all([
+      }
+      case 'payment': {
+        const paymentResults = await Promise.all([
           paymentTests.runBalanceTests(),
           paymentTests.runPaymentNotificationTests(),
         ])
+        results = paymentResults.flat()
         break
+      }
       case 'speech':
         console.log('ℹ️ Тесты речи пока не реализованы')
         results = []

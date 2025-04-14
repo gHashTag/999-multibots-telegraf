@@ -2,157 +2,252 @@
 import { config } from 'dotenv'
 import path from 'path'
 import { TestRunner } from './TestRunner'
-import { TestCategory, isInCategory } from './categories'
+import { TestResult } from '../types'
 import { logger } from '@/utils/logger'
 import { runSystemTests } from '../tests/system'
 import { runAgentRouterTests } from '../tests/system/agentRouterTest'
-import { TestResult } from '../types'
+import { TestCategory } from './categories'
+import fs from 'fs'
 
 // Загружаем переменные окружения
 config({ path: path.resolve('.env.test') })
 
-/**
- * Разбор категории тестов
- */
-function parseCategory(category?: string): TestCategory {
-  if (!category) return TestCategory.All
+// Условный импорт для runAgentTests
+let runAgentTests: () => Promise<TestResult[]>
+const agentTestPath = path.resolve(__dirname, '../tests/agent/index.ts')
 
-  // Проверяем, есть ли такая категория в enum
-  if (Object.values(TestCategory).includes(category as TestCategory)) {
-    return category as TestCategory
+try {
+  if (fs.existsSync(agentTestPath)) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const agentTestModule = require('../tests/agent/index')
+    runAgentTests = agentTestModule.runAgentTests
   }
+} catch (error) {
+  logger.warn(
+    `🚨 Не удалось загрузить тесты агентов: ${error instanceof Error ? error.message : 'неизвестная ошибка'}`
+  )
+}
 
-  // Обрабатываем специальные случаи
-  switch (category.toLowerCase()) {
-    case 'all':
-      return TestCategory.All
-    case 'translations':
-      return TestCategory.Translations
-    case 'database':
-      return TestCategory.Database
-    case 'webhook':
-      return TestCategory.Webhook
-    case 'inngest':
-      return TestCategory.Inngest
-    case 'payment':
-      return TestCategory.Payment
-    case 'payment-processor':
-      return TestCategory.PaymentProcessor
-    case 'api':
-      return TestCategory.Api
-    case 'system':
-      return TestCategory.System
-    case 'agent-router':
-      return TestCategory.AgentRouter
-    default:
-      return TestCategory.All
+// Условный импорт для runTasksTests
+let runTasksTests: () => Promise<TestResult[]>
+const tasksTestPath = path.resolve(__dirname, '../tests/tasks/index.ts')
+
+try {
+  if (fs.existsSync(tasksTestPath)) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const tasksTestModule = require('../tests/tasks/index')
+    runTasksTests = tasksTestModule.runTasksTests
   }
+} catch (error) {
+  logger.warn(
+    `🚨 Не удалось загрузить тесты задач: ${error instanceof Error ? error.message : 'неизвестная ошибка'}`
+  )
 }
 
 /**
- * Разбор аргументов командной строки
+ * Парсинг категорий тестов из аргументов командной строки
  */
-function parseArgs(args: string[]) {
-  // значения по умолчанию
-  const result = {
-    verbose: false,
-    only: [] as string[],
-    skip: [] as string[],
-    category: TestCategory.All,
-    parallel: 4,
-    json: false,
-    html: false,
-    outputFile: undefined as string | undefined,
-    discover: false,
-    testDir: undefined as string | undefined,
-    timeout: 30000,
-    tags: [] as string[],
-    help: false,
-  }
+function parseCategories(args: string[]): string[] {
+  const categories: string[] = []
 
-  // Парсим аргументы командной строки
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-
-    if (arg === '--verbose' || arg === '-v') {
-      result.verbose = true
-    } else if (arg === '--help' || arg === '-h') {
-      result.help = true
-    } else if (arg.startsWith('--only=')) {
-      result.only = [arg.split('=')[1]]
-    } else if (arg.startsWith('--skip=')) {
-      result.skip = [arg.split('=')[1]]
-    } else if (arg.startsWith('--category=')) {
-      result.category = parseCategory(arg.split('=')[1])
-    } else if (arg.startsWith('--parallel=')) {
-      result.parallel = parseInt(arg.split('=')[1], 10)
-    } else if (arg === '--json') {
-      result.json = true
-    } else if (arg === '--html') {
-      result.html = true
-    } else if (arg.startsWith('--output=')) {
-      result.outputFile = arg.split('=')[1]
-    } else if (arg.startsWith('--tags=')) {
-      result.tags = arg.split('=')[1].split(',')
-    } else if (arg === '--discover') {
-      result.discover = true
-    } else if (arg.startsWith('--test-dir=')) {
-      result.testDir = arg.split('=')[1]
+  for (const arg of args) {
+    // Проверяем, является ли аргумент категорией
+    const categoryMatch = /^--category=(.+)$/.exec(arg)
+    if (categoryMatch && categoryMatch[1]) {
+      categories.push(...categoryMatch[1].split(','))
     }
   }
 
-  return result
+  return categories
 }
 
 /**
- * Основная функция для запуска тестов
+ * Парсинг опций тестирования из аргументов командной строки
  */
-export async function runTests(args: string[]) {
+function parseOptions(args: string[]): {
+  verbose: boolean
+  output?: string
+  testDir?: string
+  only?: string[]
+  skip?: string[]
+} {
+  const options: {
+    verbose: boolean
+    output?: string
+    testDir?: string
+    only?: string[]
+    skip?: string[]
+  } = {
+    verbose: false,
+  }
+
+  for (const arg of args) {
+    if (arg === '--verbose' || arg === '-v') {
+      options.verbose = true
+    } else if (arg.startsWith('--output=')) {
+      options.output = arg.substring('--output='.length)
+    } else if (arg.startsWith('--test-dir=')) {
+      options.testDir = arg.substring('--test-dir='.length)
+    } else if (arg.startsWith('--only=')) {
+      options.only = arg.substring('--only='.length).split(',')
+    } else if (arg.startsWith('--skip=')) {
+      options.skip = arg.substring('--skip='.length).split(',')
+    }
+  }
+
+  return options
+}
+
+/**
+ * Запуск тестов из командной строки
+ */
+export async function runTests(
+  args: string[] = process.argv.slice(2)
+): Promise<void> {
+  const categories = parseCategories(args)
+  const options = parseOptions(args)
+
+  logger.info(
+    `🚀 Запуск тестов с категориями: ${categories.join(', ') || 'все'}`
+  )
+  logger.info(`📋 Опции: ${JSON.stringify(options)}`)
+
   const testRunner = new TestRunner({
-    filter: args,
-    parallel: false,
-    timeout: 30000,
+    verbose: options.verbose,
+    only: options.only,
+    skip: options.skip,
   })
 
-  // Регистрируем системные тесты
-  testRunner.addTest({
-    name: 'Тесты маршрутизатора агентов',
-    category: TestCategory.AgentRouter,
-    run: async () => {
-      const results = await runSystemTests()
+  await testRunner.init()
 
-      // Проверяем, все ли тесты прошли успешно
-      const allSuccess = results.every(result => result.success)
+  // Регистрация тестов по категориям
+  const registeredTests: string[] = []
 
-      if (allSuccess) {
-        return {
-          success: true,
-          message: 'Все системные тесты успешно пройдены',
-          name: 'Системные тесты',
-        }
+  // Если не указаны категории или указана категория System
+  if (categories.length === 0 || categories.includes(TestCategory.System)) {
+    logger.info(` Регистрация тестов категории "${TestCategory.System}"`)
+
+    const systemTests = await runSystemTests()
+    testRunner.addTests(
+      systemTests.map(result => ({
+        name: result.name,
+        category: TestCategory.System,
+        description: result.message || 'Системный тест',
+        run: async (): Promise<void> => {
+                    if (!result.success) {
+            throw new Error(result.message || 'Тест не пройден')
+          }
+        },
+      }))
+    )
+
+    registeredTests.push(TestCategory.System)
+  }
+
+  // Если не указаны категории или указана категория AgentRouter
+  if (
+    categories.length === 0 ||
+    categories.includes(TestCategory.AgentRouter)
+  ) {
+    logger.info(`📋 Регистрация тестов категории "${TestCategory.AgentRouter}"`)
+
+    const agentRouterTests = await runAgentRouterTests()
+    testRunner.addTests(
+      agentRouterTests.map(result => ({
+        name: result.name,
+        category: TestCategory.AgentRouter,
+        description: result.message || 'Тест маршрутизатора агентов',
+        run: async (): Promise<void> => {
+                    if (!result.success) {
+            throw new Error(result.message || 'Тест не пройден')
+          }
+        },
+      }))
+    )
+
+    registeredTests.push(TestCategory.AgentRouter)
+  }
+
+  // Если не указаны категории или указана категория Agents и функция runAgentTests доступна
+  if (
+    (categories.length === 0 || categories.includes(TestCategory.Agents)) &&
+    runAgentTests
+  ) {
+    logger.info(`📋 Регистрация тестов категории "${TestCategory.Agents}"`)
+
+    const agentTests = await runAgentTests()
+    testRunner.addTests(
+      agentTests.map(result => ({
+        name: result.name,
+        category: TestCategory.Agents,
+        description: result.message || 'Тест специализированных агентов',
+        run: async (): Promise<void> => {
+          if (!result.success) {
+            throw new Error(result.message || 'Тест не пройден')
+          }
+        },
+      }))
+    )
+
+    registeredTests.push(TestCategory.Agents)
+  }
+
+  // Если не указаны категории или указана категория Tasks и функция runTasksTests доступна
+  if (
+    (categories.length === 0 || categories.includes(TestCategory.Tasks)) &&
+    runTasksTests
+  ) {
+    logger.info(`📋 Регистрация тестов категории "${TestCategory.Tasks}"`)
+
+    const tasksTests = await runTasksTests()
+    testRunner.addTests(
+      tasksTests.map(result => ({
+        name: result.name,
+        category: TestCategory.Tasks,
+        description: result.message || 'Тест модуля задач',
+        run: async (): Promise<void> => {
+                    if (!result.success) {
+            throw new Error(result.message || 'Тест не пройден')
+          }
+        },
+      }))
+    )
+
+    registeredTests.push(TestCategory.Tasks)
+  }
+
+  if (registeredTests.length === 0) {
+    logger.warn('⚠️ Не удалось зарегистрировать ни одного теста')
+    return
+  }
+
+  logger.info(`📊 Зарегистрировано тестов: ${testRunner.getTestCount()}`)
+  logger.info(`🚀 Запуск тестов категорий: ${registeredTests.join(', ')}`)
+
+  const results = await testRunner.runTestsInParallel()
+
+  // Получаем количество успешных и неуспешных тестов
+  const successfulTests = results.filter(result => result.success).length
+  const failedTests = results.length - successfulTests
+
+  if (failedTests > 0) {
+    logger.error(`❌ Не пройдено тестов: ${failedTests}/${results.length}`)
+    process.exit(1)
       } else {
-        const failedTests = results.filter(result => !result.success)
-        const failMessages = failedTests
-          .map(test => `${test.name}: ${test.message}`)
-          .join(', ')
+    logger.info(
+      `✅ Все тесты успешно пройдены: ${successfulTests}/${results.length}`
+    )
+    process.exit(0)
+  }
 
-        return {
-          success: false,
-          message: `Системные тесты завершились с ошибками: ${failMessages}`,
-          name: 'Системные тесты',
-        }
-      }
-    },
-  })
-
-  await testRunner.run()
+  await testRunner.cleanup()
 }
 
 // Запускаем напрямую, если файл запущен как скрипт
 if (require.main === module) {
-  runTests(process.argv.slice(2))
-    .then(exitCode => {
-      process.exit(exitCode)
+  runTests()
+    .then(() => {
+      process.exit(0)
     })
     .catch(error => {
       logger.error('🔥 Неперехваченная ошибка:', error)
