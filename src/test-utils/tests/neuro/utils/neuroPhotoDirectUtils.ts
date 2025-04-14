@@ -2,15 +2,43 @@ import { v4 as uuidv4 } from 'uuid'
 import { generateNeuroPhotoDirect } from '@/services/generateNeuroPhotoDirect'
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
-import { config } from 'dotenv'
+import dotenv from 'dotenv'
+
+// Загружаем переменные окружения из .env.dev для тестов
+const envPath = process.env.NODE_ENV === 'test' ? '.env.test' : '.env.dev'
+dotenv.config({ path: envPath })
+
+// Константа для ID админа (в продакшене нужно заменить на реальный ID)
+export const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '144022504'
+
+// Инициализация бота
+console.log('🔍 Инициализация тестового бота...')
+console.log(`📂 Используем файл конфигурации: ${envPath}`)
+
+// Приоритет токенов:
+// 1. TELEGRAM_BOT_TOKEN из переменных окружения
+// 2. BOT_TOKEN_TEST_1 из .env.dev
+// 3. Хардкодный токен если ничего не найдено
+const botToken =
+  process.env.TELEGRAM_BOT_TOKEN ||
+  process.env.BOT_TOKEN_TEST_1 ||
+  '6389824290:AAFjEjOu4oZUCXTFAxGe5Jo6ydXPprgKSAk'
+
+console.log(`🔑 Используем токен бота: ${botToken.substring(0, 10)}...`)
+
+export const bot = new Telegraf(botToken)
+
+// Проверяем, что бот инициализировался
+if (bot) {
+  console.log('✅ Бот успешно инициализирован')
+} else {
+  console.error('❌ Ошибка инициализации бота')
+}
 
 // Используем ModeEnum напрямую
 const ModeEnum = {
   NeuroPhoto: 'neurophoto',
 }
-
-// Загружаем переменные окружения
-config()
 
 // Экспортируем интерфейс для тестового ввода
 export interface NeuroPhotoDirectTestInput {
@@ -36,11 +64,6 @@ export interface SimpleTestResult {
     [key: string]: any
   }
 }
-
-// Настройка Telegram-бота для отправки результатов
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
-const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || ''
-const bot = BOT_TOKEN ? new Telegraf(BOT_TOKEN) : null
 
 /**
  * Создает мок-контекст Telegram для тестирования
@@ -343,6 +366,10 @@ ${result.error ? `Ошибка: ${result.error}` : ''}
       `✅ [ADMIN_DIRECT]: Текстовое сообщение отправлено администратору ${adminId}`
     )
 
+    // Проверим файловую систему
+    const fs = require('fs')
+    const { InputFile } = require('telegraf')
+
     // Отправляем изображения админу, если они есть
     if (urls && urls.length > 0) {
       for (const url of urls) {
@@ -350,11 +377,30 @@ ${result.error ? `Ошибка: ${result.error}` : ''}
           `📤 [ADMIN_DIRECT]: Отправка изображения админу напрямую: ${url.substring(0, 50)}...`
         )
         try {
-          // Отправляем изображение по URL напрямую
-          await bot.telegram.sendPhoto(adminId, { url })
-          console.log(
-            `✅ [ADMIN_DIRECT]: Изображение отправлено админу напрямую (ID: ${adminId})`
-          )
+          // Проверяем, если это URL, отправляем по URL
+          if (url.startsWith('http://') || url.startsWith('https://')) {
+            await bot.telegram.sendPhoto(adminId, { url })
+            console.log(
+              `✅ [ADMIN_DIRECT]: Изображение отправлено админу напрямую по URL (ID: ${adminId})`
+            )
+          }
+          // Если это путь к файлу, проверяем существование и отправляем
+          else {
+            const exists = fs.existsSync(url)
+            if (exists) {
+              const source = new InputFile(url)
+              await bot.telegram.sendPhoto(adminId, source)
+              console.log(
+                `✅ [ADMIN_DIRECT]: Изображение отправлено админу напрямую из файла (ID: ${adminId})`
+              )
+            } else {
+              console.error(`❌ [ADMIN_DIRECT]: Файл не найден: ${url}`)
+              await bot.telegram.sendMessage(
+                adminId,
+                `❌ Файл не найден: ${url}`
+              )
+            }
+          }
         } catch (error) {
           console.error(
             `❌ [ADMIN_DIRECT]: Ошибка при отправке фото админу напрямую (ID: ${adminId}): ${error instanceof Error ? error.message : String(error)}`
@@ -418,9 +464,28 @@ ${result.error ? `Ошибка: ${result.error}` : ''}
             `📤 [GROUP]: Попытка отправки изображения в группу: ${url.substring(0, 50)}...`
           )
           try {
-            // Пробуем отправить по URL
-            await bot.telegram.sendPhoto(groupId, { url })
-            console.log(`✅ [GROUP]: Изображение отправлено в группу как URL`)
+            // Проверяем, если это URL, отправляем по URL
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+              await bot.telegram.sendPhoto(groupId, { url })
+              console.log(`✅ [GROUP]: Изображение отправлено в группу по URL`)
+            }
+            // Если это путь к файлу, проверяем существование и отправляем
+            else {
+              const exists = fs.existsSync(url)
+              if (exists) {
+                const source = new InputFile(url)
+                await bot.telegram.sendPhoto(groupId, source)
+                console.log(
+                  `✅ [GROUP]: Изображение отправлено в группу из файла`
+                )
+              } else {
+                console.error(`❌ [GROUP]: Файл не найден: ${url}`)
+                await bot.telegram.sendMessage(
+                  groupId,
+                  `❌ Файл не найден: ${url}`
+                )
+              }
+            }
           } catch (error) {
             console.error(
               `❌ [GROUP]: Ошибка при отправке фото в группу: ${error instanceof Error ? error.message : String(error)}`
