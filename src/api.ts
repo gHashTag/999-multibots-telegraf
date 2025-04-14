@@ -482,7 +482,7 @@ const inngestErrorHandler = (
 app.use('/api/inngest', inngestErrorHandler)
 app.use('/fn/register', inngestErrorHandler)
 app.use('/api/e/:eventKey', inngestErrorHandler)
-
+app.use(express.json())
 // Обработка ошибки 404
 app.use((req, res) => {
   logger.warn({

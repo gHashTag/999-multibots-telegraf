@@ -1,79 +1,167 @@
 /**
- * Специализированный агент для генерации и улучшения кода
- * Отвечает за создание нового и улучшение существующего кода
+ * Специализированный агент для генерации и улучшения кода (Адаптирован под @inngest/agent-kit)
  */
 
-import { NetworkAgent } from '../router.js'
-import { AgentState, Task, TaskType } from '../state.js'
+import { z } from 'zod'
+import {
+  createAgent,
+  createTool,
+  type Agent,
+} from '@inngest/agent-kit'
+// import { NetworkAgent } from '../router.js' // Removed old type
+import { AgentState, Task, TaskType } from '../state.js' // Keep Task for potential use in helpers?
 import { Service } from '../../types/index.js'
 import fs from 'fs'
 import path from 'path'
 import { ImprovementResult } from '../self-improvement.js'
 
-/**
- * Создает специализированного агента для генерации кода
- */
-export function createCodeGeneratorAgent(mcpService: Service): NetworkAgent {
-  return {
-    id: 'code-generator',
-    name: 'Code Generator',
-    description: 'Специализированный агент для генерации и улучшения кода',
-    capabilities: [
-      'Генерация нового кода',
-      'Улучшение существующего кода',
-      'Рефакторинг кода',
-      'Анализ кода и предложение улучшений',
-    ],
+// --- Инструменты для Агента ---
 
-    /**
-     * Проверяет, может ли агент обработать задачу
-     */
-    async canHandle(task: Task): Promise<boolean> {
-      // Агент может обрабатывать задачи генерации и рефакторинга кода
-      return (
-        task.type === TaskType.CODE_GENERATION ||
-        task.type === TaskType.CODE_REFACTORING ||
-        task.type === TaskType.SELF_IMPROVEMENT
-      )
-    },
-
-    /**
-     * Обрабатывает задачу
-     */
-    async handle(task: Task, _state: AgentState): Promise<any> {
-      console.log(`Code Generator handling task: ${task.id} (${task.type})`)
-
+const generateCodeTool = (mcpService: Service) =>
+  createTool({
+    name: 'generateCode',
+    description: 'Generates new code based on a description and requirements.',
+    parameters: z.object({
+      description: z.string(),
+      requirements: z.union([z.string(), z.array(z.string())]),
+      language: z.string().optional().default('TypeScript'),
+      outputDir:
+        z.string().optional().describe('Directory to save generated files.'),
+    }),
+    handler: async ({ description, requirements, language, outputDir }) => {
+      // Вызываем старую логику, передавая параметры
+      console.log(`[generateCodeTool] 🚀 Generating code...`)
       try {
-        switch (task.type) {
-          case TaskType.CODE_GENERATION:
-            return await handleCodeGeneration(task, mcpService)
-
-          case TaskType.CODE_REFACTORING:
-            return await handleCodeRefactoring(task, mcpService)
-
-          case TaskType.SELF_IMPROVEMENT:
-            return await handleSelfImprovement(task, mcpService)
-
-          default:
-            throw new Error(`Unsupported task type: ${task.type}`)
-        }
-      } catch (error) {
-        console.error(`Error handling task ${task.id}:`, error)
-        throw error
+        const result = await handleCodeGeneration(
+          description,
+          requirements,
+          language,
+          outputDir,
+          mcpService
+        )
+        console.log(`[generateCodeTool] ✅ Code generated successfully.`)
+        return result
+      } catch (error: any) {
+        console.error('[generateCodeTool] ❌ Error:', error)
+        return { error: `Failed to generate code: ${error.message}` }
       }
     },
-  }
+  })
+
+const refactorCodeTool = (mcpService: Service) =>
+  createTool({
+    name: 'refactorCode',
+    description: 'Refactors existing code based on file paths or snippets.',
+    parameters: z.object({
+      filePaths:
+        z.array(z.string()).optional().describe('Paths to files to refactor.'),
+      codeSnippets:
+        z
+          .array(z.object({ path: z.string(), content: z.string() }))
+          .optional()
+          .describe('Code snippets to refactor.'),
+      refactoringType: z.string().optional().default('General improvement'),
+      goals:
+        z
+          .union([z.string(), z.array(z.string())])
+          .optional()
+          .default('Improve code quality, readability and maintainability'),
+    }),
+    handler: async ({ filePaths, codeSnippets, refactoringType, goals }) => {
+      console.log(`[refactorCodeTool] 🚀 Refactoring code...`)
+      try {
+        const result = await handleCodeRefactoring(
+          filePaths,
+          codeSnippets,
+          refactoringType,
+          goals,
+          mcpService
+        )
+        console.log(`[refactorCodeTool] ✅ Code refactored successfully.`)
+        return result
+      } catch (error: any) {
+        console.error('[refactorCodeTool] ❌ Error:', error)
+        return { error: `Failed to refactor code: ${error.message}` }
+      }
+    },
+  })
+
+const improveCodeTool = (mcpService: Service) =>
+  createTool({
+    name: 'improveCode',
+    description:
+      'Analyzes code (optionally within a specific component) and suggests/applies improvements.',
+    parameters: z.object({
+      description:
+        z.string().describe('Description of the desired improvement.'),
+      targetComponent:
+        z
+          .string()
+          .optional()
+          .describe('Specific component/directory to analyze.'),
+      applyChanges:
+        z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe('Whether to automatically apply the suggested changes.'),
+    }),
+    handler: async ({ description, targetComponent, applyChanges }) => {
+      console.log(
+        `[improveCodeTool] 🚀 Improving code... (Apply: ${applyChanges})`
+      )
+      try {
+        const result = await handleSelfImprovement(
+          description,
+          targetComponent,
+          applyChanges,
+          mcpService
+        )
+        console.log(
+          `[improveCodeTool] ✅ Code improvement analysis/application complete.`
+        )
+        return result
+      } catch (error: any) {
+        console.error('[improveCodeTool] ❌ Error:', error)
+        return { error: `Failed to improve code: ${error.message}` }
+      }
+    },
+  })
+
+/**
+ * Создает специализированного агента для генерации кода (Адаптировано)
+ */
+export function createCodeGeneratorAgent(mcpService: Service): Agent<any> {
+  // Создаем инструменты, передавая mcpService
+  const tools = [
+    generateCodeTool(mcpService),
+    refactorCodeTool(mcpService),
+    improveCodeTool(mcpService),
+  ]
+
+  return createAgent<any>({
+    name: 'codeGeneratorAgent',
+    description:
+      'Generates, refactors, and improves code based on provided specifications.',
+    system: `You are an expert AI assistant specializing in code generation, refactoring, and improvement.
+Carefully analyze the user request and select the most appropriate tool (\`generateCode\`, \`refactorCode\`, or \`improveCode\`).
+Provide all necessary parameters for the chosen tool based on the request.`,
+    tools: tools,
+  })
 }
+
+// --- Вспомогательные функции (Адаптированы для приема параметров вместо Task) ---
 
 /**
  * Обрабатывает задачу генерации кода
  */
 async function handleCodeGeneration(
-  task: Task,
+  description: string,
+  requirements: string | string[],
+  language: string,
+  outputDir: string | undefined,
   mcpService: Service
 ): Promise<{ files: { path: string; content: string }[] }> {
-  const { description, requirements, outputDir, language } = task.metadata
-
   const prompt = `
 You are an expert code generator. Please generate code based on the following description and requirements:
 
@@ -84,7 +172,7 @@ REQUIREMENTS:
 ${Array.isArray(requirements) ? requirements.join('\n') : requirements}
 
 LANGUAGE:
-${language || 'TypeScript'}
+${language}
 
 Respond with code files in the following format:
 FILE_PATH: [relative file path]
@@ -100,7 +188,6 @@ Generate as many files as needed to fulfill the requirements.
     const response = await mcpService.processTask(prompt)
     const files = parseGeneratedFiles(response)
 
-    // Сохраняем файлы, если указана директория
     if (outputDir) {
       saveGeneratedFiles(files, outputDir)
     }
@@ -116,12 +203,12 @@ Generate as many files as needed to fulfill the requirements.
  * Обрабатывает задачу рефакторинга кода
  */
 async function handleCodeRefactoring(
-  task: Task,
+  filePaths: string[] | undefined,
+  codeSnippets: { path: string; content: string }[] | undefined,
+  refactoringType: string,
+  goals: string | string[],
   mcpService: Service
 ): Promise<{ files: { path: string; content: string }[] }> {
-  const { filePaths, codeSnippets, refactoringType, goals } = task.metadata
-
-  // Читаем содержимое файлов, если указаны пути
   const codeToRefactor: { path: string; content: string }[] = []
 
   if (filePaths && Array.isArray(filePaths)) {
@@ -129,28 +216,28 @@ async function handleCodeRefactoring(
       try {
         const content = fs.readFileSync(filePath, 'utf-8')
         codeToRefactor.push({ path: filePath, content })
-      } catch (error) {
-        console.error(`Error reading file ${filePath}:`, error)
+      } catch (error: any) {
+        console.warn(
+          `[Refactor] Error reading local file ${filePath}: ${error.message}`
+        )
       }
     }
   }
 
-  // Добавляем сниппеты кода, если они есть
   if (codeSnippets && Array.isArray(codeSnippets)) {
-    for (const snippet of codeSnippets) {
-      if (snippet.path && snippet.content) {
-        codeToRefactor.push(snippet)
-      }
-    }
+    codeToRefactor.push(...codeSnippets)
   }
 
   if (codeToRefactor.length === 0) {
-    throw new Error('No code to refactor')
+    throw new Error(
+      'No code provided to refactor (checked local filePaths and codeSnippets).'
+    )
   }
 
   const codeContent = codeToRefactor
     .map(
-      file => `
+      (file) =>
+        `
 FILE_PATH: ${file.path}
 FILE_CONTENT:
 \`\`\`
@@ -167,10 +254,10 @@ CODE TO REFACTOR:
 ${codeContent}
 
 REFACTORING TYPE:
-${refactoringType || 'General improvement'}
+${refactoringType}
 
 GOALS:
-${Array.isArray(goals) ? goals.join('\n') : goals || 'Improve code quality, readability and maintainability'}
+${Array.isArray(goals) ? goals.join('\n') : goals}
 
 Respond with the refactored code files in the following format:
 FILE_PATH: [original file path]
@@ -185,7 +272,6 @@ Include ALL files in your response, even if you didn't change them.
   try {
     const response = await mcpService.processTask(prompt)
     const files = parseRefactoredFiles(response)
-
     return { files }
   } catch (error) {
     console.error('Error refactoring code:', error)
@@ -197,24 +283,21 @@ Include ALL files in your response, even if you didn't change them.
  * Обрабатывает задачу самосовершенствования
  */
 async function handleSelfImprovement(
-  task: Task,
+  description: string,
+  targetComponent: string | undefined,
+  applyChanges: boolean,
   mcpService: Service
 ): Promise<ImprovementResult> {
-  const { description, targetComponent } = task.metadata
-
-  // Если указан конкретный компонент, анализируем только его
   let codeContent = ''
   let componentFiles: string[] = []
 
   if (targetComponent) {
-    // Получаем список файлов компонента для анализа
     componentFiles = await getComponentFiles(targetComponent)
 
     if (componentFiles.length === 0) {
-      throw new Error(`No files found for component ${targetComponent}`)
+      throw new Error(`No local files found for component ${targetComponent}`)
     }
 
-    // Читаем содержимое файлов
     for (const filePath of componentFiles) {
       try {
         const content = fs.readFileSync(filePath, 'utf-8')
@@ -225,8 +308,10 @@ FILE_CONTENT:
 ${content}
 \`\`\`
 `
-      } catch (error) {
-        console.error(`Error reading file ${filePath}:`, error)
+      } catch (error: any) {
+        console.warn(
+          `[Improve] Error reading local file ${filePath}: ${error.message}`
+        )
       }
     }
   }
@@ -237,257 +322,292 @@ You are an autonomous agent tasked with improving the codebase. Please analyze a
 IMPROVEMENT REQUEST:
 ${description}
 
-${targetComponent ? `TARGET COMPONENT: ${targetComponent}` : ''}
+${targetComponent ? `TARGET COMPONENT: ${targetComponent}` : 'Analyze relevant parts of the codebase based on the request.'}
 
-${codeContent ? `COMPONENT CODE:\n${codeContent}` : ''}
+${codeContent ? `COMPONENT CODE:\n${codeContent}` : 'Code context is not provided; analyze based on the request and general knowledge.'}
 
 Please analyze the code and suggest specific improvements. For each improvement:
-1. Explain what needs to be changed and why
-2. Provide the exact code changes needed
-3. Explain the benefits of the improvement
+1. Explain what needs to be changed and why.
+2. Provide the exact code changes needed, including the full file path and the complete refactored code for each affected file.
+3. Explain the benefits of the improvement.
 
-Respond in the following format:
+Respond *only* in the following structured format:
 ANALYSIS:
-[Your analysis of the current code and what needs to be improved]
-
-IMPROVEMENTS:
-[List of specific improvements]
-
-CHANGED_FILES:
-FILE_PATH: [file path]
-UPDATED_CONTENT:
 \`\`\`
-[entire file content after changes]
+[Your analysis of the code and the problem]
 \`\`\`
+PROPOSED_IMPROVEMENTS:
+[List of proposed improvements. For each improvement, include sections: Explanation:, CodeChanges:, Benefits:]
 
-[Repeat for each modified file]
-
-NEW_FILES:
-FILE_PATH: [file path]
-CONTENT:
+Example CodeChanges format:
+---
+FILE_PATH: [full file path]
+REFACTORED_CONTENT:
+\`\`\`[language]
+[full refactored code content]
 \`\`\`
-[file content]
-\`\`\`
+---
+[Repeat for each file to change]
 
-[Repeat for each new file]
+If no improvements are needed or possible, state that clearly in the ANALYSIS section.
 `
 
   try {
+    console.log('[Improve] Sending analysis request to MCP...')
     const response = await mcpService.processTask(prompt)
+    const result = parseImprovementResult(response)
 
-    // Парсим результат и возвращаем структурированную информацию
-    const improvementResult = parseImprovementResult(response)
-
-    // Применяем изменения, если нужно
-    if (task.metadata.applyChanges) {
-      await applyImprovementChanges(improvementResult)
+    if (applyChanges && result.proposedImprovements?.length > 0) {
+      console.log('[Improve] Applying detected changes...')
+      await applyImprovementChanges(result)
+      console.log('[Improve] Changes applied locally (potential issue!).')
+      result.changesApplied = true
+    } else {
+      result.changesApplied = false
     }
 
-    return improvementResult
+    return result
   } catch (error) {
-    console.error('Error implementing self-improvement:', error)
+    console.error('Error during self-improvement:', error)
     throw error
   }
 }
 
-/**
- * Парсит сгенерированные файлы из ответа MCP
- */
+// --- Утилиты парсинга и сохранения (без изменений, кроме TODO комментариев) ---
+
 function parseGeneratedFiles(
   response: string
 ): { path: string; content: string }[] {
   const files: { path: string; content: string }[] = []
-  const fileRegex =
-    /FILE_PATH:\s*([^\n]+)\s*FILE_CONTENT:\s*```(?:[\w]*)\s*([\s\S]*?)```/g
-
+  const fileRegex = /FILE_PATH: ([^\n]+)\nFILE_CONTENT:\n```(?:\w*\n)?([^]*?)\n```/g
   let match
+
   while ((match = fileRegex.exec(response)) !== null) {
     const filePath = match[1].trim()
-    const content = match[2].trim()
+    const fileContent = match[2].trim()
+    files.push({ path: filePath, content: fileContent })
+  }
 
-    files.push({ path: filePath, content })
+  if (files.length === 0) {
+    console.warn('Could not parse any files from generation response.')
   }
 
   return files
 }
 
-/**
- * Парсит рефакторизованные файлы из ответа MCP
- */
 function parseRefactoredFiles(
   response: string
 ): { path: string; content: string }[] {
   const files: { path: string; content: string }[] = []
   const fileRegex =
-    /FILE_PATH:\s*([^\n]+)\s*REFACTORED_CONTENT:\s*```(?:[\w]*)\s*([\s\S]*?)```/g
-
+    /FILE_PATH: ([^\n]+)\nREFACTORED_CONTENT:\n```(?:\w*\n)?([^]*?)\n```/g
   let match
+
   while ((match = fileRegex.exec(response)) !== null) {
     const filePath = match[1].trim()
-    const content = match[2].trim()
+    const fileContent = match[2].trim()
+    files.push({ path: filePath, content: fileContent })
+  }
 
-    files.push({ path: filePath, content })
+  if (files.length === 0) {
+    console.warn('Could not parse any files from refactoring response.')
   }
 
   return files
 }
 
-/**
- * Сохраняет сгенерированные файлы на диск
- */
 function saveGeneratedFiles(
   files: { path: string; content: string }[],
   outputDir: string
 ): void {
-  for (const file of files) {
+  console.warn(
+    '[saveGeneratedFiles] Attempting to write to local filesystem. This should likely use sandbox tools.'
+  )
+  files.forEach((file) => {
     try {
-      const fullPath = path.join(outputDir, file.path)
-      const dirPath = path.dirname(fullPath)
+      const fullPath = path.resolve(outputDir, file.path)
+      const dirName = path.dirname(fullPath)
 
-      // Создаем директорию, если она не существует
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true })
+      if (!fs.existsSync(dirName)) {
+        fs.mkdirSync(dirName, { recursive: true })
       }
 
-      // Записываем файл
       fs.writeFileSync(fullPath, file.content)
-      console.log(`Created file: ${fullPath}`)
+      console.log(`[Local Save] File saved: ${fullPath}`)
     } catch (error) {
-      console.error(`Error saving file ${file.path}:`, error)
+      console.error(`[Local Save] Error saving file ${file.path}:`, error)
     }
-  }
+  })
 }
 
-/**
- * Получает список файлов компонента по имени
- */
+// --- Функции для Self-Improvement (Без изменений, кроме TODO комментариев) ---
+
 async function getComponentFiles(componentName: string): Promise<string[]> {
-  const componentDirs = ['src/core', 'src/lib', 'src/components', 'src/utils']
-
+  console.warn(
+    '[getComponentFiles] Searching local filesystem. Needs adaptation for sandbox.'
+  )
+  const rootDir = path.resolve(__dirname, '../../../../')
+  const searchPattern = new RegExp(`${componentName}\.(ts|js|tsx|jsx)$`, 'i')
   const files: string[] = []
-
-  for (const dir of componentDirs) {
-    if (!fs.existsSync(dir)) {
-      continue
-    }
-
-    // Ищем файлы рекурсивно
-    await findFiles(dir, new RegExp(`${componentName}\\.[jt]s`), files)
-  }
-
+  await findFiles(path.join(rootDir, 'src'), searchPattern, files)
   return files
 }
 
-/**
- * Рекурсивно ищет файлы по шаблону
- */
 async function findFiles(
   dir: string,
   pattern: RegExp,
   result: string[]
 ): Promise<void> {
-  const entries = fs.readdirSync(dir, { withFileTypes: true })
-
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true })
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name)
-
     if (entry.isDirectory()) {
-      await findFiles(fullPath, pattern, result)
+      if (entry.name !== 'node_modules' && !entry.name.startsWith('.')) {
+        await findFiles(fullPath, pattern, result)
+      }
     } else if (pattern.test(entry.name)) {
       result.push(fullPath)
     }
   }
 }
 
-/**
- * Парсит результат улучшения из ответа MCP
- */
 function parseImprovementResult(response: string): ImprovementResult {
-  const analysisMatch = /ANALYSIS:\s*([\s\S]*?)(?=IMPROVEMENTS:)/i.exec(
-    response
-  )
-  const improvementsMatch =
-    /IMPROVEMENTS:\s*([\s\S]*?)(?=CHANGED_FILES:|NEW_FILES:|$)/i.exec(response)
+  const analysisRegex = /ANALYSIS:\n```([^]*?)```/
+  const improvementsRegex = /PROPOSED_IMPROVEMENTS:([^]*)/
+  const fileChangeRegex =
+    /FILE_PATH: ([^\n]+)\nREFACTORED_CONTENT:\n```(?:\w*\n)?([^]*?)\n```/g
 
-  // Парсим измененные файлы
-  const changedFilesRegex = /CHANGED_FILES:([\s\S]*?)(?=NEW_FILES:|$)/i.exec(
-    response
-  )
-  const updatedFiles: string[] = []
+  const analysisMatch = response.match(analysisRegex)
+  const improvementsMatch = response.match(improvementsRegex)
 
-  if (changedFilesRegex) {
-    const changedFilesContent = changedFilesRegex[1]
-    const fileRegex =
-      /FILE_PATH:\s*([^\n]+)\s*UPDATED_CONTENT:\s*```(?:[\w]*)\s*([\s\S]*?)```/g
-
-    let match
-    while ((match = fileRegex.exec(changedFilesContent)) !== null) {
-      const filePath = match[1].trim()
-      const content = match[2].trim()
-
-      updatedFiles.push(filePath)
-
-      // Сохраняем изменения во временный файл
-      const tempPath = `${filePath}.new`
-      fs.writeFileSync(tempPath, content)
-    }
+  const result: ImprovementResult = {
+    analysis: analysisMatch ? analysisMatch[1].trim() : 'No analysis provided.',
+    proposedImprovements: [],
+    changesApplied: false,
+    success: true,
+    message: analysisMatch ? 'Analysis complete' : 'No structured analysis found',
+    updatedFiles: [],
+    createdFiles: [],
+    improvementType: 'UNKNOWN',
+    recommendations: [],
   }
 
-  // Парсим новые файлы
-  const newFilesRegex = /NEW_FILES:([\s\S]*?)$/i.exec(response)
-  const createdFiles: string[] = []
+  if (improvementsMatch) {
+    const improvementsText = improvementsMatch[1]
+    const improvementBlocks = improvementsText
+      .split(/Explanation:/)
+      .map((s) => s.trim())
+      .filter((s) => s)
 
-  if (newFilesRegex) {
-    const newFilesContent = newFilesRegex[1]
-    const fileRegex =
-      /FILE_PATH:\s*([^\n]+)\s*CONTENT:\s*```(?:[\w]*)\s*([\s\S]*?)```/g
+    improvementBlocks.forEach((block) => {
+      const explanationMatch = block.match(
+        /^([^]*?)(?:CodeChanges:|Benefits:)/
+      )
+      const codeChangesMatch = block.match(
+        /CodeChanges:([^]*?)(?:Benefits:|$)/
+      )
+      const benefitsMatch = block.match(/Benefits:([^]*)/)
 
-    let match
-    while ((match = fileRegex.exec(newFilesContent)) !== null) {
-      const filePath = match[1].trim()
-      const content = match[2].trim()
-
-      createdFiles.push(filePath)
-
-      // Сохраняем новый файл во временный файл
-      const dirPath = path.dirname(filePath)
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true })
+      const improvement: ImprovementResult['proposedImprovements'][0] = {
+        explanation: explanationMatch
+          ? explanationMatch[1].trim()
+          : 'No explanation.',
+        codeChanges: [],
+        benefits: benefitsMatch
+          ? benefitsMatch[1].trim()
+          : 'No benefits listed.',
       }
 
-      fs.writeFileSync(filePath, content)
+      if (codeChangesMatch) {
+        const codeChangesText = codeChangesMatch[1]
+        let fileMatch
+        while ((fileMatch = fileChangeRegex.exec(codeChangesText)) !== null) {
+          improvement.codeChanges.push({
+            filePath: fileMatch[1].trim(),
+            refactoredContent: fileMatch[2].trim(),
+          })
+        }
+        fileChangeRegex.lastIndex = 0
+      }
+
+      result.proposedImprovements.push(improvement)
+    })
+  }
+
+  if (!analysisMatch && !improvementsMatch) {
+    result.analysis = response.trim()
+    result.message = 'Could not parse structured improvement response. Treating whole response as analysis.'
+    console.warn(result.message)
+  }
+
+  return result
+}
+
+async function applyImprovementChanges(
+  result: ImprovementResult,
+  dryRun = false
+): Promise<ImprovementResult> {
+  if (!result.proposedImprovements || result.proposedImprovements.length === 0) {
+    console.warn('No improvements to apply')
+    return {
+      ...result,
+      changesApplied: false,
+      message: result.message + '. No improvements to apply.',
     }
   }
 
-  return {
-    success: true,
-    message: analysisMatch ? analysisMatch[1].trim() : 'Improvement completed',
-    createdFiles,
-    updatedFiles,
-    improvementType: 'CODE_QUALITY',
-    recommendations: improvementsMatch
-      ? improvementsMatch[1]
-          .split('\n')
-          .map(line => line.trim())
-          .filter(line => line.length > 0)
-      : [],
-  }
-}
+  const updatedFiles: string[] = []
+  const createdFiles: string[] = []
+  let errorMessage = ''
 
-/**
- * Применяет изменения к файлам
- */
-async function applyImprovementChanges(
-  result: ImprovementResult
-): Promise<void> {
-  // Применяем изменения к обновленным файлам
-  for (const filePath of result.updatedFiles) {
-    const tempPath = `${filePath}.new`
+  try {
+    // Attempt to apply each proposed improvement
+    for (const improvement of result.proposedImprovements) {
+      for (const change of improvement.codeChanges) {
+        const { filePath, refactoredContent } = change
+        const fullPath = path.resolve(process.cwd(), filePath)
+        
+        try {
+          if (!dryRun) {
+            // Check if file exists
+            const fileExists = await fs.promises
+              .access(fullPath)
+              .then(() => true)
+              .catch(() => false)
 
-    if (fs.existsSync(tempPath)) {
-      // Копируем новое содержимое
-      fs.renameSync(tempPath, filePath)
-      console.log(`Updated file: ${filePath}`)
+            await fs.promises.mkdir(path.dirname(fullPath), { recursive: true })
+            await fs.promises.writeFile(fullPath, refactoredContent)
+
+            if (fileExists) {
+              updatedFiles.push(filePath)
+            } else {
+              createdFiles.push(filePath)
+            }
+          } else {
+            console.log(`[DRY RUN] Would write to: ${filePath}`)
+          }
+        } catch (error) {
+          console.error(`Error writing file ${filePath}:`, error)
+          errorMessage += `Failed to write ${filePath}: ${error}\n`
+        }
+      }
+    }
+
+    return {
+      ...result,
+      changesApplied: true,
+      success: errorMessage === '',
+      message: errorMessage || 'Applied improvements successfully',
+      updatedFiles,
+      createdFiles,
+    }
+  } catch (error) {
+    console.error('Error applying improvements:', error)
+    return {
+      ...result,
+      changesApplied: false,
+      success: false,
+      message: `Error applying improvements: ${error}`,
     }
   }
 }

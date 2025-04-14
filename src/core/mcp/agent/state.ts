@@ -3,34 +3,30 @@
  * Реализует долгосрочную память и контекст для агента
  */
 
-// Типы задач
+/**
+ * Типы задач для автономной системы
+ */
 export enum TaskType {
-  CODE_GENERATION = 'CODE_GENERATION',
-  CODE_REFACTORING = 'CODE_REFACTORING',
-  CODE_ANALYSIS = 'CODE_ANALYSIS',
-  TEST_GENERATION = 'TEST_GENERATION',
-  DOCUMENTATION = 'DOCUMENTATION',
-  DEPENDENCY_MANAGEMENT = 'DEPENDENCY_MANAGEMENT',
-  GIT_OPERATIONS = 'GIT_OPERATIONS',
   SELF_IMPROVEMENT = 'SELF_IMPROVEMENT',
-  BACKGROUND_IMPROVEMENT = 'BACKGROUND_IMPROVEMENT',
-  SUBTASK = 'SUBTASK',
-  BOOMERANG = 'BOOMERANG',
-  MESSAGE_OWNER = 'MESSAGE_OWNER', // Новый тип для отправки сообщения владельцу
+  CODE_GENERATION = 'CODE_GENERATION',
+  CODE_ANALYSIS = 'CODE_ANALYSIS',
+  CODE_REFACTORING = 'CODE_REFACTORING',
+  TESTING = 'TESTING'
 }
 
-// Статусы задач
+/**
+ * Статусы задач
+ */
 export enum TaskStatus {
   PENDING = 'PENDING',
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  BLOCKED = 'BLOCKED',
-  DECOMPOSED = 'DECOMPOSED', // Задача разбита на подзадачи
-  DELEGATED = 'DELEGATED', // Задача делегирована другому агенту
+  FAILED = 'FAILED'
 }
 
-// Интерфейс задачи
+/**
+ * Интерфейс задачи
+ */
 export interface Task {
   id: string
   type: TaskType
@@ -39,16 +35,11 @@ export interface Task {
   priority: number
   created: Date
   updated: Date
-  dependencies: string[] // ID задач, от которых зависит текущая
-  metadata: Record<string, any>
-  result?: any
-
-  // Поля для поддержки подзадач (бумеранг-задачи)
-  parentTaskId?: string // ID родительской задачи (если это подзадача)
-  subtasks?: string[] // ID подзадач, на которые разбита текущая задача
-  assignedAgentId?: string // ID агента, которому делегирована задача
-  isSubtask?: boolean // Флаг, является ли задача подзадачей
-  subtaskResults?: Record<string, any> // Результаты выполнения подзадач
+  metadata?: {
+    autonomous?: boolean
+    initiator?: string
+    [key: string]: any
+  }
 }
 
 // Интерфейс состояния агента
@@ -256,31 +247,6 @@ export function decomposeTask(
   })
 
   return subtasks
-}
-
-/**
- * Делегирует задачу конкретному агенту
- */
-export function delegateTask(
-  state: AgentState,
-  taskId: string,
-  agentId: string
-): void {
-  const task = state.tasks.get(taskId)
-
-  if (!task) {
-    throw new Error(`Task with id ${taskId} not found`)
-  }
-
-  task.assignedAgentId = agentId
-  task.status = TaskStatus.DELEGATED
-  task.updated = new Date()
-
-  // Логируем действие
-  addToHistory(state, 'TASK_DELEGATED', {
-    taskId,
-    agentId,
-  })
 }
 
 // Установка текущей задачи

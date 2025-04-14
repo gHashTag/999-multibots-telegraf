@@ -1,40 +1,32 @@
 import { Inngest } from 'inngest'
-import 'dotenv/config'
+import { INNGEST_EVENT_KEY } from '@/config'
 
 // Добавляем лог для проверки инициализации
-console.log('🔄 Initializing Inngest client...', process.env.NODE_ENV)
-console.log('🔑 INNGEST_EVENT_KEY доступен:', !!process.env.INNGEST_EVENT_KEY)
+console.log('🔄 Initializing Inngest client...')
+console.log('🔑 INNGEST_EVENT_KEY available:', !!INNGEST_EVENT_KEY)
+console.log('🛠️ INNGEST_DEV mode:', !!process.env.INNGEST_DEV)
+console.log('🔌 USE_SERVE mode:', !!process.env.USE_SERVE)
 
-// Определяем базовый URL в зависимости от окружения
-const baseUrl =
-  process.env.NODE_ENV === 'production'
-    ? process.env.API_URL || 'https://api.neuro-blogger.ru'
-    : process.env.LOCAL_SERVER_URL || 'http://localhost:2999'
-
-// Логируем базовый URL
-console.log('📍 Inngest baseUrl:', baseUrl)
-
-// Настраиваем клиент для локальной разработки
+// Определяем режим работы
 const isDev =
-  process.env.NODE_ENV !== 'production' || process.env.INNGEST_DEV === '1'
-console.log(
-  '🔧 Inngest running in:',
-  isDev ? 'DEVELOPMENT (local)' : 'PRODUCTION (real API)'
-)
+  process.env.NODE_ENV === 'development' || !!process.env.INNGEST_DEV
 
-// В режиме разработки используем dev-key, в production - переменную окружения
-const eventKey = isDev ? 'dev-key' : process.env.INNGEST_EVENT_KEY || 'dev-key'
-console.log(
-  '🔑 Using Inngest key:',
-  eventKey === 'dev-key' ? 'dev-key (development mode)' : 'from env'
-)
+// В режиме разработки используем dev-key
+const eventKey = isDev ? 'dev' : INNGEST_EVENT_KEY
 
-// Создаем клиент Inngest с соответствующими настройками
+if (eventKey) {
+  console.log(
+    '🔑 Using Inngest key:',
+    isDev ? 'dev (development)' : eventKey.substring(0, 10) + '...'
+  )
+}
+
+// Создаем экземпляр Inngest
 export const inngest = new Inngest({
   id: 'neuro-blogger-2.0',
   name: 'Neuro Blogger 2.0',
   eventKey,
-  baseUrl: `${baseUrl}/api`,
+  baseUrl: isDev ? 'http://localhost:8288' : undefined,
 })
 
 // Проверка экспорта

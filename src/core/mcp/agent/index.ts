@@ -4,6 +4,17 @@
  * Реализован в функциональном стиле без использования классов
  */
 
+import { 
+  Task, 
+  TaskType, 
+  TaskStatus, 
+  NetworkAgent,
+  CodebaseAnalysisResult,
+  ImprovementType,
+  ImprovementSuggestion
+} from '../types'
+import { createRouter } from './router'
+
 // Экспортируем базовые компоненты
 export {
   AgentState,
@@ -19,7 +30,7 @@ export {
 export { TaskScheduler, TaskHandler, createTaskScheduler } from './scheduler.js'
 
 // Экспортируем новые компоненты автономной системы
-export { Router, NetworkAgent, createAgentRouter } from './router.js'
+export { Router, NetworkAgent, createRouter } from './router.js'
 
 export { AgentNetwork, NetworkConfig, createAgentNetwork } from './network.js'
 

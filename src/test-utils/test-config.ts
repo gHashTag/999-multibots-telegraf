@@ -5,6 +5,7 @@ import { logger } from '../utils/logger'
 import { MockTelegraf } from './mocks/botMock'
 import { MyContext } from '../interfaces'
 import { Telegraf } from 'telegraf'
+import { TestConfig, TestRunnerConfig } from '../types/test'
 
 /**
  * Константы для конфигурации тестов
@@ -108,48 +109,101 @@ export class InngestTestEngineMock {
 /**
  * Конфигурация тестов
  */
-export const TEST_CONFIG = {
-  // Общие настройки
-  TIMEOUTS: {
-    SHORT: 2000, // 2 секунды
-    MEDIUM: 5000, // 5 секунд
-    LONG: 10000, // 10 секунд
-    DATABASE: 3000, // Таймаут для операций с базой данных
+export const TEST_CONFIG: TestRunnerConfig = {
+  parallel: false,
+  stopOnFirstFailure: false,
+  timeouts: {
+    default: 5000, // 5 seconds
+    long: 30000,   // 30 seconds
+    short: 1000    // 1 second
   },
-
-  // Данные для тестов
-  TEST_DATA: {
-    TEST_USER_TELEGRAM_ID: '123456789',
-    TEST_USER_USERNAME: 'testuser',
-    TEST_USER_FIRST_NAME: 'Test',
-    TEST_USER_LAST_NAME: 'User',
-    TEST_DESCRIPTION: 'Test description',
-
-    TEST_AMOUNT: 100, // Сумма для тестовых платежей
-    TEST_STARS: 100, // Количество звезд для тестовых платежей
-    TEST_OPERATION_ID: 'test-op-123', // ID операции для тестовых платежей
-    TEST_BOT_NAME: 'test_bot', // Имя бота для тестов
+  retries: {
+    default: 2,
+    max: 5,
+    min: 0
   },
+  logging: {
+    level: 'info',
+    emoji: true
+  }
+}
 
-  // Настройки для тестов платежей
-  PAYMENT_TESTS: {
-    MODES: {
-      TEXT_TO_IMAGE: ModeEnum.TextToImage,
-      TEXT_TO_VIDEO: ModeEnum.TextToVideo,
-      TOP_UP_BALANCE: ModeEnum.TopUpBalance,
-    },
-
-    // Ожидаемая стоимость операций
-    COSTS: {
-      TEXT_TO_IMAGE: 10,
-      TEXT_TO_VIDEO: 20,
-    },
+// Тестовые константы
+export const TEST_CONSTANTS = {
+  // Тестовые данные пользователя
+  USER: {
+    telegram_id: '123456789',
+    username: 'test_user',
+    first_name: 'Test',
+    last_name: 'User'
   },
-
-  // Моки для тестов
-  mocks: {
-    bot: new MockTelegraf('test-token') as unknown as Telegraf<MyContext>, // Мок объекта бота для тестов
+  
+  // Тестовые данные для платежей
+  PAYMENT: {
+    amount: 100,
+    stars: 1000,
+    type: 'money_income',
+    description: 'Test payment',
+    bot_name: 'test_bot',
+    service_type: 'TopUpBalance'
   },
+  
+  // Тестовые данные для задач
+  TASK: {
+    id: 'test-task-id',
+    type: 'test',
+    data: {
+      prompt: 'Test prompt',
+      model: 'gpt-3.5-turbo'
+    }
+  },
+  
+  // Тестовые данные для агентов
+  AGENT: {
+    id: 'test-agent-id',
+    name: 'TestAgent',
+    type: 'test',
+    status: 'ready'
+  }
+}
+
+// Вспомогательные функции для тестов
+export const TEST_UTILS = {
+  // Генерация случайного ID
+  generateId: () => Math.random().toString(36).substring(7),
+  
+  // Задержка выполнения
+  delay: (ms: number) => new Promise(resolve => setTimeout(resolve, ms)),
+  
+  // Создание мок-функции
+  createMockFn: () => {
+    const fn = () => {}
+    fn.calls = [] as any[]
+    fn.mockImplementation = (impl: Function) => {
+      fn.implementation = impl
+      return fn
+    }
+    fn.mockReset = () => {
+      fn.calls = []
+      fn.implementation = undefined
+    }
+    return fn
+  }
+}
+
+// Test runner configuration
+export const TEST_RUNNER_CONFIG = {
+  parallel: true, // Run tests in parallel
+  stopOnFirstFailure: false,
+  timeout: TEST_CONFIG.timeouts.default,
+  retries: TEST_CONFIG.retries.default
+}
+
+// Test environment configuration
+export const TEST_ENV = {
+  isCI: process.env.CI === 'true',
+  isDevelopment: process.env.NODE_ENV === 'development',
+  isProduction: process.env.NODE_ENV === 'production'
 }
 
 // Создаем и экспортируем тестовый движок Inngest

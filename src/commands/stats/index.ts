@@ -1,7 +1,7 @@
 import { MyContext } from '../../interfaces'
 import { isOwner } from '@/core/supabase'
 import { isRussian } from '@/helpers'
-import isDev from '@/config'
+import { isDev } from '@/config'
 import { logger } from '@/utils/logger'
 import { DEBUG_BOTS } from '@/config/debug'
 import { supabase } from '@/core/supabase'

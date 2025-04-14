@@ -5,8 +5,7 @@
 
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
-import { Service } from '../types.js'
+import { Service } from '../types'
 
 // Типы для системы самосовершенствования
 export enum ImprovementType {
@@ -18,20 +17,33 @@ export enum ImprovementType {
   TESTING = 'TESTING',
   SECURITY = 'SECURITY',
   OTHER = 'OTHER',
+  UNKNOWN = 'UNKNOWN', // Added for initialization
 }
 
-// Результат выполнения самосовершенствования
+// Результат выполнения самосовершенствования (Обновлено)
 export interface ImprovementResult {
   success: boolean
   message: string
-  improvementType?: string
+  improvementType?: string // Keep as string for flexibility
   affectedComponents?: string[]
   createdFiles: string[]
   updatedFiles: string[]
   error?: string
-  score?: number
-  recommendations?: string[]
+  score?: number // Optional score from evaluation
+  recommendations?: string[] // Optional recommendations from evaluation
   timestamp?: Date
+
+  // Added fields based on parsing logic in code-generator.ts
+  analysis: string
+  proposedImprovements: Array<{
+    explanation: string
+    codeChanges: Array<{
+      filePath: string
+      refactoredContent: string
+    }>
+    benefits: string
+  }>
+  changesApplied: boolean // Track if changes were (attempted) to be applied
 }
 
 // Оценка качества самосовершенствования
@@ -123,9 +135,11 @@ Original improvement request:
 Implementation results:
 - Success: ${result.success}
 - Message: ${result.message}
+- Analysis: ${result.analysis ?? 'N/A'}
+- Changes Applied: ${result.changesApplied}
 - Improvement type: ${result.improvementType || 'N/A'}
-- Created files: ${result.createdFiles.join(', ') || 'None'}
-- Updated files: ${result.updatedFiles.join(', ') || 'None'}
+- Created files: ${result.createdFiles?.join(', ') || 'None'}
+- Updated files: ${result.updatedFiles?.join(', ') || 'None'}
 ${result.error ? `- Error: ${result.error}` : ''}
 
 Please evaluate the quality of this improvement on a scale from 0 to 10, where:
@@ -213,9 +227,7 @@ export async function logSelfImprovement(
   result: ImprovementResult
 ): Promise<void> {
   try {
-    // Получаем путь к директории CG Log
-    const __filename = fileURLToPath(import.meta.url)
-    const __dirname = path.dirname(__filename)
+    // Получаем путь к директории CG Log используя __dirname
     const cgLogDir = path.join(__dirname, '../../../cg-log')
 
     // Проверяем, существует ли README.md
@@ -226,7 +238,7 @@ export async function logSelfImprovement(
     }
 
     let content = ''
-    const timestamp = new Date().toISOString().split('T')[0]
+    const timestamp = result.timestamp?.toISOString().split('T')[0] ?? new Date().toISOString().split('T')[0]
 
     if (fs.existsSync(readmePath)) {
       content = fs.readFileSync(readmePath, 'utf-8')
@@ -243,75 +255,59 @@ export async function logSelfImprovement(
 
     // Добавляем детали о созданных и обновленных файлах
     let details = ''
+    details += `**Статус:** ${result.success ? 'Успешно' : 'Ошибка'}${result.error ? ` (${result.error})` : ''}\n`
+    details += `**Сообщение:** ${result.message}\n`
+    details += `**Тип:** ${result.improvementType ?? 'N/A'}\n`
+    details += `**Анализ:**\n\`\`\`\n${result.analysis ?? 'N/A'}\n\`\`\`\n`
+    details += `**Изменения применены:** ${result.changesApplied}\n`
 
-    // Тип улучшения и затронутые компоненты
-    if (result.improvementType) {
-      details += `**Тип улучшения:** ${result.improvementType}\n\n`
+    if (result.proposedImprovements?.length > 0) {
+      details += `**Предложенные улучшения:**\n`
+      result.proposedImprovements.forEach((imp, index) => {
+        details += `  ${index + 1}. **Объяснение:** ${imp.explanation}\n`
+        if (imp.codeChanges?.length > 0) {
+          details += `     **Изменения кода:**\n`
+          imp.codeChanges.forEach(change => {
+            details += `       - \`${change.filePath}\`\n`
+          })
+        }
+        details += `     **Преимущества:** ${imp.benefits}\n`
+      })
+      details += `\n`
     }
 
-    if (result.affectedComponents && result.affectedComponents.length > 0) {
-      details += `**Затронутые компоненты:**\n`
-      for (const component of result.affectedComponents) {
-        details += `- ${component}\n`
-      }
-      details += '\n'
+    if (result.createdFiles?.length > 0) {
+      details += `**Созданные файлы:**\n${result.createdFiles.map(f => `- ${f}`).join('\n')}\n`
     }
-
-    // Файлы
-    if (result.createdFiles && result.createdFiles.length > 0) {
-      details += '**Созданные файлы:**\n'
-      for (const file of result.createdFiles) {
-        details += `- ${file}\n`
-      }
-      details += '\n'
+    if (result.updatedFiles?.length > 0) {
+      details += `**Обновленные файлы:**\n${result.updatedFiles.map(f => `- ${f}`).join('\n')}\n`
     }
-
-    if (result.updatedFiles && result.updatedFiles.length > 0) {
-      details += `**Обновленные файлы:**\n`
-      for (const file of result.updatedFiles) {
-        details += `- ${file}\n`
-      }
-      details += '\n'
-    }
-
-    // Результат операции
-    if (result.success) {
-      details += `✅ **Результат:** ${result.message}\n\n`
-    } else {
-      details += `❌ **Результат:** ${result.message}\n\n`
-
-      if (result.error) {
-        details += `**Ошибка:** ${result.error}\n\n`
-      }
-    }
-
-    // Оценка и рекомендации
-    if (result.score !== undefined) {
-      details += `**Оценка качества:** ${result.score}/10\n\n`
-    }
-
     if (result.recommendations && result.recommendations.length > 0) {
-      details += `**Рекомендации для будущих улучшений:**\n`
-      for (const recommendation of result.recommendations) {
-        details += `- ${recommendation}\n`
-      }
-      details += '\n'
+      details += `**Рекомендации:**\n${result.recommendations.map(r => `- ${r}`).join('\n')}\n`
+    }
+    if (result.score !== undefined) {
+      details += `**Оценка:** ${result.score}/10\n`
     }
 
-    // Вставляем новую запись после заголовка "История улучшений"
-    const insertPoint =
-      content.indexOf('## История улучшений') + '## История улучшений'.length
-    const newContent =
-      content.slice(0, insertPoint) +
-      '\n\n' +
-      entry +
-      details +
-      content.slice(insertPoint)
+    // Добавляем запись в начало истории
+    const headerIndex = content.indexOf('## История улучшений')
+    if (headerIndex !== -1) {
+      const headerEndIndex = content.indexOf('\n', headerIndex) + 1
+      content =
+        content.slice(0, headerEndIndex) +
+        entry +
+        details +
+        '\n---\n\n' +
+        content.slice(headerEndIndex)
+    } else {
+      // Если заголовка нет, просто добавляем в конец
+      content += '## История улучшений\n\n' + entry + details + '\n---\n\n'
+    }
 
     // Записываем обновленный файл
-    fs.writeFileSync(readmePath, newContent, 'utf-8')
+    fs.writeFileSync(readmePath, content, 'utf-8')
 
-    console.log(`✅ Self-improvement logged: ${description}`)
+    console.log('Self-improvement result logged to CG Log.')
   } catch (error) {
     console.error('Error logging self-improvement:', error)
   }

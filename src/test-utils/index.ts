@@ -141,6 +141,47 @@ export { runApiTests, runApiMonitoring, runApiEndpointTests }
 // Экспортируем системные тесты напрямую
 export { runSystemTests, runAgentRouterTests }
 
+import { testSelfImprovement } from './self-improvement.test'
+
+// Интерфейс для результатов тестов
+export interface TestResult {
+  success: boolean
+  message: string
+  name: string
+}
+
+// Функция запуска тестов
+export async function runTests(): Promise<void> {
+  console.log('🚀 Запуск тестов...')
+
+  const tests = [
+    testSelfImprovement
+  ]
+
+  let passed = 0
+  let failed = 0
+
+  for (const test of tests) {
+    const result = await test()
+    if (result.success) {
+      passed++
+      console.log(`✅ ${result.name}: ${result.message}`)
+    } else {
+      failed++
+      console.log(`❌ ${result.name}: ${result.message}`)
+    }
+  }
+
+  console.log('\n📊 Результаты тестов:')
+  console.log(`✅ Пройдено: ${passed}`)
+  console.log(`❌ Не пройдено: ${failed}`)
+  console.log('🏁 Тесты завершены')
+
+  if (failed > 0) {
+    process.exit(1)
+  }
+}
+
 /**
  * Запуск тестов
  */
