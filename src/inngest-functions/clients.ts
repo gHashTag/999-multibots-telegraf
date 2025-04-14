@@ -1,11 +1,12 @@
 import { Inngest } from 'inngest'
-import { INNGEST_EVENT_KEY } from '@/config'
+import { INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY } from '@/config'
 import fetch, { Response } from 'node-fetch'
 import type { RequestInit } from 'node-fetch'
 import { logger } from '@/utils/logger'
 // Добавляем лог для проверки инициализации
 console.log('🔄 Initializing Inngest client...')
 console.log('🔑 INNGEST_EVENT_KEY available:', !!INNGEST_EVENT_KEY)
+console.log('🔑 INNGEST_SIGNING_KEY available:', !!INNGEST_SIGNING_KEY)
 console.log('🔧 NODE_ENV:', process.env.NODE_ENV)
 
 if (INNGEST_EVENT_KEY) {
@@ -15,25 +16,30 @@ if (INNGEST_EVENT_KEY) {
   )
 }
 
-// Создаем базовую конфигурацию Inngest - используем конфигурацию, которая работала три дня назад
+// Создаем базовую конфигурацию Inngest
 const inngestConfig: {
   id: string
   eventKey: string
+  signingKey?: string
   baseUrl?: string
   fetch?: (url: string, init: RequestInit) => Promise<Response>
 } = {
-  id: 'neuro-blogger-2.0',
+  id: 'neuroblogger-2',
   eventKey: INNGEST_EVENT_KEY || 'development-key',
+  signingKey: INNGEST_SIGNING_KEY,
 }
-
+//
 // Для разработки настраиваем оба необходимых URL
 if (process.env.NODE_ENV === 'development') {
   // baseUrl - для обработки функций через API сервер (в соответствии с документацией)
   inngestConfig.baseUrl = 'http://localhost:2999/api/inngest'
   //
-  // eventKey всегда должен быть доступен
+  // eventKey и signingKey всегда должны быть доступны
   if (!inngestConfig.eventKey) {
     inngestConfig.eventKey = 'dev-key'
+  }
+  if (!inngestConfig.signingKey) {
+    inngestConfig.signingKey = 'dev-signing-key'
   }
 
   // Настраиваем дополнительный URL для отправки событий через Inngest CLI Dev Server
@@ -225,6 +231,7 @@ console.log(
   JSON.stringify({
     id: inngestConfig.id,
     eventKey: inngestConfig.eventKey ? '***' : undefined,
+    signingKey: inngestConfig.signingKey ? '***' : undefined,
     baseUrl: inngestConfig.baseUrl,
     customFetch: !!inngestConfig.fetch,
   })
