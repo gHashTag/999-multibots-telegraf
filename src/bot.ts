@@ -1,7 +1,7 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
-import { Composer } from 'telegraf'
+import { Composer, TelegramError } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { NODE_ENV } from './config'
 
@@ -56,65 +56,117 @@ export const createBots = async () => {
     throw new Error('Test bot not found')
   }
 
-  activeBots.forEach((bot, index) => {
-    const app = express()
-
-    const port = 3001 + index
-    logger.info('🔌 Порт для бота:', {
-      description: 'Bot port',
-      port,
-    })
-
-    setBotCommands(bot)
-    registerCommands({ bot, composer })
-
-    registerCallbackActions(bot)
-    registerPaymentActions(bot)
-    registerHearsActions(bot)
-
+  activeBots.forEach(async (bot, index) => {
     const telegramToken = bot.telegram.token
     const { bot_name } = getBotNameByToken(telegramToken)
-    logger.info('🤖 Запускается бот:', {
-      description: 'Starting bot',
+    logger.info('🤖 Попытка запуска бота:', {
+      description: 'Attempting to start bot',
       bot_name,
       environment: NODE_ENV,
     })
 
-    const webhookPath = `/${bot_name}`
-    const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app`
+    // Инициализируем Express приложение для этого бота ЗДЕСЬ
+    const app = express()
+    const webhookPath = `/${bot_name}` // webhookPath тоже нужен снаружи try
 
-    if (NODE_ENV === 'development') {
-      development(bot)
-    } else {
-      production(bot, port, webhookUrl, webhookPath)
+    try {
+      // Убираем инициализацию app отсюда
+      const port = 3001 + index
+      logger.info('🔌 Порт для бота:', {
+        description: 'Bot port',
+        bot_name,
+        port,
+      })
+
+      await setBotCommands(bot)
+      registerCommands({ bot, composer })
+
+      registerCallbackActions(bot)
+      registerPaymentActions(bot)
+      registerHearsActions(bot)
+
+      // webhookPath определяется выше
+      const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app`
+
+      if (NODE_ENV === 'development') {
+        await development(bot)
+      } else {
+        await production(bot, port, webhookUrl, webhookPath)
+      }
+
+      bot.use((ctx: MyContext, next: NextFunction) => {
+        logger.info('🔍 Получено сообщение/команда:', {
+          description: 'Message/command received',
+          text:
+            ctx.message && 'text' in ctx.message ? ctx.message.text : undefined,
+          from: ctx.from?.id,
+          chat: ctx.chat?.id,
+          bot: ctx.botInfo?.username,
+          timestamp: new Date().toISOString(),
+        })
+        return next()
+      })
+
+      logger.info(`✅ Бот @${bot.botInfo?.username} успешно запущен!`, {
+        description: 'Bot started successfully',
+        bot_name,
+        environment: NODE_ENV,
+      })
+    } catch (error) {
+      if (
+        error instanceof TelegramError &&
+        error.response?.error_code === 401
+      ) {
+        logger.error(
+          `❌ ОШИБКА ЗАПУСКА: Токен для бота ${bot_name} недействителен (401 Unauthorized). Бот будет пропущен.`,
+          {
+            description: 'Bot start error: Invalid token (401). Skipping bot.',
+            bot_name,
+            error: error.message,
+            error_code: error.response?.error_code,
+          }
+        )
+        // Не прерываем цикл, просто пропускаем этот бот
+      } else {
+        // Для других ошибок - прерываем или обрабатываем иначе
+        logger.error(`❌ КРИТИЧЕСКАЯ ОШИБКА при запуске бота ${bot_name}:`, {
+          description: 'Critical error during bot startup',
+          bot_name,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        })
+        // Можно раскомментировать, если нужно остановить весь процесс при любой другой ошибке
+        // throw error;
+      }
     }
 
-    bot.use((ctx: MyContext, next: NextFunction) => {
-      logger.info('🔍 Получено сообщение/команда:', {
-        description: 'Message/command received',
-        text:
-          ctx.message && 'text' in ctx.message ? ctx.message.text : undefined,
-        from: ctx.from?.id,
-        chat: ctx.chat?.id,
-        bot: ctx.botInfo?.username,
-        timestamp: new Date().toISOString(),
-      })
-      return next()
-    })
-
+    // Настройка обработчика вебхуков для Express
+    // Теперь app и webhookPath доступны здесь
     app.use(webhookPath, express.json(), (req, res) => {
       logger.info('📨 Получен вебхук:', {
         description: 'Webhook received',
+        path: req.path,
         query: req.query,
+        bot_expected: bot_name, // Логируем, для какого бота ожидаем вебхук на этом пути
       })
 
-      const token = req.query.token as string
-      const bot = activeBots.find(b => b.telegram.token === token)
+      const botInstance = activeBots.find(
+        b => b.telegram.token === telegramToken
+      )
 
-      if (bot) {
-        bot.handleUpdate(req.body, res)
+      if (botInstance) {
+        botInstance.handleUpdate(req.body, res)
       } else {
-        res.status(404).send('Bot not found')
+        logger.error(
+          `🚨 Не найден экземпляр бота для обработки вебхука на пути ${webhookPath}`,
+          {
+            description: 'Bot instance not found for webhook handling',
+            webhookPath,
+            expected_bot_name: bot_name,
+            token_snippet: telegramToken.substring(0, 10) + '...',
+          }
+        )
+        res.status(404).send('Bot instance not found for this path')
       }
     })
   })
