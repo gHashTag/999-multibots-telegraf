@@ -11,7 +11,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_SERVICE_KEY) {
 }
 
 // Создаем клиент с service role key
-export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 // Создаем админский клиент с тем же ключом
 export const supabaseAdmin = createClient(

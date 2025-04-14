@@ -6,6 +6,7 @@ import { inngest } from '@/inngest-functions/clients'
 import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { MyContext } from '@/interfaces'
 import { isDev, isTest } from '@/config'
+import { getBotByName } from '@/core/bot'
 
 /**
  * Отправляет запрос на генерацию нейроизображения через Inngest
@@ -188,6 +189,92 @@ export async function generateNeuroImage(
             ? '❌ Не удалось сгенерировать изображение. Пожалуйста, попробуйте позже.'
             : '❌ Failed to generate image. Please try again later.'
         )
+      } else if (
+        directResult?.success &&
+        isCorrectEnvironment &&
+        directResult?.urls &&
+        directResult.urls.length > 0
+      ) {
+        // Отправляем успешно сгенерированные изображения пользователю
+        logger.info('📷 Отправка сгенерированных изображений пользователю:', {
+          description: 'Sending generated images to user',
+          request_id: requestId,
+          urls_count: directResult.urls.length,
+          telegram_id,
+        })
+
+        try {
+          // Получаем бота для отправки
+          const botResult = getBotByName(botName)
+          if (!botResult.bot) {
+            throw new Error(`Bot with name ${botName} not found`)
+          }
+
+          const bot = botResult.bot
+
+          // Отправляем каждое изображение
+          for (let i = 0; i < directResult.urls.length; i++) {
+            const imageUrl = directResult.urls[i]
+            try {
+              await bot.telegram.sendPhoto(telegram_id, imageUrl, {
+                caption: isRussian(ctx)
+                  ? `🖼 Изображение ${i + 1}/${directResult.urls.length} сгенерировано по запросу: ${prompt.slice(0, 50)}...`
+                  : `🖼 Image ${i + 1}/${directResult.urls.length} generated for prompt: ${prompt.slice(0, 50)}...`,
+              })
+
+              logger.info('✅ Изображение успешно отправлено пользователю:', {
+                description: 'Image successfully sent to user',
+                request_id: requestId,
+                image_index: i + 1,
+                total_images: directResult.urls.length,
+                telegram_id,
+              })
+
+              // Добавляем небольшую задержку между отправками, чтобы избежать ограничений Telegram
+              if (i < directResult.urls.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500))
+              }
+            } catch (sendError) {
+              logger.error('❌ Ошибка при отправке изображения пользователю:', {
+                description: 'Failed to send image to user',
+                request_id: requestId,
+                image_index: i + 1,
+                error:
+                  sendError instanceof Error
+                    ? sendError.message
+                    : 'Unknown error',
+                telegram_id,
+              })
+              // Если одно изображение не отправилось, пробуем отправить следующее
+            }
+          }
+
+          // Отправляем сообщение о завершении генерации
+          await bot.telegram.sendMessage(
+            telegram_id,
+            isRussian(ctx)
+              ? '✅ Генерация завершена! Все изображения отправлены.'
+              : '✅ Generation completed! All images have been sent.'
+          )
+        } catch (error) {
+          logger.error(
+            '❌ Критическая ошибка при отправке изображений пользователю:',
+            {
+              description: 'Critical error while sending images to user',
+              request_id: requestId,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              telegram_id,
+            }
+          )
+
+          if (isCorrectEnvironment) {
+            await ctx.reply(
+              isRussian(ctx)
+                ? '❌ Изображения были сгенерированы, но произошла ошибка при их отправке. Пожалуйста, попробуйте снова позже.'
+                : '❌ Images were generated, but there was an error sending them. Please try again later.'
+            )
+          }
+        }
       }
     }
   } catch (error) {

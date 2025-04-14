@@ -15,7 +15,7 @@ import { mcpManager } from '@/core/mcp'
 //   NODE_ENV: process.env.NODE_ENV,
 //   all_env_keys: Object.keys(process.env),
 // })
-
+export const isTest = process.env.NODE_ENV === 'test'
 // Экспортируем переменные окружения
 export { mcpManager }
 
