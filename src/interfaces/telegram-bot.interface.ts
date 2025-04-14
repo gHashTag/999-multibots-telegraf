@@ -105,6 +105,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   invoiceURL: string
   buttons: Button[]
   text?: string
+  bypass_payment_check?: boolean
   selectedPayment: {
     amount: number
     stars: number

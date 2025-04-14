@@ -29,6 +29,7 @@ import { getAspectRatio } from '@/core/supabase/ai'
  * @param telegram_id ID пользователя в Telegram
  * @param ctx Контекст Telegraf
  * @param botName Имя бота
+ * @param options Опции для функции
  * @returns Объект с информацией о результате генерации
  */
 export async function generateNeuroPhotoDirect(
@@ -37,7 +38,11 @@ export async function generateNeuroPhotoDirect(
   numImages: number,
   telegram_id: TelegramId,
   ctx: MyContext,
-  botName: string
+  botName: string,
+  options?: {
+    disable_telegram_sending?: boolean
+    bypass_payment_check?: boolean
+  }
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
   logger.info({
     message: '🚀 [DIRECT] Начало прямой генерации Neurophoto V1',
@@ -47,6 +52,7 @@ export async function generateNeuroPhotoDirect(
     numImages,
     telegram_id,
     botName,
+    disable_telegram_sending: options?.disable_telegram_sending,
   })
 
   try {
@@ -203,6 +209,8 @@ export async function generateNeuroPhotoDirect(
       bot_name: botName,
       service_type: ModeEnum.NeuroPhoto,
       inv_id: paymentOperationId,
+      bypass_payment_check:
+        options?.bypass_payment_check || ctx?.session?.bypass_payment_check,
       metadata: {
         prompt: prompt.substring(0, 100),
         num_images: validNumImages,
@@ -221,12 +229,22 @@ export async function generateNeuroPhotoDirect(
         `❌ [DIRECT] Ошибка при обработке платежа: ${paymentResult.error}`
       )
 
-      await bot.telegram.sendMessage(
-        telegram_id,
-        is_ru
-          ? '❌ Не удалось обработать платеж. Пожалуйста, проверьте баланс и попробуйте еще раз.'
-          : '❌ Failed to process payment. Please check your balance and try again.'
-      )
+      // Добавляем проверку disable_telegram_sending
+      if (!options?.disable_telegram_sending) {
+        await bot.telegram.sendMessage(
+          telegram_id,
+          is_ru
+            ? '❌ Не удалось обработать платеж. Пожалуйста, проверьте баланс и попробуйте еще раз.'
+            : '❌ Failed to process payment. Please check your balance and try again.'
+        )
+      } else {
+        logger.info({
+          message:
+            '🔇 [DIRECT] Отправка сообщения об ошибке платежа пропущена (режим тестирования)',
+          description: 'Skipping payment error message (test mode)',
+          telegram_id,
+        })
+      }
 
       return {
         data: 'Payment failed',
@@ -235,7 +253,11 @@ export async function generateNeuroPhotoDirect(
     }
 
     // Отправляем сообщение пользователю о начале генерации
-    if (ctx.reply && typeof ctx.reply === 'function') {
+    if (
+      ctx.reply &&
+      typeof ctx.reply === 'function' &&
+      !options?.disable_telegram_sending
+    ) {
       try {
         await ctx.reply(
           isRussian(ctx)
@@ -255,10 +277,14 @@ export async function generateNeuroPhotoDirect(
       }
     } else {
       logger.info({
-        message:
-          '💬 [DIRECT] Пропуск отправки сообщения (контекст тестирования)',
-        description: 'Skipping message send (test context)',
+        message: options?.disable_telegram_sending
+          ? '🔇 [DIRECT] Отправка сообщения о начале генерации пропущена (режим тестирования)'
+          : '💬 [DIRECT] Пропуск отправки сообщения (контекст тестирования)',
+        description: options?.disable_telegram_sending
+          ? 'Skipping generation start message (test mode)'
+          : 'Skipping message send (test context)',
         telegram_id,
+        disable_telegram_sending: options?.disable_telegram_sending,
       })
     }
 
@@ -284,46 +310,58 @@ export async function generateNeuroPhotoDirect(
     for (let i = 0; i < validNumImages; i++) {
       try {
         // Отправляем сообщение о начале генерации для каждого изображения
-        if (validNumImages > 1) {
-          try {
-            await bot.telegram.sendMessage(
-              telegram_id,
-              is_ru
-                ? `⏳ Генерация изображения ${i + 1} из ${validNumImages}`
-                : `⏳ Generating image ${i + 1} of ${validNumImages}`
-            )
-          } catch (sendError) {
-            logger.error({
-              message: '❌ [DIRECT] Ошибка при отправке сообщения о генерации',
-              description: 'Error sending generation message (direct)',
-              error:
-                sendError instanceof Error
-                  ? sendError.message
-                  : 'Unknown error',
-              telegram_id,
-            })
-            // Продолжаем выполнение даже при ошибке отправки сообщения
+        if (!options?.disable_telegram_sending) {
+          if (validNumImages > 1) {
+            try {
+              await bot.telegram.sendMessage(
+                telegram_id,
+                is_ru
+                  ? `⏳ Генерация изображения ${i + 1} из ${validNumImages}`
+                  : `⏳ Generating image ${i + 1} of ${validNumImages}`
+              )
+            } catch (sendError) {
+              logger.error({
+                message:
+                  '❌ [DIRECT] Ошибка при отправке сообщения о генерации',
+                description: 'Error sending generation message (direct)',
+                error:
+                  sendError instanceof Error
+                    ? sendError.message
+                    : 'Unknown error',
+                telegram_id,
+              })
+              // Продолжаем выполнение даже при ошибке отправки сообщения
+            }
+          } else {
+            try {
+              await bot.telegram.sendMessage(
+                telegram_id,
+                is_ru ? '⏳ Генерация...' : '⏳ Generating...',
+                {
+                  reply_markup: { remove_keyboard: true },
+                }
+              )
+            } catch (sendError) {
+              logger.error({
+                message:
+                  '❌ [DIRECT] Ошибка при отправке сообщения о генерации',
+                description: 'Error sending generation message (direct)',
+                error:
+                  sendError instanceof Error
+                    ? sendError.message
+                    : 'Unknown error',
+                telegram_id,
+              })
+            }
           }
         } else {
-          try {
-            await bot.telegram.sendMessage(
-              telegram_id,
-              is_ru ? '⏳ Генерация...' : '⏳ Generating...',
-              {
-                reply_markup: { remove_keyboard: true },
-              }
-            )
-          } catch (sendError) {
-            logger.error({
-              message: '❌ [DIRECT] Ошибка при отправке сообщения о генерации',
-              description: 'Error sending generation message (direct)',
-              error:
-                sendError instanceof Error
-                  ? sendError.message
-                  : 'Unknown error',
-              telegram_id,
-            })
-          }
+          logger.info({
+            message:
+              '🔇 [DIRECT] Отправка статусного сообщения пропущена (режим тестирования)',
+            description: 'Skipping status message (test mode)',
+            telegram_id,
+            image_index: i,
+          })
         }
 
         logger.info({
@@ -507,12 +545,21 @@ export async function generateNeuroPhotoDirect(
 
         // Отправляем сообщение об ошибке пользователю
         try {
-          await bot.telegram.sendMessage(
-            telegram_id,
-            is_ru
-              ? '❌ Произошла ошибка при генерации изображения. Мы вернем вам потраченные звезды в ближайшее время.'
-              : '❌ An error occurred while generating the image. We will refund your stars soon.'
-          )
+          if (!options?.disable_telegram_sending) {
+            await bot.telegram.sendMessage(
+              telegram_id,
+              is_ru
+                ? '❌ Произошла ошибка при генерации изображения. Мы вернем вам потраченные звезды в ближайшее время.'
+                : '❌ An error occurred while generating the image. We will refund your stars soon.'
+            )
+          } else {
+            logger.info({
+              message:
+                '🔇 [DIRECT] Отправка сообщения об ошибке генерации пропущена (режим тестирования)',
+              description: 'Skipping generation error message (test mode)',
+              telegram_id,
+            })
+          }
         } catch (sendError) {
           logger.error({
             message: '❌ [DIRECT] Ошибка при отправке сообщения об ошибке',
@@ -548,12 +595,22 @@ export async function generateNeuroPhotoDirect(
             })
 
             try {
-              await bot.telegram.sendMessage(
-                telegram_id,
-                is_ru
-                  ? `💰 Мы вернули вам ${refundAmount} звезд за неудачную генерацию изображения.`
-                  : `💰 We have refunded you ${refundAmount} stars for the failed image generation.`
-              )
+              if (!options?.disable_telegram_sending) {
+                await bot.telegram.sendMessage(
+                  telegram_id,
+                  is_ru
+                    ? `💰 Мы вернули вам ${refundAmount} звезд за неудачную генерацию изображения.`
+                    : `💰 We have refunded you ${refundAmount} stars for the failed image generation.`
+                )
+              } else {
+                logger.info({
+                  message:
+                    '🔇 [DIRECT] Отправка сообщения о возврате средств пропущена (режим тестирования)',
+                  description: 'Skipping refund message (test mode)',
+                  telegram_id,
+                  refundAmount,
+                })
+              }
             } catch (sendError) {
               logger.error({
                 message: '❌ [DIRECT] Ошибка при отправке сообщения о возврате',
@@ -670,13 +727,25 @@ export async function generateNeuroPhotoDirect(
 
     // Отправляем пользователю сообщение об ошибке
     try {
-      if (ctx.reply && typeof ctx.reply === 'function') {
+      if (
+        ctx.reply &&
+        typeof ctx.reply === 'function' &&
+        !options?.disable_telegram_sending
+      ) {
         const errorMessageRu =
           'Извините, произошла ошибка при генерации изображения. Мы уже работаем над её устранением.'
         const errorMessageEn =
           'Sorry, an error occurred while generating the image. We are already working on fixing it.'
 
         await ctx.reply(isRussian(ctx) ? errorMessageRu : errorMessageEn)
+      } else if (options?.disable_telegram_sending) {
+        logger.info({
+          message:
+            '🔇 [DIRECT] Отправка сообщения о критической ошибке пропущена (режим тестирования)',
+          description: 'Skipping critical error message (test mode)',
+          telegram_id,
+          errorMessage,
+        })
       }
     } catch (replyError) {
       logger.error({
