@@ -15,7 +15,7 @@ export const resultUrl2 = RESULT_URL2 || ''
 export const description = 'Покупка звезд'
 
 // Флаг для использования тестового режима Robokassa
-export const useTestMode = true
+export const useTestMode = false
 
 export const subscriptionTitles = (isRu: boolean) => ({
   neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
@@ -124,7 +124,9 @@ export const getInvoiceId = async (
   )
 
   // Формируем базовый URL Robokassa
-  const baseUrl = 'https://auth.robokassa.ru/Merchant/Index.aspx'
+  const baseUrl = isTest
+    ? 'https://test.robokassa.ru/Index.aspx'
+    : 'https://auth.robokassa.ru/Merchant/Index.aspx'
 
   // Создаем параметры запроса - ВАЖНО: без ResultUrl2
   const params = new URLSearchParams({

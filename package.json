@@ -40,8 +40,9 @@
     "prebuild": "rm -rf dist",
     "prepare:assets": "node scripts/prepare-assets.js",
     "test": "npx tsx src/test-utils/index.ts",
-    "test:payment": "ts-node src/test-utils/payment.ts",
+    "test:payment": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/payment/index.ts",
     "test:payment-processor": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/payment/paymentProcessorTest.ts",
+    "test:balance": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/payment/balanceTest.ts",
     "test:payment-create": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/payment/createSuccessfulPaymentTest.ts",
     "test:payment-notification": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/payment/paymentNotification.test.ts",
     "test:ru-payment": "npx tsx src/test-utils/index.ts --category=ru-payment",
@@ -114,7 +115,10 @@
     "start:api": "nodemon --exec \"ts-node\" src/api.ts",
     "start:worker": "ts-node src/worker.ts",
     "test:memcheck": "node --expose-gc src/test-utils/memcheck.js",
-    "test:inngest-prod": "ts-node scripts/test-inngest-production.ts"
+    "test:inngest-prod": "ts-node scripts/test-inngest-production.ts",
+    "test:payment:integration": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/payment/integrations/index.ts",
+    "test:payment:core": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/payment/core/index.ts",
+    "test:payment:features": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/payment/features/index.ts"
   },
   "dependencies": {
     "@inngest/test": "^0.1.6",

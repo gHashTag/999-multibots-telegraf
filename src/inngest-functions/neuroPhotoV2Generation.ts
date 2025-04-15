@@ -14,8 +14,14 @@ import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { v4 as uuidv4 } from 'uuid'
-import fetch from 'node-fetch'
+import { httpClient } from '@/utils/httpClient'
 import { TransactionType } from '@/interfaces/payments.interface'
+
+interface NeuroPhotoApiResponse {
+  id: string
+  status: string
+}
+
 /**
  * Inngest функция для генерации нейрофото V2
  */
@@ -361,47 +367,42 @@ export const neuroPhotoV2Generation = inngest.createFunction(
               'X-Key': process.env.BFL_API_KEY ?? '',
             }
 
-            const response = await fetch(apiEndpoint, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify(input),
-            })
+            const response = await httpClient.request<NeuroPhotoApiResponse>(
+              apiEndpoint,
+              {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(input),
+              }
+            )
+
+            const responseData = response.data
 
             if (!response.ok) {
-              const errorText = await response.text()
-              logger.error({
-                message: '❌ Ошибка при вызове API для генерации',
-                description: 'API error during generation',
-                status: response.status,
-                statusText: response.statusText,
-                error: errorText,
-              })
               throw new Error(
-                `API error: ${response.statusText} - ${errorText}`
+                `Failed to send generation request: ${response.status} ${responseData.status}`
               )
             }
-
-            const data = await response.json()
 
             logger.info({
               message: '✅ Запрос на генерацию отправлен',
               description: 'Generation request sent successfully',
-              taskId: data.id,
-              status: data.status,
+              taskId: responseData.id,
+              status: responseData.status,
             })
 
             // Сохраняем промпт и задачу в базе данных
             const savedTask = await saveNeuroPhotoPrompt(
-              data.id,
+              responseData.id,
               prompt,
               ModeEnum.NeuroPhotoV2,
               telegram_id,
-              data.status
+              responseData.status
             )
 
             return {
-              taskId: data.id,
-              status: data.status,
+              taskId: responseData.id,
+              status: responseData.status,
               prompt,
               savedTask,
             }

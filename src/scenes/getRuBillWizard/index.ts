@@ -125,27 +125,26 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     const inlineKeyboard = [
       [
         {
-          text: isRu
-            ? `Купить ${subscriptionTitle} за ${stars} р.`
-            : `Buy ${subscriptionTitle} for ${stars} RUB.`,
+          text: isRu ? 'Оплатить' : 'Pay',
           url: invoiceURL,
         },
       ],
     ]
 
-    await ctx.reply(
-      isRu
-        ? `<b>🤑 Подписка ${subscriptionTitle}</b>
-          \nВ случае возникновения проблем с оплатой, пожалуйста, свяжитесь с нами @neuro_sage`
-        : `<b>🤑 Subscription ${subscriptionTitle}</b>
-          \nIn case of payment issues, please contact us @neuro_sage`,
-      {
-        reply_markup: {
-          inline_keyboard: inlineKeyboard,
-        },
-        parse_mode: 'HTML',
-      }
-    )
+    const messageText = isRu
+      ? `<b>💳 ${subscription ? `Подписка ${subscriptionTitle}` : 'Пополнение баланса'}</b>\n` +
+        `<b>💰 Сумма:</b> ${stars} ₽\n` +
+        `<i>При проблемах с оплатой: @neuro_sage</i>`
+      : `<b>💳 ${subscription ? `Subscription ${subscriptionTitle}` : 'Balance top-up'}</b>\n` +
+        `<b>💰 Amount:</b> ${stars} RUB\n` +
+        `<i>Payment support: @neuro_sage</i>`
+
+    await ctx.reply(messageText, {
+      reply_markup: {
+        inline_keyboard: inlineKeyboard,
+      },
+      parse_mode: 'HTML',
+    })
     logger.info('✉️ Сообщение об оплате отправлено пользователю', {
       description: 'Payment message sent to user',
     })

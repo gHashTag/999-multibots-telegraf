@@ -1,51 +1,47 @@
-import {
-  Router,
-  Request as ExpressRequest,
-  Response as ExpressResponse,
-} from 'express'
-import { testGenerateInvoiceUrl } from '@/scenes/getRuBillWizard/helper'
+import { Router } from 'express'
+import { CustomRequest, CustomResponse } from '../index'
 import { logger } from '@/utils/logger'
-
-interface TestRequest extends ExpressRequest {
-  body: {
-    amount: number
-  }
-}
+import { testGenerateInvoiceUrl } from '@/scenes/getRuBillWizard/helper'
 
 const router = Router()
 
-router.post('/test-url', async (req: TestRequest, res: ExpressResponse) => {
+interface TestRequest extends CustomRequest {
+  body: {
+    amount: number
+    telegram_id: string
+  }
+}
+
+router.post('/', async (req: TestRequest, res: CustomResponse) => {
+  logger.info('🚀 Starting Robokassa form test...')
+
   try {
     const { amount } = req.body
 
-    if (!amount || typeof amount !== 'number') {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Amount is required and must be a number',
-      })
+    // Validate input
+    if (!amount) {
+      throw new Error('Missing required parameters')
     }
 
-    const url = await testGenerateInvoiceUrl(amount)
+    // Generate test invoice URL
+    const invoiceUrl = await testGenerateInvoiceUrl(amount)
 
-    logger.info('✅ Тестовый URL чека сгенерирован:', {
-      description: 'Test invoice URL generated',
-      url,
-    })
-
-    return res.json({
-      status: 'success',
-      url,
-    })
-  } catch (error) {
-    logger.error('❌ Ошибка при генерации тестового URL:', {
-      description: 'Error generating test URL',
-      error: error instanceof Error ? error.message : String(error),
+    logger.info('✅ Test invoice URL generated:', {
+      description: 'Generated test invoice URL',
+      url: invoiceUrl,
     })
 
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to generate test URL',
+    return res.status(200).json({
+      success: true,
+      invoiceUrl,
+      message: 'Click the link below to test the payment form:',
+      htmlLink: `<a href="${invoiceUrl}" target="_blank">Open payment form</a>`,
     })
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
+    logger.error('❌ Test error:', errorMessage)
+    return res.status(500).json({ error: errorMessage })
   }
 })
 

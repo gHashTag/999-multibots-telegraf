@@ -22,6 +22,7 @@ export { mcpManager }
 export const {
   NODE_ENV,
   PORT,
+  API_PORT,
   SECRET_KEY,
   SECRET_API_KEY,
   LOG_FORMAT,

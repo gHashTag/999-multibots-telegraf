@@ -1,239 +1,86 @@
 import { Inngest } from 'inngest'
 import { INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY } from '@/config'
-import fetch, { Response } from 'node-fetch'
-import type { RequestInit } from 'node-fetch'
+import { createHttpClient } from '@/utils/httpClient'
 import { logger } from '@/utils/logger'
 // Добавляем лог для проверки инициализации
-console.log('🔄 Initializing Inngest client...')
-console.log('🔑 INNGEST_EVENT_KEY available:', !!INNGEST_EVENT_KEY)
-console.log('🔑 INNGEST_SIGNING_KEY available:', !!INNGEST_SIGNING_KEY)
-console.log('🔧 NODE_ENV:', process.env.NODE_ENV)
+logger.info('🔄 Initializing Inngest client...')
+logger.info('🔑 INNGEST_EVENT_KEY available:', !!INNGEST_EVENT_KEY)
+logger.info('🔑 INNGEST_SIGNING_KEY available:', !!INNGEST_SIGNING_KEY)
+logger.info('🔧 NODE_ENV:', process.env.NODE_ENV)
 
 if (INNGEST_EVENT_KEY) {
-  console.log(
+  logger.info(
     '🔑 INNGEST_EVENT_KEY first 10 chars:',
     INNGEST_EVENT_KEY.substring(0, 10) + '...'
   )
 }
 
+if (INNGEST_SIGNING_KEY) {
+  logger.info(
+    '🔑 INNGEST_SIGNING_KEY first 10 chars:',
+    INNGEST_SIGNING_KEY.substring(0, 10) + '...'
+  )
+}
+
+// Создаем HTTP клиент для Inngest
+const inngestHttpClient = createHttpClient({
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+// Адаптер для fetch API
+const fetchAdapter = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const url = typeof input === 'string' ? input : input.toString()
+  const response = await inngestHttpClient.request(url, {
+    method: init?.method || 'GET',
+    headers: init?.headers as Record<string, string>,
+    body: init?.body,
+  })
+
+  // Преобразуем данные в строку для Blob
+  const blobData =
+    typeof response.data === 'string'
+      ? response.data
+      : JSON.stringify(response.data)
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+    headers: new Headers(response.headers),
+    json: async () => response.data,
+    text: async () => blobData,
+    blob: async () => new Blob([blobData]),
+    arrayBuffer: async () => new TextEncoder().encode(blobData).buffer,
+  } as Response
+}
+
 // Создаем базовую конфигурацию Inngest
-const inngestConfig: {
-  id: string
-  eventKey: string
-  signingKey?: string
-  baseUrl?: string
-  fetch?: (url: string, init: RequestInit) => Promise<Response>
-} = {
-  id: 'neuroblogger-2',
+const inngestConfig = {
+  id: 'neuro-blogger-2.0',
   eventKey: INNGEST_EVENT_KEY || 'development-key',
   signingKey: INNGEST_SIGNING_KEY,
-}
-////
-// Для разработки настраиваем оба необходимых URL
-if (process.env.NODE_ENV === 'development') {
-  // baseUrl - для обработки функций через API сервер (в соответствии с документацией)
-  inngestConfig.baseUrl = 'http://localhost:2999/api/inngest'
-  //
-  // eventKey и signingKey всегда должны быть доступны
-  if (!inngestConfig.eventKey) {
-    inngestConfig.eventKey = 'dev-key'
-  }
-  if (!inngestConfig.signingKey) {
-    inngestConfig.signingKey = 'dev-signing-key'
-  }
-
-  // Настраиваем дополнительный URL для отправки событий через Inngest CLI Dev Server
-  inngestConfig.fetch = async (url: string, init: RequestInit) => {
-    try {
-      // Более подробное логирование для всех запросов Inngest
-      const requestId = new Date().getTime().toString()
-      logger.info('🔄 Inngest запрос', {
-        description: 'Inngest request',
-        request_id: requestId,
-        url,
-        method: init.method,
-        headers: JSON.stringify(init.headers),
-        body_size: init.body
-          ? typeof init.body === 'string'
-            ? init.body.length
-            : 'not-string'
-          : 0,
-        timestamp: new Date().toISOString(),
-      })
-
-      // Если это отправка события (событие начинается с /e/),
-      // то перенаправляем на Inngest Dev Server
-      if (url.includes('/e/')) {
-        // По документации Inngest, Dev Server слушает на порту 8288
-        // Эндпоинт для отправки событий: /e/[key]
-        // https://www.inngest.com/docs/dev-server
-        const devKey = inngestConfig.eventKey || 'dev-key'
-
-        // Выбираем правильный URL в зависимости от среды запуска
-        // process.env.DOCKER_ENVIRONMENT будет установлен в docker-compose.yml
-        const isDockerEnvironment = process.env.DOCKER_ENVIRONMENT === 'true'
-        const baseUrl = isDockerEnvironment
-          ? process.env.INNGEST_BASE_DOCKER_URL ||
-            'http://host.docker.internal:8288'
-          : process.env.INNGEST_BASE_URL || 'http://localhost:8288'
-
-        const devServerUrl = `${baseUrl}/e/${devKey}`
-
-        logger.info('📌 Используем URL для Inngest', {
-          description: 'Using Inngest URL',
-          is_docker: isDockerEnvironment,
-          base_url: baseUrl,
-          dev_server_url: devServerUrl,
-          timestamp: new Date().toISOString(),
-        })
-
-        const requestBody = init.body
-          ? typeof init.body === 'string'
-            ? JSON.parse(init.body)
-            : '(не строка)'
-          : '(пустое тело)'
-
-        logger.info('🚀 Отправка события в Inngest', {
-          description: 'Sending event to Inngest',
-          request_id: requestId,
-          originalUrl: url,
-          redirectUrl: devServerUrl,
-          method: init.method,
-          eventName: requestBody.name || 'unknown',
-          eventId: requestBody.id || 'no-id',
-          requestBody: JSON.stringify(requestBody).substring(0, 200),
-          timestamp: new Date().toISOString(),
-        })
-
-        try {
-          logger.info('📤 Выполнение запроса', {
-            description: 'Executing request',
-            request_id: requestId,
-            url: devServerUrl,
-            timestamp: new Date().toISOString(),
-          })
-
-          const response = await fetch(devServerUrl, init)
-
-          const responseStatus = response.status
-          const responseText = await response.text()
-
-          logger.info('✅ Ответ от Inngest Dev Server получен', {
-            description: 'Response received from Inngest Dev Server',
-            request_id: requestId,
-            url: devServerUrl,
-            status: responseStatus,
-            responseBody:
-              responseText.substring(0, 200) +
-              (responseText.length > 200 ? '...' : ''),
-            timestamp: new Date().toISOString(),
-          })
-
-          // Создаем новый Response объект, так как оригинальный уже был "использован" при чтении текста
-          return new Response(responseText, {
-            status: responseStatus,
-            headers: response.headers,
-          })
-        } catch (err) {
-          logger.error('❌ Ошибка при отправке события в Inngest Dev Server', {
-            description: 'Error sending event to Inngest Dev Server',
-            request_id: requestId,
-            url: devServerUrl,
-            error: err instanceof Error ? err.message : 'Unknown error',
-            stack: err instanceof Error ? err.stack : undefined,
-            timestamp: new Date().toISOString(),
-          })
-
-          // Пробуем альтернативный URL - вдруг порт другой
-          try {
-            logger.info('🔄 Попытка использования альтернативного URL', {
-              description: 'Trying alternative URL',
-              request_id: requestId,
-              url: `http://localhost:2999/api/inngest/e`,
-              timestamp: new Date().toISOString(),
-            })
-
-            const altResponse = await fetch(
-              `http://localhost:2999/api/inngest/e`,
-              init
-            )
-            const altResponseText = await altResponse.text()
-
-            logger.info('✅ Ответ от альтернативного URL получен', {
-              description: 'Response received from alternative URL',
-              request_id: requestId,
-              status: altResponse.status,
-              responseBody:
-                altResponseText.substring(0, 200) +
-                (altResponseText.length > 200 ? '...' : ''),
-              timestamp: new Date().toISOString(),
-            })
-
-            return new Response(altResponseText, {
-              status: altResponse.status,
-              headers: altResponse.headers,
-            })
-          } catch (altErr) {
-            logger.error('❌ Ошибка при отправке на альтернативный URL', {
-              description: 'Error sending to alternative URL',
-              request_id: requestId,
-              error: altErr instanceof Error ? altErr.message : 'Unknown error',
-              timestamp: new Date().toISOString(),
-            })
-          }
-
-          throw err
-        }
-      }
-
-      // Для всех остальных запросов используем стандартный URL
-      logger.info('🔍 Стандартный запрос Inngest', {
-        description: 'Standard Inngest request',
-        url,
-        method: init.method,
-        timestamp: new Date().toISOString(),
-      })
-
-      const response = await fetch(url, init)
-
-      logger.info('✓ Стандартный ответ получен', {
-        description: 'Standard response received',
-        status: response.status,
-        timestamp: new Date().toISOString(),
-      })
-
-      return response
-    } catch (error) {
-      logger.error('❌ Ошибка при отправке запроса Inngest', {
-        description: 'Error sending Inngest request',
-        possibleUrls: [
-          'http://localhost:2999/api/inngest/event',
-          'http://localhost:2999/api/inngest/e',
-        ],
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString(),
-      })
-
-      // Пробрасываем ошибку дальше
-      throw error
-    }
-  }
+  baseUrl: process.env.INNGEST_BASE_URL,
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+    return fetchAdapter(input, init)
+  },
 }
 
 // Создаем экземпляр с нужной конфигурацией
 export const inngest = new Inngest(inngestConfig)
 
 // Проверка экспорта
-console.log('✅ Inngest client created:', !!inngest)
-console.log(
+logger.info('✅ Inngest client created:', !!inngest)
+logger.info(
   '⚙️ Inngest config:',
   JSON.stringify({
     id: inngestConfig.id,
     eventKey: inngestConfig.eventKey ? '***' : undefined,
     signingKey: inngestConfig.signingKey ? '***' : undefined,
     baseUrl: inngestConfig.baseUrl,
-    customFetch: !!inngestConfig.fetch,
+    customFetch: true,
   })
 )
 

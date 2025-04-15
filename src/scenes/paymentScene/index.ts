@@ -8,7 +8,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { createPendingPayment } from '@/core/supabase/createPendingPayment'
 import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, TEST_PASSWORD1, isDev } from '@/config'
-import { generateUniqueShortInvId } from '@/scenes/getRuBillWizard/helper'
+import { generateShortInvId } from '@/scenes/getRuBillWizard/helper'
 import { paymentOptions } from '@/price/priceCalculator'
 
 const merchantLogin = MERCHANT_LOGIN
@@ -223,7 +223,7 @@ paymentScene.enter(async ctx => {
 
       const userId = ctx.from.id
       // Используем асинхронную функцию для генерации уникального ID
-      const invId = await generateUniqueShortInvId(userId, amount)
+      const invId = await generateShortInvId(userId, stars)
       const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
       const numericInvId = Number(invId)
 
@@ -398,7 +398,7 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
     try {
       const userId = ctx.from.id
       // Создаем специальный платеж для подписки
-      const invId = await generateUniqueShortInvId(userId, amount)
+      const invId = await generateShortInvId(userId, stars)
       const description = isRu
         ? `Подписка ${subscription}`
         : `Subscription ${subscription}`
@@ -527,7 +527,7 @@ paymentScene.action(/pay_rub_(\d+)_(\d+)/, async ctx => {
 
     // Создаем платеж
     const userId = ctx.from.id
-    const invId = await generateUniqueShortInvId(userId, amount)
+    const invId = await generateShortInvId(userId, stars)
     const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
     const numericInvId = Number(invId)
 
