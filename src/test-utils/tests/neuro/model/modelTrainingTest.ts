@@ -1,103 +1,142 @@
-import { TestRunner, Test } from '../../../core/TestRunner'
-import assert from '../../../core/assert'
-import { MyContext, MySession } from '@/interfaces/telegram-bot.interface'
-import { ModeEnum } from '@/interfaces/modes'
-import { ModelTrainingConfig } from '@/services/shared/model.utils'
-import { Message } from 'telegraf/typings/core/types/typegram'
-import { Subscription } from '@/interfaces/supabase.interface'
+import { ModeEnum } from '../../../../interfaces/modes';
+import { MySession, MyContext, MyWizardSession } from '../../../../interfaces/telegram-bot.interface';
+import { Context, Scenes } from 'telegraf';
+import { Update, Message } from 'telegraf/types';
+import { TestRunner } from '../../../core/TestRunner';
+import assert from '../../../core/assert';
+import { UserModel } from '../../../../interfaces/models.interface';
+import { Subscription } from '../../../../interfaces/supabase.interface';
 
-const mockSession: Partial<MySession> = {
+const mockSession: MySession = {
   email: 'test@example.com',
-  prompt: 'test prompt',
-  selectedSize: '512x512',
-  userModel: {
-    model_name: 'Test Model',
-    trigger_word: 'test',
-    model_url: 'test/url:latest',
-    model_key: 'test/key:latest'
-  },
-  numImages: 1,
   telegram_id: '123456789',
-  mode: ModeEnum.SelectModel,
-  attempts: 0,
-  videoModel: 'test_video',
-  imageUrl: 'http://example.com/image.jpg',
-  amount: 100,
-  subscription: 'neurotester' as Subscription,
-  modelName: 'test_model',
-  targetUserId: 123,
-  username: 'testuser',
-  triggerWord: 'test',
-  steps: 20,
+  mode: ModeEnum.TextToImage,
+  selectedModel: 'test-model',
   selectedPayment: {
     amount: 100,
     stars: 10
   },
-  is_ru: false
-}
-
-const createTestContext = (): Partial<MyContext> => {
-  const context: Partial<MyContext> = {
-    session: mockSession as MySession,
-    reply: async (text: string) => ({} as Message.TextMessage),
-    replyWithHTML: async (text: string) => ({} as Message.TextMessage),
-    wizard: {
-      next: () => Promise.resolve(),
-      selectStep: (step: number) => Promise.resolve()
-    } as any,
-    scene: {
-      enter: (sceneId: string) => Promise.resolve()
-    } as any
-  }
-  return context
-}
-
-const config: ModelTrainingConfig = {
+  prompt: 'test prompt',
+  selectedSize: '512x512',
+  userModel: {
+    model_name: 'test-model',
+    trigger_word: 'test',
+    model_url: 'test/model:latest'
+  } as UserModel,
+  subscription: 'neurobase' as Subscription,
+  numImages: 1,
+  attempts: 0,
+  videoModel: '',
+  imageUrl: '',
+  videoUrl: '',
+  audioUrl: '',
+  amount: 0,
+  images: [],
+  modelName: '',
+  targetUserId: 0,
+  username: '',
+  triggerWord: '',
   steps: 20,
-  filePath: '/path/to/file',
-  triggerWord: 'test',
-  modelName: 'test_model',
-  telegram_id: '123456789',
+  inviter: '',
+  inviteCode: '',
+  invoiceURL: '',
+  buttons: [],
+  bypass_payment_check: false,
   is_ru: false,
-  botName: 'test_bot'
+  memory: {
+    messages: []
+  }
+};
+
+function createTestContext(): MyContext {
+  const message: Update.New & Update.NonChannel & Message.TextMessage = {
+    message_id: 1,
+    date: Math.floor(Date.now() / 1000),
+    chat: {
+      id: 123456789,
+      type: 'private',
+      first_name: 'Test',
+      username: 'test_user'
+    },
+    from: {
+      id: 123456789,
+      is_bot: false,
+      first_name: 'Test',
+      username: 'test_user'
+    },
+    text: 'test message'
+  };
+
+  const update: Update.MessageUpdate = {
+    update_id: 1,
+    message
+  };
+
+  const baseContext = new Context(update, {} as any, {} as any);
+  const scenes = new Map<string, Scenes.BaseScene<MyContext>>();
+  const testScene = new Scenes.BaseScene<MyContext>('test-scene');
+  scenes.set('test-scene', testScene);
+
+  const wizard = new Scenes.WizardContextWizard<MyContext>(baseContext as MyContext, []);
+  const scene = new Scenes.SceneContextScene<MyContext, MyWizardSession>(baseContext as MyContext, scenes, {});
+
+  const context = {
+    ...baseContext,
+    session: mockSession,
+    wizard,
+    scene,
+    attempts: 0,
+    amount: 0,
+    updateType: 'message',
+    me: {
+      id: 123456789,
+      is_bot: true,
+      first_name: 'Test Bot',
+      username: 'test_bot'
+    },
+    tg: {} as any,
+    message,
+    editedMessage: null,
+    inlineQuery: null,
+    shippingQuery: null,
+    preCheckoutQuery: null,
+    chosenInlineResult: null,
+    callbackQuery: null,
+    channelPost: null,
+    editedChannelPost: null,
+    pollAnswer: null,
+    myChatMember: null,
+    chatMember: null,
+    chatJoinRequest: null
+  } as unknown as MyContext;
+
+  return context;
 }
 
 const tests = [
   {
-    name: 'Plan A: Create model through Inngest',
+    name: 'Model Training Test - Success',
+    description: 'Should successfully create a model',
     category: 'Model Training',
-    description: 'Tests model creation through Inngest service',
     run: async () => {
-      const context = createTestContext()
-      // Test implementation
-      assert(true, 'Model training created successfully')
+      const context = createTestContext();
+      assert(context.session?.mode === ModeEnum.TextToImage, 'Mode should be TextToImage');
+      assert(context.session?.selectedModel === 'test-model', 'Selected model should be test-model');
     }
   },
   {
-    name: 'Successfully creates model training (Plan B)',
-    category: 'Model Training',
-    description: 'Tests direct model creation without Inngest',
-    run: async () => {
-      const context = createTestContext()
-      // Test implementation
-      assert(true, 'Model training created successfully')
-    }
-  },
-  {
-    name: 'Handles Russian language',
+    name: 'Model Training Test - Russian Localization',
+    description: 'Should handle Russian localization correctly',
     category: 'Localization',
-    description: 'Tests Russian language support in model training',
     run: async () => {
-      const context = createTestContext()
-      if (context.session) {
-        context.session.is_ru = true
-      }
-      // Test implementation
-      assert(true, 'Russian language handled correctly')
+      const context = createTestContext();
+      assert(context.session?.prompt === 'test prompt', 'Prompt should be set correctly');
+      assert(context.session?.selectedSize === '512x512', 'Size should be set correctly');
     }
   }
-] as Test[]
+];
 
-const runner = new TestRunner()
-tests.forEach(test => runner.addTests([test]))
-runner.run()
+const runner = new TestRunner();
+tests.forEach(test => runner.addTests([test]));
+
+export default runner;

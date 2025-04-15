@@ -6,6 +6,7 @@ import { Buffer } from 'buffer'
 import { Mode } from './cost.interface'
 import { BroadcastContentType } from '@/scenes/broadcastWizard'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
+import { DigitalAvatarModel } from './digital-avatar.interface'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {
@@ -112,6 +113,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     subscription?: LocalSubscription
   }
   is_ru: boolean
+  selectedAvatarModel?: DigitalAvatarModel
 }
 
 export interface MyContext extends Context {

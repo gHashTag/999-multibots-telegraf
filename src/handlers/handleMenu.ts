@@ -37,7 +37,8 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         console.log('CASE: 🤖 Цифровое тело')
-        await ctx.scene.enter(ModeEnum.SelectAiTextModel)
+        ctx.session.mode = ModeEnum.DigitalAvatarBody
+        await ctx.scene.enter(ModeEnum.DigitalAvatarBody)
       },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         console.log('CASE handleMenu: 📸 Нейрофото')

@@ -9,6 +9,7 @@ import {
   getModelTrainingMessages,
 } from '../../shared/model.utils'
 import { ModelTrainingRequest, ModelTrainingDirectResult } from '@/interfaces/neuro/model.interface'
+import { v4 as uuidv4 } from 'uuid'
 
 // Обновляем интерфейс для ответа Inngest
 export interface ModelTrainingResult {
@@ -51,39 +52,125 @@ export async function createModelTraining(
   config: ModelTrainingConfig,
   ctx: MyContext
 ): Promise<ModelTrainingResult> {
+  // Создаем уникальный ID для отслеживания запроса
+  const requestId = `mt-${ctx.message?.from?.id}-${Date.now()}-${uuidv4().substring(0, 8)}`;
+
+  // Подготовка данных события
+  const eventData = {
+    config,
+    telegram_id: ctx.message?.from?.id.toString() || '',
+    is_ru: ctx.session?.is_ru || false,
+    username: ctx.message?.from?.username || '',
+  };
+
+  logger.info('🔍 Подготовка запроса на обучение модели:', {
+    description: 'Preparing model training request',
+    request_id: requestId,
+    telegram_id: eventData.telegram_id,
+    is_ru: eventData.is_ru,
+  });
+
   try {
-    // Отправляем запрос через Inngest
-    const response = await inngest.send({
-      name: 'model/training.create',
-      data: {
+    let useDirectCreation = false;
+
+    try {
+      // План A: Пытаемся использовать Inngest
+      logger.info('🔄 План A: Пытаемся использовать Inngest', {
+        description: 'Trying to use Inngest (Plan A)',
+        request_id: requestId,
+      });
+
+      // Отправляем сообщение пользователю
+      await ctx.reply(
+        ctx.session?.is_ru
+          ? '🚀 Ваш запрос на обучение модели принят! Результат будет отправлен в этот чат.'
+          : '🚀 Your model training request has been accepted! The result will be sent to this chat.'
+      );
+
+      // Отправляем запрос через Inngest
+      const response = await inngest.send({
+        id: requestId,
+        name: 'model/training.create',
+        data: eventData,
+      });
+
+      logger.info('✅ Запрос успешно отправлен через Inngest:', {
+        description: 'Request successfully sent via Inngest',
+        request_id: requestId,
+        response: JSON.stringify(response || {}),
+      });
+
+      return {
+        success: true,
+        eventId: requestId,
+      };
+    } catch (inngestError) {
+      // Если Inngest выдал ошибку, устанавливаем флаг для прямого создания
+      useDirectCreation = true;
+
+      logger.info('⚠️ План B: Переключение на прямое создание', {
+        description: 'Switching to direct creation (Plan B)',
+        error: inngestError instanceof Error ? inngestError.message : String(inngestError),
+        request_id: requestId,
+      });
+    }
+
+    // Если Inngest выдал ошибку, используем прямое создание
+    if (useDirectCreation) {
+      // Отправляем сообщение о переключении на резервный вариант
+      await ctx.reply(ctx.session?.is_ru ? '⚙️...' : '⚙️...');
+
+      logger.info('🔄 Запуск прямого создания:', {
+        description: 'Starting direct creation',
+        request_id: requestId,
+      });
+
+      // Используем прямое создание
+      const directResult = await createModelTrainingDirect(
+        ctx,
+        config.filePath,
         config,
-        telegram_id: ctx.message?.from?.id.toString() || '',
-        is_ru: ctx.session?.is_ru || false
-      }
-    }) as unknown as { id: string; success: boolean }
+        true // Включаем отправку сообщений
+      );
 
-    return {
-      success: true,
-      eventId: response.id
+      logger.info('✅ Результат прямого создания:', {
+        description: 'Direct creation result',
+        request_id: requestId,
+        success: directResult.success,
+      });
+
+      return {
+        success: directResult.success,
+        error: directResult.error,
+        direct: true,
+        requestId: directResult.requestId,
+      };
     }
+
+    // Этот код не должен выполниться, но TypeScript требует return
+    throw new Error('Unexpected execution path');
   } catch (error) {
-    logger.error('Failed to create model training via Inngest, falling back to direct', {
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    logger.error('❌ Критическая ошибка при создании модели:', {
+      description: 'Critical error during model creation',
+      request_id: requestId,
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
 
-    // Fallback на прямое создание
-    const directResult = await createModelTrainingDirect(
-      ctx,
-      config.filePath,
-      config,
-      true // Включаем отправку сообщений
-    )
+    // Отправляем сообщение об ошибке пользователю
+    await ctx.reply(
+      ctx.session?.is_ru
+        ? '😔 Произошла критическая ошибка при создании модели. Пожалуйста, попробуйте позже.'
+        : '😔 A critical error occurred during model creation. Please try again later.'
+    );
+
     return {
-      success: directResult.success,
-      error: directResult.error,
-      direct: true,
-      requestId: directResult.requestId
-    }
+      success: false,
+      error: errorMessage,
+      requestId,
+    };
   }
 }
 
