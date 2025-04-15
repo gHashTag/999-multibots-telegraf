@@ -1,64 +1,56 @@
-/**
- * Интерфейс для мок-функции
- */
+export type MockResult<T> = {
+  type: "return" | "throw";
+  value: T;
+};
+
+export interface MockState<T extends (...args: any[]) => any> {
+  calls: Parameters<T>[];
+  results: MockResult<ReturnType<T>>[];
+  instances: any[];
+  invocationCallOrder: number[];
+  lastCall?: Parameters<T>;
+  implementation?: T;
+}
+
 export interface IMockFunction<T extends (...args: any[]) => any> {
   (...args: Parameters<T>): ReturnType<T>;
-  mock: {
-    calls: Parameters<T>[];
-    results: Array<{ type: 'return' | 'throw'; value: any }>;
-    instances: any[];
-    lastCall?: Parameters<T>;
-  };
-  mockClear: () => IMockFunction<T>;
-  mockReset: () => IMockFunction<T>;
-  mockImplementation: (fn: T) => IMockFunction<T>;
-  mockReturnValue: (value: ReturnType<T>) => IMockFunction<T>;
-  mockResolvedValue: <U>(value: U) => IMockFunction<T>;
-  mockRejectedValue: (error: Error) => IMockFunction<T>;
-  mockReturnThis?: () => IMockFunction<T>;
+  mock: MockState<T>;
+  mockClear(): IMockFunction<T>;
+  mockReset(): IMockFunction<T>;
+  mockImplementation(fn: T): IMockFunction<T>;
+  mockReturnValue(value: ReturnType<T>): IMockFunction<T>;
+  mockReturnValueOnce(value: ReturnType<T>): IMockFunction<T>;
+  mockRestore(): IMockFunction<T>;
 }
 
 /**
  * Создает мок-функцию с возможностью отслеживания вызовов
  */
-function createBaseMockFunction<T extends (...args: any[]) => any>(
+export function createMockFunction<T extends (...args: any[]) => any>(
   implementation?: T
 ): IMockFunction<T> {
   const mockState = {
     calls: [] as Parameters<T>[],
-    results: [] as Array<{ type: 'return' | 'throw'; value: any }>,
-    instances: [] as any[],
+    results: [] as ReturnType<T>[],
     implementation: implementation || ((() => undefined) as unknown as T)
   };
 
   const mockFn = function(this: any, ...args: Parameters<T>): ReturnType<T> {
     mockState.calls.push(args);
-    mockState.instances.push(this);
-    try {
-      const result = mockState.implementation.apply(this, args);
-      mockState.results.push({ type: 'return', value: result });
-      return result;
-    } catch (error) {
-      mockState.results.push({ type: 'throw', value: error });
-      throw error;
-    }
+    mockState.results.push(mockState.implementation.apply(this, args));
+    return mockState.results[mockState.results.length - 1];
   } as IMockFunction<T>;
 
-  Object.defineProperty(mockFn, 'mock', {
-    get: () => ({
-      calls: mockState.calls,
-      results: mockState.results,
-      instances: mockState.instances,
-      get lastCall() {
-        return mockState.calls.length > 0 ? mockState.calls[mockState.calls.length - 1] : undefined;
-      }
-    })
-  });
+  mockFn.mock = {
+    calls: mockState.calls,
+    results: mockState.results,
+    implementation: mockState.implementation
+  };
 
   mockFn.mockClear = () => {
     mockState.calls = [];
     mockState.results = [];
-    mockState.instances = [];
+    mockState.implementation = (() => undefined) as unknown as T;
     return mockFn;
   };
 
@@ -74,29 +66,29 @@ function createBaseMockFunction<T extends (...args: any[]) => any>(
   };
 
   mockFn.mockReturnValue = (value: ReturnType<T>) => {
-    mockState.implementation = (() => value) as unknown as T;
+    return mockFn.mockImplementation((() => value) as unknown as T);
+  };
+
+  mockFn.mockReturnValueOnce = (value: ReturnType<T>) => {
+    const original = mockState.implementation;
+    let called = false;
+    mockState.implementation = ((...args: Parameters<T>) => {
+      if (!called) {
+        called = true;
+        return value;
+      }
+      return original(...args);
+    }) as T;
     return mockFn;
   };
 
-  mockFn.mockResolvedValue = <U>(value: U) => {
-    mockState.implementation = (() => Promise.resolve(value)) as unknown as T;
-    return mockFn;
-  };
-
-  mockFn.mockRejectedValue = (error: Error) => {
-    mockState.implementation = (() => Promise.reject(error)) as unknown as T;
-    return mockFn;
-  };
-
-  mockFn.mockReturnThis = () => {
-    mockState.implementation = (function(this: any) { return this; }) as unknown as T;
+  mockFn.mockRestore = () => {
+    mockFn.mockReset();
     return mockFn;
   };
 
   return mockFn;
 }
-
-export const createMockFunction = createBaseMockFunction;
 
 /**
  * Вспомогательные функции для работы с моками
@@ -134,95 +126,86 @@ export const mockUtils = {
  * A simple mock function implementation that replaces Jest's jest.fn()
  * This provides similar functionality for mocking in our custom test framework.
  */
-export function mockFn<T extends (...args: any[]) => any>(
-  implementation?: T
-): IMockFunction<T> {
-  const mockCalls: Array<Parameters<T>> = [];
-  const mockResults: Array<{ type: 'return' | 'throw'; value: any }> = [];
-  const mockInstances: any[] = [];
-  let mockImplementationFn = implementation || ((() => undefined) as unknown as T);
+export function mockFn<T extends (...args: any[]) => any>(implementation?: T): IMockFunction<T> {
+  let callOrder = 0;
 
-  const mockFunction = function (this: any, ...args: Parameters<T>): ReturnType<T> {
-    mockCalls.push(args);
-    mockInstances.push(this);
+  const fn = function (...args: Parameters<T>): ReturnType<T> {
+    fn.mock.calls.push(args);
+    fn.mock.lastCall = args;
+    fn.mock.invocationCallOrder.push(++callOrder);
 
     try {
-      const result = mockImplementationFn.apply(this, args);
-      mockResults.push({ type: 'return', value: result });
+      const impl = fn.mock.implementation || ((() => undefined) as unknown as T);
+      const result = impl(...args);
+      fn.mock.results.push({ type: "return", value: result });
       return result;
     } catch (error) {
-      mockResults.push({ type: 'throw', value: error });
+      fn.mock.results.push({ type: "throw", value: error as ReturnType<T> });
       throw error;
     }
   } as IMockFunction<T>;
 
-  // Add mock property to track calls and results
-  mockFunction.mock = {
-    calls: mockCalls,
-    results: mockResults,
-    instances: mockInstances,
-    get lastCall() {
-      return mockCalls.length > 0 ? mockCalls[mockCalls.length - 1] : undefined;
-    },
+  fn.mock = {
+    calls: [],
+    results: [],
+    instances: [],
+    invocationCallOrder: [],
+    lastCall: undefined,
+    implementation: implementation || ((() => undefined) as unknown as T)
   };
 
-  // Add methods for manipulating the mock
-  mockFunction.mockClear = () => {
-    mockCalls.length = 0;
-    mockResults.length = 0;
-    mockInstances.length = 0;
-    return mockFunction;
+  fn.mockClear = function(this: IMockFunction<T>): IMockFunction<T> {
+    this.mock.calls = [];
+    this.mock.results = [];
+    this.mock.instances = [];
+    this.mock.invocationCallOrder = [];
+    this.mock.lastCall = undefined;
+    return this;
   };
 
-  mockFunction.mockReset = () => {
-    mockFunction.mockClear();
-    mockImplementationFn = (() => undefined) as unknown as T;
-    return mockFunction;
+  fn.mockReset = function(this: IMockFunction<T>): IMockFunction<T> {
+    this.mockClear();
+    this.mock.implementation = undefined;
+    return this;
   };
 
-  mockFunction.mockImplementation = (fn: T) => {
-    mockImplementationFn = fn;
-    return mockFunction;
+  fn.mockImplementation = function(this: IMockFunction<T>, impl: T): IMockFunction<T> {
+    this.mock.implementation = impl;
+    return this;
   };
 
-  mockFunction.mockReturnValue = (value: ReturnType<T>) => {
-    mockImplementationFn = (() => value) as unknown as T;
-    return mockFunction;
+  fn.mockReturnValue = function(this: IMockFunction<T>, value: ReturnType<T>): IMockFunction<T> {
+    return this.mockImplementation((() => value) as unknown as T);
   };
 
-  mockFunction.mockResolvedValue = <U>(value: U) => {
-    mockImplementationFn = (() => Promise.resolve(value)) as unknown as T;
-    return mockFunction;
+  fn.mockReturnValueOnce = function(this: IMockFunction<T>, value: ReturnType<T>): IMockFunction<T> {
+    const originalImpl = this.mock.implementation;
+    let called = false;
+    
+    return this.mockImplementation(function(this: any, ...args: Parameters<T>): ReturnType<T> {
+      if (!called) {
+        called = true;
+        return value;
+      }
+      return (originalImpl || ((() => undefined) as unknown as T)).apply(this, args);
+    } as unknown as T);
   };
 
-  mockFunction.mockRejectedValue = (error: Error) => {
-    mockImplementationFn = (() => Promise.reject(error)) as unknown as T;
-    return mockFunction;
+  fn.mockRestore = function(this: IMockFunction<T>): IMockFunction<T> {
+    return this.mockReset();
   };
 
-  mockFunction.mockReturnThis = () => {
-    mockImplementationFn = (function(this: any) { return this; }) as unknown as T;
-    return mockFunction;
-  };
-
-  return mockFunction;
+  return fn;
 }
 
 /**
  * Creates a mock object with all methods mocked
  */
-export function mockObject<T extends Record<string, any>>(methods: Partial<T> = {}): { [K in keyof T]: T[K] extends (...args: any[]) => any ? IMockFunction<T[K]> : T[K] } {
-  const result = {} as { [K in keyof T]: T[K] extends (...args: any[]) => any ? IMockFunction<T[K]> : T[K] };
-  
-  for (const key in methods) {
-    const value = methods[key];
-    if (typeof value === 'function') {
-      result[key] = mockFn(value) as any;
-    } else {
-      result[key] = value as any;
-    }
+export function mockObject<T extends Record<string, (...args: any[]) => any>>(obj: T): { [K in keyof T]: IMockFunction<T[K]> } {
+  const result = {} as { [K in keyof T]: IMockFunction<T[K]> };
+  for (const key in obj) {
+    result[key] = createMockFunction(obj[key]);
   }
-  
   return result;
 }
 

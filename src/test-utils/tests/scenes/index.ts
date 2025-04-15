@@ -40,4 +40,5 @@ export { default as runSubscriptionCheckSceneTests } from './subscriptionCheckSc
 export { default as runSelectNeuroPhotoSceneTests } from './selectNeuroPhotoScene.test';
 export { default as runChangeAudioSceneTests } from './changeAudioScene.test';
 export { default as runDigitalAvatarBodyWizardTests } from './digitalAvatarBodyWizard.test';
-export { default as runDigitalAvatarBodyWizardV2Tests } from './digitalAvatarBodyWizardV2.test'; 
+export { default as runDigitalAvatarBodyWizardV2Tests } from './digitalAvatarBodyWizardV2.test';
+export { default as runNeuroCoderSceneTests } from './neuroCoderScene.test'; 

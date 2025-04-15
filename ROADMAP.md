@@ -147,27 +147,55 @@
 
 ## Последние обновления
 
-- 27.07.2024 - Добавлен импорт ModeEnum в тесты neuroCoderScene для корректной работы с режимами
-- 26.06.2024 - Добавлены тесты для сцены липсинка (lipSyncWizard), включающие проверку всех основных сценариев: загрузка видео через URL и файл, проверка ограничений по размеру, обработка ошибок и успешный процесс генерации липсинка.
-- 25.06.2024 - Удалены ссылки на несуществующую сцену imageToVoiceoverWizard из тестов
-- 24.06.2024 - Добавлен файл sceneFactory для создания сцен
-- 20.06.2024 - Доработан языковой файл для языковой сцены
-- 15.06.2024 - Исправлены тесты для проверки баланса пользователя
+### 30.08.2024 (5)
+- Исправлены проблемы с типизацией в mockContext.ts:
+  - Добавлен корректный тип для чата в моках сообщений
+  - Исправлены типы для wizard контекста (WizardContext)
+  - Улучшена типизация Response в глобальном моке fetch
+  - Заменены createMockFunction на mockFn для унификации
+- Следующие шаги:
+  - Добавить тесты для проверки корректности типов моков
+  - Расширить документацию по использованию типизированных моков
+  - Обновить существующие тесты с учетом новых типов
 
-## Test Improvements (Latest)
+### 30.08.2024 (4)
+- Завершена работа над улучшением системы моков:
+  - Добавлены недостающие свойства в MockState (instances, invocationCallOrder)
+  - Реализована корректная инициализация всех свойств мока
+  - Улучшена типизация для более точного отслеживания вызовов
+  - Исправлены ошибки в работе с результатами моков
+- Следующие шаги:
+  - Добавить тесты для новой функциональности моков
+  - Расширить документацию по использованию моков
+  - Интегрировать улучшения в существующие тестовые сценарии
 
-### uploadVideoScene Tests Enhancement
-- ✅ Added comprehensive test coverage for all scenarios
-- ✅ Implemented mock for telegram.getFile
-- ✅ Added constants for test data
-- ✅ Enhanced error messages and assertions
+### 30.08.2024 (3)
+- Исправлены проблемы с типами в тестовых файлах:
+  - Исправлены типы в neuroCoderScene для корректной работы с сессиями
+  - Улучшена типизация в mockFunction.ts для более точной работы с моками
+  - Обновлены типы в тестах uploadVideoScene и lipSyncWizard
+- Улучшена организация типов в тестовых утилитах:
+  - Создан централизованный index.ts для экспорта типов
+  - Устранено дублирование типов MockFunction/IMockFunction
+  - Добавлены более точные типы для контекста Telegraf
+- Запланированы следующие улучшения:
+  - Дальнейшая оптимизация типов в тестовых файлах
+  - Создание единой системы типов для всех тестов
+  - Улучшение документации по использованию типов
+
+### Текущий статус тестового покрытия
+- Всего тестовых файлов: 45
+- Файлы требующие обновления: 3
+- Отсутствующие тесты: 1 (neuroCoderScene)
 
 ### Next Steps
-- [ ] Add integration tests for video processing
-- [ ] Implement edge case scenarios
-- [ ] Add performance benchmarks
-- [ ] Document test coverage metrics
+- [ ] Optimize type definitions across all test files
+- [ ] Create unified type system for test framework
+- [ ] Improve type documentation and usage examples
+- [ ] Add performance benchmarks for test execution
+- [ ] Implement automated type checking in CI/CD
+- [ ] Update test coverage metrics with new type-safe tests
 
 ---
 
-*Последнее обновление: 26.07.2024*
+*Последнее обновление: 30.08.2024*

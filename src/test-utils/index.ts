@@ -60,6 +60,15 @@ export {
   subscriptionSceneTests
 };
 
+// Export test utilities and types
+export * from './core/mockFunction';
+export * from './mocks/context';
+export * from './types/MockFunction';
+export * from './types/TestResult';
+
+// Export scene tests
+export * from './tests/scenes';
+
 /**
  * Запуск всех тестов, если файл вызван напрямую
  */
