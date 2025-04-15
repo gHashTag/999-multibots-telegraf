@@ -1,12 +1,15 @@
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import { UPLOAD_DIR, API_URL } from '@/config'
 import { logger } from '@/utils/logger'
 import { TelegramId } from '@/interfaces/telegram.interface'
 
+// Configuration
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads')
+const API_URL = process.env.API_URL || 'http://localhost:3000'
+
 /**
- * Типы для работы с моделями
+ * Types for model operations
  */
 export interface ModelFile {
   filePath: string
@@ -31,19 +34,19 @@ export interface ModelUploadResult {
 }
 
 /**
- * Генерирует уникальный ID для запроса на обучение модели
+ * Generates a unique ID for model training request
  */
 export const generateModelRequestId = (telegram_id: string, modelName: string): string => {
   return `train-${telegram_id}-${modelName}-${Date.now()}-${uuidv4().substring(0, 8)}`
 }
 
 /**
- * Проверяет существование файла и его размер
+ * Validates model file existence and size
  */
 export const validateModelFile = async (filePath: string): Promise<ModelFile> => {
   try {
     if (!fs.existsSync(filePath)) {
-      throw new Error('Файл не найден: ' + filePath)
+      throw new Error('File not found: ' + filePath)
     }
 
     const fileStats = fs.statSync(filePath)
@@ -51,8 +54,8 @@ export const validateModelFile = async (filePath: string): Promise<ModelFile> =>
     const fileName = path.basename(filePath)
 
     logger.info({
-      message: '📏 Проверка файла модели',
-      fileSizeMB: (fileSize / (1024 * 1024)).toFixed(2) + ' МБ',
+      message: '📏 Checking model file',
+      fileSizeMB: (fileSize / (1024 * 1024)).toFixed(2) + ' MB',
       fileName,
     })
 
@@ -63,7 +66,7 @@ export const validateModelFile = async (filePath: string): Promise<ModelFile> =>
     }
   } catch (error) {
     logger.error({
-      message: '❌ Ошибка при проверке файла модели',
+      message: '❌ Error checking model file',
       error: error instanceof Error ? error.message : 'Unknown error',
       filePath,
     })
@@ -72,19 +75,24 @@ export const validateModelFile = async (filePath: string): Promise<ModelFile> =>
 }
 
 /**
- * Загружает файл модели и возвращает URL для доступа
+ * Uploads model file and returns access URL
  */
 export const uploadModelFile = async (modelFile: ModelFile): Promise<ModelUploadResult> => {
   try {
-    // Копируем файл в директорию uploads
+    // Ensure upload directory exists
+    if (!fs.existsSync(UPLOAD_DIR)) {
+      await fs.promises.mkdir(UPLOAD_DIR, { recursive: true })
+    }
+
+    // Copy file to uploads directory
     const destPath = path.join(UPLOAD_DIR, modelFile.fileName)
     await fs.promises.copyFile(modelFile.filePath, destPath)
 
-    // Формируем полный URL
+    // Generate full URL
     const fullUrl = `${API_URL}/uploads/${modelFile.fileName}`
 
     logger.info({
-      message: '✅ Файл модели сохранен и доступен по URL',
+      message: '✅ Model file saved and available at URL',
       path: destPath,
       url: fullUrl,
     })
@@ -95,7 +103,7 @@ export const uploadModelFile = async (modelFile: ModelFile): Promise<ModelUpload
     }
   } catch (error) {
     logger.error({
-      message: '❌ Ошибка при загрузке файла модели',
+      message: '❌ Error uploading model file',
       error: error instanceof Error ? error.message : 'Unknown error',
       fileName: modelFile.fileName,
     })
@@ -108,20 +116,20 @@ export const uploadModelFile = async (modelFile: ModelFile): Promise<ModelUpload
 }
 
 /**
- * Очищает временные файлы после загрузки
+ * Cleans up temporary files after upload
  */
 export const cleanupModelFiles = async (filePath: string): Promise<void> => {
   try {
     if (fs.existsSync(filePath)) {
       await fs.promises.unlink(filePath)
       logger.info({
-        message: '🧹 Временные файлы модели очищены',
+        message: '🧹 Model temporary files cleaned up',
         filePath,
       })
     }
   } catch (error) {
     logger.warn({
-      message: '⚠️ Ошибка при очистке временных файлов модели',
+      message: '⚠️ Error cleaning up model temporary files',
       error: error instanceof Error ? error.message : 'Unknown error',
       filePath,
     })
@@ -129,7 +137,7 @@ export const cleanupModelFiles = async (filePath: string): Promise<void> => {
 }
 
 /**
- * Формирует сообщения для пользователя на разных языках
+ * Generates user messages in different languages
  */
 export const getModelTrainingMessages = (is_ru: boolean) => ({
   started: is_ru
