@@ -35,26 +35,63 @@ interface TestOptions {
   noExit?: boolean
 }
 
-interface Test {
+export interface Test {
   name: string
   category: string
   description: string
   run: () => Promise<any>
 }
 
+type TestFunction = () => Promise<void> | void
+
 export class TestRunner {
+  private tests: Map<string, TestFunction> = new Map()
+  private beforeEachFn?: () => void
+  private afterEachFn?: () => void
   private handlers: Map<string, Function> = new Map()
-  private tests: Test[] = []
+  private testsToRun: Test[] = []
   private options: TestOptions
 
-  constructor(options: TestOptions = {}) {
+  constructor(private name: string = 'Test Suite') {
     this.options = {
       only: [],
       skip: [],
       verbose: false,
       noExit: false,
-      ...options
     }
+  }
+
+  beforeEach(fn: () => void) {
+    this.beforeEachFn = fn
+  }
+
+  afterEach(fn: () => void) {
+    this.afterEachFn = fn
+  }
+
+  test(name: string, fn: TestFunction) {
+    this.tests.set(name, fn)
+  }
+
+  async run() {
+    console.log(`\n🚀 Running ${this.name}...\n`)
+    
+    for (const [name, fn] of this.tests) {
+      try {
+        this.beforeEachFn?.()
+        console.log(`📝 Test: ${name}`)
+        await fn()
+        console.log(`✅ Passed: ${name}\n`)
+      } catch (error) {
+        console.error(`❌ Failed: ${name}`)
+        console.error(error)
+        console.log('\n')
+      } finally {
+        this.afterEachFn?.()
+      }
+    }
+    
+    console.log(`\n✨ ${this.name} completed!\n`)
   }
 
   async init() {
@@ -72,11 +109,11 @@ export class TestRunner {
   }
 
   addTests(testsToAdd: Test[]) {
-    this.tests.push(...testsToAdd)
+    this.testsToRun.push(...testsToAdd)
   }
 
   getTestCount(): number {
-    return this.tests.length
+    return this.testsToRun.length
   }
 
   /**
@@ -86,10 +123,10 @@ export class TestRunner {
     const results: TestResult[] = []
     const { only, skip, verbose } = this.options
     
-    logger.info(`🚀 Running ${this.tests.length} tests with concurrency ${concurrency}`)
+    logger.info(`🚀 Running ${this.testsToRun.length} tests with concurrency ${concurrency}`)
     
     // Фильтруем тесты, которые нужно запустить
-    const testsToRun = this.tests.filter(test => {
+    const testsToRun = this.testsToRun.filter(test => {
       if (only && only.length > 0) {
         return only.some(pattern => 
           test.name.includes(pattern) || 
@@ -262,10 +299,10 @@ export class TestRunner {
     const results: TestResult[] = []
     const { only, skip, verbose } = this.options
     
-    logger.info(`🚀 Running ${this.tests.length} tests`)
+    logger.info(`🚀 Running ${this.testsToRun.length} tests`)
     
     // Фильтруем тесты, которые нужно запустить
-    const testsToRun = this.tests.filter(test => {
+    const testsToRun = this.testsToRun.filter(test => {
       if (only && only.length > 0) {
         return only.some(pattern => 
           test.name.includes(pattern) || 

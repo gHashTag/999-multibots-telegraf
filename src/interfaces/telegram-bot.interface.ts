@@ -111,6 +111,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     stars: number
     subscription?: LocalSubscription
   }
+  is_ru: boolean
 }
 
 export interface MyContext extends Context {
