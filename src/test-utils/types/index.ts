@@ -6,11 +6,21 @@
 export * from './mockFunction';
 export * from './global';
 
+// Test categories
+export enum TestCategory {
+  All = 'all',
+  Scenes = 'scenes',
+  Wizards = 'wizards',
+  Utils = 'utils',
+  Integration = 'integration'
+}
+
 // Re-export common types
 export interface TestResult {
-  passed: boolean;
-  message?: string;
-  error?: Error;
+  name: string;
+  success: boolean;
+  message: string;
+  category?: TestCategory;
 }
 
 export interface TestContext {

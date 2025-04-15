@@ -1,34 +1,78 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import mock from '@/test-utils/core/mock'
+import { Context } from 'telegraf'
+import { mockFn } from '../core/mockFunction'
+import { IMockFunction } from '../types/MockFunction'
+import { mockBot, getMockBot } from './bot'
+import { mockSupabase } from './supabase'
 
-// Mock для getBotByName
-export const mockBot = {
-  telegram: {
-    sendMessage: mock.create(),
-    sendVideo: mock.create()
-  }
-}
+/**
+ * Mock implementations for external services and dependencies
+ */
 
-mock.object({
-  getBotByName: (botName: string) => {
-    if (botName === 'nonexistent_bot') {
+// Bot-related mocks
+export { mockBot, getMockBot }
+
+// Database mocks
+export { mockSupabase }
+
+// Service mocks
+export * from './elevenlabs.mock'
+export * from './inngestMock'
+
+// Context mocks
+export * from './context'
+
+// Types
+export * from './types'
+
+/**
+ * Mock function for getting bot instance by name
+ */
+export const getBotByName = mockFn<(name: string) => any>()
+  .mockImplementation((name: string) => {
+    if (name === 'nonexistent_bot') {
       return { bot: null }
     }
     return { bot: mockBot }
-  }
-})
+  })
 
-// Mock для баланса пользователя
-mock.object({
-  getUserBalance: async (telegramId: string) => {
-    if (telegramId === '123456') {
+/**
+ * Mock function for getting user balance
+ */
+export const getUserBalance = mockFn<(userId: number) => Promise<number>>()
+  .mockImplementation(async (userId: number) => {
+    if (userId === 123456) {
       return 1000 // Достаточный баланс для обычных операций
     }
     return 10 // Недостаточный баланс
-  },
-  updateUserBalance: mock.create()
-})
+  })
+
+/**
+ * Mock function for updating user balance
+ */
+export const updateUserBalance = mockFn<(userId: number, amount: number) => Promise<void>>()
+  .mockImplementation(async () => {})
+
+/**
+ * Mock configuration for video models
+ */
+export const videoModels = {
+  model1: { id: 'model1', name: 'Model 1', description: 'Test model 1' },
+  model2: { id: 'model2', name: 'Model 2', description: 'Test model 2' },
+}
+
+/**
+ * Mock axios request implementation
+ */
+export const mockAxiosRequest = mockFn<(config: any) => Promise<any>>()
+  .mockImplementation(async (config: any) => {
+    if (config.url.includes('error')) {
+      throw new Error('Mock API error')
+    }
+    return { data: { success: true } }
+  })
 
 // Mock для конфигурации видео моделей
 mock.object({
@@ -92,4 +136,4 @@ mock.object({
       }
     }
   }
-});
+})

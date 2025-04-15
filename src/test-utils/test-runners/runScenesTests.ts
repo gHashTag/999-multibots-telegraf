@@ -2,22 +2,32 @@
 /**
  * Запуск тестов для телеграм-сцен
  */
-import { loggerTest as logger } from '@/utils/logger';
-import { TestResult, TestCategory } from './core/types';
+import { logger } from '@/utils/logger';
+import { TestResult, Test } from '../types';
 import { TestCategory as TestCategoryCore } from './core/categories';
 import mockApi from './core/mock';
 import * as database from '@/libs/database';
 import * as supabaseModule from '@/supabase';
 import { inngest } from '@/inngest-functions/clients';
 import { setupTestEnvironment } from './core/setupTests';
+import { TestRunnerConfig } from '../types';
+import { createMockFunction } from '../core/mockFunction';
+import { setupTests } from '../core/setupTests';
 
 // Импортируем тесты для сцен
-import * as languageSceneTests from './tests/scenes/languageScene.test';
-import * as createUserSceneTests from './tests/scenes/createUserScene.test';
-import { runTextToVideoWizardTests } from './tests/scenes/textToVideoWizard.test';
-import { runTextToImageWizardTests } from './tests/scenes/textToImageWizard.test';
-import { runNeuroPhotoWizardTests } from './tests/scenes/neuroPhotoWizard.test';
-import { runTextToSpeechWizardTests } from './tests/scenes/textToSpeechWizard.test';
+import { 
+  testLanguageScene_EnterScene,
+  testLanguageScene_ChangeToRussian,
+  testLanguageScene_ChangeToEnglish,
+  testLanguageScene_UnsupportedLanguage,
+  testLanguageScene_BackToMenu,
+  testLanguageScene_CurrentLanguageIndicator
+} from '../tests/scenes/languageScene.test';
+import { runCreateUserSceneTests } from '../tests/scenes/createUserScene.test';
+import { runTextToVideoWizardTests } from '../tests/scenes/textToVideoWizard.test';
+import { runTextToImageWizardTests } from '../tests/scenes/textToImageWizard.test';
+import { runNeuroPhotoWizardTests } from '../tests/scenes/neuroPhotoWizard.test';
+import { runTextToSpeechWizardTests } from '../tests/scenes/textToSpeechWizard.test';
 import { runSubscriptionSceneTests } from './tests/scenes/subscriptionScene.test';
 import runNeuroPhotoWizardV2Tests from './tests/scenes/neuroPhotoWizardV2.test';
 import runCheckBalanceSceneTests from './tests/scenes/checkBalanceScene.test';
@@ -27,7 +37,6 @@ import runAudioToTextSceneTests from './tests/scenes/audioToTextScene.test';
 import runStartSceneTests from './tests/scenes/startScene.test';
 import runBalanceSceneTests from './tests/scenes/balanceScene.test';
 import runSelectModelSceneTests from './tests/scenes/selectModelScene.test';
-import runCreateUserSceneTests from './tests/scenes/createUserScene.test';
 import runImageToPromptWizardTests from './tests/scenes/imageToPromptWizard.test';
 import runVoiceAvatarWizardTests from './tests/scenes/voiceAvatarWizard.test';
 import runHelpSceneTests from './tests/scenes/helpScene.test';
@@ -93,21 +102,21 @@ export async function runScenesTests(): Promise<TestResult[]> {
   
   // Запускаем тесты для языковой сцены
   await runTestsGroup('Тесты языковой сцены', [
-    languageSceneTests.testLanguageScene_EnterScene,
-    languageSceneTests.testLanguageScene_ChangeToRussian,
-    languageSceneTests.testLanguageScene_ChangeToEnglish,
-    languageSceneTests.testLanguageScene_UnsupportedLanguage,
-    languageSceneTests.testLanguageScene_BackToMenu,
-    languageSceneTests.testLanguageScene_CurrentLanguageIndicator
+    testLanguageScene_EnterScene,
+    testLanguageScene_ChangeToRussian,
+    testLanguageScene_ChangeToEnglish,
+    testLanguageScene_UnsupportedLanguage,
+    testLanguageScene_BackToMenu,
+    testLanguageScene_CurrentLanguageIndicator
   ], results);
   
   // Запускаем тесты для сцены создания пользователя
   await runTestsGroup('Тесты сцены создания пользователя', [
-    createUserSceneTests.testCreateUserScene_CreateUserWithoutReferral,
-    createUserSceneTests.testCreateUserScene_CreateUserWithReferral,
-    createUserSceneTests.testCreateUserScene_HandleMissingUserData,
-    createUserSceneTests.testCreateUserScene_HandleMissingMessageText,
-    createUserSceneTests.testCreateUserScene_CreateUserWithFullReferralLink
+    runCreateUserSceneTests.testCreateUserScene_CreateUserWithoutReferral,
+    runCreateUserSceneTests.testCreateUserScene_CreateUserWithReferral,
+    runCreateUserSceneTests.testCreateUserScene_HandleMissingUserData,
+    runCreateUserSceneTests.testCreateUserScene_HandleMissingMessageText,
+    runCreateUserSceneTests.testCreateUserScene_CreateUserWithFullReferralLink
   ], results);
   
   // Run textToVideoWizard tests
@@ -546,37 +555,32 @@ export async function runScenesTests(): Promise<TestResult[]> {
 /**
  * Вспомогательная функция для запуска группы тестов
  */
-async function runTestsGroup(
-  groupName: string,
-  tests: Array<() => Promise<TestResult>>,
-  results: TestResult[]
-): Promise<void> {
-  console.log('');
-  console.log(`🔍 ${groupName}...`);
+export async function runTestsGroup(tests: Test[], config?: TestRunnerConfig): Promise<TestResult[]> {
+  const results: TestResult[] = [];
   
-  for (const testFn of tests) {
+  for (const test of tests) {
+    if (config?.skip?.includes(test.name)) {
+      console.log(`⏭️ Skipping test: ${test.name}`);
+      continue;
+    }
+    
+    if (config?.only && !config.only.includes(test.name)) {
+      continue;
+    }
+
     try {
-      const result = await testFn();
+      const result = await test.run();
       results.push(result);
-      
-      // Выводим результат каждого теста
-      const icon = result.success ? '✅' : '❌';
-      console.log(`${icon} ${result.name}: ${result.success ? 'УСПЕХ' : 'ОШИБКА'}`);
-      if (!result.success) {
-        console.log(`   Сообщение: ${result.message}`);
-      }
     } catch (error) {
-      // В случае неожиданной ошибки добавляем информацию о ней
-      logger.error(`❌ Неожиданная ошибка при выполнении теста:`, error);
-      console.log(`❌ Неожиданная ошибка:`, error);
       results.push({
-        name: testFn.name || 'Неизвестный тест',
-        category: TestCategoryCore.All,
+        name: test.name,
         success: false,
-        message: String(error)
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   }
+
+  return results;
 }
 
 // Запускаем тесты, если файл вызван напрямую

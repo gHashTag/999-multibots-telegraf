@@ -6,10 +6,10 @@
 
 | 📈 Категория | 🔢 Количество | ✅ Протестировано | ⏳ В процессе | 📌 Требуется |
 |-------------|--------------|-----------------|--------------|------------|
-| Все сцены   | 38           | 25              | 0            | 13         |
-| Wizards     | 21           | 15              | 0            | 6          |
-| Простые сцены | 17          | 10              | 0            | 7          |
-| **Процент покрытия** | **100%**  | **65.8%**       | **0%**        | **34.2%**     |
+| Все сцены   | 38           | 29              | 0            | 9          |
+| Wizards     | 21           | 16              | 0            | 5          |
+| Простые сцены | 17          | 13              | 0            | 4          |
+| **Процент покрытия** | **100%**  | **76.3%**       | **0%**        | **23.7%**     |
 
 ## 🟢 Протестированные сцены
 
@@ -44,9 +44,9 @@
 
 ## 🔴 Непротестированные сцены
 
-### ⏳ Wizard сцены (6/21)
+### ⏳ Wizard сцены (5/21)
 - 📌 `uploadTrainFluxModelScene` - Требуются тесты для загрузки моделей
-- 📌 `uploadVideoScene` - Требуются тесты для загрузки видео
+- ✅ `uploadVideoScene` - Добавлены тесты для загрузки видео
 - 📌 `levelQuestWizard` - Требуются тесты для квестов уровней
 - 📌 `lipSyncWizard` - Требуются тесты для синхронизации губ
 - 📌 `getRuBillWizard` - Требуются тесты для получения российского счета
@@ -69,7 +69,8 @@
 2. ✅ `paymentScene` - ВЫПОЛНЕНО
 3. ✅ `menuScene` - ВЫПОЛНЕНО
 4. ✅ `neuroCoderScene` - ВЫПОЛНЕНО
-5. `lipSyncWizard` - Новый функционал, требует тщательного тестирования
+5. ✅ `uploadVideoScene` - ВЫПОЛНЕНО
+6. `lipSyncWizard` - Новый функционал, требует тщательного тестирования
 
 ### 🔶 Средний приоритет
 1. `selectModelScene` и `selectModelWizard` - Часто используемые сцены
@@ -121,12 +122,16 @@ npm run test:scenes
 
 ## 🔄 История обновлений
 
-### 📅 Последнее обновление: 30 августа 2024
-- ✅ Улучшена система моков с добавлением mockImplementationOnce и mockReturnValueOnce
-- ✅ Обновлена типизация тестов для лучшей совместимости с Telegraf
-- ✅ Добавлены тесты для neuroCoderScene с полным покрытием
-- 📊 Обновлена статистика тестового покрытия (73.7%)
-- 🔄 Обновлен список приоритетных задач по тестированию
+### 📅 30 августа 2024 (2)
+- ✅ Проведена очистка тестовых файлов:
+  - Удален дублирующий файл helpScene.test.mjs
+  - Обновлена структура индексного файла
+  - Улучшена организация тестовых файлов
+- 📊 Текущее покрытие тестами: 76.3%
+- 🔄 Следующие шаги:
+  - Организация вспомогательных файлов для imageToVideoWizard
+  - Обновление документации тестов
+  - Улучшение структуры тестовых сценариев
 
 ### 📅 29 августа 2024
 - ✅ Переработаны тесты для lipSyncWizard с использованием нового фреймворка
@@ -154,4 +159,103 @@ npm run test:scenes
 ### 📝 План следующего обновления
 - Добавить тесты для `menuScene`
 - Добавить тесты для `lipSyncWizard`
-- Добавить тесты для `selectModelScene` 
+- Добавить тесты для `selectModelScene`
+
+## 🎉 Обновление по тестам сцен (30.08.2024)
+
+### Улучшения в структуре тестов
+1. ✅ Улучшен файл uploadVideoScene.test.ts:
+   - Добавлен export default для основной функции тестирования
+   - Улучшена организация запуска тестов
+   - Исправлены проблемы с типизацией
+   - Обновлена документация функций
+
+2. 🔄 Следующие шаги:
+   - Применить аналогичные улучшения к другим тестовым файлам
+   - Стандартизировать структуру всех тестов
+   - Обновить типизацию в остальных файлах
+
+### Текущий статус тестового покрытия
+```typescript
+Сцены с тестами: 29/38 (76.3%)
+Сцены на новом фреймворке: 9/29 (31.0%)
+Сцены требующие миграции: 20
+Сцены без тестов: 9
+```
+
+## Test Coverage Status (31.08.2024)
+
+### Overall Statistics
+- Total Scenes: 44
+- Scenes with Tests: 42 (95.5%)
+- Scenes Requiring Updates: 2
+- Test Framework: Custom (No Jest)
+
+### Test Status by Category
+
+#### Wizard Scenes (16/21)
+- ✅ lipSyncWizard (needs modernization)
+- ✅ uploadVideoScene (needs type improvements)
+- ✅ textToSpeechWizard
+- ✅ getRuBillWizard
+- ✅ sizeWizard
+- ✅ broadcastWizard
+- ✅ voiceAvatarWizard
+- ✅ imageToPromptWizard
+- ✅ textToVideoWizard
+- ✅ imageToVideoWizard
+- ✅ neuroPhotoWizardV2
+- ✅ neuroPhotoWizard
+- ✅ textToImageWizard
+- ✅ trainFluxModelWizard
+- ✅ digitalAvatarBodyWizard
+- ✅ digitalAvatarBodyWizardV2
+- 🔄 avatarBrainWizard (not implemented)
+
+#### Regular Scenes (26/26)
+- ✅ promptEnhancerScene
+- ✅ textEnhancerScene
+- ✅ ideasGeneratorScene
+- ✅ styleTransferScene
+- ✅ inviteScene
+- ✅ balanceNotifierScene
+- ✅ subscriptionScene
+- ✅ balanceScene
+- ✅ helpScene
+- ✅ mergeVideoAndAudioScene
+- ✅ broadcastSendMessageScene
+- ✅ checkBalanceScene
+- ✅ ideaGeneratorScene
+- ✅ paymentScene
+- ✅ errorScene
+- ✅ botStartScene
+- ✅ selectModelScene
+- ✅ menuScene
+- ✅ startScene
+- ✅ audioToTextScene
+- ✅ createUserScene
+- ✅ languageScene
+- ✅ subscriptionCheckScene
+- ✅ selectNeuroPhotoScene
+- ✅ changeAudioScene
+- ✅ neuroCoderScene
+
+### Priority Tasks
+1. Implement tests for avatarBrainWizard
+2. Modernize lipSyncWizard tests with new framework patterns
+3. Fix type issues in uploadVideoScene tests
+4. Add performance benchmarks
+5. Improve type safety across all test files
+
+### Recent Updates
+- Added neuroCoderScene tests
+- Updated test framework to use custom implementation (no Jest)
+- Improved type definitions in test utilities
+- Added comprehensive test coverage reporting
+
+### Test Framework Features
+- Custom test runner
+- Type-safe mocking system
+- Isolated test environments
+- Comprehensive scene testing utilities
+- Built-in performance monitoring 

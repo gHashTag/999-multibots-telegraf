@@ -126,7 +126,7 @@ export const mockUtils = {
  * A simple mock function implementation that replaces Jest's jest.fn()
  * This provides similar functionality for mocking in our custom test framework.
  */
-export function mockFn<T extends (...args: any[]) => any>(implementation?: T): IMockFunction<T> {
+export const mockFn = <T extends (...args: any[]) => any>(implementation?: T): IMockFunction<T> => {
   let callOrder = 0;
 
   const fn = function (...args: Parameters<T>): ReturnType<T> {
@@ -196,7 +196,7 @@ export function mockFn<T extends (...args: any[]) => any>(implementation?: T): I
   };
 
   return fn;
-}
+};
 
 /**
  * Creates a mock object with all methods mocked

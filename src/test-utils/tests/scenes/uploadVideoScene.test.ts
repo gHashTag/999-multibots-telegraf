@@ -1,6 +1,11 @@
 import { Scenes, Telegram } from 'telegraf'
-import { Message, Update, UserFromGetMe, File } from 'telegraf/typings/core/types/typegram'
-import { MyContext } from '@/interfaces'
+import {
+  Message,
+  Update,
+  UserFromGetMe,
+  File,
+} from 'telegraf/typings/core/types/typegram'
+import { MyContext, MySession } from '@/interfaces'
 import { uploadVideoScene } from '@/scenes/uploadVideoScene'
 import { createMockContext } from '@/test-utils/core/mockContext'
 import { IMockFunction, mockFn } from '@/test-utils/core/mockFunction'
@@ -13,7 +18,7 @@ const TEST_USERNAME = 'test_user'
 const TEST_FILE_PATH = 'test/file/path.mp4'
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
 
-interface WizardSession extends Scenes.WizardSessionData {
+interface WizardSession extends MySession, Scenes.WizardSessionData {
   videoUrl: string
   balance: number
   isAdmin: boolean
@@ -30,9 +35,9 @@ interface WizardSession extends Scenes.WizardSessionData {
   }
 }
 
-type WizardContextWizard = {
-  next: () => Promise<void>
-  selectStep: (step: number) => Promise<void>
+interface WizardContextWizard {
+  next: IMockFunction<() => Promise<void>>
+  selectStep: IMockFunction<(step: number) => Promise<void>>
   state: {
     cursor: number
     data: string
@@ -40,7 +45,7 @@ type WizardContextWizard = {
   }
 }
 
-interface ExtendedContext extends Omit<MyContext, 'scene' | 'session' | 'wizard'> {
+interface ExtendedContext extends Omit<MyContext, 'session'> {
   scene: {
     enter: IMockFunction<(sceneId: string) => Promise<void>>
     leave: IMockFunction<() => Promise<void>>
@@ -49,34 +54,61 @@ interface ExtendedContext extends Omit<MyContext, 'scene' | 'session' | 'wizard'
   }
   wizard: WizardContextWizard
   session: WizardSession
-  reply: IMockFunction<(text: string, extra?: any) => Promise<Message.TextMessage>>
+  reply: IMockFunction<
+    (text: string, extra?: any) => Promise<Message.TextMessage>
+  >
   update: Update.MessageUpdate
   updateType: 'message'
   state: Record<string, any>
   me: string
   telegram: Partial<Telegram> & {
     getFile: IMockFunction<(fileId: string) => Promise<File>>
-    getMe: () => Promise<UserFromGetMe>
+    getMe: IMockFunction<() => Promise<UserFromGetMe>>
+    getFileLink?: (fileId: string | File) => Promise<URL>
   }
+  botInfo: UserFromGetMe
+  tg: Telegram
 }
 
-function createTestContext(overrides: Partial<ExtendedContext> = {}): ExtendedContext {
+function createTestContext(
+  overrides: Partial<ExtendedContext> = {}
+): ExtendedContext {
+  const botInfo: UserFromGetMe = {
+    id: TEST_USER_ID,
+    is_bot: true,
+    first_name: 'Test Bot',
+    username: 'test_bot',
+    can_join_groups: true,
+    can_read_all_group_messages: false,
+    supports_inline_queries: false,
+  }
+
   const defaultContext: ExtendedContext = {
     ...createMockContext(),
     scene: {
-      enter: mockFn<(sceneId: string) => Promise<void>>().mockImplementation(async () => Promise.resolve()),
-      leave: mockFn<() => Promise<void>>().mockImplementation(async () => Promise.resolve()),
-      reenter: mockFn<() => Promise<void>>().mockImplementation(async () => Promise.resolve()),
-      state: {}
+      enter: mockFn<(sceneId: string) => Promise<void>>().mockImplementation(
+        async () => Promise.resolve()
+      ),
+      leave: mockFn<() => Promise<void>>().mockImplementation(async () =>
+        Promise.resolve()
+      ),
+      reenter: mockFn<() => Promise<void>>().mockImplementation(async () =>
+        Promise.resolve()
+      ),
+      state: {},
     },
     wizard: {
-      next: mockFn<() => Promise<void>>().mockImplementation(async () => Promise.resolve()),
-      selectStep: mockFn<(step: number) => Promise<void>>().mockImplementation(async () => Promise.resolve()),
+      next: mockFn<() => Promise<void>>().mockImplementation(async () =>
+        Promise.resolve()
+      ),
+      selectStep: mockFn<(step: number) => Promise<void>>().mockImplementation(
+        async () => Promise.resolve()
+      ),
       state: {
         cursor: 0,
         data: '',
-        severity: 0
-      }
+        severity: 0,
+      },
     },
     session: {
       videoUrl: '',
@@ -91,27 +123,32 @@ function createTestContext(overrides: Partial<ExtendedContext> = {}): ExtendedCo
       prompt: '',
       __scenes: {
         data: {},
-        cursor: 0
-      }
+        cursor: 0,
+      },
+      selectedSize: '',
+      userModel: '',
+      numImages: 0,
+      telegram_id: TEST_USER_ID,
+      // Add other required MySession properties here
     },
-    reply: mockFn<(text: string, extra?: any) => Promise<Message.TextMessage>>().mockImplementation(
-      async (text: string) => ({
-        message_id: 1,
-        date: Math.floor(Date.now() / 1000),
-        chat: {
-          id: TEST_USER_ID,
-          type: 'private',
-          first_name: TEST_USERNAME
-        },
-        from: {
-          id: TEST_USER_ID,
-          is_bot: false,
-          first_name: TEST_USERNAME,
-          language_code: 'ru'
-        },
-        text
-      })
-    ),
+    reply: mockFn<
+      (text: string, extra?: any) => Promise<Message.TextMessage>
+    >().mockImplementation(async (text: string) => ({
+      message_id: 1,
+      date: Math.floor(Date.now() / 1000),
+      chat: {
+        id: TEST_USER_ID,
+        type: 'private',
+        first_name: TEST_USERNAME,
+      },
+      from: {
+        id: TEST_USER_ID,
+        is_bot: false,
+        first_name: TEST_USERNAME,
+        language_code: 'ru',
+      },
+      text,
+    })),
     update: {
       message: {
         message_id: 1,
@@ -119,16 +156,16 @@ function createTestContext(overrides: Partial<ExtendedContext> = {}): ExtendedCo
         chat: {
           id: TEST_USER_ID,
           type: 'private',
-          first_name: TEST_USERNAME
+          first_name: TEST_USERNAME,
         },
         from: {
           id: TEST_USER_ID,
           is_bot: false,
           first_name: TEST_USERNAME,
-          language_code: 'ru'
+          language_code: 'ru',
         },
-        text: ''
-      } as Message.TextMessage
+        text: '',
+      } as Message.TextMessage,
     } as Update.MessageUpdate,
     updateType: 'message',
     state: {},
@@ -139,24 +176,20 @@ function createTestContext(overrides: Partial<ExtendedContext> = {}): ExtendedCo
           file_id: fileId,
           file_unique_id: 'test_unique_id',
           file_size: 1024,
-          file_path: 'test/path'
+          file_path: 'test/path',
         })
       ),
-      getMe: async () => ({
-        id: TEST_USER_ID,
-        is_bot: true,
-        first_name: 'Test Bot',
-        username: 'test_bot',
-        can_join_groups: true,
-        can_read_all_group_messages: false,
-        supports_inline_queries: false
-      })
-    }
+      getMe: mockFn<() => Promise<UserFromGetMe>>().mockImplementation(
+        async () => botInfo
+      ),
+    },
+    botInfo,
+    tg: new Telegram('dummy-token'),
   }
 
   return {
     ...defaultContext,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -172,7 +205,10 @@ export async function testEnterScene(): Promise<TestResult> {
     await handler(ctx as any, async () => {})
 
     const replyCall = ctx.reply.mock.calls[0]
-    if (!replyCall || !replyCall[0].includes('📹 Пожалуйста, отправьте видеофайл')) {
+    if (
+      !replyCall ||
+      !replyCall[0].includes('📹 Пожалуйста, отправьте видеофайл')
+    ) {
       throw new Error('Expected welcome message not found')
     }
 
@@ -184,7 +220,8 @@ export async function testEnterScene(): Promise<TestResult> {
       name: 'Upload Video Scene - Enter',
       category: TestCategory.SCENE,
       success: true,
-      message: '✅ Тест успешно пройден: Корректное приветственное сообщение и переход к следующему шагу',
+      message:
+        '✅ Тест успешно пройден: Корректное приветственное сообщение и переход к следующему шагу',
     }
   } catch (error) {
     logger.error('❌ Ошибка в тесте входа в сцену:', error)
@@ -239,7 +276,8 @@ export async function testValidVideoUpload(): Promise<TestResult> {
       name: 'Upload Video Scene - Valid Upload',
       category: TestCategory.SCENE,
       success: true,
-      message: '✅ Тест успешно пройден: Видео корректно загружено и обработано',
+      message:
+        '✅ Тест успешно пройден: Видео корректно загружено и обработано',
     }
   } catch (error) {
     logger.error('❌ Ошибка в тесте загрузки видео:', error)
@@ -272,7 +310,10 @@ export async function testOversizedVideo(): Promise<TestResult> {
     await handler(ctx as any, async () => {})
 
     const replyCall = ctx.reply.mock.calls[0]
-    if (!replyCall || !replyCall[0].includes('⚠️ Ошибка: видео слишком большое')) {
+    if (
+      !replyCall ||
+      !replyCall[0].includes('⚠️ Ошибка: видео слишком большое')
+    ) {
       throw new Error('Expected error message not found')
     }
 
@@ -284,7 +325,8 @@ export async function testOversizedVideo(): Promise<TestResult> {
       name: 'Upload Video Scene - Oversized Video',
       category: TestCategory.SCENE,
       success: true,
-      message: '✅ Тест успешно пройден: Корректная обработка слишком большого видео',
+      message:
+        '✅ Тест успешно пройден: Корректная обработка слишком большого видео',
     }
   } catch (error) {
     logger.error('❌ Ошибка в тесте загрузки большого видео:', error)
@@ -312,7 +354,10 @@ export async function testNoVideo(): Promise<TestResult> {
     await handler(ctx as any, async () => {})
 
     const replyCall = ctx.reply.mock.calls[0]
-    if (!replyCall || !replyCall[0].includes('❌ Ошибка: видео не предоставлено')) {
+    if (
+      !replyCall ||
+      !replyCall[0].includes('❌ Ошибка: видео не предоставлено')
+    ) {
       throw new Error('Expected error message not found')
     }
 
@@ -357,7 +402,10 @@ export async function testInvalidVideoFormat(): Promise<TestResult> {
     await handler(ctx as any, async () => {})
 
     const replyCall = ctx.reply.mock.calls[0]
-    if (!replyCall || !replyCall[0].includes('❌ Ошибка: видео не предоставлено')) {
+    if (
+      !replyCall ||
+      !replyCall[0].includes('❌ Ошибка: видео не предоставлено')
+    ) {
       throw new Error('Expected error message not found')
     }
 
@@ -369,7 +417,8 @@ export async function testInvalidVideoFormat(): Promise<TestResult> {
       name: 'Upload Video Scene - Invalid Format',
       category: TestCategory.SCENE,
       success: true,
-      message: '✅ Тест успешно пройден: Корректная обработка неверного формата файла',
+      message:
+        '✅ Тест успешно пройден: Корректная обработка неверного формата файла',
     }
   } catch (error) {
     logger.error('❌ Ошибка в тесте неверного формата:', error)
@@ -383,33 +432,20 @@ export async function testInvalidVideoFormat(): Promise<TestResult> {
 }
 
 /**
- * Запуск всех тестов сцены загрузки видео
+ * Запускает все тесты для сцены загрузки видео
  */
 export async function runUploadVideoSceneTests(): Promise<TestResult[]> {
-  logger.info('🚀 Запуск всех тестов сцены загрузки видео')
-  
-  const results = await Promise.all([
-    testEnterScene(),
-    testValidVideoUpload(),
-    testOversizedVideo(),
-    testNoVideo(),
-    testInvalidVideoFormat(),
-  ])
+  const results: TestResult[] = []
 
-  const totalTests = results.length
-  const passedTests = results.filter(r => r.success).length
-  
-  logger.info(`📊 Результаты тестов: ${passedTests}/${totalTests} успешно`)
-  
+  // Запуск всех тестов
+  results.push(await testEnterScene())
+  results.push(await testValidVideoUpload())
+  results.push(await testOversizedVideo())
+  results.push(await testNoVideo())
+  results.push(await testInvalidVideoFormat())
+
   return results
 }
 
-// Экспорт всех тестов
-export default {
-  testEnterScene,
-  testValidVideoUpload,
-  testOversizedVideo,
-  testNoVideo,
-  testInvalidVideoFormat,
-  runUploadVideoSceneTests,
-}
+// Экспортируем функцию запуска тестов по умолчанию
+export default runUploadVideoSceneTests

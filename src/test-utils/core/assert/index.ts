@@ -504,10 +504,18 @@ function inRange(value: number, min: number, max: number, message?: string): voi
   }
 }
 
-// Экспортируем функциональный API
+// Re-export async assertion functions
+export const {
+  resolves,
+  rejects,
+  eventually,
+  completesWithin
+} = asyncAssert;
+
+// Export all assertion functions
 export default {
-  AssertionError,
   assert,
+  ok: assert,
   equal,
   strictEqual,
   notEqual,
@@ -516,22 +524,17 @@ export default {
   notDeepEqual,
   isTrue,
   isFalse,
-  ok,
   isDefined,
-  isUndefined,
   isNull,
   isNotNull,
   includes,
   contains,
   throws,
   doesNotThrow,
-  instanceOf,
-  typeOf,
   inRange,
-  
-  // Асинхронные функции
-  resolves: asyncAssert.resolves,
-  rejects: asyncAssert.rejects,
-  eventually: asyncAssert.eventually,
-  completesWithin: asyncAssert.completesWithin
+  // Include async functions
+  resolves,
+  rejects,
+  eventually,
+  completesWithin
 }; 

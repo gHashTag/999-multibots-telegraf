@@ -11,7 +11,7 @@
  *   --no-color           Disable colored output
  */
 
-import { runAllTests, runTest } from './runTests';
+import { runAllTests, runTest } from './runScenesTests';
 import { testTextToVideo } from './tests/neuro/text-to-video/textToVideo.test';
 
 // Map of available tests

@@ -1,7 +1,34 @@
 /**
+ * Централизованный экспорт моков
+ * @module core/mock
+ */
+
+import mockApi from '../mock';
+import { mockFn } from '../mockFunction';
+import { createMockContext } from '../mockContext';
+import { setupTestEnvironment } from '../setupTests';
+import { TestResult, TestCategory, TestConfig, TestCase, TestSuite } from '../types';
+
+export {
+  mockApi,
+  mockFn,
+  createMockContext,
+  setupTestEnvironment
+};
+
+// Re-export types
+export type {
+  TestResult,
+  TestConfig,
+  TestCase,
+  TestSuite
+};
+
+export { TestCategory };
+
+/**
  * Модуль для создания моков в функциональном стиле
  */
-import { TestCategory } from '../../core/categories';
 import { logger } from '@/utils/logger';
 
 /**
