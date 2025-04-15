@@ -1,7 +1,8 @@
 import { logger } from '@/utils/logger'
-import { TestResult } from '../../../types'
-import { inngestTestEngine } from '../../../core/inngestTestEngine'
-import { ModeEnum } from '@/types/modes'
+import { TestResult } from '@/test-utils/types'
+import { TEST_CONFIG } from '@/test-utils/test-config'
+import { ModeEnum } from '@/interfaces/modes'
+import { TransactionType } from '@/interfaces/payments.interface'
 
 /**
  * Тест RuPayment интеграции
@@ -10,26 +11,26 @@ export async function testRuPaymentIntegration(): Promise<TestResult> {
   logger.info('🚀 Запуск тестов RuPayment...')
 
   try {
-    await inngestTestEngine.clearEventHistory()
+    await TEST_CONFIG.testEngine.clearEvents()
 
     // Тестовые данные
     const testPayment = {
       name: 'payment/process',
       data: {
-        amount: 100,
-        telegram_id: '123456789',
-        type: 'money_income',
-        description: 'Test RuPayment',
-        bot_name: 'test_bot',
+        amount: TEST_CONFIG.amount,
+        telegram_id: TEST_CONFIG.testUser.telegram_id,
+        type: TransactionType.MONEY_INCOME,
+        description: TEST_CONFIG.description,
+        bot_name: TEST_CONFIG.botName,
         service_type: ModeEnum.TopUpBalance,
       },
     }
 
     // Отправляем тестовое событие
-    await inngestTestEngine.send(testPayment)
+    await TEST_CONFIG.testEngine.sendEvent(testPayment)
 
     // Ждем обработки события
-    const processedEvents = await inngestTestEngine.waitForEvents()
+    const processedEvents = await TEST_CONFIG.testEngine.getEvents()
 
     if (processedEvents.length === 0) {
       throw new Error('Событие не было обработано')

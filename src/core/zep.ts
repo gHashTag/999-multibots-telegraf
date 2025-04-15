@@ -1,6 +1,6 @@
 import { logger } from '@/utils/logger'
 
-interface Memory {
+export interface Memory {
   messages: Array<{
     role: 'user' | 'assistant'
     content: string

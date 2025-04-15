@@ -7,16 +7,25 @@ import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { ModeEnum } from '@/interfaces/modes'
 import { createPendingPayment } from '@/core/supabase/createPendingPayment'
 import md5 from 'md5'
-import { MERCHANT_LOGIN, PASSWORD1, TEST_PASSWORD1, isDev } from '@/config'
+import { MERCHANT_LOGIN, TEST_PASSWORD1, isDev } from '@/config'
 import { generateShortInvId } from '@/scenes/getRuBillWizard/helper'
 import { paymentOptions } from '@/price/priceCalculator'
+import { TransactionType } from '@/interfaces/payments.interface'
+import { logger } from '@/utils/logger'
+import { getSubscriptionInfo } from '@/utils/getSubscriptionInfo'
+import { SubscriptionType } from '@/interfaces/payments.interface'
 
 const merchantLogin = MERCHANT_LOGIN
-const password1 = PASSWORD1
+const password1 = process.env.ROBOKASSA_PASSWORD1 || ''
 const testPassword1 = TEST_PASSWORD1
 
 // Флаг для использования тестового режима Robokassa
 const useTestMode = isDev
+
+// В начале файла добавим проверку конфигурации
+if (!merchantLogin) {
+  throw new Error('MERCHANT_LOGIN is not defined in environment variables')
+}
 
 function generateRobokassaUrl(
   merchantLogin: string,
@@ -146,15 +155,18 @@ function generateRobokassaUrl(
   return url
 }
 
-async function getInvoiceId(
+async function generateRobokassaInvoiceId(
   merchantLogin: string,
   outSum: number,
   invId: number,
   description: string,
   password1: string
 ): Promise<string> {
-  console.log('🚀 Запуск getInvoiceId', {
-    description: 'Starting getInvoiceId',
+  if (!merchantLogin || !password1) {
+    throw new Error('merchantLogin or password1 is not defined')
+  }
+  console.log('🚀 Запуск generateRobokassaInvoiceId', {
+    description: 'Starting generateRobokassaInvoiceId',
     merchantLogin,
     outSum,
     invId,
@@ -182,8 +194,8 @@ async function getInvoiceId(
 
     return response
   } catch (error) {
-    console.error('❌ Ошибка в getInvoiceId:', {
-      description: 'Error in getInvoiceId',
+    console.error('❌ Ошибка в generateRobokassaInvoiceId:', {
+      description: 'Error in generateRobokassaInvoiceId',
       error,
     })
     throw error
@@ -197,114 +209,117 @@ export const paymentScene = new Scenes.BaseScene<MyContext>(
 paymentScene.enter(async ctx => {
   const isRu = isRussian(ctx)
   try {
-    console.log('PaymentScene Enter:', {
-      subscription: ctx.session.subscription,
+    logger.info('🚀 Entering PaymentScene', {
+      userId: ctx.from?.id,
       selectedPayment: ctx.session.selectedPayment,
+      mode: ctx.session.selectedPayment?.type,
     })
 
-    // Если есть выбранный тариф в selectedPayment, используем его
+    // Проверяем тип платежа
     if (
-      ctx.session.selectedPayment?.amount &&
-      ctx.session.selectedPayment?.stars
+      ctx.session.selectedPayment?.type ===
+      TransactionType.SUBSCRIPTION_PURCHASE
     ) {
-      const { amount, stars, subscription } = ctx.session.selectedPayment
-
-      if (!ctx.from) {
-        throw new Error('User not found')
+      // Обработка покупки подписки
+      const subscriptionType = ctx.session.subscription as SubscriptionType
+      if (!subscriptionType) {
+        await ctx.reply('Subscription type not found')
+        return
       }
 
-      if (!ctx.botInfo?.username) {
-        throw new Error('Bot username is not defined')
+      const subscriptionInfo = getSubscriptionInfo(subscriptionType)
+      if (!subscriptionInfo) {
+        await ctx.reply('Invalid subscription type')
+        return
       }
 
-      if (!merchantLogin || !password1) {
-        throw new Error('merchantLogin or password1 is not defined')
-      }
-
-      const userId = ctx.from.id
-      // Используем асинхронную функцию для генерации уникального ID
-      const invId = await generateShortInvId(userId, stars)
-      const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
-      const numericInvId = Number(invId)
-
-      // Получение invoiceID
-      const invoiceURL = await getInvoiceId(
+      const invoiceId = await generateRobokassaInvoiceId(
         merchantLogin,
+        subscriptionInfo.price,
+        generateShortInvId(ctx.from?.id || 0, subscriptionInfo.stars),
+        `Subscription ${subscriptionType}`,
+        password1
+      )
+      const invoiceUrl = `${process.env.PAYMENT_URL}/${invoiceId}`
+
+      await createPendingPayment({
+        telegram_id: ctx.from?.id?.toString() || '',
+        amount: subscriptionInfo.price,
+        stars: subscriptionInfo.stars,
+        inv_id: invoiceId,
+        description: `Subscription ${subscriptionType}`,
+        bot_name: ctx.botInfo.username || 'NeuroBlogger',
+        invoice_url: invoiceUrl,
+        service_type: ModeEnum.Subscribe,
+        type: TransactionType.SUBSCRIPTION_PURCHASE,
+      })
+
+      // Отправляем сообщение с кнопкой оплаты
+      await ctx.reply(
+        isRu
+          ? `💫 Подписка ${subscriptionInfo.name}\n💰 Стоимость: ${subscriptionInfo.price} RUB\n⭐️ Бонус: ${subscriptionInfo.stars} звезд`
+          : `💫 Subscription ${subscriptionInfo.name}\n💰 Price: ${subscriptionInfo.price} RUB\n⭐️ Bonus: ${subscriptionInfo.stars} stars`,
+        Markup.inlineKeyboard([
+          [Markup.button.url(isRu ? '💳 Оплатить' : '💳 Pay', invoiceUrl)],
+        ])
+      )
+    } else {
+      // Обработка пополнения баланса
+      const amount = ctx.session.selectedPayment?.amount || 0
+      const stars = ctx.session.selectedPayment?.stars || 0
+
+      if (!amount || !stars) {
+        throw new Error('Invalid payment amount or stars')
+      }
+
+      const invId = await generateShortInvId(ctx.from?.id || 0, stars)
+      const description = isRu ? 'Пополнение баланса' : 'Balance top-up'
+
+      // Создаем платеж в базе
+      const paymentUrl = await generateRobokassaInvoiceId(
+        merchantLogin || '',
         amount,
-        numericInvId,
+        invId,
         description,
         password1
       )
 
-      // Создаем платеж в статусе PENDING
       await createPendingPayment({
-        telegram_id: userId.toString(),
+        telegram_id: ctx.from?.id?.toString() || '',
         amount,
         stars,
-        inv_id: numericInvId.toString(),
+        type: TransactionType.MONEY_INCOME,
         description,
-        bot_name: ctx.botInfo.username,
-        language: ctx.from.language_code || 'ru',
-        invoice_url: invoiceURL,
+        bot_name: 'NeuroBlogger',
+        service_type: ModeEnum.TopUpBalance,
+        inv_id: invId.toString(),
+        invoice_url: paymentUrl,
         metadata: {
           payment_method: 'Robokassa',
-          subscription,
+          subscription: 'stars',
         },
       })
 
+      // Отправляем сообщение с кнопкой оплаты
       await ctx.reply(
         isRu
-          ? `<b>💵 Оплата ${amount} р</b>
-Нажмите на кнопку ниже, чтобы перейти к оплате. После успешной оплаты звезды автоматически будут зачислены на ваш баланс.`
-          : `<b>💵 Payment ${amount} RUB</b>
-Click the button below to proceed with payment. After successful payment, stars will be automatically credited to your balance.`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: isRu ? `Оплатить ${amount} р` : `Pay ${amount} RUB`,
-                  url: invoiceURL,
-                },
-              ],
-            ],
-          },
-          parse_mode: 'HTML',
-        }
+          ? `💰 Сумма: ${amount} RUB\n⭐️ Бонус: ${stars} звезд`
+          : `💰 Amount: ${amount} RUB\n⭐️ Bonus: ${stars} stars`,
+        Markup.inlineKeyboard([
+          [Markup.button.url(isRu ? '💳 Оплатить' : '💳 Pay', paymentUrl)],
+        ])
       )
-      return ctx.scene.leave()
     }
-
-    const message = isRu ? 'Как вы хотите оплатить?' : 'How do you want to pay?'
-
-    const keyboard = Markup.keyboard([
-      [
-        Markup.button.text(isRu ? '⭐️ Звездами' : '⭐️ Stars'),
-        {
-          text: isRu ? 'Что такое звезды❓' : 'What are stars❓',
-          web_app: {
-            url: `https://telegram.org/blog/telegram-stars/${
-              isRu ? 'ru' : 'en'
-            }?ln=a`,
-          },
-        },
-      ],
-      [
-        Markup.button.text(isRu ? '💳 Рублями' : '💳 In rubles'),
-        Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu'),
-      ],
-    ]).resize()
-
-    // Отправка сообщения с клавиатурой
-    await ctx.reply(message, {
-      reply_markup: keyboard.reply_markup,
-    })
   } catch (error) {
-    console.error('Error in paymentScene.enter:', error)
+    logger.error('❌ Error in PaymentScene:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      userId: ctx.from?.id,
+    })
+
     await ctx.reply(
       isRu
-        ? 'Произошла ошибка. Пожалуйста, попробуйте снова.'
-        : 'An error occurred. Please try again.'
+        ? '❌ Произошла ошибка при создании платежа. Пожалуйста, попробуйте позже.'
+        : '❌ An error occurred while creating the payment. Please try again later.'
     )
   }
 })
@@ -316,22 +331,22 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   console.log('CASE 1: ⭐️ Звездами: subscription', subscription)
   if (subscription) {
     if (subscription === 'neurobase') {
-      await handleBuySubscription({ ctx, isRu })
+      await handleBuySubscription(ctx)
       await ctx.scene.leave()
     } else if (subscription === 'neuromeeting') {
-      await handleBuySubscription({ ctx, isRu })
+      await handleBuySubscription(ctx)
       await ctx.scene.leave()
     } else if (subscription === 'neuroblogger') {
-      await handleBuySubscription({ ctx, isRu })
+      await handleBuySubscription(ctx)
       await ctx.scene.leave()
     } else if (subscription === 'neurotester') {
-      await handleBuySubscription({ ctx, isRu })
+      await handleBuySubscription(ctx)
       await ctx.scene.leave()
     } else if (subscription === 'neurophoto') {
-      await handleBuySubscription({ ctx, isRu })
+      await handleBuySubscription(ctx)
       await ctx.scene.leave()
     } else if (subscription === 'neuromentor') {
-      await handleBuySubscription({ ctx, isRu })
+      await handleBuySubscription(ctx)
       await ctx.scene.leave()
     } else if (subscription === 'stars') {
       await handleSelectStars({ ctx, isRu, starAmounts })
@@ -361,47 +376,26 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
   // Разделяем логику в зависимости от выбранного пути
   // Случай 1: Пользователь покупает подписку
   if (subscription && subscription !== 'stars') {
-    let amount = 0
-    let stars = 0
-
-    if (subscription === 'neurobase') {
-      amount = 2999
-      stars = 1303
-    } else if (subscription === 'neurophoto') {
-      amount = 1110
-      stars = 476
-    } else if (subscription === 'neuroblogger') {
-      amount = 75000
-      stars = 32608
-    } else if (subscription === 'neurotester') {
-      amount = 5
-      stars = 5
-    } else if (subscription === 'neuromeeting') {
-      // Добавьте соответствующую сумму
-      amount = 1500
-      stars = 650
-    } else if (subscription === 'neuromentor') {
-      // Добавьте соответствующую сумму
-      amount = 3000
-      stars = 1300
-    } else {
-      // Неизвестная подписка
-      await ctx.reply(
-        isRu
-          ? 'Неизвестный тип подписки. Пожалуйста, выберите подписку снова.'
-          : 'Unknown subscription type. Please select a subscription again.'
-      )
-      await ctx.scene.enter(ModeEnum.SubscriptionScene)
-      return
-    }
-
     try {
+      const subscriptionInfo = getSubscriptionInfo(subscription)
+      if (!subscriptionInfo) {
+        await ctx.reply(
+          isRu
+            ? 'Неизвестный тип подписки. Пожалуйста, выберите подписку снова.'
+            : 'Unknown subscription type. Please select a subscription again.'
+        )
+        await ctx.scene.enter(ModeEnum.SubscriptionScene)
+        return
+      }
+
       const userId = ctx.from.id
-      // Создаем специальный платеж для подписки
-      const invId = await generateShortInvId(userId, stars)
+      const invId = await generateShortInvId(
+        ctx.from?.id || 0,
+        subscriptionInfo.stars
+      )
       const description = isRu
-        ? `Подписка ${subscription}`
-        : `Subscription ${subscription}`
+        ? `Подписка ${subscriptionInfo.name}`
+        : `Subscription ${subscriptionInfo.name}`
       const numericInvId = Number(invId)
 
       if (!merchantLogin || !password1) {
@@ -409,9 +403,9 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
       }
 
       // Получение invoiceID
-      const invoiceURL = await getInvoiceId(
+      const invoiceURL = await generateRobokassaInvoiceId(
         merchantLogin,
-        amount,
+        subscriptionInfo.price,
         numericInvId,
         description,
         password1
@@ -420,13 +414,15 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
       // Создаем платеж в статусе PENDING
       await createPendingPayment({
         telegram_id: userId.toString(),
-        amount,
-        stars,
+        amount: subscriptionInfo.price,
+        stars: subscriptionInfo.stars,
         inv_id: numericInvId.toString(),
         description,
         bot_name: ctx.botInfo.username,
         language: ctx.from.language_code || 'ru',
         invoice_url: invoiceURL,
+        service_type: ModeEnum.Subscribe,
+        type: TransactionType.SUBSCRIPTION_PURCHASE,
         metadata: {
           payment_method: 'Robokassa',
           subscription,
@@ -435,14 +431,16 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
 
       await ctx.reply(
         isRu
-          ? `<b>💵 Оплата подписки ${subscription} (${amount} р)</b>\nНажмите на кнопку ниже, чтобы перейти к оплате. После успешной оплаты звезды автоматически будут зачислены на ваш баланс.`
-          : `<b>💵 Payment for subscription ${subscription} (${amount} RUB)</b>\nClick the button below to proceed with payment. After successful payment, stars will be automatically credited to your balance.`,
+          ? `<b>💵 Оплата подписки ${subscriptionInfo.name} (${subscriptionInfo.price} р)</b>\nНажмите на кнопку ниже, чтобы перейти к оплате. После успешной оплаты звезды автоматически будут зачислены на ваш баланс.`
+          : `<b>💵 Payment for subscription ${subscriptionInfo.name} (${subscriptionInfo.price} RUB)</b>\nClick the button below to proceed with payment. After successful payment, stars will be automatically credited to your balance.`,
         {
           reply_markup: {
             inline_keyboard: [
               [
                 {
-                  text: isRu ? `Оплатить ${amount} р` : `Pay ${amount} RUB`,
+                  text: isRu
+                    ? `Оплатить ${subscriptionInfo.price} р`
+                    : `Pay ${subscriptionInfo.price} RUB`,
                   url: invoiceURL,
                 },
               ],
@@ -527,7 +525,7 @@ paymentScene.action(/pay_rub_(\d+)_(\d+)/, async ctx => {
 
     // Создаем платеж
     const userId = ctx.from.id
-    const invId = await generateShortInvId(userId, stars)
+    const invId = await generateShortInvId(ctx.from?.id || 0, stars)
     const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
     const numericInvId = Number(invId)
 
@@ -536,7 +534,7 @@ paymentScene.action(/pay_rub_(\d+)_(\d+)/, async ctx => {
     }
 
     // Получение invoiceID
-    const invoiceURL = await getInvoiceId(
+    const invoiceURL = await generateRobokassaInvoiceId(
       merchantLogin,
       amount,
       numericInvId,
@@ -554,6 +552,8 @@ paymentScene.action(/pay_rub_(\d+)_(\d+)/, async ctx => {
       bot_name: ctx.botInfo.username,
       language: ctx.from.language_code || 'ru',
       invoice_url: invoiceURL,
+      service_type: ModeEnum.TopUpBalance,
+      type: TransactionType.MONEY_INCOME,
       metadata: {
         payment_method: 'Robokassa',
         subscription: 'stars',

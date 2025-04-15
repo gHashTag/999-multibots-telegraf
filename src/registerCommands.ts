@@ -10,7 +10,6 @@ import {
 import { privateChat } from './middlewares/privateChat'
 import { zepMemoryMiddleware } from './middlewares/zepMemory'
 import { imageModelMenu } from './menu/imageModelMenu'
-
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
 
@@ -131,7 +130,7 @@ export function registerCommands({
       telegramId: ctx.from?.id,
     })
     ctx.session.mode = ModeEnum.MainMenu
-    await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
+    await ctx.scene.enter(ModeEnum.MainMenu)
   })
 
   composer.command('menu', async ctx => {
@@ -140,7 +139,7 @@ export function registerCommands({
       telegramId: ctx.from?.id,
     })
     ctx.session.mode = ModeEnum.MainMenu
-    await ctx.scene.enter(ModeEnum.SubscriptionCheckScene)
+    await ctx.scene.enter(ModeEnum.MainMenu)
   })
 
   bot.command('tech', async ctx => {
@@ -202,7 +201,6 @@ export function registerCommands({
     ctx.session.subscription = 'stars'
     await ctx.scene.enter(ModeEnum.PaymentScene)
   })
-
   composer.command('invite', async ctx => {
     logger.info('👥 Команда invite:', {
       description: 'Invite command received',
@@ -354,7 +352,7 @@ export function registerCommands({
       level: levels[100].title_ru,
     })
     ctx.session.mode = ModeEnum.TopUpBalance
-    ctx.session.subscription = 'stars'
+
     await ctx.scene.enter(ModeEnum.PaymentScene)
   })
 

@@ -1,69 +1,48 @@
-import { testPaymentProcessing } from './core/paymentProcessor.test'
 import { TestResult } from '@/test-utils/types'
 import { logger } from '@/utils/logger'
+import { testPaymentProcessing } from './core/paymentProcessor.test'
+import { testRuPaymentIntegration } from './integrations/test-ru-payment'
 
 /**
- * Проверка структуры тестов
+ * Запускает все тесты платежной системы
  */
-async function validateTestStructure(): Promise<TestResult> {
+export async function runPaymentTests(): Promise<TestResult[]> {
+  logger.info('🚀 Запуск всех тестов платежной системы')
+
   try {
-    // Базовая проверка наличия необходимых файлов
-    return {
-      success: true,
-      name: 'Test Structure Validation',
-      message: 'Test structure is valid',
-    }
-  } catch (error: any) {
-    return {
-      success: false,
-      name: 'Test Structure Validation',
-      message: error instanceof Error ? error.message : String(error),
-    }
-  }
-}
+    const results: TestResult[] = []
 
-/**
- * Запуск всех тестов платежной системы
- */
-export async function runAllPaymentTests(): Promise<TestResult[]> {
-  try {
-    logger.info('🚀 Запуск тестов платежной системы', {
-      description: 'Starting payment system tests',
-    })
+    // Запускаем тесты платежного процессора
+    results.push(await testPaymentProcessing())
 
-    // Проверка структуры тестов
-    const structureValidation = await validateTestStructure()
-    if (!structureValidation.success) {
-      throw new Error(
-        `Структура тестов нарушена: ${structureValidation.message}`
-      )
-    }
+    // Запускаем тесты интеграций
+    results.push(await testRuPaymentIntegration())
 
-    // Запуск тестов
-    const results = await Promise.all([testPaymentProcessing()])
-
-    // Подсчет статистики
+    // Подсчитываем результаты
+    const passedTests = results.filter(r => r.success).length
     const totalTests = results.length
-    const passedTests = results.filter((r: TestResult) => r.success).length
-    const successRate = (passedTests / totalTests) * 100
 
-    logger.info(`
-      📊 Статистика тестов:
-      Всего тестов: ${totalTests}
-      Успешных: ${passedTests}
-      Процент успеха: ${successRate}%
-    `)
+    logger.info(
+      `✅ Завершено ${passedTests}/${totalTests} тестов платежной системы`
+    )
 
     return results
-  } catch (error: any) {
-    logger.error('❌ Ошибка при выполнении тестов:', error)
-    throw error
+  } catch (error) {
+    logger.error('❌ Ошибка при запуске тестов платежной системы:', error)
+
+    return [
+      {
+        success: false,
+        name: 'Payment System Tests',
+        message: error instanceof Error ? error.message : String(error),
+      },
+    ]
   }
 }
 
 // Если файл запущен напрямую
 if (require.main === module) {
-  runAllPaymentTests()
+  runPaymentTests()
     .then(() => logger.info('✅ Тесты успешно завершены'))
     .catch(error => {
       logger.error('❌ Ошибка выполнения тестов:', error)
