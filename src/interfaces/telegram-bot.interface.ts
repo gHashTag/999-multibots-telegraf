@@ -6,6 +6,8 @@ import { Mode } from './cost.interface'
 import { BroadcastContentType } from './broadcast.interface'
 import { SubscriptionType, TransactionType } from './payments.interface'
 import { TelegramId } from '@/interfaces/telegram.interface'
+import { Subscription } from '@/types/subscription'
+import { TranslationButton } from './supabase.interface'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {
@@ -143,7 +145,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   videoUrl: string
   audioUrl: string
   amount: number
-  subscription: SubscriptionType
+  subscription: SubscriptionType | 'stars'
   images: BufferType
   modelName: string
   targetUserId: number
@@ -159,7 +161,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   selectedPayment: {
     amount: number
     stars: number
-    subscription?: SubscriptionType
+    subscription?: SubscriptionType | 'stars'
     type: TransactionType
   }
 }
@@ -183,3 +185,7 @@ export type MyTextMessageContext = NarrowedContext<
   MyContext,
   Update.MessageUpdate<Message.TextMessage>
 >
+
+export interface ExtendedTranslationButton extends TranslationButton {
+  subscription: Subscription
+}

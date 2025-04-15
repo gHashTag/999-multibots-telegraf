@@ -75,17 +75,51 @@ function isYesTextMessage(text: string, isRu: boolean): boolean {
 function getContentTypeFromMessage(
   text: string,
   isRu: boolean
-): BroadcastContentType | null {
-  if (text === (isRu ? '📷 Фото с текстом' : '📷 Photo with text')) {
+): BroadcastContentType | undefined {
+  const contentTypes = {
+    photo: {
+      ru: ['Фото 📷', 'фото', 'photo'],
+      en: ['Photo 📷', 'photo'],
+    },
+    video: {
+      ru: ['Видео 🎥', 'видео', 'video'],
+      en: ['Video 🎥', 'video'],
+    },
+    text: {
+      ru: ['Текст 📝', 'текст', 'text'],
+      en: ['Text 📝', 'text'],
+    },
+    post: {
+      ru: ['Пост 🔗', 'пост', 'post'],
+      en: ['Post 🔗', 'post'],
+    },
+  }
+
+  const lang = isRu ? 'ru' : 'en'
+  const normalizedText = text.toLowerCase().trim()
+
+  if (
+    contentTypes.photo[lang].some(t => normalizedText.includes(t.toLowerCase()))
+  ) {
     return BroadcastContentType.PHOTO
-  } else if (text === (isRu ? '🎥 Видео с текстом' : '🎥 Video with text')) {
+  }
+  if (
+    contentTypes.video[lang].some(t => normalizedText.includes(t.toLowerCase()))
+  ) {
     return BroadcastContentType.VIDEO
-  } else if (text === (isRu ? '📝 Только текст' : '📝 Text only')) {
+  }
+  if (
+    contentTypes.text[lang].some(t => normalizedText.includes(t.toLowerCase()))
+  ) {
     return BroadcastContentType.TEXT
-  } else if (text === (isRu ? '🔗 Ссылка на пост' : '🔗 Post link')) {
+  }
+  if (
+    contentTypes.post[lang].some(t => normalizedText.includes(t.toLowerCase()))
+  ) {
     return BroadcastContentType.POST
   }
-  return null
+
+  return undefined
 }
 
 // Функция для отправки текстовой рассылки
@@ -354,7 +388,7 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
         // Запрашиваем английский текст
         await ctx.reply(
           isRu
-            ? 'Теперь введите текст на АНГЛИЙСКОМ языке ��🇧'
+            ? 'Теперь введите текст на АНГЛИЙСКОМ языке 🇬🇧'
             : 'Now enter text in ENGLISH 🇬🇧',
           { reply_markup: createCancelKeyboard(isRu).reply_markup }
         )

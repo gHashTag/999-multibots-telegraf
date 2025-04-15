@@ -1,30 +1,49 @@
-export type LocalSubscription = 'stars' | 'subscription'
+export type Subscription = 'neurophoto' | 'neurobase'
+
+export type LocalSubscription = Subscription | 'stars'
 
 export interface SubscriptionConfig {
-  name: string
-  price: number
-  stars: number
-  duration: number
+  title: string
+  titleRu: string
+  titleEn: string
   description: string
-  type: LocalSubscription
+  price: number
+  duration: number
+  features: string[]
+  stars: number
 }
 
-export const SUBSCRIPTION_TYPES: Record<LocalSubscription, SubscriptionConfig> =
-  {
-    stars: {
-      name: 'Stars',
-      price: 0,
-      stars: 0,
-      duration: 0,
-      description: 'Top up balance with stars',
-      type: 'stars',
-    },
-    subscription: {
-      name: 'Subscription',
-      price: 0,
-      stars: 0,
-      duration: 30,
-      description: 'Monthly subscription',
-      type: 'subscription',
-    },
-  }
+export const subscriptionConfigs: Record<Subscription, SubscriptionConfig> = {
+  neurophoto: {
+    title: '🎨 NeuroPhoto',
+    titleRu: '🎨 НейроФото',
+    titleEn: '🎨 NeuroPhoto',
+    description: 'Basic photo editing and generation',
+    price: 1110,
+    duration: 30,
+    features: [
+      'Image generation',
+      'Photo editing',
+      'Basic effects',
+      'Access to basic models',
+      '24/7 support',
+    ],
+    stars: 476,
+  },
+  neurobase: {
+    title: '📚 NeuroBase',
+    titleRu: '📚 НейроБаза',
+    titleEn: '📚 NeuroBase',
+    description: 'Advanced features and priority support',
+    price: 2999,
+    duration: 30,
+    features: [
+      'All functions of NeuroPHOTO',
+      'Advanced effects',
+      'Priority support',
+      'Access to all models',
+      'Personal manager',
+    ],
+    stars: 1303,
+  },
+}

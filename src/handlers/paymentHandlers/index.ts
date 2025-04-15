@@ -13,13 +13,13 @@ import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
 import { createBotByName } from '@/core/bot'
-import { LocalSubscription } from '@/scenes/getRuBillWizard'
-import { SubscriptionButton } from '@/interfaces/telegram-bot.interface'
+import { LocalSubscription } from '@/types/subscription'
+import { SubscriptionButton } from '@/types/telegram-bot.interface'
 import { inngest } from '@/inngest-functions/clients'
 
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
-  subscription: string
+  subscription: LocalSubscription
   telegram_id: TelegramId
   email: string
   selectedPayment?: {

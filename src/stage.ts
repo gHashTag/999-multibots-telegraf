@@ -2,7 +2,6 @@ import { Scenes } from 'telegraf'
 import { MyContext } from './interfaces'
 import {
   startScene,
-  subscriptionScene,
   subscriptionCheckScene,
   createUserScene,
   checkBalanceScene,
@@ -44,7 +43,6 @@ import { ModeEnum } from './interfaces/modes'
 export const stage = new Scenes.Stage<MyContext>(
   [
     startScene,
-    subscriptionScene,
     subscriptionCheckScene,
     createUserScene,
     checkBalanceScene,

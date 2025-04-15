@@ -543,11 +543,59 @@ app.use((req: CustomRequest, res: CustomResponse) => {
 
 // Запуск сервера API
 const startApiServer = () => {
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     logger.info('🚀 API сервер запущен', {
       description: 'API server is running',
       port,
     })
+  })
+
+  server.on('error', async (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      logger.error('❌ Порт уже используется, пытаюсь освободить...', {
+        description: 'Port is already in use, trying to free it',
+        port,
+        error: error.message,
+      })
+
+      // Попытка завершить процесс на порту
+      try {
+        const { exec } = require('child_process')
+        exec(`lsof -i :${port} -t | xargs kill -9`, async (err: any) => {
+          if (err) {
+            logger.error('❌ Не удалось освободить порт автоматически', {
+              description: 'Failed to free port automatically',
+              port,
+              error: err.message,
+            })
+            process.exit(1)
+          }
+
+          logger.info('✅ Порт освобожден, перезапускаю сервер...', {
+            description: 'Port freed, restarting server',
+            port,
+          })
+
+          // Даем небольшую паузу и пробуем перезапустить
+          setTimeout(() => {
+            startApiServer()
+          }, 1000)
+        })
+      } catch (killError) {
+        logger.error('❌ Критическая ошибка при освобождении порта', {
+          description: 'Critical error while freeing port',
+          error:
+            killError instanceof Error ? killError.message : String(killError),
+        })
+        process.exit(1)
+      }
+    } else {
+      logger.error('❌ Ошибка запуска API сервера', {
+        description: 'API server error',
+        error: error.message,
+      })
+      process.exit(1)
+    }
   })
 }
 

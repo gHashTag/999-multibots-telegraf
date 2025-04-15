@@ -5,14 +5,7 @@ import { ServiceType } from './serviceTypes'
 /**
  * Типы подписок, доступные для оплаты
  */
-export type SubscriptionType =
-  | 'neurobase'
-  | 'neurophoto'
-  | 'neuroblogger'
-  | 'neurotester'
-  | 'neuromeeting'
-  | 'neuromentor'
-  | 'stars'
+export type SubscriptionType = 'neurobase' | 'neurophoto'
 
 /**
  * Типы транзакций в системе
@@ -707,4 +700,13 @@ export interface PaymentConfig {
 
 export interface PaymentProcessParams extends PaymentConfig {
   status?: string
+}
+
+/**
+ * Проверяет, является ли значение допустимым типом подписки
+ */
+export function isValidPaymentSubscription(
+  value: string
+): value is SubscriptionType {
+  return ['neurobase', 'neurophoto'].includes(value)
 }

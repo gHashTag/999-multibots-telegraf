@@ -3,7 +3,7 @@ import { isRussian } from '@/helpers'
 import { handleHelpCancel } from '@/handlers'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { WizardScene } from 'telegraf/scenes'
-import { LocalSubscription } from '@/scenes/getRuBillWizard'
+import { LocalSubscription } from '@/types/subscription'
 import { TransactionType } from '@/interfaces'
 
 const selectPaymentOptionStep = async (ctx: MyContext) => {
