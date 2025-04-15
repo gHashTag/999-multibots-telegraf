@@ -2,8 +2,10 @@ import { TestResult } from '@/test-utils/types'
 import { logger } from '@/utils/logger'
 import { createMockContext } from '@/test-utils/helpers/createMockContext'
 import { getRuBillWizard } from '@/scenes/getRuBillWizard'
-import { inngestMock, createMockFn } from '@/test-utils/mocks/telegrafMock'
+import { createMockFn } from '@/test-utils/mocks/telegrafMock'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
+import { TestContext } from '@/test-utils/core/TelegramSceneTester'
+import { BaseScene } from 'telegraf/typings/scenes'
 
 /**
  * Тестирует сцену создания счета RuBillWizard
@@ -21,8 +23,10 @@ export async function testRuBillWizardSceneSimple(): Promise<TestResult> {
 
     // Создаем мок-контекст с нужными данными для сессии
     const mockContext = createMockContext({
-      userId: 12345678,
-      username: 'test_user',
+      user: {
+        telegram_id: '12345678',
+        username: 'test_user',
+      },
       sessionData: {
         selectedPayment: {
           amount: 100,
@@ -44,32 +48,35 @@ export async function testRuBillWizardSceneSimple(): Promise<TestResult> {
     // Мокируем reply для контекста, если его нет
     if (!mockContext.reply) {
       mockContext.reply = createMockFn().mockImplementation(
-        async (text, extra) => {
+        async (text: string, extra?: any) => {
           logger.info('📩 Мок-ответ бота:', {
             description: 'Mock bot reply',
             text,
             extra,
           })
-          if (!mockContext.sentReplies) {
-            ;(mockContext as any).sentReplies = []
+          const ctx = mockContext as TestContext & { sentReplies?: any[] }
+          if (!ctx.sentReplies) {
+            ctx.sentReplies = []
           }
-          ;(mockContext as any).sentReplies.push({
+          ctx.sentReplies.push({
             text,
             extra,
             timestamp: Date.now(),
           })
-          return { message_id: (mockContext as any).sentReplies.length }
+          return { message_id: ctx.sentReplies.length }
         }
       )
     }
 
     // Запускаем сцену для работы с счетом
     try {
-      // Получаем первый шаг (генерация счета)
-      const generateInvoiceStep = getRuBillWizard.steps[0]
+      // Получаем wizard и его middleware
+      const wizard = getRuBillWizard() as BaseScene<TestContext>
+      const middlewares = wizard.middleware()
+      const generateInvoiceStep = middlewares[0]
 
       // Вызываем функцию напрямую
-      await (generateInvoiceStep as Function)(mockContext)
+      await generateInvoiceStep(mockContext as TestContext, () => {})
     } catch (sceneError) {
       logger.error('❌ Ошибка при запуске сцены:', {
         description: 'Error running scene step',
@@ -80,7 +87,8 @@ export async function testRuBillWizardSceneSimple(): Promise<TestResult> {
     }
 
     // Проверяем, что пользователю было отправлено сообщение
-    const sentReplies = (mockContext as any).sentReplies || []
+    const ctx = mockContext as TestContext & { sentReplies?: any[] }
+    const sentReplies = ctx.sentReplies || []
     logger.info('📋 Отправленные сообщения:', {
       description: 'Sent messages',
       count: sentReplies.length,

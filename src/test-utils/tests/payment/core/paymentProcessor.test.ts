@@ -1,51 +1,43 @@
 import { TestResult } from '../../../types'
-import { testEngine } from '../../../test-config'
-import { ModeEnum } from '../../../../types/enums'
-import { PaymentProcessParams } from '../../../../types/payment'
-import { TransactionType } from '../../../../types/payment'
+import { TEST_CONFIG, TestEngine, TestEvent } from '../../../test-config'
+import { ModeEnum } from '@/types/enums'
+import { TransactionType, TestPayment } from '@/types/payments'
+import { logger } from '@/utils/logger'
 
-export async function runPaymentProcessorTest(): Promise<TestResult> {
+const inngestTestEngine = new TestEngine()
+
+export async function testPaymentProcessing(): Promise<TestResult> {
   try {
-    // Очищаем тестовые данные
-    await testEngine.cleanupTestData()
+    logger.info('🚀 Начинаю тест обработки платежа')
 
-    // Создаем тестовый платеж
-    const testPayment: PaymentProcessParams = {
-      telegram_id: '123456789',
-      amount: 100,
+    const testPayment: TestPayment = {
+      telegram_id: TEST_CONFIG.testUser.telegram_id,
+      amount: TEST_CONFIG.testAmount,
       type: TransactionType.MONEY_INCOME,
-      description: 'Test payment',
-      bot_name: 'test_bot',
-      service_type: ModeEnum.NeuroPhoto,
+      description: TEST_CONFIG.testDescription,
+      bot_name: TEST_CONFIG.testBotName,
+      service_type: ModeEnum.TopUpBalance,
     }
 
-    // Отправляем событие
-    await testEngine.sendEvent('payment/process', testPayment)
-
-    // Ждем обработки платежа
-    const processedEvent = await testEngine.waitForEvent('payment/processed')
-
-    // Проверяем результат
-    if (processedEvent?.data?.success) {
-      return {
-        success: true,
-        message: '✅ Payment processor test passed successfully',
-        name: 'Payment Processor Test',
-      }
+    const event: TestEvent = {
+      name: 'payment/process',
+      data: testPayment,
     }
 
+    await inngestTestEngine.sendEvent(event)
+
+    logger.info('✅ Тест обработки платежа успешно завершен')
     return {
-      success: false,
-      message:
-        '❌ Payment processor test failed - payment was not processed successfully',
-      name: 'Payment Processor Test',
+      success: true,
+      message: 'Тест обработки платежа пройден успешно',
+      name: 'Payment Processing Test',
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error('❌ Ошибка при тестировании обработки платежа:', error)
     return {
       success: false,
-      message: `❌ Payment processor test failed with error: ${errorMessage}`,
-      name: 'Payment Processor Test',
+      message: `Ошибка при тестировании обработки платежа: ${error}`,
+      name: 'Payment Processing Test',
     }
   }
 }

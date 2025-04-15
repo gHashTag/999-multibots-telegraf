@@ -1,27 +1,105 @@
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { createMockContext } from '../helpers/createMockContext'
+
 import { logger } from '@/utils/logger'
 import { WizardScene } from 'telegraf/scenes'
+import { Context, Scenes } from 'telegraf'
+import { Update } from 'telegraf/typings/core/types/typegram'
+
+export interface TestUser {
+  id: number
+  username: string
+}
+
+export interface TestSessionData extends Scenes.WizardSessionData {
+  cursor: number
+  email?: string
+  selectedModel?: string
+  prompt?: string
+  selectedSize?: string
+  selectedPayment?: {
+    amount: number
+    stars: number
+    subscription: string
+  }
+  subscription?: string
+  __scenes: Record<string, unknown>
+}
+
+export interface TestSession extends Scenes.WizardSession<TestSessionData> {
+  state: TestSessionData
+}
+
+export interface TestContext extends Partial<Context<Update>> {
+  session: TestSession
+  scene?: Scenes.BaseScene<TestContext>
+  wizard?: Scenes.WizardContextWizard<TestContext>
+  attempts: number
+  amount: number
+  user: {
+    id: number
+    username: string
+  }
+}
+
+export interface CreateMockContextParams {
+  user: TestUser
+  session?: Partial<TestSession>
+  scene?: Scenes.SceneContextScene<TestContext, TestSessionData>
+  wizard?: Scenes.WizardContextWizard<TestContext>
+  attempts?: number
+  amount?: number
+}
 
 /**
  * Базовый класс для тестирования Telegram сцен
  */
 export class TelegramSceneTester {
-  scene: WizardScene<MyContext>
+  scene: WizardScene<TestContext>
+  protected baseContext: Partial<TestContext>
 
-  constructor(scene: WizardScene<MyContext>) {
+  constructor(scene: WizardScene<TestContext>) {
     this.scene = scene
+    this.baseContext = {
+      scene: {} as Scenes.SceneContextScene<TestContext, TestSessionData>,
+      wizard: {} as Scenes.WizardContextWizard<TestContext>,
+      attempts: 0,
+      amount: 0,
+      session: {
+        cursor: 0,
+        state: {
+          cursor: 0,
+          __scenes: {},
+        },
+      } as TestSession,
+    }
   }
 
   /**
    * Создает мок-контекст для тестирования
-   * @param options Параметры для создания контекста
+   * @param params Параметры для создания контекста
    * @returns Мок-контекст
    */
-  createContext(
-    options: Parameters<typeof createMockContext>[0] = {}
-  ): ReturnType<typeof createMockContext> {
-    return createMockContext(options)
+  createContext(params: CreateMockContextParams): TestContext {
+    const defaultParams = {
+      session: {
+        cursor: 0,
+        state: {
+          cursor: 0,
+          __scenes: {},
+        },
+      } as TestSession,
+      scene: {} as Scenes.SceneContextScene<TestContext, TestSessionData>,
+      wizard: {} as Scenes.WizardContextWizard<TestContext>,
+      attempts: 0,
+      amount: 0,
+      user: params.user,
+    }
+
+    return {
+      ...this.baseContext,
+      ...defaultParams,
+      ...params,
+    } as TestContext
   }
 
   /**
@@ -52,10 +130,10 @@ export class TelegramSceneTester {
    * @returns true, если найдено подходящее сообщение
    */
   hasMessageMatching(
-    context: any,
+    context: TestContext,
     predicate: (message: any) => boolean
   ): boolean {
-    const sentReplies = context.sentReplies || []
+    const sentReplies = (context as any).sentReplies || []
     return sentReplies.some(predicate)
   }
 
@@ -65,7 +143,7 @@ export class TelegramSceneTester {
    * @param text Текст, который должен содержаться в сообщении
    * @returns true, если найдено сообщение с указанным текстом
    */
-  hasMessageWithText(context: any, text: string): boolean {
+  hasMessageWithText(context: TestContext, text: string): boolean {
     return this.hasMessageMatching(
       context,
       message => message.text && message.text.includes(text)
@@ -78,7 +156,7 @@ export class TelegramSceneTester {
    * @param buttonText Текст кнопки
    * @returns true, если найдена кнопка с указанным текстом
    */
-  hasInlineButton(context: any, buttonText: string): boolean {
+  hasInlineButton(context: TestContext, buttonText: string): boolean {
     return this.hasMessageMatching(context, message => {
       const keyboard = message.extra?.reply_markup?.inline_keyboard
       if (!keyboard) return false
@@ -95,7 +173,7 @@ export class TelegramSceneTester {
    * @param urlFragment Фрагмент URL
    * @returns true, если найдена кнопка с URL, содержащим указанный фрагмент
    */
-  hasUrlButton(context: any, urlFragment: string): boolean {
+  hasUrlButton(context: TestContext, urlFragment: string): boolean {
     return this.hasMessageMatching(context, message => {
       const keyboard = message.extra?.reply_markup?.inline_keyboard
       if (!keyboard) return false

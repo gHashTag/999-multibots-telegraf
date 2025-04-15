@@ -1,11 +1,9 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
 import { Context, NarrowedContext, Scenes } from 'telegraf'
-import { ModelUrl, Subscription, UserModel } from './index'
+import { ModelUrl, UserModel } from './index'
 import type { Update, Message } from 'telegraf/typings/core/types/typegram'
 import { Buffer } from 'buffer'
 import { Mode } from './cost.interface'
 import { BroadcastContentType } from '@/scenes/broadcastWizard'
-import { LocalSubscription } from '@/scenes/getRuBillWizard'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {
@@ -77,49 +75,54 @@ export interface Memory {
   }>
 }
 
-export interface MySession extends Scenes.WizardSession<MyWizardSession> {
-  memory?: Memory
-  email: string
-  selectedModel: string
-  prompt: string
-  selectedSize: string
-  userModel: UserModel
-  numImages: number
-  telegram_id: TelegramId
-  mode: Mode
-  attempts: number
-  videoModel: string
-  imageUrl: string
-  videoUrl: string
-  audioUrl: string
-  amount: number
-  subscription: Subscription
-  images: BufferType
-  modelName: string
-  targetUserId: number
-  username: string
-  triggerWord: string
-  steps: number
-  inviter: string
-  inviteCode: string
-  invoiceURL: string
-  buttons: Button[]
-  bypass_payment_check: boolean
-  text?: string
-  selectedPayment: {
+export interface MySessionData extends Scenes.WizardSessionData {
+  cursor: number
+  email?: string
+  selectedModel?: string
+  prompt?: string
+  selectedSize?: string
+  selectedPayment?: {
     amount: number
     stars: number
-    subscription?: LocalSubscription
+    subscription: string
+  }
+  subscription?: string
+  text?: string
+  model_type?: ModelUrl
+  userModel?: UserModel
+  mode?: Mode
+  videoModel?: string
+  imageUrl?: string
+  amount?: number
+  images?: BufferType
+  modelName?: string
+  targetUserId?: number
+  username?: string
+  triggerWord?: string
+  steps?: number
+  __scenes: Record<string, unknown>
+}
+
+export interface MySession extends Scenes.WizardSession<MySessionData> {
+  state: MySessionData
+  subscription?: string
+  selectedPayment?: {
+    amount: number
+    stars: number
+    subscription: string
   }
 }
 
-export interface MyContext extends Context {
+export interface MyContext extends Context<Update> {
   session: MySession
-  attempts: number
-  scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
+  scene: Scenes.SceneContextScene<MyContext, MySessionData>
   wizard: Scenes.WizardContextWizard<MyContext>
+  attempts: number
   amount: number
-  match?: RegExpMatchArray
+  user: {
+    id: number
+    username: string
+  }
 }
 
 // Создайте новый тип, объединяющий MyContext и WizardContext

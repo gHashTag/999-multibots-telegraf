@@ -1,8 +1,6 @@
-import { logger } from '../../../utils/logger'
-import { TestResult } from '../../types'
-
-// Импорты тестов
-import { runPaymentProcessorTest } from './core/paymentProcessor.test'
+import { testPaymentProcessing } from './core/paymentProcessor.test'
+import { TestResult } from '@/test-utils/types'
+import { logger } from '@/utils/logger'
 
 /**
  * Проверка структуры тестов
@@ -29,7 +27,9 @@ async function validateTestStructure(): Promise<TestResult> {
  */
 export async function runAllPaymentTests(): Promise<TestResult[]> {
   try {
-    logger.info('🚀 Запуск тестов платежной системы...')
+    logger.info('🚀 Запуск тестов платежной системы', {
+      description: 'Starting payment system tests',
+    })
 
     // Проверка структуры тестов
     const structureValidation = await validateTestStructure()
@@ -40,11 +40,11 @@ export async function runAllPaymentTests(): Promise<TestResult[]> {
     }
 
     // Запуск тестов
-    const results = await Promise.all([runPaymentProcessorTest()])
+    const results = await Promise.all([testPaymentProcessing()])
 
     // Подсчет статистики
     const totalTests = results.length
-    const passedTests = results.filter(r => r.success).length
+    const passedTests = results.filter((r: TestResult) => r.success).length
     const successRate = (passedTests / totalTests) * 100
 
     logger.info(`
