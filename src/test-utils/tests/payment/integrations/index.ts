@@ -2,8 +2,8 @@ import { TestResult } from '../../../types'
 import { inngestTestEngine } from '../../../core/inngestTestEngine'
 import { ModeEnum } from '@/types/modes'
 import { logger } from '@/utils/logger'
-import { testRuPayment } from './test-ru-payment'
-import { testRobokassa } from './test-robokassa'
+import { testRobokassaIntegration } from './test-robokassa'
+import { testRuPaymentIntegration } from './test-ru-payment'
 import { testRobokassaFormAvailability } from '../utils/robokassaFormValidator.test'
 
 // RuPayment test
@@ -109,8 +109,8 @@ export async function testRobokassa(): Promise<TestResult> {
 }
 
 export const paymentIntegrationTests = {
-  testRuPayment,
-  testRobokassa,
+  testRuPayment: testRuPaymentIntegration,
+  testRobokassa: testRobokassaIntegration,
   testRobokassaFormAvailability,
 }
 
@@ -124,6 +124,14 @@ export async function runIntegrationTests(): Promise<TestResult[]> {
   // Тест доступности формы оплаты
   const formResult = await testRobokassaFormAvailability()
   results.push(formResult)
+
+  // Тест Robokassa
+  const robokassaResult = await testRobokassaIntegration()
+  results.push(robokassaResult)
+
+  // Тест RuPayment
+  const ruPaymentResult = await testRuPaymentIntegration()
+  results.push(ruPaymentResult)
 
   // Логируем общий результат
   const allSuccess = results.every(result => result.success)

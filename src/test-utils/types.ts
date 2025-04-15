@@ -1,3 +1,6 @@
+import { ModeEnum } from '@/interfaces/modes'
+import { TransactionType } from '@/interfaces/payments.interface'
+
 /**
  * Интерфейс результата выполнения теста
  */
@@ -18,18 +21,22 @@ export interface TestResult {
   error?: string
 
   /** Дополнительные детали теста */
-  details?: any
+  details?: Record<string, unknown>
+
+  /** Дополнительные данные (опционально) */
+  data?: any
 }
 
 /**
  * Типы для тестовых моков
  */
-export interface MockFunction<Args = any, ReturnValue = any> {
-  (...args: Args[]): ReturnValue
-  calls: Args[][]
-  returnValue: ReturnValue
-  mockReturnValue: (value: ReturnValue) => MockFunction<Args, ReturnValue>
-  mockClear: () => MockFunction<Args, ReturnValue>
+export interface MockFunction<T = unknown, R = unknown> {
+  (...args: T[]): R
+  mock: {
+    calls: T[][]
+    results: R[]
+    instances: unknown[]
+  }
 }
 
 /**
@@ -77,7 +84,7 @@ export interface TestRunResults {
 /**
  * Интерфейс для события платежа
  */
-export interface PaymentProcessEvent {
+export interface PaymentProcessEvent extends TestEvent {
   name: 'payment/process'
   data: {
     /** Telegram ID пользователя */
@@ -93,19 +100,109 @@ export interface PaymentProcessEvent {
     /** Имя бота */
     bot_name: string
     /** Тип сервиса из ModeEnum */
-    service_type?: string
+    service_type?: ModeEnum
   }
 }
 
 /**
- * Типы транзакций
+ * Тестовое событие
  */
-export type TransactionType =
-  | 'money_expense'
-  | 'money_income'
-  | 'subscription_purchase'
-  | 'subscription_renewal'
-  | 'refund'
-  | 'bonus'
-  | 'referral'
-  | 'system'
+export interface TestEvent {
+  /** Название события */
+  name: string
+
+  /** Данные события */
+  data: {
+    /** ID пользователя в Telegram */
+    telegram_id?: string
+
+    /** Сумма транзакции */
+    amount?: number
+
+    /** Количество звезд */
+    stars?: number
+
+    /** Тип транзакции */
+    type?: TransactionType
+
+    /** Описание */
+    description?: string
+
+    /** Название бота */
+    bot_name?: string
+
+    /** Тип сервиса */
+    service_type?: ModeEnum
+
+    /** Дополнительные данные */
+    [key: string]: any
+  }
+
+  /** Временная метка */
+  timestamp?: number
+}
+
+/**
+ * Конфигурация тестового окружения
+ */
+export interface TestConfig {
+  /** Тестовые суммы */
+  amounts: {
+    small: number
+    medium: number
+    large: number
+  }
+
+  /** Конвертация в звезды */
+  starConversion: {
+    rate: number
+  }
+
+  /** Тестовые сервисы */
+  services: ModeEnum[]
+
+  /** Тестовые статусы */
+  statuses: string[]
+
+  /** Тестовые методы оплаты */
+  paymentMethods: string[]
+
+  /** Типы транзакций */
+  transactionTypes: TransactionType[]
+
+  /** Тестовый пользователь */
+  testUser: {
+    initialBalance: number
+    language: string
+    botName: string
+  }
+
+  /** Настройки уведомлений */
+  notifications: {
+    adminChannelId: string
+    templates: {
+      ru: {
+        success: string
+        failed: string
+      }
+      en: {
+        success: string
+        failed: string
+      }
+    }
+  }
+}
+
+export interface TestState {
+  events: TestEvent[]
+  lastEventId: number
+}
+
+export interface InngestTestEngine {
+  clearEvents(): Promise<void>
+  sendEvent(event: TestEvent): Promise<void>
+  getEventsByName(name: string): TestEvent[]
+  waitForEvent(name: string, timeout: number): Promise<TestEvent | null>
+  executeQuery(query: string): Promise<unknown>
+  cleanup(): Promise<void>
+}

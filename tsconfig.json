@@ -1,9 +1,9 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "target": "es2017",
+    "target": "es2020",
     "module": "commonjs",
-    "lib": ["es2017", "es7", "es6", "dom"],
+    "lib": ["es2020", "es7", "es6", "dom"],
     "declaration": true,
     "strict": true,
     "noImplicitAny": true,
@@ -21,22 +21,34 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "baseUrl": ".",
-    "outDir": "dist",
+    "outDir": "./dist",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@utils/*": ["src/utils/*"],
+      "@config": ["src/config"],
+      "@controllers/*": ["src/controllers/*"],
+      "@dtos/*": ["src/dtos/*"],
+      "@exceptions/*": ["src/exceptions/*"],
+      "@interfaces/*": ["src/interfaces/*"],
+      "@middlewares/*": ["src/middlewares/*"],
+      "@models/*": ["src/models/*"],
+      "@routes/*": ["src/routes/*"],
+      "@services/*": ["src/services/*"],
+      "@core/*": ["src/core/*"],
+      "@axios/*": ["src/axios/*"],
+      "@price/*": ["src/price/*"],
+      "@store/*": ["src/store/*"],
+      "@handlers/*": ["src/handlers/*"],
+      "@helpers/*": ["src/helpers/*"],
+      "@commands/*": ["src/commands/*"],
+      "@inngest-functions/*": ["src/inngest-functions/*"],
+      "@test-utils/*": ["src/test-utils/*"]
     },
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "emitDecoratorMetadata": true,
-    "allowJs": true,
-    "forceConsistentCasingInFileNames": true
+    "allowJs": true
   },
-  "include": [
-    "src/**/*",
-    "test/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
