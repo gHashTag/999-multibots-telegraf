@@ -2,6 +2,7 @@ import express from 'express'
 import { logger } from '@/utils/logger'
 import { API_PORT } from '@/config'
 import api from './api'
+import type { CustomRequest, CustomResponse } from '@/types/express'
 
 const app = express()
 
@@ -12,24 +13,17 @@ app.use(express.json())
 app.use('/api', api)
 
 // Error handling
-app.use(
-  (
-    err: Error,
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction
-  ) => {
-    logger.error('❌ Server Error:', {
-      description: 'Server request error',
-      error: err.message,
-    })
+app.use((err: Error, req: CustomRequest, res: CustomResponse) => {
+  logger.error('❌ Server Error:', {
+    description: 'Server request error',
+    error: err.message,
+  })
 
-    res.status(500).json({
-      status: 'error',
-      message: 'Internal server error',
-    })
-  }
-)
+  res.status(500).json({
+    status: 'error',
+    message: 'Internal server error',
+  })
+})
 
 // Start server
 const port = API_PORT || 3000
