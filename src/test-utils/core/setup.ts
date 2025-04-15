@@ -36,4 +36,4 @@ jest.mock('@/core/bot', () => ({
       sendVideo: jest.fn().mockResolvedValue({}),
     },
   })),
-})) 
+}))

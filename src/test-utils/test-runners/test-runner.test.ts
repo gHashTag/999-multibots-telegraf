@@ -218,8 +218,8 @@ export async function main(args: string[] = []): Promise<boolean> {
 module.exports = {
   main,
   getTestTypesAvailable,
-  runTest
-};
+  runTest,
+}
 
 // Если файл запущен напрямую, а не импортирован
 if (require.main === module) {

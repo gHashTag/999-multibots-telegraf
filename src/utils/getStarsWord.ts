@@ -7,24 +7,24 @@
 export function getStarsWord(count: number, isRu: boolean): string {
   if (isRu) {
     // Russian word forms: звезда, звезды, звёзд
-    const lastDigit = count % 10;
-    const lastTwoDigits = count % 100;
+    const lastDigit = count % 10
+    const lastTwoDigits = count % 100
 
     if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
-      return 'звёзд';
+      return 'звёзд'
     }
 
     if (lastDigit === 1) {
-      return 'звезда';
+      return 'звезда'
     }
 
     if (lastDigit >= 2 && lastDigit <= 4) {
-      return 'звезды';
+      return 'звезды'
     }
 
-    return 'звёзд';
+    return 'звёзд'
   } else {
     // English word forms: star, stars
-    return count === 1 ? 'star' : 'stars';
+    return count === 1 ? 'star' : 'stars'
   }
-} 
+}

@@ -6,26 +6,26 @@ import { ModeEnum } from '@/interfaces/modes'
 // Мокаем зависимости
 jest.mock('@/core/inngest', () => ({
   inngest: {
-    send: jest.fn()
-  }
+    send: jest.fn(),
+  },
 }))
 
 jest.mock('@/utils/logger', () => ({
   logger: {
     info: jest.fn(),
-    error: jest.fn()
-  }
+    error: jest.fn(),
+  },
 }))
 
 // Мок для inngest
 const mockInngest = {
   // @ts-ignore - игнорируем типизацию для упрощения тестов
-  send: jest.fn()
+  send: jest.fn(),
 }
 
 // Переопределяем импорт для имитации inngest
 jest.mock('@/core/inngest', () => ({
-  inngest: mockInngest
+  inngest: mockInngest,
 }))
 
 describe('Payment Helpers', () => {
@@ -45,7 +45,7 @@ describe('Payment Helpers', () => {
       // @ts-ignore
       mockInngest.send.mockResolvedValue({
         data: { success: true },
-        error: null
+        error: null,
       })
 
       const result = await processPayment(
@@ -66,8 +66,8 @@ describe('Payment Helpers', () => {
           type: TransactionType.MONEY_INCOME,
           description: mockDescription,
           bot_name: mockBotName,
-          service_type: ModeEnum.TopUpBalance
-        }
+          service_type: ModeEnum.TopUpBalance,
+        },
       })
     })
 
@@ -76,7 +76,7 @@ describe('Payment Helpers', () => {
       // @ts-ignore
       mockInngest.send.mockResolvedValue({
         data: null,
-        error: new Error('Failed to process payment')
+        error: new Error('Failed to process payment'),
       })
 
       const result = await processPayment(
@@ -115,7 +115,7 @@ describe('Payment Helpers', () => {
       // @ts-ignore
       mockInngest.send.mockResolvedValue({
         data: { success: true },
-        error: null
+        error: null,
       })
 
       const result = await deductFunds(
@@ -135,8 +135,8 @@ describe('Payment Helpers', () => {
           type: TransactionType.MONEY_EXPENSE,
           description: mockDescription,
           bot_name: mockBotName,
-          service_type: ModeEnum.NeuroPhoto
-        }
+          service_type: ModeEnum.NeuroPhoto,
+        },
       })
     })
 
@@ -152,7 +152,7 @@ describe('Payment Helpers', () => {
 
       expect(resultNegative).toEqual({
         success: false,
-        error: 'Amount must be positive'
+        error: 'Amount must be positive',
       })
       expect(mockInngest.send).not.toHaveBeenCalled()
 
@@ -167,7 +167,7 @@ describe('Payment Helpers', () => {
 
       expect(resultZero).toEqual({
         success: false,
-        error: 'Amount must be positive'
+        error: 'Amount must be positive',
       })
     })
 
@@ -176,7 +176,7 @@ describe('Payment Helpers', () => {
       // @ts-ignore
       mockInngest.send.mockResolvedValue({
         data: null,
-        error: new Error('Failed to process payment')
+        error: new Error('Failed to process payment'),
       })
 
       const result = await deductFunds(
@@ -197,7 +197,7 @@ describe('Payment Helpers', () => {
       // @ts-ignore
       mockInngest.send.mockResolvedValue({
         data: { success: true },
-        error: null
+        error: null,
       })
 
       const result = await addFunds(
@@ -216,8 +216,8 @@ describe('Payment Helpers', () => {
           type: TransactionType.MONEY_INCOME,
           description: mockDescription,
           bot_name: mockBotName,
-          service_type: ModeEnum.TopUpBalance
-        }
+          service_type: ModeEnum.TopUpBalance,
+        },
       })
     })
 
@@ -232,7 +232,7 @@ describe('Payment Helpers', () => {
 
       expect(resultNegative).toEqual({
         success: false,
-        error: 'Amount must be positive'
+        error: 'Amount must be positive',
       })
       expect(mockInngest.send).not.toHaveBeenCalled()
 
@@ -246,7 +246,7 @@ describe('Payment Helpers', () => {
 
       expect(resultZero).toEqual({
         success: false,
-        error: 'Amount must be positive'
+        error: 'Amount must be positive',
       })
     })
 
@@ -255,7 +255,7 @@ describe('Payment Helpers', () => {
       // @ts-ignore
       mockInngest.send.mockResolvedValue({
         data: null,
-        error: new Error('Failed to process payment')
+        error: new Error('Failed to process payment'),
       })
 
       const result = await addFunds(
@@ -268,4 +268,4 @@ describe('Payment Helpers', () => {
       expect(result).toEqual({ success: false })
     })
   })
-}) 
+})

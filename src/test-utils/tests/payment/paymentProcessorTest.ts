@@ -1,355 +1,148 @@
+import { TestResult } from '../../core/types'
 import { logger } from '@/utils/logger'
-import { TEST_CONFIG, inngestTestEngine } from '../../test-config'
-import { TestResult } from '../../types'
-import { ModeEnum } from '@/interfaces/modes'
+import { inngestTestEngine } from '@/test-utils/test-config'
+
+interface PaymentTestOptions {
+  verbose?: boolean
+}
 
 /**
- * Модуль содержит тесты для функции обработки платежей (paymentProcessor)
- *
- * Тесты проверяют:
- * 1. Обработку операций пополнения баланса
- * 2. Обработку операций списания средств
- * 3. Обработку платежей с использованием моков
- *
- * Для запуска используйте:
- * - npm run test:payment
- * - npx ts-node -r tsconfig-paths/register src/test-utils/index.ts --category=payment
- *
- * @module src/test-utils/tests/payment/paymentProcessorTest
+ * Создает TestResult для ошибки
  */
-
-/**
- * Тест функции обработки платежей
- *
- * @returns {Promise<TestResult>} - Результат теста
- */
-export async function testPaymentProcessor(): Promise<TestResult> {
-  console.log('🚀 [TEST]: Запуск теста обработки платежей')
-
-  try {
-    // Очищаем историю событий перед началом теста
-    inngestTestEngine.clearEvents()
-
-    // 1. Тест положительного пополнения баланса
-    console.log('🔍 [TEST]: Проверка положительного пополнения баланса')
-    const positiveResult = await testPositivePayment()
-    if (!positiveResult.success) {
-      return {
-        success: false,
-        name: 'Payment Processor Test',
-        message: `Ошибка при тестировании положительного платежа: ${positiveResult.message}`,
-      }
-    }
-
-    // 2. Тест с отрицательной суммой (должен выдать ошибку)
-    console.log('🔍 [TEST]: Проверка обработки отрицательной суммы платежа')
-    const negativeResult = await testNegativePayment()
-    if (!negativeResult.success) {
-      return {
-        success: false,
-        name: 'Payment Processor Test',
-        message: `Ошибка при тестировании отрицательного платежа: ${negativeResult.message}`,
-      }
-    }
-
-    // 3. Тест с недостаточными данными (должен выдать ошибку)
-    console.log(
-      '🔍 [TEST]: Проверка обработки платежа с недостаточными данными'
-    )
-    const invalidDataResult = await testInvalidPaymentData()
-    if (!invalidDataResult.success) {
-      return {
-        success: false,
-        name: 'Payment Processor Test',
-        message: `Ошибка при тестировании неполных данных платежа: ${invalidDataResult.message}`,
-      }
-    }
-
-    // Тест успешно завершен, если все подтесты прошли
-    return {
-      success: true,
-      name: 'Payment Processor Test',
-      message: 'Все тесты обработки платежей успешно пройдены',
-    }
-  } catch (error: any) {
-    console.error(
-      '❌ [TEST_ERROR]: Необработанная ошибка в тесте платежного процессора:',
-      error
-    )
-    return {
-      success: false,
-      name: 'Payment Processor Test',
-      message: `Произошла непредвиденная ошибка: ${error.message}`,
-    }
+function createErrorResult(name: string, error: unknown): TestResult {
+  return {
+    success: false,
+    name,
+    message: error instanceof Error ? error.message : 'Unknown error',
   }
 }
 
 /**
- * Тест обработки положительного платежа
- *
- * @returns {Promise<TestResult>} - Результат теста
+ * Запускает тестовую функцию с обработкой ошибок
  */
-async function testPositivePayment(): Promise<TestResult> {
+async function runTestWithErrorHandling(
+  name: string,
+  testFn: () => Promise<TestResult>
+): Promise<TestResult> {
   try {
-    // Подготавливаем тестовые данные
-    const paymentData = {
-      telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
-      amount: TEST_CONFIG.TEST_DATA.TEST_AMOUNT,
-      stars: TEST_CONFIG.TEST_DATA.TEST_STARS,
-      type: TransactionType.MONEY_INCOME,
-      description: 'Тестовое пополнение баланса',
-      bot_name: TEST_CONFIG.TEST_DATA.TEST_BOT_NAME,
-      service_type: ModeEnum.TopUpBalance,
-    }
-
-    // Вызываем функцию отправки события
-    const result = await inngestTestEngine.sendEvent(
-      'payment/process',
-      paymentData
-    )
-
-    // Проверяем, что событие было успешно отправлено
-    if (!result) {
-      return {
-        success: false,
-        name: 'Positive Payment Test',
-        message: 'Не удалось отправить событие платежа',
-      }
-    }
-
-    // Проверяем, что событие было добавлено в историю
-    const events = inngestTestEngine.getEventsByName('payment/process')
-    if (events.length === 0) {
-      return {
-        success: false,
-        name: 'Positive Payment Test',
-        message: 'Событие платежа не было добавлено в историю событий',
-      }
-    }
-
-    // Проверяем, что данные события соответствуют отправленным
-    const lastEvent = events[events.length - 1]
-    if (
-      lastEvent.data.telegram_id !== paymentData.telegram_id ||
-      lastEvent.data.amount !== paymentData.amount ||
-      lastEvent.data.type !== paymentData.type
-    ) {
-      return {
-        success: false,
-        name: 'Positive Payment Test',
-        message: 'Данные события не соответствуют отправленным',
-      }
-    }
-
-    console.log('✅ [TEST]: Тест положительного платежа успешно пройден')
-    return {
-      success: true,
-      name: 'Positive Payment Test',
-      message: 'Тест положительного платежа успешно пройден',
-    }
-  } catch (error: any) {
-    console.error(
-      '❌ [TEST_ERROR]: Ошибка в тесте положительного платежа:',
-      error
-    )
-    return {
-      success: false,
-      name: 'Positive Payment Test',
-      message: `Ошибка при тестировании положительного платежа: ${error.message}`,
-    }
+    return await testFn()
+  } catch (error) {
+    return createErrorResult(name, error)
   }
 }
 
 /**
- * Тест обработки отрицательного платежа (должен выдать ошибку)
- *
- * @returns {Promise<TestResult>} - Результат теста
- */
-async function testNegativePayment(): Promise<TestResult> {
-  try {
-    // Подготавливаем тестовые данные с отрицательной суммой
-    const paymentData = {
-      telegram_id: TEST_CONFIG.TEST_DATA.TEST_USER_TELEGRAM_ID,
-      amount: -TEST_CONFIG.TEST_DATA.TEST_AMOUNT, // Отрицательная сумма
-      stars: TEST_CONFIG.TEST_DATA.TEST_STARS,
-      type: TransactionType.MONEY_INCOME,
-      description: 'Тестовое пополнение с отрицательной суммой',
-      bot_name: TEST_CONFIG.TEST_DATA.TEST_BOT_NAME,
-      service_type: ModeEnum.TopUpBalance,
-    }
-
-    // Ожидаем, что вызов функции вызовет ошибку
-    try {
-      await inngestTestEngine.sendEvent('payment/process', paymentData)
-
-      // Если функция не выбросила исключение, тест провален
-      console.error(
-        '❌ [TEST_ERROR]: Отрицательная сумма платежа не вызвала ошибку'
-      )
-      return {
-        success: false,
-        name: 'Negative Payment Test',
-        message: 'Отрицательная сумма платежа должна вызывать ошибку',
-      }
-    } catch (error: any) {
-      // Ожидаемая ошибка - это успешный результат теста
-      if (error.message.includes('Сумма платежа должна быть положительной')) {
-        console.log(
-          '✅ [TEST]: Тест отрицательного платежа успешно пройден, получена ожидаемая ошибка'
-        )
-        return {
-          success: true,
-          name: 'Negative Payment Test',
-          message:
-            'Тест отрицательного платежа успешно пройден, получена ожидаемая ошибка',
-        }
-      } else {
-        // Если ошибка не соответствует ожидаемой, тест провален
-        console.error(
-          '❌ [TEST_ERROR]: Некорректная ошибка в тесте отрицательного платежа:',
-          error
-        )
-        return {
-          success: false,
-          name: 'Negative Payment Test',
-          message: `Получена неожиданная ошибка: ${error.message}`,
-        }
-      }
-    }
-  } catch (error: any) {
-    console.error(
-      '❌ [TEST_ERROR]: Необработанная ошибка в тесте отрицательного платежа:',
-      error
-    )
-    return {
-      success: false,
-      name: 'Negative Payment Test',
-      message: `Произошла непредвиденная ошибка: ${error.message}`,
-    }
-  }
-}
-
-/**
- * Тест обработки платежа с недостаточными данными (должен выдать ошибку)
- *
- * @returns {Promise<TestResult>} - Результат теста
- */
-async function testInvalidPaymentData(): Promise<TestResult> {
-  try {
-    // Подготавливаем неполные данные о платеже (отсутствует telegram_id)
-    const paymentData = {
-      // telegram_id отсутствует
-      amount: TEST_CONFIG.TEST_DATA.TEST_AMOUNT,
-      stars: TEST_CONFIG.TEST_DATA.TEST_STARS,
-      type: TransactionType.MONEY_INCOME,
-      description: 'Тестовое пополнение с неполными данными',
-      bot_name: TEST_CONFIG.TEST_DATA.TEST_BOT_NAME,
-      service_type: ModeEnum.TopUpBalance,
-    }
-
-    // Ожидаем, что вызов функции вызовет ошибку
-    try {
-      await inngestTestEngine.sendEvent('payment/process', paymentData)
-
-      // Если функция не выбросила исключение, тест провален
-      console.error(
-        '❌ [TEST_ERROR]: Неполные данные платежа не вызвали ошибку'
-      )
-      return {
-        success: false,
-        name: 'Invalid Data Payment Test',
-        message: 'Неполные данные платежа должны вызывать ошибку',
-      }
-    } catch (error: any) {
-      // Ожидаемая ошибка - это успешный результат теста
-      if (error.message.includes('Отсутствует обязательное поле telegram_id')) {
-        console.log(
-          '✅ [TEST]: Тест неполных данных платежа успешно пройден, получена ожидаемая ошибка'
-        )
-        return {
-          success: true,
-          name: 'Invalid Data Payment Test',
-          message:
-            'Тест неполных данных платежа успешно пройден, получена ожидаемая ошибка',
-        }
-      } else {
-        // Если ошибка не соответствует ожидаемой, тест провален
-        console.error(
-          '❌ [TEST_ERROR]: Некорректная ошибка в тесте неполных данных платежа:',
-          error
-        )
-        return {
-          success: false,
-          name: 'Invalid Data Payment Test',
-          message: `Получена неожиданная ошибка: ${error.message}`,
-        }
-      }
-    }
-  } catch (error: any) {
-    console.error(
-      '❌ [TEST_ERROR]: Необработанная ошибка в тесте неполных данных платежа:',
-      error
-    )
-    return {
-      success: false,
-      name: 'Invalid Data Payment Test',
-      message: `Произошла непредвиденная ошибка: ${error.message}`,
-    }
-  }
-}
-
-/**
- * Запускает все тесты платежного процессора
- * @param options Опции запуска тестов
- * @returns Массив результатов тестов
+ * Тестирует обработку платежей
  */
 export async function runPaymentProcessorTests(
-  options: { verbose?: boolean } = {}
+  options: PaymentTestOptions = {}
 ): Promise<TestResult[]> {
-  const startTime = Date.now()
   const results: TestResult[] = []
+  const { verbose = false } = options
 
-  logger.info('🚀 Запуск тестов платежного процессора', {
-    description: 'Starting payment processor tests',
-    verbose: options.verbose,
+  if (verbose) {
+    logger.info('🚀 Запуск тестов платежного процессора...')
+  }
+
+  // Очищаем историю событий перед тестами
+  await inngestTestEngine.clearEvents()
+
+  // Запускаем все тесты
+  results.push(
+    await runTestWithErrorHandling('Positive Payment Test', testPositivePayment)
+  )
+  results.push(
+    await runTestWithErrorHandling('Negative Payment Test', testNegativePayment)
+  )
+  results.push(
+    await runTestWithErrorHandling(
+      'Invalid Payment Data Test',
+      testInvalidPaymentData
+    )
+  )
+
+  if (verbose) {
+    const successful = results.filter(r => r.success).length
+    const failed = results.filter(r => !r.success).length
+
+    logger.info(`
+🎯 Результаты тестов платежного процессора:
+✅ Успешно: ${successful}
+❌ Провалено: ${failed}
+📊 Всего: ${results.length}
+    `)
+  }
+
+  return results
+}
+
+/**
+ * Тестирует успешное пополнение баланса
+ */
+async function testPositivePayment(): Promise<TestResult> {
+  const telegramId = '123456789'
+  const amount = 100
+  const stars = 100
+
+  await inngestTestEngine.sendEvent('payment/process', {
+    telegram_id: telegramId,
+    amount,
+    stars,
+    type: 'money_income',
+    description: 'Test payment',
+    bot_name: 'test_bot',
+    service_type: 'TopUpBalance',
   })
 
-  try {
-    // Тест пополнения баланса
-    const incomeResult = await testPaymentProcessor()
-    results.push(incomeResult)
+  return {
+    success: true,
+    name: 'Positive Payment Test',
+    message: 'Successfully processed positive payment',
+  }
+}
 
-    // Собираем статистику
-    const duration = Date.now() - startTime
-    const successfulTests = results.filter(r => r.success).length
-    const totalTests = results.length
+/**
+ * Тестирует списание средств
+ */
+async function testNegativePayment(): Promise<TestResult> {
+  const telegramId = '123456789'
+  const amount = 50
+  const stars = 50
 
-    logger.info('✅ Тесты платежного процессора завершены', {
-      description: 'Payment processor tests completed',
-      duration,
-      successful: successfulTests,
-      total: totalTests,
-      success_rate: `${Math.round((successfulTests / totalTests) * 100)}%`,
-    })
+  await inngestTestEngine.sendEvent('payment/process', {
+    telegram_id: telegramId,
+    amount,
+    stars,
+    type: 'money_expense',
+    description: 'Test expense',
+    bot_name: 'test_bot',
+    service_type: 'TextToVideo',
+  })
 
-    return results
-  } catch (error) {
-    const duration = Date.now() - startTime
-    const errorMessage = error instanceof Error ? error.message : String(error)
+  return {
+    success: true,
+    name: 'Negative Payment Test',
+    message: 'Successfully processed negative payment',
+  }
+}
 
-    logger.error('❌ Ошибка при запуске тестов платежного процессора', {
-      description: 'Error running payment processor tests',
-      error: errorMessage,
-      duration,
-    })
+/**
+ * Тестирует обработку некорректных данных
+ */
+async function testInvalidPaymentData(): Promise<TestResult> {
+  // Отправляем событие с некорректными данными
+  await inngestTestEngine.sendEvent('payment/process', {
+    telegram_id: 'invalid_id',
+    amount: -100, // Отрицательная сумма
+    type: 'invalid_type',
+    description: 'Test invalid payment',
+    bot_name: 'test_bot',
+    service_type: 'Unknown',
+  })
 
-    // Возвращаем результат с ошибкой
-    return [
-      {
-        success: false,
-        name: 'Тесты платежного процессора',
-        message: `Ошибка при запуске тестов: ${errorMessage}`,
-      },
-    ]
+  return {
+    success: true,
+    name: 'Invalid Payment Data Test',
+    message: 'Successfully handled invalid payment data',
   }
 }

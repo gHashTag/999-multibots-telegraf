@@ -18,7 +18,11 @@ interface ZepMetrics {
 export interface IZepClient {
   getMemory(sessionId: string): Promise<ZepMemory | null>
   saveMemory(sessionId: string, memory: ZepMemory): Promise<void>
-  addMessage(sessionId: string, role: 'user' | 'assistant', content: string): Promise<void>
+  addMessage(
+    sessionId: string,
+    role: 'user' | 'assistant',
+    content: string
+  ): Promise<void>
   clearMemory(sessionId: string): Promise<void>
   getMetrics(): ZepMetrics
   destroy(): void
@@ -33,14 +37,14 @@ export class ZepClient implements IZepClient {
     this.client = axios.create({
       baseURL: ZEP_CONFIG.baseUrl,
       headers: {
-        'Authorization': `Bearer ${ZEP_CONFIG.apiKey}`,
+        Authorization: `Bearer ${ZEP_CONFIG.apiKey}`,
         'Content-Type': 'application/json',
       },
     })
     this.cache = new Cache<ZepMemory>()
 
     logger.info('🚀 ZepClient инициализирован:', {
-      description: 'ZepClient initialized with cache'
+      description: 'ZepClient initialized with cache',
     })
   }
 
@@ -58,7 +62,7 @@ export class ZepClient implements IZepClient {
       if (cachedMemory) {
         logger.info('📝 Память получена из кэша:', {
           description: 'Memory retrieved from cache',
-          sessionId
+          sessionId,
         })
         return cachedMemory
       }
@@ -72,14 +76,14 @@ export class ZepClient implements IZepClient {
 
       logger.info('📝 Память получена из ZEP:', {
         description: 'Memory retrieved from ZEP',
-        sessionId
+        sessionId,
       })
       return memory
     } catch (error) {
       logger.error('❌ Ошибка при получении памяти:', {
         description: 'Error retrieving memory',
         error: error instanceof Error ? error.message : String(error),
-        sessionId
+        sessionId,
       })
       return null
     }
@@ -89,28 +93,32 @@ export class ZepClient implements IZepClient {
     try {
       // Сохраняем в API
       await this.client.post(`/memory/${sessionId}`, memory)
-      
+
       // Обновляем кэш
       this.cache.set(sessionId, memory)
 
       logger.info('💾 Память сохранена:', {
         description: 'Memory saved',
-        sessionId
+        sessionId,
       })
     } catch (error) {
       logger.error('❌ Ошибка при сохранении памяти:', {
         description: 'Error saving memory',
         error: error instanceof Error ? error.message : String(error),
-        sessionId
+        sessionId,
       })
     }
   }
 
-  async addMessage(sessionId: string, role: 'user' | 'assistant', content: string): Promise<void> {
+  async addMessage(
+    sessionId: string,
+    role: 'user' | 'assistant',
+    content: string
+  ): Promise<void> {
     try {
       // Получаем текущую память (сначала из кэша)
-      const memory = await this.getMemory(sessionId) || { messages: [] }
-      
+      const memory = (await this.getMemory(sessionId)) || { messages: [] }
+
       // Добавляем новое сообщение
       memory.messages.push({
         role,
@@ -130,13 +138,13 @@ export class ZepClient implements IZepClient {
         description: 'Message added to memory',
         sessionId,
         role,
-        messageCount: memory.messages.length
+        messageCount: memory.messages.length,
       })
     } catch (error) {
       logger.error('❌ Ошибка при добавлении сообщения:', {
         description: 'Error adding message',
         error: error instanceof Error ? error.message : String(error),
-        sessionId
+        sessionId,
       })
     }
   }
@@ -145,19 +153,19 @@ export class ZepClient implements IZepClient {
     try {
       // Очищаем в API
       await this.client.delete(`/memory/${sessionId}`)
-      
+
       // Очищаем кэш
       this.cache.delete(sessionId)
 
       logger.info('🧹 Память очищена:', {
         description: 'Memory cleared',
-        sessionId
+        sessionId,
       })
     } catch (error) {
       logger.error('❌ Ошибка при очистке памяти:', {
         description: 'Error clearing memory',
         error: error instanceof Error ? error.message : String(error),
-        sessionId
+        sessionId,
       })
     }
   }
@@ -167,7 +175,7 @@ export class ZepClient implements IZepClient {
     return {
       cacheSize: metrics.size,
       hitRate: metrics.hits / (metrics.hits + metrics.misses),
-      missRate: metrics.misses / (metrics.hits + metrics.misses)
+      missRate: metrics.misses / (metrics.hits + metrics.misses),
     }
   }
 

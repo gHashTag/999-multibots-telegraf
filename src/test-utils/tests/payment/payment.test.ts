@@ -26,15 +26,9 @@ describe('Payment System Tests', () => {
 
   afterAll(async () => {
     // Очистка тестовых данных
-    await supabase
-      .from('payments_v2')
-      .delete()
-      .eq('telegram_id', testUserId)
-    
-    await supabase
-      .from('transactions')
-      .delete()
-      .eq('telegram_id', testUserId)
+    await supabase.from('payments_v2').delete().eq('telegram_id', testUserId)
+
+    await supabase.from('transactions').delete().eq('telegram_id', testUserId)
   })
 
   describe('Payment Creation', () => {
@@ -55,7 +49,7 @@ describe('Payment System Tests', () => {
           service_type: ModeEnum.NeuroPhoto,
           currency: 'RUB',
           bot_name: 'test_bot',
-          description: 'Test payment'
+          description: 'Test payment',
         })
         .select()
         .single()
@@ -82,20 +76,18 @@ describe('Payment System Tests', () => {
         .eq('telegram_id', testUserId)
 
       // Создаем успешный платеж
-      await supabase
-        .from('payments_v2')
-        .insert({
-          telegram_id: testUserId,
-          amount,
-          stars: amount,
-          status: 'COMPLETED',
-          payment_method: 'Robokassa',
-          type: TransactionType.MONEY_INCOME,
-          service_type: ModeEnum.NeuroPhoto,
-          currency: 'RUB',
-          bot_name: 'test_bot',
-          description: 'Test payment'
-        })
+      await supabase.from('payments_v2').insert({
+        telegram_id: testUserId,
+        amount,
+        stars: amount,
+        status: 'COMPLETED',
+        payment_method: 'Robokassa',
+        type: TransactionType.MONEY_INCOME,
+        service_type: ModeEnum.NeuroPhoto,
+        currency: 'RUB',
+        bot_name: 'test_bot',
+        description: 'Test payment',
+      })
 
       const balanceUpdated = await tester.checkBalanceUpdated(
         testUserId,
@@ -113,28 +105,28 @@ describe('Payment System Tests', () => {
         amount: 1000,
         type: TransactionType.MONEY_INCOME,
         description: 'Initial balance for test',
-        bot_name: 'test_bot'
-      });
+        bot_name: 'test_bot',
+      })
 
       // Списание средств
-      const deductionAmount = 500;
+      const deductionAmount = 500
       const result = await updateUserBalance({
         telegram_id: testUserId,
         amount: -deductionAmount, // Отрицательное значение для списания
         type: TransactionType.MONEY_EXPENSE,
         description: 'Test deduction',
         bot_name: 'test_bot',
-        service_type: ModeEnum.TextToVideo
-      });
+        service_type: ModeEnum.TextToVideo,
+      })
 
       // Проверка на null или undefined перед обращением к свойству
-      expect(result).toBeDefined();
-      
+      expect(result).toBeDefined()
+
       if (result) {
-        expect(result.success).toBeTruthy();
+        expect(result.success).toBeTruthy()
       } else {
         // Если result undefined, тест должен завершиться неудачей
-        expect("Result is undefined").toBe(false);
+        expect('Result is undefined').toBe(false)
       }
 
       // Проверим, что баланс уменьшился
@@ -142,10 +134,10 @@ describe('Payment System Tests', () => {
         .from('users')
         .select('balance')
         .eq('telegram_id', testUserId)
-        .single();
+        .single()
 
-      expect(user?.balance).toBe(500); // 1000 - 500 = 500
-    });
+      expect(user?.balance).toBe(500) // 1000 - 500 = 500
+    })
 
     it('should handle insufficient funds', async () => {
       // Установим начальный баланс 100
@@ -154,29 +146,29 @@ describe('Payment System Tests', () => {
         amount: 100,
         type: TransactionType.MONEY_INCOME,
         description: 'Small balance for test',
-        bot_name: 'test_bot'
-      });
+        bot_name: 'test_bot',
+      })
 
       // Пытаемся списать больше, чем есть
-      const deductionAmount = 500;
+      const deductionAmount = 500
       const result = await updateUserBalance({
         telegram_id: testUserId,
         amount: -deductionAmount,
         type: TransactionType.MONEY_EXPENSE,
         description: 'Test deduction with insufficient funds',
         bot_name: 'test_bot',
-        service_type: ModeEnum.TextToVideo
-      });
+        service_type: ModeEnum.TextToVideo,
+      })
 
       // Проверка на null или undefined перед обращением к свойству
-      expect(result).toBeDefined();
-      
+      expect(result).toBeDefined()
+
       if (result) {
-        expect(result.success).toBeFalsy();
-        expect(result.error).toBeDefined();
+        expect(result.success).toBeFalsy()
+        expect(result.error).toBeDefined()
       } else {
         // Если result undefined, тест должен завершиться неудачей
-        expect("Result is undefined").toBe(false);
+        expect('Result is undefined').toBe(false)
       }
 
       // Проверим, что баланс не изменился
@@ -184,10 +176,10 @@ describe('Payment System Tests', () => {
         .from('users')
         .select('balance')
         .eq('telegram_id', testUserId)
-        .single();
+        .single()
 
-      expect(user?.balance).toBe(100); // Баланс должен остаться прежним
-    });
+      expect(user?.balance).toBe(100) // Баланс должен остаться прежним
+    })
   })
 
   describe('Payment Notifications', () => {
@@ -201,7 +193,7 @@ describe('Payment System Tests', () => {
         stars,
         telegramId: testUserId,
         language_code: 'ru',
-        bot
+        bot,
       })
 
       const notificationSent = await tester.checkPaymentNotification(
@@ -225,9 +217,11 @@ describe('Payment System Tests', () => {
       )
 
       // Проверяем отправку в админский канал
-      const messages = await ctx.telegram.getChatHistory('-4166575919', { limit: 1 })
+      const messages = await ctx.telegram.getChatHistory('-4166575919', {
+        limit: 1,
+      })
       const lastMessage = messages[0]
-      
+
       expect(lastMessage.text).toContain(amount.toString())
       expect(lastMessage.text).toContain(stars.toString())
       expect(lastMessage.text).toContain(testUserId)
@@ -240,21 +234,19 @@ describe('Payment System Tests', () => {
       const status = 'COMPLETED'
 
       // Создаем тестовый платеж
-      await supabase
-        .from('payments_v2')
-        .insert({
-          telegram_id: testUserId,
-          amount: 1000,
-          stars: 100,
-          status,
-          inv_id: invId,
-          payment_method: 'Robokassa',
-          type: TransactionType.MONEY_INCOME,
-          service_type: ModeEnum.NeuroPhoto,
-          currency: 'RUB',
-          bot_name: 'test_bot',
-          description: 'Test payment'
-        })
+      await supabase.from('payments_v2').insert({
+        telegram_id: testUserId,
+        amount: 1000,
+        stars: 100,
+        status,
+        inv_id: invId,
+        payment_method: 'Robokassa',
+        type: TransactionType.MONEY_INCOME,
+        service_type: ModeEnum.NeuroPhoto,
+        currency: 'RUB',
+        bot_name: 'test_bot',
+        description: 'Test payment',
+      })
 
       const paymentStatus = await checkPaymentStatus(invId)
       expect(paymentStatus?.status).toBe(status)
@@ -268,15 +260,13 @@ describe('Payment System Tests', () => {
       const serviceType = ModeEnum.NeuroPhoto
 
       // Создаем тестовую транзакцию
-      await supabase
-        .from('transactions')
-        .insert({
-          telegram_id: testUserId,
-          amount,
-          type,
-          service_type: serviceType,
-          description: 'Test transaction'
-        })
+      await supabase.from('transactions').insert({
+        telegram_id: testUserId,
+        amount,
+        type,
+        service_type: serviceType,
+        description: 'Test transaction',
+      })
 
       const transactionCreated = await tester.checkTransactionCreated(
         testUserId,

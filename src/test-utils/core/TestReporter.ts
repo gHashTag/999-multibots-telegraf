@@ -1,7 +1,7 @@
-import fs from 'fs';
-import path from 'path';
-import { TestResult } from './types';
-import { logger } from '@/utils/logger';
+import fs from 'fs'
+import path from 'path'
+import { TestResult } from './types'
+import { logger } from '@/utils/logger'
 
 /**
  * Класс для генерации отчетов о тестировании
@@ -10,67 +10,67 @@ export class TestReporter {
   /**
    * Формат отчета
    */
-  private format: 'text' | 'json' | 'html';
+  private format: 'text' | 'json' | 'html'
 
   /**
    * Путь к файлу отчета
    */
-  private outputPath?: string;
+  private outputPath?: string
 
   /**
    * Результаты тестов
    */
-  private results: TestResult[];
+  private results: TestResult[]
 
   /**
    * Время начала выполнения тестов
    */
-  private startTime: number;
+  private startTime: number
 
   /**
    * Время окончания выполнения тестов
    */
-  private endTime: number;
+  private endTime: number
 
   /**
    * Создает экземпляр репортера
-   * 
+   *
    * @param format Формат отчета
    * @param outputPath Путь к файлу отчета (опционально)
    */
   constructor(format: 'text' | 'json' | 'html' = 'text', outputPath?: string) {
-    this.format = format;
-    this.outputPath = outputPath;
-    this.results = [];
-    this.startTime = Date.now();
-    this.endTime = Date.now();
+    this.format = format
+    this.outputPath = outputPath
+    this.results = []
+    this.startTime = Date.now()
+    this.endTime = Date.now()
   }
 
   /**
    * Устанавливает время начала выполнения тестов
-   * 
+   *
    * @param time Время начала в миллисекундах
    */
   setStartTime(time: number): void {
-    this.startTime = time;
+    this.startTime = time
   }
 
   /**
    * Устанавливает время окончания выполнения тестов
-   * 
+   *
    * @param time Время окончания в миллисекундах
    */
   setEndTime(time: number): void {
-    this.endTime = time;
+    this.endTime = time
   }
 
   /**
    * Добавляет результаты тестов
-   * 
+   *
    * @param results Результаты тестов
    */
   addResults(results: TestResult[]): void {
-    this.results.push(...results);
+    this.results.push(...results)
   }
 
   /**
@@ -79,37 +79,37 @@ export class TestReporter {
   async generateReport(): Promise<string> {
     switch (this.format) {
       case 'json':
-        return this.generateJsonReport();
+        return this.generateJsonReport()
       case 'html':
-        return this.generateHtmlReport();
+        return this.generateHtmlReport()
       case 'text':
       default:
-        return this.generateTextReport();
+        return this.generateTextReport()
     }
   }
 
   /**
    * Сохраняет отчет в файл
-   * 
+   *
    * @param content Содержимое отчета
    */
   async saveReport(content: string): Promise<void> {
     if (!this.outputPath) {
-      return;
+      return
     }
 
     try {
       // Создаем директорию, если она не существует
-      const dir = path.dirname(this.outputPath);
+      const dir = path.dirname(this.outputPath)
       if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+        fs.mkdirSync(dir, { recursive: true })
       }
 
       // Записываем отчет в файл
-      fs.writeFileSync(this.outputPath, content);
-      logger.info(`📊 Report saved to ${this.outputPath}`);
+      fs.writeFileSync(this.outputPath, content)
+      logger.info(`📊 Report saved to ${this.outputPath}`)
     } catch (error) {
-      logger.error(`❌ Error saving report to ${this.outputPath}:`, error);
+      logger.error(`❌ Error saving report to ${this.outputPath}:`, error)
     }
   }
 
@@ -117,12 +117,12 @@ export class TestReporter {
    * Генерирует текстовый отчет
    */
   private generateTextReport(): string {
-    const successful = this.results.filter(r => r.success || r.passed).length;
-    const failed = this.results.length - successful;
-    const totalTime = this.endTime - this.startTime;
+    const successful = this.results.filter(r => r.success || r.passed).length
+    const failed = this.results.length - successful
+    const totalTime = this.endTime - this.startTime
 
     // Группируем тесты по категориям
-    const groupedTests = this.groupByCategory(this.results);
+    const groupedTests = this.groupByCategory(this.results)
 
     let report = `
 📊 Test Report
@@ -135,47 +135,50 @@ Started: ${new Date(this.startTime).toISOString()}
 Finished: ${new Date(this.endTime).toISOString()}
 ==================================
 
-`;
+`
 
     // Добавляем детали по категориям
     for (const [category, tests] of Object.entries(groupedTests)) {
-      const categoryPassed = tests.filter(t => t.success || t.passed).length;
-      const categoryFailed = tests.length - categoryPassed;
+      const categoryPassed = tests.filter(t => t.success || t.passed).length
+      const categoryFailed = tests.length - categoryPassed
 
       report += `
 Category: ${category} (${categoryPassed}/${tests.length} passed)
 ----------------------------------
-`;
+`
 
       // Добавляем информацию о каждом тесте
       for (const test of tests) {
-        const status = test.success || test.passed ? '✓' : '✗';
-        const duration = test.duration ? ` [${this.formatDuration(test.duration)}]` : '';
-        report += `${status} ${test.name}${duration}\n`;
+        const status = test.success || test.passed ? '✓' : '✗'
+        const duration = test.duration
+          ? ` [${this.formatDuration(test.duration)}]`
+          : ''
+        report += `${status} ${test.name}${duration}\n`
 
         // Если тест не прошел, добавляем информацию об ошибке
         if (!(test.success || test.passed)) {
-          const errorMessage = test.error instanceof Error 
-            ? test.error.message 
-            : test.error || test.message || 'Unknown error';
-          report += `   Error: ${errorMessage}\n`;
+          const errorMessage =
+            test.error instanceof Error
+              ? test.error.message
+              : test.error || test.message || 'Unknown error'
+          report += `   Error: ${errorMessage}\n`
         }
       }
     }
 
-    return report;
+    return report
   }
 
   /**
    * Генерирует JSON отчет
    */
   private generateJsonReport(): string {
-    const successful = this.results.filter(r => r.success || r.passed).length;
-    const failed = this.results.length - successful;
-    const totalTime = this.endTime - this.startTime;
+    const successful = this.results.filter(r => r.success || r.passed).length
+    const failed = this.results.length - successful
+    const totalTime = this.endTime - this.startTime
 
     // Группируем тесты по категориям
-    const groupedTests = this.groupByCategory(this.results);
+    const groupedTests = this.groupByCategory(this.results)
 
     const report = {
       summary: {
@@ -184,7 +187,7 @@ Category: ${category} (${categoryPassed}/${tests.length} passed)
         failed: failed,
         duration: totalTime,
         startTime: this.startTime,
-        endTime: this.endTime
+        endTime: this.endTime,
       },
       categories: Object.entries(groupedTests).map(([category, tests]) => ({
         name: category,
@@ -195,26 +198,24 @@ Category: ${category} (${categoryPassed}/${tests.length} passed)
           success: test.success || test.passed,
           duration: test.duration,
           message: test.message,
-          error: test.error instanceof Error 
-            ? test.error.message 
-            : test.error
-        }))
-      }))
-    };
+          error: test.error instanceof Error ? test.error.message : test.error,
+        })),
+      })),
+    }
 
-    return JSON.stringify(report, null, 2);
+    return JSON.stringify(report, null, 2)
   }
 
   /**
    * Генерирует HTML отчет
    */
   private generateHtmlReport(): string {
-    const successful = this.results.filter(r => r.success || r.passed).length;
-    const failed = this.results.length - successful;
-    const totalTime = this.endTime - this.startTime;
+    const successful = this.results.filter(r => r.success || r.passed).length
+    const failed = this.results.length - successful
+    const totalTime = this.endTime - this.startTime
 
     // Группируем тесты по категориям
-    const groupedTests = this.groupByCategory(this.results);
+    const groupedTests = this.groupByCategory(this.results)
 
     // Базовый HTML
     let html = `
@@ -346,8 +347,8 @@ Category: ${category} (${categoryPassed}/${tests.length} passed)
   <div class="summary">
     <h2>Summary</h2>
     <div class="progress-bar">
-      <div class="progress-value" style="width: ${successful / this.results.length * 100}%">
-        ${successful} / ${this.results.length} (${Math.round(successful / this.results.length * 100)}%)
+      <div class="progress-value" style="width: ${(successful / this.results.length) * 100}%">
+        ${successful} / ${this.results.length} (${Math.round((successful / this.results.length) * 100)}%)
       </div>
     </div>
     <p>
@@ -361,12 +362,12 @@ Category: ${category} (${categoryPassed}/${tests.length} passed)
       <strong>Finished:</strong> ${new Date(this.endTime).toISOString()}
     </p>
   </div>
-`;
+`
 
     // Добавляем детали по категориям
     for (const [category, tests] of Object.entries(groupedTests)) {
-      const categoryPassed = tests.filter(t => t.success || t.passed).length;
-      const categoryFailed = tests.length - categoryPassed;
+      const categoryPassed = tests.filter(t => t.success || t.passed).length
+      const categoryFailed = tests.length - categoryPassed
 
       html += `
   <div class="category">
@@ -379,14 +380,16 @@ Category: ${category} (${categoryPassed}/${tests.length} passed)
       </p>
     </div>
     <ul class="test-list">
-`;
+`
 
       // Добавляем информацию о каждом тесте
       for (const test of tests) {
-        const isSuccess = test.success || test.passed;
-        const status = isSuccess ? 'success' : 'fail';
-        const statusSymbol = isSuccess ? '✓' : '✗';
-        const duration = test.duration ? this.formatDuration(test.duration) : 'N/A';
+        const isSuccess = test.success || test.passed
+        const status = isSuccess ? 'success' : 'fail'
+        const statusSymbol = isSuccess ? '✓' : '✗'
+        const duration = test.duration
+          ? this.formatDuration(test.duration)
+          : 'N/A'
 
         html += `
       <li class="test-item">
@@ -397,54 +400,55 @@ Category: ${category} (${categoryPassed}/${tests.length} passed)
         <div class="test-details">
           Duration: ${duration}
         </div>
-`;
+`
 
         // Если тест не прошел, добавляем информацию об ошибке
         if (!isSuccess) {
-          const errorMessage = test.error instanceof Error 
-            ? test.error.message 
-            : test.error || test.message || 'Unknown error';
+          const errorMessage =
+            test.error instanceof Error
+              ? test.error.message
+              : test.error || test.message || 'Unknown error'
           html += `
         <div class="test-error">
           <strong>Error:</strong> ${errorMessage}
         </div>
-`;
+`
         }
 
         html += `
       </li>
-`;
+`
       }
 
       html += `
     </ul>
   </div>
-`;
+`
     }
 
     html += `
 </body>
 </html>
-`;
+`
 
-    return html;
+    return html
   }
 
   /**
    * Группирует тесты по категориям
    */
   private groupByCategory(tests: TestResult[]): Record<string, TestResult[]> {
-    const grouped: Record<string, TestResult[]> = {};
+    const grouped: Record<string, TestResult[]> = {}
 
     for (const test of tests) {
-      const category = test.category || 'Uncategorized';
+      const category = test.category || 'Uncategorized'
       if (!grouped[category]) {
-        grouped[category] = [];
+        grouped[category] = []
       }
-      grouped[category].push(test);
+      grouped[category].push(test)
     }
 
-    return grouped;
+    return grouped
   }
 
   /**
@@ -452,26 +456,26 @@ Category: ${category} (${categoryPassed}/${tests.length} passed)
    */
   private formatDuration(ms: number): string {
     if (ms < 1000) {
-      return `${ms}ms`;
+      return `${ms}ms`
     }
 
-    const seconds = Math.floor(ms / 1000);
-    const remainingMs = ms % 1000;
+    const seconds = Math.floor(ms / 1000)
+    const remainingMs = ms % 1000
 
     if (seconds < 60) {
-      return `${seconds}.${remainingMs.toString().padStart(3, '0')}s`;
+      return `${seconds}.${remainingMs.toString().padStart(3, '0')}s`
     }
 
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
 
     if (minutes < 60) {
-      return `${minutes}m ${remainingSeconds}.${remainingMs.toString().padStart(3, '0')}s`;
+      return `${minutes}m ${remainingSeconds}.${remainingMs.toString().padStart(3, '0')}s`
     }
 
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
+    const hours = Math.floor(minutes / 60)
+    const remainingMinutes = minutes % 60
 
-    return `${hours}h ${remainingMinutes}m ${remainingSeconds}.${remainingMs.toString().padStart(3, '0')}s`;
+    return `${hours}h ${remainingMinutes}m ${remainingSeconds}.${remainingMs.toString().padStart(3, '0')}s`
   }
-} 
+}

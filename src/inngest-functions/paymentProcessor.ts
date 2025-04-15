@@ -1,5 +1,6 @@
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
+import { supabase } from '@/core/supabase'
 
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 import {
@@ -78,6 +79,25 @@ async function sendPaymentNotification(
     isRu: true,
     bot_name: payment.bot_name,
   })
+}
+
+/**
+ * Обработка ошибок Robokassa
+ * @param errorCode Код ошибки
+ * @returns Описание ошибки
+ */
+function handleRobokassaError(errorCode: string): string {
+  const errorMessages: Record<string, string> = {
+    '31': 'Неверная сумма платежа',
+    '33': 'Время отведённое на оплату счёта истекло',
+    '40': 'Повторная оплата счета с тем же номером невозможна',
+    '41': 'Ошибка на старте операции',
+    '51': 'Срок оплаты счета истек',
+    '52': 'Попытка повторной оплаты счета',
+    '53': 'Счет не найден',
+  }
+
+  return errorMessages[errorCode] || 'Неизвестная ошибка'
 }
 
 /**
@@ -167,6 +187,34 @@ export const paymentProcessor = inngest.createFunction(
         }
       }
 
+      // Проверяем ошибку от Robokassa
+      if (validatedParams.error_code) {
+        const errorMessage = handleRobokassaError(validatedParams.error_code)
+        logger.error('❌ Ошибка Robokassa:', {
+          description: 'Robokassa error',
+          error_code: validatedParams.error_code,
+          error_message: errorMessage,
+          inv_id: validatedParams.inv_id,
+        })
+
+        // Обновляем статус платежа в случае ошибки
+        if (validatedParams.inv_id) {
+          await supabase
+            .from('payments_v2')
+            .update({
+              status: 'FAILED',
+              metadata: {
+                ...validatedParams.metadata,
+                error_code: validatedParams.error_code,
+                error_message: errorMessage,
+              },
+            })
+            .eq('inv_id', validatedParams.inv_id)
+        }
+
+        throw new Error(errorMessage)
+      }
+
       // Создаем запись о платеже
       const payment = await step.run('create-payment', async () => {
         logger.info('💳 Создание записи о платеже', {
@@ -176,19 +224,60 @@ export const paymentProcessor = inngest.createFunction(
           type,
         })
 
-        return createSuccessfulPayment({
-          telegram_id,
-          amount,
-          stars: stars || amount,
-          type,
-          description,
-          bot_name,
-          service_type,
-          payment_method: 'balance',
-          status: 'COMPLETED',
-          inv_id: operationId,
-          metadata: validatedParams.metadata,
-        })
+        try {
+          return await createSuccessfulPayment({
+            telegram_id,
+            amount,
+            stars: stars || amount,
+            type,
+            description,
+            bot_name,
+            service_type,
+            payment_method: 'balance',
+            status: 'COMPLETED',
+            inv_id: operationId,
+            metadata: validatedParams.metadata,
+          })
+        } catch (error) {
+          // Проверяем, является ли ошибка дубликатом платежа
+          if (
+            error &&
+            typeof error === 'object' &&
+            'code' in error &&
+            error.code === '23505'
+          ) {
+            logger.info(
+              '🔄 Обнаружен дубликат платежа, получаем существующий платеж',
+              {
+                description:
+                  'Duplicate payment detected, retrieving existing payment',
+                telegram_id,
+                inv_id: operationId,
+              }
+            )
+
+            // Получаем существующий платеж
+            const { data: existingPayment } = await supabase
+              .from('payments_v2')
+              .select('*')
+              .eq('inv_id', operationId)
+              .single()
+
+            if (!existingPayment) {
+              throw new Error('Не удалось найти существующий платеж')
+            }
+
+            logger.info('✅ Возвращаем существующий платеж', {
+              description: 'Returning existing payment',
+              payment_id: existingPayment.id,
+              telegram_id,
+              inv_id: operationId,
+            })
+
+            return existingPayment
+          }
+          throw error
+        }
       })
 
       // Инвалидируем кэш баланса и получаем новый баланс

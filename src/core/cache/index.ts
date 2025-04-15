@@ -13,14 +13,14 @@ export class Cache<T> {
       misses: 0,
       size: 0,
       cleanups: 0,
-      lastCleanup: null
+      lastCleanup: null,
     }
     this.cleanupTimer = null
     this.startCleanupTimer()
 
     logger.info('🚀 Кэш инициализирован:', {
       description: 'Cache initialized',
-      config: CACHE_CONFIG
+      config: CACHE_CONFIG,
     })
   }
 
@@ -35,7 +35,7 @@ export class Cache<T> {
 
     logger.info('⏰ Таймер очистки кэша запущен:', {
       description: 'Cache cleanup timer started',
-      interval: CACHE_CONFIG.cleanupInterval
+      interval: CACHE_CONFIG.cleanupInterval,
     })
   }
 
@@ -47,7 +47,7 @@ export class Cache<T> {
       logger.debug('🔍 Кэш промах:', {
         description: 'Cache miss',
         key,
-        misses: this.metrics.misses
+        misses: this.metrics.misses,
       })
       return null
     }
@@ -57,11 +57,11 @@ export class Cache<T> {
       this.cache.delete(key)
       this.metrics.misses++
       this.metrics.size = this.cache.size
-      
+
       logger.debug('⌛ Кэш устарел:', {
         description: 'Cache entry expired',
         key,
-        age: now - entry.timestamp
+        age: now - entry.timestamp,
       })
       return null
     }
@@ -74,7 +74,7 @@ export class Cache<T> {
       description: 'Cache hit',
       key,
       hits: this.metrics.hits,
-      accessCount: entry.accessCount
+      accessCount: entry.accessCount,
     })
 
     return entry.value
@@ -90,14 +90,14 @@ export class Cache<T> {
       value,
       timestamp: now,
       lastAccessed: now,
-      accessCount: 0
+      accessCount: 0,
     })
     this.metrics.size = this.cache.size
 
     logger.debug('💾 Значение добавлено в кэш:', {
       description: 'Value added to cache',
       key,
-      cacheSize: this.metrics.size
+      cacheSize: this.metrics.size,
     })
   }
 
@@ -108,7 +108,7 @@ export class Cache<T> {
       logger.debug('🗑️ Значение удалено из кэша:', {
         description: 'Value deleted from cache',
         key,
-        cacheSize: this.metrics.size
+        cacheSize: this.metrics.size,
       })
     }
   }
@@ -121,7 +121,7 @@ export class Cache<T> {
 
     logger.info('🧹 Кэш очищен:', {
       description: 'Cache cleared',
-      metrics: this.metrics
+      metrics: this.metrics,
     })
   }
 
@@ -144,18 +144,21 @@ export class Cache<T> {
       logger.info('🧹 Выполнена очистка устаревших записей:', {
         description: 'Expired entries cleaned up',
         deletedCount,
-        newSize: this.metrics.size
+        newSize: this.metrics.size,
       })
     }
   }
 
   private enforceCleanup(): void {
-    if (this.cache.size >= CACHE_CONFIG.maxSize * CACHE_CONFIG.cleanupThreshold) {
+    if (
+      this.cache.size >=
+      CACHE_CONFIG.maxSize * CACHE_CONFIG.cleanupThreshold
+    ) {
       const entries = Array.from(this.cache.entries())
         .sort((a, b) => {
           // Сортируем по последнему доступу и количеству обращений
-          const accessScore = (entry: CacheEntry<T>) => 
-            entry.lastAccessed + (entry.accessCount * 1000)
+          const accessScore = (entry: CacheEntry<T>) =>
+            entry.lastAccessed + entry.accessCount * 1000
           return accessScore(a[1]) - accessScore(b[1])
         })
         .slice(0, CACHE_CONFIG.cleanupBatchSize)
@@ -171,7 +174,7 @@ export class Cache<T> {
       logger.info('🧹 Выполнена принудительная очистка:', {
         description: 'Forced cleanup performed',
         deletedCount: CACHE_CONFIG.cleanupBatchSize,
-        newSize: this.metrics.size
+        newSize: this.metrics.size,
       })
     }
   }
@@ -186,10 +189,10 @@ export class Cache<T> {
       this.cleanupTimer = null
     }
     this.clear()
-    
+
     logger.info('🛑 Кэш уничтожен:', {
       description: 'Cache destroyed',
-      finalMetrics: this.metrics
+      finalMetrics: this.metrics,
     })
   }
-} 
+}

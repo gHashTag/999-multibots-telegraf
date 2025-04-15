@@ -1,12 +1,34 @@
-import fs from 'fs';
-import path from 'path';
-import { TEST_REGISTRY, TestCase, TestSuite } from './types';
-import { logger } from '@/utils/logger';
+import fs from 'fs'
+import path from 'path'
+import { TEST_REGISTRY, TestCase, TestSuite, TestFunction } from './types'
+import { logger } from '@/utils/logger'
 
 /**
  * Класс для автоматического обнаружения тестов
  */
 export class TestDiscovery {
+  private testDir: string
+  private verbose: boolean
+
+  constructor() {
+    this.testDir = 'src/test-utils/tests'
+    this.verbose = false
+  }
+
+  /**
+   * Устанавливает директорию для поиска тестов
+   */
+  public setTestDir(dir: string): void {
+    this.testDir = dir
+  }
+
+  /**
+   * Устанавливает режим подробного вывода
+   */
+  public setVerbose(verbose: boolean): void {
+    this.verbose = verbose
+  }
+
   /**
    * Шаблоны для поиска тестовых файлов
    */
@@ -14,55 +36,58 @@ export class TestDiscovery {
     '.test.ts',
     '.spec.ts',
     'Test.ts',
-    'Tests.ts'
-  ];
+    'Tests.ts',
+  ]
 
   /**
    * Исключенные директории
    */
-  private static readonly EXCLUDED_DIRS = [
-    'node_modules',
-    'dist',
-    '.git'
-  ];
+  private static readonly EXCLUDED_DIRS = ['node_modules', 'dist', '.git']
 
   /**
    * Загружает все тестовые файлы из указанной директории
-   * 
+   *
    * @param baseDir Базовая директория для поиска
    * @param recursive Искать в поддиректориях
    * @returns Массив путей к найденным тестовым файлам
    */
-  static async discoverTestFiles(baseDir: string, recursive: boolean = true): Promise<string[]> {
-    logger.info(`🔍 Discovering test files in ${baseDir}`);
+  static async discoverTestFiles(
+    baseDir: string,
+    recursive: boolean = true
+  ): Promise<string[]> {
+    logger.info(`🔍 Discovering test files in ${baseDir}`)
 
     if (!fs.existsSync(baseDir)) {
-      logger.error(`❌ Directory ${baseDir} does not exist`);
-      return [];
+      logger.error(`❌ Directory ${baseDir} does not exist`)
+      return []
     }
 
-    const files: string[] = [];
-    await this.scanDirectory(baseDir, files, recursive);
-    
-    logger.info(`✅ Found ${files.length} test files`);
-    return files;
+    const files: string[] = []
+    await this.scanDirectory(baseDir, files, recursive)
+
+    logger.info(`✅ Found ${files.length} test files`)
+    return files
   }
 
   /**
    * Рекурсивно сканирует директорию в поиске тестовых файлов
    */
-  private static async scanDirectory(dir: string, files: string[], recursive: boolean): Promise<void> {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
+  private static async scanDirectory(
+    dir: string,
+    files: string[],
+    recursive: boolean
+  ): Promise<void> {
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
 
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
+      const fullPath = path.join(dir, entry.name)
 
       if (entry.isDirectory()) {
         if (recursive && !this.EXCLUDED_DIRS.includes(entry.name)) {
-          await this.scanDirectory(fullPath, files, recursive);
+          await this.scanDirectory(fullPath, files, recursive)
         }
       } else if (entry.isFile() && this.isTestFile(entry.name)) {
-        files.push(fullPath);
+        files.push(fullPath)
       }
     }
   }
@@ -71,23 +96,23 @@ export class TestDiscovery {
    * Проверяет, является ли файл тестовым
    */
   private static isTestFile(fileName: string): boolean {
-    return this.TEST_FILE_PATTERNS.some(pattern => fileName.endsWith(pattern));
+    return this.TEST_FILE_PATTERNS.some(pattern => fileName.endsWith(pattern))
   }
 
   /**
    * Загружает все тестовые файлы
-   * 
+   *
    * @param files Массив путей к тестовым файлам
    */
   static async loadTestFiles(files: string[]): Promise<void> {
-    logger.info(`📂 Loading ${files.length} test files`);
+    logger.info(`📂 Loading ${files.length} test files`)
 
     for (const file of files) {
       try {
-        logger.debug(`🔄 Loading test file: ${file}`);
-        await import(file);
+        logger.debug(`🔄 Loading test file: ${file}`)
+        await import(file)
       } catch (error) {
-        logger.error(`❌ Error loading test file ${file}:`, error);
+        logger.error(`❌ Error loading test file ${file}:`, error)
       }
     }
   }
@@ -96,25 +121,25 @@ export class TestDiscovery {
    * Преобразует найденные тесты в формат для TestRunner
    */
   static collectTestSuites(): TestSuite[] {
-    const suites: TestSuite[] = [];
+    const suites: TestSuite[] = []
 
     // Перебираем все зарегистрированные наборы тестов
     for (const [target, suiteMetadata] of TEST_REGISTRY.suites.entries()) {
-      const tests = TEST_REGISTRY.tests.get(target) || [];
-      
+      const tests = TEST_REGISTRY.tests.get(target) || []
+
       if (tests.length === 0) {
-        logger.warn(`⚠️ Test suite ${suiteMetadata.name} has no tests`);
-        continue;
+        logger.warn(`⚠️ Test suite ${suiteMetadata.name} has no tests`)
+        continue
       }
 
       // Получаем хуки для набора тестов
-      const beforeAllHooks = TEST_REGISTRY.beforeAll.get(target) || [];
-      const afterAllHooks = TEST_REGISTRY.afterAll.get(target) || [];
-      const beforeEachHooks = TEST_REGISTRY.beforeEach.get(target) || [];
-      const afterEachHooks = TEST_REGISTRY.afterEach.get(target) || [];
+      const beforeAllHooks = TEST_REGISTRY.beforeAll.get(target) || []
+      const afterAllHooks = TEST_REGISTRY.afterAll.get(target) || []
+      const beforeEachHooks = TEST_REGISTRY.beforeEach.get(target) || []
+      const afterEachHooks = TEST_REGISTRY.afterEach.get(target) || []
 
       // Создаем экземпляр класса с тестами
-      const instance = new target();
+      const instance = new target()
 
       // Создаем набор тестов
       const suite: TestSuite = {
@@ -122,40 +147,44 @@ export class TestDiscovery {
         category: suiteMetadata.category,
         description: suiteMetadata.description,
         tests: [],
-        
+
         // Добавляем хуки
-        beforeAll: beforeAllHooks.length > 0 
-          ? async () => {
-              for (const hook of beforeAllHooks) {
-                await instance[hook]();
+        beforeAll:
+          beforeAllHooks.length > 0
+            ? async () => {
+                for (const hook of beforeAllHooks) {
+                  await instance[hook]()
+                }
               }
-            }
-          : undefined,
-        
-        afterAll: afterAllHooks.length > 0
-          ? async () => {
-              for (const hook of afterAllHooks) {
-                await instance[hook]();
+            : undefined,
+
+        afterAll:
+          afterAllHooks.length > 0
+            ? async () => {
+                for (const hook of afterAllHooks) {
+                  await instance[hook]()
+                }
               }
-            }
-          : undefined,
-        
-        beforeEach: beforeEachHooks.length > 0
-          ? async () => {
-              for (const hook of beforeEachHooks) {
-                await instance[hook]();
+            : undefined,
+
+        beforeEach:
+          beforeEachHooks.length > 0
+            ? async () => {
+                for (const hook of beforeEachHooks) {
+                  await instance[hook]()
+                }
               }
-            }
-          : undefined,
-        
-        afterEach: afterEachHooks.length > 0
-          ? async () => {
-              for (const hook of afterEachHooks) {
-                await instance[hook]();
+            : undefined,
+
+        afterEach:
+          afterEachHooks.length > 0
+            ? async () => {
+                for (const hook of afterEachHooks) {
+                  await instance[hook]()
+                }
               }
-            }
-          : undefined
-      };
+            : undefined,
+      }
 
       // Добавляем тесты в набор
       for (const testMetadata of tests) {
@@ -170,50 +199,112 @@ export class TestDiscovery {
           test: async () => {
             // Запускаем beforeEach хуки
             if (suite.beforeEach) {
-              await suite.beforeEach();
+              await suite.beforeEach()
             }
 
             try {
               // Выполняем тест
-              const result = await instance[testMetadata.propertyKey]();
-              return result;
+              const result = await instance[testMetadata.propertyKey]()
+              return result
             } finally {
               // Запускаем afterEach хуки
               if (suite.afterEach) {
-                await suite.afterEach();
+                await suite.afterEach()
               }
             }
-          }
-        };
+          },
+        }
 
-        suite.tests.push(testCase);
+        suite.tests.push(testCase)
       }
 
-      suites.push(suite);
+      suites.push(suite)
     }
 
-    return suites;
+    return suites
   }
 
   /**
    * Инициализирует все тестовые наборы из указанной директории
-   * 
+   *
    * @param baseDir Базовая директория для поиска
    * @param recursive Искать в поддиректориях
    * @returns Массив найденных тестовых наборов
    */
-  static async initializeTests(baseDir: string, recursive: boolean = true): Promise<TestSuite[]> {
+  static async initializeTests(
+    baseDir: string,
+    recursive: boolean = true
+  ): Promise<TestSuite[]> {
     // Находим тестовые файлы
-    const files = await this.discoverTestFiles(baseDir, recursive);
-    
+    const files = await this.discoverTestFiles(baseDir, recursive)
+
     // Загружаем все тестовые файлы
-    await this.loadTestFiles(files);
-    
+    await this.loadTestFiles(files)
+
     // Преобразуем найденные тесты в наборы
-    const suites = this.collectTestSuites();
-    
-    logger.info(`✅ Initialized ${suites.length} test suites with ${suites.reduce((sum, suite) => sum + suite.tests.length, 0)} tests`);
-    
-    return suites;
+    const suites = this.collectTestSuites()
+
+    logger.info(
+      `✅ Initialized ${suites.length} test suites with ${suites.reduce((sum, suite) => sum + suite.tests.length, 0)} tests`
+    )
+
+    return suites
   }
-} 
+
+  /**
+   * Обнаруживает тесты в указанной директории
+   */
+  public async discoverTests(): Promise<TestFunction[]> {
+    const tests: TestFunction[] = []
+
+    try {
+      if (this.verbose) {
+        logger.info('🔍 Поиск тестов в директории:', this.testDir)
+      }
+
+      // Рекурсивно ищем файлы с тестами
+      await this.findTestFiles(this.testDir, tests)
+
+      if (this.verbose) {
+        logger.info(`✅ Найдено ${tests.length} тестов`)
+      }
+
+      return tests
+    } catch (error) {
+      logger.error('❌ Ошибка при поиске тестов:', error)
+      return []
+    }
+  }
+
+  /**
+   * Рекурсивно ищет файлы с тестами
+   */
+  private async findTestFiles(
+    dir: string,
+    tests: TestFunction[]
+  ): Promise<void> {
+    const files = await fs.promises.readdir(dir)
+
+    for (const file of files) {
+      const fullPath = path.join(dir, file)
+      const stat = await fs.promises.stat(fullPath)
+
+      if (stat.isDirectory()) {
+        await this.findTestFiles(fullPath, tests)
+      } else if (file.endsWith('Test.ts')) {
+        if (this.verbose) {
+          logger.info('📝 Загрузка тестов из файла:', fullPath)
+        }
+
+        try {
+          const module = await import(fullPath)
+          if (typeof module.default === 'function') {
+            tests.push(module.default)
+          }
+        } catch (error) {
+          logger.error(`❌ Ошибка при загрузке тестов из ${fullPath}:`, error)
+        }
+      }
+    }
+  }
+}

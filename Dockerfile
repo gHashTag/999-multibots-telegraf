@@ -42,4 +42,8 @@ EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 # Устанавливаем переменную окружения для tsconfig-paths
 ENV TS_NODE_PROJECT=tsconfig.prod.json
 
-CMD ["node", "-r", "tsconfig-paths/register", "dist/bot.js"]
+# Копируем скрипт запуска
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+CMD ["/app/start.sh"]
