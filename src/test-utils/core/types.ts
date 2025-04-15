@@ -28,12 +28,12 @@ export interface TestResult {
  * Категории тестов
  */
 export enum TestCategory {
-  SCENE = 'scene',
-  SERVICE = 'service',
-  API = 'api',
-  INTEGRATION = 'integration',
-  UNIT = 'unit',
-  E2E = 'e2e',
+  SCENE = 'SCENE',
+  SERVICE = 'SERVICE',
+  API = 'API',
+  INTEGRATION = 'INTEGRATION',
+  UNIT = 'UNIT',
+  E2E = 'E2E'
 }
 
 /**

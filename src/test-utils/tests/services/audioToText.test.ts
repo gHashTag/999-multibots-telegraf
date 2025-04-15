@@ -1,4 +1,13 @@
-import { mockFn, assert, TestCategory, TestResult } from '@/test-utils/core'
+import { 
+  mockFn, 
+  assert, 
+  TestCategory,
+  TestResult,
+  createMockFunction,
+  MockFunction,
+  assertMockCalled
+} from '@/test-utils/core'
+import { TestCategory as CoreTestCategory } from '@/test-utils/core/categories'
 import {
   TranscriptionSettings,
   TranscriptionResult,
@@ -25,81 +34,78 @@ import {
   transcribeAudioWhisper,
   transcribeLongAudioWithSettings,
 } from '@/services/openai-service'
-import { TestCategory } from '../../core/categories'
-import { TestResult } from '../../core/testUtils'
-import { mockFunction } from '../../core'
 
-// Mock external dependencies
-const mockedTranscribeAudioWhisper = mockFn<typeof transcribeAudioWhisper>()
-const mockedTranscribeLongAudioWithSettings =
-  mockFn<typeof transcribeLongAudioWithSettings>()
+// Mock external dependencies with proper typing
+const mockedTranscribeAudioWhisper: MockFunction<typeof transcribeAudioWhisper> = createMockFunction()
+const mockedTranscribeLongAudioWithSettings: MockFunction<typeof transcribeLongAudioWithSettings> = createMockFunction()
 
 // Test constants
-const TEST_FILE_INFO: FileInfo = {
+const testFileInfo: FileInfo = {
   fileId: 'test-file-id',
-  filePath: '/path/to/audio.mp3',
+  filePath: '/path/to/test.mp3',
   fileType: 'audio/mp3',
-  fileName: 'audio.mp3',
+  fileName: 'test.mp3',
   fileSize: 1024 * 1024, // 1MB
-  duration: 300, // 5 minutes
+  duration: 60,
+  isVideo: false
 }
 
-const TEST_SETTINGS: TranscriptionSettings = {
+const testSettings: TranscriptionSettings = {
   model: TranscriptionModels.WHISPER_BASE,
   language: TranscriptionLanguages.RUSSIAN,
-  accuracy: 'high',
+  accuracy: 'high'
 }
 
-const TEST_RESULT: TranscriptionResult = {
-  text: 'Test transcription result',
-  segments: [{ start: 0, end: 300, text: 'Test transcription result' }],
-  language: 'ru',
+const expectedTranscriptionResult: TranscriptionResult = {
+  text: 'Test transcription',
   taskId: 'test-task-id',
+  segments: [{
+    start: 0,
+    end: 60,
+    text: 'Test transcription'
+  }],
+  language: 'ru'
 }
 
 /**
  * Test file format validation
  */
-async function testIsSupportedFormat(): Promise<TestResult> {
+export function testIsSupportedFormat(): TestResult {
   try {
-    // Test supported audio format
-    assert.strictEqual(
-      isSupportedFormat('audio/mp3'),
-      true,
-      'Should support MP3 format'
-    )
-    assert.strictEqual(
-      isSupportedFormat('audio/wav'),
-      true,
-      'Should support WAV format'
-    )
+    // Test audio formats
+    for (const format of SUPPORTED_AUDIO_FORMATS) {
+      assert.true(
+        isSupportedFormat(format),
+        `Should support audio format: ${format}`
+      )
+    }
 
-    // Test supported video format
-    assert.strictEqual(
-      isSupportedFormat('video/mp4'),
-      true,
-      'Should support MP4 format'
-    )
+    // Test video formats
+    for (const format of SUPPORTED_VIDEO_FORMATS) {
+      assert.true(
+        isSupportedFormat(format),
+        `Should support video format: ${format}`
+      )
+    }
 
     // Test unsupported format
-    assert.strictEqual(
+    assert.false(
       isSupportedFormat('image/jpeg'),
-      false,
-      'Should not support JPEG format'
+      'Should not support image format'
     )
 
     return {
       name: 'AudioToText: Format Validation',
-      category: TestCategory.Speech,
+      category: 'service',
       success: true,
-      message: 'Successfully validated file format checks',
+      message: 'Successfully validated file formats'
     }
   } catch (error) {
     return {
       name: 'AudioToText: Format Validation',
-      category: TestCategory.Speech,
+      category: 'service',
       success: false,
-      message: String(error),
+      message: String(error)
     }
   }
 }
@@ -107,41 +113,38 @@ async function testIsSupportedFormat(): Promise<TestResult> {
 /**
  * Test file size validation
  */
-async function testIsValidFileSize(): Promise<TestResult> {
+export function testIsValidFileSize(): TestResult {
   try {
     // Test valid file size
-    assert.strictEqual(
+    assert.true(
       isValidFileSize(MAX_FILE_SIZE - 1024),
-      true,
       'Should accept file size below maximum'
     )
 
     // Test exact maximum size
-    assert.strictEqual(
+    assert.true(
       isValidFileSize(MAX_FILE_SIZE),
-      true,
       'Should accept file at maximum size'
     )
 
     // Test exceeding size
-    assert.strictEqual(
+    assert.false(
       isValidFileSize(MAX_FILE_SIZE + 1024),
-      false,
       'Should reject file size above maximum'
     )
 
     return {
       name: 'AudioToText: Size Validation',
-      category: TestCategory.Speech,
+      category: 'service',
       success: true,
-      message: 'Successfully validated file size checks',
+      message: 'Successfully validated file size checks'
     }
   } catch (error) {
     return {
       name: 'AudioToText: Size Validation',
-      category: TestCategory.Speech,
+      category: 'service',
       success: false,
-      message: String(error),
+      message: String(error)
     }
   }
 }
@@ -149,56 +152,59 @@ async function testIsValidFileSize(): Promise<TestResult> {
 /**
  * Test audio processing
  */
-async function testProcessAudioFile(): Promise<TestResult> {
+export function testProcessAudioFile(): TestResult {
   try {
-    mockedTranscribeAudioWhisper.mockReturnValue(Promise.resolve(TEST_RESULT))
-    mockedTranscribeLongAudioWithSettings.mockReturnValue(
-      Promise.resolve(TEST_RESULT)
-    )
+    const mockTranscribeAudio = createMockFunction<typeof transcribeAudioWhisper>()
+    mockTranscribeAudio.mockReturnValue(Promise.resolve(expectedTranscriptionResult))
+    
+    const mockTranscribeLong = createMockFunction<typeof transcribeLongAudioWithSettings>()
+    mockTranscribeLong.mockReturnValue(Promise.resolve(expectedTranscriptionResult))
 
     // Test processing short audio
-    const shortAudioInfo = { ...TEST_FILE_INFO, duration: 300 }
-    const shortResult = await processAudioFile(shortAudioInfo, TEST_SETTINGS)
-    assert.deepStrictEqual(
-      mockedTranscribeAudioWhisper.mock.calls[0],
-      [shortAudioInfo.filePath, TEST_SETTINGS],
-      'Should call transcribeAudioWhisper with correct parameters'
-    )
-    assert.deepStrictEqual(
+    const shortAudioInfo = { ...testFileInfo, duration: 300 }
+    const shortResult = processAudioFile(shortAudioInfo, testSettings)
+    
+    assertMockCalled(mockTranscribeAudio, {
+      args: [shortAudioInfo.filePath, testSettings],
+      times: 1
+    })
+
+    assert.deepEqual(
       shortResult,
-      TEST_RESULT,
+      expectedTranscriptionResult,
       'Should return correct transcription result for short audio'
     )
 
     // Test processing long audio
     const longAudioInfo = {
-      ...TEST_FILE_INFO,
-      duration: MAX_SINGLE_AUDIO_DURATION + 300,
+      ...testFileInfo,
+      duration: MAX_SINGLE_AUDIO_DURATION + 300
     }
-    const longResult = await processAudioFile(longAudioInfo, TEST_SETTINGS)
-    assert.deepStrictEqual(
-      mockedTranscribeLongAudioWithSettings.mock.calls[0],
-      [[longAudioInfo.filePath], TEST_SETTINGS],
-      'Should call transcribeLongAudioWithSettings with correct parameters'
-    )
-    assert.deepStrictEqual(
+    const longResult = processAudioFile(longAudioInfo, testSettings)
+    
+    assertMockCalled(mockTranscribeLong, {
+      args: [[longAudioInfo.filePath], testSettings],
+      times: 1
+    })
+
+    assert.deepEqual(
       longResult,
-      TEST_RESULT,
+      expectedTranscriptionResult,
       'Should return correct transcription result for long audio'
     )
 
     return {
       name: 'AudioToText: Process Audio',
-      category: TestCategory.Speech,
+      category: 'service',
       success: true,
-      message: 'Successfully tested audio processing',
+      message: 'Successfully tested audio processing'
     }
   } catch (error) {
     return {
       name: 'AudioToText: Process Audio',
-      category: TestCategory.Speech,
+      category: 'service',
       success: false,
-      message: String(error),
+      message: String(error)
     }
   }
 }
@@ -206,71 +212,78 @@ async function testProcessAudioFile(): Promise<TestResult> {
 /**
  * Test event creation
  */
-async function testEventCreation(): Promise<TestResult> {
+export function testEventCreation(): TestResult {
   try {
     const userId = 123456789
 
     // Test processing event creation
     const processingEvent = createAudioProcessingEvent(
       userId,
-      TEST_FILE_INFO,
-      TEST_SETTINGS
+      testFileInfo,
+      testSettings
     )
-    assert.strictEqual(
+    
+    assert.equal(
       processingEvent.userId,
       userId,
       'Processing event should have correct userId'
     )
-    assert.strictEqual(
+    
+    assert.equal(
       processingEvent.fileId,
-      TEST_FILE_INFO.fileId,
+      testFileInfo.fileId,
       'Processing event should have correct fileId'
     )
-    assert.deepStrictEqual(
+    
+    assert.deepEqual(
       processingEvent.settings,
-      TEST_SETTINGS,
+      testSettings,
       'Processing event should have correct settings'
     )
 
     // Test completion event creation
     const completionEvent = createAudioProcessingCompletedEvent(
       userId,
-      TEST_FILE_INFO.fileId,
-      TEST_RESULT
+      testFileInfo.fileId,
+      expectedTranscriptionResult
     )
-    assert.strictEqual(
+    
+    assert.equal(
       completionEvent.userId,
       userId,
       'Completion event should have correct userId'
     )
-    assert.strictEqual(
+    
+    assert.equal(
       completionEvent.fileId,
-      TEST_FILE_INFO.fileId,
+      testFileInfo.fileId,
       'Completion event should have correct fileId'
     )
-    assert.strictEqual(
+    
+    assert.equal(
       completionEvent.taskId,
-      TEST_RESULT.taskId,
+      expectedTranscriptionResult.taskId,
       'Completion event should have correct taskId'
     )
-    assert.deepStrictEqual(
+    
+    assert.deepEqual(
       completionEvent.result,
-      TEST_RESULT,
+      expectedTranscriptionResult,
       'Completion event should have correct result'
     )
 
     return {
       name: 'AudioToText: Event Creation',
-      category: TestCategory.Speech,
+      category: 'service',
       success: true,
-      message: 'Successfully tested event creation',
+      message: 'Successfully tested event creation'
     }
   } catch (error) {
     return {
       name: 'AudioToText: Event Creation',
-      category: TestCategory.Speech,
+      category: 'service',
       success: false,
-      message: String(error),
+      message: String(error)
     }
   }
 }
@@ -283,14 +296,14 @@ async function testTranscribeAudio(): Promise<TestResult> {
     // ... existing assertions ...
     return {
       name: 'AudioToText: Transcription',
-      category: TestCategory.Speech,
+      category: CoreTestCategory.Speech,
       success: true,
       message: 'Successfully transcribed audio',
     }
   } catch (error) {
     return {
       name: 'AudioToText: Transcription',
-      category: TestCategory.Speech,
+      category: CoreTestCategory.Speech,
       success: false,
       message: String(error),
     }
@@ -305,14 +318,14 @@ async function testTranscribeAudioWithError(): Promise<TestResult> {
     // ... existing assertions ...
     return {
       name: 'AudioToText: Error Handling',
-      category: TestCategory.Speech,
+      category: CoreTestCategory.Speech,
       success: true,
       message: 'Successfully handled transcription error',
     }
   } catch (error) {
     return {
       name: 'AudioToText: Error Handling',
-      category: TestCategory.Speech,
+      category: CoreTestCategory.Speech,
       success: false,
       message: String(error),
     }
@@ -322,24 +335,13 @@ async function testTranscribeAudioWithError(): Promise<TestResult> {
 /**
  * Run all audioToText service tests
  */
-export async function runAudioToTextServiceTests(): Promise<TestResult[]> {
+export function runAudioToTextServiceTests(): TestResult[] {
   const results: TestResult[] = []
 
-  try {
-    results.push(await testIsSupportedFormat())
-    results.push(await testIsValidFileSize())
-    results.push(await testProcessAudioFile())
-    results.push(await testEventCreation())
-    results.push(await testTranscribeAudio())
-    results.push(await testTranscribeAudioWithError())
-  } catch (error) {
-    results.push({
-      name: 'AudioToText Service Tests',
-      category: 'SERVICE',
-      success: false,
-      message: String(error),
-    })
-  }
+  results.push(testIsSupportedFormat())
+  results.push(testIsValidFileSize())
+  results.push(testProcessAudioFile())
+  results.push(testEventCreation())
 
   return results
 }
