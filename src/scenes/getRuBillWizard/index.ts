@@ -16,14 +16,7 @@ import { TransactionType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
 import { ModeEnum } from '@/interfaces/modes'
-
-type Subscription = 'neurophoto' | 'neurobase' | 'neuroblogger'
-
-// Экспортируем тип для подписок
-export type LocalSubscription = Extract<
-  Subscription,
-  'neurophoto' | 'neurobase' | 'neuroblogger'
->
+import { type Subscription } from '@/types/subscription'
 
 const generateInvoiceStep = async (ctx: MyContext) => {
   logger.info('🚀 Начало создания счета', {
@@ -37,7 +30,12 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     logger.error('❌ Не выбран способ оплаты', {
       description: 'Payment method not selected',
     })
-    return
+    await ctx.reply(
+      isRu
+        ? 'Пожалуйста, сначала выберите способ оплаты'
+        : 'Please select a payment method first'
+    )
+    return ctx.scene.leave()
   }
 
   const email = ctx.session.email
@@ -48,6 +46,20 @@ const generateInvoiceStep = async (ctx: MyContext) => {
 
   const stars = selectedPayment.amount
   const subscription = selectedPayment.subscription as Subscription | undefined
+
+  // Проверка на валидный тип подписки
+  if (subscription && !['neurophoto', 'neurobase'].includes(subscription)) {
+    logger.error('❌ Неверный тип подписки', {
+      description: 'Invalid subscription type',
+      subscription,
+    })
+    await ctx.reply(
+      isRu
+        ? 'Выбран неверный тип подписки. Пожалуйста, попробуйте снова.'
+        : 'Invalid subscription type selected. Please try again.'
+    )
+    return ctx.scene.leave()
+  }
 
   try {
     const userId = ctx.from?.id
@@ -119,8 +131,8 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     })
 
     // Формируем и отправляем сообщение с кнопкой оплаты
-    const titles = subscriptionTitles(isRu)
-    const subscriptionTitle = subscription ? titles[subscription] : ''
+    const title = subscription ? subscriptionTitles(subscription, isRu) : ''
+    const subscriptionTitle = subscription ? title : ''
 
     const inlineKeyboard = [
       [
@@ -154,13 +166,14 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       await updateUserSubscription(userId.toString(), subscription)
       logger.info('✅ Подписка пользователя обновлена', {
         description: 'User subscription updated',
+        subscription,
       })
     }
 
     ctx.session.selectedPayment = {
       amount: selectedPayment.amount,
       stars: Number(selectedPayment.stars),
-      subscription: selectedPayment.subscription as LocalSubscription,
+      subscription: selectedPayment.subscription as Subscription,
       type: TransactionType.SUBSCRIPTION_PURCHASE,
     }
 

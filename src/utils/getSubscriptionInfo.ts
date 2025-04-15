@@ -1,59 +1,30 @@
-import { SubscriptionType } from '@/interfaces/payments.interface'
+import {
+  subscriptionConfigs,
+  type LocalSubscription,
+} from '../types/subscription'
 
 export interface SubscriptionInfo {
-  name: string
-  price: number
-  stars: number
-  type: SubscriptionType
-}
-
-const subscriptionPrices: Record<SubscriptionType, SubscriptionInfo> = {
-  neurobase: {
-    name: 'NeuroBase',
-    price: 990,
-    stars: 1000,
-    type: 'neurobase',
-  },
-  neurophoto: {
-    name: 'NeuroPhoto',
-    price: 1990,
-    stars: 2000,
-    type: 'neurophoto',
-  },
-  neuroblogger: {
-    name: 'NeuroBlogger',
-    price: 4990,
-    stars: 5000,
-    type: 'neuroblogger',
-  },
-  neurotester: {
-    name: 'NeuroTester',
-    price: 100,
-    stars: 100,
-    type: 'neurotester',
-  },
-  neuromeeting: {
-    name: 'NeuroMeeting',
-    price: 9990,
-    stars: 10000,
-    type: 'neuromeeting',
-  },
-  neuromentor: {
-    name: 'NeuroMentor',
-    price: 19990,
-    stars: 20000,
-    type: 'neuromentor',
-  },
-  stars: {
-    name: 'Stars',
-    price: 100,
-    stars: 100,
-    type: 'stars',
-  },
+  title_ru: string
+  title_en: string
+  ru_price: number
+  en_price: number
+  stars_price: number
 }
 
 export function getSubscriptionInfo(
-  type: SubscriptionType
+  type: LocalSubscription
 ): SubscriptionInfo | null {
-  return subscriptionPrices[type] || null
+  if (type === 'stars') {
+    return null
+  }
+
+  const config = subscriptionConfigs[type]
+
+  return {
+    title_ru: config.titleRu,
+    title_en: config.titleEn,
+    ru_price: config.price,
+    en_price: config.price,
+    stars_price: config.stars,
+  }
 }

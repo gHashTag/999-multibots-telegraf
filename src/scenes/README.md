@@ -34,7 +34,6 @@
 - `selectNeuroPhotoScene/` - [описание будет добавлено]
 - `sizeWizard/` - [описание будет добавлено]
 - `startScene/` - [описание будет добавлено]
-- `subscriptionScene/` - [описание будет добавлено]
 - `textToImageWizard/` - [описание будет добавлено]
 - `textToSpeechWizard/` - [описание будет добавлено]
 - `textToVideoWizard/` - [описание будет добавлено]

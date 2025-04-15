@@ -14,6 +14,7 @@ import {
 } from '@/interfaces/payments.interface'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 import { normalizeTransactionType } from '@/interfaces/payments.interface'
+import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 
 import { notifyAmbassadorAboutPayment } from '@/services/ambassadorPaymentNotifier'
 
@@ -64,13 +65,13 @@ async function sendPaymentNotification(
 ): Promise<void> {
   logger.info('📨 Отправка уведомления пользователю', {
     description: 'Sending notification to user',
-    telegram_id: payment.telegram_id,
+    telegram_id: normalizeTelegramId(payment.telegram_id),
     amount: payment.amount,
     paymentId: payment.id,
   })
 
   await sendTransactionNotificationTest({
-    telegram_id: Number(payment.telegram_id),
+    telegram_id: Number(normalizeTelegramId(payment.telegram_id)),
     operationId: payment.operation_id || uuidv4(),
     amount: payment.amount,
     currentBalance,
@@ -140,7 +141,7 @@ export const paymentProcessor = inngest.createFunction(
 
     logger.info('🚀 Начало обработки платежа', {
       description: 'Starting payment processing',
-      telegram_id,
+      telegram_id: normalizeTelegramId(telegram_id),
       amount,
       type,
       bot_name,
@@ -166,16 +167,16 @@ export const paymentProcessor = inngest.createFunction(
       const currentBalance = await step.run('get-balance', async () => {
         logger.info('💰 Получение текущего баланса', {
           description: 'Getting current balance',
-          telegram_id,
+          telegram_id: normalizeTelegramId(telegram_id),
         })
-        return getUserBalance(telegram_id)
+        return getUserBalance(normalizeTelegramId(telegram_id))
       })
 
       // Проверяем баланс для списания
       if (type === TransactionType.MONEY_EXPENSE) {
         logger.info('💰 Проверка баланса для списания', {
           description: 'Checking balance for expense',
-          telegram_id,
+          telegram_id: normalizeTelegramId(telegram_id),
           currentBalance,
           amount,
         })
@@ -219,14 +220,14 @@ export const paymentProcessor = inngest.createFunction(
       const payment = await step.run('create-payment', async () => {
         logger.info('💳 Создание записи о платеже', {
           description: 'Creating payment record',
-          telegram_id,
+          telegram_id: normalizeTelegramId(telegram_id),
           amount,
           type,
         })
 
         try {
           return await createSuccessfulPayment({
-            telegram_id,
+            telegram_id: normalizeTelegramId(telegram_id),
             amount,
             stars: stars || amount,
             type,
@@ -251,7 +252,7 @@ export const paymentProcessor = inngest.createFunction(
               {
                 description:
                   'Duplicate payment detected, retrieving existing payment',
-                telegram_id,
+                telegram_id: normalizeTelegramId(telegram_id),
                 inv_id: operationId,
               }
             )
@@ -270,7 +271,7 @@ export const paymentProcessor = inngest.createFunction(
             logger.info('✅ Возвращаем существующий платеж', {
               description: 'Returning existing payment',
               payment_id: existingPayment.id,
-              telegram_id,
+              telegram_id: normalizeTelegramId(telegram_id),
               inv_id: operationId,
             })
 
@@ -285,12 +286,12 @@ export const paymentProcessor = inngest.createFunction(
         // Сначала инвалидируем кэш баланса, чтобы получить свежие данные
         logger.info('🔄 Инвалидация кэша баланса:', {
           description: 'Invalidating balance cache',
-          telegram_id,
+          telegram_id: normalizeTelegramId(telegram_id),
         })
-        invalidateBalanceCache(telegram_id)
+        invalidateBalanceCache(normalizeTelegramId(telegram_id))
 
         // Теперь получаем обновленный баланс
-        return getUserBalance(telegram_id)
+        return getUserBalance(normalizeTelegramId(telegram_id))
       })
 
       // Отправляем уведомление пользователю (только если не локальное окружение)
@@ -329,7 +330,7 @@ export const paymentProcessor = inngest.createFunction(
         success: true,
         payment: {
           payment_id: payment.id,
-          telegram_id,
+          telegram_id: normalizeTelegramId(telegram_id),
           amount,
           stars: stars || amount,
           type,
@@ -346,7 +347,7 @@ export const paymentProcessor = inngest.createFunction(
       logger.error('❌ Ошибка обработки платежа:', {
         description: 'Error processing payment',
         error: error instanceof Error ? error.message : String(error),
-        telegram_id,
+        telegram_id: normalizeTelegramId(telegram_id),
         amount,
         type,
       })
@@ -354,7 +355,7 @@ export const paymentProcessor = inngest.createFunction(
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        telegram_id,
+        telegram_id: normalizeTelegramId(telegram_id),
         amount,
         type,
       }

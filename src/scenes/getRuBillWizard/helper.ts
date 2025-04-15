@@ -5,8 +5,11 @@ import {
   TEST_PASSWORD1,
 } from '@/config'
 
-import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'
+import {
+  subscriptionConfigs,
+  type LocalSubscription,
+} from '@/types/subscription'
 
 export const merchantLogin = MERCHANT_LOGIN
 export const password1 = PASSWORD1
@@ -17,11 +20,17 @@ export const description = 'Покупка звезд'
 // Флаг для использования тестового режима Robokassa
 export const useTestMode = false
 
-export const subscriptionTitles = (isRu: boolean) => ({
-  neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
-  neurobase: isRu ? '📚 НейроБаза' : '📚 NeuroBase',
-  neuroblogger: isRu ? '🤖 НейроБлогер' : '🤖 NeuroBlogger',
-})
+export function subscriptionTitles(
+  type: LocalSubscription,
+  isRu: boolean
+): string {
+  if (type === 'stars') {
+    return isRu ? '⭐️ Звезды' : '⭐️ Stars'
+  }
+
+  const config = subscriptionConfigs[type]
+  return isRu ? config.titleRu : config.titleEn
+}
 
 /**
  * Генерирует короткий ID для заказа, подходящий для Robokassa

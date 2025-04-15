@@ -233,21 +233,25 @@ paymentScene.enter(async ctx => {
         return
       }
 
+      const price = isRu ? subscriptionInfo.ru_price : subscriptionInfo.en_price
+      const stars = subscriptionInfo.stars_price
+      const title = isRu ? subscriptionInfo.title_ru : subscriptionInfo.title_en
+
       const invoiceId = await generateRobokassaInvoiceId(
         merchantLogin,
-        subscriptionInfo.price,
-        generateShortInvId(ctx.from?.id || 0, subscriptionInfo.stars),
-        `Subscription ${subscriptionType}`,
+        price,
+        generateShortInvId(ctx.from?.id || 0, stars),
+        `Subscription ${title}`,
         password1
       )
       const invoiceUrl = `${process.env.PAYMENT_URL}/${invoiceId}`
 
       await createPendingPayment({
         telegram_id: ctx.from?.id?.toString() || '',
-        amount: subscriptionInfo.price,
-        stars: subscriptionInfo.stars,
+        amount: price,
+        stars: stars,
         inv_id: invoiceId,
-        description: `Subscription ${subscriptionType}`,
+        description: `Subscription ${title}`,
         bot_name: ctx.botInfo.username || 'NeuroBlogger',
         invoice_url: invoiceUrl,
         service_type: ModeEnum.Subscribe,
@@ -257,8 +261,8 @@ paymentScene.enter(async ctx => {
       // Отправляем сообщение с кнопкой оплаты
       await ctx.reply(
         isRu
-          ? `💫 Подписка ${subscriptionInfo.name}\n💰 Стоимость: ${subscriptionInfo.price} RUB\n⭐️ Бонус: ${subscriptionInfo.stars} звезд`
-          : `💫 Subscription ${subscriptionInfo.name}\n💰 Price: ${subscriptionInfo.price} RUB\n⭐️ Bonus: ${subscriptionInfo.stars} stars`,
+          ? `💫 Подписка ${title}\n💰 Стоимость: ${price} RUB\n⭐️ Бонус: ${stars} звезд`
+          : `💫 Subscription ${title}\n💰 Price: ${price} RUB\n⭐️ Bonus: ${stars} stars`,
         Markup.inlineKeyboard([
           [Markup.button.url(isRu ? '💳 Оплатить' : '💳 Pay', invoiceUrl)],
         ])
@@ -330,22 +334,7 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   const subscription = ctx.session.subscription
   console.log('CASE 1: ⭐️ Звездами: subscription', subscription)
   if (subscription) {
-    if (subscription === 'neurobase') {
-      await handleBuySubscription(ctx)
-      await ctx.scene.leave()
-    } else if (subscription === 'neuromeeting') {
-      await handleBuySubscription(ctx)
-      await ctx.scene.leave()
-    } else if (subscription === 'neuroblogger') {
-      await handleBuySubscription(ctx)
-      await ctx.scene.leave()
-    } else if (subscription === 'neurotester') {
-      await handleBuySubscription(ctx)
-      await ctx.scene.leave()
-    } else if (subscription === 'neurophoto') {
-      await handleBuySubscription(ctx)
-      await ctx.scene.leave()
-    } else if (subscription === 'neuromentor') {
+    if (subscription === 'neurobase' || subscription === 'neurophoto') {
       await handleBuySubscription(ctx)
       await ctx.scene.leave()
     } else if (subscription === 'stars') {
@@ -391,11 +380,11 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
       const userId = ctx.from.id
       const invId = await generateShortInvId(
         ctx.from?.id || 0,
-        subscriptionInfo.stars
+        subscriptionInfo.stars_price
       )
-      const description = isRu
-        ? `Подписка ${subscriptionInfo.name}`
-        : `Subscription ${subscriptionInfo.name}`
+      const title = isRu ? subscriptionInfo.title_ru : subscriptionInfo.title_en
+      const price = isRu ? subscriptionInfo.ru_price : subscriptionInfo.en_price
+      const stars = subscriptionInfo.stars_price
       const numericInvId = Number(invId)
 
       if (!merchantLogin || !password1) {
@@ -405,19 +394,19 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
       // Получение invoiceID
       const invoiceURL = await generateRobokassaInvoiceId(
         merchantLogin,
-        subscriptionInfo.price,
+        price,
         numericInvId,
-        description,
+        `Subscription ${title}`,
         password1
       )
 
       // Создаем платеж в статусе PENDING
       await createPendingPayment({
         telegram_id: userId.toString(),
-        amount: subscriptionInfo.price,
-        stars: subscriptionInfo.stars,
+        amount: price,
+        stars: stars,
         inv_id: numericInvId.toString(),
-        description,
+        description: `Subscription ${title}`,
         bot_name: ctx.botInfo.username,
         language: ctx.from.language_code || 'ru',
         invoice_url: invoiceURL,
@@ -431,16 +420,14 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
 
       await ctx.reply(
         isRu
-          ? `<b>💵 Оплата подписки ${subscriptionInfo.name} (${subscriptionInfo.price} р)</b>\nНажмите на кнопку ниже, чтобы перейти к оплате. После успешной оплаты звезды автоматически будут зачислены на ваш баланс.`
-          : `<b>💵 Payment for subscription ${subscriptionInfo.name} (${subscriptionInfo.price} RUB)</b>\nClick the button below to proceed with payment. After successful payment, stars will be automatically credited to your balance.`,
+          ? `<b>�� Оплата подписки ${title} (${price} р)</b>\nНажмите на кнопку ниже, чтобы перейти к оплате. После успешной оплаты звезды автоматически будут зачислены на ваш баланс.`
+          : `<b>💵 Payment for subscription ${title} (${price} RUB)</b>\nClick the button below to proceed with payment. After successful payment, stars will be automatically credited to your balance.`,
         {
           reply_markup: {
             inline_keyboard: [
               [
                 {
-                  text: isRu
-                    ? `Оплатить ${subscriptionInfo.price} р`
-                    : `Pay ${subscriptionInfo.price} RUB`,
+                  text: isRu ? `Оплатить ${price} р` : `Pay ${price} RUB`,
                   url: invoiceURL,
                 },
               ],
