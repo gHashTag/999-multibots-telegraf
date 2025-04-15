@@ -50,6 +50,8 @@
     "test:discover": "npx tsx src/test-utils/index.ts --discover",
     "test:speech": "npx tsx src/test-utils/index.ts --category=speech",
     "test:scenes": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/runScenesTests.ts",
+    "test:scenes:tsx": "bash scripts/run-scenes-tests.sh",
+    "test:helpScene": "bash scripts/run-help-scene-test.sh",
     "test:neurophoto-scene": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/test-utils/tests/scenes/selectNeuroPhotoScene.test.ts",
     "test:neurophoto-scene:direct": "bash ./run-neurophoto-tests.sh",
     "test:scenes:simple": "node src/test-utils/runScenesTest.js",

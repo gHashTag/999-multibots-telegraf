@@ -301,7 +301,7 @@ const testHelpMode = async (): Promise<TestResult> => {
     } else {
       console.log('Ответ не получен в testHelpMode. Контекст:', {
         mockCalls: (ctx.reply as any)?.mock?.calls?.length,
-        mode: ctx.session?.mode,
+        mode: (ctx.session as any)?.mode,
         replies: ctx.replies
       });
       return {

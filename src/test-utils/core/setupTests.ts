@@ -1,23 +1,77 @@
-import dotenv from 'dotenv'
-import path from 'path'
+/**
+ * Настройка тестового окружения
+ * 
+ * Этот файл содержит функции для настройки тестового окружения,
+ * включая моки общих функций и настройку глобальных переменных.
+ */
 
-// Load test environment variables
-dotenv.config({ path: path.resolve(__dirname, '../../.env.test') })
+import { loggerTest as logger } from '@/utils/logger';
+import mockApi from './mock';
 
-// Mock environment variables if they don't exist
-process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321'
-process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'test-service-key'
-process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-role-key'
-process.env.ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'test-elevenlabs-key'
-process.env.INNGEST_EVENT_KEY = process.env.INNGEST_EVENT_KEY || 'test-key'
-process.env.NODE_ENV = 'test'
+/**
+ * Инициализирует тестовое окружение
+ */
+export function setupTestEnvironment(): void {
+  logger.info('🔧 Настройка тестового окружения...');
+  
+  // Установка переменных окружения для тестов
+  process.env.NODE_ENV = 'test';
+  
+  // Отключение вывода ошибок в консоль
+  const originalConsoleError = console.error;
+  console.error = (...args) => {
+    // В тестовом режиме логируем только важные ошибки
+    if (process.env.TEST_VERBOSE === 'true') {
+      originalConsoleError(...args);
+    }
+  };
+  
+  // Настройка моков для глобальных объектов
+  setupGlobalMocks();
+  
+  logger.info('✅ Тестовое окружение настроено');
+}
 
-// Silence console logs during tests
-global.console = {
-  ...console,
-  log: jest.fn(),
-  debug: jest.fn(),
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
+/**
+ * Настраивает глобальные моки для тестов
+ */
+function setupGlobalMocks(): void {
+  // Мокируем setTimeout для ускорения тестов, но сохраняя типизацию
+  const originalSetTimeout = global.setTimeout;
+  
+  // Заменяем только функциональность, сохраняя типизацию
+  const mockedSetTimeout = function(callback: (...args: any[]) => void, timeout?: number, ...args: any[]): NodeJS.Timeout {
+    // В тестах выполняем таймауты мгновенно
+    if (process.env.TEST_FAST_TIMERS === 'true') {
+      return originalSetTimeout(callback, 0, ...args);
+    }
+    return originalSetTimeout(callback, timeout, ...args);
+  };
+  
+  // Сохраняем promisify и другие свойства setTimeout
+  Object.defineProperties(mockedSetTimeout, Object.getOwnPropertyDescriptors(originalSetTimeout));
+  
+  // Устанавливаем мок сохраняя все свойства оригинала
+  global.setTimeout = mockedSetTimeout as typeof global.setTimeout;
+  
+  // Настраиваем моки для других глобальных функций, если нужно
+  global.fetch = mockApi.create().mockImplementation(() => {
+    throw new Error('fetch должен быть мокирован в тестах явно');
+  }) as any;
+}
+
+/**
+ * Очищает тестовое окружение и возвращает исходные значения
+ */
+export function cleanupTestEnvironment(): void {
+  logger.info('🧹 Очистка тестового окружения...');
+  
+  // Восстановление переменных окружения
+  delete process.env.TEST_VERBOSE;
+  delete process.env.TEST_FAST_TIMERS;
+  
+  // Восстановление консоли
+  // (При необходимости)
+  
+  logger.info('✅ Тестовое окружение очищено');
 } 

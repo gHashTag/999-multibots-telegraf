@@ -171,6 +171,56 @@ export function assertVideoSent(ctx: any): void {
   }
 }
 
+/**
+ * Проверяет вызовы мок-функции
+ * @param mockFn - Мок-функция для проверки
+ * @param expectedCalls - Ожидаемое количество вызовов
+ * @param expectedArgs - Ожидаемые аргументы для конкретного вызова (опционально)
+ * @param callIndex - Индекс вызова для проверки аргументов (по умолчанию 0)
+ */
+export function assertMockCalled(
+  mockFn: any,
+  expectedCalls?: number,
+  expectedArgs?: any[],
+  callIndex: number = 0
+): void {
+  if (!mockFn || typeof mockFn.mock !== 'object') {
+    throw new Error('Переданная функция не является мок-функцией');
+  }
+
+  const actualCalls = mockFn.mock.calls.length;
+
+  if (expectedCalls !== undefined && actualCalls !== expectedCalls) {
+    throw new Error(
+      `Ожидалось ${expectedCalls} вызовов мок-функции, но получено ${actualCalls}`
+    );
+  }
+
+  if (expectedArgs) {
+    if (callIndex >= actualCalls) {
+      throw new Error(
+        `Невозможно проверить аргументы вызова ${callIndex}, всего вызовов: ${actualCalls}`
+      );
+    }
+
+    const actualArgs = mockFn.mock.calls[callIndex];
+    
+    if (actualArgs.length !== expectedArgs.length) {
+      throw new Error(
+        `Ожидалось ${expectedArgs.length} аргументов, но получено ${actualArgs.length}`
+      );
+    }
+
+    for (let i = 0; i < expectedArgs.length; i++) {
+      if (actualArgs[i] !== expectedArgs[i]) {
+        throw new Error(
+          `Аргумент ${i} не совпадает.\nОжидалось: ${JSON.stringify(expectedArgs[i])}\nПолучено: ${JSON.stringify(actualArgs[i])}`
+        );
+      }
+    }
+  }
+}
+
 export default {
   assertReplyContains,
   assertReplyMarkupContains,
@@ -178,5 +228,6 @@ export default {
   assertContains,
   assertSessionContains,
   assertPhotoSent,
-  assertVideoSent
+  assertVideoSent,
+  assertMockCalled
 }; 

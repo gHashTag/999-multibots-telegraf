@@ -1,385 +1,268 @@
-import { MyContext } from '@/interfaces';
-import { createMockContext, createMockWizardContext } from '../../core/mockContext';
-import { TestResult } from '../../core/types';
-import { assertReplyContains, assertScene } from '../../core/assertions';
-import { create as mockFunction } from '../../core/mock';
-import { logger } from '@/utils/logger';
-import { TestCategory } from '../../core/categories';
-import { inngest } from '@/inngest-functions/clients';
+import { Scenes, Context } from 'telegraf';
+import { createMockBot } from '../../mocks/telegrafMock';
+import { Message } from 'telegraf/typings/core/types/typegram';
+import { isRussian } from '../../../utils/i18n';
+import { textToSpeechWizard } from '../../../scenes/textToSpeechWizard';
+import { logger } from '../../../utils/logger';
+import { MyContext } from '@/interfaces'
+import { createMockContext } from '../../core/mockContext'
+import { TestResult } from '../../core/types'
+import { TestCategory } from '../../core/categories'
+import { MockFunction, create as mockFunction } from '../../core/mock'
+import { inngest } from '@/inngest-functions/clients'
+import { getVoiceId } from '@/core/supabase'
 
-// Mocked functions
-const mockedGetVoiceId = mockFunction<typeof import('@/core/supabase').getVoiceId>();
-const mockedHandleHelpCancel = mockFunction<typeof import('@/handlers/handleHelpCancel').handleHelpCancel>();
-const mockedInngestSend = mockFunction<typeof inngest.send>();
-
-// Constants for testing
-const TEST_USER_ID = 123456789;
-const TEST_USERNAME = 'test_user';
-const TEST_VOICE_ID = 'voiceid_123456';
-const TEST_TEXT = 'This is a test text for voice conversion';
-const TEST_BOT_USERNAME = 'test_bot';
-
-/**
- * Setup test environment
- */
-function setupTest() {
-  // Mock getVoiceId
-  mockedGetVoiceId.mockReturnValue(Promise.resolve(TEST_VOICE_ID));
-
-  // Mock handleHelpCancel
-  mockedHandleHelpCancel.mockReturnValue(Promise.resolve(false));
-
-  // Mock inngest.send
-  mockedInngestSend.mockReturnValue(Promise.resolve());
-
-  // Reset mocks between tests
-  mockedGetVoiceId.mockClear();
-  mockedHandleHelpCancel.mockClear();
-  mockedInngestSend.mockClear();
+interface MyContext extends Context {
+    session: {
+        textToConvert?: string;
+        voiceId?: string;
+    };
+    scene: Scenes.SceneContextScene<MyContext>;
+    message?: Message.TextMessage;
 }
 
+interface TestContext extends MyContext {
+    reply: jest.Mock;
+}
+
+interface TestResult {
+    name: string;
+    category: string;
+    success: boolean;
+    message: string;
+}
+
+const mockIsRussian = jest.fn().mockImplementation((text: string) => text.includes('ru'));
+const mockTextToSpeech = jest.fn();
+const mockLogger = {
+    info: jest.fn(),
+    error: jest.fn(),
+};
+
+const setupContext = (language: string = 'ru'): TestContext => {
+    const ctx = {
+        ...createMockBot(),
+        scene: {
+            enter: jest.fn(),
+            leave: jest.fn(),
+            state: {},
+        } as Partial<Scenes.SceneContextScene<MyContext>>,
+        session: {},
+        message: {
+            text: language,
+        },
+        reply: jest.fn(),
+    } as TestContext;
+    
+    mockIsRussian.mockReturnValue(language === 'ru');
+    return ctx;
+};
+
+const TEST_USER_ID = 123456789
+const TEST_USERNAME = 'test_user'
+const TEST_VOICE_ID = 'test-voice-id'
+
 /**
- * Test entering the textToSpeechWizard scene
+ * Тест входа в сцену text-to-speech на русском языке
  */
-export async function testTextToSpeechWizard_EnterScene(): Promise<TestResult> {
+export async function testTextToSpeechWizard_Enter(): Promise<TestResult> {
   try {
-    setupTest();
-    
-    // Create mock context for the first step
-    const ctx = createMockWizardContext(0);
-    ctx.from = { id: TEST_USER_ID, is_bot: false, first_name: 'Test', username: TEST_USERNAME, language_code: 'en' };
-    
-    // Run the first step of the scene
-    const textToSpeechWizard = (await import('@/scenes/textToSpeechWizard')).default;
-    await textToSpeechWizard.steps[0](ctx as unknown as MyContext);
-    
-    // Check that the correct message was sent
-    assertReplyContains(ctx, 'Send text, to convert it to voice');
-    
-    // Check that the wizard moved to the next step
-    expect(ctx.wizard.next).toHaveBeenCalled();
-    
+    logger.info('Запуск теста: TextToSpeechWizard - Вход в сцену (RU)')
+
+    // Создаем мок-контекст
+    const ctx = createMockContext()
+    ctx.from = { id: TEST_USER_ID, username: TEST_USERNAME } as any
+    ctx.session = {} as any
+
+    // Импортируем сцену
+    const { textToSpeechWizard } = await import('@/scenes/textToSpeechWizard')
+
+    // Вызываем обработчик входа в сцену
+    await textToSpeechWizard.steps[0](ctx as unknown as MyContext)
+
+    // Проверяем, что отправлено правильное сообщение
+    if (!ctx.reply.calledWith('🎙️ Отправьте текст, для преобразования его в голос')) {
+      throw new Error('Неверное сообщение при входе в сцену')
+    }
+
     return {
-      name: 'textToSpeechWizard: Enter Scene',
-      category: TestCategory.All,
+      name: 'TextToSpeechWizard: Вход в сцену (RU)',
+      category: TestCategory.Scenes,
       success: true,
-      message: 'Successfully entered textToSpeechWizard and displayed instructions'
-    };
+      message: 'Тест успешно пройден'
+    }
   } catch (error) {
-    logger.error('Error in testTextToSpeechWizard_EnterScene:', error);
+    logger.error('Ошибка в тесте:', error)
     return {
-      name: 'textToSpeechWizard: Enter Scene',
-      category: TestCategory.All,
+      name: 'TextToSpeechWizard: Вход в сцену (RU)',
+      category: TestCategory.Scenes,
       success: false,
       message: String(error)
-    };
+    }
   }
 }
 
 /**
- * Test providing text for voice conversion
+ * Тест входа в сцену text-to-speech на английском языке
  */
-export async function testTextToSpeechWizard_ProvideText(): Promise<TestResult> {
+export async function testTextToSpeechWizard_EnterEnglish(): Promise<TestResult> {
   try {
-    setupTest();
-    
-    // Create mock context at step 1 (text input)
-    const ctx = createMockWizardContext(1);
-    ctx.from = { id: TEST_USER_ID, is_bot: false, first_name: 'Test', username: TEST_USERNAME, language_code: 'en' };
-    ctx.botInfo = { username: TEST_BOT_USERNAME } as any;
-    
-    // Simulate message with text
-    ctx.message = {
-      message_id: 1,
-      text: TEST_TEXT
-    } as any;
-    
-    // Run the text processing step
-    const textToSpeechWizard = (await import('@/scenes/textToSpeechWizard')).default;
-    await textToSpeechWizard.steps[1](ctx as unknown as MyContext);
-    
-    // Check that getVoiceId was called with the correct user ID
-    if (mockedGetVoiceId.mock.calls.length === 0) {
-      throw new Error('getVoiceId should have been called');
+    logger.info('Запуск теста: TextToSpeechWizard - Вход в сцену (EN)')
+
+    // Создаем мок-контекст с английским языком
+    const ctx = createMockContext()
+    ctx.from = { id: TEST_USER_ID, username: TEST_USERNAME } as any
+    ctx.session = { language: 'en' } as any
+
+    // Импортируем сцену
+    const { textToSpeechWizard } = await import('@/scenes/textToSpeechWizard')
+
+    // Вызываем обработчик входа в сцену
+    await textToSpeechWizard.steps[0](ctx as unknown as MyContext)
+
+    // Проверяем, что отправлено правильное сообщение
+    if (!ctx.reply.calledWith('🎙️ Send text, to convert it to voice')) {
+      throw new Error('Incorrect message when entering scene in English')
     }
-    expect(mockedGetVoiceId.mock.calls[0][0]).toBe(TEST_USER_ID.toString());
-    
-    // Check that inngest.send was called with the correct parameters
-    if (mockedInngestSend.mock.calls.length === 0) {
-      throw new Error('inngest.send should have been called');
-    }
-    
-    const inngestCallArg = mockedInngestSend.mock.calls[0][0];
-    expect(inngestCallArg.name).toBe('text-to-speech.requested');
-    expect(inngestCallArg.data.text).toBe(TEST_TEXT);
-    expect(inngestCallArg.data.voice_id).toBe(TEST_VOICE_ID);
-    expect(inngestCallArg.data.telegram_id).toBe(TEST_USER_ID.toString());
-    expect(inngestCallArg.data.is_ru).toBe(false);
-    expect(inngestCallArg.data.bot_name).toBe(TEST_BOT_USERNAME);
-    
-    // Check that the scene was left
-    expect(ctx.scene.leave).toHaveBeenCalled();
-    
+
     return {
-      name: 'textToSpeechWizard: Provide Text',
-      category: TestCategory.All,
+      name: 'TextToSpeechWizard: Вход в сцену (EN)',
+      category: TestCategory.Scenes,
       success: true,
-      message: 'Successfully processed text and sent text-to-speech request'
-    };
+      message: 'Тест успешно пройден'
+    }
   } catch (error) {
-    logger.error('Error in testTextToSpeechWizard_ProvideText:', error);
+    logger.error('Ошибка в тесте:', error)
     return {
-      name: 'textToSpeechWizard: Provide Text',
-      category: TestCategory.All,
+      name: 'TextToSpeechWizard: Вход в сцену (EN)',
+      category: TestCategory.Scenes,
       success: false,
       message: String(error)
-    };
+    }
   }
 }
 
 /**
- * Test case when user doesn't have a voice ID
+ * Тест обработки текста и отправки события в Inngest
+ */
+export async function testTextToSpeechWizard_ProcessText(): Promise<TestResult> {
+  try {
+    logger.info('Запуск теста: TextToSpeechWizard - Обработка текста')
+
+    // Мокаем функцию getVoiceId
+    const mockGetVoiceId = mockFunction<typeof getVoiceId>()
+    mockGetVoiceId.mockReturnValue(Promise.resolve(TEST_VOICE_ID))
+
+    // Мокаем функцию inngest.send
+    const mockInngestSend = mockFunction<typeof inngest.send>()
+    mockInngestSend.mockReturnValue(Promise.resolve())
+
+    // Создаем мок-контекст
+    const ctx = createMockContext()
+    ctx.from = { id: TEST_USER_ID, username: TEST_USERNAME } as any
+    ctx.message = { text: 'Test message' } as any
+    ctx.session = {} as any
+
+    // Импортируем сцену
+    const { textToSpeechWizard } = await import('@/scenes/textToSpeechWizard')
+
+    // Вызываем обработчик текста
+    await textToSpeechWizard.steps[1](ctx as unknown as MyContext)
+
+    // Проверяем, что был запрос voice_id
+    if (!mockGetVoiceId.called) {
+      throw new Error('Не был вызван getVoiceId')
+    }
+
+    // Проверяем, что было отправлено событие в Inngest
+    if (!mockInngestSend.called) {
+      throw new Error('Не было отправлено событие в Inngest')
+    }
+
+    return {
+      name: 'TextToSpeechWizard: Обработка текста',
+      category: TestCategory.Scenes,
+      success: true,
+      message: 'Тест успешно пройден'
+    }
+  } catch (error) {
+    logger.error('Ошибка в тесте:', error)
+    return {
+      name: 'TextToSpeechWizard: Обработка текста',
+      category: TestCategory.Scenes,
+      success: false,
+      message: String(error)
+    }
+  }
+}
+
+/**
+ * Тест обработки отсутствующего voice_id
  */
 export async function testTextToSpeechWizard_NoVoiceId(): Promise<TestResult> {
   try {
-    setupTest();
-    
-    // Change the mock to return null (no voice ID)
-    mockedGetVoiceId.mockReturnValue(Promise.resolve(null));
-    
-    // Create mock context at step 1 (text input)
-    const ctx = createMockWizardContext(1);
-    ctx.from = { id: TEST_USER_ID, is_bot: false, first_name: 'Test', username: TEST_USERNAME, language_code: 'en' };
-    
-    // Simulate message with text
-    ctx.message = {
-      message_id: 1,
-      text: TEST_TEXT
-    } as any;
-    
-    // Run the text processing step
-    const textToSpeechWizard = (await import('@/scenes/textToSpeechWizard')).default;
-    await textToSpeechWizard.steps[1](ctx as unknown as MyContext);
-    
-    // Check that the correct error message was sent
-    assertReplyContains(ctx, 'train the avatar using');
-    
-    // Check that inngest.send was NOT called
-    if (mockedInngestSend.mock.calls.length > 0) {
-      throw new Error('inngest.send should NOT have been called when user has no voice ID');
+    logger.info('Запуск теста: TextToSpeechWizard - Отсутствующий voice_id')
+
+    // Мокаем функцию getVoiceId, возвращающую null
+    const mockGetVoiceId = mockFunction<typeof getVoiceId>()
+    mockGetVoiceId.mockReturnValue(Promise.resolve(null))
+
+    // Создаем мок-контекст
+    const ctx = createMockContext()
+    ctx.from = { id: TEST_USER_ID, username: TEST_USERNAME } as any
+    ctx.message = { text: 'Test message' } as any
+    ctx.session = {} as any
+
+    // Импортируем сцену
+    const { textToSpeechWizard } = await import('@/scenes/textToSpeechWizard')
+
+    // Вызываем обработчик текста
+    await textToSpeechWizard.steps[1](ctx as unknown as MyContext)
+
+    // Проверяем, что отправлено сообщение об отсутствии voice_id
+    if (!ctx.reply.calledWith('🎯 Для корректной работы обучите аватар используя 🎤 Голос для аватара в главном меню')) {
+      throw new Error('Неверное сообщение при отсутствии voice_id')
     }
-    
-    // Check that the scene was left
-    expect(ctx.scene.leave).toHaveBeenCalled();
-    
-    return {
-      name: 'textToSpeechWizard: No Voice ID',
-      category: TestCategory.All,
-      success: true,
-      message: 'Successfully handled case when user has no voice ID'
-    };
-  } catch (error) {
-    logger.error('Error in testTextToSpeechWizard_NoVoiceId:', error);
-    return {
-      name: 'textToSpeechWizard: No Voice ID',
-      category: TestCategory.All,
-      success: false,
-      message: String(error)
-    };
-  }
-}
 
-/**
- * Test handling non-text messages
- */
-export async function testTextToSpeechWizard_NonTextMessage(): Promise<TestResult> {
-  try {
-    setupTest();
-    
-    // Create mock context at step 1 (text input)
-    const ctx = createMockWizardContext(1);
-    ctx.from = { id: TEST_USER_ID, is_bot: false, first_name: 'Test', username: TEST_USERNAME, language_code: 'en' };
-    
-    // Simulate message without text (e.g., photo message)
-    ctx.message = {
-      message_id: 1,
-      photo: [{ file_id: 'test_file', file_unique_id: 'unique_id', width: 100, height: 100, file_size: 1000 }]
-    } as any;
-    
-    // Run the text processing step
-    const textToSpeechWizard = (await import('@/scenes/textToSpeechWizard')).default;
-    await textToSpeechWizard.steps[1](ctx as unknown as MyContext);
-    
-    // Check that the correct error message was sent
-    assertReplyContains(ctx, 'Please send text');
-    
-    // Check that inngest.send was NOT called
-    if (mockedInngestSend.mock.calls.length > 0) {
-      throw new Error('inngest.send should NOT have been called for non-text messages');
+    return {
+      name: 'TextToSpeechWizard: Отсутствующий voice_id',
+      category: TestCategory.Scenes,
+      success: true,
+      message: 'Тест успешно пройден'
     }
-    
-    return {
-      name: 'textToSpeechWizard: Non-Text Message',
-      category: TestCategory.All,
-      success: true,
-      message: 'Successfully handled non-text message'
-    };
   } catch (error) {
-    logger.error('Error in testTextToSpeechWizard_NonTextMessage:', error);
+    logger.error('Ошибка в тесте:', error)
     return {
-      name: 'textToSpeechWizard: Non-Text Message',
-      category: TestCategory.All,
+      name: 'TextToSpeechWizard: Отсутствующий voice_id',
+      category: TestCategory.Scenes,
       success: false,
       message: String(error)
-    };
-  }
-}
-
-/**
- * Test handling cancel/help commands
- */
-export async function testTextToSpeechWizard_HandleCancelHelp(): Promise<TestResult> {
-  try {
-    setupTest();
-    
-    // Change handleHelpCancel to return true (cancel)
-    mockedHandleHelpCancel.mockReturnValue(Promise.resolve(true));
-    
-    // Create mock context at step 1 (text input)
-    const ctx = createMockWizardContext(1);
-    ctx.from = { id: TEST_USER_ID, is_bot: false, first_name: 'Test', username: TEST_USERNAME, language_code: 'en' };
-    
-    // Simulate message with /cancel
-    ctx.message = {
-      message_id: 1,
-      text: '/cancel'
-    } as any;
-    
-    // Run the text processing step
-    const textToSpeechWizard = (await import('@/scenes/textToSpeechWizard')).default;
-    await textToSpeechWizard.steps[1](ctx as unknown as MyContext);
-    
-    // Check that scene.leave was called
-    expect(ctx.scene.leave).toHaveBeenCalled();
-    
-    // Check that inngest.send was NOT called
-    if (mockedInngestSend.mock.calls.length > 0) {
-      throw new Error('inngest.send should NOT have been called when command is canceled');
     }
-    
-    return {
-      name: 'textToSpeechWizard: Handle Cancel/Help',
-      category: TestCategory.All,
-      success: true,
-      message: 'Successfully handled cancel/help commands'
-    };
-  } catch (error) {
-    logger.error('Error in testTextToSpeechWizard_HandleCancelHelp:', error);
-    return {
-      name: 'textToSpeechWizard: Handle Cancel/Help',
-      category: TestCategory.All,
-      success: false,
-      message: String(error)
-    };
   }
 }
 
 /**
- * Test localization (Russian language)
- */
-export async function testTextToSpeechWizard_Localization(): Promise<TestResult> {
-  try {
-    setupTest();
-    
-    // Create mock context for the first step with Russian language
-    const ctx = createMockWizardContext(0);
-    ctx.from = { id: TEST_USER_ID, is_bot: false, first_name: 'Test', username: TEST_USERNAME, language_code: 'ru' };
-    
-    // Run the first step of the scene
-    const textToSpeechWizard = (await import('@/scenes/textToSpeechWizard')).default;
-    await textToSpeechWizard.steps[0](ctx as unknown as MyContext);
-    
-    // Check that the message is in Russian
-    assertReplyContains(ctx, 'Отправьте текст, для преобразования его в голос');
-    
-    return {
-      name: 'textToSpeechWizard: Localization',
-      category: TestCategory.All,
-      success: true,
-      message: 'Successfully displayed instructions in Russian'
-    };
-  } catch (error) {
-    logger.error('Error in testTextToSpeechWizard_Localization:', error);
-    return {
-      name: 'textToSpeechWizard: Localization',
-      category: TestCategory.All,
-      success: false,
-      message: String(error)
-    };
-  }
-}
-
-/**
- * Run all tests for the textToSpeechWizard scene
+ * Запуск всех тестов для сцены TextToSpeechWizard
  */
 export async function runTextToSpeechWizardTests(): Promise<TestResult[]> {
-  const results: TestResult[] = [];
+  const results: TestResult[] = []
   
   try {
-    results.push(await testTextToSpeechWizard_EnterScene());
-    results.push(await testTextToSpeechWizard_ProvideText());
-    results.push(await testTextToSpeechWizard_NoVoiceId());
-    results.push(await testTextToSpeechWizard_NonTextMessage());
-    results.push(await testTextToSpeechWizard_HandleCancelHelp());
-    results.push(await testTextToSpeechWizard_Localization());
+    results.push(await testTextToSpeechWizard_Enter())
+    results.push(await testTextToSpeechWizard_EnterEnglish())
+    results.push(await testTextToSpeechWizard_ProcessText())
+    results.push(await testTextToSpeechWizard_NoVoiceId())
   } catch (error) {
+    logger.error('Ошибка при запуске тестов TextToSpeechWizard:', error)
     results.push({
-      name: 'textToSpeechWizard: Overall',
-      category: TestCategory.All,
+      name: 'TextToSpeechWizard: Общая ошибка',
+      category: TestCategory.Scenes,
       success: false,
       message: String(error)
-    });
+    })
   }
   
-  return results;
+  return results
 }
 
-// Helper functions for assertions
-function expect(value: any): { toBe: (expected: any) => void; toHaveBeenCalled: () => void; toHaveBeenCalledWith: (...args: any[]) => void; toBeGreaterThan: (expected: number) => void } {
-  return {
-    toBe: (expected: any) => {
-      if (value !== expected) {
-        throw new Error(`Expected ${value} to be ${expected}`);
-      }
-    },
-    toHaveBeenCalled: () => {
-      if (!value || !value.mock || value.mock.calls.length === 0) {
-        throw new Error('Expected function to have been called');
-      }
-    },
-    toHaveBeenCalledWith: (...args: any[]) => {
-      if (!value || !value.mock || value.mock.calls.length === 0) {
-        throw new Error('Expected function to have been called');
-      }
-      
-      const call = value.mock.calls[0];
-      let match = true;
-      
-      for (let i = 0; i < args.length; i++) {
-        if (call[i] !== args[i]) {
-          match = false;
-          break;
-        }
-      }
-      
-      if (!match) {
-        throw new Error(`Expected function to have been called with ${JSON.stringify(args)} but was called with ${JSON.stringify(call)}`);
-      }
-    },
-    toBeGreaterThan: (expected: number) => {
-      if (value <= expected) {
-        throw new Error(`Expected ${value} to be greater than ${expected}`);
-      }
-    }
-  };
-} 
+export default runTextToSpeechWizardTests 

@@ -1,147 +1,110 @@
-import { MyContext } from '@/interfaces';
-import { Scenes } from 'telegraf';
-import { mockFn } from './mockFunction';
+import { Context, NarrowedContext } from 'telegraf';
+import { Message, Update } from 'telegraf/typings/core/types/typegram';
+import { SceneContextScene, WizardContextWizard, WizardSessionData } from 'telegraf/typings/scenes';
+import { IMockFunction, mockFn } from './mockFunction';
+
+// Глобальный мок для fetch
+global.fetch = mockFn(async () => ({
+  ok: true,
+  json: async () => ({}),
+})) as unknown as typeof fetch;
+
+export interface MockContext extends Partial<Context> {
+  reply: IMockFunction<(text: string, extra?: any) => Promise<Message.TextMessage>>;
+  editMessageText: IMockFunction<(text: string, extra?: any) => Promise<Message.TextMessage & { edit_date: number } | true>>;
+  scene: Partial<SceneContextScene<any>> & {
+    enter: IMockFunction<(sceneId: string, state?: any) => Promise<unknown>>;
+    reenter: IMockFunction<() => Promise<unknown>>;
+    leave: IMockFunction<() => Promise<void>>;
+  };
+  wizard: Partial<WizardContextWizard<any>> & {
+    next: IMockFunction<() => WizardContextWizard<any>>;
+    back: IMockFunction<() => WizardContextWizard<any>>;
+    selectStep: IMockFunction<(step: number) => WizardContextWizard<any>>;
+  };
+  session: WizardSessionData & {
+    [key: string]: any;
+    __scenes: Record<string, any>;
+    __wizard: {
+      cursor: number;
+      state: Record<string, any>;
+    };
+  };
+}
 
 /**
- * Создает базовый мок-контекст для тестирования Telegraf сцен
+ * Создает мок-контекст для тестирования сцен Telegraf
  */
-export function createMockContext() {
-  const replies: any[] = [];
-  
-  return {
-    message: undefined,
-    from: { id: 123456789, is_bot: false, first_name: 'Test', language_code: 'ru' },
-    chat: { id: 123456789, type: 'private', first_name: 'Test' },
-    session: {
-      balance: 1000,
-      isAdmin: false,
-      language: 'ru'
-    },
-    i18n: {
-      t: (key: string) => key,
-    },
-    reply: function(text: string, extra?: any) {
-      replies.push({ text, extra });
-      return Promise.resolve({ message_id: replies.length });
-    },
-    replyWithHTML: function(text: string, extra?: any) {
-      replies.push({ text, extra, format: 'HTML' });
-      return Promise.resolve({ message_id: replies.length });
-    },
-    replyWithMarkdownV2: function(text: string, extra?: any) {
-      replies.push({ text, extra, format: 'Markdown' });
-      return Promise.resolve({ message_id: replies.length });
-    },
-    replyWithPhoto: function(photo: string, extra?: any) {
-      replies.push({ photo, extra });
-      return Promise.resolve({ message_id: replies.length });
-    },
-    replyWithVideo: function(video: string, extra?: any) {
-      replies.push({ video, extra });
-      return Promise.resolve({ message_id: replies.length });
-    },
-    editMessageText: function(text: string, extra?: any) {
-      replies.push({ text, extra, action: 'edit' });
-      return Promise.resolve({ message_id: replies.length });
-    },
-    editMessageReplyMarkup: function(markup: any) {
-      replies.push({ markup, action: 'editMarkup' });
-      return Promise.resolve({ message_id: replies.length });
-    },
-    answerCbQuery: function(text?: string) {
-      if (text) replies.push({ text, action: 'cbQuery' });
-      return Promise.resolve(true);
-    },
+export function createMockContext(
+  overrides: Partial<MockContext> = {}
+): MockContext {
+  const defaultContext: MockContext = {
+    reply: mockFn(async (text: string, extra?: any) => ({
+      message_id: 1,
+      date: new Date().getTime(),
+      text,
+      chat: { id: 1, type: 'private' },
+    } as Message.TextMessage)),
+    
+    editMessageText: mockFn(async (text: string, extra?: any) => {
+      if (Math.random() > 0.5) return true;
+      return {
+        message_id: 1,
+        date: new Date().getTime(),
+        edit_date: new Date().getTime(),
+        text,
+        chat: { id: 1, type: 'private' },
+      } as Message.TextMessage & { edit_date: number };
+    }),
+    
     scene: {
-      enter: function(sceneId: string) {
-        replies.push({ action: 'enterScene', sceneId });
-        return Promise.resolve();
-      },
-      reenter: function() {
-        replies.push({ action: 'reenterScene' });
-        return Promise.resolve();
-      },
-      leave: function() {
-        replies.push({ action: 'leaveScene' });
-        return Promise.resolve();
-      }
+      enter: mockFn(async (sceneId: string, state?: any) => Promise.resolve(undefined as unknown)),
+      reenter: mockFn(async () => Promise.resolve(undefined as unknown)),
+      leave: mockFn(async () => Promise.resolve()),
     },
+    
     wizard: {
+      next: mockFn(() => ({} as WizardContextWizard<any>)),
+      back: mockFn(() => ({} as WizardContextWizard<any>)),
+      selectStep: mockFn((step: number) => ({} as WizardContextWizard<any>)),
+    },
+    
+    session: {
       cursor: 0,
-      next: mockFn(() => 1),
-      selectStep: mockFn((step: number) => step),
-      back: mockFn(() => -1),
-      scene: {
-        leave: mockFn(() => Promise.resolve()),
-        enter: mockFn((sceneId: string) => Promise.resolve()),
-        current: null,
-      }
+      __scenes: {},
+      __wizard: {
+        cursor: 0,
+        state: {},
+      },
     },
-    telegram: {
-      sendMessage: function(chatId: number | string, text: string, extra?: any) {
-        replies.push({ chatId, text, extra });
-        return Promise.resolve({ message_id: replies.length });
-      },
-      sendPhoto: function(chatId: number | string, photo: string, extra?: any) {
-        replies.push({ chatId, photo, extra });
-        return Promise.resolve({ message_id: replies.length });
-      },
-      sendVideo: function(chatId: number | string, video: string, extra?: any) {
-        replies.push({ chatId, video, extra });
-        return Promise.resolve({ message_id: replies.length });
-      },
-      getFile: function(fileId: string) {
-        return Promise.resolve({ file_id: fileId, file_path: `mock_files/${fileId}.jpg` });
-      }
-    },
-    replies
   };
-}
 
-/**
- * Создает мок-контекст для тестирования Wizard сцен с возможностью указания текущего шага
- */
-export function createMockWizardContext(step = 0) {
-  const ctx = createMockContext();
   return {
-    ...ctx,
-    wizard: {
-      ...ctx.wizard,
-      cursor: step,
-      step: step,
-      current: {}
-    }
+    ...defaultContext,
+    ...overrides,
   };
 }
 
 /**
- * Глобальный mock для fetch, используемый в тестах
+ * Создает мок-контекст для тестирования визардов
  */
-global.fetch = mockFn();
-
-/**
- * Поддержка устаревшего API для обратной совместимости
- * Это будет использоваться только если глобальная переменная jest не определена
- */
-// Declare the global jest object type
-declare global {
-  var jest: {
-    fn: (implementation?: Function) => any;
-    mock: (moduleName: string, factory?: object) => any;
+export function createMockWizardContext<T extends Record<string, any>>(
+  sessionData: T = {} as T,
+  overrides: Partial<MockContext> = {}
+): MockContext & { session: T & WizardSessionData } {
+  const context = createMockContext(overrides) as MockContext & {
+    session: T & WizardSessionData;
   };
+  
+  context.session = {
+    ...context.session,
+    ...sessionData,
+  };
+
+  return context;
 }
 
-// Check if jest is already defined before creating it
-if (typeof global.jest === 'undefined') {
-  global.jest = {
-    fn: (implementation?: Function) => {
-      return mockFn(implementation as any);
-    },
-    mock: (moduleName: string, factory?: object) => {
-      console.warn(`jest.mock called for ${moduleName} but not fully implemented in custom mock system`);
-      return factory || {};
-    }
-  };
-}
-
-export default { createMockContext, createMockWizardContext }; 
+export default {
+  createMockContext,
+  createMockWizardContext,
+}; 

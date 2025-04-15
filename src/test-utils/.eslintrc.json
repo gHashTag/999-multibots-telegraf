@@ -1,0 +1,37 @@
+{
+  "extends": "../../.eslintrc.js",
+  "rules": {
+    "no-restricted-imports": ["error", {
+      "paths": [{
+        "name": "jest",
+        "message": "❌ Использование Jest запрещено! Используйте наш собственный тестовый фреймворк из @/test-utils/core"
+      }],
+      "patterns": [
+        {
+          "group": ["**/jest*"],
+          "message": "❌ Использование Jest запрещено! Используйте наш собственный тестовый фреймворк из @/test-utils/core"
+        }
+      ]
+    }],
+    "no-restricted-globals": ["error", {
+      "name": "describe",
+      "message": "❌ Использование Jest describe запрещено! Используйте runTestGroup из @/test-utils/core"
+    }, {
+      "name": "it",
+      "message": "❌ Использование Jest it запрещено! Используйте createSceneTest из @/test-utils/core"
+    }, {
+      "name": "test",
+      "message": "❌ Использование Jest test запрещено! Используйте createSceneTest из @/test-utils/core"
+    }, {
+      "name": "expect",
+      "message": "❌ Использование Jest expect запрещено! Используйте assertMockCalled из @/test-utils/core"
+    }],
+    "no-restricted-syntax": ["error", {
+      "selector": "CallExpression[callee.name='jest.mock']",
+      "message": "❌ Использование jest.mock запрещено! Используйте MockFunction из @/test-utils/core"
+    }, {
+      "selector": "CallExpression[callee.name='jest.fn']",
+      "message": "❌ Использование jest.fn запрещено! Используйте MockFunction из @/test-utils/core"
+    }]
+  }
+} 

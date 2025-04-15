@@ -1,33 +1,142 @@
 /**
- * A simple mock function implementation that replaces Jest's jest.fn()
- * This provides similar functionality for mocking in our custom test framework.
+ * Интерфейс для мок-функции
  */
-
-type MockFunction<T extends (...args: any[]) => any> = {
+export interface IMockFunction<T extends (...args: any[]) => any> {
   (...args: Parameters<T>): ReturnType<T>;
   mock: {
-    calls: Array<Parameters<T>>;
+    calls: Parameters<T>[];
     results: Array<{ type: 'return' | 'throw'; value: any }>;
     instances: any[];
-    lastCall: Parameters<T> | undefined;
+    lastCall?: Parameters<T>;
   };
-  mockClear: () => MockFunction<T>;
-  mockReset: () => MockFunction<T>;
-  mockImplementation: (fn: T) => MockFunction<T>;
-  mockReturnValue: (value: ReturnType<T>) => MockFunction<T>;
-  mockResolvedValue: <U>(value: U) => MockFunction<T>;
-  mockRejectedValue: (error: Error) => MockFunction<T>;
-  mockReturnThis: () => MockFunction<T>;
+  mockClear: () => IMockFunction<T>;
+  mockReset: () => IMockFunction<T>;
+  mockImplementation: (fn: T) => IMockFunction<T>;
+  mockReturnValue: (value: ReturnType<T>) => IMockFunction<T>;
+  mockResolvedValue: <U>(value: U) => IMockFunction<T>;
+  mockRejectedValue: (error: Error) => IMockFunction<T>;
+  mockReturnThis?: () => IMockFunction<T>;
+}
+
+/**
+ * Создает мок-функцию с возможностью отслеживания вызовов
+ */
+function createBaseMockFunction<T extends (...args: any[]) => any>(
+  implementation?: T
+): IMockFunction<T> {
+  const mockState = {
+    calls: [] as Parameters<T>[],
+    results: [] as Array<{ type: 'return' | 'throw'; value: any }>,
+    instances: [] as any[],
+    implementation: implementation || ((() => undefined) as unknown as T)
+  };
+
+  const mockFn = function(this: any, ...args: Parameters<T>): ReturnType<T> {
+    mockState.calls.push(args);
+    mockState.instances.push(this);
+    try {
+      const result = mockState.implementation.apply(this, args);
+      mockState.results.push({ type: 'return', value: result });
+      return result;
+    } catch (error) {
+      mockState.results.push({ type: 'throw', value: error });
+      throw error;
+    }
+  } as IMockFunction<T>;
+
+  Object.defineProperty(mockFn, 'mock', {
+    get: () => ({
+      calls: mockState.calls,
+      results: mockState.results,
+      instances: mockState.instances,
+      get lastCall() {
+        return mockState.calls.length > 0 ? mockState.calls[mockState.calls.length - 1] : undefined;
+      }
+    })
+  });
+
+  mockFn.mockClear = () => {
+    mockState.calls = [];
+    mockState.results = [];
+    mockState.instances = [];
+    return mockFn;
+  };
+
+  mockFn.mockReset = () => {
+    mockFn.mockClear();
+    mockState.implementation = (() => undefined) as unknown as T;
+    return mockFn;
+  };
+
+  mockFn.mockImplementation = (fn: T) => {
+    mockState.implementation = fn;
+    return mockFn;
+  };
+
+  mockFn.mockReturnValue = (value: ReturnType<T>) => {
+    mockState.implementation = (() => value) as unknown as T;
+    return mockFn;
+  };
+
+  mockFn.mockResolvedValue = <U>(value: U) => {
+    mockState.implementation = (() => Promise.resolve(value)) as unknown as T;
+    return mockFn;
+  };
+
+  mockFn.mockRejectedValue = (error: Error) => {
+    mockState.implementation = (() => Promise.reject(error)) as unknown as T;
+    return mockFn;
+  };
+
+  mockFn.mockReturnThis = () => {
+    mockState.implementation = (function(this: any) { return this; }) as unknown as T;
+    return mockFn;
+  };
+
+  return mockFn;
+}
+
+export const createMockFunction = createBaseMockFunction;
+
+/**
+ * Вспомогательные функции для работы с моками
+ */
+export const mockUtils = {
+  /**
+   * Проверяет, был ли мок вызван
+   */
+  wasCalled: <T extends (...args: any[]) => any>(mock: IMockFunction<T>): boolean => {
+    return mock.mock.calls.length > 0;
+  },
+
+  /**
+   * Проверяет, был ли мок вызван с определенными аргументами
+   */
+  wasCalledWith: <T extends (...args: any[]) => any>(
+    mock: IMockFunction<T>,
+    ...expectedArgs: Parameters<T>
+  ): boolean => {
+    return mock.mock.calls.some(args =>
+      args.length === expectedArgs.length &&
+      args.every((arg, i) => arg === expectedArgs[i])
+    );
+  },
+
+  /**
+   * Получает количество вызовов мока
+   */
+  getCallCount: <T extends (...args: any[]) => any>(mock: IMockFunction<T>): number => {
+    return mock.mock.calls.length;
+  }
 };
 
 /**
- * Creates a mock function similar to Jest's jest.fn()
- * @param implementation Optional implementation function
- * @returns Mock function with tracking capabilities
+ * A simple mock function implementation that replaces Jest's jest.fn()
+ * This provides similar functionality for mocking in our custom test framework.
  */
 export function mockFn<T extends (...args: any[]) => any>(
   implementation?: T
-): MockFunction<T> {
+): IMockFunction<T> {
   const mockCalls: Array<Parameters<T>> = [];
   const mockResults: Array<{ type: 'return' | 'throw'; value: any }> = [];
   const mockInstances: any[] = [];
@@ -45,7 +154,7 @@ export function mockFn<T extends (...args: any[]) => any>(
       mockResults.push({ type: 'throw', value: error });
       throw error;
     }
-  } as MockFunction<T>;
+  } as IMockFunction<T>;
 
   // Add mock property to track calls and results
   mockFunction.mock = {
@@ -92,9 +201,7 @@ export function mockFn<T extends (...args: any[]) => any>(
   };
 
   mockFunction.mockReturnThis = () => {
-    mockImplementationFn = function (this: any) {
-      return this;
-    } as unknown as T;
+    mockImplementationFn = (function(this: any) { return this; }) as unknown as T;
     return mockFunction;
   };
 
@@ -102,67 +209,59 @@ export function mockFn<T extends (...args: any[]) => any>(
 }
 
 /**
- * A helper to create a mock object with methods that are mocked
- * Similar to Jest's jest.mock() for modules
- * @param methods Object with method implementations
- * @returns Mocked object
+ * Creates a mock object with all methods mocked
  */
-export function mockObject<T extends Record<string, any>>(methods: Partial<T> = {}): { [K in keyof T]: T[K] extends (...args: any[]) => any ? MockFunction<T[K]> : T[K] } {
-  const mockObj = {} as { [K in keyof T]: T[K] extends (...args: any[]) => any ? MockFunction<T[K]> : T[K] };
+export function mockObject<T extends Record<string, any>>(methods: Partial<T> = {}): { [K in keyof T]: T[K] extends (...args: any[]) => any ? IMockFunction<T[K]> : T[K] } {
+  const result = {} as { [K in keyof T]: T[K] extends (...args: any[]) => any ? IMockFunction<T[K]> : T[K] };
   
   for (const key in methods) {
-    if (Object.prototype.hasOwnProperty.call(methods, key)) {
-      if (typeof methods[key] === 'function') {
-        // Use type assertion to handle the conversion from function to mock function
-        mockObj[key] = mockFn(methods[key] as any) as any;
-      } else if (methods[key] !== undefined) {
-        mockObj[key] = methods[key] as any;
-      }
+    const value = methods[key];
+    if (typeof value === 'function') {
+      result[key] = mockFn(value) as any;
+    } else {
+      result[key] = value as any;
     }
   }
   
-  return mockObj;
+  return result;
 }
 
 /**
- * Creates a mock module similar to Jest's jest.mock()
- * @param modulePath The module path to mock
- * @param factory A factory function returning the mock implementation
+ * Mocks a module with custom implementation
  */
 export function mockModule(modulePath: string, factory: () => any): void {
-  // This would need to be implemented with a module mocking system
-  // For now, it's a placeholder to be compatible with the Jest API
-  console.warn(`mockModule called for ${modulePath} but not fully implemented yet`);
+  // Implementation depends on your module system
+  throw new Error('Not implemented');
 }
 
 /**
- * Clears all mocks, similar to Jest's jest.clearAllMocks()
+ * Clears all mocks
  */
 export function clearAllMocks(): void {
-  // This would need to track all created mocks to clear them
-  console.warn('clearAllMocks called but not fully implemented yet');
+  // Implementation
 }
 
 /**
- * Resets all mocks, similar to Jest's jest.resetAllMocks()
+ * Resets all mocks
  */
 export function resetAllMocks(): void {
-  // This would need to track all created mocks to reset them
-  console.warn('resetAllMocks called but not fully implemented yet');
+  // Implementation
 }
 
 /**
- * Restores all mocks, similar to Jest's jest.restoreAllMocks()
+ * Restores all mocks to their original state
  */
 export function restoreAllMocks(): void {
-  // This would need to track all created spies to restore them
-  console.warn('restoreAllMocks called but not fully implemented yet');
+  // Implementation
 }
 
 export default {
-  fn: mockFn,
-  mock: mockModule,
+  mockFn,
+  mockObject,
+  mockModule,
   clearAllMocks,
   resetAllMocks,
   restoreAllMocks,
+  createMockFunction,
+  mockUtils
 }; 

@@ -1,627 +1,372 @@
-import { Scenes } from 'telegraf';
-import { Update } from 'telegraf/typings/core/types/typegram';
-import { MyContext } from '@/interfaces';
-import { createMockContext } from '@/test-utils/telegraf-mocks';
-import { MockFunction, invokeHandler } from '@/test-utils/mocks';
-import { TestResult, TestCategory } from '@/test-utils/types';
-import { ideasGeneratorScene } from '@/scenes/ideasGeneratorScene';
-import * as languageModule from '@/helpers/language';
-import * as generateIdeaModule from '@/services/generateIdea';
-
-interface TestContext extends MyContext {
-  scene: {
-    enter: MockFunction;
-    leave: MockFunction;
-    reenter: MockFunction;
-  };
-  reply: MockFunction;
-  replyWithMarkdown: MockFunction;
-  replies?: Array<{ text: string; extra?: any }>;
-  session: {
-    promptInfo?: {
-      category?: string;
-      count?: number;
-    };
-    [key: string]: any;
-  };
-  from?: {
-    id: number;
-    language_code?: string;
-  };
-  message?: {
-    text?: string;
-    message_id?: number;
-  };
-  wizard?: {
-    next: MockFunction;
-    selectStep: MockFunction;
-    cursor: number;
-  };
-}
+import { Middleware } from 'telegraf';
+import { createMockContext } from '../../core/mockContext';
+import { TestResult } from '../../core/types';
+import { assertReplyContains, assertScene } from '../../core/assertions';
+import { create as mockFunction, MockedFunction } from '../../core/mock';
+import { TestCategory } from '../../core/categories';
+import { logger } from '../../../utils/logger';
+import type { MyContext } from '../../../interfaces';
 
 // Константы для тестирования
-const TEST_USER_ID = 12345678;
-const TEST_CATEGORIES = ['Здоровье', 'Бизнес', 'Образование'];
-const TEST_IDEAS = [
-  'Идея 1: Описание идеи 1',
-  'Идея 2: Описание идеи 2',
-  'Идея 3: Описание идеи 3',
-];
+const TEST_USER_ID = 123456789;
+const TEST_USERNAME = 'test_user';
+
+// Мокируем inngest клиент
+const mockInngestSend = mockFunction<any, any>();
+
+// Моки для вспомогательных функций
+const mockIsRussian = mockFunction<any, boolean>();
+const mockHandleHelpCancel = mockFunction<any, boolean>();
 
 /**
- * Настраивает контекст для тестирования
- * @param params Параметры для настройки контекста
+ * Настройка тестового контекста для сцены генератора идей
  */
-function setupContext(params: {
-  language?: string;
-  messageText?: string;
-  step?: number;
-  category?: string;
-  count?: number;
-}): TestContext {
-  // Настройка языка
-  const isRussian = params.language !== 'en';
-  jest.spyOn(languageModule, 'isRussian').mockReturnValue(isRussian);
+function setupContext(language: 'ru' | 'en' = 'ru') {
+  // Создаем мок-контекст
+  const ctx = createMockContext();
   
-  // Создание мок-контекста
-  const ctx = createMockContext() as TestContext;
+  // Настраиваем данные пользователя
+  ctx.from = { 
+    id: TEST_USER_ID, 
+    username: TEST_USERNAME, 
+    language_code: language 
+  } as any;
   
-  // Настройка методов сцены
-  ctx.scene.enter = jest.fn().mockResolvedValue(true);
-  ctx.scene.leave = jest.fn().mockResolvedValue(true);
-  ctx.scene.reenter = jest.fn().mockResolvedValue(true);
+  // Настраиваем сессию
+  ctx.session = { 
+    language: language
+  } as any;
+
+  // Устанавливаем язык для определения русского языка
+  mockIsRussian.mockImplementation(() => language === 'ru');
   
-  // Настройка reply и хранение ответов
-  ctx.reply = jest.fn().mockImplementation((text: string, extra?: any) => {
-    console.log(`[Мок] reply вызван с текстом: ${text}`);
-    if (!ctx.replies) {
-      ctx.replies = [];
-    }
-    ctx.replies.push({ text, extra });
-    return true;
-  });
-  
-  ctx.replyWithMarkdown = jest.fn().mockImplementation((text: string, extra?: any) => {
-    console.log(`[Мок] replyWithMarkdown вызван с текстом: ${text}`);
-    if (!ctx.replies) {
-      ctx.replies = [];
-    }
-    ctx.replies.push({ text, extra });
-    return true;
-  });
-  
-  // Настройка session
-  ctx.session = {};
-  if (params.category) {
-    if (!ctx.session.promptInfo) {
-      ctx.session.promptInfo = {};
-    }
-    ctx.session.promptInfo.category = params.category;
-  }
-  
-  if (params.count) {
-    if (!ctx.session.promptInfo) {
-      ctx.session.promptInfo = {};
-    }
-    ctx.session.promptInfo.count = params.count;
-  }
-  
-  // Настройка from
-  ctx.from = {
-    id: TEST_USER_ID,
-    language_code: params.language === 'en' ? 'en' : 'ru',
-  };
-  
-  // Настройка message
-  if (params.messageText) {
-    ctx.message = {
-      text: params.messageText,
-      message_id: 1,
-    };
-  }
-  
-  // Настройка wizard
-  if (params.step !== undefined) {
-    ctx.wizard = {
-      next: jest.fn().mockReturnValue(undefined),
-      selectStep: jest.fn().mockReturnValue(undefined),
-      cursor: params.step,
-    };
-  }
-  
-  // Мок для generateIdea
-  jest.spyOn(generateIdeaModule, 'generateIdea').mockResolvedValue(TEST_IDEAS);
-  
+  // По умолчанию отключаем отмену действия
+  mockHandleHelpCancel.mockReturnValue(false);
+
   return ctx;
 }
 
 /**
- * Тест входа в сцену генератора идей (русский язык)
+ * Тест для проверки входа в сцену генератора идей (русский язык)
  */
-async function testIdeasGeneratorScene_Enter(): Promise<TestResult> {
-  console.log('🧪 Запуск теста: testIdeasGeneratorScene_Enter');
+export async function testIdeasGeneratorScene_Enter(): Promise<TestResult> {
+  logger.info('🧪 Запуск теста: вход в сцену генератора идей (русский язык)');
   
   try {
-    // Настройка контекста
-    const ctx = setupContext({ language: 'ru' });
+    // Настраиваем контекст
+    const ctx = setupContext('ru');
     
-    // Вызов обработчика входа
-    await invokeHandler(ideasGeneratorScene.enterHandler, ctx as any);
+    // Импортируем сцену
+    const { ideasGeneratorScene } = await import('../../../scenes/ideasGeneratorScene');
     
-    // Проверки
-    if (ctx.reply.mock.calls.length === 0) {
-      return {
-        name: 'Вход в сцену генератора идей (RU)',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Метод reply не был вызван',
-      };
-    }
-    
-    const replyText = ctx.replies?.[0]?.text;
-    if (!replyText || !replyText.includes('Выберите категорию')) {
-      return {
-        name: 'Вход в сцену генератора идей (RU)',
-        category: TestCategory.SCENE,
-        success: false,
-        message: `Неверное сообщение: ${replyText}`,
-      };
-    }
-    
-    // Проверяем клавиатуру с категориями
-    const keyboard = ctx.replies?.[0]?.extra?.reply_markup?.keyboard;
-    if (!keyboard || !Array.isArray(keyboard) || keyboard.length === 0) {
-      return {
-        name: 'Вход в сцену генератора идей (RU)',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Клавиатура категорий не была отправлена',
-      };
-    }
-    
-    return {
-      name: 'Вход в сцену генератора идей (RU)',
-      category: TestCategory.SCENE,
-      success: true,
-      message: 'Сцена корректно отображает выбор категорий на русском языке',
-    };
-  } catch (error) {
-    console.error('Ошибка в testIdeasGeneratorScene_Enter:', error);
-    return {
-      name: 'Вход в сцену генератора идей (RU)',
-      category: TestCategory.SCENE,
-      success: false,
-      message: 'Ошибка при тестировании входа в сцену',
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-/**
- * Тест входа в сцену генератора идей (английский язык)
- */
-async function testIdeasGeneratorScene_EnterEnglish(): Promise<TestResult> {
-  console.log('🧪 Запуск теста: testIdeasGeneratorScene_EnterEnglish');
-  
-  try {
-    // Настройка контекста
-    const ctx = setupContext({ language: 'en' });
-    
-    // Вызов обработчика входа
-    await invokeHandler(ideasGeneratorScene.enterHandler, ctx as any);
-    
-    // Проверки
-    if (ctx.reply.mock.calls.length === 0) {
-      return {
-        name: 'Вход в сцену генератора идей (EN)',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Метод reply не был вызван',
-      };
-    }
-    
-    const replyText = ctx.replies?.[0]?.text;
-    if (!replyText || !replyText.includes('Choose a category')) {
-      return {
-        name: 'Вход в сцену генератора идей (EN)',
-        category: TestCategory.SCENE,
-        success: false,
-        message: `Неверное сообщение: ${replyText}`,
-      };
-    }
-    
-    // Проверяем клавиатуру с категориями
-    const keyboard = ctx.replies?.[0]?.extra?.reply_markup?.keyboard;
-    if (!keyboard || !Array.isArray(keyboard) || keyboard.length === 0) {
-      return {
-        name: 'Вход в сцену генератора идей (EN)',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Клавиатура категорий не была отправлена',
-      };
-    }
-    
-    return {
-      name: 'Вход в сцену генератора идей (EN)',
-      category: TestCategory.SCENE,
-      success: true,
-      message: 'Сцена корректно отображает выбор категорий на английском языке',
-    };
-  } catch (error) {
-    console.error('Ошибка в testIdeasGeneratorScene_EnterEnglish:', error);
-    return {
-      name: 'Вход в сцену генератора идей (EN)',
-      category: TestCategory.SCENE,
-      success: false,
-      message: 'Ошибка при тестировании входа в сцену на английском',
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-/**
- * Тест выбора категории идей
- */
-async function testIdeasGeneratorScene_SelectCategory(): Promise<TestResult> {
-  console.log('🧪 Запуск теста: testIdeasGeneratorScene_SelectCategory');
-  
-  try {
-    // Настройка контекста
-    const ctx = setupContext({
-      language: 'ru',
-      messageText: 'Бизнес',
-      step: 0,
-    });
-    
-    // Первый шаг - выбор категории
-    await invokeHandler(ideasGeneratorScene.stepHandlers[0], ctx as any);
-    
-    // Проверки
-    if (!ctx.session.promptInfo?.category) {
-      return {
-        name: 'Выбор категории идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Категория не была сохранена в сессии',
-      };
-    }
-    
-    if (ctx.session.promptInfo.category !== 'Бизнес') {
-      return {
-        name: 'Выбор категории идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: `Сохранена неверная категория: ${ctx.session.promptInfo.category}`,
-      };
-    }
-    
-    if (ctx.reply.mock.calls.length === 0) {
-      return {
-        name: 'Выбор категории идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Метод reply не был вызван',
-      };
-    }
-    
-    const replyText = ctx.replies?.[0]?.text;
-    if (!replyText || !replyText.includes('количество')) {
-      return {
-        name: 'Выбор категории идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: `Неверное сообщение: ${replyText}`,
-      };
-    }
-    
-    if (!ctx.wizard?.next.mock.calls.length) {
-      return {
-        name: 'Выбор категории идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Метод wizard.next не был вызван',
-      };
-    }
-    
-    return {
-      name: 'Выбор категории идей',
-      category: TestCategory.SCENE,
-      success: true,
-      message: 'Сцена корректно обрабатывает выбор категории',
-    };
-  } catch (error) {
-    console.error('Ошибка в testIdeasGeneratorScene_SelectCategory:', error);
-    return {
-      name: 'Выбор категории идей',
-      category: TestCategory.SCENE,
-      success: false,
-      message: 'Ошибка при тестировании выбора категории',
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-/**
- * Тест выбора количества идей
- */
-async function testIdeasGeneratorScene_SelectCount(): Promise<TestResult> {
-  console.log('🧪 Запуск теста: testIdeasGeneratorScene_SelectCount');
-  
-  try {
-    // Настройка контекста
-    const ctx = setupContext({
-      language: 'ru',
-      messageText: '3',
-      step: 1,
-      category: 'Бизнес',
-    });
-    
-    // Второй шаг - выбор количества идей
-    await invokeHandler(ideasGeneratorScene.stepHandlers[1], ctx as any);
-    
-    // Проверки
-    if (!ctx.session.promptInfo?.count) {
-      return {
-        name: 'Выбор количества идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Количество идей не было сохранено в сессии',
-      };
-    }
-    
-    if (ctx.session.promptInfo.count !== 3) {
-      return {
-        name: 'Выбор количества идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: `Сохранено неверное количество: ${ctx.session.promptInfo.count}`,
-      };
-    }
-    
-    if (ctx.reply.mock.calls.length === 0 && ctx.replyWithMarkdown.mock.calls.length === 0) {
-      return {
-        name: 'Выбор количества идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Ни один из методов reply/replyWithMarkdown не был вызван',
-      };
-    }
-    
-    if (generateIdeaModule.generateIdea.mock.calls.length === 0) {
-      return {
-        name: 'Выбор количества идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Метод generateIdea не был вызван',
-      };
-    }
-    
-    const generateArgs = generateIdeaModule.generateIdea.mock.calls[0];
-    if (!generateArgs || generateArgs[0] !== 'Бизнес' || generateArgs[1] !== 3) {
-      return {
-        name: 'Выбор количества идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: `Неверные аргументы вызова generateIdea: ${JSON.stringify(generateArgs)}`,
-      };
-    }
-    
-    if (!ctx.scene.leave.mock.calls.length) {
-      return {
-        name: 'Выбор количества идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Метод scene.leave не был вызван',
-      };
-    }
-    
-    return {
-      name: 'Выбор количества идей',
-      category: TestCategory.SCENE,
-      success: true,
-      message: 'Сцена корректно обрабатывает выбор количества идей и генерирует идеи',
-    };
-  } catch (error) {
-    console.error('Ошибка в testIdeasGeneratorScene_SelectCount:', error);
-    return {
-      name: 'Выбор количества идей',
-      category: TestCategory.SCENE,
-      success: false,
-      message: 'Ошибка при тестировании выбора количества идей',
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-/**
- * Тест обработки неверного количества идей
- */
-async function testIdeasGeneratorScene_InvalidCount(): Promise<TestResult> {
-  console.log('🧪 Запуск теста: testIdeasGeneratorScene_InvalidCount');
-  
-  try {
-    // Настройка контекста
-    const ctx = setupContext({
-      language: 'ru',
-      messageText: 'много',
-      step: 1,
-      category: 'Бизнес',
-    });
-    
-    // Второй шаг - попытка ввести текст вместо числа
-    await invokeHandler(ideasGeneratorScene.stepHandlers[1], ctx as any);
-    
-    // Проверки
-    if (ctx.reply.mock.calls.length === 0) {
-      return {
-        name: 'Обработка неверного количества идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Метод reply не был вызван',
-      };
-    }
-    
-    const replyText = ctx.replies?.[0]?.text;
-    if (!replyText || !replyText.includes('число')) {
-      return {
-        name: 'Обработка неверного количества идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: `Неверное сообщение: ${replyText}`,
-      };
-    }
-    
-    if (generateIdeaModule.generateIdea.mock.calls.length > 0) {
-      return {
-        name: 'Обработка неверного количества идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Метод generateIdea был вызван несмотря на неверное количество',
-      };
-    }
-    
-    if (ctx.scene.leave.mock.calls.length > 0) {
-      return {
-        name: 'Обработка неверного количества идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Сцена была завершена несмотря на ошибку',
-      };
-    }
-    
-    return {
-      name: 'Обработка неверного количества идей',
-      category: TestCategory.SCENE,
-      success: true,
-      message: 'Сцена корректно обрабатывает неверное количество идей',
-    };
-  } catch (error) {
-    console.error('Ошибка в testIdeasGeneratorScene_InvalidCount:', error);
-    return {
-      name: 'Обработка неверного количества идей',
-      category: TestCategory.SCENE,
-      success: false,
-      message: 'Ошибка при тестировании обработки неверного количества',
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-/**
- * Тест обработки ошибки генерации идей
- */
-async function testIdeasGeneratorScene_GenerationError(): Promise<TestResult> {
-  console.log('🧪 Запуск теста: testIdeasGeneratorScene_GenerationError');
-  
-  try {
-    // Настройка контекста
-    const ctx = setupContext({
-      language: 'ru',
-      messageText: '3',
-      step: 1,
-      category: 'Бизнес',
-    });
-    
-    // Мок ошибки при генерации
-    jest.spyOn(generateIdeaModule, 'generateIdea').mockRejectedValue(new Error('API Error'));
-    
-    // Второй шаг - выбор количества с ошибкой генерации
-    await invokeHandler(ideasGeneratorScene.stepHandlers[1], ctx as any);
-    
-    // Проверки
-    if (ctx.reply.mock.calls.length === 0) {
-      return {
-        name: 'Обработка ошибки генерации идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Метод reply не был вызван',
-      };
-    }
-    
-    let foundErrorMessage = false;
-    for (const reply of ctx.replies || []) {
-      if (reply.text && (reply.text.includes('ошибка') || reply.text.includes('Ошибка'))) {
-        foundErrorMessage = true;
-        break;
+    // Вызываем первый шаг сцены напрямую
+    if (ideasGeneratorScene.steps && ideasGeneratorScene.steps.length > 0) {
+      const enterHandler = ideasGeneratorScene.steps[0];
+      if (typeof enterHandler === 'function') {
+        await enterHandler(ctx as any);
       }
     }
     
-    if (!foundErrorMessage) {
-      return {
-        name: 'Обработка ошибки генерации идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Сообщение об ошибке не было отправлено',
-      };
-    }
+    // Проверки
+    assertReplyContains(ctx, 'Генератор идей: введите тему', 'message');
     
-    if (!ctx.scene.leave.mock.calls.length) {
-      return {
-        name: 'Обработка ошибки генерации идей',
-        category: TestCategory.SCENE,
-        success: false,
-        message: 'Метод scene.leave не был вызван',
-      };
-    }
+    // Проверяем кнопку отмены
+    assertReplyContains(ctx, 'Отмена', 'message');
+    
+    logger.info('✅ Тест успешно пройден: вход в сцену генератора идей (русский язык)');
     
     return {
-      name: 'Обработка ошибки генерации идей',
-      category: TestCategory.SCENE,
+      name: 'IdeasGeneratorScene: Enter Scene (RU)',
+      category: TestCategory.All,
       success: true,
-      message: 'Сцена корректно обрабатывает ошибку при генерации идей',
+      message: 'Тест входа в сцену генератора идей (русский язык) успешно пройден'
     };
   } catch (error) {
-    console.error('Ошибка в testIdeasGeneratorScene_GenerationError:', error);
+    logger.error('❌ Ошибка в тесте входа в сцену генератора идей (русский язык):', error);
+    
     return {
-      name: 'Обработка ошибки генерации идей',
-      category: TestCategory.SCENE,
+      name: 'IdeasGeneratorScene: Enter Scene (RU)',
+      category: TestCategory.All,
       success: false,
-      message: 'Ошибка при тестировании обработки ошибки генерации',
-      error: error instanceof Error ? error.message : String(error),
+      message: String(error)
     };
   }
 }
 
 /**
- * Выполнение всех тестов сцены ideasGeneratorScene
+ * Тест для проверки входа в сцену генератора идей (английский язык)
  */
-export async function runIdeasGeneratorSceneTests(): Promise<TestResult[]> {
-  console.log('🚀 Запуск всех тестов для ideasGeneratorScene');
-  
-  const results: TestResult[] = [];
+export async function testIdeasGeneratorScene_EnterEnglish(): Promise<TestResult> {
+  logger.info('🧪 Запуск теста: вход в сцену генератора идей (английский язык)');
   
   try {
-    // Запуск всех тестов
-    results.push(await testIdeasGeneratorScene_Enter());
-    results.push(await testIdeasGeneratorScene_EnterEnglish());
-    results.push(await testIdeasGeneratorScene_SelectCategory());
-    results.push(await testIdeasGeneratorScene_SelectCount());
-    results.push(await testIdeasGeneratorScene_InvalidCount());
-    results.push(await testIdeasGeneratorScene_GenerationError());
+    // Настраиваем контекст
+    const ctx = setupContext('en');
     
-    // Вывод статистики
-    const successCount = results.filter(r => r.success).length;
-    console.log(`✅ Успешно: ${successCount}/${results.length} тестов`);
+    // Импортируем сцену
+    const { ideasGeneratorScene } = await import('../../../scenes/ideasGeneratorScene');
     
-    results.filter(r => !r.success).forEach(r => {
-      console.error(`❌ Тест "${r.name}" не прошел: ${r.message}`);
-      if (r.error) console.error(`   Ошибка: ${r.error}`);
-    });
+    // Вызываем первый шаг сцены напрямую
+    if (ideasGeneratorScene.steps && ideasGeneratorScene.steps.length > 0) {
+      const enterHandler = ideasGeneratorScene.steps[0];
+      if (typeof enterHandler === 'function') {
+        await enterHandler(ctx as any);
+      }
+    }
     
-    return results;
+    // Проверки
+    assertReplyContains(ctx, 'Ideas Generator: enter a topic', 'message');
+    
+    // Проверяем кнопку отмены
+    assertReplyContains(ctx, 'Cancel', 'message');
+    
+    logger.info('✅ Тест успешно пройден: вход в сцену генератора идей (английский язык)');
+    
+    return {
+      name: 'IdeasGeneratorScene: Enter Scene (EN)',
+      category: TestCategory.All,
+      success: true,
+      message: 'Тест входа в сцену генератора идей (английский язык) успешно пройден'
+    };
   } catch (error) {
-    console.error('❌ Критическая ошибка при выполнении тестов:', error);
-    results.push({
-      name: 'Выполнение всех тестов ideasGeneratorScene',
-      category: TestCategory.SCENE,
-      success: false,
-      message: 'Критическая ошибка при выполнении тестов',
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.error('❌ Ошибка в тесте входа в сцену генератора идей (английский язык):', error);
     
-    return results;
+    return {
+      name: 'IdeasGeneratorScene: Enter Scene (EN)',
+      category: TestCategory.All,
+      success: false,
+      message: String(error)
+    };
   }
 }
 
-// Экспорт функции запуска тестов и отдельных тестов для возможности индивидуального запуска
-export default runIdeasGeneratorSceneTests; 
+/**
+ * Тест для проверки обработки текстового запроса на генерацию идей
+ */
+export async function testIdeasGeneratorScene_GenerateIdeas(): Promise<TestResult> {
+  logger.info('🧪 Запуск теста: обработка запроса на генерацию идей');
+  
+  try {
+    // Настраиваем контекст
+    const ctx = setupContext('ru');
+    
+    // Устанавливаем сообщение пользователя
+    const testPrompt = 'идеи для блога о технологиях';
+    ctx.message = {
+      text: testPrompt,
+      message_id: 123,
+    } as any;
+    
+    // Сбрасываем мок для отправки Inngest-события
+    mockInngestSend.mockClear().mockResolvedValue({});
+    
+    // Импортируем сцену и подменяем inngest клиент
+    const inngestModule = await import('../../../inngest-functions/clients');
+    Object.defineProperty(inngestModule, 'inngest', {
+      value: { send: mockInngestSend },
+      writable: true
+    });
+    
+    const { ideasGeneratorScene } = await import('../../../scenes/ideasGeneratorScene');
+    
+    // Вызываем второй шаг сцены напрямую (обработка запроса)
+    if (ideasGeneratorScene.steps && ideasGeneratorScene.steps.length > 1) {
+      const promptHandler = ideasGeneratorScene.steps[1];
+      if (typeof promptHandler === 'function') {
+        await promptHandler(ctx as any);
+      }
+    }
+    
+    // Проверяем, что было отправлено сообщение о генерации
+    assertReplyContains(ctx, 'Генерирую идеи по вашему запросу', 'message');
+    
+    // Проверяем вызов функции inngest с правильными параметрами
+    expect(mockInngestSend).toHaveBeenCalledWith({
+      name: 'generate.ideas.requested',
+      data: {
+        userId: TEST_USER_ID,
+        prompt: testPrompt,
+        language: 'ru'
+      }
+    });
+    
+    logger.info('✅ Тест успешно пройден: обработка запроса на генерацию идей');
+    
+    return {
+      name: 'IdeasGeneratorScene: Generate Ideas',
+      category: TestCategory.All,
+      success: true,
+      message: 'Тест обработки запроса на генерацию идей успешно пройден'
+    };
+  } catch (error) {
+    logger.error('❌ Ошибка в тесте обработки запроса на генерацию идей:', error);
+    
+    return {
+      name: 'IdeasGeneratorScene: Generate Ideas',
+      category: TestCategory.All,
+      success: false,
+      message: String(error)
+    };
+  }
+}
+
+/**
+ * Тест для проверки обработки отмены в сцене генератора идей
+ */
+export async function testIdeasGeneratorScene_Cancel(): Promise<TestResult> {
+  logger.info('🧪 Запуск теста: отмена генерации идей');
+  
+  try {
+    // Настраиваем контекст
+    const ctx = setupContext('ru');
+    
+    // Устанавливаем сообщение пользователя (кнопка отмены)
+    ctx.message = {
+      text: 'Отмена',
+      message_id: 123
+    } as any;
+    
+    // Подменяем функцию handleHelpCancel, чтобы она возвращала true (отмена)
+    mockHandleHelpCancel.mockReturnValue(true);
+    
+    // Импортируем модуль с функцией handleHelpCancel и подменяем ее
+    const handlersModule = await import('../../../handlers');
+    Object.defineProperty(handlersModule, 'handleHelpCancel', {
+      value: mockHandleHelpCancel,
+      writable: true
+    });
+    
+    // Импортируем сцену
+    const { ideasGeneratorScene } = await import('../../../scenes/ideasGeneratorScene');
+    
+    // Вызываем второй шаг сцены напрямую
+    if (ideasGeneratorScene.steps && ideasGeneratorScene.steps.length > 1) {
+      const promptHandler = ideasGeneratorScene.steps[1];
+      if (typeof promptHandler === 'function') {
+        await promptHandler(ctx as any);
+      }
+    }
+    
+    // Проверяем, что был вызван handleHelpCancel
+    expect(mockHandleHelpCancel).toHaveBeenCalled();
+    
+    logger.info('✅ Тест успешно пройден: отмена генерации идей');
+    
+    return {
+      name: 'IdeasGeneratorScene: Cancel',
+      category: TestCategory.All,
+      success: true,
+      message: 'Тест отмены генерации идей успешно пройден'
+    };
+  } catch (error) {
+    logger.error('❌ Ошибка в тесте отмены генерации идей:', error);
+    
+    return {
+      name: 'IdeasGeneratorScene: Cancel',
+      category: TestCategory.All,
+      success: false,
+      message: String(error)
+    };
+  }
+}
+
+/**
+ * Тест для проверки обработки ошибки при отсутствии текста сообщения
+ */
+export async function testIdeasGeneratorScene_NoTextMessage(): Promise<TestResult> {
+  logger.info('🧪 Запуск теста: обработка отсутствия текста сообщения');
+  
+  try {
+    // Настраиваем контекст
+    const ctx = setupContext('ru');
+    
+    // Устанавливаем сообщение без текста (например, только с фото)
+    ctx.message = {
+      message_id: 123,
+      photo: [{ file_id: 'test_file_id' }]
+    } as any;
+    
+    // Импортируем сцену
+    const { ideasGeneratorScene } = await import('../../../scenes/ideasGeneratorScene');
+    
+    // Вызываем второй шаг сцены напрямую
+    if (ideasGeneratorScene.steps && ideasGeneratorScene.steps.length > 1) {
+      const promptHandler = ideasGeneratorScene.steps[1];
+      if (typeof promptHandler === 'function') {
+        await promptHandler(ctx as any);
+      }
+    }
+    
+    // Проверяем сообщение об ошибке
+    assertReplyContains(ctx, 'Пожалуйста, введите текстовый запрос', 'message');
+    
+    logger.info('✅ Тест успешно пройден: обработка отсутствия текста сообщения');
+    
+    return {
+      name: 'IdeasGeneratorScene: No Text Message',
+      category: TestCategory.All,
+      success: true,
+      message: 'Тест обработки отсутствия текста сообщения успешно пройден'
+    };
+  } catch (error) {
+    logger.error('❌ Ошибка в тесте обработки отсутствия текста сообщения:', error);
+    
+    return {
+      name: 'IdeasGeneratorScene: No Text Message',
+      category: TestCategory.All,
+      success: false,
+      message: String(error)
+    };
+  }
+}
+
+/**
+ * Запускает все тесты для сцены генератора идей
+ */
+export async function runIdeasGeneratorSceneTests(): Promise<TestResult[]> {
+  logger.info('🚀 Запуск всех тестов для сцены генератора идей...');
+  
+  const results = await Promise.all([
+    testIdeasGeneratorScene_Enter(),
+    testIdeasGeneratorScene_EnterEnglish(),
+    testIdeasGeneratorScene_GenerateIdeas(),
+    testIdeasGeneratorScene_Cancel(),
+    testIdeasGeneratorScene_NoTextMessage()
+  ]);
+  
+  // Подсчет успешных и неуспешных тестов
+  const successCount = results.filter(r => r.success).length;
+  const failCount = results.length - successCount;
+  
+  logger.info(`📊 Результаты тестов: ${successCount}/${results.length} успешно, ${failCount} неудачно`);
+  
+  return results;
+}
+
+// Хелпер для проверки вызова моков
+function expect<T = any, R = any>(mockFn: MockedFunction<T, R>) {
+  return {
+    toHaveBeenCalled: () => {
+      if (mockFn.mock.calls.length === 0) {
+        throw new Error('Ожидалось, что функция будет вызвана');
+      }
+    },
+    toHaveBeenCalledWith: (expectedArg: any) => {
+      const wasCalled = mockFn.mock.calls.some((call: any[]) => {
+        // Простая проверка на соответствие переданного аргумента
+        if (typeof call[0] === 'object' && call[0] !== null && typeof expectedArg === 'object' && expectedArg !== null) {
+          // Проверяем все свойства, которые ожидаем увидеть
+          return Object.keys(expectedArg).every(key => 
+            JSON.stringify(call[0][key]) === JSON.stringify(expectedArg[key])
+          );
+        }
+        
+        return JSON.stringify(call[0]) === JSON.stringify(expectedArg);
+      });
+      
+      if (!wasCalled) {
+        throw new Error(`Ожидался вызов функции с аргументом: ${JSON.stringify(expectedArg)}`);
+      }
+    }
+  };
+} 

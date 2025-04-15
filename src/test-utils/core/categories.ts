@@ -14,6 +14,7 @@ export enum TestCategory {
   Speech = 'speech',
   Api = 'api',
   Translations = 'translations',
+  SCENE = 'scene', // Категория для тестов сцен бота
   
   // Подкатегории
   NeuroPhoto = 'neurophoto',

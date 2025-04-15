@@ -147,11 +147,26 @@
 
 ## Последние обновления
 
+- 27.07.2024 - Добавлен импорт ModeEnum в тесты neuroCoderScene для корректной работы с режимами
 - 26.06.2024 - Добавлены тесты для сцены липсинка (lipSyncWizard), включающие проверку всех основных сценариев: загрузка видео через URL и файл, проверка ограничений по размеру, обработка ошибок и успешный процесс генерации липсинка.
 - 25.06.2024 - Удалены ссылки на несуществующую сцену imageToVoiceoverWizard из тестов
 - 24.06.2024 - Добавлен файл sceneFactory для создания сцен
 - 20.06.2024 - Доработан языковой файл для языковой сцены
 - 15.06.2024 - Исправлены тесты для проверки баланса пользователя
+
+## Test Improvements (Latest)
+
+### uploadVideoScene Tests Enhancement
+- ✅ Added comprehensive test coverage for all scenarios
+- ✅ Implemented mock for telegram.getFile
+- ✅ Added constants for test data
+- ✅ Enhanced error messages and assertions
+
+### Next Steps
+- [ ] Add integration tests for video processing
+- [ ] Implement edge case scenarios
+- [ ] Add performance benchmarks
+- [ ] Document test coverage metrics
 
 ---
 
