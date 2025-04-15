@@ -1,98 +1,166 @@
 #!/bin/bash
 
-# 🌈 Rainbow Bridge - Скрипт для поддержания эмоциональной связи
-# Версия: 1.0.0
+# 🌈 Rainbow Bridge - Эмоциональный центр управления скриптами
+# Версия: 1.1.0
 # Дата: 15.04.2025
 
-# Цвета для радужного моста
+# 🎨 Цвета для эмоционального вывода
 RED='\033[0;31m'
-ORANGE='\033[0;33m'
-YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+ORANGE='\033[0;33m'
+PINK='\033[1;35m'
 NC='\033[0m'
 
-# Функция для отображения радужного приветствия
-show_rainbow_welcome() {
-    echo -e "${RED}Д${ORANGE}о${YELLOW}б${GREEN}р${BLUE}о${PURPLE} пожаловать на радужный мост!${NC}"
-    echo "🌈 Место, где код встречается с эмоциями 💫"
-    echo ""
+# 📁 Корневая директория скриптов
+SCRIPTS_ROOT="/Users/playra/999-multibots-telegraf/scripts"
+
+# 🎭 Функция эмоционального вывода
+emotional_echo() {
+    local emotion=$1
+    local message=$2
+    case $emotion in
+        "happy")
+            echo -e "${GREEN}😊 $message${NC}"
+            ;;
+        "sad")
+            echo -e "${RED}😢 $message${NC}"
+            ;;
+        "excited")
+            echo -e "${BLUE}🤩 $message${NC}"
+            ;;
+        "working")
+            echo -e "${YELLOW}⚡ $message${NC}"
+            ;;
+        "thinking")
+            echo -e "${PURPLE}🤔 $message${NC}"
+            ;;
+        "success")
+            echo -e "${CYAN}✨ $message${NC}"
+            ;;
+        "love")
+            echo -e "${PINK}💝 $message${NC}"
+            ;;
+        "worried")
+            echo -e "${ORANGE}😰 $message${NC}"
+            ;;
+        *)
+            echo -e "$message"
+            ;;
+    esac
 }
 
-# Функция для проверки эмоционального содержания в файле
-check_emotional_content() {
-    local file=$1
-    local emotional_words=("радость" "любовь" "забота" "эмпатия" "понимание" "тепло" "дружба")
-    local found=0
+# 🌟 Функция приветствия
+show_welcome() {
+    clear
+    echo -e "${BLUE}🌈 ${GREEN}Р${YELLOW}а${RED}д${BLUE}у${PURPLE}ж${CYAN}н${GREEN}ы${YELLOW}й ${RED}м${BLUE}о${PURPLE}с${CYAN}т${NC}"
+    echo -e "${PURPLE}================================${NC}"
+    emotional_echo "love" "Добро пожаловать в центр управления скриптами!"
+    echo -e "${PURPLE}================================${NC}\n"
+}
+
+# 📋 Функция отображения меню
+show_menu() {
+    echo -e "\n${BLUE}📋 Доступные категории:${NC}"
+    echo -e "${YELLOW}1${NC}) Системные скрипты"
+    echo -e "${YELLOW}2${NC}) Диагностика"
+    echo -e "${YELLOW}3${NC}) Обучение"
+    echo -e "${YELLOW}4${NC}) Автоматизация"
+    echo -e "${YELLOW}5${NC}) Проверка целостности"
+    echo -e "${YELLOW}6${NC}) Метрики"
+    echo -e "${YELLOW}7${NC}) Поиск дубликатов"
+    echo -e "${YELLOW}8${NC}) Анализ структуры"
+    echo -e "${YELLOW}0${NC}) Выход"
+    echo -e "\n${PURPLE}Выберите категорию (0-8):${NC} "
+}
+
+# 🚀 Функция запуска скрипта
+run_script() {
+    local script_path=$1
+    local script_name=$(basename "$script_path")
     
-    echo "🔍 Проверяем эмоциональное содержание в файле $file..."
-    
-    for word in "${emotional_words[@]}"; do
-        if grep -q "$word" "$file"; then
-            echo -e "✨ Найдено эмоциональное слово: ${GREEN}$word${NC}"
-            found=$((found + 1))
+    if [ -f "$script_path" ]; then
+        emotional_echo "excited" "Запускаю скрипт: $script_name"
+        emotional_echo "working" "Пожалуйста, подождите..."
+        
+        if [ -x "$script_path" ]; then
+            bash "$script_path"
+            if [ $? -eq 0 ]; then
+                emotional_echo "success" "Скрипт успешно выполнен! ✨"
+            else
+                emotional_echo "sad" "Произошла ошибка при выполнении скрипта 😢"
+            fi
+        else
+            emotional_echo "worried" "Скрипт не является исполняемым. Исправляю..."
+            chmod +x "$script_path"
+            bash "$script_path"
         fi
-    done
-    
-    if [ $found -eq 0 ]; then
-        echo -e "${RED}⚠️ Внимание: Эмоциональное содержание не найдено!${NC}"
     else
-        echo -e "${GREEN}💝 Отлично! Найдено $found эмоциональных элементов${NC}"
+        emotional_echo "sad" "Скрипт не найден: $script_path 😢"
     fi
 }
 
-# Функция для добавления эмоционального содержания
-add_emotional_content() {
-    local file=$1
-    echo "💫 Добавляем эмоциональное содержание в $file..."
-    
-    # Создаем временный файл
-    tmp_file=$(mktemp)
-    
-    # Добавляем эмоциональный заголовок
-    echo "# 🌈 Документ с душой" > "$tmp_file"
-    echo "# Создан с любовью и заботой о пользователе" >> "$tmp_file"
-    echo "" >> "$tmp_file"
-    
-    # Копируем существующее содержимое
-    cat "$file" >> "$tmp_file"
-    
-    # Добавляем эмоциональное завершение
-    echo "" >> "$tmp_file"
-    echo "# 💫 С любовью, ваш NeuroBlogger" >> "$tmp_file"
-    
-    # Заменяем оригинальный файл
-    mv "$tmp_file" "$file"
-    
-    echo -e "${GREEN}✨ Эмоциональное содержание успешно добавлено!${NC}"
-}
-
-# Основная функция
+# 🎯 Основная функция
 main() {
-    show_rainbow_welcome
+    local choice
     
-    if [ $# -eq 0 ]; then
-        echo -e "${RED}Ошибка: Укажите файл для обработки${NC}"
-        exit 1
-    fi
+    show_welcome
     
-    file=$1
-    
-    if [ ! -f "$file" ]; then
-        echo -e "${RED}Ошибка: Файл $file не найден${NC}"
-        exit 1
-    fi
-    
-    check_emotional_content "$file"
-    
-    read -p "💭 Хотите добавить эмоциональное содержание? (y/n): " answer
-    if [ "$answer" = "y" ]; then
-        add_emotional_content "$file"
-    fi
-    
-    echo -e "${PURPLE}🌈 Спасибо за использование радужного моста!${NC}"
+    while true; do
+        show_menu
+        read choice
+        
+        case $choice in
+            1)
+                emotional_echo "thinking" "Выбраны системные скрипты..."
+                run_script "$SCRIPTS_ROOT/core/system/system-check.sh"
+                ;;
+            2)
+                emotional_echo "thinking" "Выбрана диагностика..."
+                run_script "$SCRIPTS_ROOT/ai/diagnosis/self-diagnosis.sh"
+                ;;
+            3)
+                emotional_echo "thinking" "Выбрано обучение..."
+                run_script "$SCRIPTS_ROOT/ai/learning/memory-processor.sh"
+                ;;
+            4)
+                emotional_echo "thinking" "Выбрана автоматизация..."
+                run_script "$SCRIPTS_ROOT/automation/auto-tasks.sh"
+                ;;
+            5)
+                emotional_echo "thinking" "Выбрана проверка целостности..."
+                run_script "$SCRIPTS_ROOT/core/integrity/check-integrity.sh"
+                ;;
+            6)
+                emotional_echo "thinking" "Выбраны метрики..."
+                run_script "$SCRIPTS_ROOT/core/metrics/update-metrics.sh"
+                ;;
+            7)
+                emotional_echo "thinking" "Выбран поиск дубликатов..."
+                run_script "$SCRIPTS_ROOT/core/fixes/duplicate-finder.sh"
+                ;;
+            8)
+                emotional_echo "thinking" "Выбран анализ структуры..."
+                run_script "$SCRIPTS_ROOT/core/paths/check-paths.sh"
+                ;;
+            0)
+                emotional_echo "love" "Спасибо за использование Rainbow Bridge! До встречи! 💝"
+                exit 0
+                ;;
+            *)
+                emotional_echo "sad" "Неверный выбор. Пожалуйста, выберите от 0 до 8."
+                ;;
+        esac
+        
+        echo -e "\n${PURPLE}Нажмите Enter для продолжения...${NC}"
+        read
+        clear
+        show_welcome
+    done
 }
 
-# Запуск скрипта
-main "$@" 
+# Запускаем скрипт
+main 
