@@ -1,264 +1,246 @@
-// import { Inngest } from 'inngest'
-// import fetch from 'node-fetch'
-import { ModeEnum } from '../interfaces/modes'
-import { logger } from '../utils/logger'
-import { MockTelegraf } from './mocks/botMock'
-import { MyContext } from '../interfaces'
-import { Telegraf } from 'telegraf'
-import { TransactionType } from '@/interfaces/payments.interface'
+import { TestResult, TestEvent, TestState } from './types'
+import { ModeEnum } from '../types/modes'
+import { TransactionType } from '../types/payments'
+
+interface AmountConfig {
+  small: number
+  medium: number
+  large: number
+  MIN_AMOUNT: number
+  MAX_AMOUNT: number
+}
+
+interface StarConversionConfig {
+  rate: number
+  STAR_TO_MONEY_RATE: number
+}
+
+interface ServicesConfig {
+  TEXT_TO_VIDEO: string
+  TOP_UP_BALANCE: string
+}
+
+interface StatusesConfig {
+  COMPLETED: string
+  PENDING: string
+  FAILED: string
+}
+
+interface PaymentMethodsConfig {
+  SYSTEM: string
+  CRYPTO: string
+  CARD: string
+}
+
+interface TransactionTypesConfig {
+  MONEY_INCOME: string
+  MONEY_EXPENSE: string
+}
+
+interface TestUserConfig {
+  initialBalance: number
+  language: string
+  botName: string
+  TELEGRAM_ID: string
+  BOT_NAME: string
+}
+
+interface NotificationsConfig {
+  adminChannelId: string
+  templates: {
+    ru: {
+      success: string
+      failed: string
+    }
+    en: {
+      success: string
+      failed: string
+    }
+  }
+  TIMEOUT: number
+  RETRY_COUNT: number
+}
+
+interface TestConfig {
+  amounts: AmountConfig
+  starConversion: StarConversionConfig
+  services: ServicesConfig
+  statuses: StatusesConfig
+  paymentMethods: PaymentMethodsConfig
+  transactionTypes: TransactionTypesConfig
+  testUser: TestUserConfig
+  notifications: NotificationsConfig
+}
+
+// Test configuration constants
+export const TEST_CONFIG: TestConfig = {
+  TEST_USER_ID: '123456789',
+  TEST_BOT_NAME: 'test_bot',
+  TEST_TIMEOUT: 5000,
+  TEST_AMOUNT: 100,
+  TEST_DESCRIPTION: 'Test transaction',
+  TEST_SERVICE_TYPE: 'test_service',
+  TEST_PAYMENT_METHOD: 'test_method',
+  TEST_OPERATION_ID: 'test_op_123',
+  TEST_INV_ID: 'test_inv_123',
+  RETRY_ATTEMPTS: 3,
+  RETRY_DELAY: 1000,
+  LOG_LEVEL: 'debug',
+  CLEANUP_TIMEOUT: 2000,
+  TIMEOUT: 5000,
+  POLL_INTERVAL: 100,
+  MAX_RETRIES: 3,
+  EVENT_TIMEOUT: 5000,
+  DATABASE_URL:
+    process.env.DATABASE_URL ||
+    'postgresql://postgres:postgres@localhost:5432/test',
+  REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
+  amounts: {
+    small: 100,
+    medium: 500,
+    large: 1000,
+    MIN_AMOUNT: 10,
+    MAX_AMOUNT: 10000,
+  },
+  starConversion: {
+    rate: 100,
+    STAR_TO_MONEY_RATE: 0.01,
+  },
+  services: {
+    TEXT_TO_VIDEO: ModeEnum.TextToVideo,
+    TOP_UP_BALANCE: ModeEnum.TopUpBalance,
+  },
+  statuses: {
+    COMPLETED: 'COMPLETED',
+    PENDING: 'PENDING',
+    FAILED: 'FAILED',
+  },
+  paymentMethods: {
+    SYSTEM: 'system',
+    CRYPTO: 'crypto',
+    CARD: 'card',
+  },
+  transactionTypes: {
+    MONEY_INCOME: TransactionType.MONEY_INCOME,
+    MONEY_EXPENSE: TransactionType.MONEY_EXPENSE,
+  },
+  testUser: {
+    initialBalance: 1000,
+    language: 'ru',
+    botName: 'test_bot',
+    TELEGRAM_ID: '123456789',
+    BOT_NAME: 'test_bot',
+  },
+  notifications: {
+    adminChannelId: '-1001234567890',
+    templates: {
+      ru: {
+        success: 'Успешно',
+        failed: 'Ошибка',
+      },
+      en: {
+        success: 'Success',
+        failed: 'Failed',
+      },
+    },
+    TIMEOUT: 5000,
+    RETRY_COUNT: 3,
+  },
+} as const
+
+// Custom error class for test failures
+export class TestError extends Error {
+  constructor(
+    message: string,
+    public details?: Record<string, unknown>
+  ) {
+    super(message)
+    this.name = 'TestError'
+  }
+}
 
 /**
- * Константы для конфигурации тестов
- *
- * @module src/test-utils/test-config
+ * Test engine for managing test events and state
  */
+export class TestEngine {
+  private events: TestEvent[] = []
+  private testState: Map<string, TestState> = new Map()
 
-/**
- * Класс для эмуляции Inngest тестового движка в тестах
- */
-export class InngestTestEngine {
-  private events: any[] = []
-  private logger = logger
-
-  /**
-   * Отправляет событие в Inngest (мок)
-   *
-   * @param eventName - Имя события
-   * @param data - Данные события
-   * @returns Promise<boolean> - Результат отправки
-   */
-  async send(event: any) {
-    // Валидация обязательных полей
-    const requiredFields = [
-      'telegram_id',
-      'amount',
-      'type',
-      'description',
-      'bot_name',
-      'service_type',
-    ]
-    for (const field of requiredFields) {
-      if (!event.data[field]) {
-        throw new Error(`Missing required field: ${field}`)
-      }
-    }
-
-    // Валидация типа транзакции
-    if (!Object.values(TransactionType).includes(event.data.type)) {
-      throw new Error(`Invalid transaction type: ${event.data.type}`)
-    }
-
-    // Валидация сервиса
-    if (!Object.values(ModeEnum).includes(event.data.service_type)) {
-      throw new Error(`Invalid service type: ${event.data.service_type}`)
-    }
-
-    // Валидация суммы
-    if (typeof event.data.amount !== 'number' || event.data.amount <= 0) {
-      throw new Error('Amount must be a positive number')
-    }
-
-    // Валидация звезд (если указаны)
-    if (
-      event.data.stars !== undefined &&
-      (typeof event.data.stars !== 'number' || event.data.stars <= 0)
-    ) {
-      throw new Error('Stars must be a positive number')
-    }
-
-    this.logger.info('🚀 Processing payment event:', event)
-    this.events.push(event)
-    return { success: true }
-  }
-
-  /**
-   * Получает все отправленные события указанного типа
-   *
-   * @param eventName - Имя события
-   * @returns Array - Массив отправленных событий
-   */
-  getEventsByName(
-    eventName: string
-  ): { name: string; data: any; timestamp: number }[] {
-    return this.events.filter(event => event.name === eventName)
-  }
-
-  /**
-   * Очищает историю отправленных событий
-   */
-  clearEvents(): void {
+  async clearEvents(): Promise<void> {
     this.events = []
-    console.log('🧹 [TEST_ENGINE_MOCK]: История событий очищена')
+    this.testState.clear()
+    console.log('🧹 Cleared all test events and state')
   }
-}
 
-/**
- * Конфигурация тестов
- */
-export const TEST_CONFIG = {
-  // Общие настройки
-  TIMEOUTS: {
-    SHORT: 2000, // 2 секунды
-    MEDIUM: 5000, // 5 секунд
-    LONG: 10000, // 10 секунд
-    DATABASE: 3000, // Таймаут для операций с базой данных
-  },
+  async sendEvent(event: TestEvent): Promise<void> {
+    event.timestamp = Date.now()
+    this.events.push(event)
+    console.log(`🚀 Sent event: ${event.name}`)
+  }
 
-  // Данные для тестов
-  TEST_DATA: {
-    TEST_USER_TELEGRAM_ID: '123456789',
-    TEST_USER_USERNAME: 'testuser',
-    TEST_USER_FIRST_NAME: 'Test',
-    TEST_USER_LAST_NAME: 'User',
-    TEST_DESCRIPTION: 'Test description',
+  async getEventsByName(name: string): Promise<TestEvent[]> {
+    return this.events.filter(e => e.name === name)
+  }
 
-    TEST_AMOUNT: 100, // Сумма для тестовых платежей
-    TEST_STARS: 100, // Количество звезд для тестовых платежей
-    TEST_OPERATION_ID: 'test-op-123', // ID операции для тестовых платежей
-    TEST_BOT_NAME: 'test_bot', // Имя бота для тестов
-  },
-
-  // Настройки для тестов платежей
-  PAYMENT_TESTS: {
-    MODES: {
-      TEXT_TO_IMAGE: ModeEnum.TextToImage,
-      TEXT_TO_VIDEO: ModeEnum.TextToVideo,
-      TOP_UP_BALANCE: ModeEnum.TopUpBalance,
-    },
-
-    // Ожидаемая стоимость операций
-    COSTS: {
-      TEXT_TO_IMAGE: 10,
-      TEXT_TO_VIDEO: 20,
-    },
-  },
-
-  // Моки для тестов
-  mocks: {
-    bot: new MockTelegraf('test-token') as unknown as Telegraf<MyContext>, // Мок объекта бота для тестов
-  },
-}
-
-// Создаем и экспортируем тестовый движок Inngest
-export const inngestTestEngine = {
-  events: [] as any[],
-  clearEvents: () => {
-    inngestTestEngine.events = []
-    logger.info('🧹 [TEST_ENGINE_MOCK]: История событий очищена')
-  },
-  sendEvent: async (name: string, data: any) => {
-    const event = { name, data }
-    inngestTestEngine.events.push(event)
-
-    // Вывод информации о событии
-    if (name === 'payment/process') {
-      logger.info(
-        `🚀 [TEST_ENGINE_MOCK]: Отправка события "${name}" с данными:`,
-        data
-      )
-      logger.info(
-        `✅ [TEST_ENGINE_MOCK]: Платежное событие "${name}" успешно создано для пользователя ${data.telegram_id}, сумма: ${data.stars} звезд, тип: ${data.type}`
-      )
-    } else {
-      logger.info(
-        `🚀 [TEST_ENGINE_MOCK]: Отправка события "${name}" с данными:`,
-        data
-      )
+  async executeQuery(query: string): Promise<unknown> {
+    try {
+      console.log(`🔍 Executing query: ${query}`)
+      return Promise.resolve({ success: true })
+    } catch (error) {
+      console.error('❌ Query execution failed:', error)
+      throw new TestError('Query execution failed', { error: String(error) })
     }
-
-    return { success: true, event }
-  },
-  getEventsByName: (name: string) => {
-    return inngestTestEngine.events.filter(event => event.name === name)
-  },
-  getEventsForTelegramId: (telegramId: string) => {
-    return inngestTestEngine.events.filter(
-      event => event.data?.telegram_id === telegramId
-    )
-  },
-  getAllEvents: () => {
-    return inngestTestEngine.events
-  },
-  printEvents: (message: string = 'Текущие события в тестовом движке:') => {
-    logger.info(`📋 ${message}`)
-    logger.info(`💾 Всего событий: ${inngestTestEngine.events.length}`)
-    inngestTestEngine.events.forEach((event, index) => {
-      logger.info(`📝 Событие #${index + 1}: ${event.name}`, {
-        data: event.data,
-      })
-    })
-  },
-}
-
-// Настройка логирования для тестов
-export const configureTestLogging = () => {
-  // Устанавливаем уровень логирования для тестов
-  process.env.LOG_LEVEL = 'info'
-
-  // Можно настроить специальное форматирование для тестов
-  logger.info('🧪 Настройка логирования для тестов', {
-    description: 'Setting up logging for tests',
-  })
-}
-
-/**
- * Создает функцию-мок
- */
-export const createMockFn = <T = any, R = any>() => {
-  const mockFn = (...args: T[]): R => {
-    mockFn.calls.push(args)
-    return mockFn.returnValue as R
   }
 
-  mockFn.calls = [] as T[][]
-  mockFn.returnValue = undefined as unknown as R
-
-  mockFn.mockReturnValue = (value: R) => {
-    mockFn.returnValue = value
-    return mockFn
+  setState(key: string, state: TestState): void {
+    this.testState.set(key, state)
   }
 
-  mockFn.mockClear = () => {
-    mockFn.calls = []
-    return mockFn
+  getState(key: string): TestState | undefined {
+    return this.testState.get(key)
   }
 
-  return mockFn
-}
+  clearState(key: string): void {
+    this.testState.delete(key)
+  }
 
-/**
- * Тестовый клиент Inngest
- */
-export const testInngestClient = {
-  id: 'test-app',
-  eventKey: 'test-key',
-  send: async (event: any) => {
-    logger.info('📤 [TEST_INNGEST_CLIENT]: Отправка события', event)
-    return { success: true, event }
-  },
-  // Добавляем мок метода createFunction для тестирования
-  createFunction: (
-    options: any,
-    trigger: any,
-    /* eslint-disable-next-line @typescript-eslint/no-unused-vars */ _handler: any
-  ) => {
-    return {
-      id: options.id || 'test-function',
-      event: trigger.event || 'test-event',
+  logTestEvent(message: string, emoji = '📝'): void {
+    console.log(`${emoji} ${message}`)
+  }
+
+  validateTestResult(result: TestResult): boolean {
+    if (!result.name || typeof result.success !== 'boolean') {
+      console.error('❌ Invalid test result format')
+      return false
     }
-  },
+    return true
+  }
+
+  async waitForEvent(
+    eventName: string,
+    timeout: number = 5000
+  ): Promise<TestEvent | null> {
+    const startTime = Date.now()
+    while (Date.now() - startTime < timeout) {
+      const events = await this.getEventsByName(eventName)
+      if (events.length > 0) return events[0]
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    return null
+  }
+
+  async cleanupTestData(): Promise<void> {
+    try {
+      await this.executeQuery(
+        "DELETE FROM test_data WHERE created_at < NOW() - INTERVAL '1 day'"
+      )
+      console.log('🧹 Cleaned up test data')
+    } catch (error) {
+      console.error('❌ Cleanup failed:', error)
+      throw new TestError('Test data cleanup failed', { error: String(error) })
+    }
+  }
 }
 
-/**
- * Константы для тестирования аватар-ботов
- */
-export const AVATAR_BOT_DEFAULTS = {
-  /** Имя бота для тестирования */
-  botName: 'test_avatar_bot',
-  /** ID амбассадора для тестирования */
-  ambassadorId: 12345,
-  /** URL аватара для тестирования */
-  avatarUrl: 'https://example.com/avatar.jpg',
-  /** ID пользователя для тестирования */
-  userId: 67890,
-}
+// Create and export test engine instance
+export const testEngine = new TestEngine()

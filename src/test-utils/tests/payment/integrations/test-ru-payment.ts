@@ -6,7 +6,7 @@ import { ModeEnum } from '@/types/modes'
 /**
  * Тест RuPayment интеграции
  */
-export async function testRuPayment(): Promise<TestResult> {
+export async function testRuPaymentIntegration(): Promise<TestResult> {
   logger.info('🚀 Запуск тестов RuPayment...')
 
   try {
