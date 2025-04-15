@@ -1,12 +1,14 @@
 // Базовые типы
-export type TelegramId = string // ID пользователя в Telegram
+export type TelegramId = string | number
 export type UUID = string // Уникальный идентификатор
 export type ISODate = string // Дата в формате ISO
 
 // Утилиты для типов
 export type Nullable<T> = T | null
 export type Optional<T> = T | undefined
-export type Result<T, E = Error> = {
+
+// Базовый интерфейс для результатов операций
+export interface BaseResult<T, E = Error> {
   success: boolean
   data?: T
   error?: E
@@ -140,4 +142,22 @@ export interface ErrorResult {
   details?: any
 }
 
+// Используем BaseResult вместо дублирования
 export type Result<T> = SuccessResponse<T> | ErrorResult
+
+export interface TelegramUser {
+  id: TelegramId
+  username?: string
+  first_name?: string
+  last_name?: string
+  language_code?: string
+}
+
+export interface TelegramChat {
+  id: TelegramId
+  type: 'private' | 'group' | 'supergroup' | 'channel'
+  title?: string
+  username?: string
+  first_name?: string
+  last_name?: string
+}

@@ -1,79 +1,12 @@
 import { Context, NarrowedContext, Scenes } from 'telegraf'
-import { ModelUrl, UserModel } from './index'
+import { ModelUrl } from './index'
 import type { Update, Message } from 'telegraf/typings/core/types/typegram'
 import { Buffer } from 'buffer'
-import { Mode } from './cost.interface'
 import { BroadcastContentType } from '@/scenes/broadcastWizard'
+import { TelegramId } from '@/types/common'
+import { PaymentSubscription } from './payments.interface'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
-export interface Level {
-  title_ru: string
-  title_en: string
-}
-
-export interface SessionData {
-  selectedModel: string
-  text: string
-  model_type: ModelUrl
-  selectedSize: string
-  userModel: UserModel
-  mode: Mode
-  videoModel: string
-  imageUrl: string
-  amount: number
-  images: BufferType
-  modelName: string
-  targetUserId: number
-  username: string
-  triggerWord: string
-  steps: number
-  selectedPayment: string
-}
-
-export interface MyWizardSession extends Scenes.WizardSessionData {
-  data: string
-  cursor: number
-  severity: number
-  imageUrl?: string
-  text?: string
-  textRu?: string
-  textEn?: string
-  textInputStep?: string
-  ownerTelegramId?: string
-  broadcastId?: string
-  broadcastImageUrl?: string
-  broadcastText?: string
-  broadcastFileId?: string
-  broadcastContentType?: BroadcastContentType
-  broadcastPostLink?: string
-  broadcastVideoUrl?: string
-  broadcastAudioUrl?: string
-  broadcastPhotoUrl?: string
-  contentType?: BroadcastContentType
-  mediaFileId?: string
-  photoFileId?: string
-  videoFileId?: string
-  postLink?: string
-  botName?: string
-}
-
-export interface Button {
-  text: string
-  callback_data: string
-  row: number
-  en_price: number
-  ru_price: number
-  stars_price: number
-  description: string
-}
-
-export interface Memory {
-  messages: Array<{
-    role: 'user' | 'assistant'
-    content: string
-    timestamp?: number
-  }>
-}
 
 export interface MySessionData extends Scenes.WizardSessionData {
   cursor: number
@@ -84,32 +17,31 @@ export interface MySessionData extends Scenes.WizardSessionData {
   selectedPayment?: {
     amount: number
     stars: number
-    subscription: string
+    subscription?: PaymentSubscription
   }
-  subscription?: string
+  subscription?: PaymentSubscription
+  buttons?: Array<{
+    text: string
+    callback_data: string
+    stars_price?: number
+  }>
   text?: string
   model_type?: ModelUrl
-  userModel?: UserModel
-  mode?: Mode
-  videoModel?: string
-  imageUrl?: string
-  amount?: number
-  images?: BufferType
-  modelName?: string
-  targetUserId?: number
-  username?: string
-  triggerWord?: string
-  steps?: number
+  broadcast?: {
+    type: BroadcastContentType
+    content: string
+  }
   __scenes: Record<string, unknown>
 }
 
 export interface MySession extends Scenes.WizardSession<MySessionData> {
+  cursor: number
   state: MySessionData
-  subscription?: string
+  subscription?: PaymentSubscription
   selectedPayment?: {
     amount: number
     stars: number
-    subscription: string
+    subscription?: PaymentSubscription
   }
 }
 
@@ -120,13 +52,12 @@ export interface MyContext extends Context<Update> {
   attempts: number
   amount: number
   user: {
-    id: number
-    username: string
+    id: TelegramId
+    username?: string
   }
 }
 
-// Создайте новый тип, объединяющий MyContext и WizardContext
-export type MyWizardContext = MyContext & Scenes.WizardContext<MyWizardSession>
+export type MyWizardContext = MyContext & Scenes.WizardContext<MySession>
 
 export type MyTextMessageContext = NarrowedContext<
   MyContext,
