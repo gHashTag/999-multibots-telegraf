@@ -216,3 +216,5 @@ export async function runUploadVideoSceneTests(): Promise<TestResult[]> {
 
   return results;
 }
+
+export default runUploadVideoSceneTests;
