@@ -1,402 +1,667 @@
-import { Scenes } from 'telegraf'
-import { MyContext, MySession, MyWizardSession } from '@/interfaces'
-import { isRussian } from '@/helpers'
-import { generateNeuroImage } from '@/services/generateNeuroImage'
-import { handleHelpCancel } from '@/handlers'
+import { MySession } from '@/interfaces'
+import { createMockContext } from '@/test-utils/core/mockContext'
+import { createMockFunction, IMockFunction } from '@/test-utils/core/mockFunction'
+import { TestResult, TestCategory } from '@/test-utils/core/types'
+import { logger } from '@/utils/logger'
+import { Message } from 'telegraf/typings/core/types/typegram'
+import { ModeEnum } from '@/price/helpers/modelsCost'
 import { promptNeuroCoder } from '@/scenes/neuroCoderScene/promts'
+import { User } from 'telegraf/typings/core/types/typegram'
+import { Telegram } from 'telegraf'
 
-// Константы для тестов
-const TEST_USER_ID = 123456789
-const TEST_CHAT_ID = 987654321
-const TEST_BOT_USERNAME = 'test_bot'
-const TEST_MODEL_URL = 'ghashtag/neuro_coder_flux-dev-lora:5ff9ea5918427540563f09940bf95d6efc16b8ce9600e82bb17c2b188384e355'
+type BaseMockContext = ReturnType<typeof createMockContext>
 
-// Интерфейс для типизации моков
-interface MockFunction<T extends (...args: any[]) => any> {
-  (...args: Parameters<T>): ReturnType<T>
-  calls: Parameters<T>[]
-}
-
-// Создание типизированной мок-функции
-function createMockFunction<T extends (...args: any[]) => any>(implementation?: T): MockFunction<T> {
-  const calls: Parameters<T>[] = []
-  const fn = (...args: Parameters<T>) => {
-    calls.push(args)
-    return implementation?.(...args)
+interface ExtendedMockContext
+  extends Omit<BaseMockContext, 'message' | 'session' | 'wizard'> {
+  message?: Partial<Message.TextMessage>
+  from: {
+    id: number
+    first_name: string
+    is_bot: boolean
+    language_code: string
   }
-  return Object.assign(fn, { calls }) as MockFunction<T>
-}
-
-// Типизированные моки
-const mockIsRussian = createMockFunction<typeof isRussian>((ctx) => true)
-const mockIsEnglish = createMockFunction<typeof isRussian>((ctx) => false)
-const mockGenerateNeuroImage = createMockFunction<typeof generateNeuroImage>(async () => {})
-const mockHandleHelpCancel = createMockFunction<typeof handleHelpCancel>(async () => false)
-
-// Интерфейс для тестового контекста
-interface TestContext extends Partial<MyContext> {
-  from?: { id: number }
-  chat?: { id: number }
-  botInfo?: { username: string }
-  wizard: {
-    next: () => number
-    selectStep: (step: number) => void
-    step: number
+  chat: {
+    id: number
+    type: string
+    first_name: string
+  }
+  session: {
+    language?: string
+    balance?: number
+    isAdmin?: boolean
+    mode?: ModeEnum
+    modelUrl?: string
+    prompt?: string
+    numImages?: number
+    images: string[]
   }
   scene: {
-    leave: () => Promise<void>
-    reenter: () => Promise<void>
+    enter: IMockFunction<(sceneId: string) => Promise<void>>
+    leave: IMockFunction<() => Promise<void>>
+    reenter: IMockFunction<() => Promise<void>>
   }
-  reply: (text: string, extra?: any) => Promise<void>
-  message?: { text?: string }
-  session: Partial<MySession>
+  wizard: {
+    cursor: number
+    next: IMockFunction<() => number>
+    back: IMockFunction<() => number>
+    selectStep: IMockFunction<(step: number) => number>
+    scene: {
+      leave: IMockFunction<() => Promise<void>>
+    }
+  }
+  telegram: {
+    sendMessage: (
+      chatId: string | number,
+      text: string,
+      extra?: any
+    ) => Promise<{ message_id: number }>
+    sendPhoto: (
+      chatId: string | number,
+      photo: string,
+      extra?: any
+    ) => Promise<Message.PhotoMessage>
+    sendVideo: (
+      chatId: string | number,
+      video: string,
+      extra?: any
+    ) => Promise<Message.VideoMessage>
+    getFile: (fileId: string) => Promise<{
+      file_id: string
+      file_unique_id: string
+      file_size: number
+      file_path: string
+    }>
+  }
+  answerCbQuery: IMockFunction<(text?: string) => Promise<true>>
+  reply: IMockFunction<
+    (text: string, extra?: any) => Promise<Message.TextMessage>
+  >
+  replyWithHTML: IMockFunction<
+    (text: string, extra?: any) => Promise<Message.TextMessage>
+  >
+  replyWithMarkdownV2: IMockFunction<
+    (text: string, extra?: any) => Promise<Message.TextMessage>
+  >
+  replyWithPhoto: IMockFunction<
+    (photo: string, extra?: any) => Promise<Message.TextMessage>
+  >
+  replyWithVideo: IMockFunction<
+    (video: string, extra?: any) => Promise<Message.TextMessage>
+  >
+  editMessageText: IMockFunction<
+    (text: string, extra?: any) => Promise<Message.TextMessage>
+  >
+  editMessageReplyMarkup: IMockFunction<
+    (markup: any) => Promise<Message.TextMessage>
+  >
+  i18n: {
+    t: (key: string, params?: any) => string
+  }
+  replies: Message.TextMessage[]
 }
 
-// Создание типизированного тестового контекста
-function createTestContext(isRu: boolean = true): TestContext {
-  return {
-    from: { id: TEST_USER_ID },
-    chat: { id: TEST_CHAT_ID },
-    botInfo: { username: TEST_BOT_USERNAME },
-    wizard: {
-      next: () => 1,
-      selectStep: (step: number) => {},
-      step: 0
+const assertions = {
+  assertReplyContains: (ctx: ExtendedMockContext, expectedText: string) => {
+    const replyText = ctx.message?.text || ''
+    if (!replyText.includes(expectedText)) {
+      throw new Error(
+        `Expected reply to contain "${expectedText}" but got "${replyText}"`
+      )
+    }
+  },
+  assertMockCalled: (
+    mock: IMockFunction<(...args: any[]) => any>,
+    expectedTimes: number = 1
+  ) => {
+    if (mock.mock.calls.length !== expectedTimes) {
+      throw new Error(
+        `Expected mock to be called ${expectedTimes} times but was called ${mock.mock.calls.length} times`
+      )
+    }
+  },
+  assert: (condition: boolean, message?: string) => {
+    if (!condition) {
+      throw new Error(message || 'Assertion failed')
+    }
+  },
+}
+
+const { assertReplyContains, assertMockCalled, assert } = assertions
+
+const TEST_USER_ID = 123456789
+const TEST_USERNAME = 'test_user'
+const TEST_MODEL_URL =
+  'ghashtag/neuro_coder_flux-dev-lora:5ff9ea5918427540563f09940bf95d6efc16b8ce9600e82bb17c2b188384e355'
+const TEST_PROMPT = 'Test prompt'
+
+// Создаем базовую сессию для тестов
+const createTestSession = (): MySession => ({
+  memory: {
+    messages: [],
+  },
+  email: '',
+  selectedModel: '',
+  audioToText: {
+    audioFileId: '',
+    audioFileUrl: '',
+    transcription: '',
+    duration: 0,
+    filePath: '',
+    isLongAudio: false,
+    transcriptionLanguage: '',
+    transcriptionModel: '',
+    accuracy: '',
+    amount: 0,
+  },
+  prompt: '',
+  selectedSize: '',
+  userModel: {
+    model_name: '',
+    trigger_word: '',
+    model_url: '' as `${string}/${string}:${string}`,
+    model_key: '' as `${string}/${string}:${string}`,
+  },
+  numImages: 1,
+  telegram_id: '',
+  mode: ModeEnum.TextToImage,
+  attempts: 0,
+  videoModel: '',
+  imageUrl: '',
+  videoUrl: '',
+  audioUrl: '',
+  amount: 0,
+  subscription: '',
+  images: [],
+  modelName: '',
+  targetUserId: 0,
+  username: '',
+  triggerWord: '',
+  steps: 0,
+  inviter: '',
+  inviteCode: '',
+  invoiceURL: '',
+  buttons: [],
+  selectedPayment: {
+    amount: 0,
+    stars: 0,
+  },
+})
+
+/**
+ * Создает базовый контекст для тестов
+ */
+function createTestContext(overrides: Partial<ExtendedMockContext> = {}): ExtendedMockContext {
+  const defaultContext: ExtendedMockContext = {
+    message: {
+      text: 'test message'
+    },
+    from: {
+      id: 123,
+      first_name: 'Test User',
+      is_bot: false,
+      language_code: 'en'
+    },
+    chat: {
+      id: 123,
+      type: 'private',
+      first_name: 'Test User'
+    },
+    session: {
+      images: []
     },
     scene: {
+      enter: createMockFunction(async (sceneId: string) => {}),
       leave: createMockFunction(async () => {}),
       reenter: createMockFunction(async () => {})
     },
-    reply: createMockFunction(async (text: string, extra?: any) => {}),
-    session: {
-      prompt: undefined,
-      selectedModel: undefined,
-      audioToText: {
-        audioFileId: undefined,
-        audioFileUrl: undefined,
-        transcription: undefined
+    wizard: {
+      cursor: 0,
+      next: createMockFunction(() => 1),
+      back: createMockFunction(() => -1),
+      selectStep: createMockFunction((step: number) => step),
+      scene: {
+        leave: createMockFunction(async () => {})
       }
     },
-    message: undefined
+    telegram: {
+      sendMessage: async () => ({ message_id: 1 }),
+      sendPhoto: async () => ({ photo: [{ file_id: 'test' }] } as Message.PhotoMessage),
+      sendVideo: async () => ({ video: { file_id: 'test' } } as Message.VideoMessage),
+      getFile: async (fileId: string) => ({ file_id: fileId, file_unique_id: 'test', file_size: 1024, file_path: 'test/path' })
+    },
+    answerCbQuery: createMockFunction(async () => true),
+    reply: createMockFunction(async (text: string) => ({ text } as Message.TextMessage)),
+    replyWithHTML: createMockFunction(async (text: string) => ({ text } as Message.TextMessage)),
+    replyWithMarkdownV2: createMockFunction(async (text: string) => ({ text } as Message.TextMessage)),
+    replyWithPhoto: createMockFunction(async (photo: string) => ({ photo } as any)),
+    replyWithVideo: createMockFunction(async (video: string) => ({ video } as any)),
+    editMessageText: createMockFunction(async (text: string) => ({ text } as Message.TextMessage)),
+    editMessageReplyMarkup: createMockFunction(async (markup: any) => ({ reply_markup: markup } as any)),
+    i18n: {
+      t: (key: string) => key
+    },
+    replies: []
   }
+
+  return { ...defaultContext, ...overrides }
 }
 
-// Тест: Вход в сцену на русском языке
-async function testNeuroCoderScene_Enter() {
-  console.log('🚀 Запуск теста: Вход в сцену neuroCoderScene (RU)')
-  
+/**
+ * Тест входа в сцену neuroCoderScene на русском языке
+ */
+export async function testNeuroCoderScene_EnterRu(): Promise<TestResult> {
+  logger.info('🚀 Starting testNeuroCoderScene_EnterRu')
   try {
-    const ctx = createTestContext(true) as unknown as MyContext
-    const scene = new Scenes.WizardScene<MyContext>(
-      'neuroCoderScene',
-      async (ctx) => {
-        await ctx.reply(
-          'Выберите количество изображений для генерации:',
-          {
-            reply_markup: {
-              keyboard: [
-                ['1️', '2'],
-                ['30', '50'],
-                ['Отмена'],
-              ],
-              resize_keyboard: true
-            }
-          }
-        )
-        return ctx.wizard.next()
-      }
-    )
+    const ctx = createTestContext({
+      from: {
+        id: 1,
+        is_bot: false,
+        first_name: 'Test User',
+        language_code: 'ru',
+      },
+    })
+    const { neuroCoderScene } = await import('@/scenes/neuroCoderScene')
 
-    await scene.middleware()(ctx, async () => {})
+    await neuroCoderScene.enter(ctx as any, async () => {})
 
-    const replyCall = (ctx.reply as MockFunction<any>).calls[0]
-    if (!replyCall || !replyCall[0].includes('Выберите количество изображений')) {
-      throw new Error('Неверное сообщение при входе в сцену')
-    }
+    assertReplyContains(ctx, 'Выберите количество изображений')
+    assertReplyContains(ctx, 'Отмена')
 
+    logger.info('✅ testNeuroCoderScene_EnterRu passed')
     return {
-      name: 'testNeuroCoderScene_Enter',
+      name: 'NeuroCoderScene: Enter Scene (RU)',
+      category: TestCategory.SCENE,
       success: true,
-      message: 'Успешный вход в сцену и отображение меню на русском'
+      message: 'Успешно протестирован вход в сцену на русском языке',
     }
-  } catch (error: any) {
+  } catch (error) {
+    logger.error('❌ testNeuroCoderScene_EnterRu failed:', error)
     return {
-      name: 'testNeuroCoderScene_Enter',
+      name: 'NeuroCoderScene: Enter Scene (RU)',
+      category: TestCategory.SCENE,
       success: false,
-      message: `Ошибка при входе в сцену: ${error.message}`
+      message: String(error),
     }
   }
 }
 
-// Тест: Вход в сцену на английском языке
-async function testNeuroCoderScene_EnterEnglish() {
-  console.log('🚀 Starting test: Enter neuroCoderScene (EN)')
-  
-  try {
-    const ctx = createTestContext(false)
-    const scene = new Scenes.WizardScene<MyContext>(
-      'neuroCoderScene',
-      async (ctx) => {
-        await ctx.reply(
-          'Select number of images to generate:',
-          {
-            reply_markup: {
-              keyboard: [
-                ['1️', '2'],
-                ['30', '50'],
-                ['Cancel'],
-              ],
-              resize_keyboard: true
-            }
-          }
-        )
-        return ctx.wizard.next()
-      }
-    )
-
-    await scene.middleware()(ctx as any, async () => {})
-
-    const replyCall = (ctx.reply as MockFunction<any>).calls[0]
-    if (!replyCall || !replyCall[0].includes('Select number of images')) {
-      throw new Error('Incorrect message on scene enter (English)')
-    }
-
-    return {
-      name: 'testNeuroCoderScene_EnterEnglish',
-      success: true,
-      message: 'Successfully entered scene and displayed menu in English'
-    }
-  } catch (error: any) {
-    return {
-      name: 'testNeuroCoderScene_EnterEnglish',
-      success: false,
-      message: `Error entering scene: ${error.message}`
-    }
-  }
-}
-
-// Тест: Выбор количества изображений
-async function testNeuroCoderScene_SelectNumberOfImages() {
-  console.log('🚀 Запуск теста: Выбор количества изображений')
-  
-  try {
-    const ctx = createTestContext() as unknown as MyContext
-    ctx.message = { text: '30' }
-    ctx.session.prompt = promptNeuroCoder
-    
-    const scene = new Scenes.WizardScene<MyContext>(
-      'neuroCoderScene',
-      async () => 1,
-      async (ctx) => {
-        const message = ctx.message
-        if (!message || !ctx.from?.id) {
-          await ctx.reply('Ошибка при выборе количества изображений.')
-          return ctx.scene.leave()
-        }
-
-        if ('text' in message) {
-          const numImages = parseInt(message.text)
-          await generateNeuroImage(
-            promptNeuroCoder,
-            TEST_MODEL_URL,
-            numImages,
-            ctx.from.id.toString(),
-            ctx,
-            ctx.botInfo?.username
-          )
-          return ctx.scene.leave()
-        }
-        
-        await ctx.reply('Пожалуйста, выберите количество изображений.')
-        return ctx.scene.reenter()
-      }
-    )
-
-    ctx.wizard.step = 1
-    await scene.middleware()(ctx, async () => {})
-
-    const generateCall = mockGenerateNeuroImage.calls[0]
-    if (!generateCall) {
-      throw new Error('Функция генерации изображений не была вызвана')
-    }
-
-    if (generateCall[2] !== 30) {
-      throw new Error(`Неверное количество изображений: ${generateCall[2]}`)
-    }
-
-    return {
-      name: 'testNeuroCoderScene_SelectNumberOfImages',
-      success: true,
-      message: 'Успешный выбор количества изображений и вызов генерации'
-    }
-  } catch (error: any) {
-    return {
-      name: 'testNeuroCoderScene_SelectNumberOfImages',
-      success: false,
-      message: `Ошибка при выборе количества изображений: ${error.message}`
-    }
-  }
-}
-
-// Тест: Проверка некорректного ввода
-async function testNeuroCoderScene_InvalidInput() {
-  console.log('🚀 Запуск теста: Проверка некорректного ввода')
-  
+/**
+ * Тест входа в сцену neuroCoderScene на английском языке
+ */
+export async function testNeuroCoderScene_EnterEn(): Promise<TestResult> {
+  logger.info('🚀 Starting testNeuroCoderScene_EnterEn')
   try {
     const ctx = createTestContext()
-    ctx.message = { text: 'invalid' }
-    
-    const scene = new Scenes.WizardScene<MyContext>(
-      'neuroCoderScene',
-      async () => 1,
-      async (ctx) => {
-        const message = ctx.message
-        if (!message || !('text' in message) || isNaN(parseInt(message.text))) {
-          await ctx.reply('Пожалуйста, выберите количество изображений.')
-          return ctx.scene.reenter()
-        }
-        return ctx.scene.leave()
-      }
-    )
+    const { neuroCoderScene } = await import('@/scenes/neuroCoderScene')
 
-    ctx.wizard.step = 1
-    await scene.middleware()(ctx as any, async () => {})
+    await neuroCoderScene.enter(ctx as any, async () => {})
 
-    const replyCall = (ctx.reply as MockFunction<any>).calls[0]
-    if (!replyCall || !replyCall[0].includes('Пожалуйста, выберите количество изображений')) {
-      throw new Error('Неверная обработка некорректного ввода')
-    }
+    assertReplyContains(ctx, 'Select number of images')
+    assertReplyContains(ctx, 'Cancel')
 
+    logger.info('✅ testNeuroCoderScene_EnterEn passed')
     return {
-      name: 'testNeuroCoderScene_InvalidInput',
+      name: 'NeuroCoderScene: Enter Scene (EN)',
+      category: TestCategory.SCENE,
       success: true,
-      message: 'Успешная обработка некорректного ввода'
+      message: 'Successfully tested scene entry in English',
     }
-  } catch (error: any) {
+  } catch (error) {
+    logger.error('❌ testNeuroCoderScene_EnterEn failed:', error)
     return {
-      name: 'testNeuroCoderScene_InvalidInput',
+      name: 'NeuroCoderScene: Enter Scene (EN)',
+      category: TestCategory.SCENE,
       success: false,
-      message: `Ошибка при обработке некорректного ввода: ${error.message}`
+      message: String(error),
     }
   }
 }
 
-// Тест: Отмена операции
-async function testNeuroCoderScene_Cancel() {
-  console.log('🚀 Запуск теста: Отмена операции')
-  
+/**
+ * Тест выбора количества изображений
+ */
+export async function testNeuroCoderScene_SelectImages(): Promise<TestResult> {
+  logger.info('🚀 Starting testNeuroCoderScene_SelectImages')
   try {
     const ctx = createTestContext()
-    ctx.message = { text: 'Отмена' }
-    mockHandleHelpCancel.calls = []
-    
-    const scene = new Scenes.WizardScene<MyContext>(
-      'neuroCoderScene',
-      async () => 1,
-      async (ctx) => {
-        const isCancel = await handleHelpCancel(ctx)
-        if (isCancel) {
-          return ctx.scene.leave()
-        }
-        return ctx.scene.reenter()
-      }
+    ctx.message = {
+      ...ctx.message,
+      text: '2',
+    }
+
+    const { neuroCoderScene } = await import('@/scenes/neuroCoderScene')
+
+    // Создаем мок для генерации изображений
+    const mockGenerateImages = createMockFunction()
+    mockGenerateImages.mockResolvedValue(['image1.jpg', 'image2.jpg'])
+
+    // Подменяем функцию генерации изображений
+    const generateNeuroImageModule = await import(
+      '@/services/generateNeuroImage'
     )
+    generateNeuroImageModule.generateNeuroImage = mockGenerateImages
 
-    ctx.wizard.step = 1
-    await scene.middleware()(ctx as any, async () => {})
+    await neuroCoderScene.middleware()(ctx as any, async () => {})
 
-    if (mockHandleHelpCancel.calls.length === 0) {
-      throw new Error('Функция handleHelpCancel не была вызвана')
-    }
+    // Проверяем, что генерация была вызвана с правильными параметрами
+    assertMockCalled(mockGenerateImages)
 
+    logger.info('✅ testNeuroCoderScene_SelectImages passed')
     return {
-      name: 'testNeuroCoderScene_Cancel',
+      name: 'NeuroCoderScene: Select Images',
+      category: TestCategory.SCENE,
       success: true,
-      message: 'Успешная отмена операции'
+      message: 'Успешно протестирован выбор количества изображений',
     }
-  } catch (error: any) {
+  } catch (error) {
+    logger.error('❌ testNeuroCoderScene_SelectImages failed:', error)
     return {
-      name: 'testNeuroCoderScene_Cancel',
+      name: 'NeuroCoderScene: Select Images',
+      category: TestCategory.SCENE,
       success: false,
-      message: `Ошибка при отмене операции: ${error.message}`
+      message: String(error),
     }
   }
 }
 
-// Тест: Проверка сохранения промпта в сессии
-async function testNeuroCoderScene_SavePrompt() {
-  console.log('🚀 Запуск теста: Проверка сохранения промпта')
-  
+/**
+ * Тест обработки некорректного ввода
+ */
+export async function testNeuroCoderScene_InvalidInput(): Promise<TestResult> {
+  logger.info('🚀 Starting testNeuroCoderScene_InvalidInput')
   try {
     const ctx = createTestContext()
-    ctx.message = { text: '1' }
-    ctx.session = {}
-    
-    const scene = new Scenes.WizardScene<MyContext>(
-      'neuroCoderScene',
-      async () => 1,
-      async (ctx) => {
-        ctx.session.prompt = promptNeuroCoder
-        return ctx.wizard.next()
-      }
-    )
-
-    ctx.wizard.step = 1
-    await scene.middleware()(ctx as any, async () => {})
-
-    if (ctx.session.prompt !== promptNeuroCoder) {
-      throw new Error('Промпт не был сохранен в сессии')
+    ctx.message = {
+      ...ctx.message,
+      text: 'invalid',
     }
 
+    const { neuroCoderScene } = await import('@/scenes/neuroCoderScene')
+
+    await neuroCoderScene.middleware()(ctx as any, async () => {})
+
+    assertReplyContains(ctx, 'Пожалуйста, выберите количество изображений')
+    assertMockCalled(ctx.scene.reenter, 1)
+
+    logger.info('✅ testNeuroCoderScene_InvalidInput passed')
     return {
-      name: 'testNeuroCoderScene_SavePrompt',
+      name: 'NeuroCoderScene: Invalid Input',
+      category: TestCategory.SCENE,
       success: true,
-      message: 'Успешное сохранение промпта в сессии'
+      message: 'Успешно протестирована обработка некорректного ввода',
     }
-  } catch (error: any) {
+  } catch (error) {
+    logger.error('❌ testNeuroCoderScene_InvalidInput failed:', error)
     return {
-      name: 'testNeuroCoderScene_SavePrompt',
+      name: 'NeuroCoderScene: Invalid Input',
+      category: TestCategory.SCENE,
       success: false,
-      message: `Ошибка при сохранении промпта: ${error.message}`
+      message: String(error),
     }
   }
 }
 
-// Функция для запуска всех тестов
-export async function runNeuroCoderSceneTests() {
-  console.log('🚀 Запуск тестов для neuroCoderScene')
-  
-  const testResults = [
-    await testNeuroCoderScene_Enter(),
-    await testNeuroCoderScene_EnterEnglish(),
-    await testNeuroCoderScene_SelectNumberOfImages(),
-    await testNeuroCoderScene_InvalidInput(),
-    await testNeuroCoderScene_Cancel(),
-    await testNeuroCoderScene_SavePrompt()
-  ]
-  
-  let totalTests = testResults.length
-  let passedTests = testResults.filter(r => r.success).length
-  
-  console.log('\n📊 Результаты тестирования:')
-  testResults.forEach(result => {
-    if (result.success) {
-      console.log(`✅ ${result.name}: ${result.message}`)
-    } else {
-      console.log(`❌ ${result.name}: ${result.message}`)
+/**
+ * Тест отмены операции
+ */
+export async function testNeuroCoderScene_Cancel(): Promise<TestResult> {
+  logger.info('🚀 Starting testNeuroCoderScene_Cancel')
+  try {
+    const ctx = createTestContext()
+    ctx.message = {
+      ...ctx.message,
+      text: 'Отмена',
     }
-  })
-  
-  console.log(`\n📈 Статистика:`)
-  console.log(`✅ Успешно: ${passedTests}`)
-  console.log(`❌ Неудачно: ${totalTests - passedTests}`)
-  console.log(`📝 Всего тестов: ${totalTests}`)
-  console.log(`🎯 Покрытие: ${((passedTests / totalTests) * 100).toFixed(1)}%`)
-  
-  return testResults
+
+    // Мокируем функцию handleHelpCancel
+    const mockHandleHelpCancel = createMockFunction()
+    mockHandleHelpCancel.mockResolvedValue(true)
+
+    const handleHelpCancelModule = await import('@/handlers/handleHelpCancel')
+    handleHelpCancelModule.handleHelpCancel = mockHandleHelpCancel
+
+    const { neuroCoderScene } = await import('@/scenes/neuroCoderScene')
+    await neuroCoderScene.middleware()(ctx as any, async () => {})
+
+    assertReplyContains(ctx, 'Генерация отменена')
+    assertMockCalled(ctx.scene.leave)
+    assertMockCalled(ctx.reply)
+
+    logger.info('✅ testNeuroCoderScene_Cancel passed')
+    return {
+      name: 'NeuroCoderScene: Cancel Operation',
+      category: TestCategory.SCENE,
+      success: true,
+      message: 'Успешно протестирована отмена операции',
+    }
+  } catch (error) {
+    logger.error('❌ testNeuroCoderScene_Cancel failed:', error)
+    return {
+      name: 'NeuroCoderScene: Cancel Operation',
+      category: TestCategory.SCENE,
+      success: false,
+      message: String(error),
+    }
+  }
 }
 
-// Запуск тестов при прямом вызове файла
-if (require.main === module) {
-  runNeuroCoderSceneTests().catch(console.error)
-} 
+/**
+ * Тест обработки ошибок при генерации
+ */
+export async function testNeuroCoderScene_GenerationError(): Promise<TestResult> {
+  logger.info('🚀 Starting testNeuroCoderScene_GenerationError')
+  try {
+    const ctx = createTestContext()
+    ctx.message = {
+      ...ctx.message,
+      text: '2',
+    }
+
+    // Мокируем функцию генерации с ошибкой
+    const mockGenerateImages = createMockFunction()
+    mockGenerateImages.mockRejectedValue(new Error('Generation failed'))
+
+    const generateNeuroImageModule = await import(
+      '@/services/generateNeuroImage'
+    )
+    generateNeuroImageModule.generateNeuroImage = mockGenerateImages
+
+    const { neuroCoderScene } = await import('@/scenes/neuroCoderScene')
+    await neuroCoderScene.middleware()(ctx as any, async () => {})
+
+    assertReplyContains(ctx, 'Произошла ошибка при генерации изображений')
+    assertMockCalled(ctx.scene.reenter, 1)
+
+    logger.info('✅ testNeuroCoderScene_GenerationError passed')
+    return {
+      name: 'NeuroCoderScene: Generation Error',
+      category: TestCategory.SCENE,
+      success: true,
+      message: 'Успешно протестирована обработка ошибок при генерации',
+    }
+  } catch (error) {
+    logger.error('❌ testNeuroCoderScene_GenerationError failed:', error)
+    return {
+      name: 'NeuroCoderScene: Generation Error',
+      category: TestCategory.SCENE,
+      success: false,
+      message: String(error),
+    }
+  }
+}
+
+/**
+ * Тест проверки максимального количества изображений
+ */
+export async function testNeuroCoderScene_MaxImages(): Promise<TestResult> {
+  logger.info('🚀 Starting testNeuroCoderScene_MaxImages')
+  try {
+    const ctx = createTestContext()
+    ctx.message = {
+      ...ctx.message,
+      text: '11',
+    } // Превышаем максимальное количество
+
+    const { neuroCoderScene } = await import('@/scenes/neuroCoderScene')
+    await neuroCoderScene.middleware()(ctx as any, async () => {})
+
+    assertReplyContains(ctx, 'Максимальное количество изображений - 10')
+    assertMockCalled(ctx.scene.reenter, 1)
+
+    logger.info('✅ testNeuroCoderScene_MaxImages passed')
+    return {
+      name: 'NeuroCoderScene: Max Images',
+      category: TestCategory.SCENE,
+      success: true,
+      message:
+        'Успешно протестировано ограничение максимального количества изображений',
+    }
+  } catch (error) {
+    logger.error('❌ testNeuroCoderScene_MaxImages failed:', error)
+    return {
+      name: 'NeuroCoderScene: Max Images',
+      category: TestCategory.SCENE,
+      success: false,
+      message: String(error),
+    }
+  }
+}
+
+/**
+ * Тест проверки минимального количества изображений
+ */
+export async function testNeuroCoderScene_MinImages(): Promise<TestResult> {
+  logger.info('🚀 Starting testNeuroCoderScene_MinImages')
+  try {
+    const ctx = createTestContext()
+    ctx.message = {
+      ...ctx.message,
+      text: '0',
+    } // Меньше минимального количества
+
+    const { neuroCoderScene } = await import('@/scenes/neuroCoderScene')
+    await neuroCoderScene.middleware()(ctx as any, async () => {})
+
+    assertReplyContains(ctx, 'Минимальное количество изображений - 1')
+    assertMockCalled(ctx.scene.reenter, 1)
+
+    logger.info('✅ testNeuroCoderScene_MinImages passed')
+    return {
+      name: 'NeuroCoderScene: Min Images',
+      category: TestCategory.SCENE,
+      success: true,
+      message:
+        'Успешно протестировано ограничение минимального количества изображений',
+    }
+  } catch (error) {
+    logger.error('❌ testNeuroCoderScene_MinImages failed:', error)
+    return {
+      name: 'NeuroCoderScene: Min Images',
+      category: TestCategory.SCENE,
+      success: false,
+      message: String(error),
+    }
+  }
+}
+
+/**
+ * Тест проверки состояния сессии после генерации
+ */
+export async function testNeuroCoderScene_SessionState(): Promise<TestResult> {
+  logger.info('🚀 Starting testNeuroCoderScene_SessionState')
+  try {
+    const ctx = createTestContext()
+    ctx.message = {
+      ...ctx.message,
+      text: '2',
+    }
+
+    const mockGenerateImages = createMockFunction()
+    mockGenerateImages.mockResolvedValue(['image1.jpg', 'image2.jpg'])
+
+    const generateNeuroImageModule = await import(
+      '@/services/generateNeuroImage'
+    )
+    generateNeuroImageModule.generateNeuroImage = mockGenerateImages
+
+    const { neuroCoderScene } = await import('@/scenes/neuroCoderScene')
+    await neuroCoderScene.middleware()(ctx as any, async () => {})
+
+    // Проверяем состояние сессии
+    const expectedSession = {
+      ...createTestSession(),
+      numImages: 2,
+      images: ['image1.jpg', 'image2.jpg'],
+      mode: ModeEnum.TextToImage,
+    }
+
+    // Проверяем только нужные поля
+    const actualSession = ctx.session
+    assert(
+      actualSession.numImages === expectedSession.numImages,
+      'Неверное количество изображений в сессии'
+    )
+    assert(
+      actualSession.images.length === expectedSession.images.length,
+      'Неверное количество URL изображений'
+    )
+    assert(
+      actualSession.mode === expectedSession.mode,
+      'Неверный режим в сессии'
+    )
+
+    logger.info('✅ testNeuroCoderScene_SessionState passed')
+    return {
+      name: 'NeuroCoderScene: Session State',
+      category: TestCategory.SCENE,
+      success: true,
+      message: 'Успешно протестировано состояние сессии после генерации',
+    }
+  } catch (error) {
+    logger.error('❌ testNeuroCoderScene_SessionState failed:', error)
+    return {
+      name: 'NeuroCoderScene: Session State',
+      category: TestCategory.SCENE,
+      success: false,
+      message: String(error),
+    }
+  }
+}
+
+/**
+ * Запуск всех тестов для neuroCoderScene
+ */
+export async function runNeuroCoderSceneTests(): Promise<TestResult[]> {
+  logger.info('🚀 Starting all neuroCoderScene tests')
+  const results: TestResult[] = []
+
+  try {
+    results.push(await testNeuroCoderScene_EnterRu())
+    results.push(await testNeuroCoderScene_EnterEn())
+    results.push(await testNeuroCoderScene_SelectImages())
+    results.push(await testNeuroCoderScene_InvalidInput())
+    results.push(await testNeuroCoderScene_Cancel())
+    results.push(await testNeuroCoderScene_GenerationError())
+    results.push(await testNeuroCoderScene_MaxImages())
+    results.push(await testNeuroCoderScene_MinImages())
+    results.push(await testNeuroCoderScene_SessionState())
+
+    const totalTests = results.length
+    const passedTests = results.filter(r => r.success).length
+    logger.info(
+      `✅ Completed neuroCoderScene tests: ${passedTests}/${totalTests} passed`
+    )
+  } catch (error) {
+    logger.error('❌ Error running neuroCoderScene tests:', error)
+    results.push({
+      name: 'NeuroCoderScene: Test Suite Error',
+      category: TestCategory.SCENE,
+      success: false,
+      message: String(error),
+    })
+  }
+
+  return results
+}
+
+export default runNeuroCoderSceneTests
