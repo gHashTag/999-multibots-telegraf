@@ -41,4 +41,5 @@ export const defaultSession = (): MySession => ({
     stars: 0,
   },
   bypass_payment_check: false,
+  is_ru: false,
 })
