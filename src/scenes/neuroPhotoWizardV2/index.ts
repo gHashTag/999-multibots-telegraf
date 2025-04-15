@@ -33,7 +33,6 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
   try {
     console.log('CASE 1: neuroPhotoConversationV2')
 
-    
     logger.info({
       message: '🚀 ЗАПУСК neuroPhotoWizardV2 (v2)',
       description: 'Starting neuroPhotoWizardV2 (v2)',

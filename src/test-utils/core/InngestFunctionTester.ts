@@ -39,7 +39,7 @@ export interface FunctionTestOptions {
 
 /**
  * Базовый абстрактный класс для тестеров Inngest функций
- * 
+ *
  * Используется для создания специализированных тестеров для различных Inngest функций
  */
 export abstract class InngestFunctionTester<TInput, TOutput> {
@@ -58,7 +58,7 @@ export abstract class InngestFunctionTester<TInput, TOutput> {
    */
   async runTest(input: TInput): Promise<TOutput> {
     const startTime = Date.now()
-    
+
     try {
       if (this.verbose) {
         logger.info({
@@ -68,11 +68,11 @@ export abstract class InngestFunctionTester<TInput, TOutput> {
           input,
         })
       }
-      
+
       const result = await this.executeTest(input)
-      
+
       const duration = Date.now() - startTime
-      
+
       if (this.verbose) {
         logger.info({
           message: `✅ Тест успешно завершен: ${this.name}`,
@@ -81,11 +81,11 @@ export abstract class InngestFunctionTester<TInput, TOutput> {
           eventName: this.eventName,
         })
       }
-      
+
       return result
     } catch (error) {
       const duration = Date.now() - startTime
-      
+
       logger.error({
         message: `❌ Ошибка при выполнении теста: ${this.name}`,
         description: `Test failed: ${this.name}`,
@@ -93,14 +93,14 @@ export abstract class InngestFunctionTester<TInput, TOutput> {
         duration,
         eventName: this.eventName,
       })
-      
+
       throw error
     }
   }
-  
+
   /**
    * Абстрактный метод, который должен быть реализован в потомках
    * Содержит основную логику тестирования
    */
   protected abstract executeTest(input: TInput): Promise<TOutput>
-} 
+}

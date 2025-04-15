@@ -1,9 +1,6 @@
 import { supabase } from '@/core/supabase'
 import { TelegramId } from '@/interfaces/telegram.interface'
-import {
-  PaymentStatus,
-  TransactionType
-} from '@/interfaces/payments.interface'
+import { PaymentStatus, TransactionType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 
 interface BalanceCheckResult {
@@ -116,8 +113,7 @@ export class PaymentTester {
     if (!messages?.text) return false
 
     return (
-      messages.text.includes(`${amount}`) &&
-      messages.text.includes(`${stars}`)
+      messages.text.includes(`${amount}`) && messages.text.includes(`${stars}`)
     )
   }
 

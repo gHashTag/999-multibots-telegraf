@@ -27,7 +27,7 @@ describe('textToVideoFunction', () => {
     is_ru: false,
     bot_name: 'test_bot',
     level: 9,
-    balance: 1000
+    balance: 1000,
   }
 
   const testEvent = {
@@ -40,8 +40,8 @@ describe('textToVideoFunction', () => {
       model_id: Object.keys(VIDEO_MODELS_CONFIG)[0],
       aspect_ratio: '16:9',
       duration: 6,
-      username: testUser.username
-    }
+      username: testUser.username,
+    },
   }
 
   const testEngine = new InngestTestEngine()
@@ -68,7 +68,7 @@ describe('textToVideoFunction', () => {
         telegram_id: 123456,
         username: 'testuser',
         is_ru: false,
-        bot_name: 'test_bot'
+        bot_name: 'test_bot',
       }
     )
 
@@ -80,13 +80,15 @@ describe('textToVideoFunction', () => {
     mockSupabase.setUserBalance(0)
 
     const { result } = await testEngine.execute({
-      events: [{
-        ...testEvent,
-        data: {
-          ...testEvent.data,
-          _test: { insufficient_balance: true }
-        }
-      }]
+      events: [
+        {
+          ...testEvent,
+          data: {
+            ...testEvent.data,
+            _test: { insufficient_balance: true },
+          },
+        },
+      ],
     })
 
     expect(result.success).toBe(false)
@@ -96,13 +98,15 @@ describe('textToVideoFunction', () => {
 
   it('should handle API error', async () => {
     const { result } = await testEngine.execute({
-      events: [{
-        ...testEvent,
-        data: {
-          ...testEvent.data,
-          _test: { api_error: true }
-        }
-      }]
+      events: [
+        {
+          ...testEvent,
+          data: {
+            ...testEvent.data,
+            _test: { api_error: true },
+          },
+        },
+      ],
     })
 
     expect(result.success).toBe(false)
@@ -112,13 +116,15 @@ describe('textToVideoFunction', () => {
 
   it('should handle invalid parameters', async () => {
     const { result } = await testEngine.execute({
-      events: [{
-        ...testEvent,
-        data: {
-          // Missing required fields
-          telegram_id: testUser.telegram_id
-        }
-      }]
+      events: [
+        {
+          ...testEvent,
+          data: {
+            // Missing required fields
+            telegram_id: testUser.telegram_id,
+          },
+        },
+      ],
     })
 
     expect(result.success).toBe(false)
@@ -128,17 +134,19 @@ describe('textToVideoFunction', () => {
 
   it('should handle unsupported model', async () => {
     const { result } = await testEngine.execute({
-      events: [{
-        ...testEvent,
-        data: {
-          ...testEvent.data,
-          model_id: 'unsupported-model'
-        }
-      }]
+      events: [
+        {
+          ...testEvent,
+          data: {
+            ...testEvent.data,
+            model_id: 'unsupported-model',
+          },
+        },
+      ],
     })
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('does not support text input')
     expect(mockBotInstance.telegram.sendVideo).not.toHaveBeenCalled()
   })
-}) 
+})

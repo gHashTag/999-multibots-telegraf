@@ -7,7 +7,7 @@ import {
   description,
   subscriptionTitles,
   useTestMode,
-  generateUniqueShortInvId,
+  generateShortInvId,
 } from './helper'
 import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
@@ -15,8 +15,8 @@ import { getBotNameByToken } from '@/core'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
+import { ModeEnum } from '@/interfaces/modes'
 
-import { createPayment } from '@/core/supabase/createPayment'
 type Subscription = 'neurophoto' | 'neurobase' | 'neuroblogger'
 
 // Экспортируем тип для подписок
@@ -61,7 +61,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     })
 
     // Генерируем короткий InvId для Robokassa
-    const numericInvId = await generateUniqueShortInvId(userId, stars)
+    const numericInvId = await generateShortInvId(userId, stars)
     const invId = numericInvId.toString()
 
     logger.info('🔢 Сгенерирован ID счета:', {
@@ -89,31 +89,33 @@ const generateInvoiceStep = async (ctx: MyContext) => {
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
-    // Сохранение платежа со статусом PENDING
-    await createPayment({
-      telegram_id: userId.toString(),
+    // Отправляем событие для создания платежа
+    logger.info('✅ Обработка платежа в RuBillWizard:', {
+      description: 'Processing payment in RuBillWizard',
+      telegram_id: userId,
       amount: stars,
-      OutSum: stars.toString(),
-      InvId: invId,
       inv_id: invId,
-      currency: 'RUB',
-      stars: Number(selectedPayment.stars),
-      status: 'PENDING',
-      payment_method: 'Telegram',
-      subscription: subscription,
-      bot_name,
-      description: subscription
-        ? `Покупка подписки ${subscription}`
-        : `Пополнение баланса на ${stars} звезд`,
-      metadata: {
-        payment_method: 'Telegram',
-        subscription: subscription || undefined,
-      },
-      language: ctx.from?.language_code || 'ru',
-      invoice_url: invoiceURL,
     })
-    logger.info('💾 Платеж сохранен со статусом PENDING', {
-      description: 'Payment saved with PENDING status',
+
+    await inngest.send({
+      name: 'payment/process',
+      data: {
+        telegram_id: String(userId),
+        amount: Number(stars),
+        type: TransactionType.MONEY_INCOME,
+        description: subscription
+          ? `Покупка подписки ${subscription}`
+          : `Пополнение баланса на ${stars} звезд`,
+        bot_name,
+        inv_id: invId,
+        stars: Number(stars),
+        payment_method: 'Telegram',
+        subscription: subscription,
+        currency: 'RUB',
+        invoice_url: invoiceURL,
+        service_type: subscription ? ModeEnum.Subscribe : ModeEnum.TopUpBalance,
+        status: 'PENDING',
+      },
     })
 
     // Формируем и отправляем сообщение с кнопкой оплаты
@@ -155,26 +157,6 @@ const generateInvoiceStep = async (ctx: MyContext) => {
         description: 'User subscription updated',
       })
     }
-
-    logger.info('✅ Обработка платежа в RuBillWizard:', {
-      description: 'Processing payment in RuBillWizard',
-      telegram_id: userId,
-      amount: stars,
-      inv_id: invId,
-    })
-
-    await inngest.send({
-      name: 'payment/process',
-      data: {
-        telegram_id: String(userId),
-        amount: Number(stars),
-        type: TransactionType.MONEY_INCOME,
-        description: `RuBill payment:: ${stars}`,
-        bot_name,
-        inv_id: invId,
-        stars: Number(stars),
-      },
-    })
 
     return ctx.scene.leave()
   } catch (error) {

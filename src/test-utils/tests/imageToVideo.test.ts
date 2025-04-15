@@ -2,7 +2,7 @@
 const mockFetch = jest.fn(() =>
   Promise.resolve({
     ok: true,
-    json: () => Promise.resolve({ output: ['https://example.com/video.mp4'] })
+    json: () => Promise.resolve({ output: ['https://example.com/video.mp4'] }),
   })
 )
 
@@ -13,20 +13,20 @@ global.fetch = mockFetch
 jest.mock('@/config', () => ({
   SUPABASE_URL: 'http://localhost:54321',
   SUPABASE_SERVICE_KEY: 'test-service-key',
-  SUPABASE_SERVICE_ROLE_KEY: 'test-role-key'
+  SUPABASE_SERVICE_ROLE_KEY: 'test-role-key',
 }))
 
 // Mock ModeEnum and getModelPrice
 jest.mock('@/price/helpers/modelsCost', () => ({
   ModeEnum: {
-    ImageToVideo: 'image_to_video'
+    ImageToVideo: 'image_to_video',
   },
-  getModelPrice: jest.fn().mockReturnValue(100)
+  getModelPrice: jest.fn().mockReturnValue(100),
 }))
 
 // Mock calculateFinalPrice
 jest.mock('@/price/helpers/calculateFinalPrice', () => ({
-  calculateFinalPrice: jest.fn().mockReturnValue(100)
+  calculateFinalPrice: jest.fn().mockReturnValue(100),
 }))
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
@@ -49,18 +49,18 @@ jest.mock('@/menu/videoModelMenu', () => ({
       name: 'Minimax',
       api: {
         model: 'minimax-model',
-        input: {}
-      }
-    }
-  }
+        input: {},
+      },
+    },
+  },
 }))
 
 // Mock the bot instance
 jest.mock('@/core/bot', () => ({
   getBotByName: () => ({
     success: true,
-    bot: new Telegraf('fake-token')
-  })
+    bot: new Telegraf('fake-token'),
+  }),
 }))
 
 describe('imageToVideoFunction', () => {
@@ -73,7 +73,7 @@ describe('imageToVideoFunction', () => {
     balance: 1000,
     subscription_end_date: null,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   }
 
   beforeEach(async () => {
@@ -91,18 +91,18 @@ describe('imageToVideoFunction', () => {
       username: testUser.username,
       is_ru: testUser.is_ru,
       bot_name: testUser.bot_name,
-      description: 'Test video generation'
+      description: 'Test video generation',
     },
     ts: Date.now(),
-    id: 'test-id'
+    id: 'test-id',
   }
 
   it('should successfully generate video with sufficient balance', async () => {
     const engine = createTestEngine(imageToVideoFunction)
-    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
-      engine,
-      defaultEvent
-    )
+    const result = await executeTest<
+      ImageToVideoEvent['data'],
+      ImageToVideoResult
+    >(engine, defaultEvent)
 
     expect(result.success).toBe(true)
     if (result.success) {
@@ -116,10 +116,10 @@ describe('imageToVideoFunction', () => {
     await mockSupabase.setUserBalance(testUser.telegram_id, 0)
 
     const engine = createTestEngine(imageToVideoFunction)
-    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
-      engine,
-      defaultEvent
-    )
+    const result = await executeTest<
+      ImageToVideoEvent['data'],
+      ImageToVideoResult
+    >(engine, defaultEvent)
 
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -134,15 +134,15 @@ describe('imageToVideoFunction', () => {
       ...defaultEvent,
       data: {
         ...defaultEvent.data,
-        videoModel: 'nonexistent_model'
-      }
+        videoModel: 'nonexistent_model',
+      },
     }
 
     const engine = createTestEngine(imageToVideoFunction)
-    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
-      engine,
-      event
-    )
+    const result = await executeTest<
+      ImageToVideoEvent['data'],
+      ImageToVideoResult
+    >(engine, event)
 
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -156,15 +156,15 @@ describe('imageToVideoFunction', () => {
       ...defaultEvent,
       data: {
         ...defaultEvent.data,
-        _test: { api_error: true }
-      }
+        _test: { api_error: true },
+      },
     }
 
     const engine = createTestEngine(imageToVideoFunction)
-    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
-      engine,
-      event
-    )
+    const result = await executeTest<
+      ImageToVideoEvent['data'],
+      ImageToVideoResult
+    >(engine, event)
 
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -177,15 +177,15 @@ describe('imageToVideoFunction', () => {
       ...defaultEvent,
       data: {
         ...defaultEvent.data,
-        _test: { timeout: true }
-      }
+        _test: { timeout: true },
+      },
     }
 
     const engine = createTestEngine(imageToVideoFunction)
-    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
-      engine,
-      event
-    )
+    const result = await executeTest<
+      ImageToVideoEvent['data'],
+      ImageToVideoResult
+    >(engine, event)
 
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -198,15 +198,15 @@ describe('imageToVideoFunction', () => {
       ...defaultEvent,
       data: {
         ...defaultEvent.data,
-        _test: { multiple_outputs: true }
-      }
+        _test: { multiple_outputs: true },
+      },
     }
 
     const engine = createTestEngine(imageToVideoFunction)
-    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
-      engine,
-      event
-    )
+    const result = await executeTest<
+      ImageToVideoEvent['data'],
+      ImageToVideoResult
+    >(engine, event)
 
     expect(result.success).toBe(true)
     if (result.success) {
@@ -221,15 +221,15 @@ describe('imageToVideoFunction', () => {
       data: {
         // Missing required fields
         prompt: 'Test prompt',
-        telegram_id: testUser.telegram_id
-      }
+        telegram_id: testUser.telegram_id,
+      },
     }
 
     const engine = createTestEngine(imageToVideoFunction)
-    const result = await executeTest<ImageToVideoEvent['data'], ImageToVideoResult>(
-      engine,
-      event as InngestEvent<ImageToVideoEvent['data']>
-    )
+    const result = await executeTest<
+      ImageToVideoEvent['data'],
+      ImageToVideoResult
+    >(engine, event as InngestEvent<ImageToVideoEvent['data']>)
 
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -237,4 +237,4 @@ describe('imageToVideoFunction', () => {
       expect(result.modePrice).toBe(0)
     }
   })
-}) 
+})

@@ -5,6 +5,7 @@ import { logger } from '../utils/logger'
 import { MockTelegraf } from './mocks/botMock'
 import { MyContext } from '../interfaces'
 import { Telegraf } from 'telegraf'
+import { TransactionType } from '@/interfaces/payments.interface'
 
 /**
  * Константы для конфигурации тестов
@@ -15,11 +16,9 @@ import { Telegraf } from 'telegraf'
 /**
  * Класс для эмуляции Inngest тестового движка в тестах
  */
-export class InngestTestEngineMock {
-  /**
-   * Список отправленных событий для мониторинга
-   */
-  public sentEvents: { name: string; data: any; timestamp: number }[] = []
+export class InngestTestEngine {
+  private events: any[] = []
+  private logger = logger
 
   /**
    * Отправляет событие в Inngest (мок)
@@ -28,60 +27,48 @@ export class InngestTestEngineMock {
    * @param data - Данные события
    * @returns Promise<boolean> - Результат отправки
    */
-  async sendEvent(eventName: string, data: any): Promise<boolean> {
-    console.log(
-      `🚀 [TEST_ENGINE_MOCK]: Отправка события "${eventName}" с данными:`,
-      data
-    )
-
-    // Проверка обязательных полей для платежных операций
-    if (eventName === 'payment/process') {
-      if (!data.telegram_id) {
-        console.log(
-          '❌ [TEST_ENGINE_MOCK]: Отсутствует обязательное поле telegram_id'
-        )
-        throw new Error('Отсутствует обязательное поле telegram_id')
+  async send(event: any) {
+    // Валидация обязательных полей
+    const requiredFields = [
+      'telegram_id',
+      'amount',
+      'type',
+      'description',
+      'bot_name',
+      'service_type',
+    ]
+    for (const field of requiredFields) {
+      if (!event.data[field]) {
+        throw new Error(`Missing required field: ${field}`)
       }
-
-      if (!data.amount && data.amount !== 0) {
-        console.log(
-          '❌ [TEST_ENGINE_MOCK]: Отсутствует обязательное поле amount'
-        )
-        throw new Error('Отсутствует обязательное поле amount')
-      }
-
-      if (!data.type) {
-        console.log('❌ [TEST_ENGINE_MOCK]: Отсутствует обязательное поле type')
-        throw new Error('Отсутствует обязательное поле type')
-      }
-
-      if (data.amount < 0) {
-        console.log(
-          '❌ [TEST_ENGINE_MOCK]: Сумма платежа должна быть положительной'
-        )
-        throw new Error('Сумма платежа должна быть положительной')
-      }
-
-      if (data.stars < 0) {
-        console.log(
-          '❌ [TEST_ENGINE_MOCK]: Количество звезд должно быть положительным'
-        )
-        throw new Error('Количество звезд должно быть положительным')
-      }
-
-      console.log(
-        `✅ [TEST_ENGINE_MOCK]: Платежное событие "${eventName}" успешно создано для пользователя ${data.telegram_id}, сумма: ${data.amount} звезд, тип: ${data.type}`
-      )
     }
 
-    // Добавляем событие в список отправленных
-    this.sentEvents.push({
-      name: eventName,
-      data,
-      timestamp: Date.now(),
-    })
+    // Валидация типа транзакции
+    if (!Object.values(TransactionType).includes(event.data.type)) {
+      throw new Error(`Invalid transaction type: ${event.data.type}`)
+    }
 
-    return true
+    // Валидация сервиса
+    if (!Object.values(ModeEnum).includes(event.data.service_type)) {
+      throw new Error(`Invalid service type: ${event.data.service_type}`)
+    }
+
+    // Валидация суммы
+    if (typeof event.data.amount !== 'number' || event.data.amount <= 0) {
+      throw new Error('Amount must be a positive number')
+    }
+
+    // Валидация звезд (если указаны)
+    if (
+      event.data.stars !== undefined &&
+      (typeof event.data.stars !== 'number' || event.data.stars <= 0)
+    ) {
+      throw new Error('Stars must be a positive number')
+    }
+
+    this.logger.info('🚀 Processing payment event:', event)
+    this.events.push(event)
+    return { success: true }
   }
 
   /**
@@ -93,14 +80,14 @@ export class InngestTestEngineMock {
   getEventsByName(
     eventName: string
   ): { name: string; data: any; timestamp: number }[] {
-    return this.sentEvents.filter(event => event.name === eventName)
+    return this.events.filter(event => event.name === eventName)
   }
 
   /**
    * Очищает историю отправленных событий
    */
   clearEvents(): void {
-    this.sentEvents = []
+    this.events = []
     console.log('🧹 [TEST_ENGINE_MOCK]: История событий очищена')
   }
 }

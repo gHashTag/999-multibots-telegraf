@@ -199,8 +199,8 @@ const getStatsCommand = async (ctx: MyContext): Promise<void> => {
               code: error.code,
             }
           : error instanceof Error
-          ? error.message
-          : String(error),
+            ? error.message
+            : String(error),
       stack: error instanceof Error ? error.stack : undefined,
       user_id: userId,
       bot_name: botName,
@@ -214,15 +214,15 @@ const getStatsCommand = async (ctx: MyContext): Promise<void> => {
                   error.hint ? `\nПодсказка: ${error.hint}` : ''
                 }`
               : error instanceof Error
-              ? error.message
-              : 'Неизвестная ошибка'
+                ? error.message
+                : 'Неизвестная ошибка'
           }`
         : `❌ An error occurred while getting statistics: ${
             error instanceof PostgrestError
               ? `${error.message}${error.hint ? `\nHint: ${error.hint}` : ''}`
               : error instanceof Error
-              ? error.message
-              : 'Unknown error'
+                ? error.message
+                : 'Unknown error'
           }`
     )
   }

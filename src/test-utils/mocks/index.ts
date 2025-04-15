@@ -6,8 +6,8 @@ import mock from '@/test-utils/core/mock'
 export const mockBot = {
   telegram: {
     sendMessage: mock.create(),
-    sendVideo: mock.create()
-  }
+    sendVideo: mock.create(),
+  },
 }
 
 mock.object({
@@ -16,7 +16,7 @@ mock.object({
       return { bot: null }
     }
     return { bot: mockBot }
-  }
+  },
 })
 
 // Mock для баланса пользователя
@@ -27,7 +27,7 @@ mock.object({
     }
     return 10 // Недостаточный баланс
   },
-  updateUserBalance: mock.create()
+  updateUserBalance: mock.create(),
 })
 
 // Mock для конфигурации видео моделей
@@ -38,26 +38,26 @@ mock.object({
       basePrice: 100,
       api: {
         model: 'test_model_v1',
-        input: {}
-      }
+        input: {},
+      },
     },
     expensive_model: {
       id: 'expensive_model',
       basePrice: 2000,
       api: {
         model: 'expensive_model_v1',
-        input: {}
-      }
+        input: {},
+      },
     },
     multi_output_model: {
       id: 'multi_output_model',
       basePrice: 150,
       api: {
         model: 'multi_output_model_v1',
-        input: {}
-      }
-    }
-  }
+        input: {},
+      },
+    },
+  },
 })
 
 // Mock для axios
@@ -73,23 +73,23 @@ mock.object({
       return {
         data: {
           id: 'test_prediction',
-          output: ['video1.mp4', 'video2.mp4']
-        }
+          output: ['video1.mp4', 'video2.mp4'],
+        },
       }
     }
     return {
       data: {
         id: 'test_prediction',
-        output: 'video.mp4'
-      }
+        output: 'video.mp4',
+      },
     }
   },
   get: async (url: string, config: any) => {
     return {
       data: {
         status: 'succeeded',
-        output: 'video.mp4'
-      }
+        output: 'video.mp4',
+      },
     }
-  }
-});
+  },
+})

@@ -1,6 +1,6 @@
 /**
  * Генератор отчетов о результатах тестирования
- * 
+ *
  * Этот класс отвечает за создание отчетов о результатах тестирования
  * в различных форматах (HTML, JSON) для удобного анализа и интеграции
  * с другими инструментами.
@@ -16,7 +16,7 @@ import { logger } from '@/utils/logger'
  */
 export enum ReportFormat {
   JSON = 'json',
-  HTML = 'html'
+  HTML = 'html',
 }
 
 /**
@@ -53,20 +53,23 @@ interface ReportData {
     successRate: number
   }
   /** Категоризированные результаты тестов */
-  categories: Record<string, {
-    /** Общее количество тестов в категории */
-    total: number
-    /** Количество успешных тестов в категории */
-    success: number
-    /** Количество неудачных тестов в категории */
-    failed: number
-    /** Количество пропущенных тестов в категории */
-    skipped: number
-    /** Процент успешных тестов в категории */
-    successRate: number
-    /** Результаты отдельных тестов */
-    tests: TestResult[]
-  }>
+  categories: Record<
+    string,
+    {
+      /** Общее количество тестов в категории */
+      total: number
+      /** Количество успешных тестов в категории */
+      success: number
+      /** Количество неудачных тестов в категории */
+      failed: number
+      /** Количество пропущенных тестов в категории */
+      skipped: number
+      /** Процент успешных тестов в категории */
+      successRate: number
+      /** Результаты отдельных тестов */
+      tests: TestResult[]
+    }
+  >
 }
 
 /**
@@ -83,7 +86,8 @@ export class ReportGenerator {
     this.options = {
       outputDir: options.outputDir || 'test-reports',
       reportName: options.reportName || 'test-report',
-      addTimestamp: options.addTimestamp !== undefined ? options.addTimestamp : true,
+      addTimestamp:
+        options.addTimestamp !== undefined ? options.addTimestamp : true,
       detailed: options.detailed !== undefined ? options.detailed : true,
     }
 
@@ -179,7 +183,7 @@ export class ReportGenerator {
 
     // Группируем результаты по категориям
     const categoriesMap: Record<string, TestResult[]> = {}
-    
+
     for (const result of results) {
       const category = result.category || 'Uncategorized'
       if (!categoriesMap[category]) {
@@ -190,15 +194,22 @@ export class ReportGenerator {
 
     // Формируем структуру категорий
     const categories: ReportData['categories'] = {}
-    
+
     for (const [category, tests] of Object.entries(categoriesMap)) {
       const categoryTotal = tests.length
-      const categorySuccess = tests.filter(r => r.status === TestStatus.Success).length
-      const categoryFailed = tests.filter(r => r.status === TestStatus.Failed).length
-      const categorySkipped = tests.filter(r => r.status === TestStatus.Skipped).length
-      const categorySuccessRate = categoryTotal > 0 
-        ? Math.round((categorySuccess / categoryTotal) * 100) 
-        : 0
+      const categorySuccess = tests.filter(
+        r => r.status === TestStatus.Success
+      ).length
+      const categoryFailed = tests.filter(
+        r => r.status === TestStatus.Failed
+      ).length
+      const categorySkipped = tests.filter(
+        r => r.status === TestStatus.Skipped
+      ).length
+      const categorySuccessRate =
+        categoryTotal > 0
+          ? Math.round((categorySuccess / categoryTotal) * 100)
+          : 0
 
       categories[category] = {
         total: categoryTotal,
@@ -455,7 +466,7 @@ export class ReportGenerator {
           </div>
           <div class="card">
             <div class="card-title">Успешность</div>
-            <div class="card-value ${summary.successRate > 80 ? 'success' : (summary.successRate > 50 ? 'skipped' : 'failed')}">${summary.successRate}%</div>
+            <div class="card-value ${summary.successRate > 80 ? 'success' : summary.successRate > 50 ? 'skipped' : 'failed'}">${summary.successRate}%</div>
             <div class="progress-bar">
               <div class="progress-fill" style="width: ${summary.successRate}%"></div>
             </div>
@@ -463,7 +474,7 @@ export class ReportGenerator {
         </div>
         
         <h2>Результаты по категориям</h2>
-    `;
+    `
 
     // Добавляем разделы для каждой категории
     for (const [categoryName, category] of Object.entries(categories)) {
@@ -487,7 +498,7 @@ export class ReportGenerator {
                 Пропущено: <span class="category-stat-value skipped">${category.skipped}</span>
               </div>
               <div class="category-stat">
-                Успешность: <span class="category-stat-value ${category.successRate > 80 ? 'success' : (category.successRate > 50 ? 'skipped' : 'failed')}">${category.successRate}%</span>
+                Успешность: <span class="category-stat-value ${category.successRate > 80 ? 'success' : category.successRate > 50 ? 'skipped' : 'failed'}">${category.successRate}%</span>
               </div>
             </div>
           </div>
@@ -502,21 +513,23 @@ export class ReportGenerator {
                 </tr>
               </thead>
               <tbody>
-      `;
+      `
 
       // Добавляем строку для каждого теста в категории
       for (const test of category.tests) {
-        const statusClass = test.status === TestStatus.Success 
-          ? 'status-success' 
-          : (test.status === TestStatus.Failed 
-            ? 'status-failed' 
-            : 'status-skipped');
-        
-        const statusText = test.status === TestStatus.Success 
-          ? 'Успешно' 
-          : (test.status === TestStatus.Failed 
-            ? 'Неудачно' 
-            : 'Пропущено');
+        const statusClass =
+          test.status === TestStatus.Success
+            ? 'status-success'
+            : test.status === TestStatus.Failed
+              ? 'status-failed'
+              : 'status-skipped'
+
+        const statusText =
+          test.status === TestStatus.Success
+            ? 'Успешно'
+            : test.status === TestStatus.Failed
+              ? 'Неудачно'
+              : 'Пропущено'
 
         html += `
                 <tr>
@@ -525,7 +538,7 @@ export class ReportGenerator {
                   <td>${test.durationMs !== undefined ? test.durationMs.toFixed(2) : '-'}</td>
                   ${this.options.detailed ? `<td>${test.message || '-'}</td>` : ''}
                 </tr>
-        `;
+        `
       }
 
       html += `
@@ -533,7 +546,7 @@ export class ReportGenerator {
             </table>
           </div>
         </div>
-      `;
+      `
     }
 
     // Закрываем HTML-документ и добавляем JavaScript для интерактивности
@@ -564,9 +577,9 @@ export class ReportGenerator {
       </script>
     </body>
     </html>
-    `;
+    `
 
-    return html;
+    return html
   }
 
   /**
@@ -580,7 +593,7 @@ export class ReportGenerator {
     const day = String(now.getDate()).padStart(2, '0')
     const hours = String(now.getHours()).padStart(2, '0')
     const minutes = String(now.getMinutes()).padStart(2, '0')
-    
+
     return `-${year}${month}${day}-${hours}${minutes}`
   }
-} 
+}

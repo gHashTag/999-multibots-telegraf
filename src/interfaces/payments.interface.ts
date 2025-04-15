@@ -686,6 +686,12 @@ export interface PaymentProcessParams {
 
   /** Тип сервиса из ModeEnum */
   service_type: ModeEnum
+
+  /** Статус платежа */
+  status?: string
+
+  /** Код ошибки (если есть) */
+  error_code?: string
 }
 
 /**

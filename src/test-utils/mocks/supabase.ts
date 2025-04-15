@@ -16,7 +16,7 @@ class MockSupabase {
       balance: user.balance || 0,
       subscription_end_date: user.subscription_end_date || null,
       created_at: user.created_at || new Date().toISOString(),
-      updated_at: user.updated_at || new Date().toISOString()
+      updated_at: user.updated_at || new Date().toISOString(),
     }
     this.users.push(newUser)
     return newUser
@@ -33,7 +33,7 @@ class MockSupabase {
     this.users[userIndex] = {
       ...this.users[userIndex],
       ...updates,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     }
     return this.users[userIndex]
   }
@@ -56,7 +56,7 @@ class MockSupabase {
       bot_name: operation.bot_name,
       metadata: operation.metadata,
       created_at: operation.created_at || new Date().toISOString(),
-      updated_at: operation.updated_at || new Date().toISOString()
+      updated_at: operation.updated_at || new Date().toISOString(),
     }
     this.operations.push(newOperation)
     return newOperation
@@ -69,7 +69,7 @@ class MockSupabase {
     this.operations[opIndex] = {
       ...this.operations[opIndex],
       ...updates,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     }
     return this.operations[opIndex]
   }
@@ -94,7 +94,7 @@ mock.object({
               return { data: user }
             }
             return { data: null }
-          }
+          },
         }),
         update: (updates: any) => ({
           eq: (field: string, value: any) => ({
@@ -105,10 +105,10 @@ mock.object({
                   return { data: user }
                 }
                 return { data: null }
-              }
-            })
-          })
-        })
+              },
+            }),
+          }),
+        }),
       }),
       insert: (data: any) => ({
         select: () => ({
@@ -118,16 +118,18 @@ mock.object({
               return { data: operation }
             }
             return { data: null }
-          }
-        })
-      })
+          },
+        }),
+      }),
     }),
     rpc: async (functionName: string, params: any) => {
       if (functionName === 'get_user_balance') {
-        const user = await mockSupabase.getUserByTelegramId(params.user_telegram_id)
+        const user = await mockSupabase.getUserByTelegramId(
+          params.user_telegram_id
+        )
         return { data: user?.balance || 0, error: null }
       }
       return { data: null, error: null }
-    }
-  })
-});
+    },
+  }),
+})

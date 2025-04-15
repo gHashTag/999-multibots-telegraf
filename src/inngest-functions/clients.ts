@@ -28,7 +28,7 @@ const inngestConfig: {
   eventKey: INNGEST_EVENT_KEY || 'development-key',
   signingKey: INNGEST_SIGNING_KEY,
 }
-//
+////
 // Для разработки настраиваем оба необходимых URL
 if (process.env.NODE_ENV === 'development') {
   // baseUrl - для обработки функций через API сервер (в соответствии с документацией)
