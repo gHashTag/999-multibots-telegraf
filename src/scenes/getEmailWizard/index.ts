@@ -4,6 +4,8 @@ import { handleHelpCancel } from '@/handlers'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { WizardScene } from 'telegraf/scenes'
 import { LocalSubscription } from '@/scenes/getRuBillWizard'
+import { TransactionType } from '@/interfaces'
+
 const selectPaymentOptionStep = async (ctx: MyContext) => {
   console.log('CASE 3: selectPaymentOptionStep')
   const isRu = isRussian(ctx)
@@ -29,6 +31,7 @@ const selectPaymentOptionStep = async (ctx: MyContext) => {
         amount: selectedPayment.amount,
         stars: Number(selectedPayment.stars),
         subscription: selectedPayment.subscription as LocalSubscription,
+        type: TransactionType.SUBSCRIPTION_PURCHASE,
       }
       await ctx.scene.enter('getRuBillWizard')
       return

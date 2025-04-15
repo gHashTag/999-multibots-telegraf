@@ -157,6 +157,13 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       })
     }
 
+    ctx.session.selectedPayment = {
+      amount: selectedPayment.amount,
+      stars: Number(selectedPayment.stars),
+      subscription: selectedPayment.subscription as LocalSubscription,
+      type: TransactionType.SUBSCRIPTION_PURCHASE,
+    }
+
     return ctx.scene.leave()
   } catch (error) {
     logger.error('❌ Ошибка при создании счета:', {

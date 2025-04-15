@@ -3,14 +3,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { broadcastService, BroadcastResult } from '@/services/broadcast.service'
-
-// Типы контента для рассылки
-export enum BroadcastContentType {
-  PHOTO = 'photo',
-  VIDEO = 'video',
-  TEXT = 'text',
-  POST_LINK = 'post_link',
-}
+import { BroadcastContentType } from '@/interfaces/broadcast.interface'
 
 // Этапы ввода текста
 enum TextInputStep {
@@ -90,7 +83,7 @@ function getContentTypeFromMessage(
   } else if (text === (isRu ? '📝 Только текст' : '📝 Text only')) {
     return BroadcastContentType.TEXT
   } else if (text === (isRu ? '🔗 Ссылка на пост' : '🔗 Post link')) {
-    return BroadcastContentType.POST_LINK
+    return BroadcastContentType.POST
   }
   return null
 }
@@ -226,7 +219,7 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Сохраняем тип контента в сессии
-    ctx.scene.session.contentType = contentType
+    ctx.scene.session.contentType = contentType as BroadcastContentType
 
     logger.info('Выбран тип контента для рассылки', {
       description: 'Content type selected',
@@ -263,7 +256,7 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
         )
         break
 
-      case BroadcastContentType.POST_LINK:
+      case BroadcastContentType.POST:
         await ctx.reply(
           isRu
             ? 'Пожалуйста, отправьте ссылку на пост в Telegram 🔗\nФормат: https://t.me/channel_name/message_id'
@@ -280,6 +273,20 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
     const contentType = ctx.scene.session.contentType
+
+    if (!contentType) {
+      logger.error('Content type is not defined', {
+        description: 'Content type missing in session',
+        userId: ctx.from?.id,
+      })
+      await ctx.reply(
+        isRu
+          ? 'Произошла ошибка. Пожалуйста, начните сначала.'
+          : 'An error occurred. Please start over.',
+        { reply_markup: Markup.removeKeyboard().reply_markup }
+      )
+      return ctx.scene.leave()
+    }
 
     // Обработка отмены
     if (
@@ -347,14 +354,14 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
         // Запрашиваем английский текст
         await ctx.reply(
           isRu
-            ? 'Теперь введите текст на АНГЛИЙСКОМ языке 🇬🇧'
+            ? 'Теперь введите текст на АНГЛИЙСКОМ языке ��🇧'
             : 'Now enter text in ENGLISH 🇬🇧',
           { reply_markup: createCancelKeyboard(isRu).reply_markup }
         )
         ctx.scene.session.textInputStep = TextInputStep.ENGLISH
         return
 
-      case BroadcastContentType.POST_LINK:
+      case BroadcastContentType.POST:
         if (!ctx.message || !('text' in ctx.message)) {
           await ctx.reply(
             isRu
@@ -383,14 +390,15 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
     const isRu = ctx.from?.language_code === 'ru'
     const contentType = ctx.scene.session.contentType
 
-    // Обработка отмены
-    if (
-      ctx.message &&
-      'text' in ctx.message &&
-      isCancelMessage(ctx.message.text, isRu)
-    ) {
+    if (!contentType) {
+      logger.error('Content type is not defined', {
+        description: 'Content type missing in session',
+        userId: ctx.from?.id,
+      })
       await ctx.reply(
-        isRu ? 'Рассылка отменена ❌' : 'Broadcast cancelled ❌',
+        isRu
+          ? 'Произошла ошибка. Пожалуйста, начните сначала.'
+          : 'An error occurred. Please start over.',
         { reply_markup: Markup.removeKeyboard().reply_markup }
       )
       return ctx.scene.leave()
@@ -398,7 +406,7 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
 
     // Если это пост и пользователь не хочет добавлять текст
     if (
-      contentType === BroadcastContentType.POST_LINK &&
+      contentType === BroadcastContentType.POST &&
       ctx.message &&
       'text' in ctx.message &&
       isNoTextMessage(ctx.message.text, isRu)
@@ -410,7 +418,7 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
 
     // Если это пост и пользователь хочет добавить текст
     if (
-      contentType === BroadcastContentType.POST_LINK &&
+      contentType === BroadcastContentType.POST &&
       ctx.message &&
       'text' in ctx.message &&
       isYesTextMessage(ctx.message.text, isRu)
@@ -514,7 +522,7 @@ export const broadcastWizard = new Scenes.WizardScene<MyContext>(
             result = await sendTextBroadcast(ctx, textRu, ownerTelegramId)
             break
 
-          case BroadcastContentType.POST_LINK:
+          case BroadcastContentType.POST:
             result = await sendPostLinkBroadcast(
               ctx,
               textRu,
@@ -587,7 +595,7 @@ async function showConfirmation(ctx: MyContext) {
   previewMessage += isRu ? '🇬🇧 Английский текст:\n' : '🇬🇧 English text:\n'
   previewMessage += textEn + '\n\n'
 
-  if (contentType === BroadcastContentType.POST_LINK) {
+  if (contentType === BroadcastContentType.POST) {
     previewMessage += isRu
       ? `🔗 Ссылка на пост: ${ctx.scene.session.postLink}`
       : `🔗 Post link: ${ctx.scene.session.postLink}`

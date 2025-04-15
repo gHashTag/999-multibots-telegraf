@@ -1,8 +1,13 @@
 import { MySession } from '../interfaces'
 import { ModeEnum } from '../interfaces/modes'
-import { LocalSubscription } from '../scenes/getRuBillWizard'
+import {
+  SubscriptionType,
+  TransactionType,
+} from '../interfaces/payments.interface'
 
-export const defaultSession = (): MySession => ({
+export const defaultSession = (): MySession & {
+  __scenes: Record<string, unknown>
+} => ({
   memory: {
     messages: [],
   },
@@ -25,7 +30,7 @@ export const defaultSession = (): MySession => ({
   videoUrl: '',
   audioUrl: '',
   amount: 0,
-  subscription: '',
+  subscription: 'stars' as SubscriptionType,
   images: [],
   modelName: '',
   targetUserId: 0,
@@ -39,6 +44,13 @@ export const defaultSession = (): MySession => ({
   selectedPayment: {
     amount: 0,
     stars: 0,
+    type: TransactionType.MONEY_INCOME,
   },
   bypass_payment_check: false,
+  __scenes: {
+    cursor: 0,
+    __scenes: {},
+    data: '',
+    severity: 0,
+  },
 })

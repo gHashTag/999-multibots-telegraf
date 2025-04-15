@@ -14,6 +14,8 @@ interface CreatePendingPaymentParams {
   language?: string
   invoice_url: string
   metadata?: Record<string, any>
+  service_type: ModeEnum
+  type?: TransactionType
 }
 
 /**
@@ -58,8 +60,8 @@ export async function createPendingPayment(
       status: 'PENDING',
       email: params.email,
       invoice_url: params.invoice_url,
-      type: TransactionType.MONEY_INCOME,
-      service_type: ModeEnum.NeuroPhoto,
+      type: params.type || TransactionType.MONEY_INCOME,
+      service_type: params.service_type,
       inv_id: params.inv_id,
       operation_id: params.inv_id,
       language: params.language || 'ru',
