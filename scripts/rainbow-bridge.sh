@@ -15,8 +15,9 @@ ORANGE='\033[0;33m'
 PINK='\033[1;35m'
 NC='\033[0m'
 
-# 📁 Корневая директория скриптов
-SCRIPTS_ROOT="/Users/playra/999-multibots-telegraf/scripts"
+# 📁 Пути
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPTS_DIR/.." && pwd)"
 
 # 🎭 Функция эмоционального вывода
 emotional_echo() {
@@ -103,64 +104,42 @@ run_script() {
     fi
 }
 
-# 🎯 Основная функция
-main() {
-    local choice
+# 🔧 Функция для установки прав доступа
+setup_permissions() {
+    echo -e "${BLUE}🔧 Настраиваю права доступа для скриптов...${NC}"
     
-    show_welcome
+    # Находим все .sh файлы и делаем их исполняемыми
+    find "$SCRIPTS_DIR" -type f -name "*.sh" -exec chmod +x {} \;
     
-    while true; do
-        show_menu
-        read choice
-        
-        case $choice in
-            1)
-                emotional_echo "thinking" "Выбраны системные скрипты..."
-                run_script "$SCRIPTS_ROOT/core/system/system-check.sh"
-                ;;
-            2)
-                emotional_echo "thinking" "Выбрана диагностика..."
-                run_script "$SCRIPTS_ROOT/ai/diagnosis/self-diagnosis.sh"
-                ;;
-            3)
-                emotional_echo "thinking" "Выбрано обучение..."
-                run_script "$SCRIPTS_ROOT/ai/learning/memory-processor.sh"
-                ;;
-            4)
-                emotional_echo "thinking" "Выбрана автоматизация..."
-                run_script "$SCRIPTS_ROOT/automation/auto-tasks.sh"
-                ;;
-            5)
-                emotional_echo "thinking" "Выбрана проверка целостности..."
-                run_script "$SCRIPTS_ROOT/core/integrity/check-integrity.sh"
-                ;;
-            6)
-                emotional_echo "thinking" "Выбраны метрики..."
-                run_script "$SCRIPTS_ROOT/core/metrics/update-metrics.sh"
-                ;;
-            7)
-                emotional_echo "thinking" "Выбран поиск дубликатов..."
-                run_script "$SCRIPTS_ROOT/core/fixes/duplicate-finder.sh"
-                ;;
-            8)
-                emotional_echo "thinking" "Выбран анализ структуры..."
-                run_script "$SCRIPTS_ROOT/core/paths/check-paths.sh"
-                ;;
-            0)
-                emotional_echo "love" "Спасибо за использование Rainbow Bridge! До встречи! 💝"
-                exit 0
-                ;;
-            *)
-                emotional_echo "sad" "Неверный выбор. Пожалуйста, выберите от 0 до 8."
-                ;;
-        esac
-        
-        echo -e "\n${PURPLE}Нажмите Enter для продолжения...${NC}"
-        read
-        clear
-        show_welcome
-    done
+    echo -e "${GREEN}✅ Права доступа настроены${NC}"
 }
 
-# Запускаем скрипт
-main 
+# 📝 Функция для работы с файлами
+file_ops() {
+    local operation=$1
+    shift
+    
+    "$SCRIPTS_DIR/core/system/fast-file-ops.sh" "$operation" "$@"
+}
+
+# 🎯 Основная функция
+main() {
+    case "$1" in
+        "setup")
+            setup_permissions
+            ;;
+        "file")
+            shift
+            file_ops "$@"
+            ;;
+        *)
+            echo -e "${BLUE}ℹ️ Использование:${NC}"
+            echo "  $0 setup - настроить права доступа"
+            echo "  $0 file [read|append|update] [args] - операции с файлами"
+            exit 1
+            ;;
+    esac
+}
+
+# Запускаем основную функцию
+main "$@" 
