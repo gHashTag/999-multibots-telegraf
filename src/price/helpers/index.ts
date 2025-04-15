@@ -1,5 +1,8 @@
-
-export { calculateCostInStars, calculateModeCost, calculateCost } from './calculateCost'
+export {
+  calculateCostInStars,
+  calculateModeCost,
+  calculateCost,
+} from './calculateCost'
 export * from './calculateFinalPrice'
 export * from './calculateStars'
 export * from './costHelpers'
@@ -15,5 +18,5 @@ export * from './starAmounts'
 export * from './validateAndCalculateImageModelPrice'
 export * from './validateAndCalculateVideoModelPrice'
 export * from './voiceConversationCost'
-export * from './processBalanceOperation' 
+export * from './processBalanceOperation'
 export * from './processPayment'

@@ -3,5 +3,5 @@ export enum ModeEnum {
   VIDEO = 'video',
   AUDIO = 'audio',
   TEXT = 'text',
-  DIGITAL_AVATAR = 'digital_avatar'
+  DIGITAL_AVATAR = 'digital_avatar',
 }

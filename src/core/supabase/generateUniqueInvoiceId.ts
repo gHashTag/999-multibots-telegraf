@@ -14,78 +14,84 @@ export async function generateUniqueInvoiceId(
   maxAttempts: number = 3
 ): Promise<string> {
   let attemptCount = 0
-  
+
   while (attemptCount < maxAttempts) {
     attemptCount++
-    
+
     // Генерируем ID
     const id = generateInvoiceId(userId, amount)
-    
+
     // Проверяем, существует ли такой ID в базе
     const { data, error } = await supabase
       .from('payments_v2')
       .select('inv_id')
       .eq('inv_id', id)
       .maybeSingle()
-    
+
     if (error) {
       logger.error('❌ Ошибка при проверке существования инвойс ID', {
         description: 'Error checking if invoice ID exists',
         error,
         id,
-        attemptCount
+        attemptCount,
       })
-      
+
       // Если произошла ошибка при проверке, генерируем случайный ID с префиксом
       // для дополнительной уникальности
       if (attemptCount === maxAttempts) {
         const fallbackId = generateFallbackInvoiceId(userId, amount)
         logger.warn('⚠️ Использован запасной ID для инвойса', {
           description: 'Using fallback invoice ID',
-          fallbackId
+          fallbackId,
         })
         return fallbackId
       }
-      
+
       // Пробуем еще раз
       continue
     }
-    
+
     // Если ID не существует в базе, возвращаем его
     if (!data) {
       if (attemptCount > 1) {
-        logger.info('✅ Сгенерирован уникальный ID инвойса после нескольких попыток', {
-          description: 'Generated unique invoice ID after multiple attempts',
-          id,
-          attemptCount
-        })
+        logger.info(
+          '✅ Сгенерирован уникальный ID инвойса после нескольких попыток',
+          {
+            description: 'Generated unique invoice ID after multiple attempts',
+            id,
+            attemptCount,
+          }
+        )
       } else {
         logger.info('✅ Сгенерирован уникальный ID инвойса', {
           description: 'Generated unique invoice ID',
-          id
+          id,
         })
       }
-      
+
       return id
     }
-    
+
     logger.warn('⚠️ Обнаружен дублирующийся ID инвойса, генерация нового', {
       description: 'Duplicate invoice ID detected, generating new one',
       duplicateId: id,
-      attemptCount
+      attemptCount,
     })
   }
-  
+
   // Если после всех попыток не удалось сгенерировать уникальный ID,
-  // используем запасной вариант с префиксом времени в миллисекундах 
+  // используем запасной вариант с префиксом времени в миллисекундах
   const fallbackId = generateFallbackInvoiceId(userId, amount)
-  
-  logger.warn('⚠️ Использован запасной ID для инвойса после исчерпания попыток', {
-    description: 'Using fallback invoice ID after exhausting attempts',
-    fallbackId,
-    maxAttempts
-  })
-  
+
+  logger.warn(
+    '⚠️ Использован запасной ID для инвойса после исчерпания попыток',
+    {
+      description: 'Using fallback invoice ID after exhausting attempts',
+      fallbackId,
+      maxAttempts,
+    }
+  )
+
   return fallbackId
 }
 
@@ -110,13 +116,16 @@ function generateInvoiceId(userId: string | number, amount: number): string {
  * @param amount Сумма платежа
  * @returns Запасной ID для инвойса
  */
-function generateFallbackInvoiceId(userId: string | number, amount: number): string {
+function generateFallbackInvoiceId(
+  userId: string | number,
+  amount: number
+): string {
   // Используем полный timestamp + хеш от userId и суммы
   const timestamp = Date.now()
   // Берем последние 4 цифры userId для дополнительной уникальности
   const userSuffix = String(userId).slice(-4)
   // Случайное число от 1000 до 9999
   const random = Math.floor(Math.random() * 9000) + 1000
-  
+
   return `${timestamp}${userSuffix}${random}`
-} 
+}

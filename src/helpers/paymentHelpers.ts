@@ -5,7 +5,7 @@ import { logger } from '@/utils/logger'
 /**
  * Функция для обработки платежей
  * Создает событие payment/process для обработки Inngest функцией
- * 
+ *
  * @param telegramId - ID пользователя Telegram
  * @param amount - Сумма платежа
  * @param type - Тип транзакции (income, expense и т.д.)
@@ -15,16 +15,21 @@ import { logger } from '@/utils/logger'
  * @returns Promise<boolean> - Результат операции
  */
 export async function processPayment(
-  telegramId: string, 
-  amount: number, 
-  type: TransactionType, 
-  description: string, 
-  botName: string, 
+  telegramId: string,
+  amount: number,
+  type: TransactionType,
+  description: string,
+  botName: string,
   serviceType: ModeEnum
 ): Promise<boolean> {
   try {
-    logger.info('🚀 Payment processing started', { 
-      telegramId, amount, type, description, botName, serviceType 
+    logger.info('🚀 Payment processing started', {
+      telegramId,
+      amount,
+      type,
+      description,
+      botName,
+      serviceType,
     })
 
     const result = await inngest.send({
@@ -35,21 +40,31 @@ export async function processPayment(
         type: type,
         description: description,
         bot_name: botName,
-        service_type: serviceType
-      }
+        service_type: serviceType,
+      },
     })
 
-    logger.info('✅ Successful payment processing', { telegramId, amount, type, result })
+    logger.info('✅ Successful payment processing', {
+      telegramId,
+      amount,
+      type,
+      result,
+    })
     return true
   } catch (error) {
-    logger.error('❌ Critical error during payment processing', { error, telegramId, amount, type })
+    logger.error('❌ Critical error during payment processing', {
+      error,
+      telegramId,
+      amount,
+      type,
+    })
     return false
   }
 }
 
 /**
  * Вспомогательная функция для списания средств
- * 
+ *
  * @param telegramId - ID пользователя Telegram
  * @param amount - Сумма для списания (положительное число)
  * @param description - Описание операции
@@ -63,12 +78,12 @@ export async function deductFunds(
   description: string,
   botName: string,
   serviceType: ModeEnum
-): Promise<{success: boolean, error?: string}> {
+): Promise<{ success: boolean; error?: string }> {
   try {
     if (amount <= 0) {
       return { success: false, error: 'Amount must be positive' }
     }
-    
+
     const result = await processPayment(
       telegramId,
       amount,
@@ -80,17 +95,24 @@ export async function deductFunds(
 
     return { success: result }
   } catch (error) {
-    logger.error('❌ Error during funds deduction', { error, telegramId, amount })
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error during funds deduction'
+    logger.error('❌ Error during funds deduction', {
+      error,
+      telegramId,
+      amount,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Unknown error during funds deduction',
     }
   }
 }
 
 /**
  * Вспомогательная функция для пополнения баланса
- * 
+ *
  * @param telegramId - ID пользователя Telegram
  * @param amount - Сумма для пополнения (положительное число)
  * @param description - Описание операции
@@ -102,12 +124,12 @@ export async function addFunds(
   amount: number,
   description: string,
   botName: string
-): Promise<{success: boolean, error?: string}> {
+): Promise<{ success: boolean; error?: string }> {
   try {
     if (amount <= 0) {
       return { success: false, error: 'Amount must be positive' }
     }
-    
+
     const result = await processPayment(
       telegramId,
       amount,
@@ -119,10 +141,17 @@ export async function addFunds(
 
     return { success: result }
   } catch (error) {
-    logger.error('❌ Error during funds addition', { error, telegramId, amount })
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error during funds addition'
+    logger.error('❌ Error during funds addition', {
+      error,
+      telegramId,
+      amount,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Unknown error during funds addition',
     }
   }
-} 
+}

@@ -6,7 +6,8 @@ export const TranslationCategory = {
   SYSTEM: 'system',
 } as const
 
-export type TranslationCategoryType = typeof TranslationCategory[keyof typeof TranslationCategory]
+export type TranslationCategoryType =
+  (typeof TranslationCategory)[keyof typeof TranslationCategory]
 
 export interface Translation {
   id: number
@@ -40,4 +41,4 @@ export const SystemTranslationKeys = {
   MAINTENANCE: createTranslationKey('maintenance'),
   RATE_LIMIT: createTranslationKey('rate_limit'),
   SUBSCRIPTION_REQUIRED: createTranslationKey('subscription_required'),
-} as const 
+} as const

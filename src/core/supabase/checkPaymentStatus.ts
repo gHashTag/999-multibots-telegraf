@@ -8,22 +8,22 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import { Logger } from 'winston'
 
 // Определяем тип функции checkFullAccess
-type CheckFullAccessFn = (subscription: Subscription) => boolean;
+type CheckFullAccessFn = (subscription: Subscription) => boolean
 
 export const checkPaymentStatus = async (
   ctx: MyContext,
   subscription: Subscription,
   dependencies: {
-      supabase?: SupabaseClient
-      logger?: Logger
-      isDevelopment?: boolean
-      checkFullAccess?: CheckFullAccessFn
+    supabase?: SupabaseClient
+    logger?: Logger
+    isDevelopment?: boolean
+    checkFullAccess?: CheckFullAccessFn
   } = {}
 ): Promise<boolean> => {
-  const supabase = dependencies.supabase || defaultSupabaseClient;
-  const logger = dependencies.logger || defaultLogger;
-  const isDevelopment = dependencies.isDevelopment ?? isDevConfig;
-  const checkFullAccess = dependencies.checkFullAccess || checkFullAccessHandler;
+  const supabase = dependencies.supabase || defaultSupabaseClient
+  const logger = dependencies.logger || defaultLogger
+  const isDevelopment = dependencies.isDevelopment ?? isDevConfig
+  const checkFullAccess = dependencies.checkFullAccess || checkFullAccessHandler
 
   if (!ctx || !ctx.from || !ctx.from.id) {
     logger.error('Ошибка: ctx или ctx.from или ctx.from.id не определены')
@@ -75,7 +75,7 @@ export const checkPaymentStatus = async (
         return false
       }
     }
-    
+
     return true
   } catch (error) {
     logger.error('Ошибка при проверке статуса оплаты:', error)

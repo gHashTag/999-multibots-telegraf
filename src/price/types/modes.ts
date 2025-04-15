@@ -61,4 +61,4 @@ export interface CostCalculationResult {
 
 export type BaseCosts = {
   [key in ModeEnum | 'neuro_photo_2']?: number
-} 
+}

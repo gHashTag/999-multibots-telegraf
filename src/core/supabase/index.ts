@@ -105,19 +105,19 @@ export const getUserById = async (userId: number, botName: string) => {
       .select('*')
       .eq('id', userId)
       .eq('bot_name', botName)
-      .single();
+      .single()
 
     if (error) {
-      console.error('Ошибка при получении пользователя:', error);
-      return null;
+      console.error('Ошибка при получении пользователя:', error)
+      return null
     }
 
-    return data;
+    return data
   } catch (error) {
-    console.error('Ошибка при получении пользователя:', error);
-    return null;
+    console.error('Ошибка при получении пользователя:', error)
+    return null
   }
-};
+}
 
 /**
  * Скачивает файл по URL
@@ -125,31 +125,36 @@ export const getUserById = async (userId: number, botName: string) => {
  * @param destinationPath Путь для сохранения файла
  * @returns true если файл успешно скачан
  */
-export const downloadFile = async (url: string, destinationPath: string): Promise<boolean> => {
+export const downloadFile = async (
+  url: string,
+  destinationPath: string
+): Promise<boolean> => {
   try {
-    const response = await fetch(url);
-    
+    const response = await fetch(url)
+
     if (!response.ok) {
-      throw new Error(`Ошибка при скачивании файла: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Ошибка при скачивании файла: ${response.status} ${response.statusText}`
+      )
     }
-    
-    const fileStream = fs.createWriteStream(destinationPath);
-    const buffer = await response.arrayBuffer();
-    
+
+    const fileStream = fs.createWriteStream(destinationPath)
+    const buffer = await response.arrayBuffer()
+
     return new Promise((resolve, reject) => {
-      fileStream.write(Buffer.from(buffer), (err) => {
+      fileStream.write(Buffer.from(buffer), err => {
         if (err) {
-          reject(err);
-          return;
+          reject(err)
+          return
         }
-        
+
         fileStream.close(() => {
-          resolve(true);
-        });
-      });
-    });
+          resolve(true)
+        })
+      })
+    })
   } catch (error) {
-    console.error('Ошибка при скачивании файла:', error);
-    throw error;
+    console.error('Ошибка при скачивании файла:', error)
+    throw error
   }
-};
+}

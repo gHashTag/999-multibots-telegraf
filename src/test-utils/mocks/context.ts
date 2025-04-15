@@ -1,7 +1,9 @@
-import { Context } from 'telegraf';
-import { MyContext } from '../../types/context';
+import { Context } from 'telegraf'
+import { MyContext } from '../../types/context'
 
-export const createMockContext = (overrides: Partial<MyContext> = {}): MyContext => {
+export const createMockContext = (
+  overrides: Partial<MyContext> = {}
+): MyContext => {
   const defaultContext: Partial<MyContext> = {
     scene: {
       enter: jest.fn(),
@@ -16,10 +18,10 @@ export const createMockContext = (overrides: Partial<MyContext> = {}): MyContext
     replyWithMarkdown: jest.fn(),
     editMessageText: jest.fn(),
     deleteMessage: jest.fn(),
-  };
+  }
 
   return {
     ...defaultContext,
     ...overrides,
-  } as MyContext;
-}; 
+  } as MyContext
+}

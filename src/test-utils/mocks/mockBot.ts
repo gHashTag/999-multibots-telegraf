@@ -1,6 +1,6 @@
-import { Telegraf } from 'telegraf';
-import { MyContext } from '@/interfaces';
-import mockApi from '@/test-utils/core/mock';
+import { Telegraf } from 'telegraf'
+import { MyContext } from '@/interfaces'
+import mockApi from '@/test-utils/core/mock'
 
 /**
  * Мок-бот для тестирования
@@ -15,6 +15,6 @@ export const mockBot = {
     answerCallbackQuery: mockApi.create(),
     deleteMessage: mockApi.create(),
     editMessageText: mockApi.create(),
-    editMessageReplyMarkup: mockApi.create()
-  }
-} as unknown as Telegraf<MyContext>; 
+    editMessageReplyMarkup: mockApi.create(),
+  },
+} as unknown as Telegraf<MyContext>

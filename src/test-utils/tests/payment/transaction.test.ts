@@ -17,10 +17,7 @@ describe('Transaction Validation Tests', () => {
 
   afterAll(async () => {
     // Очистка тестовых данных
-    await supabase
-      .from('transactions')
-      .delete()
-      .eq('telegram_id', testUserId)
+    await supabase.from('transactions').delete().eq('telegram_id', testUserId)
   })
 
   describe('Transaction Creation', () => {
@@ -36,7 +33,7 @@ describe('Transaction Validation Tests', () => {
             amount,
             type,
             service_type: ModeEnum.NeuroPhoto,
-            description: `Test ${type} transaction`
+            description: `Test ${type} transaction`,
           })
           .select()
           .single()
@@ -50,15 +47,13 @@ describe('Transaction Validation Tests', () => {
     it('should validate transaction amounts', async () => {
       const invalidAmount = -100
 
-      const { error } = await supabase
-        .from('transactions')
-        .insert({
-          telegram_id: testUserId,
-          amount: invalidAmount,
-          type: TransactionType.MONEY_INCOME,
-          service_type: ModeEnum.NeuroPhoto,
-          description: 'Test invalid amount'
-        })
+      const { error } = await supabase.from('transactions').insert({
+        telegram_id: testUserId,
+        amount: invalidAmount,
+        type: TransactionType.MONEY_INCOME,
+        service_type: ModeEnum.NeuroPhoto,
+        description: 'Test invalid amount',
+      })
 
       expect(error).toBeTruthy()
     })
@@ -86,7 +81,7 @@ describe('Transaction Validation Tests', () => {
       const metadata = {
         operation_id: 'test-op-123',
         payment_method: 'Robokassa',
-        extra_info: 'Test metadata'
+        extra_info: 'Test metadata',
       }
 
       const { data, error } = await supabase
@@ -97,7 +92,7 @@ describe('Transaction Validation Tests', () => {
           type: TransactionType.MONEY_INCOME,
           service_type: ModeEnum.NeuroPhoto,
           description: 'Test with metadata',
-          metadata
+          metadata,
         })
         .select()
         .single()
@@ -109,43 +104,37 @@ describe('Transaction Validation Tests', () => {
 
   describe('Transaction Validation', () => {
     it('should require valid telegram_id', async () => {
-      const { error } = await supabase
-        .from('transactions')
-        .insert({
-          telegram_id: '',
-          amount: TEST_PAYMENT_CONFIG.amounts.small,
-          type: TransactionType.MONEY_INCOME,
-          service_type: ModeEnum.NeuroPhoto,
-          description: 'Test invalid telegram_id'
-        })
+      const { error } = await supabase.from('transactions').insert({
+        telegram_id: '',
+        amount: TEST_PAYMENT_CONFIG.amounts.small,
+        type: TransactionType.MONEY_INCOME,
+        service_type: ModeEnum.NeuroPhoto,
+        description: 'Test invalid telegram_id',
+      })
 
       expect(error).toBeTruthy()
     })
 
     it('should require valid service type', async () => {
-      const { error } = await supabase
-        .from('transactions')
-        .insert({
-          telegram_id: testUserId,
-          amount: TEST_PAYMENT_CONFIG.amounts.small,
-          type: TransactionType.MONEY_INCOME,
-          service_type: 'invalid_service',
-          description: 'Test invalid service'
-        })
+      const { error } = await supabase.from('transactions').insert({
+        telegram_id: testUserId,
+        amount: TEST_PAYMENT_CONFIG.amounts.small,
+        type: TransactionType.MONEY_INCOME,
+        service_type: 'invalid_service',
+        description: 'Test invalid service',
+      })
 
       expect(error).toBeTruthy()
     })
 
     it('should require valid transaction type', async () => {
-      const { error } = await supabase
-        .from('transactions')
-        .insert({
-          telegram_id: testUserId,
-          amount: TEST_PAYMENT_CONFIG.amounts.small,
-          type: 'invalid_type',
-          service_type: ModeEnum.NeuroPhoto,
-          description: 'Test invalid type'
-        })
+      const { error } = await supabase.from('transactions').insert({
+        telegram_id: testUserId,
+        amount: TEST_PAYMENT_CONFIG.amounts.small,
+        type: 'invalid_type',
+        service_type: ModeEnum.NeuroPhoto,
+        description: 'Test invalid type',
+      })
 
       expect(error).toBeTruthy()
     })
@@ -158,28 +147,26 @@ describe('Transaction Validation Tests', () => {
         {
           amount: 100,
           type: TransactionType.MONEY_INCOME as TransactionType,
-          description: 'First transaction'
+          description: 'First transaction',
         },
         {
           amount: 50,
           type: TransactionType.MONEY_EXPENSE as TransactionType,
-          description: 'Second transaction'
+          description: 'Second transaction',
         },
         {
           amount: 200,
           type: TransactionType.MONEY_INCOME as TransactionType,
-          description: 'Third transaction'
-        }
+          description: 'Third transaction',
+        },
       ]
 
       for (const tx of transactions) {
-        await supabase
-          .from('transactions')
-          .insert({
-            telegram_id: testUserId,
-            ...tx,
-            service_type: ModeEnum.NeuroPhoto
-          })
+        await supabase.from('transactions').insert({
+          telegram_id: testUserId,
+          ...tx,
+          service_type: ModeEnum.NeuroPhoto,
+        })
       }
 
       const { data } = await supabase
@@ -198,21 +185,19 @@ describe('Transaction Validation Tests', () => {
       const transactions = [
         { amount: 100, type: TransactionType.MONEY_INCOME as TransactionType },
         { amount: 30, type: TransactionType.MONEY_EXPENSE as TransactionType },
-        { amount: 50, type: TransactionType.MONEY_INCOME as TransactionType }
+        { amount: 50, type: TransactionType.MONEY_INCOME as TransactionType },
       ]
 
       let runningBalance = 0
       for (const tx of transactions) {
         runningBalance += tx.type === 'money_income' ? tx.amount : -tx.amount
 
-        await supabase
-          .from('transactions')
-          .insert({
-            telegram_id: testUserId,
-            ...tx,
-            service_type: ModeEnum.NeuroPhoto,
-            description: `Running balance test: ${runningBalance}`
-          })
+        await supabase.from('transactions').insert({
+          telegram_id: testUserId,
+          ...tx,
+          service_type: ModeEnum.NeuroPhoto,
+          description: `Running balance test: ${runningBalance}`,
+        })
       }
 
       // Обновляем баланс пользователя

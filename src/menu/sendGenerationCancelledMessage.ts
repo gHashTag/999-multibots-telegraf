@@ -10,9 +10,8 @@ export const sendGenerationCancelledMessage = async (
   const isRu = userIsRu !== undefined ? userIsRu : isRussian(ctx)
   const message = isRu ? '❌ Генерация отменена' : '❌ Generation cancelled'
   const telegram_id = ctx.from?.id?.toString() || ''
-  const { count, subscription, level } = await getReferalsCountAndUserData(
-    telegram_id
-  )
+  const { count, subscription, level } =
+    await getReferalsCountAndUserData(telegram_id)
 
   // Получаем клавиатуру из mainMenu и отправляем сообщение
   const menuKeyboard = mainMenu({
@@ -21,9 +20,9 @@ export const sendGenerationCancelledMessage = async (
     subscription: subscription || 'stars',
     ctx,
     level,
-  });
+  })
 
   await ctx.reply(message, {
-    reply_markup: menuKeyboard.reply_markup
+    reply_markup: menuKeyboard.reply_markup,
   })
 }

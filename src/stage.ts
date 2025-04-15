@@ -25,8 +25,6 @@ import {
   languageScene,
 } from './scenes'
 
-
-
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
   subscriptionScene,
@@ -50,5 +48,4 @@ export const stage = new Scenes.Stage<MyContext>([
   selectModelScene,
   selectNeuroPhotoScene,
   languageScene,
-
-]) 
+])

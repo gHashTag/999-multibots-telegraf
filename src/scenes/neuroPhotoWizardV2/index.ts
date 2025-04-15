@@ -33,7 +33,6 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
   try {
     console.log('CASE 1: neuroPhotoConversationV2')
 
-    
     logger.info({
       message: '🚀 ЗАПУСК neuroPhotoWizardV2 (v2)',
       description: 'Starting neuroPhotoWizardV2 (v2)',
@@ -63,7 +62,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
             subscription: subscription || 'stars',
             ctx,
             level,
-          }).reply_markup
+          }).reply_markup,
         }
       )
 
@@ -218,9 +217,9 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         ctx,
         level,
       })
-      
+
       await ctx.reply(
-        isRu 
+        isRu
           ? '❌ Пожалуйста, выберите от 1 до 4 изображений'
           : '❌ Please select between 1 and 4 images',
         { reply_markup: keyboard.reply_markup }

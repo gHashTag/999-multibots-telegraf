@@ -1,9 +1,9 @@
-import { Scenes, Context } from 'telegraf';
-import { createMockBot } from '../../mocks/telegrafMock';
-import { Message } from 'telegraf/typings/core/types/typegram';
-import { isRussian } from '../../../utils/i18n';
-import { textToSpeechWizard } from '../../../scenes/textToSpeechWizard';
-import { logger } from '../../../utils/logger';
+import { Scenes, Context } from 'telegraf'
+import { createMockBot } from '../../mocks/telegrafMock'
+import { Message } from 'telegraf/typings/core/types/typegram'
+import { isRussian } from '../../../utils/i18n'
+import { textToSpeechWizard } from '../../../scenes/textToSpeechWizard'
+import { logger } from '../../../utils/logger'
 import { MyContext } from '@/interfaces'
 import { createMockContext } from '../../core/mockContext'
 import { TestResult } from '../../core/types'
@@ -13,50 +13,52 @@ import { inngest } from '@/inngest-functions/clients'
 import { getVoiceId } from '@/core/supabase'
 
 interface MyContext extends Context {
-    session: {
-        textToConvert?: string;
-        voiceId?: string;
-    };
-    scene: Scenes.SceneContextScene<MyContext>;
-    message?: Message.TextMessage;
+  session: {
+    textToConvert?: string
+    voiceId?: string
+  }
+  scene: Scenes.SceneContextScene<MyContext>
+  message?: Message.TextMessage
 }
 
 interface TestContext extends MyContext {
-    reply: jest.Mock;
+  reply: jest.Mock
 }
 
 interface TestResult {
-    name: string;
-    category: string;
-    success: boolean;
-    message: string;
+  name: string
+  category: string
+  success: boolean
+  message: string
 }
 
-const mockIsRussian = jest.fn().mockImplementation((text: string) => text.includes('ru'));
-const mockTextToSpeech = jest.fn();
+const mockIsRussian = jest
+  .fn()
+  .mockImplementation((text: string) => text.includes('ru'))
+const mockTextToSpeech = jest.fn()
 const mockLogger = {
-    info: jest.fn(),
-    error: jest.fn(),
-};
+  info: jest.fn(),
+  error: jest.fn(),
+}
 
 const setupContext = (language: string = 'ru'): TestContext => {
-    const ctx = {
-        ...createMockBot(),
-        scene: {
-            enter: jest.fn(),
-            leave: jest.fn(),
-            state: {},
-        } as Partial<Scenes.SceneContextScene<MyContext>>,
-        session: {},
-        message: {
-            text: language,
-        },
-        reply: jest.fn(),
-    } as TestContext;
-    
-    mockIsRussian.mockReturnValue(language === 'ru');
-    return ctx;
-};
+  const ctx = {
+    ...createMockBot(),
+    scene: {
+      enter: jest.fn(),
+      leave: jest.fn(),
+      state: {},
+    } as Partial<Scenes.SceneContextScene<MyContext>>,
+    session: {},
+    message: {
+      text: language,
+    },
+    reply: jest.fn(),
+  } as TestContext
+
+  mockIsRussian.mockReturnValue(language === 'ru')
+  return ctx
+}
 
 const TEST_USER_ID = 123456789
 const TEST_USERNAME = 'test_user'
@@ -81,7 +83,11 @@ export async function testTextToSpeechWizard_Enter(): Promise<TestResult> {
     await textToSpeechWizard.steps[0](ctx as unknown as MyContext)
 
     // Проверяем, что отправлено правильное сообщение
-    if (!ctx.reply.calledWith('🎙️ Отправьте текст, для преобразования его в голос')) {
+    if (
+      !ctx.reply.calledWith(
+        '🎙️ Отправьте текст, для преобразования его в голос'
+      )
+    ) {
       throw new Error('Неверное сообщение при входе в сцену')
     }
 
@@ -89,7 +95,7 @@ export async function testTextToSpeechWizard_Enter(): Promise<TestResult> {
       name: 'TextToSpeechWizard: Вход в сцену (RU)',
       category: TestCategory.Scenes,
       success: true,
-      message: 'Тест успешно пройден'
+      message: 'Тест успешно пройден',
     }
   } catch (error) {
     logger.error('Ошибка в тесте:', error)
@@ -97,7 +103,7 @@ export async function testTextToSpeechWizard_Enter(): Promise<TestResult> {
       name: 'TextToSpeechWizard: Вход в сцену (RU)',
       category: TestCategory.Scenes,
       success: false,
-      message: String(error)
+      message: String(error),
     }
   }
 }
@@ -129,7 +135,7 @@ export async function testTextToSpeechWizard_EnterEnglish(): Promise<TestResult>
       name: 'TextToSpeechWizard: Вход в сцену (EN)',
       category: TestCategory.Scenes,
       success: true,
-      message: 'Тест успешно пройден'
+      message: 'Тест успешно пройден',
     }
   } catch (error) {
     logger.error('Ошибка в тесте:', error)
@@ -137,7 +143,7 @@ export async function testTextToSpeechWizard_EnterEnglish(): Promise<TestResult>
       name: 'TextToSpeechWizard: Вход в сцену (EN)',
       category: TestCategory.Scenes,
       success: false,
-      message: String(error)
+      message: String(error),
     }
   }
 }
@@ -183,7 +189,7 @@ export async function testTextToSpeechWizard_ProcessText(): Promise<TestResult> 
       name: 'TextToSpeechWizard: Обработка текста',
       category: TestCategory.Scenes,
       success: true,
-      message: 'Тест успешно пройден'
+      message: 'Тест успешно пройден',
     }
   } catch (error) {
     logger.error('Ошибка в тесте:', error)
@@ -191,7 +197,7 @@ export async function testTextToSpeechWizard_ProcessText(): Promise<TestResult> 
       name: 'TextToSpeechWizard: Обработка текста',
       category: TestCategory.Scenes,
       success: false,
-      message: String(error)
+      message: String(error),
     }
   }
 }
@@ -220,7 +226,11 @@ export async function testTextToSpeechWizard_NoVoiceId(): Promise<TestResult> {
     await textToSpeechWizard.steps[1](ctx as unknown as MyContext)
 
     // Проверяем, что отправлено сообщение об отсутствии voice_id
-    if (!ctx.reply.calledWith('🎯 Для корректной работы обучите аватар используя 🎤 Голос для аватара в главном меню')) {
+    if (
+      !ctx.reply.calledWith(
+        '🎯 Для корректной работы обучите аватар используя 🎤 Голос для аватара в главном меню'
+      )
+    ) {
       throw new Error('Неверное сообщение при отсутствии voice_id')
     }
 
@@ -228,7 +238,7 @@ export async function testTextToSpeechWizard_NoVoiceId(): Promise<TestResult> {
       name: 'TextToSpeechWizard: Отсутствующий voice_id',
       category: TestCategory.Scenes,
       success: true,
-      message: 'Тест успешно пройден'
+      message: 'Тест успешно пройден',
     }
   } catch (error) {
     logger.error('Ошибка в тесте:', error)
@@ -236,7 +246,7 @@ export async function testTextToSpeechWizard_NoVoiceId(): Promise<TestResult> {
       name: 'TextToSpeechWizard: Отсутствующий voice_id',
       category: TestCategory.Scenes,
       success: false,
-      message: String(error)
+      message: String(error),
     }
   }
 }
@@ -246,7 +256,7 @@ export async function testTextToSpeechWizard_NoVoiceId(): Promise<TestResult> {
  */
 export async function runTextToSpeechWizardTests(): Promise<TestResult[]> {
   const results: TestResult[] = []
-  
+
   try {
     results.push(await testTextToSpeechWizard_Enter())
     results.push(await testTextToSpeechWizard_EnterEnglish())
@@ -258,11 +268,11 @@ export async function runTextToSpeechWizardTests(): Promise<TestResult[]> {
       name: 'TextToSpeechWizard: Общая ошибка',
       category: TestCategory.Scenes,
       success: false,
-      message: String(error)
+      message: String(error),
     })
   }
-  
+
   return results
 }
 
-export default runTextToSpeechWizardTests 
+export default runTextToSpeechWizardTests

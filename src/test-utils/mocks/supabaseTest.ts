@@ -1,3 +1,3 @@
-import { mockSupabase } from './mockSupabase';
+import { mockSupabase } from './mockSupabase'
 
-export const supabase = mockSupabase; 
+export const supabase = mockSupabase

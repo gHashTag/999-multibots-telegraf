@@ -4,7 +4,7 @@ import { runPaymentProcessorMockTests } from './paymentProcessorMockTest'
 import { logger } from '../../utils/logger'
 
 // Импортируем тесты для сцены подписки
-export * from './scenes/subscriptionCheckScene.test';
+export * from './scenes/subscriptionCheckScene.test'
 
 /**
  * Запуск всех тестов платежного процессора

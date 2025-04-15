@@ -215,13 +215,13 @@ async function processPayment(
     ctx,
     `💫 Пользователь: @${username} (ID: ${userId})\n` +
       `📦 Купил: ${subscriptionName}\n и получил ${stars} звезд 🌟`
-  )                                                                                                                                                                                                                           
+  )
   const isRu = isRussian(ctx)
   await ctx.reply(
     isRu
       ? `✅ **Спасибо за покупку! На ваш баланс добавлено ${stars} ⭐️!**\n` +
           `✨ Теперь вы можете использовать свою подписку. Для этого перейдите в главное меню, нажав на кнопку ниже:\n` +
-          `🏠 /menu\n` +   
+          `🏠 /menu\n` +
           `❓ Если у вас есть вопросы, не стесняйтесь обращаться за помощью /tech\n` +
           `Мы всегда рады помочь!`
       : `✅ **Thank you for your purchase! ${stars} stars added to your balance!**\n` +
@@ -277,12 +277,16 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       })
     }
 
-    logger.info('✅ Завершение обработки успешного платежа (до отправки события)', {
-      description: 'Finishing successful payment processing (before sending event)',
-      telegram_id: ctx.from?.id,
-      amount: stars,
-      inv_id: ctx.message?.successful_payment?.invoice_payload,
-    })
+    logger.info(
+      '✅ Завершение обработки успешного платежа (до отправки события)',
+      {
+        description:
+          'Finishing successful payment processing (before sending event)',
+        telegram_id: ctx.from?.id,
+        amount: stars,
+        inv_id: ctx.message?.successful_payment?.invoice_payload,
+      }
+    )
 
     // Отправляем событие в Inngest для окончательной обработки (баланс и т.д.)
     await inngest.send({
@@ -301,7 +305,7 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
           total_amount_paid: ctx.message?.successful_payment?.total_amount,
           // Добавляем информацию о подписке, если она была
           subscription_type: subscriptionType || undefined,
-        }
+        },
       },
     })
   } catch (error) {

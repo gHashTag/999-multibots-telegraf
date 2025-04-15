@@ -10,7 +10,7 @@ export const ZEP_CONFIG = {
 // Проверяем наличие необходимых переменных окружения
 if (!ZEP_CONFIG.apiKey) {
   logger.error('❌ Отсутствует ZEP_API_KEY в переменных окружения', {
-    description: 'Missing ZEP_API_KEY environment variable'
+    description: 'Missing ZEP_API_KEY environment variable',
   })
   throw new Error('ZEP_API_KEY is required')
 }

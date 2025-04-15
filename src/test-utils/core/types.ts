@@ -3,25 +3,25 @@
  */
 export interface TestResult {
   /** Уникальное имя теста */
-  name: string;
+  name: string
   /** Название теста (оригинальная система) */
-  testName?: string;
+  testName?: string
   /** Признак успешного прохождения теста */
-  success: boolean;
+  success: boolean
   /** Признак успешного прохождения (альтернативное имя) */
-  passed?: boolean;
+  passed?: boolean
   /** Сообщение о результате теста */
-  message: string;
+  message: string
   /** Детали выполнения теста */
-  details?: any;
+  details?: any
   /** Ошибка, если тест не прошел */
-  error?: string | Error;
+  error?: string | Error
   /** Время выполнения теста в миллисекундах */
-  duration?: number;
+  duration?: number
   /** Категория теста */
-  category?: string;
+  category?: string
   /** Метки для группировки и фильтрации */
-  tags?: string[];
+  tags?: string[]
 }
 
 /**
@@ -33,7 +33,7 @@ export enum TestCategory {
   API = 'api',
   INTEGRATION = 'integration',
   UNIT = 'unit',
-  E2E = 'e2e'
+  E2E = 'e2e',
 }
 
 /**
@@ -41,101 +41,101 @@ export enum TestCategory {
  */
 export interface TestConfig {
   /** Базовый URL API */
-  apiUrl: string;
+  apiUrl: string
   /** Токен доступа */
-  token?: string;
+  token?: string
   /** Таймаут запросов в миллисекундах */
-  timeout: number;
+  timeout: number
   /** Включить подробный вывод */
-  verbose: boolean;
+  verbose: boolean
 }
 
 /**
  * Функция выполнения теста
  */
-export type TestFunction = () => Promise<any>;
+export type TestFunction = () => Promise<any>
 
 /**
  * Параметры теста
  */
 export interface TestCase {
-  name: string;
-  category?: string;
-  description?: string;
-  tags?: string[];
-  test: TestFunction;
-  timeout?: number;
-  skip?: boolean;
-  only?: boolean;
+  name: string
+  category?: string
+  description?: string
+  tags?: string[]
+  test: TestFunction
+  timeout?: number
+  skip?: boolean
+  only?: boolean
 }
 
 /**
  * Набор тестов
  */
 export interface TestSuite {
-  name: string;
-  category?: string;
-  description?: string;
-  tests: TestCase[];
-  beforeAll?: TestFunction;
-  afterAll?: TestFunction;
-  beforeEach?: TestFunction;
-  afterEach?: TestFunction;
+  name: string
+  category?: string
+  description?: string
+  tests: TestCase[]
+  beforeAll?: TestFunction
+  afterAll?: TestFunction
+  beforeEach?: TestFunction
+  afterEach?: TestFunction
 }
 
 /**
  * Опции запуска тестов
  */
 export interface RunnerOptions {
-  verbose?: boolean;
-  only?: string[];
-  skip?: string[];
-  category?: string | string[];
-  tags?: string[];
-  timeout?: number;
-  parallel?: number;
-  outputFormat?: 'text' | 'json' | 'html';
-  outputFile?: string;
-  help?: boolean;
-  discover?: boolean;
-  testDir?: string;
+  verbose?: boolean
+  only?: string[]
+  skip?: string[]
+  category?: string | string[]
+  tags?: string[]
+  timeout?: number
+  parallel?: number
+  outputFormat?: 'text' | 'json' | 'html'
+  outputFile?: string
+  help?: boolean
+  discover?: boolean
+  testDir?: string
 }
 
 /**
  * Метаданные для регистрации теста
  */
 export interface TestMetadata {
-  name: string;
-  category?: string;
-  description?: string;
-  tags?: string[];
-  timeout?: number;
-  skip?: boolean;
-  only?: boolean;
-  target: Object;
-  propertyKey: string;
+  name: string
+  category?: string
+  description?: string
+  tags?: string[]
+  timeout?: number
+  skip?: boolean
+  only?: boolean
+  target: Object
+  propertyKey: string
 }
 
 /**
  * Метаданные для регистрации тестового набора
  */
 export interface TestSuiteMetadata {
-  name: string;
-  category?: string;
-  description?: string;
-  target: any;
+  name: string
+  category?: string
+  description?: string
+  target: any
 }
 
 /**
  * Глобальное хранилище метаданных тестов
  */
 export const TEST_REGISTRY: {
-  suites: Map<any, TestSuiteMetadata>;
-  tests: Map<any, TestMetadata[]>;
-  beforeAll: Map<any, string[]>;
-  afterAll: Map<any, string[]>;
-  beforeEach: Map<any, string[]>;
-  afterEach: Map<any, string[]>;
+  suites: Map<any, TestSuiteMetadata>
+  tests: Map<any, TestMetadata[]>
+  beforeAll: Map<any, string[]>
+  afterAll: Map<any, string[]>
+  beforeEach: Map<any, string[]>
+  afterEach: Map<any, string[]>
 } = {
   suites: new Map(),
   tests: new Map(),
@@ -143,44 +143,50 @@ export const TEST_REGISTRY: {
   afterAll: new Map(),
   beforeEach: new Map(),
   afterEach: new Map(),
-};
+}
 
 /**
  * Декоратор для создания тестового набора
  */
-export function TestSuite(name: string, options: { category?: string; description?: string } = {}) {
+export function TestSuite(
+  name: string,
+  options: { category?: string; description?: string } = {}
+) {
   return function (target: any) {
     TEST_REGISTRY.suites.set(target, {
       name,
       category: options.category,
       description: options.description,
-      target
-    });
-    
+      target,
+    })
+
     if (!TEST_REGISTRY.tests.has(target)) {
-      TEST_REGISTRY.tests.set(target, []);
+      TEST_REGISTRY.tests.set(target, [])
     }
-  };
+  }
 }
 
 /**
  * Декоратор для создания теста
  */
-export function Test(name: string, options: { 
-  category?: string; 
-  description?: string; 
-  tags?: string[];
-  timeout?: number;
-  skip?: boolean;
-  only?: boolean;
-} = {}) {
+export function Test(
+  name: string,
+  options: {
+    category?: string
+    description?: string
+    tags?: string[]
+    timeout?: number
+    skip?: boolean
+    only?: boolean
+  } = {}
+) {
   return function (target: Object, propertyKey: string): void {
-    const constructor = target.constructor;
-    
+    const constructor = target.constructor
+
     if (!TEST_REGISTRY.tests.has(constructor)) {
-      TEST_REGISTRY.tests.set(constructor, []);
+      TEST_REGISTRY.tests.set(constructor, [])
     }
-    
+
     TEST_REGISTRY.tests.get(constructor)!.push({
       name,
       category: options.category,
@@ -190,9 +196,9 @@ export function Test(name: string, options: {
       skip: options.skip,
       only: options.only,
       target,
-      propertyKey
-    });
-  };
+      propertyKey,
+    })
+  }
 }
 
 /**
@@ -200,14 +206,14 @@ export function Test(name: string, options: {
  */
 export function BeforeAll() {
   return function (target: Object, propertyKey: string): void {
-    const constructor = target.constructor;
-    
+    const constructor = target.constructor
+
     if (!TEST_REGISTRY.beforeAll.has(constructor)) {
-      TEST_REGISTRY.beforeAll.set(constructor, []);
+      TEST_REGISTRY.beforeAll.set(constructor, [])
     }
-    
-    TEST_REGISTRY.beforeAll.get(constructor)!.push(propertyKey);
-  };
+
+    TEST_REGISTRY.beforeAll.get(constructor)!.push(propertyKey)
+  }
 }
 
 /**
@@ -215,14 +221,14 @@ export function BeforeAll() {
  */
 export function AfterAll() {
   return function (target: Object, propertyKey: string): void {
-    const constructor = target.constructor;
-    
+    const constructor = target.constructor
+
     if (!TEST_REGISTRY.afterAll.has(constructor)) {
-      TEST_REGISTRY.afterAll.set(constructor, []);
+      TEST_REGISTRY.afterAll.set(constructor, [])
     }
-    
-    TEST_REGISTRY.afterAll.get(constructor)!.push(propertyKey);
-  };
+
+    TEST_REGISTRY.afterAll.get(constructor)!.push(propertyKey)
+  }
 }
 
 /**
@@ -230,14 +236,14 @@ export function AfterAll() {
  */
 export function BeforeEach() {
   return function (target: Object, propertyKey: string): void {
-    const constructor = target.constructor;
-    
+    const constructor = target.constructor
+
     if (!TEST_REGISTRY.beforeEach.has(constructor)) {
-      TEST_REGISTRY.beforeEach.set(constructor, []);
+      TEST_REGISTRY.beforeEach.set(constructor, [])
     }
-    
-    TEST_REGISTRY.beforeEach.get(constructor)!.push(propertyKey);
-  };
+
+    TEST_REGISTRY.beforeEach.get(constructor)!.push(propertyKey)
+  }
 }
 
 /**
@@ -245,12 +251,12 @@ export function BeforeEach() {
  */
 export function AfterEach() {
   return function (target: Object, propertyKey: string): void {
-    const constructor = target.constructor;
-    
+    const constructor = target.constructor
+
     if (!TEST_REGISTRY.afterEach.has(constructor)) {
-      TEST_REGISTRY.afterEach.set(constructor, []);
+      TEST_REGISTRY.afterEach.set(constructor, [])
     }
-    
-    TEST_REGISTRY.afterEach.get(constructor)!.push(propertyKey);
-  };
+
+    TEST_REGISTRY.afterEach.get(constructor)!.push(propertyKey)
+  }
 }

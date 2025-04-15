@@ -701,9 +701,8 @@ export async function handleQuestComplete(ctx: MyContext) {
   try {
     const isRu = ctx.from?.language_code === 'ru'
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegram_id
-    )
+    const { count, subscription, level } =
+      await getReferalsCountAndUserData(telegram_id)
     console.log('handleQuestComplete count', count)
     console.log('handleQuestComplete subscription', subscription)
     const message = isRu

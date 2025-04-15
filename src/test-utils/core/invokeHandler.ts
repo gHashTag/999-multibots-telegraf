@@ -17,4 +17,4 @@ export async function invokeHandler(
   } else {
     throw new Error('Invalid handler provided')
   }
-} 
+}

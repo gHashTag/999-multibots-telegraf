@@ -1,4 +1,7 @@
-import { notifyUserAboutSuccess, notifyUserAboutFailure } from '@/helpers/notifications/userNotifier'
+import {
+  notifyUserAboutSuccess,
+  notifyUserAboutFailure,
+} from '@/helpers/notifications/userNotifier'
 import { notifyAdminsAboutPayment } from '@/helpers/notifications/adminNotifier'
 import { inngest } from '@/inngest-functions/clients'
 import { updateUserSubscription } from '@/core/supabase'
@@ -9,7 +12,10 @@ import { getTelegramIdFromInvId } from '@/helpers/getTelegramIdFromInvId'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { createBotByName } from '@/core/bot'
-import { TransactionType, PaymentProcessParams } from '@/interfaces/payments.interface'
+import {
+  TransactionType,
+  PaymentProcessParams,
+} from '@/interfaces/payments.interface'
 import { ModeEnum } from '@/interfaces/payments.interface'
 
 // Константы для вариантов оплаты
@@ -72,7 +78,8 @@ export const ruPaymentProcessPayment = inngest.createFunction(
   async ({ event, step }) => {
     const { IncSum, inv_id } = event.data
     const roundedIncSum = Math.round(Number(IncSum))
-    let userData: Awaited<ReturnType<typeof getTelegramIdFromInvId>> | null = null
+    let userData: Awaited<ReturnType<typeof getTelegramIdFromInvId>> | null =
+      null
 
     try {
       let stars = 0
@@ -86,17 +93,24 @@ export const ruPaymentProcessPayment = inngest.createFunction(
       const { telegram_id, username, language_code, bot_name } = userData
 
       // 2. Определяем тип платежа (подписка или звезды)
-      const paymentDetails = await step.run('determine-payment-type', async () => {
-        const plan = SUBSCRIPTION_PLANS.find(p => p.ru_price === roundedIncSum)
-        if (plan) {
-          return { stars: plan.stars_price, subscription: plan.callback_data }
+      const paymentDetails = await step.run(
+        'determine-payment-type',
+        async () => {
+          const plan = SUBSCRIPTION_PLANS.find(
+            p => p.ru_price === roundedIncSum
+          )
+          if (plan) {
+            return { stars: plan.stars_price, subscription: plan.callback_data }
+          }
+          const option = PAYMENT_OPTIONS.find(
+            opt => opt.amount === roundedIncSum
+          )
+          if (option) {
+            return { stars: option.stars, subscription: '' }
+          }
+          return { stars: 0, subscription: '' }
         }
-        const option = PAYMENT_OPTIONS.find(opt => opt.amount === roundedIncSum)
-        if (option) {
-          return { stars: option.stars, subscription: '' }
-        }
-        return { stars: 0, subscription: '' }
-      })
+      )
 
       stars = paymentDetails.stars
       subscription = paymentDetails.subscription
@@ -128,13 +142,17 @@ export const ruPaymentProcessPayment = inngest.createFunction(
             amount: stars, // Отправляем звезды как amount
             stars: stars,
             telegram_id: telegram_id.toString(),
-            type: subscription ? TransactionType.SUBSCRIPTION_PURCHASE : TransactionType.MONEY_INCOME,
+            type: subscription
+              ? TransactionType.SUBSCRIPTION_PURCHASE
+              : TransactionType.MONEY_INCOME,
             description: subscription
               ? `Покупка подписки ${subscription}`
               : `Пополнение баланса Robokassa на ${stars} звезд`,
             bot_name: bot_name || 'default',
             inv_id: inv_id, // Используем исходный inv_id
-            service_type: subscription ? ModeEnum.Subscribe : ModeEnum.TopUpBalance,
+            service_type: subscription
+              ? ModeEnum.Subscribe
+              : ModeEnum.TopUpBalance,
             metadata: {
               payment_method: 'Robokassa',
               subscription: subscription || undefined,
@@ -159,9 +177,13 @@ export const ruPaymentProcessPayment = inngest.createFunction(
             amount: roundedIncSum, // Показываем сумму в рублях
             currency: 'RUB',
             stars: stars,
-            description: subscription ? `Покупка подписки ${subscription}` : `Пополнение баланса Robokassa`,
+            description: subscription
+              ? `Покупка подписки ${subscription}`
+              : `Пополнение баланса Robokassa`,
             subscription: subscription || undefined,
-            type: subscription ? TransactionType.SUBSCRIPTION_PURCHASE : TransactionType.MONEY_INCOME,
+            type: subscription
+              ? TransactionType.SUBSCRIPTION_PURCHASE
+              : TransactionType.MONEY_INCOME,
             // Баланс здесь неизвестен
           })
         })
@@ -176,8 +198,12 @@ export const ruPaymentProcessPayment = inngest.createFunction(
             currency: 'RUB',
             stars: stars,
             subscription: subscription || undefined,
-            type: subscription ? TransactionType.SUBSCRIPTION_PURCHASE : TransactionType.MONEY_INCOME,
-            description: subscription ? `купил подписку ${subscription}` : `пополнил баланс через Robokassa`,
+            type: subscription
+              ? TransactionType.SUBSCRIPTION_PURCHASE
+              : TransactionType.MONEY_INCOME,
+            description: subscription
+              ? `купил подписку ${subscription}`
+              : `пополнил баланс через Robokassa`,
           })
         })
       } else {
@@ -191,7 +217,8 @@ export const ruPaymentProcessPayment = inngest.createFunction(
             telegram_id: telegram_id.toString(),
             bot_name: bot_name || 'default',
             language_code: language_code || 'ru',
-            error: 'Не найден подходящий тариф или пакет звезд для указанной суммы',
+            error:
+              'Не найден подходящий тариф или пакет звезд для указанной суммы',
             attemptedAmount: roundedIncSum,
             attemptedAction: 'оплаты Robokassa',
           })

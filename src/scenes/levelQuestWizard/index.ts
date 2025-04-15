@@ -28,22 +28,24 @@ const createStepScene = (
   const scene = new Scenes.BaseScene<MyContext>(`step${stepNumber}`)
   scene.enter(async ctx => {
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegram_id
-    )
+    const { count, subscription, level } =
+      await getReferalsCountAndUserData(telegram_id)
     await handler(ctx)
     const isRu = isRussian(ctx)
-    
+
     if (stepNumber < 12) {
       // Create keyboard markup using Markup.keyboard and get the raw markup object
-      const keyboardMarkup = Markup.keyboard([[nextStepText], ['➡️ Завершить']]).resize()
-      
+      const keyboardMarkup = Markup.keyboard([
+        [nextStepText],
+        ['➡️ Завершить'],
+      ]).resize()
+
       await ctx.reply(
         isRu
           ? `Нажмите "${nextStepText}", чтобы продолжить.`
           : `Click "${nextStepText}", to continue.`,
         {
-          reply_markup: keyboardMarkup.reply_markup
+          reply_markup: keyboardMarkup.reply_markup,
         }
       )
     } else {
@@ -54,13 +56,13 @@ const createStepScene = (
         ctx,
         level,
       })
-      
+
       await ctx.reply(
         isRu
           ? `Вы успешно прошли все обучение и достигли максимального уровня! 🌟✨`
           : `You have successfully completed all training and reached the maximum level! 🌟✨`,
         {
-          reply_markup: keyboardMarkup.reply_markup
+          reply_markup: keyboardMarkup.reply_markup,
         }
       )
     }

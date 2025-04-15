@@ -176,16 +176,13 @@ export const paymentProcessor = inngest.createFunction(
 
       // Отправляем уведомление пользователю через новую функцию
       if (process.env.NODE_ENV !== 'production') {
-        logger.info(
-          '📨 Уведомление пользователю в DEV окружении пропущено',
-          {
-            description: 'User notification skipped in dev environment',
-            telegram_id,
-            amount,
-            currentBalance,
-            newBalance,
-          }
-        )
+        logger.info('📨 Уведомление пользователю в DEV окружении пропущено', {
+          description: 'User notification skipped in dev environment',
+          telegram_id,
+          amount,
+          currentBalance,
+          newBalance,
+        })
       } else {
         await step.run('send-user-notification', async () => {
           await notifyUserAboutSuccess({
@@ -210,10 +207,15 @@ export const paymentProcessor = inngest.createFunction(
           username: 'TODO: Get username',
           amount: payment.amount,
           stars: payment.stars,
-          currency: payment.type === TransactionType.MONEY_INCOME ? 'RUB' : '⭐️',
+          currency:
+            payment.type === TransactionType.MONEY_INCOME ? 'RUB' : '⭐️',
           subscription: payment.metadata?.subscription,
           type: payment.type as TransactionType,
-          description: payment.description || (payment.type === TransactionType.MONEY_INCOME ? 'пополнил баланс' : 'списал средства')
+          description:
+            payment.description ||
+            (payment.type === TransactionType.MONEY_INCOME
+              ? 'пополнил баланс'
+              : 'списал средства'),
         })
       })
 

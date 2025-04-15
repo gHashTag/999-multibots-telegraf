@@ -2,10 +2,14 @@
  * Сцена Audio-to-Text для преобразования аудио и видео в текст
  */
 
-import { Scenes } from 'telegraf';
-import { SCENE_ID } from './constants';
-import { entryHandler, fileProcessingHandler, transcriptionHandler } from './handlers';
-import { MyContext } from '@/interfaces';
+import { Scenes } from 'telegraf'
+import { SCENE_ID } from './constants'
+import {
+  entryHandler,
+  fileProcessingHandler,
+  transcriptionHandler,
+} from './handlers'
+import { MyContext } from '@/interfaces'
 
 /**
  * Создает сцену Audio-to-Text
@@ -17,24 +21,24 @@ export const audioToTextScene = (): Scenes.WizardScene<MyContext> => {
     entryHandler,
     fileProcessingHandler,
     transcriptionHandler
-  );
+  )
 
   // Добавляем обработчик начала сцены для инициализации данных
-  scene.enter(async (ctx) => {
+  scene.enter(async ctx => {
     // Если сессия не инициализирована, создаем ее
     if (!ctx.session.audioToText) {
       ctx.session.audioToText = {
         audioFileId: '',
         audioFileUrl: '',
-        transcription: ''
-      };
+        transcription: '',
+      }
     }
-    
+
     // Запускаем первый шаг
-    await entryHandler(ctx);
-  });
+    await entryHandler(ctx)
+  })
 
-  return scene;
-};
+  return scene
+}
 
-export default audioToTextScene(); 
+export default audioToTextScene()

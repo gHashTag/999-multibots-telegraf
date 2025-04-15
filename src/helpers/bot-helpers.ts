@@ -3,12 +3,12 @@
  */
 
 // Импортируем необходимые типы из Telegraf
-import { Telegraf, Context } from 'telegraf';
+import { Telegraf, Context } from 'telegraf'
 
 /**
  * Объект для хранения ботов
  */
-const bots: Record<string, Telegraf<Context>> = {};
+const bots: Record<string, Telegraf<Context>> = {}
 
 /**
  * Регистрирует бота в системе
@@ -16,9 +16,9 @@ const bots: Record<string, Telegraf<Context>> = {};
  * @param bot Экземпляр бота
  */
 export const registerBot = (botName: string, bot: Telegraf<Context>) => {
-  bots[botName] = bot;
-  console.log(`Бот ${botName} зарегистрирован`);
-};
+  bots[botName] = bot
+  console.log(`Бот ${botName} зарегистрирован`)
+}
 
 /**
  * Получает бота по имени
@@ -26,8 +26,8 @@ export const registerBot = (botName: string, bot: Telegraf<Context>) => {
  * @returns Экземпляр бота или undefined, если бот не найден
  */
 export const getBot = (botName: string): Telegraf<Context> | undefined => {
-  return bots[botName];
-};
+  return bots[botName]
+}
 
 /**
  * Получает бота по имени с дополнительными метаданными
@@ -36,19 +36,19 @@ export const getBot = (botName: string): Telegraf<Context> | undefined => {
  */
 export const getBotByName = (botName: string) => {
   try {
-    const bot = getBot(botName);
-    
+    const bot = getBot(botName)
+
     if (!bot) {
-      console.error(`Бот с именем ${botName} не найден`);
-      return null;
+      console.error(`Бот с именем ${botName} не найден`)
+      return null
     }
-    
+
     return {
       bot,
-      botName
-    };
+      botName,
+    }
   } catch (error) {
-    console.error(`Ошибка при получении бота ${botName}:`, error);
-    return null;
+    console.error(`Ошибка при получении бота ${botName}:`, error)
+    return null
   }
-}; 
+}

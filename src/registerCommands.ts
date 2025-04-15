@@ -737,8 +737,16 @@ export function registerCommands({
       )
       return ctx.scene.leave()
     }
-    const keyboard = mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
-    await ctx.reply(isRu ? 'Операция отменена' : 'Operation cancelled', { reply_markup: keyboard.reply_markup })
+    const keyboard = mainMenu({
+      isRu,
+      inviteCount: count,
+      subscription,
+      ctx,
+      level,
+    })
+    await ctx.reply(isRu ? 'Операция отменена' : 'Operation cancelled', {
+      reply_markup: keyboard.reply_markup,
+    })
     return ctx.scene.leave()
   })
 
@@ -858,7 +866,7 @@ export function registerCommands({
     logger.info('🌐 Команда language:', {
       description: 'Language command received',
       telegramId: ctx.from?.id,
-      current_language: getUserLanguage(ctx)
+      current_language: getUserLanguage(ctx),
     })
     await ctx.scene.enter('languageScene')
   })
@@ -867,21 +875,17 @@ export function registerCommands({
     logger.info('🌐 Команда language (composer):', {
       description: 'Language command received (composer)',
       telegramId: ctx.from?.id,
-      current_language: getUserLanguage(ctx)
+      current_language: getUserLanguage(ctx),
     })
     await ctx.scene.enter('languageScene')
   })
 
   // Регистрируем команду для аудио-в-текст
-  composer.command('audio_to_text', async (ctx) => {
+  composer.command('audio_to_text', async ctx => {
     logger.info('🎙️ Команда audio_to_text:', {
       description: 'Audio to text command received',
       telegramId: ctx.from?.id,
-    });
-    await ctx.scene.enter('audioToTextScene');
-  });
-
-
-
-
+    })
+    await ctx.scene.enter('audioToTextScene')
+  })
 }

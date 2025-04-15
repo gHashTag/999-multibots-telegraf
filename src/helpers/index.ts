@@ -19,7 +19,6 @@ export * from './processApiResponse'
 export * from './error/errorMessage'
 export * from './createVoiceAvatar'
 
-
 /**
  * Форматирует результат транскрипции для отображения пользователю
  * @param transcriptionResult Результат транскрипции
@@ -27,15 +26,15 @@ export * from './createVoiceAvatar'
  */
 export const formatTranscriptionResult = (transcriptionResult: any): string => {
   if (!transcriptionResult || !transcriptionResult.text) {
-    return 'Текст не распознан.';
+    return 'Текст не распознан.'
   }
 
-  let formattedText = `<b>📝 Результат транскрипции:</b>\n\n`;
-  formattedText += transcriptionResult.text;
+  let formattedText = `<b>📝 Результат транскрипции:</b>\n\n`
+  formattedText += transcriptionResult.text
 
   if (transcriptionResult.language) {
-    formattedText += `\n\n<i>Определенный язык: ${transcriptionResult.language}</i>`;
+    formattedText += `\n\n<i>Определенный язык: ${transcriptionResult.language}</i>`
   }
 
-  return formattedText;
-};
+  return formattedText
+}

@@ -102,11 +102,11 @@ export class BroadcastService {
   private async loadFile(fileId: string): Promise<Buffer> {
     try {
       const fileInfo = await this.bot.telegram.getFile(fileId)
-      
+
       if (!fileInfo || !fileInfo.file_path) {
-        throw new Error('File not found or file_path is missing');
+        throw new Error('File not found or file_path is missing')
       }
-      
+
       const fileUrl = `https://api.telegram.org/file/bot${this.botToken}/${fileInfo.file_path}`
       const response = await fetch(fileUrl)
       return Buffer.from(await response.arrayBuffer())

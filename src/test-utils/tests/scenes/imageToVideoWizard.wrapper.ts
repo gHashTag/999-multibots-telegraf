@@ -4,36 +4,40 @@
  */
 
 // Set path alias for imports
-require('module-alias/register');
+require('module-alias/register')
 
 // Import the actual test runner
 async function runTests() {
   try {
     // Dynamically import the test file
-    const { default: runImageToVideoWizardTests } = await import('./imageToVideoWizard.test');
-    
+    const { default: runImageToVideoWizardTests } = await import(
+      './imageToVideoWizard.test'
+    )
+
     // Run the tests
-    const results = await runImageToVideoWizardTests();
-    
+    const results = await runImageToVideoWizardTests()
+
     // Log results
     results.forEach(result => {
-      console.log(`${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`);
-    });
-    
+      console.log(
+        `${result.success ? '✅' : '❌'} ${result.name}: ${result.message}`
+      )
+    })
+
     // Return success status
-    return results.every(r => r.success);
+    return results.every(r => r.success)
   } catch (error) {
-    console.error('❌ Error running imageToVideoWizard tests:', error);
-    return false;
+    console.error('❌ Error running imageToVideoWizard tests:', error)
+    return false
   }
 }
 
 // Run tests and exit with appropriate code
 runTests()
   .then(success => {
-    process.exit(success ? 0 : 1);
+    process.exit(success ? 0 : 1)
   })
   .catch(error => {
-    console.error('Fatal error in test execution:', error);
-    process.exit(1);
-  }); 
+    console.error('Fatal error in test execution:', error)
+    process.exit(1)
+  })

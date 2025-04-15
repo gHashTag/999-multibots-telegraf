@@ -24,10 +24,7 @@ describe('Payment Form Tests', () => {
 
   afterAll(async () => {
     // Очистка тестовых данных
-    await supabase
-      .from('payments_v2')
-      .delete()
-      .eq('telegram_id', testUserId)
+    await supabase.from('payments_v2').delete().eq('telegram_id', testUserId)
   })
 
   describe('Payment Form Creation', () => {
@@ -45,7 +42,9 @@ describe('Payment Form Tests', () => {
       )
 
       expect(invoiceUrl).toBeTruthy()
-      expect(invoiceUrl).toContain('https://auth.robokassa.ru/Merchant/Index.aspx')
+      expect(invoiceUrl).toContain(
+        'https://auth.robokassa.ru/Merchant/Index.aspx'
+      )
       expect(invoiceUrl).toContain('MerchantLogin=')
       expect(invoiceUrl).toContain('OutSum=')
       expect(invoiceUrl).toContain('Description=')
@@ -137,15 +136,21 @@ describe('Payment Form Tests', () => {
       expect(document.querySelector('[name="OutSum"]')).toBeTruthy()
       expect(document.querySelector('[name="InvId"]')).toBeTruthy()
       expect(document.querySelector('[name="Description"]')).toBeTruthy()
-      
+
       // Проверяем значения полей
-      const outSumField = document.querySelector('[name="OutSum"]') as HTMLInputElement
+      const outSumField = document.querySelector(
+        '[name="OutSum"]'
+      ) as HTMLInputElement
       expect(outSumField?.value).toBe(amount.toString())
-      
-      const invIdField = document.querySelector('[name="InvId"]') as HTMLInputElement
+
+      const invIdField = document.querySelector(
+        '[name="InvId"]'
+      ) as HTMLInputElement
       expect(invIdField?.value).toBe(invId.toString())
-      
-      const descriptionField = document.querySelector('[name="Description"]') as HTMLInputElement
+
+      const descriptionField = document.querySelector(
+        '[name="Description"]'
+      ) as HTMLInputElement
       expect(descriptionField?.value).toBe(description)
     })
   })
@@ -168,7 +173,7 @@ describe('Payment Form Tests', () => {
       const previewUrl = new URL(invoiceUrl)
       await browser_preview({
         Name: 'Payment Form Preview',
-        Url: previewUrl.origin
+        Url: previewUrl.origin,
       })
 
       // Проверяем, что форма открылась и содержит нужные параметры
@@ -210,14 +215,14 @@ describe('Payment Form Tests', () => {
       )
 
       const url = new URL(invoiceUrl)
-      
+
       // Проверяем обязательные параметры
       expect(url.searchParams.has('MerchantLogin')).toBeTruthy()
       expect(url.searchParams.has('OutSum')).toBeTruthy()
       expect(url.searchParams.has('Description')).toBeTruthy()
       expect(url.searchParams.has('SignatureValue')).toBeTruthy()
       expect(url.searchParams.has('InvId')).toBeTruthy()
-      
+
       // Проверяем формат значений
       expect(Number(url.searchParams.get('OutSum'))).toBe(amount)
       expect(Number(url.searchParams.get('InvId'))).toBe(invId)

@@ -2,7 +2,7 @@
  * Константы для сцены Audio-to-Text
  */
 
-export const SCENE_ID = 'audioToTextScene';
+export const SCENE_ID = 'audioToTextScene'
 
 // Модели для транскрипции
 export enum TranscriptionModels {
@@ -20,20 +20,32 @@ export const PRICE_PER_MINUTE = {
   [TranscriptionModels.WHISPER_SMALL]: 6,
   [TranscriptionModels.WHISPER_MEDIUM]: 10,
   [TranscriptionModels.WHISPER_LARGE]: 15,
-};
+}
 
 // Максимальная длительность аудио в секундах для обработки без разбивки
-export const MAX_SINGLE_AUDIO_DURATION = 600; // 10 минут
+export const MAX_SINGLE_AUDIO_DURATION = 600 // 10 минут
 
 // Размер чанка при разбивке длинного аудио (в секундах)
-export const CHUNK_SIZE = 600; // 10 минут
+export const CHUNK_SIZE = 600 // 10 минут
 
 // Максимальный размер файла для загрузки (в байтах)
-export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+export const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100 MB
 
 // Поддерживаемые форматы аудио и видео
-export const SUPPORTED_AUDIO_FORMATS = ['audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a', 'audio/mpeg'];
-export const SUPPORTED_VIDEO_FORMATS = ['video/mp4', 'video/avi', 'video/mov', 'video/quicktime', 'video/webm'];
+export const SUPPORTED_AUDIO_FORMATS = [
+  'audio/mp3',
+  'audio/wav',
+  'audio/ogg',
+  'audio/m4a',
+  'audio/mpeg',
+]
+export const SUPPORTED_VIDEO_FORMATS = [
+  'video/mp4',
+  'video/avi',
+  'video/mov',
+  'video/quicktime',
+  'video/webm',
+]
 
 // Форматы экспорта
 export enum ExportFormats {
@@ -51,8 +63,8 @@ export enum TranscriptionLanguages {
 }
 
 // События Inngest для обработки аудио
-export const AUDIO_TRANSCRIPTION_EVENT = 'audio/transcription';
-export const AUDIO_PROCESSING_COMPLETED_EVENT = 'audio/processing.completed';
+export const AUDIO_TRANSCRIPTION_EVENT = 'audio/transcription'
+export const AUDIO_PROCESSING_COMPLETED_EVENT = 'audio/processing.completed'
 
 // Коллбэк-данные для кнопок
 export const CALLBACKS = {
@@ -73,4 +85,4 @@ export const CALLBACKS = {
   ACCURACY_MEDIUM: 'accuracy_medium',
   ACCURACY_HIGH: 'accuracy_high',
   START_TRANSCRIPTION: 'start_transcription',
-}; 
+}

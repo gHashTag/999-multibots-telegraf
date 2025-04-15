@@ -27,5 +27,5 @@ export enum SceneEnum {
   Email = 'email_wizard',
   GetRuBill = 'get_ru_bill_wizard',
   Subscription = 'subscription_scene',
-  VoiceToText = 'voice_to_text'
-} 
+  VoiceToText = 'voice_to_text',
+}

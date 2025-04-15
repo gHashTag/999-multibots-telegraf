@@ -3,10 +3,7 @@ import { MyContext } from '@/interfaces'
 import { generateVoiceAvatar } from '@/services/generateVoiceAvatar'
 import { isRussian } from '@/helpers/language'
 import { getUserBalance } from '@/core/supabase'
-import {
-
-  voiceConversationCost,
-} from '@/price/helpers/voiceConversationCost'
+import { voiceConversationCost } from '@/price/helpers/voiceConversationCost'
 import { sendInsufficientStarsMessage } from '@/price/helpers/sendInsufficientStarsMessage'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'

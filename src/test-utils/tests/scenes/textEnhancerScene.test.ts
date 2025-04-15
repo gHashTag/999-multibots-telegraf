@@ -1,243 +1,210 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { isRussian } from '@/helpers'
-import { enhanceText, validateText } from '@/services/textEnhancer'
-import { handleHelpCancel } from '@/handlers'
-import { TestResult } from '../../core/types'
-import { TestCategory } from '../../core/categories'
+import { createMockContext, MockContext } from '@/test-utils/core/mockContext'
+import { IMockFunction, mockFn } from '@/test-utils/core/mockFunction'
+import { expect } from '@/test-utils/core/assert'
+import { TestCategory } from '@/test-utils/core/categories'
+import { TestResult } from '@/test-utils/core/types'
+import { enhanceText } from '@/services/enhanceText'
+import { logger } from '@/utils/logger'
 
-// Константы для тестов
+// Mock dependencies
+const mockedEnhanceText = mockFn<typeof enhanceText>()
+const mockedLogger = {
+  info: mockFn<typeof logger.info>(),
+  error: mockFn<typeof logger.error>()
+}
+
+// Test constants
 const TEST_USER_ID = 123456789
-const TEST_CHAT_ID = 987654321
-const TEST_BOT_USERNAME = 'test_bot'
-const TEST_TEXT = 'Тестовый текст для улучшения'
+const TEST_TEXT = 'Test text to enhance'
+const ENHANCED_TEXT = 'Enhanced test text'
 
-// Создание мок-функций
-function createMockFunction<T extends (...args: any[]) => any>(implementation?: T) {
-  const calls: any[][] = []
-  const fn = (...args: any[]) => {
-    calls.push(args)
-    return implementation?.(...args)
+// Helper function to create test context
+function createTestContext(language = 'ru'): MockContext {
+  const ctx = createMockContext()
+  ctx.from = {
+    id: TEST_USER_ID,
+    is_bot: false,
+    first_name: 'Test',
+    language_code: language,
   }
-  fn.calls = calls
-  return fn
+  return ctx
 }
 
-// Моки
-const mockIsRussian = createMockFunction((ctx: MyContext) => true)
-const mockEnhanceText = createMockFunction(async (params: any, ctx: any) => ({
-  enhancedText: `Улучшенная версия: ${params.text}`,
-  originalText: params.text,
-  style: params.style || 'default',
-  tone: params.tone || 'neutral',
-  length: params.length || 'medium'
-}))
-const mockHandleHelpCancel = createMockFunction(async () => false)
-
-// Создание тестового контекста
-function createTestContext() {
-  return {
-    from: { id: TEST_USER_ID },
-    chat: { id: TEST_CHAT_ID },
-    botInfo: { username: TEST_BOT_USERNAME },
-    wizard: {
-      next: () => 1,
-      selectStep: (step: number) => {},
-      step: 0
-    },
-    scene: {
-      leave: createMockFunction(async () => {}),
-      reenter: createMockFunction(async () => {})
-    },
-    reply: createMockFunction(async (text: string, extra?: any) => {}),
-    message: null as any,
-    session: {} as any
-  }
+// Setup function to reset mocks before each test
+function setupTest() {
+  mockedEnhanceText.mockReset()
+  mockedLogger.info.mockReset()
+  mockedLogger.error.mockReset()
 }
 
-// Тест: Вход в сцену улучшения текста
+/**
+ * Test entering the textEnhancerScene
+ */
 async function testTextEnhancerScene_Enter(): Promise<TestResult> {
-  console.log('🚀 Запуск теста: Вход в сцену textEnhancerScene (RU)')
-  
   try {
+    setupTest()
     const ctx = createTestContext()
-    const scene = new Scenes.WizardScene<MyContext>(
-      'textEnhancerScene',
-      async (ctx) => {
-        await ctx.reply(
-          'Отправьте текст, который нужно улучшить:',
-          {
-            reply_markup: {
-              keyboard: [['Отмена']],
-              resize_keyboard: true
-            }
-          }
-        )
-        return ctx.wizard.next()
-      }
-    )
 
-    await scene.middleware()(ctx as any, async () => {})
+    // Import and run the scene
+    const { textEnhancerScene } = await import('@/scenes/textEnhancerScene')
+    await textEnhancerScene.steps[0](ctx as MyContext)
 
-    // Проверяем отправку правильного сообщения
-    const replyCall = ctx.reply.calls[0]
-    if (!replyCall || !replyCall[0].includes('Отправьте текст')) {
-      throw new Error('Неверное сообщение при входе в сцену')
-    }
+    // Check that the correct message was sent
+    const expectedMessage = '✍️ Пожалуйста, отправьте текст, который нужно улучшить'
+    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining(expectedMessage))
 
     return {
       name: 'TextEnhancer: Enter Scene',
       category: TestCategory.SCENE,
       success: true,
-      message: 'Успешный вход в сцену и отображение приглашения'
+      message: 'Successfully entered scene and displayed prompt',
     }
-  } catch (error: any) {
+  } catch (error) {
     return {
       name: 'TextEnhancer: Enter Scene',
       category: TestCategory.SCENE,
       success: false,
-      message: `Ошибка при входе в сцену: ${error.message}`
+      message: String(error),
     }
   }
 }
 
-// Тест: Отправка текста для улучшения
-async function testTextEnhancerScene_SubmitText(): Promise<TestResult> {
-  console.log('🚀 Запуск теста: Отправка текста для улучшения')
-  
+/**
+ * Test successful text enhancement
+ */
+async function testTextEnhancerScene_EnhanceText(): Promise<TestResult> {
   try {
+    setupTest()
     const ctx = createTestContext()
-    ctx.message = { text: TEST_TEXT } as any
-    ctx.wizard.step = 1
-    
-    const scene = new Scenes.WizardScene<MyContext>(
-      'textEnhancerScene',
-      async () => 1,
-      async (ctx) => {
-        const message = ctx.message
-        if (!message || !('text' in message)) {
-          await ctx.reply('Пожалуйста, отправьте текстовое сообщение.')
-          return ctx.scene.reenter()
-        }
+    ctx.message = { text: TEST_TEXT } as Scenes.SceneContext['message']
 
-        if (!validateText(message.text)) {
-          await ctx.reply('Текст слишком длинный или пустой. Пожалуйста, отправьте текст от 1 до 2000 символов.')
-          return ctx.scene.reenter()
-        }
+    // Mock enhanceText to return enhanced version
+    mockedEnhanceText.mockResolvedValue(ENHANCED_TEXT)
 
-        const result = await enhanceText({ text: message.text }, ctx)
-        await ctx.reply(result.enhancedText)
-        return ctx.scene.leave()
-      }
-    )
+    // Import and run the scene
+    const { textEnhancerScene } = await import('@/scenes/textEnhancerScene')
+    await textEnhancerScene.steps[1](ctx)
 
-    await scene.middleware()(ctx as any, async () => {})
+    // Check that enhanceText was called with correct parameters
+    expect(mockedEnhanceText).toHaveBeenCalledWith(TEST_TEXT)
 
-    // Проверяем вызов функции улучшения текста
-    if (mockEnhanceText.calls.length === 0) {
-      throw new Error('Функция улучшения текста не была вызвана')
-    }
+    // Check that the enhanced text was sent back
+    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining(ENHANCED_TEXT))
+
+    // Check that success was logged
+    expect(mockedLogger.info).toHaveBeenCalled()
 
     return {
-      name: 'TextEnhancer: Submit Text',
+      name: 'TextEnhancer: Enhance Text',
       category: TestCategory.SCENE,
       success: true,
-      message: 'Успешная обработка текста и улучшение'
+      message: 'Successfully enhanced and returned text',
     }
-  } catch (error: any) {
+  } catch (error) {
     return {
-      name: 'TextEnhancer: Submit Text',
+      name: 'TextEnhancer: Enhance Text',
       category: TestCategory.SCENE,
       success: false,
-      message: `Ошибка при обработке текста: ${error.message}`
+      message: String(error),
     }
   }
 }
 
-// Тест: Отправка некорректного текста
-async function testTextEnhancerScene_InvalidText(): Promise<TestResult> {
-  console.log('🚀 Запуск теста: Отправка некорректного текста')
-  
+/**
+ * Test error handling during text enhancement
+ */
+async function testTextEnhancerScene_Error(): Promise<TestResult> {
   try {
+    setupTest()
     const ctx = createTestContext()
-    ctx.message = { text: '' } as any
-    ctx.wizard.step = 1
-    
-    const scene = new Scenes.WizardScene<MyContext>(
-      'textEnhancerScene',
-      async () => 1,
-      async (ctx) => {
-        const message = ctx.message
-        if (!message || !('text' in message)) {
-          await ctx.reply('Пожалуйста, отправьте текстовое сообщение.')
-          return ctx.scene.reenter()
-        }
+    ctx.message = { text: TEST_TEXT } as Scenes.SceneContext['message']
 
-        if (!validateText(message.text)) {
-          await ctx.reply('Текст слишком длинный или пустой. Пожалуйста, отправьте текст от 1 до 2000 символов.')
-          return ctx.scene.reenter()
-        }
+    // Mock enhanceText to throw error
+    mockedEnhanceText.mockRejectedValue(new Error('Test error'))
 
-        return ctx.wizard.next()
-      }
-    )
+    // Import and run the scene
+    const { textEnhancerScene } = await import('@/scenes/textEnhancerScene')
+    await textEnhancerScene.steps[1](ctx)
 
-    await scene.middleware()(ctx as any, async () => {})
+    // Check that error was logged
+    expect(mockedLogger.error).toHaveBeenCalled()
 
-    // Проверяем отправку сообщения об ошибке
-    const replyCall = ctx.reply.calls[0]
-    if (!replyCall || !replyCall[0].includes('слишком длинный или пустой')) {
-      throw new Error('Не отправлено сообщение об ошибке при пустом тексте')
-    }
+    // Check that error message was sent to user
+    const expectedError = '❌ Произошла ошибка при улучшении текста'
+    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining(expectedError))
 
     return {
-      name: 'TextEnhancer: Invalid Text',
+      name: 'TextEnhancer: Error Handling',
       category: TestCategory.SCENE,
       success: true,
-      message: 'Успешная обработка некорректного текста'
+      message: 'Successfully handled enhancement error',
     }
-  } catch (error: any) {
+  } catch (error) {
     return {
-      name: 'TextEnhancer: Invalid Text',
+      name: 'TextEnhancer: Error Handling',
       category: TestCategory.SCENE,
       success: false,
-      message: `Ошибка при обработке некорректного текста: ${error.message}`
+      message: String(error),
     }
   }
 }
 
-// Функция для запуска всех тестов
+/**
+ * Test handling of non-text messages
+ */
+async function testTextEnhancerScene_NonTextMessage(): Promise<TestResult> {
+  try {
+    setupTest()
+    const ctx = createTestContext()
+    ctx.message = { photo: [] } as Scenes.SceneContext['message']
+
+    // Import and run the scene
+    const { textEnhancerScene } = await import('@/scenes/textEnhancerScene')
+    await textEnhancerScene.steps[1](ctx)
+
+    // Check that error message was sent
+    const expectedError = '❌ Пожалуйста, отправьте текстовое сообщение'
+    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining(expectedError))
+
+    return {
+      name: 'TextEnhancer: Non-text Message',
+      category: TestCategory.SCENE,
+      success: true,
+      message: 'Successfully handled non-text message',
+    }
+  } catch (error) {
+    return {
+      name: 'TextEnhancer: Non-text Message',
+      category: TestCategory.SCENE,
+      success: false,
+      message: String(error),
+    }
+  }
+}
+
+/**
+ * Run all textEnhancerScene tests
+ */
 export async function runTextEnhancerSceneTests(): Promise<TestResult[]> {
-  console.log('🚀 Запуск тестов для textEnhancerScene')
-  
-  const testResults = [
-    await testTextEnhancerScene_Enter(),
-    await testTextEnhancerScene_SubmitText(),
-    await testTextEnhancerScene_InvalidText()
-  ]
-  
-  let passedTests = 0
-  let failedTests = 0
-  
-  testResults.forEach(result => {
-    if (result.success) {
-      passedTests++
-      console.log(`✅ ${result.name}: ${result.message}`)
-    } else {
-      failedTests++
-      console.log(`❌ ${result.name}: ${result.message}`)
-    }
-  })
-  
-  console.log(`\n📊 Результаты тестирования textEnhancerScene:`)
-  console.log(`✅ Успешно: ${passedTests}`)
-  console.log(`❌ Неудачно: ${failedTests}`)
-  console.log(`📝 Всего тестов: ${testResults.length}`)
-  
-  return testResults
+  const results: TestResult[] = []
+
+  try {
+    results.push(await testTextEnhancerScene_Enter())
+    results.push(await testTextEnhancerScene_EnhanceText())
+    results.push(await testTextEnhancerScene_Error())
+    results.push(await testTextEnhancerScene_NonTextMessage())
+  } catch (error) {
+    results.push({
+      name: 'TextEnhancer Scene Tests',
+      category: TestCategory.SCENE,
+      success: false,
+      message: String(error),
+    })
+  }
+
+  return results
 }
 
-// Запуск тестов при прямом вызове файла
-if (require.main === module) {
-  runTextEnhancerSceneTests().catch(console.error)
-} 
+export default runTextEnhancerSceneTests

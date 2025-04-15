@@ -113,11 +113,14 @@ export const levels: Record<number, Level> = {
 // Инвертированный объект для поиска уровня по названию
 export const levelsInverse: { [key: string]: number } = Object.entries(
   levels
-).reduce((acc, [level, { title_ru, title_en }]) => {
-  acc[title_ru] = Number(level)
-  acc[title_en] = Number(level)
-  return acc
-}, {} as { [key: string]: number })
+).reduce(
+  (acc, [level, { title_ru, title_en }]) => {
+    acc[title_ru] = Number(level)
+    acc[title_en] = Number(level)
+    return acc
+  },
+  {} as { [key: string]: number }
+)
 
 export const mainMenuButton = {
   title_ru: '🏠 Главное меню',
@@ -126,16 +129,16 @@ export const mainMenuButton = {
 
 // Функция для получения кнопок меню
 export const mainMenu = (options: {
-  isRu: boolean;
-  inviteCount: number;
-  subscription: Subscription;
-  ctx: MyContext;
-  level: number;
-  additionalButtons?: Level[]; 
+  isRu: boolean
+  inviteCount: number
+  subscription: Subscription
+  ctx: MyContext
+  level: number
+  additionalButtons?: Level[]
 }) => {
   try {
-    const { isRu, level, subscription, additionalButtons = [] } = options;
-    const isSubscribed = subscription !== 'stars';
+    const { isRu, level, subscription, additionalButtons = [] } = options
+    const isSubscribed = subscription !== 'stars'
     const rows: string[][] = []
 
     // Создаем первую строку кнопок (базовая функциональность)
@@ -203,6 +206,8 @@ export const mainMenu = (options: {
   } catch (error) {
     console.error('Error in mainMenu:', error)
     // Возвращаем базовую клавиатуру в случае ошибки
-    return Markup.keyboard([[levels[2].title_ru, levels[100].title_ru]]).resize()
+    return Markup.keyboard([
+      [levels[2].title_ru, levels[100].title_ru],
+    ]).resize()
   }
 }

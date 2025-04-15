@@ -11,9 +11,9 @@ import './types/global'
 process.env.NODE_ENV = 'test'
 
 // Загружаем переменные окружения для тестов
-dotenv.config({ 
+dotenv.config({
   path: path.resolve(process.cwd(), '.env.test'),
-  override: true
+  override: true,
 })
 
 // Устанавливаем мок-ключ для ElevenLabs API

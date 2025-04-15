@@ -5,7 +5,7 @@ import { logger } from '@/utils/logger'
  * Тестер для базовых Inngest функций
  */
 const tester = new InngestFunctionTester({
-  verbose: true
+  verbose: true,
 })
 
 /**
@@ -46,34 +46,34 @@ export async function testTextToVideo() {
 export async function runAllBasicTests() {
   logger.info('Запуск всех базовых тестов Inngest функций')
   const results = []
-  
+
   try {
     results.push(await testModelTraining())
   } catch (error) {
     logger.error('Ошибка при тестировании тренировки модели', error)
     results.push({ success: false, error })
   }
-  
+
   try {
     results.push(await testNeuroPhotoGeneration())
   } catch (error) {
     logger.error('Ошибка при тестировании генерации нейрофото', error)
     results.push({ success: false, error })
   }
-  
+
   try {
     results.push(await testNeuroPhotoV2Generation())
   } catch (error) {
     logger.error('Ошибка при тестировании генерации нейрофото V2', error)
     results.push({ success: false, error })
   }
-  
+
   try {
     results.push(await testTextToVideo())
   } catch (error) {
     logger.error('Ошибка при тестировании текст-в-видео', error)
     results.push({ success: false, error })
   }
-  
+
   return results
-} 
+}

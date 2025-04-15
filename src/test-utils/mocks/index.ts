@@ -30,30 +30,33 @@ export * from './types'
 /**
  * Mock function for getting bot instance by name
  */
-export const getBotByName = mockFn<(name: string) => any>()
-  .mockImplementation((name: string) => {
+export const getBotByName = mockFn<(name: string) => any>().mockImplementation(
+  (name: string) => {
     if (name === 'nonexistent_bot') {
       return { bot: null }
     }
     return { bot: mockBot }
-  })
+  }
+)
 
 /**
  * Mock function for getting user balance
  */
-export const getUserBalance = mockFn<(userId: number) => Promise<number>>()
-  .mockImplementation(async (userId: number) => {
-    if (userId === 123456) {
-      return 1000 // Достаточный баланс для обычных операций
-    }
-    return 10 // Недостаточный баланс
-  })
+export const getUserBalance = mockFn<
+  (userId: number) => Promise<number>
+>().mockImplementation(async (userId: number) => {
+  if (userId === 123456) {
+    return 1000 // Достаточный баланс для обычных операций
+  }
+  return 10 // Недостаточный баланс
+})
 
 /**
  * Mock function for updating user balance
  */
-export const updateUserBalance = mockFn<(userId: number, amount: number) => Promise<void>>()
-  .mockImplementation(async () => {})
+export const updateUserBalance = mockFn<
+  (userId: number, amount: number) => Promise<void>
+>().mockImplementation(async () => {})
 
 /**
  * Mock configuration for video models
@@ -66,13 +69,14 @@ export const videoModels = {
 /**
  * Mock axios request implementation
  */
-export const mockAxiosRequest = mockFn<(config: any) => Promise<any>>()
-  .mockImplementation(async (config: any) => {
-    if (config.url.includes('error')) {
-      throw new Error('Mock API error')
-    }
-    return { data: { success: true } }
-  })
+export const mockAxiosRequest = mockFn<
+  (config: any) => Promise<any>
+>().mockImplementation(async (config: any) => {
+  if (config.url.includes('error')) {
+    throw new Error('Mock API error')
+  }
+  return { data: { success: true } }
+})
 
 // Mock для конфигурации видео моделей
 mock.object({
@@ -82,26 +86,26 @@ mock.object({
       basePrice: 100,
       api: {
         model: 'test_model_v1',
-        input: {}
-      }
+        input: {},
+      },
     },
     expensive_model: {
       id: 'expensive_model',
       basePrice: 2000,
       api: {
         model: 'expensive_model_v1',
-        input: {}
-      }
+        input: {},
+      },
     },
     multi_output_model: {
       id: 'multi_output_model',
       basePrice: 150,
       api: {
         model: 'multi_output_model_v1',
-        input: {}
-      }
-    }
-  }
+        input: {},
+      },
+    },
+  },
 })
 
 // Mock для axios
@@ -117,23 +121,23 @@ mock.object({
       return {
         data: {
           id: 'test_prediction',
-          output: ['video1.mp4', 'video2.mp4']
-        }
+          output: ['video1.mp4', 'video2.mp4'],
+        },
       }
     }
     return {
       data: {
         id: 'test_prediction',
-        output: 'video.mp4'
-      }
+        output: 'video.mp4',
+      },
     }
   },
   get: async (url: string, config: any) => {
     return {
       data: {
         status: 'succeeded',
-        output: 'video.mp4'
-      }
+        output: 'video.mp4',
+      },
     }
-  }
+  },
 })

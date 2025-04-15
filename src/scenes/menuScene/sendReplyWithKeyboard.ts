@@ -17,7 +17,7 @@ export const sendReplyWithKeyboard = async (
       },
       parse_mode: 'HTML',
     })
-    
+
     // Send the reply keyboard separately after sending the photo
     await ctx.reply('👇', {
       reply_markup: menu,
@@ -30,7 +30,7 @@ export const sendReplyWithKeyboard = async (
       },
       parse_mode: 'HTML',
     })
-    
+
     // Send the reply keyboard separately after sending the inline keyboard
     await ctx.reply('👇', {
       reply_markup: menu,

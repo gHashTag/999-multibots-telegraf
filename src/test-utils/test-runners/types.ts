@@ -3,27 +3,27 @@
  * @module test-runners/types
  */
 
-import { TestCategory } from '../core/types';
+import { TestCategory } from '../core/types'
 
 export interface TestRunnerConfig {
   /** Включить подробное логирование */
-  verbose?: boolean;
-  
+  verbose?: boolean
+
   /** Фильтр для запуска конкретных тестов */
-  filter?: string | RegExp;
-  
+  filter?: string | RegExp
+
   /** Таймаут для каждого теста (мс) */
-  timeout?: number;
-  
+  timeout?: number
+
   /** Запускать тесты параллельно */
-  parallel?: boolean;
-  
+  parallel?: boolean
+
   /** Категория тестов */
-  category?: TestCategory;
-  
+  category?: TestCategory
+
   /** Пропустить определенные тесты */
-  skip?: string[];
-  
+  skip?: string[]
+
   /** Запустить только указанные тесты */
-  only?: string[];
-} 
+  only?: string[]
+}

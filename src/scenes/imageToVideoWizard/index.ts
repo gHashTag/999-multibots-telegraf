@@ -17,8 +17,8 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     try {
       // Запрашиваем модель
       await ctx.reply(
-        isRu 
-          ? '🎥 Выберите модель для генерации видео:' 
+        isRu
+          ? '🎥 Выберите модель для генерации видео:'
           : '🎥 Choose video generation model:',
         {
           reply_markup: videoModelKeyboard(isRu, 'image').reply_markup,

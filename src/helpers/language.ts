@@ -12,12 +12,12 @@ export const getUserLanguage = (ctx: MyContext): string => {
   if (ctx.session && ctx.session.language) {
     return ctx.session.language
   }
-  
+
   // Then check language from Telegram
   if (ctx.from?.language_code) {
     return ctx.from.language_code
   }
-  
+
   // Default to English
   return 'en'
 }
@@ -27,7 +27,7 @@ export const getUserLanguage = (ctx: MyContext): string => {
  */
 export const setUserLanguage = (ctx: MyContext, language: string): string => {
   if (!ctx.session) return language
-  
+
   ctx.session.language = language
   return language
 }

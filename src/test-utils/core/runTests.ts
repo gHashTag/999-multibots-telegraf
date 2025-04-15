@@ -282,16 +282,23 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
       )
 
       // Проверяем, нужно ли запускать тесты валидации URL Robokassa
-      const shouldRunRobokassaFormTests = isInCategory(
-        TestCategory.Payment,
-        options.category ?? TestCategory.All
-      ) || options.category === 'robokassa'
+      const shouldRunRobokassaFormTests =
+        isInCategory(
+          TestCategory.Payment,
+          options.category ?? TestCategory.All
+        ) || options.category === 'robokassa'
 
       // Добавляем проверку для новой категории Supabase
-      const shouldRunDatabaseTests = isInCategory(TestCategory.Database, options.category ?? TestCategory.All)
+      const shouldRunDatabaseTests = isInCategory(
+        TestCategory.Database,
+        options.category ?? TestCategory.All
+      )
 
       // Добавляем проверку для категории Api (для checkFullAccess)
-      const shouldRunApiTests = isInCategory(TestCategory.Api, options.category ?? TestCategory.All)
+      const shouldRunApiTests = isInCategory(
+        TestCategory.Api,
+        options.category ?? TestCategory.All
+      )
 
       // Запускаем тесты переводов, если выбрана соответствующая категория
       if (shouldRunTranslationTests) {
@@ -320,7 +327,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
                   description: result.message || 'Translation validation',
                   run: async () => {
                     if (!result.success) {
-                      throw new Error(result.message || 'Translation test failed')
+                      throw new Error(
+                        result.message || 'Translation test failed'
+                      )
                     }
                     return result
                   },
@@ -331,7 +340,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : String(error)
-          logger.error(`❌ Ошибка при запуске тестов переводов: ${errorMessage}`)
+          logger.error(
+            `❌ Ошибка при запуске тестов переводов: ${errorMessage}`
+          )
           logger.error(`❌ Error running translation tests: ${errorMessage}`)
 
           // Добавляем ошибку как тест
@@ -373,7 +384,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
                 run: async () => {
                   // Просто возвращаем результат, т.к. тест уже выполнен
                   if (!result.success) {
-                    throw new Error(result.message || 'Тест платежного процессора провален')
+                    throw new Error(
+                      result.message || 'Тест платежного процессора провален'
+                    )
                   }
                   return {
                     success: result.success,
@@ -419,7 +432,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
 
           // Обрабатываем результаты
           if (Array.isArray(results)) {
-            logger.info(`✅ Добавлено тестов Inngest функций: ${results.length}`)
+            logger.info(
+              `✅ Добавлено тестов Inngest функций: ${results.length}`
+            )
             logger.info(`✅ Added Inngest function tests: ${results.length}`)
 
             // Преобразуем результаты в тесты для TestRunner
@@ -447,7 +462,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
           logger.error(
             `❌ Ошибка при запуске тестов Inngest функций: ${errorMessage}`
           )
-          logger.error(`❌ Error running Inngest function tests: ${errorMessage}`)
+          logger.error(
+            `❌ Error running Inngest function tests: ${errorMessage}`
+          )
 
           // Добавляем ошибку как тест
           runner.addTests([
@@ -475,7 +492,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
           const { runPaymentTests } = await import('../tests/payment')
 
           // Запускаем тесты платежных функций
-          const paymentRunResult = await runPaymentTests({ verbose: options.verbose })
+          const paymentRunResult = await runPaymentTests({
+            verbose: options.verbose,
+          })
 
           // Обрабатываем результаты
           if (paymentRunResult && Array.isArray(paymentRunResult.results)) {
@@ -495,12 +514,16 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
                         run: async () => {
                           if (!testResult.success) {
                             // Safely determine the error message
-                            let errorMessage = testResult.message || 'Payment test failed';
+                            let errorMessage =
+                              testResult.message || 'Payment test failed'
                             if ('error' in testResult && testResult.error) {
-                              const errorObj = testResult.error;
-                              errorMessage = errorObj instanceof Error ? errorObj.message : String(errorObj);
+                              const errorObj = testResult.error
+                              errorMessage =
+                                errorObj instanceof Error
+                                  ? errorObj.message
+                                  : String(errorObj)
                             }
-                            throw new Error(errorMessage);
+                            throw new Error(errorMessage)
                           }
                           return testResult
                         },
@@ -520,7 +543,9 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
           logger.error(
             `❌ Ошибка при запуске тестов платежных функций: ${errorMessage}`
           )
-          logger.error(`❌ Error running payment function tests: ${errorMessage}`)
+          logger.error(
+            `❌ Error running payment function tests: ${errorMessage}`
+          )
 
           // Добавляем ошибку как тест
           runner.addTests([
@@ -559,12 +584,16 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
                   run: async () => {
                     if (!testResult.success) {
                       // Safely determine the error message
-                      let errorMessage = testResult.message || 'Тест URL Robokassa не пройден';
+                      let errorMessage =
+                        testResult.message || 'Тест URL Robokassa не пройден'
                       if ('error' in testResult && testResult.error) {
-                        const errorObj = testResult.error;
-                        errorMessage = errorObj instanceof Error ? errorObj.message : String(errorObj);
+                        const errorObj = testResult.error
+                        errorMessage =
+                          errorObj instanceof Error
+                            ? errorObj.message
+                            : String(errorObj)
                       }
-                      throw new Error(errorMessage);
+                      throw new Error(errorMessage)
                     }
                     return {
                       success: true,
@@ -577,50 +606,66 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
               ])
             }
           }
-           logger.info(`✅ Добавлено тестов Robokassa: ${robokassaRunResult.results.length}`)
-           logger.info(`✅ Added Robokassa tests: ${robokassaRunResult.results.length}`)
+          logger.info(
+            `✅ Добавлено тестов Robokassa: ${robokassaRunResult.results.length}`
+          )
+          logger.info(
+            `✅ Added Robokassa tests: ${robokassaRunResult.results.length}`
+          )
         }
       }
 
       // Запускаем тесты Api
       if (shouldRunApiTests) {
-          logger.info('📦 Загрузка тестов API/Handlers...');
-          try {
-              const handlerResults = await runCheckFullAccessTests(options);
-              for (const result of handlerResults) {
-                  // Проверяем наличие result.name перед добавлением
-                  if (result && result.name) {
-                      runner.addTests([
-                          {
-                              name: result.name,
-                              category: TestCategory.Api, // Используем Api как категорию
-                              description: result.message || '',
-                              run: async () => { 
-                                  if (!result.success) {
-                                      const error = result.error || result.message || 'Handler test failed';
-                                      throw new Error(error instanceof Error ? error.message : String(error));
-                                  }
-                                  return result;
-                              }
-                          }
-                      ]);
-                  } else {
-                      logger.warn('Результат теста обработчика без имени:', result);
-                  }
-              }
-              logger.info(`✅ Добавлено тестов API/Handlers: ${handlerResults.length}`);
-          } catch (error) {
-              const errorMessage = error instanceof Error ? error.message : String(error);
-              logger.error(`❌ Ошибка при запуске тестов API/Handlers: ${errorMessage}`);
+        logger.info('📦 Загрузка тестов API/Handlers...')
+        try {
+          const handlerResults = await runCheckFullAccessTests(options)
+          for (const result of handlerResults) {
+            // Проверяем наличие result.name перед добавлением
+            if (result && result.name) {
               runner.addTests([
-                  {
-                      name: 'API/Handler Tests',
-                      category: TestCategory.Api,
-                      description: 'Running API/Handler tests',
-                      run: async () => { throw new Error(`Failed to run API/Handler tests: ${errorMessage}`) }
-                  }
-              ]);
+                {
+                  name: result.name,
+                  category: TestCategory.Api, // Используем Api как категорию
+                  description: result.message || '',
+                  run: async () => {
+                    if (!result.success) {
+                      const error =
+                        result.error || result.message || 'Handler test failed'
+                      throw new Error(
+                        error instanceof Error ? error.message : String(error)
+                      )
+                    }
+                    return result
+                  },
+                },
+              ])
+            } else {
+              logger.warn('Результат теста обработчика без имени:', result)
+            }
           }
+          logger.info(
+            `✅ Добавлено тестов API/Handlers: ${handlerResults.length}`
+          )
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          logger.error(
+            `❌ Ошибка при запуске тестов API/Handlers: ${errorMessage}`
+          )
+          runner.addTests([
+            {
+              name: 'API/Handler Tests',
+              category: TestCategory.Api,
+              description: 'Running API/Handler tests',
+              run: async () => {
+                throw new Error(
+                  `Failed to run API/Handler tests: ${errorMessage}`
+                )
+              },
+            },
+          ])
+        }
       }
     }
 
@@ -663,7 +708,7 @@ export async function runTests(args = process.argv.slice(2)): Promise<number> {
   } finally {
     // Очищаем ресурсы
     await runner.cleanup()
-    logger.info('🧹 Test resources cleanup finished.');
+    logger.info('🧹 Test resources cleanup finished.')
   }
 }
 

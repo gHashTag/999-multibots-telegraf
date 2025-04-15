@@ -359,7 +359,7 @@ export const textToVideoFunction = inngest.createFunction(
         const botResult = getBotByName(validatedParams?.bot_name || '')
         if (botResult?.bot && validatedParams) {
           await errorMessage(
-                new Error(errorMsg),
+            new Error(errorMsg),
             validatedParams.telegram_id,
             validatedParams.is_ru
           )

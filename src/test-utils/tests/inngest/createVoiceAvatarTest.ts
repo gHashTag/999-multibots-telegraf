@@ -264,14 +264,16 @@ export async function testShortSample(
     // Проверим длительность образца до вызова основной функции создания голосового аватара
     // Это обеспечит, что мы всегда будем проверять длительность
     if (data.sample_duration && data.sample_duration < 30) {
-      throw new Error("Voice sample is too short (minimum 30 seconds)");
+      throw new Error('Voice sample is too short (minimum 30 seconds)')
     }
-    
-    const result = await testCreateVoiceAvatar(data, options);
-    
+
+    const result = await testCreateVoiceAvatar(data, options)
+
     // Если мы здесь, то это неожиданный успех - проверка на длительность должна была сработать
-    logger.error(`[${testName}] Test unexpectedly succeeded with a short sample`);
-    
+    logger.error(
+      `[${testName}] Test unexpectedly succeeded with a short sample`
+    )
+
     return {
       success: false,
       passed: false,
@@ -286,25 +288,27 @@ export async function testShortSample(
     }
   } catch (error: any) {
     // Это ожидаемое поведение - образец слишком короткий
-    logger.info(`[${testName}] Expected error caught: ${error.message}`);
-    
+    logger.info(`[${testName}] Expected error caught: ${error.message}`)
+
     // Проверяем, что ошибка именно о короткой длительности
-    if (error.message.includes("too short")) {
+    if (error.message.includes('too short')) {
       return {
         success: true, // Тест успешен, потому что мы ожидали поймать ошибку о короткой длительности
         passed: true,
         name: testName,
-        message: "Successfully validated that short voice samples are rejected",
+        message: 'Successfully validated that short voice samples are rejected',
         category: TestCategory.Inngest,
         details: {
           expectedFailure: true,
           error: error.message,
-          sampleDuration: data.sample_duration
-        }
-      };
+          sampleDuration: data.sample_duration,
+        },
+      }
     } else {
       // Ошибка была, но не та, которую мы ожидали
-      logger.error(`[${testName}] Test failed but with unexpected error: ${error.message}`);
+      logger.error(
+        `[${testName}] Test failed but with unexpected error: ${error.message}`
+      )
       return {
         success: false,
         passed: false,
@@ -314,9 +318,9 @@ export async function testShortSample(
         details: {
           expectedFailure: true,
           actualError: error.message,
-          sampleDuration: data.sample_duration
-        }
-      };
+          sampleDuration: data.sample_duration,
+        },
+      }
     }
   }
 }

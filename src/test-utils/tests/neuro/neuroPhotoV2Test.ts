@@ -25,16 +25,16 @@ const mocks = {
     mode: ModeEnum.NeuroPhotoV2,
     status: 'processing',
   }),
-  
+
   // Мок для getBotByName
   getBotByName: () => ({
     bot: {
       telegram: {
         sendMessage: async () => true,
-      }
-    }
+      },
+    },
   }),
-  
+
   // Мок для fetch
   fetch: async () => ({
     ok: true,
@@ -42,12 +42,12 @@ const mocks = {
       id: 'test-task-id-1234',
       status: 'processing',
     }),
-    text: async () => 'OK'
-  })
-};
+    text: async () => 'OK',
+  }),
+}
 
 // Мок для global.fetch
-global.fetch = mocks.fetch as any;
+global.fetch = mocks.fetch as any
 
 /**
  * Простой тест функциональности нейрофото V2 без зависимостей
@@ -56,7 +56,7 @@ async function testNeuroPhotoV2() {
   logger.info({
     message: '🧪 Запуск теста нейрофото V2',
     description: 'Starting neuro photo V2 test',
-  });
+  })
 
   try {
     // Создаем мок шага Inngest
@@ -65,10 +65,10 @@ async function testNeuroPhotoV2() {
         logger.info({
           message: `🔍 Выполнение шага: ${name}`,
           description: `Executing step: ${name}`,
-        });
-        return await fn();
-      }
-    };
+        })
+        return await fn()
+      },
+    }
 
     // Имитируем событие Inngest
     const event = {
@@ -79,67 +79,67 @@ async function testNeuroPhotoV2() {
         username: 'test_user',
         is_ru: true,
         bot_name: 'test_bot',
-      }
-    };
+      },
+    }
 
     // Выполняем основные шаги обработки
     logger.info({
       message: '👤 Проверка пользователя',
       description: 'Checking user existence',
-    });
-    const user = await mocks.getUserByTelegramId();
-    
+    })
+    const user = await mocks.getUserByTelegramId()
+
     logger.info({
       message: '💰 Расчет стоимости',
       description: 'Calculating cost',
-    });
-    const costPerImage = 15; // Примерная стоимость
-    
+    })
+    const costPerImage = 15 // Примерная стоимость
+
     logger.info({
       message: '💵 Обработка платежа',
       description: 'Processing payment',
-    });
-    
+    })
+
     logger.info({
       message: '📐 Получение параметров для генерации',
       description: 'Getting generation parameters',
-    });
-    const aspectRatio = await mocks.getAspectRatio();
-    const finetuneId = await mocks.getFineTuneIdByTelegramId();
-    
+    })
+    const aspectRatio = await mocks.getAspectRatio()
+    const finetuneId = await mocks.getFineTuneIdByTelegramId()
+
     logger.info({
       message: '📐 Расчет размеров изображения',
       description: 'Calculating image dimensions',
-    });
-    const dimensions = { width: 1024, height: 1024 };
-    
+    })
+    const dimensions = { width: 1024, height: 1024 }
+
     logger.info({
       message: '🔄 Отправка запроса на генерацию',
       description: 'Sending generation request',
-    });
-    const response = await mocks.fetch();
-    const data = await response.json();
-    
+    })
+    const response = await mocks.fetch()
+    const data = await response.json()
+
     logger.info({
       message: '📝 Сохранение задачи',
       description: 'Saving task',
-    });
-    const savedTask = await mocks.saveNeuroPhotoPrompt();
-    
+    })
+    const savedTask = await mocks.saveNeuroPhotoPrompt()
+
     logger.info({
       message: '📩 Отправка сообщения пользователю',
       description: 'Sending message to user',
-    });
-    await mocks.getBotByName().bot.telegram.sendMessage();
-    
+    })
+    await mocks.getBotByName().bot.telegram.sendMessage()
+
     // Результаты теста
     const taskResult = {
       taskId: data.id,
       status: data.status,
       prompt: event.data.prompt,
-      savedTask
-    };
-    
+      savedTask,
+    }
+
     const result = {
       success: true,
       user,
@@ -148,13 +148,13 @@ async function testNeuroPhotoV2() {
       dimensions,
       costPerImage,
       tasks: [taskResult],
-    };
+    }
 
     logger.info({
       message: '✅ Тест нейрофото V2 завершен успешно',
       description: 'Neuro photo V2 test completed successfully',
       result,
-    });
+    })
 
     return {
       success: true,
@@ -167,7 +167,7 @@ async function testNeuroPhotoV2() {
       description: 'Error testing neuro photo V2',
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-    });
+    })
 
     return {
       success: false,
@@ -181,15 +181,15 @@ async function testNeuroPhotoV2() {
  * Запуск теста
  */
 async function runTest() {
-  const result = await testNeuroPhotoV2();
-  console.log('Результат теста:', result);
+  const result = await testNeuroPhotoV2()
+  console.log('Результат теста:', result)
 
   if (!result.success) {
-    process.exit(1);
+    process.exit(1)
   }
 
-  process.exit(0);
+  process.exit(0)
 }
 
 // Запуск теста
-runTest(); 
+runTest()

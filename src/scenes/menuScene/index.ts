@@ -62,7 +62,7 @@ export const menuCommandStep = async (ctx: MyContext): Promise<void> => {
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
       await ctx.reply(message, { reply_markup: keyboardMarkup.reply_markup })
-      return;
+      return
     }
 
     // Проверка условий для отправки сообщения
@@ -141,7 +141,12 @@ export const menuCommandStep = async (ctx: MyContext): Promise<void> => {
         console.log(`CASE ${newLevel}: ${key}`)
 
         const { translation } = await getTranslation(key, ctx)
-        await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboardMarkup.reply_markup)
+        await sendReplyWithKeyboard(
+          ctx,
+          translation,
+          inlineKeyboard,
+          keyboardMarkup.reply_markup
+        )
       } else {
         console.log(`CASE: default ${newCount}`)
         // const message = getText(isRu, 'mainMenu')
@@ -165,7 +170,7 @@ export const menuCommandStep = async (ctx: MyContext): Promise<void> => {
         ? `Ваш уровень: ${newLevel}/\n🌟 ${newCount}`
         : `Your level: ${newLevel}/\n🌟 ${newCount}`,
       {
-        reply_markup: finalKeyboardMarkup.reply_markup
+        reply_markup: finalKeyboardMarkup.reply_markup,
       }
     )
   } catch (error) {
@@ -188,14 +193,14 @@ export const menuNextStep = async (ctx: MyContext): Promise<void> => {
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
     console.log('CASE menuNextStep: text 2', text)
-    
+
     // Handle language selection
     const isRu = isRussian(ctx)
     if (text === '🌐 Выбор языка' || text === '🌐 Language') {
       await ctx.scene.enter('languageScene')
       return
     }
-    
+
     await handleMenu(ctx)
     return
   } else {

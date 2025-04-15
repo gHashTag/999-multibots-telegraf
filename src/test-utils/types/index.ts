@@ -3,8 +3,8 @@
  * Centralizes all type exports for the test framework
  */
 
-export * from './mockFunction';
-export * from './global';
+export * from './mockFunction'
+export * from './global'
 
 // Test categories
 export enum TestCategory {
@@ -12,31 +12,31 @@ export enum TestCategory {
   Scenes = 'scenes',
   Wizards = 'wizards',
   Utils = 'utils',
-  Integration = 'integration'
+  Integration = 'integration',
 }
 
 // Re-export common types
 export interface TestResult {
-  name: string;
-  success: boolean;
-  message: string;
-  category?: TestCategory;
+  name: string
+  success: boolean
+  message: string
+  category?: TestCategory
 }
 
 export interface TestContext {
-  name: string;
-  description?: string;
-  skip?: boolean;
-  only?: boolean;
+  name: string
+  description?: string
+  skip?: boolean
+  only?: boolean
 }
 
 export interface TestSuite {
-  name: string;
-  tests: Test[];
+  name: string
+  tests: Test[]
 }
 
 export interface Test {
-  name: string;
-  fn: () => Promise<void> | void;
-  context: TestContext;
-} 
+  name: string
+  fn: () => Promise<void> | void
+  context: TestContext
+}

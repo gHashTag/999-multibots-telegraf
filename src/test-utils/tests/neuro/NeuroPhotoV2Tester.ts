@@ -35,7 +35,10 @@ export interface NeuroPhotoV2TestOutput {
 /**
  * Класс для тестирования функции нейрофото V2
  */
-export class NeuroPhotoV2Tester extends InngestFunctionTester<NeuroPhotoV2TestInput, NeuroPhotoV2TestOutput> {
+export class NeuroPhotoV2Tester extends InngestFunctionTester<
+  NeuroPhotoV2TestInput,
+  NeuroPhotoV2TestOutput
+> {
   constructor(options: Partial<any> = {}) {
     super('neuro/photo-v2.generate', {
       name: 'НейроФото V2 тест',
@@ -53,7 +56,7 @@ export class NeuroPhotoV2Tester extends InngestFunctionTester<NeuroPhotoV2TestIn
     // Создаем моки через фабрику
     const mocks = {
       ...TestDataFactory.createAllMocks(),
-      ...customMocks
+      ...customMocks,
     }
 
     // Глобальный мок для fetch
@@ -67,12 +70,12 @@ export class NeuroPhotoV2Tester extends InngestFunctionTester<NeuroPhotoV2TestIn
           description: `Executing step: ${name}`,
         })
         return await fn()
-      }
+      },
     }
 
     // Имитируем событие Inngest
     const event = {
-      data: input
+      data: input,
     }
 
     // Выполняем основные шаги обработки
@@ -81,63 +84,63 @@ export class NeuroPhotoV2Tester extends InngestFunctionTester<NeuroPhotoV2TestIn
       description: 'Checking user existence',
     })
     const user = await mocks.getUserByTelegramId()
-    
+
     logger.info({
       message: '💰 Расчет стоимости',
       description: 'Calculating cost',
     })
     const costPerImage = 15 // Примерная стоимость
-    
+
     logger.info({
       message: '💵 Обработка платежа',
       description: 'Processing payment',
     })
-    
+
     logger.info({
       message: '📐 Получение параметров для генерации',
       description: 'Getting generation parameters',
     })
     const aspectRatio = await mocks.getAspectRatio()
     const finetuneId = await mocks.getFineTuneIdByTelegramId()
-    
+
     logger.info({
       message: '📐 Расчет размеров изображения',
       description: 'Calculating image dimensions',
     })
     const dimensions = { width: 1024, height: 1024 }
-    
+
     // Генерируем задачи для каждого запрошенного изображения
     const tasks = []
-    
+
     for (let i = 0; i < input.num_images; i++) {
       logger.info({
         message: `🔄 Отправка запроса на генерацию #${i + 1}`,
         description: `Sending generation request #${i + 1}`,
       })
-      
+
       const response = await mocks.fetch()
       const data = await response.json()
-      
+
       logger.info({
         message: '📝 Сохранение задачи',
         description: 'Saving task',
       })
       const savedTask = await mocks.saveNeuroPhotoPrompt()
-      
+
       logger.info({
         message: '📩 Отправка сообщения пользователю',
         description: 'Sending message to user',
       })
       await mocks.getBotByName().bot.telegram.sendMessage()
-      
+
       tasks.push({
         taskId: data.id,
         status: data.status,
         prompt: input.prompt,
-        savedTask
+        savedTask,
       })
     }
-    
+
     // Формируем результат
     return {
       success: true,
@@ -155,9 +158,9 @@ export class NeuroPhotoV2Tester extends InngestFunctionTester<NeuroPhotoV2TestIn
    */
   async testWithPrompt(prompt: string): Promise<any> {
     const input = TestDataFactory.createNeuroPhotoV2Data({
-      prompt
+      prompt,
     })
-    
+
     return await this.runTest(input)
   }
 
@@ -166,9 +169,9 @@ export class NeuroPhotoV2Tester extends InngestFunctionTester<NeuroPhotoV2TestIn
    */
   async testWithMultipleImages(numImages: number): Promise<any> {
     const input = TestDataFactory.createNeuroPhotoV2Data({
-      num_images: numImages
+      num_images: numImages,
     })
-    
+
     return await this.runTest(input)
   }
-} 
+}

@@ -1,15 +1,19 @@
-import { Context, NarrowedContext } from 'telegraf';
-import { Message, Update } from 'telegraf/typings/core/types/typegram';
-import { SceneContext, SceneSessionData, WizardContext } from 'telegraf/typings/scenes';
-import { Middleware } from 'telegraf';
-import { MyContext } from '@/interfaces';
-import * as inngest from '@/services/inngest';
+import { Context, NarrowedContext } from 'telegraf'
+import { Message, Update } from 'telegraf/typings/core/types/typegram'
+import {
+  SceneContext,
+  SceneSessionData,
+  WizardContext,
+} from 'telegraf/typings/scenes'
+import { Middleware } from 'telegraf'
+import { MyContext } from '@/interfaces'
+import * as inngest from '@/services/inngest'
 
 export type TestResult = {
-  name: string;
-  success: boolean;
-  error?: any;
-};
+  name: string
+  success: boolean
+  error?: any
+}
 
 export enum TestCategory {
   SCENE_ENTRY = 'Scene Entry',
@@ -26,7 +30,10 @@ export enum TestCategory {
 /**
  * Creates a typed context object for testing
  */
-export function createTypedContext(userId: number, username?: string): MyContext {
+export function createTypedContext(
+  userId: number,
+  username?: string
+): MyContext {
   const ctx = {
     session: {
       __scenes: {} as SceneSessionData,
@@ -51,7 +58,9 @@ export function createTypedContext(userId: number, username?: string): MyContext
       selectStep: jest.fn(),
     },
     reply: jest.fn(() => Promise.resolve({} as Message.TextMessage)),
-    replyWithMarkdown: jest.fn(() => Promise.resolve({} as Message.TextMessage)),
+    replyWithMarkdown: jest.fn(() =>
+      Promise.resolve({} as Message.TextMessage)
+    ),
     replyWithHTML: jest.fn(() => Promise.resolve({} as Message.TextMessage)),
     deleteMessage: jest.fn(() => Promise.resolve(true)),
     from: {
@@ -85,16 +94,19 @@ export function createTypedContext(userId: number, username?: string): MyContext
       first_name: 'Test',
       username: username || 'testuser',
     },
-  } as unknown as MyContext;
+  } as unknown as MyContext
 
-  return ctx;
+  return ctx
 }
 
 /**
  * Runs a specific step in a scene
  */
-export async function runSceneStep(handler: any, ctx: MyContext): Promise<void> {
-  await handler(ctx, () => Promise.resolve());
+export async function runSceneStep(
+  handler: any,
+  ctx: MyContext
+): Promise<void> {
+  await handler(ctx, () => Promise.resolve())
 }
 
 /**
@@ -104,75 +116,81 @@ export function expect(actual: any) {
   return {
     toBe: (expected: any) => {
       if (actual !== expected) {
-        throw new Error(`Expected ${actual} to be ${expected}`);
+        throw new Error(`Expected ${actual} to be ${expected}`)
       }
     },
     toEqual: (expected: any) => {
       if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-        throw new Error(`Expected ${JSON.stringify(actual)} to equal ${JSON.stringify(expected)}`);
+        throw new Error(
+          `Expected ${JSON.stringify(actual)} to equal ${JSON.stringify(expected)}`
+        )
       }
     },
     toContain: (expected: any) => {
       if (!actual || !actual.includes(expected)) {
-        throw new Error(`Expected ${actual} to contain ${expected}`);
+        throw new Error(`Expected ${actual} to contain ${expected}`)
       }
     },
     toBeDefined: () => {
       if (actual === undefined) {
-        throw new Error('Expected value to be defined');
+        throw new Error('Expected value to be defined')
       }
     },
     toBeUndefined: () => {
       if (actual !== undefined) {
-        throw new Error(`Expected undefined but got ${actual}`);
+        throw new Error(`Expected undefined but got ${actual}`)
       }
     },
     toBeNull: () => {
       if (actual !== null) {
-        throw new Error(`Expected null but got ${actual}`);
+        throw new Error(`Expected null but got ${actual}`)
       }
     },
     toBeTruthy: () => {
       if (!actual) {
-        throw new Error(`Expected ${actual} to be truthy`);
+        throw new Error(`Expected ${actual} to be truthy`)
       }
     },
     toBeFalsy: () => {
       if (actual) {
-        throw new Error(`Expected ${actual} to be falsy`);
+        throw new Error(`Expected ${actual} to be falsy`)
       }
     },
     toHaveBeenCalled: () => {
       if (!actual.mock || actual.mock.calls.length === 0) {
-        throw new Error('Expected function to have been called');
+        throw new Error('Expected function to have been called')
       }
     },
     toHaveBeenCalledWith: (...args: any[]) => {
       if (!actual.mock) {
-        throw new Error('Expected a mock function');
+        throw new Error('Expected a mock function')
       }
-      
+
       const wasCalled = actual.mock.calls.some((callArgs: any[]) => {
-        if (callArgs.length !== args.length) return false;
-        
+        if (callArgs.length !== args.length) return false
+
         return args.every((arg, index) => {
           if (typeof arg === 'object' && arg !== null) {
-            return JSON.stringify(callArgs[index]) === JSON.stringify(arg);
+            return JSON.stringify(callArgs[index]) === JSON.stringify(arg)
           }
-          return callArgs[index] === arg;
-        });
-      });
-      
+          return callArgs[index] === arg
+        })
+      })
+
       if (!wasCalled) {
-        throw new Error(`Expected function to have been called with ${JSON.stringify(args)}`);
+        throw new Error(
+          `Expected function to have been called with ${JSON.stringify(args)}`
+        )
       }
     },
     toHaveBeenCalledTimes: (times: number) => {
       if (!actual.mock || actual.mock.calls.length !== times) {
-        throw new Error(`Expected function to have been called ${times} times but was called ${actual.mock ? actual.mock.calls.length : 0} times`);
+        throw new Error(
+          `Expected function to have been called ${times} times but was called ${actual.mock ? actual.mock.calls.length : 0} times`
+        )
       }
-    }
-  };
+    },
+  }
 }
 
 /**
@@ -180,33 +198,35 @@ export function expect(actual: any) {
  */
 export function setupTestMocks() {
   // Mock inngest.send
-  jest.spyOn(inngest, 'send').mockImplementation(() => Promise.resolve({ success: true } as any));
-  
+  jest
+    .spyOn(inngest, 'send')
+    .mockImplementation(() => Promise.resolve({ success: true } as any))
+
   // Reset mocks before each test
   beforeEach(() => {
-    jest.clearAllMocks();
-  });
+    jest.clearAllMocks()
+  })
 }
 
 /**
  * Creates a test reporter for running tests and collecting results
  */
 export function createTestRunner(category: string) {
-  const results: TestResult[] = [];
-  
+  const results: TestResult[] = []
+
   const runTest = async (name: string, testFn: () => Promise<void>) => {
     try {
-      await testFn();
-      results.push({ name, success: true });
-      console.log(`✅ [${category}] ${name}`);
+      await testFn()
+      results.push({ name, success: true })
+      console.log(`✅ [${category}] ${name}`)
     } catch (error) {
-      results.push({ name, success: false, error });
-      console.error(`❌ [${category}] ${name}: ${error}`);
+      results.push({ name, success: false, error })
+      console.error(`❌ [${category}] ${name}: ${error}`)
     }
-  };
-  
+  }
+
   return {
     runTest,
     getResults: () => results,
-  };
-} 
+  }
+}

@@ -67,28 +67,33 @@ interface CreateMockContextParams {
 }
 
 // Создаем базовый контекст с общими полями
-const createBaseContext = (user: TestUser, isGroupChat: boolean = false): Partial<Context> => {
+const createBaseContext = (
+  user: TestUser,
+  isGroupChat: boolean = false
+): Partial<Context> => {
   const telegramUser: User = {
     id: parseInt(user.telegram_id),
     is_bot: false,
     first_name: user.username,
-    username: user.username
+    username: user.username,
   }
 
-  const chat: Chat.PrivateChat | Chat.GroupChat = isGroupChat ? {
-    id: parseInt(user.telegram_id),
-    type: 'group',
-    title: 'Test Group'
-  } : {
-    id: parseInt(user.telegram_id),
-    type: 'private',
-    first_name: user.username,
-    username: user.username
-  }
+  const chat: Chat.PrivateChat | Chat.GroupChat = isGroupChat
+    ? {
+        id: parseInt(user.telegram_id),
+        type: 'group',
+        title: 'Test Group',
+      }
+    : {
+        id: parseInt(user.telegram_id),
+        type: 'private',
+        first_name: user.username,
+        username: user.username,
+      }
 
   return {
     from: telegramUser,
-    chat
+    chat,
   }
 }
 
@@ -111,18 +116,20 @@ const createMethod = (defaultResponse: any, config?: MethodConfig) => {
   }
 }
 
-export const createMockContext = (params: CreateMockContextParams): Context<Update> => {
-  const { 
-    user, 
-    text, 
-    photo, 
-    document, 
-    voice, 
-    sticker, 
+export const createMockContext = (
+  params: CreateMockContextParams
+): Context<Update> => {
+  const {
+    user,
+    text,
+    photo,
+    document,
+    voice,
+    sticker,
     location,
     callbackData,
     isGroupChat = false,
-    config = {}
+    config = {},
   } = params
 
   const baseContext = createBaseContext(user, isGroupChat)
@@ -131,60 +138,60 @@ export const createMockContext = (params: CreateMockContextParams): Context<Upda
   // Добавляем различные типы сообщений в update
   if (text) {
     const message = {
-      ...baseContext as any,
+      ...(baseContext as any),
       message_id: 1,
       date: Math.floor(Date.now() / 1000),
-      text
+      text,
     }
     Object.assign(update, { message })
   }
 
   if (photo) {
     const message = {
-      ...baseContext as any,
+      ...(baseContext as any),
       message_id: 1,
       date: Math.floor(Date.now() / 1000),
-      photo: [photo]
+      photo: [photo],
     }
     Object.assign(update, { message })
   }
 
   if (document) {
     const message = {
-      ...baseContext as any,
+      ...(baseContext as any),
       message_id: 1,
       date: Math.floor(Date.now() / 1000),
-      document
+      document,
     }
     Object.assign(update, { message })
   }
 
   if (voice) {
     const message = {
-      ...baseContext as any,
+      ...(baseContext as any),
       message_id: 1,
       date: Math.floor(Date.now() / 1000),
-      voice
+      voice,
     }
     Object.assign(update, { message })
   }
 
   if (sticker) {
     const message = {
-      ...baseContext as any,
+      ...(baseContext as any),
       message_id: 1,
       date: Math.floor(Date.now() / 1000),
-      sticker
+      sticker,
     }
     Object.assign(update, { message })
   }
 
   if (location) {
     const message = {
-      ...baseContext as any,
+      ...(baseContext as any),
       message_id: 1,
       date: Math.floor(Date.now() / 1000),
-      location
+      location,
     }
     Object.assign(update, { message })
   }
@@ -194,7 +201,7 @@ export const createMockContext = (params: CreateMockContextParams): Context<Upda
       ...baseContext,
       id: '1',
       chat_instance: '1',
-      data: callbackData
+      data: callbackData,
     }
     Object.assign(update, { callback_query: callbackQuery })
   }
@@ -210,34 +217,43 @@ export const createMockContext = (params: CreateMockContextParams): Context<Upda
     sendVoice: createMethod({ message_id: 1 }, config.sendVoice),
     sendSticker: createMethod({ message_id: 1 }, config.sendSticker),
     sendLocation: createMethod({ message_id: 1 }, config.sendLocation),
-    getMe: createMethod({
-      id: 1,
-      is_bot: true,
-      first_name: 'Test Bot',
-      username: 'test_bot',
-      can_join_groups: true,
-      can_read_all_group_messages: true,
-      supports_inline_queries: false
-    }, config.getMe),
-    getFile: createMethod({ 
-      file_id: 'test_file', 
-      file_size: 100, 
-      file_path: 'test/path' 
-    }, config.getFile),
+    getMe: createMethod(
+      {
+        id: 1,
+        is_bot: true,
+        first_name: 'Test Bot',
+        username: 'test_bot',
+        can_join_groups: true,
+        can_read_all_group_messages: true,
+        supports_inline_queries: false,
+      },
+      config.getMe
+    ),
+    getFile: createMethod(
+      {
+        file_id: 'test_file',
+        file_size: 100,
+        file_path: 'test/path',
+      },
+      config.getFile
+    ),
     getFileLink: createMethod('https://test.com/file', config.getFileLink),
     getUpdates: createMethod([], config.getUpdates),
     setWebhook: createMethod(true, config.setWebhook),
     deleteWebhook: createMethod(true, config.deleteWebhook),
-    getWebhookInfo: createMethod({ 
-      url: '', 
-      has_custom_certificate: false, 
-      pending_update_count: 0 
-    }, config.getWebhookInfo)
+    getWebhookInfo: createMethod(
+      {
+        url: '',
+        has_custom_certificate: false,
+        pending_update_count: 0,
+      },
+      config.getWebhookInfo
+    ),
   }
 
   return {
     ...baseContext,
     update,
-    telegram
+    telegram,
   } as unknown as Context<Update>
-} 
+}

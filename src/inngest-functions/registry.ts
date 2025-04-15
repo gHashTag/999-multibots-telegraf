@@ -32,5 +32,5 @@ export const functions = [
   imageToPromptFunction,
   textToVideoFunction,
   balanceNotifierScheduledTask,
-  audioToTextFunction
-] 
+  audioToTextFunction,
+]

@@ -75,7 +75,7 @@ export async function handleMenu(ctx: MyContext) {
 
   // Get level from the menu text
   const level = levelsInverse[text]
-  
+
   console.log(`MENU SELECTED: ${text} (Level: ${level})`)
 
   // Language command

@@ -8,9 +8,9 @@ import { TransactionType } from '@/interfaces/payments.interface'
 
 // TODO: Implement notification logic here
 
-console.log('paymentNotifier.ts loaded');
+console.log('paymentNotifier.ts loaded')
 
-// --- Вспомогательные типы --- 
+// --- Вспомогательные типы ---
 
 interface BasePaymentDetails {
   telegram_id: number | string
@@ -38,7 +38,7 @@ interface FailedPaymentDetails extends BasePaymentDetails {
   attemptedAction?: string
 }
 
-// --- Уведомления пользователю --- 
+// --- Уведомления пользователю ---
 
 /**
  * Отправляет пользователю уведомление об успешной операции с балансом/покупке.
@@ -46,7 +46,7 @@ interface FailedPaymentDetails extends BasePaymentDetails {
 export async function notifyUserAboutSuccess(
   details: SuccessfulPaymentDetails
 ): Promise<void> {
-  logger.info('notifyUserAboutSuccess called (implementation pending)');
+  logger.info('notifyUserAboutSuccess called (implementation pending)')
 }
 
 /**
@@ -55,10 +55,10 @@ export async function notifyUserAboutSuccess(
 export async function notifyUserAboutFailure(
   details: FailedPaymentDetails
 ): Promise<void> {
-  logger.warn('notifyUserAboutFailure called (implementation pending)');
+  logger.warn('notifyUserAboutFailure called (implementation pending)')
 }
 
-// --- Уведомления администраторам/группам --- 
+// --- Уведомления администраторам/группам ---
 
 /**
  * Получает список владельцев бота из таблицы users (заменяет getBotOwners)
@@ -72,12 +72,20 @@ async function getBotOwnerIds(botName: string): Promise<string[]> {
       .eq('is_bot_owner', true)
 
     if (error) {
-      logger.error('❌ Ошибка при получении владельцев бота из users:', { error, botName });
+      logger.error('❌ Ошибка при получении владельцев бота из users:', {
+        error,
+        botName,
+      })
       return []
     }
-    return data.map(owner => owner.telegram_id?.toString()).filter((id): id is string => !!id); // Улучшенная проверка типа
+    return data
+      .map(owner => owner.telegram_id?.toString())
+      .filter((id): id is string => !!id) // Улучшенная проверка типа
   } catch (error) {
-    logger.error('❌ Непредвиденная ошибка при получении владельцев бота:', { error, botName });
+    logger.error('❌ Непредвиденная ошибка при получении владельцев бота:', {
+      error,
+      botName,
+    })
     return []
   }
 }
@@ -88,6 +96,5 @@ async function getBotOwnerIds(botName: string): Promise<string[]> {
 export async function notifyAdminsAboutPayment(
   details: SuccessfulPaymentDetails
 ): Promise<void> {
-  logger.info('notifyAdminsAboutPayment called (implementation pending)');
+  logger.info('notifyAdminsAboutPayment called (implementation pending)')
 }
- 
