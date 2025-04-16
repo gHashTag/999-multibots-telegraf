@@ -252,41 +252,6 @@ export async function generateNeuroPhotoDirect(
       }
     }
 
-    // Отправляем сообщение пользователю о начале генерации
-    if (
-      ctx.reply &&
-      typeof ctx.reply === 'function' &&
-      !options?.disable_telegram_sending
-    ) {
-      try {
-        await ctx.reply(
-          isRussian(ctx)
-            ? '🚀 Ваш запрос на генерацию изображения принят! Результат будет отправлен в этот чат в ближайшее время.'
-            : '🚀 Your image generation request has been accepted! The result will be sent to this chat shortly.'
-        )
-      } catch (replyError) {
-        logger.warn({
-          message:
-            '⚠️ [DIRECT] Не удалось отправить сообщение о начале генерации',
-          description: 'Failed to send generation start message (direct)',
-          error:
-            replyError instanceof Error ? replyError.message : 'Unknown error',
-          telegram_id,
-        })
-        // Продолжаем выполнение даже при ошибке отправки сообщения
-      }
-    } else {
-      logger.info({
-        message: options?.disable_telegram_sending
-          ? '🔇 [DIRECT] Отправка сообщения о начале генерации пропущена (режим тестирования)'
-          : '💬 [DIRECT] Пропуск отправки сообщения (контекст тестирования)',
-        description: options?.disable_telegram_sending
-          ? 'Skipping generation start message (test mode)'
-          : 'Skipping message send (test context)',
-        telegram_id,
-        disable_telegram_sending: options?.disable_telegram_sending,
-      })
-    }
 
     // Получаем соотношение сторон для изображения
     logger.info({
