@@ -39,11 +39,10 @@ export enum PaymentStatus {
  */
 export interface BalanceOperationResult {
   newBalance: number
+  paymentAmount: number
   success: boolean
-  modePrice: number
   error?: string
 }
-
 /**
  * Платежные системы
  */

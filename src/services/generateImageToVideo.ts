@@ -1,67 +1,29 @@
-import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
-import { ImageToVideoResponse, VideoModel } from '@/interfaces'
-import { TelegramId } from '@/interfaces/telegram.interface'
+import { generateImageToVideo as PlanBGenerateImageToVideo } from './plan_b/generateImageToVideo'
+import { MyContext } from '@/interfaces'
+import { getBotByName } from '@/core/bot'
 
-export async function generateImageToVideo({
-  imageUrl,
-  prompt,
-  videoModel,
-  telegram_id,
-  username,
-  isRu,
-  botName,
-}: {
-  imageUrl: string
-  prompt: string
-  videoModel: VideoModel
-  telegram_id: TelegramId
-  username: string
-  isRu: boolean
-  botName: string
-}): Promise<ImageToVideoResponse> {
+// TODO: добавить тесты (unit/integration) после ручной проверки
+export const generateImageToVideo = async (
+  imageUrl: string,
+  prompt: string,
+  videoModel: string,
+  telegram_id: string,
+  ctx: MyContext,
+  botName: string,
+  isRu: boolean = false
+) => {
   try {
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
-    }/generate/image-to-video`
-
-    if (!imageUrl) throw new Error('Image URL is required')
-    if (!prompt) throw new Error('Prompt is required')
-    if (!videoModel) throw new Error('Video model is required')
-    if (!telegram_id) throw new Error('Telegram ID is required')
-    if (!username) throw new Error('Username is required')
-
-    const response = await axios.post<ImageToVideoResponse>(
-      url,
-      {
-        imageUrl,
-        prompt,
-        videoModel,
-        telegram_id,
-        username,
-        is_ru: isRu,
-        bot_name: botName,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
+    const username = ctx.from?.username || ''
+    return await PlanBGenerateImageToVideo(
+      imageUrl,
+      prompt,
+      videoModel,
+      telegram_id,
+      username,
+      isRu,
+      botName
     )
-
-    console.log('Image to video generation response:', response.data)
-    return response.data
   } catch (error) {
-    if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      throw new Error(
-        isRu
-          ? 'Произошла ошибка при преобразовании изображения в видео'
-          : 'Error occurred while converting image to video'
-      )
-    }
-    console.error('Unexpected error:', error)
     throw error
   }
 }

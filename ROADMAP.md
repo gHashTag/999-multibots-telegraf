@@ -1,0 +1,1 @@
+- fix: type errors in generateNeuroImageV2.ts (Telegraf<MyContext> | undefined, unknown, return type) 
