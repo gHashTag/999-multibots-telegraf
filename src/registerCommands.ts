@@ -51,7 +51,7 @@ export function registerCommands({
   bot: Telegraf<MyContext>
   composer: Composer<MyContext>
 }) {
-  bot.use(session({ defaultSession }))
+  bot.use(session({ defaultSession: defaultSession }))
   bot.use(stage.middleware())
   bot.use(composer.middleware())
   bot.use(privateChat)
@@ -492,9 +492,9 @@ export function registerCommands({
           ctx.session.selectedModel || '',
           num,
           userId.toString(),
-          isRu,
           ctx,
-          ctx.botInfo?.username
+          ctx.botInfo?.username,
+          isRu
         )
       }
     }
@@ -578,9 +578,9 @@ export function registerCommands({
           ctx.session.selectedModel || '',
           num,
           userId.toString(),
-          isRu,
           ctx,
-          ctx.botInfo?.username
+          ctx.botInfo?.username,
+          isRu
         )
       }
     }

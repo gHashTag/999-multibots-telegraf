@@ -332,3 +332,5 @@ export class InngestService {
     }
   }
 }
+
+export { inngest }

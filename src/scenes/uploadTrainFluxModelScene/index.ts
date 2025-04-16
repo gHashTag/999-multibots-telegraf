@@ -2,7 +2,7 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '../../core/supabase'
-import { createModelTraining } from '@/services/createModelTraining'
+import { createModelTraining } from '@/services/neuro/model/createModelTraining'
 import { isRussian } from '@/helpers/language'
 
 export const uploadTrainFluxModelScene = new Scenes.BaseScene<MyContext>(

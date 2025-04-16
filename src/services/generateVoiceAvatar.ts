@@ -1,61 +1,37 @@
+import { createVoiceAvatar as PlanBCreateVoiceAvatar } from './plan_b/createVoiceAvatar'
 import { MyContext } from '@/interfaces'
-import { inngest } from '@/inngest-functions/clients'
-import { sendGenericErrorMessage } from '@/menu'
-import { logger } from '@/utils/logger'
+import { getBotByName } from '@/core/bot'
 import { TelegramId } from '@/interfaces/telegram.interface'
-interface VoiceAvatarResponse {
-  success: boolean
-  message: string
-}
 
+// TODO: добавить тесты (unit/integration) после ручной проверки
 export async function generateVoiceAvatar(
   fileUrl: string,
   telegram_id: TelegramId,
   ctx: MyContext,
   isRu: boolean,
   botName: string
-): Promise<VoiceAvatarResponse> {
+): Promise<{ voiceId: string }> {
   try {
-    logger.info('📣 Запуск создания голосового аватара:', {
-      description: 'Starting voice avatar creation',
-      telegram_id,
-      username: ctx.from?.username,
-    })
-
-    // Отправляем событие в Inngest вместо API-запроса
-    await inngest.send({
-      name: 'voice-avatar.requested',
-      data: {
-        fileUrl,
-        telegram_id,
-        username: ctx.from?.username || telegram_id,
-        is_ru: isRu,
-        bot_name: botName,
-      },
-    })
-
-    console.log(
-      '📤 Событие для создания голосового аватара отправлено в Inngest',
-      {
-        description: 'Voice avatar creation event sent to Inngest',
-        telegram_id,
+    const username = ctx.from?.username || telegram_id.toString()
+    // Получаем Telegraf<MyContext> инстанс
+    // @ts-ignore
+    let bot = ctx.bot || ctx.__bot
+    if (!bot) {
+      const botResult = getBotByName(botName)
+      if (!botResult.bot) {
+        throw new Error('Telegraf instance (bot) not found in context or by botName')
       }
-    )
-
-    return {
-      success: true,
-      message: isRu
-        ? 'Запрос на создание голосового аватара принят в обработку'
-        : 'Voice avatar creation request has been accepted for processing',
+      bot = botResult.bot
     }
+    // Вызов Direct-версии (Plan B)
+    return await PlanBCreateVoiceAvatar(
+      fileUrl,
+      telegram_id.toString(),
+      username,
+      isRu,
+      bot
+    )
   } catch (error) {
-    console.error('🔥 Ошибка при отправке события в Inngest:', {
-      description: 'Error sending event to Inngest',
-      error,
-    })
-
-    await sendGenericErrorMessage(ctx, isRu, error as Error)
-
     throw error
   }
 }
