@@ -14,6 +14,9 @@ import { ModeEnum } from '@/interfaces/modes'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { inngest } from '@/inngest-functions/clients'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { processBalanceOperation } from '@/price/helpers'
+import { getBotByName } from '@/core/bot'
 
 interface ReplicateTrainingResponse {
   id: string
@@ -48,26 +51,64 @@ export const createModelTrainingDirect = async (
 
     // 1. Оплата: рассчитываем стоимость и списываем средства
     const cost = calculateModeCost({ mode: ModeEnum.DigitalAvatarBody, steps: config.steps }).stars
-    const paymentOperationId = `model-training-${config.telegram_id}-${Date.now()}-${config.modelName}`
-    await inngest.send({
-      id: paymentOperationId,
-      name: 'payment/process',
-      data: {
+    // Проверяем баланс пользователя
+    const userBalance = await getUserBalance(config.telegram_id, config.botName)
+    if (userBalance < cost) {
+      logger.warn({
+        message: '❌ Недостаточно средств для обучения модели',
         telegram_id: config.telegram_id,
-        amount: cost,
-        is_ru: config.is_ru,
-        bot_name: config.botName,
-        type: TransactionType.MONEY_EXPENSE,
-        description: `Оплата за обучение модели ${config.modelName} (${config.steps} шагов)`,
-        operation_id: paymentOperationId,
-        service_type: ModeEnum.DigitalAvatarBodyV2,
-        metadata: {
-          service_type: ModeEnum.DigitalAvatarBodyV2,
-          model_name: config.modelName,
-          steps: config.steps,
-        },
-      },
+        cost,
+        userBalance,
+        requestId,
+      })
+      if (sendMessage) {
+        const messages = getModelTrainingMessages(config.is_ru)
+        await ctx.reply(messages.notEnoughFunds(cost), { parse_mode: 'HTML' })
+      }
+      return {
+        success: false,
+        error: 'Not enough stars',
+        requestId,
+      }
+    }
+    // Списываем средства через централизованный процессор
+    // Получаем Telegraf<MyContext> инстанс
+    // @ts-ignore
+    let bot = ctx.bot || ctx.__bot
+    if (!bot) {
+      const botResult = getBotByName(config.botName)
+      if (!botResult.bot) {
+        throw new Error('Telegraf instance (bot) not found in context or by botName')
+      }
+      bot = botResult.bot
+    }
+    const paymentResult = await processBalanceOperation({
+      telegram_id: config.telegram_id,
+      amount: cost,
+      is_ru: config.is_ru,
+      bot,
+      bot_name: config.botName,
+      description: `Оплата за обучение модели ${config.modelName} (${config.steps} шагов)`,
+      type: TransactionType.MONEY_EXPENSE,
     })
+    if (!paymentResult.success) {
+      logger.warn({
+        message: '❌ Ошибка при списании средств',
+        telegram_id: config.telegram_id,
+        cost,
+        requestId,
+        paymentError: paymentResult.error,
+      })
+      if (sendMessage) {
+        const messages = getModelTrainingMessages(config.is_ru)
+        await ctx.reply(messages.notEnoughFunds(cost), { parse_mode: 'HTML' })
+      }
+      return {
+        success: false,
+        error: paymentResult.error || 'Payment failed',
+        requestId,
+      }
+    }
 
     // Validate file
     const modelFile = await validateModelFile(filePath)

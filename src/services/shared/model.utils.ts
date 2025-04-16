@@ -150,5 +150,8 @@ export const getModelTrainingMessages = (is_ru: boolean) => ({
     
   success: is_ru
     ? '✅ <b>Модель успешно отправлена на обучение!</b>'
-    : '✅ <b>Model successfully sent for training!</b>'
+    : '✅ <b>Model successfully sent for training!</b>',
+  notEnoughFunds: (cost: number) => is_ru
+    ? `❌ <b>Недостаточно средств для обучения модели.</b>\n\nТребуется: <b>${cost}</b>⭐️. Пополните баланс и попробуйте снова.`
+    : `❌ <b>Not enough funds for model training.</b>\n\nRequired: <b>${cost}</b>⭐️. Please top up your balance and try again.`,
 })

@@ -493,9 +493,9 @@ export function registerCommands({
           ctx.session.selectedModel || '',
           num,
           userId.toString(),
-          isRu,
           ctx,
-          ctx.botInfo?.username
+          ctx.botInfo?.username,
+          isRu
         )
       }
     }
@@ -579,9 +579,9 @@ export function registerCommands({
           ctx.session.selectedModel || '',
           num,
           userId.toString(),
-          isRu,
           ctx,
-          ctx.botInfo?.username
+          ctx.botInfo?.username,
+          isRu
         )
       }
     }

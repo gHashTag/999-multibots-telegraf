@@ -373,3 +373,5 @@ The agent can now:
 - Добавление графического представления статистики
 - Реализация хранения истории изменений в улучшениях
 - Разработка системы приоритизации задач на основе машинного обучения 
+
+- fix: type errors in generateNeuroImageV2.ts (Telegraf<MyContext> | undefined, unknown, return type); updated ROADMAP.md 
