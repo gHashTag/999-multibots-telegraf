@@ -33,9 +33,9 @@ export function getBaseCost(mode: ModeEnum, steps?: number): number {
     case ModeEnum.NeuroPhoto:
       return 5
     case ModeEnum.NeuroPhotoV2:
-      return 8.75
+      return 9
     case ModeEnum.ImageToPrompt:
-      return 1.88
+      return 2
     default:
       return 5 // Базовая стоимость по умолчанию
   }

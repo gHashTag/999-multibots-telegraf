@@ -4,15 +4,47 @@
 import { deepEqual, formatValue } from '@/test-utils/core/utils'
 
 /**
- * Типы для мок-функций
+ * Базовый тип для мок-функции
+ */
+export interface MockFunction<T extends (...args: any[]) => any> {
+  (...args: Parameters<T>): ReturnType<T>
+  mockResolvedValue(value: Awaited<ReturnType<T>>): void
+  mockRejectedValue(error: Error): void
+  mockReturnValue(value: ReturnType<T>): void
+  mockImplementation(fn: T): void
+  mockClear(): void
+  getMockCalls(): Parameters<T>[]
+}
+
+/**
+ * Интерфейс для API мока
+ */
+export interface MockAPI<T extends (...args: any[]) => any> {
+  mockImplementation: (impl: T) => MockAPI<T>
+  mockClear: () => void
+  mock: {
+    calls: Array<Parameters<T>>
+  }
+}
+
+/**
+ * Тип для мок-объекта
+ */
+export type MockObject<T> = {
+  [K in keyof T]: T[K] extends (...args: any[]) => any
+    ? MockFunction<T[K]>
+    : T[K] extends object
+    ? MockObject<T[K]>
+    : T[K];
+};
+
+/**
+ * Тип для мокированной функции
  */
 export type MockedFunction<T extends (...args: any[]) => any> = T & {
   mock: {
-    calls: Array<Parameters<T>>
-    results: Array<{
-      type: 'return' | 'throw'
-      value: any
-    }>
+    calls: Parameters<T>[]
+    results: Array<{ type: 'return' | 'throw'; value: any }>
     instances: any[]
     lastCall: Parameters<T> | undefined
     clear: () => void
@@ -20,24 +52,34 @@ export type MockedFunction<T extends (...args: any[]) => any> = T & {
   }
   mockReturnValue: (value: ReturnType<T>) => MockedFunction<T>
   mockReturnValueOnce: (value: ReturnType<T>) => MockedFunction<T>
-  mockResolvedValue: <U extends Promise<any>>(
-    value: PromisedType<ReturnType<T> & U>
-  ) => MockedFunction<T>
-  mockResolvedValueOnce: <U extends Promise<any>>(
-    value: PromisedType<ReturnType<T> & U>
-  ) => MockedFunction<T>
-  mockRejectedValue: <U extends Promise<any>>(value: any) => MockedFunction<T>
-  mockRejectedValueOnce: <U extends Promise<any>>(
-    value: any
-  ) => MockedFunction<T>
+  mockResolvedValue: (value: Awaited<ReturnType<T>>) => MockedFunction<T>
+  mockResolvedValueOnce: (value: Awaited<ReturnType<T>>) => MockedFunction<T>
+  mockRejectedValue: (error: any) => MockedFunction<T>
+  mockRejectedValueOnce: (error: any) => MockedFunction<T>
   mockImplementation: (fn: T) => MockedFunction<T>
   mockImplementationOnce: (fn: T) => MockedFunction<T>
   mockClear: () => MockedFunction<T>
   mockReset: () => MockedFunction<T>
 }
 
+export type StubObject<T extends object> = {
+  [K in keyof T]?: T[K] extends (...args: any[]) => any
+    ? MockedFunction<T[K]>
+    : T[K] extends object
+      ? StubObject<T[K]>
+      : T[K]
+}
+
+export type MockedObject<T extends object> = {
+  [K in keyof T]: T[K] extends (...args: any[]) => any
+    ? MockedFunction<T[K]>
+    : T[K] extends object
+      ? MockedObject<T[K]>
+      : T[K]
+}
+
 /**
- * Тип для извлечения типа из Promise
+ * Создает типизированный мок для функции
  */
 type PromisedType<T> = T extends Promise<infer U> ? U : never
 
@@ -51,53 +93,20 @@ export interface MockOptions<T extends (...args: any[]) => any> {
 }
 
 /**
- * Тип для объекта-заглушки
+ * Основная функция создания мока
  */
-export type StubObject<T extends object> = {
-  [K in keyof T]?: T[K] extends (...args: any[]) => any
-    ? MockedFunction<T[K]>
-    : T[K] extends object
-      ? StubObject<T[K]>
-      : T[K]
-}
-
-/**
- * Тип для мока метода объекта
- */
-export type MockedMethod<T extends object, K extends keyof T> = T[K] extends (
-  ...args: any[]
-) => any
-  ? MockedFunction<T[K]>
-  : never
-
-/**
- * Тип для мока объекта с методами
- */
-export type MockedObject<T extends object> = {
-  [K in keyof T]: T[K] extends (...args: any[]) => any
-    ? MockedFunction<T[K]>
-    : T[K] extends object
-      ? MockedObject<T[K]>
-      : T[K]
-}
-
-/**
- * Создает мок-функцию с отслеживанием вызовов и настраиваемым поведением
- */
-export function create<T extends (...args: any[]) => any>(
-  fn?: T | MockOptions<T>
-): MockedFunction<T> {
-  const options: MockOptions<T> =
-    typeof fn === 'function' ? { implementation: fn } : fn || {}
-  const { name = 'mockFunction', defaultValue, implementation } = options
-
-  // Хранение состояния мока
+export function create<T extends (...args: any[]) => any>(options?: {
+  name?: string
+  implementation?: T
+  defaultValue?: ReturnType<T>
+}): MockedFunction<T> {
+  const { implementation, defaultValue } = options || {}
   const state = {
-    calls: [] as Array<Parameters<T>>,
+    calls: [] as Parameters<T>[],
     results: [] as Array<{ type: 'return' | 'throw'; value: any }>,
     instances: [] as any[],
-    implementations: [implementation] as Array<T | undefined>,
-    returnValues: [] as any[],
+    implementations: [implementation] as (T | undefined)[],
+    returnValues: [] as ReturnType<T>[],
     rejectionValues: [] as any[],
   }
 
@@ -122,10 +131,8 @@ export function create<T extends (...args: any[]) => any>(
     if (thisArg !== null) {
       state.instances.push(thisArg)
     }
-
     // Сохраняем параметры вызова
     state.calls.push(args as Parameters<T>)
-
     try {
       // Проверяем реализацию для одного вызова
       const onceImplementation =
@@ -161,7 +168,6 @@ export function create<T extends (...args: any[]) => any>(
     }
   } as MockedFunction<T>
 
-  // Добавляем свойство mock для отслеживания и управления
   mockFn.mock = {
     calls: state.calls,
     results: state.results,
@@ -199,9 +205,7 @@ export function create<T extends (...args: any[]) => any>(
     return mockFn
   }
 
-  mockFn.mockResolvedValueOnce = <U extends Promise<any>>(
-    value: PromisedType<ReturnType<T> & U>
-  ): MockedFunction<T> => {
+  mockFn.mockResolvedValueOnce = (value: Awaited<ReturnType<T>>): MockedFunction<T> => {
     return mockFn.mockReturnValueOnce(Promise.resolve(value) as ReturnType<T>)
   }
 
@@ -214,10 +218,8 @@ export function create<T extends (...args: any[]) => any>(
     return mockFn
   }
 
-  mockFn.mockRejectedValueOnce = <U extends Promise<any>>(
-    value: any
-  ): MockedFunction<T> => {
-    state.rejectionValues.push(value)
+  mockFn.mockRejectedValueOnce = (error: any): MockedFunction<T> => {
+    state.rejectionValues.push(error)
     return mockFn
   }
 
@@ -242,6 +244,22 @@ export function create<T extends (...args: any[]) => any>(
   }
 
   return mockFn
+}
+
+/**
+ * Очищает все моки
+ */
+export function clearAll(): void {
+  // TODO: Реализация очистки всех моков, если требуется глобальный реестр
+}
+
+/**
+ * Создает мок-функцию (совместимость)
+ */
+export function createMock<T extends (...args: any[]) => any>(
+  implementation?: T
+): MockedFunction<T> {
+  return create({ implementation })
 }
 
 /**
@@ -280,7 +298,6 @@ export function object<T extends object>(obj: T): MockedObject<T> {
         name: `${obj.constructor.name || 'Object'}.${key}`,
         implementation: value as any,
       })
-
       ;(result as any)[key] = mockFn
     } else if (value && typeof value === 'object' && !Array.isArray(value)) {
       ;(result as any)[key] = object(value as object)
@@ -304,7 +321,6 @@ export function stub<T extends object>(
         name: `Stub.${key}`,
         implementation: value as any,
       })
-
       ;(result as any)[key] = mockFn
     } else {
       ;(result as any)[key] = value
@@ -320,4 +336,6 @@ export default {
   method,
   object,
   stub,
+  clearAll,
+  createMock,
 }

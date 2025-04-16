@@ -10,6 +10,7 @@ import { SessionPayment } from './payments.interface'
 import { SceneContextScene, WizardContextWizard } from 'telegraf/typings/scenes'
 import { ModeEnum } from './modes'
 import { Translation } from './translations.interface'
+import { DigitalAvatarModel } from './digital-avatar.interface'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {

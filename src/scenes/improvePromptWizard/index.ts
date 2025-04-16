@@ -171,7 +171,6 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ctx.session.selectedModel,
                 1,
                 ctx.from.id.toString(),
-                isRu,
                 ctx,
                 ctx.botInfo?.username || ''
               )

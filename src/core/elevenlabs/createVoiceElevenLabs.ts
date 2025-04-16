@@ -5,7 +5,7 @@ import path from 'path'
 import os from 'os'
 import FormData from 'form-data'
 
-async function downloadVoiceMessage(fileUrl: string, downloadPath: string) {
+async function downloadVoiceMessage(fileUrl: string, downloadPath: string): Promise<void> {
   const writer = fs.createWriteStream(downloadPath)
   const response = await axios({
     url: fileUrl,
@@ -15,9 +15,9 @@ async function downloadVoiceMessage(fileUrl: string, downloadPath: string) {
 
   response.data.pipe(writer)
 
-  return new Promise((resolve, reject) => {
-    writer.on('finish', resolve)
-    writer.on('error', reject)
+  return new Promise<void>((resolve, reject) => {
+    writer.on('finish', () => resolve())
+    writer.on('error', (error) => reject(error))
   })
 }
 

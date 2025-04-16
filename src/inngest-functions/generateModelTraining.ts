@@ -163,11 +163,7 @@ interface TrainingEventData {
   zipUrl: string
 }
 
-export interface ApiError extends Error {
-  response?: {
-    status: number
-  }
-}
+
 
 const activeTrainings = new Map<string, { cancel: () => void }>()
 

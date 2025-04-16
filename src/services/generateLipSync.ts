@@ -5,6 +5,8 @@ import fs from 'fs'
 import path from 'path'
 import { ensureDirectoryExistence } from '@/helpers'
 import { TelegramId } from '@/interfaces/telegram.interface'
+import { generateLipSync as PlanBGenerateLipSync } from './plan_b/generateLipSync'
+
 interface LipSyncResponse {
   message: string
   resultUrl?: string
@@ -30,58 +32,23 @@ async function downloadFile(url: string, outputPath: string): Promise<void> {
   })
 }
 
+// TODO: добавить тесты (unit/integration) и строгую типизацию после ручной проверки
 export async function generateLipSync(
   videoUrl: string,
   audioUrl: string,
   telegram_id: TelegramId,
-  botName: string
-): Promise<LipSyncResponse> {
+  botName: string,
+  is_ru: boolean = true
+): Promise<any> { // временно any для ручной проверки
   try {
-    const videoPath = path.join(__dirname, '../../tmp', 'temp_video.mp4')
-    const audioPath = path.join(__dirname, '../../tmp', 'temp_audio.mp3')
-    console.log('videoPath', videoPath)
-    console.log('audioPath', audioPath)
-    await ensureDirectoryExistence(path.dirname(videoPath))
-    await ensureDirectoryExistence(path.dirname(audioPath))
-    // Скачиваем видео и аудио файлы
-    await downloadFile(videoUrl, videoPath)
-    await downloadFile(audioUrl, audioPath)
-
-    console.log('LipSync request data:', { videoUrl, audioUrl, telegram_id })
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
-    }/generate/create-lip-sync`
-
-    // Создаем FormData для передачи URL видео и аудио
-    const formData = new FormData()
-    formData.append('type', 'lip-sync')
-    formData.append('telegram_id', telegram_id)
-    formData.append('is_ru', 'true')
-    formData.append('bot_name', botName)
-    formData.append('video', fs.createReadStream(videoPath))
-    formData.append('audio', fs.createReadStream(audioPath))
-
-    console.log('formData', formData)
-    const response: AxiosResponse<LipSyncResponse> = await axios.post(
-      url,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'x-secret-key': SECRET_API_KEY,
-          ...formData.getHeaders(),
-        },
-      }
+    // Вызов Direct-версии (Plan B)
+    return await PlanBGenerateLipSync(
+      telegram_id.toString(),
+      videoUrl,
+      audioUrl,
+      is_ru
     )
-
-    console.log('LipSync response:', response.data)
-    return response.data as LipSyncResponse
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      throw new Error('Error occurred while generating lip sync')
-    }
-    console.error('Unexpected error:', error)
     throw error
   }
 }

@@ -15,6 +15,28 @@ export enum TransactionType {
   TRANSFER = 'transfer',
 }
 
+/**
+ * Результат операции с балансом
+ */
+export interface BalanceOperationResult {
+  newBalance: number
+  paymentAmount: number
+  success: boolean
+  error?: string
+}
+/**
+ * Платежные системы
+ */
+export type PaymentMethod =
+  | 'Telegram'
+  | 'Robokassa'
+  | 'System'
+  | 'Unknown'
+  | 'Manual'
+
+/**
+ * Статусы платежей
+ */
 export enum PaymentStatus {
   PENDING = 'PENDING',
   COMPLETED = 'COMPLETED',

@@ -29,34 +29,10 @@ export { starAmounts } from './starAmounts'
 export { voiceConversationCost } from './voiceConversationCost'
 export { convertRublesToStars } from './costHelpers'
 
-export async function processBalanceOperation({
-  telegram_id,
-  amount,
-  is_ru,
-  bot,
-  bot_name,
-  description,
-  type,
-}: {
-  telegram_id: TelegramId
-  amount: number
-  is_ru: boolean
-  bot: Telegraf<MyContext>
-  bot_name: string
-  description: string
-  type: TransactionType
-}): Promise<BalanceOperationResult> {
-  try {
-    const user = await getUserByTelegramIdString(telegram_id)
-    if (!user) {
-      throw new Error(`User with ID ${telegram_id} not found`)
-    }
+export * from './processBalanceVideoOperation'
+export * from './processBalanceOperation'
+export * from './processPayment'
 
-    const currentBalance = user.balance || 0
-    if (currentBalance < amount) {
-      const message = is_ru
-        ? `❌ Недостаточно средств. Необходимо: ${amount} руб.`
-        : `❌ Insufficient funds. Required: ${amount} RUB`
 
       bot.telegram.sendMessage(telegram_id, message)
       return {

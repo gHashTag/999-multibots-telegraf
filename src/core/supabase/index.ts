@@ -26,7 +26,9 @@ logger.info('🔌 Supabase клиент инициализирован', {
   description: 'Supabase client initialized',
   url: SUPABASE_URL?.substring(0, 15) + '...',
 })
-
+export * from './getAiFeedbackFromSupabase'
+export * from './setMyWorkspace'
+export * from './saveVideoUrlToSupabase'
 export * from './createUser'
 export * from './createModelTraining'
 export * from './checkSubscriptionByTelegramId'
@@ -80,7 +82,7 @@ export * from './getFineTuneIdByTelegramId'
 export * from './getUserByTaskId'
 export * from './getTelegramIdFromInvId'
 export * from './getBotGroupFromAvatars'
-
+export * from './updateHistory'
 export * from './getAllUsersData'
 
 export * from './getUser'
