@@ -1,277 +1,209 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
+import express from 'express'
 
-const production = async (
-  bot: Telegraf<MyContext>,
-  port: number,
-  webhookUrl: string,
-  path: string
-): Promise<void> => {
-  try {
-    // Проверяем валидность токена и информацию о боте
-    let botInfo
+// Глобальные переменные для настройки сервера
+const app = express()
+const PORT = process.env.PORT || 2999
+const BOT_SERVER_URL =
+  process.env.ORIGIN || 'https://999-multibots-u14194.vm.elestio.app'
+const SECRET_TOKEN_BASE =
+  process.env.WEBHOOK_SECRET || 'multibots_webhook_secret'
+
+/**
+ * Запускает сервер Express для обработки вебхуков
+ * @returns {Promise<boolean>} - Успешно ли запущен сервер
+ */
+export const startServer = async (): Promise<boolean> => {
+  return new Promise<boolean>(resolve => {
     try {
-      botInfo = await bot.telegram.getMe()
-      logger.info('✅ Бот успешно аутентифицирован', {
-        description: 'Bot authenticated successfully',
-        username: botInfo.username,
-        bot_id: botInfo.id,
-        path,
-      })
-    } catch (error) {
-      logger.error('❌ Ошибка получения информации о боте', {
-        description: 'Error getting bot info',
-        error: error instanceof Error ? error.message : String(error),
-        error_code: error.response?.error_code,
-        error_description: error.response?.description,
-        path,
-      })
-
-      // Не прерываем выполнение других ботов
-      if (error.response?.error_code === 401) {
-        logger.error('❌ Ошибка авторизации (401): Токен недействителен', {
-          description: 'Unauthorized (401): Token is invalid',
-          path,
+      // Добавляем базовый маршрут для проверки работоспособности
+      app.get('/', (req, res) => {
+        res.send({
+          status: 'ok',
+          message: 'Multibots webhook server is running',
+          timestamp: new Date().toISOString(),
         })
-        return
-      }
-      throw error
-    }
+      })
 
-    // Удаляем старый вебхук с обработкой ошибок
-    logger.info('🔄 Удаляем старый вебхук...', {
-      description: 'Deleting old webhook',
-      webhookUrl,
-      path,
-    })
+      // Запускаем сервер на указанном порту
+      const server = app.listen(PORT, () => {
+        logger.info(`🚀 Webhook сервер запущен на порту ${PORT}`)
+        resolve(true)
+      })
 
-    try {
-      await bot.telegram.deleteWebhook({ drop_pending_updates: true })
-      logger.info('✅ Старый вебхук удален', {
-        description: 'Old webhook deleted',
+      // Настраиваем обработку ошибок сервера
+      server.on('error', error => {
+        logger.error(
+          `❌ Ошибка запуска сервера: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+        resolve(false)
       })
     } catch (error) {
-      logger.error('❌ Ошибка удаления вебхука', {
-        description: 'Error deleting webhook',
-        error: error instanceof Error ? error.message : String(error),
-        error_code: error.response?.error_code,
-        error_description: error.response?.description,
-        path,
-      })
-
-      // Не прерываем выполнение если возникла ошибка при удалении вебхука
-      if (error.response?.error_code === 401) {
-        logger.error('❌ Ошибка авторизации при удалении вебхука (401)', {
-          description: 'Unauthorized (401) when deleting webhook',
-          path,
-        })
-        return
-      }
+      logger.error(
+        `❌ Непредвиденная ошибка при запуске сервера: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      resolve(false)
     }
-
-    // Ждем 3 секунды перед установкой нового вебхука
-    await new Promise(resolve => setTimeout(resolve, 3000))
-
-    logger.info('🔄 Устанавливаем новый вебхук...', {
-      description: 'Setting up new webhook',
-      webhookUrl,
-      path,
-    })
-
-    try {
-      await bot.launch({
-        webhook: {
-          domain: webhookUrl,
-          port,
-          path,
-          secretToken: process.env.SECRET_TOKEN,
-        },
-      })
-
-      logger.info('✅ Бот запущен в режиме webhook', {
-        description: 'Bot launched in webhook mode',
-        webhookUrl,
-        path,
-        bot_username: botInfo.username,
-      })
-    } catch (error) {
-      logger.error('❌ Ошибка запуска бота в режиме webhook', {
-        description: 'Error launching bot in webhook mode',
-        error: error instanceof Error ? error.message : String(error),
-        error_code: error.response?.error_code,
-        error_description: error.response?.description,
-        webhookUrl,
-        path,
-      })
-
-      // Не прерываем выполнение для других ботов
-      return
-    }
-
-    return
-  } catch (e) {
-    logger.error('❌ Критическая ошибка при настройке production режима:', {
-      description: 'Critical error in production setup',
-      error: e instanceof Error ? e.message : String(e),
-      error_code: e.response?.error_code,
-      error_description: e.response?.description,
-      path,
-    })
-
-    // Не останавливаем всю программу из-за ошибки одного бота
-    logger.warn(
-      '⚠️ Бот не был запущен, но программа продолжит работу с другими ботами',
-      {
-        description:
-          'Bot was not launched, but the program will continue with other bots',
-        path,
-      }
-    )
-
-    return
-  }
+  })
 }
 
-const development = async (bot: Telegraf<MyContext>): Promise<void> => {
-  try {
-    const botInfo = await bot.telegram.getMe().catch(error => {
-      logger.error(
-        '❌ Ошибка получения информации о боте в режиме разработки',
-        {
-          description: 'Error getting bot info in development mode',
-          error: error instanceof Error ? error.message : String(error),
-          error_code: error.response?.error_code,
-          error_description: error.response?.description,
-        }
+/**
+ * Функции для запуска ботов в разных режимах
+ */
+export const launch = {
+  /**
+   * Запускает бота в режиме development через longpolling
+   * @param bot Экземпляр бота Telegraf
+   * @param botId Идентификатор бота для логов
+   * @returns Promise<boolean> Успешность запуска
+   */
+  development: async (
+    bot: Telegraf<MyContext>,
+    botId: string
+  ): Promise<boolean> => {
+    try {
+      logger.info(
+        `🚀 [${botId}] Запуск бота в режиме long polling (development)`
       )
-      throw error
-    })
 
-    logger.info('✅ Бот успешно аутентифицирован в режиме разработки', {
-      description: 'Bot authenticated successfully in development mode',
-      username: botInfo.username,
-      bot_id: botInfo.id,
-    })
+      // Проверяем соединение с API Telegram перед запуском
+      try {
+        const me = await bot.telegram.getMe()
+        logger.info(
+          `✅ [${botId}] Соединение с Telegram API успешно установлено`,
+          {
+            bot_username: me.username,
+            bot_id: me.id,
+          }
+        )
+      } catch (apiError) {
+        logger.error(
+          `❌ [${botId}] Ошибка при подключении к Telegram API: ${
+            apiError instanceof Error ? apiError.message : String(apiError)
+          }`
+        )
+        return false
+      }
 
-    logger.info('🔄 Удаляем вебхук для development режима...', {
-      description: 'Deleting webhook for development mode',
-    })
-
-    // Получаем информацию о текущем webhook
-    const webhookInfo = await bot.telegram.getWebhookInfo().catch(error => {
-      logger.error('❌ Ошибка получения информации о вебхуке', {
-        description: 'Error getting webhook info',
-        error: error instanceof Error ? error.message : String(error),
-        error_code: error.response?.error_code,
-        error_description: error.response?.description,
+      // Запускаем бота в режиме long polling с дополнительными опциями
+      await bot.launch({
+        dropPendingUpdates: true,
+        allowedUpdates: [
+          'message',
+          'callback_query',
+          'inline_query',
+          'my_chat_member',
+          'chat_member',
+        ],
       })
-      throw error
-    })
 
-    if (webhookInfo.url) {
-      logger.info('📡 Обнаружен активный webhook:', {
-        description: 'Active webhook detected',
+      logger.info(`✅ [${botId}] Бот успешно запущен в режиме long polling`)
+
+      // Регистрируем обработчик для корректного завершения работы
+      process.once('SIGINT', () => {
+        logger.info(`⏹️ [${botId}] Остановка бота по SIGINT`)
+        bot.stop('SIGINT')
+      })
+      process.once('SIGTERM', () => {
+        logger.info(`⏹️ [${botId}] Остановка бота по SIGTERM`)
+        bot.stop('SIGTERM')
+      })
+
+      return true
+    } catch (error) {
+      logger.error(
+        `❌ [${botId}] Ошибка запуска бота в режиме long polling: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      return false
+    }
+  },
+
+  /**
+   * Запускает бота в режиме production через webhook
+   * @param bot Экземпляр бота Telegraf
+   * @param botId Идентификатор бота для логов
+   * @returns Promise<boolean> Успешность запуска
+   */
+  production: async (
+    bot: Telegraf<MyContext>,
+    botId: string
+  ): Promise<boolean> => {
+    try {
+      // Создаем уникальный секретный токен для каждого бота на основе базового секрета
+      const secretToken = `${SECRET_TOKEN_BASE}_${botId}`
+
+      // Создаем уникальный путь для каждого бота
+      const path = `/webhook/${botId}`
+      const webhookUrl = `${BOT_SERVER_URL}${path}`
+
+      logger.info(`🔒 [${botId}] Настройка webhook с защитой`, {
+        webhook_url: webhookUrl,
+        has_secret: !!secretToken,
+      })
+
+      // Сбрасываем предыдущий webhook если есть
+      try {
+        await bot.telegram.deleteWebhook()
+        logger.info(`🧹 [${botId}] Предыдущий webhook удален`)
+      } catch (deleteError) {
+        logger.warn(
+          `⚠️ [${botId}] Не удалось удалить предыдущий webhook: ${
+            deleteError instanceof Error
+              ? deleteError.message
+              : String(deleteError)
+          }`
+        )
+      }
+
+      // Устанавливаем новый webhook с секретным токеном
+      await bot.telegram.setWebhook(webhookUrl, {
+        secret_token: secretToken,
+      })
+
+      // Проверяем информацию о webhook для подтверждения
+      const webhookInfo = await bot.telegram.getWebhookInfo()
+
+      logger.info(`ℹ️ [${botId}] Информация о webhook:`, {
         url: webhookInfo.url,
         has_custom_certificate: webhookInfo.has_custom_certificate,
         pending_update_count: webhookInfo.pending_update_count,
+        last_error_message: webhookInfo.last_error_message || 'No errors',
+        last_synchronization_error_date:
+          webhookInfo.last_synchronization_error_date || 'N/A',
       })
-    }
 
-    // Принудительно удаляем webhook с опцией drop_pending_updates
-    await bot.telegram
-      .deleteWebhook({ drop_pending_updates: true })
-      .catch(error => {
-        logger.error('❌ Ошибка удаления вебхука в режиме разработки', {
-          description: 'Error deleting webhook in development mode',
-          error: error instanceof Error ? error.message : String(error),
-          error_code: error.response?.error_code,
-          error_description: error.response?.description,
+      // Логируем только последние символы секретного токена для безопасности
+      const secretLastChars = secretToken.substring(secretToken.length - 4)
+
+      // Настройка express middleware для обработки webhook запросов конкретного бота
+      app.use(
+        bot.webhookCallback(path, {
+          secretToken,
         })
-        throw error
-      })
+      )
 
-    // Дополнительная проверка удаления webhook
-    const webhookInfoAfter = await bot.telegram
-      .getWebhookInfo()
-      .catch(error => {
-        logger.error(
-          '❌ Ошибка получения информации о вебхуке после удаления',
-          {
-            description: 'Error getting webhook info after deletion',
-            error: error instanceof Error ? error.message : String(error),
-            error_code: error.response?.error_code,
-            error_description: error.response?.description,
-          }
-        )
-        return { url: 'UNKNOWN' }
-      })
-
-    if (webhookInfoAfter.url) {
-      logger.warn('⚠️ Не удалось полностью удалить webhook:', {
-        description: 'Failed to completely remove webhook',
-        url: webhookInfoAfter.url,
-      })
-
-      // Повторная попытка удаления
-      await bot.telegram
-        .deleteWebhook({ drop_pending_updates: true })
-        .catch(error => {
-          logger.error('❌ Ошибка повторного удаления вебхука', {
-            description: 'Error deleting webhook on second attempt',
-            error: error instanceof Error ? error.message : String(error),
-            error_code: error.response?.error_code,
-            error_description: error.response?.description,
-          })
-          throw error
-        })
-
-      // Даем Telegram API время на обработку запроса
-      await new Promise(resolve => setTimeout(resolve, 3000))
-    } else {
-      logger.info('✅ Вебхук успешно удален', {
-        description: 'Webhook successfully deleted',
-      })
-    }
-
-    // Ждем дополнительное время перед запуском polling
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    logger.info('🚀 Запускаем бота в режиме polling...', {
-      description: 'Starting bot in polling mode',
-      bot_username: botInfo.username,
-    })
-
-    try {
-      await bot.launch()
-
-      logger.info('✅ Бот запущен в режиме polling', {
-        description: 'Bot launched in polling mode',
-        bot_username: botInfo.username,
-        bot_id: botInfo.id,
-      })
+      logger.info(
+        `✅ [${botId}] Webhook успешно настроен: ${webhookUrl} (секрет: ...${secretLastChars})`
+      )
+      return true
     } catch (error) {
-      logger.error('❌ Ошибка запуска бота в режиме polling', {
-        description: 'Error launching bot in polling mode',
-        error: error instanceof Error ? error.message : String(error),
-        error_code: error.response?.error_code,
-        error_description: error.response?.description,
-      })
-      throw error
+      logger.error(
+        `❌ [${botId}] Ошибка настройки webhook: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      return false
     }
-
-    return
-  } catch (e) {
-    logger.error('❌ Критическая ошибка при настройке development режима:', {
-      description: 'Critical error in development setup',
-      error: e instanceof Error ? e.message : String(e),
-      error_code: e.response?.error_code,
-      error_description: e.response?.description,
-    })
-
-    // В режиме разработки остановим приложение при критической ошибке
-    throw e
-  }
+  },
 }
 
-export { production, development }
+// Экспортируем express app для использования в других модулях
+export { app }
