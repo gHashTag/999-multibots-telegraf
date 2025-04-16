@@ -2,262 +2,372 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
-import { Telegraf } from 'telegraf'
+import { Telegraf, session } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 
 import { logger } from '@/utils/logger'
 import { NODE_ENV } from '@/config'
 import { getBotGroupFromAvatars } from '../supabase/getBotGroupFromAvatars'
 
-// Проверяем токены в зависимости от окружения
-if (process.env.NODE_ENV === 'production') {
-  // Check production tokens
-  if (!process.env.BOT_TOKEN_1) throw new Error('❌ BOT_TOKEN_1 must be set')
-  if (!process.env.BOT_TOKEN_2) throw new Error('❌ BOT_TOKEN_2 must be set')
-  if (!process.env.BOT_TOKEN_3) throw new Error('❌ BOT_TOKEN_3 must be set')
-  if (!process.env.BOT_TOKEN_4) throw new Error('❌ BOT_TOKEN_4 must be set')
-  if (!process.env.BOT_TOKEN_5) throw new Error('❌ BOT_TOKEN_5 must be set')
-  if (!process.env.BOT_TOKEN_6) throw new Error('❌ BOT_TOKEN_6 must be set')
-  if (!process.env.BOT_TOKEN_7) throw new Error('❌ BOT_TOKEN_7 must be set')
-} else {
-  // Check test tokens
-  if (!process.env.BOT_TOKEN_TEST_1)
-    throw new Error('❌ BOT_TOKEN_TEST_1 must be set')
-  if (!process.env.BOT_TOKEN_TEST_2)
-    throw new Error('❌ BOT_TOKEN_TEST_2 must be set')
+// Объявляем интерфейс BotExtraOptions, который используется в функции createBot
+interface BotExtraOptions {
+  // Дополнительные опции для создания бота
+  // Можно добавить необходимые свойства при необходимости
 }
 
-const BOT_TOKENS_PROD = [
-  process.env.BOT_TOKEN_1,
-  process.env.BOT_TOKEN_2,
-  process.env.BOT_TOKEN_3,
-  process.env.BOT_TOKEN_4,
-  process.env.BOT_TOKEN_5,
-  process.env.BOT_TOKEN_6,
-  process.env.BOT_TOKEN_7,
-].filter((token): token is string => typeof token === 'string')
-
-const BOT_TOKENS_TEST = [
-  process.env.BOT_TOKEN_TEST_1,
-  process.env.BOT_TOKEN_TEST_2,
-].filter((token): token is string => typeof token === 'string')
-
-export const BOT_NAMES: Record<string, string | undefined> = {
-  ['neuro_blogger_bot']: process.env.BOT_TOKEN_1,
-  ['MetaMuse_Manifest_bot']: process.env.BOT_TOKEN_2,
-  ['ZavaraBot']: process.env.BOT_TOKEN_3,
-  ['LeeSolarbot']: process.env.BOT_TOKEN_4,
-  ['NeuroLenaAssistant_bot']: process.env.BOT_TOKEN_5,
-  ['NeurostylistShtogrina_bot']: process.env.BOT_TOKEN_6,
-  ['Gaia_Kamskaia_bot']: process.env.BOT_TOKEN_7,
-  ['ai_koshey_bot']: process.env.BOT_TOKEN_TEST_1,
-  ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_TEST_2,
+// Определим интерфейсы Bot и BotList, если они не импортируются
+interface Bot {
+  bot: Telegraf<MyContext>
+  id: string
 }
 
-// Tutorial URLs
-export const BOT_URLS = {
-  MetaMuse_Manifest_bot: 'https://t.me/MetaMuse_manifestation/16',
-  neuro_blogger_bot: 'https://t.me/neuro_coder_ai/1212',
-  ai_koshey_bot: 'https://t.me/neuro_coder_ai/1212',
+type BotList = Bot[]
+
+interface Scenes {
+  // Определение для Scenes
 }
 
-export const BOT_TOKENS =
-  NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_TEST
-
-export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
-if (!DEFAULT_BOT_TOKEN) throw new Error('❌ DEFAULT_BOT_TOKEN must be set')
-
-export const DEFAULT_BOT_NAME = 'neuro_blogger_bot'
-export const defaultBot = new Telegraf<MyContext>(DEFAULT_BOT_TOKEN)
-
-logger.info('🤖 Инициализация defaultBot:', {
-  description: 'DefaultBot initialization',
-  tokenLength: DEFAULT_BOT_TOKEN.length,
-})
-
-// Инициализируем ботов при старте приложения
-export const bots = Object.entries(BOT_NAMES)
-  .filter(([, token]) => token !== undefined)
-  .map(([name, token]) => {
-    if (!token) {
-      logger.error('❌ Токен не определен:', {
-        description: 'Token is undefined',
-        bot_name: name,
-      })
-      throw new Error(`Token is undefined for bot ${name}`)
-    }
-
-    // Если это defaultBot, используем существующий экземпляр
-    if (name === DEFAULT_BOT_NAME) {
-      logger.info('🤖 Использование существующего defaultBot:', {
-        description: 'Using existing defaultBot',
-        bot_name: name,
-      })
-      return defaultBot
-    }
-
-    const bot = new Telegraf<MyContext>(token)
-
-    bot.use((ctx, next) => {
-      console.log('RAW REQUEST:', ctx.update)
-      return next()
-    })
-
-    logger.info('🤖 Инициализация бота:', {
-      description: 'Bot initialization',
-      bot_name: name,
-      tokenLength: token.length,
-    })
-
-    return bot
-  })
-
-logger.info('🌟 Инициализировано ботов:', {
-  description: 'Bots initialized',
-  count: bots.length,
-  bot_names: Object.keys(BOT_NAMES),
-})
-
-export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1
-if (!PULSE_BOT_TOKEN) throw new Error('❌ PULSE_BOT_TOKEN must be set')
-
-export const pulseBot = new Telegraf<MyContext>(PULSE_BOT_TOKEN)
-
-logger.info('🤖 Инициализация pulseBot:', {
-  description: 'PulseBot initialization',
-  tokenLength: PULSE_BOT_TOKEN.length,
-})
-
-export function getBotNameByToken(token: string): { bot_name: string } {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)
-  if (!entry) {
-    return { bot_name: DEFAULT_BOT_NAME }
-  }
-
-  const [bot_name] = entry
-  return { bot_name }
-}
-
-export function getTokenByBotName(botName: string): string | undefined {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const entry = Object.entries(BOT_NAMES).find(([name, _]) => name === botName)
-  if (!entry) {
-    console.warn(`Bot name ${botName} not found.`)
-    return undefined
-  }
-
-  const [, token] = entry
-  return token
-}
-
-export async function createBotByName(
-  botName: string
-): Promise<
-  { token: string; groupId: string; bot: Telegraf<MyContext> } | undefined
-> {
-  const token = getTokenByBotName(botName)
+/**
+ * Функция проверяет валидность токена
+ */
+function validateToken(token?: string): boolean {
   if (!token) {
-    logger.error('❌ Токен для бота не найден:', {
-      description: 'Token not found for bot',
-      botName,
-    })
-    return undefined
+    console.error('validateToken: Bot token is empty or undefined')
+    return false
   }
 
-  const groupId = (await getBotGroupFromAvatars(botName)) || ''
+  const regex = /^\d+:[\w-]+$/
+  const isValid = regex.test(token)
 
-  // Ищем бота в массиве bots
-  const botIndex = Object.keys(BOT_NAMES).indexOf(botName)
-  const bot = bots[botIndex]
-
-  if (!bot) {
-    logger.error('❌ Экземпляр бота не найден:', {
-      description: 'Bot instance not found',
-      botName,
-      botIndex,
-      availableBots: Object.keys(BOT_NAMES),
-    })
-    return undefined
+  if (!isValid) {
+    console.error(`validateToken: Invalid token format: ${token}`)
   }
 
-  return {
-    token,
-    groupId,
-    bot,
-  }
+  return isValid
 }
 
-export function getBotByName(bot_name: string): {
-  bot?: Telegraf<MyContext>
-  error?: string | null
-} {
-  // В тестовом окружении возвращаем мок
-  if (process.env.NODE_ENV === 'test') {
-    logger.info({
-      message: '🧪 Возвращаем мок бота для тестов',
-      description: 'Returning mock bot for tests',
-      bot_name,
-    })
-    return {
-      bot: null,
-      error: 'Bot not found',
+/**
+ * Функция маскирует токен, оставляя видимыми только первые и последние 5 символов
+ */
+function maskToken(token: string): string {
+  if (!token || token.length < 11) return '[INVALID_TOKEN_FORMAT]'
+
+  const parts = token.split(':')
+  if (parts.length !== 2) return '[INVALID_TOKEN_FORMAT]'
+
+  const botId = parts[0]
+  const secret = parts[1]
+
+  // Маскируем часть секрета, оставляя видимыми первые и последние 5 символов
+  const maskedSecret =
+    secret.length > 10
+      ? `${secret.substring(0, 5)}...${secret.substring(secret.length - 5)}`
+      : '[SECRET_TOO_SHORT]'
+
+  return `${botId}:${maskedSecret}`
+}
+
+// Используем перегрузку для функции createBot с разными сигнатурами
+export const createBot = async function createBot(
+  token: string,
+  optionsOrBotId?:
+    | (Partial<Telegraf.Options<MyContext>> & BotExtraOptions)
+    | string
+): Promise<Telegraf<MyContext> | Bot | null> {
+  // Если второй параметр - строка, значит это botId, иначе - options
+  const isBotId = typeof optionsOrBotId === 'string'
+  const botId = isBotId ? optionsOrBotId : ''
+  const options = isBotId ? {} : optionsOrBotId || {}
+
+  if (isBotId) {
+    // Реализация для варианта с botId
+    try {
+      logger.info('🤖 Создаем бота...', {
+        description: 'Creating bot instance',
+        bot_id: botId,
+        masked_token: maskToken(token),
+      })
+
+      if (!validateToken(token)) {
+        logger.error('❌ Невалидный токен, пропускаем создание бота', {
+          description: 'Invalid token, skipping bot creation',
+          bot_id: botId,
+        })
+        return null
+      }
+
+      const bot = new Telegraf<MyContext>(token)
+
+      try {
+        // Проверяем валидность токена путем получения информации о боте
+        const botInfo = await bot.telegram.getMe()
+        logger.info('✅ Токен валиден, получена информация о боте', {
+          description: 'Token is valid, bot info received',
+          bot_id: botId,
+          bot_username: botInfo.username,
+          telegram_id: botInfo.id,
+        })
+      } catch (error) {
+        logger.error('❌ Ошибка при проверке токена бота', {
+          description: 'Error verifying bot token',
+          bot_id: botId,
+          error: error instanceof Error ? error.message : String(error),
+          error_code: error.response?.error_code,
+          error_description: error.response?.description,
+        })
+
+        if (error.response?.error_code === 401) {
+          logger.error('❌ Ошибка авторизации (401): Токен недействителен', {
+            description: 'Unauthorized (401): Token is invalid',
+            bot_id: botId,
+          })
+
+          // Проверка наличия специфических ошибок в ответе
+          if (error.response?.description?.includes('Unauthorized')) {
+            logger.error(
+              '❌ Подробности ошибки авторизации: API вернул "Unauthorized"',
+              {
+                description:
+                  'Authorization error details: API returned "Unauthorized"',
+                bot_id: botId,
+              }
+            )
+          }
+        }
+
+        return null
+      }
+
+      // Настраиваем бота: middleware, session, etc.
+      bot.use(session())
+
+      // Используем try-catch для обработки потенциальных ошибок
+      try {
+        bot.use((ctx, next) => {
+          // Базовая обработка ошибок
+          return next().catch(error => {
+            logger.error('❌ Ошибка в middleware бота', {
+              description: 'Error in bot middleware',
+              bot_id: botId,
+              error: error instanceof Error ? error.message : String(error),
+            })
+            return Promise.resolve()
+          })
+        })
+      } catch (error) {
+        logger.error('❌ Ошибка при настройке middleware', {
+          description: 'Error setting up middleware',
+          bot_id: botId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+
+      logger.info('✅ Бот успешно создан', {
+        description: 'Bot created successfully',
+        bot_id: botId,
+      })
+
+      return { bot, id: botId }
+    } catch (error) {
+      logger.error('❌ Ошибка при создании бота', {
+        description: 'Error creating bot',
+        bot_id: botId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      // Не пробрасываем ошибку дальше, чтобы изолировать сбой одного бота
+      return null
     }
-  }
-
-  logger.info({
-    message: '🔎 getBotByName запрошен для',
-    description: 'getBotByName requested for',
-    bot_name,
-  })
-
-  // Проверяем наличие бота в конфигурации
-  const token = BOT_NAMES[bot_name]
-  if (!token) {
-    logger.error({
-      message: '❌ Токен бота не найден в конфигурации',
-      description: 'Bot token not found in configuration',
-      bot_name,
-      availableBots: Object.keys(BOT_NAMES),
-    })
-    return { error: 'Bot not found in configuration' }
-  }
-
-  // Ищем бота в массиве bots
-  const botIndex = Object.keys(BOT_NAMES).indexOf(bot_name)
-  const bot = bots[botIndex]
-
-  if (!bot) {
-    logger.error({
-      message: '❌ Экземпляр бота не найден',
-      description: 'Bot instance not found',
-      bot_name,
-      botIndex,
-      availableBots: Object.keys(BOT_NAMES),
-    })
-    return { error: 'Bot instance not found' }
-  }
-
-  return { bot }
-}
-
-export const supportRequest = async (title: string, data: any) => {
-  if (!process.env.SUPPORT_CHAT_ID) {
-    logger.error('❌ SUPPORT_CHAT_ID не установлен', {
-      description: 'SUPPORT_CHAT_ID is not set',
-    })
-    return
-  }
-
-  try {
-    await defaultBot.telegram.sendMessage(
-      process.env.SUPPORT_CHAT_ID,
-      `${title}\n\n${JSON.stringify(data, null, 2)}`
+  } else {
+    // Реализация оригинальной функции createBot с options
+    console.log(
+      `Creating bot with token: ${token.substring(0, 5)}...${token.substring(token.length - 5)}`
     )
-  } catch (error) {
-    logger.error('❌ Ошибка отправки сообщения в поддержку:', {
-      description: 'Error sending message to support',
-      error: error instanceof Error ? error.message : String(error),
+
+    if (!validateToken(token)) {
+      const error = new Error(
+        `Invalid bot token format: ${token.substring(0, 5)}...${token.substring(token.length - 5)}`
+      )
+      console.error(error)
+      throw error
+    }
+
+    try {
+      const bot = new Telegraf<MyContext>(token, options)
+
+      console.log(
+        'Bot created successfully, attempting to getMe to verify token...'
+      )
+
+      try {
+        const me = await bot.telegram.getMe()
+        console.log(`Bot verified: @${me.username} (ID: ${me.id})`)
+        return bot
+      } catch (error) {
+        console.error('Error verifying bot with getMe:', error)
+        throw new Error(`Failed to verify bot: ${error.message}`)
+      }
+    } catch (error) {
+      console.error('Error creating bot:', error)
+      throw new Error(`Failed to create bot: ${error.message}`)
+    }
+  }
+}
+
+// Заменяем перекрывающуюся функцию initBot на одну версию
+export async function initBot(
+  tokenOrEnv: string,
+  optionsOrBotId?:
+    | (Partial<Telegraf.Options<MyContext>> & BotExtraOptions)
+    | string
+): Promise<Telegraf<MyContext> | Bot | null> {
+  // Определяем, какой вариант функции вызван
+  const isBotId = typeof optionsOrBotId === 'string'
+
+  if (isBotId) {
+    // Версия initBot(token_env, bot_id)
+    const token_env = tokenOrEnv
+    const bot_id = optionsOrBotId || ''
+
+    try {
+      logger.info('🚀 Инициализация бота...', {
+        description: 'Initializing bot',
+        bot_id,
+        token_env,
+      })
+
+      const token = process.env[token_env]
+
+      if (!token) {
+        logger.error(
+          `❌ Токен не найден: ${token_env} отсутствует в переменных окружения`,
+          {
+            description: 'Token not found in environment variables',
+            token_env,
+            bot_id,
+            available_envs: Object.keys(process.env)
+              .filter(key => key.includes('TOKEN') || key.includes('BOT'))
+              .join(', '),
+          }
+        )
+        return null
+      }
+
+      return createBot(token, bot_id)
+    } catch (error) {
+      logger.error('❌ Ошибка при инициализации бота', {
+        description: 'Error initializing bot',
+        bot_id,
+        token_env,
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      // Не пробрасываем ошибку дальше, чтобы изолировать сбой одного бота
+      return null
+    }
+  } else {
+    // Оригинальная версия initBot(token, options)
+    const token = tokenOrEnv
+    const options = optionsOrBotId || {}
+
+    const hasIndex = token.includes('_')
+    const botNumber = hasIndex ? token.split('_')[1] : token
+
+    const isDevelopment = process.env.NODE_ENV === 'development'
+
+    const envVarName = `BOT_TOKEN${isDevelopment ? '_TEST' : ''}_${botNumber}`
+    const botToken = process.env[envVarName]
+
+    console.log(`Initializing bot ${botNumber} with env var: ${envVarName}`)
+
+    if (!botToken) {
+      const error = new Error(
+        `Bot token not found in environment variable: ${envVarName}`
+      )
+      console.error(error)
+      throw error
+    }
+
+    console.log(
+      `Bot token from env: ${botToken.substring(0, 5)}...${botToken.substring(botToken.length - 5)}`
+    )
+
+    return createBot(botToken, options)
+  }
+}
+
+/**
+ * Инициализирует список ботов
+ */
+export default async function init(): Promise<BotList> {
+  logger.info('🔄 Начинаем инициализацию ботов...', {
+    description: 'Starting bot initialization',
+  })
+
+  // Определяем токены для ботов в зависимости от окружения
+  const tokenEntries = Object.entries(
+    NODE_ENV === 'production'
+      ? {
+          neuro_blogger_bot: 'BOT_TOKEN_1',
+          MetaMuse_Manifest_bot: 'BOT_TOKEN_2',
+          ZavaraBot: 'BOT_TOKEN_3',
+          LeeSolarbot: 'BOT_TOKEN_4',
+          NeuroLenaAssistant_bot: 'BOT_TOKEN_5',
+          NeurostylistShtogrina_bot: 'BOT_TOKEN_6',
+          Gaia_Kamskaia_bot: 'BOT_TOKEN_7',
+        }
+      : {
+          ai_koshey_bot: 'BOT_TOKEN_TEST_1',
+          clip_maker_neuro_bot: 'BOT_TOKEN_TEST_2',
+        }
+  )
+
+  const botPromises = tokenEntries.map(async ([bot_id, token_env]) => {
+    try {
+      const bot = await initBot(token_env, bot_id)
+      return bot
+    } catch (error) {
+      logger.error('❌ Ошибка инициализации отдельного бота', {
+        description: 'Error initializing individual bot',
+        bot_id,
+        token_env,
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      // Возвращаем null вместо сбойного бота
+      return null
+    }
+  })
+
+  // Собираем результаты инициализации и фильтруем null-значения
+  const botResults = await Promise.all(botPromises)
+  const validBots = botResults.filter(Boolean) as Bot[]
+
+  // Подсчитываем успешно и неуспешно инициализированные боты
+  const successCount = validBots.length
+  const failCount = botResults.length - successCount
+
+  logger.info('✅ Инициализация ботов завершена', {
+    description: 'Bot initialization completed',
+    total_bots: botResults.length,
+    success_count: successCount,
+    fail_count: failCount,
+    success_rate: `${Math.round((successCount / botResults.length) * 100)}%`,
+  })
+
+  if (failCount > 0) {
+    logger.warn('⚠️ Не все боты были успешно инициализированы', {
+      description: 'Not all bots were successfully initialized',
+      fail_count: failCount,
+      success_count: successCount,
     })
   }
+
+  if (successCount === 0) {
+    logger.error('❌ Критическая ошибка: Ни один бот не был инициализирован', {
+      description: 'Critical error: No bots were initialized',
+    })
+  }
+
+  return validBots
 }

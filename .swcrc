@@ -21,16 +21,22 @@
     "baseUrl": "src",
     "paths": {
       "@/*": ["*"],
-      "@config": ["config"],
-      "@controllers/*": ["controllers/*"],
-      "@dtos/*": ["dtos/*"],
-      "@exceptions/*": ["exceptions/*"],
-      "@interfaces/*": ["interfaces/*"],
-      "@middlewares/*": ["middlewares/*"],
-      "@models/*": ["models/*"],
-      "@routes/*": ["routes/*"],
-      "@services/*": ["services/*"],
-      "@utils/*": ["utils/*"]
+      "@/config": ["config"],
+      "@/controllers/*": ["controllers/*"],
+      "@/dtos/*": ["dtos/*"],
+      "@/exceptions/*": ["exceptions/*"],
+      "@/interfaces/*": ["interfaces/*"],
+      "@/middlewares/*": ["middlewares/*"],
+      "@/models/*": ["models/*"],
+      "@/routes/*": ["routes/*"],
+      "@/services/*": ["services/*"],
+      "@/utils/*": ["utils/*"],
+      "@/core/*": ["core/*"],
+      "@/axios/*": ["axios/*"],
+      "@/price/*": ["price/*"],
+      "@/store/*": ["store/*"],
+      "@/handlers/*": ["handlers/*"],
+      "@/helpers/*": ["helpers/*"]
     }
   },
   "module": {

@@ -19,11 +19,19 @@ import { setupErrorHandler } from './helpers/error/errorHandler'
 
 dotenv.config()
 
+// Логирование для отладки
+console.log('📂 bot.ts загружен', { NODE_ENV, cwd: process.cwd() })
+console.log('🔑 Переменные окружения:', {
+  TEST_BOT_NAME: process.env.TEST_BOT_NAME,
+  NODE_ENV: process.env.NODE_ENV,
+})
+
 export const composer = new Composer<MyContext>()
 
 type NextFunction = (err?: Error) => void
 
 export const createBots = async () => {
+  console.log('🚀 Запуск createBots()')
   // startApiServer()
   logger.warn(
     '⚠️ [AUTOFIX] API сервер не запущен из bots.ts, чтобы избежать конфликта портов. Запуск производится только из bot.ts',
@@ -39,6 +47,9 @@ export const createBots = async () => {
     })
     throw new Error('TEST_BOT_NAME is required')
   }
+
+  console.log('📊 Режим работы:', NODE_ENV)
+  console.log('🤖 Доступные боты:', bots.length)
 
   // В режиме разработки используем только один тестовый бот
   const testBot =
@@ -59,6 +70,8 @@ export const createBots = async () => {
     })
     throw new Error('Test bot not found')
   }
+
+  console.log('✅ Активных ботов:', activeBots.length)
 
   activeBots.forEach((bot, index) => {
     const app = express()
@@ -127,4 +140,7 @@ export const createBots = async () => {
   })
 }
 
+console.log('🏁 Запуск приложения')
 createBots()
+  .then(() => console.log('✅ Боты успешно запущены'))
+  .catch(error => console.error('❌ Ошибка при запуске ботов:', error))
