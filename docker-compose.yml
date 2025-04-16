@@ -9,8 +9,12 @@ services:
       - '3001:3001'
       - '3002:3002'
       - '3003:3003'
+    volumes:
+      - ./.env:/app/.env
+      - ./.env.production:/app/.env.production
     env_file:
       - .env
+      - .env.production
     environment:
       - NODE_ENV=production
       - PORT=3000

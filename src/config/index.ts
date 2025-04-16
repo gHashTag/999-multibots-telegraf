@@ -1,5 +1,29 @@
 import { config } from 'dotenv'
-config({ path: `.env.${process.env.NODE_ENV || 'development'}.local` })
+console.log(
+  `Loading env file: .env.${process.env.NODE_ENV || 'development'}.local`
+)
+const loadResult = config({
+  path: `.env.${process.env.NODE_ENV || 'development'}.local`,
+})
+console.log('Env loaded success:', loadResult.parsed ? true : false)
+
+// Попробуем загрузить обычный .env файл, если предыдущий не был найден
+if (!loadResult.parsed) {
+  console.log('Fallback to .env file')
+  config()
+}
+
+// Логирование для проверки токенов
+if (process.env.NODE_ENV === 'production') {
+  console.log('Bot tokens check in ENV:')
+  console.log('BOT_TOKEN_1 exists:', !!process.env.BOT_TOKEN_1)
+  console.log('BOT_TOKEN_2 exists:', !!process.env.BOT_TOKEN_2)
+  console.log('BOT_TOKEN_3 exists:', !!process.env.BOT_TOKEN_3)
+  console.log('BOT_TOKEN_4 exists:', !!process.env.BOT_TOKEN_4)
+  console.log('BOT_TOKEN_5 exists:', !!process.env.BOT_TOKEN_5)
+  console.log('BOT_TOKEN_6 exists:', !!process.env.BOT_TOKEN_6)
+  console.log('BOT_TOKEN_7 exists:', !!process.env.BOT_TOKEN_7)
+}
 
 export const CREDENTIALS = process.env.CREDENTIALS === 'true'
 export const {

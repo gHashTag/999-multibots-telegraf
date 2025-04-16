@@ -84,7 +84,7 @@ export const createBots = async () => {
     })
 
     const webhookPath = `/${bot_name}`
-    const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app${webhookPath}`
+    const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app`
 
     if (NODE_ENV === 'development') {
       development(bot)

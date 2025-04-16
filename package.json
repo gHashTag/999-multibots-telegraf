@@ -5,13 +5,16 @@
   "author": "",
   "license": "ISC",
   "scripts": {
+    "predev": "node scripts/kill-port.js 2999 3001 8288",
     "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
     "dev": "cross-env NODE_ENV=development nodemon src/bot.ts",
     "build": "swc src -d dist --source-maps --copy-files",
     "build:tsc": "tsc && tsc-alias",
     "test": "jest --forceExit --detectOpenHandles",
     "lint": "eslint --ignore-path .gitignore --ext .ts src",
-    "lint:fix": "npm run lint -- --fix"
+    "lint:fix": "npm run lint -- --fix",
+    "deploy": "./scripts/update-host.sh",
+    "deploy:server": "./scripts/update-docker.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.10",
