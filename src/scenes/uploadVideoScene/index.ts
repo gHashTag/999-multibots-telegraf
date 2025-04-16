@@ -64,6 +64,14 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
     try {
+      if (!ctx.session.videoUrl) {
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: URL видео не найден'
+            : '❌ Error: Video URL not found'
+        )
+        return ctx.scene.leave()
+      }
       await uploadVideoToServer({
         videoUrl: ctx.session.videoUrl,
         telegram_id: telegramId,

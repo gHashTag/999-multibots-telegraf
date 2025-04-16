@@ -19,8 +19,6 @@ import { get100Command } from '@/commands'
 import { getStatsCommand } from '@/commands/stats'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {

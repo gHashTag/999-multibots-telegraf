@@ -25,7 +25,7 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
 
       if (stepsMatch) {
         const steps = parseInt(stepsMatch[0])
-        ctx.session.steps = steps
+        ctx.session.steps = [steps.toString()]
         console.log('Parsed steps:', steps)
         const { leaveScene, trainingCostInStars, currentBalance } =
           await handleTrainingCost(ctx, steps, isRu, 'v1')

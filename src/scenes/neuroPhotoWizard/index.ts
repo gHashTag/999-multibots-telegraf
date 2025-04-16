@@ -214,10 +214,11 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       }
       await mainMenu({
         isRu,
-        inviteCount: count,
-        subscription: subscription?.type || SubscriptionType.NEUROTESTER,
-        ctx,
+        subscription: ctx.session.subscription || SubscriptionType.NEUROPHOTO,
         level,
+        ctx,
+        inviteCount: count,
+        additionalButtons: [],
       })
     }
   }

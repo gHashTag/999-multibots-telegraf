@@ -17,10 +17,11 @@ export const sendGenerationCancelledMessage = async (
       keyboard: (
         await mainMenu({
           isRu,
-          inviteCount: count,
           subscription: subscription?.type || SubscriptionType.STARS,
-          ctx,
           level,
+          ctx,
+          inviteCount: count,
+          additionalButtons: [],
         })
       ).reply_markup.keyboard,
     },

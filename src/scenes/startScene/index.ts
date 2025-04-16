@@ -131,7 +131,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     }
     const hasFullAccess = await checkPaymentStatus(ctx, userData.subscription)
     if (hasFullAccess) {
-      await ctx.scene.enter('menuScene')
+      await ctx.scene.enter(ModeEnum.MainMenu)
     } else {
       await ctx.scene.enter(ModeEnum.SubscriptionScene)
     }

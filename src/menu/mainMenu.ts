@@ -2,7 +2,6 @@ import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 import { MyContext, Level } from '@/interfaces/telegram-bot.interface'
-import { SUBSCRIPTION_CONFIG } from '@/config/subscription.config'
 
 export const levels: Record<number, Level> = {
   // digital_avatar_body
@@ -105,20 +104,9 @@ export const mainMenuButton = {
   title_en: '🏠 Main menu',
 }
 
-// Используем централизованную конфигурацию для уровней подписки
-export const subscriptionLevels = Object.values(SUBSCRIPTION_CONFIG).map(
-  config => ({
-    type: config.type,
-    title_ru: config.title_ru,
-    title_en: config.title_en,
-    price_ru: config.price_ru,
-    price_en: config.price_en,
-  })
-)
-
 export async function mainMenu({
   isRu,
-  subscription = SubscriptionType.NEUROTESTER,
+  subscription = SubscriptionType.STARS,
   level,
   additionalButtons = [],
 }: {
@@ -133,9 +121,8 @@ export async function mainMenu({
 
   // Основная конфигурация меню
   const subscriptionLevelsMap = {
-    [SubscriptionType.STARS]: Object.values(levels),
-    [SubscriptionType.NEUROTESTER]: Object.values(levels),
-    [SubscriptionType.NEUROPHOTO]: [
+    stars: [levels[105], levels[104]],
+    neurophoto: [
       levels[1],
       levels[2],
       levels[3],
@@ -146,8 +133,10 @@ export async function mainMenu({
       levels[104],
       levels[105],
     ],
-    [SubscriptionType.NEUROBASE]: Object.values(levels),
-    [SubscriptionType.NEUROBLOGGER]: Object.values(levels),
+    neurobase: Object.values(levels),
+    neuromeeting: Object.values(levels),
+    neuroblogger: Object.values(levels),
+    neurotester: Object.values(levels),
   }
 
   // Получаем основные кнопки для текущей подписки
@@ -167,11 +156,7 @@ export async function mainMenu({
   availableLevels = Array.from(new Set(availableLevels))
 
   // Для подписок с полным доступом не фильтруем по уровню
-  if (
-    ![SubscriptionType.NEUROTESTER, SubscriptionType.NEUROBASE].includes(
-      subscription
-    )
-  ) {
+  if (!['neurotester', 'neurobase'].includes(subscription)) {
     availableLevels = availableLevels.filter(
       l =>
         // Оставляем кнопки, которые есть в subscriptionLevelsMap

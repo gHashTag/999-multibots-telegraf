@@ -653,10 +653,11 @@ export function registerCommands({
     }
     await mainMenu({
       isRu,
-      inviteCount: count,
       subscription: subscription?.type || SubscriptionType.STARS,
-      ctx,
       level,
+      ctx,
+      inviteCount: count,
+      additionalButtons: [],
     })
     return ctx.scene.leave()
   })

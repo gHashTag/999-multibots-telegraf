@@ -2,38 +2,52 @@ import { Inngest } from 'inngest'
 import { INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY } from '@/config'
 import { createHttpClient } from '@/utils/httpClient'
 import { logger } from '@/utils/logger'
-// Добавляем лог для проверки инициализации
-logger.info('🔄 Initializing Inngest client...')
-logger.info('🔑 INNGEST_EVENT_KEY available:', !!INNGEST_EVENT_KEY)
-logger.info('🔑 INNGEST_SIGNING_KEY available:', !!INNGEST_SIGNING_KEY)
-logger.info('🔧 NODE_ENV:', process.env.NODE_ENV)
 
-if (INNGEST_EVENT_KEY) {
-  logger.info(
-    '🔑 INNGEST_EVENT_KEY first 10 chars:',
-    INNGEST_EVENT_KEY.substring(0, 10) + '...'
-  )
+// Добавляем расширенное логирование для диагностики
+logger.info('🔄 Initializing Inngest client...', {
+  environment: process.env.NODE_ENV,
+  docker: process.env.DOCKER_ENVIRONMENT === 'true',
+  timestamp: new Date().toISOString(),
+})
+
+// Проверяем наличие ключей
+logger.info('🔑 Checking Inngest keys:', {
+  event_key_present: !!INNGEST_EVENT_KEY,
+  signing_key_present: !!INNGEST_SIGNING_KEY,
+})
+
+// Определяем базовый URL в зависимости от окружения
+const getBaseUrl = () => {
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.INNGEST_URL || 'https://api.inngest.com'
+  }
+
+  // Для Docker используем специальный URL
+  if (process.env.DOCKER_ENVIRONMENT === 'true') {
+    return (
+      process.env.INNGEST_BASE_DOCKER_URL || 'http://host.docker.internal:8288'
+    )
+  }
+
+  // Для локальной разработки
+  return process.env.INNGEST_BASE_URL || 'http://localhost:8288'
 }
 
-if (INNGEST_SIGNING_KEY) {
-  logger.info(
-    '🔑 INNGEST_SIGNING_KEY first 10 chars:',
-    INNGEST_SIGNING_KEY.substring(0, 10) + '...'
-  )
-}
-
-// Создаем HTTP клиент для Inngest
-const inngestHttpClient = createHttpClient({
-  timeout: 10000,
+// Создаем HTTP клиент с retry логикой
+const httpClient = createHttpClient({
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-// Адаптер для fetch API
-const fetchAdapter = async (input: RequestInfo | URL, init?: RequestInit) => {
+// Создаем fetch адаптер
+const fetchAdapter = async (
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> => {
   const url = typeof input === 'string' ? input : input.toString()
-  const response = await inngestHttpClient.request(url, {
+  const response = await httpClient.request(url, {
     method: init?.method || 'GET',
     headers: init?.headers as Record<string, string>,
     body: init?.body,
@@ -57,18 +71,27 @@ const fetchAdapter = async (input: RequestInfo | URL, init?: RequestInit) => {
   } as Response
 }
 
-// Создаем базовую конфигурацию Inngest
+// Базовая конфигурация Inngest
 const inngestConfig = {
   id: 'neuro-blogger-2.0',
   eventKey: INNGEST_EVENT_KEY || 'development-key',
   signingKey: INNGEST_SIGNING_KEY,
-  baseUrl: process.env.INNGEST_BASE_URL,
-  fetch: (input: RequestInfo | URL, init?: RequestInit) => {
-    return fetchAdapter(input, init)
-  },
+  baseUrl: getBaseUrl(),
+  fetch: fetchAdapter,
 }
 
-// Создаем экземпляр с нужной конфигурацией
+// Логируем итоговую конфигурацию (без sensitive данных)
+logger.info('⚙️ Inngest configuration:', {
+  id: inngestConfig.id,
+  baseUrl: inngestConfig.baseUrl,
+  environment: process.env.NODE_ENV,
+  is_docker: process.env.DOCKER_ENVIRONMENT === 'true',
+  has_event_key: !!inngestConfig.eventKey,
+  has_signing_key: !!inngestConfig.signingKey,
+  timestamp: new Date().toISOString(),
+})
+
+// Создаем и экспортируем клиент
 export const inngest = new Inngest(inngestConfig)
 
 // Проверка экспорта
