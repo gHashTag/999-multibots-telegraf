@@ -285,16 +285,16 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   console.log('CASE 1: ⭐️ Звездами: subscription', subscription)
   if (subscription) {
     if (subscription === SubscriptionType.NEUROBASE) {
-      await handleBuySubscription(ctx)
+      await handleBuySubscription(ctx, subscription)
       await ctx.scene.leave()
     } else if (subscription === SubscriptionType.NEUROBLOGGER) {
-      await handleBuySubscription(ctx)
+      await handleBuySubscription(ctx, subscription)
       await ctx.scene.leave()
     } else if (subscription === SubscriptionType.NEUROTESTER) {
-      await handleBuySubscription(ctx)
+      await handleBuySubscription(ctx, subscription)
       await ctx.scene.leave()
     } else if (subscription === SubscriptionType.NEUROPHOTO) {
-      await handleBuySubscription(ctx)
+      await handleBuySubscription(ctx, subscription)
       await ctx.scene.leave()
     } else if (subscription === SubscriptionType.STARS) {
       const paymentOptions: PaymentOption[] = starAmounts.map(amount => ({
@@ -349,7 +349,7 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
         ? 'Пожалуйста, сначала выберите тариф.'
         : 'Please select a subscription plan first.'
     )
-    await ctx.scene.enter('menuScene')
+    await ctx.scene.enter(ModeEnum.MainMenu)
     return
   }
 
@@ -423,5 +423,5 @@ Click the button below to proceed with payment. After successful payment, stars 
 
 paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
   console.log('CASE: 🏠 Главное меню', ctx.match)
-  await ctx.scene.enter('menuScene')
+  await ctx.scene.enter(ModeEnum.MainMenu)
 })

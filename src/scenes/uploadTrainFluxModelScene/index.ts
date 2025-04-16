@@ -4,7 +4,6 @@ import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '../../core/supabase'
 import { createModelTraining } from '@/services/createModelTraining'
 import { isRussian } from '@/helpers/language'
-import { deleteFile } from '@/helpers'
 
 export const uploadTrainFluxModelScene = new Scenes.BaseScene<MyContext>(
   'uploadTrainFluxModelScene'
@@ -22,8 +21,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
     await ensureSupabaseAuth()
 
     await ctx.reply(isRu ? '⏳ Загружаю архив...' : '⏳ Uploading archive...')
-
-    const triggerWord = `${ctx.session.username.toLocaleUpperCase()}`
+    const triggerWord = `${ctx.session.username?.toLocaleUpperCase()}`
     if (!triggerWord) {
       await ctx.reply(
         isRu ? '❌ Некорректный trigger word' : '❌ Invalid trigger word'
@@ -43,14 +41,42 @@ uploadTrainFluxModelScene.enter(async ctx => {
         : `⏳ Starting model training...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
     )
 
+    if (!ctx.session.targetUserId) {
+      await ctx.reply(
+        isRu ? '❌ Некорректный targetUserId' : '❌ Invalid targetUserId'
+      )
+      return ctx.scene.leave()
+    }
+
+    if (!ctx.session.modelName) {
+      await ctx.reply(
+        isRu ? '❌ Некорректный modelName' : '❌ Invalid modelName'
+      )
+      return ctx.scene.leave()
+    }
+
+    if (!ctx.session.steps) {
+      await ctx.reply(isRu ? '❌ Некорректный steps' : '❌ Invalid steps')
+      return ctx.scene.leave()
+    }
+
+    if (!ctx.botInfo?.username) {
+      await ctx.reply(isRu ? '❌ Некорректный botName' : '❌ Invalid botName')
+      return ctx.scene.leave()
+    }
+    if (!ctx.session.steps) {
+      await ctx.reply(isRu ? '❌ Некорректный steps' : '❌ Invalid steps')
+      return ctx.scene.leave()
+    }
+
     await createModelTraining(
       {
         filePath: zipPath,
         triggerWord,
         modelName: ctx.session.modelName,
-        steps: ctx.session.steps,
         telegram_id: ctx.session.targetUserId.toString(),
         is_ru: isRu,
+        steps: Number(ctx.session.steps),
         botName: ctx.botInfo?.username,
       },
       ctx

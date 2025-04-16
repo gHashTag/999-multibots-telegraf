@@ -7,6 +7,7 @@ import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { ModeEnum } from '@/interfaces/modes'
 import { TelegramId } from '@/interfaces/telegram.interface'
+
 interface ModelTrainingRequest {
   filePath: string
   triggerWord: string

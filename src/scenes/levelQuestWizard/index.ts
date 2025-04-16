@@ -14,6 +14,7 @@ import {
   handleQuestComplete,
   handleQuestRules,
 } from './handlers'
+import { ModeEnum } from '@/interfaces/modes'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '@/helpers'
 import { mainMenu } from '@/menu'
@@ -88,7 +89,7 @@ export const completeScene = new Scenes.BaseScene<MyContext>('complete')
 
 completeScene.enter(async ctx => {
   await handleQuestComplete(ctx)
-  await ctx.scene.enter('menuScene')
+  await ctx.scene.enter(ModeEnum.MainMenu)
 })
 
 // Экспортируем все сцены

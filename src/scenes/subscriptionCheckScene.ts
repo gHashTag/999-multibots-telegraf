@@ -28,8 +28,8 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   if (subscription !== SubscriptionType.STARS) {
     logger.info('CASE: subscription not stars')
     if (isDev) {
-      return ctx.scene.enter('menuScene')
-    }
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    } //
     const SUBSCRIBE_CHANNEL_ID = await getSubScribeChannel(ctx)
     const language_code = existingUser.language_code
     if (!SUBSCRIBE_CHANNEL_ID) {
@@ -57,7 +57,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   }
 
   if (ctx.session.mode === ModeEnum.MainMenu) {
-    return ctx.scene.enter('menuScene')
+    return ctx.scene.enter(ModeEnum.MainMenu)
   } else {
     return ctx.scene.enter(ctx.session.mode || ModeEnum.MainMenu)
   }

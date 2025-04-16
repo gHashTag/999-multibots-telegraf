@@ -4,10 +4,13 @@ import { getUserBalance } from '@/core/supabase'
 import { isRussian } from '@/helpers'
 import { logger } from '@/utils/logger'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
-export async function handleBuySubscription(ctx: MyContext) {
+export async function handleBuySubscription(
+  ctx: MyContext,
+  subscription: SubscriptionType
+) {
   const isRu = isRussian(ctx)
-  const subscription = ctx.session.subscription
   if (!subscription) {
     await ctx.reply(
       isRu

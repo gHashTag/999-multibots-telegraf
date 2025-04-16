@@ -1,6 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { setAspectRatio } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
+import { ModeEnum } from '@/interfaces/modes'
 
 export async function handleSizeSelection(ctx: MyContext, size: string) {
   ctx.session.selectedSize = size
@@ -20,6 +21,6 @@ export async function handleSizeSelection(ctx: MyContext, size: string) {
     ctx.scene.enter('text_to_image')
   } else {
     console.log('CASE: Неизвестный режим')
-    await ctx.scene.enter('menuScene')
+    await ctx.scene.enter(ModeEnum.MainMenu)
   }
 }

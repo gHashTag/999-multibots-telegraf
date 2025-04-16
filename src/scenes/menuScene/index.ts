@@ -23,7 +23,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (isDev) {
       console.log('CASE 🦄: isDev')
       newCount = 0
-      newSubscription = SubscriptionType.NEUROBASE
+      newSubscription = 'stars' as SubscriptionType
       newLevel = 0
     } else {
       const { count, subscription, level } =
@@ -51,14 +51,11 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     const keyboard = await mainMenu({
       isRu,
-      inviteCount: newCount,
       subscription: newSubscription,
-      ctx,
       level: newLevel,
-      additionalButtons:
-        newSubscription === SubscriptionType.NEUROPHOTO
-          ? additionalButtons
-          : [],
+      ctx,
+      inviteCount: newCount,
+      additionalButtons,
     })
 
     const message = getText(isRu, 'mainMenu')
@@ -103,7 +100,7 @@ const menuNextStep = async (ctx: MyContext) => {
 }
 
 export const menuScene = new WizardScene(
-  'menuScene',
+  ModeEnum.MainMenu,
   menuCommandStep,
   menuNextStep
 )
