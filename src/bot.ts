@@ -15,6 +15,7 @@ import { setBotCommands } from './setCommands'
 import { getBotNameByToken } from './core/bot'
 import { bots } from './core/bot'
 import { logger } from './utils/logger'
+import { setupErrorHandler } from './helpers/error/errorHandler'
 
 dotenv.config()
 
@@ -61,6 +62,9 @@ export const createBots = async () => {
 
   activeBots.forEach((bot, index) => {
     const app = express()
+
+    // Устанавливаем обработчик ошибок для защиты от проблем с токенами
+    setupErrorHandler(bot)
 
     const port = 3001 + index
     logger.info('🔌 Порт для бота:', {
