@@ -108,7 +108,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
               : '🖼️ This model requires an image for video generation. Please send an image.',
             Markup.removeKeyboard()
           )
-          ctx.session.amount = amount
           return ctx.wizard.next()
         }
 
@@ -127,7 +126,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
             : '✍️ Please send a text description for video generation',
           Markup.removeKeyboard()
         )
-        ctx.session.amount = amount
         return ctx.wizard.next()
       }
     } else {

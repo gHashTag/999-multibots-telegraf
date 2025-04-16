@@ -1,0 +1,16 @@
+export enum ModeEnum {
+  NeuroPhoto = 'NeuroPhoto',
+  TextToImage = 'TextToImage',
+  TextToVideo = 'TextToVideo',
+  ImageToVideo = 'ImageToVideo',
+  TopUpBalance = 'TopUpBalance',
+  DigitalAvatarBody = 'DigitalAvatarBody',
+  ImageToPrompt = 'ImageToPrompt',
+  AvatarBrain = 'AvatarBrain',
+  ChatWithAvatar = 'ChatWithAvatar',
+  SelectModel = 'SelectModel',
+  AvatarVoice = 'AvatarVoice',
+  TextToSpeech = 'TextToSpeech',
+  LipSync = 'LipSync',
+  VideoToUrl = 'VideoToUrl',
+}

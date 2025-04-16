@@ -97,3 +97,7 @@ if (!isDev && !isTest) {
     })
   }
 }
+
+export const SERVER_PORT = process.env.SERVER_PORT
+  ? parseInt(process.env.SERVER_PORT)
+  : 2999

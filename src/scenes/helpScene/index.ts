@@ -19,6 +19,7 @@ import { mainMenu } from '@/menu'
 import { isRussian } from '@/helpers'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 export const helpScene = new Scenes.BaseScene<MyContext>('helpScene')
 
@@ -26,9 +27,8 @@ helpScene.enter(async ctx => {
   const mode = ctx.session.mode
   const isRu = isRussian(ctx)
   const telegram_id = ctx.from?.id?.toString() || ''
-  const { count, subscription, level } =
-    await getReferalsCountAndUserData(telegram_id)
-  const newSub = subscription || 'stars'
+  const { userData, isExist } = await getReferalsCountAndUserData(telegram_id)
+  const newSub = userData?.subscription || SubscriptionType.STARS
 
   try {
     switch (mode) {
@@ -36,140 +36,140 @@ helpScene.enter(async ctx => {
         await handleLevel1(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.DigitalAvatarBodyV2:
         await handleLevel1(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.NeuroPhoto:
         await handleLevel2(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.ImageToPrompt:
         await handleLevel3(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.Avatar:
         await handleLevel4(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.ChatWithAvatar:
         await handleLevel5(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.SelectModel:
         await handleLevel6(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.Voice:
         await handleLevel7(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.TextToSpeech:
         await handleLevel8(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.ImageToVideo:
         await handleLevel9(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.TextToImage:
         await handleLevel10(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.TextToVideo:
         await handleLevel11(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.ChangeSize:
         await handleLevel12(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.Invite:
         await handleLevel13(ctx)
         await mainMenu({
           isRu,
-          inviteCount: count,
+          inviteCount: userData?.count || 0,
           subscription: newSub,
           ctx,
-          level,
+          level: userData?.level || 0,
         })
         break
       case ModeEnum.Help:

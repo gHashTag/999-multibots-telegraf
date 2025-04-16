@@ -1,30 +1,27 @@
-import {
-  subscriptionConfigs,
-  type LocalSubscription,
-} from '../types/subscription'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { SUBSCRIPTION_CONFIG } from '@/config/subscription.config'
 
 export interface SubscriptionInfo {
   title_ru: string
   title_en: string
-  ru_price: number
-  en_price: number
-  stars_price: number
+  price_ru: number
+  price_en: number
+  stars: number
 }
 
 export function getSubscriptionInfo(
-  type: LocalSubscription
+  type: SubscriptionType
 ): SubscriptionInfo | null {
-  if (type === 'stars') {
+  const config = SUBSCRIPTION_CONFIG[type]
+  if (!config) {
     return null
   }
 
-  const config = subscriptionConfigs[type]
-
   return {
-    title_ru: config.titleRu,
-    title_en: config.titleEn,
-    ru_price: config.price,
-    en_price: config.price,
-    stars_price: config.stars,
+    title_ru: config.title_ru,
+    title_en: config.title_en,
+    price_ru: config.price_ru,
+    price_en: config.price_en,
+    stars: config.stars,
   }
 }

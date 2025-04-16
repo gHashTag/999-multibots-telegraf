@@ -26,6 +26,13 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
+    if (!prompt) {
+      await ctx.reply(
+        isRu ? 'Ошибка: промпт не найден' : 'Error: prompt not found'
+      )
+      return ctx.scene.leave()
+    }
+
     ctx.session.attempts = 0 // Инициализируем счетчик попыток
 
     await sendPromptImprovementMessage(ctx, isRu)
@@ -105,16 +112,32 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ? 'improvePromptWizard: Не удалось определить isRu'
                 : 'improvePromptWizard: Could not identify isRu'
             )
+
+          if (!ctx.session.prompt) {
+            throw new Error(
+              isRu
+                ? 'improvePromptWizard: Не удалось определить промпт'
+                : 'improvePromptWizard: Could not identify prompt'
+            )
+          }
+
           console.log(mode, 'mode')
           switch (mode) {
             case 'neuro_photo':
+              if (!ctx.session.userModel) {
+                throw new Error(
+                  isRu
+                    ? 'improvePromptWizard: Не удалось определить модель пользователя'
+                    : 'improvePromptWizard: Could not identify user model'
+                )
+              }
               await generateNeuroImage(
                 ctx.session.prompt,
                 ctx.session.userModel.model_url,
                 1,
                 ctx.from.id.toString(),
                 ctx,
-                ctx.botInfo?.username
+                ctx.botInfo?.username || ''
               )
               break
             case 'text_to_video':
@@ -126,22 +149,23 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 )
 
               console.log(ctx.session.videoModel, 'ctx.session.videoModel')
-              if (!ctx.session.videoModel)
-                throw new Error(
-                  isRu
-                    ? 'improvePromptWizard: Не удалось определить видео модель'
-                    : 'improvePromptWizard: Could not identify video model'
-                )
               await generateTextToVideo(
                 ctx.session.prompt,
                 ctx.session.videoModel,
                 ctx.from.id.toString(),
                 ctx.from.username,
                 isRu,
-                ctx.botInfo?.username
+                ctx.botInfo?.username || ''
               )
               break
             case 'text_to_image':
+              if (!ctx.session.selectedModel) {
+                throw new Error(
+                  isRu
+                    ? 'improvePromptWizard: Не удалось определить выбранную модель'
+                    : 'improvePromptWizard: Could not identify selected model'
+                )
+              }
               await generateTextToImage(
                 ctx.session.prompt,
                 ctx.session.selectedModel,
@@ -149,7 +173,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ctx.from.id.toString(),
                 isRu,
                 ctx,
-                ctx.botInfo?.username
+                ctx.botInfo?.username || ''
               )
               break
             default:
@@ -172,6 +196,14 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 : 'Maximum number of prompt improvement attempts reached.'
             )
             return ctx.scene.leave()
+          }
+
+          if (!ctx.session.prompt) {
+            throw new Error(
+              isRu
+                ? 'improvePromptWizard: Не удалось определить промпт'
+                : 'improvePromptWizard: Could not identify prompt'
+            )
           }
 
           await ctx.reply(
@@ -208,11 +240,14 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
               parse_mode: 'MarkdownV2',
             }
           )
-          break
+          return
         }
 
         case isRu ? '❌ Отмена' : '❌ Cancel': {
-          await ctx.reply(isRu ? 'Операция отменена' : 'Operation cancelled')
+          await ctx.reply(
+            isRu ? '❌ Операция отменена' : '❌ Operation cancelled',
+            Markup.removeKeyboard()
+          )
           return ctx.scene.leave()
         }
 
@@ -221,6 +256,9 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
       }
+    } else {
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave()
     }
   }
 )

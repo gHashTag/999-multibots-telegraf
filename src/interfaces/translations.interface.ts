@@ -20,6 +20,7 @@ export interface Translation {
   buttons?: TranslationButton[]
   category: TranslationCategoryType
   is_override?: boolean
+  updated_at: string
 }
 
 // Helper function to create translation keys with proper typing
@@ -42,3 +43,7 @@ export const SystemTranslationKeys = {
   RATE_LIMIT: createTranslationKey('rate_limit'),
   SUBSCRIPTION_REQUIRED: createTranslationKey('subscription_required'),
 } as const
+
+export interface SceneTranslation extends Omit<Translation, 'buttons'> {
+  buttons?: TranslationButton[]
+}

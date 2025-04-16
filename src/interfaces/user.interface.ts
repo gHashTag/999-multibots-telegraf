@@ -1,4 +1,5 @@
 import { TelegramId } from './telegram.interface'
+import { SubscriptionType } from './subscription.interface'
 
 /**
  * Интерфейс для пользователя из базы данных
@@ -19,7 +20,7 @@ export interface User {
   language?: string
   is_ru?: boolean
   last_payment_date?: string
-  subscription?: string
+  subscription?: SubscriptionType
   subscription_end_date?: string
   subscription_start_date?: string
 }

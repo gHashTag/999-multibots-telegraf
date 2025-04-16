@@ -1,5 +1,6 @@
 import { supabase } from '.'
 import { logger } from '@/utils/logger'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 export interface Payment {
   payment_id: number
@@ -11,7 +12,7 @@ export interface Payment {
   description: string
   metadata: any
   currency: string
-  subscription: string
+  subscription: SubscriptionType
   bot_name: string
   language: string
   inv_id: string

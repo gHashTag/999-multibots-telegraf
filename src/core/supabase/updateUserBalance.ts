@@ -2,16 +2,18 @@ import { TelegramId } from '@/interfaces/telegram.interface'
 import { supabase } from './index'
 import { logger } from '@/utils/logger'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 interface UpdateUserBalanceParams {
   telegram_id: TelegramId
   amount: number
-  type: TransactionType
+  type: TransactionType | string
   description: string
   bot_name: string
   service_type?: string
   payment_method?: string
   metadata?: Record<string, any>
+  subscription?: SubscriptionType
 }
 
 /**
@@ -26,6 +28,7 @@ export const updateUserBalance = async ({
   bot_name,
   service_type = 'default',
   metadata = {},
+  subscription,
 }: UpdateUserBalanceParams): Promise<{
   success: boolean
   error?: any

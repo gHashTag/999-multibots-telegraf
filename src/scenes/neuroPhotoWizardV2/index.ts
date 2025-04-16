@@ -22,6 +22,7 @@ import {
 } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 import { MyContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
@@ -61,7 +62,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
               await mainMenu({
                 isRu,
                 inviteCount: count,
-                subscription: subscription || 'stars',
+                subscription: SubscriptionType.NEUROTESTER,
                 ctx,
                 level,
               })
@@ -201,7 +202,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     if (numImages >= 1 && numImages <= 4) {
       await generate(numImages)
     } else {
-      const { count, subscription, level } = await getReferalsCountAndUserData(
+      const { count, level } = await getReferalsCountAndUserData(
         ctx.from?.id?.toString() || ''
       )
       const telegramId = ctx.from?.id.toString()
@@ -217,7 +218,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       await mainMenu({
         isRu,
         inviteCount: count,
-        subscription: subscription || 'stars',
+        subscription: SubscriptionType.NEUROTESTER,
         ctx,
         level,
       })

@@ -1,355 +1,132 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { isRussian } from '@/helpers'
 import { handleSelectStars } from '@/handlers/handleSelectStars'
-import { starAmounts } from '@/price/helpers/starAmounts'
 import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { ModeEnum } from '@/interfaces/modes'
 import { createPendingPayment } from '@/core/supabase/createPendingPayment'
-import md5 from 'md5'
-import { MERCHANT_LOGIN, TEST_PASSWORD1, isDev } from '@/config'
-import { generateShortInvId } from '@/scenes/getRuBillWizard/helper'
+import { MERCHANT_LOGIN } from '@/config'
+import { generateShortInvId } from '@/utils/generateShortInvId'
+import { getInvoiceId } from '@/scenes/getRuBillWizard/helper'
 import { paymentOptions } from '@/price/priceCalculator'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
-import { getSubscriptionInfo } from '@/utils/getSubscriptionInfo'
-import { SubscriptionType } from '@/interfaces/payments.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { SUBSCRIPTION_CONFIG } from '@/config/subscription.config'
 
 const merchantLogin = MERCHANT_LOGIN
 const password1 = process.env.ROBOKASSA_PASSWORD1 || ''
-const testPassword1 = TEST_PASSWORD1
-
-// Флаг для использования тестового режима Robokassa
-const useTestMode = isDev
 
 // В начале файла добавим проверку конфигурации
 if (!merchantLogin) {
   throw new Error('MERCHANT_LOGIN is not defined in environment variables')
 }
 
-function generateRobokassaUrl(
-  merchantLogin: string,
-  outSum: number,
-  invId: number,
-  description: string,
-  password1: string,
-  isTest: boolean = useTestMode
-): string {
-  if (!merchantLogin || !password1) {
-    throw new Error('merchantLogin or password1 is not defined')
-  }
+export const paymentScene = new Scenes.BaseScene<MyContext>('paymentScene')
 
-  // Если включен тестовый режим и доступен тестовый пароль, используем его
-  const actualPassword = isTest && testPassword1 ? testPassword1 : password1
-
-  console.log('🔍 Формирование URL для Robokassa', {
-    description: 'Generating Robokassa URL',
-    merchantLogin,
-    outSum,
-    invId,
-    isTestMode: isTest,
-    usingTestPassword: isTest && testPassword1 ? true : false,
-    mode: isTest ? 'ТЕСТОВЫЙ РЕЖИМ' : 'БОЕВОЙ РЕЖИМ',
-  })
-
-  // Убеждаемся, что invId - целое число и не слишком длинное
-  if (!Number.isInteger(invId) || invId > 2147483647) {
-    console.error('❌ Ошибка: InvId некорректный, будет преобразован', {
-      description: 'Error: InvId is incorrect, will be converted',
-      originalInvId: invId,
-    })
-    // Преобразуем в целое число если это не так и ограничиваем длину
-    invId = Math.floor(invId % 1000000)
-  }
-
-  // Убеждаемся, что сумма положительная
-  if (outSum <= 0) {
-    console.error('❌ Ошибка: Сумма должна быть положительной', {
-      description: 'Error: Sum must be positive',
-      originalSum: outSum,
-    })
-    outSum = Math.abs(outSum) || 1 // Используем абсолютное значение или 1 если 0
-  }
-
-  // Проверяем description
-  if (!description || description.trim() === '') {
-    console.warn(
-      '⚠️ Предупреждение: Описание пустое, используем значение по умолчанию',
-      {
-        description: 'Warning: Description is empty, using default',
-      }
-    )
-    description = 'Покупка звезд'
-  }
-
-  // Формируем строку для подписи с корректными значениями
-  const signatureString = `${merchantLogin}:${outSum}:${invId}:${actualPassword}`
-  console.log('📝 Строка для подписи:', {
-    description: 'Signature string',
-    signatureString,
-  })
-
-  const signatureValue = md5(signatureString).toUpperCase()
-
-  // Формируем базовый URL Robokassa
-  const baseUrl = 'https://auth.robokassa.ru/Merchant/Index.aspx'
-
-  // Создаем параметры запроса
-  const params = new URLSearchParams()
-
-  // Добавляем все параметры
-  params.append('MerchantLogin', merchantLogin)
-  params.append('OutSum', outSum.toString())
-  params.append('InvId', invId.toString())
-  params.append('Description', description)
-  params.append('SignatureValue', signatureValue)
-
-  // Добавляем параметр IsTest только если включен тестовый режим
-  if (isTest) {
-    params.append('IsTest', '1')
-  }
-
-  const url = `${baseUrl}?${params.toString()}`
-
-  // Проверяем готовый URL
-  try {
-    const parsedUrl = new URL(url)
-    const requiredParams = [
-      'MerchantLogin',
-      'OutSum',
-      'InvId',
-      'Description',
-      'SignatureValue',
-    ]
-    const missingParams = []
-
-    for (const param of requiredParams) {
-      if (!parsedUrl.searchParams.has(param)) {
-        missingParams.push(param)
-      }
-    }
-
-    if (missingParams.length > 0) {
-      console.error('❌ Ошибка: В URL отсутствуют обязательные параметры', {
-        description: 'Error: URL is missing required parameters',
-        missingParams,
-      })
-      throw new Error(
-        `URL не содержит обязательные параметры: ${missingParams.join(', ')}`
-      )
-    }
-  } catch (error) {
-    console.error('❌ Ошибка при проверке URL:', {
-      description: 'Error checking URL',
-      error,
-    })
-    throw error
-  }
-
-  console.log('✅ URL сформирован для Robokassa:', {
-    message: 'URL generated for Robokassa',
-    testMode: isTest,
-    paymentUrl: url,
-  })
-
-  return url
-}
-
-async function generateRobokassaInvoiceId(
-  merchantLogin: string,
-  outSum: number,
-  invId: number,
-  description: string,
-  password1: string
-): Promise<string> {
-  if (!merchantLogin || !password1) {
-    throw new Error('merchantLogin or password1 is not defined')
-  }
-  console.log('🚀 Запуск generateRobokassaInvoiceId', {
-    description: 'Starting generateRobokassaInvoiceId',
-    merchantLogin,
-    outSum,
-    invId,
-    useTestMode,
-  })
-  try {
-    // Используем тестовый пароль для тестового режима
-    const actualPassword =
-      useTestMode && testPassword1 ? testPassword1 : password1
-
-    console.log('🔑 Выбран пароль для Robokassa', {
-      description: 'Selected password for Robokassa',
-      isTestMode: useTestMode,
-      usingTestPassword: useTestMode && testPassword1 ? true : false,
-    })
-
-    const response = generateRobokassaUrl(
-      merchantLogin,
-      outSum,
-      invId,
-      description,
-      actualPassword,
-      useTestMode // Передаем флаг тестового режима
-    )
-
-    return response
-  } catch (error) {
-    console.error('❌ Ошибка в generateRobokassaInvoiceId:', {
-      description: 'Error in generateRobokassaInvoiceId',
-      error,
-    })
-    throw error
-  }
-}
-
-export const paymentScene = new Scenes.BaseScene<MyContext>(
-  ModeEnum.PaymentScene
-)
-
-paymentScene.enter(async ctx => {
+paymentScene.enter(async (ctx: MyContext) => {
   const isRu = isRussian(ctx)
   try {
-    logger.info('🚀 Entering PaymentScene', {
-      userId: ctx.from?.id,
+    logger.info('🎭 Entering payment scene', {
+      telegram_id: ctx.from?.id,
       selectedPayment: ctx.session.selectedPayment,
       mode: ctx.session.selectedPayment?.type,
+      current_scene: ctx.scene?.current?.id,
     })
 
-    // Проверяем тип платежа
-    if (
-      ctx.session.selectedPayment?.type ===
-      TransactionType.SUBSCRIPTION_PURCHASE
-    ) {
-      // Обработка покупки подписки
-      const subscriptionType = ctx.session.subscription as SubscriptionType
-      if (!subscriptionType) {
-        await ctx.reply('Subscription type not found')
-        return
-      }
+    // Показываем меню выбора способа оплаты
+    await ctx.reply(
+      isRu ? 'Как вы хотите оплатить?' : 'How do you want to pay?',
+      Markup.keyboard([
+        [
+          Markup.button.text(isRu ? '⭐️ Звездами' : '⭐️ Stars'),
+          {
+            text: isRu ? 'Что такое звезды❓' : 'What are stars❓',
+            web_app: {
+              url: `https://telegram.org/blog/telegram-stars/${isRu ? 'ru' : 'en'}?ln=a`,
+            },
+          },
+        ],
+        [
+          Markup.button.text(isRu ? '💳 Рублями' : '💳 In rubles'),
+          Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu'),
+        ],
+      ]).resize()
+    )
 
-      const subscriptionInfo = getSubscriptionInfo(subscriptionType)
-      if (!subscriptionInfo) {
-        await ctx.reply('Invalid subscription type')
-        return
-      }
-
-      const price = isRu ? subscriptionInfo.ru_price : subscriptionInfo.en_price
-      const stars = subscriptionInfo.stars_price
-      const title = isRu ? subscriptionInfo.title_ru : subscriptionInfo.title_en
-
-      const invoiceId = await generateRobokassaInvoiceId(
-        merchantLogin,
-        price,
-        generateShortInvId(ctx.from?.id || 0, stars),
-        `Subscription ${title}`,
-        password1
-      )
-      const invoiceUrl = `${process.env.PAYMENT_URL}/${invoiceId}`
-
-      await createPendingPayment({
-        telegram_id: ctx.from?.id?.toString() || '',
-        amount: price,
-        stars: stars,
-        inv_id: invoiceId,
-        description: `Subscription ${title}`,
-        bot_name: ctx.botInfo.username || 'NeuroBlogger',
-        invoice_url: invoiceUrl,
-        service_type: ModeEnum.Subscribe,
-        type: TransactionType.SUBSCRIPTION_PURCHASE,
-      })
-
-      // Отправляем сообщение с кнопкой оплаты
-      await ctx.reply(
-        isRu
-          ? `💫 Подписка ${title}\n💰 Стоимость: ${price} RUB\n⭐️ Бонус: ${stars} звезд`
-          : `💫 Subscription ${title}\n💰 Price: ${price} RUB\n⭐️ Bonus: ${stars} stars`,
-        Markup.inlineKeyboard([
-          [Markup.button.url(isRu ? '💳 Оплатить' : '💳 Pay', invoiceUrl)],
-        ])
-      )
-    } else {
-      // Обработка пополнения баланса
-      const amount = ctx.session.selectedPayment?.amount || 0
-      const stars = ctx.session.selectedPayment?.stars || 0
-
-      if (!amount || !stars) {
-        throw new Error('Invalid payment amount or stars')
-      }
-
-      const invId = await generateShortInvId(ctx.from?.id || 0, stars)
-      const description = isRu ? 'Пополнение баланса' : 'Balance top-up'
-
-      // Создаем платеж в базе
-      const paymentUrl = await generateRobokassaInvoiceId(
-        merchantLogin || '',
-        amount,
-        invId,
-        description,
-        password1
-      )
-
-      await createPendingPayment({
-        telegram_id: ctx.from?.id?.toString() || '',
-        amount,
-        stars,
-        type: TransactionType.MONEY_INCOME,
-        description,
-        bot_name: 'NeuroBlogger',
-        service_type: ModeEnum.TopUpBalance,
-        inv_id: invId.toString(),
-        invoice_url: paymentUrl,
-        metadata: {
-          payment_method: 'Robokassa',
-          subscription: 'stars',
-        },
-      })
-
-      // Отправляем сообщение с кнопкой оплаты
-      await ctx.reply(
-        isRu
-          ? `💰 Сумма: ${amount} RUB\n⭐️ Бонус: ${stars} звезд`
-          : `💰 Amount: ${amount} RUB\n⭐️ Bonus: ${stars} stars`,
-        Markup.inlineKeyboard([
-          [Markup.button.url(isRu ? '💳 Оплатить' : '💳 Pay', paymentUrl)],
-        ])
-      )
-    }
+    logger.info('✅ Payment options displayed', {
+      telegram_id: ctx.from?.id,
+      subscription: ctx.session.subscription,
+    })
   } catch (error) {
-    logger.error('❌ Error in PaymentScene:', {
+    logger.error('❌ Error in payment scene:', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      userId: ctx.from?.id,
+      stack: error instanceof Error ? error.stack : undefined,
+      telegram_id: ctx.from?.id,
+      selectedPayment: ctx.session.selectedPayment,
     })
 
     await ctx.reply(
       isRu
-        ? '❌ Произошла ошибка при создании платежа. Пожалуйста, попробуйте позже.'
-        : '❌ An error occurred while creating the payment. Please try again later.'
+        ? '❌ Произошла ошибка. Пожалуйста, попробуйте позже или обратитесь в поддержку.'
+        : '❌ An error occurred. Please try again later or contact support.'
     )
-  }
-})
 
-paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
-  console.log('CASE 1: ⭐️ Звездами', ctx.match)
-  const isRu = isRussian(ctx)
-  const subscription = ctx.session.subscription
-  console.log('CASE 1: ⭐️ Звездами: subscription', subscription)
-  if (subscription) {
-    if (subscription === 'neurobase' || subscription === 'neurophoto') {
-      await handleBuySubscription(ctx)
-      await ctx.scene.leave()
-    } else if (subscription === 'stars') {
-      await handleSelectStars({ ctx, isRu, starAmounts })
-      await ctx.scene.leave()
-    }
-  } else {
-    await handleSelectStars({ ctx, isRu, starAmounts })
     await ctx.scene.leave()
   }
 })
 
-paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
-  console.log('CASE: 💳 Рублями', ctx.match)
+paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   const isRu = isRussian(ctx)
+  const subscription = ctx.session.subscription
+
+  try {
+    logger.info('⭐️ Processing stars payment', {
+      telegram_id: ctx.from?.id,
+      subscription,
+      current_scene: ctx.scene?.current?.id,
+    })
+
+    if (subscription) {
+      if (
+        subscription === SubscriptionType.NEUROBASE ||
+        subscription === SubscriptionType.NEUROPHOTO ||
+        subscription === SubscriptionType.NEUROBLOGGER
+      ) {
+        await handleBuySubscription(ctx, subscription)
+        await ctx.scene.leave()
+      } else {
+        await handleSelectStars({ ctx, isRu, paymentOptions })
+        await ctx.scene.leave()
+      }
+    } else {
+      await handleSelectStars({ ctx, isRu, paymentOptions })
+      await ctx.scene.leave()
+    }
+
+    logger.info('✅ Stars payment processed successfully', {
+      telegram_id: ctx.from?.id,
+      subscription,
+    })
+  } catch (error) {
+    logger.error('❌ Error processing stars payment:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      telegram_id: ctx.from?.id,
+      subscription,
+    })
+
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка при обработке оплаты звездами. Попробуйте позже.'
+        : '❌ Error processing stars payment. Please try again later.'
+    )
+  }
+})
+
+paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
+  const isRu = isRussian(ctx)
+  const subscription = ctx.session.subscription
 
   if (!ctx.from) {
     throw new Error('User not found')
@@ -359,131 +136,78 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
     throw new Error('Bot username is not defined')
   }
 
-  // Получаем подписку из сессии
-  const subscription = ctx.session.subscription
+  try {
+    logger.info('💳 Processing ruble payment', {
+      telegram_id: ctx.from.id,
+      subscription,
+      current_scene: ctx.scene?.current?.id,
+    })
 
-  // Разделяем логику в зависимости от выбранного пути
-  // Случай 1: Пользователь покупает подписку
-  if (subscription && subscription !== 'stars') {
-    try {
-      const subscriptionInfo = getSubscriptionInfo(subscription)
-      if (!subscriptionInfo) {
-        await ctx.reply(
-          isRu
-            ? 'Неизвестный тип подписки. Пожалуйста, выберите подписку снова.'
-            : 'Unknown subscription type. Please select a subscription again.'
-        )
-        await ctx.scene.enter(ModeEnum.SubscriptionScene)
-        return
-      }
-
-      const userId = ctx.from.id
-      const invId = await generateShortInvId(
-        ctx.from?.id || 0,
-        subscriptionInfo.stars_price
-      )
+    if (subscription && subscription !== SubscriptionType.NEUROTESTER) {
+      const subscriptionInfo = SUBSCRIPTION_CONFIG[subscription]
+      const price = isRu ? subscriptionInfo.price_ru : subscriptionInfo.price_en
+      const stars = subscriptionInfo.stars
       const title = isRu ? subscriptionInfo.title_ru : subscriptionInfo.title_en
-      const price = isRu ? subscriptionInfo.ru_price : subscriptionInfo.en_price
-      const stars = subscriptionInfo.stars_price
-      const numericInvId = Number(invId)
 
-      if (!merchantLogin || !password1) {
-        throw new Error('merchantLogin or password1 is not defined')
-      }
+      const invId = generateShortInvId()
+      const description = `Subscription ${title}`
 
-      // Получение invoiceID
-      const invoiceURL = await generateRobokassaInvoiceId(
+      const paymentUrl = await getInvoiceId(
         merchantLogin,
         price,
-        numericInvId,
-        `Subscription ${title}`,
+        invId,
+        description,
         password1
       )
 
-      // Создаем платеж в статусе PENDING
       await createPendingPayment({
-        telegram_id: userId.toString(),
+        telegram_id: ctx.from.id.toString(),
         amount: price,
-        stars: stars,
-        inv_id: numericInvId.toString(),
-        description: `Subscription ${title}`,
-        bot_name: ctx.botInfo.username,
-        language: ctx.from.language_code || 'ru',
-        invoice_url: invoiceURL,
-        service_type: ModeEnum.Subscribe,
+        stars,
         type: TransactionType.SUBSCRIPTION_PURCHASE,
+        description,
+        bot_name: ctx.botInfo.username,
+        service_type: ModeEnum.Subscribe,
+        inv_id: invId.toString(),
+        invoice_url: paymentUrl,
         metadata: {
+          subscription_type: subscription,
           payment_method: 'Robokassa',
-          subscription,
         },
       })
 
       await ctx.reply(
         isRu
-          ? `<b>�� Оплата подписки ${title} (${price} р)</b>\nНажмите на кнопку ниже, чтобы перейти к оплате. После успешной оплаты звезды автоматически будут зачислены на ваш баланс.`
-          : `<b>💵 Payment for subscription ${title} (${price} RUB)</b>\nClick the button below to proceed with payment. After successful payment, stars will be automatically credited to your balance.`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: isRu ? `Оплатить ${price} р` : `Pay ${price} RUB`,
-                  url: invoiceURL,
-                },
-              ],
-            ],
-          },
-          parse_mode: 'HTML',
-        }
+          ? `💫 Подписка ${title}\n💰 Стоимость: ${price} RUB\n⭐️ Бонус: ${stars} звезд`
+          : `💫 Subscription ${title}\n💰 Price: ${price} RUB\n⭐️ Bonus: ${stars} stars`,
+        Markup.inlineKeyboard([
+          [Markup.button.url(isRu ? '💳 Оплатить' : '💳 Pay', paymentUrl)],
+        ])
       )
-    } catch (error) {
-      console.error('Error in creating subscription payment:', error)
-      await ctx.reply(
-        isRu
-          ? 'Ошибка при создании чека для подписки. Пожалуйста, попробуйте снова.'
-          : 'Error creating subscription invoice. Please try again.'
-      )
-    }
-  }
-  // Случай 2: Пользователь просто пополняет баланс
-  else {
-    // Предлагаем выбор суммы для пополнения баланса
-    const options = paymentOptions.map(option => {
-      const starsNum = parseInt(option.stars)
-      return [
-        {
-          text: isRu
-            ? `${option.amount}₽ → ${option.stars}⭐`
-            : `${option.amount}₽ → ${option.stars}⭐`,
-          callback_data: `pay_rub_${option.amount}_${starsNum}`,
-        },
-      ]
-    })
 
-    // Добавляем кнопку возврата в меню
-    options.push([
-      {
-        text: isRu ? '🔙 Назад' : '🔙 Back',
-        callback_data: 'back_to_payment',
-      },
-    ])
+      logger.info('✅ Ruble payment processed successfully', {
+        telegram_id: ctx.from.id,
+        subscription,
+        price,
+        stars,
+      })
+    } else {
+      await handleSelectStars({ ctx, isRu, paymentOptions })
+    }
+  } catch (error) {
+    logger.error('❌ Error in ruble payment processing:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      telegram_id: ctx.from?.id,
+      subscription,
+    })
 
     await ctx.reply(
       isRu
-        ? '💰 Выберите сумму пополнения в рублях:'
-        : '💰 Choose the amount to top up in rubles:',
-      {
-        reply_markup: {
-          inline_keyboard: options,
-        },
-      }
+        ? '❌ Произошла ошибка при создании платежа. Пожалуйста, попробуйте позже или обратитесь в поддержку.'
+        : '❌ An error occurred while creating the payment. Please try again later or contact support.'
     )
-
-    // Не выходим из сцены, чтобы обработать выбор суммы
-    return
   }
-
-  await ctx.scene.leave()
 })
 
 // Добавляем обработчик для выбора суммы пополнения в рублях
@@ -512,7 +236,7 @@ paymentScene.action(/pay_rub_(\d+)_(\d+)/, async ctx => {
 
     // Создаем платеж
     const userId = ctx.from.id
-    const invId = await generateShortInvId(ctx.from?.id || 0, stars)
+    const invId = generateShortInvId()
     const description = isRu ? 'Пополнение баланса' : 'Balance replenishment'
     const numericInvId = Number(invId)
 
@@ -521,7 +245,7 @@ paymentScene.action(/pay_rub_(\d+)_(\d+)/, async ctx => {
     }
 
     // Получение invoiceID
-    const invoiceURL = await generateRobokassaInvoiceId(
+    const paymentUrl = await getInvoiceId(
       merchantLogin,
       amount,
       numericInvId,
@@ -538,7 +262,7 @@ paymentScene.action(/pay_rub_(\d+)_(\d+)/, async ctx => {
       description,
       bot_name: ctx.botInfo.username,
       language: ctx.from.language_code || 'ru',
-      invoice_url: invoiceURL,
+      invoice_url: paymentUrl,
       service_type: ModeEnum.TopUpBalance,
       type: TransactionType.MONEY_INCOME,
       metadata: {
@@ -561,7 +285,7 @@ paymentScene.action(/pay_rub_(\d+)_(\d+)/, async ctx => {
             [
               {
                 text: isRu ? `Оплатить ${amount} р` : `Pay ${amount} RUB`,
-                url: invoiceURL,
+                url: paymentUrl,
               },
             ],
           ],

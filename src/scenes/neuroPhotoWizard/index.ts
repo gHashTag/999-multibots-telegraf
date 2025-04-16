@@ -9,7 +9,7 @@
  */
 
 import { ModelUrl, UserModel } from '@/interfaces'
-
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
 import {
   getLatestUserModel,
@@ -66,7 +66,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
               await mainMenu({
                 isRu,
                 inviteCount: count,
-                subscription: subscription || 'stars',
+                subscription:
+                  subscription?.type || SubscriptionType.NEUROTESTER,
                 ctx,
                 level,
               })
@@ -125,13 +126,14 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       }
       if (model_url && trigger_word) {
         const fullPrompt = `${trigger_word}, ${promptText}`
+        const botUsername = (ctx.botInfo?.username || 'unknown_bot') as string
         await generateNeuroImage(
           fullPrompt,
           model_url,
           1,
           telegramId,
           ctx,
-          ctx.botInfo?.username
+          botUsername
         )
         ctx.wizard.next()
         return
@@ -184,14 +186,15 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       )
       return ctx.scene.leave()
     }
+    const botUsername = (ctx.botInfo?.username || 'neuro_blogger_bot') as string
     const generate = async (num: number) => {
       await generateNeuroImage(
-        prompt,
+        prompt || '',
         ctx.session.userModel.model_url,
         num,
         telegramId,
         ctx,
-        ctx.botInfo?.username
+        botUsername
       )
     }
 
@@ -209,7 +212,13 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         )
         return ctx.scene.leave()
       }
-      await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+      await mainMenu({
+        isRu,
+        inviteCount: count,
+        subscription: subscription?.type || SubscriptionType.NEUROTESTER,
+        ctx,
+        level,
+      })
     }
   }
 }

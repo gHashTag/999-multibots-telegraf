@@ -1,4 +1,6 @@
-export const checkFullAccess = (subscription: string): boolean => {
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+
+export const checkFullAccess = (subscription: SubscriptionType): boolean => {
   const fullAccessSubscriptions = [
     'neurophoto',
     'neurobase',

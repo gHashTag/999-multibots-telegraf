@@ -33,6 +33,7 @@ import { ModeEnum } from './interfaces/modes'
 import { logger } from '@/utils/logger'
 
 import { handleReceiptCommand } from './handlers/handleReceiptCommand'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 /**
  * ВНИМАНИЕ! ⚠️
@@ -189,7 +190,7 @@ export function registerCommands({
       description: 'Buy command received',
       telegramId: ctx.from?.id,
     })
-    ctx.session.subscription = 'stars'
+    ctx.session.subscription = SubscriptionType.NEUROTESTER
     await ctx.scene.enter(ModeEnum.PaymentScene)
   })
 
@@ -198,7 +199,7 @@ export function registerCommands({
       description: 'Buy command received (composer)',
       telegramId: ctx.from?.id,
     })
-    ctx.session.subscription = 'stars'
+    ctx.session.subscription = SubscriptionType.NEUROTESTER
     await ctx.scene.enter(ModeEnum.PaymentScene)
   })
   composer.command('invite', async ctx => {
@@ -650,7 +651,13 @@ export function registerCommands({
       )
       return ctx.scene.leave()
     }
-    await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+    await mainMenu({
+      isRu,
+      inviteCount: count,
+      subscription: subscription?.type || SubscriptionType.STARS,
+      ctx,
+      level,
+    })
     return ctx.scene.leave()
   })
 

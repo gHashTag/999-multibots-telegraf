@@ -1,12 +1,12 @@
-export type BotName =
-  | 'neurophoto'
-  | 'neuroblogger'
-  | 'neurotester'
-  | 'neuromeeting'
+export type BotType =
+  | 'NEUROPHOTO'
+  | 'NEUROBASE'
+  | 'NEUROBLOGGER'
+  | 'NEUROTESTER'
 
-export const BOT_NAMES: Record<BotName, BotName> = {
-  neurophoto: 'neurophoto',
-  neuroblogger: 'neuroblogger',
-  neurotester: 'neurotester',
-  neuromeeting: 'neuromeeting',
-}
+export const BOT_TYPES = {
+  NEUROPHOTO: 'NEUROPHOTO',
+  NEUROBASE: 'NEUROBASE',
+  NEUROBLOGGER: 'NEUROBLOGGER',
+  NEUROTESTER: 'NEUROTESTER',
+} as const

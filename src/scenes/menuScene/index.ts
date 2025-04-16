@@ -1,4 +1,4 @@
-import { MyContext, Subscription } from '../../interfaces'
+import { MyContext } from '../../interfaces'
 import { sendGenericErrorMessage } from '@/menu'
 import { levels, mainMenu } from '../../menu/mainMenu'
 import { getReferalsCountAndUserData } from '@/core/supabase/getReferalsCountAndUserData'
@@ -8,6 +8,7 @@ import { WizardScene } from 'telegraf/scenes'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleMenu } from '@/handlers'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -16,19 +17,19 @@ const menuCommandStep = async (ctx: MyContext) => {
     const telegram_id = ctx.from?.id?.toString() || ''
 
     let newCount = 0
-    let newSubscription: Subscription
+    let newSubscription: SubscriptionType | undefined
     let newLevel: number
 
     if (isDev) {
       console.log('CASE 🦄: isDev')
       newCount = 0
-      newSubscription = 'neurobase'
+      newSubscription = SubscriptionType.NEUROBASE
       newLevel = 0
     } else {
       const { count, subscription, level } =
         await getReferalsCountAndUserData(telegram_id)
       newCount = count
-      newSubscription = subscription || 'stars'
+      newSubscription = subscription?.type || SubscriptionType.NEUROPHOTO
       newLevel = level
     }
 
@@ -55,7 +56,9 @@ const menuCommandStep = async (ctx: MyContext) => {
       ctx,
       level: newLevel,
       additionalButtons:
-        newSubscription === 'neurophoto' ? additionalButtons : [],
+        newSubscription === SubscriptionType.NEUROPHOTO
+          ? additionalButtons
+          : [],
     })
 
     const message = getText(isRu, 'mainMenu')

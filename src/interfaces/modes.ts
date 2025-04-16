@@ -10,6 +10,7 @@ export enum ModeEnum {
   ChatWithAvatar = 'chat_with_avatar',
   SelectModel = 'select_model',
   SelectAiTextModel = 'select_ai_text_model',
+  SelectModelWizard = 'select_model_wizard',
   Voice = 'voice',
   TextToSpeech = 'text_to_speech',
   ImageToVideo = 'image_to_video',

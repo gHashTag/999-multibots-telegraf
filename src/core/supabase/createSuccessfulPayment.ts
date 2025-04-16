@@ -1,8 +1,9 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { supabase } from '@/supabase'
 import { getUserByTelegramId } from './getUserByTelegramId'
-import { normalizeTransactionType } from '@/interfaces/payments.interface'
+import { normalizeTransactionType } from '@/utils/service.utils'
 import { logger } from '@/utils/logger'
 
 interface CreateSuccessfulPaymentParams {
@@ -10,13 +11,14 @@ interface CreateSuccessfulPaymentParams {
   amount: number
   type: TransactionType | string
   description: string
-  service_type?: string
-  stars?: number
-  payment_method?: string
   bot_name: string
+  service_type?: string
+  payment_method?: string
   metadata?: Record<string, any>
+  subscription?: SubscriptionType
+  inv_id: string
+  stars?: number
   status?: string
-  inv_id?: string
   currency?: string
   invoice_url?: string
 }
@@ -40,6 +42,7 @@ export async function createSuccessfulPayment({
   inv_id,
   currency = 'XTR',
   invoice_url,
+  subscription,
 }: CreateSuccessfulPaymentParams) {
   try {
     // Если передан inv_id, проверяем, не существует ли уже платеж с таким ID
@@ -100,6 +103,7 @@ export async function createSuccessfulPayment({
       inv_id,
       currency,
       invoice_url,
+      subscription,
     }
 
     // Нормализуем тип транзакции в нижний регистр для совместимости с БД
@@ -126,6 +130,7 @@ export async function createSuccessfulPayment({
         currency,
         inv_id,
         invoice_url,
+        subscription,
       })
       .select()
       .single()

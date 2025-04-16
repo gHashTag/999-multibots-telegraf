@@ -6,6 +6,7 @@ import { getSubScribeChannel } from '@/core/supabase'
 import { isDev } from '@/helpers'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
+import { SubscriptionType } from '@/types/subscription'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
   if (!ctx.from?.id) {
@@ -24,7 +25,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   }
   const subscription = existingUser.subscription
   // Получаем ID канала подписки
-  if (subscription !== 'stars') {
+  if (subscription !== SubscriptionType.STARS) {
     logger.info('CASE: subscription not stars')
     if (isDev) {
       return ctx.scene.enter('menuScene')
@@ -58,11 +59,11 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   if (ctx.session.mode === ModeEnum.MainMenu) {
     return ctx.scene.enter('menuScene')
   } else {
-    return ctx.scene.enter('menuScene')
+    return ctx.scene.enter(ctx.session.mode || ModeEnum.MainMenu)
   }
 }
 
 export const subscriptionCheckScene = new WizardScene(
-  ModeEnum.SubscriptionCheckScene,
+  ModeEnum.SubscriptionScene,
   subscriptionCheckStep
 )

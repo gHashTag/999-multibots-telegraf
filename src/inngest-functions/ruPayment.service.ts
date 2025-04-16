@@ -10,6 +10,7 @@ import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { createBotByName } from '@/core/bot'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 // Константы для вариантов оплаты
 export const PAYMENT_OPTIONS = [
@@ -60,6 +61,11 @@ export const SUBSCRIPTION_PLANS = [
   },
 ] as const
 
+interface CheckSubscriptionResult {
+  stars: number
+  subscription: SubscriptionType | undefined
+}
+
 // Функция Inngest для обработки платежей
 export const ruPaymentProcessPayment = inngest.createFunction(
   {
@@ -75,7 +81,7 @@ export const ruPaymentProcessPayment = inngest.createFunction(
 
     try {
       let stars = 0
-      let subscription = ''
+      let subscription: SubscriptionType | undefined = undefined
 
       // 1. Сначала получаем данные пользователя
       const userData = await step.run('get-user-data', async () => {
@@ -87,17 +93,20 @@ export const ruPaymentProcessPayment = inngest.createFunction(
       // 2. Проверяем, соответствует ли сумма одному из тарифов
       const checkSubscriptionStep = await step.run(
         'check-subscription-plan',
-        async () => {
+        async (): Promise<CheckSubscriptionResult> => {
           const plan = SUBSCRIPTION_PLANS.find(
             p => p.ru_price === roundedIncSum
           )
           if (plan) {
             return {
               stars: plan.stars_price,
-              subscription: plan.callback_data,
+              subscription: plan.callback_data as SubscriptionType,
             }
           }
-          return { stars: 0, subscription: '' }
+          return {
+            stars: 0,
+            subscription: undefined,
+          }
         }
       )
 

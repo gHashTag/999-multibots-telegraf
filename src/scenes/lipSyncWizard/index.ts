@@ -102,11 +102,20 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     }
 
     try {
+      if (!ctx.session.videoUrl || !ctx.session.audioUrl) {
+        await ctx.reply(
+          isRu
+            ? 'Ошибка: не предоставлены URL видео или аудио'
+            : 'Error: video or audio URL not provided'
+        )
+        return ctx.scene.leave()
+      }
+
       await generateLipSync(
         ctx.session.videoUrl,
         ctx.session.audioUrl,
         ctx.from.id.toString(),
-        ctx.botInfo?.username
+        ctx.botInfo?.username || ''
       )
 
       await ctx.reply(

@@ -24,7 +24,7 @@ import {
   handleWebhookNeurophoto,
   handleWebhookNeurophotoDebug,
 } from './controllers/neurophotoWebhook'
-import { UPLOAD_DIR } from './config'
+import { UPLOAD_DIR, SERVER_PORT } from './config'
 import { logger } from '@/utils/logger'
 import multer from 'multer'
 import path from 'path'
@@ -36,7 +36,8 @@ dotenv.config()
 
 const app = express()
 
-const port = 2999
+// Используем порт из конфига
+const port = SERVER_PORT
 
 // Middleware
 app.use(cors())

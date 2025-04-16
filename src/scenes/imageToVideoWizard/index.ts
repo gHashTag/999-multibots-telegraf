@@ -76,17 +76,15 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       } else {
         // Используем await для получения результата
-        const result = await validateAndCalculateVideoModelPrice(
+        const amount = await validateAndCalculateVideoModelPrice(
           videoModel,
           currentBalance,
           isRu,
           ctx,
           'image'
         )
-        if (!result) {
-          return ctx.scene.leave()
-        }
-        const { amount, modelId } = result
+        if (!amount) return
+        const { modelId } = amount
         console.log('💵 Generation cost:', amount)
         console.log('🆔 Model ID:', modelId)
         if (amount === null) {
@@ -100,7 +98,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         await sendBalanceMessage(
           ctx.from.id.toString(),
           currentBalance,
-          amount,
+          amount.amount,
           isRu,
           ctx.telegram
         )
@@ -111,7 +109,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
             : '🖼️ Please send an image for video generation',
           Markup.removeKeyboard()
         )
-        ctx.session.amount = amount
         return ctx.wizard.next()
       }
     } else {

@@ -3,6 +3,7 @@ import { getReferalsCountAndUserData } from '@/core/supabase'
 import { getSubScribeChannel } from '@/core/supabase'
 import { mainMenu } from '@/menu'
 import { MyContext } from '@/interfaces'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 export async function handleQuestRules(ctx: MyContext) {
   try {
@@ -735,7 +736,7 @@ You have successfully completed all tasks and reached the maximum level! 🌟✨
           await mainMenu({
             isRu,
             inviteCount: count,
-            subscription: subscription || 'stars',
+            subscription: subscription?.type || SubscriptionType.STARS,
             ctx,
             level,
           })

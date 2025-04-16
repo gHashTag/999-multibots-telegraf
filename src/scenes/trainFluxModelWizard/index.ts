@@ -59,7 +59,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
 
       ctx.session.images = []
       ctx.session.modelName = `${username.toLowerCase()}`
-      ctx.session.targetUserId = Number(targetUserId)
+      ctx.session.targetUserId = targetUserId
       ctx.session.username = username
       ctx.session.triggerWord = `${username.toLowerCase()}`
 
@@ -171,8 +171,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       }
 
       ctx.session.images.push({
-        // @ts-ignore
-        buffer: Buffer.from(buffer),
+        buffer: buffer,
         filename: `a_photo_of_${ctx.session.username}x${
           ctx.session.images.length + 1
         }.jpg`,

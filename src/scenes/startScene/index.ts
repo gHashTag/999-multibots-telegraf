@@ -9,6 +9,7 @@ import { mainMenuButton } from '@/menu/mainMenu'
 import { BOT_URLS } from '@/core/bot'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
   const botName = ctx.botInfo.username
@@ -105,8 +106,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
   async (ctx: MyContext) => {
     const isRu = ctx.from?.language_code === 'ru'
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { subscription, isExist } =
-      await getReferalsCountAndUserData(telegram_id)
+    const { userData, isExist } = await getReferalsCountAndUserData(telegram_id)
     console.log('isExist', isExist)
     if (!isExist) {
       await ctx.scene.enter(ModeEnum.CreateUserScene)
@@ -121,11 +121,15 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       )
       return ctx.scene.leave()
     }
-    if (!subscription) {
+    if (!userData?.subscription) {
       await ctx.scene.enter(ModeEnum.SubscriptionScene)
       return
     }
-    const hasFullAccess = await checkPaymentStatus(ctx, subscription)
+    if (userData.subscription === SubscriptionType.STARS) {
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+      return
+    }
+    const hasFullAccess = await checkPaymentStatus(ctx, userData.subscription)
     if (hasFullAccess) {
       await ctx.scene.enter('menuScene')
     } else {

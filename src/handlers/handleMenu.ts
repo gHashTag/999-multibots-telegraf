@@ -19,6 +19,8 @@ import { get100Command } from '@/commands'
 import { getStatsCommand } from '@/commands/stats'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
@@ -32,8 +34,8 @@ export const handleMenu = async (ctx: MyContext) => {
     const actions = {
       [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
         console.log('CASE: 💫 Оформление подписки')
-        ctx.session.mode = 'subscribe' as any
-        await ctx.scene.enter(ModeEnum.SubscriptionScene)
+        ctx.session.mode = ModeEnum.Subscribe
+        await handleBuySubscription(ctx, SubscriptionType.NEUROPHOTO)
       },
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         console.log('CASE: 🤖 Цифровое тело')
@@ -107,67 +109,66 @@ export const handleMenu = async (ctx: MyContext) => {
       // },
       [isRu ? levels[100].title_ru : levels[100].title_en]: async () => {
         console.log('CASE: 💎 Пополнить баланс')
-        ctx.session.mode = 'top_up_balance' as any
+        ctx.session.mode = ModeEnum.TopUpBalance
         await ctx.scene.enter(ModeEnum.PaymentScene)
       },
       [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
         console.log('CASE: 🤑 Баланс')
-        ctx.session.mode = 'balance' as any
+        ctx.session.mode = ModeEnum.Balance
         await ctx.scene.enter(ModeEnum.BalanceScene)
       },
       [isRu ? levels[102].title_ru : levels[102].title_en]: async () => {
         console.log('CASE: 👥 Пригласить друга')
-        ctx.session.mode = 'invite' as any
-        await ctx.scene.enter('inviteScene')
+        ctx.session.mode = ModeEnum.Invite
+        await ctx.scene.enter(ModeEnum.InviteScene)
       },
       [isRu ? levels[103].title_ru : levels[103].title_en]: async () => {
         console.log('CASE: ❓ Помощь')
-        ctx.session.mode = 'help' as any
-        await ctx.scene.enter('helpScene')
+        ctx.session.mode = ModeEnum.Help
+        await ctx.scene.enter(ModeEnum.HelpScene)
       },
       [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
         console.log('CASE: 🛠 Техподдержка')
-        ctx.session.mode = 'tech' as any
+        ctx.session.mode = ModeEnum.Tech
         await handleTechSupport(ctx)
       },
       '/invite': async () => {
         console.log('CASE: 👥 Пригласить друга')
-        ctx.session.mode = 'invite' as any
-        await ctx.scene.enter('inviteScene')
+        ctx.session.mode = ModeEnum.Invite
+        await ctx.scene.enter(ModeEnum.InviteScene)
       },
       '/price': async () => {
         console.log('CASE: 💰 Цена')
-        ctx.session.mode = 'price' as any
         await priceCommand(ctx)
       },
       '/buy': async () => {
         console.log('CASE: 💰 Пополнить баланс')
-        ctx.session.mode = 'top_up_balance' as any
+        ctx.session.mode = ModeEnum.TopUpBalance
         await ctx.scene.enter(ModeEnum.PaymentScene)
       },
       '/balance': async () => {
         console.log('CASE: 💰 Баланс')
-        ctx.session.mode = 'balance' as any
+        ctx.session.mode = ModeEnum.Balance
         await ctx.scene.enter(ModeEnum.BalanceScene)
       },
       '/help': async () => {
         console.log('CASE: ❓ Помощь')
-        ctx.session.mode = 'help' as any
-        await ctx.scene.enter('helpScene')
+        ctx.session.mode = ModeEnum.Help
+        await ctx.scene.enter(ModeEnum.HelpScene)
       },
       '/menu': async () => {
         console.log('CASE: 🏠 Главное меню')
-        ctx.session.mode = 'main_menu' as any
-        await ctx.scene.enter('menuScene')
+        ctx.session.mode = ModeEnum.MainMenu
+        await ctx.scene.enter(ModeEnum.MainMenu)
       },
       [isRu ? mainMenuButton.title_ru : mainMenuButton.title_en]: async () => {
         console.log('CASE: 🏠 Главное меню')
-        ctx.session.mode = 'main_menu' as any
-        await ctx.scene.enter('menuScene')
+        ctx.session.mode = ModeEnum.MainMenu
+        await ctx.scene.enter(ModeEnum.MainMenu)
       },
       '/tech': async () => {
         console.log('CASE: 🛠 Техподдержка')
-        ctx.session.mode = 'tech' as any
+        ctx.session.mode = ModeEnum.Tech
         await handleTechSupport(ctx)
       },
       '/start': async () => {
@@ -176,7 +177,7 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       '/stats': async () => {
         console.log('CASE: 🔍 Получение информации о сервере Glama MCP')
-        ctx.session.mode = 'stats' as any
+        ctx.session.mode = ModeEnum.Stats
         await getStatsCommand(ctx)
       },
     }

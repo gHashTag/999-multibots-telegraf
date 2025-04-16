@@ -1,28 +1,33 @@
 import { supabase } from '.'
 import { logger } from '@/utils/logger'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
-import { TransactionType } from '@/interfaces/payments.interface'
+import { TransactionType, PaymentType } from '@/interfaces/payments.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+
 interface PaymentData {
   telegram_id: string
   amount: number
-  OutSum: string
-  InvId: string
-  inv_id: string
-  currency: string
+  OutSum?: string
+  InvId?: string
+  inv_id?: string
+  currency?: string
   stars: number
-  status: string
+  status?: string
   payment_method: string
   bot_name: string
   description: string
   metadata?: {
     payment_method: string
     email?: string
-    subscription?: string
+    subscription?: SubscriptionType
     stars?: number
   }
-  language: string
-  invoice_url: string
-  subscription?: string
+  language?: string
+  invoice_url?: string
+  subscription?: SubscriptionType
+  type?: TransactionType | PaymentType
+  service_type?: string
+  operation_id?: string
 }
 
 /**
@@ -66,12 +71,14 @@ export async function createPayment(data: PaymentData) {
       bot_name: data.bot_name,
       status: data.status,
       invoice_url: data.invoice_url,
-      type: TransactionType.MONEY_INCOME,
+      type: data.type || TransactionType.MONEY_INCOME,
+      subscription: data.subscription,
       inv_id: data.inv_id,
       operation_id: data.InvId || data.inv_id,
       language: data.language,
       payment_method: paymentMethod,
       payment_date: new Date(),
+      service_type: data.service_type,
     })
 
     if (error) {
