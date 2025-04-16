@@ -8,9 +8,9 @@ import {
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
 import { Telegram, Telegraf } from 'telegraf'
-import { BalanceOperationResult } from '../../interfaces'
 import { isRussian } from '@/helpers'
 import { TransactionType } from '@/interfaces/payments.interface'
+import { BalanceOperationResult } from '@/interfaces/balance.interface'
 
 export * from './modelsCost'
 export * from './calculateFinalPrice'
@@ -61,9 +61,9 @@ export async function processBalanceOperation({
       bot.telegram.sendMessage(telegram_id, message)
       return {
         success: false,
+        message: 'Insufficient funds',
+        balance: currentBalance,
         error: 'Insufficient funds',
-        newBalance: currentBalance,
-        modePrice: amount,
       }
     }
 
@@ -88,23 +88,17 @@ export async function processBalanceOperation({
 
     return {
       success: true,
-      newBalance,
-      modePrice: amount,
+      message: 'Balance operation completed successfully',
+      balance: newBalance,
     }
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при обработке платежа',
-      description: 'Payment processing error',
-      error: error instanceof Error ? error.message : String(error),
-      telegram_id,
-      type,
-    })
-
+    console.error('Error in processBalanceOperation:', error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
-      newBalance: 0,
-      modePrice: amount,
+      message:
+        error instanceof Error ? error.message : 'Balance operation failed',
+      balance: 0,
+      error: error instanceof Error ? error : new Error('Unknown error'),
     }
   }
 }
@@ -157,9 +151,9 @@ export const processPayment = async ({
 
       return {
         success: false,
+        message: 'Insufficient funds',
+        balance: currentBalance || 0,
         error: 'Insufficient funds',
-        currentBalance: currentBalance || 0,
-        modePrice: amount,
       }
     }
 
@@ -180,21 +174,17 @@ export const processPayment = async ({
 
     return {
       success: true,
-      currentBalance,
-      newBalance,
-      modePrice: amount,
+      message: 'Balance operation completed successfully',
+      balance: newBalance,
     }
   } catch (error) {
-    logger.error('❌ Ошибка при обработке платежа:', {
-      description: 'Error processing payment',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      modePrice: amount,
-    })
-
+    console.error('Error in processPayment:', error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      modePrice: amount,
+      message:
+        error instanceof Error ? error.message : 'Balance operation failed',
+      balance: 0,
+      error: error instanceof Error ? error : new Error('Unknown error'),
     }
   }
 }

@@ -1,17 +1,16 @@
-import { MySession } from '../interfaces'
+import { MySession, BufferType } from '../interfaces'
 import { ModeEnum } from '../interfaces/modes'
-import {
-  SubscriptionType,
-  TransactionType,
-} from '../interfaces/payments.interface'
+import { TransactionType } from '../interfaces/payments.interface'
 
 export const defaultSession = (): MySession & {
   __scenes: Record<string, unknown>
 } => ({
+  cursor: 0,
+  attempts: 0,
+  amount: 0,
   memory: {
     messages: [],
   },
-  email: '',
   selectedModel: '',
   prompt: '',
   selectedSize: '',
@@ -21,36 +20,35 @@ export const defaultSession = (): MySession & {
     model_url: '' as `${string}/${string}:${string}`,
     model_key: '' as `${string}/${string}:${string}`,
   },
-  numImages: 1,
-  telegram_id: '',
   mode: ModeEnum.TextToImage,
-  attempts: 0,
   videoModel: '',
   imageUrl: '',
-  videoUrl: '',
-  audioUrl: '',
-  amount: 0,
-  subscription: 'stars' as SubscriptionType,
-  images: [],
-  modelName: '',
-  targetUserId: 0,
-  username: '',
-  triggerWord: '',
-  steps: 0,
-  inviter: '',
-  inviteCode: '',
-  invoiceURL: '',
+  subscription: undefined,
   buttons: [],
   selectedPayment: {
     amount: 0,
     stars: 0,
+    subscription: undefined,
     type: TransactionType.MONEY_INCOME,
   },
   bypass_payment_check: false,
+  images: [] as BufferType,
+  modelName: '',
+  targetUserId: '',
+  username: '',
+  triggerWord: '',
+  steps: [],
+  videoUrl: '',
+  audioUrl: '',
+  email: '',
   __scenes: {
     cursor: 0,
     __scenes: {},
     data: '',
     severity: 0,
+    subscription: undefined,
+    state: {
+      step: 0,
+    },
   },
 })

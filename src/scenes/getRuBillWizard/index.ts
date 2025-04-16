@@ -5,10 +5,8 @@ import {
   merchantLogin,
   password1,
   description,
-  subscriptionTitles,
-  useTestMode,
   generateShortInvId,
-} from './helper'
+} from '@/scenes/getRuBillWizard/helper'
 import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
@@ -16,7 +14,8 @@ import { TransactionType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
 import { ModeEnum } from '@/interfaces/modes'
-import { type Subscription } from '@/types/subscription'
+import { type LocalSubscription } from '@/types/subscription'
+import { getRuBillMessage } from '@/utils/getRuBillMessage'
 
 const generateInvoiceStep = async (ctx: MyContext) => {
   logger.info('🚀 Начало создания счета', {
@@ -45,7 +44,9 @@ const generateInvoiceStep = async (ctx: MyContext) => {
   })
 
   const stars = selectedPayment.amount
-  const subscription = selectedPayment.subscription as Subscription | undefined
+  const subscription = selectedPayment.subscription as
+    | LocalSubscription
+    | undefined
 
   // Проверка на валидный тип подписки
   if (subscription && !['neurophoto', 'neurobase'].includes(subscription)) {
@@ -91,8 +92,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       stars,
       numericInvId,
       description,
-      password1,
-      useTestMode
+      password1
     )
     logger.info('🔗 URL счета:', {
       description: 'Invoice URL',
@@ -131,25 +131,12 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     })
 
     // Формируем и отправляем сообщение с кнопкой оплаты
-    const title = subscription ? subscriptionTitles(subscription, isRu) : ''
-    const subscriptionTitle = subscription ? title : ''
-
-    const inlineKeyboard = [
-      [
-        {
-          text: isRu ? 'Оплатить' : 'Pay',
-          url: invoiceURL,
-        },
-      ],
-    ]
-
-    const messageText = isRu
-      ? `<b>💳 ${subscription ? `Подписка ${subscriptionTitle}` : 'Пополнение баланса'}</b>\n` +
-        `<b>💰 Сумма:</b> ${stars} ₽\n` +
-        `<i>При проблемах с оплатой: @neuro_sage</i>`
-      : `<b>💳 ${subscription ? `Subscription ${subscriptionTitle}` : 'Balance top-up'}</b>\n` +
-        `<b>💰 Amount:</b> ${stars} RUB\n` +
-        `<i>Payment support: @neuro_sage</i>`
+    const { messageText, inlineKeyboard } = getRuBillMessage({
+      stars,
+      subscription,
+      isRu,
+      invoiceURL,
+    })
 
     await ctx.reply(messageText, {
       reply_markup: {
@@ -173,7 +160,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     ctx.session.selectedPayment = {
       amount: selectedPayment.amount,
       stars: Number(selectedPayment.stars),
-      subscription: selectedPayment.subscription as Subscription,
+      subscription: selectedPayment.subscription as LocalSubscription,
       type: TransactionType.SUBSCRIPTION_PURCHASE,
     }
 

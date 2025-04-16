@@ -1,6 +1,7 @@
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { MyContext } from '../interfaces'
 import { mainMenu } from './mainMenu'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 export const sendGenerationCancelledMessage = async (
   ctx: MyContext,
@@ -17,7 +18,7 @@ export const sendGenerationCancelledMessage = async (
         await mainMenu({
           isRu,
           inviteCount: count,
-          subscription: subscription || 'stars',
+          subscription: subscription?.type || SubscriptionType.STARS,
           ctx,
           level,
         })

@@ -58,7 +58,6 @@ export async function validateAndCalculateVideoModelPrice(
     currentBalance,
   })
 
-  ctx.session.amount = amount
   if (currentBalance < amount) {
     console.log('❌ Недостаточно средств:', {
       description: 'Insufficient funds',

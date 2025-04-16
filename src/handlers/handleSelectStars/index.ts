@@ -1,43 +1,55 @@
 import { Context } from 'telegraf'
+import { PaymentOption } from '@/price/priceCalculator'
 
 interface BuyParams {
   ctx: Context
-  starAmounts: number[]
   isRu: boolean
+  paymentOptions: PaymentOption[]
 }
 
-export async function handleSelectStars({ ctx, starAmounts, isRu }: BuyParams) {
+export async function handleSelectStars({
+  ctx,
+  isRu,
+  paymentOptions,
+}: BuyParams) {
   try {
     const inlineKeyboard = []
-    for (let i = 0; i < starAmounts.length; i += 3) {
+
+    // Создаем кнопки для покупки звезд
+    for (let i = 0; i < paymentOptions.length; i += 2) {
       const row = [
         {
-          text: isRu ? `${starAmounts[i]}⭐️` : `${starAmounts[i]}⭐️`,
-          callback_data: `top_up_${starAmounts[i]}`,
+          text: isRu
+            ? `${paymentOptions[i].amount}₽ → ${paymentOptions[i].stars}⭐️`
+            : `${paymentOptions[i].amount}₽ → ${paymentOptions[i].stars}⭐️`,
+          callback_data: `pay_rub_${paymentOptions[i].amount}_${paymentOptions[i].stars}`,
         },
       ]
 
-      if (starAmounts[i + 1] !== undefined) {
+      if (paymentOptions[i + 1]) {
         row.push({
-          text: isRu ? `${starAmounts[i + 1]}⭐️` : `${starAmounts[i + 1]}⭐️`,
-          callback_data: `top_up_${starAmounts[i + 1]}`,
-        })
-      }
-
-      if (starAmounts[i + 2] !== undefined) {
-        row.push({
-          text: isRu ? `${starAmounts[i + 2]}⭐️` : `${starAmounts[i + 2]}⭐️`,
-          callback_data: `top_up_${starAmounts[i + 2]}`,
+          text: isRu
+            ? `${paymentOptions[i + 1].amount}₽ → ${paymentOptions[i + 1].stars}⭐️`
+            : `${paymentOptions[i + 1].amount}₽ → ${paymentOptions[i + 1].stars}⭐️`,
+          callback_data: `pay_rub_${paymentOptions[i + 1].amount}_${paymentOptions[i + 1].stars}`,
         })
       }
 
       inlineKeyboard.push(row)
     }
 
+    // Добавляем кнопку возврата
+    inlineKeyboard.push([
+      {
+        text: isRu ? '🔙 Назад' : '🔙 Back',
+        callback_data: 'back_to_payment',
+      },
+    ])
+
     await ctx.reply(
       isRu
-        ? 'Выберите количество звезд для покупки:'
-        : 'Choose the number of stars to buy:',
+        ? '💰 Выберите сумму пополнения в рублях:'
+        : '💰 Choose the amount to top up in rubles:',
       {
         reply_markup: {
           inline_keyboard: inlineKeyboard,

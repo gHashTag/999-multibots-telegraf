@@ -3,11 +3,12 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { logger } from './utils/logger'
+import { SERVER_PORT } from './config'
 
 dotenv.config()
 
 const app = express()
-const port = 2999
+const port = SERVER_PORT
 
 // Middleware
 app.use(cors())

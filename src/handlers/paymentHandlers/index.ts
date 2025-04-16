@@ -1,47 +1,20 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
-import { Context, Scenes } from 'telegraf'
 import { isRussian } from '@/helpers'
 import { getTranslation } from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
 import { updateUserSubscription, createPayment } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
-import {
-  TransactionType,
-  SubscriptionType,
-} from '@/interfaces/payments.interface'
+import { TransactionType } from '@/interfaces/payments.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
-
 import { createBotByName } from '@/core/bot'
-import { LocalSubscription } from '@/types/subscription'
-import { SubscriptionButton } from '@/types/telegram-bot.interface'
 import { inngest } from '@/inngest-functions/clients'
 
-// Используйте SessionFlavor для добавления сессий
-interface SessionData {
-  subscription: LocalSubscription
-  telegram_id: TelegramId
-  email: string
-  selectedPayment?: {
-    amount: number
-    stars: number
-    subscription?: LocalSubscription
-    type: TransactionType
-  }
-  buttons: SubscriptionButton[]
+// Объединяем все в один тип для контекста
+type PaymentContext = MyContext & {
+  message: Message.SuccessfulPaymentMessage
 }
-
-type PaymentContext = Context &
-  MyContext &
-  Scenes.SceneContext & {
-    session: SessionData
-    message: {
-      successful_payment?: {
-        total_amount: number
-        invoice_payload: string
-      }
-    } & Message
-  }
 
 /**
  * Получает список владельцев бота из таблицы avatars
@@ -200,69 +173,64 @@ async function processPayment(
   subscriptionName: string,
   stars: number
 ) {
-  const userId = ctx.from?.id.toString()
-  console.log('CASE: userId', userId)
-  const username = ctx.from?.username
-  console.log('CASE: username', username)
-  console.log(
-    'CASE: ctx.message?.successful_payment',
-    ctx.message?.successful_payment
-  )
-  const payload = ctx.message?.successful_payment?.invoice_payload
-  console.log('CASE: payload', payload)
-  if (!userId) {
-    throw new Error('User ID is undefined')
-  }
-
-  await updateUserSubscription(userId, subscriptionName)
-
-  // Для всех платежей через Robokassa используем валюту RUB
-  const paymentMethod = 'Robokassa'
-
-  await createPayment({
-    telegram_id: userId.toString(),
-    amount: Number(amount),
-    OutSum: amount.toString(),
-    InvId: payload || '',
-    inv_id: payload || '',
-    currency: 'RUB', // Для Robokassa всегда используем RUB
-    stars: Number(stars),
-    status: 'SUCCESS',
-    payment_method: paymentMethod,
-    bot_name: ctx.botInfo.username,
-    description: `Payment completed - ${amount.toString()} RUB`,
-    metadata: {
-      payment_method: paymentMethod,
-      email: ctx.session.email,
-    },
-    language: 'ru',
-    invoice_url: '',
-  })
-
-  await sendNotification(
-    ctx,
-    `💫 Пользователь: @${username} (ID: ${userId})\n` +
-      `📦 Купил: ${subscriptionName}\n и получил ${stars} звезд 🌟`
-  )
-  const isRu = isRussian(ctx)
-  await ctx.reply(
-    isRu
-      ? `✅ **Спасибо за покупку! На ваш баланс добавлено ${stars} ⭐️!**\n` +
-          `✨ Теперь вы можете использовать свою подписку. Для этого перейдите в главное меню, нажав на кнопку ниже:\n` +
-          `🏠 /menu\n` +
-          `❓ Если у вас есть вопросы, не стесняйтесь обращаться за помощью /tech\n` +
-          `Мы всегда рады помочь!`
-      : `✅ **Thank you for your purchase! ${stars} stars added to your balance!**\n` +
-          `✨ Now you can use your subscription. To do this, go to the main menu by clicking the button below:\n` +
-          `🏠 /menu\n` +
-          `❓ If you have any questions, feel free to ask for help /tech\n` +
-          `We're always here to assist you!`,
-    {
-      parse_mode: 'Markdown',
+  try {
+    if (!ctx.from?.id) {
+      throw new Error('User ID is undefined')
     }
-  )
-  ctx.session.subscription = subscriptionName as SubscriptionType
-  ctx.session.buttons = []
+
+    const telegram_id = ctx.from.id.toString() as TelegramId
+    const username = ctx.from.username || 'unknown'
+    const botUsername = ctx.botInfo?.username || ''
+    const invoicePayload = ctx.message.successful_payment?.invoice_payload || ''
+
+    // Создаем запись о платеже
+    await createPayment({
+      telegram_id,
+      amount,
+      stars,
+      type: TransactionType.SUBSCRIPTION_PAYMENT,
+      description: `Покупка подписки ${subscriptionName}`,
+      bot_name: botUsername,
+      service_type: 'neuroblogger',
+      payment_method: 'telegram',
+      operation_id: invoicePayload,
+      inv_id: invoicePayload,
+      status: 'SUCCESS',
+      subscription: subscriptionName as SubscriptionType,
+      metadata: {
+        payment_method: 'telegram',
+        subscription: subscriptionName as SubscriptionType,
+      },
+    })
+
+    // Обновляем подписку пользователя
+    await updateUserSubscription(
+      telegram_id,
+      subscriptionName as SubscriptionType
+    )
+
+    await sendNotification(
+      ctx,
+      `💫 Пользователь: @${username} (ID: ${telegram_id})\n` +
+        `📦 Купил: ${subscriptionName}\n и получил ${stars} звезд 🌟`
+    )
+
+    const isRu = isRussian(ctx)
+    await ctx.reply(
+      isRu
+        ? 'Спасибо за покупку! Ваша подписка активирована.'
+        : 'Thank you for your purchase! Your subscription has been activated.'
+    )
+
+    ctx.session.subscription = subscriptionName as SubscriptionType
+    ctx.session.buttons = []
+  } catch (error) {
+    logger.error('❌ Ошибка обработки платежа', {
+      description: 'Error processing payment',
+      error: error instanceof Error ? error.message : String(error),
+    })
+    throw error
+  }
 }
 
 export async function handleSuccessfulPayment(ctx: PaymentContext) {
@@ -311,7 +279,7 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
       ctx.session.selectedPayment = {
         amount: stars,
         stars: stars,
-        subscription: subscriptionType as LocalSubscription,
+        subscription: subscriptionType as SubscriptionType,
         type: TransactionType.MONEY_INCOME,
       }
     }

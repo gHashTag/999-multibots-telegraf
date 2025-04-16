@@ -18,6 +18,7 @@ import { MyContext } from '../../interfaces'
 import { isRussian } from '@/helpers'
 import { mainMenu } from '@/menu'
 import { getReferalsCountAndUserData } from '@/core/supabase'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 // Создаем сцены для каждого шага
 const createStepScene = (
@@ -45,7 +46,7 @@ const createStepScene = (
         : await mainMenu({
             isRu,
             inviteCount: count,
-            subscription: subscription || 'stars',
+            subscription: subscription?.type || SubscriptionType.STARS,
             ctx,
             level,
           })

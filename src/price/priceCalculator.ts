@@ -1,4 +1,4 @@
-import { Subscription } from '@/interfaces/supabase.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 // Базовые константы
 const COST_PER_STEP_IN_STARS = 0.22
@@ -10,21 +10,24 @@ const STAR_COST = 0.016 // Стоимость одной звезды в дол�
 export const stepCostInDollars = STAR_COST * COST_PER_STEP_IN_STARS
 export const stepCostInRubles = stepCostInDollars * RUBLES_TO_DOLLARS_RATE
 
-export const paymentOptionsPlans: {
+export interface PaymentOption {
   amount: number
   stars: string
-  subscription: Subscription
-}[] = [
-  { amount: 1110, stars: '476', subscription: 'neurophoto' },
-  { amount: 2999, stars: '1303', subscription: 'neurobase' },
-  { amount: 75000, stars: '32608', subscription: 'neuroblogger' },
-  { amount: 5, stars: '5', subscription: 'neurotester' },
+  subscription?: SubscriptionType
+}
+
+// У нас два тарифных плана, не менять!!!
+export const paymentOptionsPlans: PaymentOption[] = [
+  { amount: 1110, stars: '476', subscription: SubscriptionType.NEUROPHOTO },
+  { amount: 2999, stars: '1303', subscription: SubscriptionType.NEUROBASE },
+  {
+    amount: 75000,
+    stars: '32608',
+    subscription: SubscriptionType.NEUROBLOGGER,
+  },
 ]
 
-export const paymentOptions: {
-  amount: number
-  stars: string
-}[] = [
+export const paymentOptions: PaymentOption[] = [
   { amount: 500, stars: '217' },
   { amount: 1000, stars: '434' },
   { amount: 2000, stars: '869' },

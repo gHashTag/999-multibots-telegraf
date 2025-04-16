@@ -1,9 +1,9 @@
 import { TestResult } from '@/test-utils/types'
 import { logger } from '@/utils/logger'
-import { supabase } from '@/core/supabase'
 import { PaymentTester } from '../utils/paymentTester'
-import { TEST_PAYMENT_CONFIG } from '../utils/testConfig'
-import { inngestTestEngine } from '@/test-utils/inngest/testEngine'
+import { TEST_PAYMENT_CONFIG } from '../test-config'
+import { TransactionType } from '@/interfaces/payments.interface'
+import { ModeEnum } from '@/interfaces/modes'
 
 /**
  * Запускает тесты платежного процессора
@@ -13,14 +13,14 @@ export async function runPaymentProcessorTests(): Promise<TestResult[]> {
     description: 'Running payment processor tests',
   })
 
-  try {
-    const results: TestResult[] = []
+  const results: TestResult[] = []
 
-    // Запуск тестов
-    results.push(await testPaymentIncome())
-    results.push(await testPaymentExpense())
-    results.push(await testPaymentWithInsufficientBalance())
-    results.push(await testDuplicatePaymentPrevention())
+  try {
+    // Запускаем все тесты
+    results.push(await testBasicPaymentProcessing())
+    results.push(await testDuplicatePaymentHandling())
+    results.push(await testInvalidAmountHandling())
+    results.push(await testBalanceCheck())
 
     // Отчет о результатах
     const passedTests = results.filter(r => r.success).length
@@ -45,82 +45,53 @@ export async function runPaymentProcessorTests(): Promise<TestResult[]> {
     return [
       {
         success: false,
-        name: 'Тесты платежного процессора',
+        name: 'Payment Processor Tests',
         message: `Ошибка: ${error instanceof Error ? error.message : String(error)}`,
       },
     ]
   }
 }
 
-/**
- * Тест пополнения баланса
- */
-async function testPaymentIncome(): Promise<TestResult> {
-  const testName = 'Тест пополнения баланса'
-
-  logger.info(`🚀 Запуск теста: ${testName}`, {
-    description: 'Starting payment income test',
-  })
-
+async function testBasicPaymentProcessing(): Promise<TestResult> {
+  const testName = 'Базовая обработка платежа'
   const tester = new PaymentTester()
-  const telegramId = '123456789'
-  const amount = TEST_PAYMENT_CONFIG.amounts.medium
-  const initialBalance = TEST_PAYMENT_CONFIG.testUser.initialBalance
 
   try {
-    // Создаем тестового пользователя
-    const userCreated = await tester.createTestUser(telegramId, initialBalance)
-    if (!userCreated) {
-      throw new Error('Не удалось создать тестового пользователя')
-    }
+    const telegramId = '123456789'
+    const amount = TEST_PAYMENT_CONFIG.amounts.small
 
-    // Запускаем событие для пополнения баланса
-    await inngestTestEngine.sendEvent({
-      name: 'payment/process',
-      data: {
-        telegram_id: telegramId,
-        amount: amount,
-        type: 'money_income',
-        description: 'TEST: Пополнение баланса',
-        bot_name: TEST_PAYMENT_CONFIG.testUser.botName,
-        service_type: 'TopUpBalance',
-      },
+    // Создаем тестового пользователя
+    await tester.createTestUser(telegramId, 0)
+
+    // Создаем платеж
+    const payment = await tester.createPayment({
+      telegram_id: telegramId,
+      amount,
+      type: TransactionType.MONEY_INCOME,
+      description: 'Test payment',
+      bot_name: TEST_PAYMENT_CONFIG.testUser.botName,
+      service_type: ModeEnum.TopUpBalance,
     })
 
-    // Ждем обработки события
-    await new Promise(resolve =>
-      setTimeout(resolve, TEST_PAYMENT_CONFIG.timeouts.medium)
-    )
-
-    // Проверяем, что баланс увеличился
-    const expectedBalance =
-      initialBalance + amount * TEST_PAYMENT_CONFIG.starConversion.rate
-    const balanceUpdated = await tester.checkBalanceUpdated(
+    // Проверяем создание платежа
+    const isPaymentCreated = await tester.checkPaymentCreated(
       telegramId,
-      expectedBalance
+      amount
     )
-
-    if (!balanceUpdated) {
-      throw new Error('Баланс не был обновлен после пополнения')
+    if (!isPaymentCreated) {
+      throw new Error('Платеж не был создан')
     }
 
-    // Проверяем, что платеж был создан
-    const paymentCreated = await tester.checkPaymentCreated(
-      telegramId,
-      amount,
-      'COMPLETED'
-    )
-
-    if (!paymentCreated) {
-      throw new Error('Платеж не был создан после обработки события')
+    // Проверяем обновление баланса
+    const newBalance = await tester.checkBalance(telegramId)
+    if (newBalance !== amount) {
+      throw new Error(
+        `Неверный баланс после платежа: ${newBalance}, ожидалось: ${amount}`
+      )
     }
 
     // Очищаем тестовые данные
     await tester.cleanupTestData(telegramId)
-
-    logger.info(`✅ Тест успешно пройден: ${testName}`, {
-      description: 'Payment income test passed successfully',
-    })
 
     return {
       success: true,
@@ -129,21 +100,9 @@ async function testPaymentIncome(): Promise<TestResult> {
     }
   } catch (error) {
     logger.error(`❌ Ошибка в тесте: ${testName}`, {
-      description: 'Error in payment income test',
+      description: 'Error in test',
       error: error instanceof Error ? error.message : String(error),
     })
-
-    // Попытка очистки данных даже при ошибке
-    try {
-      await tester.cleanupTestData(telegramId)
-    } catch (cleanupError) {
-      logger.error('Не удалось очистить тестовые данные', {
-        error:
-          cleanupError instanceof Error
-            ? cleanupError.message
-            : String(cleanupError),
-      })
-    }
 
     return {
       success: false,
@@ -153,76 +112,50 @@ async function testPaymentIncome(): Promise<TestResult> {
   }
 }
 
-/**
- * Тест списания средств
- */
-async function testPaymentExpense(): Promise<TestResult> {
-  const testName = 'Тест списания средств'
-
-  logger.info(`🚀 Запуск теста: ${testName}`, {
-    description: 'Starting payment expense test',
-  })
-
+async function testDuplicatePaymentHandling(): Promise<TestResult> {
+  const testName = 'Обработка дубликатов платежей'
   const tester = new PaymentTester()
-  const telegramId = '123456789'
-  const amount = TEST_PAYMENT_CONFIG.amounts.small
-  const initialBalance =
-    TEST_PAYMENT_CONFIG.amounts.medium * TEST_PAYMENT_CONFIG.starConversion.rate
 
   try {
-    // Создаем тестового пользователя
-    const userCreated = await tester.createTestUser(telegramId, initialBalance)
-    if (!userCreated) {
-      throw new Error('Не удалось создать тестового пользователя')
-    }
+    const telegramId = '123456789'
+    const amount = TEST_PAYMENT_CONFIG.amounts.small
+    const operationId = 'test-operation-id'
 
-    // Запускаем событие для списания средств
-    await inngestTestEngine.sendEvent({
-      name: 'payment/process',
-      data: {
-        telegram_id: telegramId,
-        amount: amount,
-        type: 'money_expense',
-        description: 'TEST: Списание средств',
-        bot_name: TEST_PAYMENT_CONFIG.testUser.botName,
-        service_type: 'TextToImage',
-      },
+    // Создаем тестового пользователя
+    await tester.createTestUser(telegramId, 0)
+
+    // Создаем первый платеж
+    const payment1 = await tester.createPayment({
+      telegram_id: telegramId,
+      amount,
+      type: TransactionType.MONEY_INCOME,
+      description: 'Test payment 1',
+      bot_name: TEST_PAYMENT_CONFIG.testUser.botName,
+      service_type: ModeEnum.TopUpBalance,
+      inv_id: operationId,
     })
 
-    // Ждем обработки события
-    await new Promise(resolve =>
-      setTimeout(resolve, TEST_PAYMENT_CONFIG.timeouts.medium)
-    )
-
-    // Проверяем, что баланс уменьшился
-    const expectedBalance =
-      initialBalance - amount * TEST_PAYMENT_CONFIG.starConversion.rate
-    const balanceUpdated = await tester.checkBalanceUpdated(
-      telegramId,
-      expectedBalance
-    )
-
-    if (!balanceUpdated) {
-      throw new Error('Баланс не был обновлен после списания')
-    }
-
-    // Проверяем, что платеж был создан
-    const paymentCreated = await tester.checkPaymentCreated(
-      telegramId,
+    // Пытаемся создать дубликат платежа
+    const payment2 = await tester.createPayment({
+      telegram_id: telegramId,
       amount,
-      'COMPLETED'
-    )
+      type: TransactionType.MONEY_INCOME,
+      description: 'Test payment 2',
+      bot_name: TEST_PAYMENT_CONFIG.testUser.botName,
+      service_type: ModeEnum.TopUpBalance,
+      inv_id: operationId,
+    })
 
-    if (!paymentCreated) {
-      throw new Error('Платеж не был создан после обработки события')
+    // Проверяем, что баланс увеличился только один раз
+    const balance = await tester.checkBalance(telegramId)
+    if (balance !== amount) {
+      throw new Error(
+        `Неверный баланс после дубликата: ${balance}, ожидалось: ${amount}`
+      )
     }
 
     // Очищаем тестовые данные
     await tester.cleanupTestData(telegramId)
-
-    logger.info(`✅ Тест успешно пройден: ${testName}`, {
-      description: 'Payment expense test passed successfully',
-    })
 
     return {
       success: true,
@@ -231,21 +164,9 @@ async function testPaymentExpense(): Promise<TestResult> {
     }
   } catch (error) {
     logger.error(`❌ Ошибка в тесте: ${testName}`, {
-      description: 'Error in payment expense test',
+      description: 'Error in test',
       error: error instanceof Error ? error.message : String(error),
     })
-
-    // Попытка очистки данных даже при ошибке
-    try {
-      await tester.cleanupTestData(telegramId)
-    } catch (cleanupError) {
-      logger.error('Не удалось очистить тестовые данные', {
-        error:
-          cleanupError instanceof Error
-            ? cleanupError.message
-            : String(cleanupError),
-      })
-    }
 
     return {
       success: false,
@@ -255,63 +176,43 @@ async function testPaymentExpense(): Promise<TestResult> {
   }
 }
 
-/**
- * Тест списания средств при недостаточном балансе
- */
-async function testPaymentWithInsufficientBalance(): Promise<TestResult> {
-  const testName = 'Тест списания средств при недостаточном балансе'
-
-  logger.info(`🚀 Запуск теста: ${testName}`, {
-    description: 'Starting payment with insufficient balance test',
-  })
-
+async function testInvalidAmountHandling(): Promise<TestResult> {
+  const testName = 'Обработка некорректной суммы'
   const tester = new PaymentTester()
-  const telegramId = '123456789'
-  const amount = TEST_PAYMENT_CONFIG.amounts.large
-  const initialBalance =
-    TEST_PAYMENT_CONFIG.amounts.small * TEST_PAYMENT_CONFIG.starConversion.rate
 
   try {
-    // Создаем тестового пользователя с малым балансом
-    const userCreated = await tester.createTestUser(telegramId, initialBalance)
-    if (!userCreated) {
-      throw new Error('Не удалось создать тестового пользователя')
-    }
+    const telegramId = '123456789'
+    const invalidAmount = -100
 
-    // Запускаем событие для списания средств
-    await inngestTestEngine.sendEvent({
-      name: 'payment/process',
-      data: {
+    // Создаем тестового пользователя
+    await tester.createTestUser(telegramId, 0)
+
+    // Пытаемся создать платеж с отрицательной суммой
+    try {
+      await tester.createPayment({
         telegram_id: telegramId,
-        amount: amount,
-        type: 'money_expense',
-        description: 'TEST: Списание средств при недостаточном балансе',
+        amount: invalidAmount,
+        type: TransactionType.MONEY_INCOME,
+        description: 'Invalid amount test',
         bot_name: TEST_PAYMENT_CONFIG.testUser.botName,
-        service_type: 'TextToImage',
-      },
-    })
-
-    // Ждем обработки события
-    await new Promise(resolve =>
-      setTimeout(resolve, TEST_PAYMENT_CONFIG.timeouts.medium)
-    )
+        service_type: ModeEnum.TopUpBalance,
+      })
+      throw new Error('Платеж с отрицательной суммой был создан')
+    } catch (error) {
+      // Ожидаем ошибку
+      if (!(error instanceof Error) || !error.message.includes('сумма')) {
+        throw error
+      }
+    }
 
     // Проверяем, что баланс не изменился
-    const balanceUnchanged = await tester.checkBalanceUpdated(
-      telegramId,
-      initialBalance
-    )
-
-    if (!balanceUnchanged) {
-      throw new Error('Баланс был изменен, хотя средств недостаточно')
+    const balance = await tester.checkBalance(telegramId)
+    if (balance !== 0) {
+      throw new Error(`Баланс изменился после неверного платежа: ${balance}`)
     }
 
     // Очищаем тестовые данные
     await tester.cleanupTestData(telegramId)
-
-    logger.info(`✅ Тест успешно пройден: ${testName}`, {
-      description: 'Payment with insufficient balance test passed successfully',
-    })
 
     return {
       success: true,
@@ -320,21 +221,9 @@ async function testPaymentWithInsufficientBalance(): Promise<TestResult> {
     }
   } catch (error) {
     logger.error(`❌ Ошибка в тесте: ${testName}`, {
-      description: 'Error in payment with insufficient balance test',
+      description: 'Error in test',
       error: error instanceof Error ? error.message : String(error),
     })
-
-    // Попытка очистки данных даже при ошибке
-    try {
-      await tester.cleanupTestData(telegramId)
-    } catch (cleanupError) {
-      logger.error('Не удалось очистить тестовые данные', {
-        error:
-          cleanupError instanceof Error
-            ? cleanupError.message
-            : String(cleanupError),
-      })
-    }
 
     return {
       success: false,
@@ -344,88 +233,47 @@ async function testPaymentWithInsufficientBalance(): Promise<TestResult> {
   }
 }
 
-/**
- * Тест предотвращения дублирующихся платежей
- */
-async function testDuplicatePaymentPrevention(): Promise<TestResult> {
-  const testName = 'Тест предотвращения дублирующихся платежей'
-
-  logger.info(`🚀 Запуск теста: ${testName}`, {
-    description: 'Starting duplicate payment prevention test',
-  })
-
+async function testBalanceCheck(): Promise<TestResult> {
+  const testName = 'Проверка баланса при списании'
   const tester = new PaymentTester()
-  const telegramId = '123456789'
-  const amount = TEST_PAYMENT_CONFIG.amounts.medium
-  const initialBalance = TEST_PAYMENT_CONFIG.testUser.initialBalance
-  const operationId = `test-operation-${Date.now()}`
 
   try {
-    // Создаем тестового пользователя
-    const userCreated = await tester.createTestUser(telegramId, initialBalance)
-    if (!userCreated) {
-      throw new Error('Не удалось создать тестового пользователя')
-    }
+    const telegramId = '123456789'
+    const initialBalance = TEST_PAYMENT_CONFIG.amounts.small
+    const expenseAmount = TEST_PAYMENT_CONFIG.amounts.medium
 
-    // Создаем платеж напрямую в базе данных
-    const { error: createError } = await supabase.from('payments_v2').insert({
-      telegram_id: telegramId,
-      amount: amount,
-      stars: amount * TEST_PAYMENT_CONFIG.starConversion.rate,
-      type: 'money_income',
-      status: 'COMPLETED',
-      description: 'TEST: Первый платеж',
-      operation_id: operationId,
-      bot_name: TEST_PAYMENT_CONFIG.testUser.botName,
-      payment_method: 'Test',
-    })
+    // Создаем тестового пользователя с начальным балансом
+    await tester.createTestUser(telegramId, initialBalance)
 
-    if (createError) {
-      throw new Error(
-        `Не удалось создать тестовый платеж: ${createError.message}`
-      )
-    }
-
-    // Запускаем событие с тем же operation_id
-    await inngestTestEngine.sendEvent({
-      name: 'payment/process',
-      data: {
+    // Пытаемся списать сумму больше баланса
+    try {
+      await tester.createPayment({
         telegram_id: telegramId,
-        amount: amount,
-        type: 'money_income',
-        description: 'TEST: Дублирующийся платеж',
+        amount: expenseAmount,
+        type: TransactionType.MONEY_EXPENSE,
+        description: 'Balance check test',
         bot_name: TEST_PAYMENT_CONFIG.testUser.botName,
-        service_type: 'TopUpBalance',
-        operation_id: operationId,
-      },
-    })
+        service_type: ModeEnum.TextToVideo,
+      })
+      throw new Error('Списание с недостаточным балансом было выполнено')
+    } catch (error) {
+      // Ожидаем ошибку
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes('Недостаточно средств')
+      ) {
+        throw error
+      }
+    }
 
-    // Ждем обработки события
-    await new Promise(resolve =>
-      setTimeout(resolve, TEST_PAYMENT_CONFIG.timeouts.medium)
-    )
-
-    // Проверяем, что не был создан второй платеж с тем же operation_id
-    const { count } = await supabase
-      .from('payments_v2')
-      .select('*', { count: 'exact', head: false })
-      .eq('operation_id', operationId)
-
-    if (count !== 1) {
-      throw new Error(
-        `Был создан дублирующийся платеж: найдено ${count} платежей с operation_id ${operationId}`
-      )
+    // Проверяем, что баланс не изменился
+    const balance = await tester.checkBalance(telegramId)
+    if (balance !== initialBalance) {
+      throw new Error(`Баланс изменился после неудачного списания: ${balance}`)
     }
 
     // Очищаем тестовые данные
     await tester.cleanupTestData(telegramId)
-
-    // Удаляем тестовый платеж
-    await supabase.from('payments_v2').delete().eq('operation_id', operationId)
-
-    logger.info(`✅ Тест успешно пройден: ${testName}`, {
-      description: 'Duplicate payment prevention test passed successfully',
-    })
 
     return {
       success: true,
@@ -434,25 +282,9 @@ async function testDuplicatePaymentPrevention(): Promise<TestResult> {
     }
   } catch (error) {
     logger.error(`❌ Ошибка в тесте: ${testName}`, {
-      description: 'Error in duplicate payment prevention test',
+      description: 'Error in test',
       error: error instanceof Error ? error.message : String(error),
     })
-
-    // Попытка очистки данных даже при ошибке
-    try {
-      await tester.cleanupTestData(telegramId)
-      await supabase
-        .from('payments_v2')
-        .delete()
-        .eq('operation_id', operationId)
-    } catch (cleanupError) {
-      logger.error('Не удалось очистить тестовые данные', {
-        error:
-          cleanupError instanceof Error
-            ? cleanupError.message
-            : String(cleanupError),
-      })
-    }
 
     return {
       success: false,
