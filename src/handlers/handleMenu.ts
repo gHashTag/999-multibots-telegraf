@@ -32,7 +32,7 @@ export const handleMenu = async (ctx: MyContext) => {
     const actions = {
       [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
         console.log('CASE: 💫 Оформление подписки')
-        ctx.session.mode = 'subscribe' as any
+        ctx.session.mode = ModeEnum.Subscribe
         await ctx.scene.enter(ModeEnum.SubscriptionScene)
       },
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
