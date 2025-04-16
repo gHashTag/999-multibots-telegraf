@@ -3,6 +3,7 @@ import {
   PASSWORD1,
   RESULT_URL2,
   TEST_PASSWORD1,
+  isDev,
 } from '@/config'
 
 import md5 from 'md5'
@@ -19,7 +20,7 @@ export const resultUrl2 = RESULT_URL2 || ''
 export const description = 'Покупка подписки'
 
 // Флаг для использования тестового режима Robokassa
-export const useTestMode = false
+export const useTestMode = isDev
 
 export function subscriptionTitles(
   type: LocalSubscription,
@@ -51,6 +52,7 @@ export const generateShortInvId = (userId: number, stars: number): number => {
  * @param invId Invoice ID
  * @param description Payment description
  * @param password1 Merchant password 1
+ * @param isTest Whether to use test mode
  * @returns Payment URL
  */
 export const getInvoiceId = async (
@@ -58,35 +60,95 @@ export const getInvoiceId = async (
   amount: number,
   invId: number,
   description: string,
-  password1: string
+  password1: string,
+  isTest: boolean = useTestMode
 ): Promise<string> => {
   try {
-    logger.info('🔄 Generating Robokassa invoice:', {
-      description: 'Generating payment URL',
-      amount,
+    logger.info('🚀 Запуск getInvoiceId', {
+      description: 'Starting getInvoiceId',
+      merchantLogin,
+      outSum: amount,
       invId,
+      useTestMode: isTest,
     })
 
-    const signature = require('crypto')
-      .createHash('md5')
-      .update(`${merchantLogin}:${amount}:${invId}:${password1}`)
-      .digest('hex')
+    // Если включен тестовый режим и доступен тестовый пароль, используем его
+    const actualPassword = isTest && testPassword1 ? testPassword1 : password1
 
+    logger.info('🔑 Выбран пароль для Robokassa', {
+      description: 'Selected password for Robokassa',
+      isTestMode: isTest,
+      usingTestPassword: isTest && testPassword1 ? true : false,
+    })
+
+    // Добавляем дополнительное логирование для удобства отладки
+    logger.info('🔍 Формирование URL для Robokassa', {
+      description: 'Generating Robokassa URL',
+      merchantLogin,
+      outSum: amount,
+      invId,
+      isTestMode: isTest,
+      usingTestPassword: isTest && testPassword1 ? true : false,
+      mode: isTest ? 'ТЕСТОВЫЙ РЕЖИМ' : 'БОЕВОЙ РЕЖИМ',
+    })
+
+    // Формируем строку для подписи с корректными значениями
+    const signatureString = `${merchantLogin}:${amount}:${invId}:${actualPassword}`
+    logger.info('📝 Строка для подписи:', {
+      description: 'Signature string',
+      signatureString,
+    })
+
+    const signature = md5(signatureString).toUpperCase()
+
+    // !!! КРИТИЧЕСКИ ВАЖНО !!! - В тестовом режиме используем только test.robokassa.ru
     const baseUrl = 'https://auth.robokassa.ru/Merchant/Index.aspx'
+    const testUrl = 'https://test.robokassa.ru/Index.aspx'
+
+    // Создаем параметры запроса
     const params = new URLSearchParams({
       MerchantLogin: merchantLogin,
       OutSum: amount.toString(),
       InvId: invId.toString(),
       Description: description,
       SignatureValue: signature,
-      IsTest: process.env.NODE_ENV === 'development' ? '1' : '0',
     })
 
-    const paymentUrl = `${baseUrl}?${params.toString()}`
+    // Добавляем параметр IsTest только если включен тестовый режим
+    if (isTest) {
+      params.append('IsTest', '1')
+    }
 
-    logger.info('✅ Robokassa invoice generated:', {
-      description: 'Payment URL generated successfully',
-      invId,
+    // Формируем URL в зависимости от режима
+    let paymentUrl = isTest
+      ? `${testUrl}?${params.toString()}`
+      : `${baseUrl}?${params.toString()}`
+
+    // ПРИНУДИТЕЛЬНО ПРОВЕРЯЕМ И ЗАМЕНЯЕМ ДОМЕН В ТЕСТОВОМ РЕЖИМЕ
+    if (isTest && paymentUrl.includes('auth.robokassa.ru')) {
+      logger.error('⚠️ ОШИБКА: Неправильный домен в тестовом режиме', {
+        description: 'Incorrect domain in test mode',
+        paymentUrl,
+        isTestMode: isTest,
+      })
+
+      // Жестко заменяем URL на тестовый домен
+      paymentUrl = paymentUrl.replace(
+        'https://auth.robokassa.ru/Merchant/Index.aspx',
+        'https://test.robokassa.ru/Index.aspx'
+      )
+
+      logger.info('🔧 URL принудительно исправлен:', {
+        description: 'URL forcibly corrected',
+        correctUrl: paymentUrl,
+      })
+    }
+
+    logger.info('✅ URL сформирован для Robokassa:', {
+      message: 'URL generated for Robokassa',
+      testMode: isTest,
+      paymentUrl,
+      domain: isTest ? 'test.robokassa.ru' : 'auth.robokassa.ru',
     })
 
     return paymentUrl
@@ -106,9 +168,10 @@ export const getInvoiceId = async (
 export const testGenerateInvoiceUrl = async (
   amount: number
 ): Promise<string> => {
-  console.log('🚀 Генерация тестового URL чека:', {
+  logger.info('🚀 Генерация тестового URL чека:', {
     description: 'Generating test invoice URL',
     amount,
+    isTestMode: true,
   })
 
   if (!merchantLogin || !password1) {
@@ -117,5 +180,19 @@ export const testGenerateInvoiceUrl = async (
 
   const invId = Math.floor(Math.random() * 1000000) + 1
 
-  return getInvoiceId(merchantLogin, amount, invId, description, password1)
+  logger.info('🔢 Сгенерирован тестовый ID инвойса:', {
+    description: 'Generated test invoice ID',
+    invId,
+    isTestMode: true,
+  })
+
+  // Для тестовой функции всегда используем параметр isTest=true
+  return getInvoiceId(
+    merchantLogin,
+    amount,
+    invId,
+    description,
+    password1,
+    true
+  )
 }

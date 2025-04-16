@@ -6,6 +6,7 @@ import {
   password1,
   description,
   generateShortInvId,
+  useTestMode,
 } from '@/scenes/getRuBillWizard/helper'
 import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
@@ -86,17 +87,39 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       throw new Error('merchantLogin or password1 is not defined')
     }
 
-    // Получение invoiceID
+    // Получение invoiceID - ВСЕГДА передаем параметр тестового режима
     const invoiceURL = await getInvoiceId(
       merchantLogin,
       stars,
       numericInvId,
       description,
-      password1
+      password1,
+      useTestMode
     )
+
+    // Дополнительная проверка URL-адреса на корректный домен
+    const finalInvoiceURL = invoiceURL.includes('test.robokassa.ru')
+      ? invoiceURL
+      : invoiceURL.replace(
+          'https://auth.robokassa.ru/Merchant/Index.aspx',
+          'https://test.robokassa.ru/Index.aspx'
+        )
+
+    if (finalInvoiceURL !== invoiceURL) {
+      logger.warn('⚠️ URL был исправлен для тестового режима:', {
+        description: 'URL was corrected for test mode in getRuBillWizard',
+        originalUrl: invoiceURL,
+        correctedUrl: finalInvoiceURL,
+      })
+    }
+
     logger.info('🔗 URL счета:', {
       description: 'Invoice URL',
-      invoiceURL,
+      invoiceURL: finalInvoiceURL,
+      isTestMode: useTestMode,
+      domainUsed: finalInvoiceURL.includes('test.robokassa.ru')
+        ? 'test.robokassa.ru'
+        : 'auth.robokassa.ru',
     })
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
@@ -121,10 +144,10 @@ const generateInvoiceStep = async (ctx: MyContext) => {
         bot_name,
         inv_id: invId,
         stars: Number(stars),
-        payment_method: 'Telegram',
+        payment_method: 'Robokassa',
         subscription: subscription,
         currency: 'RUB',
-        invoice_url: invoiceURL,
+        invoice_url: finalInvoiceURL,
         service_type: subscription ? ModeEnum.Subscribe : ModeEnum.TopUpBalance,
         status: 'PENDING',
       },
@@ -135,7 +158,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       stars,
       subscription,
       isRu,
-      invoiceURL,
+      invoiceURL: finalInvoiceURL,
     })
 
     await ctx.reply(messageText, {
