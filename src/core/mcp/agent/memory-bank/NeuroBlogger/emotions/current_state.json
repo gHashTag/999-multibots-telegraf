@@ -1,0 +1,33 @@
+{
+  "current_emotion": "happy",
+  "intensity": 5,
+  "emotional_history": [
+    {
+      "emotion": "excited",
+      "intensity": 7,
+      "timestamp": "2025-04-15 20:29:11"
+    },
+    {
+      "emotion": "accomplished",
+      "intensity": 6,
+      "timestamp": "2025-04-15 20:29:11"
+    },
+    {
+      "emotion": "focused",
+      "intensity": 4,
+      "timestamp": "2025-04-15 20:29:11"
+    },
+    {
+      "emotion": "accomplished",
+      "intensity": 6,
+      "timestamp": "2025-04-15 20:29:12"
+    },
+    {
+      "emotion": "happy",
+      "intensity": 5,
+      "timestamp": "2025-04-15 20:29:19"
+    }
+  ],
+  "emotional_balance": 100,
+  "last_update": "2025-04-15 20:29:11"
+}

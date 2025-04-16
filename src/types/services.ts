@@ -11,5 +11,5 @@ export enum ServiceEnum {
   LipSync = 'lip_sync',
   VoiceToText = 'voice_to_text',
   DigitalAvatarBody = 'digital_avatar_body',
-  DigitalAvatarBodyV2 = 'digital_avatar_body_v2'
-} 
+  DigitalAvatarBodyV2 = 'digital_avatar_body_v2',
+}

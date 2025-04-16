@@ -22,12 +22,14 @@ interface TestResult<T = any> {
   error?: Error
 }
 
-export const createTestEngine = <TFunction extends InngestFunction<any, any, any>>(
+export const createTestEngine = <
+  TFunction extends InngestFunction<any, any, any>,
+>(
   fn: TFunction
 ) => {
   return new InngestTestEngine({
     function: fn,
-    steps: []
+    steps: [],
   })
 }
 
@@ -37,16 +39,18 @@ export const executeTest = async <TEventData = any, TResult = any>(
 ): Promise<TResult> => {
   try {
     console.log('Executing test with event:', event)
-    
-    const result = await engine.execute({
-      events: [{
-        name: event.name,
-        data: event.data,
-        ts: event.ts || Date.now(),
-        id: event.id || 'test-' + Date.now()
-      }]
-    }) as TestResult<TResult>
-    
+
+    const result = (await engine.execute({
+      events: [
+        {
+          name: event.name,
+          data: event.data,
+          ts: event.ts || Date.now(),
+          id: event.id || 'test-' + Date.now(),
+        },
+      ],
+    })) as TestResult<TResult>
+
     console.log('Test execution result:', result)
 
     if (result.error) {
@@ -62,4 +66,4 @@ export const executeTest = async <TEventData = any, TResult = any>(
     console.error('Test execution failed:', error)
     throw error
   }
-} 
+}

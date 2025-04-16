@@ -13,6 +13,6 @@ export const createTestUser = async (user: TestUser) => {
     balance: 0,
     subscription_end_date: null,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   })
-} 
+}

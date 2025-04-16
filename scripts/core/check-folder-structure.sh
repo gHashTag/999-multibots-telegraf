@@ -1,0 +1,2 @@
+#!/bin/bash
+RED="[0;31m"; GREEN="[0;32m"; YELLOW="[1;33m"; BLUE="[0;34m"; NC="[0m"; check_structure() { local folder=$1; echo "🔍 Проверяю структуру в: $folder"; for file in "MAIN.md" "ROADMAP.md" "index.ts"; do [ ! -f "$folder/$file" ] && echo -e "${RED}❌ Нет $file${NC}" || echo -e "${GREEN}✅ Есть $file${NC}"; done; for dir in "src" "tests" "docs" "scripts"; do [ ! -d "$folder/$dir" ] && echo -e "${RED}❌ Нет $dir/${NC}" || echo -e "${GREEN}✅ Есть $dir/${NC}"; done; }; check_structure "."

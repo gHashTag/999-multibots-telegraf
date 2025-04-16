@@ -1,37 +1,28 @@
 import { ModeEnum } from '@/interfaces/modes'
+import { TelegramId } from '@/types/common'
+import { ServiceType } from './serviceTypes'
 
 /**
  * Типы подписок, доступные для оплаты
  */
-export type PaymentSubscription =
-  | 'neurophoto'
-  | 'neurobase'
-  | 'neuroblogger'
-  | 'neurotester'
+export type SubscriptionType = 'neurobase' | 'neurophoto'
 
 /**
- * Проверяет, является ли подписка допустимой для оплаты
+ * Типы транзакций в системе
+ *
+ * ВАЖНО: значения должны быть в нижнем регистре, так как они используются в БД
  */
-export function isValidPaymentSubscription(
-  subscription: string | undefined
-): subscription is PaymentSubscription {
-  return (
-    subscription === 'neurophoto' ||
-    subscription === 'neurobase' ||
-    subscription === 'neuroblogger' ||
-    subscription === 'neurotester'
-  )
-}
-
-/**
- * Статусы платежа
- */
-export enum PaymentStatus {
-  PENDING = 'PENDING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  REFUNDED = 'REFUNDED',
-  CANCELLED = 'CANCELLED',
+export enum TransactionType {
+  MONEY_INCOME = 'money_income',
+  MONEY_EXPENSE = 'money_expense',
+  SUBSCRIPTION_PAYMENT = 'subscription_payment',
+  SUBSCRIPTION_PURCHASE = 'subscription_purchase',
+  SUBSCRIPTION_RENEWAL = 'subscription_renewal',
+  REFUND = 'refund',
+  BONUS = 'bonus',
+  REFERRAL = 'referral',
+  TRANSFER = 'transfer',
+  SYSTEM = 'system',
 }
 
 /**
@@ -54,6 +45,16 @@ export type PaymentMethod =
   | 'Manual'
 
 /**
+ * Статусы платежей
+ */
+export enum PaymentStatus {
+  PENDING = 'PENDING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+}
+
+/**
  * Сервисы для генерации контента
  * Включает все возможные режимы работы бота из ModeEnum
  */
@@ -68,71 +69,42 @@ export type PaymentService = ContentService | PaymentMethod
  * Базовая структура платежа в системе
  */
 export interface BasePayment {
-  payment_id: number
+  payment_id: string
   telegram_id: string
-  payment_date: Date
   amount: number
-  description: string
-  metadata: Record<string, any>
-  stars: number
-  currency: string
-  subscription: string
-  inv_id: string
-  email?: string
-  invoice_url?: string
+  stars?: number
   status: PaymentStatus
   type: TransactionType
-  service_type: ContentService
-  operation_id?: string
-  bot_name: string
-  language?: string
   payment_method: PaymentMethod
+  description: string
+  bot_name: string
+  service_type: ServiceType
+  inv_id?: string
+  operation_id?: string
+  created_at?: Date
+  updated_at?: Date
 }
 
 /**
  * Параметры для создания платежа
  */
 export interface CreatePaymentDTO {
-  telegram_id: string | number
+  telegram_id: string
   amount: number
-  stars: number
-  currency: string
-  description: string
-  metadata?: Record<string, any>
-  payment_method: PaymentMethod
-  bot_name: string
-  inv_id?: string
-  status: PaymentStatus
-  email?: string
-  subscription?: PaymentSubscription
-  language?: string
-  invoice_url?: string
+  stars?: number
   type: TransactionType
-  service_type: ContentService
+  payment_method: PaymentMethod
+  description: string
+  bot_name: string
+  service_type: ServiceType
+  inv_id?: string
+  operation_id?: string
 }
 
 /**
  * Полная структура платежа, включая все поля
  */
 export type Payment = BasePayment
-
-/**
- * Типы транзакций в системе
- *
- * ВАЖНО: значения должны быть в нижнем регистре, так как они используются в БД
- */
-export enum TransactionType {
-  MONEY_INCOME = 'money_income',
-  MONEY_EXPENSE = 'money_expense',
-  SUBSCRIPTION_PAYMENT = 'subscription_payment',
-  SUBSCRIPTION_PURCHASE = 'subscription_purchase',
-  SUBSCRIPTION_RENEWAL = 'subscription_renewal',
-  REFUND = 'refund',
-  BONUS = 'bonus',
-  REFERRAL = 'referral',
-  TRANSFER = 'transfer',
-  SYSTEM = 'system',
-}
 
 /**
  * Описания для каждого типа транзакции
@@ -232,17 +204,13 @@ export const TRANSACTION_KEYS = {
 } as const
 
 /**
- * Преобразует тип транзакции из enum с заглавными буквами
- * в нижний регистр для совместимости с БД
- *
- * ПРИМЕЧАНИЕ: Эта функция остается для обратной совместимости,
- * теперь значения TransactionType уже в нижнем регистре
+ * Преобразует тип транзакции в нижний регистр
+ * для обеспечения совместимости с БД
  */
 export function normalizeTransactionType(
-  type: TransactionType | string
-): string {
-  // Простое приведение к строке и нижнему регистру
-  return (type as string).toLowerCase()
+  type: TransactionType
+): TransactionType {
+  return type.toLowerCase() as TransactionType
 }
 
 /**
@@ -655,36 +623,24 @@ function getStarsWord(amount: number): string {
 }
 
 /**
- * Параметры для события обработки платежа
- * Используется для строгой типизации входных данных платежного процессора
+ * Параметры для обработки платежа
  */
 export interface PaymentProcessParams {
-  /** ID пользователя в Telegram (обязательно) */
-  telegram_id: string
-
-  /** Сумма операции (ВСЕГДА положительное число) */
+  telegram_id: TelegramId
   amount: number
-
-  /** Количество звезд (ВСЕГДА положительное число, если указано) */
-  stars?: number
-
-  /** Тип транзакции из TransactionType */
-  type: TransactionType | string
-
-  /** Описание транзакции */
+  type: TransactionType
   description: string
-
-  /** Название бота, который инициировал транзакцию */
   bot_name: string
-
-  /** ID инвойса (используется для предотвращения дублирования платежей) */
-  inv_id?: string
-
-  /** Дополнительные метаданные платежа */
+  service_type: ContentService
+  stars?: number
   metadata?: Record<string, any>
-
-  /** Тип сервиса из ModeEnum */
-  service_type: ModeEnum
+  payment_method?: PaymentMethod
+  subscription?: SubscriptionType
+  language?: string
+  email?: string
+  invoice_url?: string
+  inv_id?: string
+  operation_id?: string
 }
 
 /**
@@ -720,4 +676,36 @@ export interface PaymentProcessResult {
 
   /** Сообщение об ошибке (если есть) */
   error?: string
+}
+
+export interface AmountConfig {
+  amount: number
+  stars: number
+}
+
+export interface PaymentConfig {
+  amount: number
+  telegram_id: TelegramId
+  type: string
+  description: string
+  bot_name: string
+  service_type: ModeEnum
+  stars?: number
+  payment_method?: string
+  operation_id?: string
+  inv_id?: string
+  error_code?: string
+}
+
+export interface PaymentProcessParams extends PaymentConfig {
+  status?: string
+}
+
+/**
+ * Проверяет, является ли значение допустимым типом подписки
+ */
+export function isValidPaymentSubscription(
+  value: string
+): value is SubscriptionType {
+  return ['neurobase', 'neurophoto'].includes(value)
 }

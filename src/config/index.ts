@@ -22,6 +22,7 @@ export { mcpManager }
 export const {
   NODE_ENV,
   PORT,
+  API_PORT,
   SECRET_KEY,
   SECRET_API_KEY,
   LOG_FORMAT,
@@ -50,6 +51,7 @@ export const {
   DEEPSEEK_API_KEY,
   INNGEST_EVENT_KEY,
   INNGEST_API_KEY,
+  INNGEST_SIGNING_KEY,
   INNGEST_URL,
   GLAMA_API_KEY,
   TEST_PASSWORD1,
@@ -80,4 +82,18 @@ if (isDev) {
       process.exit(1)
     }
   })
+}
+
+// Проверяем наличие необходимых ключей Inngest
+if (!isDev && !isTest) {
+  if (!INNGEST_EVENT_KEY) {
+    logger.error('❌ INNGEST_EVENT_KEY не найден', {
+      description: 'INNGEST_EVENT_KEY not found',
+    })
+  }
+  if (!INNGEST_SIGNING_KEY) {
+    logger.error('❌ INNGEST_SIGNING_KEY не найден', {
+      description: 'INNGEST_SIGNING_KEY not found',
+    })
+  }
 }

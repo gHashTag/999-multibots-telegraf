@@ -28,5 +28,5 @@ export const functions = [
   textToSpeechFunction,
   ruPaymentProcessPayment,
   imageToPromptFunction,
-  textToVideoFunction
-] 
+  textToVideoFunction,
+]

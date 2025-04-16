@@ -1,18 +1,13 @@
-import { Mode, MyContext, Subscription } from '../../interfaces'
+import { MyContext, Subscription } from '../../interfaces'
 import { sendGenericErrorMessage } from '@/menu'
 import { levels, mainMenu } from '../../menu/mainMenu'
 import { getReferalsCountAndUserData } from '@/core/supabase/getReferalsCountAndUserData'
 import { isDev, isRussian } from '@/helpers'
-import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
-
 import { WizardScene } from 'telegraf/scenes'
-
-import { handleMenu } from '@/handlers'
-import { checkFullAccess } from '@/handlers/checkFullAccess'
-import { getTranslation } from '@/core'
-import { sendTutorialMessage } from '@/handlers/sendTutorialMessage'
+import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
+import { handleMenu } from '@/handlers'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -37,7 +32,14 @@ const menuCommandStep = async (ctx: MyContext) => {
       newLevel = level
     }
 
-    console.log('newSubscription', newSubscription)
+    logger.info('🔄 Инициализация меню:', {
+      description: 'Menu initialization',
+      telegram_id,
+      subscription: newSubscription,
+      level: newLevel,
+      count: newCount,
+    })
+
     const additionalButtons = [
       levels[100], // Пополнить баланс
       levels[101], // Баланс
@@ -56,105 +58,24 @@ const menuCommandStep = async (ctx: MyContext) => {
         newSubscription === 'neurophoto' ? additionalButtons : [],
     })
 
-    // Проверка условий для отправки сообщения
-    if (newLevel === 3 && newSubscription === 'neurophoto') {
-      console.log('CASE: newLevel === 3 && newSubscription === neurophoto')
-      const message = getText(isRu, 'mainMenu')
-      console.log('message', message)
-      await ctx.reply(message, keyboard)
-    }
+    const message = getText(isRu, 'mainMenu')
+    await ctx.reply(message, keyboard)
 
-    // Проверка условий для отправки сообщения
-    if (newSubscription === 'neurotester') {
-      console.log('CASE: newSubscription === neurotester')
-      const message = getText(isRu, 'mainMenu')
-      console.log('message', message)
-      await ctx.reply(message, keyboard)
-      ctx.wizard.next()
-      return
-    }
+    logger.info('✅ Меню успешно отображено:', {
+      description: 'Menu displayed successfully',
+      telegram_id,
+      subscription: newSubscription,
+    })
 
-    const url = `https://neuro-blogger-web-u14194.vm.elestio.app/neuro_sage/1/1/1/1/1/${
-      newCount + 1
-    }`
-
-    const nextLevel = levels[newCount + 1]
-    const nameStep = nextLevel
-      ? isRu
-        ? nextLevel.title_ru
-        : nextLevel.title_en
-      : isRu
-        ? 'Неизвестный уровень'
-        : 'Unknown level'
-
-    const inlineKeyboard = [
-      ...(newCount >= 1
-        ? [
-            [
-              {
-                text: isRu ? '🚀 Открыть нейроквест' : '🚀 Open neuroquest',
-                web_app: { url },
-              },
-            ],
-          ]
-        : []),
-    ]
-
-    console.log('nameStep 1', nameStep)
-    const hasFullAccess = checkFullAccess(newSubscription)
-    let message = ''
-
-    if (!hasFullAccess) {
-      console.log('CASE: !hasFullAccess - stars level')
-      const { translation, url } = await getTranslation('digitalAvatar', ctx)
-
-      message = translation
-      const photo_url = url
-      await sendReplyWithKeyboard(
-        ctx,
-        message,
-        inlineKeyboard,
-        keyboard,
-        photo_url
-      )
-      await sendTutorialMessage(ctx, isRu)
-    } else {
-      const levelKeys: { [key: number]: Mode } = {
-        0: ModeEnum.Subscribe,
-        1: ModeEnum.DigitalAvatarBody,
-        2: ModeEnum.NeuroPhoto,
-        3: ModeEnum.ImageToPrompt,
-        4: ModeEnum.Avatar,
-        5: ModeEnum.ChatWithAvatar,
-        6: ModeEnum.SelectModel,
-        7: ModeEnum.Voice,
-        8: ModeEnum.TextToSpeech,
-        9: ModeEnum.ImageToVideo,
-        10: ModeEnum.TextToVideo,
-        11: ModeEnum.TextToImage,
-      }
-
-      const key = levelKeys[newLevel + 1]
-      console.log('key', key)
-      if (key) {
-        console.log(`CASE ${newLevel}: ${key}`)
-
-        const { translation } = await getTranslation(key, ctx)
-        await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboard)
-      } else {
-        console.log(`CASE: default ${newCount}`)
-        // const message = getText(isRu, 'mainMenu')
-        // console.log('message', message)
-        // await ctx.reply(message, keyboard)
-        ctx.wizard.next()
-        return
-      }
-    }
+    return ctx.wizard.next()
   } catch (error) {
-    console.error('Error in menu command:', error)
+    logger.error('❌ Ошибка в меню:', {
+      description: 'Error in menu',
+      error: error instanceof Error ? error.message : String(error),
+      telegram_id: ctx.from?.id,
+    })
     await sendGenericErrorMessage(ctx, isRu, error as Error)
-    ctx.scene.leave()
-    throw error
+    return ctx.scene.leave()
   }
 }
 

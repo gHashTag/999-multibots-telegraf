@@ -19,7 +19,7 @@ export const zepMemoryMiddleware: Middleware<MyContext> = async (ctx, next) => {
       logger.info('🧠 Память загружена:', {
         description: 'Memory loaded',
         sessionId,
-        messageCount: memory.messages.length
+        messageCount: memory.messages.length,
       })
     }
 
@@ -31,14 +31,14 @@ export const zepMemoryMiddleware: Middleware<MyContext> = async (ctx, next) => {
       logger.info('💾 Память сохранена:', {
         description: 'Memory saved',
         sessionId,
-        messageCount: ctx.session.memory.messages.length
+        messageCount: ctx.session.memory.messages.length,
       })
     }
   } catch (error) {
     logger.error('❌ Ошибка в middleware памяти:', {
       description: 'Error in memory middleware',
       error,
-      sessionId
+      sessionId,
     })
     await next()
   }

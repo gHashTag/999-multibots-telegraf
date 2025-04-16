@@ -1,5 +1,6 @@
 import { inngest } from '@/inngest-functions/clients'
 import { logger } from '@/utils/logger'
+import { supabase } from '@/core/supabase'
 
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/interfaces/payments.interface'
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
 import { normalizeTransactionType } from '@/interfaces/payments.interface'
+import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 
 import { notifyAmbassadorAboutPayment } from '@/services/ambassadorPaymentNotifier'
 
@@ -63,13 +65,13 @@ async function sendPaymentNotification(
 ): Promise<void> {
   logger.info('📨 Отправка уведомления пользователю', {
     description: 'Sending notification to user',
-    telegram_id: payment.telegram_id,
+    telegram_id: normalizeTelegramId(payment.telegram_id),
     amount: payment.amount,
     paymentId: payment.id,
   })
 
   await sendTransactionNotificationTest({
-    telegram_id: Number(payment.telegram_id),
+    telegram_id: Number(normalizeTelegramId(payment.telegram_id)),
     operationId: payment.operation_id || uuidv4(),
     amount: payment.amount,
     currentBalance,
@@ -78,6 +80,25 @@ async function sendPaymentNotification(
     isRu: true,
     bot_name: payment.bot_name,
   })
+}
+
+/**
+ * Обработка ошибок Robokassa
+ * @param errorCode Код ошибки
+ * @returns Описание ошибки
+ */
+function handleRobokassaError(errorCode: string): string {
+  const errorMessages: Record<string, string> = {
+    '31': 'Неверная сумма платежа',
+    '33': 'Время отведённое на оплату счёта истекло',
+    '40': 'Повторная оплата счета с тем же номером невозможна',
+    '41': 'Ошибка на старте операции',
+    '51': 'Срок оплаты счета истек',
+    '52': 'Попытка повторной оплаты счета',
+    '53': 'Счет не найден',
+  }
+
+  return errorMessages[errorCode] || 'Неизвестная ошибка'
 }
 
 /**
@@ -120,7 +141,7 @@ export const paymentProcessor = inngest.createFunction(
 
     logger.info('🚀 Начало обработки платежа', {
       description: 'Starting payment processing',
-      telegram_id,
+      telegram_id: normalizeTelegramId(telegram_id),
       amount,
       type,
       bot_name,
@@ -146,16 +167,16 @@ export const paymentProcessor = inngest.createFunction(
       const currentBalance = await step.run('get-balance', async () => {
         logger.info('💰 Получение текущего баланса', {
           description: 'Getting current balance',
-          telegram_id,
+          telegram_id: normalizeTelegramId(telegram_id),
         })
-        return getUserBalance(telegram_id)
+        return getUserBalance(normalizeTelegramId(telegram_id))
       })
 
       // Проверяем баланс для списания
       if (type === TransactionType.MONEY_EXPENSE) {
         logger.info('💰 Проверка баланса для списания', {
           description: 'Checking balance for expense',
-          telegram_id,
+          telegram_id: normalizeTelegramId(telegram_id),
           currentBalance,
           amount,
         })
@@ -167,28 +188,97 @@ export const paymentProcessor = inngest.createFunction(
         }
       }
 
+      // Проверяем ошибку от Robokassa
+      if (validatedParams.error_code) {
+        const errorMessage = handleRobokassaError(validatedParams.error_code)
+        logger.error('❌ Ошибка Robokassa:', {
+          description: 'Robokassa error',
+          error_code: validatedParams.error_code,
+          error_message: errorMessage,
+          inv_id: validatedParams.inv_id,
+        })
+
+        // Обновляем статус платежа в случае ошибки
+        if (validatedParams.inv_id) {
+          await supabase
+            .from('payments_v2')
+            .update({
+              status: 'FAILED',
+              metadata: {
+                ...validatedParams.metadata,
+                error_code: validatedParams.error_code,
+                error_message: errorMessage,
+              },
+            })
+            .eq('inv_id', validatedParams.inv_id)
+        }
+
+        throw new Error(errorMessage)
+      }
+
       // Создаем запись о платеже
       const payment = await step.run('create-payment', async () => {
         logger.info('💳 Создание записи о платеже', {
           description: 'Creating payment record',
-          telegram_id,
+          telegram_id: normalizeTelegramId(telegram_id),
           amount,
           type,
         })
 
-        return createSuccessfulPayment({
-          telegram_id,
-          amount,
-          stars: stars || amount,
-          type,
-          description,
-          bot_name,
-          service_type,
-          payment_method: 'balance',
-          status: 'COMPLETED',
-          inv_id: operationId,
-          metadata: validatedParams.metadata,
-        })
+        try {
+          return await createSuccessfulPayment({
+            telegram_id: normalizeTelegramId(telegram_id),
+            amount,
+            stars: stars || amount,
+            type,
+            description,
+            bot_name,
+            service_type,
+            payment_method: 'balance',
+            status: 'COMPLETED',
+            inv_id: operationId,
+            metadata: validatedParams.metadata,
+          })
+        } catch (error) {
+          // Проверяем, является ли ошибка дубликатом платежа
+          if (
+            error &&
+            typeof error === 'object' &&
+            'code' in error &&
+            error.code === '23505'
+          ) {
+            logger.info(
+              '🔄 Обнаружен дубликат платежа, получаем существующий платеж',
+              {
+                description:
+                  'Duplicate payment detected, retrieving existing payment',
+                telegram_id: normalizeTelegramId(telegram_id),
+                inv_id: operationId,
+              }
+            )
+
+            // Получаем существующий платеж
+            const { data: existingPayment } = await supabase
+              .from('payments_v2')
+              .select('*')
+              .eq('inv_id', operationId)
+              .single()
+
+            if (!existingPayment) {
+              throw new Error('Не удалось найти существующий платеж')
+            }
+
+            logger.info('✅ Возвращаем существующий платеж', {
+              description: 'Returning existing payment',
+              payment_id: existingPayment.id,
+              telegram_id: normalizeTelegramId(telegram_id),
+              inv_id: operationId,
+            })
+
+            return existingPayment
+          }
+          throw error
+        }
       })
 
       // Инвалидируем кэш баланса и получаем новый баланс
@@ -196,12 +286,12 @@ export const paymentProcessor = inngest.createFunction(
         // Сначала инвалидируем кэш баланса, чтобы получить свежие данные
         logger.info('🔄 Инвалидация кэша баланса:', {
           description: 'Invalidating balance cache',
-          telegram_id,
+          telegram_id: normalizeTelegramId(telegram_id),
         })
-        invalidateBalanceCache(telegram_id)
+        invalidateBalanceCache(normalizeTelegramId(telegram_id))
 
         // Теперь получаем обновленный баланс
-        return getUserBalance(telegram_id)
+        return getUserBalance(normalizeTelegramId(telegram_id))
       })
 
       // Отправляем уведомление пользователю (только если не локальное окружение)
@@ -240,7 +330,7 @@ export const paymentProcessor = inngest.createFunction(
         success: true,
         payment: {
           payment_id: payment.id,
-          telegram_id,
+          telegram_id: normalizeTelegramId(telegram_id),
           amount,
           stars: stars || amount,
           type,
@@ -257,7 +347,7 @@ export const paymentProcessor = inngest.createFunction(
       logger.error('❌ Ошибка обработки платежа:', {
         description: 'Error processing payment',
         error: error instanceof Error ? error.message : String(error),
-        telegram_id,
+        telegram_id: normalizeTelegramId(telegram_id),
         amount,
         type,
       })
@@ -265,7 +355,7 @@ export const paymentProcessor = inngest.createFunction(
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        telegram_id,
+        telegram_id: normalizeTelegramId(telegram_id),
         amount,
         type,
       }

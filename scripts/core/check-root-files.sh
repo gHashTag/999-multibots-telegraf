@@ -1,0 +1,2 @@
+#!/bin/bash
+RED="[0;31m"; GREEN="[0;32m"; YELLOW="[1;33m"; NC="[0m"; echo "🔍 Проверяю файлы в корне..."; for file in "MAIN.md" "ROADMAP.md" "SELF_DIAGNOSIS.md" "index.ts"; do [ -f "$file" ] && echo -e "${GREEN}✅ $file - OK${NC}" || echo -e "${RED}❌ Нет файла: $file${NC}"; done; for file in *; do [ -f "$file" ] && [[ ! "$file" =~ ^(MAIN\.md|ROADMAP\.md|SELF_DIAGNOSIS\.md|index\.ts)$ ]] && echo -e "${RED}❌ Лишний файл: $file${NC}" && exit 1; done
