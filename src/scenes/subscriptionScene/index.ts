@@ -7,12 +7,25 @@ import { ModeEnum } from '@/interfaces/modes'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
-type Subscription = 'neurophoto' | 'neurobase'
+// Проверка валидности типа подписки
+export function isValidPaymentSubscription(value: string): value is string {
+  // Преобразуем значение в верхний регистр для сравнения с SubscriptionType
+  const upperValue = value.toUpperCase()
 
-export function isValidPaymentSubscription(
-  value: string
-): value is Subscription {
-  return ['neurobase', 'neurophoto', 'neurotester'].includes(value)
+  // Проверяем по значению перечисления
+  for (const plan of paymentOptionsPlans) {
+    // Проверяем совпадение с типом подписки
+    if (plan.subscription === (upperValue as SubscriptionType)) {
+      return true
+    }
+
+    // Проверяем callback_data в нижнем регистре (neurophoto, neurobase, и т.д.)
+    if (plan.subscription?.toString().toLowerCase() === value.toLowerCase()) {
+      return true
+    }
+  }
+
+  return false
 }
 
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
@@ -113,9 +126,11 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       const text = ctx.update.callback_query.data
       console.log('text', text)
 
-      // Находим выбранный тариф
+      // Находим выбранный тариф, учитывая регистр callback_data
       const selectedPayment = paymentOptionsPlans.find(
-        option => option.subscription === text
+        option =>
+          option.subscription === (text as SubscriptionType) ||
+          option.subscription?.toString().toLowerCase() === text.toLowerCase()
       )
 
       if (selectedPayment && selectedPayment.subscription) {
