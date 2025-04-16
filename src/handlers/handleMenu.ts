@@ -34,8 +34,8 @@ export const handleMenu = async (ctx: MyContext) => {
     const actions = {
       [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
         console.log('CASE: 💫 Оформление подписки')
-        ctx.session.mode = ModeEnum.Subscribe
-        await handleBuySubscription(ctx, SubscriptionType.NEUROPHOTO)
+        ctx.session.mode = 'subscribe' as any
+        await ctx.scene.enter(ModeEnum.SubscriptionScene)
       },
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         console.log('CASE: 🤖 Цифровое тело')
