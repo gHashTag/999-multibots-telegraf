@@ -3,6 +3,7 @@ import { MyContext } from './interfaces'
 import {
   startScene,
   subscriptionCheckScene,
+  subscriptionScene,
   createUserScene,
   checkBalanceScene,
   chatWithAvatarWizard,
@@ -44,6 +45,7 @@ export const stage = new Scenes.Stage<MyContext>(
   [
     startScene,
     subscriptionCheckScene,
+    subscriptionScene,
     createUserScene,
     checkBalanceScene,
     chatWithAvatarWizard,

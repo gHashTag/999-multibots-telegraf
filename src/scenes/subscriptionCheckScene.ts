@@ -1,69 +1,96 @@
 import { MyContext } from '@/interfaces'
 import { WizardScene } from 'telegraf/scenes'
-import { getUserByTelegramIdString } from '@/core/supabase'
+import { getUserByTelegramIdString, getSubScribeChannel } from '@/core/supabase'
 import { verifySubscription } from '@/middlewares/verifySubscription'
-import { getSubScribeChannel } from '@/core/supabase'
 import { isDev } from '@/helpers'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { SubscriptionType } from '@/types/subscription'
 
-const subscriptionCheckStep = async (ctx: MyContext) => {
+// Проверка существования пользователя
+const checkUserExists = async (ctx: MyContext) => {
   if (!ctx.from?.id) {
-    logger.info('CASE: user not found')
-    return ctx.scene.enter(ModeEnum.CreateUserScene)
+    logger.info('🔍 User ID not found in context')
+    return null
   }
-  // Проверяем существует ли пользователь в базе
-  const existingUser = await getUserByTelegramIdString(
-    ctx.from?.id.toString() || ''
-  )
 
-  // Если пользователь не существует, то переходим к созданию пользователя
-  if (!existingUser) {
-    logger.info('CASE: user not exists')
-    return ctx.scene.enter(ModeEnum.CreateUserScene)
+  const user = await getUserByTelegramIdString(ctx.from.id.toString())
+  if (!user) {
+    logger.info('🔍 User not found in database')
+    return null
   }
-  const subscription = existingUser.subscription
-  // Получаем ID канала подписки
-  if (subscription !== SubscriptionType.STARS) {
-    logger.info('CASE: subscription not stars')
-    if (isDev) {
-      return ctx.scene.enter(ModeEnum.MainMenu)
-    } //
-    const SUBSCRIBE_CHANNEL_ID = await getSubScribeChannel(ctx)
-    const language_code = existingUser.language_code
-    if (!SUBSCRIBE_CHANNEL_ID) {
-      logger.info('CASE: SUBSCRIBE_CHANNEL_ID not found')
-      await ctx.reply(
-        language_code === 'ru'
-          ? '❌ Не удалось получить ID канала подписки'
-          : '❌ Failed to get subscribe channel ID'
-      )
-      return ctx.scene.leave()
-    }
-    // Проверяем подписку
-    const isSubscribed = await verifySubscription(
-      ctx,
-      language_code.toString(),
-      SUBSCRIBE_CHANNEL_ID
+
+  return user
+}
+
+// Проверка подписки на канал
+const checkChannelSubscription = async (
+  ctx: MyContext,
+  languageCode: string
+) => {
+  if (isDev) {
+    logger.info('🔧 Development mode - skipping channel subscription check')
+    return true
+  }
+
+  const channelId = await getSubScribeChannel(ctx)
+  if (!channelId) {
+    logger.error('❌ Failed to get subscribe channel ID')
+    await ctx.reply(
+      languageCode === 'ru'
+        ? '❌ Не удалось получить ID канала подписки'
+        : '❌ Failed to get subscribe channel ID'
     )
-    if (!isSubscribed) {
-      // Если подписка не существует, то выходим из сцены
-      logger.info('CASE: not subscribed')
-      // Если подписка существует, то переходим к стартовой сцене
-      logger.info('CASE: isSubscribed', isSubscribed)
-      return ctx.scene.leave()
-    }
+    return false
   }
 
-  if (ctx.session.mode === ModeEnum.MainMenu) {
-    return ctx.scene.enter(ModeEnum.MainMenu)
-  } else {
-    return ctx.scene.enter(ctx.session.mode || ModeEnum.MainMenu)
+  const isSubscribed = await verifySubscription(ctx, languageCode, channelId)
+  logger.info(
+    `📊 Channel subscription status: ${isSubscribed ? 'Active' : 'Inactive'}`
+  )
+  return isSubscribed
+}
+
+// Определение следующей сцены
+const getNextScene = (currentMode: ModeEnum | undefined): ModeEnum => {
+  if (currentMode === ModeEnum.MainMenu || !currentMode) {
+    return ModeEnum.MainMenu
   }
+  if (currentMode === ModeEnum.Subscribe) {
+    return ModeEnum.SubscriptionScene
+  }
+  return currentMode
+}
+
+const subscriptionCheckStep = async (ctx: MyContext) => {
+  logger.info('🎯 Starting subscription check process')
+
+  // Проверка существования пользователя
+  const user = await checkUserExists(ctx)
+  if (!user) {
+    logger.info('➡️ Redirecting to user creation scene')
+    return ctx.scene.enter(ModeEnum.CreateUserScene)
+  }
+
+  // Проверка типа подписки
+  if (user.subscription !== SubscriptionType.STARS) {
+    logger.info('💫 User does not have STARS subscription')
+    const isSubscribed = await checkChannelSubscription(ctx, user.language_code)
+    if (!isSubscribed) {
+      logger.info('❌ Channel subscription check failed')
+      return ctx.scene.leave()
+    }
+  } else {
+    logger.info('⭐ User has STARS subscription')
+  }
+
+  // Переход к следующей сцене
+  const nextScene = getNextScene(ctx.session.mode)
+  logger.info(`➡️ Navigating to scene: ${nextScene}`)
+  return ctx.scene.enter(nextScene)
 }
 
 export const subscriptionCheckScene = new WizardScene(
-  ModeEnum.SubscriptionScene,
+  ModeEnum.SubscriptionCheckScene,
   subscriptionCheckStep
 )
