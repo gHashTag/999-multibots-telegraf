@@ -480,11 +480,18 @@ app.post(
         merchantLogin,
         password1,
         description,
-        useTestMode,
+        testPassword1,
       } = require('./scenes/getRuBillWizard/helper')
 
       if (!merchantLogin || !password1) {
         throw new Error('merchantLogin or password1 is not defined')
+      }
+
+      if (!testPassword1) {
+        logger.warn('⚠️ Отсутствует тестовый пароль', {
+          description: 'Test password is missing',
+          merchantLogin,
+        })
       }
 
       // Генерируем короткий InvId
@@ -494,25 +501,64 @@ app.post(
         description: 'Generating test payment',
         amount,
         invId,
+        isTestMode: true,
       })
 
+      // Для тестового URL всегда используем тестовый режим (isTest = true)
       const url = await getInvoiceId(
         merchantLogin,
         amount,
         invId,
         description,
         password1,
-        useTestMode
+        true // Всегда true для тестового маршрута
       )
+
+      // Дополнительная проверка URL - принудительно заменяем домен
+      let finalUrl = url
+
+      // Убеждаемся, что URL использует тестовый домен
+      if (!finalUrl.includes('test.robokassa.ru')) {
+        logger.warn('⚠️ Домен не соответствует тестовому режиму:', {
+          description: 'Domain does not match test mode',
+          originalUrl: url,
+        })
+
+        // Жестко заменяем домен на тестовый
+        finalUrl = url.replace(
+          'https://auth.robokassa.ru/Merchant/Index.aspx',
+          'https://test.robokassa.ru/Index.aspx'
+        )
+
+        logger.info('🔧 URL принудительно исправлен в API:', {
+          description: 'URL forcibly corrected in API',
+          originalUrl: url,
+          correctedUrl: finalUrl,
+        })
+      }
+
+      // Добавляем параметр IsTest=1, если его нет
+      if (!finalUrl.includes('IsTest=1')) {
+        finalUrl = finalUrl + (finalUrl.includes('?') ? '&' : '?') + 'IsTest=1'
+        logger.info('🔧 Добавлен параметр IsTest=1:', {
+          description: 'Added IsTest parameter',
+          finalUrl,
+        })
+      }
 
       logger.info('✅ URL для тестового платежа сгенерирован:', {
         description: 'Test payment URL generated',
-        url,
+        url: finalUrl,
+        isTestMode: true,
+        domain: finalUrl.includes('test.robokassa.ru')
+          ? 'test.robokassa.ru'
+          : 'auth.robokassa.ru',
       })
 
       return res.json({
         status: 'success',
-        url,
+        url: finalUrl,
+        isTestMode: true,
       })
     } catch (error) {
       logger.error('❌ Ошибка при генерации тестового URL:', {
