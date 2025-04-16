@@ -1,27 +1,34 @@
-import { TestSuite, Test, BeforeAll, AfterAll, BeforeEach, AfterEach } from '../../core/types';
-import { TestCategory } from '../../core/categories';
-import { logger } from '@/utils/logger';
+import {
+  TestSuite,
+  Test,
+  BeforeAll,
+  AfterAll,
+  BeforeEach,
+  AfterEach,
+} from '../../core/types'
+import { TestCategory } from '../../core/categories'
+import { logger } from '@/utils/logger'
 
 /**
  * Пример тестового класса с использованием декораторов
  */
-@TestSuite('Пример тестового набора', { 
+@TestSuite('Пример тестового набора', {
   category: TestCategory.Database,
-  description: 'Демонстрация использования декораторов для тестов'
+  description: 'Демонстрация использования декораторов для тестов',
 })
 export class ExampleTest {
-  private testData: Record<string, any> = {};
+  private testData: Record<string, any> = {}
 
   /**
    * Выполняется один раз перед всеми тестами в классе
    */
   @BeforeAll()
   async setupTestSuite() {
-    logger.info('🔧 Настройка тестового набора');
+    logger.info('🔧 Настройка тестового набора')
     this.testData = {
       createdAt: new Date(),
-      items: ['item1', 'item2', 'item3']
-    };
+      items: ['item1', 'item2', 'item3'],
+    }
   }
 
   /**
@@ -29,8 +36,8 @@ export class ExampleTest {
    */
   @AfterAll()
   async teardownTestSuite() {
-    logger.info('🧹 Очистка после тестового набора');
-    this.testData = {};
+    logger.info('🧹 Очистка после тестового набора')
+    this.testData = {}
   }
 
   /**
@@ -38,8 +45,8 @@ export class ExampleTest {
    */
   @BeforeEach()
   async setupTest() {
-    logger.info('🔄 Подготовка к тесту');
-    this.testData.counter = 0;
+    logger.info('🔄 Подготовка к тесту')
+    this.testData.counter = 0
   }
 
   /**
@@ -47,7 +54,7 @@ export class ExampleTest {
    */
   @AfterEach()
   async teardownTest() {
-    logger.info('✓ Завершение теста');
+    logger.info('✓ Завершение теста')
   }
 
   /**
@@ -55,16 +62,16 @@ export class ExampleTest {
    */
   @Test('Простой тест', {
     tags: ['simple', 'example'],
-    description: 'Базовый тест, который всегда успешен'
+    description: 'Базовый тест, который всегда успешен',
   })
   async testSimple() {
-    logger.info('📝 Выполнение простого теста');
-    
+    logger.info('📝 Выполнение простого теста')
+
     // Тест всегда успешен
     return {
       success: true,
-      message: 'Тест успешно пройден'
-    };
+      message: 'Тест успешно пройден',
+    }
   }
 
   /**
@@ -72,20 +79,20 @@ export class ExampleTest {
    */
   @Test('Асинхронный тест', {
     tags: ['async', 'example'],
-    description: 'Тест с асинхронными операциями'
+    description: 'Тест с асинхронными операциями',
   })
   async testAsync() {
-    logger.info('⏱️ Выполнение асинхронного теста');
-    
+    logger.info('⏱️ Выполнение асинхронного теста')
+
     // Имитация асинхронной операции
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    this.testData.counter += 1;
-    
+    await new Promise(resolve => setTimeout(resolve, 100))
+
+    this.testData.counter += 1
+
     return {
       success: true,
-      message: `Асинхронная операция выполнена, счетчик: ${this.testData.counter}`
-    };
+      message: `Асинхронная операция выполнена, счетчик: ${this.testData.counter}`,
+    }
   }
 
   /**
@@ -93,26 +100,27 @@ export class ExampleTest {
    */
   @Test('Условный тест', {
     tags: ['conditional', 'example'],
-    description: 'Тест, который может быть успешным или неудачным в зависимости от условия'
+    description:
+      'Тест, который может быть успешным или неудачным в зависимости от условия',
   })
   async testConditional() {
-    logger.info('🎲 Выполнение условного теста');
-    
+    logger.info('🎲 Выполнение условного теста')
+
     // Генерируем случайное число
-    const random = Math.random();
-    
+    const random = Math.random()
+
     // Если число больше 0.3, тест успешен
     if (random > 0.3) {
       return {
         success: true,
-        message: `Тест успешен (${random})`
-      };
+        message: `Тест успешен (${random})`,
+      }
     } else {
       // Иначе тест завершается неудачей
       return {
         success: false,
-        message: `Тест не пройден (${random})`
-      };
+        message: `Тест не пройден (${random})`,
+      }
     }
   }
 
@@ -122,15 +130,15 @@ export class ExampleTest {
   @Test('Пропущенный тест', {
     tags: ['skipped', 'example'],
     description: 'Этот тест будет пропущен',
-    skip: true
+    skip: true,
   })
   async testSkipped() {
-    logger.info('⏭️ Этот код не должен выполняться');
-    
+    logger.info('⏭️ Этот код не должен выполняться')
+
     return {
       success: false,
-      message: 'Этот тест не должен выполняться'
-    };
+      message: 'Этот тест не должен выполняться',
+    }
   }
 
   /**
@@ -139,14 +147,14 @@ export class ExampleTest {
   @Test('Эксклюзивный тест', {
     tags: ['exclusive', 'example'],
     description: 'Этот тест будет выполнен, если используется фильтр only',
-    only: true
+    only: true,
   })
   async testOnly() {
-    logger.info('🔍 Выполнение эксклюзивного теста');
-    
+    logger.info('🔍 Выполнение эксклюзивного теста')
+
     return {
       success: true,
-      message: 'Эксклюзивный тест выполнен'
-    };
+      message: 'Эксклюзивный тест выполнен',
+    }
   }
-} 
+}

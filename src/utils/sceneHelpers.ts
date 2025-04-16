@@ -2,7 +2,11 @@ import { SceneEnum } from '@/types/scenes'
 import { logger } from '@/utils/logger'
 import { MyContext } from '@/interfaces'
 
-export async function enterScene(ctx: MyContext, scene: SceneEnum, telegramId?: string | number) {
+export async function enterScene(
+  ctx: MyContext,
+  scene: SceneEnum,
+  telegramId?: string | number
+) {
   const sceneMap: Record<SceneEnum, string> = {
     [SceneEnum.MainMenu]: 'main_menu',
     [SceneEnum.CreateUser]: 'create_user_scene',
@@ -32,14 +36,14 @@ export async function enterScene(ctx: MyContext, scene: SceneEnum, telegramId?: 
     [SceneEnum.Email]: 'email_wizard',
     [SceneEnum.GetRuBill]: 'get_ru_bill_wizard',
     [SceneEnum.Subscription]: 'subscription_scene',
-    [SceneEnum.VoiceToText]: 'voice_to_text'
+    [SceneEnum.VoiceToText]: 'voice_to_text',
   }
 
   const sceneName = sceneMap[scene]
   if (!sceneName) {
     logger.error('❌ Unknown scene for transition', {
       scene,
-      telegram_id: telegramId
+      telegram_id: telegramId,
     })
     throw new Error(`Unknown scene: ${scene}`)
   }
@@ -48,9 +52,9 @@ export async function enterScene(ctx: MyContext, scene: SceneEnum, telegramId?: 
     from_scene: ctx.session?.mode,
     to_scene: scene,
     scene_name: sceneName,
-    telegram_id: telegramId
+    telegram_id: telegramId,
   })
 
   ctx.session.mode = scene
   return ctx.scene.enter(sceneName)
-} 
+}

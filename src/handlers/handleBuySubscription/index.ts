@@ -1,57 +1,72 @@
 import { MyContext } from '@/interfaces'
+import { getSubscriptionInfo } from '@/utils/getSubscriptionInfo'
+import { getUserBalance } from '@/core/supabase'
+import { isRussian } from '@/helpers'
+import { logger } from '@/utils/logger'
+import { TransactionType } from '@/interfaces/payments.interface'
 
-interface BuyParams {
-  ctx: MyContext
-  isRu: boolean
-}
-
-export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
-  try {
-    const subscriptionType = ctx.session.subscription
-    console.log('🔔 subscriptionType', subscriptionType)
-
-    const selectedButton = ctx.session.buttons.find(
-      button => button.callback_data === ctx.session.subscription
+export async function handleBuySubscription(ctx: MyContext) {
+  const isRu = isRussian(ctx)
+  const subscription = ctx.session.subscription
+  if (!subscription) {
+    await ctx.reply(
+      isRu
+        ? '❌ Ошибка: тип подписки не выбран'
+        : '❌ Error: subscription type not selected'
     )
-    console.log('🔔 selectedButton', selectedButton)
+    return
+  }
 
-    if (!selectedButton) {
-      console.error('❌ Кнопка для подписки не найдена:', subscriptionType)
+  const subscriptionInfo = getSubscriptionInfo(subscription)
+  if (!subscriptionInfo) {
+    await ctx.reply(
+      isRu
+        ? '❌ Ошибка: неверный тип подписки'
+        : '❌ Error: invalid subscription type'
+    )
+    return
+  }
+
+  const telegramId = ctx.from?.id.toString()
+  if (!telegramId) {
+    await ctx.reply(
+      isRu
+        ? '❌ Ошибка: не удалось получить ID пользователя'
+        : '❌ Error: could not get user ID'
+    )
+    return
+  }
+
+  try {
+    const balance = await getUserBalance(telegramId)
+    const price = isRu ? subscriptionInfo.ru_price : subscriptionInfo.en_price
+    const stars = subscriptionInfo.stars_price
+    const title = isRu ? subscriptionInfo.title_ru : subscriptionInfo.title_en
+
+    if (balance < stars) {
       await ctx.reply(
         isRu
-          ? 'Ошибка: тип подписки не найден.'
-          : 'Error: subscription type not found.'
+          ? `❌ Недостаточно звезд для покупки подписки ${title}. Необходимо: ${stars}⭐️, у вас: ${balance}⭐️`
+          : `❌ Not enough stars to buy ${title} subscription. Required: ${stars}⭐️, you have: ${balance}⭐️`
       )
       return
     }
 
-    const amount = selectedButton.stars_price
-    console.log('🔔 amount', amount)
+    // Store the subscription details in the session
+    ctx.session.selectedPayment = {
+      amount: price,
+      stars,
+      subscription,
+      type: TransactionType.SUBSCRIPTION_PURCHASE,
+    }
 
-    const title = selectedButton.text || `${amount} ⭐️`
-    const description =
-      selectedButton.description ||
-      (isRu
-        ? `💬 Получите ${amount} звезд.\nИспользуйте звезды для различных функций нашего бота и наслаждайтесь новыми возможностями!`
-        : `💬 Get ${amount} stars.\nUse stars for various functions of our bot and enjoy new opportunities!`)
-
-    await ctx.replyWithInvoice({
-      title,
-      description,
-      payload: `${amount}_${Date.now()}`,
-      currency: 'XTR', // Pass "XTR" for payments in Telegram Stars.
-      prices: [
-        {
-          label: isRu ? 'Цена' : 'Price',
-          amount: amount,
-        },
-      ],
-      provider_token: '',
-    })
-
-    return
+    await ctx.scene.enter('paymentScene')
   } catch (error) {
-    console.error('❌ Error in handleBuySubscription:', error)
-    throw error
+    logger.error('Error in handleBuySubscription:', { error, telegramId })
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка при проверке баланса'
+        : '❌ Error checking balance'
+    )
   }
 }

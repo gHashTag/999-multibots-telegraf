@@ -1,32 +1,87 @@
 import { Inngest } from 'inngest'
-import { INNGEST_EVENT_KEY } from '@/config'
-import fetch, { RequestInit } from 'node-fetch'
+import { INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY } from '@/config'
+import { createHttpClient } from '@/utils/httpClient'
 import { logger } from '@/utils/logger'
 // Добавляем лог для проверки инициализации
-console.log('🔄 Initializing Inngest client...')
-console.log('🔑 INNGEST_EVENT_KEY available:', !!process.env.INNGEST_EVENT_KEY)
-console.log('🔧 NODE_ENV:', process.env.NODE_ENV)
+logger.info('🔄 Initializing Inngest client...')
+logger.info('🔑 INNGEST_EVENT_KEY available:', !!INNGEST_EVENT_KEY)
+logger.info('🔑 INNGEST_SIGNING_KEY available:', !!INNGEST_SIGNING_KEY)
+logger.info('🔧 NODE_ENV:', process.env.NODE_ENV)
 
-if (process.env.INNGEST_EVENT_KEY) {
-  console.log(
+if (INNGEST_EVENT_KEY) {
+  logger.info(
     '🔑 INNGEST_EVENT_KEY first 10 chars:',
-    process.env.INNGEST_EVENT_KEY.substring(0, 10) + '...'
+    INNGEST_EVENT_KEY.substring(0, 10) + '...'
+  )
+}
+if (INNGEST_SIGNING_KEY) {
+  logger.info(
+    '🔑 INNGEST_SIGNING_KEY first 10 chars:',
+    INNGEST_SIGNING_KEY.substring(0, 10) + '...'
   )
 }
 
-// Создаем клиент с правильной типизацией fetch
-export const inngest = new Inngest({
-  id: 'neuro-blogger-2.0',
-  eventKey: process.env.INNGEST_EVENT_KEY || '',
-  baseUrl: process.env.NODE_ENV === 'development' ? 'http://localhost:2999/api/inngest' : undefined
+// Создаем HTTP клиент для Inngest
+const inngestHttpClient = createHttpClient({
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 })
 
-console.log('✅ Inngest client created:', !!inngest)
-console.log('⚙️ Inngest config:', {
+// Адаптер для fetch API
+const fetchAdapter = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const url = typeof input === 'string' ? input : input.toString()
+  const response = await inngestHttpClient.request(url, {
+    method: init?.method || 'GET',
+    headers: init?.headers as Record<string, string>,
+    body: init?.body,
+  })
+
+  // Преобразуем данные в строку для Blob
+  const blobData =
+    typeof response.data === 'string'
+      ? response.data
+      : JSON.stringify(response.data)
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+    headers: new Headers(response.headers),
+    json: async () => response.data,
+    text: async () => blobData,
+    blob: async () => new Blob([blobData]),
+    arrayBuffer: async () => new TextEncoder().encode(blobData).buffer,
+  } as Response
+}
+
+// Создаем базовую конфигурацию Inngest
+const inngestConfig = {
   id: 'neuro-blogger-2.0',
-  eventKey: '***',
-  baseUrl: process.env.NODE_ENV === 'development' ? 'http://localhost:2999/api/inngest' : undefined
-})
+  eventKey: INNGEST_EVENT_KEY || 'development-key',
+  signingKey: INNGEST_SIGNING_KEY,
+  baseUrl: process.env.INNGEST_BASE_URL,
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+    return fetchAdapter(input, init)
+  },
+}
+
+// Создаем экземпляр с нужной конфигурацией
+export const inngest = new Inngest(inngestConfig)
+
+// Проверка экспорта
+logger.info('✅ Inngest client created:', !!inngest)
+logger.info(
+  '⚙️ Inngest config:',
+  JSON.stringify({
+    id: inngestConfig.id,
+    eventKey: inngestConfig.eventKey ? '***' : undefined,
+    signingKey: inngestConfig.signingKey ? '***' : undefined,
+    baseUrl: inngestConfig.baseUrl,
+    customFetch: true,
+  })
+)
 
 // Экспорт функций напрямую из этого файла
 export const functions = []

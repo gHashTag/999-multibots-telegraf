@@ -4,6 +4,6 @@ export const TEST_PAYMENT_CONFIG = {
   modes: {
     photo: 100,
     video: 200,
-    audio: 150
-  }
+    audio: 150,
+  },
 }

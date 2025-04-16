@@ -1,17 +1,29 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
 import { Context, NarrowedContext, Scenes } from 'telegraf'
-import { ModelUrl, Subscription, UserModel } from './index'
+import { ModelUrl, UserModel } from './index'
 import type { Update, Message } from 'telegraf/typings/core/types/typegram'
 import { Buffer } from 'buffer'
 import { Mode } from './cost.interface'
-import { BroadcastContentType } from '@/scenes/broadcastWizard'
-import { LocalSubscription } from '@/scenes/getRuBillWizard'
+import { BroadcastContentType } from './broadcast.interface'
+import { SubscriptionType, TransactionType } from './payments.interface'
+import { TelegramId } from '@/interfaces/telegram.interface'
+import { Subscription } from '@/types/subscription'
+import { TranslationButton } from './supabase.interface'
 import { DigitalAvatarModel } from './digital-avatar.interface'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {
   title_ru: string
   title_en: string
+}
+
+export interface SubscriptionButton {
+  text: string
+  callback_data: string
+  row: number
+  stars_price: number
+  en_price: number
+  ru_price: number
+  description: string
 }
 
 export interface SessionData {
@@ -58,6 +70,8 @@ export interface MyWizardSession extends Scenes.WizardSessionData {
   videoFileId?: string
   postLink?: string
   botName?: string
+  subscriptionType?: SubscriptionType
+  __scenes: Record<string, unknown>
 }
 
 export interface Button {
@@ -78,6 +92,44 @@ export interface Memory {
   }>
 }
 
+export interface MySessionData extends Scenes.WizardSessionData {
+  cursor: number
+  email?: string
+  selectedModel?: string
+  prompt?: string
+  ownerTelegramId?: string
+  textInputStep?: string
+  textRu?: string
+  textEn?: string
+  contentType?: BroadcastContentType
+  photoFileId?: string
+  videoFileId?: string
+  postLink?: string
+
+  selectedSize?: string
+  selectedPayment?: {
+    amount: number
+    stars: number
+    subscription: string
+  }
+  subscription?: string
+  text?: string
+  model_type?: ModelUrl
+  userModel?: UserModel
+  mode?: Mode
+  videoModel?: string
+  imageUrl?: string
+  amount?: number
+  images?: BufferType
+  modelName?: string
+  targetUserId?: number
+  username?: string
+  triggerWord?: string
+  steps?: number
+  memory?: Memory
+
+  __scenes: Record<string, unknown>
+}
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   memory?: Memory
   email: string
@@ -94,7 +146,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   videoUrl: string
   audioUrl: string
   amount: number
-  subscription: Subscription
+  subscription: SubscriptionType | 'stars'
   images: BufferType
   modelName: string
   targetUserId: number
@@ -110,19 +162,23 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   selectedPayment: {
     amount: number
     stars: number
-    subscription?: LocalSubscription
+    subscription?: SubscriptionType | 'stars'
+    type: TransactionType
   }
   is_ru: boolean
   selectedAvatarModel?: DigitalAvatarModel
 }
 
-export interface MyContext extends Context {
+export interface MyContext extends Context<Update> {
   session: MySession
-  attempts: number
-  scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
+  scene: Scenes.SceneContextScene<MyContext, MySessionData>
   wizard: Scenes.WizardContextWizard<MyContext>
-  amount: number
-  match?: RegExpMatchArray
+  attempts: number
+
+  user: {
+    id: number
+    username: string
+  }
 }
 
 // Создайте новый тип, объединяющий MyContext и WizardContext
@@ -132,3 +188,7 @@ export type MyTextMessageContext = NarrowedContext<
   MyContext,
   Update.MessageUpdate<Message.TextMessage>
 >
+
+export interface ExtendedTranslationButton extends TranslationButton {
+  subscription: Subscription
+}

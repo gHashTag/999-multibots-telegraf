@@ -1,4 +1,6 @@
 import { TelegramId } from './telegram.interface'
+import { SubscriptionType } from './payments.interface'
+
 export interface CreateUserData {
   username: string
   telegram_id: TelegramId
@@ -82,4 +84,5 @@ export interface TranslationButton {
   en_price: number
   ru_price: number
   stars_price: number
+  subscription: SubscriptionType
 }

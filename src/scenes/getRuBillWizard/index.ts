@@ -7,7 +7,7 @@ import {
   description,
   subscriptionTitles,
   useTestMode,
-  generateUniqueShortInvId,
+  generateShortInvId,
 } from './helper'
 import { updateUserSubscription } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
@@ -15,15 +15,8 @@ import { getBotNameByToken } from '@/core'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 import { inngest } from '@/inngest-functions/clients'
-
-import { createPayment } from '@/core/supabase/createPayment'
-type Subscription = 'neurophoto' | 'neurobase' | 'neuroblogger'
-
-// Экспортируем тип для подписок
-export type LocalSubscription = Extract<
-  Subscription,
-  'neurophoto' | 'neurobase' | 'neuroblogger'
->
+import { ModeEnum } from '@/interfaces/modes'
+import { type Subscription } from '@/types/subscription'
 
 const generateInvoiceStep = async (ctx: MyContext) => {
   logger.info('🚀 Начало создания счета', {
@@ -37,7 +30,12 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     logger.error('❌ Не выбран способ оплаты', {
       description: 'Payment method not selected',
     })
-    return
+    await ctx.reply(
+      isRu
+        ? 'Пожалуйста, сначала выберите способ оплаты'
+        : 'Please select a payment method first'
+    )
+    return ctx.scene.leave()
   }
 
   const email = ctx.session.email
@@ -48,6 +46,20 @@ const generateInvoiceStep = async (ctx: MyContext) => {
 
   const stars = selectedPayment.amount
   const subscription = selectedPayment.subscription as Subscription | undefined
+
+  // Проверка на валидный тип подписки
+  if (subscription && !['neurophoto', 'neurobase'].includes(subscription)) {
+    logger.error('❌ Неверный тип подписки', {
+      description: 'Invalid subscription type',
+      subscription,
+    })
+    await ctx.reply(
+      isRu
+        ? 'Выбран неверный тип подписки. Пожалуйста, попробуйте снова.'
+        : 'Invalid subscription type selected. Please try again.'
+    )
+    return ctx.scene.leave()
+  }
 
   try {
     const userId = ctx.from?.id
@@ -61,7 +73,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     })
 
     // Генерируем короткий InvId для Robokassa
-    const numericInvId = await generateUniqueShortInvId(userId, stars)
+    const numericInvId = await generateShortInvId(userId, stars)
     const invId = numericInvId.toString()
 
     logger.info('🔢 Сгенерирован ID счета:', {
@@ -89,73 +101,7 @@ const generateInvoiceStep = async (ctx: MyContext) => {
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
-    // Сохранение платежа со статусом PENDING
-    await createPayment({
-      telegram_id: userId.toString(),
-      amount: stars,
-      OutSum: stars.toString(),
-      InvId: invId,
-      inv_id: invId,
-      currency: 'RUB',
-      stars: Number(selectedPayment.stars),
-      status: 'PENDING',
-      payment_method: 'Telegram',
-      subscription: subscription,
-      bot_name,
-      description: subscription
-        ? `Покупка подписки ${subscription}`
-        : `Пополнение баланса на ${stars} звезд`,
-      metadata: {
-        payment_method: 'Telegram',
-        subscription: subscription || undefined,
-      },
-      language: ctx.from?.language_code || 'ru',
-      invoice_url: invoiceURL,
-    })
-    logger.info('💾 Платеж сохранен со статусом PENDING', {
-      description: 'Payment saved with PENDING status',
-    })
-
-    // Формируем и отправляем сообщение с кнопкой оплаты
-    const titles = subscriptionTitles(isRu)
-    const subscriptionTitle = subscription ? titles[subscription] : ''
-
-    const inlineKeyboard = [
-      [
-        {
-          text: isRu
-            ? `Купить ${subscriptionTitle} за ${stars} р.`
-            : `Buy ${subscriptionTitle} for ${stars} RUB.`,
-          url: invoiceURL,
-        },
-      ],
-    ]
-
-    await ctx.reply(
-      isRu
-        ? `<b>🤑 Подписка ${subscriptionTitle}</b>
-          \nВ случае возникновения проблем с оплатой, пожалуйста, свяжитесь с нами @neuro_sage`
-        : `<b>🤑 Subscription ${subscriptionTitle}</b>
-          \nIn case of payment issues, please contact us @neuro_sage`,
-      {
-        reply_markup: {
-          inline_keyboard: inlineKeyboard,
-        },
-        parse_mode: 'HTML',
-      }
-    )
-    logger.info('✉️ Сообщение об оплате отправлено пользователю', {
-      description: 'Payment message sent to user',
-    })
-
-    // Обновление подписки пользователя
-    if (subscription) {
-      await updateUserSubscription(userId.toString(), subscription)
-      logger.info('✅ Подписка пользователя обновлена', {
-        description: 'User subscription updated',
-      })
-    }
-
+    // Отправляем событие для создания платежа
     logger.info('✅ Обработка платежа в RuBillWizard:', {
       description: 'Processing payment in RuBillWizard',
       telegram_id: userId,
@@ -169,12 +115,67 @@ const generateInvoiceStep = async (ctx: MyContext) => {
         telegram_id: String(userId),
         amount: Number(stars),
         type: TransactionType.MONEY_INCOME,
-        description: `RuBill payment:: ${stars}`,
+        description: subscription
+          ? `Покупка подписки ${subscription}`
+          : `Пополнение баланса на ${stars} звезд`,
         bot_name,
         inv_id: invId,
         stars: Number(stars),
+        payment_method: 'Telegram',
+        subscription: subscription,
+        currency: 'RUB',
+        invoice_url: invoiceURL,
+        service_type: subscription ? ModeEnum.Subscribe : ModeEnum.TopUpBalance,
+        status: 'PENDING',
       },
     })
+
+    // Формируем и отправляем сообщение с кнопкой оплаты
+    const title = subscription ? subscriptionTitles(subscription, isRu) : ''
+    const subscriptionTitle = subscription ? title : ''
+
+    const inlineKeyboard = [
+      [
+        {
+          text: isRu ? 'Оплатить' : 'Pay',
+          url: invoiceURL,
+        },
+      ],
+    ]
+
+    const messageText = isRu
+      ? `<b>💳 ${subscription ? `Подписка ${subscriptionTitle}` : 'Пополнение баланса'}</b>\n` +
+        `<b>💰 Сумма:</b> ${stars} ₽\n` +
+        `<i>При проблемах с оплатой: @neuro_sage</i>`
+      : `<b>💳 ${subscription ? `Subscription ${subscriptionTitle}` : 'Balance top-up'}</b>\n` +
+        `<b>💰 Amount:</b> ${stars} RUB\n` +
+        `<i>Payment support: @neuro_sage</i>`
+
+    await ctx.reply(messageText, {
+      reply_markup: {
+        inline_keyboard: inlineKeyboard,
+      },
+      parse_mode: 'HTML',
+    })
+    logger.info('✉️ Сообщение об оплате отправлено пользователю', {
+      description: 'Payment message sent to user',
+    })
+
+    // Обновление подписки пользователя
+    if (subscription) {
+      await updateUserSubscription(userId.toString(), subscription)
+      logger.info('✅ Подписка пользователя обновлена', {
+        description: 'User subscription updated',
+        subscription,
+      })
+    }
+
+    ctx.session.selectedPayment = {
+      amount: selectedPayment.amount,
+      stars: Number(selectedPayment.stars),
+      subscription: selectedPayment.subscription as Subscription,
+      type: TransactionType.SUBSCRIPTION_PURCHASE,
+    }
 
     return ctx.scene.leave()
   } catch (error) {

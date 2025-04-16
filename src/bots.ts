@@ -13,7 +13,6 @@ import { registerHearsActions } from './handlers/hearsActions'
 import { registerCommands } from './registerCommands'
 import { setBotCommands } from './setCommands'
 import { getBotNameByToken } from './core/bot'
-import startApiServer from './api'
 import { bots } from './core/bot'
 import { logger } from '@/utils/logger'
 
@@ -24,10 +23,14 @@ export const composer = new Composer<MyContext>()
 type NextFunction = (err?: Error) => void
 
 export const createBots = async () => {
-  startApiServer()
-  logger.info('🚀 Запущен публичный API сервер', {
-    description: 'Public API server started',
-  })
+  // startApiServer()
+  logger.warn(
+    '⚠️ [AUTOFIX] API сервер не запущен из bots.ts, чтобы избежать конфликта портов. Запуск производится только из bot.ts',
+    {
+      description:
+        'API server not started from bots.ts to prevent port conflict',
+    }
+  )
 
   if (!process.env.TEST_BOT_NAME) {
     logger.error('❌ TEST_BOT_NAME не установлен', {

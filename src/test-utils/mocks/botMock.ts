@@ -8,8 +8,8 @@ export const mockBotInstance = {
     sendVideo: mock.create(),
     sendPhoto: mock.create(),
     editMessageText: mock.create(),
-    deleteMessage: mock.create()
-  }
+    deleteMessage: mock.create(),
+  },
 }
 
 export const getMockBot = () => {

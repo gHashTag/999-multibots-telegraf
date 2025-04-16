@@ -36,6 +36,10 @@ export enum TestCategory {
   ApiHealth = 'api-health',
   ApiEndpoints = 'api-endpoints',
   ApiWebhooks = 'api-webhooks',
+
+  // Дополнительные категории
+  System = 'system',
+  AgentRouter = 'agent-router',
 }
 
 /**
@@ -85,43 +89,14 @@ export function getSubcategories(category: TestCategory): TestCategory[] {
 }
 
 /**
- * Проверяет, входит ли тест в категорию
+ * Проверяет, относится ли тест к указанной категории
  */
 export function isInCategory(
-  testCategory: string | TestCategory,
-  selectedCategories: string | string[] | TestCategory | TestCategory[]
+  testCategory: TestCategory,
+  category: TestCategory
 ): boolean {
-  // Преобразуем входные параметры в массивы строк для унификации обработки
-  const testCategoryStr =
-    typeof testCategory === 'string' ? testCategory : String(testCategory)
-  const selectedCategoriesArr = Array.isArray(selectedCategories)
-    ? selectedCategories.map(c => (typeof c === 'string' ? c : String(c)))
-    : [
-        typeof selectedCategories === 'string'
-          ? selectedCategories
-          : String(selectedCategories),
-      ]
-
-  if (
-    selectedCategoriesArr.length === 0 ||
-    selectedCategoriesArr.includes(TestCategory.All)
-  ) {
-    return true
-  }
-
-  if (selectedCategoriesArr.includes(testCategoryStr)) {
-    return true
-  }
-
-  // Проверяем, если тест входит в какую-то из выбранных категорий как подкатегория
-  for (const category of selectedCategoriesArr) {
-    const subcategories = getSubcategories(category as TestCategory)
-    if (subcategories.includes(testCategoryStr as TestCategory)) {
-      return true
-    }
-  }
-
-  return false
+  if (category === TestCategory.All) return true
+  return testCategory === category
 }
 
 export default {

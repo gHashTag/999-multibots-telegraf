@@ -32,7 +32,10 @@ export interface NeuroPhotoTestOutput {
 /**
  * Класс для тестирования функции нейрофото
  */
-export class NeuroPhotoTester extends InngestFunctionTester<NeuroPhotoTestInput, NeuroPhotoTestOutput> {
+export class NeuroPhotoTester extends InngestFunctionTester<
+  NeuroPhotoTestInput,
+  NeuroPhotoTestOutput
+> {
   constructor(options: Partial<any> = {}) {
     super('neuro/photo.generate', {
       name: 'НейроФото тест',
@@ -50,7 +53,7 @@ export class NeuroPhotoTester extends InngestFunctionTester<NeuroPhotoTestInput,
     // Создаем стандартные моки через фабрику
     const mocks = {
       ...TestDataFactory.createAllMocks(),
-      ...customMocks
+      ...customMocks,
     }
 
     // Создаем мок для Inngest step
@@ -61,12 +64,12 @@ export class NeuroPhotoTester extends InngestFunctionTester<NeuroPhotoTestInput,
           description: `Executing step: ${name}`,
         })
         return await fn()
-      }
+      },
     }
 
     // Имитируем событие Inngest
     const event = {
-      data: input
+      data: input,
     }
 
     // Выполняем основные шаги обработки по аналогии с реальной функцией
@@ -75,48 +78,48 @@ export class NeuroPhotoTester extends InngestFunctionTester<NeuroPhotoTestInput,
       description: 'Checking user existence',
     })
     const user = await mocks.getUserByTelegramIdString()
-    
+
     logger.info({
       message: '💰 Расчет стоимости',
       description: 'Calculating cost',
     })
-    
+
     logger.info({
       message: '💵 Проверка баланса',
       description: 'Checking balance',
     })
     const balance = await mocks.getUserBalance()
-    
+
     logger.info({
       message: '📐 Получение аспект-рейшио',
       description: 'Getting aspect ratio',
     })
     const aspectRatio = await mocks.getAspectRatio()
-    
+
     logger.info({
       message: '🖼️ Генерация изображения',
       description: 'Generating image',
     })
     const outputUrl = await mocks.replicate.run()
-    
+
     logger.info({
       message: '📁 Сохранение файла',
       description: 'Saving file locally',
     })
     const localPath = await mocks.saveFileLocally()
-    
+
     logger.info({
       message: '📝 Сохранение промпта',
       description: 'Saving prompt',
     })
     const promptId = await mocks.savePrompt()
-    
+
     logger.info({
       message: '📨 Отправка изображения пользователю',
       description: 'Sending image to user',
     })
     await mocks.getBotByName().bot.telegram.sendPhoto()
-    
+
     // Формируем результаты теста
     return {
       success: true,
@@ -135,9 +138,9 @@ export class NeuroPhotoTester extends InngestFunctionTester<NeuroPhotoTestInput,
    */
   async testWithPrompt(prompt: string): Promise<any> {
     const input = TestDataFactory.createNeuroPhotoData({
-      prompt
+      prompt,
     })
-    
+
     return await this.runTest(input)
   }
 
@@ -146,9 +149,9 @@ export class NeuroPhotoTester extends InngestFunctionTester<NeuroPhotoTestInput,
    */
   async testWithMultipleImages(numImages: number): Promise<any> {
     const input = TestDataFactory.createNeuroPhotoData({
-      numImages
+      numImages,
     })
-    
+
     return await this.runTest(input)
   }
-} 
+}

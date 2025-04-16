@@ -5,25 +5,30 @@ import { getTranslation } from '@/core/supabase'
 import { Message } from 'telegraf/typings/core/types/typegram'
 import { updateUserSubscription, createPayment } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
-import { TransactionType } from '@/interfaces/payments.interface'
+import {
+  TransactionType,
+  SubscriptionType,
+} from '@/interfaces/payments.interface'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
 import { createBotByName } from '@/core/bot'
-import { LocalSubscription } from '@/scenes/getRuBillWizard'
-
+import { LocalSubscription } from '@/types/subscription'
+import { SubscriptionButton } from '@/types/telegram-bot.interface'
 import { inngest } from '@/inngest-functions/clients'
 
 // Используйте SessionFlavor для добавления сессий
 interface SessionData {
-  subscription: string
+  subscription: LocalSubscription
   telegram_id: TelegramId
   email: string
   selectedPayment?: {
     amount: number
     stars: number
     subscription?: LocalSubscription
+    type: TransactionType
   }
+  buttons: SubscriptionButton[]
 }
 
 type PaymentContext = Context &
@@ -256,7 +261,7 @@ async function processPayment(
       parse_mode: 'Markdown',
     }
   )
-  ctx.session.subscription = ''
+  ctx.session.subscription = subscriptionName as SubscriptionType
   ctx.session.buttons = []
 }
 
@@ -307,6 +312,7 @@ export async function handleSuccessfulPayment(ctx: PaymentContext) {
         amount: stars,
         stars: stars,
         subscription: subscriptionType as LocalSubscription,
+        type: TransactionType.MONEY_INCOME,
       }
     }
 

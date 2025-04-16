@@ -3,12 +3,13 @@ import {
   PASSWORD1,
   RESULT_URL2,
   TEST_PASSWORD1,
-  isDev,
 } from '@/config'
 
-import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'
-import { generateUniqueInvoiceId } from '@/core/supabase/generateUniqueInvoiceId'
+import {
+  subscriptionConfigs,
+  type LocalSubscription,
+} from '@/types/subscription'
 
 export const merchantLogin = MERCHANT_LOGIN
 export const password1 = PASSWORD1
@@ -17,13 +18,19 @@ export const resultUrl2 = RESULT_URL2 || ''
 export const description = 'Покупка звезд'
 
 // Флаг для использования тестового режима Robokassa
-export const useTestMode = isDev
+export const useTestMode = false
 
-export const subscriptionTitles = (isRu: boolean) => ({
-  neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
-  neurobase: isRu ? '📚 НейроБаза' : '📚 NeuroBase',
-  neuroblogger: isRu ? '🤖 НейроБлогер' : '🤖 NeuroBlogger',
-})
+export function subscriptionTitles(
+  type: LocalSubscription,
+  isRu: boolean
+): string {
+  if (type === 'stars') {
+    return isRu ? '⭐️ Звезды' : '⭐️ Stars'
+  }
+
+  const config = subscriptionConfigs[type]
+  return isRu ? config.titleRu : config.titleEn
+}
 
 /**
  * Генерирует короткий ID для заказа, подходящий для Robokassa
@@ -31,7 +38,6 @@ export const subscriptionTitles = (isRu: boolean) => ({
  * @param userId ID пользователя
  * @param amount Сумма заказа
  * @returns Короткий ID заказа (до 9 цифр)
- * @deprecated Используйте асинхронную функцию generateUniqueShortInvId вместо этой
  */
 export function generateShortInvId(
   userId: string | number,
@@ -56,41 +62,6 @@ export function generateShortInvId(
   }
 }
 
-/**
- * Генерирует короткий ID заказа с проверкой уникальности
- * @param userId ID пользователя
- * @param amount Сумма заказа
- * @returns Promise с коротким ID заказа
- */
-export async function generateUniqueShortInvId(
-  userId: string | number,
-  amount: number
-): Promise<number> {
-  try {
-    // Используем нашу новую функцию для генерации уникального ID
-    const uniqueId = await generateUniqueInvoiceId(userId, amount)
-
-    // Преобразуем в число, ограничиваем длину до 9 цифр если необходимо
-    const numericId = parseInt(uniqueId)
-
-    // Если ID слишком длинный для Robokassa, обрезаем его
-    if (numericId > 999999999) {
-      return numericId % 1000000000 // Берем только последние 9 цифр
-    }
-
-    return numericId
-  } catch (error) {
-    console.error('❌ Ошибка при генерации уникального ID инвойса', {
-      description: 'Error generating unique invoice ID',
-      error,
-      userId,
-      amount,
-    })
-    // В случае ошибки используем старый метод как запасной вариант
-    return generateShortInvId(userId, amount)
-  }
-}
-
 export const generateSignature = (
   merchantLogin: string,
   outSum: number,
@@ -108,7 +79,6 @@ export const generateSignature = (
     invId,
     isTestMode: isTest,
     usingTestPassword: isTest && testPassword1 ? true : false,
-    mode: isTest ? 'ТЕСТОВЫЙ РЕЖИМ' : 'БОЕВОЙ РЕЖИМ',
   })
 
   // Корректное формирование подписи без resultUrl2
@@ -131,15 +101,16 @@ export const getInvoiceId = async (
   merchantLogin: string,
   outSum: number,
   invId: number,
-  description: string,
+  paymentDescription: string,
   password1: string,
   isTest: boolean = useTestMode
 ): Promise<string> => {
   console.log('🚀 Формирование счёта с параметрами:', {
-    message: 'Generating invoice with parameters',
+    description: 'Generating invoice with parameters',
     merchantLogin,
     outSum,
     invId,
+    paymentDescription,
     isTestMode: isTest,
   })
 
@@ -162,14 +133,16 @@ export const getInvoiceId = async (
   )
 
   // Формируем базовый URL Robokassa
-  const baseUrl = 'https://auth.robokassa.ru/Merchant/Index.aspx'
+  const baseUrl = isTest
+    ? 'https://test.robokassa.ru/Index.aspx'
+    : 'https://auth.robokassa.ru/Merchant/Index.aspx'
 
   // Создаем параметры запроса - ВАЖНО: без ResultUrl2
   const params = new URLSearchParams({
     MerchantLogin: merchantLogin,
     OutSum: outSum.toString(),
     InvId: invId.toString(),
-    Description: description,
+    Description: paymentDescription,
     SignatureValue: signatureValue,
   })
 
@@ -186,4 +159,31 @@ export const getInvoiceId = async (
   })
 
   return url
+}
+
+/**
+ * Тестовая функция для проверки генерации URL чека
+ */
+export const testGenerateInvoiceUrl = async (
+  amount: number
+): Promise<string> => {
+  console.log('🚀 Генерация тестового URL чека:', {
+    description: 'Generating test invoice URL',
+    amount,
+  })
+
+  if (!merchantLogin || !password1) {
+    throw new Error('merchantLogin or password1 is not defined')
+  }
+
+  const invId = Math.floor(Math.random() * 1000000) + 1
+
+  return getInvoiceId(
+    merchantLogin,
+    amount,
+    invId,
+    description,
+    password1,
+    useTestMode
+  )
 }

@@ -26,8 +26,7 @@ import path from 'path'
 import { logger } from '@/utils/logger'
 import { TestCategory } from './core/categories'
 import { runTests } from './core/runTests'
-import { runBalanceTests } from './tests/payment/balance.test'
-import { runPaymentNotificationTests } from './tests/payment/paymentNotification.test'
+import { runAllPaymentTests } from './tests/payment'
 import { runNeuroPhotoTests } from './tests/neuro/runNeuroPhotoTests'
 
 // Импортируем тесты API
@@ -95,8 +94,7 @@ import {
 } from './tests/inngestTest'
 
 export const paymentTests = {
-  runBalanceTests,
-  runPaymentNotificationTests,
+  runAllPaymentTests,
 }
 
 // Экспортируем тесты нейрофункций

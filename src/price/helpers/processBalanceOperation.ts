@@ -2,7 +2,7 @@ import { TelegramId } from '@/interfaces/telegram.interface'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { getUserByTelegramIdString, updateUserBalance } from '@/core/supabase'
+import { updateUserBalance } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getUserBalance, invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 

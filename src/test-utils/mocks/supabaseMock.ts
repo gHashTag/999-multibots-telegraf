@@ -39,7 +39,10 @@ export class SupabaseMock implements MockSupabaseClient {
     return newOperation
   }
 
-  async updateOperation(id: string, data: Partial<Operation>): Promise<Operation> {
+  async updateOperation(
+    id: string,
+    data: Partial<Operation>
+  ): Promise<Operation> {
     const operation = this.operations.get(id)
     if (!operation) {
       throw new Error(`Operation with id ${id} not found`)
@@ -75,7 +78,7 @@ export class SupabaseMock implements MockSupabaseClient {
       is_ru: user.is_ru,
       bot_name: user.bot_name,
       created_at: user.created_at || now,
-      updated_at: user.updated_at || now
+      updated_at: user.updated_at || now,
     }
     this.users.set(id, newUser)
     return newUser
@@ -84,4 +87,4 @@ export class SupabaseMock implements MockSupabaseClient {
 
 export function getMockSupabase(): MockSupabaseClient {
   return new SupabaseMock()
-} 
+}
