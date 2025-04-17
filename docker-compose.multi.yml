@@ -1,16 +1,61 @@
-version: '3.8'
-
 services:
   longpolling-bot:
     build:
-      context: .
+      context: ./
       dockerfile: Dockerfile.dev
     container_name: longpolling-bot
-    restart: always
-    volumes:
-      - ./.env:/app/.env
-      - ./logs:/app/logs
+    ports:
+      - '2999:2999'
+      - '3000:3000'
+      - '3001:3001'
+      - '3002:3002'
+      - '3003:3003'
+      - '3004:3004'
+      - '3005:3005'
+      - '3006:3006'
+      - '3007:3007'
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
       - MODE=longpolling
-    command: node dist/multi.js 
+      - BOT_TOKEN_1=${BOT_TOKEN_1}
+      - BOT_TOKEN_2=${BOT_TOKEN_2}
+      # - BOT_TOKEN_3=${BOT_TOKEN_3}
+      - BOT_TOKEN_4=${BOT_TOKEN_4}
+      - BOT_TOKEN_5=${BOT_TOKEN_5}
+      - BOT_TOKEN_6=${BOT_TOKEN_6}
+      - BOT_TOKEN_7=${BOT_TOKEN_7}
+      - INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
+      - INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
+      - INNGEST_URL=${INNGEST_URL}
+      - INNGEST_BASE_URL=${INNGEST_BASE_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - ORIGIN=${ORIGIN}
+      - ADMIN_IDS=${ADMIN_IDS}
+      - SECRET_KEY=${SECRET_KEY}
+      - LOG_FORMAT=${LOG_FORMAT}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
+      - DOCKER_ENVIRONMENT=true
+      - DEBUG=true
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    extra_hosts:
+      - "api.elevenlabs.io:127.0.0.1"
+      - "host.docker.internal:172.27.0.1"
+    networks:
+      - app-network
+    restart: unless-stopped
+    command: pnpm dev
+
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.27.0.0/16 
