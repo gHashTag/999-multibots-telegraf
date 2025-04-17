@@ -4,7 +4,7 @@ import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
 import { isRussian } from '@/helpers/language'
 import { MyContext, ModelUrl } from '@/interfaces'
 
-// Используем заглушку, если переменная не установлена
+// Используем заглушку только если переменная не задана в .env
 const API_URL =
   process.env.ELESTIO_URL || 'https://ai-server-u14194.vm.elestio.app'
 
@@ -40,18 +40,7 @@ export async function generateNeuroImage(
     const url = `${isDev ? LOCAL_SERVER_URL : API_URL}/generate/neuro-photo`
     console.log(url, 'url')
 
-    // В случае отсутствия реального URL просто пропускаем вызов API
-    if (API_URL === 'https://ai-server-u14194.vm.elestio.app') {
-      console.log('⚠️ ELESTIO_URL not set, skipping neuro-photo API call')
-      if (ctx.reply) {
-        await ctx.reply(
-          isRussian(ctx)
-            ? 'Функция генерации нейроизображений временно недоступна.'
-            : 'Neural image generation function is temporarily unavailable.'
-        )
-      }
-      return null
-    }
+    // Больше не проверяем на конкретный URL, т.к. наш резервный URL рабочий
 
     const response = await axios.post(
       url,
