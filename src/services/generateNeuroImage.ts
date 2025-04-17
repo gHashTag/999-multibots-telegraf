@@ -37,6 +37,7 @@ export async function generateNeuroImage(
   })
 
   try {
+    console.log(isDev, 'isDev')
     const url = `${isDev ? LOCAL_SERVER_URL : API_URL}/generate/neuro-photo`
     console.log(url, 'url')
 

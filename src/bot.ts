@@ -32,15 +32,6 @@ type NextFunction = (err?: Error) => void
 
 export const createBots = async () => {
   console.log('🚀 Запуск createBots()')
-  // startApiServer()
-  logger.warn(
-    '⚠️ [AUTOFIX] API сервер не запущен из bots.ts, чтобы избежать конфликта портов. Запуск производится только из bot.ts',
-    {
-      description:
-        'API server not started from bots.ts to prevent port conflict',
-    }
-  )
-
   if (!process.env.TEST_BOT_NAME) {
     logger.error('❌ TEST_BOT_NAME не установлен', {
       description: 'TEST_BOT_NAME is not set',
