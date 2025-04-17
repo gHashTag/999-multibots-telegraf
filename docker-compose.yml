@@ -43,10 +43,11 @@ services:
       - DEBUG=true
       - TS_NODE_PROJECT=tsconfig.prod.json
     volumes:
-      # Комментируем проблемные монтирования, которые могут вызывать ошибки доступа
-      # - /var/run/docker.sock:/var/run/docker.sock
-      # - /etc/nginx:/etc/nginx
-      # - /etc/pki:/etc/pki
+      # Возвращаем важные пути монтирования
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/nginx:/etc/nginx
+      - /etc/pki:/etc/pki
+      # Оставляем закомментированным только проблемный путь
       # - /root/.ssh:/app/.ssh:ro
       # Файлы Ansible
       - ./playbook.yml:/app/playbook.yml:ro
