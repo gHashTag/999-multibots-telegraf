@@ -43,9 +43,10 @@ services:
       - DEBUG=true
       - TS_NODE_PROJECT=tsconfig.prod.json
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /etc/nginx:/etc/nginx
-      - /etc/pki:/etc/pki
+      # Комментируем проблемные монтирования, которые могут вызывать ошибки доступа
+      # - /var/run/docker.sock:/var/run/docker.sock
+      # - /etc/nginx:/etc/nginx
+      # - /etc/pki:/etc/pki
       # - /root/.ssh:/app/.ssh:ro
       # Файлы Ansible
       - ./playbook.yml:/app/playbook.yml:ro
