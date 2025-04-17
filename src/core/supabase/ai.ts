@@ -210,8 +210,8 @@ async function downloadVoiceMessage(fileUrl: string, downloadPath: string) {
   response.data.pipe(writer)
 
   return new Promise((resolve, reject) => {
-    writer.on('finish', resolve)
     writer.on('error', reject)
+    writer.on('finish', () => resolve(undefined))
   })
 }
 

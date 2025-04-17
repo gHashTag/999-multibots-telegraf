@@ -88,7 +88,9 @@ const encryptToken = (token: string): TokenData => {
     }
   } catch (error) {
     logger.error(
-      `[SECURITY] Ошибка при шифровании токена: ${error instanceof Error ? error.message : String(error)}`
+      `[SECURITY] Ошибка при шифровании токена: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
     logSecurityEvent(
       'token_encryption_failed',
@@ -120,7 +122,9 @@ const decryptToken = (encryptedData: TokenData): string => {
     return decrypted
   } catch (error) {
     logger.error(
-      `[SECURITY] Ошибка при расшифровке токена: ${error instanceof Error ? error.message : String(error)}`
+      `[SECURITY] Ошибка при расшифровке токена: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
     logSecurityEvent(
       'token_decryption_failed',
@@ -142,7 +146,9 @@ const loadTokenStorage = (): TokenStorage => {
     return JSON.parse(data)
   } catch (error) {
     logger.error(
-      `[SECURITY] Ошибка при загрузке токенов: ${error instanceof Error ? error.message : String(error)}`
+      `[SECURITY] Ошибка при загрузке токенов: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
     return {}
   }
@@ -154,7 +160,9 @@ const saveTokenStorage = (storage: TokenStorage): void => {
     fs.writeFileSync(TOKENS_FILE, JSON.stringify(storage, null, 2))
   } catch (error) {
     logger.error(
-      `[SECURITY] Ошибка при сохранении токенов: ${error instanceof Error ? error.message : String(error)}`
+      `[SECURITY] Ошибка при сохранении токенов: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
     logSecurityEvent(
       'token_storage_write_failed',
@@ -188,7 +196,9 @@ export const storeToken = (botName: string, token: string): void => {
     logger.info(`[SECURITY] Токен для бота ${botName} успешно сохранен`)
   } catch (error) {
     logger.error(
-      `[SECURITY] Ошибка при сохранении токена для ${botName}: ${error instanceof Error ? error.message : String(error)}`
+      `[SECURITY] Ошибка при сохранении токена для ${botName}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
     logSecurityEvent(
       'token_store_failed',
@@ -219,7 +229,9 @@ export const getToken = (botName: string): string | undefined => {
     return decryptToken(encryptedData)
   } catch (error) {
     logger.error(
-      `[SECURITY] Ошибка при получении токена для ${botName}: ${error instanceof Error ? error.message : String(error)}`
+      `[SECURITY] Ошибка при получении токена для ${botName}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
     logSecurityEvent(
       'token_retrieval_failed',
@@ -252,7 +264,9 @@ export const removeToken = (botName: string): void => {
     }
   } catch (error) {
     logger.error(
-      `[SECURITY] Ошибка при удалении токена для ${botName}: ${error instanceof Error ? error.message : String(error)}`
+      `[SECURITY] Ошибка при удалении токена для ${botName}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
   }
 }

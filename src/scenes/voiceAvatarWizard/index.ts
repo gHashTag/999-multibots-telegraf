@@ -64,8 +64,8 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         'voice' in message
           ? message.voice.file_id
           : 'audio' in message
-            ? message.audio.file_id
-            : undefined
+          ? message.audio.file_id
+          : undefined
       if (!fileId) {
         await ctx.reply(
           isRu

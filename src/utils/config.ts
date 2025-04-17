@@ -279,7 +279,9 @@ export function getBotTokens(): string[] {
   } catch (error) {
     botLogger.error(
       'Config',
-      `Ошибка при чтении .env.local: ${error instanceof Error ? error.message : String(error)}`
+      `Ошибка при чтении .env.local: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
   }
 
@@ -300,7 +302,11 @@ export function getBotTokens(): string[] {
           } catch (fileError) {
             botLogger.error(
               'Config',
-              `Ошибка при чтении файла токена ${file}: ${fileError instanceof Error ? fileError.message : String(fileError)}`
+              `Ошибка при чтении файла токена ${file}: ${
+                fileError instanceof Error
+                  ? fileError.message
+                  : String(fileError)
+              }`
             )
           }
         }
@@ -308,7 +314,9 @@ export function getBotTokens(): string[] {
     } catch (dirError) {
       botLogger.error(
         'Config',
-        `Ошибка при чтении директории secrets: ${dirError instanceof Error ? dirError.message : String(dirError)}`
+        `Ошибка при чтении директории secrets: ${
+          dirError instanceof Error ? dirError.message : String(dirError)
+        }`
       )
     }
   }
@@ -344,7 +352,9 @@ function maskToken(token: string): string {
     Math.max(0, token.length - visibleStart - visibleEnd)
   )
 
-  return `${token.substring(0, visibleStart)}${masked}${token.substring(token.length - visibleEnd)}`
+  return `${token.substring(0, visibleStart)}${masked}${token.substring(
+    token.length - visibleEnd
+  )}`
 }
 
 // Экспортируем объект с конфигурацией

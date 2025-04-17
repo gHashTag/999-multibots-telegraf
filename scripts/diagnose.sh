@@ -105,6 +105,47 @@ if [ -f package.json ]; then
     echo -e "${RED}❌ node_modules не найден. Выполните 'pnpm install'${NC}"
   fi
   
+  # Проверка качества кода
+  print_header "Проверка качества кода"
+
+  # Проверка типов TypeScript
+  if command -v pnpm &> /dev/null && [ -f tsconfig.json ]; then
+    echo -e "${BLUE}Проверка типов TypeScript (tsc --noEmit)...${NC}"
+    # Перенаправляем stderr в stdout, чтобы захватить ошибки
+    TSC_OUTPUT=$(pnpm tsc --noEmit 2>&1)
+    TSC_EXIT_CODE=$?
+    
+    if [ $TSC_EXIT_CODE -eq 0 ]; then
+      echo -e "${GREEN}✅ Ошибки типов TypeScript не найдены${NC}"
+    else
+      echo -e "${RED}❌ Найдены ошибки типов TypeScript:${NC}"
+      # Показываем только строки с 'error TS'
+      echo "$TSC_OUTPUT" | grep 'error TS'
+      echo -e "${YELLOW}Для исправления выполните 'pnpm tsc' или 'pnpm build'${NC}"
+    fi
+  else
+    print_warning "Невозможно проверить типы TypeScript (отсутствует pnpm или tsconfig.json)"
+  fi
+
+  # Проверка форматирования Prettier
+  if command -v pnpm &> /dev/null && [ -f .prettierrc ]; then
+    echo -e "${BLUE}Проверка форматирования Prettier (prettier --check)...${NC}"
+    # Перенаправляем stderr в stdout
+    PRETTIER_OUTPUT=$(pnpm prettier --check . 2>&1)
+    PRETTIER_EXIT_CODE=$?
+    
+    if [ $PRETTIER_EXIT_CODE -eq 0 ]; then
+      echo -e "${GREEN}✅ Проверка форматирования Prettier пройдена${NC}"
+    else
+      echo -e "${RED}❌ Найдены проблемы с форматированием Prettier:${NC}"
+      # Показываем строки с проблемами (обычно они начинаются с ./) 
+      echo "$PRETTIER_OUTPUT" | grep -E '^\./'
+      echo -e "${YELLOW}Для исправления выполните 'pnpm format'${NC}"
+    fi
+  else
+    print_warning "Невозможно проверить форматирование Prettier (отсутствует pnpm или .prettierrc)"
+  fi
+  
 else
   echo -e "${RED}❌ Файл package.json не найден${NC}"
 fi
@@ -117,7 +158,7 @@ if command -v docker &> /dev/null; then
   echo -e "${GREEN}✅ Docker установлен${NC}"
   
   # Проверка docker-compose файлов
-  for file in docker-compose.yml docker-compose.dev.yml docker-compose.longpolling.yml; do
+  for file in docker-compose.yml docker-compose.dev.yml; do
     if [ -f $file ]; then
       echo -e "${GREEN}✅ Файл $file найден${NC}"
     else

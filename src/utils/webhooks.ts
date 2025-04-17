@@ -124,7 +124,9 @@ export async function removeWebhook(
   } catch (error) {
     botLogger.error(
       botName,
-      `Ошибка при удалении вебхука: ${error instanceof Error ? error.message : String(error)}`
+      `Ошибка при удалении вебхука: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
   }
 }

@@ -23,7 +23,9 @@ const commonFormat = format.combine(
     const restString = Object.keys(rest).length
       ? ` ${JSON.stringify(rest)}`
       : ''
-    return `${timestamp} [${level.toUpperCase()}]: ${message}${stack ? `\n${stack}` : ''}${restString}`
+    return `${timestamp} [${level.toUpperCase()}]: ${message}${
+      stack ? `\n${stack}` : ''
+    }${restString}`
   })
 )
 
