@@ -1,6 +1,9 @@
 import axios, { isAxiosError } from 'axios'
 import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
 
+// Используем заглушку, если переменная не установлена
+const API_URL = process.env.ELESTIO_URL || 'https://example.com'
+
 interface TextToVideoResponse {
   success: boolean
   videoUrl?: string
@@ -10,57 +13,33 @@ interface TextToVideoResponse {
 
 export async function generateTextToVideo(
   prompt: string,
-  videoModel: string,
   telegram_id: string,
   username: string,
-  isRu: boolean,
-  botName: string
+  is_ru: boolean,
+  bot_name: string
 ): Promise<TextToVideoResponse> {
   try {
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
-    }/generate/text-to-video`
+    // В случае отсутствия реального URL возвращаем сообщение о недоступности
+    if (API_URL === 'https://example.com') {
+      console.log('⚠️ ELESTIO_URL not set, skipping text-to-video API call')
+      return {
+        success: false,
+        message: is_ru
+          ? 'Функция генерации видео временно недоступна.'
+          : 'Video generation function is temporarily unavailable.',
+      }
+    }
 
-    if (!prompt)
-      throw new Error(
-        isRu
-          ? 'generateTextToVideo: Не удалось определить промпт'
-          : 'generateTextToVideo: Could not identify prompt'
-      )
-    if (!videoModel)
-      throw new Error(
-        isRu
-          ? 'generateTextToVideo: Не удалось определить модель'
-          : 'generateTextToVideo: Could not identify model'
-      )
-    if (!telegram_id)
-      throw new Error(
-        isRu
-          ? 'generateTextToVideo: Не удалось определить telegram_id'
-          : 'generateTextToVideo: Could not identify telegram_id'
-      )
-    if (!username)
-      throw new Error(
-        isRu
-          ? 'generateTextToVideo: Не удалось определить username'
-          : 'generateTextToVideo: Could not identify username'
-      )
-    if (!isRu)
-      throw new Error(
-        isRu
-          ? 'generateTextToVideo: Не удалось определить isRu'
-          : 'generateTextToVideo: Could not identify isRu'
-      )
+    const url = `${isDev ? LOCAL_SERVER_URL : API_URL}/generate/text-to-video`
 
     const response = await axios.post<TextToVideoResponse>(
       url,
       {
         prompt,
-        videoModel,
         telegram_id,
         username,
-        is_ru: isRu,
-        bot_name: botName,
+        is_ru,
+        bot_name,
       },
       {
         headers: {
@@ -70,19 +49,30 @@ export async function generateTextToVideo(
       }
     )
 
-    console.log('Text to video generation response:', response.data)
+    if (!response.data || !response.data.success) {
+      return {
+        success: false,
+        message: is_ru
+          ? 'Сервер не смог сгенерировать видео.'
+          : 'Server was unable to generate the video.',
+      }
+    }
 
     return response.data
   } catch (error) {
-    if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      throw new Error(
-        isRu
-          ? 'generateTextToVideo: Произошла ошибка при генерации видео'
-          : 'generateTextToVideo: Error occurred while generating video'
-      )
+    console.error('Error generating text to video:', error)
+
+    let errorMessage = is_ru
+      ? 'Произошла ошибка при создании видео.'
+      : 'An error occurred while creating the video.'
+
+    if (isAxiosError(error) && error.response?.data?.message) {
+      errorMessage = error.response.data.message
     }
-    console.error('Unexpected error:', error)
-    throw error
+
+    return {
+      success: false,
+      message: errorMessage,
+    }
   }
 }

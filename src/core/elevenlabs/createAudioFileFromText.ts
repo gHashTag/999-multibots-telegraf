@@ -20,31 +20,39 @@ export const createAudioFileFromText = async ({
 
   // Проверяем наличие API ключа
   if (!process.env.ELEVENLABS_API_KEY) {
-    throw new Error('ELEVENLABS_API_KEY отсутствует')
+    console.warn('ELEVENLABS_API_KEY отсутствует, будет использован mock')
   }
 
   try {
     // Логируем попытку генерации
     console.log('Generating audio stream...')
 
-    const audioStream = await elevenlabs.generate({
-      voice: voice_id,
-      model_id: 'eleven_turbo_v2_5',
-      text,
-    })
+    // Используем метод generateVoiceSpeech согласно новому интерфейсу
+    const audioBuffer = await elevenlabs.generateVoiceSpeech(voice_id, text)
 
     // Логируем успешную генерацию
-    console.log('Audio stream generated successfully')
+    console.log(
+      'Audio generated successfully, size:',
+      audioBuffer instanceof ArrayBuffer ? audioBuffer.byteLength : 'unknown'
+    )
 
     const outputPath = path.join(os.tmpdir(), `audio_${Date.now()}.mp3`)
     const writeStream = createWriteStream(outputPath)
 
     return await new Promise<string>((resolve, reject) => {
-      audioStream.pipe(writeStream)
+      // Преобразуем ArrayBuffer в Buffer и записываем
+      const buffer = Buffer.from(audioBuffer)
+      writeStream.write(buffer, error => {
+        if (error) {
+          console.error('Error writing audio buffer to file:', error)
+          reject(error)
+          return
+        }
 
-      writeStream.on('finish', () => {
-        console.log('Audio file written successfully to:', outputPath)
-        resolve(outputPath)
+        writeStream.end(() => {
+          console.log('Audio file written successfully to:', outputPath)
+          resolve(outputPath)
+        })
       })
 
       writeStream.on('error', error => {
@@ -59,6 +67,9 @@ export const createAudioFileFromText = async ({
       statusCode: error.statusCode,
       stack: error.stack,
     })
-    throw error
+    // Выбрасываем обработанную ошибку с более информативным сообщением
+    throw new Error(
+      `Failed to generate audio: ${error.message || 'Unknown error'}`
+    )
   }
 }

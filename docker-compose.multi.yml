@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  longpolling-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: longpolling-bot
+    restart: always
+    volumes:
+      - ./.env:/app/.env
+      - ./logs:/app/logs
+    environment:
+      - NODE_ENV=development
+      - MODE=longpolling
+    command: node dist/multi.js 

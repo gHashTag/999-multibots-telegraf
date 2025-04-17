@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  test-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: test-bot
+    volumes:
+      - ./.env.test:/app/.env
+      - ./logs:/app/logs
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./coverage:/app/coverage
+    environment:
+      - NODE_ENV=test
+    command: npm run test 

@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  standalone-bot:
+    container_name: standalone-multi-bot
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./multi-bot-simple.js:/app/bot.js
+      - ./.env:/app/.env
+    command: sh -c "cd /app && npm install telegraf dotenv && node -e \"require('dotenv').config(); require('./bot.js')\""
+    restart: unless-stopped 

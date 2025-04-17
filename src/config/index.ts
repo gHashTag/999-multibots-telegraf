@@ -23,6 +23,15 @@ if (process.env.NODE_ENV === 'production') {
   console.log('BOT_TOKEN_5 exists:', !!process.env.BOT_TOKEN_5)
   console.log('BOT_TOKEN_6 exists:', !!process.env.BOT_TOKEN_6)
   console.log('BOT_TOKEN_7 exists:', !!process.env.BOT_TOKEN_7)
+  console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL)
+  console.log(
+    'SUPABASE_SERVICE_KEY exists:',
+    !!process.env.SUPABASE_SERVICE_KEY
+  )
+  console.log(
+    'SUPABASE_SERVICE_ROLE_KEY exists:',
+    !!process.env.SUPABASE_SERVICE_ROLE_KEY
+  )
 }
 
 export const CREDENTIALS = process.env.CREDENTIALS === 'true'
@@ -57,3 +66,16 @@ export const {
 } = process.env
 
 export const isDev = process.env.NODE_ENV === 'development'
+
+// Проверка наличия обязательных переменных окружения для Supabase
+export const isSupabaseConfigured = !!(
+  SUPABASE_URL &&
+  SUPABASE_SERVICE_KEY &&
+  SUPABASE_SERVICE_ROLE_KEY
+)
+
+if (!isSupabaseConfigured && process.env.NODE_ENV === 'production') {
+  console.warn(
+    '⚠️ ВНИМАНИЕ: Не настроены параметры Supabase. Боты будут загружены из переменных окружения.'
+  )
+}

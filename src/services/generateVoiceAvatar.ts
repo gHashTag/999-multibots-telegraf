@@ -1,7 +1,10 @@
-import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import axios from 'axios'
+import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
 import { MyContext } from '@/interfaces'
 import { sendGenericErrorMessage } from '@/menu'
+
+// Используем заглушку, если переменная не установлена
+const API_URL = process.env.ELESTIO_URL || 'https://example.com'
 
 interface VoiceAvatarResponse {
   success: boolean
@@ -9,23 +12,43 @@ interface VoiceAvatarResponse {
 }
 
 export async function generateVoiceAvatar(
-  fileUrl: string,
+  imageUrl: string,
+  prompt: string,
   telegram_id: string,
   ctx: MyContext,
   isRu: boolean,
   botName: string
-): Promise<VoiceAvatarResponse> {
+): Promise<VoiceAvatarResponse | null> {
   try {
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
-    }/generate/create-avatar-voice`
+    // В случае отсутствия реального URL возвращаем сообщение о недоступности
+    if (API_URL === 'https://example.com') {
+      console.log('⚠️ ELESTIO_URL not set, skipping voice-avatar API call')
+      try {
+        await ctx.reply(
+          isRu
+            ? 'Функция создания голосового аватара временно недоступна.'
+            : 'Voice avatar creation function is temporarily unavailable.'
+        )
+      } catch (err) {
+        console.error('Ошибка при отправке сообщения о недоступности:', err)
+      }
+      return {
+        success: false,
+        message: isRu
+          ? 'Функция временно недоступна'
+          : 'Function temporarily unavailable',
+      }
+    }
+
+    const url = `${isDev ? LOCAL_SERVER_URL : API_URL}/generate/voice-avatar`
 
     const response = await axios.post<VoiceAvatarResponse>(
       url,
       {
-        fileUrl,
+        imageUrl,
+        prompt,
         telegram_id,
-        username: ctx.from?.username,
+        username: ctx.from?.username || '',
         is_ru: isRu,
         bot_name: botName,
       },
@@ -37,14 +60,24 @@ export async function generateVoiceAvatar(
       }
     )
 
-    console.log('Voice avatar creation response:', response.data)
     return response.data
   } catch (error) {
-    if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      await sendGenericErrorMessage(ctx, isRu, error)
+    console.error('Error generating voice avatar:', error)
+
+    try {
+      const errorMessage = isRu
+        ? 'Произошла ошибка при создании голосового аватара'
+        : 'An error occurred while creating voice avatar'
+
+      await sendGenericErrorMessage(
+        ctx,
+        isRu,
+        error instanceof Error ? error : new Error(errorMessage)
+      )
+    } catch (err) {
+      console.error('Ошибка при отправке сообщения об ошибке:', err)
     }
-    console.error('Unexpected error:', error)
-    throw error
+
+    return null
   }
 }

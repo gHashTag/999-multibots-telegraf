@@ -1,10 +1,13 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { updateUserSoul } from '@/core/supabase'
+import { updateUserSoul } from '../../core/supabase'
 import { isRussian } from '../../helpers/language'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { createHelpCancelKeyboard } from '@/menu'
-import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+import { handleHelpCancel } from '../../handlers/handleHelpCancel'
+import { createHelpCancelKeyboard } from '../../menu'
+import {
+  getUserByTelegramId,
+  updateUserLevelPlusOne,
+} from '../../core/supabase'
 interface WizardSessionData extends Scenes.WizardSessionData {
   company?: string
   position?: string

@@ -43,8 +43,6 @@ import { setupLevelHandlers } from './handlers/setupLevelHandlers'
 
 import { defaultSession } from './store'
 
-// import { handleTextMessage } from './handlers'
-
 import { get100Command } from './commands/get100Command'
 
 //https://github.com/telegraf/telegraf/issues/705
@@ -94,10 +92,11 @@ export function registerCommands({
   composer: Composer<MyContext>
 }) {
   bot.use(session({ defaultSession }))
+
+  bot.use(session({ defaultSession }))
   bot.use(stage.middleware())
   bot.use(composer.middleware())
-  // bot.use(subscriptionMiddleware as Middleware<MyContext>)
-  // composer.use(subscriptionMiddleware as Middleware<MyContext>)
+
   setupLevelHandlers(bot as Telegraf<MyContext>)
 
   // Регистрация команд
@@ -113,7 +112,6 @@ export function registerCommands({
   })
   composer.command('menu', async ctx => {
     console.log('CASE: myComposer.command menu')
-    // ctx.session = defaultSession()
     ctx.session.mode = 'main_menu'
     await ctx.scene.enter('subscriptionCheckScene')
   })
@@ -143,16 +141,7 @@ export function registerCommands({
     await ctx.scene.enter('step0')
   })
 
-  // composer.command('price', async ctx => {
-  //   await priceCommand(ctx)
-  // })
-
   composer.command('neuro_coder', async ctx => {
     await ctx.scene.enter('neuroCoderScene')
   })
-
-  // myComposer.on('text', (ctx: MyContext) => {
-  //   console.log('CASE: text')
-  //   handleTextMessage(ctx)
-  // })
 }

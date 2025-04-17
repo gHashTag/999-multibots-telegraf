@@ -3,9 +3,8 @@ import axios, { isAxiosError } from 'axios'
 import { ELESTIO_URL, isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
 import { MyContext } from '@/interfaces'
 
-if (!process.env.ELESTIO_URL) {
-  throw new Error('ELESTIO_URL is not set')
-}
+// Вместо остановки приложения, используем заглушку, если переменная не установлена
+const API_URL = process.env.ELESTIO_URL || 'https://example.com'
 
 export async function generateImageToPrompt(
   imageUrl: string,
@@ -17,10 +16,20 @@ export async function generateImageToPrompt(
   console.log('Starting generateImageToPrompt with:', { imageUrl, telegram_id })
 
   try {
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
-    }/generate/image-to-prompt`
+    const url = `${isDev ? LOCAL_SERVER_URL : API_URL}/generate/image-to-prompt`
     console.log('url', url)
+
+    // В случае отсутствия реального URL просто пропускаем вызов API
+    if (API_URL === 'https://example.com') {
+      console.log('⚠️ ELESTIO_URL not set, skipping API call')
+      await ctx.reply(
+        isRu
+          ? 'Функция анализа изображения временно недоступна.'
+          : 'Image analysis function is temporarily unavailable.'
+      )
+      return null
+    }
+
     await axios.post(
       url,
       {

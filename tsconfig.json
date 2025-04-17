@@ -38,8 +38,12 @@
       "@/store/*": ["store/*"],
       "@/handlers/*": ["handlers/*"],
       "@/helpers/*": ["helpers/*"],
+      "@/scripts/*": ["scripts/*"],
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.json", ".env"],
-  "exclude": ["node_modules", "src/http", "src/logs"]
+  "ts-node": {
+    "require": ["tsconfig-paths/register"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.json"],
+  "exclude": ["node_modules", "src/node_modules", "dist"]
 }

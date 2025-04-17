@@ -15,8 +15,6 @@ import { logger } from './utils/logger'
 import { setupErrorHandler } from './helpers/error/errorHandler'
 import init from './core/bot'
 
-dotenv.config()
-
 // Логирование для отладки
 console.log('📂 bot.ts загружен', { NODE_ENV, cwd: process.cwd() })
 console.log('🔑 Переменные окружения:', {
@@ -37,6 +35,21 @@ export const createBots = async () => {
       key.includes('BOT_TOKEN')
     ),
   })
+
+  // Проверка обязательных переменных окружения
+  const requiredEnvVars = ['ORIGIN']
+  const missingEnvVars = requiredEnvVars.filter(
+    varName => !process.env[varName]
+  )
+
+  if (missingEnvVars.length > 0) {
+    logger.error('❌ Отсутствуют обязательные переменные окружения', {
+      missing_vars: missingEnvVars,
+    })
+    throw new Error(
+      `Missing required environment variables: ${missingEnvVars.join(', ')}`
+    )
+  }
 
   // Запуск сервера Express для обработки вебхуков
   const serverStarted = await startServer()
@@ -62,6 +75,11 @@ export const createBots = async () => {
     count: botList.length,
     bot_ids: botList.map(b => b.id),
   })
+
+  if (botList.length === 0) {
+    logger.error('❌ Не удалось инициализировать ни одного бота')
+    throw new Error('No bots were initialized')
+  }
 
   // В режиме разработки используем только один тестовый бот
   const testBotName = process.env.TEST_BOT_NAME
@@ -95,32 +113,50 @@ export const createBots = async () => {
     bots: activeBots.map(b => b.id),
   })
 
+  // Проверяем соединение с каждым ботом
+  for (const { instance, id } of activeBots) {
+    try {
+      const me = await instance.telegram.getMe()
+      logger.info(`✅ [${id}] Соединение с Telegram API успешно установлено`, {
+        bot_username: me.username,
+        bot_id: me.id,
+      })
+    } catch (error) {
+      logger.error(
+        `❌ [${id}] Не удалось установить соединение с Telegram API`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+        }
+      )
+    }
+  }
+
   // Настройка каждого бота
-  activeBots.forEach(({ bot, id }) => {
+  activeBots.forEach(({ instance, id }) => {
     logger.info(`🔄 Настройка бота: ${id}`)
 
     // Устанавливаем обработчик ошибок для защиты от проблем с токенами
-    setupErrorHandler(bot)
+    setupErrorHandler(instance)
     logger.info(`✅ [${id}] Обработчик ошибок установлен`)
 
     // Настройка команд и обработчиков
-    setBotCommands(bot)
+    setBotCommands(instance)
     logger.info(`✅ [${id}] Команды бота установлены`)
 
-    registerCommands({ bot, composer })
+    registerCommands({ bot: instance, composer })
     logger.info(`✅ [${id}] Обработчики команд зарегистрированы`)
 
-    registerCallbackActions(bot)
+    registerCallbackActions(instance)
     logger.info(`✅ [${id}] Обработчики колбэков зарегистрированы`)
 
-    registerPaymentActions(bot)
+    registerPaymentActions(instance)
     logger.info(`✅ [${id}] Обработчики платежей зарегистрированы`)
 
-    registerHearsActions(bot)
+    registerHearsActions(instance)
     logger.info(`✅ [${id}] Обработчики текстовых сообщений зарегистрированы`)
 
     // Добавляем логирование для входящих сообщений
-    bot.use((ctx: MyContext, next: NextFunction) => {
+    instance.use((ctx: MyContext, next: NextFunction) => {
       logger.info('🔍 Получено сообщение/команда:', {
         description: 'Message/command received',
         text:
@@ -138,6 +174,33 @@ export const createBots = async () => {
   })
 
   logger.info('🏁 Все боты успешно настроены и запущены!')
+
+  // Проверяем активные вебхуки для каждого бота в production режиме
+  if (NODE_ENV === 'production') {
+    setTimeout(async () => {
+      logger.info('🔍 Проверка статуса вебхуков...')
+      for (const { instance, id } of activeBots) {
+        try {
+          const webhookInfo = await instance.telegram.getWebhookInfo()
+
+          if (!webhookInfo.url) {
+            logger.error(`❌ [${id}] Вебхук не настроен!`, {
+              webhook_url: webhookInfo.url,
+            })
+          } else {
+            logger.info(`✅ [${id}] Вебхук активен:`, {
+              webhook_url: webhookInfo.url,
+              pending_updates: webhookInfo.pending_update_count,
+            })
+          }
+        } catch (error) {
+          logger.error(`❌ [${id}] Ошибка при проверке вебхука:`, {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+    }, 5000) // Проверяем через 5 секунд после запуска
+  }
 }
 
 console.log('🏁 Запуск приложения')
