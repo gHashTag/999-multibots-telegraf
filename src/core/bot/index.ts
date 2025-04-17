@@ -69,7 +69,7 @@ logger.info('🤖 Инициализация defaultBot:', {
 
 // Инициализируем ботов при старте приложения
 export const bots = Object.entries(BOT_NAMES)
-  .filter(([_, token]) => token) // Фильтруем undefined токены
+  .filter(([, token]) => token) // Фильтруем undefined токены
   .map(([name, token]) => {
     // Если это defaultBot, используем существующий экземпляр
     if (name === DEFAULT_BOT_NAME) {
