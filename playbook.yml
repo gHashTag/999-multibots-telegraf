@@ -1,3 +1,4 @@
+---
 - name: Configure Nginx
   hosts: webservers
   vars_files:

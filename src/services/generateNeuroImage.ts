@@ -1,11 +1,12 @@
-import axios, { isAxiosError } from 'axios'
+import axios from 'axios'
 
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
 import { isRussian } from '@/helpers/language'
 import { MyContext, ModelUrl } from '@/interfaces'
 
 // Используем заглушку, если переменная не установлена
-const API_URL = process.env.ELESTIO_URL || 'https://example.com'
+const API_URL =
+  process.env.ELESTIO_URL || 'https://ai-server-u14194.vm.elestio.app'
 
 export async function generateNeuroImage(
   prompt: string,
@@ -37,9 +38,10 @@ export async function generateNeuroImage(
 
   try {
     const url = `${isDev ? LOCAL_SERVER_URL : API_URL}/generate/neuro-photo`
+    console.log(url, 'url')
 
     // В случае отсутствия реального URL просто пропускаем вызов API
-    if (API_URL === 'https://example.com') {
+    if (API_URL === 'https://ai-server-u14194.vm.elestio.app') {
       console.log('⚠️ ELESTIO_URL not set, skipping neuro-photo API call')
       if (ctx.reply) {
         await ctx.reply(
