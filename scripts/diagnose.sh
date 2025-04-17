@@ -42,10 +42,12 @@ print_header "Проверка переменных окружения"
 if [ -f .env ]; then
   echo -e "${GREEN}✅ Файл .env найден${NC}"
   
-  # Проверка основных переменных
+  # Загрузка переменных из .env
+  set -a # automatically export all variables
   source .env
+  set +a
   
-  # Проверка режима работы
+  # Проверка основных переменных
   if [ -n "$MODE" ]; then
     echo -e "${GREEN}✅ MODE=$MODE${NC}"
   else
@@ -64,7 +66,17 @@ if [ -f .env ]; then
     fi
   done
   
-  echo -e "${BLUE}Найдено активных токенов: $BOT_COUNT${NC}"
+  # Проверка тестовых токенов (необязательно, если не в development)
+  for i in {1..2}; do
+    var_name="BOT_TOKEN_TEST_$i"
+    if [ -z "${!var_name}" ]; then
+      print_warning "$var_name не установлен (необходимо для development)"
+    else
+      echo -e "${GREEN}✅ $var_name установлен${NC}"
+    fi
+  done
+
+  echo -e "${BLUE}Найдено активных продакшн токенов: $BOT_COUNT${NC}"
   
   # Проверка Supabase
   if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_SERVICE_KEY" ]; then
@@ -72,6 +84,17 @@ if [ -f .env ]; then
   else
     echo -e "${RED}❌ Переменные Supabase не установлены${NC}"
   fi
+
+  # Проверка опциональных переменных для интеграций
+  print_warning "Проверка опциональных переменных (предупреждения не критичны):"
+  OPTIONAL_VARS=("INNGEST_EVENT_KEY" "INNGEST_SIGNING_KEY" "INNGEST_URL" "INNGEST_BASE_URL" "SECRET_KEY" "LOG_FORMAT" "ELEVENLABS_API_KEY" "REPLICATE_API_TOKEN")
+  for var_name in "${OPTIONAL_VARS[@]}"; do
+    if [ -z "${!var_name}" ]; then
+      print_warning "$var_name не установлена"
+    else
+      echo -e "${GREEN}✅ $var_name установлена${NC}"
+    fi
+  done
   
 else
   echo -e "${RED}❌ Файл .env не найден${NC}"

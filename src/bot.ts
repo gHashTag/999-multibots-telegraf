@@ -13,7 +13,7 @@ import { registerHearsActions } from './handlers/hearsActions'
 import { registerCommands } from './registerCommands'
 import { setBotCommands } from './setCommands'
 import { getBotNameByToken } from './core/bot'
-import { bots } from './core/bot'
+import { bots, BOT_TOKENS } from './core/bot'
 import { logger } from './utils/logger'
 import { setupErrorHandler } from './helpers/error/errorHandler'
 
@@ -60,8 +60,13 @@ export const createBots = async () => {
         })
       : null
 
+  // Определяем активных ботов в зависимости от режима
   const activeBots =
-    NODE_ENV === 'development' ? (testBot ? [testBot] : []) : bots
+    NODE_ENV === 'development'
+      ? testBot
+        ? [testBot]
+        : []
+      : bots.filter(bot => BOT_TOKENS.includes(bot.telegram.token)) // Используем BOT_TOKENS для фильтрации
 
   if (NODE_ENV === 'development' && activeBots.length === 0) {
     logger.error('❌ Тестовый бот не найден', {
