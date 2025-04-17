@@ -10,7 +10,8 @@ import { logger } from '@/utils/logger'
 import { getBotGroupFromAvatars } from '@/core/supabase'
 if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
 if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
-if (!process.env.BOT_TOKEN_3) throw new Error('BOT_TOKEN_3 is not set')
+// Проверка BOT_TOKEN_3 временно отключена, т.к. токен недействителен
+// if (!process.env.BOT_TOKEN_3) throw new Error('BOT_TOKEN_3 is not set')
 if (!process.env.BOT_TOKEN_4) throw new Error('BOT_TOKEN_4 is not set')
 if (!process.env.BOT_TOKEN_5) throw new Error('BOT_TOKEN_5 is not set')
 if (!process.env.BOT_TOKEN_6) throw new Error('BOT_TOKEN_6 is not set')
@@ -24,7 +25,8 @@ if (!process.env.BOT_TOKEN_TEST_2)
 const BOT_TOKENS_PROD = [
   process.env.BOT_TOKEN_1,
   process.env.BOT_TOKEN_2,
-  process.env.BOT_TOKEN_3,
+  // BOT_TOKEN_3 временно исключен из списка из-за недействительности токена
+  // process.env.BOT_TOKEN_3,
   process.env.BOT_TOKEN_4,
   process.env.BOT_TOKEN_5,
   process.env.BOT_TOKEN_6,
@@ -38,7 +40,8 @@ const BOT_TOKENS_TEST = [
 export const BOT_NAMES = {
   ['neuro_blogger_bot']: process.env.BOT_TOKEN_1,
   ['MetaMuse_Manifest_bot']: process.env.BOT_TOKEN_2,
-  ['ZavaraBot']: process.env.BOT_TOKEN_3,
+  // ZavaraBot временно отключен из-за недействительного токена
+  // ['ZavaraBot']: process.env.BOT_TOKEN_3,
   ['LeeSolarbot']: process.env.BOT_TOKEN_4,
   ['NeuroLenaAssistant_bot']: process.env.BOT_TOKEN_5,
   ['NeurostylistShtogrina_bot']: process.env.BOT_TOKEN_6,
