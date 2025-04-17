@@ -117,8 +117,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           videoModel,
           ctx.from.id.toString(),
           ctx.from.username,
-          isRu,
-          ctx.botInfo?.username
+          isRu
         )
 
         ctx.session.prompt = prompt

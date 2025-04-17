@@ -1,10 +1,10 @@
 import express from 'express'
 import dotenv from 'dotenv'
-import { Telegraf } from 'telegraf'
+
 import bodyParser from 'body-parser'
 import { logger } from './utils/logger'
-import { loadTokens } from './utils/config'
-import { createBot } from './core/bot'
+import { getBotTokens as loadTokens } from './utils/config'
+import { createBot, BotInstance, BotInfo } from './core/bot'
 
 // Загружаем переменные окружения
 dotenv.config()
@@ -18,34 +18,47 @@ app.use(bodyParser.json())
 
 // Загружаем токены ботов
 const tokens = loadTokens()
-const bots: Telegraf[] = []
+const bots: BotInstance[] = []
 
 async function setupWebhooks() {
   try {
     logger.info('Начинаем настройку вебхуков для ботов')
 
     // Создаем и настраиваем каждого бота
-    for (const [name, token] of Object.entries(tokens)) {
+    for (const [index, token] of tokens.entries()) {
       try {
+        const name = `bot_${index}`
         logger.info(`Настройка бота: ${name}`)
-        const bot = createBot(token, name)
+
+        // Создаем объект BotInfo для вызова функции createBot
+        const botInfo: BotInfo = {
+          id: name,
+          token,
+        }
+
+        const bot = await createBot(botInfo)
+
+        if (!bot) {
+          logger.error(`Не удалось создать бота ${name}`)
+          continue
+        }
 
         // Создаем уникальный путь для вебхука
         const webhookPath = `/bot${token}`
         const webhookUrl = `${BASE_URL}${webhookPath}`
 
-        // Настраиваем вебхук
-        await bot.telegram.setWebhook(webhookUrl)
+        // Настраиваем вебхук, используя поле instance для доступа к telegram
+        await bot.instance.telegram.setWebhook(webhookUrl)
         logger.info(`Webhook установлен для ${name}: ${webhookUrl}`)
 
         // Настраиваем обработчик для вебхука
         app.use(webhookPath, (req, res) => {
-          bot.handleUpdate(req.body, res)
+          bot.instance.handleUpdate(req.body, res)
         })
 
         bots.push(bot)
       } catch (error) {
-        logger.error(`Ошибка при настройке бота ${name}:`, error)
+        logger.error(`Ошибка при настройке бота ${index}:`, error)
       }
     }
 
@@ -70,16 +83,15 @@ async function setupWebhooks() {
 // Обработка выхода из приложения
 process.on('SIGINT', () => {
   logger.info('Получен сигнал SIGINT, закрываем соединения')
-  bots.forEach(bot => bot.stop())
+  bots.forEach(bot => bot.instance.stop())
   process.exit(0)
 })
 
 process.on('SIGTERM', () => {
   logger.info('Получен сигнал SIGTERM, закрываем соединения')
-  bots.forEach(bot => bot.stop())
+  bots.forEach(bot => bot.instance.stop())
   process.exit(0)
 })
 
 // Запускаем настройку вебхуков
 setupWebhooks()
- 

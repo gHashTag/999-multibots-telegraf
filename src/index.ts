@@ -1,6 +1,6 @@
 import * as dotenv from 'dotenv'
 import logger from './utils/logger'
-import { launchBots, stopBots } from './utils/launch'
+import { startBotsFromEnv, stopBots } from './utils/launch'
 
 // Загружаем переменные окружения
 dotenv.config()
@@ -13,7 +13,7 @@ async function main() {
     logger.info('Запуск приложения...')
 
     // Запускаем ботов из настроек
-    const bots = await launchBots()
+    const bots = await startBotsFromEnv()
 
     if (bots.length === 0) {
       logger.error(

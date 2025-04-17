@@ -1,7 +1,7 @@
 import { videoModelPrices } from '@/price/models/videoModelPrices'
 import { starCost } from '@/price'
 import { VideoModel } from '@/interfaces'
-import { interestRate } from '@/price/'
+import { interestRate } from '@/price/interestRate'
 
 // Функция для расчета окончательной стоимости модели
 export function calculateFinalPrice(model: VideoModel): number {

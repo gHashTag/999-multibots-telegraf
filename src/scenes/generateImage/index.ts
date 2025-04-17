@@ -6,9 +6,13 @@ import { generateImageFromPrompt } from '@/services/generateImageFromPrompt'
 import { createGenerateImageKeyboard } from '@/menu'
 
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { getBotToken } from '@/handlers'
 
 const PROMPT_MAX_LENGTH = 1000
+
+// Интерфейс для состояния сцены
+interface GenerateImageState {
+  prompt?: string
+}
 
 export const generateImageWizard = new Scenes.WizardScene<MyContext>(
   'generate_image',
@@ -26,10 +30,10 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
         ? 'Введите промпт для генерации изображения (максимум 1000 символов):'
         : 'Enter a prompt for image generation (maximum 1000 characters):',
       {
-        reply_markup: createGenerateImageKeyboard(isRu).reply_markup,
+        reply_markup: createGenerateImageKeyboard(),
       }
     )
-    ctx.scene.session.state = {}
+    ctx.scene.session.state = {} as GenerateImageState
     return ctx.wizard.next()
   },
   async ctx => {
@@ -48,7 +52,7 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
           ? 'Пожалуйста, введите текстовый промпт.'
           : 'Please enter a text prompt.',
         {
-          reply_markup: createGenerateImageKeyboard(isRu).reply_markup,
+          reply_markup: createGenerateImageKeyboard(),
         }
       )
       return
@@ -63,14 +67,15 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
           ? `Промпт слишком длинный. Максимальная длина: ${PROMPT_MAX_LENGTH} символов.`
           : `Prompt is too long. Maximum length: ${PROMPT_MAX_LENGTH} characters.`,
         {
-          reply_markup: createGenerateImageKeyboard(isRu).reply_markup,
+          reply_markup: createGenerateImageKeyboard(),
         }
       )
       return
     }
 
     // Сохраняем промпт в состоянии сессии
-    ctx.scene.session.state.prompt = prompt
+    const state = ctx.scene.session.state as GenerateImageState
+    state.prompt = prompt
 
     // Запрашиваем у пользователя размер изображения
     await ctx.reply(
@@ -95,7 +100,11 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
     const isRu = ctx.from?.language_code === 'ru'
 
     // Обработка кнопки отмены
-    if (ctx.callbackQuery && ctx.callbackQuery.data === 'cancel') {
+    if (
+      ctx.callbackQuery &&
+      'data' in ctx.callbackQuery &&
+      ctx.callbackQuery.data === 'cancel'
+    ) {
       await ctx.answerCbQuery()
       await ctx.reply(
         isRu ? 'Генерация изображения отменена.' : 'Image generation cancelled.'
@@ -133,7 +142,8 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Получаем промпт из состояния сессии
-    const prompt = ctx.scene.session.state.prompt
+    const state = ctx.scene.session.state as GenerateImageState
+    const prompt = state.prompt
 
     if (!prompt) {
       await ctx.reply(
@@ -152,18 +162,23 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
     )
 
     try {
-      // Получаем имя бота и токен
-      const [, botName] = await getBotToken(ctx)
+      // Получаем ID пользователя для генерации
+      const userId = ctx.from?.id || 0
 
-      // Генерируем изображение
-      await generateImageFromPrompt(
+      // Генерируем изображение с исправленным вызовом функции
+      const imageUrl = await generateImageFromPrompt(
         prompt,
-        size,
-        String(ctx.from?.id),
-        ctx,
-        isRu,
-        botName
+        userId,
+        'standard', // Стиль по умолчанию
+        size // Добавляем параметр размера
       )
+
+      // Отправляем сгенерированное изображение
+      await ctx.replyWithPhoto(imageUrl, {
+        caption: isRu
+          ? 'Изображение сгенерировано по вашему запросу'
+          : 'Image generated based on your prompt',
+      })
 
       return ctx.scene.leave()
     } catch (error) {

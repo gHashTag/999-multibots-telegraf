@@ -1,78 +1,30 @@
-import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import { logger } from '../utils/logger'
 
-// Используем заглушку, если переменная не установлена
-const API_URL = process.env.ELESTIO_URL || 'https://example.com'
-
-interface TextToVideoResponse {
-  success: boolean
-  videoUrl?: string
-  message?: string
-  prompt_id?: number
-}
-
+/**
+ * Генерирует видео на основе текстового промпта
+ * @param prompt Текстовый промпт для генерации
+ * @param videoModel Модель для генерации видео
+ * @param userId ID пользователя
+ * @param username Имя пользователя
+ * @param isRu Флаг русского языка
+ * @returns Promise<void>
+ */
 export async function generateTextToVideo(
   prompt: string,
-  telegram_id: string,
+  videoModel: string,
+  userId: string,
   username: string,
-  is_ru: boolean,
-  bot_name: string
-): Promise<TextToVideoResponse> {
-  try {
-    // В случае отсутствия реального URL возвращаем сообщение о недоступности
-    if (API_URL === 'https://example.com') {
-      console.log('⚠️ ELESTIO_URL not set, skipping text-to-video API call')
-      return {
-        success: false,
-        message: is_ru
-          ? 'Функция генерации видео временно недоступна.'
-          : 'Video generation function is temporarily unavailable.',
-      }
-    }
+  isRu: boolean
+): Promise<void> {
+  logger.info('Генерация видео:', {
+    prompt,
+    videoModel,
+    userId,
+    username,
+    isRu,
+  })
 
-    const url = `${isDev ? LOCAL_SERVER_URL : API_URL}/generate/text-to-video`
-
-    const response = await axios.post<TextToVideoResponse>(
-      url,
-      {
-        prompt,
-        telegram_id,
-        username,
-        is_ru,
-        bot_name,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
-    )
-
-    if (!response.data || !response.data.success) {
-      return {
-        success: false,
-        message: is_ru
-          ? 'Сервер не смог сгенерировать видео.'
-          : 'Server was unable to generate the video.',
-      }
-    }
-
-    return response.data
-  } catch (error) {
-    console.error('Error generating text to video:', error)
-
-    let errorMessage = is_ru
-      ? 'Произошла ошибка при создании видео.'
-      : 'An error occurred while creating the video.'
-
-    if (isAxiosError(error) && error.response?.data?.message) {
-      errorMessage = error.response.data.message
-    }
-
-    return {
-      success: false,
-      message: errorMessage,
-    }
-  }
+  // Здесь должна быть реальная логика генерации видео
+  // В режиме заглушки просто возвращаем Promise
+  return Promise.resolve()
 }

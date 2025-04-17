@@ -64,8 +64,8 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         'voice' in message
           ? message.voice.file_id
           : 'audio' in message
-          ? message.audio.file_id
-          : undefined
+            ? message.audio.file_id
+            : undefined
       if (!fileId) {
         await ctx.reply(
           isRu
@@ -82,12 +82,18 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         }
 
         const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+
+        // Получаем текст сообщения безопасно
+        const messageText =
+          'text' in ctx.message ? ctx.message.text : 'No text provided'
+
         await generateVoiceAvatar(
           fileUrl,
+          messageText,
           ctx.from.id.toString(),
           ctx,
           isRu,
-          ctx.botInfo?.username
+          ctx.botInfo?.username || 'unknown_bot'
         )
       } catch (error) {
         console.error('Error in handleVoiceMessage:', error)
@@ -102,5 +108,3 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     }
   }
 )
-
-export default voiceAvatarWizard

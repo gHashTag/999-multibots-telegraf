@@ -40,6 +40,8 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
       - DOCKER_ENVIRONMENT=true
+      - DEBUG=true
+      - TS_NODE_PROJECT=tsconfig.prod.json
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/nginx:/etc/nginx
@@ -55,8 +57,6 @@ services:
     extra_hosts:
       - "api.elevenlabs.io:127.0.0.1"
       - "host.docker.internal:172.27.0.1"
-      - DEBUG=true
-      - TS_NODE_PROJECT=tsconfig.prod.json
     networks:
       - app-network
     restart: unless-stopped

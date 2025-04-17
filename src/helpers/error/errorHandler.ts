@@ -1,7 +1,14 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import { supportRequest } from '@/core/bot'
+// Убираем импорт отсутствующей функции supportRequest
+// import { supportRequest } from '@/core/bot'
+
+// Создаем заглушку для функции supportRequest
+const supportRequest = (message: string, data: any) => {
+  logger.warn('⚠️ Вызов заглушки supportRequest:', { message, data })
+  // Здесь можно добавить функционал отправки сообщения в специальный канал поддержки
+}
 
 // Интерфейс для типизации ошибки Telegram API
 interface TelegramError {

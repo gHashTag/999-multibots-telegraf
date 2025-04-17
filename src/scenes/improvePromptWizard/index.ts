@@ -136,9 +136,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ctx.session.prompt,
                 ctx.session.videoModel,
                 ctx.from.id.toString(),
-                ctx.from.username,
-                isRu,
-                ctx.botInfo?.username
+                ctx.from.username || 'unknown',
+                isRu
               )
               break
             case 'text_to_image':
