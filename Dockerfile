@@ -9,6 +9,7 @@ RUN npm install
 COPY . .
 
 # Выполняем сборку TypeScript с пропуском проверки типов для решения проблем совместимости
+# и обрабатываем алиасы путей с помощью tsc-alias (включено в скрипт build:nocheck)
 RUN npm run build:nocheck
 
 # Финальный этап

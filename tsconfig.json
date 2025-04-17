@@ -39,6 +39,7 @@
       "@/handlers/*": ["handlers/*"],
       "@/helpers/*": ["helpers/*"],
       "@/scripts/*": ["scripts/*"],
+ 
     }
   },
   "ts-node": {

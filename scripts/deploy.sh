@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 SERVER_USER="root"
 SERVER_HOST="999-multibots-u14194.vm.elestio.app"
 SERVER_PATH="/opt/app/999-multibots-telegraf"
-SSH_KEY="~/.ssh/id_rsa"
+SSH_KEY="$HOME/.ssh/id_rsa"
 
 # Функция для форматированного вывода
 log() {

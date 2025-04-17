@@ -36,7 +36,8 @@
       "@/price/*": ["price/*"],
       "@/store/*": ["store/*"],
       "@/handlers/*": ["handlers/*"],
-      "@/helpers/*": ["helpers/*"]
+      "@/helpers/*": ["helpers/*"],
+      "@/scripts/*": ["scripts/*"],
     }
   },
   "module": {

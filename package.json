@@ -7,9 +7,9 @@
   "scripts": {
     "predev": "node scripts/kill-port.cjs 2999 3001 8288",
     "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only src/bot.ts",
-    "build": "tsc",
-    "build:prod": "tsc -p tsconfig.prod.json",
-    "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck",
+    "build": "tsc && tsc-alias",
+    "build:prod": "tsc -p tsconfig.prod.json && tsc-alias",
+    "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && tsc-alias",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
