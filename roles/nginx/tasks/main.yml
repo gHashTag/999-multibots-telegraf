@@ -74,4 +74,4 @@
     mode: 0644
 
 - name: Reload nginx
-  shell: docker exec nginx-proxy nginx -s reload
+  shell: docker exec bot-proxy nginx -s reload
