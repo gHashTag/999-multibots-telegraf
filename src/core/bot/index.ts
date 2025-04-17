@@ -1,278 +1,243 @@
+import dotenv from 'dotenv'
+
+dotenv.config()
+
+import { NODE_ENV } from '@/config'
 import { Telegraf } from 'telegraf'
-import { MyContext } from '../../interfaces'
-import { registerCommands } from '../../registerCommands'
-import logger from '../../utils/logger'
-import { Composer } from 'telegraf'
-import { validateToken } from './utils'
+import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/logger'
 
-export {
-  getBotNameByToken,
-  DEFAULT_BOT_NAME,
-  BOT_NAMES,
-  BOT_TOKENS,
-  maskToken,
-} from './utils'
+import { getBotGroupFromAvatars } from '@/core/supabase'
+if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
+if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
+if (!process.env.BOT_TOKEN_3) throw new Error('BOT_TOKEN_3 is not set')
+if (!process.env.BOT_TOKEN_4) throw new Error('BOT_TOKEN_4 is not set')
+if (!process.env.BOT_TOKEN_5) throw new Error('BOT_TOKEN_5 is not set')
+if (!process.env.BOT_TOKEN_6) throw new Error('BOT_TOKEN_6 is not set')
+if (!process.env.BOT_TOKEN_7) throw new Error('BOT_TOKEN_7 is not set')
 
-/**
- * Информация о боте
- */
-export interface BotInfo {
-  id: string
-  token: string
-  username?: string
-  error?: Error
+if (!process.env.BOT_TOKEN_TEST_1)
+  throw new Error('BOT_TOKEN_TEST_1 is not set')
+if (!process.env.BOT_TOKEN_TEST_2)
+  throw new Error('BOT_TOKEN_TEST_2 is not set')
+
+const BOT_TOKENS_PROD = [
+  process.env.BOT_TOKEN_1,
+  process.env.BOT_TOKEN_2,
+  process.env.BOT_TOKEN_3,
+  process.env.BOT_TOKEN_4,
+  process.env.BOT_TOKEN_5,
+  process.env.BOT_TOKEN_6,
+  process.env.BOT_TOKEN_7,
+]
+const BOT_TOKENS_TEST = [
+  process.env.BOT_TOKEN_TEST_1,
+  process.env.BOT_TOKEN_TEST_2,
+]
+
+export const BOT_NAMES = {
+  ['neuro_blogger_bot']: process.env.BOT_TOKEN_1,
+  ['MetaMuse_Manifest_bot']: process.env.BOT_TOKEN_2,
+  ['ZavaraBot']: process.env.BOT_TOKEN_3,
+  ['LeeSolarbot']: process.env.BOT_TOKEN_4,
+  ['NeuroLenaAssistant_bot']: process.env.BOT_TOKEN_5,
+  ['NeurostylistShtogrina_bot']: process.env.BOT_TOKEN_6,
+  ['Gaia_Kamskaia_bot']: process.env.BOT_TOKEN_7,
+  ['ai_koshey_bot']: process.env.BOT_TOKEN_TEST_1,
+  ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_TEST_2,
 }
 
-/**
- * Экземпляр запущенного бота
- */
-export interface BotInstance {
-  id: string
-  username?: string
-  instance: Telegraf<MyContext>
+// Tutorial URLs
+export const BOT_URLS = {
+  MetaMuse_Manifest_bot: 'https://t.me/MetaMuse_manifestation/16',
+  neuro_blogger_bot: 'https://t.me/neuro_coder_ai/1212',
+  ai_koshey_bot: 'https://t.me/neuro_coder_ai/1212',
 }
 
-/**
- * Список ботов
- */
-export type BotList = BotInfo[]
+export const BOT_TOKENS =
+  NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_TEST
 
-/**
- * Создает экземпляр бота Telegram и настраивает его
- * @param botInfo Информация о боте
- * @returns Экземпляр бота
- */
-export async function createBot(botInfo: BotInfo): Promise<BotInstance | null> {
-  const { id, token, username } = botInfo
-  const identifier = username ? `@${username}` : `ID ${id}`
+export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
 
-  try {
-    // Проверяем валидность токена
-    if (!validateToken(token)) {
-      logger.error({
-        message: `❌ Невалидный формат токена для бота ${identifier}`,
-        description: 'Invalid token format',
-        bot_id: id,
+export const DEFAULT_BOT_NAME = 'neuro_blogger_bot'
+export const defaultBot = new Telegraf<MyContext>(DEFAULT_BOT_TOKEN)
+
+logger.info('🤖 Инициализация defaultBot:', {
+  description: 'DefaultBot initialization',
+  tokenLength: DEFAULT_BOT_TOKEN.length,
+})
+
+// Инициализируем ботов при старте приложения
+export const bots = Object.entries(BOT_NAMES)
+  .filter(([_, token]) => token) // Фильтруем undefined токены
+  .map(([name, token]) => {
+    // Если это defaultBot, используем существующий экземпляр
+    if (name === DEFAULT_BOT_NAME) {
+      logger.info('🤖 Использование существующего defaultBot:', {
+        description: 'Using existing defaultBot',
+        bot_name: name,
       })
-      return null
+      return defaultBot
     }
-
-    // Создаем экземпляр бота
-    logger.info({
-      message: `🤖 Создание экземпляра бота ${identifier}`,
-      description: 'Creating bot instance',
-      bot_id: id,
-    })
 
     const bot = new Telegraf<MyContext>(token)
 
-    // Регистрируем обработчики команд
-    const composerInstance = new Composer<MyContext>()
-    await registerCommands({ bot, composer: composerInstance })
-
-    // Добавляем контекст бота
-    bot.context.botId = id
-    bot.context.botUsername = username
-
-    // Настраиваем обработку ошибок
-    bot.catch((error, ctx) => {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error)
-      logger.error({
-        message: `❌ Ошибка в боте ${identifier}: ${errorMessage}`,
-        description: 'Bot error',
-        bot_id: id,
-        update_id: ctx.update?.update_id,
-        chat_id: ctx.chat?.id,
-        user_id: ctx.from?.id,
-        error: errorMessage,
-      })
+    logger.info('🤖 Инициализация бота:', {
+      description: 'Bot initialization',
+      bot_name: name,
+      tokenLength: token.length,
     })
 
-    logger.info({
-      message: `✅ Бот ${identifier} успешно создан и настроен`,
-      description: 'Bot instance created',
-      bot_id: id,
-    })
+    return bot
+  })
 
-    // Возвращаем экземпляр бота
-    return {
-      id,
-      username,
-      instance: bot,
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+logger.info('🌟 Инициализировано ботов:', {
+  description: 'Bots initialized',
+  count: bots.length,
+  bot_names: Object.keys(BOT_NAMES),
+})
+
+export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1
+export const pulseBot = new Telegraf<MyContext>(PULSE_BOT_TOKEN)
+
+logger.info('🤖 Инициализация pulseBot:', {
+  description: 'PulseBot initialization',
+  tokenLength: PULSE_BOT_TOKEN.length,
+})
+
+export function getBotNameByToken(token: string): { bot_name: string } {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)
+  if (!entry) {
+    return { bot_name: DEFAULT_BOT_NAME }
+  }
+
+  const [bot_name] = entry
+  return { bot_name }
+}
+
+export function getTokenByBotName(botName: string): string | undefined {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const entry = Object.entries(BOT_NAMES).find(([name, _]) => name === botName)
+  if (!entry) {
+    console.warn(`Bot name ${botName} not found.`)
+    return undefined
+  }
+
+  const [, token] = entry
+  return token
+}
+
+export async function createBotByName(
+  botName: string
+): Promise<
+  { token: string; groupId: string; bot: Telegraf<MyContext> } | undefined
+> {
+  const token = getTokenByBotName(botName)
+  if (!token) {
+    logger.error('❌ Токен для бота не найден:', {
+      description: 'Token not found for bot',
+      botName,
+    })
+    return undefined
+  }
+
+  const groupId = await getBotGroupFromAvatars(botName)
+
+  // Ищем бота в массиве bots
+  const botIndex = Object.keys(BOT_NAMES).indexOf(botName)
+  const bot = bots[botIndex]
+
+  if (!bot) {
+    logger.error('❌ Экземпляр бота не найден:', {
+      description: 'Bot instance not found',
+      botName,
+      botIndex,
+      availableBots: Object.keys(BOT_NAMES),
+    })
+    return undefined
+  }
+
+  return {
+    token,
+    groupId,
+    bot,
+  }
+}
+
+export function getBotByName(bot_name: string): {
+  bot?: Telegraf<MyContext>
+  error?: string | null
+} {
+  logger.info({
+    message: '🔎 getBotByName запрошен для',
+    description: 'getBotByName requested for',
+    bot_name,
+  })
+
+  // Проверяем наличие бота в конфигурации
+  const token = BOT_NAMES[bot_name]
+  if (!token) {
     logger.error({
-      message: `❌ Не удалось создать экземпляр бота ${identifier}: ${errorMessage}`,
-      description: 'Failed to create bot instance',
-      bot_id: id,
-      error: errorMessage,
+      message: '❌ Токен бота не найден в конфигурации',
+      description: 'Bot token not found in configuration',
+      bot_name,
+      availableBots: Object.keys(BOT_NAMES),
     })
-    return null
-  }
-}
-
-/**
- * Получает информацию о ботах из переменных окружения
- * @returns Список информации о ботах
- */
-export function getBotsInfo(): BotInfo[] {
-  const botInfos: BotInfo[] = []
-
-  // Проверяем переменную BOT_TOKEN (для одного бота)
-  const singleBotToken = process.env.BOT_TOKEN
-  if (singleBotToken) {
-    botInfos.push({
-      id: 'main',
-      token: singleBotToken,
-    })
-  }
-
-  // Проверяем переменную BOT_TOKENS (для нескольких ботов через запятую)
-  const multipleBotTokens = process.env.BOT_TOKENS
-  if (multipleBotTokens) {
-    const tokens = multipleBotTokens.split(',').map(token => token.trim())
-    tokens.forEach((token, index) => {
-      if (token) {
-        botInfos.push({
-          id: `bot${index + 1}`,
-          token,
-        })
-      }
-    })
-  }
-
-  // Проверяем переменные вида BOT_TOKEN_1, BOT_TOKEN_2, и т.д.
-  for (let i = 1; i <= 20; i++) {
-    const envKey = `BOT_TOKEN_${i}`
-    const token = process.env[envKey]
-    if (token) {
-      botInfos.push({
-        id: `bot${i}`,
-        token,
-      })
-    }
-  }
-
-  return botInfos
-}
-
-/**
- * Инициализирует несколько ботов с улучшенной изоляцией ошибок
- * @param botsInfo Список информации о ботах для инициализации
- * @returns Список успешно инициализированных экземпляров ботов
- */
-export async function initBots(botsInfo: BotInfo[]): Promise<BotInstance[]> {
-  if (!botsInfo || botsInfo.length === 0) {
-    logger.warn('Нет информации о ботах для инициализации')
-    return []
+    return { error: 'Bot not found in configuration' }
   }
 
   logger.info({
-    message: `🚀 Инициализация ${botsInfo.length} ботов...`,
-    description: 'Initializing bots',
-    bots_count: botsInfo.length,
+    message: '🔑 Токен бота получен из конфигурации',
+    description: 'Bot token retrieved from configuration',
+    bot_name,
+    tokenLength: token.length,
   })
 
-  const botInstances: BotInstance[] = []
+  // Ищем бота в массиве bots
+  const botIndex = Object.keys(BOT_NAMES).indexOf(bot_name)
+  let bot = bots[botIndex]
 
-  // Инициализируем каждого бота отдельно для лучшей изоляции ошибок
-  for (const botInfo of botsInfo) {
-    try {
-      // Создаем экземпляр бота
-      const bot = await createBot(botInfo)
-
-      if (bot) {
-        // Получаем информацию о боте
-        try {
-          const me = await bot.instance.telegram.getMe()
-          bot.username = me.username
-
-          logger.info({
-            message: `ℹ️ Получена информация о боте: @${me.username} (${me.id})`,
-            description: 'Bot info retrieved',
-            bot_id: botInfo.id,
-            bot_username: me.username,
-            bot_telegram_id: me.id,
-          })
-
-          botInstances.push(bot)
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error)
-
-          // Проверяем, связана ли ошибка с авторизацией токена
-          if (
-            errorMessage.includes('401') ||
-            errorMessage.includes('Unauthorized')
-          ) {
-            logger.error({
-              message: `🔒 Ошибка авторизации для бота ${botInfo.id}. Токен недействителен или был отозван.`,
-              description: 'Bot token authorization error',
-              bot_id: botInfo.id,
-              error: errorMessage,
-            })
-          } else {
-            logger.error({
-              message: `❌ Ошибка при получении информации о боте ${botInfo.id}: ${errorMessage}`,
-              description: 'Failed to get bot info',
-              bot_id: botInfo.id,
-              error: errorMessage,
-            })
-          }
-        }
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error)
+  // Если бот не найден в массиве или не имеет необходимых методов, создаем новый экземпляр
+  if (!bot || !bot.telegram?.sendMessage) {
+    logger.info({
+      message: '🔄 Создание нового экземпляра бота',
+      description: 'Creating new bot instance',
+      bot_name,
+    })
+    bot = new Telegraf<MyContext>(token)
+    // Проверяем, что бот создан корректно
+    if (!bot.telegram?.sendMessage) {
       logger.error({
-        message: `❌ Не удалось инициализировать бота ${botInfo.id}: ${errorMessage}`,
-        description: 'Bot initialization failed',
-        bot_id: botInfo.id,
-        error: errorMessage,
+        message: '❌ Ошибка инициализации бота',
+        description: 'Bot initialization error',
+        bot_name,
+        hasTelegram: !!bot.telegram,
+        methods: bot.telegram ? Object.keys(bot.telegram) : [],
       })
-      // Продолжаем инициализацию других ботов
+      return { error: 'Bot initialization failed' }
     }
+    // Заменяем бота в массиве
+    bots[botIndex] = bot
   }
 
   logger.info({
-    message: `✅ Инициализация ботов завершена: ${botInstances.length} из ${botsInfo.length} успешно`,
-    description: 'Bots initialization completed',
-    successful_count: botInstances.length,
-    total_count: botsInfo.length,
+    message: '✅ Бот успешно получен',
+    description: 'Bot successfully retrieved',
+    bot_name,
+    hasSendMessage: typeof bot.telegram?.sendMessage === 'function',
   })
 
-  return botInstances
+  return { bot }
 }
 
-/**
- * Инициализирует ботов из переменных окружения
- * @returns Список инициализированных ботов для системы мультибота
- */
-async function init() {
-  logger.info({
-    message: '🚀 Инициализация ботов из переменных окружения',
-    description: 'Initializing bots from environment variables',
-  })
-
-  // Получаем информацию о ботах
-  const botsInfo = getBotsInfo()
-
-  if (botsInfo.length === 0) {
-    logger.warn('Нет ботов для инициализации')
-    return []
+export const supportRequest = async (title: string, data: any) => {
+  try {
+    await pulseBot.telegram.sendMessage(
+      process.env.SUPPORT_CHAT_ID,
+      `🚀 ${title}\n\n${JSON.stringify(data)}`
+    )
+  } catch (error) {
+    throw new Error(`Error supportRequest: ${JSON.stringify(error)}`)
   }
-
-  // Инициализируем ботов
-  const botInstances = await initBots(botsInfo)
-
-  // Возвращаем результат в формате, ожидаемом в bot.ts
-  return botInstances.map(botInstance => ({
-    id: botInstance.id,
-    username: botInstance.username,
-    instance: botInstance.instance,
-  }))
 }
-
-export default init

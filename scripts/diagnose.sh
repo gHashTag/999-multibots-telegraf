@@ -166,7 +166,7 @@ for dir in src node_modules logs scripts; do
 done
 
 # Проверка основных файлов
-for file in src/multi.ts src/index.ts src/utils/launch.ts src/scenes/subscriptionCheckScene.ts; do
+for file in src/bot.ts src/index.ts src/utils/launch.ts src/scenes/subscriptionCheckScene.ts; do
   if [ -f $file ]; then
     echo -e "${GREEN}✅ Файл $file найден${NC}"
   else

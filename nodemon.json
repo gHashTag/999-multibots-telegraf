@@ -1,6 +1,0 @@
-{
-  "watch": ["src"],
-  "ext": "ts",
-  "exec": "ts-node -r tsconfig-paths/register src/multi.ts",
-  "ignore": ["src/**/*.spec.ts", "src/**/*.test.ts"]
-}

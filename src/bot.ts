@@ -5,15 +5,19 @@ import { Composer } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { NODE_ENV } from './config'
 
-import { startServer } from '@/utils/launch'
+import { development, production } from '@/utils/launch'
+import express from 'express'
 import { registerCallbackActions } from './handlers/сallbackActions'
 import { registerPaymentActions } from './handlers/paymentActions'
 import { registerHearsActions } from './handlers/hearsActions'
 import { registerCommands } from './registerCommands'
 import { setBotCommands } from './setCommands'
+import { getBotNameByToken } from './core/bot'
+import { bots } from './core/bot'
 import { logger } from './utils/logger'
 import { setupErrorHandler } from './helpers/error/errorHandler'
-import init from './core/bot'
+
+dotenv.config()
 
 // Логирование для отладки
 console.log('📂 bot.ts загружен', { NODE_ENV, cwd: process.cwd() })
@@ -28,135 +32,84 @@ type NextFunction = (err?: Error) => void
 
 export const createBots = async () => {
   console.log('🚀 Запуск createBots()')
-  logger.info('🚀 Начало инициализации ботов', {
-    node_env: NODE_ENV,
-    cwd: process.cwd(),
-    available_env_keys: Object.keys(process.env).filter(key =>
-      key.includes('BOT_TOKEN')
-    ),
-  })
-
-  // Проверка обязательных переменных окружения
-  const requiredEnvVars = ['ORIGIN']
-  const missingEnvVars = requiredEnvVars.filter(
-    varName => !process.env[varName]
+  // startApiServer()
+  logger.warn(
+    '⚠️ [AUTOFIX] API сервер не запущен из bots.ts, чтобы избежать конфликта портов. Запуск производится только из bot.ts',
+    {
+      description:
+        'API server not started from bots.ts to prevent port conflict',
+    }
   )
 
-  if (missingEnvVars.length > 0) {
-    logger.error('❌ Отсутствуют обязательные переменные окружения', {
-      missing_vars: missingEnvVars,
-    })
-    throw new Error(
-      `Missing required environment variables: ${missingEnvVars.join(', ')}`
-    )
-  }
-
-  // Запуск сервера Express для обработки вебхуков
-  const serverStarted = await startServer()
-  if (!serverStarted) {
-    logger.error('❌ Не удалось запустить Express сервер')
-    throw new Error('Failed to start Express server')
-  }
-  logger.info('✅ Express сервер успешно запущен')
-
-  if (NODE_ENV === 'development' && !process.env.TEST_BOT_NAME) {
-    logger.error('❌ TEST_BOT_NAME не установлен в режиме разработки', {
+  if (!process.env.TEST_BOT_NAME) {
+    logger.error('❌ TEST_BOT_NAME не установлен', {
       description: 'TEST_BOT_NAME is not set',
     })
-    throw new Error('TEST_BOT_NAME is required for development mode')
+    throw new Error('TEST_BOT_NAME is required')
   }
 
-  logger.info('📊 Режим работы:', { mode: NODE_ENV })
-
-  // Инициализация ботов с помощью обновленного метода
-  logger.info('🔄 Инициализация списка ботов...')
-  const botList = await init()
-  logger.info('🤖 Доступные боты после инициализации:', {
-    count: botList.length,
-    bot_ids: botList.map(b => b.id),
-  })
-
-  if (botList.length === 0) {
-    logger.error('❌ Не удалось инициализировать ни одного бота')
-    throw new Error('No bots were initialized')
-  }
+  console.log('📊 Режим работы:', NODE_ENV)
+  console.log('🤖 Доступные боты:', bots.length)
 
   // В режиме разработки используем только один тестовый бот
-  const testBotName = process.env.TEST_BOT_NAME
-  const activeBots =
+  const testBot =
     NODE_ENV === 'development'
-      ? botList.filter(({ id }) => id === testBotName)
-      : botList
+      ? bots.find(bot => {
+          const { bot_name } = getBotNameByToken(bot.telegram.token)
+          return bot_name === process.env.TEST_BOT_NAME
+        })
+      : null
 
-  logger.info('🔍 Фильтрация ботов для режима:', {
-    mode: NODE_ENV,
-    test_bot_name: testBotName,
-    filtered_count: activeBots.length,
-    active_bot_ids: activeBots.map(b => b.id),
-  })
+  const activeBots =
+    NODE_ENV === 'development' ? (testBot ? [testBot] : []) : bots
 
   if (NODE_ENV === 'development' && activeBots.length === 0) {
-    logger.error(
-      '❌ Тестовый бот не найден в списке инициализированных ботов',
-      {
-        description: 'Test bot not found',
-        environment: NODE_ENV,
-        requested_bot: testBotName,
-        available_bots: botList.map(b => b.id),
-      }
-    )
-    throw new Error(`Test bot '${testBotName}' not found`)
+    logger.error('❌ Тестовый бот не найден', {
+      description: 'Test bot not found',
+      environment: NODE_ENV,
+    })
+    throw new Error('Test bot not found')
   }
 
-  logger.info('✅ Активных ботов:', {
-    count: activeBots.length,
-    bots: activeBots.map(b => b.id),
-  })
+  console.log('✅ Активных ботов:', activeBots.length)
 
-  // Проверяем соединение с каждым ботом
-  for (const { instance, id } of activeBots) {
-    try {
-      const me = await instance.telegram.getMe()
-      logger.info(`✅ [${id}] Соединение с Telegram API успешно установлено`, {
-        bot_username: me.username,
-        bot_id: me.id,
-      })
-    } catch (error) {
-      logger.error(
-        `❌ [${id}] Не удалось установить соединение с Telegram API`,
-        {
-          error: error instanceof Error ? error.message : String(error),
-        }
-      )
-    }
-  }
-
-  // Настройка каждого бота
-  activeBots.forEach(({ instance, id }) => {
-    logger.info(`🔄 Настройка бота: ${id}`)
+  activeBots.forEach((bot, index) => {
+    const app = express()
 
     // Устанавливаем обработчик ошибок для защиты от проблем с токенами
-    setupErrorHandler(instance)
-    logger.info(`✅ [${id}] Обработчик ошибок установлен`)
+    setupErrorHandler(bot)
 
-    // Настройка команд и обработчиков
-    setBotCommands(instance)
-    logger.info(`✅ [${id}] Команды бота установлены`)
+    const port = 3001 + index
+    logger.info('🔌 Порт для бота:', {
+      description: 'Bot port',
+      port,
+    })
 
-    registerCommands({ bot: instance, composer })
-    logger.info(`✅ [${id}] Обработчики команд зарегистрированы`)
+    setBotCommands(bot)
+    registerCommands({ bot, composer })
 
-    registerCallbackActions(instance)
-    logger.info(`✅ [${id}] Обработчики колбэков зарегистрированы`)
+    registerCallbackActions(bot)
+    registerPaymentActions(bot)
+    registerHearsActions(bot)
 
-    registerPaymentActions(instance)
-    logger.info(`✅ [${id}] Обработчики платежей зарегистрированы`)
+    const telegramToken = bot.telegram.token
+    const { bot_name } = getBotNameByToken(telegramToken)
+    logger.info('🤖 Запускается бот:', {
+      description: 'Starting bot',
+      bot_name,
+      environment: NODE_ENV,
+    })
 
-    registerHearsActions(instance)
-    logger.info(`✅ [${id}] Обработчики текстовых сообщений зарегистрированы`)
+    const webhookPath = `/${bot_name}`
+    const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app${webhookPath}`
 
-    // Добавляем логирование для входящих сообщений
-    instance.use((ctx: MyContext, next: NextFunction) => {
+    if (NODE_ENV === 'development') {
+      development(bot)
+    } else {
+      production(bot, port, webhookUrl, webhookPath)
+    }
+
+    bot.use((ctx: MyContext, next: NextFunction) => {
       logger.info('🔍 Получено сообщение/команда:', {
         description: 'Message/command received',
         text:
@@ -164,43 +117,27 @@ export const createBots = async () => {
         from: ctx.from?.id,
         chat: ctx.chat?.id,
         bot: ctx.botInfo?.username,
-        update_type: ctx.updateType,
         timestamp: new Date().toISOString(),
       })
       return next()
     })
 
-    logger.info(`✅ [${id}] Бот полностью настроен и готов к работе`)
-  })
+    app.use(webhookPath, express.json(), (req, res) => {
+      logger.info('📨 Получен вебхук:', {
+        description: 'Webhook received',
+        query: req.query,
+      })
 
-  logger.info('🏁 Все боты успешно настроены и запущены!')
+      const token = req.query.token as string
+      const bot = activeBots.find(b => b.telegram.token === token)
 
-  // Проверяем активные вебхуки для каждого бота в production режиме
-  if (NODE_ENV === 'production') {
-    setTimeout(async () => {
-      logger.info('🔍 Проверка статуса вебхуков...')
-      for (const { instance, id } of activeBots) {
-        try {
-          const webhookInfo = await instance.telegram.getWebhookInfo()
-
-          if (!webhookInfo.url) {
-            logger.error(`❌ [${id}] Вебхук не настроен!`, {
-              webhook_url: webhookInfo.url,
-            })
-          } else {
-            logger.info(`✅ [${id}] Вебхук активен:`, {
-              webhook_url: webhookInfo.url,
-              pending_updates: webhookInfo.pending_update_count,
-            })
-          }
-        } catch (error) {
-          logger.error(`❌ [${id}] Ошибка при проверке вебхука:`, {
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
+      if (bot) {
+        bot.handleUpdate(req.body, res)
+      } else {
+        res.status(404).send('Bot not found')
       }
-    }, 5000) // Проверяем через 5 секунд после запуска
-  }
+    })
+  })
 }
 
 console.log('🏁 Запуск приложения')

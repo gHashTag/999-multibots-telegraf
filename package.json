@@ -6,7 +6,7 @@
   "license": "ISC",
   "scripts": {
     "predev": "node scripts/kill-port.js 2999 3001 8288",
-    "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only src/multi.ts",
+    "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only src/bot.ts",
     "build": "tsc",
     "build:prod": "tsc -p tsconfig.prod.json",
     "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck",

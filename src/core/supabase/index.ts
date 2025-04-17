@@ -52,7 +52,7 @@ export async function getBotsFromSupabase() {
     return []
   }
 }
-
+export * from './getBotGroupFromAvatars'
 export * from './createUser'
 export * from './createModelTraining'
 export * from './checkSubscriptionByTelegramId'
