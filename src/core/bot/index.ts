@@ -3,6 +3,15 @@ import { MyContext } from '../../interfaces'
 import { registerCommands } from '../../registerCommands'
 import logger from '../../utils/logger'
 import { Composer } from 'telegraf'
+import { validateToken } from './utils'
+
+export {
+  getBotNameByToken,
+  DEFAULT_BOT_NAME,
+  BOT_NAMES,
+  BOT_TOKENS,
+  maskToken,
+} from './utils'
 
 /**
  * Информация о боте
@@ -27,32 +36,6 @@ export interface BotInstance {
  * Список ботов
  */
 export type BotList = BotInfo[]
-
-/**
- * Проверяет валидность токена Telegram бота
- * @param token Токен для проверки
- * @returns true, если токен имеет корректный формат
- */
-export function validateToken(token: string): boolean {
-  // Токен Telegram бота должен быть в формате числа:букв-цифр
-  // Например: 123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi
-  const tokenRegex = /^\d+:[\w-]{35,}$/
-  return tokenRegex.test(token)
-}
-
-/**
- * Маскирует токен для безопасного вывода в логи
- * @param token Токен бота
- * @returns Маскированный токен (видимы только первые 5 и последние 4 символа)
- */
-export function maskToken(token: string): string {
-  if (!token || token.length < 10) {
-    return '***masked***'
-  }
-
-  // Маскируем все символы кроме первых 5 и последних 4
-  return `${token.substring(0, 5)}...${token.substring(token.length - 4)}`
-}
 
 /**
  * Создает экземпляр бота Telegram и настраивает его

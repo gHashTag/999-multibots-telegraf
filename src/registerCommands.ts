@@ -91,8 +91,7 @@ export function registerCommands({
   bot: Telegraf<MyContext>
   composer: Composer<MyContext>
 }) {
-  bot.use(session({ defaultSession }))
-
+  // Инициализируем сессию только один раз
   bot.use(session({ defaultSession }))
   bot.use(stage.middleware())
   bot.use(composer.middleware())

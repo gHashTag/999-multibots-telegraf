@@ -1,6 +1,7 @@
 import * as dotenv from 'dotenv'
 import logger from './logger'
-import { BotInstance, initBots, getBotsInfo, maskToken } from '../core/bot'
+import { BotInstance, initBots, getBotsInfo } from '../core/bot'
+import { maskToken } from '../core/bot/utils'
 import { getBotsFromSupabase } from '@/core/supabase'
 
 // Загружаем переменные окружения
@@ -18,6 +19,34 @@ async function startBot(bot: BotInstance): Promise<boolean> {
     const botPath = process.env.BOT_PATH || ''
 
     const identifier = bot.username ? `@${bot.username}` : `bot ${bot.id}`
+
+    // Пробуем сначала удалить текущий webhook для очистки предыдущих сессий
+    try {
+      logger.info({
+        message: `🧹 Очистка предыдущих сессий для ${identifier}`,
+        description: 'Cleaning up previous sessions',
+        bot_id: bot.id,
+      })
+
+      // Удаляем webhook, чтобы избежать конфликтов
+      await bot.instance.telegram.deleteWebhook({ drop_pending_updates: true })
+
+      logger.info({
+        message: `✅ Предыдущие сессии успешно очищены для ${identifier}`,
+        description: 'Previous sessions cleaned up',
+        bot_id: bot.id,
+      })
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      logger.warn({
+        message: `⚠️ Не удалось очистить предыдущие сессии для ${identifier}: ${errorMessage}`,
+        description: 'Failed to clean up previous sessions',
+        bot_id: bot.id,
+        error: errorMessage,
+      })
+      // Продолжаем запуск даже при ошибке очистки
+    }
 
     if (webhookDomain) {
       // Конфигурируем webhook
@@ -75,7 +104,10 @@ async function startBot(bot: BotInstance): Promise<boolean> {
         bot_id: bot.id,
       })
 
-      await bot.instance.launch()
+      // Устанавливаем опцию drop_pending_updates, чтобы избежать обработки старых сообщений
+      await bot.instance.launch({
+        dropPendingUpdates: true,
+      })
 
       logger.info({
         message: `✅ ${identifier} успешно запущен в режиме long polling`,
@@ -108,6 +140,80 @@ async function startBot(bot: BotInstance): Promise<boolean> {
     }
     return false
   }
+}
+
+/**
+ * Останавливает бота и очищает ресурсы
+ * @param bot Экземпляр бота для остановки
+ */
+async function stopBot(bot: BotInstance): Promise<boolean> {
+  const identifier = bot.username ? `@${bot.username}` : `bot ${bot.id}`
+
+  try {
+    logger.info({
+      message: `🛑 Остановка бота ${identifier}...`,
+      description: 'Stopping bot',
+      bot_id: bot.id,
+    })
+
+    // Сначала удаляем webhook если он был установлен
+    try {
+      await bot.instance.telegram.deleteWebhook()
+    } catch (error) {
+      // Игнорируем ошибки при удалении webhook
+    }
+
+    // Затем останавливаем бота
+    await bot.instance.stop()
+
+    logger.info({
+      message: `✅ Бот ${identifier} успешно остановлен`,
+      description: 'Bot stopped',
+      bot_id: bot.id,
+    })
+
+    return true
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error({
+      message: `❌ Ошибка при остановке бота ${identifier}: ${errorMessage}`,
+      description: 'Bot stop failed',
+      bot_id: bot.id,
+      error: errorMessage,
+    })
+    return false
+  }
+}
+
+/**
+ * Останавливает все активные боты
+ * @param bots Массив ботов для остановки
+ */
+export async function stopBots(bots: BotInstance[]): Promise<void> {
+  if (!bots || bots.length === 0) {
+    logger.info('Нет активных ботов для остановки')
+    return
+  }
+
+  logger.info({
+    message: `🛑 Остановка ${bots.length} ботов...`,
+    description: 'Stopping bots',
+    bots_count: bots.length,
+  })
+
+  // Останавливаем каждого бота параллельно
+  const stopPromises = bots.map(bot => stopBot(bot))
+  const results = await Promise.all(stopPromises)
+
+  const successCount = results.filter(result => result).length
+
+  logger.info({
+    message: `📊 Остановка ботов завершена: успешно ${successCount}, не удалось ${bots.length - successCount}`,
+    description: 'Bots stopped',
+    success_count: successCount,
+    failed_count: bots.length - successCount,
+    total_count: bots.length,
+  })
 }
 
 /**

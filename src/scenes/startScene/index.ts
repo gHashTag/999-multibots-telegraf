@@ -12,22 +12,28 @@ export const startScene = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
     const { translation, url } = await getTranslation({
-      key: isRu ? 'start_ru' : 'start_en',
+      key: 'start',
       ctx,
     })
 
-    await ctx.replyWithPhoto(url, {
-      caption: translation,
-      reply_markup: Markup.keyboard([
-        [
-          Markup.button.text(
-            isRu ? levels[104].title_ru : levels[104].title_en
-          ),
-        ],
-      ])
-        .resize()
-        .oneTime().reply_markup,
-    })
+    const keyboard = Markup.keyboard([
+      [Markup.button.text(isRu ? levels[104].title_ru : levels[104].title_en)],
+    ])
+      .resize()
+      .oneTime()
+
+    if (url && url.trim() !== '') {
+      await ctx.replyWithPhoto(url, {
+        caption: translation,
+        reply_markup: keyboard.reply_markup,
+      })
+    } else {
+      // Если фото недоступно, отправляем только текст
+      await ctx.reply(translation, {
+        reply_markup: keyboard.reply_markup,
+      })
+    }
+
     ctx.wizard.next()
   },
   async (ctx: MyContext) => {
