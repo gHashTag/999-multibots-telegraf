@@ -59,9 +59,34 @@ export const mockCheckPaymentStatus = jest
     }
   })
 
+// Мок для updateUserBalance
+export const mockUpdateUserBalance = jest
+  .fn()
+  .mockImplementation(
+    (
+      telegram_id: string,
+      amount: number,
+      type: string,
+      description?: string,
+      metadata?: any
+    ) => {
+      // Возвращаем объект с информацией о транзакции
+      return {
+        id: 'mock-transaction-id',
+        telegram_id,
+        amount,
+        type,
+        description: description || 'Mock transaction',
+        created_at: new Date().toISOString(),
+        success: true,
+      }
+    }
+  )
+
 // Экспортируем все моки с явным типом
 export const supabaseMocks = {
   getTranslation: mockGetTranslation,
   getReferalsCountAndUserData: mockGetReferalsCountAndUserData,
   checkPaymentStatus: mockCheckPaymentStatus,
+  updateUserBalance: mockUpdateUserBalance,
 } as const

@@ -1,9 +1,11 @@
-import { Subscription } from '@/interfaces/supabase.interface'
-
-import { checkPaymentStatus } from '@/core/supabase'
+import { Subscription } from '../interfaces/supabase.interface'
+import {
+  InlineKeyboardMarkup,
+  ReplyKeyboardMarkup,
+} from 'telegraf/typings/core/types/typegram'
+import { checkFullAccess } from '../handlers/checkFullAccess'
 import { Markup } from 'telegraf'
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
-import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { MyContext } from '../interfaces/telegram-bot.interface'
 
 interface Level {
   title_ru: string
@@ -122,7 +124,7 @@ export async function mainMenu({
   ctx: MyContext
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   console.log('💻 CASE: mainMenu')
-  let hasFullAccess = await checkPaymentStatus(ctx, subscription)
+  let hasFullAccess = checkFullAccess(subscription)
 
   const subscriptionButton = isRu ? levels[0].title_ru : levels[0].title_en
 

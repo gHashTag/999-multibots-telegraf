@@ -1,10 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
-import {
-  checkPaymentStatus,
-  getReferalsCountAndUserData,
-  getTranslation,
-} from '@/core/supabase'
+import { getReferalsCountAndUserData, getTranslation } from '@/core/supabase'
+import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { levels } from '@/menu/mainMenu'
 
 export const startScene = new Scenes.WizardScene<MyContext>(
@@ -39,7 +36,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
   async (ctx: MyContext) => {
     const telegram_id = ctx.from?.id?.toString() || ''
     const { subscription } = await getReferalsCountAndUserData(telegram_id)
-    const hasFullAccess = await checkPaymentStatus(ctx, subscription)
+    const hasFullAccess = checkFullAccess(subscription)
     if (hasFullAccess) {
       await ctx.scene.enter('menuScene')
     } else {
