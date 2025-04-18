@@ -8,6 +8,10 @@ import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 export const paymentScene = new Scenes.BaseScene<MyContext>('paymentScene')
 
 paymentScene.enter(async ctx => {
+  console.log(
+    '[PaymentScene] Entered scene. Session subscription:',
+    ctx.session.subscription
+  )
   const isRu = isRussian(ctx)
   try {
     const message = isRu ? 'Как вы хотите оплатить?' : 'How do you want to pay?'
@@ -45,64 +49,106 @@ paymentScene.enter(async ctx => {
 })
 
 paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
-  console.log('CASE 1: ⭐️ Звездами', ctx.match)
+  console.log('[PaymentScene] Hears: ⭐️ Звездами triggered')
   const isRu = isRussian(ctx)
   const subscription = ctx.session.subscription
-  console.log('CASE 1: ⭐️ Звездами: subscription', subscription)
-  if (subscription) {
-    if (subscription === 'neurobase') {
-      await handleBuySubscription({ ctx, isRu })
-      await ctx.scene.leave()
-    } else if (subscription === 'neuromeeting') {
-      await handleBuySubscription({ ctx, isRu })
-      await ctx.scene.leave()
-    } else if (subscription === 'neuroblogger') {
-      await handleBuySubscription({ ctx, isRu })
-      await ctx.scene.leave()
-    } else if (subscription === 'neurophoto') {
-      await handleBuySubscription({ ctx, isRu })
-      await ctx.scene.leave()
-    } else if (subscription === 'neuromentor') {
-      await handleBuySubscription({ ctx, isRu })
-      await ctx.scene.leave()
-    } else if (subscription === 'stars') {
+  console.log(
+    '[PaymentScene] Hears: ⭐️ Звездами. Session subscription:',
+    subscription
+  )
+  try {
+    if (subscription) {
+      if (
+        [
+          'neurobase',
+          'neuromeeting',
+          'neuroblogger',
+          'neurophoto',
+          'neuromentor',
+        ].includes(subscription)
+      ) {
+        await handleBuySubscription({ ctx, isRu })
+        await ctx.scene.leave()
+        return
+      } else if (subscription === 'stars') {
+        await handleSelectStars({ ctx, isRu, starAmounts })
+        await ctx.scene.leave()
+        return
+      }
+    } else {
       await handleSelectStars({ ctx, isRu, starAmounts })
       await ctx.scene.leave()
+      return
     }
-  } else {
-    await handleSelectStars({ ctx, isRu, starAmounts })
+    console.warn(
+      '[PaymentScene] Hears: ⭐️ Звездами. Unknown state for subscription:',
+      subscription
+    )
     await ctx.scene.leave()
+    return
+  } catch (error) {
+    console.error("[PaymentScene] Error in Hears '⭐️ Звездами':", error)
+    await ctx.reply(
+      isRu
+        ? 'Ошибка обработки оплаты звездами.'
+        : 'Error processing star payment.'
+    )
+    await ctx.scene.leave()
+    return
   }
 })
 
 paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
-  console.log('CASE: 💳 Рублями', ctx.match)
-
+  console.log('[PaymentScene] Hears: 💳 Рублями triggered')
+  const isRu = isRussian(ctx)
   const subscription = ctx.session.subscription
-  console.log('CASE 💳 Рублями: subscription', subscription)
-
-  if (subscription === 'neurobase') {
-    console.log('CASE: 📚 НейроБаза - getEmailWizard')
-    return ctx.scene.enter('getEmailWizard')
-  } else if (subscription === 'neurophoto') {
-    console.log('CASE: 📸 НейроФото - getEmailWizard')
-    return ctx.scene.enter('getEmailWizard')
-  } else if (subscription === 'neuromeeting') {
-    console.log('CASE: 🧠 НейроВстреча - getEmailWizard')
-    return ctx.scene.enter('getEmailWizard')
-  } else if (subscription === 'neuromentor') {
-    console.log('CASE: 🧠 НейроМентор - getEmailWizard')
-    return ctx.scene.enter('getEmailWizard')
-  } else if (subscription === 'neuroblogger') {
-    console.log('CASE: 🤖 НейроБлогер - getEmailWizard')
-    return ctx.scene.enter('getEmailWizard')
-  } else if (subscription === 'stars') {
-    console.log('CASE: 💳 Рублями - emailWizard')
-    await ctx.scene.enter('emailWizard')
+  console.log(
+    '[PaymentScene] Hears: 💳 Рублями. Session subscription:',
+    subscription
+  )
+  try {
+    if (
+      [
+        'neurobase',
+        'neurophoto',
+        'neuromeeting',
+        'neuromentor',
+        'neuroblogger',
+      ].includes(subscription)
+    ) {
+      console.log(`[PaymentScene] Entering getEmailWizard for ${subscription}`)
+      return ctx.scene.enter('getEmailWizard')
+    } else if (subscription === 'stars') {
+      console.log('[PaymentScene] Entering emailWizard for stars')
+      await ctx.scene.enter('emailWizard')
+      return
+    } else {
+      console.warn(
+        '[PaymentScene] Hears: 💳 Рублями. Unknown or missing subscription:',
+        subscription
+      )
+      await ctx.reply(
+        isRu
+          ? 'Сначала выберите подписку или пакет звезд для покупки.'
+          : 'Please select a subscription or star package first.'
+      )
+      await ctx.scene.leave()
+      return
+    }
+  } catch (error) {
+    console.error("[PaymentScene] Error in Hears '💳 Рублями':", error)
+    await ctx.reply(
+      isRu
+        ? 'Ошибка обработки оплаты рублями.'
+        : 'Error processing ruble payment.'
+    )
+    await ctx.scene.leave()
+    return
   }
 })
 
 paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
-  console.log('CASE: 🏠 Главное меню', ctx.match)
+  console.log('[PaymentScene] Hears: 🏠 Главное меню triggered')
   await ctx.scene.enter('menuScene')
+  return
 })

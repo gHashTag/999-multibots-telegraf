@@ -35,11 +35,8 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
     }
 
     const subscriptionStarAmounts = {
-      neurophoto: 1250,
-      neurobase: 7000,
-      neuromeeting: 28000,
-      neuroblogger: 75000,
-      // neuromentor: 100000,
+      neurophoto: 476,
+      neurobase: 1303,
     }
 
     const subscriptionType = ctx.session.subscription
@@ -65,8 +62,7 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
       ],
       provider_token: '',
     })
-
-    return
+    return ctx.scene.leave() // Выходим из сцены
   } catch (error) {
     console.error('Error in handleBuySubscription:', error)
     throw error

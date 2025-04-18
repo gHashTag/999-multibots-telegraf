@@ -1,0 +1,105 @@
+{
+  "version": "1.0.0",
+  "automations": {
+    "onSave": [
+      {
+        "name": "Format with Prettier",
+        "pattern": "**/*.{ts,js,json,md}",
+        "command": "pnpm prettier --write \"${file}\""
+      },
+      {
+        "name": "Lint TypeScript files",
+        "pattern": "**/*.ts",
+        "command": "pnpm eslint --fix \"${file}\""
+      }
+    ],
+    "onBranch": [
+      {
+        "name": "Install dependencies",
+        "pattern": "*",
+        "command": "pnpm install"
+      }
+    ],
+    "onFileCreate": [
+      {
+        "name": "Add imports to new TS files",
+        "pattern": "src/**/*.ts",
+        "template": "// Автоматически добавленные импорты для ${fileName}\n// Для Telegram бота\nimport { Context } from 'telegraf';\n\n// Код\n"
+      }
+    ]
+  },
+  "suggestions": {
+    "enabled": true,
+    "contexts": [
+      {
+        "name": "Telegraf",
+        "pattern": "src/**/*.ts",
+        "suggestions": [
+          {
+            "pattern": "bot.",
+            "options": [
+              "command",
+              "action",
+              "on",
+              "hears",
+              "use",
+              "start",
+              "help",
+              "settings"
+            ]
+          },
+          {
+            "pattern": "ctx.",
+            "options": [
+              "reply",
+              "replyWithPhoto",
+              "replyWithDocument",
+              "deleteMessage",
+              "editMessageText"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Supabase",
+        "pattern": "src/**/*.ts",
+        "suggestions": [
+          {
+            "pattern": "supabase.",
+            "options": ["from", "rpc", "auth", "storage"]
+          }
+        ]
+      }
+    ]
+  },
+  "analysis": {
+    "typescript": {
+      "strictMode": true,
+      "unusedImports": true,
+      "unusedVariables": true
+    },
+    "performance": {
+      "detectLongFunctions": true,
+      "maxFunctionLength": 50
+    }
+  },
+  "terminal": {
+    "commands": [
+      {
+        "name": "Run development server",
+        "command": "pnpm dev",
+        "shortcut": "ctrl+alt+r"
+      },
+      {
+        "name": "Run tests",
+        "command": "pnpm test",
+        "shortcut": "ctrl+alt+t"
+      },
+      {
+        "name": "Build project",
+        "command": "pnpm build",
+        "shortcut": "ctrl+alt+b"
+      }
+    ]
+  }
+}

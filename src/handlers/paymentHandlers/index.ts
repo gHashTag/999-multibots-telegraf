@@ -7,7 +7,6 @@ import { Message } from 'telegraf/typings/core/types/typegram'
 interface SessionData {
   subscription: string
   telegram_id: number
-  email: string
 }
 
 type MyContext = Context &
@@ -22,7 +21,7 @@ type MyContext = Context &
   }
 
 async function sendNotification(ctx: MyContext, message: string) {
-  await ctx.telegram.sendMessage('-1476314188', message)
+  await ctx.telegram.sendMessage('@neuro_blogger_pulse', message)
 }
 
 async function processPayment(
@@ -55,7 +54,6 @@ async function processPayment(
     currency: 'STARS',
     stars,
     status: 'COMPLETED',
-    email: ctx.session.email,
     payment_method: 'Telegram',
     subscription: 'stars',
     bot_name: ctx.botInfo.username,
@@ -73,11 +71,8 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
   const subscriptionType = ctx.session.subscription
 
   const subscriptionDetails = {
-    neurophoto: { amount: 3000, name: 'NeuroPhoto' },
-    neurobase: { amount: 7000, name: 'NeuroBase' },
-    neuromeeting: { amount: 28000, name: 'NeuroMeeting' },
-    neuroblogger: { amount: 75000, name: 'NeuroBlogger' },
-    // neuromentor: { amount: 100000, name: 'NeuroMentor' },
+    neurophoto: { name: 'NeuroPhoto', amount: 1110, stars: 476 },
+    neurobase: { name: 'NeuroBase', amount: 7000, stars: 1303 },
   }
 
   if (subscriptionType in subscriptionDetails) {
@@ -97,6 +92,7 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
       ctx,
       `💫 Пользователь @${ctx.from.username} (ID: ${ctx.from.id}) пополнил баланс на ${stars} звезд!`
     )
+
     await setPayments({
       telegram_id: ctx.from.id.toString(),
       OutSum: stars.toString(),
@@ -104,7 +100,6 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
       currency: 'STARS',
       stars,
       status: 'COMPLETED',
-      email: ctx.session.email,
       payment_method: 'Telegram',
       subscription: 'stars',
       bot_name: ctx.botInfo.username,

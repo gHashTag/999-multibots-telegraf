@@ -7,7 +7,7 @@ import {
   description,
   subscriptionTitles,
 } from './helper'
-import { setPayments, updateUserSubscription } from '../../core/supabase'
+import { setPayments } from '../../core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
 
@@ -20,8 +20,16 @@ const generateInvoiceStep = async (ctx: MyContext) => {
     const email = ctx.session.email
     console.log('Email from session:', email)
 
-    const stars = selectedPayment.amount
     const subscription = selectedPayment.subscription
+    let amount: number
+    let stars: number
+    if (subscription === 'neurophoto') {
+      amount = 1110 // Правильная сумма для НейроФото
+      stars = 476
+    } else if (subscription === 'neurobase') {
+      amount = 2999 // Правильная сумма для НейроБаза
+      stars = 1303
+    }
 
     try {
       const userId = ctx.from?.id
@@ -33,87 +41,79 @@ const generateInvoiceStep = async (ctx: MyContext) => {
       // Получение invoiceID
       const invoiceURL = await getInvoiceId(
         merchantLogin,
-        stars,
+        amount, // Используем исправленную сумму
         invId,
         description,
         password1
       )
       console.log('Invoice URL:', invoiceURL)
       const { bot_name } = getBotNameByToken(ctx.telegram.token)
-      // Сохранение платежа со статусом PENDING
-      await setPayments({
-        telegram_id: userId.toString(),
-        OutSum: stars.toString(),
-        InvId: invId.toString(),
-        currency: 'STARS',
-        stars,
-        status: 'PENDING',
-        email: email,
-        payment_method: 'Telegram',
-        subscription: subscription,
-        bot_name,
-        language: ctx.from?.language_code,
-      })
-      console.log('Payment saved with status PENDING')
 
-      // Сохраняем invoiceURL в сессии для следующего шага
-      if (selectedPayment && invoiceURL) {
-        const subscription = selectedPayment.subscription
-        const stars = selectedPayment.amount
-
-        try {
-          const userId = ctx.from?.id
-          console.log('User ID:', userId)
-
-          // Обновление подписки пользователя
-          await updateUserSubscription(userId.toString(), subscription)
-          console.log('User subscription updated')
-
-          const inlineKeyboard = [
-            [
-              {
-                text: isRu
-                  ? `Купить ${
-                      subscriptionTitles(isRu)[subscription]
-                    } за ${stars} р.`
-                  : `Buy ${
-                      subscriptionTitles(isRu)[subscription]
-                    } for ${stars} RUB.`,
-                web_app: {
-                  url: invoiceURL,
-                },
-              },
-            ],
-          ]
-
-          await ctx.reply(
-            isRu
-              ? `<b>🤑 Подписка ${subscriptionTitles(isRu)[subscription]}</b>
-                \nВ случае возникновения проблем с оплатой, пожалуйста, свяжитесь с нами @neuro_sage`
-              : `<b>🤑 Subscription ${
-                  subscriptionTitles(isRu)[subscription]
-                }</b>
-                \nIn case of payment issues, please contact us @neuro_sage`,
-            {
-              reply_markup: {
-                inline_keyboard: inlineKeyboard,
-              },
-              parse_mode: 'HTML',
-            }
-          )
-
-          console.log('Payment message sent to user')
-        } catch (error) {
-          console.error('Error in updating subscription:', error)
-          await ctx.reply(
-            isRu
-              ? 'Ошибка при обновлении подписки. Пожалуйста, попробуйте снова.'
-              : 'Error updating subscription. Please try again.'
-          )
-        }
-        return ctx.scene.leave()
+      try {
+        // Сохранение платежа со статусом PENDING
+        await setPayments({
+          telegram_id: userId.toString(),
+          OutSum: amount.toString(),
+          InvId: invId.toString(),
+          currency: 'RUB',
+          stars,
+          status: 'PENDING',
+          payment_method: 'Telegram',
+          subscription: subscription,
+          bot_name,
+          language: ctx.from?.language_code,
+        })
+        console.log('Payment saved with status PENDING')
+      } catch (error) {
+        console.error('Error in setting payments:', error)
+        await ctx.reply(
+          isRu
+            ? `Ошибка при создании платежа. Пожалуйста, попробуйте снова. ${error}`
+            : `Error in creating payment. Please try again. ${error}`
+        )
       }
-      ctx.wizard.next()
+
+      // Отправка сообщения пользователю с ссылкой на оплату
+      const inlineKeyboard = [
+        [
+          {
+            text: isRu
+              ? `Оплатить ${
+                  subscriptionTitles(isRu)[subscription]
+                } за ${amount} р.`
+              : `Pay for ${
+                  subscriptionTitles(isRu)[subscription]
+                } for ${amount} RUB.`,
+            url: invoiceURL,
+          },
+        ],
+      ]
+
+      await ctx.reply(
+        isRu
+          ? `<b>💵 Чек создан для подписки ${
+              subscriptionTitles(isRu)[subscription]
+            }</b>
+Нажмите кнопку ниже, чтобы перейти к оплате.
+
+В случае возникновения проблем с оплатой, пожалуйста, свяжитесь с нами @neuro_sage`
+          : `<b>💵 Invoice created for subscription ${
+              subscriptionTitles(isRu)[subscription]
+            }</b>
+Click the button below to proceed with payment.
+
+In case of payment issues, please contact us @neuro_sage`,
+        {
+          reply_markup: {
+            inline_keyboard: inlineKeyboard,
+          },
+          parse_mode: 'HTML',
+        }
+      )
+      console.log('Payment message sent to user with URL button')
+
+      // Завершение сцены
+      return ctx.scene.leave()
     } catch (error) {
       console.error('Error in creating invoice:', error)
       await ctx.reply(

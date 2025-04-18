@@ -1,197 +1,157 @@
-import dotenv from 'dotenv'
-dotenv.config()
+import { isDev } from './config'
 
-import { Composer } from 'telegraf'
-import { MyContext } from '@/interfaces'
-import { NODE_ENV } from './config'
+console.log(`--- Bot Logic ---`)
+console.log(
+  `[BOT] Detected mode (via isDev): ${isDev ? 'development' : 'production'}`
+)
+console.log(`[BOT] process.env.NODE_ENV: ${process.env.NODE_ENV}`)
+console.log(`--- End Bot Logic Check ---`)
 
-import { development, production } from '@/utils/launch'
-import express from 'express'
-import { registerCallbackActions } from './handlers/сallbackActions'
-import { registerPaymentActions } from './handlers/paymentActions'
-import { registerHearsActions } from './handlers/hearsActions'
+import { Composer, Telegraf } from 'telegraf'
+import { config } from 'dotenv'
 import { registerCommands } from './registerCommands'
-import { setBotCommands } from './setCommands'
-import { getBotNameByToken } from './core/bot'
-import { bots, BOT_TOKENS } from './core/bot'
-import { logger } from './utils/logger'
-import { setupErrorHandler } from './helpers/error/errorHandler'
+import { MyContext } from './interfaces'
 
-dotenv.config()
+// Инициализация ботов
+const botInstances: Telegraf[] = []
 
-// Логирование для отладки
-console.log('📂 bot.ts загружен', { NODE_ENV, cwd: process.cwd() })
-console.log('🔑 Переменные окружения:', {
-  TEST_BOT_NAME: process.env.TEST_BOT_NAME,
-  NODE_ENV: process.env.NODE_ENV,
-})
-
+// Создаем и экспортируем Composer глобально
 export const composer = new Composer<MyContext>()
 
-type NextFunction = (err?: Error) => void
-
-export const createBots = async () => {
-  console.log('🚀 Запуск createBots()')
-  if (!process.env.TEST_BOT_NAME) {
-    logger.error('❌ TEST_BOT_NAME не установлен', {
-      description: 'TEST_BOT_NAME is not set',
-    })
-    throw new Error('TEST_BOT_NAME is required')
+// Функция для проверки валидности токена
+async function validateBotToken(token: string): Promise<boolean> {
+  try {
+    const bot = new Telegraf(token)
+    await bot.telegram.getMe()
+    return true
+  } catch (error) {
+    console.error(`❌ Ошибка валидации токена: ${error.message}`)
+    return false
   }
-
-  console.log('📊 Режим работы:', NODE_ENV)
-  console.log('🤖 Доступные боты:', bots.length)
-
-  // В режиме разработки используем только один тестовый бот
-  const testBot =
-    NODE_ENV === 'development'
-      ? bots.find(bot => {
-          const { bot_name } = getBotNameByToken(bot.telegram.token)
-          return bot_name === process.env.TEST_BOT_NAME
-        })
-      : null
-
-  // Определяем активных ботов в зависимости от режима
-  const activeBots =
-    NODE_ENV === 'development'
-      ? testBot
-        ? [testBot]
-        : []
-      : bots.filter(bot => BOT_TOKENS.includes(bot.telegram.token)) // Используем BOT_TOKENS для фильтрации
-
-  if (NODE_ENV === 'development' && activeBots.length === 0) {
-    logger.error('❌ Тестовый бот не найден', {
-      description: 'Test bot not found',
-      environment: NODE_ENV,
-    })
-    throw new Error('Test bot not found')
-  }
-
-  console.log('✅ Активных ботов:', activeBots.length)
-
-  activeBots.forEach((bot, index) => {
-    try {
-      const app = express()
-
-      // Устанавливаем обработчик ошибок для защиты от проблем с токенами
-      setupErrorHandler(bot)
-
-      const port = 3001 + index
-      logger.info('🔌 Порт для бота:', {
-        description: 'Bot port',
-        port,
-      })
-
-      // Оборачиваем вызовы в try-catch
-      try {
-        setBotCommands(bot)
-      } catch (commandError) {
-        logger.error('❌ Ошибка при установке команд:', {
-          description: 'Command setup error',
-          bot_name: bot.botInfo?.username || 'unknown',
-          error:
-            commandError instanceof Error
-              ? commandError.message
-              : String(commandError),
-        })
-      }
-
-      try {
-        registerCommands({ bot, composer })
-      } catch (registerError) {
-        logger.error('❌ Ошибка при регистрации команд:', {
-          description: 'Command registration error',
-          bot_name: bot.botInfo?.username || 'unknown',
-          error:
-            registerError instanceof Error
-              ? registerError.message
-              : String(registerError),
-        })
-      }
-
-      try {
-        registerCallbackActions(bot)
-        registerPaymentActions(bot)
-        registerHearsActions(bot)
-      } catch (actionsError) {
-        logger.error('❌ Ошибка при регистрации обработчиков:', {
-          description: 'Action registration error',
-          bot_name: bot.botInfo?.username || 'unknown',
-          error:
-            actionsError instanceof Error
-              ? actionsError.message
-              : String(actionsError),
-        })
-      }
-
-      const telegramToken = bot.telegram.token
-      const { bot_name } = getBotNameByToken(telegramToken)
-      logger.info('🤖 Запускается бот:', {
-        description: 'Starting bot',
-        bot_name,
-        environment: NODE_ENV,
-      })
-
-      const webhookPath = `/${bot_name}`
-      const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app${webhookPath}`
-
-      try {
-        if (NODE_ENV === 'development') {
-          development(bot)
-        } else {
-          production(bot, port, webhookUrl, webhookPath)
-        }
-      } catch (launchError) {
-        logger.error('❌ Ошибка при запуске бота:', {
-          description: 'Bot launch error',
-          bot_name,
-          error:
-            launchError instanceof Error
-              ? launchError.message
-              : String(launchError),
-        })
-      }
-
-      bot.use((ctx: MyContext, next: NextFunction) => {
-        logger.info('🔍 Получено сообщение/команда:', {
-          description: 'Message/command received',
-          text:
-            ctx.message && 'text' in ctx.message ? ctx.message.text : undefined,
-          from: ctx.from?.id,
-          chat: ctx.chat?.id,
-          bot: ctx.botInfo?.username,
-          timestamp: new Date().toISOString(),
-        })
-        return next()
-      })
-
-      app.use(webhookPath, express.json(), (req, res) => {
-        logger.info('📨 Получен вебхук:', {
-          description: 'Webhook received',
-          query: req.query,
-        })
-
-        const token = req.query.token as string
-        const bot = activeBots.find(b => b.telegram.token === token)
-
-        if (bot) {
-          bot.handleUpdate(req.body, res)
-        } else {
-          res.status(404).send('Bot not found')
-        }
-      })
-    } catch (error) {
-      // Обработка общих ошибок при инициализации бота
-      logger.error('❌ Критическая ошибка при инициализации бота:', {
-        description: 'Critical bot initialization error',
-        index,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-  })
 }
 
+// Функция для проверки занятости порта
+async function isPortInUse(port: number): Promise<boolean> {
+  try {
+    const net = await import('net')
+    return new Promise(resolve => {
+      const server = net.createServer()
+      server.once('error', () => resolve(true))
+      server.once('listening', () => {
+        server.close()
+        resolve(false)
+      })
+      server.listen(port)
+    })
+  } catch (error) {
+    console.error(`❌ Ошибка проверки порта ${port}:`, error)
+    return true
+  }
+}
+
+// Инициализация ботов в зависимости от окружения
+async function initializeBots() {
+  console.log('🔧 Режим работы:', isDev ? 'development' : 'production')
+  console.log('📝 Загружен файл окружения:', process.env.NODE_ENV)
+
+  if (isDev) {
+    // В режиме разработки используем только тестового бота
+    const testBotToken = process.env.BOT_TOKEN_TEST_1
+    if (!testBotToken) {
+      throw new Error('❌ BOT_TOKEN_TEST_1 не найден в .env.development')
+    }
+
+    const bot = new Telegraf<MyContext>(testBotToken)
+    bot.use(Composer.log())
+
+    // Регистрируем команды, используя глобальный composer
+    registerCommands({ bot, composer })
+
+    botInstances.push(bot)
+    const botInfo = await bot.telegram.getMe()
+    console.log(`🤖 Тестовый бот ${botInfo.username} инициализирован`)
+
+    // В режиме разработки используем polling
+    bot.launch({
+      allowedUpdates: ['message', 'callback_query'],
+    })
+    console.log(
+      `🚀 Тестовый бот ${botInfo.username} запущен в режиме разработки`
+    )
+  } else {
+    // В продакшене используем все активные боты
+    const botTokens = [
+      process.env.BOT_TOKEN_1,
+      process.env.BOT_TOKEN_2,
+      process.env.BOT_TOKEN_3,
+      process.env.BOT_TOKEN_4,
+      process.env.BOT_TOKEN_5,
+      process.env.BOT_TOKEN_6,
+      process.env.BOT_TOKEN_7,
+    ].filter(Boolean)
+
+    // Начинаем с порта 3001 для первого бота
+    let currentPort = 3001
+
+    for (const token of botTokens) {
+      if (await validateBotToken(token)) {
+        const bot = new Telegraf<MyContext>(token)
+        bot.use(Composer.log())
+
+        // Регистрируем команды, используя глобальный composer
+        registerCommands({ bot, composer })
+
+        botInstances.push(bot)
+        const botInfo = await bot.telegram.getMe()
+        console.log(`🤖 Бот ${botInfo.username} инициализирован`)
+
+        // Проверяем, свободен ли порт
+        while (await isPortInUse(currentPort)) {
+          console.log(`⚠️ Порт ${currentPort} занят, пробуем следующий...`)
+          currentPort++
+        }
+
+        console.log(
+          `🔌 Используем порт ${currentPort} для бота ${botInfo.username}`
+        )
+
+        // В продакшене используем вебхуки
+        try {
+          bot.launch({
+            webhook: {
+              domain: process.env.WEBHOOK_DOMAIN,
+              port: currentPort,
+            },
+            allowedUpdates: ['message', 'callback_query'],
+          })
+          console.log(
+            `🚀 Бот ${botInfo.username} запущен в продакшен режиме на порту ${currentPort}`
+          )
+        } catch (error) {
+          console.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)
+        }
+
+        // Увеличиваем порт для следующего бота
+        currentPort++
+      }
+    }
+  }
+}
+
+// Обработка завершения работы
+process.once('SIGINT', () => {
+  console.log('🛑 Получен сигнал SIGINT, завершаем работу...')
+  botInstances.forEach(bot => bot.stop('SIGINT'))
+  process.exit(0)
+})
+
+process.once('SIGTERM', () => {
+  console.log('🛑 Получен сигнал SIGTERM, завершаем работу...')
+  botInstances.forEach(bot => bot.stop('SIGTERM'))
+  process.exit(0)
+})
+
 console.log('🏁 Запуск приложения')
-createBots()
+initializeBots()
   .then(() => console.log('✅ Боты успешно запущены'))
   .catch(error => console.error('❌ Ошибка при запуске ботов:', error))

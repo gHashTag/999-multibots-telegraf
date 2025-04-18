@@ -1,17 +1,56 @@
 import { config } from 'dotenv'
-console.log(
-  `Loading env file: .env.${process.env.NODE_ENV || 'development'}.local`
-)
-const loadResult = config({
-  path: `.env.${process.env.NODE_ENV || 'development'}.local`,
-})
-console.log('Env loaded success:', loadResult.parsed ? true : false)
+import fs from 'fs' // Импортируем модуль fs
+import path from 'path' // Импортируем модуль path
 
-// Попробуем загрузить обычный .env файл, если предыдущий не был найден
-if (!loadResult.parsed) {
-  console.log('Fallback to .env file')
-  config()
+console.log('--- Debugging .env loading --- ')
+const cwd = process.cwd()
+console.log(`[CONFIG] Current Working Directory: ${cwd}`)
+
+try {
+  const files = fs.readdirSync(cwd)
+  const envFiles = files.filter(file => file.startsWith('.env'))
+  console.log(`[CONFIG] Found .env files: ${envFiles.join(', ') || 'None'}`)
+} catch (err) {
+  console.error('[CONFIG] Error reading directory:', err)
 }
+
+// Логируем NODE_ENV *перед* загрузкой
+console.log(`[CONFIG] NODE_ENV before loading: ${process.env.NODE_ENV}`)
+
+// Явно устанавливаем NODE_ENV если не задан
+if (!process.env.NODE_ENV) {
+  console.log("[CONFIG] NODE_ENV was not set, setting to 'development'")
+  ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
+} else {
+  console.log(`[CONFIG] NODE_ENV is already set to: ${process.env.NODE_ENV}`)
+}
+
+export const isDev = process.env.NODE_ENV === 'development'
+console.log(`[CONFIG] isDev flag set to: ${isDev}`)
+
+// --- Логика загрузки .env ---
+// Мы решили всегда загружать только .env, игнорируя NODE_ENV на этом этапе
+const envPath = path.join(cwd, '.env')
+console.log(`[CONFIG] Attempting to load env file from: ${envPath}`)
+
+const loadResult = config({ path: envPath }) // Явно указываем путь к .env в корне
+
+console.log(
+  `[CONFIG] dotenv load result: ${loadResult.parsed ? 'Success' : 'Failed'}`
+)
+if (loadResult.error) {
+  console.error('[CONFIG] dotenv load error:', loadResult.error.message)
+}
+
+if (!loadResult.parsed) {
+  console.error(`❌ Error: Could not find or parse .env file at ${envPath}!`)
+  // Можно добавить выход из процесса, если .env критичен
+  // process.exit(1);
+}
+
+// Логируем NODE_ENV *после* загрузки из .env (если он там был)
+console.log(`[CONFIG] NODE_ENV after loading .env: ${process.env.NODE_ENV}`)
+console.log('--- End Debugging .env loading --- ')
 
 // Логирование для проверки токенов
 if (process.env.NODE_ENV === 'production') {
@@ -64,8 +103,6 @@ export const {
   PINATA_GATEWAY,
   LOCAL_SERVER_URL,
 } = process.env
-
-export const isDev = process.env.NODE_ENV === 'development'
 
 // Проверка наличия обязательных переменных окружения для Supabase
 export const isSupabaseConfigured = !!(
