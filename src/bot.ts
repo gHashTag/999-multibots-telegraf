@@ -1,3 +1,6 @@
+// Импортируем полифил для tslib
+import './utils/tslib-polyfill'
+
 import { isDev } from './config'
 
 console.log(`--- Bot Logic ---`)

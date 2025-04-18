@@ -43,10 +43,15 @@ RUN npm install --omit=dev && npm install --no-save tslib && npm list tslib
 # Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
 
+# Копируем скрипт проверки tslib и полифил
+COPY scripts/check-tslib.js ./scripts/check-tslib.js
+RUN chmod +x ./scripts/check-tslib.js
+
 # Создаем node_modules/tslib, если он не существует
 RUN if [ ! -d "node_modules/tslib" ]; then mkdir -p node_modules/tslib && npm install --no-save tslib && cp -r /usr/local/lib/node_modules/tslib/* node_modules/tslib/ || true; fi
 
 # Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 
-CMD ["node", "dist/bot.js"]
+# Запускаем скрипт проверки tslib перед запуском приложения
+CMD ["sh", "-c", "node ./scripts/check-tslib.js && node dist/bot.js"]
