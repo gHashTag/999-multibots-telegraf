@@ -15,7 +15,12 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
   // Возвращаем средства пользователю
   const newBalance = balance + paymentAmount
   console.log('newBalance', newBalance)
-  await updateUserBalance(ctx.from.id, newBalance)
+  await updateUserBalance(
+    ctx.from.id.toString(),
+    paymentAmount,
+    'money_income',
+    'Refund operation'
+  )
 
   // Отправляем сообщение пользователю
   const isRu = ctx.from.language_code === 'ru'

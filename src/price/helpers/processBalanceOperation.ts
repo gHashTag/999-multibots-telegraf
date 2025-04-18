@@ -36,7 +36,12 @@ export const processBalanceOperation = async ({
     const newBalance = Number(currentBalance) - Number(paymentAmount)
 
     // Обновляем баланс в БД
-    await updateUserBalance(telegram_id, newBalance)
+    await updateUserBalance(
+      telegram_id.toString(),
+      paymentAmount,
+      'money_outcome',
+      'Payment operation'
+    )
 
     return {
       newBalance,
