@@ -13,12 +13,9 @@ COPY . .
 RUN npm run build:nocheck
 
 # Финальный этап
-FROM node:20-alpine
+FROM node:20-alpine as app
 
 WORKDIR /app
-
-# Глобально устанавливаем tslib для решения проблемы с модулем
-RUN npm install -g tslib
 
 # Устанавливаем зависимости для Ansible
 RUN apk add --no-cache \
@@ -34,19 +31,16 @@ RUN python3 -m venv /app/ansible-venv \
     && pip install --no-cache-dir ansible
 
 # Создаем нужные каталоги внутри рабочей директории и устанавливаем права
-RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
+RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh
 
 # Копируем package.json и package-lock.json
 COPY package*.json ./
 
-# Устанавливаем зависимости, включая локальную копию tslib
+# Устанавливаем только продакшн зависимости и явно включаем tslib
 RUN npm install --omit=dev && npm install tslib
 
 # Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
-
-# Создаем символическую ссылку на глобальный модуль tslib для поддержки импорта
-RUN rm -rf node_modules/tslib && ln -s $(npm root -g)/tslib node_modules/
 
 # Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
