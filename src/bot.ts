@@ -15,6 +15,10 @@ import { config } from 'dotenv'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
 import { setupWebhookHandlers } from './webhookHandler'
+// Импортируем Express для Robokassa вебхуков
+import express from 'express'
+import fileUpload from 'express-fileupload'
+import { handleRobokassaResult } from './webhooks/robokassa/robokassa.handler'
 
 // Инициализация ботов
 const botInstances: Telegraf[] = []
@@ -51,6 +55,48 @@ async function isPortInUse(port: number): Promise<boolean> {
     console.error(`❌ Ошибка проверки порта ${port}:`, error)
     return true
   }
+}
+
+// Функция запуска сервера для обработки Robokassa вебхуков
+function startRobokassaWebhookServer() {
+  // Порт для Robokassa webhook
+  const robokassaPort = process.env.ROBOKASSA_WEBHOOK_PORT || 8288
+
+  // Создаем экземпляр express
+  const app = express()
+
+  // Middleware для разбора URL-encoded формы
+  app.use(express.urlencoded({ extended: true }))
+
+  // Middleware для разбора JSON данных
+  app.use(express.json())
+
+  // Middleware для обработки multipart/form-data
+  app.use(fileUpload())
+
+  // POST маршрут для обработки успешных платежей от Robokassa
+  app.post('/payment-success', handleRobokassaResult)
+
+  // POST маршрут для обработки результатов от Robokassa
+  app.post('/robokassa-result', handleRobokassaResult)
+
+  // Проверка работоспособности сервера
+  app.get('/health', (req, res) => {
+    res.status(200).send('OK')
+  })
+
+  // Запуск сервера
+  app
+    .listen(robokassaPort, () => {
+      console.log(`[Robokassa] Webhook server running on port ${robokassaPort}`)
+    })
+    .on('error', err => {
+      console.error(
+        `[Robokassa] Failed to start webhook server: ${err.message}`
+      )
+    })
+
+  return app
 }
 
 // Инициализация ботов в зависимости от окружения
@@ -144,6 +190,9 @@ async function initializeBots() {
     // Запускаем обработчик вебхуков на основном порту приложения
     setupWebhookHandlers(botInstances as Telegraf<MyContext>[])
   }
+
+  // Запускаем сервер для обработки Robokassa вебхуков
+  startRobokassaWebhookServer()
 }
 
 // Обработка завершения работы

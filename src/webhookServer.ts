@@ -1,36 +1,41 @@
-import express, { Request, Response } from 'express'
-import { logger } from '@/utils/logger'
+import express from 'express'
+import dotenv from 'dotenv'
 import { handleRobokassaResult } from './webhooks/robokassa/robokassa.handler'
+import fileUpload from 'express-fileupload'
 
-const PORT = process.env.ROBOKASSA_WEBHOOK_PORT || 8288
+dotenv.config()
 
-async function startWebhookServer() {
-  logger.info('[Webhook Server] Initializing...')
+// Порт для Robokassa webhook
+const robokassaPort = process.env.ROBOKASSA_WEBHOOK_PORT || 2999
 
-  const app = express()
+// Создаем экземпляр express
+const app = express()
 
-  // Middleware для парсинга form-data (как отправляет Robokassa)
-  app.use(express.urlencoded({ extended: true }))
-  // Middleware для парсинга JSON (на всякий случай)
-  app.use(express.json())
+// Middleware для разбора URL-encoded формы
+app.use(express.urlencoded({ extended: true }))
 
-  // Роут для Robokassa Result URL
-  app.post('/payment-success', (req: Request, res: Response) => {
-    // Передаем только req и res. Обработчик сам разберется с ботом.
-    handleRobokassaResult(req, res)
-  })
+// Middleware для разбора JSON данных
+app.use(express.json())
 
-  // Роут для проверки здоровья
-  app.get('/health', (req: Request, res: Response) => {
-    res.status(200).send('Webhook server is healthy')
-  })
+// Middleware для обработки multipart/form-data
+app.use(fileUpload())
 
-  app.listen(PORT, () => {
-    logger.info(`[Webhook Server] Listening on port ${PORT}`)
-  })
-}
+// POST маршрут для обработки успешных платежей от Robokassa
+app.post('/payment-success', handleRobokassaResult)
 
-startWebhookServer().catch(error => {
-  logger.error('[Webhook Server] Failed to start:', error)
-  process.exit(1)
+// POST маршрут для обработки результатов от Robokassa
+app.post('/robokassa-result', handleRobokassaResult)
+
+// Проверка работоспособности сервера
+app.get('/health', (req, res) => {
+  res.status(200).send('OK')
 })
+
+// Запуск сервера
+app
+  .listen(robokassaPort, () => {
+    console.log(`[Robokassa] Webhook server running on port ${robokassaPort}`)
+  })
+  .on('error', err => {
+    console.error(`[Robokassa] Failed to start webhook server: ${err.message}`)
+  })
