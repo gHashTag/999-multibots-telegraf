@@ -6,13 +6,22 @@
 import { MyContext } from '../../src/interfaces'
 import { jest } from '@jest/globals'
 
+// Тип для дебаг-ответов
+type DebugReply = {
+  message?: any
+  type?: string
+  url?: any
+  caption?: string
+  extra?: any
+}
+
 // Добавляем расширение интерфейса для дебага
 interface DebugExtension {
   debug: {
-    currentScene: string;
-    replies: Array<any>;
-    replyMessages: () => Array<any>;
-  };
+    currentScene: string
+    replies: DebugReply[]
+    replyMessages: () => Array<any>
+  }
 }
 
 /**
@@ -22,13 +31,23 @@ interface DebugExtension {
  * @param {Object} contextExtra - Дополнительные атрибуты для контекста
  * @returns {MyContext & DebugExtension} - Моковый контекст Telegraf
  */
-export function makeMockContext(update = {}, contextExtra = {}): MyContext & DebugExtension {
+export function makeMockContext(
+  update = {},
+  contextExtra = {}
+): MyContext & DebugExtension {
   const mockTelegram = {
     token: 'mock_token',
     callApi: jest.fn((method, data) => {
       console.log(`Вызов Telegram API: ${method}`, data)
       return Promise.resolve({ ok: true })
     }),
+  }
+
+  const debug = {
+    currentScene: '',
+    replies: [] as DebugReply[],
+    replyMessages: () =>
+      debug.replies.map(reply => reply.message).filter(Boolean),
   }
 
   const ctx = {
@@ -45,26 +64,22 @@ export function makeMockContext(update = {}, contextExtra = {}): MyContext & Deb
       cursor: 0,
     },
     scene: {
-      enter: jest.fn((sceneName) => {
-        ctx.debug.currentScene = sceneName
+      enter: jest.fn((sceneName: string) => {
+        debug.currentScene = sceneName
         return Promise.resolve()
       }),
       leave: jest.fn(() => {
-        ctx.debug.currentScene = ''
+        debug.currentScene = ''
         return Promise.resolve()
       }),
     },
-    debug: {
-      currentScene: '',
-      replies: [],
-      replyMessages: () => ctx.debug.replies.map(({ message }) => message),
-    },
+    debug,
     reply: jest.fn((message, extra = undefined) => {
-      ctx.debug.replies.push({ message, extra })
+      debug.replies.push({ message, extra })
       return Promise.resolve()
     }),
-    replyWithPhoto: jest.fn((url, extra: any = undefined) => {
-      ctx.debug.replies.push({ 
+    replyWithPhoto: jest.fn((url: any, extra: any = undefined) => {
+      debug.replies.push({
         type: 'photo',
         url,
         caption: extra?.caption || '',
@@ -78,4 +93,4 @@ export function makeMockContext(update = {}, contextExtra = {}): MyContext & Deb
   return ctx
 }
 
-export default makeMockContext 
+export default makeMockContext
