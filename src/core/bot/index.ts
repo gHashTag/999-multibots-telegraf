@@ -73,6 +73,14 @@ logger.info('🤖 Инициализация defaultBot:', {
 // Инициализируем ботов при старте приложения
 export const bots = Object.entries(BOT_NAMES)
   .filter(([, token]) => token) // Фильтруем undefined токены
+  .filter(([name, token]) => {
+    // В development режиме используем только тестовых ботов
+    if (NODE_ENV === 'development') {
+      return BOT_TOKENS_TEST.includes(token)
+    }
+    // В production режиме используем только продакшен ботов
+    return BOT_TOKENS_PROD.includes(token)
+  })
   .map(([name, token]) => {
     // Если это defaultBot, используем существующий экземпляр
     if (name === DEFAULT_BOT_NAME) {
