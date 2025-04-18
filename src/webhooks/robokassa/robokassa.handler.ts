@@ -154,17 +154,11 @@ export async function handleRobokassaResult(
     try {
       if (payment.type === 'BALANCE_TOPUP') {
         await updateUserBalance(
-          telegramId.toString(),
+          telegramId,
           payment.stars || payment.amount,
           'money_income',
-          'Пополнение баланса через Robokassa',
-          {
-            payment_method: 'robokassa',
-            bot_name: botName,
-            language: languageCode,
-            inv_id: invId.toString(),
-            service_type: 'robokassa',
-          }
+          `Пополнение баланса через Robokassa (ID: ${payment.id})`,
+          { payment_id: payment.id }
         )
         notificationMessage = `✅ Баланс пополнен на ${
           payment.stars || payment.amount
