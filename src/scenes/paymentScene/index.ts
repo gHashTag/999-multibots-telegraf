@@ -4,6 +4,7 @@ import { isRussian } from '@/helpers'
 import { handleSelectStars } from '@/handlers/handleSelectStars'
 import { starAmounts } from '@/price/helpers/starAmounts'
 import { handleBuySubscription } from '@/handlers/handleBuySubscription'
+import { handleBuy } from '@/handlers'
 
 export const paymentScene = new Scenes.BaseScene<MyContext>('paymentScene')
 
@@ -48,6 +49,33 @@ paymentScene.enter(async ctx => {
   }
 })
 
+// Добавляем обработчик колбэка top_up_X непосредственно в сцену
+paymentScene.action(/top_up_\d+/, async ctx => {
+  try {
+    console.log('[PaymentScene] Обработка callback top_up в сцене')
+    const data = ctx.match[0]
+    console.log('[PaymentScene] Callback data:', data)
+    const isRu = isRussian(ctx)
+
+    try {
+      await ctx.answerCbQuery()
+    } catch (e) {
+      console.error('[PaymentScene] Ошибка при ответе на callback:', e)
+    }
+
+    await handleBuy({ ctx, data, isRu })
+    console.log('[PaymentScene] Обработка callback top_up успешно завершена')
+  } catch (error) {
+    console.error('[PaymentScene] Ошибка обработки callback top_up:', error)
+    const isRu = isRussian(ctx)
+    await ctx.reply(
+      isRu
+        ? 'Произошла ошибка при обработке покупки звезд. Пожалуйста, попробуйте позже.'
+        : 'An error occurred while processing star purchase. Please try again later.'
+    )
+  }
+})
+
 paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   console.log('[PaymentScene] Hears: ⭐️ Звездами triggered')
   const isRu = isRussian(ctx)
@@ -58,26 +86,16 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   )
   try {
     if (subscription) {
-      if (
-        [
-          'neurobase',
-          'neuromeeting',
-          'neuroblogger',
-          'neurophoto',
-          'neuromentor',
-        ].includes(subscription)
-      ) {
+      if (['neurobase', 'neuroblogger', 'neurophoto'].includes(subscription)) {
         await handleBuySubscription({ ctx, isRu })
         await ctx.scene.leave()
         return
       } else if (subscription === 'stars') {
         await handleSelectStars({ ctx, isRu, starAmounts })
-        await ctx.scene.leave()
         return
       }
     } else {
       await handleSelectStars({ ctx, isRu, starAmounts })
-      await ctx.scene.leave()
       return
     }
     console.warn(
