@@ -2,7 +2,7 @@ import { Telegraf } from 'telegraf'
 import express from 'express'
 import { MyContext } from '@/interfaces'
 import { removeWebhooks } from './removeWebhooks'
-import { logger } from '@/utils/logger'
+import { logger } from './logger'
 
 /**
  * Запускает бота в режиме разработки (polling)

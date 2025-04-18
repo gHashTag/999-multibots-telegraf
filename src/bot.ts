@@ -60,7 +60,7 @@ async function isPortInUse(port: number): Promise<boolean> {
 // Функция запуска сервера для обработки Robokassa вебхуков
 function startRobokassaWebhookServer() {
   // Порт для Robokassa webhook
-  const robokassaPort = process.env.ROBOKASSA_WEBHOOK_PORT || 8288
+  const robokassaPort = process.env.ROBOKASSA_WEBHOOK_PORT || 2999
 
   // Создаем экземпляр express
   const app = express()
