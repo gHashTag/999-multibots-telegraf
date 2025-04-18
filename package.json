@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.10",
+    "@types/express-fileupload": "^1.5.1",
     "archiver": "^7.0.1",
     "axios": "^1.8.4",
     "bcrypt": "^5.0.1",
@@ -32,6 +33,7 @@
     "elevenlabs": "^0.16.1",
     "envalid": "^7.3.1",
     "express": "^4.21.2",
+    "express-fileupload": "^1.5.1",
     "form-data": "^4.0.1",
     "jest-mock": "^29.7.0",
     "md5": "^2.3.0",
