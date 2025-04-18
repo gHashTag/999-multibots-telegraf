@@ -5,28 +5,42 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { startScene } from '../../src/scenes/startScene'
 import makeMockContext from '../utils/mockTelegrafContext'
 
+// Определяем тип для моков Supabase
+type SupabaseMocks = {
+  getTranslation: jest.Mock
+  getReferalsCountAndUserData: jest.Mock
+  checkPaymentStatus: jest.Mock
+}
+
 // Мокируем функции supabase
 jest.mock('../../src/core/supabase', () => {
   return {
-    getTranslation: jest.fn().mockImplementation(({ key }) => ({
+    // @ts-ignore - игнорируем ошибки типов в моках для тестов
+    getTranslation: jest.fn().mockImplementation(({ key }: { key: any }) => ({
       translation: `Мок-перевод для ключа ${key}`,
       url: key === 'start' ? 'https://example.com/mock-photo.jpg' : '',
     })),
-    getReferalsCountAndUserData: jest.fn().mockImplementation(telegram_id => ({
-      count: 0,
-      level: 1,
-      subscription: 'stars',
-      userData: {
-        user_id: '123e4567-e89b-12d3-a456-426614174000',
-        telegram_id,
-        subscription: 'stars',
+    // @ts-ignore - игнорируем ошибки типов в моках для тестов
+    getReferalsCountAndUserData: jest
+      .fn()
+      .mockImplementation((telegram_id: string) => ({
+        count: 0,
         level: 1,
-      },
-      isExist: true,
-    })),
-    checkPaymentStatus: jest.fn().mockImplementation((ctx, subscription) => {
-      return subscription !== 'stars'
-    }),
+        subscription: 'stars',
+        userData: {
+          user_id: '123e4567-e89b-12d3-a456-426614174000',
+          telegram_id,
+          subscription: 'stars',
+          level: 1,
+        },
+        isExist: true,
+      })),
+    // @ts-ignore - игнорируем ошибки типов в моках для тестов
+    checkPaymentStatus: jest
+      .fn()
+      .mockImplementation((ctx: any, subscription: string) => {
+        return subscription !== 'stars'
+      }),
   }
 })
 
@@ -42,6 +56,7 @@ describe('startScene', () => {
     // Получаем и вызываем первый обработчик сцены
     // @ts-ignore - игнорируем ошибку типов для тестов
     const firstHandler = startScene.steps[0]
+    // @ts-ignore - игнорируем ошибку типов для тестов
     await firstHandler(ctx)
 
     // Проверяем, что фото было отправлено
@@ -63,12 +78,15 @@ describe('startScene', () => {
     const ctx = makeMockContext()
 
     // Переопределяем мок функцию для этого теста
-    const supabaseMock = jest.requireMock('../../src/core/supabase')
+    const supabaseMock = jest.requireMock(
+      '../../src/core/supabase'
+    ) as SupabaseMocks
     supabaseMock.checkPaymentStatus.mockReturnValueOnce(true)
 
     // Вызываем второй шаг сцены
     // @ts-ignore - игнорируем ошибку типов для тестов
     const secondHandler = startScene.steps[1]
+    // @ts-ignore - игнорируем ошибку типов для тестов
     await secondHandler(ctx)
 
     // Проверяем, что был осуществлен переход на menuScene
@@ -80,12 +98,15 @@ describe('startScene', () => {
     const ctx = makeMockContext()
 
     // Переопределяем мок функцию для этого теста
-    const supabaseMock = jest.requireMock('../../src/core/supabase')
+    const supabaseMock = jest.requireMock(
+      '../../src/core/supabase'
+    ) as SupabaseMocks
     supabaseMock.checkPaymentStatus.mockReturnValueOnce(false)
 
     // Вызываем второй шаг сцены
     // @ts-ignore - игнорируем ошибку типов для тестов
     const secondHandler = startScene.steps[1]
+    // @ts-ignore - игнорируем ошибку типов для тестов
     await secondHandler(ctx)
 
     // Проверяем, что был осуществлен переход на subscriptionScene
