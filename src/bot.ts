@@ -70,69 +70,124 @@ export const createBots = async () => {
   console.log('✅ Активных ботов:', activeBots.length)
 
   activeBots.forEach((bot, index) => {
-    const app = express()
+    try {
+      const app = express()
 
-    // Устанавливаем обработчик ошибок для защиты от проблем с токенами
-    setupErrorHandler(bot)
+      // Устанавливаем обработчик ошибок для защиты от проблем с токенами
+      setupErrorHandler(bot)
 
-    const port = 3001 + index
-    logger.info('🔌 Порт для бота:', {
-      description: 'Bot port',
-      port,
-    })
-
-    setBotCommands(bot)
-    registerCommands({ bot, composer })
-
-    registerCallbackActions(bot)
-    registerPaymentActions(bot)
-    registerHearsActions(bot)
-
-    const telegramToken = bot.telegram.token
-    const { bot_name } = getBotNameByToken(telegramToken)
-    logger.info('🤖 Запускается бот:', {
-      description: 'Starting bot',
-      bot_name,
-      environment: NODE_ENV,
-    })
-
-    const webhookPath = `/${bot_name}`
-    const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app${webhookPath}`
-
-    if (NODE_ENV === 'development') {
-      development(bot)
-    } else {
-      production(bot, port, webhookUrl, webhookPath)
-    }
-
-    bot.use((ctx: MyContext, next: NextFunction) => {
-      logger.info('🔍 Получено сообщение/команда:', {
-        description: 'Message/command received',
-        text:
-          ctx.message && 'text' in ctx.message ? ctx.message.text : undefined,
-        from: ctx.from?.id,
-        chat: ctx.chat?.id,
-        bot: ctx.botInfo?.username,
-        timestamp: new Date().toISOString(),
-      })
-      return next()
-    })
-
-    app.use(webhookPath, express.json(), (req, res) => {
-      logger.info('📨 Получен вебхук:', {
-        description: 'Webhook received',
-        query: req.query,
+      const port = 3001 + index
+      logger.info('🔌 Порт для бота:', {
+        description: 'Bot port',
+        port,
       })
 
-      const token = req.query.token as string
-      const bot = activeBots.find(b => b.telegram.token === token)
-
-      if (bot) {
-        bot.handleUpdate(req.body, res)
-      } else {
-        res.status(404).send('Bot not found')
+      // Оборачиваем вызовы в try-catch
+      try {
+        setBotCommands(bot)
+      } catch (commandError) {
+        logger.error('❌ Ошибка при установке команд:', {
+          description: 'Command setup error',
+          bot_name: bot.botInfo?.username || 'unknown',
+          error:
+            commandError instanceof Error
+              ? commandError.message
+              : String(commandError),
+        })
       }
-    })
+
+      try {
+        registerCommands({ bot, composer })
+      } catch (registerError) {
+        logger.error('❌ Ошибка при регистрации команд:', {
+          description: 'Command registration error',
+          bot_name: bot.botInfo?.username || 'unknown',
+          error:
+            registerError instanceof Error
+              ? registerError.message
+              : String(registerError),
+        })
+      }
+
+      try {
+        registerCallbackActions(bot)
+        registerPaymentActions(bot)
+        registerHearsActions(bot)
+      } catch (actionsError) {
+        logger.error('❌ Ошибка при регистрации обработчиков:', {
+          description: 'Action registration error',
+          bot_name: bot.botInfo?.username || 'unknown',
+          error:
+            actionsError instanceof Error
+              ? actionsError.message
+              : String(actionsError),
+        })
+      }
+
+      const telegramToken = bot.telegram.token
+      const { bot_name } = getBotNameByToken(telegramToken)
+      logger.info('🤖 Запускается бот:', {
+        description: 'Starting bot',
+        bot_name,
+        environment: NODE_ENV,
+      })
+
+      const webhookPath = `/${bot_name}`
+      const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app${webhookPath}`
+
+      try {
+        if (NODE_ENV === 'development') {
+          development(bot)
+        } else {
+          production(bot, port, webhookUrl, webhookPath)
+        }
+      } catch (launchError) {
+        logger.error('❌ Ошибка при запуске бота:', {
+          description: 'Bot launch error',
+          bot_name,
+          error:
+            launchError instanceof Error
+              ? launchError.message
+              : String(launchError),
+        })
+      }
+
+      bot.use((ctx: MyContext, next: NextFunction) => {
+        logger.info('🔍 Получено сообщение/команда:', {
+          description: 'Message/command received',
+          text:
+            ctx.message && 'text' in ctx.message ? ctx.message.text : undefined,
+          from: ctx.from?.id,
+          chat: ctx.chat?.id,
+          bot: ctx.botInfo?.username,
+          timestamp: new Date().toISOString(),
+        })
+        return next()
+      })
+
+      app.use(webhookPath, express.json(), (req, res) => {
+        logger.info('📨 Получен вебхук:', {
+          description: 'Webhook received',
+          query: req.query,
+        })
+
+        const token = req.query.token as string
+        const bot = activeBots.find(b => b.telegram.token === token)
+
+        if (bot) {
+          bot.handleUpdate(req.body, res)
+        } else {
+          res.status(404).send('Bot not found')
+        }
+      })
+    } catch (error) {
+      // Обработка общих ошибок при инициализации бота
+      logger.error('❌ Критическая ошибка при инициализации бота:', {
+        description: 'Critical bot initialization error',
+        index,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
   })
 }
 

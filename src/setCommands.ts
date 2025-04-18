@@ -2,10 +2,13 @@ import { Telegraf } from 'telegraf'
 import { MyContext } from './interfaces'
 import { botLogger } from './utils/logger'
 
-export function setBotCommands(bot: Telegraf<MyContext>) {
+export async function setBotCommands(bot: Telegraf<MyContext>) {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    bot.telegram.setMyCommands([
+    const botName = bot.botInfo?.username || 'unknown'
+    botLogger.info(botName, `Установка команд для бота ${botName}`)
+
+    // Используем await вместо eslint-disable-next-line @typescript-eslint/no-floating-promises
+    await bot.telegram.setMyCommands([
       {
         command: 'start',
         description: '👤 Start / Начать',
@@ -35,6 +38,9 @@ export function setBotCommands(bot: Telegraf<MyContext>) {
       //   description: '🤖 Help / Помощь',
       // },
     ])
+
+    botLogger.info(botName, `Команды успешно установлены для бота ${botName}`)
+    return true
   } catch (error) {
     const botName = bot.botInfo?.username || 'unknown'
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -43,5 +49,6 @@ export function setBotCommands(bot: Telegraf<MyContext>) {
       `Ошибка при установке команд бота: ${errorMessage}`
     )
     // Продолжаем работу бота даже при ошибке установки команд
+    return false
   }
 }
