@@ -1,38 +1,24 @@
 import { supabase } from '.'
+import { logger } from '@/utils/logger'
 
-export async function checkSubscriptionByTelegramId(
-  telegram_id: string
-): Promise<string> {
-  // Получаем последнюю подписку пользователя
-  const { data: subscriptionData, error: subscriptionError } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('telegram_id', telegram_id)
-    .order('created_at', { ascending: false })
+export const checkSubscriptionByTelegramId = async (
+  telegramId: number
+): Promise<boolean> => {
+  const { data, error } = await supabase
+    // .from('payments') // Старая таблица
+    .from('payments_v2') // Новая таблица
+    .select('id')
+    .eq('telegram_id', telegramId)
+    .eq('type', 'SUBSCRIPTION_PURCHASE') // Убедимся, что тип правильный
+    .eq('status', 'COMPLETED') // И статус завершен
+    // Возможно, нужно добавить проверку на дату окончания подписки?
     .limit(1)
-    .single()
+    .maybeSingle()
 
-  if (subscriptionError) {
-    console.error(
-      'Ошибка при получении информации о подписке:',
-      subscriptionError
-    )
-    return 'unsubscribed'
+  if (error) {
+    logger.error('Ошибка при проверке подписки пользователя:', error)
+    return false
   }
 
-  if (!subscriptionData) {
-    return 'unsubscribed'
-  }
-
-  // Проверяем, была ли подписка куплена меньше месяца назад
-  const subscriptionDate = new Date(subscriptionData.created_at)
-  const currentDate = new Date()
-  const differenceInDays =
-    (currentDate.getTime() - subscriptionDate.getTime()) / (1000 * 3600 * 24)
-
-  if (differenceInDays > 30) {
-    return 'unsubscribed'
-  }
-
-  return subscriptionData.level
+  return !!data // Возвращаем true, если найдена хотя бы одна запись
 }

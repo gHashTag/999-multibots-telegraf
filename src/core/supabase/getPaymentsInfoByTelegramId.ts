@@ -6,18 +6,23 @@ export interface Payment {
   date: string
 }
 
-export async function getPaymentsInfoByTelegramId(
-  telegram_id: string
-): Promise<Payment[]> {
-  const { data: paymentsData, error: paymentsError } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('telegram_id', telegram_id)
+export const getPaymentsInfoByTelegramId = async (
+  telegramId: string
+): Promise<Payment[]> => {
+  const { data, error } = await supabase
+    // .from('payments') // Старая таблица
+    .from('payments_v2') // Новая таблица
+    .select('id, amount, date')
+    .eq('telegram_id', telegramId)
+    .order('date', { ascending: false })
 
-  if (paymentsError || !paymentsData) {
-    console.error('Error fetching payments info:', paymentsError)
+  if (error) {
+    console.error(
+      'Ошибка при получении информации о платежах пользователя:',
+      error
+    )
     return []
   }
 
-  return paymentsData
+  return data || []
 }

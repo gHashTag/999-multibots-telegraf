@@ -1,23 +1,21 @@
-import { supabase } from '@/core/supabase'
+import { supabase } from '.'
 
-export async function updateUserSubscription(
-  userId: string,
+export const updateUserSubscription = async (
+  telegram_id: string,
   subscription: string
-) {
+): Promise<void> => {
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('users')
       .update({ subscription })
-      .eq('telegram_id', userId)
+      .eq('telegram_id', telegram_id)
 
     if (error) {
-      console.error('Error updating subscription:', error)
-      throw error
+      console.error('Ошибка при обновлении подписки пользователя:', error)
+      throw new Error('Не удалось обновить подписку пользователя')
     }
-
-    return data
   } catch (error) {
-    console.error('Error updating subscription:', error)
-    throw error
+    console.error('Ошибка при обновлении подписки пользователя:', error)
+    throw new Error('Не удалось обновить подписку пользователя')
   }
 }
