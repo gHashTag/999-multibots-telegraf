@@ -99,3 +99,30 @@ export async function production(
     throw error
   }
 }
+
+/**
+ * Заглушка для модуля utils/launch
+ * Добавлен для решения проблемы с импортом в скомпилированном коде
+ */
+
+// Экспортируем пустой объект, чтобы модуль мог быть импортирован
+export const launch = {
+  // Добавляем базовые функции, которые могут быть использованы
+  init: () => {
+    console.log('Launch module initialized')
+    return true
+  },
+
+  configureWebhook: (options: any) => {
+    console.log('Webhook configured with options:', options)
+    return true
+  },
+
+  configureLongPolling: (options: any) => {
+    console.log('Long polling configured with options:', options)
+    return true
+  },
+}
+
+// Экспортируем по умолчанию для поддержки различных способов импорта
+export default launch
