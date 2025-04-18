@@ -2,12 +2,28 @@
  * Моки для функций Supabase, используемых в сценах
  */
 
-import { jest } from '@jest/globals'
 import { Subscription } from '../../src/interfaces'
+
+// Типы для мок-функций
+type TranslationResult = { translation: string; url: string }
+type ReferralsResult = {
+  count: number
+  level: number
+  subscription: Subscription
+  userData: any
+  isExist: boolean
+}
+type PaymentStatusResult = {
+  status: string
+  amount: number
+  currency: string
+  type: string
+  [key: string]: any
+}
 
 // Мок для getTranslation
 export const mockGetTranslation = jest.fn().mockImplementation(
-  ({ key }) => ({
+  ({ key }: { key: string }): TranslationResult => ({
     translation: `Мок-перевод для ключа ${key}`,
     url: key === 'start' ? 'https://example.com/mock-photo.jpg' : '',
   })
@@ -15,7 +31,7 @@ export const mockGetTranslation = jest.fn().mockImplementation(
 
 // Мок для getReferalsCountAndUserData
 export const mockGetReferalsCountAndUserData = jest.fn().mockImplementation(
-  (telegram_id: string) => ({
+  (telegram_id: string): ReferralsResult => ({
     count: 0,
     level: 1,
     subscription: 'stars' as Subscription,
@@ -31,16 +47,21 @@ export const mockGetReferalsCountAndUserData = jest.fn().mockImplementation(
 )
 
 // Мок для checkPaymentStatus
-export const mockCheckPaymentStatus = jest.fn().mockImplementation(
-  (ctx, subscription) => {
-    // Возвращаем true для полной подписки и false для базовой
-    return subscription !== 'stars'
-  }
-)
+export const mockCheckPaymentStatus = jest
+  .fn()
+  .mockImplementation((invId: string): PaymentStatusResult => {
+    // Возвращаем объект с информацией о платеже
+    return {
+      status: 'COMPLETED',
+      amount: 100,
+      currency: 'RUB',
+      type: 'BALANCE_TOPUP',
+    }
+  })
 
-// Экспортируем все моки
+// Экспортируем все моки с явным типом
 export const supabaseMocks = {
   getTranslation: mockGetTranslation,
   getReferalsCountAndUserData: mockGetReferalsCountAndUserData,
   checkPaymentStatus: mockCheckPaymentStatus,
-} 
+} as const

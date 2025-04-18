@@ -5,6 +5,7 @@ import {
   supabase,
   incrementBalance,
   updateUserSubscription,
+  updateUserBalance,
 } from '../../core/supabase'
 import { validateRobokassaSignature } from './utils/validateSignature'
 import { createBotByName } from '../../core/bot'
@@ -152,11 +153,22 @@ export async function handleRobokassaResult(
     let notificationMessage = 'Платеж успешно обработан!' // Базовое сообщение
     try {
       if (payment.type === 'BALANCE_TOPUP') {
-        await incrementBalance({
-          telegram_id: telegramId.toString(),
-          amount: payment.amount,
-        })
-        notificationMessage = `✅ Баланс пополнен на ${payment.amount} ${payment.currency}.
+        await updateUserBalance(
+          telegramId.toString(),
+          payment.stars || payment.amount,
+          'money_income',
+          'Пополнение баланса через Robokassa',
+          {
+            payment_method: 'robokassa',
+            bot_name: botName,
+            language: languageCode,
+            inv_id: invId.toString(),
+            service_type: 'robokassa',
+          }
+        )
+        notificationMessage = `✅ Баланс пополнен на ${
+          payment.stars || payment.amount
+        } звезд.
 Спасибо за покупку!`
       } else if (payment.type === 'SUBSCRIPTION_PURCHASE') {
         // Логика обновления подписки

@@ -1,9 +1,20 @@
+/**
+ * @jest-environment node
+ *
+ * @global jest
+ * @global describe
+ * @global it
+ * @global expect
+ * @global beforeEach
+ */
+
 import { Request, Response } from 'express'
 import { handleRobokassaResult } from '@/webhooks/robokassa/robokassa.handler' // Пробуем alias
 import {
   supabase,
   incrementBalance,
   updateUserSubscription,
+  updateUserBalance,
 } from '@/core/supabase' // Импортируем И мокируемые функции
 import { Telegraf } from 'telegraf' // Для мока Telegraf
 import { MyContext } from '@/interfaces'
@@ -47,6 +58,7 @@ jest.mock('@/core/supabase', () => {
     },
     incrementBalance: jest.fn(),
     updateUserSubscription: jest.fn(),
+    updateUserBalance: jest.fn(),
   }
 })
 
@@ -88,6 +100,7 @@ const mockedSupabase = supabase as jest.Mocked<typeof supabase> & {
 // Моки для именованных экспортов
 const mockedIncrementBalance = incrementBalance as jest.Mock
 const mockedUpdateUserSubscription = updateUserSubscription as jest.Mock
+const mockedUpdateUserBalance = updateUserBalance as jest.Mock
 const mockedCreateBotByName = createBotByName as jest.Mock
 const mockedGetBotTokenByName = getBotTokenByName as jest.Mock
 const mockedValidateSignature = validateRobokassaSignature as jest.Mock
@@ -115,6 +128,7 @@ describe('Robokassa Webhook Handler', () => {
     mockedSupabase.__mockUpdateResult.mockClear()
     mockedIncrementBalance.mockClear()
     mockedUpdateUserSubscription.mockClear()
+    mockedUpdateUserBalance.mockClear()
     mockTelegramApi.sendMessage.mockClear()
     mockedCreateBotByName.mockClear()
     mockedGetBotTokenByName.mockClear()
@@ -183,7 +197,6 @@ describe('Robokassa Webhook Handler', () => {
     await handleRobokassaResult(
       mockRequest as Request,
       mockResponse as Response
-      // mockBotInstance // Больше не передаем инстанс бота
     )
 
     // --- Assert (Проверка) ---
@@ -201,15 +214,21 @@ describe('Robokassa Webhook Handler', () => {
     expect(mockedSupabase.__mockEq).toHaveBeenCalledWith('inv_id', mockInvId)
     expect(mockedSupabase.__mockEq).toHaveBeenCalledTimes(2) // Один раз для select, один для update
 
-    // Проверка вызова incrementBalance
-    expect(mockedIncrementBalance).toHaveBeenCalledTimes(1)
-    // ВРЕМЕННО КОММЕНТИРУЕМ ПРОВЕРКУ АРГУМЕНТОВ ИЗ-ЗА ОШИБКИ ЛИНТЕРА/JEST
-    // const lastCallArgs = mockedIncrementBalance.mock.calls[0][0] // Первый аргумент первого вызова
-    // expect(lastCallArgs).toEqual({
-    //   telegram_id: mockUserId.toString(),
-    //   amount: mockAmountStars,
-    // })
+    // Проверка вызова updateUserBalance вместо incrementBalance
+    expect(mockedUpdateUserBalance).toHaveBeenCalledTimes(1)
+    expect(mockedUpdateUserBalance).toHaveBeenCalledWith(
+      mockUserId.toString(),
+      mockAmountStars,
+      'money_income',
+      'Пополнение баланса через Robokassa',
+      expect.objectContaining({
+        payment_method: 'robokassa',
+        bot_name: mockBotName,
+        inv_id: mockInvId,
+      })
+    )
 
+    expect(mockedIncrementBalance).not.toHaveBeenCalled()
     expect(mockedUpdateUserSubscription).not.toHaveBeenCalled()
 
     // Проверка получения токена и создания бота
@@ -269,8 +288,7 @@ describe('Robokassa Webhook Handler', () => {
     // --- Act ---
     await handleRobokassaResult(
       mockRequest as Request,
-      mockResponse as Response,
-      mockBotInstance
+      mockResponse as Response
     )
 
     // --- Assert ---
