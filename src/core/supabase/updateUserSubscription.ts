@@ -8,7 +8,7 @@ export async function updateUserSubscription(
     const { data, error } = await supabase
       .from('users')
       .update({ subscription })
-      .eq('id', userId)
+      .eq('telegram_id', userId)
 
     if (error) {
       console.error('Error updating subscription:', error)

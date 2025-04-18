@@ -1,3 +1,4 @@
+import { ModeEnum } from '@/scenes'
 import { supabase } from '.'
 import { Subscription } from '../../interfaces/supabase.interface'
 
@@ -7,7 +8,6 @@ type Payment = {
   InvId: string
   currency: 'RUB' | 'USD' | 'EUR' | 'STARS'
   stars: number
-  email: string
   status: 'COMPLETED' | 'PENDING' | 'FAILED'
   payment_method: 'Robokassa' | 'YooMoney' | 'Telegram' | 'Stripe' | 'Other'
   subscription: Subscription
@@ -21,15 +21,13 @@ export const setPayments = async ({
   InvId,
   currency,
   stars,
-  email,
   status,
   payment_method,
-  subscription,
   bot_name,
   language,
 }: Payment) => {
   try {
-    const { error } = await supabase.from('payments').insert({
+    const { error } = await supabase.from('payments_v2').insert({
       telegram_id,
       amount: parseFloat(OutSum),
       inv_id: InvId,
@@ -38,9 +36,8 @@ export const setPayments = async ({
       payment_method,
       description: `Purchase and sale:: ${stars}`,
       stars,
-      email,
-      subscription,
       bot_name,
+      type: 'money_income',
       language,
     })
     if (error) {

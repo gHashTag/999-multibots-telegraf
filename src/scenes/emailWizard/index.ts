@@ -162,7 +162,6 @@ emailWizard.on('text', async ctx => {
           description,
           password1
         )
-        const email = ctx.session.email
 
         const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
@@ -174,7 +173,6 @@ emailWizard.on('text', async ctx => {
           currency: 'STARS',
           stars,
           status: 'PENDING',
-          email: email,
           payment_method: 'Telegram',
           subscription: 'stars',
           bot_name,
