@@ -15,6 +15,9 @@ import { MyContext } from './interfaces'
 // Инициализация ботов
 const botInstances: Telegraf[] = []
 
+// Создаем и экспортируем Composer глобально
+export const composer = new Composer<MyContext>()
+
 // Функция для проверки валидности токена
 async function validateBotToken(token: string): Promise<boolean> {
   try {
@@ -61,8 +64,7 @@ async function initializeBots() {
     const bot = new Telegraf<MyContext>(testBotToken)
     bot.use(Composer.log())
 
-    const composer = new Composer<MyContext>()
-
+    // Регистрируем команды, используя глобальный composer
     registerCommands({ bot, composer })
 
     botInstances.push(bot)
@@ -91,13 +93,12 @@ async function initializeBots() {
     // Начинаем с порта 3001 для первого бота
     let currentPort = 3001
 
-    const composer = new Composer<MyContext>()
-
     for (const token of botTokens) {
       if (await validateBotToken(token)) {
         const bot = new Telegraf<MyContext>(token)
         bot.use(Composer.log())
 
+        // Регистрируем команды, используя глобальный composer
         registerCommands({ bot, composer })
 
         botInstances.push(bot)
