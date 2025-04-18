@@ -4,6 +4,7 @@ FROM node:20-alpine as builder
 WORKDIR /app
 
 COPY package*.json ./
+# Устанавливаем все зависимости, включая dev для сборки
 RUN npm install
 
 COPY . .
@@ -36,11 +37,14 @@ RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh
 # Копируем package.json и package-lock.json
 COPY package*.json ./
 
-# Устанавливаем только продакшн зависимости и явно включаем tslib
-RUN npm install --omit=dev && npm install tslib
+# Убеждаемся, что tslib указан в dependencies, а не в devDependencies
+RUN npm install --omit=dev && npm install --no-save tslib && npm list tslib
 
 # Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
+
+# Создаем node_modules/tslib, если он не существует
+RUN if [ ! -d "node_modules/tslib" ]; then mkdir -p node_modules/tslib && npm install --no-save tslib && cp -r /usr/local/lib/node_modules/tslib/* node_modules/tslib/ || true; fi
 
 # Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
