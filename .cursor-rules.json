@@ -1,0 +1,71 @@
+{
+  "version": "1.0",
+  "rules": {
+    "formatOnSave": true,
+    "lintOnSave": true,
+    "autoImport": true,
+    "codeCompletion": true,
+    "eslintIntegration": true,
+    "prettierIntegration": true,
+    "aiAssist": {
+      "enabled": true,
+      "suggestImports": true,
+      "contextAwareness": true,
+      "codeExplanation": true
+    },
+    "fileSearch": {
+      "excludeFolders": [
+        "node_modules",
+        "dist",
+        ".git",
+        ".next",
+        "tmp",
+        "logs",
+        "debug_logs",
+        "diagnostic_logs"
+      ],
+      "maxResults": 100
+    },
+    "codeNavigation": {
+      "jumpToDefinition": true,
+      "showReferences": true,
+      "outlineView": true
+    },
+    "typescript": {
+      "validateOnSave": true,
+      "suggestStrictMode": true,
+      "preferConstOverLet": true,
+      "suggestUnusedVariableRemoval": true
+    },
+    "git": {
+      "showChangesInGutter": true,
+      "blameEnabled": true,
+      "suggestCommits": true
+    },
+    "terminal": {
+      "runScripts": [
+        "dev",
+        "build",
+        "test",
+        "lint",
+        "format"
+      ],
+      "defaultCommand": "pnpm dev"
+    },
+    "customRules": {
+      "telegramBotDevelopment": {
+        "suggestTelegrafPatterns": true,
+        "supportsWebhook": true
+      },
+      "supabaseIntegration": {
+        "checkTypeSafety": true,
+        "suggestQueries": true
+      }
+    }
+  },
+  "paths": {
+    "srcRoot": "src",
+    "testRoot": "src/__tests__",
+    "buildOutput": "dist"
+  }
+} 

@@ -1,0 +1,47 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🔍 Running pre-deploy checks..."
+
+# Проверка переменных окружения
+echo "📋 Checking environment variables..."
+if [ -z "$BOT_TOKEN_1" ] || [ -z "$BOT_TOKEN_2" ] || [ -z "$BOT_TOKEN_3" ] || 
+   [ -z "$BOT_TOKEN_4" ] || [ -z "$BOT_TOKEN_5" ] || [ -z "$BOT_TOKEN_6" ] || 
+   [ -z "$BOT_TOKEN_7" ] || [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
+    echo "❌ Error: Missing required environment variables"
+    exit 1
+fi
+
+# Проверка сборки TypeScript
+echo "🔨 Checking TypeScript build..."
+pnpm build:nocheck
+if [ $? -ne 0 ]; then
+    echo "❌ Error: TypeScript build failed"
+    exit 1
+fi
+
+# Проверка линтера
+echo "🧹 Running linter..."
+pnpm lint
+if [ $? -ne 0 ]; then
+    echo "❌ Error: Lint check failed"
+    exit 1
+fi
+
+# Проверка тестов
+echo "🧪 Running tests..."
+pnpm test
+if [ $? -ne 0 ]; then
+    echo "❌ Error: Tests failed"
+    exit 1
+fi
+
+# Проверка Dockerfile
+echo "🐳 Validating Dockerfile..."
+if ! docker build -t neuro-blogger-bot:test .; then
+    echo "❌ Error: Docker build failed"
+    exit 1
+fi
+
+echo "✅ All pre-deploy checks passed!"
+exit 0 
