@@ -62,8 +62,7 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
       ],
       provider_token: '',
     })
-
-    return
+    return ctx.scene.leave() // Выходим из сцены
   } catch (error) {
     console.error('Error in handleBuySubscription:', error)
     throw error

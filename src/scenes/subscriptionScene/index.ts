@@ -2,7 +2,6 @@ import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '@/helpers'
 // import { levels } from '@/menu/mainMenu' // levels больше не нужны здесь
-import { handleMenu } from '@/handlers'
 
 // Обновленный текст только для двух тарифов
 const message = (isRu: boolean) =>
@@ -118,6 +117,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
         // Остаемся в сцене, чтобы пользователь мог выбрать снова
         // return ctx.scene.reenter()
       }
+      return ctx.scene.leave() // Выходим из сцены
     } else {
       // Если пришло не callback_query, а что-то другое (например, текст)
       console.log('Received non-callback query in subscriptionScene step 2')
@@ -128,7 +128,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       )
       // Можно либо выйти в меню, либо переотправить сообщение с кнопками
       // await handleMenu(ctx)
-      // return ctx.scene.leave()
+      return ctx.scene.leave() // Оставляем этот выход из сцены
     }
   }
 )

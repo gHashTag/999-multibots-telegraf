@@ -57,42 +57,129 @@ paymentScene.enter(async ctx => {
   }
 })
 
-// Обработчик колбэка для пополнения ЗВЕЗДАМИ (Telegram Stars)
-paymentScene.action(/top_up_\d+/, async ctx => {
+paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
+  console.log('[PaymentScene] Hears: ⭐️ Звездами triggered')
+  const isRu = isRussian(ctx)
+  const subscription = ctx.session.subscription
+  console.log(
+    '[PaymentScene] Hears: ⭐️ Звездами. Session subscription:',
+    subscription
+  )
   try {
-    console.log('[PaymentScene] Обработка callback top_up (Stars) в сцене')
-    const data = ctx.match[0]
-    console.log('[PaymentScene] Callback data:', data)
-    const isRu = isRussian(ctx)
-
-    try {
-      await ctx.answerCbQuery()
-    } catch (e) {
-      console.error('[PaymentScene] Ошибка при ответе на callback:', e)
+    if (subscription) {
+      if (
+        [
+          'neurobase',
+          'neuromeeting',
+          'neuroblogger',
+          'neurophoto',
+          'neuromentor',
+        ].includes(subscription)
+      ) {
+        await handleBuySubscription({ ctx, isRu })
+        await ctx.scene.leave()
+        return
+      } else if (subscription === 'stars') {
+        await handleSelectStars({ ctx, isRu, starAmounts })
+        await ctx.scene.leave()
+        return
+      }
+    } else {
+      await handleSelectStars({ ctx, isRu, starAmounts })
+      await ctx.scene.leave()
+      return
     }
-
-    await handleBuy({ ctx, data, isRu })
-    console.log(
-      '[PaymentScene] Обработка callback top_up (Stars) успешно завершена'
+    console.warn(
+      '[PaymentScene] Hears: ⭐️ Звездами. Unknown state for subscription:',
+      subscription
     )
-    // После успешной отправки инвойса Telegram Stars можно выйти из сцены
     await ctx.scene.leave()
+    return
   } catch (error) {
-    console.error(
-      '[PaymentScene] Ошибка обработки callback top_up (Stars):',
-      error
-    )
-    const isRu = isRussian(ctx)
+    console.error("[PaymentScene] Error in Hears '⭐️ Звездами':", error)
     await ctx.reply(
       isRu
-        ? 'Произошла ошибка при обработке покупки звезд. Пожалуйста, попробуйте позже.'
-        : 'An error occurred while processing star purchase. Please try again later.'
+        ? 'Ошибка обработки оплаты звездами.'
+        : 'Error processing star payment.'
     )
     await ctx.scene.leave()
+    return
   }
 })
 
-// НОВЫЙ обработчик колбэка для пополнения РУБЛЯМИ (Robokassa)
+paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
+  console.log('[PaymentScene] Hears: 💳 Рублями triggered')
+  const isRu = isRussian(ctx)
+  const subscription = ctx.session.subscription
+  console.log(
+    '[PaymentScene] Hears: 💳 Рублями. Session subscription:',
+    subscription
+  )
+  try {
+    if (subscription) {
+      if (
+        [
+          'neurobase',
+          'neuromeeting',
+          'neuroblogger',
+          'neurophoto',
+          'neuromentor',
+        ].includes(subscription)
+      ) {
+        console.log(
+          `[PaymentScene] Entering getEmailWizard for ${subscription}`
+        )
+        return ctx.scene.enter('getEmailWizard')
+      } else if (subscription === 'stars') {
+        // Пополнение БАЛАНСА рублями (уже выбрана подписка 'stars') - показываем выбор суммы
+        console.log(
+          '[PaymentScene] Показываем выбор суммы для пополнения рублями (подписка stars)'
+        )
+        await handleSelectRubAmount({ ctx, isRu })
+        // НЕ выходим из сцены, ждем callback top_up_rub_X
+        return
+      } else {
+        // Неизвестная подписка
+        console.warn(
+          '[PaymentScene] Hears: 💳 Рублями. Unknown subscription:',
+          subscription
+        )
+        await ctx.reply(
+          isRu
+            ? 'Сначала выберите подписку или пакет звезд для покупки.'
+            : 'Please select a subscription or star package first.'
+        )
+        await ctx.scene.leave()
+        return
+      }
+    } else {
+      // Если подписка не выбрана (например, из главного меню)
+      // Показываем выбор суммы для пополнения рублями
+      console.log(
+        '[PaymentScene] Показываем выбор суммы для пополнения рублями (без подписки)'
+      )
+      await handleSelectRubAmount({ ctx, isRu })
+      // НЕ выходим из сцены
+      return
+    }
+  } catch (error) {
+    console.error("[PaymentScene] Error in Hears '💳 Рублями':", error)
+    await ctx.reply(
+      isRu
+        ? 'Ошибка обработки оплаты рублями.'
+        : 'Error processing ruble payment.'
+    )
+    await ctx.scene.leave()
+    return
+  }
+})
+
+paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
+  console.log('[PaymentScene] Hears: 🏠 Главное меню triggered')
+  await ctx.scene.enter('menuScene')
+  return
+})
+
 paymentScene.action(/top_up_rub_(\d+)/, async ctx => {
   const isRu = isRussian(ctx)
   try {
@@ -139,7 +226,7 @@ paymentScene.action(/top_up_rub_(\d+)/, async ctx => {
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
-    // Сохраняем платеж в БД со статусом PENDING
+    // Сохраняем платеж в БД со статусом PENDING (используем payments_v2)
     await setPayments({
       telegram_id: userId.toString(),
       OutSum: amountRub.toString(),
@@ -148,141 +235,41 @@ paymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       stars: stars, // Количество звезд за это пополнение
       status: 'PENDING',
       payment_method: 'Robokassa',
-      subscription: 'stars', // Тип - пополнение звезд
+      subscription: 'stars', // Тип - пополнение звезд (или BALANCE_TOPUP?)
       bot_name,
       language: ctx.from?.language_code,
     })
 
-    console.log('[PaymentScene] Отправляем ссылку Robokassa пользователю')
-    // Отправляем сообщение со ссылкой на оплату
+    // Формируем сообщение с кнопкой оплаты
+    const inlineKeyboard = [
+      [
+        {
+          text: isRu ? `Оплатить ${amountRub} ₽` : `Pay ${amountRub} RUB`,
+          url: invoiceURL,
+        },
+      ],
+    ]
+
     await ctx.reply(
       isRu
-        ? `👇 Нажмите кнопку ниже, чтобы перейти к оплате ${amountRub} ₽ через Robokassa и получить ${stars} ⭐️.`
-        : `👇 Click the button below to proceed with the payment of ${amountRub} RUB via Robokassa and receive ${stars} ⭐️.`,
-      Markup.inlineKeyboard([
-        Markup.button.url(
-          isRu ? 'Перейти к оплате' : 'Proceed to Payment',
-          invoiceURL
-        ),
-      ])
+        ? `✅ <b>Счет создан</b>\nСумма: ${amountRub} ₽ (${stars} ⭐️)\n\nНажмите кнопку ниже для перехода к оплате через Robokassa.`
+        : `✅ <b>Invoice created</b>\nAmount: ${amountRub} RUB (${stars} ⭐️)\n\nClick the button below to proceed with payment via Robokassa.`,
+      {
+        reply_markup: {
+          inline_keyboard: inlineKeyboard,
+        },
+        parse_mode: 'HTML',
+      }
     )
-
-    console.log(
-      '[PaymentScene] Обработка callback top_up_rub успешно завершена, выходим из сцены'
-    )
-    await ctx.scene.leave() // Выходим из сцены после отправки ссылки
+    console.log('[PaymentScene] Robokassa invoice message sent to user')
+    return ctx.scene.leave()
   } catch (error) {
     console.error('[PaymentScene] Ошибка обработки callback top_up_rub:', error)
     await ctx.reply(
       isRu
-        ? 'Произошла ошибка при формировании счета на оплату. Пожалуйста, попробуйте позже.'
-        : 'An error occurred while creating the payment invoice. Please try again later.'
+        ? 'Произошла ошибка при создании счета Robokassa.'
+        : 'An error occurred while creating the Robokassa invoice.'
     )
-    await ctx.scene.leave()
+    return ctx.scene.leave()
   }
-})
-
-paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
-  console.log('[PaymentScene] Hears: ⭐️ Звездами triggered')
-  const isRu = isRussian(ctx)
-  const subscription = ctx.session.subscription
-  console.log(
-    '[PaymentScene] Hears: ⭐️ Звездами. Session subscription:',
-    subscription
-  )
-  try {
-    if (subscription) {
-      if (['neurobase', 'neuroblogger', 'neurophoto'].includes(subscription)) {
-        await handleBuySubscription({ ctx, isRu })
-        await ctx.scene.leave()
-        return
-      } else if (subscription === 'stars') {
-        // Показываем выбор звезд для оплаты через Telegram Stars
-        await handleSelectStars({ ctx, isRu, starAmounts })
-        // НЕ выходим из сцены, ждем callback top_up_X
-        return
-      }
-    } else {
-      // Неопределенная подписка - показываем выбор звезд для Telegram Stars
-      await handleSelectStars({ ctx, isRu, starAmounts })
-      // НЕ выходим из сцены
-      return
-    }
-    console.warn(
-      '[PaymentScene] Hears: ⭐️ Звездами. Unknown state for subscription:',
-      subscription
-    )
-    await ctx.scene.leave()
-    return
-  } catch (error) {
-    console.error("[PaymentScene] Error in Hears '⭐️ Звездами':", error)
-    await ctx.reply(
-      isRu
-        ? 'Ошибка обработки оплаты звездами.'
-        : 'Error processing star payment.'
-    )
-    await ctx.scene.leave()
-    return
-  }
-})
-
-paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
-  console.log('[PaymentScene] Hears: 💳 Рублями triggered')
-  const isRu = isRussian(ctx)
-  const subscription = ctx.session.subscription
-  console.log(
-    '[PaymentScene] Hears: 💳 Рублями. Session subscription:',
-    subscription
-  )
-  try {
-    if (
-      [
-        'neurobase',
-        'neurophoto',
-        'neuromeeting',
-        'neuromentor',
-        'neuroblogger',
-      ].includes(subscription)
-    ) {
-      // Покупка ПОДПИСКИ рублями - идем в emailWizard
-      console.log(`[PaymentScene] Entering getEmailWizard for ${subscription}`)
-      return ctx.scene.enter('getEmailWizard')
-    } else if (subscription === 'stars') {
-      // Пополнение БАЛАНСА рублями - показываем выбор суммы
-      console.log(
-        '[PaymentScene] Показываем выбор суммы для пополнения рублями'
-      )
-      await handleSelectRubAmount({ ctx, isRu })
-      // НЕ выходим из сцены, ждем callback top_up_rub_X
-      return
-    } else {
-      // Неизвестная подписка
-      console.warn(
-        '[PaymentScene] Hears: 💳 Рублями. Unknown or missing subscription:',
-        subscription
-      )
-      await ctx.reply(
-        isRu
-          ? 'Сначала выберите подписку или пакет звезд для покупки.'
-          : 'Please select a subscription or star package first.'
-      )
-      await ctx.scene.leave()
-      return
-    }
-  } catch (error) {
-    console.error("[PaymentScene] Error in Hears '💳 Рублями':", error)
-    await ctx.reply(
-      isRu
-        ? 'Ошибка обработки оплаты рублями.'
-        : 'Error processing ruble payment.'
-    )
-    await ctx.scene.leave()
-    return
-  }
-})
-
-paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
-  console.log('[PaymentScene] Hears: 🏠 Главное меню triggered')
-  await ctx.scene.enter('menuScene')
-  return
 })
