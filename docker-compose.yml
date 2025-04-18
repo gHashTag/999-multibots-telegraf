@@ -71,7 +71,7 @@ services:
       - '8080:80'
     volumes:
       # Используем только официальную конфигурацию
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx-config/default.conf:/etc/nginx/conf.d/default.conf:ro
       # Пути к сертификатам с хоста остаются
       - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
       - /etc/pki/key.pem:/etc/pki/key.pem:ro
