@@ -7,7 +7,8 @@ import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 
 export const paymentScene = new Scenes.BaseScene<MyContext>('paymentScene')
 
-paymentScene.enter(async ctx => {
+// Handler for scene enter
+export async function paymentSceneEnterHandler(ctx: MyContext) {
   console.log(
     '[PaymentScene] Entered scene. Session subscription:',
     ctx.session.subscription
@@ -35,9 +36,7 @@ paymentScene.enter(async ctx => {
     ]).resize()
 
     // Отправка сообщения с клавиатурой
-    await ctx.reply(message, {
-      reply_markup: keyboard.reply_markup,
-    })
+    await ctx.reply(message, { reply_markup: keyboard.reply_markup })
   } catch (error) {
     console.error('Error in paymentScene.enter:', error)
     await ctx.reply(
@@ -46,9 +45,12 @@ paymentScene.enter(async ctx => {
         : 'An error occurred. Please try again.'
     )
   }
-})
+}
+// Register enter handler
+paymentScene.enter(paymentSceneEnterHandler)
 
-paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
+// Handler for "stars" hears
+export async function paymentSceneStarsHandler(ctx: MyContext) {
   console.log('[PaymentScene] Hears: ⭐️ Звездами triggered')
   const isRu = isRussian(ctx)
   const subscription = ctx.session.subscription
@@ -96,9 +98,12 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
     await ctx.scene.leave()
     return
   }
-})
+}
+// Register stars handler
+paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], paymentSceneStarsHandler)
 
-paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
+// Handler for "rubles" hears
+export async function paymentSceneRublesHandler(ctx: MyContext) {
   console.log('[PaymentScene] Hears: 💳 Рублями triggered')
   const isRu = isRussian(ctx)
   const subscription = ctx.session.subscription
@@ -145,10 +150,15 @@ paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
     await ctx.scene.leave()
     return
   }
-})
+}
+// Register rubles handler
+paymentScene.hears(['💳 Рублями', '💳 In rubles'], paymentSceneRublesHandler)
 
-paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
+// Handler for "main menu" hears
+export async function paymentSceneMenuHandler(ctx: MyContext) {
   console.log('[PaymentScene] Hears: 🏠 Главное меню triggered')
   await ctx.scene.enter('menuScene')
   return
-})
+}
+// Register menu handler
+paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], paymentSceneMenuHandler)

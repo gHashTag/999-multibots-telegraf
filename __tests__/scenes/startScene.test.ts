@@ -12,37 +12,37 @@ type SupabaseMocks = {
   checkPaymentStatus: jest.Mock
 }
 
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // Мокируем функции supabase
-jest.mock('../../src/core/supabase', () => {
-  return {
-    // @ts-ignore - игнорируем ошибки типов в моках для тестов
-    getTranslation: jest.fn().mockImplementation(({ key }: { key: any }) => ({
-      translation: `Мок-перевод для ключа ${key}`,
-      url: key === 'start' ? 'https://example.com/mock-photo.jpg' : '',
-    })),
-    // @ts-ignore - игнорируем ошибки типов в моках для тестов
-    getReferalsCountAndUserData: jest
-      .fn()
-      .mockImplementation((telegram_id: string) => ({
-        count: 0,
-        level: 1,
+// @ts-ignore: mock module signature may differ
+jest.mock('../../src/core/supabase', () => ({
+  // @ts-ignore - игнорируем ошибки типов в моках для тестов
+  getTranslation: jest.fn().mockImplementation(({ key }: { key: any }) => ({
+    translation: `Мок-перевод для ключа ${key}`,
+    url: key === 'start' ? 'https://example.com/mock-photo.jpg' : '',
+  })),
+  // @ts-ignore - игнорируем ошибки типов в моках для тестов
+  getReferalsCountAndUserData: jest
+    .fn()
+    .mockImplementation((telegram_id: string) => ({
+      count: 0,
+      level: 1,
+      subscription: 'stars',
+      userData: {
+        user_id: '123e4567-e89b-12d3-a456-426614174000',
+        telegram_id,
         subscription: 'stars',
-        userData: {
-          user_id: '123e4567-e89b-12d3-a456-426614174000',
-          telegram_id,
-          subscription: 'stars',
-          level: 1,
-        },
-        isExist: true,
-      })),
-    // @ts-ignore - игнорируем ошибки типов в моках для тестов
-    checkPaymentStatus: jest
-      .fn()
-      .mockImplementation((ctx: any, subscription: string) => {
-        return subscription !== 'stars'
-      }),
-  }
-})
+        level: 1,
+      },
+      isExist: true,
+    })),
+  // @ts-ignore - игнорируем ошибки типов в моках для тестов
+  checkPaymentStatus: jest
+    .fn()
+    .mockImplementation(
+      (ctx: any, subscription: string) => subscription !== 'stars'
+    ),
+}))
 
 describe('startScene', () => {
   beforeEach(() => {

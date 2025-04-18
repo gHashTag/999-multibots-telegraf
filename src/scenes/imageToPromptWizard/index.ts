@@ -30,7 +30,7 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
         reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
       }
     )
-    ctx.scene.session.state = {}
+    // Wizard state is managed by telegraf sessions; no manual init needed
     return ctx.wizard.next()
   },
   async ctx => {

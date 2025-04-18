@@ -4,7 +4,7 @@ import { handleHelpCancel } from '@/handlers'
 import { paymentOptions } from '../getRuBillWizard/helper'
 import { WizardScene } from 'telegraf/scenes'
 
-const selectPaymentOptionStep = async (ctx: MyContext) => {
+export const selectPaymentOptionStep = async (ctx: MyContext) => {
   console.log('CASE 3: selectPaymentOptionStep')
   const isRu = isRussian(ctx)
   const msg = ctx.message

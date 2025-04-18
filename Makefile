@@ -7,7 +7,7 @@ SHELL := /bin/bash
 APP_NAME = typescript-express
 APP_NAME := $(APP_NAME)
 
-.PHONY: help up down clean db
+.PHONY: help up down clean db test
 
 help:
 	@grep -E '^[1-9a-zA-Z_-]+:.*?## .*$$|(^#--)' $(MAKEFILE_LIST) \

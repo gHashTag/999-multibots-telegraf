@@ -1,4 +1,6 @@
 module.exports = {
+  // Suppress console output from tested modules
+  silent: true,
   preset: 'ts-jest',
   testEnvironment: 'node',
   moduleNameMapper: {
@@ -6,7 +8,7 @@ module.exports = {
   },
   testMatch: ['**/__tests__/**/*.test.ts'],
   coveragePathIgnorePatterns: ['/node_modules/'],
-  setupFilesAfterEnv: ['./__tests__/utils/jest.setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/__tests__/utils/jest.setup.ts'],
   globals: {
     'ts-jest': {
       isolatedModules: true

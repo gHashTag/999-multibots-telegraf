@@ -6,13 +6,13 @@ import {
   incrementBalance,
 } from '@/core/supabase'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
-import { getSubScribeChannel } from '@/handlers'
+import { getSubScribeChannel } from '@/handlers/getSubScribeChannel'
 import { isRussian } from '@/helpers/language'
 
 const BONUS_AMOUNT = 100
 
-const createUserStep = async (ctx: MyTextMessageContext) => {
-  console.log('CASE:createUserStep', ctx.from)
+export const createUserStep = async (ctx: MyTextMessageContext) => {
+  // debug: case start
 
   const {
     username,
@@ -30,25 +30,18 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   const botNameMatch = ctx.message.text.match(
     /https:\/\/t\.me\/([a-zA-Z0-9_]+)\?start=(\d+)/
   )
-  console.log('botNameMatch', botNameMatch)
+  // determine botName and startNumber
   let botName = ''
   let startNumber = ''
-  console.log('botName', botName)
-  console.log('startNumber', startNumber)
 
   if (botNameMatch) {
     botName = botNameMatch[1]
     startNumber = botNameMatch[2]
   } else if (ctx.message.text.startsWith('/start')) {
-    console.log(
-      'CASE: 🔄 Команда /start. botInfo.username:',
-      ctx.botInfo.username
-    )
-    console.log('ctx.message.text', ctx.message.text)
-    // Обработка команды /start без ссылки
+  // process /start without link
     botName = ctx.botInfo.username
     const parts = ctx.message.text.split(' ')
-    console.log('parts', parts)
+    // split parts
     startNumber = parts.length > 1 ? parts[1] : ''
   }
 
@@ -57,7 +50,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
 
   if (ctx.session.inviteCode) {
-    console.log('CASE: ctx.session.inviteCode', ctx.session.inviteCode)
+  // invite code set: ctx.session.inviteCode
     const { count, userData } = await getReferalsCountAndUserData(
       ctx.session.inviteCode.toString()
     )
@@ -86,7 +79,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       )
     }
   } else {
-    console.log('CASE: ctx.session.inviteCode not exists')
+    // no invite code
 
     const { count } = await getReferalsCountAndUserData(telegram_id.toString())
     await ctx.telegram.sendMessage(

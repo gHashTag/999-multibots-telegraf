@@ -16,7 +16,7 @@ type DebugReply = {
 }
 
 // Добавляем расширение интерфейса для дебага
-interface DebugExtension {
+export interface DebugExtension {
   debug: {
     currentScene: string
     replies: DebugReply[]
@@ -38,9 +38,9 @@ export function makeMockContext(
   const mockTelegram = {
     token: 'mock_token',
     callApi: jest.fn((method, data) => {
-      console.log(`Вызов Telegram API: ${method}`, data)
       return Promise.resolve({ ok: true })
     }),
+    sendMessage: jest.fn(() => Promise.resolve()),
   }
 
   const debug = {
@@ -87,6 +87,11 @@ export function makeMockContext(
       })
       return Promise.resolve()
     }),
+    replyWithInvoice: jest.fn((invoice: any) => {
+      debug.replies.push({ type: 'invoice', message: invoice })
+      return Promise.resolve()
+    }),
+    answerCbQuery: jest.fn(() => Promise.resolve()),
     ...contextExtra,
   } as unknown as MyContext & DebugExtension
 

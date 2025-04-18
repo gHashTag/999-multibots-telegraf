@@ -29,4 +29,12 @@ module.exports = {
     '@typescript-eslint/semi': ['error', 'never'],
     'prettier/prettier': ['error', { semi: false }],
   },
+  overrides: [
+    {
+      files: ['**/__tests__/**/*.ts'],
+      rules: {
+        '@typescript-eslint/ban-ts-comment': 'off'
+      }
+    }
+  ]
 }

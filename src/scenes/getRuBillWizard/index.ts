@@ -11,7 +11,7 @@ import { setPayments } from '../../core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
 
-const generateInvoiceStep = async (ctx: MyContext) => {
+export async function generateInvoiceStep(ctx: MyContext) {
   console.log('CASE: generateInvoiceStep')
   const isRu = isRussian(ctx)
   const selectedPayment = ctx.session.selectedPayment

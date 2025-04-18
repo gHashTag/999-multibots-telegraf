@@ -60,14 +60,15 @@ export const checkBalanceScene = new Scenes.BaseScene<MyContext>(
   'checkBalanceScene'
 )
 
-checkBalanceScene.enter(async ctx => {
-  console.log('💵 CASE: checkBalanceScene')
+// Handler for scene enter
+export async function checkBalanceSceneEnterHandler(ctx: MyContext) {
+  // debug: checking balance scene
   const isRu = ctx.from?.language_code === 'ru'
   const { userId } = getUserInfo(ctx)
   const currentBalance = await getUserBalance(userId)
   const mode = ctx.session.mode as ModeEnum
   const cost = modeCosts[mode] || 0 // Получаем стоимость для текущего режима
-  console.log('⭐️ cost:', cost)
+  // debug: cost
   if (cost !== 0) {
     await sendBalanceMessage(ctx, currentBalance, cost, isRu)
   }
@@ -114,4 +115,7 @@ checkBalanceScene.enter(async ctx => {
     default:
       return ctx.scene.leave()
   }
-})
+}
+
+// Register enter handler
+checkBalanceScene.enter(checkBalanceSceneEnterHandler)

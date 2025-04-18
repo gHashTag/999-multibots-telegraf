@@ -2,9 +2,8 @@ import { Scenes } from 'telegraf'
 import { getReferalsCountAndUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 
-export const inviteScene = new Scenes.BaseScene<MyContext>('inviteScene')
-
-inviteScene.enter(async ctx => {
+// Handler for entering inviteScene
+export const inviteEnter = async (ctx: MyContext) => {
   const isRu = ctx.from?.language_code === 'ru'
 
   const botUsername = ctx.botInfo.username
@@ -39,6 +38,9 @@ inviteScene.enter(async ctx => {
         : 'An error occurred while fetching referral data. Please try again later.'
     )
   }
-})
+}
+
+export const inviteScene = new Scenes.BaseScene<MyContext>('inviteScene')
+inviteScene.enter(inviteEnter)
 
 export default inviteScene

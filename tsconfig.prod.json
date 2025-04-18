@@ -18,26 +18,13 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "importHelpers": true,
-    "baseUrl": "src",
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["*"],
-      "@config": ["config"],
-      "@controllers/*": ["controllers/*"],
-      "@dtos/*": ["dtos/*"],
-      "@exceptions/*": ["exceptions/*"],
-      "@interfaces/*": ["interfaces/*"],
-      "@middlewares/*": ["middlewares/*"],
-      "@models/*": ["models/*"],
-      "@routes/*": ["routes/*"],
-      "@services/*": ["services/*"],
-      "@utils/*": ["utils/*"],
-      "@core/*": ["core/*"],
-      "@axios/*": ["axios/*"],
-      "@price/*": ["price/*"],
-      "@store/*": ["store/*"],
-      "@handlers/*": ["handlers/*"],
-      "@helpers/*": ["helpers/*"]
-    }
+      "@/*": ["src/*"]
+    },
+    // Пропустить проверку типов в файлах деклараций зависимостей, чтобы избежать ошибок в библиотеках
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true
   },
   "include": ["src/**/*.ts", "src/**/*.json", ".env"],
   "exclude": ["node_modules", "src/http", "src/logs", "**/*.test.ts", "**/*.spec.ts"]

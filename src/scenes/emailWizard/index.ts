@@ -81,7 +81,8 @@ async function getInvoiceId(
 
 export const emailWizard = new Scenes.BaseScene<MyContext>('emailWizard')
 
-emailWizard.enter(async ctx => {
+// Handler for scene enter
+export async function emailWizardEnterHandler(ctx: MyContext) {
   const isRu = isRussian(ctx)
   await ctx.reply(
     isRu
@@ -89,11 +90,15 @@ emailWizard.enter(async ctx => {
       : '👉 To generate an invoice, please provide your E-mail.',
     Markup.keyboard([Markup.button.text(isRu ? 'Отмена' : 'Cancel')]).resize()
   )
-})
+}
+// Register enter handler
+emailWizard.enter(emailWizardEnterHandler)
 
-emailWizard.hears(/@/, async ctx => {
+// Handler for email input
+export async function emailWizardEmailHandler(ctx: MyContext) {
   const isRu = isRussian(ctx)
-  const email = ctx.message.text
+    // @ts-ignore - ctx.message may be of various message types
+    const email = (ctx.message as any).text
 
   try {
     if (!ctx.from) {
@@ -129,9 +134,12 @@ emailWizard.hears(/@/, async ctx => {
         : 'Error saving e-mail. Please try again.'
     )
   }
-})
+}
+// Register hears handler
+emailWizard.hears(/@/, emailWizardEmailHandler)
 
-emailWizard.on('text', async ctx => {
+// Handler for text inputs (payment selection)
+export async function emailWizardTextHandler(ctx: MyContext) {
   const isRu = isRussian(ctx)
   const msg = ctx.message
 
@@ -234,6 +242,8 @@ You can now top up your balance with any number of stars and use them for variou
       )
     }
   }
-})
+}
+// Register text handler
+emailWizard.on('text', emailWizardTextHandler)
 
 export default emailWizard
