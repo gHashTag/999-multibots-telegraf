@@ -136,3 +136,4 @@ tmp/
 .env.production
 
 .vault_password
+.env.development
