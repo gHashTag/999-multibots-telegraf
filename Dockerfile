@@ -26,9 +26,12 @@ RUN apk add --no-cache \
     nginx
 
 # Создаем виртуальное окружение и устанавливаем Ansible
-RUN python3 -m venv /opt/ansible-venv \
-    && . /opt/ansible-venv/bin/activate \
+RUN python3 -m venv /app/ansible-venv \
+    && . /app/ansible-venv/bin/activate \
     && pip install --no-cache-dir ansible
+
+# Создаем нужные каталоги внутри рабочей директории и устанавливаем права
+RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
 
 COPY package*.json ./
 RUN npm install --omit=dev
