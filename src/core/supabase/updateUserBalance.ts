@@ -21,26 +21,18 @@ type BalanceUpdateMetadata = {
 export const updateUserBalance = async (
   telegram_id: string,
   amount: number,
-  type: 'money_income' | 'money_outcome' | 'income' | 'outcome',
+  type: 'money_income' | 'money_outcome',
   description?: string,
   metadata?: BalanceUpdateMetadata
 ): Promise<boolean> => {
   try {
-    // Преобразуем устаревшие типы в новые для обратной совместимости
-    let normalizedType: 'money_income' | 'money_outcome' = type as
-      | 'money_income'
-      | 'money_outcome'
-    if (type === 'income') normalizedType = 'money_income'
-    if (type === 'outcome') normalizedType = 'money_outcome'
-
     // Подробное логирование входных данных для диагностики
     logger.info('🔍 Входные данные updateUserBalance:', {
       log_description: 'Input parameters for updateUserBalance',
       telegram_id,
       amount,
       amount_type: typeof amount,
-      original_type: type,
-      normalized_type: normalizedType,
+      type,
       operation_description: description,
       metadata: metadata ? JSON.stringify(metadata) : 'нет метаданных',
     })
@@ -72,7 +64,7 @@ export const updateUserBalance = async (
     if (
       description &&
       description.includes('Payment for generating') &&
-      normalizedType === 'money_outcome'
+      type === 'money_outcome'
     ) {
       // Извлекаем значение modePrice из metadata
       if (metadata?.modePrice && typeof metadata.modePrice === 'number') {
@@ -151,7 +143,7 @@ export const updateUserBalance = async (
       else if (
         metadata?.currentBalance &&
         Math.abs(metadata.currentBalance - safeAmount) < 100 &&
-        normalizedType === 'money_outcome'
+        type === 'money_outcome'
       ) {
         // Вероятно передан новый баланс вместо суммы операции
         // Вычисляем разницу между текущим и новым балансом
@@ -168,7 +160,7 @@ export const updateUserBalance = async (
     }
 
     // Проверка на подозрительно большие суммы для outcome операций
-    if (normalizedType === 'money_outcome' && safeAmount > 100) {
+    if (type === 'money_outcome' && safeAmount > 100) {
       logger.warn('⚠️ Подозрительно большая сумма списания, возможно ошибка:', {
         description: 'Suspiciously large amount for outcome operation',
         telegram_id,
@@ -207,11 +199,11 @@ export const updateUserBalance = async (
       telegram_id,
       original_amount: originalAmount,
       final_amount: safeAmount,
-      type: normalizedType,
+      type,
     })
 
     // Проверяем существование пользователя и его баланс для outcome операций
-    if (normalizedType === 'money_outcome') {
+    if (type === 'money_outcome') {
       // Проверка существования пользователя
       const { data: userData, error: userError } = await supabase
         .from('users')
@@ -334,7 +326,7 @@ export const updateUserBalance = async (
         telegram_id,
         inv_id: metadata.inv_id,
         amount: Math.abs(safeAmount),
-        type: normalizedType,
+        type,
       })
 
       // Обновляем существующую запись в payments_v2
@@ -361,7 +353,7 @@ export const updateUserBalance = async (
         telegram_id,
         inv_id: metadata.inv_id,
         amount: safeAmount,
-        type: normalizedType,
+        type,
       })
     } else {
       // Если inv_id не передан, создаем новую запись
@@ -378,7 +370,7 @@ export const updateUserBalance = async (
         telegram_id,
         inv_id: invId,
         transaction_amount: transactionAmount,
-        type: normalizedType,
+        type,
       })
 
       // Проверим структуру таблицы, чтобы убедиться в правильности типов
@@ -398,8 +390,8 @@ export const updateUserBalance = async (
             amount: safeRoundedAmount, // Защита от null/undefined
             status: 'COMPLETED',
             stars: safeRoundedAmount, // Защита от null/undefined
-            type: normalizedType,
-            description: description || `Balance ${normalizedType}`,
+            type,
+            description: description || `Balance ${type}`,
             payment_method: metadata?.service_type,
             bot_name: metadata?.bot_name || 'neuro_blogger_bot',
             language: metadata?.language || 'ru',
@@ -419,7 +411,7 @@ export const updateUserBalance = async (
           description: 'Transaction successfully created',
           telegram_id,
           amount: transactionAmount,
-          type: normalizedType,
+          type,
         })
       } catch (insertError) {
         logger.error('❌ Исключение при создании записи о транзакции:', {
