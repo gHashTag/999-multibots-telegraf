@@ -263,6 +263,28 @@
     - `src/services/plan_b/generateTextToImage.ts`: Удален импорт `API_URL`, исправлен вызов `processBalanceOperation` (преобразование `telegram_id`, удаление `description`/`type`, добавлен `ctx`), исправлен вызов `savePrompt`, удален параметр `bot_name`.
 - ⏳ **Статус**: Большинство ошибок исправлено. Закомментирован блок в `generateImageToVideo.ts`. **Осталась одна ошибка в `generateTextToImage.ts` (TS2345: Отсутствует `ctx` в `processBalanceOperation`) - отложена.**
 
+#### ❌ Шаг 1.15: Исправление ошибки сборки `TS2304: Cannot find name 'ModeEnum'`
+- ❌ **Проблема**: После деплоя последних изменений на сервер возникла ошибка сборки `src/scenes/menuScene/index.ts:159:29 - error TS2304: Cannot find name 'ModeEnum'`, несмотря на наличие импорта.
+- 🕵️ **Причина**: Точная причина неясна, но возможны проблемы с кэшем `ts-node-dev` или конфигурацией `tsconfig.json`. Импорт и использование `ModeEnum` в файлах `src/scenes/menuScene/index.ts` и `src/interfaces/modes.ts` выглядят корректно.
+- ⏳ **Исправление**:
+    1. ✅ Проверены файлы `src/scenes/menuScene/index.ts` и `src/interfaces/modes.ts` - импорт и экспорт `ModeEnum` присутствуют.
+    2. ⏳ Запущена очистка кэша `ts-node-dev` и перезапуск сервера разработки (`rm -rf node_modules/.cache/ts-node-dev && pnpm dev`).
+- ⏳ **Статус**: Ожидание результатов выполнения команды очистки кэша и перезапуска `pnpm dev`.
+
+### 🐞 Непредвиденная ошибка сборки: TS2304: Cannot find name 'ModeEnum' (2024-07-17)
+
+*   **Проблема:** После деплоя последних изменений на сервер возникла ошибка сборки `src/scenes/menuScene/index.ts:159:29 - error TS2304: Cannot find name 'ModeEnum'.`
+*   **Причина:** Неясна. Импорт `ModeEnum` из `@/interfaces/modes` в `src/scenes/menuScene/index.ts` присутствует и выглядит корректно. Возможно, проблема с кэшем `ts-node-dev` или конфигурацией `tsconfig.json`.
+*   **Шаги:**
+    1.  ✅ Проверен файл `src/scenes/menuScene/index.ts`: импорт `ModeEnum` на месте (строка 11), использование в строке 159.
+    2.  ✅ Проверен файл `src/interfaces/modes.ts`: экспорт `ModeEnum` присутствует.
+    3.  ✅ Выполнена команда `rm -rf node_modules/.cache/ts-node-dev && pnpm dev` для очистки кэша и перезапуска сервера. Ошибка сохранилась.
+    4.  ⏳ Запущен `pnpm dev` повторно (2024-07-18). Ожидание результата.
+*   **Статус:** ⏳ В процессе (Ожидание результата перезапуска `pnpm dev`).
+*   **Следующие шаги:**
+    *   Если ошибка исчезла: Продолжить с активацией Neurophoto.
+    *   Если ошибка осталась: Проверить `tsconfig.json`.
+
 ## 🎯 Этап 2: Активация функций Нейрофото
 
 **Цель:** Заставить работать ключевые функции Нейрофото, используя локальный AI-сервер (`http://localhost:4000`).

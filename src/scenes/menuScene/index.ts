@@ -8,7 +8,7 @@ import { getText } from './getText'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { WizardScene } from 'telegraf/scenes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
-
+import { ModeEnum } from '@/interfaces/modes'
 import { handleMenu } from '@/handlers'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
