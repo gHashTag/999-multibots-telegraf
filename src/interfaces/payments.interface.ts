@@ -23,6 +23,7 @@ export interface BalanceOperationResult {
   paymentAmount: number
   success: boolean
   error?: string
+  currentBalance?: number
 }
 /**
  * Платежные системы

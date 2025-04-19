@@ -17,6 +17,7 @@ import express from 'express'
 import fileUpload from 'express-fileupload'
 import { handleRobokassaResult } from './webhooks/robokassa/robokassa.handler'
 import * as http from 'http'
+import util from 'util' // Добавляем util для promisify
 
 // Инициализация ботов
 const botInstances: Telegraf[] = []
@@ -85,32 +86,28 @@ async function startRobokassaWebhookServer(): Promise<http.Server | null> {
   })
 
   // Запуск сервера и сохранение экземпляра
-  // Добавляем небольшую задержку перед запуском, чтобы порт успел освободиться при перезапуске ts-node-dev
+  // Убираем setTimeout, полагаемся на корректное закрытие при SIGINT/SIGTERM
   const server = await new Promise<http.Server | null>(resolve => {
-    setTimeout(() => {
-      const expressServer = app
-        .listen(robokassaPort, () => {
-          console.log(
-            `[Robokassa] Webhook server running on port ${robokassaPort}`
-          )
-          resolve(expressServer) // Резолвим промис с экземпляром сервера
-        })
-        .on('error', err => {
+    const expressServer = app
+      .listen(robokassaPort, () => {
+        console.log(
+          `[Robokassa] Webhook server running on port ${robokassaPort}`
+        )
+        resolve(expressServer) // Резолвим промис с экземпляром сервера
+      })
+      .on('error', err => {
+        console.error(
+          `[Robokassa] Failed to start webhook server: ${err.message}`
+        )
+        if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
           console.error(
-            `[Robokassa] Failed to start webhook server: ${err.message}`
+            `[Robokassa] Port ${robokassaPort} is already in use. Maybe another instance is running?`
           )
-          if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
-            console.error(
-              `[Robokassa] Port ${robokassaPort} is already in use. Maybe another instance is running?`
-            )
-          }
-          // В случае ошибки при запуске, сервер не будет создан, нужно обработать
-          // Возможно, стоит выбросить ошибку или вернуть null/undefined,
-          // но для простоты пока оставляем так, обработка ошибок выше.
-          // resolve(null); // Или reject(err)
-        })
-    }, 100) // Задержка 100 мс
+        }
+        resolve(null) // В случае ошибки вернем null
+      })
   })
+  // Убираем setTimeout
 
   return server
 }
@@ -211,98 +208,67 @@ async function initializeBots() {
   robokassaServer = await startRobokassaWebhookServer()
 }
 
-// Обработка завершения работы
-process.once('SIGINT', () => {
-  console.log('🛑 Получен сигнал SIGINT, завершаем работу...')
-  console.log(`[SIGINT] Stopping ${botInstances.length} bot instance(s)...`)
-  botInstances.forEach((bot, index) => {
+// Промисификация server.close
+const closeServerAsync = robokassaServer
+  ? util.promisify(robokassaServer.close.bind(robokassaServer))
+  : async () => {
+      /* No-op if server is null */
+    } // Исправляем пустую функцию
+
+// Асинхронная функция для остановки
+async function gracefulShutdown(signal: string) {
+  console.log(`🛑 Получен сигнал ${signal}, начинаем graceful shutdown...`)
+
+  // 1. Останавливаем ботов
+  console.log(`[${signal}] Stopping ${botInstances.length} bot instance(s)...`)
+  const stopPromises = botInstances.map(async (bot, index) => {
     try {
-      bot.stop('SIGINT')
-      // Пытаемся получить username, если возможно (может не работать, если botInfo недоступен)
-      // const botInfo = bot.telegram ? await bot.telegram.getMe() : null; // Нельзя использовать await в синхронном обработчике
-      console.log(`[SIGINT] Called stop() for bot instance index ${index}.`)
+      console.log(
+        `[${signal}] Initiating stop for bot instance index ${index}...`
+      )
+      await bot.stop(signal) // Используем await для ожидания завершения
+      console.log(
+        `[${signal}] Successfully stopped bot instance index ${index}.`
+      )
     } catch (error) {
       console.error(
-        `[SIGINT] Error stopping bot instance index ${index}:`,
-        error
+        `[${signal}] Error stopping bot instance index ${index}:`,
+        error.message || error // Логируем только сообщение об ошибке для краткости
       )
     }
   })
+  await Promise.all(stopPromises) // Ждем завершения остановки всех ботов
+  console.log(`[${signal}] All bot instances processed for stopping.`)
 
+  // 2. Останавливаем сервер Robokassa, если он был запущен
   if (robokassaServer) {
-    console.log('[Robokassa] Stopping webhook server...')
-    const server = robokassaServer // Capture server instance
-    robokassaServer = null // Prevent multiple close attempts
-
-    const closeTimeout = setTimeout(() => {
-      console.warn(
-        '[Robokassa] Server close timed out after 2 seconds. Forcing exit.'
-      )
-      process.exit(1) // Force exit if close hangs
-    }, 2000)
-
-    server.close(err => {
-      clearTimeout(closeTimeout)
-      if (err) {
-        console.error('[Robokassa] Error closing webhook server:', err)
-        process.exit(1) // Exit with error if close fails
-      } else {
-        console.log('[Robokassa] Webhook server stopped successfully.')
-        // Consider exiting only after all cleanup is done,
-        // but for now, let's rely on the fact that bot stop might also exit.
-        // process.exit(0); // Might be too early if bot.stop is async internally
-      }
-    })
-  }
-  // else {
-  // If no server, maybe exit here? Let's rely on bot termination for now.
-  // process.exit(0); // Might be too early if bot.stop is async internally
-  // }
-  // Allow some time for stops to propagate before potentially exiting forcefully elsewhere if needed.
-})
-
-process.once('SIGTERM', () => {
-  console.log('🛑 Получен сигнал SIGTERM, завершаем работу...')
-  console.log(`[SIGTERM] Stopping ${botInstances.length} bot instance(s)...`)
-  botInstances.forEach((bot, index) => {
+    console.log(`[${signal}] [Robokassa] Stopping webhook server...`)
     try {
-      bot.stop('SIGTERM')
-      console.log(`[SIGTERM] Called stop() for bot instance index ${index}.`)
-    } catch (error) {
+      await closeServerAsync() // Ожидаем закрытия сервера
+      console.log(
+        `[${signal}] [Robokassa] Webhook server stopped successfully.`
+      )
+      robokassaServer = null // Сбрасываем ссылку
+    } catch (err) {
       console.error(
-        `[SIGTERM] Error stopping bot instance index ${index}:`,
-        error
+        `[${signal}] [Robokassa] Error closing webhook server:`,
+        err
       )
+      process.exit(1) // Выход с ошибкой, если сервер не закрылся
     }
-  })
-
-  if (robokassaServer) {
-    console.log('[Robokassa] Stopping webhook server...')
-    const server = robokassaServer // Capture server instance
-    robokassaServer = null // Prevent multiple close attempts
-
-    const closeTimeout = setTimeout(() => {
-      console.warn(
-        '[Robokassa] Server close timed out after 2 seconds. Forcing exit.'
-      )
-      process.exit(1) // Force exit if close hangs
-    }, 2000)
-
-    server.close(err => {
-      clearTimeout(closeTimeout)
-      if (err) {
-        console.error('[Robokassa] Error closing webhook server:', err)
-        process.exit(1) // Exit with error if close fails
-      } else {
-        console.log('[Robokassa] Webhook server stopped successfully.')
-        // process.exit(0); // See SIGINT comments
-      }
-    })
+  } else {
+    console.log(
+      `[${signal}] [Robokassa] Webhook server was not running or already stopped.`
+    )
   }
-  // else {
-  // process.exit(0); // See SIGINT comments
-  // }
-})
+
+  console.log(`[${signal}] Graceful shutdown completed. Exiting.`)
+  process.exit(0) // Успешный выход
+}
+
+// Обработка завершения работы - используем общую асинхронную функцию
+process.once('SIGINT', () => gracefulShutdown('SIGINT'))
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
 console.log('🏁 Запуск приложения')
 initializeBots()

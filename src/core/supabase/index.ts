@@ -52,6 +52,9 @@ export async function getBotsFromSupabase() {
     return []
   }
 }
+export * from './saveVideoUrlToSupabase'
+export * from './updateHistory'
+export * from './getAiFeedbackFromSupabase'
 export * from './getBotGroupFromAvatars'
 export * from './createUser'
 export * from './createModelTraining'

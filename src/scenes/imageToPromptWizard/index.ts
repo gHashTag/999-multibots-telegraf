@@ -7,12 +7,13 @@ import { createHelpCancelKeyboard } from '@/menu'
 
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
-
+import { ModeEnum } from '@/interfaces/modes'
+import { getBotNameByToken } from '@/core/bot'
 // Используем заглушку для HUGGINGFACE_TOKEN
 process.env.HUGGINGFACE_TOKEN = process.env.HUGGINGFACE_TOKEN || 'dummy-token'
 
 export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
-  'image_to_prompt',
+  ModeEnum.ImageToPrompt,
   async ctx => {
     console.log('CASE 0: image_to_prompt')
     const isRu = ctx.from?.language_code === 'ru'
@@ -64,15 +65,16 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
       )
 
       try {
-        // Получаем имя бота и токен
-        const [, botName] = await getBotToken(ctx)
+        // Получаем токен текущего бота
+        const botToken = getBotToken(ctx)
+        // Получаем имя бота по токену
+        const { bot_name: botName } = getBotNameByToken(botToken)
 
         // Вызываем сервис для генерации промпта
         await generateImageToPrompt(
           imageUrl,
           String(ctx.from?.id),
           ctx,
-          isRu,
           botName
         )
 

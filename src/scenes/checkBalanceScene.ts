@@ -259,7 +259,13 @@ checkBalanceScene.enter(async ctx => {
     // Шаг 6: Показываем баланс и стоимость, если функция платная
     if (costValue > 0) {
       // Передаем и баланс и уровень из userDetails
-      await sendBalanceMessage(ctx, currentBalance, costValue, isRu)
+      await sendBalanceMessage(
+        ctx,
+        currentBalance,
+        costValue,
+        isRu,
+        ctx.botInfo.username
+      )
     }
 
     // Шаг 7: Проверка достаточности баланса

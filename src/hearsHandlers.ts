@@ -34,7 +34,7 @@ composer.hears(['📸 Нейрофото 2', '📸 NeuroPhoto 2'], async ctx => 
 composer.hears([levels[3].title_ru, levels[3].title_en], async ctx => {
   console.log('CASE: 🔍 Промпт из фото')
   ctx.session.mode = ModeEnum.ImageToPrompt
-  await ctx.scene.enter('imageToPromptWizard')
+  await ctx.scene.enter(ModeEnum.ImageToPrompt)
 })
 
 composer.hears([levels[4].title_ru, levels[4].title_en], async ctx => {
@@ -295,7 +295,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Промпт из фото от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.ImageToPrompt
-      await ctx.scene.enter('imageToPromptWizard')
+      await ctx.scene.enter(ModeEnum.ImageToPrompt)
     }
   )
 

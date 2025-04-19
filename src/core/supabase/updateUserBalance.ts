@@ -205,28 +205,30 @@ export const updateUserBalance = async (
     // Проверяем существование пользователя и его баланс для outcome операций
     if (type === 'money_outcome') {
       // Проверка существования пользователя
-      const { data: userData, error: userError } = await supabase
+      const { error: userError } = await supabase
         .from('users')
-        .select('id')
+        // Исправлено: выбираем telegram_id или просто проверяем существование
+        .select('telegram_id', { count: 'exact', head: true })
         .eq('telegram_id', telegram_id)
-        .single()
+      // Убираем .single(), так как head: true уже гарантирует 0 или 1 строку и не возвращает data
 
-      if (userError) {
-        logger.error('❌ Пользователь не найден при создании транзакции:', {
-          description: 'User not found during transaction creation',
+      // Проверяем только ошибку (например, сетевую), а не факт отсутствия пользователя
+      // Отсутствие пользователя (count === 0) теперь не считается ошибкой здесь,
+      // так как баланс все равно считается по payments_v2
+      if (userError && userError.code !== 'PGRST116') {
+        // PGRST116 - No rows found
+        logger.error('❌ Ошибка при проверке существования пользователя:', {
+          description: 'Error checking user existence (not user not found)',
           telegram_id,
           error: userError.message,
+          errorCode: userError.code,
         })
-        return false
+        // Можно решить, стоит ли здесь возвращать false или продолжить,
+        // полагаясь на balance check
+        // return false;
       }
 
-      if (!userData) {
-        logger.error('❌ Пользователь не найден (нет данных):', {
-          description: 'User not found (no data)',
-          telegram_id,
-        })
-        return false
-      }
+      // Убрана проверка if (!userData), так как head: true не возвращает data
 
       // Получаем баланс пользователя из таблицы payments
       // Оставляем попытку вызова RPC, но если она не сработает,

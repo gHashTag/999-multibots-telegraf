@@ -1,12 +1,18 @@
 import { MyContext } from '@/interfaces'
-
+import { getBotByName } from '@/core/bot'
 export const sendBalanceMessage = async (
   ctx: MyContext,
   newBalance: number,
   cost: number,
-  isRu: boolean
+  isRu: boolean,
+  bot_name: string
 ) => {
-  await ctx.telegram.sendMessage(
+  const { bot } = getBotByName(bot_name)
+  if (!bot) {
+    console.error(`Bot instance not found for name: ${bot_name}`)
+    throw new Error('Bot instance not found')
+  }
+  await bot.telegram.sendMessage(
     ctx.from?.id?.toString() || '',
     isRu
       ? `Стоимость: ${cost.toFixed(2)} ⭐️\nВаш баланс: ${newBalance.toFixed(
