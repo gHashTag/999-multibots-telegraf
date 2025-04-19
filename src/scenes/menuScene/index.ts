@@ -156,16 +156,21 @@ const menuNextStep = async (ctx: MyContext) => {
     console.log('text 1', text)
     if (text === 'unlock_features') {
       console.log('CASE: 🔓 Разблокировать все функции')
-      await ctx.scene.enter('subscriptionScene')
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+      return // Exit after handling callback
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
     console.log('CASE menuNextStep: text 2', text)
-    await handleMenu(ctx)
-    return
+    // Don't call handleMenu here as it causes a loop.
+    // Just stay in the scene. Maybe reply with usage instructions.
+    // For now, let's just do nothing to break the loop.
+    // await ctx.reply('Используйте кнопки меню.'); // Optional reply
+    return // Stay in the scene, do nothing for now
   } else {
-    console.log('CASE: menuScene.next.else')
+    console.log('CASE: menuScene.next.else - Unhandled update type')
   }
+  // Leave scene only if it wasn't handled (e.g., non-text message)
   ctx.scene.leave()
 }
 

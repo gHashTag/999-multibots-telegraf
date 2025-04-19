@@ -204,10 +204,8 @@ async function initializeBots() {
     setupWebhookHandlers(botInstances as Telegraf<MyContext>[])
   }
 
-  // Запускаем сервер для обработки Robokassa вебхуков только в режиме разработки
-  if (isDev) {
-    robokassaServer = await startRobokassaWebhookServer()
-  }
+  // Запускаем сервер для обработки Robokassa вебхуков
+  robokassaServer = await startRobokassaWebhookServer()
 }
 
 // Промисификация server.close

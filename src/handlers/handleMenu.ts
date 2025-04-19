@@ -3,6 +3,7 @@ import { levels } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
 import { priceCommand } from '@/commands/priceCommand'
 import { ModeEnum } from '@/interfaces/modes'
+// Import sendMenu to re-send the menu message
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
   console.log('CASE: handleMenuCommand')
@@ -16,7 +17,7 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
         console.log('CASE: 💫 Оформление подписки')
         ctx.session.mode = ModeEnum.Subscribe
-        await ctx.scene.enter('subscriptionScene')
+        await ctx.scene.enter(ModeEnum.SubscriptionScene)
       },
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         console.log('CASE: 🤖 Цифровое тело')
@@ -115,8 +116,9 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
         console.log('CASE: 🏠 Главное меню')
+        // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
-        await ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.enter('menuScene')
       },
       '/invite': async () => {
         console.log('CASE: 👥 Пригласить друга')
@@ -145,6 +147,7 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       '/menu': async () => {
         console.log('CASE: 🏠 Главное меню')
+        // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
         await ctx.scene.enter('menuScene')
       },

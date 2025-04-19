@@ -384,7 +384,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     [levels[0].title_ru, levels[0].title_en],
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Оформить подписку от ${ctx.from?.id}`)
-      await ctx.scene.enter('subscriptionScene')
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
     }
   )
 
