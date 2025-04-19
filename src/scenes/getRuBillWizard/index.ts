@@ -23,18 +23,18 @@ const generateInvoiceStep = async (ctx: MyContext) => {
   console.log('CASE: generateInvoiceStep')
   const isRu = isRussian(ctx)
   const selectedPayment = ctx.session.selectedPayment
-
+  console.log('selectedPayment', selectedPayment)
   if (selectedPayment) {
     const email = ctx.session.email
     console.log('Email from session:', email)
 
-    const subscription = selectedPayment.subscription
+    const subscription = selectedPayment.subscription.toLowerCase()
     let amount: number
     let stars: number
-    if (subscription === SubscriptionType.NEUROPHOTO) {
+    if (subscription === SubscriptionType.NEUROPHOTO.toLowerCase()) {
       amount = 1110 // Правильная сумма для НейроФото
       stars = 476
-    } else if (subscription === SubscriptionType.NEUROBASE) {
+    } else if (subscription === SubscriptionType.NEUROBASE.toLowerCase()) {
       amount = 2999 // Правильная сумма для НейроБаза
       stars = 1303
     } else {

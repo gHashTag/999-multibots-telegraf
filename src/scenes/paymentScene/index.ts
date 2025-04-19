@@ -118,7 +118,7 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
 paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
   console.log('[PaymentScene] Hears: 💳 Рублями triggered')
   const isRu = isRussian(ctx)
-  const subscription = ctx.session.subscription
+  const subscription = ctx.session.subscription?.toLowerCase()
   console.log(
     '[PaymentScene] Hears: 💳 Рублями. Session subscription:',
     subscription

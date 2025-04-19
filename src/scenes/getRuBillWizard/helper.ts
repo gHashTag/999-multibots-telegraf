@@ -18,8 +18,8 @@ export const paymentOptions: {
   stars: string
   subscription: SubscriptionType
 }[] = [
-  { amount: 1999, stars: '1250', subscription: SubscriptionType.NEUROPHOTO },
-  { amount: 9999, stars: '1000', subscription: SubscriptionType.NEUROBASE },
+  { amount: 1110, stars: '476', subscription: SubscriptionType.NEUROPHOTO },
+  { amount: 2999, stars: '1303', subscription: SubscriptionType.NEUROBASE },
   // { amount: 49999, stars: '5000', subscription: 'neuromeeting' },
   // { amount: 99999, stars: '7500', subscription: 'neuroblogger' },
   //   { amount: 120000, stars: '10000', subscription: 'neuromentor' },
