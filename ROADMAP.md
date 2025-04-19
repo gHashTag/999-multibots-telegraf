@@ -285,6 +285,22 @@
     *   Если ошибка исчезла: Продолжить с активацией Neurophoto.
     *   Если ошибка осталась: Проверить `tsconfig.json`.
 
+### 🐞 Проблемы с перезапуском `ts-node-dev` (EADDRINUSE & 409 Conflict) (2024-07-18)
+
+*   **Проблема:** При перезапуске `ts-node-dev` или `nodemon` (например, после сохранения файла) возникают ошибки:
+    *   `[Robokassa] Failed to start webhook server: listen EADDRINUSE: address already in use :::2999`
+    *   `Error: 409: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running`
+*   **Причина:** Гонка состояний при перезапуске. Старый процесс не успевает освободить порт `2999` (Robokassa) и остановить long polling (`getUpdates`) до того, как новый процесс пытается их занять. Функция `gracefulShutdown` не успевает отработать корректно или достаточно быстро.
+*   **Шаги:**
+    1.  ✅ Анализ логов `pnpm dev` для выявления точной последовательности событий.
+    2.  ✅ Проверка функции `gracefulShutdown` в `src/bot.ts`.
+    3.  ✅ Улучшение `gracefulShutdown`: добавлено явное ожидание (`await`) для `server.close()`, добавлена небольшая пауза перед `process.exit()`, улучшено логирование ошибок `bot.stop()`.
+    4.  ❌ Замена `ts-node-dev` на `nodemon` + `ts-node` в скрипте `dev` файла `package.json` не решила проблему.
+    5.  ❌ Возврат к `ts-node-dev` в скрипте `dev` с флагом `--debounce 1000` не решил проблему.
+    6.  ⏳ Возврат к конфигурации `npm` + `nodemon` + `swc` (как было ранее): изменены скрипты `dev` и `build` в `package.json`.
+*   **Статус:** ⏳ В процессе (Изменены скрипты `dev`/`build`, ожидание переустановки зависимостей через `npm` и тестирования `npm run dev`).
+*   **Следующие шаги:** Пользователю необходимо выполнить `rm -rf node_modules && npm install && npm run dev`.
+
 ## 🎯 Этап 2: Активация функций Нейрофото
 
 **Цель:** Заставить работать ключевые функции Нейрофото, используя локальный AI-сервер (`http://localhost:4000`).

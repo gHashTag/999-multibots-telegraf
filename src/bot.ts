@@ -226,35 +226,38 @@ async function gracefulShutdown(signal: string) {
       console.log(
         `[${signal}] Initiating stop for bot instance index ${index}...`
       )
-      await bot.stop(signal) // Используем await для ожидания завершения
+      // bot.stop() для long polling обычно синхронный, но для надежности можно обернуть
+      // Хотя Telegraf 4.x stop() возвращает void для polling
+      bot.stop(signal)
       console.log(
         `[${signal}] Successfully stopped bot instance index ${index}.`
       )
     } catch (error) {
       console.error(
         `[${signal}] Error stopping bot instance index ${index}:`,
-        error.message || error // Логируем только сообщение об ошибке для краткости
+        error // Логируем полную ошибку
       )
     }
   })
-  await Promise.all(stopPromises) // Ждем завершения остановки всех ботов
+  // Не нужно Promise.all, так как bot.stop() синхронный для polling
+  // await Promise.all(stopPromises) // Убираем ожидание, если оно не нужно
   console.log(`[${signal}] All bot instances processed for stopping.`)
 
   // 2. Останавливаем сервер Robokassa, если он был запущен
   if (robokassaServer) {
     console.log(`[${signal}] [Robokassa] Stopping webhook server...`)
     try {
+      // Создаем промисифицированную версию здесь, если server не null
       await closeServerAsync() // Ожидаем закрытия сервера
       console.log(
         `[${signal}] [Robokassa] Webhook server stopped successfully.`
       )
-      robokassaServer = null // Сбрасываем ссылку
-    } catch (err) {
+      robokassaServer = null // Сбрасываем ссылку на сервер
+    } catch (error) {
       console.error(
-        `[${signal}] [Robokassa] Error closing webhook server:`,
-        err
+        `[${signal}] [Robokassa] Error stopping webhook server:`,
+        error
       )
-      process.exit(1) // Выход с ошибкой, если сервер не закрылся
     }
   } else {
     console.log(
@@ -262,8 +265,12 @@ async function gracefulShutdown(signal: string) {
     )
   }
 
+  // 3. Добавляем небольшую задержку перед выходом
+  console.log(`[${signal}] Adding a short delay before exiting...`)
+  await new Promise(resolve => setTimeout(resolve, 500)) // Пауза 500 мс
+
   console.log(`[${signal}] Graceful shutdown completed. Exiting.`)
-  process.exit(0) // Успешный выход
+  process.exit(0) // Выход с кодом 0 (успех)
 }
 
 // Обработка завершения работы - используем общую асинхронную функцию
