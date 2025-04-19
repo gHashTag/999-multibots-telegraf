@@ -47,6 +47,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     const subscriptionInfo = await checkActivePaymentSubscription(
       Number(telegram_id)
     )
+    console.log('subscriptionInfo', subscriptionInfo)
 
     if (subscriptionInfo.isActive) {
       await ctx.scene.enter('menuScene')

@@ -5,12 +5,44 @@ import { getUserByTelegramId } from '@/core/supabase'
 import { checkActivePaymentSubscription } from '@/core/supabase/checkSubscriptionByTelegramId'
 import { verifySubscription } from '@/middlewares/verifySubscription'
 import { getSubScribeChannel } from '@/handlers'
+import { ADMIN_IDS_ARRAY } from '@/config' // Импортируем массив ID админов
+import { logger } from '@/utils/logger' // Импортируем логгер
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
-  console.log('CASE: subscriptionCheckScene started', ctx.from?.id)
+  const telegramId = ctx.from?.id
+  logger.info('⚙️ CASE: subscriptionCheckScene started', {
+    telegram_id: telegramId,
+    username: ctx.from?.username,
+  })
+
+  if (!telegramId) {
+    logger.error('❌ Не удалось получить telegramId в subscriptionCheckScene')
+    return ctx.scene.leave() // Выходим, если нет ID
+  }
+
+  // Проверяем, является ли пользователь админом/тестером
+  if (ADMIN_IDS_ARRAY.includes(telegramId)) {
+    logger.info(
+      '👑 Пользователь является админом/тестером, пропускаем проверки',
+      {
+        telegram_id: telegramId,
+      }
+    )
+    // Сразу переходим к нужной сцене, минуя проверки
+    const nextScene =
+      ctx.session.mode === 'main_menu' ? 'menuScene' : 'startScene'
+    logger.info(`🚀 Админ перенаправлен в сцену: ${nextScene}`, {
+      telegram_id: telegramId,
+    })
+    return ctx.scene.enter(nextScene)
+  }
+
+  // --- Обычная логика для не-админов ---
+  logger.info('👤 Обычный пользователь, выполняем стандартные проверки', {
+    telegram_id: telegramId,
+  })
 
   const { language_code } = ctx.from
-  const telegramId = ctx.from.id
 
   // 1. Проверяем существует ли пользователь в базе
   const existingUser = await getUserByTelegramId(ctx)

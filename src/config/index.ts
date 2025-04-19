@@ -94,7 +94,6 @@ export const {
   PIXEL_API_KEY,
   HUGGINGFACE_TOKEN,
   WEBHOOK_URL,
-  ADMIN_IDS,
   OPENAI_API_KEY,
   MERCHANT_LOGIN,
   PASSWORD1,
@@ -103,6 +102,15 @@ export const {
   PINATA_GATEWAY,
   LOCAL_SERVER_URL,
 } = process.env
+
+// Парсинг ADMIN_IDS в массив чисел
+const adminIdsString = process.env.ADMIN_IDS || ''
+export const ADMIN_IDS_ARRAY: number[] = adminIdsString
+  .split(',') // Разделяем строку по запятым
+  .map(id => parseInt(id.trim(), 10)) // Преобразуем каждую часть в число
+  .filter(id => !isNaN(id)) // Убираем некорректные значения (NaN)
+
+console.log('[CONFIG] Parsed ADMIN_IDS_ARRAY:', ADMIN_IDS_ARRAY)
 
 // Проверка наличия обязательных переменных окружения для Supabase
 export const isSupabaseConfigured = !!(
