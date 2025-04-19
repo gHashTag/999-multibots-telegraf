@@ -1,11 +1,11 @@
 import { Mode, MyContext, Subscription } from '../../interfaces'
 import { sendGenericErrorMessage } from '@/menu'
 import { levels, mainMenu } from '../../menu/mainMenu'
-import { getReferalsCountAndUserData } from '@/core/supabase/getReferalsCountAndUserData'
+import { getReferalsCountAndUserData } from '@/core/supabase'
 import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
-
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { WizardScene } from 'telegraf/scenes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 
@@ -20,24 +20,23 @@ const menuCommandStep = async (ctx: MyContext) => {
     const telegram_id = ctx.from?.id?.toString() || ''
 
     let newCount = 0
-    let newSubscription: Subscription = 'stars'
+    let newSubscription: SubscriptionType = SubscriptionType.STARS
     let newLevel: number
 
     if (isDev) {
       newCount = 0
-      newSubscription = 'neurotester'
+      newSubscription = SubscriptionType.NEUROTESTER
       newLevel = 0
     } else {
-      const { count, subscription, level } = await getReferalsCountAndUserData(
-        telegram_id
-      )
+      const { count, subscriptionType, level, userData } =
+        await getReferalsCountAndUserData(telegram_id)
       newCount = count
-      newSubscription = subscription
+      newSubscription = subscriptionType
       newLevel = level
     }
 
     // Фильтрация уровней для подписки neurophoto
-    if (newSubscription === 'neurophoto' && newLevel > 3) {
+    if (newSubscription === SubscriptionType.NEUROPHOTO && newLevel > 3) {
       newLevel = 3
     }
 
@@ -50,7 +49,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     })
 
     // Проверка условий для отправки сообщения
-    if (newLevel === 3 && newSubscription === 'neurophoto') {
+    if (newLevel === 3 && newSubscription === SubscriptionType.NEUROPHOTO) {
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
       await ctx.reply(message, keyboard)
@@ -58,7 +57,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     }
 
     // Проверка условий для отправки сообщения
-    if (newSubscription === 'neurotester') {
+    if (newSubscription === SubscriptionType.NEUROTESTER) {
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
       await ctx.reply(message, keyboard)
@@ -130,6 +129,7 @@ const menuCommandStep = async (ctx: MyContext) => {
         const { translation } = await getTranslation({
           key,
           ctx,
+          bot_name: ctx.botInfo?.username,
         })
         await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboard)
       } else {

@@ -1,6 +1,8 @@
 import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
-
+import { ModeEnum } from './interfaces/modes'
+import { SubscriptionType } from './interfaces/subscription.interface'
+import { levels } from './menu/mainMenu'
 import {
   avatarBrainWizard,
   textToVideoWizard,
@@ -44,7 +46,7 @@ import { setupLevelHandlers } from './handlers/setupLevelHandlers'
 import { defaultSession } from './store'
 
 import { get100Command } from './commands/get100Command'
-
+import { handleTechSupport } from './commands/handleTechSupport'
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
@@ -80,7 +82,7 @@ export const stage = new Scenes.Stage<MyContext>([
   lipSyncWizard,
   helpScene,
   inviteScene,
-  ...levelQuestWizard,
+  levelQuestWizard,
   uploadVideoScene,
 ])
 
@@ -92,7 +94,7 @@ export function registerCommands({
   composer: Composer<MyContext>
 }) {
   // Инициализируем сессию только один раз
-  bot.use(session({ defaultSession }))
+  bot.use(session({ defaultSession: () => ({ ...defaultSession }) }))
   bot.use(stage.middleware())
   bot.use(composer.middleware())
 
@@ -101,18 +103,36 @@ export function registerCommands({
   // Регистрация команд
   bot.command('start', async ctx => {
     console.log('CASE bot.command: start')
-    await ctx.scene.enter('subscriptionCheckScene')
+    await ctx.scene.enter('startScene')
+  })
+
+  bot.command('support', async ctx => {
+    console.log('CASE bot.command: support')
+    await handleTechSupport(ctx)
+  })
+
+  // Обработчики для текстовых кнопок главного меню
+  bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
+    console.log('CASE bot.hears: 💬 Техподдержка / Support')
+    await handleTechSupport(ctx)
+  })
+
+  bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
+    console.log('CASE bot.hears: 💫 Оформить подписку / Subscribe')
+    // Возможно, стоит добавить проверку, есть ли уже активная подписка?
+    // Пока просто переходим в сцену покупки
+    await ctx.scene.enter(ModeEnum.SubscriptionScene)
   })
 
   bot.command('menu', async ctx => {
     console.log('CASE bot.command: menu')
-    ctx.session.mode = 'main_menu'
-    await ctx.scene.enter('subscriptionCheckScene')
+    ctx.session.mode = ModeEnum.MainMenu
+    await ctx.scene.enter(ModeEnum.SubscriptionScene)
   })
   composer.command('menu', async ctx => {
     console.log('CASE: myComposer.command menu')
-    ctx.session.mode = 'main_menu'
-    await ctx.scene.enter('subscriptionCheckScene')
+    ctx.session.mode = ModeEnum.MainMenu
+    await ctx.scene.enter(ModeEnum.SubscriptionScene)
   })
 
   composer.command('get100', async ctx => {
@@ -122,7 +142,7 @@ export function registerCommands({
 
   composer.command('buy', async ctx => {
     console.log('CASE: buy')
-    ctx.session.subscription = 'stars'
+    ctx.session.subscription = SubscriptionType.STARS
     await ctx.scene.enter('paymentScene')
   })
 

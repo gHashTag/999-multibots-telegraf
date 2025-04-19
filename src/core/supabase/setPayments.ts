@@ -1,19 +1,25 @@
-import { supabase } from '.'
-import { Subscription } from '../../interfaces/supabase.interface'
+import { supabase } from './index'
+import { logger } from '@/utils/logger'
+// import { determineSubscriptionType } from '@/price/constants' // Исправлен путь импорта
+// import { PaymentProcessParams } from '@/interfaces/payments.interface' // Убран импорт, используется локальный тип
 
-type Payment = {
+type PaymentParams = {
   telegram_id: string
   OutSum: string
   InvId: string
-  currency: 'RUB' | 'USD' | 'EUR' | 'STARS'
+  currency: string
   stars: number
-  email: string
-  status: 'COMPLETED' | 'PENDING' | 'FAILED'
-  payment_method: 'Robokassa' | 'YooMoney' | 'Telegram' | 'Stripe' | 'Other'
-  subscription: Subscription
+  status: string
+  payment_method: string
   bot_name: string
   language: string
+  subscription: string | null // <-- СНОВА ДОБАВЛЯЕМ ЭТО ПОЛЕ
 }
+
+/**
+ * Функция для записи информации о платеже в базу данных
+ * Принимает объект с параметрами платежа
+ */
 
 export const setPayments = async ({
   telegram_id,
@@ -21,34 +27,40 @@ export const setPayments = async ({
   InvId,
   currency,
   stars,
-  email,
   status,
   payment_method,
-  subscription,
   bot_name,
   language,
-}: Payment) => {
+  subscription,
+}: PaymentParams) => {
   try {
-    const { error } = await supabase.from('payments').insert({
+    const amount = parseFloat(OutSum)
+
+    // Определяем тип подписки с помощью импортированной функции
+    // const subscription_type = determineSubscriptionType(amount, currency) // Пока оставим закомментированным, т.к. передаем явно
+
+    const paymentType = 'money_income'
+
+    const { error } = await supabase.from('payments_v2').insert({
       telegram_id,
-      amount: parseFloat(OutSum),
+      amount,
       inv_id: InvId,
       currency,
       status,
       payment_method,
       description: `Purchase and sale:: ${stars}`,
       stars,
-      email,
-      subscription,
       bot_name,
+      type: paymentType,
       language,
+      subscription_type: subscription,
     })
     if (error) {
-      console.error('Ошибка создания платежа:', error)
+      logger.error({ message: 'Error inserting payment', error })
       throw error
     }
   } catch (error) {
-    console.error('Ошибка создания платежа:', error)
-    throw error
+    console.error('Ошибка в функции setPayments:', error)
+    logger.error({ message: 'Error in setPayments function', error })
   }
 }

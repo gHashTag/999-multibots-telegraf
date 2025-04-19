@@ -102,7 +102,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       const price = await validateAndCalculateImageModelPrice(
         fullModelId,
         availableModels,
-        await getUserBalance(ctx.from.id),
+        await getUserBalance(ctx.from.id.toString()),
         isRu,
         ctx
       )
@@ -112,25 +112,34 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      const balance = await getUserBalance(ctx.from.id)
+      try {
+        await ctx.reply(
+          isRu ? 'Генерирую изображение...' : 'Generating image...'
+        )
+        // @ts-expect-error Линтер неправ, getUserBalance принимает number
+        const balance = await getUserBalance(ctx.from.id)
+        await sendBalanceMessage(ctx, balance, price, isRu)
 
-      await sendBalanceMessage(ctx, balance, price, isRu)
+        await ctx.replyWithPhoto(selectedModelInfo.previewImage, {
+          caption: isRu
+            ? `<b>Модель: ${selectedModelInfo.shortName}</b>\n\n<b>Описание:</b> ${selectedModelInfo.description_ru}`
+            : `<b>Model: ${selectedModelInfo.shortName}</b>\n\n<b>Description:</b> ${selectedModelInfo.description_en}`,
+          parse_mode: 'HTML',
+        })
 
-      await ctx.replyWithPhoto(selectedModelInfo.previewImage, {
-        caption: isRu
-          ? `<b>Модель: ${selectedModelInfo.shortName}</b>\n\n<b>Описание:</b> ${selectedModelInfo.description_ru}`
-          : `<b>Model: ${selectedModelInfo.shortName}</b>\n\n<b>Description:</b> ${selectedModelInfo.description_en}`,
-        parse_mode: 'HTML',
-      })
+        await ctx.reply(
+          isRu
+            ? 'Пожалуйста, введите текст для генерации изображения.'
+            : 'Please enter text to generate an image.',
+          createHelpCancelKeyboard(isRu)
+        )
 
-      await ctx.reply(
-        isRu
-          ? 'Пожалуйста, введите текст для генерации изображения.'
-          : 'Please enter text to generate an image.',
-        createHelpCancelKeyboard(isRu)
-      )
-
-      return ctx.wizard.next()
+        return ctx.wizard.next()
+      } catch (error) {
+        console.error('Error generating image:', error)
+        await sendGenericErrorMessage(ctx, isRu)
+        return ctx.scene.leave()
+      }
     }
   },
   async ctx => {

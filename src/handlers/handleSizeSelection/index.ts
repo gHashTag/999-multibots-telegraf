@@ -1,5 +1,6 @@
 import { MyContext } from '@/interfaces'
-import { getReferalsCountAndUserData, setAspectRatio } from '@/core/supabase'
+import { getReferalsCountAndUserData } from '@/core/supabase'
+import { setAspectRatio } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
 import { mainMenu } from '@/menu'
 
@@ -18,11 +19,17 @@ export async function handleSizeSelection(ctx: MyContext, size: string) {
   } else {
     console.log('CASE: Неизвестный режим')
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, subscription, level, isExist } =
+    const { count, subscriptionType, level, isExist } =
       await getReferalsCountAndUserData(telegram_id)
 
     if (isExist) {
-      await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+      await mainMenu({
+        isRu,
+        inviteCount: count,
+        subscription: subscriptionType,
+        ctx,
+        level,
+      })
     } else {
       ctx.scene.enter('helpScene')
     }

@@ -9,7 +9,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       console.log('CASE: balanceScene')
       const isRu = ctx.from?.language_code === 'ru'
 
-      const balance = await getUserBalance(ctx.from?.id || 0)
+      const balance = await getUserBalance(ctx.from?.id.toString() || '')
 
       await ctx.reply(
         isRu

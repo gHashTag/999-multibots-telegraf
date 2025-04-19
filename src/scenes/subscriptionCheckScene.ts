@@ -1,50 +1,96 @@
 import { MyContext } from '@/interfaces'
 import { WizardScene } from 'telegraf/scenes'
-import { getUserByTelegramId } from '@/core/supabase'
+import { getUserByTelegramIdString } from '@/core/supabase'
 import { verifySubscription } from '@/middlewares/verifySubscription'
-import { getSubScribeChannel } from '@/handlers'
+import { isDev } from '@/helpers'
+import { ModeEnum } from '@/interfaces/modes'
+import { logger } from '@/utils/logger'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { getSubScribeChannel } from '@/handlers/getSubScribeChannel'
+// Проверка существования пользователя
+const checkUserExists = async (ctx: MyContext) => {
+  if (!ctx.from?.id) {
+    logger.info('🔍 User ID not found in context')
+    return null
+  }
+
+  const user = await getUserByTelegramIdString(ctx.from.id.toString())
+  if (!user) {
+    logger.info('🔍 User not found in database')
+    return null
+  }
+
+  return user
+}
+
+// Проверка подписки на канал
+const checkChannelSubscription = async (
+  ctx: MyContext,
+  languageCode: string
+) => {
+  if (isDev) {
+    logger.info('🔧 Development mode - skipping channel subscription check')
+    return true
+  }
+
+  const channelId = await getSubScribeChannel(ctx)
+  if (!channelId) {
+    logger.error('❌ Failed to get subscribe channel ID')
+    await ctx.reply(
+      languageCode === 'ru'
+        ? '❌ Не удалось получить ID канала подписки'
+        : '❌ Failed to get subscribe channel ID'
+    )
+    return false
+  }
+
+  const isSubscribed = await verifySubscription(ctx, languageCode, channelId)
+  logger.info(
+    `📊 Channel subscription status: ${isSubscribed ? 'Active' : 'Inactive'}`
+  )
+  return isSubscribed
+}
+
+// Определение следующей сцены
+const getNextScene = (currentMode: ModeEnum | undefined): ModeEnum => {
+  if (currentMode === ModeEnum.MainMenu || !currentMode) {
+    return ModeEnum.MainMenu
+  }
+  if (currentMode === ModeEnum.Subscribe) {
+    return ModeEnum.SubscriptionScene
+  }
+  return currentMode
+}
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
-  console.log('CASE: subscriptionCheckStep', ctx.from)
+  logger.info('🎯 Starting subscription check process')
 
-  const { language_code } = ctx.from
-  // Проверяем существует ли пользователь в базе
-  const existingUser = await getUserByTelegramId(ctx)
-  console.log('subscriptionCheckStep - existingUser:', existingUser)
-
-  // Если пользователь не существует, то переходим к созданию пользователя
-  if (!existingUser) {
-    console.log('CASE: user not exists')
-    return ctx.scene.enter('createUserScene')
+  // Проверка существования пользователя
+  const user = await checkUserExists(ctx)
+  if (!user) {
+    logger.info('➡️ Redirecting to user creation scene')
+    return ctx.scene.enter(ModeEnum.CreateUserScene)
   }
-  const subscription = existingUser.subscription
-  // Получаем ID канала подписки
-  if (subscription !== 'stars') {
-    console.log('CASE: subscription not stars')
-    const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
-    // Проверяем подписку
-    const isSubscribed = await verifySubscription(
-      ctx,
-      language_code.toString(),
-      SUBSCRIBE_CHANNEL_ID
-    )
+
+  // Проверка типа подписки
+  if (user.subscription !== SubscriptionType.STARS) {
+    logger.info('💫 User does not have STARS subscription')
+    const isSubscribed = await checkChannelSubscription(ctx, user.language_code)
     if (!isSubscribed) {
-      // Если подписка не существует, то выходим из сцены
-      console.log('CASE: not subscribed')
-      // Если подписка существует, то переходим к стартовой сцене
-      console.log('CASE: isSubscribed', isSubscribed)
+      logger.info('❌ Channel subscription check failed')
       return ctx.scene.leave()
     }
+  } else {
+    logger.info('⭐ User has STARS subscription')
   }
 
-  if (ctx.session.mode === 'main_menu') {
-    return ctx.scene.enter('menuScene')
-  } else {
-    return ctx.scene.enter('startScene')
-  }
+  // Переход к следующей сцене
+  const nextScene = getNextScene(ctx.session.mode)
+  logger.info(`➡️ Navigating to scene: ${nextScene}`)
+  return ctx.scene.enter(nextScene)
 }
 
 export const subscriptionCheckScene = new WizardScene(
-  'subscriptionCheckScene',
+  ModeEnum.SubscriptionCheckScene,
   subscriptionCheckStep
 )

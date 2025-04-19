@@ -1,41 +1,33 @@
 import { MyContext } from '@/interfaces'
-import logger from '@/utils/logger'
 
+import { supabase } from '@/core/supabase'
+
+export const DEFAULT_CHANNEL_ID = '@neuro_blogger_group' // Значение по умолчанию, если ID не найден
 /**
  * Определяет канал для подписки в зависимости от ID бота
  * @param ctx Контекст Telegram
  * @returns Название канала для подписки
  */
-export function getSubScribeChannel(ctx: MyContext): string {
-  if (!ctx || !ctx.botId) {
-    logger.warn(
-      '⚠️ Контекст или ID бота отсутствует, возвращаем канал по умолчанию'
-    )
-    return 'neuro_blogger_group'
+
+export async function getSubScribeChannel(
+  ctx: MyContext
+): Promise<string | null> {
+  try {
+    const bot_name = ctx.botInfo.username
+    const { data, error } = await supabase
+      .from('avatars')
+      .select('group')
+      .eq('bot_name', bot_name)
+      .single()
+
+    if (error) {
+      console.error('Ошибка при получении группы:', error)
+      return null
+    }
+
+    return data?.group || null
+  } catch (error) {
+    console.error('Ошибка в getAvatarGroup:', error)
+    return null
   }
-
-  const botId = ctx.botId
-
-  // Карта соответствия ID ботов и каналов
-  const botChannelMap = {
-    bot1: 'neuro_blogger_group',
-    main: 'neuro_blogger_group',
-    bot2: 'MetaMuse_AI_Influencer',
-    bot3: 'motionly_tech',
-    bot4: 'AvaTek_en',
-    bot5: 'neuro_blogger_group',
-  }
-
-  // Проверяем наличие ID бота в карте
-  if (botId in botChannelMap) {
-    const channel = botChannelMap[botId as keyof typeof botChannelMap]
-    logger.debug(`🔍 Для бота ${botId} определен канал: ${channel}`)
-    return channel
-  }
-
-  // Если ID не найден, возвращаем канал по умолчанию
-  logger.info(
-    `ℹ️ Для бота ${botId} не найден канал, используем канал по умолчанию`
-  )
-  return 'neuro_blogger_group'
 }

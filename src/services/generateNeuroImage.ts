@@ -1,12 +1,8 @@
-import axios from 'axios'
-
-import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
+import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { isRussian } from '@/helpers/language'
 import { MyContext, ModelUrl } from '@/interfaces'
-
-// Используем заглушку только если переменная не задана в .env
-const API_URL =
-  process.env.ELESTIO_URL || 'https://ai-server-u14194.vm.elestio.app'
+import { logger } from '@/utils/logger'
+import { InputMediaPhoto } from 'telegraf/types'
 
 export async function generateNeuroImage(
   prompt: string,
@@ -37,32 +33,68 @@ export async function generateNeuroImage(
   })
 
   try {
-    console.log(isDev, 'isDev')
-    const url = `${isDev ? LOCAL_SERVER_URL : API_URL}/generate/neuro-photo`
-    console.log(url, 'url')
-
-    // Больше не проверяем на конкретный URL, т.к. наш резервный URL рабочий
-
-    const response = await axios.post(
-      url,
-      {
-        prompt,
-        model_url,
-        num_images: numImages || 1,
-        telegram_id,
-        username: ctx.from?.username,
-        is_ru: isRussian(ctx),
-        bot_name: botName,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
+    // Используем прямую генерацию через generateNeuroPhotoDirect
+    const directResult = await generateNeuroPhotoDirect(
+      prompt,
+      model_url,
+      numImages,
+      telegram_id,
+      ctx as MyContext,
+      botName
+      // Передаем опцию disable_telegram_sending, если мы в неправильном окружении
     )
-    console.log(response.data, 'response.data')
-    return response.data
+    console.log(directResult, 'directResult')
+
+    if (
+      directResult &&
+      directResult.success &&
+      directResult.urls &&
+      directResult.urls.length > 0
+    ) {
+      try {
+        if (directResult.urls.length === 1) {
+          await ctx.replyWithPhoto(directResult.urls[0], {
+            caption: isRussian(ctx)
+              ? '✅ Ваше нейрофото готово!'
+              : '✅ Your neuro-photo is ready!',
+          })
+        } else {
+          const mediaGroup: ReadonlyArray<InputMediaPhoto> =
+            directResult.urls.map(url => ({
+              type: 'photo',
+              media: url,
+            }))
+          await ctx.replyWithMediaGroup(mediaGroup)
+        }
+        logger.info({
+          message:
+            '✅ [generateNeuroImage] Фото успешно отправлено пользователю',
+          description: 'Photo sent successfully to user',
+          telegram_id,
+          urls: directResult.urls,
+        })
+      } catch (sendError) {
+        logger.error({
+          message:
+            '❌ [generateNeuroImage] Ошибка при отправке фото пользователю',
+          description: 'Error sending photo to user',
+          error:
+            sendError instanceof Error ? sendError.message : 'Unknown error',
+          telegram_id,
+          urls: directResult.urls,
+        })
+      }
+    } else if (directResult && !directResult.success) {
+      logger.warn({
+        message:
+          '⚠️ [generateNeuroImage] Генерация завершилась неуспешно, фото не отправлено',
+        description: 'Generation was unsuccessful, photo not sent',
+        telegram_id,
+        directResult,
+      })
+    }
+
+    return directResult
   } catch (error) {
     console.error('Ошибка при генерации нейроизображения:', error)
 

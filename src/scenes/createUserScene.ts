@@ -1,15 +1,12 @@
-import { MyTextMessageContext, MyWizardContext } from '@/interfaces'
+import { MyTextMessageContext } from '@/interfaces'
 import { WizardScene } from 'telegraf/scenes'
-import {
-  createUser,
-  getReferalsCountAndUserData,
-  incrementBalance,
-} from '@/core/supabase'
+import { createUser, getReferalsCountAndUserData } from '@/core/supabase'
+
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { getSubScribeChannel } from '@/handlers'
 import { isRussian } from '@/helpers/language'
-
-const BONUS_AMOUNT = 100
+import { MyContext } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 
 const createUserStep = async (ctx: MyTextMessageContext) => {
   console.log('CASE:createUserStep', ctx.from)
@@ -64,25 +61,16 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
     ctx.session.inviter = userData.user_id
 
-    const newCount = count + 1
     if (ctx.session.inviteCode) {
       await ctx.telegram.sendMessage(
         ctx.session.inviteCode,
         isRussian(ctx)
-          ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}.\n🆔 Уровень аватара: ${count}\n🎁 За каждого приглашенного друга вы получаете дополнительные ${BONUS_AMOUNT} звезд для генерации!\n🤑 Ваш новый баланс: ${
-              userData.balance + BONUS_AMOUNT
-            }⭐️ `
-          : `🔗 New user registered through your link: @${finalUsername}.🆔 Avatar level: ${count}\n🎁 For each friend you invite, you get additional ${BONUS_AMOUNT} stars for generation!\n🤑 Your new balance: ${
-              userData.balance + BONUS_AMOUNT
-            }⭐️`
+          ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}.\n🆔 Уровень аватара: ${count} `
+          : `🔗 New user registered through your link: @${finalUsername}`
       )
-      await incrementBalance({
-        telegram_id: ctx.session.inviteCode,
-        amount: BONUS_AMOUNT,
-      })
       await ctx.telegram.sendMessage(
         `@${SUBSCRIBE_CHANNEL_ID}`,
-        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке от: @${userData.username}.\n🆔 Уровень аватара: ${newCount}\n🎁 Получил(a) бонус в размере ${BONUS_AMOUNT}⭐️ на свой баланс.\nСпасибо за участие в нашей программе!`
+        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке от: @${userData.username}`
       )
     }
   } else {
@@ -108,7 +96,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     model: 'gpt-4-turbo',
     count: 0,
     aspect_ratio: '9:16',
-    balance: 100,
+    balance: 0,
     inviter: ctx.session.inviter || null,
     bot_name: botName,
   }
@@ -119,10 +107,10 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       ? '✅ Аватар успешно создан!'
       : '✅ Avatar created successfully!'
   )
-  return ctx.scene.enter('subscriptionCheckScene')
+  return ctx.scene.enter(ModeEnum.SubscriptionScene)
 }
 
-export const createUserScene = new WizardScene<MyWizardContext>(
+export const createUserScene = new WizardScene<MyContext>(
   'createUserScene',
   createUserStep
 )

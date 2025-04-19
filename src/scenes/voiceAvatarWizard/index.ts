@@ -22,7 +22,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    const currentBalance = await getUserBalance(ctx.from.id)
+    const currentBalance = await getUserBalance(ctx.from.id.toString())
     const price = voiceConversationCost
     if (currentBalance < price) {
       await sendInsufficientStarsMessage(ctx, currentBalance, isRu)

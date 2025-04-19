@@ -1,27 +1,38 @@
 export * from './models.interface'
 export * from './payments.interface'
-export * from './cost.interface'
+export {
+  VideoModelConfig,
+  VIDEO_MODELS,
+  AdditionalMode,
+} from './cost.interface'
 export * from './telegram-bot.interface'
-export * from './supabase.interface'
+export {
+  CreateUserData,
+  ModelTraining,
+  UserType,
+  TranslationContext,
+  TranslationButton,
+} from './supabase.interface'
 export * from './api.interface'
-
-import { Context } from 'telegraf'
-
-// Объявим модуль для расширения типов Telegraf
-declare module 'telegraf' {
-  interface Context {
-    botId: string
-    botUsername?: string
-    startPayload?: string
-  }
-}
-
-/**
- * Базовый контекст для мультибота
- */
-export interface MultiBotContext extends Context {
-  botId: string
-  botUsername?: string
-  startPayload?: string
-  // Здесь можно добавить другие пользовательские свойства
-}
+export * from './translations.interface'
+export {
+  ModeEnum,
+  CostCalculationParams,
+  CostCalculationResult,
+  Mode,
+  BaseCosts,
+  ModeCosts,
+} from './modes'
+export {
+  SubscriptionType,
+  Subscription,
+  SubscriptionCreateParams,
+  SubscriptionUpdateParams,
+  SubscriptionOperationResult,
+  SubscriptionValidationResult,
+  SubscriptionStats,
+  SubscriptionRenewalParams,
+  SUBSCRIPTION_ERROR_MESSAGES,
+  SUBSCRIPTION_SUCCESS_MESSAGES,
+  SUBSCRIPTION_DEFAULTS,
+} from './subscription.interface'

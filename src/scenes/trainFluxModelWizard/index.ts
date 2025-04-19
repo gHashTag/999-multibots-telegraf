@@ -12,7 +12,6 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     console.log('CASE 2 ctx.session.steps', ctx.session.steps)
     const isRu = isRussian(ctx)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const message = ctx.message as any
     console.log('CASE: trainFluxModelWizard', message)
     if (message && 'text' in message) {
@@ -58,7 +57,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
 
       ctx.session.images = []
       ctx.session.modelName = `${username.toLowerCase()}`
-      ctx.session.targetUserId = Number(targetUserId)
+      ctx.session.targetUserId = targetUserId
       ctx.session.username = username
       ctx.session.triggerWord = `${username.toLowerCase()}`
 

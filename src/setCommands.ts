@@ -17,6 +17,10 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
         command: 'menu',
         description: '👤 Menu / Главное меню',
       },
+      {
+        command: 'support',
+        description: '👤 Support / Техподдержка',
+      },
       // {
       //   command: 'invite',
       //   description: '👥 Invite a friend / Пригласить друга',

@@ -1,4 +1,5 @@
-import { ModelUrl, UserModel } from '../../interfaces'
+import { MyContext } from '@/interfaces'
+import { UserModel } from '../../interfaces'
 
 import { generateNeuroImageV2 } from '@/services/generateNeuroImageV2'
 import {
@@ -14,11 +15,10 @@ import {
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
 
-import { MyWizardContext } from '@/interfaces'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
 
-const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
+const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const isRu = ctx.from?.language_code === 'ru'
   try {
     console.log('CASE 1: neuroPhotoConversationV2')
@@ -27,9 +27,8 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
     const userModel = await getLatestUserModel(Number(telegramId), 'bfl')
     console.log('userModel', userModel)
 
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegramId
-    )
+    const { count, subscriptionType, level } =
+      await getReferalsCountAndUserData(telegramId)
 
     if (!userModel || !userModel.finetune_id) {
       await ctx.reply(
@@ -42,7 +41,7 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
               await mainMenu({
                 isRu,
                 inviteCount: count,
-                subscription,
+                subscription: subscriptionType,
                 ctx,
                 level,
               })
@@ -72,7 +71,7 @@ const neuroPhotoConversationStep = async (ctx: MyWizardContext) => {
   }
 }
 
-const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
+const neuroPhotoPromptStep = async (ctx: MyContext) => {
   console.log('CASE 2: neuroPhotoPromptStep')
   const isRu = ctx.from?.language_code === 'ru'
   const promptMsg = ctx.message
@@ -112,7 +111,7 @@ const neuroPhotoPromptStep = async (ctx: MyWizardContext) => {
   }
 }
 
-const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
+const neuroPhotoButtonStep = async (ctx: MyContext) => {
   console.log('CASE 3: neuroPhotoButtonStep')
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text
@@ -159,16 +158,21 @@ const neuroPhotoButtonStep = async (ctx: MyWizardContext) => {
     if (numImages >= 1 && numImages <= 4) {
       await generate(numImages)
     } else {
-      const { count, subscription, level } = await getReferalsCountAndUserData(
-        ctx.from?.id?.toString() || ''
-      )
-      await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+      const { count, subscriptionType, level } =
+        await getReferalsCountAndUserData(ctx.from?.id?.toString() || '')
+      await mainMenu({
+        isRu,
+        inviteCount: count,
+        subscription: subscriptionType,
+        ctx,
+        level,
+      })
     }
   }
 }
 
-export const neuroPhotoWizardV2 = new WizardScene<MyWizardContext>(
-  'neuro_photo_2',
+export const neuroPhotoWizardV2 = new WizardScene<MyContext>(
+  'neuro_photo_v2',
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
   neuroPhotoButtonStep

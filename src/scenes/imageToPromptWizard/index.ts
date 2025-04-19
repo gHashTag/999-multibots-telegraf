@@ -24,13 +24,10 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
     }
     await ctx.reply(
       isRu
-        ? 'Пожалуйста, отправьте изображение для генерации промпта'
-        : 'Please send an image to generate a prompt',
-      {
-        reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-      }
+        ? '🖼️ Отправьте изображение для распознавания промпта'
+        : '🖼️ Send an image to recognize the prompt'
     )
-    ctx.scene.session.state = {}
+    ctx.scene.session.state = { step: 0 }
     return ctx.wizard.next()
   },
   async ctx => {

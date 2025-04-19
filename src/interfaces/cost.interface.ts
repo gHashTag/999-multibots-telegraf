@@ -29,33 +29,19 @@ export const VIDEO_MODELS: VideoModelConfig[] = [
   },
 ]
 
-export type Mode =
-  | 'subscribe'
-  | 'digital_avatar_body'
-  | 'digital_avatar_body_2'
-  | 'neuro_photo'
-  | 'neuro_photo_2'
-  | 'image_to_prompt'
-  | 'avatar_brain'
-  | 'chat_with_avatar'
-  | 'image_to_video'
-  | 'text_to_speech'
-  | 'text_to_image'
-  | 'text_to_video'
-  | 'voice'
-  | 'select_model'
-  | 'invite'
-  | 'help'
+// Дополнительные режимы, не входящие в ModeEnum
+export type AdditionalMode =
   | 'start_learning'
   | 'top_up_balance'
   | 'balance'
   | 'main_menu'
   | 'improve_prompt'
   | 'change_size'
-  | 'lip_sync'
   | 'getRuBill'
   | 'getEmailWizard'
   | 'price'
   | 'video_in_url'
-
-export type ModeCosts = Required<Record<Mode, number>>
+  | 'support'
+  | 'stats'
+  | 'invite'
+  | 'help'

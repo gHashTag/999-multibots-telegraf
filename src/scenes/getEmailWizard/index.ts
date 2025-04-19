@@ -3,15 +3,16 @@ import { isRussian } from '@/helpers'
 import { handleHelpCancel } from '@/handlers'
 import { paymentOptions } from '../getRuBillWizard/helper'
 import { WizardScene } from 'telegraf/scenes'
+import { TransactionType } from '@/interfaces/payments.interface'
 
 const selectPaymentOptionStep = async (ctx: MyContext) => {
   console.log('CASE 3: selectPaymentOptionStep')
   const isRu = isRussian(ctx)
   const msg = ctx.message
-  const subscription = ctx.session.subscription
+  const subscription = ctx.session.subscription?.toLowerCase()
   if (msg && 'text' in msg) {
-    const selectedOption = msg.text
-    console.log('Selected option:', selectedOption)
+    const selectedOptionText = msg.text
+    console.log('Selected option text:', selectedOptionText)
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
@@ -20,20 +21,27 @@ const selectPaymentOptionStep = async (ctx: MyContext) => {
     }
 
     const selectedPayment = paymentOptions.find(
-      option => option.subscription === subscription
+      option => option.subscription.toLowerCase() === subscription
     )
 
     if (selectedPayment) {
       console.log('Selected payment option:', selectedPayment)
-      ctx.session.selectedPayment = selectedPayment
+      ctx.session.selectedPayment = {
+        amount: selectedPayment.amount,
+        stars: parseInt(selectedPayment.stars, 10),
+        subscription: selectedPayment.subscription,
+        type: TransactionType.SUBSCRIPTION_PURCHASE,
+      }
       await ctx.scene.enter('getRuBillWizard')
       return
     } else {
-      console.log('Invalid payment option selected')
+      console.log(
+        'Invalid payment option selected or subscription type mismatch'
+      )
       await ctx.reply(
         isRu
-          ? 'Пожалуйста, выберите корректную сумму.'
-          : 'Please select a valid amount.'
+          ? 'Ошибка выбора опции. Попробуйте вернуться в меню подписок.'
+          : 'Error selecting option. Try returning to the subscription menu.'
       )
     }
   } else {

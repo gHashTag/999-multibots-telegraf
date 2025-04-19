@@ -28,4 +28,16 @@ export function setupLevelHandlers(bot: Telegraf<MyContext>) {
   bot.action('level_10', handleLevel10)
   bot.action('level_11', handleLevel11)
   bot.action('level_complete', handleQuestComplete)
+
+  // --- Добавляем обработчики для кнопок из startScene ---
+  bot.action('go_subscribe', async ctx => {
+    await ctx.answerCbQuery() // Отвечаем на callback_query, чтобы убрать "часики"
+    await ctx.scene.enter('subscriptionScene')
+  })
+
+  bot.action('go_help', async ctx => {
+    await ctx.answerCbQuery()
+    await ctx.scene.enter('helpScene')
+  })
+  // --- Конец добавленных обработчиков ---
 }

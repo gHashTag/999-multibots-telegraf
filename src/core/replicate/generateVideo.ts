@@ -18,7 +18,7 @@ export const retry = async <T>(
   }
 }
 
-async function downloadFile(url: string): Promise<Buffer> {
+export async function downloadFile(url: string): Promise<Buffer> {
   try {
     console.log('Downloading from URL:', url)
 

@@ -1,6 +1,12 @@
+import { TelegramId } from './telegram.interface'
+import {
+  SubscriptionType,
+  Subscription as SubscriptionInterface,
+} from './subscription.interface'
+
 export interface CreateUserData {
   username: string
-  telegram_id: string
+  telegram_id: TelegramId
   first_name: string
   last_name: string
   is_bot: boolean
@@ -11,7 +17,6 @@ export interface CreateUserData {
   model: string
   count: number
   aspect_ratio: string
-  balance: number
   inviter: string | null
   bot_name: string
 }
@@ -22,14 +27,8 @@ export interface ModelTraining {
   model_url: string
   finetune_id: string
 }
-export type Subscription =
-  | 'neurobase'
-  | 'neuromeeting'
-  | 'neuroblogger'
-  | 'neurotester'
-  | 'neurophoto'
-  | 'neuromentor'
-  | 'stars'
+
+export type Subscription = SubscriptionInterface
 
 export interface UserType {
   id: bigint
@@ -58,13 +57,29 @@ export interface UserType {
   voice_id_synclabs?: string | null
   mode?: string | null
   model?: string | null
-  count?: bigint | null
+  count?: number | null
   aspect_ratio?: string | null
-  balance?: number | null
   inviter?: string | null // UUID
   vip?: boolean | null
-  subscription?: string | null
+  subscription?: SubscriptionType | null
+  balance?: number | null
   level?: number
   token?: string | null
   is_leela_start?: boolean | null
+}
+
+export interface TranslationContext {
+  from: { language_code: string }
+  telegram: { token: string }
+}
+
+export interface TranslationButton {
+  text: string
+  callback_data: string
+  description: string
+  row: number
+  en_price: number
+  ru_price: number
+  stars_price: number
+  subscription: SubscriptionType
 }

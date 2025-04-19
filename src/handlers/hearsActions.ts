@@ -1,21 +1,24 @@
-import { MyContext } from '@/interfaces'
+import { MyContext, ModeEnum } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
+import { logger } from '@/utils/logger'
 
 import { Telegraf } from 'telegraf'
 
 export function registerHearsActions(bot: Telegraf<MyContext>) {
+  logger.info('hearsActions - Registering hears handlers')
+
   bot.hears(
     ['🎙️ Текст в голос', '🎙️ Text to speech'],
     async (ctx: MyContext) => {
-      console.log('CASE bot: 🎙️ Текст в голос')
-      ctx.session.mode = 'text_to_speech'
+      logger.info('hearsActions - Heard 🎙️ Текст в голос')
+      ctx.session.mode = ModeEnum.TextToSpeech
       await ctx.scene.enter('text_to_speech')
     }
   )
 
   bot.hears(['🏠 Главное меню', '🏠 Main menu'], async (ctx: MyContext) => {
-    console.log('CASE: Главное меню')
-    ctx.session.mode = 'main_menu'
+    logger.info('hearsActions - Heard 🏠 Главное меню')
+    ctx.session.mode = ModeEnum.MainMenu
     await ctx.scene.enter('menuScene')
   })
 
