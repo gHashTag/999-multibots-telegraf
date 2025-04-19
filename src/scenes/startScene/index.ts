@@ -21,7 +21,9 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         caption: translation,
       })
     } else {
-      await ctx.reply(translation)
+      await ctx.reply(translation, {
+        parse_mode: 'Markdown',
+      })
     }
 
     const tutorialUrl = BOT_URLS[botName]

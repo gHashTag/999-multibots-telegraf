@@ -13,7 +13,7 @@ export const handleMenu = async (ctx: MyContext) => {
 
     // Создаем объект для сопоставления текста с действиями
     const actions = {
-      [isRu ? levels[0].title_ru : levels[0].title_en]: async () => {
+      [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
         console.log('CASE: 💫 Оформление подписки')
         ctx.session.mode = ModeEnum.Subscribe
         await ctx.scene.enter('subscriptionScene')

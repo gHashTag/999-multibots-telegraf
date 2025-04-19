@@ -16,9 +16,11 @@ import { setupWebhookHandlers } from './webhookHandler'
 import express from 'express'
 import fileUpload from 'express-fileupload'
 import { handleRobokassaResult } from './webhooks/robokassa/robokassa.handler'
+import * as http from 'http'
 
 // Инициализация ботов
 const botInstances: Telegraf[] = []
+let robokassaServer: http.Server | null = null
 
 // Создаем и экспортируем Composer глобально
 export const composer = new Composer<MyContext>()
@@ -55,7 +57,7 @@ async function isPortInUse(port: number): Promise<boolean> {
 }
 
 // Функция запуска сервера для обработки Robokassa вебхуков
-function startRobokassaWebhookServer() {
+function startRobokassaWebhookServer(): http.Server {
   // Порт для Robokassa webhook
   const robokassaPort = process.env.ROBOKASSA_WEBHOOK_PORT || 2999
 
@@ -82,8 +84,8 @@ function startRobokassaWebhookServer() {
     res.status(200).send('OK')
   })
 
-  // Запуск сервера
-  app
+  // Запуск сервера и сохранение экземпляра
+  const server = app
     .listen(robokassaPort, () => {
       console.log(`[Robokassa] Webhook server running on port ${robokassaPort}`)
     })
@@ -91,9 +93,15 @@ function startRobokassaWebhookServer() {
       console.error(
         `[Robokassa] Failed to start webhook server: ${err.message}`
       )
+      // Можно добавить логику для попытки перезапуска или уведомления
+      if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+        console.error(
+          `[Robokassa] Port ${robokassaPort} is already in use. Maybe another instance is running?`
+        )
+      }
     })
 
-  return app
+  return server
 }
 
 // Инициализация ботов в зависимости от окружения
@@ -189,20 +197,36 @@ async function initializeBots() {
   }
 
   // Запускаем сервер для обработки Robokassa вебхуков
-  startRobokassaWebhookServer()
+  robokassaServer = startRobokassaWebhookServer()
 }
 
 // Обработка завершения работы
 process.once('SIGINT', () => {
   console.log('🛑 Получен сигнал SIGINT, завершаем работу...')
   botInstances.forEach(bot => bot.stop('SIGINT'))
-  process.exit(0)
+  if (robokassaServer) {
+    console.log('[Robokassa] Stopping webhook server...')
+    robokassaServer.close(() => {
+      console.log('[Robokassa] Webhook server stopped.')
+      process.exit(0)
+    })
+  } else {
+    process.exit(0)
+  }
 })
 
 process.once('SIGTERM', () => {
   console.log('🛑 Получен сигнал SIGTERM, завершаем работу...')
   botInstances.forEach(bot => bot.stop('SIGTERM'))
-  process.exit(0)
+  if (robokassaServer) {
+    console.log('[Robokassa] Stopping webhook server...')
+    robokassaServer.close(() => {
+      console.log('[Robokassa] Webhook server stopped.')
+      process.exit(0)
+    })
+  } else {
+    process.exit(0)
+  }
 })
 
 console.log('🏁 Запуск приложения')
