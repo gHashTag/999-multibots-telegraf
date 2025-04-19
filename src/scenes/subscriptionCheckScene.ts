@@ -87,8 +87,9 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     logger.info('💫 User does not have STARS subscription')
     const isSubscribed = await checkChannelSubscription(ctx, user.language_code)
     if (!isSubscribed) {
-      logger.info('❌ Channel subscription check failed')
-      return ctx.scene.leave()
+      // Не нужно ничего делать здесь, так как checkChannelSubscription
+      // уже перенаправит на SubscriptionScene при неудаче
+      return // Просто выходим, пользователь уже перенаправлен
     }
   } else {
     logger.info('⭐ User has STARS subscription')

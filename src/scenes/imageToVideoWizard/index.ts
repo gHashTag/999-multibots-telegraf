@@ -61,7 +61,13 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       ctx.session.videoModel = videoModel as VideoModel
       console.log('ctx.session.videoModel', ctx.session.videoModel)
 
-      await sendBalanceMessage(ctx, newBalance, modePrice, isRu)
+      await sendBalanceMessage(
+        ctx,
+        newBalance,
+        modePrice,
+        isRu,
+        ctx.botInfo.username
+      )
 
       const info =
         videoModel === 'i2vgen-xl'
