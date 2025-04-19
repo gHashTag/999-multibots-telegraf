@@ -7,6 +7,8 @@ import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { getSubScribeChannel } from '@/handlers/getSubScribeChannel'
+import { ADMIN_IDS_ARRAY } from '@/config'
+
 // Проверка существования пользователя
 const checkUserExists = async (ctx: MyContext) => {
   if (!ctx.from?.id) {
@@ -64,6 +66,14 @@ const getNextScene = (currentMode: ModeEnum | undefined): ModeEnum => {
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
   logger.info('🎯 Starting subscription check process')
+
+  // Проверка на админа (пропуск всех проверок)
+  if (ADMIN_IDS_ARRAY.includes(ctx.from?.id ?? 0)) {
+    logger.info(
+      `[Admin Bypass] User ${ctx.from?.id} is in ADMIN_IDS_ARRAY, bypassing subscription checks and entering menuScene.`
+    )
+    return ctx.scene.enter('menuScene') // Сразу в главное меню
+  }
 
   // Проверка существования пользователя
   const user = await checkUserExists(ctx)

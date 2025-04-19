@@ -21,8 +21,8 @@ composer.hears([levels[1].title_ru, levels[1].title_en], async ctx => {
 
 composer.hears([levels[2].title_ru, levels[2].title_en], async ctx => {
   console.log('CASE hearsHandler: 📸 Нейрофото')
-  ctx.session.mode = ModeEnum.NeuroPhotoV2
-  await ctx.scene.enter('neuroPhotoWizardV2')
+  ctx.session.mode = ModeEnum.NeuroPhoto
+  await ctx.scene.enter(ModeEnum.NeuroPhoto)
 })
 
 composer.hears(['📸 Нейрофото 2', '📸 NeuroPhoto 2'], async ctx => {

@@ -17,7 +17,7 @@ import { WizardScene } from 'telegraf/scenes'
 
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
-
+import { ModeEnum } from '@/interfaces/modes'
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const isRu = ctx.from?.language_code === 'ru'
   try {
@@ -55,7 +55,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
     ctx.session.userModel = userModel as UserModel
 
-    await sendPhotoDescriptionRequest(ctx, isRu, 'neuro_photo')
+    await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
     const isCancel = await handleHelpCancel(ctx)
     console.log('isCancel', isCancel)
     if (isCancel) {

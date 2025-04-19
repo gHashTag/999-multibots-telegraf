@@ -55,7 +55,6 @@ export async function getBotsFromSupabase() {
 export * from './getBotGroupFromAvatars'
 export * from './createUser'
 export * from './createModelTraining'
-export * from './checkSubscriptionByTelegramId'
 export * from './updateUserBalance'
 export * from './getAspectRatio'
 export * from './getGeneratedImages'
@@ -96,3 +95,4 @@ export * from './updateUserLevelPlusOne'
 export * from './savePromptDirect' //neurophoto
 export * from './getUserByTelegramIdString'
 export * from './setPayments'
+export * from './getUserDetails'

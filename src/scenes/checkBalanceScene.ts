@@ -1,6 +1,6 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { getUserBalance } from '@/core/supabase'
+
 import {
   sendInsufficientStarsMessage,
   sendBalanceMessage,
@@ -13,7 +13,16 @@ import {
 } from '@/interfaces/modes'
 import { starCost, SYSTEM_CONFIG } from '@/price/constants'
 import { logger } from '@/utils/logger'
-// Интерфейс для конверсий
+import { getUserDetails } from '@/core/supabase'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+// Интерфейс для возвращаемого значения
+export interface UserStatus {
+  stars: number // Баланс
+  level: number
+  subscriptionType: SubscriptionType | null // Тип подписки (null если нет или неактивна)
+  isSubscriptionActive: boolean // Активна ли подписка
+  isExist: boolean // Найден ли пользователь
+}
 
 export function calculateCostInStars(costInDollars: number): number {
   return costInDollars / starCost
@@ -161,7 +170,7 @@ export const maxCost = Math.max(
   )
 )
 export const checkBalanceScene = new Scenes.BaseScene<MyContext>(
-  'checkBalanceScene'
+  ModeEnum.CheckBalanceScene
 )
 
 // Функция для получения числового значения стоимости
@@ -169,25 +178,146 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
   return typeof cost === 'function' ? cost() : cost
 }
 
+// ==================================================================
+// ================== ВАЖНЫЙ КОММЕНТАРИЙ! ОПИСАНИЕ ТЕКУЩЕЙ ЛОГИКИ! ===
+// ==================================================================
+// Сцена `checkBalanceScene` - ШЛЮЗ ДОСТУПА к функциям бота.
+// Она ВЫЗЫВАЕТСЯ ПЕРЕД ЛЮБОЙ функцией, требующей ресурсов.
+// Админы НЕ ИМЕЮТ специального пропуска и проверяются на общих основаниях.
+//
+// ЛОГИКА ПРОВЕРКИ ВНУТРИ СЦЕНЫ (Версия "Подписка И Баланс Обязательны"):
+// ШАГ 1: Получить ID пользователя (`telegramId`) и запрошенный режим (`mode`).
+// ШАГ 2: ПОЛУЧЕНИЕ ДАННЫХ ПОЛЬЗОВАТЕЛЯ: Вызвать `getUserDetails(telegramId)`.
+// ШАГ 3: ПРОВЕРКА СУЩЕСТВОВАНИЯ: Если пользователь не найден (`!userDetails.isExist`) -> Сообщение, ВЫХОД (переход в `StartScene`).
+// ШАГ 4: ПРОВЕРКА НАЛИЧИЯ ПОДПИСКИ: Если подписка НЕ активна (`!userDetails.isSubscriptionActive`) -> Лог (ВНИМАНИЕ: текущий лог некорректен!), ВЫХОД (переход в `StartScene`).
+// --- Следующие шаги выполняются ТОЛЬКО ЕСЛИ У ПОЛЬЗОВАТЕЛЯ ЕСТЬ АКТИВНАЯ ПОДПИСКА ---
+// ШАГ 5: РАСЧЕТ СТОИМОСТИ И БАЛАНСА: Получить `currentBalance` и рассчитать `costValue` для `mode`.
+// ШАГ 6: ОТОБРАЖЕНИЕ БАЛАНСА: Если `costValue > 0`, показать баланс и стоимость (`sendBalanceMessage`). (ВНИМАНИЕ: вызывается дважды в текущем коде).
+// ШАГ 7: ПРОВЕРКА ДОСТАТОЧНОСТИ БАЛАНСА: Если `баланс < costValue` -> Сообщение о нехватке звезд (`sendInsufficientStarsMessage`), ВЫХОД из сцены (`ctx.scene.leave()`).
+// ШАГ 8: ДОСТУП РАЗРЕШЕН И ПЕРЕХОД: Если пользователь существует, И имеет активную подписку, И имеет достаточный баланс -> Лог успеха, переход к функции (`enterTargetScene`).
+// ШАГ 9: ОБРАБОТКА ОШИБОК: Любая ошибка на этапах 2-8 ведет к выходу из сцены с сообщением (`ctx.scene.leave()`).
+//
+// ВЫВОД: Эта логика требует ОБЯЗАТЕЛЬНОГО наличия АКТИВНОЙ подписки и ДОСТАТОЧНОГО баланса звезд для доступа к функции.
+// ==================================================================
+// ==================================================================
+
 checkBalanceScene.enter(async ctx => {
   console.log('💵 CASE: checkBalanceScene')
-  const isRu = ctx.from?.language_code === 'ru'
+  // Шаг 1: Получаем ID и режим
   const { telegramId } = getUserInfo(ctx)
-  const currentBalance = await getUserBalance(telegramId.toString())
   const mode = ctx.session.mode as ModeEnum
-  const cost = modeCosts[mode] || 0 // Получаем стоимость для текущего режима
-  const costValue = getCostValue(cost)
-  console.log('⭐️ cost:', costValue)
+  const isRu = ctx.from?.language_code === 'ru'
 
-  if (costValue !== 0) {
-    await sendBalanceMessage(ctx, currentBalance, costValue, isRu)
-  }
+  logger.info({
+    message: `[CheckBalanceScene Enter] User: ${telegramId}, Mode: ${mode}`,
+    telegramId,
+    mode,
+  })
 
-  if (currentBalance < costValue) {
-    await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
+  try {
+    // --- ШАГ 2: ПОЛУЧЕНИЕ ДАННЫХ ПОЛЬЗОВАТЕЛЯ ---
+    const userDetails = await getUserDetails(telegramId)
+
+    // --- ШАГ 3: ПРОВЕРКА СУЩЕСТВОВАНИЯ ---
+    if (!userDetails.isExist) {
+      logger.warn({
+        message: `[CheckBalanceScene Exit] User ${telegramId} not found in DB. Redirecting to StartScene.`,
+        telegramId,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Не удалось найти ваш профиль. Пожалуйста, перезапустите бота командой /start.'
+          : '❌ Could not find your profile. Please restart the bot with /start.'
+      )
+      return ctx.scene.enter(ModeEnum.StartScene) // Выход, если пользователь не существует
+    }
+
+    // Шаг 4: ПРОВЕРКА ПОДПИСКИ
+    if (!userDetails.isSubscriptionActive) {
+      logger.info({
+        message: `[Subscription Bypass] User ${telegramId} has active subscription (${userDetails.subscriptionType}). Entering scene for mode: ${mode}`,
+        telegramId,
+        subscriptionType: userDetails.subscriptionType,
+        mode,
+      })
+      return ctx.scene.enter(ModeEnum.StartScene)
+    }
+
+    // Шаг 5: ПРОВЕРКА БАЛАНСА (только для обычных пользователей без активной подписки)
+    const currentBalance = userDetails.stars
+    const cost = modeCosts[mode] || 0
+    const costValue = getCostValue(cost)
+    console.log('⭐️ cost:', costValue)
+
+    if (costValue !== 0) {
+      await sendBalanceMessage(ctx, currentBalance, costValue, isRu)
+    }
+
+    logger.info({
+      message: `[Balance Check] User: ${telegramId}, Mode: ${mode}, Cost: ${costValue}, Balance: ${currentBalance}`,
+      telegramId,
+      mode,
+      cost: costValue,
+      balance: currentBalance,
+    })
+
+    // Шаг 6: Показываем баланс и стоимость, если функция платная
+    if (costValue > 0) {
+      // Передаем и баланс и уровень из userDetails
+      await sendBalanceMessage(ctx, currentBalance, costValue, isRu)
+    }
+
+    // Шаг 7: Проверка достаточности баланса
+    if (currentBalance < costValue) {
+      logger.warn({
+        message: `[Insufficient Balance] User ${telegramId} denied access to mode ${mode}. Cost: ${costValue}, Balance: ${currentBalance}`,
+        telegramId,
+        mode,
+        cost: costValue,
+        balance: currentBalance,
+      })
+      // Отправляем сообщение о нехватке звезд
+      await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
+      // Выходим из сцены, т.к. баланса не хватает
+      return ctx.scene.leave()
+    }
+
+    // Если все проверки пройдены (достаточно баланса)
+    logger.info({
+      message: `[Balance Check OK] User ${telegramId} granted access to mode: ${mode}. Cost: ${costValue}, Balance: ${currentBalance}`,
+      telegramId,
+      mode,
+      cost: costValue,
+      balance: currentBalance,
+    })
+
+    // Шаг 8: Переходим к целевой функции
+    return enterTargetScene(ctx, mode)
+  } catch (error) {
+    logger.error({
+      message: `[CheckBalanceScene Error] User: ${telegramId}, Mode: ${mode}, Error: ${error}`,
+      telegramId,
+      mode,
+      error,
+    })
     return ctx.scene.leave()
   }
+})
 
+/**
+ * @function enterTargetScene
+ * @description Вспомогательная функция для входа в целевую сцену на основе режима (`ctx.session.mode`).
+ *              Вызывается после успешного прохождения всех проверок в `checkBalanceScene`.
+ * @param {MyContext} ctx - Контекст Telegraf.
+ * @param {ModeEnum} mode - Режим, определяющий целевую сцену.
+ */
+async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
+  logger.info({
+    message: `[Entering Target Scene] User: ${ctx.from?.id}, Mode: ${mode}`,
+    telegramId: ctx.from?.id,
+    mode,
+  })
+  const isRu = ctx.from?.language_code === 'ru'
   // Переход к соответствующей сцене в зависимости от режима
   switch (mode) {
     case ModeEnum.DigitalAvatarBody:
@@ -220,7 +350,30 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter(ModeEnum.LipSync)
     case ModeEnum.VideoInUrl:
       return ctx.scene.enter(ModeEnum.VideoInUrl)
+    // --- Добавь сюда другие режимы/сцены, если они есть ---
+    case ModeEnum.TopUpBalance: // Пример: если нужно проверить что-то перед пополнением (хотя обычно нет)
+      return ctx.scene.enter('paymentScene')
+    case ModeEnum.Invite:
+      return ctx.scene.enter('inviteScene')
+    case ModeEnum.Balance:
+      return ctx.scene.enter('balanceScene')
+    case ModeEnum.Help:
+      return ctx.scene.enter('helpScene')
+    // -------------------------------------------------------
     default:
-      return ctx.scene.leave()
+      // Этот default не должен вызываться, если все режимы,
+      // которые устанавливаются перед checkBalanceScene, перечислены выше.
+      logger.error({
+        message: `[enterTargetScene] Unknown or unhandled mode: ${mode}. Returning to main menu.`,
+        telegramId: ctx.from?.id,
+        mode,
+      })
+
+      await ctx.reply(
+        isRu
+          ? 'Неизвестный режим. Возврат в главное меню.'
+          : 'Unknown mode. Returning to main menu.'
+      )
+      return ctx.scene.enter(ModeEnum.StartScene) // Возврат в главное меню как запасной вариант
   }
-})
+}

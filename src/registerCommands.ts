@@ -3,6 +3,9 @@ import { MyContext } from './interfaces'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { levels } from './menu/mainMenu'
+import { getUserDetails } from '@/core/supabase'
+import { logger } from '@/utils/logger'
+import { getUserInfo } from './handlers/getUserInfo'
 import {
   avatarBrainWizard,
   textToVideoWizard,
@@ -103,7 +106,8 @@ export function registerCommands({
   // Регистрация команд
   bot.command('start', async ctx => {
     console.log('CASE bot.command: start')
-    await ctx.scene.enter('startScene')
+    ctx.session.mode = ModeEnum.StartScene
+    await ctx.scene.enter(ModeEnum.StartScene)
   })
 
   bot.command('support', async ctx => {
@@ -125,9 +129,55 @@ export function registerCommands({
   })
 
   bot.command('menu', async ctx => {
-    console.log('CASE bot.command: menu')
-    ctx.session.mode = ModeEnum.MainMenu
-    await ctx.scene.enter(ModeEnum.SubscriptionScene)
+    const { telegramId } = getUserInfo(ctx) // Получаем ID
+    logger.info({
+      message: `[Command /menu START] User: ${telegramId}. Checking subscription status...`,
+      telegramId,
+    })
+
+    try {
+      // Шаг 1: Получаем актуальный статус пользователя
+      const userDetails = await getUserDetails(telegramId)
+      logger.info({
+        message: `[Command /menu DETAILS] User: ${telegramId}. Status received.`,
+        telegramId,
+        details: userDetails,
+      })
+
+      // Шаг 2: Принимаем решение на основе статуса подписки
+      if (userDetails.isSubscriptionActive) {
+        // --- ЕСЛИ ПОДПИСКА АКТИВНА ---
+        logger.info({
+          message: `[Command /menu DECISION] User: ${telegramId}. Subscription ACTIVE. Entering 'menuScene'.`,
+          telegramId,
+        })
+        ctx.session.mode = ModeEnum.MainMenu // Устанавливаем режим на всякий случай
+        // Входим в сцену главного меню (убедись, что ID 'menuScene' верный)
+        return ctx.scene.enter('menuScene')
+      } else {
+        // --- ЕСЛИ ПОДПИСКИ НЕТ ---
+        logger.info({
+          message: `[Command /menu DECISION] User: ${telegramId}. Subscription INACTIVE. Entering SubscriptionScene.`,
+          telegramId,
+        })
+        ctx.session.mode = ModeEnum.MainMenu // Устанавливаем режим (чтобы после покупки вернуться в меню)
+        // Входим в сцену покупки подписки
+        return ctx.scene.enter(ModeEnum.SubscriptionScene) // Убедись, что ModeEnum.SubscriptionScene = 'subscription_scene'
+      }
+    } catch (error) {
+      // Шаг 3: Обработка ошибок при получении статуса
+      logger.error({
+        message: `[Command /menu ERROR] Failed to get user details for User: ${telegramId}`,
+        telegramId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      await ctx.reply(
+        '😔 Произошла ошибка при проверке вашего статуса. Попробуйте, пожалуйста, позже.'
+      )
+      // Можно просто выйти или попробовать отправить в меню как запасной вариант
+      // return ctx.scene.enter('menuScene');
+      return
+    }
   })
   composer.command('menu', async ctx => {
     console.log('CASE: myComposer.command menu')

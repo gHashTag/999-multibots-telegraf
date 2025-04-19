@@ -150,8 +150,8 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       '/start': async () => {
         console.log('CASE: 🚀 Начать обучение')
-
-        await ctx.scene.enter('startScene')
+        ctx.session.mode = ModeEnum.StartScene
+        await ctx.scene.enter(ModeEnum.StartScene)
       },
     }
 

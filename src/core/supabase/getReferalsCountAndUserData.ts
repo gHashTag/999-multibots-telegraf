@@ -1,7 +1,7 @@
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { supabase } from '.'
 import { UserType } from '@/interfaces/supabase.interface'
-import { checkActivePaymentSubscription } from './checkSubscriptionByTelegramId'
+import { getUserDetails } from './getUserDetails'
 
 export const getReferalsCountAndUserData = async (
   telegram_id: string
@@ -42,24 +42,26 @@ export const getReferalsCountAndUserData = async (
     // Получаем актуальную информацию о подписке
     try {
       // Вызываем функцию для получения сырых данных
-      const rawSubscriptionInfo = await checkActivePaymentSubscription(
-        Number(telegram_id)
-      )
+      const rawSubscriptionInfo = await getUserDetails(telegram_id)
       // Преобразуем строковый тип в Enum
       let mappedType: SubscriptionType = SubscriptionType.STARS // По умолчанию STARS
-      if (rawSubscriptionInfo.type === 'neurophoto') {
+      if (
+        rawSubscriptionInfo.subscriptionType === SubscriptionType.NEUROPHOTO
+      ) {
         mappedType = SubscriptionType.NEUROPHOTO
-      } else if (rawSubscriptionInfo.type === 'neurobase') {
+      } else if (
+        rawSubscriptionInfo.subscriptionType === SubscriptionType.NEUROBASE
+      ) {
         mappedType = SubscriptionType.NEUROBASE
       } // Добавить другие типы при необходимости
 
       subscriptionInfo = {
         type: mappedType,
-        isActive: rawSubscriptionInfo.isActive,
+        isActive: rawSubscriptionInfo.isSubscriptionActive,
       }
     } catch (subError) {
       console.error(
-        `getReferalsCountAndUserData: Ошибка при вызове checkActivePaymentSubscription для ${telegram_id}:`,
+        `getReferalsCountAndUserData: Ошибка при вызове getUserDetails для ${telegram_id}:`,
         subError
       )
       // Продолжаем выполнение, но используем дефолтную подписку STARS

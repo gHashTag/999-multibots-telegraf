@@ -3,6 +3,7 @@ import { getReferalsCountAndUserData } from '@/core/supabase'
 import { setAspectRatio } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
 import { mainMenu } from '@/menu'
+import { ModeEnum } from '@/interfaces/modes'
 
 export async function handleSizeSelection(ctx: MyContext, size: string) {
   ctx.session.selectedSize = size
@@ -12,8 +13,8 @@ export async function handleSizeSelection(ctx: MyContext, size: string) {
     isRu ? `✅ Вы выбрали размер: ${size}` : `✅ You selected size: ${size}`
   )
   const mode = ctx.session.mode
-  if (mode === 'neuro_photo') {
-    ctx.scene.enter('neuro_photo')
+  if (mode === ModeEnum.NeuroPhoto) {
+    ctx.scene.enter(ModeEnum.NeuroPhoto)
   } else if (mode === 'text_to_image') {
     ctx.scene.enter('text_to_image')
   } else {

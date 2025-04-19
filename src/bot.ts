@@ -8,7 +8,7 @@ console.log(`[BOT] process.env.NODE_ENV: ${process.env.NODE_ENV}`)
 console.log(`--- End Bot Logic Check ---`)
 
 import { Composer, Telegraf } from 'telegraf'
-import { config } from 'dotenv'
+
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
 import { setupWebhookHandlers } from './webhookHandler'
@@ -57,7 +57,7 @@ async function isPortInUse(port: number): Promise<boolean> {
 }
 
 // Функция запуска сервера для обработки Robokassa вебхуков
-function startRobokassaWebhookServer(): http.Server {
+async function startRobokassaWebhookServer(): Promise<http.Server | null> {
   // Порт для Robokassa webhook
   const robokassaPort = process.env.ROBOKASSA_WEBHOOK_PORT || 2999
 
@@ -85,21 +85,32 @@ function startRobokassaWebhookServer(): http.Server {
   })
 
   // Запуск сервера и сохранение экземпляра
-  const server = app
-    .listen(robokassaPort, () => {
-      console.log(`[Robokassa] Webhook server running on port ${robokassaPort}`)
-    })
-    .on('error', err => {
-      console.error(
-        `[Robokassa] Failed to start webhook server: ${err.message}`
-      )
-      // Можно добавить логику для попытки перезапуска или уведомления
-      if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
-        console.error(
-          `[Robokassa] Port ${robokassaPort} is already in use. Maybe another instance is running?`
-        )
-      }
-    })
+  // Добавляем небольшую задержку перед запуском, чтобы порт успел освободиться при перезапуске ts-node-dev
+  const server = await new Promise<http.Server | null>(resolve => {
+    setTimeout(() => {
+      const expressServer = app
+        .listen(robokassaPort, () => {
+          console.log(
+            `[Robokassa] Webhook server running on port ${robokassaPort}`
+          )
+          resolve(expressServer) // Резолвим промис с экземпляром сервера
+        })
+        .on('error', err => {
+          console.error(
+            `[Robokassa] Failed to start webhook server: ${err.message}`
+          )
+          if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+            console.error(
+              `[Robokassa] Port ${robokassaPort} is already in use. Maybe another instance is running?`
+            )
+          }
+          // В случае ошибки при запуске, сервер не будет создан, нужно обработать
+          // Возможно, стоит выбросить ошибку или вернуть null/undefined,
+          // но для простоты пока оставляем так, обработка ошибок выше.
+          // resolve(null); // Или reject(err)
+        })
+    }, 100) // Задержка 100 мс
+  })
 
   return server
 }
@@ -197,36 +208,100 @@ async function initializeBots() {
   }
 
   // Запускаем сервер для обработки Robokassa вебхуков
-  robokassaServer = startRobokassaWebhookServer()
+  robokassaServer = await startRobokassaWebhookServer()
 }
 
 // Обработка завершения работы
 process.once('SIGINT', () => {
   console.log('🛑 Получен сигнал SIGINT, завершаем работу...')
-  botInstances.forEach(bot => bot.stop('SIGINT'))
+  console.log(`[SIGINT] Stopping ${botInstances.length} bot instance(s)...`)
+  botInstances.forEach((bot, index) => {
+    try {
+      bot.stop('SIGINT')
+      // Пытаемся получить username, если возможно (может не работать, если botInfo недоступен)
+      // const botInfo = bot.telegram ? await bot.telegram.getMe() : null; // Нельзя использовать await в синхронном обработчике
+      console.log(`[SIGINT] Called stop() for bot instance index ${index}.`)
+    } catch (error) {
+      console.error(
+        `[SIGINT] Error stopping bot instance index ${index}:`,
+        error
+      )
+    }
+  })
+
   if (robokassaServer) {
     console.log('[Robokassa] Stopping webhook server...')
-    robokassaServer.close(() => {
-      console.log('[Robokassa] Webhook server stopped.')
-      process.exit(0)
+    const server = robokassaServer // Capture server instance
+    robokassaServer = null // Prevent multiple close attempts
+
+    const closeTimeout = setTimeout(() => {
+      console.warn(
+        '[Robokassa] Server close timed out after 2 seconds. Forcing exit.'
+      )
+      process.exit(1) // Force exit if close hangs
+    }, 2000)
+
+    server.close(err => {
+      clearTimeout(closeTimeout)
+      if (err) {
+        console.error('[Robokassa] Error closing webhook server:', err)
+        process.exit(1) // Exit with error if close fails
+      } else {
+        console.log('[Robokassa] Webhook server stopped successfully.')
+        // Consider exiting only after all cleanup is done,
+        // but for now, let's rely on the fact that bot stop might also exit.
+        // process.exit(0); // Might be too early if bot.stop is async internally
+      }
     })
-  } else {
-    process.exit(0)
   }
+  // else {
+  // If no server, maybe exit here? Let's rely on bot termination for now.
+  // process.exit(0); // Might be too early if bot.stop is async internally
+  // }
+  // Allow some time for stops to propagate before potentially exiting forcefully elsewhere if needed.
 })
 
 process.once('SIGTERM', () => {
   console.log('🛑 Получен сигнал SIGTERM, завершаем работу...')
-  botInstances.forEach(bot => bot.stop('SIGTERM'))
+  console.log(`[SIGTERM] Stopping ${botInstances.length} bot instance(s)...`)
+  botInstances.forEach((bot, index) => {
+    try {
+      bot.stop('SIGTERM')
+      console.log(`[SIGTERM] Called stop() for bot instance index ${index}.`)
+    } catch (error) {
+      console.error(
+        `[SIGTERM] Error stopping bot instance index ${index}:`,
+        error
+      )
+    }
+  })
+
   if (robokassaServer) {
     console.log('[Robokassa] Stopping webhook server...')
-    robokassaServer.close(() => {
-      console.log('[Robokassa] Webhook server stopped.')
-      process.exit(0)
+    const server = robokassaServer // Capture server instance
+    robokassaServer = null // Prevent multiple close attempts
+
+    const closeTimeout = setTimeout(() => {
+      console.warn(
+        '[Robokassa] Server close timed out after 2 seconds. Forcing exit.'
+      )
+      process.exit(1) // Force exit if close hangs
+    }, 2000)
+
+    server.close(err => {
+      clearTimeout(closeTimeout)
+      if (err) {
+        console.error('[Robokassa] Error closing webhook server:', err)
+        process.exit(1) // Exit with error if close fails
+      } else {
+        console.log('[Robokassa] Webhook server stopped successfully.')
+        // process.exit(0); // See SIGINT comments
+      }
     })
-  } else {
-    process.exit(0)
   }
+  // else {
+  // process.exit(0); // See SIGINT comments
+  // }
 })
 
 console.log('🏁 Запуск приложения')

@@ -1,12 +1,13 @@
 import { MyContext } from '@/interfaces'
-import { Markup, Scenes, KeyboardButton } from 'telegraf'
+import { Markup, Scenes } from 'telegraf'
 import { getTranslation } from '@/core/supabase'
 import { BOT_URLS } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { levels } from '@/menu/mainMenu'
+import { ModeEnum } from '@/interfaces/modes'
 
 export const startScene = new Scenes.WizardScene<MyContext>(
-  'startScene',
+  ModeEnum.StartScene,
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
     const botName = ctx.botInfo.username
@@ -27,7 +28,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     }
 
     const tutorialUrl = BOT_URLS[botName]
-    let replyKeyboard: Markup.Markup<KeyboardButton>
+    let replyKeyboard
 
     if (tutorialUrl) {
       logger.info(`🎬 Отправка ссылки на туториал для ${botName}`, {
