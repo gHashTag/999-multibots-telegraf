@@ -1,7 +1,7 @@
 import { Mode, MyContext, Subscription } from '../../interfaces'
 import { sendGenericErrorMessage } from '@/menu'
 import { levels, mainMenu } from '../../menu/mainMenu'
-import { getReferalsCountAndUserData } from '@/core/supabase/getReferalsCountAndUserData'
+import { getReferalsCountAndUserData } from '@/core/supabase'
 import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
@@ -28,11 +28,10 @@ const menuCommandStep = async (ctx: MyContext) => {
       newSubscription = SubscriptionType.NEUROTESTER
       newLevel = 0
     } else {
-      const { count, subscription, level } = await getReferalsCountAndUserData(
-        telegram_id
-      )
+      const { count, subscriptionType, level, userData } =
+        await getReferalsCountAndUserData(telegram_id)
       newCount = count
-      newSubscription = subscription
+      newSubscription = subscriptionType
       newLevel = level
     }
 

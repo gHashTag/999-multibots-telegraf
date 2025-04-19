@@ -1,30 +1,37 @@
 import { MyContext } from '@/interfaces'
-import logger from '@/utils/logger'
+
+import { logger } from '@/utils/logger'
+
+const DEFAULT_CHANNEL_ID = '@neuro_blogger_group' // Значение по умолчанию, если ID не найден
+export const AVATARS_GROUP_ID = {
+  ['neuro_blogger_bot']: '@neuro_blogger_group',
+  ['MetaMuse_Manifest_bot']: '@MetaMuse_AI_Influencer',
+  ['ZavaraBot']: '@NeuroLuna',
+  ['LeeSolarbot']: '@SolarNeuroBlogger1',
+  ['NeuroLenaAssistant_bot']: '@neuroLenka',
+  ['NeurostylistShtogrina_bot']: '@neirostylist',
+  ['Gaia_Kamskaia_bot']: '@neuromeets',
+}
 
 /**
  * Определяет канал для подписки в зависимости от ID бота
  * @param ctx Контекст Telegram
  * @returns Название канала для подписки
  */
-export function getSubScribeChannel(ctx: MyContext): string {
-  if (!ctx || !ctx.botId) {
-    logger.warn(
-      '⚠️ Контекст или ID бота отсутствует, возвращаем канал по умолчанию'
+export const getSubScribeChannel = (ctx: MyContext): string | null => {
+  logger.info('Executing getSubScribeChannel')
+  // Используем ctx.botInfo.id вместо ctx.botId
+  if (!ctx || !ctx.botInfo?.id) {
+    logger.error(
+      'getSubScribeChannel: Bot info or bot ID is missing in context'
     )
-    return 'neuro_blogger_group'
+    return DEFAULT_CHANNEL_ID // Возвращаем значение по умолчанию или null/ошибку
   }
 
-  const botId = ctx.botId
+  const botId = ctx.botInfo.id.toString()
+  logger.info({ message: 'getSubScribeChannel - Got botId', botId })
 
-  // Карта соответствия ID ботов и каналов
-  const botChannelMap = {
-    bot1: 'neuro_blogger_group',
-    main: 'neuro_blogger_group',
-    bot2: 'MetaMuse_AI_Influencer',
-    bot3: 'motionly_tech',
-    bot4: 'AvaTek_en',
-    bot5: 'neuro_blogger_group',
-  }
+  const botChannelMap = AVATARS_GROUP_ID
 
   // Проверяем наличие ID бота в карте
   if (botId in botChannelMap) {
@@ -37,5 +44,5 @@ export function getSubScribeChannel(ctx: MyContext): string {
   logger.info(
     `ℹ️ Для бота ${botId} не найден канал, используем канал по умолчанию`
   )
-  return 'neuro_blogger_group'
+  return DEFAULT_CHANNEL_ID
 }

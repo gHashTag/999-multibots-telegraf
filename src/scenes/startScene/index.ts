@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
 import { getReferalsCountAndUserData, getTranslation } from '@/core/supabase'
-import { checkFullAccess } from '@/handlers/checkFullAccess'
+import { checkActivePaymentSubscription } from '@/core/supabase/checkSubscriptionByTelegramId'
 import { levels } from '@/menu/mainMenu'
 
 export const startScene = new Scenes.WizardScene<MyContext>(
@@ -35,9 +35,20 @@ export const startScene = new Scenes.WizardScene<MyContext>(
   },
   async (ctx: MyContext) => {
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { subscription } = await getReferalsCountAndUserData(telegram_id)
-    const hasFullAccess = checkFullAccess(subscription)
-    if (hasFullAccess) {
+    const { userData } = await getReferalsCountAndUserData(telegram_id)
+
+    if (!userData) {
+      console.warn(
+        `startScene: User not found for ID ${telegram_id}, entering subscriptionScene`
+      )
+      return ctx.scene.enter('subscriptionScene')
+    }
+
+    const subscriptionInfo = await checkActivePaymentSubscription(
+      Number(telegram_id)
+    )
+
+    if (subscriptionInfo.isActive) {
       await ctx.scene.enter('menuScene')
     } else {
       await ctx.scene.enter('subscriptionScene')

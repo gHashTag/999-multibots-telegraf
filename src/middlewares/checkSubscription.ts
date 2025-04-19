@@ -10,7 +10,7 @@ export async function checkSubscription(
       throw new Error('User ID is undefined')
     }
     const chatMember = await ctx.telegram.getChatMember(
-      `@${telegram_channel_id}`,
+      telegram_channel_id,
       ctx.from?.id
     )
     console.log('chatMember', chatMember)

@@ -1,7 +1,7 @@
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
-import { Subscription } from '@/interfaces/supabase.interface'
 import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 console.log('Payment variables check:')
 console.log('MERCHANT_LOGIN:', MERCHANT_LOGIN)
@@ -16,12 +16,12 @@ export const description = 'Покупка звезд'
 export const paymentOptions: {
   amount: number
   stars: string
-  subscription: Subscription
+  subscription: SubscriptionType
 }[] = [
-  { amount: 1999, stars: '1250', subscription: 'neurophoto' },
-  { amount: 9999, stars: '1000', subscription: 'neurobase' },
-  { amount: 49999, stars: '5000', subscription: 'neuromeeting' },
-  { amount: 99999, stars: '7500', subscription: 'neuroblogger' },
+  { amount: 1999, stars: '1250', subscription: SubscriptionType.NEUROPHOTO },
+  { amount: 9999, stars: '1000', subscription: SubscriptionType.NEUROBASE },
+  // { amount: 49999, stars: '5000', subscription: 'neuromeeting' },
+  // { amount: 99999, stars: '7500', subscription: 'neuroblogger' },
   //   { amount: 120000, stars: '10000', subscription: 'neuromentor' },
 ]
 

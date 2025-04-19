@@ -172,8 +172,8 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
 checkBalanceScene.enter(async ctx => {
   console.log('💵 CASE: checkBalanceScene')
   const isRu = ctx.from?.language_code === 'ru'
-  const { userId } = getUserInfo(ctx)
-  const currentBalance = await getUserBalance(userId.toString())
+  const { telegramId } = getUserInfo(ctx)
+  const currentBalance = await getUserBalance(telegramId.toString())
   const mode = ctx.session.mode as ModeEnum
   const cost = modeCosts[mode] || 0 // Получаем стоимость для текущего режима
   const costValue = getCostValue(cost)

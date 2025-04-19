@@ -1,37 +1,42 @@
-import { MySession } from '../interfaces'
+import { MySession } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
+import { SubscriptionType } from '@/interfaces'
+import { TransactionType } from '@/interfaces/payments.interface'
 
-export const defaultSession: () => MySession = () => ({
-  selectedModel: '',
+export const defaultSession: MySession = {
+  mode: ModeEnum.TextToImage,
   prompt: '',
-  selectedSize: '9:16',
+  selectedModel: '',
   userModel: {
     model_name: '',
     trigger_word: '',
-    model_url: 'i/i:i',
+    model_url: 'placeholder/placeholder:placeholder',
+    finetune_id: '',
   },
-  numImages: 1,
-  telegram_id: 0,
-  mode: 'text_to_image',
-  attempts: 0,
-  videoModel: '',
-  paymentAmount: 0,
-  images: [],
-  modelName: '',
-  targetUserId: 0,
-  username: '',
-  triggerWord: '',
+  targetUserId: '0',
   steps: 0,
+  selectedSize: '',
+  subscription: SubscriptionType.STARS,
+  selectedPayment: {
+    amount: 0,
+    stars: 0,
+    subscription: SubscriptionType.STARS,
+    type: TransactionType.SYSTEM,
+  },
   videoUrl: '',
   imageUrl: '',
   audioUrl: '',
   email: '',
-  subscription: 'stars',
-  inviter: '',
-  inviteCode: '',
-  invoiceURL: '',
-  selectedPayment: {
-    amount: 0,
-    stars: '',
-    subscription: 'stars',
+  cursor: 0,
+  images: [],
+  memory: {
+    messages: [],
   },
-})
+  attempts: 0,
+  amount: 0,
+  modelName: '',
+  triggerWord: '',
+  videoModel: '',
+  translations: [],
+  buttons: [],
+}

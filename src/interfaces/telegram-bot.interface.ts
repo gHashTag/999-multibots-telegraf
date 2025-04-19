@@ -2,13 +2,13 @@ import { Context, NarrowedContext, Scenes } from 'telegraf'
 import { ModelUrl, UserModel } from './index'
 import type { Update, Message } from 'telegraf/typings/core/types/typegram'
 import { Buffer } from 'buffer'
-import { Mode } from './cost.interface'
+
 import { BroadcastContentType } from './broadcast.interface'
 import { SubscriptionType } from './subscription.interface'
 import { TranslationButton } from './supabase.interface'
 import { SessionPayment } from './payments.interface'
 import { SceneContextScene, WizardContextWizard } from 'telegraf/typings/scenes'
-import { ModeEnum } from './modes'
+import { ModeEnum, Mode } from './modes'
 import { Translation } from './translations.interface'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
@@ -160,12 +160,13 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   targetUserId: string
   username?: string
   triggerWord?: string
-  steps?: string[]
+  steps?: number
   videoUrl?: string
   audioUrl?: string
   email?: string
   inviteCode?: string
   inviter?: string
+  paymentAmount?: number
   subscriptionStep?:
     | 'LOADING_TRANSLATIONS'
     | 'LOADING_MODELS'

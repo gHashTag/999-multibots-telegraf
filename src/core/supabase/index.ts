@@ -95,3 +95,4 @@ export * from './checkPaymentStatus'
 export * from './updateUserLevelPlusOne'
 export * from './savePromptDirect' //neurophoto
 export * from './getUserByTelegramIdString'
+export * from './setPayments'

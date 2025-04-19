@@ -14,7 +14,7 @@ import {
   handleQuestComplete,
   handleQuestRules,
 } from './handlers'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { mainMenu } from '@/menu'
 import { getReferalsCountAndUserData } from '@/core/supabase'
@@ -25,12 +25,11 @@ const createStepScene = (
   handler: (ctx: MyContext) => Promise<void>,
   nextStepText: string
 ) => {
-  const scene = new Scenes.BaseScene<MyContext>(`step${stepNumber}`)
+  const scene = new Scenes.BaseScene<MyContext>(`step${stepNumber}Scene`)
   scene.enter(async ctx => {
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegram_id
-    )
+    const { count, subscriptionType, level } =
+      await getReferalsCountAndUserData(telegram_id)
     await handler(ctx)
     const isRu = isRussian(ctx)
     await ctx.reply(
@@ -43,13 +42,19 @@ const createStepScene = (
         : `You have successfully completed all training and reached the maximum level! 🌟✨`,
       stepNumber < 12
         ? Markup.keyboard([[nextStepText], ['➡️ Завершить']]).resize()
-        : await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
+        : await mainMenu({
+            isRu,
+            inviteCount: count,
+            subscription: subscriptionType,
+            level,
+            ctx,
+          })
     )
   })
 
   scene.hears(nextStepText, async ctx => {
     if (stepNumber < 12) {
-      await ctx.scene.enter(`step${stepNumber + 1}`)
+      await ctx.scene.enter(`step${stepNumber + 1}Scene`)
     } else {
       await ctx.scene.enter('complete')
     }
@@ -86,21 +91,30 @@ completeScene.enter(async ctx => {
 })
 
 // Экспортируем все сцены
-export const levelQuestWizard = [
-  step0Scene,
-  step1Scene,
-  step2Scene,
-  step3Scene,
-  step4Scene,
-  step5Scene,
-  step6Scene,
-  step7Scene,
-  step8Scene,
-  step9Scene,
-  step10Scene,
-  step11Scene,
-  step12Scene,
-  completeScene,
-]
+export const levelQuestWizard = new Scenes.BaseScene<MyContext>(
+  'levelQuestWizard'
+)
 
-export default levelQuestWizard
+levelQuestWizard.enter(async ctx => {
+  const telegram_id = ctx.from.id.toString()
+  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
+    telegram_id
+  )
+  const isRu = isRussian(ctx)
+
+  // ... логика сцены ...
+
+  // Пример использования в конце сцены (если нужно обновить меню)
+  await ctx.reply(
+    isRu ? 'Вы завершили квест!' : 'You completed the quest!',
+    await mainMenu({
+      isRu,
+      inviteCount: count,
+      subscription: subscriptionType,
+      level,
+      ctx,
+    })
+  )
+})
+
+// ... другие обработчики сцены ...

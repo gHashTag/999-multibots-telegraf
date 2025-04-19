@@ -10,7 +10,7 @@ import {
   videoModelKeyboard,
 } from '@/menu'
 import { isRussian } from '@/helpers/language'
-
+import { ModeEnum } from '@/interfaces/modes'
 import { getBotToken, handleHelpCancel } from '@/handlers'
 import { processBalanceVideoOperation } from '@/price/helpers/processBalanceVideoOperation'
 
@@ -42,7 +42,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       console.log('messageText', messageText)
 
       if (messageText === (isRu ? 'отмена' : 'cancel')) {
-        await sendGenerationCancelledMessage(ctx, isRu)
+        await sendGenerationCancelledMessage(ctx, isRu ? 'отмена' : 'cancel')
         return ctx.scene.leave()
       }
 
@@ -50,12 +50,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       console.log('videoModel', videoModel)
 
       const { newBalance, success, modePrice } =
-        await processBalanceVideoOperation({
-          ctx,
-          videoModel,
-          telegram_id: ctx.from.id,
-          is_ru: isRu,
-        })
+        await processBalanceVideoOperation(ctx, videoModel as VideoModel, isRu)
       if (!success) {
         console.log('price is null')
         return ctx.scene.leave()
@@ -178,7 +173,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
             ctx.botInfo?.username
           )
           ctx.session.prompt = prompt
-          ctx.session.mode = 'image_to_video'
+          ctx.session.mode = ModeEnum.ImageToVideo
         } catch (error) {
           console.error('Ошибка при создании видео:', error)
           await ctx.reply(

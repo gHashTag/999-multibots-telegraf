@@ -22,7 +22,10 @@ type PaymentStatusResult = {
 }
 
 // Мок для getTranslation
-export const mockGetTranslation = jest.fn().mockImplementation(
+export const mockGetTranslation: jest.Mock<
+  TranslationResult,
+  [{ key: string }]
+> = jest.fn().mockImplementation(
   ({ key }: { key: string }): TranslationResult => ({
     translation: `Мок-перевод для ключа ${key}`,
     url: key === 'start' ? 'https://example.com/mock-photo.jpg' : '',
@@ -30,11 +33,14 @@ export const mockGetTranslation = jest.fn().mockImplementation(
 )
 
 // Мок для getReferalsCountAndUserData
-export const mockGetReferalsCountAndUserData = jest.fn().mockImplementation(
+export const mockGetReferalsCountAndUserData: jest.Mock<
+  ReferralsResult,
+  [string]
+> = jest.fn().mockImplementation(
   (telegram_id: string): ReferralsResult => ({
     count: 0,
     level: 1,
-    subscription: 'stars' as Subscription,
+    subscription: 'stars' as unknown as Subscription,
     userData: {
       user_id: '123e4567-e89b-12d3-a456-426614174000',
       telegram_id,
@@ -47,9 +53,8 @@ export const mockGetReferalsCountAndUserData = jest.fn().mockImplementation(
 )
 
 // Мок для checkPaymentStatus
-export const mockCheckPaymentStatus = jest
-  .fn()
-  .mockImplementation((invId: string): PaymentStatusResult => {
+export const mockCheckPaymentStatus: jest.Mock<PaymentStatusResult, [string]> =
+  jest.fn().mockImplementation((invId: string): PaymentStatusResult => {
     // Возвращаем объект с информацией о платеже
     return {
       status: 'COMPLETED',
@@ -60,7 +65,18 @@ export const mockCheckPaymentStatus = jest
   })
 
 // Мок для updateUserBalance
-export const mockUpdateUserBalance = jest
+export const mockUpdateUserBalance: jest.Mock<
+  {
+    id: string
+    telegram_id: string
+    amount: number
+    type: string
+    description: string
+    created_at: string
+    success: boolean
+  },
+  [string, number, string, string?, any?]
+> = jest
   .fn()
   .mockImplementation(
     (
@@ -89,4 +105,4 @@ export const supabaseMocks = {
   getReferalsCountAndUserData: mockGetReferalsCountAndUserData,
   checkPaymentStatus: mockCheckPaymentStatus,
   updateUserBalance: mockUpdateUserBalance,
-} as const
+}

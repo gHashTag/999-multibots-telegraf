@@ -11,8 +11,7 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
   'digital_avatar_body',
   async ctx => {
     const isRu = isRussian(ctx)
-    const costs = stepOptions.map(steps => calculateCost(steps))
-    const costMessage = generateCostMessage(costs, isRu)
+    const costMessage = generateCostMessage(stepOptions.v1, isRu, 'v1')
     await ctx.reply(costMessage, getStepSelectionMenu(isRu))
     return ctx.wizard.next()
   },

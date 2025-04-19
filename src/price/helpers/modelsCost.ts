@@ -134,13 +134,18 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
     .stars,
 }
 
-export const minCost = Math.min(
-  ...Object.values(modeCosts).map(cost =>
-    typeof cost === 'function' ? cost(1) : cost
-  )
+export const minCost = parseFloat(
+  Math.min(
+    ...Object.values(modeCosts).map(cost =>
+      typeof cost === 'function' ? cost(1) : cost
+    )
+  ).toFixed(2)
 )
-export const maxCost = Math.max(
-  ...Object.values(modeCosts).map(cost =>
-    typeof cost === 'function' ? cost(1) : cost
-  )
+
+export const maxCost = parseFloat(
+  Math.max(
+    ...Object.values(modeCosts).map(cost =>
+      typeof cost === 'function' ? cost(1) : cost
+    )
+  ).toFixed(2)
 )

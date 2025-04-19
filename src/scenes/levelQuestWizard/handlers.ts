@@ -3,6 +3,7 @@ import { errorMessage } from '@/helpers/error'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { getSubScribeChannel } from '@/handlers'
 import { mainMenu } from '@/menu'
+import { isRussian } from '@/helpers/language'
 
 export async function handleQuestRules(ctx: MyContext) {
   try {
@@ -36,7 +37,7 @@ In this bot, you will discover the world of neural networks and learn how to use
 
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussian(ctx))
     throw error
   }
 }
@@ -91,7 +92,7 @@ Creating a digital avatar body is an important step in personalizing your digita
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel1:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -132,7 +133,7 @@ After the process is complete, you will receive your <b>neurophoto</b>. This ima
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel2:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -179,7 +180,7 @@ Using the "Image to Prompt" function opens up new possibilities for creativity a
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel3:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -642,49 +643,25 @@ Expand the user community and open new horizons together!`
 }
 
 export async function handleQuestComplete(ctx: MyContext) {
-  try {
-    const isRu = ctx.from?.language_code === 'ru'
-    const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, subscription, level } = await getReferalsCountAndUserData(
-      telegram_id
-    )
-    console.log('handleQuestComplete count', count)
-    console.log('handleQuestComplete subscription', subscription)
-    const message = isRu
-      ? `🎉 НейроКвест завершен! 🎉
+  const telegram_id = ctx.from?.id?.toString() || ''
+  console.warn('TODO: Implement user level update to 12 in handleQuestComplete')
 
-Вы успешно прошли все задания и достигли максимального уровня! 🌟✨
+  const isRu = isRussian(ctx)
+  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
+    telegram_id
+  )
 
-🎁 Вам доступны новые функции и возможности в нашем боте.
-
-👥 Спасибо, что были с нами!
-
-🍀 Удачи в прохождении! 🍀
-
-💵 На вашем балансе 100 ⭐️. Используйте его, чтобы открыть новые возможности!`
-      : `🎉 NeuroQuest completed! 🎉
-
-You have successfully completed all tasks and reached the maximum level! 🌟✨
-
-🎁 You have access to new features and capabilities in our bot.
-
-👥 Thank you for being with us!
-
-🍀 Good luck in the quest! 🍀
-
-💵 You have 100 ⭐️ on your balance. Use it to unlock new features!`
-
-    await ctx.reply(message, {
-      reply_markup: {
-        keyboard: (
-          await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
-        ).reply_markup.keyboard,
-      },
+  await ctx.reply(
+    isRu
+      ? '🎉 Поздравляем! Вы завершили обучение.'
+      : '🎉 Congratulations! You have completed the training.',
+    await mainMenu({
+      isRu,
+      inviteCount: count,
+      subscription: subscriptionType,
+      level,
+      ctx,
     })
-    return
-  } catch (error) {
-    console.error('Error in handleQuestComplete:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
-    throw error
-  }
+  )
+  console.log('Quest completed')
 }

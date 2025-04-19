@@ -1,28 +1,25 @@
-// import { ModeEnum } from '@/scenes'
-import { supabase } from '.'
-// import { SubscriptionType } from '@/interfaces/subscription.interface'
-// Импортируем функцию из утилит
-import { determineSubscriptionType } from '@/utils/service.utils'
+import { supabase } from './index'
+import { logger } from '@/utils/logger'
+// import { determineSubscriptionType } from '@/price/constants' // Исправлен путь импорта
+// import { PaymentProcessParams } from '@/interfaces/payments.interface' // Убран импорт, используется локальный тип
 
 type PaymentParams = {
   telegram_id: string
   OutSum: string
   InvId: string
-  currency: 'RUB' | 'USD' | 'EUR' | 'STARS' | 'XTR'
+  currency: string
   stars: number
-  status: 'COMPLETED' | 'PENDING' | 'FAILED'
-  payment_method: 'Robokassa' | 'YooMoney' | 'Telegram' | 'Stripe' | 'Other'
+  status: string
+  payment_method: string
   bot_name: string
   language: string
+  subscription: string | null // <-- СНОВА ДОБАВЛЯЕМ ЭТО ПОЛЕ
 }
 
-// УДАЛЯЕМ локальную функцию
-/*
-const determineSubscriptionType = (
-  amount: number,
-  currency: string
-): 'neurophoto' | 'neurobase' | 'stars' | null => { ... }
-*/
+/**
+ * Функция для записи информации о платеже в базу данных
+ * Принимает объект с параметрами платежа
+ */
 
 export const setPayments = async ({
   telegram_id,
@@ -34,15 +31,13 @@ export const setPayments = async ({
   payment_method,
   bot_name,
   language,
+  subscription,
 }: PaymentParams) => {
   try {
     const amount = parseFloat(OutSum)
 
-    // Используем импортированную функцию
-    const calculatedSubscriptionType =
-      status === 'COMPLETED'
-        ? determineSubscriptionType(amount, currency)
-        : null
+    // Определяем тип подписки с помощью импортированной функции
+    // const subscription_type = determineSubscriptionType(amount, currency) // Пока оставим закомментированным, т.к. передаем явно
 
     const paymentType = 'money_income'
 
@@ -58,14 +53,14 @@ export const setPayments = async ({
       bot_name,
       type: paymentType,
       language,
-      subscription_type: calculatedSubscriptionType,
+      subscription_type: subscription,
     })
     if (error) {
-      console.error('Ошибка создания платежа в setPayments:', error)
+      logger.error({ message: 'Error inserting payment', error })
       throw error
     }
   } catch (error) {
     console.error('Ошибка в функции setPayments:', error)
-    throw error
+    logger.error({ message: 'Error in setPayments function', error })
   }
 }

@@ -17,6 +17,7 @@ export interface UserModel {
   trigger_word: string
   model_url: ModelUrl
   model_key?: ModelUrl
+  finetune_id?: string
 }
 
 export type VideoModel = 'minimax' | 'haiper' | 'ray' | 'i2vgen-xl'

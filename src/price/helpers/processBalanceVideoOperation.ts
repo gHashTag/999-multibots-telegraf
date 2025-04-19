@@ -1,97 +1,144 @@
-import { getUserBalance } from '@/core/supabase'
-import { MyContext } from '@/interfaces'
-import { VideoModel } from '@/interfaces/models.interface'
-import { BalanceOperationResult } from '@/interfaces/payments.interface'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import {
+  BalanceOperationResult,
+  MyContext,
+  VideoModelConfig,
+  VideoModel,
+} from '@/interfaces'
+import { calculateModeCost } from './modelsCost'
+import { VIDEO_MODELS } from '@/interfaces/cost.interface'
+import { ModeEnum } from '@/interfaces/modes'
+import { logger } from '@/utils/logger'
 
-import { calculateFinalPrice } from './calculateFinalPrice'
+/**
+ * Обрабатывает операцию с балансом для видео
+ */
+export const processBalanceVideoOperation = async (
+  ctx: MyContext,
+  videoModelName: VideoModel,
+  isRu: boolean
+): Promise<BalanceOperationResult> => {
+  const telegram_id = ctx.from?.id
+  const currentBalanceAtStart = 0 // Инициализация
 
-type BalanceOperationProps = {
-  ctx: MyContext
-  videoModel: string
-  telegram_id: number
-  is_ru: boolean
-}
+  if (!telegram_id) {
+    logger.error('processBalanceVideoOperation: User ID not found')
+    return {
+      success: false,
+      error: 'User ID not found',
+      newBalance: 0,
+      modePrice: 0,
+      paymentAmount: 0,
+      currentBalance: 0,
+    }
+  }
 
-export interface VideoModelConfig {
-  name: VideoModel
-  title: string
-  description: string
-}
+  const selectedModel = VIDEO_MODELS.find(m => m.name === videoModelName)
 
-export const VIDEO_MODELS: VideoModelConfig[] = [
-  {
-    name: 'minimax',
-    title: 'Minimax',
-    description: 'Оптимальное качество и скорость',
-  },
-  {
-    name: 'haiper',
-    title: 'Haiper',
-    description: 'Высокое качество, длительность 6 секунд',
-  },
-  {
-    name: 'ray',
-    title: 'Ray',
-    description: 'Реалистичная анимация',
-  },
-  {
-    name: 'i2vgen-xl',
-    title: 'I2VGen-XL',
-    description: 'Продвинутая модель для детальной анимации',
-  },
-]
+  if (!selectedModel) {
+    logger.error(
+      'processBalanceVideoOperation: Invalid video model selected:',
+      { videoModelName }
+    )
+    return {
+      success: false,
+      error: 'Invalid model',
+      newBalance: 0,
+      modePrice: 0,
+      paymentAmount: 0,
+      currentBalance: 0,
+    }
+  }
 
-export const processBalanceVideoOperation = async ({
-  ctx,
-  videoModel,
-  telegram_id,
-  is_ru,
-}: BalanceOperationProps): Promise<BalanceOperationResult> => {
+  // Расчет стоимости - предполагаем, что это image_to_video?
+  const { stars: modePrice } = calculateModeCost({
+    mode: ModeEnum.ImageToVideo,
+  })
+  const paymentAmount = modePrice // Используем modePrice как сумму списания
+
   try {
-    // Получаем текущий баланс
-    const currentBalance = await getUserBalance(telegram_id)
+    const currentBalance = await getUserBalance(telegram_id.toString()) // Добавлено .toString()
 
-    const availableModels: VideoModel[] = VIDEO_MODELS.map(model => model.name)
-
-    // Проверка корректности модели
-    if (!videoModel || !availableModels.includes(videoModel as VideoModel)) {
-      await ctx.telegram.sendMessage(
-        ctx.from?.id?.toString() || '',
-        is_ru
-          ? 'Пожалуйста, выберите корректную модель'
-          : 'Please choose a valid model'
-      )
+    if (currentBalance < paymentAmount) {
+      const message = isRu
+        ? 'Недостаточно средств на балансе. Пополните баланс командой /buy.'
+        : 'Insufficient funds. Top up your balance using the /buy command.'
+      await ctx.reply(message)
+      logger.warn('processBalanceVideoOperation: Insufficient funds', {
+        telegram_id,
+        currentBalance,
+        paymentAmount,
+      })
       return {
-        newBalance: currentBalance,
         success: false,
-        modePrice: 0,
-        error: 'Invalid model',
-      }
-    }
-
-    const model = videoModel as VideoModel
-    const modePrice = calculateFinalPrice(model)
-
-    // Проверка достаточности средств
-    if (currentBalance < modePrice) {
-      const message = is_ru
-        ? 'Недостаточно средств на балансе. Пополните баланс вызвав команду /buy.'
-        : 'Insufficient funds. Top up your balance by calling the /buy command.'
-      await ctx.telegram.sendMessage(ctx.from?.id?.toString() || '', message)
-      return {
-        newBalance: currentBalance,
-        success: false,
-        modePrice: 0,
         error: message,
+        newBalance: currentBalance,
+        modePrice: paymentAmount,
+        paymentAmount: paymentAmount,
+        currentBalance,
       }
     }
 
-    // Рассчитываем новый баланс
-    const newBalance = currentBalance - modePrice
+    const newBalance = Number(currentBalance) - Number(paymentAmount)
 
-    return { newBalance, modePrice, success: true }
+    const updateSuccess = await updateUserBalance(
+      telegram_id.toString(),
+      paymentAmount,
+      'money_outcome',
+      `Video generation (${selectedModel.title})`,
+      {
+        // Добавляем метаданные
+        bot_name: ctx.botInfo?.username,
+        service_type: ctx.session.mode,
+        model: videoModelName,
+        modePrice: paymentAmount,
+        currentBalance: currentBalance,
+        paymentAmount: paymentAmount, // Добавил для ясности
+      }
+    )
+
+    if (!updateSuccess) {
+      const message = isRu
+        ? 'Ошибка обновления баланса.'
+        : 'Error updating balance.'
+      logger.error('processBalanceVideoOperation: Failed to update balance', {
+        telegram_id,
+      })
+      return {
+        success: false,
+        error: message,
+        newBalance: currentBalance,
+        modePrice: paymentAmount,
+        paymentAmount: paymentAmount,
+        currentBalance,
+      }
+    }
+
+    logger.info('processBalanceVideoOperation: Balance updated successfully', {
+      telegram_id,
+      newBalance,
+    })
+    return {
+      success: true,
+      newBalance,
+      modePrice: paymentAmount,
+      paymentAmount: paymentAmount,
+      currentBalance,
+    }
   } catch (error) {
-    console.error('Error in processBalanceOperation:', error)
-    throw error
+    logger.error(
+      'processBalanceVideoOperation: Error processing video balance operation:',
+      { error, telegram_id }
+    )
+    const currentBalanceOnError = await getUserBalance(telegram_id.toString()) // Попытка получить актуальный баланс
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      newBalance: currentBalanceOnError,
+      modePrice: paymentAmount,
+      paymentAmount: paymentAmount,
+      currentBalance: currentBalanceOnError,
+    }
   }
 }

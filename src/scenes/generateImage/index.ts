@@ -12,6 +12,7 @@ const PROMPT_MAX_LENGTH = 1000
 // Интерфейс для состояния сцены
 interface GenerateImageState {
   prompt?: string
+  step: number
 }
 
 export const generateImageWizard = new Scenes.WizardScene<MyContext>(
@@ -33,7 +34,8 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
         reply_markup: createGenerateImageKeyboard(),
       }
     )
-    ctx.scene.session.state = {} as GenerateImageState
+    const telegram_id = ctx.from.id.toString()
+    ctx.scene.session.state = { step: 0 } as GenerateImageState
     return ctx.wizard.next()
   },
   async ctx => {

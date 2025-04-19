@@ -1,110 +1,49 @@
 import { CreateUserData } from '@/interfaces'
 import { supabase } from '.'
 
-export const createUser = async (userData: CreateUserData) => {
-  const {
-    username,
-    telegram_id,
-    first_name,
-    last_name,
-    is_bot,
-    language_code,
-    photo_url,
-    chat_id,
-    mode,
-    model,
-    count,
-    aspect_ratio,
-    balance,
-    inviter,
-    bot_name,
-  } = userData
-
-  let inviterUser
-  if (inviter) {
-    const { data: checkInviter, error: fetchError } = await supabase
-      .from('users')
-      .select('user_id')
-      .eq('user_id', inviter)
-      .maybeSingle()
-
-    if (fetchError)
-      throw new Error(`Ошибка при проверке инвайтера: ${fetchError.message}`)
-    inviterUser = checkInviter
-  }
-
-  const isInviter = inviter && inviterUser
-
-  const { data: existingUser, error } = await supabase
+export const createUser = async ({
+  username,
+  telegram_id,
+  first_name,
+  last_name,
+  is_bot,
+  language_code,
+  photo_url,
+  chat_id,
+  mode,
+  model,
+  count,
+  aspect_ratio,
+  inviter,
+  bot_name,
+}: CreateUserData) => {
+  console.log('createUser:', username, telegram_id)
+  const { data, error } = await supabase
     .from('users')
-    .select('*')
-    .eq('telegram_id', telegram_id.toString())
-    .maybeSingle()
+    .insert([
+      {
+        username,
+        telegram_id,
+        first_name,
+        last_name,
+        is_bot,
+        language_code,
+        photo_url,
+        chat_id,
+        mode,
+        model,
+        count,
+        aspect_ratio,
+        inviter,
+        bot_name,
+      },
+    ])
+    .select()
 
   if (error) {
-    throw new Error(
-      `Ошибка при проверке существующего пользователя: ${error.message}`
-    )
+    console.error('Error creating user:', error)
+    throw error
   }
 
-  if (existingUser) {
-    const updates = {
-      username,
-      first_name,
-      last_name,
-      is_bot,
-      language_code,
-      photo_url,
-      chat_id,
-      mode,
-      model,
-      count,
-      aspect_ratio,
-      balance,
-      ...(!existingUser.inviter && isInviter ? { inviter } : {}),
-      bot_name,
-    }
-
-    const { error: updateError } = await supabase
-      .from('users')
-      .update(updates)
-      .eq('telegram_id', telegram_id.toString())
-
-    if (updateError) {
-      throw new Error(
-        `Ошибка при обновлении пользователя: ${updateError.message}`
-      )
-    }
-  } else {
-    // Создаем базовый объект пользователя без inviter
-    const newUser = {
-      username,
-      telegram_id,
-      first_name,
-      last_name,
-      is_bot,
-      language_code,
-      photo_url,
-      chat_id,
-      mode,
-      model,
-      count,
-      aspect_ratio,
-      balance,
-      ...(isInviter ? { inviter } : {}),
-      bot_name,
-    }
-
-    const { error: insertError } = await supabase
-      .from('users')
-      .insert([newUser])
-
-    if (insertError) {
-      throw new Error(
-        `Ошибка при добавлении пользователя: ${insertError.message}`
-      )
-    }
-  }
-
-  return existingUser
+  return data
 }

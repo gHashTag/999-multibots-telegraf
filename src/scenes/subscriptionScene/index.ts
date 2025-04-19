@@ -1,6 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '@/helpers'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 // import { levels } from '@/menu/mainMenu' // levels больше не нужны здесь
 
 // Обновленный текст только для двух тарифов
@@ -96,12 +97,14 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       // Удаляем обработку ненужных тарифов
       if (text === 'neurobase') {
         console.log('Selected: 📚 НейроБаза')
-        ctx.session.subscription = 'neurobase'
-        return ctx.scene.enter('paymentScene')
+        ctx.session.subscription = SubscriptionType.NEUROBASE
+        console.log('Переход в getEmailWizard для NeuroBase')
+        return ctx.scene.enter('getEmailWizard')
       } else if (text === 'neurophoto') {
         console.log('Selected: 📸 НейроФото')
-        ctx.session.subscription = 'neurophoto'
-        return ctx.scene.enter('paymentScene')
+        ctx.session.subscription = SubscriptionType.NEUROPHOTO
+        console.log('Переход в getEmailWizard для NeuroPhoto')
+        return ctx.scene.enter('getEmailWizard')
       } else if (text === 'mainmenu') {
         console.log('Selected: 🏠 Главное меню')
         // await handleMenu(ctx) // Вызов handleMenu здесь может быть избыточен, если menuScene делает то же самое

@@ -1,5 +1,7 @@
 import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
+import { ModeEnum } from './interfaces/modes'
+import { SubscriptionType } from './interfaces/subscription.interface'
 
 import {
   avatarBrainWizard,
@@ -80,7 +82,7 @@ export const stage = new Scenes.Stage<MyContext>([
   lipSyncWizard,
   helpScene,
   inviteScene,
-  ...levelQuestWizard,
+  levelQuestWizard,
   uploadVideoScene,
 ])
 
@@ -92,7 +94,7 @@ export function registerCommands({
   composer: Composer<MyContext>
 }) {
   // Инициализируем сессию только один раз
-  bot.use(session({ defaultSession }))
+  bot.use(session({ defaultSession: () => ({ ...defaultSession }) }))
   bot.use(stage.middleware())
   bot.use(composer.middleware())
 
@@ -106,12 +108,12 @@ export function registerCommands({
 
   bot.command('menu', async ctx => {
     console.log('CASE bot.command: menu')
-    ctx.session.mode = 'main_menu'
+    ctx.session.mode = ModeEnum.MainMenu
     await ctx.scene.enter('subscriptionCheckScene')
   })
   composer.command('menu', async ctx => {
     console.log('CASE: myComposer.command menu')
-    ctx.session.mode = 'main_menu'
+    ctx.session.mode = ModeEnum.MainMenu
     await ctx.scene.enter('subscriptionCheckScene')
   })
 
@@ -122,7 +124,7 @@ export function registerCommands({
 
   composer.command('buy', async ctx => {
     console.log('CASE: buy')
-    ctx.session.subscription = 'stars'
+    ctx.session.subscription = SubscriptionType.STARS
     await ctx.scene.enter('paymentScene')
   })
 

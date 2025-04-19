@@ -57,7 +57,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const videoModel = message.text?.toLowerCase()
       console.log('videoModel', videoModel)
       const availableModels = VIDEO_MODELS.map(model => model.name)
-      const currentBalance = await getUserBalance(ctx.from.id)
+      const currentBalance = await getUserBalance(ctx.from.id.toString())
       console.log('currentBalance', currentBalance)
       const isCancel = await handleHelpCancel(ctx)
       if (isCancel) {
@@ -65,7 +65,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       } else {
         // Используем await для получения результата
         const price = await validateAndCalculateVideoModelPrice(
-          videoModel,
+          videoModel as VideoModel,
           availableModels,
           currentBalance,
           isRu,

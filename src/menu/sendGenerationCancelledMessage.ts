@@ -1,21 +1,29 @@
 import { getReferalsCountAndUserData } from '@/core/supabase'
-import { MyContext } from '../interfaces'
-import { mainMenu } from './mainMenu'
+import { MyContext } from '@/interfaces'
+import { mainMenu } from '../menu'
+import { logger } from '@/utils/logger'
 
-export const sendGenerationCancelledMessage = async (
+export async function sendGenerationCancelledMessage(
   ctx: MyContext,
-  isRu: boolean
-) => {
-  const message = isRu ? '❌ Генерация отменена' : '❌ Generation cancelled'
-  const telegram_id = ctx.from?.id?.toString() || ''
-  const { count, subscription, level } = await getReferalsCountAndUserData(
+  reason: string
+) {
+  const telegram_id = ctx.from.id.toString()
+  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
     telegram_id
   )
-  await ctx.reply(message, {
-    reply_markup: {
-      keyboard: (
-        await mainMenu({ isRu, inviteCount: count, subscription, ctx, level })
-      ).reply_markup.keyboard,
-    },
-  })
+  const isRu = ctx.from?.language_code === 'ru'
+  const message = isRu
+    ? `Генерация отменена по причине: ${reason}`
+    : `Generation cancelled due to: ${reason}`
+
+  await ctx.reply(
+    message,
+    await mainMenu({
+      isRu,
+      inviteCount: count,
+      subscription: subscriptionType,
+      level,
+      ctx,
+    })
+  )
 }

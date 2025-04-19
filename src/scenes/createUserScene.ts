@@ -3,11 +3,13 @@ import { WizardScene } from 'telegraf/scenes'
 import {
   createUser,
   getReferalsCountAndUserData,
-  incrementBalance,
+  getUserByTelegramId,
 } from '@/core/supabase'
+import { incrementBalance } from '@/core/supabase/incrementBalance'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { getSubScribeChannel } from '@/handlers'
 import { isRussian } from '@/helpers/language'
+import { MyContext } from '@/interfaces'
 
 const BONUS_AMOUNT = 100
 
@@ -69,20 +71,12 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       await ctx.telegram.sendMessage(
         ctx.session.inviteCode,
         isRussian(ctx)
-          ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}.\n🆔 Уровень аватара: ${count}\n🎁 За каждого приглашенного друга вы получаете дополнительные ${BONUS_AMOUNT} звезд для генерации!\n🤑 Ваш новый баланс: ${
-              userData.balance + BONUS_AMOUNT
-            }⭐️ `
-          : `🔗 New user registered through your link: @${finalUsername}.🆔 Avatar level: ${count}\n🎁 For each friend you invite, you get additional ${BONUS_AMOUNT} stars for generation!\n🤑 Your new balance: ${
-              userData.balance + BONUS_AMOUNT
-            }⭐️`
+          ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}.\n🆔 Уровень аватара: ${count} `
+          : `🔗 New user registered through your link: @${finalUsername}`
       )
-      await incrementBalance({
-        telegram_id: ctx.session.inviteCode,
-        amount: BONUS_AMOUNT,
-      })
       await ctx.telegram.sendMessage(
         `@${SUBSCRIBE_CHANNEL_ID}`,
-        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке от: @${userData.username}.\n🆔 Уровень аватара: ${newCount}\n🎁 Получил(a) бонус в размере ${BONUS_AMOUNT}⭐️ на свой баланс.\nСпасибо за участие в нашей программе!`
+        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке от: @${userData.username}`
       )
     }
   } else {
@@ -108,7 +102,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     model: 'gpt-4-turbo',
     count: 0,
     aspect_ratio: '9:16',
-    balance: 100,
+    balance: 0,
     inviter: ctx.session.inviter || null,
     bot_name: botName,
   }
@@ -122,7 +116,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   return ctx.scene.enter('subscriptionCheckScene')
 }
 
-export const createUserScene = new WizardScene<MyWizardContext>(
+export const createUserScene = new WizardScene<MyContext>(
   'createUserScene',
   createUserStep
 )
