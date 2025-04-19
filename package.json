@@ -6,7 +6,7 @@
   "license": "ISC",
   "scripts": {
     "predev": "node scripts/kill-port.cjs 2999 3001 8288",
-    "dev": "cross-env NODE_ENV=development nodemon src/bot.ts",
+    "dev": "cross-env NODE_ENV=development nodemon",
     "build": "swc src -d dist --source-maps --copy-files",
     "build:prod": "tsc -p tsconfig.prod.json && tsc-alias",
     "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && tsc-alias",
