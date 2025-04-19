@@ -1,7 +1,7 @@
 {
   "watch": ["src"],
   "ext": "ts",
-  "exec": "ts-node -r tsconfig-paths/register src/bot.ts",
+  "exec": "npx ts-node -r tsconfig-paths/register src/bot.ts",
   "signal": "SIGTERM",
   "delay": 1500,
   "events": {

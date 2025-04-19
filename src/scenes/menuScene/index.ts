@@ -11,7 +11,7 @@ import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { ModeEnum } from '@/interfaces/modes'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
-
+import { handleMenu } from '@/handlers/handleMenu'
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
@@ -155,24 +155,18 @@ const menuNextStep = async (ctx: MyContext) => {
     console.log('text 1', text)
     if (text === 'unlock_features') {
       console.log('CASE: 🔓 Разблокировать все функции')
-      await ctx.scene.enter(ModeEnum.SubscriptionScene)
-      return // Exit after handling callback
+      await ctx.scene.enter('subscriptionScene')
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
     console.log('CASE menuNextStep: text 2', text)
-    // Don't call handleMenu here as it causes a loop.
-    // Just stay in the scene. Maybe reply with usage instructions.
-    // For now, let's just do nothing to break the loop.
-    // await ctx.reply('Используйте кнопки меню.'); // Optional reply
-    return // Stay in the scene, do nothing for now
+    await handleMenu(ctx)
   } else {
-    console.log('CASE: menuScene.next.else - Unhandled update type')
+    console.log('CASE: menuScene.next.else', ctx)
+    ctx.scene.leave()
   }
-  // Leave scene only if it wasn't handled (e.g., non-text message)
   ctx.scene.leave()
 }
-
 export const menuScene = new WizardScene(
   ModeEnum.MainMenu,
   menuCommandStep,
