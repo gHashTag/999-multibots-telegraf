@@ -72,7 +72,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     logger.info(
       `[Admin Bypass] User ${ctx.from?.id} is in ADMIN_IDS_ARRAY, bypassing subscription checks and entering menuScene.`
     )
-    return ctx.scene.enter('menuScene') // Сразу в главное меню
+    return ctx.scene.enter(ModeEnum.MainMenu) // Сразу в главное меню
   }
 
   // Проверка существования пользователя

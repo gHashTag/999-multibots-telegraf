@@ -118,7 +118,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 🏠 Главное меню')
         // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
-        await ctx.scene.enter('menuScene')
+        await ctx.scene.enter(ModeEnum.MainMenu)
       },
       '/invite': async () => {
         console.log('CASE: 👥 Пригласить друга')
@@ -149,7 +149,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 🏠 Главное меню')
         // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
-        await ctx.scene.enter('menuScene')
+        await ctx.scene.enter(ModeEnum.MainMenu)
       },
       '/start': async () => {
         console.log('CASE: 🚀 Начать обучение')

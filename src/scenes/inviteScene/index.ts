@@ -1,6 +1,7 @@
 import { Scenes } from 'telegraf'
 import { getReferalsCountAndUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 
 export const inviteScene = new Scenes.BaseScene<MyContext>('inviteScene')
 
@@ -30,7 +31,7 @@ inviteScene.enter(async ctx => {
 
     await ctx.reply(introText, { parse_mode: 'HTML' })
     await ctx.reply(linkText, { parse_mode: 'HTML' })
-    await ctx.scene.enter('menuScene')
+    await ctx.scene.enter(ModeEnum.MainMenu)
   } catch (error) {
     console.error('Error fetching referral count:', error)
     await ctx.reply(

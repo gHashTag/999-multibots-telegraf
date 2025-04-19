@@ -155,7 +155,7 @@ export function registerCommands({
         })
         ctx.session.mode = ModeEnum.MainMenu // Устанавливаем режим на всякий случай
         // Входим в сцену главного меню (убедись, что ID 'menuScene' верный)
-        return ctx.scene.enter('menuScene')
+        return ctx.scene.enter(ModeEnum.MainMenu)
       } else {
         // --- ЕСЛИ ПОДПИСКИ НЕТ ---
         logger.info({

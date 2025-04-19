@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { Scenes } from 'telegraf'
 import { getUserBalance } from '@/core/supabase'
-
+import { ModeEnum } from '@/interfaces/modes'
 export const balanceScene = new Scenes.WizardScene<MyContext>(
   'balanceScene',
   async (ctx: MyContext) => {
@@ -17,7 +17,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
           : `💰✨ <b>Your balance:</b> ${balance} ⭐️`,
         { parse_mode: 'HTML' }
       )
-      await ctx.scene.enter('menuScene')
+      await ctx.scene.enter(ModeEnum.MainMenu)
     } catch (error) {
       console.error('Error sending balance:', error)
       throw error
