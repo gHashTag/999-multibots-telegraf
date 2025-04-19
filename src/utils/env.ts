@@ -49,7 +49,7 @@ export function getEnvBoolean(name: string, defaultValue: boolean): boolean {
  * @param defaultValue Значение по умолчанию
  * @returns Строковое значение переменной или значение по умолчанию
  */
-export function getEnvString(name: string, defaultValue: string = ''): string {
+export function getEnvString(name: string, defaultValue = ''): string {
   return process.env[name] || defaultValue
 }
 

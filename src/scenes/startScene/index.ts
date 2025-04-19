@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { Markup, Scenes } from 'telegraf'
+import { Markup, Scenes, KeyboardButton } from 'telegraf'
 import { getTranslation } from '@/core/supabase'
 import { BOT_URLS } from '@/core/bot'
 import { logger } from '@/utils/logger'
@@ -27,7 +27,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     }
 
     const tutorialUrl = BOT_URLS[botName]
-    let replyKeyboard
+    let replyKeyboard: Markup.Markup<KeyboardButton>
 
     if (tutorialUrl) {
       logger.info(`🎬 Отправка ссылки на туториал для ${botName}`, {

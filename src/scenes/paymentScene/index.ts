@@ -36,6 +36,9 @@ paymentScene.enter(async ctx => {
     const keyboard = Markup.keyboard([
       [
         Markup.button.text(isRu ? '⭐️ Звездами' : '⭐️ Stars'),
+        Markup.button.text(isRu ? '💳 Рублями' : '💳 In rubles'),
+      ],
+      [
         {
           text: isRu ? 'Что такое звезды❓' : 'What are stars❓',
           web_app: {
@@ -44,10 +47,6 @@ paymentScene.enter(async ctx => {
             }?ln=a`,
           },
         },
-      ],
-      [
-        Markup.button.text(isRu ? '💳 Рублями' : '💳 In rubles'),
-        Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu'),
       ],
     ]).resize()
 

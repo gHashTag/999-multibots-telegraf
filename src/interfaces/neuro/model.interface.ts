@@ -34,4 +34,4 @@ export interface ModelUploadResult {
   success: boolean
   url?: string
   error?: string
-} 
+}

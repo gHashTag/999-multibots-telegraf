@@ -76,9 +76,7 @@ export function validateToken(token: string): boolean {
  * @param configPath - путь к файлу конфигурации
  * @returns массив конфигураций ботов
  */
-export function loadBotsConfig(
-  configPath: string = 'config/bots.json'
-): BotConfig[] {
+export function loadBotsConfig(configPath = 'config/bots.json'): BotConfig[] {
   try {
     // Проверяем существование файла
     const fullPath = path.resolve(process.cwd(), configPath)
