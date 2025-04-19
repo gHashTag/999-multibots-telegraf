@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
-import { getReferalsCountAndUserData, getTranslation } from '@/core/supabase'
+import { getTranslation } from '@/core/supabase'
 import { BOT_URLS } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { levels } from '@/menu/mainMenu'
@@ -13,6 +13,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     const { translation, url } = await getTranslation({
       key: 'start',
       ctx,
+      bot_name: botName,
     })
 
     if (url && url.trim() !== '') {

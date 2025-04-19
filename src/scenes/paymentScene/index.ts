@@ -4,7 +4,6 @@ import { isRussian } from '@/helpers'
 import {
   handleSelectStars,
   handleBuySubscription,
-  handleBuy,
   handleSelectRubAmount,
 } from '@/handlers'
 import { starAmounts } from '@/price/helpers/starAmounts'
@@ -14,8 +13,11 @@ import { setPayments } from '@/core/supabase'
 import { getBotNameByToken } from '@/core'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
 import { logger } from '@/utils/logger'
+import { ModeEnum } from '@/interfaces/modes'
 
-export const paymentScene = new Scenes.BaseScene<MyContext>('paymentScene')
+export const paymentScene = new Scenes.BaseScene<MyContext>(
+  ModeEnum.PaymentScene
+)
 
 paymentScene.enter(async ctx => {
   logger.info('### paymentScene ENTERED ###', {
@@ -66,7 +68,7 @@ paymentScene.enter(async ctx => {
 paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   console.log('[PaymentScene] Hears: ⭐️ Звездами triggered')
   const isRu = isRussian(ctx)
-  const subscription = ctx.session.subscription
+  const subscription = ctx.session.subscription?.toLowerCase()
   console.log(
     '[PaymentScene] Hears: ⭐️ Звездами. Session subscription:',
     subscription

@@ -129,6 +129,7 @@ const menuCommandStep = async (ctx: MyContext) => {
         const { translation } = await getTranslation({
           key,
           ctx,
+          bot_name: ctx.botInfo?.username,
         })
         await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboard)
       } else {

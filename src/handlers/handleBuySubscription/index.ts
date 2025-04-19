@@ -39,7 +39,7 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
       neurobase: 1303,
     }
 
-    const subscriptionType = ctx.session.subscription
+    const subscriptionType = ctx.session.subscription?.toLowerCase()
     const amount = subscriptionStarAmounts[subscriptionType]
 
     const title = subscriptionTitles[subscriptionType] || `${amount} ⭐️`
