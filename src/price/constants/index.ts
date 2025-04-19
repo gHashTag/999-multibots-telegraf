@@ -61,7 +61,7 @@ export const BASE_COSTS = {
   [ModeEnum.ImprovePrompt]: 0,
   [ModeEnum.TopUpBalance]: 0,
   [ModeEnum.VideoInUrl]: 0,
-  [ModeEnum.Tech]: 0,
+  [ModeEnum.Support]: 0,
   [ModeEnum.Stats]: 0,
   [ModeEnum.BroadcastWizard]: 0,
   [ModeEnum.SubscriptionCheckScene]: 0,

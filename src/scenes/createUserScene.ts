@@ -1,17 +1,12 @@
-import { MyTextMessageContext, MyWizardContext } from '@/interfaces'
+import { MyTextMessageContext } from '@/interfaces'
 import { WizardScene } from 'telegraf/scenes'
-import {
-  createUser,
-  getReferalsCountAndUserData,
-  getUserByTelegramId,
-} from '@/core/supabase'
-import { incrementBalance } from '@/core/supabase/incrementBalance'
+import { createUser, getReferalsCountAndUserData } from '@/core/supabase'
+
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { getSubScribeChannel } from '@/handlers'
 import { isRussian } from '@/helpers/language'
 import { MyContext } from '@/interfaces'
-
-const BONUS_AMOUNT = 100
+import { ModeEnum } from '@/interfaces/modes'
 
 const createUserStep = async (ctx: MyTextMessageContext) => {
   console.log('CASE:createUserStep', ctx.from)
@@ -66,7 +61,6 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
     ctx.session.inviter = userData.user_id
 
-    const newCount = count + 1
     if (ctx.session.inviteCode) {
       await ctx.telegram.sendMessage(
         ctx.session.inviteCode,
