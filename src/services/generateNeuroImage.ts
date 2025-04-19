@@ -45,7 +45,10 @@ export async function generateNeuroImage(
   }
 
   // Создаем стабильный и уникальный ID события - это помогает избежать дубликатов
-  const requestId = `np-${telegram_id}-${Date.now()}-${uuidv4().substring(0, 8)}`
+  const requestId = `np-${telegram_id}-${Date.now()}-${uuidv4().substring(
+    0,
+    8
+  )}`
 
   // Данные события
   const eventData = {
@@ -218,8 +221,12 @@ export async function generateNeuroImage(
             try {
               await bot.telegram.sendPhoto(telegram_id, imageUrl, {
                 caption: isRussian(ctx)
-                  ? `🖼 Изображение ${i + 1}/${directResult.urls.length} сгенерировано по запросу: ${prompt.slice(0, 50)}...`
-                  : `🖼 Image ${i + 1}/${directResult.urls.length} generated for prompt: ${prompt.slice(0, 50)}...`,
+                  ? `🖼 Изображение ${i + 1}/${
+                      directResult.urls.length
+                    } сгенерировано по запросу: ${prompt.slice(0, 50)}...`
+                  : `🖼 Image ${i + 1}/${
+                      directResult.urls.length
+                    } generated for prompt: ${prompt.slice(0, 50)}...`,
               })
 
               logger.info('✅ Изображение успешно отправлено пользователю:', {
@@ -258,9 +265,16 @@ export async function generateNeuroImage(
             {
               reply_markup: {
                 keyboard: [
-                  [{ text: '1️⃣' }, { text: '2️⃣' }, { text: '3️⃣' }, { text: '4️⃣' }],
                   [
-                    { text: is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
+                    { text: '1️⃣' },
+                    { text: '2️⃣' },
+                    { text: '3️⃣' },
+                    { text: '4️⃣' },
+                  ],
+                  [
+                    {
+                      text: is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
+                    },
                     { text: is_ru ? '📐 Изменить размер' : '📐 Change size' },
                   ],
                   [{ text: is_ru ? '🏠 Главное меню' : '🏠 Main menu' }],
@@ -270,7 +284,6 @@ export async function generateNeuroImage(
               },
             }
           )
-      
         } catch (error) {
           logger.error(
             '❌ Критическая ошибка при отправке изображений пользователю:',

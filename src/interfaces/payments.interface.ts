@@ -1,4 +1,4 @@
-import { ModeEnum } from '@/interfaces/mode.interface'
+import { ModeEnum } from '@/interfaces/modes'
 import { TelegramId } from './telegram.interface'
 import { SubscriptionType } from './subscription.interface'
 //
@@ -22,7 +22,8 @@ export interface BalanceOperationResult {
   newBalance: number
   paymentAmount: number
   success: boolean
-  error?: string
+  error?: any
+  balance?: number
 }
 /**
  * Платежные системы
@@ -172,7 +173,7 @@ export interface BalanceOperationResult {
   /** Успешность операции */
   success: boolean
   /** Ошибка, если операция не удалась */
-  error?: string
+  error?: any
   /** Новый баланс после операции */
   newBalance: number
   /** Стоимость операции */

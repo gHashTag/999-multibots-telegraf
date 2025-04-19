@@ -10,7 +10,7 @@ import { TransactionType } from '@/interfaces/payments.interface'
 import { processBalanceOperation } from '@/price/helpers'
 import { errorMessageAdmin } from '@/helpers/'
 
-import { modeCosts,  } from '@/price/helpers/modelsCost'
+import { modeCosts } from '@/price/helpers/modelsCost'
 import { getBotByName } from '@/core/bot'
 import { MyContext } from '@/interfaces'
 import { Telegraf } from 'telegraf'
@@ -143,7 +143,11 @@ export async function generateNeuroImageV2(
 
     let errorMessageToUser = '❌ Произошла ошибка.'
 
-    if (error instanceof Error && error.message && error.message.includes('NSFW content detected')) {
+    if (
+      error instanceof Error &&
+      error.message &&
+      error.message.includes('NSFW content detected')
+    ) {
       errorMessageToUser = is_ru
         ? '❌ Обнаружен NSFW контент. Пожалуйста, попробуйте другой запрос.'
         : '❌ NSFW content detected. Please try another prompt.'

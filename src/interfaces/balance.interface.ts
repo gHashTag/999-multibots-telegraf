@@ -11,13 +11,6 @@ export interface BalanceOperation {
   service_type: ModeEnum
 }
 
-export interface BalanceOperationResult {
-  success: boolean
-  message: string
-  balance?: number
-  error?: any
-}
-
 export interface BalanceCheck {
   telegram_id: string
   required_amount: number

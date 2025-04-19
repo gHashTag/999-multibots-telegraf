@@ -154,3 +154,7 @@ pgdata-test/
 *.log
 *.tmp 
 *.dev
+
+.env.development
+
+.vault_password

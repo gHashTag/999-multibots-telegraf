@@ -41,17 +41,10 @@ export const defaultSession = (): MySession & {
   videoUrl: '',
   audioUrl: '',
   email: '',
-  data: '',
-  cursor: 0,
-  severity: 0,
   __scenes: {
-    data: '',
     cursor: 0,
-    severity: 0,
-    subscription: undefined,
     state: {
       step: 0,
     },
   },
-  is_ru: false,
 })

@@ -29,7 +29,7 @@ import { stage } from './stage'
 
 import { get100Command } from './commands/get100Command'
 
-import { ModeEnum } from './interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 
 import { handleReceiptCommand } from './handlers/handleReceiptCommand'
@@ -641,8 +641,9 @@ export function registerCommands({
     })
     const isRu = isRussian(ctx)
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, subscription, level } =
-      await getReferalsCountAndUserData(telegram_id)
+    const { count, subscription, level } = await getReferalsCountAndUserData(
+      telegram_id
+    )
     if (!subscription) {
       await ctx.reply(
         isRu

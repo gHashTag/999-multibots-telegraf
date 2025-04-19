@@ -13,19 +13,29 @@ export async function generateNeuroImageV2(
   telegram_id: TelegramId,
   ctx: MyContext,
   botName: string
-): Promise<any> { // временно any для ручной проверки
+): Promise<any> {
+  // временно any для ручной проверки
   if (!ctx.session.prompt) {
-    logger.warn('generateNeuroImageV2: prompt not found в ctx.session', { telegram_id, ctxSession: ctx.session })
+    logger.warn('generateNeuroImageV2: prompt not found в ctx.session', {
+      telegram_id,
+      ctxSession: ctx.session,
+    })
     throw new Error('Prompt not found')
   }
 
   if (!ctx.session.userModel) {
-    logger.warn('generateNeuroImageV2: userModel not found в ctx.session', { telegram_id, ctxSession: ctx.session })
+    logger.warn('generateNeuroImageV2: userModel not found в ctx.session', {
+      telegram_id,
+      ctxSession: ctx.session,
+    })
     throw new Error('User model not found')
   }
 
   if (!numImages) {
-    logger.warn('generateNeuroImageV2: numImages not found', { telegram_id, numImages })
+    logger.warn('generateNeuroImageV2: numImages not found', {
+      telegram_id,
+      numImages,
+    })
     throw new Error('Num images not found')
   }
 
@@ -39,12 +49,18 @@ export async function generateNeuroImageV2(
   })
 
   try {
-    logger.info('Перед вызовом Plan B generateNeuroImageV2', { prompt, numImages, telegram_id, is_ru: ctx.session.is_ru, botName })
+    logger.info('Перед вызовом Plan B generateNeuroImageV2', {
+      prompt,
+      numImages,
+      telegram_id,
+      is_ru: isRussian(ctx),
+      botName,
+    })
     return await PlanBGenerateNeuroImageV2(
       prompt,
       numImages,
       telegram_id.toString(),
-      ctx.session.is_ru,
+      isRussian(ctx),
       botName
     )
   } catch (error) {

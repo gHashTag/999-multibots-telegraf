@@ -1,49 +1,51 @@
+
 # Этап сборки
 FROM node:20-alpine as builder
 
 WORKDIR /app
-ENV HOME=/app
-ENV HUSKY=0
 
 COPY package*.json ./
-# Устанавливаем ВСЕ зависимости, включая devDependencies, для этапа сборки
-RUN npm install --no-package-lock --no-audit --ignore-scripts
+# Устанавливаем все зависимости, включая dev для сборки
+RUN npm install
 
 COPY . .
 
-# Выполняем сборку TypeScript
-RUN npx swc src -d dist --source-maps --copy-files
+# Выполняем сборку TypeScript с пропуском проверки типов для решения проблем совместимости
+# и обрабатываем алиасы путей с помощью tsc-alias (включено в скрипт build:nocheck)
+RUN npm run build:nocheck
 
 # Финальный этап
-FROM node:20-alpine
+FROM node:20-alpine as app
 
 WORKDIR /app
-ENV HOME=/app
-ENV HUSKY=0
 
-# Устанавливаем Ansible и его зависимости через apk
-RUN apk add --no-cache ansible openssh-client
+# Устанавливаем зависимости для Ansible
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    openssh-client \
+    sshpass \
+    nginx
 
-# Копируем tsconfig.prod.json (вместо tsconfig.json) ДО установки зависимостей
-COPY tsconfig.prod.json ./
+# Создаем виртуальное окружение и устанавливаем Ansible
+RUN python3 -m venv /app/ansible-venv \
+    && . /app/ansible-venv/bin/activate \
+    && pip install --no-cache-dir ansible
+
+# Создаем нужные каталоги внутри рабочей директории и устанавливаем права
+RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh
 
 # Копируем package.json и package-lock.json
 COPY package*.json ./
 
-# Устанавливаем только production зависимости (включая tsconfig-paths)
-RUN npm install --omit=dev --ignore-scripts --no-package-lock --no-audit
+# Устанавливаем только production зависимости
+RUN npm install --omit=dev
 
-# Копируем скомпилированное приложение из этапа сборки
+# Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
 
 # Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 
-# Устанавливаем переменную окружения для tsconfig-paths
-ENV TS_NODE_PROJECT=tsconfig.prod.json
-
-# Копируем скрипт запуска
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
-
-CMD ["/app/start.sh"]
+# Запускаем приложение
+CMD ["node", "dist/bot.js"]

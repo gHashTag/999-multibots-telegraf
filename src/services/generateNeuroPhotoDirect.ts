@@ -252,7 +252,6 @@ export async function generateNeuroPhotoDirect(
       }
     }
 
-
     // Получаем соотношение сторон для изображения
     logger.info({
       message: '📐 [DIRECT] Получение соотношения сторон',
@@ -352,10 +351,10 @@ export async function generateNeuroPhotoDirect(
           ...(aspect_ratio === '1:1'
             ? { width: 1024, height: 1024 }
             : aspect_ratio === '16:9'
-              ? { width: 1368, height: 768 }
-              : aspect_ratio === '9:16'
-                ? { width: 768, height: 1368 }
-                : { width: 1024, height: 1024 }),
+            ? { width: 1368, height: 768 }
+            : aspect_ratio === '9:16'
+            ? { width: 768, height: 1368 }
+            : { width: 1024, height: 1024 }),
           sampler: 'flowmatch',
           num_outputs: 1,
           aspect_ratio,
@@ -505,7 +504,9 @@ export async function generateNeuroPhotoDirect(
           index: i,
         })
         console.error(
-          `❌ [DIRECT] Ошибка при генерации изображения ${i + 1}: ${genError instanceof Error ? genError.message : 'Unknown error'}`
+          `❌ [DIRECT] Ошибка при генерации изображения ${i + 1}: ${
+            genError instanceof Error ? genError.message : 'Unknown error'
+          }`
         )
 
         // Отправляем сообщение об ошибке пользователю
@@ -543,8 +544,14 @@ export async function generateNeuroPhotoDirect(
             amount: refundAmount,
             type: TransactionType.MONEY_INCOME,
             description: is_ru
-              ? `Возврат за неудачную генерацию изображения с промптом: ${prompt.slice(0, 30)}...`
-              : `Refund for failed image generation with prompt: ${prompt.slice(0, 30)}...`,
+              ? `Возврат за неудачную генерацию изображения с промптом: ${prompt.slice(
+                  0,
+                  30
+                )}...`
+              : `Refund for failed image generation with prompt: ${prompt.slice(
+                  0,
+                  30
+                )}...`,
             bot_name: botName,
             service_type: ModeEnum.NeuroPhoto,
           })

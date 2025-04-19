@@ -40,21 +40,25 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
       - DOCKER_ENVIRONMENT=true
+      - DEBUG=true
+      - TS_NODE_PROJECT=tsconfig.prod.json
     volumes:
+      # Возвращаем важные пути монтирования
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/nginx:/etc/nginx
       - /etc/pki:/etc/pki
+      # Оставляем закомментированным только проблемный путь
       # - /root/.ssh:/app/.ssh:ro
       # Файлы Ansible
       - ./playbook.yml:/app/playbook.yml:ro
       - ./inventory:/app/inventory:ro
       - ./roles:/app/roles:ro
+      - ./:/app
     dns:
       - 8.8.8.8
-      - 8.8.4.4
     extra_hosts:
-      - "api.elevenlabs.io:127.0.0.1"
-      - "host.docker.internal:172.27.0.1"
+      - 'api.elevenlabs.io:127.0.0.1'
+      - 'host.docker.internal:172.27.0.1'
     networks:
       - app-network
     restart: unless-stopped
@@ -66,8 +70,8 @@ services:
       - '8443:443'
       - '8080:80'
     volumes:
-      # Используем нашу кастомную конфигурацию
-      - ./nginx-config:/etc/nginx/conf.d:ro
+      # Используем только официальную конфигурацию
+      - ./nginx-config/default.conf:/etc/nginx/conf.d/default.conf:ro
       # Пути к сертификатам с хоста остаются
       - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
       - /etc/pki/key.pem:/etc/pki/key.pem:ro
@@ -86,4 +90,4 @@ networks:
 
 # Объявляем Docker Volume
 volumes:
-  nginx-config-volume: 
+  nginx-config-volume:

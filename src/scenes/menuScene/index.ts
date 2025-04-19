@@ -23,11 +23,12 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (isDev) {
       console.log('CASE 🦄: isDev')
       newCount = 0
-      newSubscription = 'stars' as SubscriptionType
+      newSubscription = SubscriptionType.NEUROPHOTO
       newLevel = 0
     } else {
-      const { count, subscription, level } =
-        await getReferalsCountAndUserData(telegram_id)
+      const { count, subscription, level } = await getReferalsCountAndUserData(
+        telegram_id
+      )
       newCount = count
       newSubscription = subscription?.type || SubscriptionType.NEUROPHOTO
       newLevel = level

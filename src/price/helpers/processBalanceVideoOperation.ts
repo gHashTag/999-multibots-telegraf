@@ -72,6 +72,7 @@ export const processBalanceVideoOperation = async ({
         newBalance: currentBalance,
         success: false,
         paymentAmount: 0,
+        modePrice: 0,
         error: 'Invalid model',
       }
     }
@@ -89,6 +90,7 @@ export const processBalanceVideoOperation = async ({
         newBalance: currentBalance,
         success: false,
         paymentAmount: 0,
+        modePrice: modePrice,
         error: message,
       }
     }
@@ -96,7 +98,12 @@ export const processBalanceVideoOperation = async ({
     // Рассчитываем новый баланс
     const newBalance = currentBalance - modePrice
 
-    return { newBalance, paymentAmount: modePrice, success: true }
+    return {
+      newBalance,
+      paymentAmount: modePrice,
+      success: true,
+      modePrice: modePrice,
+    }
   } catch (error) {
     console.error('Error in processBalanceOperation:', error)
     throw error
