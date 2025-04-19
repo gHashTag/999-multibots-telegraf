@@ -7,7 +7,6 @@ import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment
 import { TransactionType } from '@/interfaces/payments.interface'
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
-import { ADMIN_IDS_ARRAY } from '@/config'
 
 export interface DirectPaymentParams {
   telegram_id: string
@@ -54,36 +53,6 @@ export async function directPaymentProcessor(
 
   const operationId = inv_id || uuidv4()
   const normalizedAmount = Number(amount)
-
-  // ---> ПРОВЕРКА НА АДМИНА/ТЕСТЕРА <---
-  // Важно: Преобразуем telegram_id к числу для проверки
-  const numericTelegramId = Number(telegram_id)
-  if (
-    !isNaN(numericTelegramId) &&
-    ADMIN_IDS_ARRAY.includes(numericTelegramId)
-  ) {
-    logger.info(
-      '👑 [DIRECT_PAYMENT] Пользователь является админом/тестером. Списание пропущено.',
-      {
-        description: 'Admin/Tester detected. Skipping payment processing.',
-        telegram_id,
-        operationId,
-      }
-    )
-    // Возвращаем успешный результат без реальной обработки платежа
-    return {
-      success: true,
-      operation_id: operationId,
-      payment_id: 0, // или null/undefined, т.к. платежа не было
-      balanceChange: {
-        // Показываем, что баланс не изменился
-        before: await getUserBalance(telegram_id), // Получаем текущий баланс
-        after: await getUserBalance(telegram_id),
-        difference: 0,
-      },
-    }
-  }
-  // ---> КОНЕЦ ПРОВЕРКИ НА АДМИНА/ТЕСТЕРА <---
 
   logger.info('🚀 [DIRECT_PAYMENT] Начало прямой обработки платежа', {
     description: 'Starting direct payment processing',
@@ -196,7 +165,7 @@ export async function directPaymentProcessor(
       newBalance,
     })
 
-    // 7. Отправка уведомления пользователю (асинхронно, чтобы не блокировать)
+    // 7. Отправка уведомления пользователю
     sendTransactionNotificationTest({
       telegram_id: Number(telegram_id),
       operationId: operationId,
@@ -204,7 +173,7 @@ export async function directPaymentProcessor(
       currentBalance: currentBalance,
       newBalance: newBalance,
       description: description,
-      isRu: metadata?.is_ru ?? true, // Получаем язык из метаданных, если есть
+      isRu: metadata?.is_ru ?? true,
       bot_name: bot_name,
     }).catch(err => {
       logger.error(

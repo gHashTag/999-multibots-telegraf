@@ -41,7 +41,7 @@ export type AdditionalMode =
   | 'getEmailWizard'
   | 'price'
   | 'video_in_url'
-  | 'tech'
+  | 'support'
   | 'stats'
   | 'invite'
   | 'help'

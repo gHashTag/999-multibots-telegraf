@@ -6,6 +6,7 @@ import { getUserByTelegramIdString } from '@/core/supabase'
 import { normalizeTransactionType } from '@/utils/service.utils'
 import { logger } from '@/utils/logger'
 import { determineSubscriptionType } from '@/price/constants'
+import { ADMIN_IDS_ARRAY } from '@/config'
 
 interface CreateSuccessfulPaymentParams {
   telegram_id: TelegramId
@@ -37,7 +38,7 @@ export async function createSuccessfulPayment({
   stars,
   payment_method = 'Telegram',
   bot_name,
-  metadata,
+  metadata = {},
   status = 'COMPLETED',
   inv_id,
   currency = 'XTR',
@@ -96,6 +97,21 @@ export async function createSuccessfulPayment({
     const numericAmount = Number(amount)
     const numericStars = stars !== undefined ? Number(stars) : numericAmount
 
+    // ---> ДОБАВЛЕНА ЛОГИКА ДЛЯ ТЕСТОВЫХ ПЛАТЕЖЕЙ АДМИНОВ <---
+    let finalMetadata = metadata || {} // Инициализируем finalMetadata
+    const numericTelegramId = Number(telegram_id)
+    if (
+      !isNaN(numericTelegramId) &&
+      ADMIN_IDS_ARRAY.includes(numericTelegramId)
+    ) {
+      finalMetadata = { ...finalMetadata, is_test_payment: true }
+      logger.info('🧪 Платеж помечен как тестовый (админ)', {
+        telegram_id: telegramIdStr,
+        inv_id,
+      })
+    }
+    // ---> КОНЕЦ ЛОГИКИ <---
+
     // Определяем subscription_type с помощью импортированной функции
     const calculatedSubscriptionType =
       status === 'COMPLETED' && normalizedType === 'money_income'
@@ -113,7 +129,7 @@ export async function createSuccessfulPayment({
       service_type,
       bot_name,
       status,
-      metadata,
+      metadata: finalMetadata,
       currency,
       inv_id,
       invoice_url,

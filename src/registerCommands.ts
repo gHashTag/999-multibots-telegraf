@@ -2,7 +2,7 @@ import { Telegraf, Scenes, session, Composer } from 'telegraf'
 import { MyContext } from './interfaces'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
-
+import { levels } from './menu/mainMenu'
 import {
   avatarBrainWizard,
   textToVideoWizard,
@@ -46,7 +46,7 @@ import { setupLevelHandlers } from './handlers/setupLevelHandlers'
 import { defaultSession } from './store'
 
 import { get100Command } from './commands/get100Command'
-
+import { handleTechSupport } from './commands/handleTechSupport'
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
@@ -103,7 +103,25 @@ export function registerCommands({
   // Регистрация команд
   bot.command('start', async ctx => {
     console.log('CASE bot.command: start')
-    await ctx.scene.enter('subscriptionCheckScene')
+    await ctx.scene.enter('startScene')
+  })
+
+  bot.command('support', async ctx => {
+    console.log('CASE bot.command: support')
+    await handleTechSupport(ctx)
+  })
+
+  // Обработчики для текстовых кнопок главного меню
+  bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
+    console.log('CASE bot.hears: 💬 Техподдержка / Support')
+    await handleTechSupport(ctx)
+  })
+
+  bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
+    console.log('CASE bot.hears: 💫 Оформить подписку / Subscribe')
+    // Возможно, стоит добавить проверку, есть ли уже активная подписка?
+    // Пока просто переходим в сцену покупки
+    await ctx.scene.enter('subscriptionScene')
   })
 
   bot.command('menu', async ctx => {

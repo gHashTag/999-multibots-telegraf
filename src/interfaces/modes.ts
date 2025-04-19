@@ -26,7 +26,7 @@ export enum ModeEnum {
   ImprovePrompt = 'improve_prompt',
   TopUpBalance = 'top_up_balance',
   VideoInUrl = 'video_in_url',
-  Tech = 'tech',
+  Support = 'support',
   Stats = 'stats',
   BroadcastWizard = 'broadcast_wizard',
   SubscriptionCheckScene = 'subscription_check_scene',

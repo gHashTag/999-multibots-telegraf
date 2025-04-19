@@ -5,8 +5,7 @@ import { getUserByTelegramId } from '@/core/supabase'
 import { checkActivePaymentSubscription } from '@/core/supabase/checkSubscriptionByTelegramId'
 import { verifySubscription } from '@/middlewares/verifySubscription'
 import { getSubScribeChannel } from '@/handlers'
-import { ADMIN_IDS_ARRAY } from '@/config' // Импортируем массив ID админов
-import { logger } from '@/utils/logger' // Импортируем логгер
+import { logger } from '@/utils/logger'
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
   const telegramId = ctx.from?.id
@@ -20,29 +19,13 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     return ctx.scene.leave() // Выходим, если нет ID
   }
 
-  // Проверяем, является ли пользователь админом/тестером
-  if (ADMIN_IDS_ARRAY.includes(telegramId)) {
-    logger.info(
-      '👑 Пользователь является админом/тестером, пропускаем проверки',
-      {
-        telegram_id: telegramId,
-      }
-    )
-    // Сразу переходим к нужной сцене, минуя проверки
-    const nextScene =
-      ctx.session.mode === 'main_menu' ? 'menuScene' : 'startScene'
-    logger.info(`🚀 Админ перенаправлен в сцену: ${nextScene}`, {
-      telegram_id: telegramId,
-    })
-    return ctx.scene.enter(nextScene)
-  }
+  // ---> УДАЛЕНА ПРОВЕРКА НА АДМИНА/ТЕСТЕРА <---
+  // Теперь все пользователи проходят стандартные проверки
 
-  // --- Обычная логика для не-админов ---
-  logger.info('👤 Обычный пользователь, выполняем стандартные проверки', {
+  // --- Обычная логика для всех пользователей ---
+  logger.info('👤 Выполняем стандартные проверки для пользователя', {
     telegram_id: telegramId,
   })
-
-  const { language_code } = ctx.from
 
   // 1. Проверяем существует ли пользователь в базе
   const existingUser = await getUserByTelegramId(ctx)
@@ -60,14 +43,30 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     paidSubscription
   )
 
-  // 3. Логика доступа
+  // 3. Логика доступа: ЕСЛИ ЕСТЬ АКТИВНАЯ ПЛАТНАЯ ПОДПИСКА -> ДОСТУП
   if (paidSubscription.isActive) {
-    // Пользователь с активной платной подпиской - пропускаем проверку канала
     console.log(
-      `CASE: User ${telegramId} has active paid subscription (${paidSubscription.type}), skipping channel check`
+      `CASE: User ${telegramId} has active paid subscription (${paidSubscription.type}), entering next scene`
     )
+    // --- Пользователь с активной платной подпиской ---
+    // Дополнительно можно проверить канал, если это нужно даже для платных,
+    // но скорее всего, платные юзеры уже имеют полный доступ.
+    // Оставляем текущую логику перехода в menu/start сцену.
+    const nextScene =
+      ctx.session.mode === 'main_menu' ? 'menuScene' : 'startScene'
+    console.log(`User ${telegramId} passed checks, entering ${nextScene}`)
+    return ctx.scene.enter(nextScene)
   } else {
-    // У пользователя НЕТ активной платной подписки - проверяем обязательный канал
+    // --- У пользователя НЕТ активной платной подписки ---
+    console.log(
+      `CASE: User ${telegramId} does NOT have active paid subscription. Entering subscriptionScene.`
+    )
+    // СРАЗУ отправляем пользователя в сцену покупки подписки.
+    // Перевірка обов'язкового каналу більше не впливає на доступ до платного меню.
+    return ctx.scene.enter('subscriptionScene')
+
+    // --- Стара логіка з перевіркою каналу (ЗАКОМЕНТОВАНА) ---
+    /*
     console.log(
       `CASE: User ${telegramId} does NOT have active paid subscription`
     )
@@ -96,22 +95,20 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
         `CASE: User ${telegramId} IS subscribed to required channel ${SUBSCRIBE_CHANNEL_ID}`
       )
     } else {
-      // ID обязательного канала не настроен - пропускаем проверку
-      // ВАЖНО: Если канал должен быть обязателен ВСЕГДА для НЕ платных юзеров,
-      // то здесь нужно выходить из сцены ctx.scene.leave()
       console.log(
         'CASE: SUBSCRIBE_CHANNEL_ID not set, skipping mandatory channel check'
       )
     }
-  }
-
-  // 4. Переход к следующей сцене (если все проверки пройдены)
-  if (ctx.session.mode === 'main_menu') {
-    console.log(`User ${telegramId} passed checks, entering menuScene`)
-    return ctx.scene.enter('menuScene')
-  } else {
-    console.log(`User ${telegramId} passed checks, entering startScene`)
-    return ctx.scene.enter('startScene')
+    // Неплатний користувач пройшов перевірку каналу (або її не було) - все одно переходимо до меню? НІ!
+    // Переход к следующей сцене (если все проверки пройдены)
+    if (ctx.session.mode === 'main_menu') {
+      console.log(`User ${telegramId} passed checks, entering menuScene`) // ПОМИЛКА ЛОГІКИ
+      return ctx.scene.enter('menuScene')
+    } else {
+      console.log(`User ${telegramId} passed checks, entering startScene`) // ПОМИЛКА ЛОГІКИ
+      return ctx.scene.enter('startScene')
+    }
+    */
   }
 }
 

@@ -64,13 +64,6 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
           callback_data: 'neurobase',
         },
       ],
-      [
-        // Добавляем кнопку возврата в меню
-        {
-          text: isRu ? '🏠 Главное меню' : '🏠 Main menu',
-          callback_data: 'mainmenu',
-        },
-      ],
     ])
 
     try {

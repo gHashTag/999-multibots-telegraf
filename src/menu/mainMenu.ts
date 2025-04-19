@@ -1,7 +1,4 @@
-import {
-  InlineKeyboardMarkup,
-  ReplyKeyboardMarkup,
-} from 'telegraf/typings/core/types/typegram'
+import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 import { checkFullAccess } from '../handlers/checkFullAccess'
 import { Markup } from 'telegraf'
 import { MyContext } from '../interfaces/telegram-bot.interface'
@@ -13,10 +10,6 @@ interface Level {
 }
 
 export const levels: Record<number, Level> = {
-  0: {
-    title_ru: '💫 Оформить подписку',
-    title_en: '💫 Subscribe',
-  },
   // digital_avatar_body
   1: {
     title_ru: '🤖 Цифровое тело',
@@ -99,12 +92,16 @@ export const levels: Record<number, Level> = {
   },
   // helpCommand
   103: {
-    title_ru: '❓ Помощь',
-    title_en: '❓ Help',
+    title_ru: '💬 Техподдержка',
+    title_en: '💬 Support',
   },
   104: {
     title_ru: '🏠 Главное меню',
     title_en: '🏠 Main menu',
+  },
+  105: {
+    title_ru: '💫 Оформить подписку',
+    title_en: '💫 Subscribe',
   },
 }
 
@@ -126,7 +123,10 @@ export async function mainMenu({
   console.log('💻 CASE: mainMenu')
   let hasFullAccess = checkFullAccess(subscription)
 
-  const subscriptionButton = isRu ? levels[0].title_ru : levels[0].title_en
+  // Используем levels[105] для кнопки подписки
+  const subscriptionButtonText = isRu
+    ? levels[105].title_ru
+    : levels[105].title_en
 
   // Определяем доступные уровни в зависимости от подписки
   const subscriptionLevelsMap = {
@@ -169,7 +169,9 @@ export async function mainMenu({
     console.warn(
       'No available levels for the current invite count and subscription status.'
     )
-    return Markup.keyboard([[Markup.button.text(subscriptionButton)]]).resize()
+    return Markup.keyboard([
+      [Markup.button.text(subscriptionButtonText)],
+    ]).resize()
   }
 
   const buttons = availableLevels.map(level =>
@@ -193,7 +195,7 @@ export async function mainMenu({
 
   // Добавляем кнопку подписки в конце, если нет полного доступа
   if (!hasFullAccess) {
-    buttonRows.push([Markup.button.text(subscriptionButton)])
+    buttonRows.push([Markup.button.text(subscriptionButtonText)])
   }
 
   return Markup.keyboard(buttonRows).resize()
