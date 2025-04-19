@@ -373,7 +373,6 @@ export const broadcastService = {
 
             // Отправляем сообщение в зависимости от типа контента
             if (contentType === 'post_link' && postLink) {
-              
               logger.info(`🔗 Отправляем ссылку на пост: ${postLink}`, {
                 description: `Sending post link: ${postLink}`,
                 language: user.language_code || 'ru',
