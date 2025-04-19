@@ -13,10 +13,16 @@ import { MERCHANT_LOGIN, PASSWORD1 } from '@/config'
 import { setPayments } from '@/core/supabase'
 import { getBotNameByToken } from '@/core'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
+import { logger } from '@/utils/logger'
 
 export const paymentScene = new Scenes.BaseScene<MyContext>('paymentScene')
 
 paymentScene.enter(async ctx => {
+  logger.info('### paymentScene ENTERED ###', {
+    scene: 'paymentScene',
+    step: 'enter',
+    telegram_id: ctx.from?.id,
+  })
   console.log(
     '[PaymentScene] Entered scene. Session subscription:',
     ctx.session.subscription

@@ -12,8 +12,14 @@ import {
 import { setPayments } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
+import { logger } from '@/utils/logger'
 
 const generateInvoiceStep = async (ctx: MyContext) => {
+  logger.info('### getRuBillWizard ENTERED (generateInvoiceStep) ###', {
+    scene: 'getRuBillWizard',
+    step: 'generateInvoiceStep',
+    telegram_id: ctx.from?.id,
+  })
   console.log('CASE: generateInvoiceStep')
   const isRu = isRussian(ctx)
   const selectedPayment = ctx.session.selectedPayment

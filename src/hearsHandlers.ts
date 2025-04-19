@@ -125,7 +125,7 @@ composer.hears([levels[102].title_ru, levels[102].title_en], async ctx => {
 composer.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
   console.log('CASE: Главное меню')
   ctx.session.mode = ModeEnum.MainMenu
-  await ctx.scene.enter('subscriptionCheckScene')
+  await ctx.scene.enter('ModeEnum.SubscriptionScene')
 })
 
 composer.hears(
@@ -251,7 +251,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для главного меню от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.MainMenu
-      await ctx.scene.enter('subscriptionCheckScene')
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
     }
   )
 

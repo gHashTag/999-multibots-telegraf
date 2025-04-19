@@ -113,7 +113,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       ? '✅ Аватар успешно создан!'
       : '✅ Avatar created successfully!'
   )
-  return ctx.scene.enter('subscriptionCheckScene')
+  return ctx.scene.enter(ModeEnum.SubscriptionScene)
 }
 
 export const createUserScene = new WizardScene<MyContext>(

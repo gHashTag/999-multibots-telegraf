@@ -121,18 +121,18 @@ export function registerCommands({
     console.log('CASE bot.hears: 💫 Оформить подписку / Subscribe')
     // Возможно, стоит добавить проверку, есть ли уже активная подписка?
     // Пока просто переходим в сцену покупки
-    await ctx.scene.enter('subscriptionScene')
+    await ctx.scene.enter(ModeEnum.SubscriptionScene)
   })
 
   bot.command('menu', async ctx => {
     console.log('CASE bot.command: menu')
     ctx.session.mode = ModeEnum.MainMenu
-    await ctx.scene.enter('subscriptionCheckScene')
+    await ctx.scene.enter(ModeEnum.SubscriptionScene)
   })
   composer.command('menu', async ctx => {
     console.log('CASE: myComposer.command menu')
     ctx.session.mode = ModeEnum.MainMenu
-    await ctx.scene.enter('subscriptionCheckScene')
+    await ctx.scene.enter(ModeEnum.SubscriptionScene)
   })
 
   composer.command('get100', async ctx => {

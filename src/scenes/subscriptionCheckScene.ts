@@ -1,118 +1,96 @@
 import { MyContext } from '@/interfaces'
 import { WizardScene } from 'telegraf/scenes'
-import { getUserByTelegramId } from '@/core/supabase'
-// Используем финальную функцию проверки подписки по типу в payments_v2
-import { checkActivePaymentSubscription } from '@/core/supabase/checkSubscriptionByTelegramId'
+import { getUserByTelegramIdString } from '@/core/supabase'
 import { verifySubscription } from '@/middlewares/verifySubscription'
-import { getSubScribeChannel } from '@/handlers'
+import { isDev } from '@/helpers'
+import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { getSubScribeChannel } from '@/handlers/getSubScribeChannel'
+// Проверка существования пользователя
+const checkUserExists = async (ctx: MyContext) => {
+  if (!ctx.from?.id) {
+    logger.info('🔍 User ID not found in context')
+    return null
+  }
+
+  const user = await getUserByTelegramIdString(ctx.from.id.toString())
+  if (!user) {
+    logger.info('🔍 User not found in database')
+    return null
+  }
+
+  return user
+}
+
+// Проверка подписки на канал
+const checkChannelSubscription = async (
+  ctx: MyContext,
+  languageCode: string
+) => {
+  if (isDev) {
+    logger.info('🔧 Development mode - skipping channel subscription check')
+    return true
+  }
+
+  const channelId = await getSubScribeChannel(ctx)
+  if (!channelId) {
+    logger.error('❌ Failed to get subscribe channel ID')
+    await ctx.reply(
+      languageCode === 'ru'
+        ? '❌ Не удалось получить ID канала подписки'
+        : '❌ Failed to get subscribe channel ID'
+    )
+    return false
+  }
+
+  const isSubscribed = await verifySubscription(ctx, languageCode, channelId)
+  logger.info(
+    `📊 Channel subscription status: ${isSubscribed ? 'Active' : 'Inactive'}`
+  )
+  return isSubscribed
+}
+
+// Определение следующей сцены
+const getNextScene = (currentMode: ModeEnum | undefined): ModeEnum => {
+  if (currentMode === ModeEnum.MainMenu || !currentMode) {
+    return ModeEnum.MainMenu
+  }
+  if (currentMode === ModeEnum.Subscribe) {
+    return ModeEnum.SubscriptionScene
+  }
+  return currentMode
+}
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
-  const telegramId = ctx.from?.id
-  logger.info('⚙️ CASE: subscriptionCheckScene started', {
-    telegram_id: telegramId,
-    username: ctx.from?.username,
-  })
+  logger.info('🎯 Starting subscription check process')
 
-  if (!telegramId) {
-    logger.error('❌ Не удалось получить telegramId в subscriptionCheckScene')
-    return ctx.scene.leave() // Выходим, если нет ID
+  // Проверка существования пользователя
+  const user = await checkUserExists(ctx)
+  if (!user) {
+    logger.info('➡️ Redirecting to user creation scene')
+    return ctx.scene.enter(ModeEnum.CreateUserScene)
   }
 
-  // ---> УДАЛЕНА ПРОВЕРКА НА АДМИНА/ТЕСТЕРА <---
-  // Теперь все пользователи проходят стандартные проверки
-
-  // --- Обычная логика для всех пользователей ---
-  logger.info('👤 Выполняем стандартные проверки для пользователя', {
-    telegram_id: telegramId,
-  })
-
-  // 1. Проверяем существует ли пользователь в базе
-  const existingUser = await getUserByTelegramId(ctx)
-  console.log('subscriptionCheckStep - existingUser:', existingUser)
-
-  if (!existingUser) {
-    console.log(`CASE: User ${telegramId} not found, entering createUserScene`)
-    return ctx.scene.enter('createUserScene')
-  }
-
-  // 2. Проверяем наличие активной платной подписки ('neurophoto' или 'neurobase')
-  const paidSubscription = await checkActivePaymentSubscription(telegramId)
-  console.log(
-    `subscriptionCheckStep - User ${telegramId} paid subscription check:`,
-    paidSubscription
-  )
-
-  // 3. Логика доступа: ЕСЛИ ЕСТЬ АКТИВНАЯ ПЛАТНАЯ ПОДПИСКА -> ДОСТУП
-  if (paidSubscription.isActive) {
-    console.log(
-      `CASE: User ${telegramId} has active paid subscription (${paidSubscription.type}), entering next scene`
-    )
-    // --- Пользователь с активной платной подпиской ---
-    // Дополнительно можно проверить канал, если это нужно даже для платных,
-    // но скорее всего, платные юзеры уже имеют полный доступ.
-    // Оставляем текущую логику перехода в menu/start сцену.
-    const nextScene =
-      ctx.session.mode === 'main_menu' ? 'menuScene' : 'startScene'
-    console.log(`User ${telegramId} passed checks, entering ${nextScene}`)
-    return ctx.scene.enter(nextScene)
+  // Проверка типа подписки
+  if (user.subscription !== SubscriptionType.STARS) {
+    logger.info('💫 User does not have STARS subscription')
+    const isSubscribed = await checkChannelSubscription(ctx, user.language_code)
+    if (!isSubscribed) {
+      logger.info('❌ Channel subscription check failed')
+      return ctx.scene.leave()
+    }
   } else {
-    // --- У пользователя НЕТ активной платной подписки ---
-    console.log(
-      `CASE: User ${telegramId} does NOT have active paid subscription. Entering subscriptionScene.`
-    )
-    // СРАЗУ отправляем пользователя в сцену покупки подписки.
-    // Перевірка обов'язкового каналу більше не впливає на доступ до платного меню.
-    return ctx.scene.enter('subscriptionScene')
-
-    // --- Стара логіка з перевіркою каналу (ЗАКОМЕНТОВАНА) ---
-    /*
-    console.log(
-      `CASE: User ${telegramId} does NOT have active paid subscription`
-    )
-    const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
-
-    if (SUBSCRIBE_CHANNEL_ID) {
-      console.log(
-        `Checking mandatory channel subscription for user ${telegramId}, channel ${SUBSCRIBE_CHANNEL_ID}`
-      )
-      const isSubscribedToChannel = await verifySubscription(
-        ctx,
-        language_code?.toString() || 'ru',
-        SUBSCRIBE_CHANNEL_ID
-      )
-
-      if (!isSubscribedToChannel) {
-        // НЕ подписан на обязательный канал - выход
-        console.log(
-          `CASE: User ${telegramId} is NOT subscribed to required channel ${SUBSCRIBE_CHANNEL_ID}. Leaving scene.`
-        )
-        // Тут можно добавить сообщение пользователю перед выходом
-        // await ctx.reply('Пожалуйста, подпишитесь на наш канал X для доступа...');
-        return ctx.scene.leave()
-      }
-      console.log(
-        `CASE: User ${telegramId} IS subscribed to required channel ${SUBSCRIBE_CHANNEL_ID}`
-      )
-    } else {
-      console.log(
-        'CASE: SUBSCRIBE_CHANNEL_ID not set, skipping mandatory channel check'
-      )
-    }
-    // Неплатний користувач пройшов перевірку каналу (або її не було) - все одно переходимо до меню? НІ!
-    // Переход к следующей сцене (если все проверки пройдены)
-    if (ctx.session.mode === 'main_menu') {
-      console.log(`User ${telegramId} passed checks, entering menuScene`) // ПОМИЛКА ЛОГІКИ
-      return ctx.scene.enter('menuScene')
-    } else {
-      console.log(`User ${telegramId} passed checks, entering startScene`) // ПОМИЛКА ЛОГІКИ
-      return ctx.scene.enter('startScene')
-    }
-    */
+    logger.info('⭐ User has STARS subscription')
   }
+
+  // Переход к следующей сцене
+  const nextScene = getNextScene(ctx.session.mode)
+  logger.info(`➡️ Navigating to scene: ${nextScene}`)
+  return ctx.scene.enter(nextScene)
 }
 
 export const subscriptionCheckScene = new WizardScene(
-  'subscriptionCheckScene',
+  ModeEnum.SubscriptionCheckScene,
   subscriptionCheckStep
 )

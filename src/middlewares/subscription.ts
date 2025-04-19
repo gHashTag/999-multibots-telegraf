@@ -7,7 +7,7 @@ export const subscriptionMiddleware = async (
   console.log('🎛 CASE:subscriptionMiddleware')
   try {
     await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
-    await ctx.scene.enter('subscriptionCheckScene')
+    await ctx.scene.enter(ModeEnum.SubscriptionScene)
 
     await next()
   } catch (error) {

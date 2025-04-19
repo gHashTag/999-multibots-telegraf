@@ -1,130 +1,169 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
+import { handleMenu } from '@/handlers'
+import { getTranslation } from '@/core/supabase'
 import { isRussian } from '@/helpers'
+import { ModeEnum } from '@/interfaces/modes'
+import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-// import { levels } from '@/menu/mainMenu' // levels больше не нужны здесь
+import { TranslationButton } from '@/interfaces/supabase.interface'
+// Проверка валидности типа подписки
+export function isValidPaymentSubscription(value: string): value is string {
+  // Преобразуем значение в верхний регистр для сравнения с SubscriptionType
+  const upperValue = value.toUpperCase()
 
-// Обновленный текст только для двух тарифов
-const message = (isRu: boolean) =>
-  isRu
-    ? `<b>💫 Для получения полного доступа ко всем нейрокомандам, выберите одну из предложенных месячных подписок:</b>
+  // Проверяем по значению перечисления
+  for (const plan of paymentOptionsPlans) {
+    // Проверяем совпадение с типом подписки
+    if (plan.subscription === (upperValue as SubscriptionType)) {
+      return true
+    }
 
-<b>📸 НейроФото - Цена: 1110 ₽</b>
-- Самостоятельное обучение по нейросетям с ИИ аватаром
-- Учитесь в удобное время
-- Включает видеоуроки, текстовые материалы
-- Поддержка и актуальные технологии
-- Доступ к чату с ментором
-- 476 звезды на баланс бота
+    // Проверяем callback_data в нижнем регистре (neurophoto, neurobase, и т.д.)
+    if (plan.subscription?.toString().toLowerCase() === value.toLowerCase()) {
+      return true
+    }
+  }
 
-<b>📚 НейроБаза - Цена: 2999 ₽</b>
-- 📖 Уроки по нейросетям 
-- 📸 Нейрофото 
-- 🎥 Генерация видео 
-- 🗣️ Озвучка Аватара 
-- 🔧 Поддержка куратора 
-- 💬 Доступ к чату с ментором
-- 1303 звезд на баланс бота
-`
-    : `<b>💫 To get full access to all neurocommands, choose one of the proposed monthly subscriptions:</b>
-
-<b>📸 NeuroPhoto - Price: 1110 RUB</b>
-- Self-study on neural networks with AI avatar
-- Learn at your convenience
-- Includes video lessons, text materials
-- Support and up-to-date technologies
-- Access to chat with a mentor
-- 476 stars to bot balance
-
-<b>📚 NeuroBase - Price: 2999 RUB</b>
-- 📖 Lessons on neural networks
-- 📸 NeuroPhoto feature
-- 🎥 Video generation
-- 🗣️ Avatar voice-over
-- 🔧 Curator support
-- 💬 Access to chat with a mentor
-- 1303 stars to bot balance
-` // Prices in RUB for EN version too, assuming primary market
+  return false
+}
 
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
-  'subscriptionScene',
+  ModeEnum.SubscriptionScene,
   async ctx => {
-    console.log('CASE: subscriptionScene enter')
+    console.log('CASE: subscriptionScene', ctx)
     const isRu = isRussian(ctx)
+    const { translation, buttons } = await getTranslation({
+      key: 'subscriptionScene',
+      ctx,
+      bot_name: ctx.botInfo?.username,
+    })
+    console.log('buttons!!!', buttons)
 
-    // Обновленная клавиатура только для двух тарифов
-    const inlineKeyboard = Markup.inlineKeyboard([
-      [
-        {
-          text: isRu ? '📸 НейроФото' : '📸 NeuroPhoto',
-          callback_data: 'neurophoto',
-        },
-        {
-          text: isRu ? '📚 НейроБаза' : '📚 NeuroBase',
-          callback_data: 'neurobase',
-        },
-      ],
-    ])
+    // Проверяем, является ли пользователь администратором
+    const adminIds = process.env.ADMIN_IDS
+      ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id, 10))
+      : []
 
-    try {
-      await ctx.reply(message(isRu), {
-        reply_markup: inlineKeyboard.reply_markup,
-        parse_mode: 'HTML',
-      })
-    } catch (error) {
-      console.error('Error sending subscription options:', error)
+    const telegramId = ctx.from?.id.toString()
+    if (!telegramId) {
       await ctx.reply(
-        isRu ? 'Ошибка отображения тарифов.' : 'Error displaying tariffs.'
+        isRu
+          ? '❌ Ошибка: не удалось получить ID пользователя'
+          : '❌ Error: User ID not found'
       )
-      return ctx.scene.leave() // Выходим из сцены при ошибке
+      return ctx.scene.leave()
     }
+
+    // Добавляем тестовый план для администраторов
+    if (adminIds.includes(parseInt(telegramId))) {
+      buttons?.push({
+        row: 4, // Укажите номер строки, где хотите разместить тестовый план
+        text: '🧪 Тест', // Название тестового плана
+        en_price: 1, // Тестовая цена в долларах
+        ru_price: 1, // Тестовая цена в рублях
+        description: 'Тестовый план для проверки функционала.',
+        stars_price: 1, // Количество звезд для тестового плана
+        callback_data: 'neurotester', // Уникальный идентификатор для тестового плана
+        subscription: SubscriptionType.NEUROTESTER,
+      })
+    }
+
+    ctx.session.buttons = buttons as TranslationButton[]
+
+    if (!buttons) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось получить кнопки'
+          : '❌ Error: Buttons not found'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Формируем клавиатуру на основе кнопок
+    const keyboardRows: any[] = []
+    buttons.forEach(button => {
+      const row = button.row || 0
+      if (!keyboardRows[row]) {
+        keyboardRows[row] = []
+      }
+      const text = `${button.text} - ${
+        isRu ? `${button.ru_price} ₽` : `${button.en_price} $`
+      }`
+
+      keyboardRows[row].push({
+        text,
+        callback_data: button.callback_data,
+        remove_keyboard: true,
+      })
+    })
+
+    // Очистка от пустых элементов
+    const cleanedKeyboardRows = keyboardRows.filter(
+      row => row && row.length > 0
+    )
+
+    const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
+
+    await ctx.reply(translation, {
+      reply_markup: inlineKeyboard.reply_markup,
+      parse_mode: 'Markdown',
+    })
 
     return ctx.wizard.next()
   },
-  async ctx => {
-    console.log('CASE: subscriptionScene received callback')
+  async (ctx: MyContext) => {
+    console.log('CASE: subscriptionScene.next', ctx)
     if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
       const text = ctx.update.callback_query.data
-      console.log('Callback data:', text)
+      console.log('text', text)
 
-      // Удаляем обработку ненужных тарифов
-      if (text === 'neurobase') {
-        console.log('Selected: 📚 НейроБаза')
-        ctx.session.subscription = SubscriptionType.NEUROBASE
-        console.log('Переход в getEmailWizard для NeuroBase')
-        return ctx.scene.enter('getEmailWizard')
-      } else if (text === 'neurophoto') {
-        console.log('Selected: 📸 НейроФото')
-        ctx.session.subscription = SubscriptionType.NEUROPHOTO
-        console.log('Переход в getEmailWizard для NeuroPhoto')
-        return ctx.scene.enter('getEmailWizard')
-      } else if (text === 'mainmenu') {
-        console.log('Selected: 🏠 Главное меню')
-        // await handleMenu(ctx) // Вызов handleMenu здесь может быть избыточен, если menuScene делает то же самое
-        return ctx.scene.enter('menuScene')
-      } else {
-        console.warn('Unknown callback data in subscriptionScene:', text)
-        await ctx.answerCbQuery() // Отвечаем на колбек, чтобы убрать часики
-        await ctx.reply(
-          isRussian(ctx)
-            ? 'Неизвестный выбор. Пожалуйста, используйте кнопки.'
-            : 'Unknown choice. Please use the buttons.'
-        )
-        // Остаемся в сцене, чтобы пользователь мог выбрать снова
-        // return ctx.scene.reenter()
-      }
-      return ctx.scene.leave() // Выходим из сцены
-    } else {
-      // Если пришло не callback_query, а что-то другое (например, текст)
-      console.log('Received non-callback query in subscriptionScene step 2')
-      await ctx.reply(
-        isRussian(ctx)
-          ? 'Пожалуйста, выберите тариф с помощью кнопок.'
-          : 'Please select a tariff using the buttons.'
+      // Находим выбранный тариф, учитывая регистр callback_data
+      const selectedPayment = paymentOptionsPlans.find(
+        option =>
+          option.subscription === (text as SubscriptionType) ||
+          option.subscription?.toString().toLowerCase() === text.toLowerCase()
       )
-      // Можно либо выйти в меню, либо переотправить сообщение с кнопками
-      // await handleMenu(ctx)
-      return ctx.scene.leave() // Оставляем этот выход из сцены
+
+      if (selectedPayment && selectedPayment.subscription) {
+        console.log('Selected payment option:', selectedPayment)
+        const subscription = selectedPayment.subscription
+        if (isValidPaymentSubscription(subscription)) {
+          ctx.session.subscription = subscription
+          ctx.session.selectedPayment = {
+            amount: selectedPayment.amount,
+            stars: Number(selectedPayment.stars),
+            subscription: subscription as SubscriptionType,
+            type: subscription,
+          }
+          return ctx.scene.enter(ModeEnum.PaymentScene)
+        } else {
+          console.warn(
+            'Subscription type not supported for payment:',
+            subscription
+          )
+          const isRu = isRussian(ctx)
+          await ctx.reply(
+            isRu
+              ? 'Этот тип подписки не поддерживает оплату. Пожалуйста, выберите другой вариант.'
+              : 'This subscription type does not support payment. Please select another option.'
+          )
+        }
+      } else if (text === 'mainmenu') {
+        console.log('CASE: 🏠 Главное меню')
+        return ctx.scene.enter(ModeEnum.MainMenu)
+      } else {
+        console.warn('Unknown subscription type:', text)
+        const isRu = isRussian(ctx)
+        await ctx.reply(
+          isRu
+            ? 'Неизвестный тип подписки. Пожалуйста, выберите другой вариант.'
+            : 'Unknown subscription type. Please select another option.'
+        )
+      }
+    } else {
+      handleMenu(ctx)
+      return ctx.scene.leave()
     }
   }
 )
