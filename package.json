@@ -9,7 +9,7 @@
     "dev": "cross-env NODE_ENV=development ./node_modules/.bin/ts-node-dev -r ./node_modules/tsconfig-paths/register --respawn --transpile-only src/bot.ts",
     "build": "tsc && tsc-alias",
     "build:prod": "tsc -p tsconfig.prod.json && tsc-alias",
-    "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && tsc-alias",
+    "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && tsc-alias -p tsconfig.json",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "node dist/webhook.js",

@@ -1,4 +1,4 @@
-import express from 'express'
+import express, { Express } from 'express'
 import { Telegraf } from 'telegraf'
 import { MyContext } from './interfaces'
 
@@ -10,7 +10,10 @@ app.use(express.json())
  * Настраивает обработку вебхуков для ботов на основном порту
  * @param botInstances Массив экземпляров ботов
  */
-export function setupWebhookHandlers(botInstances: Telegraf<MyContext>[]) {
+
+export function setupWebhookHandlers(
+  botInstances: Telegraf<MyContext>[]
+): Express {
   // Логирование всех входящих запросов
   app.use((req, res, next) => {
     console.log(`📥 Входящий запрос: ${req.method} ${req.path}`)

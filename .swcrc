@@ -38,6 +38,7 @@
       "@/handlers/*": ["handlers/*"],
       "@/helpers/*": ["helpers/*"],
       "@/scripts/*": ["scripts/*"],
+      
     }
   },
   "module": {

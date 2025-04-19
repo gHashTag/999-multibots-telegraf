@@ -47,12 +47,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/nginx:/etc/nginx
       - /etc/pki:/etc/pki
-      # Оставляем закомментированным только проблемный путь
-      # - /root/.ssh:/app/.ssh:ro
-      # Файлы Ansible
-      - ./playbook.yml:/app/playbook.yml:ro
-      - ./inventory:/app/inventory:ro
-      - ./roles:/app/roles:ro
       - ./:/app
     dns:
       - 8.8.8.8
