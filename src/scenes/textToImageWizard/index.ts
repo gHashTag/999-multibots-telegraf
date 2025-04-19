@@ -118,7 +118,13 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         )
         // @ts-expect-error Линтер неправ, getUserBalance принимает number
         const balance = await getUserBalance(ctx.from.id)
-        await sendBalanceMessage(ctx, balance, price, isRu)
+        await sendBalanceMessage(
+          ctx,
+          balance,
+          price,
+          isRu,
+          ctx.botInfo.username
+        )
 
         await ctx.replyWithPhoto(selectedModelInfo.previewImage, {
           caption: isRu

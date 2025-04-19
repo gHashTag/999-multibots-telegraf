@@ -29,7 +29,13 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    await sendBalanceMessage(ctx, currentBalance, price, isRu)
+    await sendBalanceMessage(
+      ctx,
+      currentBalance,
+      price,
+      isRu,
+      ctx.botInfo.username
+    )
 
     await ctx.reply(
       isRu
