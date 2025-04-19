@@ -1,9 +1,19 @@
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
-import { MyContext, Level } from '@/interfaces/telegram-bot.interface'
+import {
+  MyContext,
+  Level as ImportedLevel,
+} from '@/interfaces/telegram-bot.interface'
+import { logger } from '@/utils/logger'
 
-export const levels: Record<number, Level> = {
+import { checkPaymentStatus } from '@/core/supabase'
+
+export const levels: Record<number, ImportedLevel> = {
+  0: {
+    title_ru: '💫 Оформить подписку',
+    title_en: '💫 Subscribe',
+  },
   // digital_avatar_body
   1: {
     title_ru: '🤖 Цифровое тело',
@@ -59,15 +69,6 @@ export const levels: Record<number, Level> = {
     title_ru: '🖼️ Текст в фото',
     title_en: '🖼️ Text to Image',
   },
-  // lip_sync
-  // 12: {
-  //   title_ru: '🎤 Синхронизация губ',
-  //   title_en: '🎤 Lip Sync',
-  // },
-  // 13: {
-  //   title_ru: '🎥 Видео в URL',
-  //   title_en: '🎥 Video in URL',
-  // },
   // step0
   // paymentScene
   100: {
@@ -90,12 +91,8 @@ export const levels: Record<number, Level> = {
     title_en: '❓ Help',
   },
   104: {
-    title_ru: '🛠 Техподдержка',
-    title_en: '🛠 Tech Support',
-  },
-  105: {
-    title_ru: '💫 Оформить подписку',
-    title_en: '💫 Subscribe',
+    title_ru: '🏠 Главное меню',
+    title_en: '🏠 Main menu',
   },
 }
 
@@ -104,84 +101,135 @@ export const mainMenuButton = {
   title_en: '🏠 Main menu',
 }
 
+const adminIds = process.env.ADMIN_IDS?.split(',') || []
+
 export async function mainMenu({
   isRu,
+  inviteCount,
   subscription = SubscriptionType.STARS,
   level,
-  additionalButtons = [],
+  ctx,
 }: {
   isRu: boolean
   inviteCount: number
   subscription: SubscriptionType
   level: number
   ctx: MyContext
-  additionalButtons?: Level[]
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
-  console.log('💻 CASE: mainMenu')
+  logger.info('CASE: mainMenu')
+  let hasFullAccess = false //await checkPaymentStatus(ctx, subscription)
+  logger.info(
+    `[mainMenu] checkPaymentStatus result (hasFullAccess): ${hasFullAccess}`
+  )
 
-  // Основная конфигурация меню
-  const subscriptionLevelsMap = {
-    stars: [levels[105], levels[104]],
-    neurophoto: [
+  const subscriptionButton = isRu ? levels[0].title_ru : levels[0].title_en
+
+  const subscriptionLevelsMap: Record<SubscriptionType, ImportedLevel[]> = {
+    [SubscriptionType.STARS]: [levels[0]],
+    [SubscriptionType.NEUROPHOTO]: [
       levels[1],
       levels[2],
       levels[3],
       levels[100],
       levels[101],
       levels[102],
-      levels[103],
-      levels[104],
-      levels[105],
     ],
-    neurobase: Object.values(levels),
-    neuromeeting: Object.values(levels),
-    neuroblogger: Object.values(levels),
-    neurotester: Object.values(levels),
+    [SubscriptionType.NEUROBASE]: Object.values(levels).slice(1),
+    [SubscriptionType.NEUROMEETING]: Object.values(levels).slice(1),
+    [SubscriptionType.NEUROBLOGGER]: Object.values(levels).slice(1),
+    [SubscriptionType.NEUROTESTER]: Object.values(levels),
   }
 
-  // Получаем основные кнопки для текущей подписки
-  let availableLevels =
-    subscriptionLevelsMap[subscription as keyof typeof subscriptionLevelsMap] ||
-    []
+  logger.info({ message: '[mainMenu] Input:', isRu, sub: subscription, level })
 
-  // Для neurophoto при уровне 3 добавляем дополнительные кнопки
-  if (subscription === SubscriptionType.NEUROPHOTO && level >= 3) {
-    availableLevels = [
-      ...availableLevels.filter(l => l.title_ru !== mainMenuButton.title_ru),
-      ...additionalButtons,
-    ]
+  let availableLevels: ImportedLevel[] =
+    subscriptionLevelsMap[subscription] || []
+  logger.info({
+    message: '[mainMenu] Initial availableLevels from map',
+    count: availableLevels.length,
+    levels: availableLevels.map(l => (isRu ? l.title_ru : l.title_en)),
+  })
+
+  if (subscription === SubscriptionType.NEUROTESTER) {
+    logger.info('[mainMenu] NEUROTESTER detected, setting full access')
+    hasFullAccess = true
+    availableLevels = Object.values(levels)
+  } else if (subscription === SubscriptionType.STARS) {
+    logger.info('[mainMenu] STARS subscription detected')
+    const baseStarLevels = subscriptionLevelsMap[SubscriptionType.STARS] || []
+    const unlockedLevels = Object.values(levels).slice(1, inviteCount + 1)
+    availableLevels = [...baseStarLevels, ...unlockedLevels]
+    logger.info({
+      message: '[mainMenu] STARS levels calculated',
+      inviteCount,
+      baseStarLevels: baseStarLevels.map(l => (isRu ? l.title_ru : l.title_en)),
+      unlockedLevels: unlockedLevels.map(l => (isRu ? l.title_ru : l.title_en)),
+      finalAvailable: availableLevels.map(l =>
+        isRu ? l.title_ru : l.title_en
+      ),
+    })
   }
 
-  // Удаляем дубликаты уровней
-  availableLevels = Array.from(new Set(availableLevels))
+  const additionalButtons = [levels[100], levels[101], levels[102], levels[103]]
 
-  // Для подписок с полным доступом не фильтруем по уровню
-  if (!['neurotester', 'neurobase'].includes(subscription)) {
-    availableLevels = availableLevels.filter(
-      l =>
-        // Оставляем кнопки, которые есть в subscriptionLevelsMap
-        subscriptionLevelsMap[
-          subscription as keyof typeof subscriptionLevelsMap
-        ].includes(l) ||
-        // Или это дополнительные кнопки
-        additionalButtons.includes(l)
+  if (
+    subscription === SubscriptionType.STARS ||
+    !subscriptionLevelsMap[subscription]
+  ) {
+    additionalButtons.push(levels[0])
+  }
+
+  availableLevels = [...availableLevels, ...additionalButtons]
+
+  const uniqueLevels = new Map<number, ImportedLevel>()
+  Object.entries(levels).forEach(([key, levelData]) => {
+    if (availableLevels.some(l => l === levelData)) {
+      uniqueLevels.set(parseInt(key, 10), levelData)
+    }
+  })
+  availableLevels = Array.from(uniqueLevels.values())
+
+  logger.info({
+    message:
+      '[mainMenu] Available levels after adding additional & deduplicating',
+    count: availableLevels.length,
+    levels: availableLevels.map(l => (isRu ? l.title_ru : l.title_en)),
+  })
+
+  if (availableLevels.length === 0) {
+    logger.warn(
+      '[mainMenu] No available levels after all processing. Adding only subscription button.'
     )
+    return Markup.keyboard([[Markup.button.text(subscriptionButton)]]).resize()
   }
 
-  // Формируем кнопки
-  const buttons = availableLevels.map(level =>
-    Markup.button.text(isRu ? level.title_ru : level.title_en)
+  const buttons = availableLevels.map(levelData =>
+    Markup.button.text(isRu ? levelData.title_ru : levelData.title_en)
   )
 
-  // Разбиваем на строки по 2 кнопки
+  logger.info({
+    message: '[mainMenu] Final buttons generated',
+    count: buttons.length,
+    button_texts: buttons.map(b => ('text' in b ? b.text : '')),
+  })
+
+  const userId = ctx.from?.id?.toString()
+
+  if (userId && adminIds.includes(userId)) {
+    logger.info('[mainMenu] Adding admin buttons')
+    const adminButtons = [
+      Markup.button.text(isRu ? 'ADMIN: Цифровое тело' : 'ADMIN: Digital Body'),
+      Markup.button.text(isRu ? 'ADMIN: Нейрофото' : 'ADMIN: NeuroPhoto'),
+    ]
+    buttons.push(...adminButtons)
+  }
+
   const buttonRows = []
   for (let i = 0; i < buttons.length; i += 2) {
     buttonRows.push(buttons.slice(i, i + 2))
   }
 
-  console.log(
-    '👉 Available buttons:',
-    buttons.map(b => b.text)
-  )
+  logger.info({ message: '[mainMenu] Generated buttonRows:', buttonRows })
+
   return Markup.keyboard(buttonRows).resize()
 }

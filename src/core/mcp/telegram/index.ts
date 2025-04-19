@@ -237,7 +237,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
         statusMessage += `ID: ${task.id}\n`
         statusMessage += `Статус: ${task.status}\n`
         statusMessage += `Создана: ${task.created.toLocaleString()}\n`
-        statusMessage += `Задача: ${task.description.substring(0, 50)}${task.description.length > 50 ? '...' : ''}\n`
+        statusMessage += `Задача: ${task.description.substring(0, 50)}${
+          task.description.length > 50 ? '...' : ''
+        }\n`
 
         if (task.status === TaskStatus.COMPLETED && task.result) {
           const createdFiles = task.result.createdFiles || []
@@ -264,7 +266,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
     } catch (error) {
       console.error('Error checking tasks:', error)
       await ctx.reply(
-        `❌ Ошибка при проверке задач: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+        `❌ Ошибка при проверке задач: ${
+          error instanceof Error ? error.message : 'Неизвестная ошибка'
+        }`
       )
     }
   })
@@ -314,7 +318,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
         } catch (error) {
           console.error('Error during improvement scanning:', error)
           await ctx.reply(
-            `❌ Ошибка при сканировании: ${error instanceof Error ? error.message : String(error)}`
+            `❌ Ошибка при сканировании: ${
+              error instanceof Error ? error.message : String(error)
+            }`
           )
         }
       }, 0)
@@ -388,7 +394,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
           let replyMessage =
             `✅ Сканирование нескольких репозиториев завершено!\n\n` +
             `📊 Статистика:\n` +
-            `- Проанализировано репозиториев: ${scanResults.analyzed_repositories?.length || 0}\n` +
+            `- Проанализировано репозиториев: ${
+              scanResults.analyzed_repositories?.length || 0
+            }\n` +
             `- Проанализировано файлов: ${scanResults.total_files_analyzed}\n` +
             `- Найдено предложений: ${scanResults.suggestions.length}\n\n`
 
@@ -431,7 +439,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
         } catch (error) {
           console.error('Error during multi-repo scanning:', error)
           await ctx.reply(
-            `❌ Ошибка при сканировании: ${error instanceof Error ? error.message : String(error)}`
+            `❌ Ошибка при сканировании: ${
+              error instanceof Error ? error.message : String(error)
+            }`
           )
         }
       }, 0)
@@ -488,7 +498,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
       }
 
       if (improvement.confidence_score !== undefined) {
-        detailsMessage += `Уверенность: ${(improvement.confidence_score * 100).toFixed(1)}%\n`
+        detailsMessage += `Уверенность: ${(
+          improvement.confidence_score * 100
+        ).toFixed(1)}%\n`
       }
 
       if (improvement.potential_impact) {
@@ -501,7 +513,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
 
       detailsMessage +=
         `\nОписание:\n${improvement.description}\n\n` +
-        `Затронутые файлы:\n${improvement.affected_files.map(file => `- ${file}`).join('\n')}\n\n` +
+        `Затронутые файлы:\n${improvement.affected_files
+          .map(file => `- ${file}`)
+          .join('\n')}\n\n` +
         `Рекомендуемое действие:\n${improvement.suggested_action}\n\n` +
         `Обнаружено: ${improvement.detected_at.toLocaleString()}\n`
 
@@ -523,7 +537,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
     } catch (error) {
       console.error('Error getting improvement details:', error)
       await ctx.reply(
-        `❌ Ошибка при получении деталей: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Ошибка при получении деталей: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       )
     }
   })
@@ -567,7 +583,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
     } catch (error) {
       console.error('Error applying improvement:', error)
       await ctx.reply(
-        `❌ Ошибка при применении улучшения: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Ошибка при применении улучшения: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       )
     }
   })
@@ -619,7 +637,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
     } catch (error) {
       console.error('Error rating improvement:', error)
       await ctx.reply(
-        `❌ Ошибка при сохранении оценки: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Ошибка при сохранении оценки: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       )
     }
   })
@@ -664,7 +684,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
     } catch (error) {
       console.error('Error enabling periodic scanning:', error)
       await ctx.reply(
-        `❌ Ошибка при включении периодического сканирования: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Ошибка при включении периодического сканирования: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       )
     }
   })
@@ -689,7 +711,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
     } catch (error) {
       console.error('Error disabling periodic scanning:', error)
       await ctx.reply(
-        `❌ Ошибка при отключении периодического сканирования: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Ошибка при отключении периодического сканирования: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       )
     }
   })
@@ -731,7 +755,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
     } catch (error) {
       console.error('Error generating improvement report:', error)
       await ctx.reply(
-        `❌ Ошибка при генерации отчета: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Ошибка при генерации отчета: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       )
     }
   })
@@ -836,11 +862,6 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
     if ('text' in ctx.message) {
       const text = ctx.message.text
 
-      // Проверяем, не является ли сообщение командой
-      if (text.startsWith('/')) {
-        return
-      }
-
       try {
         // Отправляем сообщение о начале обработки
         const statusMessage = await ctx.reply('🤔 Обрабатываю ваш запрос...')
@@ -918,7 +939,9 @@ const setupHandlers = (bot: Telegraf<Context>, state: BotState): void => {
           } catch (error) {
             console.error('Error starting background improvement:', error)
             await ctx.reply(
-              `❌ Ошибка при запуске фонового самосовершенствования: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+              `❌ Ошибка при запуске фонового самосовершенствования: ${
+                error instanceof Error ? error.message : 'Неизвестная ошибка'
+              }`
             )
           }
           return

@@ -11,6 +11,7 @@ import { handleMenu } from '@/handlers'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 const menuCommandStep = async (ctx: MyContext) => {
+  logger.info('➡️ [MenuScene Step 1] Entered scene')
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
   try {
@@ -42,21 +43,12 @@ const menuCommandStep = async (ctx: MyContext) => {
       count: newCount,
     })
 
-    const additionalButtons = [
-      levels[100], // Пополнить баланс
-      levels[101], // Баланс
-      levels[102], // Пригласить друга
-      levels[103], // Помощь
-      levels[104], // Техподдержка
-    ]
-
     const keyboard = await mainMenu({
       isRu,
       subscription: newSubscription,
       level: newLevel,
       ctx,
       inviteCount: newCount,
-      additionalButtons,
     })
 
     const message = getText(isRu, 'mainMenu')
@@ -67,36 +59,47 @@ const menuCommandStep = async (ctx: MyContext) => {
       telegram_id,
       subscription: newSubscription,
     })
-
+    logger.info('➡️ [MenuScene Step 1] Moving to next step...')
     return ctx.wizard.next()
   } catch (error) {
-    logger.error('❌ Ошибка в меню:', {
+    logger.error('💥 [MenuScene Step 1] Error:', {
       description: 'Error in menu',
       error: error instanceof Error ? error.message : String(error),
       telegram_id: ctx.from?.id,
     })
     await sendGenericErrorMessage(ctx, isRu, error as Error)
+    logger.info('➡️ [MenuScene Step 1] Leaving scene due to error...')
     return ctx.scene.leave()
   }
 }
 
 const menuNextStep = async (ctx: MyContext) => {
+  logger.info('➡️ [MenuScene Step 2] Entered step', { userId: ctx.from?.id })
   console.log('CASE 1: menuScene.next')
   if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
     const text = ctx.update.callback_query.data
     console.log('text 1', text)
     if (text === 'unlock_features') {
       console.log('CASE: 🔓 Разблокировать все функции')
+      logger.info(
+        '➡️ [MenuScene Step 2 CB] Intending to enter SubscriptionScene...'
+      )
       await ctx.scene.enter(ModeEnum.SubscriptionScene)
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
+    logger.info(
+      '➡️ [MenuScene Step 2 Text] Received text, calling handleMenu...',
+      { text }
+    )
     console.log('CASE menuNextStep: text 2', text)
     await handleMenu(ctx)
     return
   } else {
+    logger.info('➡️ [MenuScene Step 2] Unknown input type')
     console.log('CASE: menuScene.next.else')
   }
+  logger.info('➡️ [MenuScene Step 2] Leaving scene by default...')
   ctx.scene.leave()
 }
 

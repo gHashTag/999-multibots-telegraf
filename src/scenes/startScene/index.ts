@@ -48,6 +48,9 @@ async function sendTutorialMessage(ctx: MyContext, isRu: boolean) {
 export const startScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.StartScene,
   async ctx => {
+    logger.info('➡️ [StartScene Step 1] Entered scene', {
+      userId: ctx.from?.id,
+    })
     try {
       const isRu = ctx.from?.language_code === 'ru'
       const { translation } = await getTranslation('start', ctx)
@@ -72,11 +75,13 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         }
       )
 
+      logger.info('➡️ [StartScene Step 1] Sending tutorial message...')
       await sendTutorialMessage(ctx, isRu)
 
+      logger.info('➡️ [StartScene Step 1] Moving to next step...')
       ctx.wizard.next()
     } catch (error) {
-      logger.error({
+      logger.error('💥 [StartScene Step 1] Error:', {
         message: '❌ Ошибка в сцене старта',
         description: 'Error in start scene',
         error: error instanceof Error ? error.message : String(error),
@@ -100,39 +105,67 @@ export const startScene = new Scenes.WizardScene<MyContext>(
             .oneTime().reply_markup,
         }
       )
+      logger.info('➡️ [StartScene Step 1] Moving to next step after error...')
       ctx.wizard.next()
     }
   },
   async (ctx: MyContext) => {
+    logger.info('➡️ [StartScene Step 2] Entered step', { userId: ctx.from?.id })
     const isRu = ctx.from?.language_code === 'ru'
     const telegram_id = ctx.from?.id?.toString() || ''
+    logger.info('➡️ [StartScene Step 2] Calling getReferalsCountAndUserData...')
     const { userData, isExist } = await getReferalsCountAndUserData(telegram_id)
+    logger.info(
+      '➡️ [StartScene Step 2] Result from getReferalsCountAndUserData',
+      { isExist, subscription: userData?.subscription }
+    )
     console.log('isExist', isExist)
     if (!isExist) {
+      logger.info(
+        '➡️ [StartScene Step 2] User does not exist. Intending to enter CreateUserScene...'
+      )
       await ctx.scene.enter(ModeEnum.CreateUserScene)
       return
     }
     const telegramId = ctx.from?.id.toString()
     if (!telegramId) {
+      logger.error('💥 [StartScene Step 2] Telegram ID not found')
       await ctx.reply(
         isRu
           ? '❌ Ошибка: не удалось получить ID пользователя'
           : '❌ Error: User ID not found'
       )
+      logger.info('➡️ [StartScene Step 2] Leaving scene due to missing ID...')
       return ctx.scene.leave()
     }
     if (!userData?.subscription) {
+      logger.info(
+        '➡️ [StartScene Step 2] User has no subscription. Intending to enter SubscriptionScene...'
+      )
       await ctx.scene.enter(ModeEnum.SubscriptionScene)
       return
     }
     if (userData.subscription === SubscriptionType.STARS) {
+      logger.info(
+        '➡️ [StartScene Step 2] User has STARS subscription. Intending to enter SubscriptionScene...'
+      )
       await ctx.scene.enter(ModeEnum.SubscriptionScene)
       return
     }
+    logger.info('➡️ [StartScene Step 2] Checking payment status...')
     const hasFullAccess = await checkPaymentStatus(ctx, userData.subscription)
+    logger.info('➡️ [StartScene Step 2] Payment status check result', {
+      hasFullAccess,
+    })
     if (hasFullAccess) {
+      logger.info(
+        '➡️ [StartScene Step 2] User has full access. Intending to enter MainMenu...'
+      )
       await ctx.scene.enter(ModeEnum.MainMenu)
     } else {
+      logger.info(
+        '➡️ [StartScene Step 2] User does not have full access. Intending to enter SubscriptionScene...'
+      )
       await ctx.scene.enter(ModeEnum.SubscriptionScene)
     }
   }

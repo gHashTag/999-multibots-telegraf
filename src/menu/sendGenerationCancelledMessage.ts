@@ -9,8 +9,9 @@ export const sendGenerationCancelledMessage = async (
 ) => {
   const message = isRu ? '❌ Генерация отменена' : '❌ Generation cancelled'
   const telegram_id = ctx.from?.id?.toString() || ''
-  const { count, subscription, level } =
-    await getReferalsCountAndUserData(telegram_id)
+  const { count, subscription, level } = await getReferalsCountAndUserData(
+    telegram_id
+  )
 
   await ctx.reply(message, {
     reply_markup: {
@@ -21,7 +22,6 @@ export const sendGenerationCancelledMessage = async (
           level,
           ctx,
           inviteCount: count,
-          additionalButtons: [],
         })
       ).reply_markup.keyboard,
     },

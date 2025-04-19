@@ -30,7 +30,7 @@ export const handleMenu = async (ctx: MyContext) => {
 
     // Создаем объект для сопоставления текста с действиями
     const actions = {
-      [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
+      [isRu ? levels[0].title_ru : levels[0].title_en]: async () => {
         console.log('CASE: 💫 Оформление подписки')
         ctx.session.mode = ModeEnum.Subscribe
         await ctx.scene.enter(ModeEnum.SubscriptionScene)
@@ -156,13 +156,19 @@ export const handleMenu = async (ctx: MyContext) => {
         await ctx.scene.enter(ModeEnum.HelpScene)
       },
       '/menu': async () => {
-        console.log('CASE: 🏠 Главное меню')
-        ctx.session.mode = ModeEnum.MainMenu
+        console.log('CASE: 🏠 Главное меню (command handler)')
+        // Сбрасываем сессию перед входом в меню
+        resetSessionForMenu(ctx.session)
+        logger.info(
+          '➡️ [HandleMenu /menu] Intending to enter MainMenu scene...'
+        )
         await ctx.scene.enter(ModeEnum.MainMenu)
       },
       [isRu ? mainMenuButton.title_ru : mainMenuButton.title_en]: async () => {
-        console.log('CASE: 🏠 Главное меню')
-        ctx.session.mode = ModeEnum.MainMenu
+        console.log('CASE: 🏠 Главное меню (text handler)')
+        // Сбрасываем сессию перед входом в меню
+        resetSessionForMenu(ctx.session)
+        logger.info('➡️ [HandleMenu text] Intending to enter MainMenu scene...')
         await ctx.scene.enter(ModeEnum.MainMenu)
       },
       '/tech': async () => {
@@ -194,6 +200,23 @@ export const handleMenu = async (ctx: MyContext) => {
       }
     }
   }
+}
+
+function resetSessionForMenu(session: MyContext['session']) {
+  logger.info(
+    '🔄 [resetSessionForMenu HandleMenu] Resetting session before entering menu...'
+  )
+  session.mode = ModeEnum.MainMenu // Устанавливаем режим меню
+  session.prompt = ''
+  session.userModel = {
+    model_name: '',
+    trigger_word: '',
+    model_url: '' as `${string}/${string}:${string}`,
+    model_key: '' as `${string}/${string}:${string}`,
+  }
+  session.selectedModel = undefined
+  session.audioUrl = undefined
+  // Добавьте сюда другие поля, если они влияют на меню
 }
 
 export default handleMenu

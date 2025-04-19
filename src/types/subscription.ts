@@ -58,6 +58,22 @@ export const subscriptionConfigs: Record<SubscriptionType, SubscriptionConfig> =
       ],
       stars: 1303,
     },
+    [SubscriptionType.NEUROMEETING]: {
+      title: '🤝 NeuroMeeting',
+      titleRu: '🤝 НейроМитинг',
+      titleEn: '🤝 NeuroMeeting',
+      description: 'Subscription for meetings (copied from NeuroBase)',
+      price: 2999,
+      duration: 30,
+      features: [
+        'All functions of NeuroPHOTO',
+        'Advanced effects',
+        'Priority support',
+        'Access to all models',
+        'Personal manager',
+      ],
+      stars: 1303,
+    },
     [SubscriptionType.NEUROTESTER]: {
       title: '🧪 NeuroTester',
       titleRu: '🧪 НейроТестер',

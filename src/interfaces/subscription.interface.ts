@@ -3,6 +3,7 @@ export enum SubscriptionType {
   NEUROBASE = 'NEUROBASE',
   NEUROTESTER = 'NEUROTESTER',
   NEUROBLOGGER = 'NEUROBLOGGER',
+  NEUROMEETING = 'NEUROMEETING',
   STARS = 'stars',
 }
 

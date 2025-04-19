@@ -85,6 +85,6 @@ export const stage = new Scenes.Stage<MyContext>(
   {
     // Опциональные параметры:
     ttl: 3600, // Время жизни данных сцены (в секундах)
-    default: ModeEnum.StartScene, // Дефолтная сцена при ошибках
+    default: ModeEnum.WelcomeScene, // Устанавливаем новую дефолтную сцену
   }
 )

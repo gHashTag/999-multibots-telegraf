@@ -52,8 +52,9 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     }
     const userModel = await getLatestUserModel(telegramId, 'replicate')
 
-    const { count, subscription, level } =
-      await getReferalsCountAndUserData(telegramId)
+    const { count, subscription, level } = await getReferalsCountAndUserData(
+      telegramId
+    )
 
     if (!userModel || !userModel.model_url) {
       await ctx.reply(
@@ -218,7 +219,6 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         level,
         ctx,
         inviteCount: count,
-        additionalButtons: [],
       })
     }
   }

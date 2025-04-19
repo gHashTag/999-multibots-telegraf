@@ -74,7 +74,7 @@ export const BASE_COSTS = {
   [ModeEnum.CancelPredictionsWizard]: 0,
   [ModeEnum.EmailWizard]: 0,
   [ModeEnum.HelpScene]: 0,
-  [ModeEnum.StartScene]: 0,
+  [ModeEnum.WelcomeScene]: 0,
 } as const
 
 // Speech-related costs (in stars)

@@ -1,6 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
 import { ModeEnum } from '@/interfaces/modes'
+import { logger } from '@/utils/logger'
 
 import { Telegraf } from 'telegraf'
 
@@ -15,8 +16,9 @@ export function registerHearsActions(bot: Telegraf<MyContext>) {
   )
 
   bot.hears(['🏠 Главное меню', '🏠 Main menu'], async (ctx: MyContext) => {
-    console.log('CASE: Главное меню')
+    console.log('CASE: Главное меню HEARS handler')
     ctx.session.mode = ModeEnum.MainMenu
+    logger.info('➡️ [HearsActions] Intending to enter MainMenu scene...')
     await ctx.scene.enter(ModeEnum.MainMenu)
   })
 

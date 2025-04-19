@@ -79,11 +79,34 @@ export const createBots = async () => {
       })
 
       await setBotCommands(bot)
-      registerCommands({ bot, composer })
+      // Передаем только bot, так как composer больше не используется в registerCommands
+      registerCommands({ bot })
 
       registerCallbackActions(bot)
       registerPaymentActions(bot)
       registerHearsActions(bot)
+
+      // Log every incoming update
+      bot.use(async (ctx: MyContext, next) => {
+        logger.info('📥 [BOT] Incoming Update:', {
+          updateId: ctx.update.update_id,
+          type: ctx.updateType,
+          userId: ctx.from?.id,
+          chatId: ctx.chat?.id,
+          sessionMode: ctx.session?.mode, // Log current session mode
+          sceneState: ctx.scene?.current?.id, // Log current scene ID
+        })
+        try {
+          await next()
+        } catch (error) {
+          logger.error('💥 [BOT] Uncaught Error in middleware:', {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            updateId: ctx.update.update_id,
+          })
+          // Handle or report error appropriately
+        }
+      })
 
       // webhookPath определяется выше
       const webhookUrl = `https://999-multibots-telegraf-u14194.vm.elestio.app`
