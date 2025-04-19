@@ -247,11 +247,6 @@ checkBalanceScene.enter(async ctx => {
     const currentBalance = userDetails.stars
     const cost = modeCosts[mode] || 0
     const costValue = getCostValue(cost)
-    console.log('⭐️ cost:', costValue)
-
-    if (costValue !== 0) {
-      await sendBalanceMessage(ctx, currentBalance, costValue, isRu)
-    }
 
     logger.info({
       message: `[Balance Check] User: ${telegramId}, Mode: ${mode}, Cost: ${costValue}, Balance: ${currentBalance}`,

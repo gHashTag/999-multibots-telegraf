@@ -21,67 +21,67 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         console.log('CASE: 🤖 Цифровое тело')
         ctx.session.mode = ModeEnum.DigitalAvatarBody
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2']: async () => {
         console.log('CASE: 🤖 Цифровое тело 2')
         ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         console.log('CASE handleMenu: 📸 Нейрофото')
         ctx.session.mode = ModeEnum.NeuroPhoto
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? '📸 Нейрофото 2' : '📸 NeuroPhoto 2']: async () => {
         console.log('CASE: 📸 Нейрофото 2')
         ctx.session.mode = ModeEnum.NeuroPhotoV2
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
         console.log('CASE: 🔍 Промпт из фото')
         ctx.session.mode = ModeEnum.ImageToPrompt
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[4].title_ru : levels[4].title_en]: async () => {
         console.log('CASE: 🧠 Мозг аватара')
         ctx.session.mode = ModeEnum.Avatar
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[5].title_ru : levels[5].title_en]: async () => {
         console.log('CASE: 💭 Чат с аватаром')
         ctx.session.mode = ModeEnum.ChatWithAvatar
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[6].title_ru : levels[6].title_en]: async () => {
         console.log('CASE: 🤖 Выбор модели ИИ')
         ctx.session.mode = ModeEnum.SelectModel
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[7].title_ru : levels[7].title_en]: async () => {
         console.log('CASE: 🎤 Голос аватара')
         ctx.session.mode = ModeEnum.Voice
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[8].title_ru : levels[8].title_en]: async () => {
         console.log('CASE: 🎙️ Текст в голос')
         ctx.session.mode = ModeEnum.TextToSpeech
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[9].title_ru : levels[9].title_en]: async () => {
         console.log('CASE: 🎥 Фото в видео')
         ctx.session.mode = ModeEnum.ImageToVideo
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[10].title_ru : levels[10].title_en]: async () => {
         console.log('CASE:  Видео из текста')
         ctx.session.mode = ModeEnum.TextToVideo
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
         console.log('CASE: 🖼️ Текст в фото')
         ctx.session.mode = ModeEnum.TextToImage
-        await ctx.scene.enter('checkBalanceScene')
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       },
       // [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
       //   console.log('CASE: 🎤 Синхронизация губ')
@@ -111,12 +111,12 @@ export const handleMenu = async (ctx: MyContext) => {
       [isRu ? levels[103].title_ru : levels[103].title_en]: async () => {
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
-        await ctx.scene.enter('helpScene')
+        await ctx.scene.enter(ModeEnum.HelpScene)
       },
       [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
         console.log('CASE: 🏠 Главное меню')
         ctx.session.mode = ModeEnum.MainMenu
-        await ctx.scene.enter('menuScene')
+        await ctx.scene.enter(ModeEnum.MainMenu)
       },
       '/invite': async () => {
         console.log('CASE: 👥 Пригласить друга')

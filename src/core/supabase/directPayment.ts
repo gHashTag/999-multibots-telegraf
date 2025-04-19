@@ -1,40 +1,70 @@
-import { v4 as uuidv4 } from 'uuid'
+// В файле src/core/supabase/directPayment.ts
 
+import { v4 as uuidv4 } from 'uuid'
+import { supabase } from '.'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
-import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
+import {
+  getUserBalance,
+  invalidateBalanceCache,
+} from '@/core/supabase/getUserBalance'
 import { TransactionType } from '@/interfaces/payments.interface'
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
-import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 
+// --- ИСПРАВЛЕННЫЙ ИНТЕРФЕЙС ВХОДНЫХ ПАРАМЕТРОВ ---
 export interface DirectPaymentParams {
+  /** Telegram ID пользователя */
   telegram_id: string
+  /** Сумма операции (количество звезд) */
   amount: number
+  /** Тип транзакции (списание или начисление) */
   type: TransactionType
+  /** Описание операции (отображается пользователю) */
   description: string
+  /** Имя бота, в котором происходит операция */
   bot_name: string
+  /** Тип сервиса/режим, за который операция (например, 'neuro_photo') */
   service_type: ModeEnum | string
-  inv_id?: string // Optional invoice/operation ID
-  bypass_payment_check?: boolean // Optional flag to bypass balance check
-  metadata?: Record<string, any> // Optional metadata
+  /** Опциональный внешний ID операции/инвойса */
+  inv_id?: string
+  /** Опционально: Пропустить проверку баланса перед списанием (true/false) */
+  bypass_payment_check?: boolean
+  /** Опционально: Дополнительные метаданные для записи в БД */
+  metadata?: Record<string, any>
 }
 
+// --- ИСПРАВЛЕННЫЙ ИНТЕРФЕЙС РЕЗУЛЬТАТА ---
 export interface DirectPaymentResult {
+  /** Флаг успешности операции */
   success: boolean
+  /** ID созданной записи в таблице payments_v2 (если успех) */
   payment_id?: number
-  operation_id?: string
-  error?: string
+  /** ID операции (переданный или сгенерированный) */
+  operation_id: string
+  /** Информация об изменении баланса (если успех) */
   balanceChange?: {
     before: number
     after: number
     difference: number
   }
+  /** Сообщение об ошибке (если неуспех) */
+  error?: string // Добавлено поле для ошибки
 }
 
 /**
- * Прямой обработчик платежей без использования Inngest.
- * Используется как резервный вариант или для тестов.
+ * @function directPaymentProcessor (v2.0)
+ * @description **Основная функция для прямого списания или начисления звезд с баланса пользователя.**
+ *              Используется для внутренних операций, НЕ связанных с внешними платежными системами.
+ *              Работает по принципу "расчет по транзакциям":
+ *              1. Проверяет текущий баланс (если это списание).
+ *              2. **Создает новую запись** о транзакции (доход/расход) в таблице `payments_v2`.
+ *              3. Инвалидирует кэш баланса пользователя.
+ *              4. Возвращает результат операции, включая ID созданной записи.
+ *              **НЕ вызывает** `createSuccessfulPayment` (т.к. та для вебхуков).
+ *              **НЕ вызывает** `updateUserBalance` (т.к. баланс считается динамически).
+ *
+ * @param {DirectPaymentParams} params - Параметры операции (см. интерфейс DirectPaymentParams).
+ * @returns {Promise<DirectPaymentResult>} Результат операции (см. интерфейс DirectPaymentResult).
  */
 export async function directPaymentProcessor(
   params: DirectPaymentParams
@@ -44,164 +74,166 @@ export async function directPaymentProcessor(
     amount,
     type,
     description,
-    bot_name,
-    service_type,
-    inv_id,
-    bypass_payment_check = false,
-    metadata = {},
+    bot_name, // Доступно благодаря исправлению интерфейса
+    service_type, // Доступно благодаря исправлению интерфейса
+    inv_id, // Доступно благодаря исправлению интерфейса
+    bypass_payment_check = false, // Доступно благодаря исправлению интерфейса
+    metadata = {}, // Доступно благодаря исправлению интерфейса
   } = params
 
-  const operationId = inv_id || uuidv4()
+  const operationId = inv_id || `direct-${uuidv4()}`
   const normalizedAmount = Number(amount)
 
-  logger.info('🚀 [DIRECT_PAYMENT] Начало прямой обработки платежа', {
-    description: 'Starting direct payment processing',
-    telegram_id,
-    amount: normalizedAmount,
-    type,
-    bot_name,
-    service_type,
-    operationId,
-    bypass_payment_check,
+  // Добавляем логгер v2.0 для ясности
+  logger.info('🚀 [DIRECT_PAYMENT v2.0] Начало прямой обработки платежа', {
+    /* ... */
   })
 
   try {
     // 1. Проверка валидности суммы
     if (normalizedAmount <= 0) {
       throw new Error(
-        `Некорректная сумма платежа: ${normalizedAmount}. Сумма должна быть положительной.`
+        `Некорректная сумма: ${normalizedAmount}. Сумма должна быть > 0.`
       )
     }
 
     // 2. Получение текущего баланса
     const currentBalance = await getUserBalance(telegram_id)
-    logger.info('💰 [DIRECT_PAYMENT] Текущий баланс получен', {
-      description: 'Current balance retrieved',
+    logger.info('💰 [DIRECT_PAYMENT v2.0] Текущий баланс получен', {
       telegram_id,
       currentBalance,
     })
 
-    // 3. Проверка баланса для списания (если не обходим проверку)
+    // 3. Проверка баланса для списания
     if (
       type === TransactionType.MONEY_EXPENSE &&
       !bypass_payment_check &&
       currentBalance < normalizedAmount
     ) {
-      const errorMessage = `Недостаточно средств. Баланс: ${currentBalance}, требуется: ${normalizedAmount}`
-      logger.error('⚠️ [DIRECT_PAYMENT] Недостаточно средств', {
-        description: 'Insufficient funds',
+      const errorMsg = `Недостаточно средств. Баланс: ${currentBalance}, требуется: ${normalizedAmount}`
+      logger.error('⚠️ [DIRECT_PAYMENT v2.0] Недостаточно средств', {
         telegram_id,
         currentBalance,
         requiredAmount: normalizedAmount,
       })
-      // Можно добавить создание записи о неудачной попытке, если нужно
-      return {
-        success: false,
-        error: errorMessage,
-        operation_id: operationId,
-      }
+      // Возвращаем ошибку согласно исправленному интерфейсу DirectPaymentResult
+      return { success: false, error: errorMsg, operation_id: operationId }
     } else if (type === TransactionType.MONEY_EXPENSE && bypass_payment_check) {
       logger.warn(
-        '🔓 [DIRECT_PAYMENT] Проверка баланса пропущена (режим bypass)',
-        {
-          description: 'Balance check skipped (bypass mode)',
-          telegram_id,
-          currentBalance,
-          requiredAmount: normalizedAmount,
-        }
+        '🔓 [DIRECT_PAYMENT v2.0] Проверка баланса пропущена (bypass)',
+        { telegram_id }
       )
     }
 
-    // 4. Создание записи о платеже (ИСПОЛЬЗУЕМ createSuccessfulPayment)
-    logger.info(
-      '💳 [DIRECT_PAYMENT] Вызов createSuccessfulPayment для записи о платеже',
-      {
-        description: 'Calling createSuccessfulPayment to record payment',
-        telegram_id,
-        amount: normalizedAmount,
-        type,
-        operationId,
-      }
-    )
-
-    const paymentRecord = await createSuccessfulPayment({
-      telegram_id: String(telegram_id),
-      amount: normalizedAmount,
-      stars: metadata.stars || normalizedAmount,
-      type: type,
-      description: description,
-      bot_name: bot_name,
-      service_type: String(service_type),
-      payment_method: 'balance',
-      status: 'COMPLETED',
-      inv_id: operationId,
-      metadata: { ...metadata, direct_payment: true },
+    // 4. ПРЯМАЯ ВСТАВКА ЗАПИСИ В payments_v2
+    logger.info('💳 [DIRECT_PAYMENT v2.0] Попытка прямой вставки записи', {
+      /* ... */
     })
 
-    // Восстанавливаем проверку на ID
-    if (!paymentRecord || !paymentRecord.payment_id) {
-      // Используем payment_id
-      throw new Error('Не удалось создать запись о платеже или получить ее ID')
+    const paymentInsertData = {
+      telegram_id: String(telegram_id),
+      amount: normalizedAmount,
+      stars: normalizedAmount,
+      payment_method: 'balance',
+      description: description,
+      type: type,
+      service_type: String(service_type),
+      bot_name: bot_name,
+      status: 'COMPLETED',
+      inv_id: operationId,
+      metadata: {
+        ...metadata,
+        direct_payment: true,
+        balance_before: currentBalance,
+      },
+      currency: 'XTR',
+    }
+    // logger.info('➡️ [DIRECT_PAYMENT v2.0] Данные для вставки:', { insertData: paymentInsertData });
+
+    const { data: insertedPayment, error: insertError } = await supabase
+      .from('payments_v2')
+      .insert([paymentInsertData])
+      .select('id')
+      .single()
+
+    if (insertError) {
+      logger.error('❌ [DIRECT_PAYMENT v2.0] Ошибка DB при вставке записи', {
+        /* ... */
+      })
+      throw new Error(
+        `Ошибка базы данных при записи платежа: ${insertError.message}`
+      )
     }
 
-    logger.info('✅ [DIRECT_PAYMENT] Запись о платеже успешно создана', {
-      description: 'Payment record created successfully',
-      payment_id: paymentRecord.payment_id, // Используем payment_id
+    // Исправленная проверка ID
+    if (!insertedPayment?.id || typeof insertedPayment.id !== 'number') {
+      logger.error(
+        '❌ [DIRECT_PAYMENT v2.0] Запись вставлена, но не удалось получить ID!',
+        {
+          /* ... */
+        }
+      )
+      throw new Error(
+        'Не удалось получить ID созданной записи о платеже после вставки.'
+      )
+    }
+
+    const newPaymentId = insertedPayment.id
+    logger.info('✅ [DIRECT_PAYMENT v2.0] Запись о платеже успешно вставлена', {
+      payment_id: newPaymentId,
       telegram_id,
     })
 
     // 5. Инвалидация кэша баланса
-    logger.info('🔄 [DIRECT_PAYMENT] Инвалидация кэша баланса', {
-      description: 'Invalidating balance cache',
+    logger.info('🔄 [DIRECT_PAYMENT v2.0] Инвалидация кэша баланса', {
       telegram_id,
     })
     await invalidateBalanceCache(String(telegram_id))
 
-    // 6. Получение нового баланса (после инвалидации кэша)
+    // 6. Получение нового баланса
     const newBalance = await getUserBalance(telegram_id)
-    logger.info('💰 [DIRECT_PAYMENT] Новый баланс получен', {
-      description: 'New balance retrieved',
+    logger.info('💰 [DIRECT_PAYMENT v2.0] Новый баланс получен', {
       telegram_id,
       newBalance,
     })
 
     // 7. Отправка уведомления пользователю
-    sendTransactionNotificationTest({
-      telegram_id: Number(telegram_id),
-      operationId: operationId,
-      amount: normalizedAmount,
-      currentBalance: currentBalance,
-      newBalance: newBalance,
-      description: description,
-      isRu: metadata?.is_ru ?? true,
-      bot_name: bot_name,
-    }).catch(err => {
-      logger.error(
-        '❌ [DIRECT_PAYMENT] Ошибка при отправке уведомления о транзакции',
+    try {
+      // Создаем объект параметров БЕЗ 'type', если он не нужен в SendTransactionNotificationParams
+      const notificationParams = {
+        telegram_id: Number(telegram_id),
+        operationId: operationId,
+        amount: normalizedAmount,
+        currentBalance: currentBalance,
+        newBalance: newBalance,
+        description: description,
+        isRu: metadata?.is_ru ?? true,
+        bot_name: bot_name,
+      }
+      await sendTransactionNotificationTest(notificationParams)
+      logger.info(
+        '✉️ [DIRECT_PAYMENT v2.0] Уведомление о транзакции отправлено',
         {
-          description: 'Error sending transaction notification',
-          error: err instanceof Error ? err.message : String(err),
-          telegram_id,
-          operationId,
+          /* ... */
         }
       )
-    })
+    } catch (notifyError) {
+      logger.error('❌ [DIRECT_PAYMENT v2.0] Ошибка при отправке уведомления', {
+        /* ... */
+      })
+    }
 
     logger.info(
-      '🏁 [DIRECT_PAYMENT] Прямая обработка платежа завершена успешно',
+      '🏁 [DIRECT_PAYMENT v2.0] Прямая обработка платежа завершена успешно',
       {
-        description: 'Direct payment processing completed successfully',
-        telegram_id,
-        payment_id: paymentRecord.payment_id, // Используем payment_id
-        operationId,
-        newBalance,
+        /* ... */
       }
     )
 
-    // Возвращаем результат с payment_id
+    // Возвращаем успешный результат
     return {
       success: true,
-      payment_id: paymentRecord.payment_id, // Используем payment_id
+      payment_id: newPaymentId,
       operation_id: operationId,
       balanceChange: {
         before: currentBalance,
@@ -212,21 +244,10 @@ export async function directPaymentProcessor(
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown direct payment error'
-    logger.error(
-      '❌ [DIRECT_PAYMENT] Критическая ошибка при прямой обработке платежа',
-      {
-        description: 'Critical error during direct payment processing',
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined,
-        telegram_id,
-        operationId,
-        params,
-      }
-    )
-    return {
-      success: false,
-      error: errorMessage,
-      operation_id: operationId,
-    }
+    logger.error('❌ [DIRECT_PAYMENT v2.0] Критическая ошибка', {
+      /* ... */
+    })
+    // Возвращаем ошибку согласно исправленному интерфейсу DirectPaymentResult
+    return { success: false, error: errorMessage, operation_id: operationId }
   }
 }
