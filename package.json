@@ -6,7 +6,7 @@
   "license": "ISC",
   "scripts": {
     "predev": "pkill -f 'ts-node-dev.*src/bot.ts' || true && node scripts/kill-port.cjs 2999 3001",
-    "dev": "cross-env NODE_ENV=development ts-node-dev -r tsconfig-paths/register --respawn --transpile-only src/bot.ts",
+    "dev": "cross-env NODE_ENV=development ./node_modules/.bin/ts-node-dev -r ./node_modules/tsconfig-paths/register --respawn --transpile-only src/bot.ts",
     "build": "tsc && tsc-alias",
     "build:prod": "tsc -p tsconfig.prod.json && tsc-alias",
     "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && tsc-alias",
