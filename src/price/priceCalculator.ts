@@ -1,4 +1,43 @@
-interface ConversionRates {
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+
+// Базовые константы
+const COST_PER_STEP_IN_STARS = 0.22
+const COST_PER_STEP_IN_STARS_V2 = 0.5
+const RUBLES_TO_DOLLARS_RATE = 80
+const STAR_COST = 0.016 // Стоимость одной звезды в долларах
+
+// Стоимость шага в долларах и рублях
+export const stepCostInDollars = STAR_COST * COST_PER_STEP_IN_STARS
+export const stepCostInRubles = stepCostInDollars * RUBLES_TO_DOLLARS_RATE
+
+export interface PaymentOption {
+  amount: number
+  stars: string
+  subscription?: SubscriptionType
+}
+
+// У нас два тарифных плана, не менять!!!
+export const paymentOptionsPlans: PaymentOption[] = [
+  { amount: 1110, stars: '476', subscription: SubscriptionType.NEUROPHOTO },
+  { amount: 2999, stars: '1303', subscription: SubscriptionType.NEUROBASE },
+  {
+    amount: 75000,
+    stars: '32608',
+    subscription: SubscriptionType.NEUROBLOGGER,
+  },
+]
+
+export const paymentOptions: PaymentOption[] = [
+  { amount: 500, stars: '217' },
+  { amount: 1000, stars: '434' },
+  { amount: 2000, stars: '869' },
+  { amount: 5000, stars: '2173' },
+  { amount: 10000, stars: '4347' },
+  { amount: 1, stars: '1' },
+  // { amount: 10, stars: '6' },
+]
+
+export interface ConversionRates {
   costPerStarInDollars: number
   costPerStepInStars: number
   rublesToDollarsRate: number
@@ -6,10 +45,17 @@ interface ConversionRates {
 
 // Определяем конверсии
 export const conversionRates: ConversionRates = {
-  costPerStepInStars: 0.25,
-  costPerStarInDollars: 0.016,
-  rublesToDollarsRate: 100,
+  costPerStepInStars: COST_PER_STEP_IN_STARS,
+  costPerStarInDollars: STAR_COST,
+  rublesToDollarsRate: RUBLES_TO_DOLLARS_RATE,
 }
+
+export const conversionRatesV2: ConversionRates = {
+  costPerStepInStars: COST_PER_STEP_IN_STARS_V2,
+  costPerStarInDollars: STAR_COST,
+  rublesToDollarsRate: RUBLES_TO_DOLLARS_RATE,
+}
+
 export interface CostDetails {
   steps: number
   stars: number
@@ -17,18 +63,20 @@ export interface CostDetails {
   dollars: number
 }
 
-// Основная функция расчета стоимости
-export function calculateCost(steps: number): CostDetails {
-  const baseCost = steps * conversionRates.costPerStepInStars
+export function calculateCost(
+  steps: number,
+  version: 'v1' | 'v2' = 'v1'
+): CostDetails {
+  const rates = version === 'v1' ? conversionRates : conversionRatesV2
+  const stars = steps * rates.costPerStepInStars
+  const dollars = stars * rates.costPerStarInDollars
+  const rubles = dollars * rates.rublesToDollarsRate
 
   return {
     steps,
-    stars: baseCost,
-    dollars: baseCost * conversionRates.costPerStarInDollars,
-    rubles:
-      baseCost *
-      conversionRates.costPerStarInDollars *
-      conversionRates.rublesToDollarsRate,
+    stars: parseFloat(stars.toFixed(2)),
+    dollars: parseFloat(dollars.toFixed(2)),
+    rubles: parseFloat(rubles.toFixed(2)),
   }
 }
 
@@ -44,24 +92,27 @@ export function formatCost(cost: CostDetails, isRu: boolean): string {
   )}⭐ / $${cost.dollars.toFixed(2)}`
 }
 
-// Функция генерации сообщения
 export function generateCostMessage(
-  costDetails: CostDetails[],
-  isRu: boolean
+  steps: number[],
+  isRu: boolean,
+  version: 'v1' | 'v2' = 'v1'
 ): string {
   const baseMessage = isRu
     ? '🔢 Пожалуйста, выберите количество шагов для обучения модели.\n\n📈 Чем больше шагов, тем лучше качество, но это будет стоить дороже. 💰\n\n💰 Стоимость:\n'
     : '🔢 Please choose the number of steps for model training.\n\n📈 The more steps, the better the quality, but it will cost more. 💰\n\n💰 Cost:\n'
 
+  const costDetails = steps.map(steps => calculateCost(steps, version))
   return (
     baseMessage + costDetails.map(detail => formatCost(detail, isRu)).join('\n')
   )
 }
 
-// Предопределенные шаги
-export const stepOptions: number[] = [
-  1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000,
-]
+export const stepOptions = {
+  v1: [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000],
+  v2: [100, 200, 300, 400, 500, 600, 700, 800, 1000],
+}
 
-// Предварительно рассчитанные стоимости
-export const costDetails = stepOptions.map(steps => calculateCost(steps))
+export const costDetails = {
+  v1: stepOptions.v1.map(steps => calculateCost(steps, 'v1')),
+  v2: stepOptions.v2.map(steps => calculateCost(steps, 'v2')),
+}
