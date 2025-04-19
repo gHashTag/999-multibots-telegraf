@@ -1,4 +1,3 @@
-import { Subscription } from '../interfaces/supabase.interface'
 import {
   InlineKeyboardMarkup,
   ReplyKeyboardMarkup,
@@ -6,6 +5,7 @@ import {
 import { checkFullAccess } from '../handlers/checkFullAccess'
 import { Markup } from 'telegraf'
 import { MyContext } from '../interfaces/telegram-bot.interface'
+import { SubscriptionType } from '../interfaces/subscription.interface'
 
 interface Level {
   title_ru: string
@@ -113,13 +113,13 @@ const adminIds = process.env.ADMIN_IDS?.split(',') || []
 export async function mainMenu({
   isRu,
   inviteCount,
-  subscription = 'stars',
+  subscription = SubscriptionType.STARS,
   level,
   ctx,
 }: {
   isRu: boolean
   inviteCount: number
-  subscription: Subscription
+  subscription: SubscriptionType
   level: number
   ctx: MyContext
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
@@ -148,10 +148,10 @@ export async function mainMenu({
   let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []
 
   // Если подписка neurotester, предоставляем полный доступ
-  if (subscription === 'neurotester') {
+  if (subscription === SubscriptionType.NEUROTESTER) {
     hasFullAccess = true
     availableLevels = Object.values(levels)
-  } else if (subscription === 'stars') {
+  } else if (subscription === SubscriptionType.STARS) {
     availableLevels = availableLevels.concat(
       Object.values(levels).slice(0, inviteCount + 1)
     )
@@ -161,7 +161,7 @@ export async function mainMenu({
   availableLevels = Array.from(new Set(availableLevels))
 
   // Фильтруем уровни, чтобы показывать только текущий уровень, кроме neurotester
-  if (subscription !== 'neurotester') {
+  if (subscription !== SubscriptionType.NEUROTESTER) {
     availableLevels = availableLevels.filter((_, index) => index <= level)
   }
 

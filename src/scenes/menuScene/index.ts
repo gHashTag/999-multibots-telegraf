@@ -5,7 +5,7 @@ import { getReferalsCountAndUserData } from '@/core/supabase/getReferalsCountAnd
 import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
-
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { WizardScene } from 'telegraf/scenes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 
@@ -20,12 +20,12 @@ const menuCommandStep = async (ctx: MyContext) => {
     const telegram_id = ctx.from?.id?.toString() || ''
 
     let newCount = 0
-    let newSubscription: Subscription = 'stars'
+    let newSubscription: SubscriptionType = SubscriptionType.STARS
     let newLevel: number
 
     if (isDev) {
       newCount = 0
-      newSubscription = 'neurotester'
+      newSubscription = SubscriptionType.NEUROTESTER
       newLevel = 0
     } else {
       const { count, subscription, level } = await getReferalsCountAndUserData(
@@ -37,7 +37,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     }
 
     // Фильтрация уровней для подписки neurophoto
-    if (newSubscription === 'neurophoto' && newLevel > 3) {
+    if (newSubscription === SubscriptionType.NEUROPHOTO && newLevel > 3) {
       newLevel = 3
     }
 
@@ -50,7 +50,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     })
 
     // Проверка условий для отправки сообщения
-    if (newLevel === 3 && newSubscription === 'neurophoto') {
+    if (newLevel === 3 && newSubscription === SubscriptionType.NEUROPHOTO) {
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
       await ctx.reply(message, keyboard)
@@ -58,7 +58,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     }
 
     // Проверка условий для отправки сообщения
-    if (newSubscription === 'neurotester') {
+    if (newSubscription === SubscriptionType.NEUROTESTER) {
       const message = getText(isRu, 'mainMenu')
       console.log('message', message)
       await ctx.reply(message, keyboard)

@@ -46,6 +46,7 @@ export enum ModeEnum {
   CreateUserScene = 'create_user_scene',
   VoiceToText = 'voice_to_text',
   StartScene = 'start_scene',
+  Price = 'price',
 }
 
 // Определяем интерфейсы прямо здесь для предотвращения циклических зависимостей
