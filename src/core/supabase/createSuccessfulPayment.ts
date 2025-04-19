@@ -1,10 +1,11 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { TransactionType } from '@/interfaces/payments.interface'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
+
 import { supabase } from '@/core/supabase'
 import { getUserByTelegramIdString } from '@/core/supabase'
 import { normalizeTransactionType } from '@/utils/service.utils'
 import { logger } from '@/utils/logger'
+import { determineSubscriptionType } from '@/price/constants'
 
 interface CreateSuccessfulPaymentParams {
   telegram_id: TelegramId
@@ -15,7 +16,6 @@ interface CreateSuccessfulPaymentParams {
   service_type?: string
   payment_method?: string
   metadata?: Record<string, any>
-  subscription?: SubscriptionType
   inv_id: string
   stars?: number
   status?: string
@@ -42,7 +42,6 @@ export async function createSuccessfulPayment({
   inv_id,
   currency = 'XTR',
   invoice_url,
-  subscription,
 }: CreateSuccessfulPaymentParams) {
   try {
     // Если передан inv_id, проверяем, не существует ли уже платеж с таким ID
@@ -88,50 +87,45 @@ export async function createSuccessfulPayment({
       throw new Error(`User not found for telegram_id: ${telegram_id}`)
     }
 
-    // Создаем копию параметров для модификации
-    const params = {
-      telegram_id,
-      amount,
-      type,
-      description,
-      service_type,
-      stars,
-      payment_method,
-      bot_name,
-      metadata,
-      status,
-      inv_id,
-      currency,
-      invoice_url,
-      subscription,
-    }
-
     // Нормализуем тип транзакции в нижний регистр для совместимости с БД
-    params.type = normalizeTransactionType(type as TransactionType)
+    const normalizedType = normalizeTransactionType(type as TransactionType)
 
     // Нормализуем telegram_id к строке
     const telegramIdStr = String(telegram_id)
 
-    const numericStars = stars !== undefined ? Number(stars) : amount
+    const numericAmount = Number(amount)
+    const numericStars = stars !== undefined ? Number(stars) : numericAmount
 
+    // Определяем subscription_type с помощью импортированной функции
+    const calculatedSubscriptionType =
+      status === 'COMPLETED' && normalizedType === 'money_income'
+        ? determineSubscriptionType(numericAmount, currency)
+        : null
+
+    // Данные для вставки
+    const insertData = {
+      telegram_id: telegramIdStr,
+      amount: numericAmount,
+      stars: numericStars,
+      payment_method,
+      description,
+      type: normalizedType,
+      service_type,
+      bot_name,
+      status,
+      metadata,
+      currency,
+      inv_id,
+      invoice_url,
+      subscription_type: calculatedSubscriptionType,
+    }
+
+    logger.info('➡️ Попытка вставки платежа:', { insertData })
+
+    // Вставка в базу
     const { data, error } = await supabase
       .from('payments_v2')
-      .insert({
-        telegram_id: telegramIdStr,
-        amount,
-        stars: numericStars,
-        payment_method,
-        description,
-        type: params.type,
-        service_type,
-        bot_name,
-        status,
-        metadata,
-        currency,
-        inv_id,
-        invoice_url,
-        subscription,
-      })
+      .insert(insertData)
       .select()
       .single()
 
@@ -181,7 +175,7 @@ export async function createSuccessfulPayment({
       payment_id: data.id,
       telegram_id,
       amount,
-      type: params.type,
+      type: normalizedType,
       bot_name,
     })
 

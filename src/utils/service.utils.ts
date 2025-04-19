@@ -9,7 +9,6 @@ import {
 import { supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 import { TransactionType } from '@/interfaces/payments.interface'
-
 // Normalize transaction type to lowercase
 export const normalizeTransactionType = (
   type: TransactionType | string

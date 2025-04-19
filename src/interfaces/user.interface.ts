@@ -23,4 +23,5 @@ export interface User {
   subscription?: SubscriptionType
   subscription_end_date?: string
   subscription_start_date?: string
+  subscription_type?: string
 }
