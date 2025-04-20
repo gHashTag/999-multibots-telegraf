@@ -97,4 +97,5 @@ export * from './updateUserLevelPlusOne'
 export * from './savePromptDirect' //neurophoto
 export * from './getUserByTelegramIdString'
 export * from './getUserDetails'
+export { createSuccessfulPayment as setSuccessfulPayment } from './createSuccessfulPayment'
 export * from './payments'

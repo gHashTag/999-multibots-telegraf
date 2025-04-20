@@ -1,4 +1,4 @@
-import { Telegraf, Scenes, session, Composer } from 'telegraf'
+import { Telegraf, Scenes, session } from 'telegraf'
 import { MyContext } from './interfaces'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
@@ -51,6 +51,8 @@ import { defaultSession } from './store'
 
 import { get100Command } from './commands/get100Command'
 import { handleTechSupport } from './commands/handleTechSupport'
+import { handleBuy } from './handlers/handleBuy'
+import { isRussian } from '@/helpers'
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
@@ -89,17 +91,10 @@ export const stage = new Scenes.Stage<MyContext>([
   uploadVideoScene,
 ])
 
-export function registerCommands({
-  bot,
-  composer,
-}: {
-  bot: Telegraf<MyContext>
-  composer: Composer<MyContext>
-}) {
+export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   // Инициализируем сессию только один раз
   bot.use(session({ defaultSession: () => ({ ...defaultSession }) }))
   bot.use(stage.middleware())
-  bot.use(composer.middleware())
 
   setupLevelHandlers(bot as Telegraf<MyContext>)
 
@@ -124,8 +119,6 @@ export function registerCommands({
 
   bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
     console.log('CASE bot.hears: 💫 Оформить подписку / Subscribe')
-    // Возможно, стоит добавить проверку, есть ли уже активная подписка?
-    // Пока просто переходим в сцену покупки
     await ctx.scene.enter(ModeEnum.SubscriptionScene)
   })
 
@@ -181,38 +174,79 @@ export function registerCommands({
       return
     }
   })
-  composer.command('menu', async ctx => {
-    console.log('CASE: myComposer.command menu')
-    ctx.session.mode = ModeEnum.MainMenu
-    await ctx.scene.enter(ModeEnum.SubscriptionScene)
-  })
 
-  composer.command('get100', async ctx => {
+  bot.command('get100', async ctx => {
     console.log('CASE: get100')
     await get100Command(ctx)
   })
 
-  composer.command('buy', async ctx => {
-    console.log('CASE: buy')
+  // Переносим команду /buy из composer в bot
+  bot.command('buy', async ctx => {
+    // Добавляем лог перед входом в сцену
+    console.log('[Command /buy] Entering payment scene...')
+    logger.info(`[Command /buy] User: ${ctx.from?.id}. Entering payment scene.`)
     ctx.session.subscription = SubscriptionType.STARS
     await ctx.scene.enter(ModeEnum.PaymentScene)
   })
 
-  composer.command('invite', async ctx => {
+  bot.command('invite', async ctx => {
     console.log('CASE: invite')
     await ctx.scene.enter('inviteScene')
   })
 
-  composer.command('balance', async ctx => {
+  bot.command('balance', async ctx => {
     console.log('CASE: balance')
     await ctx.scene.enter('balanceScene')
   })
 
-  composer.command('help', async ctx => {
+  bot.command('help', async ctx => {
     await ctx.scene.enter('step0')
   })
 
-  composer.command('neuro_coder', async ctx => {
+  bot.command('neuro_coder', async ctx => {
     await ctx.scene.enter('neuroCoderScene')
   })
+
+  // --- РЕГИСТРАЦИЯ ГЛОБАЛЬНОГО ОБРАБОТЧИКА ДЛЯ ПОКУПКИ ЗВЕЗД ---
+  bot.action(/top_up_(\d+)$/, async ctx => {
+    // Проверяем, что callbackQuery и data существуют
+    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
+      const data = ctx.callbackQuery.data
+      const isRu = isRussian(ctx) // Определяем язык
+      console.log(
+        `[Global Action top_up_X] Received callback: ${data}. Calling handleBuy.`
+      )
+      try {
+        await handleBuy({ ctx, data, isRu })
+        // Отвечаем на колбэк только если handleBuy не вызвал ошибку
+        await ctx.answerCbQuery()
+      } catch (error) {
+        console.error(
+          `[Global Action top_up_X] Error calling handleBuy for ${data}:`,
+          error
+        )
+        // Отвечаем на колбэк с сообщением об ошибке
+        try {
+          await ctx.answerCbQuery(
+            isRu ? '⚠️ Ошибка при создании счета' : '⚠️ Error creating invoice'
+          )
+        } catch (e) {
+          console.error('Failed to answer callback query with error')
+        }
+      }
+    } else {
+      console.error('[Global Action top_up_X] Invalid callback query received.')
+      // Все равно пытаемся ответить на колбэк
+      try {
+        await ctx.answerCbQuery()
+      } catch (e) {
+        // Добавляем логирование ошибки
+        console.error(
+          '[Global Action top_up_X] Failed to answer callback query even after invalid query:',
+          e
+        )
+      }
+    }
+  })
+  // --- КОНЕЦ РЕГИСТРАЦИИ ГЛОБАЛЬНОГО ОБРАБОТЧИКА ---
 }

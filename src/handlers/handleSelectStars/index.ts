@@ -1,51 +1,56 @@
-import { Context } from 'telegraf'
+import { Markup } from 'telegraf'
+import { MyContext } from '@/interfaces'
+import { starAmounts } from '@/price/helpers/starAmounts'
+// import { BuyParams } from '../handleBuy/index' // Убираем старый импорт
+import { logger } from '@/utils/logger'
 
-interface BuyParams {
-  ctx: Context
+// Создаем новый интерфейс для параметров этой функции
+interface SelectStarsParams {
+  ctx: MyContext
   starAmounts: number[]
   isRu: boolean
 }
 
-export async function handleSelectStars({ ctx, starAmounts, isRu }: BuyParams) {
+export async function handleSelectStars({
+  ctx,
+  starAmounts,
+  isRu,
+}: SelectStarsParams) {
+  console.log(
+    `[handleSelectStars LOG] === ENTER Function === (User: ${ctx.from?.id})`
+  )
+  logger.info('🌟 [handleSelectStars] Начало выбора звезд', {
+    telegram_id: ctx.from?.id,
+    language: isRu ? 'ru' : 'en',
+  })
   try {
-    const inlineKeyboard = []
-    for (let i = 0; i < starAmounts.length; i += 3) {
-      const row = [
-        {
-          text: isRu ? `${starAmounts[i]}⭐️` : `${starAmounts[i]}⭐️`,
-          callback_data: `top_up_${starAmounts[i]}`,
-        },
-      ]
+    const buttons = starAmounts.map(amount => [
+      Markup.button.callback(`⭐️ ${amount}`, `top_up_${amount}`),
+    ])
 
-      if (starAmounts[i + 1] !== undefined) {
-        row.push({
-          text: isRu ? `${starAmounts[i + 1]}⭐️` : `${starAmounts[i + 1]}⭐️`,
-          callback_data: `top_up_${starAmounts[i + 1]}`,
-        })
-      }
+    const keyboard = Markup.inlineKeyboard(buttons)
 
-      if (starAmounts[i + 2] !== undefined) {
-        row.push({
-          text: isRu ? `${starAmounts[i + 2]}⭐️` : `${starAmounts[i + 2]}⭐️`,
-          callback_data: `top_up_${starAmounts[i + 2]}`,
-        })
-      }
-
-      inlineKeyboard.push(row)
-    }
+    console.log(
+      `[handleSelectStars LOG] Sending message with star amount buttons (User: ${ctx.from?.id})`
+    )
 
     await ctx.reply(
       isRu
         ? 'Выберите количество звезд для покупки:'
         : 'Choose the number of stars to buy:',
-      {
-        reply_markup: {
-          inline_keyboard: inlineKeyboard,
-        },
-      }
+      keyboard
+    )
+    console.log(
+      `[handleSelectStars LOG] Message with buttons sent (User: ${ctx.from?.id})`
     )
   } catch (error) {
     console.error('Error in handleSelectStars:', error)
-    throw error
+    logger.error('❌ [handleSelectStars] Ошибка при отображении выбора звезд', {
+      telegram_id: ctx.from?.id,
+      error: error.message,
+    })
+    await ctx.reply(
+      isRu ? 'Ошибка при выборе звезд.' : 'Error selecting stars.'
+    )
   }
 }
