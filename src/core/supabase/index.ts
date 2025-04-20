@@ -57,3 +57,6 @@ export {
   getPaymentByInvId,
   updatePaymentStatus,
 } from './payments'
+
+// Добавляем экспорт новой функции
+export { updateUserModel } from './updateUserModel'
