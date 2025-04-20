@@ -53,11 +53,44 @@ export async function generateNeuroImage(
     ) {
       try {
         if (directResult.urls.length === 1) {
-          await ctx.replyWithPhoto(directResult.urls[0], {
-            caption: isRussian(ctx)
-              ? '✅ Ваше нейрофото готово!'
-              : '✅ Your neuro-photo is ready!',
-          })
+          await ctx.replyWithPhoto(directResult.urls[0])
+          await ctx.telegram.sendMessage(
+            telegram_id,
+            isRussian(ctx)
+              ? `Ваши изображения сгенерированы!\n\nЕсли хотите сгенерировать еще, то выберите количество изображений в меню 1️⃣, 2️⃣, 3️⃣, 4️⃣`
+              : `Your images have been generated!\n\nIf you want to generate more, select the number of images in the menu 1️⃣, 2️⃣, 3️⃣, 4️⃣`,
+            {
+              reply_markup: {
+                keyboard: [
+                  [
+                    { text: '1️⃣' },
+                    { text: '2️⃣' },
+                    { text: '3️⃣' },
+                    { text: '4️⃣' },
+                  ],
+                  [
+                    {
+                      text: isRussian(ctx)
+                        ? '⬆️ Улучшить промпт'
+                        : '⬆️ Improve prompt',
+                    },
+                    {
+                      text: isRussian(ctx)
+                        ? '📐 Изменить размер'
+                        : '📐 Change size',
+                    },
+                  ],
+                  [
+                    {
+                      text: isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu',
+                    },
+                  ],
+                ],
+                resize_keyboard: true,
+                one_time_keyboard: false,
+              },
+            }
+          )
         } else {
           const mediaGroup: ReadonlyArray<InputMediaPhoto> =
             directResult.urls.map(url => ({
