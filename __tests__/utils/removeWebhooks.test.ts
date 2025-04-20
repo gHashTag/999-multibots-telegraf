@@ -1,16 +1,30 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals'
 import { removeWebhooks } from '../../src/utils/removeWebhooks'
+
+// Полностью мокаем модуль логгера
+jest.mock('../../src/utils/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+  },
+}))
+
+// Импортируем мокированную версию
 import { logger } from '../../src/utils/logger'
+
+// Типизируем мок
+const mockedLogger = logger as jest.Mocked<typeof logger>
 
 describe('removeWebhooks util', () => {
   let bot: any
-  let infoSpy: jest.SpiedFunction<typeof logger.info>
-  let errorSpy: jest.SpiedFunction<typeof logger.error>
+  // Убираем infoSpy, errorSpy, т.к. используем мок модуля
 
   beforeEach(() => {
-    jest.resetModules()
-    infoSpy = jest.spyOn(logger, 'info').mockImplementation((_message, _meta) => {})
-    errorSpy = jest.spyOn(logger, 'error').mockImplementation((_message, _meta) => {})
+    // jest.resetModules() // Сброс модулей может быть не нужен с jest.mock
+    jest.clearAllMocks() // Очищаем моки
+    // Убираем spyOn
     bot = {
       botInfo: { username: 'bot1' },
       telegram: {
@@ -21,17 +35,15 @@ describe('removeWebhooks util', () => {
     }
   })
 
-  afterEach(() => {
-    infoSpy.mockRestore()
-    errorSpy.mockRestore()
-  })
+  // Убираем afterEach
 
   it('resolves true and logs info when no webhook set', async () => {
     bot.telegram.getMe.mockResolvedValue({})
     bot.telegram.getWebhookInfo.mockResolvedValue({ url: '' })
     const res = await removeWebhooks(bot)
     expect(res).toBe(true)
-    expect(infoSpy).toHaveBeenCalledWith(
+    // Проверяем вызов мока
+    expect(mockedLogger.info).toHaveBeenCalledWith(
       'ℹ️ Вебхук не был установлен:',
       expect.objectContaining({ bot_name: 'bot1' })
     )
@@ -44,7 +56,8 @@ describe('removeWebhooks util', () => {
     const res = await removeWebhooks(bot)
     expect(res).toBe(true)
     expect(bot.telegram.deleteWebhook).toHaveBeenCalledWith({ drop_pending_updates: true })
-    expect(infoSpy).toHaveBeenCalledWith(
+    // Проверяем вызов мока
+    expect(mockedLogger.info).toHaveBeenCalledWith(
       '✅ Вебхук удален:',
       expect.objectContaining({ old_url: 'https://hook', bot_name: 'bot1' })
     )
@@ -55,7 +68,8 @@ describe('removeWebhooks util', () => {
     bot.telegram.getMe.mockRejectedValue(err)
     const res = await removeWebhooks(bot)
     expect(res).toBe(false)
-    expect(errorSpy).toHaveBeenCalledWith(
+    // Проверяем вызов мока
+    expect(mockedLogger.error).toHaveBeenCalledWith(
       '❌ Ошибка при удалении вебхука:',
       expect.any(Object)
     )
@@ -71,7 +85,8 @@ describe('removeWebhooks util', () => {
     const res = await removeWebhooks(bot)
     expect(res).toBe(true)
     expect(bot.telegram.deleteWebhook).toHaveBeenCalledTimes(2)
-    expect(infoSpy).toHaveBeenCalledWith(
+    // Проверяем вызов мока
+    expect(mockedLogger.info).toHaveBeenCalledWith(
       '✅ Вебхук удален после повторной попытки:',
       expect.objectContaining({ bot_name: 'bot1' })
     )
@@ -83,7 +98,8 @@ describe('removeWebhooks util', () => {
     bot.telegram.deleteWebhook.mockRejectedValue(new Error('fail'))
     const res = await removeWebhooks(bot)
     expect(res).toBe(false)
-    expect(errorSpy).toHaveBeenCalledWith(
+    // Проверяем вызов мока
+    expect(mockedLogger.error).toHaveBeenCalledWith(
       '❌ Ошибка при повторной попытке удаления вебхука:',
       expect.any(Object)
     )

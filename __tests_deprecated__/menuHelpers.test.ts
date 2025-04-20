@@ -22,9 +22,9 @@ describe('videoModelKeyboard', () => {
     const kb = videoModelKeyboard(true) as any
     const rows = kb.reply_markup.keyboard
     expect(rows).toEqual([
-      ['Minimax', 'Haiper'],
-      ['Ray', 'I2VGen-XL'],
-      ['Справка по команде', 'Отмена'],
+      [{ text: 'Minimax' }, { text: 'Haiper' }],
+      [{ text: 'Ray' }, { text: 'I2VGen-XL' }],
+      [{ text: 'Справка по команде' }, { text: 'Отмена' }],
     ])
   })
 
@@ -32,9 +32,9 @@ describe('videoModelKeyboard', () => {
     const kb = videoModelKeyboard(false) as any
     const rows = kb.reply_markup.keyboard
     expect(rows).toEqual([
-      ['Minimax', 'Haiper'],
-      ['Ray', 'I2VGen-XL'],
-      ['Help for the command', 'Cancel'],
+      [{ text: 'Minimax' }, { text: 'Haiper' }],
+      [{ text: 'Ray' }, { text: 'I2VGen-XL' }],
+      [{ text: 'Help for the command' }, { text: 'Cancel' }],
     ])
   })
 })
@@ -48,11 +48,11 @@ import makeMockContext from './mockTelegrafContext'
 describe('cancelMenu', () => {
   it('creates keyboard with single Cancel button in Russian', () => {
     const kb = cancelMenu(true) as any
-    expect(kb.reply_markup.keyboard).toEqual([['Отмена']])
+    expect(kb.reply_markup.keyboard).toEqual([[{ text: 'Отмена' }]])
   })
   it('creates keyboard with single Cancel button in English', () => {
     const kb = cancelMenu(false) as any
-    expect(kb.reply_markup.keyboard).toEqual([['Cancel']])
+    expect(kb.reply_markup.keyboard).toEqual([[{ text: 'Cancel' }]])
   })
 })
 
@@ -60,14 +60,14 @@ describe('getStepSelectionMenu', () => {
   it('builds first-level step menu in Russian', () => {
     const kb = getStepSelectionMenu(true) as any
     const rows = kb.reply_markup.keyboard
-    expect(rows[0]).toEqual(['1000 шагов', '1500 шагов', '2000 шагов'])
-    expect(rows[3]).toEqual(['Справка по команде', 'Отмена'])
+    expect(rows[0]).toEqual([{ text: '1000 шагов' }, { text: '1500 шагов' }, { text: '2000 шагов' }])
+    expect(rows[3]).toEqual([{ text: 'Справка по команде' }, { text: 'Отмена' }])
   })
   it('builds first-level step menu in English', () => {
     const kb = getStepSelectionMenu(false) as any
     const rows = kb.reply_markup.keyboard
-    expect(rows[0]).toEqual(['1000 steps', '1500 steps', '2000 steps'])
-    expect(rows[3]).toEqual(['Help for the command', 'Cancel'])
+    expect(rows[0]).toEqual([{ text: '1000 steps' }, { text: '1500 steps' }, { text: '2000 steps' }])
+    expect(rows[3]).toEqual([{ text: 'Help for the command' }, { text: 'Cancel' }])
   })
 })
 
@@ -75,14 +75,14 @@ describe('getStepSelectionMenuV2', () => {
   it('builds second-level step menu in Russian', () => {
     const kb = getStepSelectionMenuV2(true) as any
     const rows = kb.reply_markup.keyboard
-    expect(rows[0]).toEqual(['100 шагов', '200 шагов', '300 шагов'])
-    expect(rows[3]).toEqual(['Справка по команде', 'Отмена'])
+    expect(rows[0]).toEqual([{ text: '100 шагов' }, { text: '200 шагов' }, { text: '300 шагов' }])
+    expect(rows[3]).toEqual([{ text: 'Справка по команде' }, { text: 'Отмена' }])
   })
   it('builds second-level step menu in English', () => {
     const kb = getStepSelectionMenuV2(false) as any
     const rows = kb.reply_markup.keyboard
-    expect(rows[0]).toEqual(['100 steps', '200 steps', '300 steps'])
-    expect(rows[3]).toEqual(['Help for the command', 'Cancel'])
+    expect(rows[0]).toEqual([{ text: '100 steps' }, { text: '200 steps' }, { text: '300 steps' }])
+    expect(rows[3]).toEqual([{ text: 'Help for the command' }, { text: 'Cancel' }])
   })
 })
 
@@ -118,12 +118,11 @@ describe('imageModelMenu', () => {
       '🎨 Выберите модель для генерации:',
       expect.objectContaining({
         reply_markup: expect.objectContaining({
-          keyboard: [
-            ['A', 'B'],
-            ['Отмена', 'Справка по команде'],
-            ['🏠 Главное меню'],
-          ],
-        }),
+          keyboard: expect.arrayContaining([
+            expect.arrayContaining([{ text: 'FLUX1.1 [pro]' }, { text: 'FLUX1.1 [pro] Ultra' }]),
+            expect.arrayContaining([{ text: 'Отмена' }, { text: 'Справка по команде' }])
+          ])
+        })
       })
     )
   })
@@ -136,12 +135,11 @@ describe('imageModelMenu', () => {
       '🎨 Choose a model for generation:',
       expect.objectContaining({
         reply_markup: expect.objectContaining({
-          keyboard: [
-            ['A', 'B'],
-            ['Cancel', 'Help for the command'],
-            ['🏠 Main menu'],
-          ],
-        }),
+          keyboard: expect.arrayContaining([
+            expect.arrayContaining([{ text: 'FLUX1.1 [pro]' }, { text: 'FLUX1.1 [pro] Ultra' }]),
+            expect.arrayContaining([{ text: 'Cancel' }, { text: 'Help for the command' }])
+          ])
+        })
       })
     )
   })

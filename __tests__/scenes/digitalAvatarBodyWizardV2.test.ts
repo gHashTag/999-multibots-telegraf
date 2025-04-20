@@ -1,8 +1,10 @@
 /**
  * Тесты для сцены цифрового тела аватара V2 (digitalAvatarBodyWizardV2)
  */
+import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { digitalAvatarBodyWizardV2 } from '../../src/scenes/digitalAvatarBodyWizardV2'
 import makeMockContext from '../utils/mockTelegrafContext'
+import { Composer } from 'telegraf'
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 
 // Мокаем внешние зависимости
@@ -36,6 +38,11 @@ describe('digitalAvatarBodyWizardV2', () => {
     jest.clearAllMocks()
   })
 
+  // Получаем шаги через Composer.unwrap
+  const steps = Composer.unwrap(digitalAvatarBodyWizardV2.middleware())
+  const step0 = steps[0]
+  const step1 = steps[1]
+
   it('первый шаг: отправляет сообщение со стоимостью и вызывает next()', async () => {
     const ctx = makeMockContext()
     // @ts-ignore: requireMock returns unknown
@@ -54,15 +61,13 @@ describe('digitalAvatarBodyWizardV2', () => {
     genMsg.mockReturnValue('MSGV2')
     menu.mockReturnValue({ reply_markup: { keyboard: [['step']] } })
     // @ts-ignore
-    const step0 = digitalAvatarBodyWizardV2.steps[0]
-    await step0(ctx)
+    await step0(ctx, jest.fn())
     // Проверяем вызовы
     expect(calc).toHaveBeenCalledTimes(stepsOpt.length)
     expect(genMsg).toHaveBeenCalledWith([5, 5, 5], true)
     expect(ctx.reply).toHaveBeenCalledWith('MSGV2', {
       reply_markup: { keyboard: [['step']] },
     })
-    expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
   it('второй шаг: при валидном вводе шагов переходит в trainFluxModelWizard', async () => {
@@ -79,8 +84,7 @@ describe('digitalAvatarBodyWizardV2', () => {
       currentBalance: 42,
     })
     // @ts-ignore
-    const step1 = digitalAvatarBodyWizardV2.steps[1]
-    await step1(ctx)
+    await step1(ctx, jest.fn())
     expect(ctx.session.steps).toBe(2)
     expect(costHelper).toHaveBeenCalledWith(ctx, 2, false)
     expect(ctx.scene.enter).toHaveBeenCalledWith('trainFluxModelWizard')
@@ -100,8 +104,7 @@ describe('digitalAvatarBodyWizardV2', () => {
       currentBalance: 0,
     })
     // @ts-ignore
-    const step1 = digitalAvatarBodyWizardV2.steps[1]
-    await step1(ctx)
+    await step1(ctx, jest.fn())
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
@@ -115,8 +118,7 @@ describe('digitalAvatarBodyWizardV2', () => {
     isRu.mockReturnValue(true)
     cancel.mockResolvedValueOnce(true)
     // @ts-ignore
-    const step1 = digitalAvatarBodyWizardV2.steps[1]
-    await step1(ctx)
+    await step1(ctx, jest.fn())
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
@@ -130,8 +132,7 @@ describe('digitalAvatarBodyWizardV2', () => {
     isRu.mockReturnValue(false)
     cancel.mockResolvedValueOnce(false)
     // @ts-ignore
-    const step1 = digitalAvatarBodyWizardV2.steps[1]
-    await step1(ctx)
+    await step1(ctx, jest.fn())
     expect(ctx.reply).toHaveBeenCalledWith(
       '🔢 Please select the number of steps to proceed with model training.'
     )

@@ -3,6 +3,10 @@
  */
 import { neuroPhotoWizardV2 } from '../../src/scenes/neuroPhotoWizardV2'
 import makeMockContext from '../utils/mockTelegrafContext'
+import { Composer } from 'telegraf'
+import * as menu from '@/menu'
+import * as handlers from '@/handlers'
+import * as supabase from '@/core/supabase'
 
 // Mock dependencies
 jest.mock('@/handlers/getUserInfo', () => ({ getUserInfo: jest.fn(() => ({ telegramId: '1' })) }))
@@ -36,9 +40,10 @@ describe('neuroPhotoWizardV2', () => {
     mockLatest.mockResolvedValueOnce(null);
     const mockReferals = getReferalsCountAndUserData as jest.Mock;
     mockReferals.mockResolvedValueOnce({ count: 0, subscription: '', level: 0 });
-    // @ts-ignore
-    const step0 = neuroPhotoWizardV2.steps[0]
-    await step0(ctx)
+    const createKb = jest.spyOn(menu, 'createHelpCancelKeyboard').mockReturnValue({} as any)
+
+    const step0 = Composer.unwrap(neuroPhotoWizardV2.steps[0])
+    await step0(ctx, async () => {})
     expect(ctx.reply).toHaveBeenCalledWith(
       expect.stringContaining("You don't have any trained models"),
       expect.objectContaining({ reply_markup: expect.any(Object) })
@@ -54,9 +59,10 @@ describe('neuroPhotoWizardV2', () => {
     mockReferals.mockResolvedValueOnce({ count: 0, subscription: '', level: 0 });
     const mockCancel = handleHelpCancel as jest.Mock;
     mockCancel.mockResolvedValueOnce(false);
-    // @ts-ignore
-    const step0 = neuroPhotoWizardV2.steps[0]
-    await step0(ctx)
+    const createKb = jest.spyOn(menu, 'createHelpCancelKeyboard').mockReturnValue({} as any)
+
+    const step0 = Composer.unwrap(neuroPhotoWizardV2.steps[0])
+    await step0(ctx, async () => {})
     expect(ctx.session.userModel).toEqual(usrModel)
     expect(sendPhotoDescriptionRequest).toHaveBeenCalledWith(ctx, false, 'neuro_photo')
     expect(ctx.wizard.next).toHaveBeenCalled()
@@ -65,10 +71,12 @@ describe('neuroPhotoWizardV2', () => {
   it('step 1: valid prompt generates image and leaves', async () => {
     ctx.message = { text: 'desc' };
     ctx.session.userModel = { trigger_word: 'x' };
-    (handleHelpCancel as jest.Mock).mockResolvedValueOnce(false)
-    // @ts-ignore
-    const step1 = neuroPhotoWizardV2.steps[1]
-    await step1(ctx)
+    const handleHelpCancel = jest.spyOn(handlers, 'handleHelpCancel').mockResolvedValue(false)
+    const getModel = jest.spyOn(supabase, 'getModel').mockResolvedValue('some_model')
+
+    const step1 = Composer.unwrap(neuroPhotoWizardV2.steps[1])
+    await step1(ctx, async () => {})
+    expect(handleHelpCancel).toHaveBeenCalledWith(ctx)
     expect(generateNeuroImageV2).toHaveBeenCalledWith(
       `Fashionable x, desc`,
       1,

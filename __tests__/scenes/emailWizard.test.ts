@@ -2,6 +2,7 @@ import makeMockContext from '../utils/mockTelegrafContext'
 import emailWizard from '../../src/scenes/emailWizard'
 import { saveUserEmail } from '@/core/supabase'
 import { isRussian } from '@/helpers'
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
 // Mock dependencies
 jest.mock('@/core/supabase', () => ({
@@ -11,6 +12,14 @@ jest.mock('@/core/supabase', () => ({
 jest.mock('@/helpers', () => ({
   isRussian: jest.fn(),
 }))
+jest.mock('@/handlers/handleHelpCancel', () => ({
+  handleHelpCancel: jest.fn(),
+}))
+
+// Typing mocks
+const mockedSaveUserEmail = saveUserEmail as jest.Mock< (userId: string, email: string) => Promise<void> >
+const mockedIsRussian = isRussian as jest.Mock<() => boolean>
+const mockedHandleCancel = handleHelpCancel as jest.Mock<(...args: any[]) => Promise<boolean>>
 
 describe('emailWizardEnterHandler', () => {
   beforeEach(() => {
@@ -18,7 +27,7 @@ describe('emailWizardEnterHandler', () => {
   })
 
   it('should prompt for email with cancel button (RU)', async () => {
-    ;(isRussian as jest.Mock).mockReturnValueOnce(true)
+    mockedIsRussian.mockReturnValueOnce(true)
     const ctx = makeMockContext()
     await emailWizard.enterHandler(ctx)
     expect(ctx.reply).toHaveBeenCalledWith(
@@ -32,7 +41,7 @@ describe('emailWizardEnterHandler', () => {
   })
 
   it('should prompt for email with cancel button (EN)', async () => {
-    ;(isRussian as jest.Mock).mockReturnValueOnce(false)
+    mockedIsRussian.mockReturnValueOnce(false)
     const ctx = makeMockContext()
     await emailWizard.enterHandler(ctx)
     expect(ctx.reply).toHaveBeenCalledWith(
@@ -52,12 +61,14 @@ describe('emailWizardEmailHandler', () => {
   })
 
   it('should save email and show payment options (RU)', async () => {
-    ;(isRussian as jest.Mock).mockReturnValueOnce(true)
+    mockedIsRussian.mockReturnValueOnce(true)
+    mockedHandleCancel.mockResolvedValueOnce(false)
+    mockedSaveUserEmail.mockResolvedValueOnce(undefined)
     const ctx = makeMockContext()
     // @ts-ignore
     ctx.message = { text: 'user@example.com' }
     await emailWizard.emailHandler(ctx)
-    expect(saveUserEmail).toHaveBeenCalledWith(
+    expect(mockedSaveUserEmail).toHaveBeenCalledWith(
       ctx.from.id.toString(),
       'user@example.com'
     )
@@ -76,9 +87,9 @@ describe('emailWizardEmailHandler', () => {
   })
 
   it('should handle save error (EN)', async () => {
-    ;(isRussian as jest.Mock).mockReturnValueOnce(false)
+    mockedIsRussian.mockReturnValueOnce(false)
     // @ts-ignore
-    saveUserEmail.mockRejectedValueOnce(new Error('fail'))
+    mockedSaveUserEmail.mockRejectedValueOnce(new Error('fail'))
     const ctx = makeMockContext()
     // @ts-ignore
     ctx.message = { text: 'a@b' }

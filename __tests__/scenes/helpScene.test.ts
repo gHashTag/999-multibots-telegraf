@@ -1,3 +1,7 @@
+import { Composer } from 'telegraf' // Импорт Composer
+import { Markup } from 'telegraf' // Импорт Markup
+import { jest, describe, it, expect, beforeEach } from '@jest/globals' // Импорт Jest
+
 // Мокаем внешние зависимости
 jest.mock('@/scenes/levelQuestWizard/handlers', () => ({
   handleLevel1: jest.fn(),
