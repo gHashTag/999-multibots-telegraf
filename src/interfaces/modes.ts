@@ -47,6 +47,9 @@ export enum ModeEnum {
   VoiceToText = 'voice_to_text',
   StartScene = 'start_scene',
   Price = 'price',
+  RublePaymentScene = 'rublePaymentScene',
+  StarPaymentScene = 'starPaymentScene',
+  MenuScene = 'menuScene',
 }
 
 // Определяем интерфейсы прямо здесь для предотвращения циклических зависимостей

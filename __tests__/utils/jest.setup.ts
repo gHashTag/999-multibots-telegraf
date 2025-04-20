@@ -56,17 +56,32 @@ process.env.OPENAI_API_KEY = 'test-key'
 process.env.REPLICATE_API_TOKEN = 'test-token'
 
 // Закрываем файловые транспорты логгера после всех тестов
-afterAll(() => {
-  ;[logger, botLogger, securityLogger].forEach(logInstance => {
-    // Используем (logInstance as any).transports для обхода ошибки типов из-за моков
-    const transportsToClose = (logInstance as any).transports || []
-    transportsToClose.forEach((transport: any) => {
-      if (
-        transport instanceof transports.File &&
-        typeof transport.close === 'function'
-      ) {
-        transport.close()
-      }
+// Делаем хук асинхронным
+afterAll(async () => {
+  // Используем Promise.all, чтобы дождаться завершения всех операций
+  await Promise.all(
+    [logger, botLogger, securityLogger].map(async logInstance => {
+      // Используем (logInstance as any).transports для обхода ошибки типов из-за моков
+      const transportsToClose = (logInstance as any).transports || []
+      await Promise.all(
+        transportsToClose.map((transport: any) => {
+          return new Promise<void>(resolve => {
+            if (
+              transport instanceof transports.File &&
+              typeof transport.close === 'function'
+            ) {
+              // Некоторые реализации close могут принимать callback
+              // или просто завершаться синхронно. Добавим небольшую задержку
+              // на всякий случай, хотя это и не идеальное решение.
+              transport.close()
+              // Даем небольшой таймаут для завершения I/O операций
+              setTimeout(resolve, 50)
+            } else {
+              resolve()
+            }
+          })
+        })
+      )
     })
-  })
+  )
 })

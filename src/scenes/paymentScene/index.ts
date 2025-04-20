@@ -15,6 +15,10 @@ import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 
+/**
+ * Старая сцена оплаты, теперь используется как точка входа
+ * для выбора типа оплаты (Звезды или Рубли).
+ */
 export const paymentScene = new Scenes.BaseScene<MyContext>(
   ModeEnum.PaymentScene
 )
@@ -25,19 +29,17 @@ paymentScene.enter(async ctx => {
     scene: ModeEnum.PaymentScene,
     step: 'enter',
     telegram_id: ctx.from?.id,
+    session_subscription: ctx.session.subscription, // Логируем, что пришло в сессии
   })
-  console.log(
-    '[PaymentScene] Entered scene. Session subscription:',
-    ctx.session.subscription
-  )
   const isRu = isRussian(ctx)
   try {
-    const message = isRu ? 'Как вы хотите оплатить?' : 'How do you want to pay?'
+    const message = isRu ? 'Выберите способ оплаты:' : 'Select payment method:'
 
+    // Оставляем только кнопки выбора типа оплаты и справку по звездам
     const keyboard = Markup.keyboard([
       [
         Markup.button.text(isRu ? '⭐️ Звездами' : '⭐️ Stars'),
-        Markup.button.text(isRu ? '💳 Рублями' : '💳 In rubles'),
+        Markup.button.text(isRu ? '💳 Рублями' : '💳 Rubles'), // Изменил эмодзи для единообразия
       ],
       [
         {
@@ -49,22 +51,31 @@ paymentScene.enter(async ctx => {
           },
         },
       ],
+      [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')], // Добавляем кнопку выхода
     ]).resize()
 
-    // Отправка сообщения с клавиатурой
     await ctx.reply(message, {
       reply_markup: keyboard.reply_markup,
+      // Убираем старую клавиатуру, если она была
+      // reply_markup: { remove_keyboard: true },
     })
-  } catch (error) {
-    console.error('Error in paymentScene.enter:', error)
+  } catch (error: any) {
+    logger.error(`❌ [${ModeEnum.PaymentScene}] Error in enter:`, {
+      error: error.message,
+      stack: error.stack,
+      telegram_id: ctx.from?.id,
+    })
     await ctx.reply(
       isRu
-        ? 'Произошла ошибка. Пожалуйста, попробуйте снова.'
-        : 'An error occurred. Please try again.'
+        ? 'Произошла ошибка. Пожалуйста, попробуйте войти снова через меню.'
+        : 'An error occurred. Please try entering again via the menu.'
     )
+    // Выходим из сцены в случае ошибки входа
+    await ctx.scene.leave()
   }
 })
 
+// Переход в сцену оплаты Звездами
 paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   console.log(
     `[PaymentScene LOG] --- HEARS '⭐️ Звездами' --- (User: ${ctx.from?.id})`
@@ -109,102 +120,34 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
       await ctx.scene.leave()
       return
     }
-    console.warn(
-      '[PaymentScene] Hears: ⭐️ Звездами. Unknown state for subscription:',
-      subscription
-    )
-    await ctx.scene.leave()
-    return
-  } catch (error) {
-    console.error("[PaymentScene] Error in Hears '⭐️ Звездами':", error)
-    await ctx.reply(
-      isRu
-        ? 'Ошибка обработки оплаты звездами.'
-        : 'Error processing star payment.'
-    )
-    await ctx.scene.leave()
-    return
-  }
-})
-
-paymentScene.hears(['💳 Рублями', '💳 In rubles'], async ctx => {
-  console.log('[PaymentScene] Hears: 💳 Рублями triggered')
-  const isRu = isRussian(ctx)
-  const subscription = ctx.session.subscription?.toLowerCase()
-  console.log(
-    '[PaymentScene] Hears: 💳 Рублями. Session subscription:',
-    subscription
   )
-  try {
-    if (subscription) {
-      if (
-        [
-          'neurobase',
-          'neuromeeting',
-          'neuroblogger',
-          'neurophoto',
-          'neuromentor',
-        ].includes(subscription)
-      ) {
-        console.log(
-          `[PaymentScene] Entering getEmailWizard for ${subscription}`
-        )
-        return ctx.scene.enter('getEmailWizard')
-      } else if (subscription === 'stars') {
-        // Пополнение БАЛАНСА рублями (уже выбрана подписка 'stars') - показываем выбор суммы
-        console.log(
-          '[PaymentScene] Показываем выбор суммы для пополнения рублями (подписка stars)'
-        )
-        await handleSelectRubAmount({ ctx, isRu })
-        // НЕ выходим из сцены, ждем callback top_up_rub_X
-        return
-      } else {
-        // Неизвестная подписка
-        console.warn(
-          '[PaymentScene] Hears: 💳 Рублями. Unknown subscription:',
-          subscription
-        )
-        await ctx.reply(
-          isRu
-            ? 'Сначала выберите подписку или пакет звезд для покупки.'
-            : 'Please select a subscription or star package first.'
-        )
-        await ctx.scene.leave()
-        return
-      }
-    } else {
-      // Если подписка не выбрана (например, из главного меню)
-      // Показываем выбор суммы для пополнения рублями
-      console.log(
-        '[PaymentScene] Показываем выбор суммы для пополнения рублями (без подписки)'
-      )
-      await handleSelectRubAmount({ ctx, isRu })
-      // НЕ выходим из сцены
-      return
+  // Просто переходим в новую сцену, передавая управление ей
+  // ctx.session.subscription остается как есть (если был установлен ранее)
+  await ctx.scene.enter(ModeEnum.StarPaymentScene)
+})
+
+// Переход в сцену оплаты Рублями
+paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
+  logger.info(
+    `[${ModeEnum.PaymentScene}] User chose Rubles. Entering ${ModeEnum.RublePaymentScene}`,
+    {
+      telegram_id: ctx.from?.id,
     }
-  } catch (error) {
-    console.error("[PaymentScene] Error in Hears '💳 Рублями':", error)
-    await ctx.reply(
-      isRu
-        ? 'Ошибка обработки оплаты рублями.'
-        : 'Error processing ruble payment.'
-    )
-    await ctx.scene.leave()
-    return
-  }
+  )
+  // Просто переходим в новую сцену
+  // ctx.session.subscription остается как есть
+  await ctx.scene.enter(ModeEnum.RublePaymentScene)
 })
 
+// Выход в главное меню
 paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
-  console.log('[PaymentScene] Hears: 🏠 Главное меню triggered')
-  await ctx.scene.enter('menuScene')
-  return
+  logger.info(`[${ModeEnum.PaymentScene}] Leaving scene via Main Menu button`, {
+    telegram_id: ctx.from?.id,
+  })
+  await ctx.scene.enter(ModeEnum.MenuScene)
 })
 
-paymentScene.action(/top_up_rub_(\d+)/, async ctx => {
-  const isRu = isRussian(ctx)
-  try {
-    const amountRub = parseInt(ctx.match[1], 10)
-    console.log(`[PaymentScene] Обработка callback top_up_rub: ${amountRub} ₽`)
+// Убираем обработчики action (top_up_*, buy_sub_*), т.к. они теперь в дочерних сценах
 
     try {
       await ctx.answerCbQuery() // Отвечаем на колбэк
