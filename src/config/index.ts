@@ -6,50 +6,46 @@ console.log('--- Debugging .env loading --- ')
 const cwd = process.cwd()
 console.log(`[CONFIG] Current Working Directory: ${cwd}`)
 
-try {
-  const files = fs.readdirSync(cwd)
-  const envFiles = files.filter(file => file.startsWith('.env'))
-  console.log(`[CONFIG] Found .env files: ${envFiles.join(', ') || 'None'}`)
-} catch (err) {
-  console.error('[CONFIG] Error reading directory:', err)
+// Определяем путь к основному .env файлу
+const envPath = path.join(cwd, '.env')
+console.log(`[CONFIG] Attempting to load primary env file from: ${envPath}`)
+
+// Пытаемся загрузить .env
+const loadResult = config({ path: envPath })
+
+if (loadResult.error) {
+  console.error(
+    `[CONFIG] CRITICAL ERROR: Failed to load primary .env file from ${envPath}. Error: ${loadResult.error.message}`
+  )
+  // В dev режиме можно просто выдать ошибку, в prod - выйти
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1)
+  } else {
+    // Для dev режима бросим ошибку, чтобы nodemon показал проблему
+    throw new Error(`Failed to load .env file at ${envPath}`)
+  }
+} else if (!loadResult.parsed || Object.keys(loadResult.parsed).length === 0) {
+  console.error(
+    `[CONFIG] CRITICAL ERROR: Primary .env file loaded from ${envPath}, but it is empty or parsing failed.`
+  )
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1)
+  }
+} else {
+  console.log(
+    `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}`
+  )
 }
 
-// Логируем NODE_ENV *перед* загрузкой
-console.log(`[CONFIG] NODE_ENV before loading: ${process.env.NODE_ENV}`)
-
-// Явно устанавливаем NODE_ENV если не задан
+// Устанавливаем NODE_ENV по умолчанию, если не задан
 if (!process.env.NODE_ENV) {
   console.log("[CONFIG] NODE_ENV was not set, setting to 'development'")
   ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
-} else {
-  console.log(`[CONFIG] NODE_ENV is already set to: ${process.env.NODE_ENV}`)
 }
-
 export const isDev = process.env.NODE_ENV === 'development'
 console.log(`[CONFIG] isDev flag set to: ${isDev}`)
 
-// --- Логика загрузки .env ---
-// Мы решили всегда загружать только .env, игнорируя NODE_ENV на этом этапе
-const envPath = path.join(cwd, '.env')
-console.log(`[CONFIG] Attempting to load env file from: ${envPath}`)
-
-const loadResult = config({ path: envPath }) // Явно указываем путь к .env в корне
-
-console.log(
-  `[CONFIG] dotenv load result: ${loadResult.parsed ? 'Success' : 'Failed'}`
-)
-if (loadResult.error) {
-  console.error('[CONFIG] dotenv load error:', loadResult.error.message)
-}
-
-if (!loadResult.parsed) {
-  console.error(`❌ Error: Could not find or parse .env file at ${envPath}!`)
-  // Можно добавить выход из процесса, если .env критичен
-  // process.exit(1);
-}
-
-// Логируем NODE_ENV *после* загрузки из .env (если он там был)
-console.log(`[CONFIG] NODE_ENV after loading .env: ${process.env.NODE_ENV}`)
+console.log(`[CONFIG] NODE_ENV is set to: ${process.env.NODE_ENV}`)
 console.log('--- End Debugging .env loading --- ')
 
 // Логирование для проверки токенов
@@ -83,7 +79,7 @@ export const {
   LOG_DIR,
   ORIGIN,
   SUPABASE_URL,
-  SUPABASE_ANON_KEY,
+  SUPABASE_KEY,
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_STORAGE_BUCKET,
   SUPABASE_SERVICE_KEY,

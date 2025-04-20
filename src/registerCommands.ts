@@ -6,6 +6,8 @@ import { levels } from './menu/mainMenu'
 import { getUserDetails } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
+
+// Возвращаем импорт всех сцен через index
 import {
   avatarBrainWizard,
   textToVideoWizard,
@@ -83,6 +85,8 @@ export const stage = new Scenes.Stage<MyContext>([
   voiceAvatarWizard,
   textToSpeechWizard,
   paymentScene,
+  rublePaymentScene,
+  starPaymentScene,
   neuroCoderScene,
   lipSyncWizard,
   helpScene,
@@ -117,9 +121,28 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     await handleTechSupport(ctx)
   })
 
+  // ОБНОВЛЕННЫЙ обработчик - ведет в сцену выбора типа подписки
   bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
     console.log('CASE bot.hears: 💫 Оформить подписку / Subscribe')
-    await ctx.scene.enter(ModeEnum.SubscriptionScene)
+    // Устанавливаем режим перед входом в сцену
+    ctx.session.mode = ModeEnum.Subscribe // Или используем ID сцены, если ModeEnum не подходит
+    await ctx.scene.enter(ModeEnum.SubscriptionScene) // Переходим в сцену выбора подписки
+  })
+
+  // НОВЫЙ обработчик - Пополнить баланс
+  bot.hears([levels[100].title_ru, levels[100].title_en], async ctx => {
+    console.log('CASE bot.hears: 💎 Пополнить баланс / Top up balance')
+    ctx.session.mode = ModeEnum.PaymentScene // Устанавливаем режим
+    // Сохраняем намерение пользователя - пополнение баланса
+    ctx.session.subscription = SubscriptionType.STARS // Используем 'stars' как маркер пополнения
+    await ctx.scene.enter(ModeEnum.PaymentScene) // Переходим в сцену выбора способа оплаты
+  })
+
+  // НОВЫЙ обработчик - Баланс
+  bot.hears([levels[101].title_ru, levels[101].title_en], async ctx => {
+    console.log('CASE bot.hears: 🤑 Баланс / Balance')
+    ctx.session.mode = ModeEnum.Balance // Устанавливаем режим
+    await ctx.scene.enter(ModeEnum.Balance) // Переходим в сцену баланса
   })
 
   bot.command('menu', async ctx => {

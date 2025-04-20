@@ -1,4 +1,5 @@
 import makeMockContext from '../utils/mockTelegrafContext'
+import { defaultSession } from '@/store'
 
 // Mock isRussian
 jest.mock('@/helpers/language', () => ({ isRussian: jest.fn() }))
@@ -35,7 +36,7 @@ describe('registerHearsActions', () => {
     registerHearsActions(bot)
     const handler = bot.hears.mock.calls[0][1]
     const ctx = makeMockContext()
-    ctx.session = {}
+    ctx.session = { ...defaultSession }
     ctx.scene.enter = jest.fn().mockResolvedValue(undefined)
     await handler(ctx)
     expect(ctx.session.mode).toBe('text_to_speech')
@@ -46,7 +47,7 @@ describe('registerHearsActions', () => {
     registerHearsActions(bot)
     const handler = bot.hears.mock.calls[1][1]
     const ctx = makeMockContext()
-    ctx.session = {}
+    ctx.session = { ...defaultSession }
     ctx.scene.enter = jest.fn().mockResolvedValue(undefined)
     await handler(ctx)
     expect(ctx.session.mode).toBe('main_menu')
@@ -59,7 +60,7 @@ describe('registerHearsActions', () => {
       registerHearsActions(bot)
       handler = bot.hears.mock.calls[2][1]
       ctx = makeMockContext()
-      ctx.session = {}
+      ctx.session = { ...defaultSession }
       ctx.scene.enter = jest.fn().mockResolvedValue(undefined)
       ctx.reply = jest.fn().mockResolvedValue(undefined)
     })
@@ -82,14 +83,18 @@ describe('registerHearsActions', () => {
       ctx.session.mode = 'other'
       isRussian.mockReturnValue(false)
       await handler(ctx)
-      expect(ctx.reply).toHaveBeenCalledWith('You cannot generate a new video in this mode')
+      expect(ctx.reply).toHaveBeenCalledWith(
+        'You cannot generate a new video in this mode'
+      )
     })
 
     it('replies error when mode unsupported (Russian)', async () => {
       ctx.session.mode = 'other'
       isRussian.mockReturnValue(true)
       await handler(ctx)
-      expect(ctx.reply).toHaveBeenCalledWith('Вы не можете сгенерировать новое видео в этом режиме')
+      expect(ctx.reply).toHaveBeenCalledWith(
+        'Вы не можете сгенерировать новое видео в этом режиме'
+      )
     })
   })
 })

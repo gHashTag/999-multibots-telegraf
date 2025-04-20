@@ -33,14 +33,16 @@ export function isValidPaymentSubscription(value: string): value is string {
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.SubscriptionScene,
   async ctx => {
-    const userDetails = await getUserDetails(ctx.from?.id.toString())
-    logger.info({
-      message: `[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.CheckBalanceScene}`,
-      userDetails,
-    })
-    if (userDetails.isSubscriptionActive) {
-      return ctx.scene.enter(ModeEnum.CheckBalanceScene)
-    }
+    // УБИРАЕМ ПРОВЕРКУ АКТИВНОЙ ПОДПИСКИ ЗДЕСЬ
+    // const userDetails = await getUserDetails(ctx.from?.id.toString())
+    // logger.info({
+    //   message: `[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.CheckBalanceScene}`,
+    //   userDetails,
+    // })
+    // if (userDetails.isSubscriptionActive) {
+    //   // ЕСЛИ ПОДПИСКА АКТИВНА - ПОКА НЕ ПЕРЕХОДИМ, А ПОКАЗЫВАЕМ ВАРИАНТЫ
+    //   // return ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    // }
 
     const isRu = isRussian(ctx)
     const { translation, buttons } = await getTranslation({

@@ -1,3 +1,4 @@
+export * from './telegram-bot.interface'
 export * from './models.interface'
 export * from './payments.interface'
 export {

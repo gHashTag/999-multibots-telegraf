@@ -19,6 +19,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { calculateRobokassaSignature } from '@/webhooks/robokassa/utils/calculateSignature'
 import { sendPaymentSuccessMessage } from '@/helpers/notifications'
 import { Telegraf } from 'telegraf'
+import { mock, MockProxy } from 'jest-mock-extended' // Добавляем импорт для mock
 
 // Убираем мок @/core/supabase
 // jest.mock('@/core/supabase')
@@ -79,8 +80,8 @@ const validWebhookQuery = {
 // Объявляем переменную для валидного платежа
 let validPayment: Payment
 
-// Объявляем mockBot (хотя он не используется в новой логике проверки)
-let mockBot: Telegraf<MyContext> // Просто объявляем тип
+// Объявляем mockBot и его тип
+let mockBot: MockProxy<Telegraf<MyContext>> // Убираем явное пересечение типов
 
 const dbError = new Error('Database error')
 
@@ -117,14 +118,21 @@ beforeEach(() => {
     query: {},
   }
 
+  // Создаем мок для Telegraf бота
+  mockBot = mock<Telegraf<MyContext>>()
+  // Мокируем sendMessage как jest.fn() внутри структуры telegram
+  ;(mockBot.telegram.sendMessage as jest.Mock) = jest
+    .fn()
+    .mockResolvedValue({} as any)
+
   // Устанавливаем дефолтные реализации моков
   validateRobokassaSignatureMock.mockReturnValue(true)
   mockedGetPendingPayment.mockResolvedValue({ data: null, error: null })
   mockedGetPaymentByInvId.mockResolvedValue({ data: null, error: null })
   mockedUpdatePaymentStatus.mockResolvedValue({ data: null, error: null })
-  mockedUpdateUserBalance.mockResolvedValue(true) // updateUserBalance возвращает boolean
-  // Убираем мок updateUserSubscription, если он больше не нужен
-  // mockedUpdateUserSubscription.mockResolvedValue({ data: null, error: null })
+  mockedUpdateUserBalance.mockResolvedValue(true)
+  // Убедимся, что мок sendPaymentSuccessMessage возвращает Promise
+  mockedSendPaymentSuccessMessage.mockResolvedValue({})
 })
 
 describe('handleRobokassaWebhook', () => {
@@ -410,7 +418,8 @@ describe('handleRobokassaWebhook', () => {
 
     // Ожидаем ошибку 400
     expect(statusSpy).toHaveBeenCalledWith(400)
-    expect(sendSpy).toHaveBeenCalledWith('Bad Request: Missing parameters') // Обновлено сообщение об ошибке
+    // Исправляем ожидаемое сообщение об ошибке
+    expect(sendSpy).toHaveBeenCalledWith('Bad Request: Missing shp_ parameters')
     expect(validateRobokassaSignatureMock).not.toHaveBeenCalled()
   })
 })

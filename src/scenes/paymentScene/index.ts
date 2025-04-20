@@ -102,14 +102,12 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
           `[PaymentScene LOG] Calling handleBuySubscription for known subscription: ${subscription}`
         )
         await handleBuySubscription({ ctx, isRu })
-        await ctx.scene.leave()
         return
       } else if (subscription === 'stars') {
         console.log(
           `[PaymentScene LOG] Calling handleSelectStars for 'stars' subscription.`
         )
         await handleSelectStars({ ctx, isRu, starAmounts })
-        await ctx.scene.leave()
         return
       }
     } else {
@@ -117,9 +115,19 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
         `[PaymentScene LOG] Calling handleSelectStars (no subscription in session).`
       )
       await handleSelectStars({ ctx, isRu, starAmounts })
-      await ctx.scene.leave()
       return
     }
+    logger.warn(
+      `[${ModeEnum.PaymentScene}] Unknown or unhandled subscription type in 'Stars' handler: ${subscription}`,
+      {
+        telegram_id: ctx.from?.id,
+      }
+    )
+    await ctx.reply(
+      isRu
+        ? 'Произошла непредвиденная ошибка.'
+        : 'An unexpected error occurred.'
+    )
   } catch (error) {
     logger.error(
       `❌ [${ModeEnum.PaymentScene}] Error in Hears '⭐️ Звездами':`,
@@ -133,18 +141,21 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
         ? 'Произошла ошибка при обработке звезд.'
         : 'An error occurred while processing stars.'
     )
-    await ctx.scene.leave()
   }
 })
 
 // Переход в сцену оплаты Рублями
 paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
+  // Добавляем детальное логирование сессии ПЕРЕД переходом
   logger.info(
-    `[${ModeEnum.PaymentScene}] User chose Rubles. Entering ${ModeEnum.RublePaymentScene}`,
+    `[${ModeEnum.PaymentScene}] User chose Rubles. Checking session before entering ${ModeEnum.RublePaymentScene}`,
     {
       telegram_id: ctx.from?.id,
+      session_subscription: ctx.session.subscription, // Что было выбрано
+      session_selectedPayment: ctx.session.selectedPayment, // Ключевые данные для rublePaymentScene
     }
   )
+  // Просто переходим в сцену рублей. Логика внутри rublePaymentScene.enter должна разобраться.
   await ctx.scene.enter(ModeEnum.RublePaymentScene)
 })
 
@@ -153,7 +164,7 @@ paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx
   logger.info(`[${ModeEnum.PaymentScene}] Leaving scene via Main Menu button`, {
     telegram_id: ctx.from?.id,
   })
-  await ctx.scene.enter(ModeEnum.MenuScene)
+  await ctx.scene.enter(ModeEnum.MainMenu)
 })
 
 // Обработка непредвиденных сообщений

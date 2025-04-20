@@ -142,7 +142,6 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
     logger.info(
       `[${ModeEnum.RublePaymentScene}] Robokassa invoice message sent to user ${userId}`
     )
-    return ctx.scene.leave() // Выходим после отправки ссылки
   } catch (error: any) {
     logger.error(
       `❌ [${ModeEnum.RublePaymentScene}] Error processing callback top_up_rub:`,
@@ -170,7 +169,7 @@ rublePaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], asyn
       telegram_id: ctx.from?.id,
     }
   )
-  await ctx.scene.enter(ModeEnum.MenuScene) // Переходим в главную сцену меню
+  await ctx.scene.enter(ModeEnum.MainMenu) // Исправлено: используем ModeEnum
 })
 
 // Обработка любых других сообщений

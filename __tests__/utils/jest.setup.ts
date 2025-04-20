@@ -1,4 +1,4 @@
-import { jest, afterAll } from '@jest/globals'
+// import { jest, afterAll } from '@jest/globals'
 import dotenv from 'dotenv'
 
 // Убираем установку process.env
@@ -93,36 +93,24 @@ jest.mock('@/core/bot', () => ({
 // Подавляем вывод логов приложения во время тестов
 
 // Suppress console output during tests
-jest.spyOn(console, 'log').mockImplementation(() => {
-  /* suppressed in tests */
-})
-jest.spyOn(console, 'info').mockImplementation(() => {
-  /* suppressed in tests */
-})
-jest.spyOn(console, 'warn').mockImplementation(() => {
-  /* suppressed in tests */
-})
-jest.spyOn(console, 'error').mockImplementation(() => {
-  /* suppressed in tests */
-})
+jest.spyOn(console, 'log').mockImplementation(jest.fn())
+jest.spyOn(console, 'info').mockImplementation(jest.fn())
+jest.spyOn(console, 'warn').mockImplementation(jest.fn())
+jest.spyOn(console, 'error').mockImplementation(jest.fn())
 // Suppress logger output
-// Временно ставим один аргумент, чтобы удовлетворить линтер на глобальном уровне
-// Конкретные моки в тестах будут иметь приоритет
-jest.spyOn(logger, 'info').mockImplementation((_infoObject) => logger)
-jest.spyOn(logger, 'warn').mockImplementation((_infoObject) => logger)
-jest.spyOn(logger, 'error').mockImplementation((_infoObject) => logger)
-jest.spyOn(logger, 'debug').mockImplementation((_infoObject) => logger)
+jest.spyOn(logger, 'info').mockImplementation(jest.fn())
+jest.spyOn(logger, 'warn').mockImplementation(jest.fn())
+jest.spyOn(logger, 'error').mockImplementation(jest.fn())
+jest.spyOn(logger, 'debug').mockImplementation(jest.fn())
 // Suppress botLogger output
-// botLogger - это объект с методами, мокаем их с любыми аргументами
-jest.spyOn(botLogger, 'info').mockImplementation(() => {})
-jest.spyOn(botLogger, 'warn').mockImplementation(() => {})
-jest.spyOn(botLogger, 'error').mockImplementation(() => {})
-jest.spyOn(botLogger, 'debug').mockImplementation(() => {})
+jest.spyOn(botLogger, 'info').mockImplementation(jest.fn())
+jest.spyOn(botLogger, 'warn').mockImplementation(jest.fn())
+jest.spyOn(botLogger, 'error').mockImplementation(jest.fn())
+jest.spyOn(botLogger, 'debug').mockImplementation(jest.fn())
 // Suppress securityLogger output
-// Временно ставим один аргумент
-jest.spyOn(securityLogger, 'info').mockImplementation((_infoObject) => securityLogger)
-jest.spyOn(securityLogger, 'warn').mockImplementation((_infoObject) => securityLogger)
-jest.spyOn(securityLogger, 'error').mockImplementation((_infoObject) => securityLogger)
+jest.spyOn(securityLogger, 'info').mockImplementation(jest.fn())
+jest.spyOn(securityLogger, 'warn').mockImplementation(jest.fn())
+jest.spyOn(securityLogger, 'error').mockImplementation(jest.fn())
 
 // Ensure OPENAI_API_KEY is set for core/openai modules
 process.env.OPENAI_API_KEY = 'test-key'

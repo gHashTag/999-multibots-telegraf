@@ -1,5 +1,7 @@
 import { EventEmitter } from 'events'
 
+jest.mock('@/config') // Мокаем конфиг, чтобы избежать загрузки .env
+
 // Mock axios.get and fs.createWriteStream
 jest.mock('axios', () => ({ get: jest.fn() }))
 jest.mock('fs', () => ({ createWriteStream: jest.fn() }))
@@ -20,7 +22,9 @@ describe('downloadFile', () => {
     writer.close = jest.fn()
     ;(fs.createWriteStream as jest.Mock).mockReturnValue(writer)
     // Prepare response.data with pipe
-    response = { data: { pipe: (dest: any) => process.nextTick(() => dest.emit('close')) } }
+    response = {
+      data: { pipe: (dest: any) => process.nextTick(() => dest.emit('close')) },
+    }
     ;(axios.get as jest.Mock).mockResolvedValue(response)
   })
 
@@ -32,7 +36,12 @@ describe('downloadFile', () => {
 
   it('rejects when writer emits error', async () => {
     // On pipe, emit error instead of close
-    response = { data: { pipe: (dest: any) => process.nextTick(() => dest.emit('error', new Error('stream err'))) } }
+    response = {
+      data: {
+        pipe: (dest: any) =>
+          process.nextTick(() => dest.emit('error', new Error('stream err'))),
+      },
+    }
     ;(axios.get as jest.Mock).mockResolvedValue(response)
     await expect(downloadFile(url, outputPath)).rejects.toThrow('stream err')
   })

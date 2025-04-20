@@ -12,14 +12,16 @@ import { defaultSession } from '@/store' // Импортируем defaultSessio
 export const makeMockContext = (
   update: Partial<Update> = { update_id: 1 },
   sessionData: Partial<MySession> = {},
-  sceneState: any = {}
+  sceneState: { step: number } & Record<string, any> = { step: 0 } // Keep for WizardScenes if needed
 ): MyContext => {
-  // Добавляем __scenes к базовой сессии
-  const baseSession: MySession & { __scenes?: any } = {
+  const baseSession: MySession & { __scenes?: Scenes.WizardSessionData } = {
     ...defaultSession,
-    __scenes: sceneState
-      ? { cursor: 0, state: sceneState } // Use provided state
-      : { cursor: 0, state: {} }, // Provide default cursor and state
+    __scenes: {
+      // Include scene session structure for compatibility, even for BaseScene
+      current: '', // BaseScene might still use this?
+      state: sceneState, // Keep state, might be used generically
+      cursor: 0, // Keep cursor
+    },
     ...sessionData,
   }
 
@@ -29,38 +31,83 @@ export const makeMockContext = (
     enter: jest.fn(),
     leave: jest.fn(),
     reenter: jest.fn(),
-    session: baseSession as Scenes.WizardSessionData, // Приводим тип
+    session: baseSession.__scenes, // Use the scenes part of the session
     state: sceneState,
-    // current: undefined, // Опционально можно установить текущую сцену
   }
 
-  // Создаем частичный контекст, чтобы установить ссылку на wizard.ctx
   const partialCtx: Partial<MyContext> = {}
 
   const mockWizard: Partial<Scenes.WizardContextWizard<MyContext>> = {
     next: jest.fn(),
     back: jest.fn(),
-    state: {}, // Состояние Wizard
-    cursor: 0, // Курсор Wizard
-    step: jest.fn(), // Добавляем step
-    selectStep: jest.fn(), // Добавляем selectStep
+    state: sceneState, // Use sceneState here too for consistency
+    cursor: 0,
+    step: jest.fn(), // Correct mock: should be a simple jest.fn(), not returning number
+    selectStep: jest.fn(),
   }
 
-  // Устанавливаем обратные ссылки
-  // @ts-ignore
+  // @ts-ignore - Assign scene first
   mockScene.ctx = partialCtx as MyContext
-  // @ts-ignore
+  // @ts-ignore - Assign wizard
   mockWizard.ctx = partialCtx as MyContext
 
-  // Дополняем объект context
+  // --- Try to make the context more complete for Telegraf ---
+  const fromUser = (update as any).message?.from ||
+    (update as any).callback_query?.from || {
+      id: 123,
+      is_bot: false,
+      first_name: 'MockUser',
+    }
+  const chat = (update as any).message?.chat ||
+    (update as any).callback_query?.message?.chat || {
+      id: 456,
+      type: 'private',
+      first_name: 'MockChat',
+    }
+  const message =
+    (update as any).message || (update as any).callback_query?.message
+
   Object.assign(partialCtx, {
-    // @ts-ignore - Basic properties
     update: update as Update,
-    message: (update as any).message,
+    // Basic Telegraf context properties
+    message: message,
     callback_query: (update as any).callback_query,
-    from: (update as any).message?.from || (update as any).callback_query?.from,
-    chat: (update as any).message?.chat,
-    // Добавляем ctx.tg с базовыми методами
+    from: fromUser,
+    chat: chat,
+    // Common methods
+    reply: jest.fn(),
+    replyWithPhoto: jest.fn(),
+    replyWithDocument: jest.fn(),
+    replyWithMarkdown: jest.fn(),
+    replyWithHTML: jest.fn(),
+    editMessageText: jest.fn(),
+    editMessageReplyMarkup: jest.fn(),
+    deleteMessage: jest.fn(),
+    answerCbQuery: jest.fn(),
+    answerPreCheckoutQuery: jest.fn(), // For payments
+    // Scene and session
+    scene: mockScene as Scenes.SceneContextScene<
+      MyContext,
+      Scenes.WizardSessionData
+    >,
+    session: baseSession,
+    // Wizard context (might not be needed for BaseScene, but keep for compatibility)
+    wizard: mockWizard as Scenes.WizardContextWizard<MyContext>,
+    // Other potentially useful properties
+    match: null, // Initialize match
+    state: {}, // General purpose state
+    botInfo: {
+      id: 42,
+      is_bot: true,
+      first_name: 'Test Bot',
+      username: 'TestBot',
+    },
+    // i18n
+    i18n: {
+      t: (key: string) => key, // Simple mock
+      locale: (lang?: string) => fromUser?.language_code || 'ru',
+    },
+    // Ensure tg and telegram objects exist with common methods
     tg: {
       sendMessage: jest.fn(),
       answerCbQuery: jest.fn(),
@@ -75,53 +122,29 @@ export const makeMockContext = (
         is_bot: true,
         first_name: 'Test Bot',
         username: 'TestBot',
-      }), // Мокаем getMe
+      }),
       getFile: jest.fn(),
       getFileLink: jest.fn(),
-      // Добавь другие методы tg по мере необходимости
     },
     telegram: {
-      // Оставляем для совместимости, если где-то используется
-      // @ts-ignore - Mock telegram methods as needed
+      // Duplicate for compatibility if needed
       sendMessage: jest.fn(),
       answerCbQuery: jest.fn(),
       editMessageText: jest.fn(),
       deleteMessage: jest.fn(),
       sendPhoto: jest.fn(),
       sendDocument: jest.fn(),
-      sendInvoice: jest.fn(), // Для платежей
-      answerPreCheckoutQuery: jest.fn(), // Для платежей
-      getMe: jest.fn(),
+      sendInvoice: jest.fn(),
+      answerPreCheckoutQuery: jest.fn(),
+      getMe: jest.fn().mockResolvedValue({
+        id: 42,
+        is_bot: true,
+        first_name: 'Test Bot',
+        username: 'TestBot',
+      }),
       getFile: jest.fn(),
       getFileLink: jest.fn(),
     },
-    // @ts-ignore
-    scene: mockScene as Scenes.SceneContextScene<
-      MyContext,
-      Scenes.WizardSessionData
-    >,
-    session: baseSession,
-    reply: jest.fn(),
-    answerCbQuery: jest.fn(),
-    // @ts-ignore
-    wizard: mockWizard as Scenes.WizardContextWizard<MyContext>,
-    match: null, // Для обработчиков hears/action - Инициализируем как null
-    i18n: {
-      // @ts-ignore - Mock i18n if used
-      t: (key: string) => key, // Просто возвращаем ключ
-      // Используем language_code из ctx.from, если он есть
-      locale: (lang?: string) =>
-        (partialCtx as MyContext).from?.language_code || 'ru',
-    },
-    // Добавляем botInfo и state
-    botInfo: {
-      id: 42,
-      is_bot: true,
-      first_name: 'Test Bot',
-      username: 'TestBot',
-    }, // Пример botInfo
-    state: {}, // Убедимся, что state инициализирован
-    // Добавляем любые другие свойства, необходимые для MyContext
   })
 
   return partialCtx as MyContext

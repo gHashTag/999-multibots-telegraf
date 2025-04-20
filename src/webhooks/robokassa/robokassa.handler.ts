@@ -71,8 +71,8 @@ export async function handleRobokassaResult(
   try {
     // 4. Ищем платеж в БД
     const { data: payment, error: paymentError } = await supabase
-      .from('payments')
-      .select('*, users(telegram_id, username, language_code)') // Загружаем данные пользователя сразу
+      .from('payments_v2')
+      .select('*')
       .eq('inv_id', invId)
       .maybeSingle()
 
@@ -93,10 +93,10 @@ export async function handleRobokassaResult(
       return
     }
 
-    // Извлекаем данные для отправки уведомления
-    const telegramId = payment.users?.telegram_id
+    // Получаем telegram_id и bot_name напрямую из записи payment
+    const telegramId = payment.telegram_id
     const botName = payment.bot_name
-    const languageCode = payment.users?.language_code || 'ru' // Язык по умолчанию - русский
+    // languageCode пока уберем или получим отдельно позже, если нужен
 
     // Проверяем наличие telegram_id и bot_name
     if (!telegramId || !botName) {
@@ -133,7 +133,7 @@ export async function handleRobokassaResult(
 
     // 6. Обновляем статус платежа в БД
     const { error: updatePaymentError } = await supabase
-      .from('payments')
+      .from('payments_v2')
       .update({ status: 'COMPLETED' })
       .eq('inv_id', invId)
 

@@ -6,10 +6,11 @@ describe('subscriptionMiddleware', () => {
   let next: jest.Mock
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = makeMockContext()
-    ctx.telegram.sendChatAction = jest.fn(() => Promise.resolve()) as any
-    ctx.scene.enter = jest.fn(() => Promise.resolve())
-    ctx.chat = { id: 88 } as any
+    ctx = makeMockContext({
+      message: { chat: { id: 88, type: 'private' } },
+    } as any)
+    ctx.telegram.sendChatAction = jest.fn(() => Promise.resolve(true))
+    ctx.scene.enter = jest.fn(() => Promise.resolve({}))
     next = jest.fn(() => Promise.resolve())
   })
 

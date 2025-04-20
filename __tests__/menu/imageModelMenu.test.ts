@@ -1,4 +1,5 @@
 import makeMockContext from '../utils/mockTelegrafContext'
+import { defaultSession } from '@/store'
 
 // Mock price models to a small set
 jest.mock('@/price/models', () => ({
@@ -12,16 +13,19 @@ jest.mock('@/price/models', () => ({
 import { imageModelMenu } from '@/menu/imageModelMenu'
 
 describe('imageModelMenu', () => {
-  let ctx: ReturnType<typeof makeMockContext>
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = makeMockContext()
-    ctx.reply = jest.fn(() => Promise.resolve()) as any
-    // stub sendPhoto not used here
   })
 
   it('replies with Russian text and correct keyboard', async () => {
-    ctx.from = { language_code: 'ru' } as any
+    const ctx = makeMockContext({
+      message: {
+        from: { id: 1, language_code: 'ru', is_bot: false, first_name: 'Test' },
+      },
+    } as any)
+    ctx.session = { ...defaultSession }
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+
     await imageModelMenu(ctx as any)
     // Expect reply text
     expect(ctx.reply).toHaveBeenCalledWith(
@@ -36,10 +40,7 @@ describe('imageModelMenu', () => {
     // @ts-ignore
     const kb = ctx.reply.mock.calls[0][1].reply_markup.keyboard
     // First row should contain TextModel and ImageModel only (DevModel filtered out)
-    expect(kb[0].map((b: any) => b.text)).toEqual([
-      'TextModel',
-      'ImageModel',
-    ])
+    expect(kb[0].map((b: any) => b.text)).toEqual(['TextModel', 'ImageModel'])
     // Next row: Cancel/Help
     expect(kb[kb.length - 2].map((b: any) => b.text)).toEqual([
       'Отмена',
@@ -52,7 +53,14 @@ describe('imageModelMenu', () => {
   })
 
   it('replies with English text and correct keyboard', async () => {
-    ctx.from = { language_code: 'en' } as any
+    const ctx = makeMockContext({
+      message: {
+        from: { id: 2, language_code: 'en', is_bot: false, first_name: 'Test' },
+      },
+    } as any)
+    ctx.session = { ...defaultSession }
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+
     await imageModelMenu(ctx as any)
     expect(ctx.reply).toHaveBeenCalledWith(
       '🎨 Choose a model for generation:',
@@ -63,16 +71,11 @@ describe('imageModelMenu', () => {
     // @ts-ignore
     const kb = ctx.reply.mock.calls[0][1].reply_markup.keyboard
     // Buttons
-    expect(kb[0].map((b: any) => b.text)).toEqual([
-      'TextModel',
-      'ImageModel',
-    ])
+    expect(kb[0].map((b: any) => b.text)).toEqual(['TextModel', 'ImageModel'])
     expect(kb[kb.length - 2].map((b: any) => b.text)).toEqual([
       'Cancel',
       'Help for the command',
     ])
-    expect(kb[kb.length - 1].map((b: any) => b.text)).toEqual([
-      '🏠 Main menu',
-    ])
+    expect(kb[kb.length - 1].map((b: any) => b.text)).toEqual(['🏠 Main menu'])
   })
 })
