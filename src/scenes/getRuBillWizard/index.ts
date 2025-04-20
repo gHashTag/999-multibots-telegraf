@@ -14,7 +14,7 @@ import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 
-const generateInvoiceStep = async (ctx: MyContext) => {
+export const generateInvoiceStep = async (ctx: MyContext) => {
   logger.info('### getRuBillWizard ENTERED (generateInvoiceStep) ###', {
     scene: 'getRuBillWizard',
     step: 'generateInvoiceStep',

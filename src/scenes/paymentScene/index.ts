@@ -20,8 +20,9 @@ export const paymentScene = new Scenes.BaseScene<MyContext>(
 )
 
 paymentScene.enter(async ctx => {
+  console.log(`[PaymentScene LOG] === ENTER Scene === (User: ${ctx.from?.id})`)
   logger.info('### paymentScene ENTERED ###', {
-    scene: 'paymentScene',
+    scene: ModeEnum.PaymentScene,
     step: 'enter',
     telegram_id: ctx.from?.id,
   })
@@ -65,6 +66,9 @@ paymentScene.enter(async ctx => {
 })
 
 paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
+  console.log(
+    `[PaymentScene LOG] --- HEARS '⭐️ Звездами' --- (User: ${ctx.from?.id})`
+  )
   console.log('[PaymentScene] Hears: ⭐️ Звездами triggered')
   const isRu = isRussian(ctx)
   const subscription = ctx.session.subscription?.toLowerCase()
@@ -83,15 +87,24 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
           'neuromentor',
         ].includes(subscription)
       ) {
+        console.log(
+          `[PaymentScene LOG] Calling handleBuySubscription for known subscription: ${subscription}`
+        )
         await handleBuySubscription({ ctx, isRu })
         await ctx.scene.leave()
         return
       } else if (subscription === 'stars') {
+        console.log(
+          `[PaymentScene LOG] Calling handleSelectStars for 'stars' subscription.`
+        )
         await handleSelectStars({ ctx, isRu, starAmounts })
         await ctx.scene.leave()
         return
       }
     } else {
+      console.log(
+        `[PaymentScene LOG] Calling handleSelectStars (no subscription in session).`
+      )
       await handleSelectStars({ ctx, isRu, starAmounts })
       await ctx.scene.leave()
       return

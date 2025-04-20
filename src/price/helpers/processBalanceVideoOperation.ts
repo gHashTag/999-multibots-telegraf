@@ -5,6 +5,11 @@ import { calculateModeCost } from './modelsCost'
 import { VIDEO_MODELS } from '@/interfaces/cost.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
+import { supabase } from '@/core/supabase'
+import { sendBalanceMessage } from '@/price/helpers/sendBalanceMessage'
+
+// Экспортируем VIDEO_MODELS, чтобы его можно было импортировать в тестах
+export { VIDEO_MODELS }
 
 /**
  * Обрабатывает операцию с балансом для видео

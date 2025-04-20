@@ -1,8 +1,9 @@
 {
   "watch": ["src"],
-  "ext": "ts",
-  "exec": "npx ts-node -r tsconfig-paths/register src/bot.ts",
-  "signal": "SIGTERM",
+  "ext": "ts,json",
+  "ignore": ["src/**/*.spec.ts", "src/**/*.test.ts", "logs/*", "last-dev.log"],
+  "exec": "npx ts-node --transpile-only -r tsconfig-paths/register src/bot.ts",
+  "signal": "SIGINT",
   "delay": 1500,
   "events": {
     "restart": "node scripts/kill-port.cjs 2999 3001"
