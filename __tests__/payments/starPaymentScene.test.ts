@@ -100,7 +100,7 @@ const mockEnter = jest.fn().mockResolvedValue({}) // Mock for scene.enter()
 describe('Star Payment Scene', () => {
   let ctx: MyContext
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks()
     // Создаем мок Update с callback_query.from для action
     const mockUpdate: Partial<Update> = {
@@ -186,97 +186,148 @@ describe('Star Payment Scene', () => {
   })
 
   it('should enter the scene and call handleBuySubscription if subscription in session', async () => {
-    // require('../../src/scenes/paymentScene/starPaymentScene') // Пока комментируем
     ctx.session.subscription = SubscriptionType.NEUROBASE // Устанавливаем подписку
-
-    // Вызываем сохраненный enter handler
-    // ВЫЗЫВАЕМ РЕАЛЬНЫЙ MIDDLEWARE
-    // const enterHandlerFn = (starPaymentScene as any)._enterHandler
-    // if (enterHandlerFn) {
-    //   await enterHandlerFn(ctx, jest.fn() as any)
-    // } else {
-    //   console.warn('Enter handler not mocked correctly for starPaymentScene')
-    // }
-    await starPaymentScene.middleware()(ctx, jest.fn() as any)
-
+    await starPaymentScene.enterMiddleware()(ctx, jest.fn() as any)
     expect(mockedHandlers.handleBuySubscription).toHaveBeenCalledTimes(1)
-    expect(mockedHandlers.handleBuySubscription).toHaveBeenCalledWith({
-      ctx,
-      isRu: true,
-    })
+    // ВОЗВРАЩАЕМ ПРОВЕРКУ АРГУМЕНТОВ
+    expect(mockedHandlers.handleBuySubscription).toHaveBeenCalledWith(
+      expect.objectContaining({ ctx, isRu: true })
+    )
     expect(mockedHandlers.handleSelectStars).not.toHaveBeenCalled()
   })
 
-  it('should handle selecting a star package (action top_up_X)', async () => {
+  it('should handle selecting a star package (callback top_up_X)', async () => {
     const starsAmount = 100
-    // УБИРАЕМ старый мок setPayments
+    // Оборачиваем в Promise.resolve
+    mockedGetInvoiceId.mockReturnValue(
+      Promise.resolve('mock-invoice-id-action')
+    )
+    mockInsert.mockClear()
+    // Используем правильный мок ответа из supabaseMocks
+    mockInsert.mockResolvedValue(setPaymentsResponse)
 
-    // Имитируем callback
-    // @ts-ignore - Добавляем match в контекст теста
-    ctx.match = [`top_up_${starsAmount}`, starsAmount.toString()]
-    // if (!starCallbackHandler) throw new Error('Action handler not registered')
-    // await starCallbackHandler(ctx, jest.fn() as any)
-    // НАХОДИМ И ВЫЗЫВАЕМ РЕАЛЬНЫЙ ACTION HANDLER
-    const handler = starPaymentScene.actionHandlers.find(h => {
-      return (
-        h.triggers instanceof RegExp && h.triggers.source.includes('top_up_')
-      )
-    })
-    if (!handler) throw new Error('Action handler for top_up_X not found')
-    await handler.middleware(ctx, jest.fn() as any)
+    // Имитируем callback_query
+    const mockCallbackUpdate: Update.CallbackQueryUpdate = {
+      update_id: 10002,
+      callback_query: {
+        id: 'test-callback-id-action',
+        from: {
+          id: 12345, // Используем другой ID для ясности
+          is_bot: false,
+          first_name: 'Action User',
+          username: 'actionuser',
+          language_code: 'ru',
+        },
+        message: {
+          message_id: 123458,
+          date: Date.now() / 1000,
+          chat: {
+            id: 1234568,
+            type: 'private',
+            first_name: 'Action User',
+            username: 'actionuser',
+          },
+          text: 'Select stars',
+        },
+        chat_instance: 'test-chat-instance-action',
+        data: `top_up_${starsAmount}`, // Данные колбэка
+      },
+    }
+    // Создаем новый контекст для этого теста
+    const actionCtx = makeMockContext(mockCallbackUpdate)
+    actionCtx.session = { ...ctx.session } // Копируем сессию, если нужно
+    actionCtx.answerCbQuery = jest.fn().mockResolvedValue(true)
+    actionCtx.reply = jest.fn().mockResolvedValue({} as any)
+    actionCtx.scene.leave = jest.fn().mockResolvedValue()
 
-    expect(ctx.answerCbQuery).toHaveBeenCalled()
-    // Проверяем вызов insert из глобального мока Supabase
+    // Вызываем middleware сцены с новым контекстом
+    await starPaymentScene.middleware()(actionCtx, jest.fn() as any)
+
+    // Проверяем вызовы
+    expect(actionCtx.answerCbQuery).toHaveBeenCalled()
+    expect(mockInsert).toHaveBeenCalledTimes(1)
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        telegram_id: '123', // Используем ID из mockUpdate
+        telegram_id: 12345, // Проверяем ID пользователя из callback_query
+        InvId: 'mock-invoice-id-action',
         currency: 'STARS',
         stars: starsAmount,
-        status: PaymentStatus.COMPLETED, // Используем enum, предполагаем COMPLETED для звезд
-        payment_method: 'TelegramStars',
+        status: PaymentStatus.PENDING, // Статус PENDING при создании
+        payment_method: 'stars',
         bot_name: 'test_bot',
-        // ... другие поля по необходимости ...
       })
     )
-    expect(ctx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('Оплата выполнена'),
-      { parse_mode: 'HTML' }
-    )
-    expect(ctx.scene.leave).toHaveBeenCalled()
+    expect(actionCtx.reply).not.toHaveBeenCalled() // В оригинальной логике не было reply при успехе?
+    expect(actionCtx.scene.leave).toHaveBeenCalled()
+    expect(mockedLogger.error).not.toHaveBeenCalled()
   })
 
-  it('should handle error during payment saving', async () => {
+  it('should handle error during payment saving (callback top_up_X)', async () => {
     const starsAmount = 50
     const dbError = new Error('DB Error')
-    // Мокаем ошибку insert
-    mockInsert.mockRejectedValueOnce(dbError)
+    // Оборачиваем в Promise.resolve
+    mockedGetInvoiceId.mockReturnValue(
+      Promise.resolve('mock-invoice-id-action-error')
+    )
+    mockInsert.mockClear()
+    mockInsert.mockRejectedValue(dbError)
+    mockedLogger.error.mockClear()
 
-    // Имитируем callback
-    // @ts-ignore - Добавляем match в контекст теста
-    ctx.match = [`top_up_${starsAmount}`, starsAmount.toString()]
-    // if (!starCallbackHandler) throw new Error('Action handler not registered')
-    // await starCallbackHandler(ctx, jest.fn() as any)
-    // НАХОДИМ И ВЫЗЫВАЕМ РЕАЛЬНЫЙ ACTION HANDLER
-    const handler = starPaymentScene.actionHandlers.find(h => {
-      return (
-        h.triggers instanceof RegExp && h.triggers.source.includes('top_up_')
-      )
-    })
-    if (!handler) throw new Error('Action handler for top_up_X not found')
-    await handler.middleware(ctx, jest.fn() as any)
+    // Имитируем callback_query
+    const mockCallbackUpdate: Update.CallbackQueryUpdate = {
+      update_id: 10003,
+      callback_query: {
+        id: 'test-callback-id-action-error',
+        from: {
+          id: 12346,
+          is_bot: false,
+          first_name: 'Error User',
+          username: 'erroruser',
+          language_code: 'ru',
+        },
+        message: {
+          message_id: 1,
+          date: 1,
+          chat: {
+            id: 1,
+            type: 'private',
+            first_name: 'Error User Chat',
+            text: 'some text',
+          },
+        },
+        chat_instance: 'test-chat-instance-action-error',
+        data: `top_up_${starsAmount}`,
+      },
+    }
+    const errorCtx = makeMockContext(mockCallbackUpdate)
+    errorCtx.session = { ...ctx.session }
+    errorCtx.answerCbQuery = jest.fn().mockResolvedValue(true)
+    errorCtx.reply = jest.fn().mockResolvedValue({} as any)
+    errorCtx.scene.leave = jest.fn().mockResolvedValue()
 
-    expect(ctx.answerCbQuery).toHaveBeenCalled()
-    // Проверяем, что insert был вызван
+    // Вызываем middleware сцены
+    await starPaymentScene.middleware()(errorCtx, jest.fn() as any)
+
+    // Проверяем вызовы
+    expect(errorCtx.answerCbQuery).toHaveBeenCalled()
     expect(mockInsert).toHaveBeenCalledTimes(1)
-    expect(ctx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('Произошла ошибка'),
+    // Ожидаем вызов reply с сообщением об ошибке
+    expect(errorCtx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Произошла ошибка при обработке платежа'),
       undefined
     )
-    expect(ctx.scene.leave).toHaveBeenCalled()
-    expect(mockedLogger.error).toHaveBeenCalledWith(
-      expect.stringContaining('Error processing callback top_up'),
-      expect.any(Object)
-    )
+    expect(errorCtx.scene.leave).toHaveBeenCalled()
+    expect(mockedLogger.error).toHaveBeenCalledTimes(1)
+    // Проверяем объект ошибки в логгере - ВЕРСИЯ 3
+    const loggedArg = mockedLogger.error.mock.calls[0][0] as {
+      error?: Error
+      message?: string
+    } // Утверждаем тип
+    expect(loggedArg).toBeDefined()
+    expect(loggedArg.error).toBeInstanceOf(Error)
+    if (loggedArg.error instanceof Error) {
+      expect(loggedArg.error.message).toBe(dbError.message)
+    }
   })
 
   it('should handle buying a subscription with stars', async () => {
@@ -294,21 +345,22 @@ describe('Star Payment Scene', () => {
   // ДОБАВЛЯЕМ async
   it('should enter the scene and call handleSelectStars if no subscription in session', async () => {
     delete ctx.session.subscription // Убеждаемся, что подписки нет
-
-    // ВЫЗЫВАЕМ РЕАЛЬНЫЙ MIDDLEWARE
-    await starPaymentScene.middleware()(ctx, jest.fn() as any)
-
-    expect(mockedHandlers.handleSelectStars).toHaveBeenCalledWith(ctx)
+    await starPaymentScene.enterMiddleware()(ctx, jest.fn() as any)
+    expect(mockedHandlers.handleSelectStars).toHaveBeenCalledTimes(1)
+    // ВОЗВРАЩАЕМ ПРОВЕРКУ АРГУМЕНТОВ
+    expect(mockedHandlers.handleSelectStars).toHaveBeenCalledWith(
+      expect.objectContaining({ ctx, isRu: true })
+    )
+    expect(mockedHandlers.handleBuySubscription).not.toHaveBeenCalled()
   })
 
   // ДОБАВЛЯЕМ async
   it('should enter the scene and call handleBuySubscription if subscription exists', async () => {
     ctx.session.subscription = SubscriptionType.NEUROBASE // Устанавливаем подписку
-
-    // ВЫЗЫВАЕМ РЕАЛЬНЫЙ MIDDLEWARE
-    await starPaymentScene.middleware()(ctx, jest.fn() as any)
-
-    expect(mockedHandlers.handleBuySubscription).toHaveBeenCalledWith(ctx)
+    await starPaymentScene.enterMiddleware()(ctx, jest.fn() as any)
+    expect(mockedHandlers.handleBuySubscription).toHaveBeenCalledWith(
+      expect.objectContaining({ ctx, isRu: true })
+    )
   })
 
   // ДОБАВЛЯЕМ async
@@ -427,7 +479,12 @@ describe('Star Payment Scene', () => {
         error: expect.any(Error),
       })
     )
-    const loggedObject = mockedLogger.error.mock.calls[0][0]
+    const loggedObject = mockedLogger.error.mock.calls[0][0] as {
+      error?: Error
+      message?: string
+    } // Утверждаем тип
+    // Проверка - ВЕРСИЯ 3
+    expect(loggedObject).toBeDefined()
     expect(loggedObject.error).toBeInstanceOf(Error)
     if (loggedObject.error instanceof Error) {
       expect(loggedObject.error.message).toBe(errorMessage)

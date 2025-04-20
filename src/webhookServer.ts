@@ -9,7 +9,7 @@ dotenv.config()
 const robokassaPort = process.env.ROBOKASSA_WEBHOOK_PORT || 2999
 
 // Создаем экземпляр express
-const app = express()
+export const app = express()
 
 // Middleware для разбора URL-encoded формы
 app.use(express.urlencoded({ extended: true }))
@@ -31,11 +31,13 @@ app.get('/health', (req, res) => {
   res.status(200).send('OK')
 })
 
-// Запуск сервера
-app
-  .listen(robokassaPort, () => {
-    console.log(`[Robokassa] Webhook server running on port ${robokassaPort}`)
-  })
-  .on('error', err => {
-    console.error(`[Robokassa] Failed to start webhook server: ${err.message}`)
-  })
+// Запуск сервера (кроме тестового окружения)
+if (process.env.NODE_ENV !== 'test') {
+  app
+    .listen(robokassaPort, () => {
+      console.log(`[Robokassa] Webhook server running on port ${robokassaPort}`)
+    })
+    .on('error', err => {
+      console.error(`[Robokassa] Failed to start webhook server: ${err.message}`)
+    })
+}
