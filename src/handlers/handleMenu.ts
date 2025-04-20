@@ -298,13 +298,15 @@ export const handleMenu = async (ctx: MyContext) => {
           telegramId,
           function: 'handleMenu',
           action: 'topup_balance',
-          nextScene: 'paymentScene',
+          nextScene: ModeEnum.PaymentScene,
         })
         console.log('CASE: 💎 Пополнить баланс')
         ctx.session.mode = ModeEnum.TopUpBalance
-        console.log(`🔄 [handleMenu] Вход в сцену ${'paymentScene'}`)
-        await ctx.scene.enter('paymentScene')
-        console.log(`✅ [handleMenu] Завершен вход в сцену ${'paymentScene'}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
+        await ctx.scene.enter(ModeEnum.PaymentScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.PaymentScene}`
+        )
       },
       [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
         logger.info({
@@ -402,13 +404,15 @@ export const handleMenu = async (ctx: MyContext) => {
           telegramId,
           function: 'handleMenu',
           action: 'buy_command',
-          nextScene: 'paymentScene',
+          nextScene: ModeEnum.PaymentScene,
         })
         console.log('CASE: 💰 Пополнить баланс')
         ctx.session.mode = ModeEnum.TopUpBalance
-        console.log(`🔄 [handleMenu] Вход в сцену ${'paymentScene'}`)
-        await ctx.scene.enter('paymentScene')
-        console.log(`✅ [handleMenu] Завершен вход в сцену ${'paymentScene'}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
+        await ctx.scene.enter(ModeEnum.PaymentScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.PaymentScene}`
+        )
       },
       '/balance': async () => {
         logger.info({

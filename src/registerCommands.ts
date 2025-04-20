@@ -195,7 +195,7 @@ export function registerCommands({
   composer.command('buy', async ctx => {
     console.log('CASE: buy')
     ctx.session.subscription = SubscriptionType.STARS
-    await ctx.scene.enter('paymentScene')
+    await ctx.scene.enter(ModeEnum.PaymentScene)
   })
 
   composer.command('invite', async ctx => {

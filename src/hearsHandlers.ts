@@ -107,7 +107,7 @@ composer.hears([levels[100].title_ru, levels[100].title_en], async ctx => {
   console.log('CASE: Пополнить баланс')
   ctx.session.mode = ModeEnum.TopUpBalance
   ctx.session.subscription = SubscriptionType.STARS
-  await ctx.scene.enter('paymentScene')
+  await ctx.scene.enter(ModeEnum.PaymentScene)
 })
 
 composer.hears([levels[101].title_ru, levels[101].title_en], async ctx => {
@@ -405,7 +405,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       logger.debug(`Получен hears для Пополнить баланс от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.TopUpBalance
       ctx.session.subscription = SubscriptionType.STARS
-      await ctx.scene.enter('paymentScene')
+      await ctx.scene.enter(ModeEnum.PaymentScene)
     }
   )
 

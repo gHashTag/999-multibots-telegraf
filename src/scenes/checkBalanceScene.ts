@@ -667,9 +667,9 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
           telegramId,
           function: 'enterTargetScene',
           fromMode: mode,
-          toScene: 'paymentScene',
+          toScene: ModeEnum.PaymentScene,
         })
-        result = await ctx.scene.enter('paymentScene')
+        result = await ctx.scene.enter(ModeEnum.PaymentScene)
         break
       case ModeEnum.Invite:
         logger.info({

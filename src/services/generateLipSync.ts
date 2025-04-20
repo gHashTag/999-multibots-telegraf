@@ -4,12 +4,18 @@ import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
 import fs from 'fs'
 import path from 'path'
 import { ensureDirectoryExistence } from '@/helpers'
+import { sendBalanceMessage } from '@/price/helpers'
+import { logger } from '@/utils/logger'
+
 interface LipSyncResponse {
   message: string
   resultUrl?: string
 }
 
-async function downloadFile(url: string, outputPath: string): Promise<void> {
+export async function downloadFile(
+  url: string,
+  outputPath: string
+): Promise<void> {
   const response = await axios.get(url, { responseType: 'stream' })
   const writer = fs.createWriteStream(outputPath)
 

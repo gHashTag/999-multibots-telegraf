@@ -112,10 +112,27 @@ async function startRobokassaWebhookServer(): Promise<http.Server | null> {
   return server
 }
 
-// Инициализация ботов в зависимости от окружения
+// Добавляю логи перед инициализацией ботов
 async function initializeBots() {
   console.log('🔧 Режим работы:', isDev ? 'development' : 'production')
   console.log('📝 Загружен файл окружения:', process.env.NODE_ENV)
+
+  console.log('🔄 [SCENE_DEBUG] Проверка импорта stage из registerCommands...')
+  const { stage } = await import('./registerCommands')
+  console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')
+  // Проверим сцены другим способом
+  try {
+    const stageInfo = (stage as any)._handlers || []
+    console.log(
+      '📊 [SCENE_DEBUG] Количество обработчиков сцен:',
+      stageInfo.length
+    )
+  } catch (e) {
+    console.log(
+      '⚠️ [SCENE_DEBUG] Не удалось получить информацию о количестве сцен:',
+      e.message
+    )
+  }
 
   if (isDev) {
     // В режиме разработки используем только тестового бота
@@ -127,8 +144,15 @@ async function initializeBots() {
     const bot = new Telegraf<MyContext>(testBotToken)
     bot.use(Composer.log())
 
+    // Добавляем логи перед регистрацией команд
+    console.log(
+      '🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...'
+    )
+
     // Регистрируем команды, используя глобальный composer
     registerCommands({ bot, composer })
+
+    console.log('✅ [SCENE_DEBUG] Команды и middleware зарегистрированы')
 
     botInstances.push(bot)
     const botInfo = await bot.telegram.getMe()
@@ -206,6 +230,14 @@ async function initializeBots() {
 
   // Запускаем сервер для обработки Robokassa вебхуков
   robokassaServer = await startRobokassaWebhookServer()
+
+  console.log('🔍 Инициализация сцен...')
+  // Перед регистрацией каждой сцены добавляю лог
+  console.log('📋 Регистрация сцены: payment_scene')
+  // ... существующий код регистрации сцен ...
+
+  // После регистрации всех сцен добавляю итоговый лог:
+  console.log('✅ Все сцены успешно зарегистрированы')
 }
 
 // Промисификация server.close
