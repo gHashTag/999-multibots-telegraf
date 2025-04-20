@@ -1,6 +1,6 @@
 // src/handlers/modelHandler.ts
 import { MyContext } from '../../interfaces'
-import { setModel } from '../../core/supabase'
+import { updateUserModel } from '../../core/supabase'
 
 export async function handleModelCallback(ctx: MyContext, model: string) {
   try {
@@ -11,7 +11,7 @@ export async function handleModelCallback(ctx: MyContext, model: string) {
     const isRu = ctx.from?.language_code === 'ru'
 
     try {
-      await setModel(ctx.from.id.toString(), model)
+      await updateUserModel(ctx.from.id.toString(), model)
 
       await ctx.reply(
         isRu

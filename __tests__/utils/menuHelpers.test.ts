@@ -1,5 +1,7 @@
-import { createHelpCancelKeyboard } from '../../src/menu/createHelpCancelKeyboard'
+import { describe, it, expect } from '@jest/globals'
+import { createHelpCancelKeyboard } from '../../src/menu/createHelpCancelKeyboard/createHelpCancelKeyboard'
 import { cancelHelpArray } from '../../src/menu/cancelHelpArray'
+import { mainMenu } from '@/menu'
 
 describe('cancelHelpArray', () => {
   it('returns Russian array when isRu true', () => {
@@ -105,15 +107,6 @@ describe('startMenu', () => {
   })
 })
 // Tests for imageModelMenu
-import makeMockContext from './mockTelegrafContext'
-// Mock imageModelPrices for controlled behavior
-jest.mock('../../src/price/models', () => ({
-  imageModelPrices: {
-    modelA: { shortName: 'A', description_en: '', description_ru: '', costPerImage: 1, previewImage: '', inputType: ['text'] },
-    modelB: { shortName: 'B', description_en: '', description_ru: '', costPerImage: 2, previewImage: '', inputType: ['text', 'image'] },
-    devModel: { shortName: 'Dev', description_en: '', description_ru: '', costPerImage: 3, previewImage: '', inputType: ['dev'] },
-  },
-}))
 import { imageModelMenu } from '../../src/menu/imageModelMenu'
 
 describe('imageModelMenu', () => {

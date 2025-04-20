@@ -1,15 +1,16 @@
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals'
 import { removeWebhooks } from '../../src/utils/removeWebhooks'
 import { logger } from '../../src/utils/logger'
 
 describe('removeWebhooks util', () => {
   let bot: any
-  let infoSpy: jest.SpyInstance
-  let errorSpy: jest.SpyInstance
+  let infoSpy: jest.SpiedFunction<typeof logger.info>
+  let errorSpy: jest.SpiedFunction<typeof logger.error>
 
   beforeEach(() => {
     jest.resetModules()
-    infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => {})
-    errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {})
+    infoSpy = jest.spyOn(logger, 'info').mockImplementation((_message, _meta) => {})
+    errorSpy = jest.spyOn(logger, 'error').mockImplementation((_message, _meta) => {})
     bot = {
       botInfo: { username: 'bot1' },
       telegram: {

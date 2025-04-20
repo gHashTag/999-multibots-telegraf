@@ -1,3 +1,5 @@
+import { jest, describe, it, expect, beforeEach } from '@jest/globals'
+
 // Mock fs and path
 jest.mock('fs')
 jest.mock('path', () => ({ resolve: jest.fn().mockReturnValue('/fake/path') }))
@@ -9,6 +11,10 @@ jest.mock('@/utils/logger', () => ({
 import fs from 'fs'
 import { loadBotsConfig, loadSecurityConfig } from '@/utils/config'
 
+// Явно типизируем замоканные функции fs
+const mockedExistsSync = fs.existsSync as jest.MockedFunction<typeof fs.existsSync>
+const mockedReadFileSync = fs.readFileSync as jest.MockedFunction<typeof fs.readFileSync>
+
 describe('loadBotsConfig', () => {
   const { botLogger, logSecurityEvent } = require('@/utils/logger')
 
@@ -17,7 +23,7 @@ describe('loadBotsConfig', () => {
   })
 
   it('returns empty array and logs error when config file does not exist', () => {
-    fs.existsSync.mockReturnValue(false)
+    mockedExistsSync.mockReturnValue(false)
     const result = loadBotsConfig('config/bots.json')
     expect(result).toEqual([])
     expect(botLogger.error).toHaveBeenCalledWith(
@@ -27,13 +33,13 @@ describe('loadBotsConfig', () => {
   })
 
   it('parses valid config and disables invalid tokens', () => {
-    fs.existsSync.mockReturnValue(true)
+    mockedExistsSync.mockReturnValue(true)
     const validToken = '12345:' + 'A'.repeat(30)
     const configData = JSON.stringify([
       { name: 'botA', token: validToken, enabled: true },
       { name: 'botB', token: 'invalid', enabled: true },
     ])
-    fs.readFileSync.mockReturnValue(configData)
+    mockedReadFileSync.mockReturnValue(configData)
     const result = loadBotsConfig('config/bots.json')
     expect(result).toHaveLength(2)
     expect(result[0].enabled).toBe(true)
@@ -46,13 +52,13 @@ describe('loadBotsConfig', () => {
   })
 
   it('disables duplicate bot names', () => {
-    fs.existsSync.mockReturnValue(true)
+    mockedExistsSync.mockReturnValue(true)
     const token = '123:' + 'B'.repeat(30)
     const configData = JSON.stringify([
       { name: 'dup', token, enabled: true },
       { name: 'dup', token, enabled: true },
     ])
-    fs.readFileSync.mockReturnValue(configData)
+    mockedReadFileSync.mockReturnValue(configData)
     const result = loadBotsConfig('config/bots.json')
     expect(result).toHaveLength(2)
     expect(result[1].enabled).toBe(false)
@@ -64,7 +70,7 @@ describe('loadSecurityConfig', () => {
   const { botLogger, logSecurityEvent } = require('@/utils/logger')
   beforeEach(() => {
     jest.clearAllMocks()
-    fs.existsSync.mockReturnValue(false)
+    mockedExistsSync.mockReturnValue(false)
   })
 
   it('returns default security config when no file', () => {
@@ -77,14 +83,14 @@ describe('loadSecurityConfig', () => {
   })
 
   it('loads security config from file', () => {
-    fs.existsSync.mockReturnValue(true)
+    mockedExistsSync.mockReturnValue(true)
     const fileConfig = {
       secretKey: 'mysecret',
       enableIpFilter: true,
       rateLimit: { max: 50 },
       ipWhitelist: ['1.2.3.4'],
     }
-    fs.readFileSync.mockReturnValue(JSON.stringify(fileConfig))
+    mockedReadFileSync.mockReturnValue(JSON.stringify(fileConfig))
     const sec = loadSecurityConfig()
     expect(sec.secretKey).toBe('mysecret')
     expect(sec.enableIpFilter).toBe(true)
@@ -93,8 +99,8 @@ describe('loadSecurityConfig', () => {
   })
 
   it('logs error and returns default on JSON parse error', () => {
-    fs.existsSync.mockReturnValue(true)
-    fs.readFileSync.mockReturnValue('invalid json')
+    mockedExistsSync.mockReturnValue(true)
+    mockedReadFileSync.mockReturnValue('invalid json')
     expect(loadSecurityConfig()).toBeDefined()
     expect(botLogger.error).toHaveBeenCalled()
     expect(logSecurityEvent).toHaveBeenCalledWith(

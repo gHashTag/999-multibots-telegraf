@@ -1,3 +1,4 @@
+import { jest, afterAll } from '@jest/globals'
 import dotenv from 'dotenv'
 
 // Убираем установку process.env
@@ -9,8 +10,11 @@ dotenv.config({ path: '.env.test' })
 
 // --- Глобальный мок Supabase Client ---
 jest.mock('@supabase/supabase-js', () => {
+  // Переменная для хранения результата, устанавливаемого тестом
+  let mockResult: { data?: any; error?: any } = { data: {}, error: null }
+
   const mockSupabaseClient = {
-    from: jest.fn(() => mockSupabaseClient), // Chainable
+    from: jest.fn(() => mockSupabaseClient),
     select: jest.fn(() => mockSupabaseClient),
     update: jest.fn(() => mockSupabaseClient),
     insert: jest.fn(() => mockSupabaseClient),
@@ -30,28 +34,20 @@ jest.mock('@supabase/supabase-js', () => {
     range: jest.fn(() => mockSupabaseClient),
     order: jest.fn(() => mockSupabaseClient),
     limit: jest.fn(() => mockSupabaseClient),
-    single: jest.fn(() => Promise.resolve({ data: {}, error: null })),
-    maybeSingle: jest.fn(() => Promise.resolve({ data: {}, error: null })),
-    // Мок для возврата данных/ошибок (можно переопределять в тестах при необходимости)
-    // Добавим __mockSetResult для удобства установки результата в тестах
+    // single и maybeSingle теперь просто возвращают сохраненный результат
+    single: jest.fn(() => Promise.resolve(mockResult)),
+    maybeSingle: jest.fn(() => Promise.resolve(mockResult)),
+    // Упрощенная функция для установки результата
     __mockSetResult: function (result: { data?: any; error?: any }) {
-      this.single.mockResolvedValue(result)
-      this.maybeSingle.mockResolvedValue(result)
-      // Добавь другие методы, если нужно мокать их результат
-      this.select.mockReturnValue({
-        ...this, // Сохраняем chainability
-        single: jest.fn().mockResolvedValue(result),
-        maybeSingle: jest.fn().mockResolvedValue(result),
-        // Добавь eq, order и т.д., если нужно их мокать после select
-        eq: jest.fn().mockReturnValue({
-          single: jest.fn().mockResolvedValue(result),
-          maybeSingle: jest.fn().mockResolvedValue(result),
-        }),
-      })
-      this.update.mockResolvedValue(result) // Мокаем результат update
-      this.insert.mockResolvedValue(result) // Мокаем результат insert
-      this.delete.mockResolvedValue(result) // Мокаем результат delete
-      return this
+      mockResult = result // Просто сохраняем результат
+      // Сбрасываем моки методов, возвращающих промис, чтобы они использовали новый mockResult
+      this.single.mockResolvedValue(mockResult)
+      this.maybeSingle.mockResolvedValue(mockResult)
+      // Можно также сбросить .update, .insert, .delete, если они используются в тестах
+      // this.update.mockResolvedValue(mockResult)
+      // this.insert.mockResolvedValue(mockResult)
+      // this.delete.mockResolvedValue(mockResult)
+      return this // Возвращаем this для поддержки цепочки (если нужно)
     },
     auth: {
       // Моки для методов аутентификации, если они используются
@@ -110,19 +106,23 @@ jest.spyOn(console, 'error').mockImplementation(() => {
   /* suppressed in tests */
 })
 // Suppress logger output
-jest.spyOn(logger, 'info').mockImplementation(() => logger)
-jest.spyOn(logger, 'warn').mockImplementation(() => logger)
-jest.spyOn(logger, 'error').mockImplementation(() => logger)
-jest.spyOn(logger, 'debug').mockImplementation(() => logger)
+// Временно ставим один аргумент, чтобы удовлетворить линтер на глобальном уровне
+// Конкретные моки в тестах будут иметь приоритет
+jest.spyOn(logger, 'info').mockImplementation((_infoObject) => logger)
+jest.spyOn(logger, 'warn').mockImplementation((_infoObject) => logger)
+jest.spyOn(logger, 'error').mockImplementation((_infoObject) => logger)
+jest.spyOn(logger, 'debug').mockImplementation((_infoObject) => logger)
 // Suppress botLogger output
-jest.spyOn(botLogger, 'info').mockImplementation(() => botLogger)
-jest.spyOn(botLogger, 'warn').mockImplementation(() => botLogger)
-jest.spyOn(botLogger, 'error').mockImplementation(() => botLogger)
-jest.spyOn(botLogger, 'debug').mockImplementation(() => botLogger)
+// botLogger - это объект с методами, мокаем их с любыми аргументами
+jest.spyOn(botLogger, 'info').mockImplementation(() => {})
+jest.spyOn(botLogger, 'warn').mockImplementation(() => {})
+jest.spyOn(botLogger, 'error').mockImplementation(() => {})
+jest.spyOn(botLogger, 'debug').mockImplementation(() => {})
 // Suppress securityLogger output
-jest.spyOn(securityLogger, 'info').mockImplementation(() => securityLogger)
-jest.spyOn(securityLogger, 'warn').mockImplementation(() => securityLogger)
-jest.spyOn(securityLogger, 'error').mockImplementation(() => securityLogger)
+// Временно ставим один аргумент
+jest.spyOn(securityLogger, 'info').mockImplementation((_infoObject) => securityLogger)
+jest.spyOn(securityLogger, 'warn').mockImplementation((_infoObject) => securityLogger)
+jest.spyOn(securityLogger, 'error').mockImplementation((_infoObject) => securityLogger)
 
 // Ensure OPENAI_API_KEY is set for core/openai modules
 process.env.OPENAI_API_KEY = 'test-key'
