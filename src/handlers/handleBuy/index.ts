@@ -1,7 +1,10 @@
 import { Context } from 'telegraf'
 import { starAmounts } from '@/price/helpers'
-interface BuyParams {
-  ctx: Context
+import { Markup } from 'telegraf'
+import { MyContext } from '@/interfaces'
+
+export interface BuyParams {
+  ctx: MyContext
   data: string
   isRu: boolean
 }

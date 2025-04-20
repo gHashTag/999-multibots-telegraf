@@ -20,6 +20,7 @@ export const paymentScene = new Scenes.BaseScene<MyContext>(
 )
 
 paymentScene.enter(async ctx => {
+  console.log(`[PaymentScene LOG] === ENTER Scene === (User: ${ctx.from?.id})`)
   logger.info('### paymentScene ENTERED ###', {
     scene: ModeEnum.PaymentScene,
     step: 'enter',
@@ -65,6 +66,9 @@ paymentScene.enter(async ctx => {
 })
 
 paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
+  console.log(
+    `[PaymentScene LOG] --- HEARS '⭐️ Звездами' --- (User: ${ctx.from?.id})`
+  )
   console.log('[PaymentScene] Hears: ⭐️ Звездами triggered')
   const isRu = isRussian(ctx)
   const subscription = ctx.session.subscription?.toLowerCase()
@@ -83,15 +87,24 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
           'neuromentor',
         ].includes(subscription)
       ) {
+        console.log(
+          `[PaymentScene LOG] Calling handleBuySubscription for known subscription: ${subscription}`
+        )
         await handleBuySubscription({ ctx, isRu })
         await ctx.scene.leave()
         return
       } else if (subscription === 'stars') {
+        console.log(
+          `[PaymentScene LOG] Calling handleSelectStars for 'stars' subscription.`
+        )
         await handleSelectStars({ ctx, isRu, starAmounts })
         await ctx.scene.leave()
         return
       }
     } else {
+      console.log(
+        `[PaymentScene LOG] Calling handleSelectStars (no subscription in session).`
+      )
       await handleSelectStars({ ctx, isRu, starAmounts })
       await ctx.scene.leave()
       return
@@ -277,153 +290,6 @@ paymentScene.action(/top_up_rub_(\d+)/, async ctx => {
         ? 'Произошла ошибка при создании счета Robokassa.'
         : 'An error occurred while creating the Robokassa invoice.'
     )
-    return ctx.scene.leave()
-  }
-})
-
-// Обработчик для звездных транзакций (top_up_X)
-paymentScene.action(/top_up_(\d+)$/, async ctx => {
-  console.log(
-    '☑️ [PaymentScene DEBUG] Вход в обработчик звездных транзакций top_up_X'
-  )
-  logger.info('🌟 [PaymentScene] Начало обработки звездной транзакции', {
-    action_type: 'stars_payment',
-    telegram_id: ctx.from?.id,
-  })
-
-  const isRu = isRussian(ctx)
-  try {
-    const amount = parseInt(ctx.match[1], 10)
-    console.log(`[PaymentScene] Обработка callback top_up: ${amount} ⭐️`)
-    logger.info('💫 [PaymentScene] Обработка звездного платежа', {
-      amount: amount,
-      telegram_id: ctx.from?.id,
-    })
-
-    try {
-      await ctx.answerCbQuery() // Отвечаем на колбэк
-      console.log('[PaymentScene] Успешно ответили на callback')
-    } catch (e) {
-      console.error('[PaymentScene] Ошибка при ответе на callback stars:', e)
-      logger.error('❌ [PaymentScene] Ошибка ответа на callback', {
-        error: e.message,
-        telegram_id: ctx.from?.id,
-      })
-    }
-
-    const userId = ctx.from?.id
-    if (!userId) {
-      console.error('[PaymentScene] Отсутствует ID пользователя')
-      logger.error('❌ [PaymentScene] Отсутствует ID пользователя', {
-        telegram_id: 'UNKNOWN',
-        action_type: 'stars_payment',
-      })
-      await ctx.reply(
-        isRu
-          ? 'Произошла ошибка: не удалось определить ваш аккаунт.'
-          : 'An error occurred: could not identify your account.'
-      )
-      return ctx.scene.leave()
-    }
-
-    const { bot_name } = getBotNameByToken(ctx.telegram.token)
-    logger.info('📝 [PaymentScene] Подготовка к сохранению платежа', {
-      telegram_id: userId.toString(),
-      amount: amount,
-      bot_name,
-    })
-
-    // Сохраняем платеж в БД со статусом SUCCESS (т.к. оплата сразу звездами)
-    console.log('[PaymentScene] Сохраняем платеж в БД', {
-      telegram_id: userId.toString(),
-      amount: amount,
-      bot_name,
-    })
-
-    try {
-      await setPayments({
-        telegram_id: userId.toString(),
-        OutSum: amount.toString(),
-        InvId: Math.floor(Math.random() * 1000000).toString(), // Генерируем ID операции
-        currency: 'STARS', // Валюта - Звезды
-        stars: amount, // Количество звезд для этой покупки
-        status: 'SUCCESS',
-        payment_method: 'TelegramStars',
-        subscription: 'stars',
-        bot_name,
-        language: ctx.from?.language_code,
-      })
-      console.log('[PaymentScene] Платеж успешно сохранен в БД')
-      logger.info('✅ [PaymentScene] Платеж успешно сохранен', {
-        telegram_id: userId.toString(),
-        amount: amount,
-        status: 'SUCCESS',
-      })
-    } catch (dbError) {
-      console.error(
-        '[PaymentScene] Ошибка при сохранении платежа в БД:',
-        dbError
-      )
-      logger.error('❌ [PaymentScene] Ошибка сохранения платежа', {
-        error: dbError.message,
-        telegram_id: userId.toString(),
-        amount: amount,
-      })
-      throw dbError // Пробрасываем ошибку для обработки в блоке catch
-    }
-
-    // Отправляем подтверждение
-    console.log('[PaymentScene] Отправляем подтверждение платежа пользователю')
-    try {
-      await ctx.reply(
-        isRu
-          ? `✅ <b>Оплата выполнена</b>\nСписано: ${amount} ⭐️\n\nБлагодарим за покупку! Звезды будут зачислены на ваш баланс.`
-          : `✅ <b>Payment completed</b>\nDebited: ${amount} ⭐️\n\nThank you for your purchase! Stars will be credited to your balance.`,
-        { parse_mode: 'HTML' }
-      )
-      logger.info('✅ [PaymentScene] Сообщение об успешной оплате отправлено', {
-        telegram_id: userId.toString(),
-        amount: amount,
-      })
-    } catch (msgError) {
-      console.error('[PaymentScene] Ошибка при отправке сообщения:', msgError)
-      logger.error('❌ [PaymentScene] Ошибка отправки сообщения', {
-        error: msgError.message,
-        telegram_id: userId.toString(),
-      })
-    }
-
-    console.log('[PaymentScene] Звездная транзакция успешно завершена')
-    logger.info('🎉 [PaymentScene] Звездная транзакция успешно завершена', {
-      telegram_id: userId.toString(),
-      amount: amount,
-    })
-    return ctx.scene.leave()
-  } catch (error) {
-    console.error(
-      '[PaymentScene] Ошибка обработки callback top_up stars:',
-      error
-    )
-    logger.error(
-      '❌ [PaymentScene] Критическая ошибка обработки звездной транзакции',
-      {
-        error: error.message,
-        telegram_id: ctx.from?.id,
-        stack: error.stack,
-      }
-    )
-    try {
-      await ctx.reply(
-        isRu
-          ? 'Произошла ошибка при обработке платежа звездами.'
-          : 'An error occurred while processing the star payment.'
-      )
-    } catch (replyError) {
-      console.error(
-        '[PaymentScene] Не удалось отправить сообщение об ошибке:',
-        replyError
-      )
-    }
     return ctx.scene.leave()
   }
 })

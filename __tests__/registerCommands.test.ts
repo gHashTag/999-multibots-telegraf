@@ -1,115 +1,203 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals'
+import { Telegraf, Scenes, session } from 'telegraf'
+import { MyContext } from '../src/interfaces' // Используем относительный путь
+import { registerCommands, stage } from '../src/registerCommands' // Используем относительный путь
+import { handleTechSupport } from '../src/commands/handleTechSupport' // Используем относительный путь
+import { get100Command } from '../src/commands/get100Command' // Используем относительный путь
+import { getUserDetails } from '../src/core/supabase' // Используем относительный путь
+import { ModeEnum } from '../src/interfaces/modes' // Используем относительный путь
+import { SubscriptionType } from '../src/interfaces/subscription.interface' // Используем относительный путь
+import { levels } from '../src/menu' // Используем относительный путь
 
-// Mock scenes to avoid loading actual scene modules
-jest.mock('@/scenes', () => ({
-  startScene: {},
-  subscriptionScene: {},
-  subscriptionCheckScene: {},
-  createUserScene: {},
-  checkBalanceScene: {},
-  chatWithAvatarWizard: {},
-  menuScene: {},
-  getEmailWizard: {},
-  getRuBillWizard: {},
-  balanceScene: {},
-  avatarBrainWizard: {},
-  imageToPromptWizard: {},
-  emailWizard: {},
-  textToImageWizard: {},
-  improvePromptWizard: {},
-  sizeWizard: {},
-  neuroPhotoWizard: {},
-  neuroPhotoWizardV2: {},
-  textToVideoWizard: {},
-  imageToVideoWizard: {},
-  cancelPredictionsWizard: {},
-  trainFluxModelWizard: {},
-  uploadTrainFluxModelScene: {},
-  digitalAvatarBodyWizard: {},
-  digitalAvatarBodyWizardV2: {},
-  selectModelWizard: {},
-  voiceAvatarWizard: {},
-  textToSpeechWizard: {},
-  paymentScene: {},
-  neuroCoderScene: {},
-  lipSyncWizard: {},
-  helpScene: {},
-  inviteScene: {},
-  levelQuestWizard: [],
-  uploadVideoScene: {},
-}))
-// Mock Telegraf session and Stage middleware
-jest.mock('telegraf', () => {
-  const actual = jest.requireActual('telegraf')
-  return {
-    ...actual,
-    session: jest.fn(() => 'SESSION_MIDDLEWARE'),
-    Scenes: {
-      Stage: jest.fn().mockImplementation(() => ({ middleware: () => 'STAGE_MIDDLEWARE' })),
-      WizardScene: jest.fn().mockImplementation((id: string, ...handlers: any[]) => ({
-        id,
-        steps: handlers,
-        middleware: () => 'WIZARD_MIDDLEWARE',
-        enter: jest.fn(),
-        leave: jest.fn(),
-      })),
-      BaseScene: jest.fn().mockImplementation((id: string) => ({
-        id,
-        middleware: () => 'BASE_MIDDLEWARE',
-        enter: jest.fn(),
-        leave: jest.fn(),
-      })),
+// Mocking dependencies
+jest.mock('../src/handlers/setupLevelHandlers') // Используем относительный путь
+jest.mock('../src/commands/handleTechSupport') // Используем относительный путь
+jest.mock('../src/commands/get100Command') // Используем относительный путь
+jest.mock('../src/core/supabase', () => ({
+  getUserDetails: jest.fn(),
+  // Добавьте другие моки, если нужны
+})) // Используем относительный путь
+jest.mock('../src/menu', () => ({
+  levels: new Proxy([], {
+    get: (_target, prop) => {
+      if (typeof prop === 'string' && !isNaN(parseInt(prop))) {
+        return { title_ru: `level_${prop}_ru`, title_en: `level_${prop}_en` }
+      }
+      return undefined
     },
+  }),
+})) // Используем относительный путь
+
+// Mock stage middleware directly
+jest.mock('telegraf', () => {
+  const originalTelegraf = jest.requireActual('telegraf')
+  return {
+    ...originalTelegraf,
+    Scenes: {
+      ...originalTelegraf.Scenes,
+      Stage: class MockStage {
+        middleware = jest.fn(() => (ctx: any, next: any) => next())
+        // Add other methods if needed
+      },
+    },
+    session: jest.fn(() => (ctx: any, next: any) => next()),
   }
 })
-// Mock dependencies
-jest.mock('@/store', () => ({ defaultSession: { dummy: true } }))
-jest.mock('@/handlers/setupLevelHandlers', () => ({ setupLevelHandlers: jest.fn() }))
-jest.mock('@/commands/get100Command', () => ({ get100Command: jest.fn() }))
-
-// Import module under test
-import { registerCommands } from '@/registerCommands'
-import { setupLevelHandlers } from '@/handlers/setupLevelHandlers'
-import { get100Command } from '@/commands/get100Command'
-import { session } from 'telegraf'
-import { stage } from '@/registerCommands'
 
 describe('registerCommands', () => {
   let bot: any
-  let composer: any
+  // Убираем composer
+  // let composer: any
 
   beforeEach(() => {
-    // Reset mocks and create fresh bot/composer stubs
+    // Reset mocks and create fresh bot stub
     jest.clearAllMocks()
+    ;(handleTechSupport as jest.Mock).mockClear()
+    ;(get100Command as jest.Mock).mockClear()
+    ;(getUserDetails as jest.Mock).mockResolvedValue({ isSubscriptionActive: false }) // Default mock value
+
     bot = {
       use: jest.fn(),
       command: jest.fn(),
-    }
-    composer = {
-      middleware: jest.fn(() => 'COMPOSER_MIDDLEWARE'),
-      command: jest.fn(),
-    }
+      hears: jest.fn(),
+      action: jest.fn(), // Добавляем мок для action
+      // Мокируем контекст, если он используется в registerCommands
+      context: {
+        session: {},
+        scene: { enter: jest.fn() },
+        reply: jest.fn(),
+        from: { id: 123 },
+        callbackQuery: undefined, // Инициализируем callbackQuery
+        answerCbQuery: jest.fn(), // Добавляем мок для answerCbQuery
+      },
+    } as unknown as Telegraf<MyContext>
+
+    // Убираем composer из вызова registerCommands
+    registerCommands({ bot })
   })
 
-  it('registers middleware and commands correctly', () => {
-    registerCommands({ bot, composer })
-    // Middleware registration
-    expect(session).toHaveBeenCalledWith({ defaultSession: { dummy: true } })
-    expect(bot.use).toHaveBeenCalledWith('SESSION_MIDDLEWARE')
-    expect(bot.use).toHaveBeenCalledWith('STAGE_MIDDLEWARE')
-    expect(bot.use).toHaveBeenCalledWith('COMPOSER_MIDDLEWARE')
-    // Level handlers setup
-    expect(setupLevelHandlers).toHaveBeenCalledWith(bot)
-    // Bot commands
-    expect(bot.command).toHaveBeenCalledWith('start', expect.any(Function))
-    expect(bot.command).toHaveBeenCalledWith('menu', expect.any(Function))
-    // Composer commands
-    expect(composer.command).toHaveBeenCalledWith('menu', expect.any(Function))
-    expect(composer.command).toHaveBeenCalledWith('get100', expect.any(Function))
-    expect(composer.command).toHaveBeenCalledWith('buy', expect.any(Function))
-    expect(composer.command).toHaveBeenCalledWith('invite', expect.any(Function))
-    expect(composer.command).toHaveBeenCalledWith('balance', expect.any(Function))
-    expect(composer.command).toHaveBeenCalledWith('help', expect.any(Function))
-    expect(composer.command).toHaveBeenCalledWith('neuro_coder', expect.any(Function))
+  it('should register session middleware', () => {
+    expect(bot.use).toHaveBeenCalledWith(expect.any(Function)) // Проверяем вызов session
   })
+
+  it('should register stage middleware', () => {
+    expect(bot.use).toHaveBeenCalledTimes(2) // session + stage
+    expect(bot.use).toHaveBeenNthCalledWith(2, expect.any(Function)) // Проверяем вызов stage.middleware
+  })
+
+  it('should register basic commands', () => {
+    // Проверяем вызовы bot.command вместо composer.command
+    expect(bot.command).toHaveBeenCalledWith('start', expect.any(Function))
+    expect(bot.command).toHaveBeenCalledWith('support', expect.any(Function))
+    expect(bot.command).toHaveBeenCalledWith('menu', expect.any(Function))
+    expect(bot.command).toHaveBeenCalledWith('get100', expect.any(Function))
+    expect(bot.command).toHaveBeenCalledWith('buy', expect.any(Function))
+    expect(bot.command).toHaveBeenCalledWith('invite', expect.any(Function))
+    expect(bot.command).toHaveBeenCalledWith('balance', expect.any(Function))
+    expect(bot.command).toHaveBeenCalledWith('help', expect.any(Function))
+    expect(bot.command).toHaveBeenCalledWith('neuro_coder', expect.any(Function))
+  })
+
+  it('should register hears handlers for menu items', () => {
+    expect(bot.hears).toHaveBeenCalledWith(
+      [levels[103].title_ru, levels[103].title_en],
+      expect.any(Function)
+    )
+    expect(bot.hears).toHaveBeenCalledWith(
+      [levels[105].title_ru, levels[105].title_en],
+      expect.any(Function)
+    )
+  })
+
+  it('should register action handler for top_up', () => {
+    expect(bot.action).toHaveBeenCalledWith(/top_up_(\d+)$/, expect.any(Function))
+  })
+
+  // --- Тесты для логики колбэков --- 
+
+  describe('command callbacks', () => {
+    it('/start should reset session and enter startScene', async () => {
+      const startCallback = bot.command.mock.calls.find(
+        (call: any) => call[0] === 'start'
+      )[1]
+      const mockCtx = { session: { someData: 'test' }, scene: { enter: jest.fn() } }
+      await startCallback(mockCtx)
+      expect(mockCtx.session).toEqual({}) // Session should be reset
+      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.StartScene)
+    })
+
+    it('/support should call handleTechSupport', async () => {
+      const supportCallback = bot.command.mock.calls.find(
+        (call: any) => call[0] === 'support'
+      )[1]
+      const mockCtx = {}
+      await supportCallback(mockCtx)
+      expect(handleTechSupport).toHaveBeenCalledWith(mockCtx)
+    })
+
+    it('/menu should check subscription and enter correct scene (active)', async () => {
+      ;(getUserDetails as jest.Mock).mockResolvedValue({ isSubscriptionActive: true })
+      const menuCallback = bot.command.mock.calls.find(
+        (call: any) => call[0] === 'menu'
+      )[1]
+      const mockCtx = {
+        session: {},
+        scene: { enter: jest.fn() },
+        from: { id: 456 },
+      }
+      await menuCallback(mockCtx)
+      expect(getUserDetails).toHaveBeenCalledWith(456)
+      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.MainMenu) // Должен войти в главное меню
+    })
+
+    it('/menu should check subscription and enter correct scene (inactive)', async () => {
+      ;(getUserDetails as jest.Mock).mockResolvedValue({ isSubscriptionActive: false })
+      const menuCallback = bot.command.mock.calls.find(
+        (call: any) => call[0] === 'menu'
+      )[1]
+      const mockCtx = {
+        session: {},
+        scene: { enter: jest.fn() },
+        from: { id: 789 },
+      }
+      await menuCallback(mockCtx)
+      expect(getUserDetails).toHaveBeenCalledWith(789)
+      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.SubscriptionScene) // Должен войти в сцену подписки
+    })
+
+    it('/buy should set session and enter payment scene', async () => {
+      const buyCallback = bot.command.mock.calls.find(
+        (call: any) => call[0] === 'buy'
+      )[1]
+      const mockCtx = { session: {}, scene: { enter: jest.fn() }, from: { id: 111 } }
+      await buyCallback(mockCtx)
+      expect((mockCtx.session as MyContext['session']).subscription).toBe(SubscriptionType.STARS)
+      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.PaymentScene)
+    })
+
+    // Добавьте тесты для других команд (/invite, /balance, /help, /neuro_coder)
+  })
+
+  describe('hears callbacks', () => {
+    it('support hears should call handleTechSupport', async () => {
+      const supportHearsCallback = bot.hears.mock.calls.find(
+        (call: any) => call[0][0] === levels[103].title_ru
+      )[1]
+      const mockCtx = {}
+      await supportHearsCallback(mockCtx)
+      expect(handleTechSupport).toHaveBeenCalledWith(mockCtx)
+    })
+
+    it('subscribe hears should enter SubscriptionScene', async () => {
+      const subscribeHearsCallback = bot.hears.mock.calls.find(
+        (call: any) => call[0][0] === levels[105].title_ru
+      )[1]
+      const mockCtx = { scene: { enter: jest.fn() } }
+      await subscribeHearsCallback(mockCtx)
+      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.SubscriptionScene)
+    })
+  })
+
+  // describe('action callbacks', () => {
+  //   // Тесты для bot.action(/top_up_(\d+)$/)
+  // })
 })
