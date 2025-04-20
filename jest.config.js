@@ -1,3 +1,5 @@
+require('dotenv').config({ path: '.env' }) // Загружаем .env для тестов
+
 // const { pathsToModuleNameMapper } = require('ts-jest') // Убираем
 // const { compilerOptions } = require('./tsconfig.json') // Убираем
 
@@ -7,7 +9,7 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   // Добавляем стандартные директории и пути
-  moduleDirectories: ['node_modules', 'src'], 
+  moduleDirectories: ['node_modules', 'src'],
   modulePaths: ['<rootDir>'],
   // Возвращаем более простой маппинг
   moduleNameMapper: {
@@ -28,10 +30,13 @@ module.exports = {
   // Добавляем репортеры: стандартный и HTML
   reporters: [
     'default',
-    ['jest-html-reporters', {
-      publicPath: './html-report',
-      filename: 'report.html',
-      expand: true,
-    }],
+    [
+      'jest-html-reporters',
+      {
+        publicPath: './html-report',
+        filename: 'report.html',
+        expand: true,
+      },
+    ],
   ],
 }

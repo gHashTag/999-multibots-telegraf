@@ -43,7 +43,10 @@ export async function handleRobokassaResult(
   const outSum = parseFloat(OutSum)
 
   // 2. Проверяем пароль Robokassa (Password #2)
-  const robokassaPassword2 = process.env.ROBOKASSA_PASSWORD_2
+  // --- DEBUG LOG --- Добавляем лог для проверки наличия PASSWORD2
+  console.log('[DEBUG] Checking process.env.PASSWORD2:', process.env.PASSWORD2)
+  // --- END DEBUG LOG ---
+  const robokassaPassword2 = process.env.PASSWORD2
   if (!robokassaPassword2) {
     logger.error('[Robokassa Result] Robokassa Password #2 is not configured!')
     res.status(500).send('Internal Server Error: Configuration missing')
@@ -68,7 +71,7 @@ export async function handleRobokassaResult(
   try {
     // 4. Ищем платеж в БД
     const { data: payment, error: paymentError } = await supabase
-      .from('payments_v2')
+      .from('payments')
       .select('*, users(telegram_id, username, language_code)') // Загружаем данные пользователя сразу
       .eq('inv_id', invId)
       .maybeSingle()
@@ -130,7 +133,7 @@ export async function handleRobokassaResult(
 
     // 6. Обновляем статус платежа в БД
     const { error: updatePaymentError } = await supabase
-      .from('payments_v2')
+      .from('payments')
       .update({ status: 'COMPLETED' })
       .eq('inv_id', invId)
 
