@@ -1,4 +1,5 @@
 import { MyContext } from '../../interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 
 export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
   if (ctx.message && 'text' in ctx.message) {
@@ -7,7 +8,7 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
 
     if (text === (isRu ? 'отмена' : 'cancel')) {
       await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
-      ctx.scene.enter('menuScene')
+      ctx.scene.enter(ModeEnum.MainMenu)
       return true
     }
 

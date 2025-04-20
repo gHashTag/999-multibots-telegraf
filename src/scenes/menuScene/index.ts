@@ -8,10 +8,10 @@ import { getText } from './getText'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { WizardScene } from 'telegraf/scenes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
-
-import { handleMenu } from '@/handlers'
+import { ModeEnum } from '@/interfaces/modes'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
+import { handleMenu } from '@/handlers/handleMenu'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -162,15 +162,14 @@ const menuNextStep = async (ctx: MyContext) => {
     const text = ctx.update.message.text
     console.log('CASE menuNextStep: text 2', text)
     await handleMenu(ctx)
-    return
   } else {
-    console.log('CASE: menuScene.next.else')
+    console.log('CASE: menuScene.next.else', ctx)
+    ctx.scene.leave()
   }
   ctx.scene.leave()
 }
-
 export const menuScene = new WizardScene(
-  'menuScene',
+  ModeEnum.MainMenu,
   menuCommandStep,
   menuNextStep
 )

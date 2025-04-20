@@ -202,27 +202,60 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
 // ==================================================================
 
 checkBalanceScene.enter(async ctx => {
+  const telegramId = ctx.from?.id?.toString() || 'unknown'
+  logger.info({
+    message: '🚀 [CheckBalanceScene] Вход в сцену проверки баланса',
+    telegramId,
+    function: 'checkBalanceScene.enter',
+    sessionMode: ctx.session?.mode,
+    sessionData: JSON.stringify(ctx.session || {}),
+  })
+
   console.log('💵 CASE: checkBalanceScene')
   // Шаг 1: Получаем ID и режим
-  const { telegramId } = getUserInfo(ctx)
+  const { telegramId: userId } = getUserInfo(ctx)
   const mode = ctx.session.mode as ModeEnum
   const isRu = ctx.from?.language_code === 'ru'
 
   logger.info({
-    message: `[CheckBalanceScene Enter] User: ${telegramId}, Mode: ${mode}`,
-    telegramId,
+    message: `[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`,
+    telegramId: userId,
     mode,
+    language: isRu ? 'ru' : 'other',
+    function: 'checkBalanceScene.enter',
+    step: 'identifying_user_and_mode',
   })
 
   try {
     // --- ШАГ 2: ПОЛУЧЕНИЕ ДАННЫХ ПОЛЬЗОВАТЕЛЯ ---
+    logger.info({
+      message: `[CheckBalanceScene] Получение данных пользователя из БД`,
+      telegramId,
+      function: 'checkBalanceScene.enter',
+      step: 'fetching_user_data',
+    })
+
     const userDetails = await getUserDetails(telegramId)
+
+    logger.info({
+      message: `[CheckBalanceScene] Данные пользователя получены`,
+      telegramId,
+      function: 'checkBalanceScene.enter',
+      step: 'user_data_fetched',
+      userExists: userDetails.isExist,
+      subscriptionActive: userDetails.isSubscriptionActive,
+      subscriptionType: userDetails.subscriptionType,
+      stars: userDetails.stars,
+    })
 
     // --- ШАГ 3: ПРОВЕРКА СУЩЕСТВОВАНИЯ ---
     if (!userDetails.isExist) {
       logger.warn({
-        message: `[CheckBalanceScene Exit] User ${telegramId} not found in DB. Redirecting to StartScene.`,
+        message: `[CheckBalanceScene] Пользователь ${telegramId} не найден в БД. Перенаправление в StartScene.`,
         telegramId,
+        function: 'checkBalanceScene.enter',
+        step: 'user_not_found',
+        result: 'redirect_to_start',
       })
       await ctx.reply(
         isRu
@@ -234,13 +267,25 @@ checkBalanceScene.enter(async ctx => {
 
     // Шаг 4: ПРОВЕРКА ПОДПИСКИ
     if (!userDetails.isSubscriptionActive) {
-      logger.info({
-        message: `[Subscription Bypass] User ${telegramId} has active subscription (${userDetails.subscriptionType}). Entering scene for mode: ${mode}`,
+      logger.warn({
+        message: `[CheckBalanceScene] Пользователь ${telegramId} НЕ имеет активной подписки. Перенаправление в StartScene.`,
         telegramId,
+        function: 'checkBalanceScene.enter',
+        step: 'subscription_check_failed',
+        subscriptionType: userDetails.subscriptionType,
+        mode,
+        result: 'redirect_to_start',
+      })
+      return ctx.scene.enter(ModeEnum.StartScene)
+    } else {
+      logger.info({
+        message: `[CheckBalanceScene] Подписка активна для пользователя ${telegramId}. Тип: ${userDetails.subscriptionType}`,
+        telegramId,
+        function: 'checkBalanceScene.enter',
+        step: 'subscription_check_passed',
         subscriptionType: userDetails.subscriptionType,
         mode,
       })
-      return ctx.scene.enter(ModeEnum.StartScene)
     }
 
     // Шаг 5: ПРОВЕРКА БАЛАНСА (только для обычных пользователей без активной подписки)
@@ -249,15 +294,28 @@ checkBalanceScene.enter(async ctx => {
     const costValue = getCostValue(cost)
 
     logger.info({
-      message: `[Balance Check] User: ${telegramId}, Mode: ${mode}, Cost: ${costValue}, Balance: ${currentBalance}`,
+      message: `[CheckBalanceScene] Проверка баланса для режима: ${mode}`,
       telegramId,
+      function: 'checkBalanceScene.enter',
+      step: 'balance_check',
       mode,
       cost: costValue,
       balance: currentBalance,
+      hasEnoughBalance: currentBalance >= costValue,
     })
 
     // Шаг 6: Показываем баланс и стоимость, если функция платная
     if (costValue > 0) {
+      logger.info({
+        message: `[CheckBalanceScene] Отображение информации о балансе для платной функции`,
+        telegramId,
+        function: 'checkBalanceScene.enter',
+        step: 'displaying_balance_info',
+        mode,
+        cost: costValue,
+        balance: currentBalance,
+      })
+
       // Передаем и баланс и уровень из userDetails
       await sendBalanceMessage(
         ctx,
@@ -271,35 +329,58 @@ checkBalanceScene.enter(async ctx => {
     // Шаг 7: Проверка достаточности баланса
     if (currentBalance < costValue) {
       logger.warn({
-        message: `[Insufficient Balance] User ${telegramId} denied access to mode ${mode}. Cost: ${costValue}, Balance: ${currentBalance}`,
+        message: `[CheckBalanceScene] Недостаточно баланса для режима: ${mode}`,
         telegramId,
+        function: 'checkBalanceScene.enter',
+        step: 'insufficient_balance',
         mode,
         cost: costValue,
         balance: currentBalance,
+        deficit: costValue - currentBalance,
+        result: 'access_denied',
       })
       // Отправляем сообщение о нехватке звезд
       await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
       // Выходим из сцены, т.к. баланса не хватает
+      logger.info({
+        message: `[CheckBalanceScene] Выход из сцены из-за недостатка баланса`,
+        telegramId,
+        function: 'checkBalanceScene.enter',
+        step: 'scene_leave',
+        reason: 'insufficient_balance',
+      })
       return ctx.scene.leave()
     }
 
     // Если все проверки пройдены (достаточно баланса)
     logger.info({
-      message: `[Balance Check OK] User ${telegramId} granted access to mode: ${mode}. Cost: ${costValue}, Balance: ${currentBalance}`,
+      message: `[CheckBalanceScene] Все проверки пройдены, доступ разрешен для режима: ${mode}`,
       telegramId,
+      function: 'checkBalanceScene.enter',
+      step: 'all_checks_passed',
       mode,
       cost: costValue,
       balance: currentBalance,
+      result: 'access_granted',
     })
 
     // Шаг 8: Переходим к целевой функции
+    logger.info({
+      message: `[CheckBalanceScene] Вызов функции перехода к целевой сцене: ${mode}`,
+      telegramId,
+      function: 'checkBalanceScene.enter',
+      step: 'entering_target_scene',
+      targetScene: mode,
+    })
     return enterTargetScene(ctx, mode)
   } catch (error) {
     logger.error({
-      message: `[CheckBalanceScene Error] User: ${telegramId}, Mode: ${mode}, Error: ${error}`,
+      message: `[CheckBalanceScene] Ошибка при проверке баланса`,
       telegramId,
-      mode,
-      error,
+      function: 'checkBalanceScene.enter',
+      mode: ctx.session?.mode,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
     })
     return ctx.scene.leave()
   }
@@ -313,68 +394,281 @@ checkBalanceScene.enter(async ctx => {
  * @param {ModeEnum} mode - Режим, определяющий целевую сцену.
  */
 async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
+  const telegramId = ctx.from?.id?.toString() || 'unknown'
   logger.info({
-    message: `[Entering Target Scene] User: ${ctx.from?.id}, Mode: ${mode}`,
-    telegramId: ctx.from?.id,
-    mode,
+    message: `[enterTargetScene] Начало перехода в целевую сцену: ${mode}`,
+    telegramId,
+    function: 'enterTargetScene',
+    requestedMode: mode,
+    sessionData: JSON.stringify(ctx.session || {}),
   })
-  const isRu = ctx.from?.language_code === 'ru'
-  // Переход к соответствующей сцене в зависимости от режима
-  switch (mode) {
-    case ModeEnum.DigitalAvatarBody:
-      return ctx.scene.enter(ModeEnum.DigitalAvatarBody)
-    case ModeEnum.DigitalAvatarBodyV2:
-      return ctx.scene.enter(ModeEnum.DigitalAvatarBodyV2)
-    case ModeEnum.NeuroPhoto:
-      return ctx.scene.enter(ModeEnum.NeuroPhoto)
-    case ModeEnum.NeuroPhotoV2:
-      return ctx.scene.enter(ModeEnum.NeuroPhotoV2)
-    case ModeEnum.ImageToPrompt:
-      return ctx.scene.enter(ModeEnum.ImageToPrompt)
-    case ModeEnum.Avatar:
-      return ctx.scene.enter(ModeEnum.Avatar)
-    case ModeEnum.ChatWithAvatar:
-      return ctx.scene.enter(ModeEnum.ChatWithAvatar)
-    case ModeEnum.SelectModel:
-      return ctx.scene.enter(ModeEnum.SelectModel)
-    case ModeEnum.Voice:
-      return ctx.scene.enter(ModeEnum.Voice)
-    case ModeEnum.TextToSpeech:
-      return ctx.scene.enter(ModeEnum.TextToSpeech)
-    case ModeEnum.ImageToVideo:
-      return ctx.scene.enter(ModeEnum.ImageToVideo)
-    case ModeEnum.TextToVideo:
-      return ctx.scene.enter(ModeEnum.TextToVideo)
-    case ModeEnum.TextToImage:
-      return ctx.scene.enter(ModeEnum.TextToImage)
-    case ModeEnum.LipSync:
-      return ctx.scene.enter(ModeEnum.LipSync)
-    case ModeEnum.VideoInUrl:
-      return ctx.scene.enter(ModeEnum.VideoInUrl)
-    // --- Добавь сюда другие режимы/сцены, если они есть ---
-    case ModeEnum.TopUpBalance: // Пример: если нужно проверить что-то перед пополнением (хотя обычно нет)
-      return ctx.scene.enter('paymentScene')
-    case ModeEnum.Invite:
-      return ctx.scene.enter('inviteScene')
-    case ModeEnum.Balance:
-      return ctx.scene.enter('balanceScene')
-    case ModeEnum.Help:
-      return ctx.scene.enter('helpScene')
-    // -------------------------------------------------------
-    default:
-      // Этот default не должен вызываться, если все режимы,
-      // которые устанавливаются перед checkBalanceScene, перечислены выше.
-      logger.error({
-        message: `[enterTargetScene] Unknown or unhandled mode: ${mode}. Returning to main menu.`,
-        telegramId: ctx.from?.id,
-        mode,
-      })
 
+  const isRu = ctx.from?.language_code === 'ru'
+
+  try {
+    // Переход к соответствующей сцене в зависимости от режима
+    logger.info({
+      message: `[enterTargetScene] Подготовка к переключению на сцену: ${mode}`,
+      telegramId,
+      function: 'enterTargetScene',
+      targetScene: mode,
+      step: 'prepare_switch',
+    })
+
+    let result: any = null
+
+    switch (mode) {
+      case ModeEnum.DigitalAvatarBody:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене цифрового тела аватара`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.DigitalAvatarBody,
+        })
+        result = await ctx.scene.enter(ModeEnum.DigitalAvatarBody)
+        break
+      case ModeEnum.DigitalAvatarBodyV2:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене цифрового тела аватара V2`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.DigitalAvatarBodyV2,
+        })
+        result = await ctx.scene.enter(ModeEnum.DigitalAvatarBodyV2)
+        break
+      case ModeEnum.NeuroPhoto:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене нейрофото`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.NeuroPhoto,
+        })
+        result = await ctx.scene.enter(ModeEnum.NeuroPhoto)
+        break
+      case ModeEnum.NeuroPhotoV2:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене нейрофото V2`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.NeuroPhotoV2,
+        })
+        result = await ctx.scene.enter(ModeEnum.NeuroPhotoV2)
+        break
+      case ModeEnum.ImageToPrompt:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене промпта из фото`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.ImageToPrompt,
+        })
+        result = await ctx.scene.enter(ModeEnum.ImageToPrompt)
+        break
+      case ModeEnum.Avatar:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене аватара`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.Avatar,
+        })
+        result = await ctx.scene.enter(ModeEnum.Avatar)
+        break
+      case ModeEnum.ChatWithAvatar:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене чата с аватаром`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.ChatWithAvatar,
+        })
+        result = await ctx.scene.enter(ModeEnum.ChatWithAvatar)
+        break
+      case ModeEnum.SelectModel:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене выбора модели`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.SelectModel,
+        })
+        result = await ctx.scene.enter(ModeEnum.SelectModel)
+        break
+      case ModeEnum.Voice:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене голоса`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.Voice,
+        })
+        result = await ctx.scene.enter(ModeEnum.Voice)
+        break
+      case ModeEnum.TextToSpeech:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене текста в голос`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.TextToSpeech,
+        })
+        result = await ctx.scene.enter(ModeEnum.TextToSpeech)
+        break
+      case ModeEnum.ImageToVideo:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене фото в видео`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.ImageToVideo,
+        })
+        result = await ctx.scene.enter(ModeEnum.ImageToVideo)
+        break
+      case ModeEnum.TextToVideo:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене текста в видео`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.TextToVideo,
+        })
+        result = await ctx.scene.enter(ModeEnum.TextToVideo)
+        break
+      case ModeEnum.TextToImage:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене текста в фото`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.TextToImage,
+        })
+        result = await ctx.scene.enter(ModeEnum.TextToImage)
+        break
+      case ModeEnum.LipSync:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене синхронизации губ`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.LipSync,
+        })
+        result = await ctx.scene.enter(ModeEnum.LipSync)
+        break
+      case ModeEnum.VideoInUrl:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене видео по URL`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.VideoInUrl,
+        })
+        result = await ctx.scene.enter(ModeEnum.VideoInUrl)
+        break
+      // --- Добавь сюда другие режимы/сцены, если они есть ---
+      case ModeEnum.TopUpBalance: // Пример: если нужно проверить что-то перед пополнением (хотя обычно нет)
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене пополнения баланса`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: 'paymentScene',
+        })
+        result = await ctx.scene.enter('paymentScene')
+        break
+      case ModeEnum.Invite:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене приглашения`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: 'inviteScene',
+        })
+        result = await ctx.scene.enter('inviteScene')
+        break
+      case ModeEnum.Balance:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене баланса`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: 'balanceScene',
+        })
+        result = await ctx.scene.enter('balanceScene')
+        break
+      case ModeEnum.Help:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене помощи`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: 'helpScene',
+        })
+        result = await ctx.scene.enter('helpScene')
+        break
+      // -------------------------------------------------------
+      default:
+        // Этот default не должен вызываться, если все режимы,
+        // которые устанавливаются перед checkBalanceScene, перечислены выше.
+        logger.error({
+          message: `[enterTargetScene] Неизвестный или необработанный режим: ${mode}. Возврат в главное меню.`,
+          telegramId,
+          function: 'enterTargetScene',
+          mode,
+          step: 'unknown_mode_error',
+          result: 'fallback_to_start',
+        })
+
+        await ctx.reply(
+          isRu
+            ? 'Неизвестный режим. Возврат в главное меню.'
+            : 'Unknown mode. Returning to main menu.'
+        )
+        result = await ctx.scene.enter(ModeEnum.StartScene) // Возврат в главное меню как запасной вариант
+    }
+
+    logger.info({
+      message: `[enterTargetScene] Переход в сцену ${mode} завершен`,
+      telegramId,
+      function: 'enterTargetScene',
+      targetScene: mode,
+      step: 'switch_completed',
+      result: result ? 'success' : 'completed',
+    })
+
+    return result
+  } catch (error) {
+    logger.error({
+      message: `[enterTargetScene] Ошибка при переходе в сцену: ${mode}`,
+      telegramId,
+      function: 'enterTargetScene',
+      targetScene: mode,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+
+    // В случае ошибки пытаемся вернуться на стартовую сцену
+    try {
       await ctx.reply(
         isRu
-          ? 'Неизвестный режим. Возврат в главное меню.'
-          : 'Unknown mode. Returning to main menu.'
+          ? '❌ Произошла ошибка при переходе к выбранной функции. Возврат в главное меню.'
+          : '❌ An error occurred while navigating to the selected function. Returning to main menu.'
       )
-      return ctx.scene.enter(ModeEnum.StartScene) // Возврат в главное меню как запасной вариант
+      return ctx.scene.enter(ModeEnum.StartScene)
+    } catch (fallbackError) {
+      logger.error({
+        message: `[enterTargetScene] Критическая ошибка при попытке перехода на StartScene`,
+        telegramId,
+        function: 'enterTargetScene',
+        error:
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : String(fallbackError),
+      })
+      return ctx.scene.leave() // Последнее средство - просто выходим из всех сцен
+    }
   }
 }

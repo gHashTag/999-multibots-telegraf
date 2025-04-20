@@ -106,6 +106,7 @@ export function registerCommands({
   // Регистрация команд
   bot.command('start', async ctx => {
     console.log('CASE bot.command: start')
+    ctx.session = { ...defaultSession } // Reset session
     ctx.session.mode = ModeEnum.StartScene
     await ctx.scene.enter(ModeEnum.StartScene)
   })
@@ -131,9 +132,10 @@ export function registerCommands({
   bot.command('menu', async ctx => {
     const { telegramId } = getUserInfo(ctx) // Получаем ID
     logger.info({
-      message: `[Command /menu START] User: ${telegramId}. Checking subscription status...`,
+      message: `[Command /menu START] User: ${telegramId}. Resetting session and checking subscription status...`,
       telegramId,
     })
+    ctx.session = { ...defaultSession } // Reset session
 
     try {
       // Шаг 1: Получаем актуальный статус пользователя
@@ -153,7 +155,7 @@ export function registerCommands({
         })
         ctx.session.mode = ModeEnum.MainMenu // Устанавливаем режим на всякий случай
         // Входим в сцену главного меню (убедись, что ID 'menuScene' верный)
-        return ctx.scene.enter('menuScene')
+        return ctx.scene.enter(ModeEnum.MainMenu)
       } else {
         // --- ЕСЛИ ПОДПИСКИ НЕТ ---
         logger.info({

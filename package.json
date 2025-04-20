@@ -6,20 +6,22 @@
   "license": "ISC",
   "scripts": {
     "predev": "node scripts/kill-port.cjs 2999 3001 8288",
-    "dev": "pnpm exec ts-node-dev -r tsconfig-paths/register --respawn --transpile-only src/bot.ts",
-    "build": "tsc && tsc-alias",
+    "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
+    "dev": "cross-env NODE_ENV=development nodemon src/bot.ts",
+    "build": "swc src -d dist --source-maps --copy-files",
+    "build:tsc": "tsc && tsc-alias",
     "build:prod": "tsc -p tsconfig.prod.json && tsc-alias",
     "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && tsc-alias",
-    "test": "jest",
+    "test": "jest --forceExit --detectOpenHandles",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "lint": "eslint . --ext .ts",
+    "lint": "eslint --ignore-path .gitignore --ext .ts src",
     "format": "prettier --write \"src/**/*.ts\"",
     "prepare": "husky install",
-    "start": "node dist/webhook.js",
     "start:multi": "node dist/multi.js",
-    "deploy": "bash scripts/deploy.sh",
+    "deploy": "./scripts/update-host.sh",
     "deploy:test": "bash scripts/deploy-test.sh",
+    "deploy:server": "./scripts/update-docker.sh",
     "docker:prod": "docker-compose -f docker-compose.webhook.yml up -d",
     "docker:dev": "docker-compose -f docker-compose.multi.yml up -d",
     "docker:test": "docker-compose -f docker-compose.test.yml up"
@@ -84,7 +86,7 @@
     "ts-node-dev": "^2.0.0",
     "tsc-alias": "^1.7.0",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^4.9.5"
+    "typescript": "^5.5.4"
   },
   "lint-staged": {
     "*.ts": [

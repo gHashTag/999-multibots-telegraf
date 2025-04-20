@@ -3,7 +3,6 @@
   "compilerOptions": {
     "target": "es2017",
     "lib": ["esnext", "dom"],
-   
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
@@ -39,7 +38,6 @@
       "@/handlers/*": ["handlers/*"],
       "@/helpers/*": ["helpers/*"],
       "@/scripts/*": ["scripts/*"],
- 
     }
   },
   "ts-node": {

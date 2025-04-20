@@ -14,6 +14,7 @@ import {
   handleLevel11,
   handleQuestComplete,
 } from '../../scenes/levelQuestWizard/handlers'
+import { ModeEnum } from '@/interfaces/modes'
 
 export function setupLevelHandlers(bot: Telegraf<MyContext>) {
   bot.action('level_1', handleLevel1)
@@ -32,7 +33,7 @@ export function setupLevelHandlers(bot: Telegraf<MyContext>) {
   // --- Добавляем обработчики для кнопок из startScene ---
   bot.action('go_subscribe', async ctx => {
     await ctx.answerCbQuery() // Отвечаем на callback_query, чтобы убрать "часики"
-    await ctx.scene.enter('subscriptionScene')
+    await ctx.scene.enter(ModeEnum.SubscriptionScene)
   })
 
   bot.action('go_help', async ctx => {

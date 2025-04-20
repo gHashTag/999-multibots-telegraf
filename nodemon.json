@@ -1,0 +1,10 @@
+{
+  "watch": ["src"],
+  "ext": "ts",
+  "exec": "npx ts-node -r tsconfig-paths/register src/bot.ts",
+  "signal": "SIGTERM",
+  "delay": 1500,
+  "events": {
+    "restart": "node scripts/kill-port.cjs 2999 3001"
+  }
+} 
