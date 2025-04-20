@@ -1,21 +1,25 @@
 import makeMockContext from '../utils/mockTelegrafContext'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { defaultSession } from '@/store'
 
 describe('handleHelpCancel', () => {
-  let ctx: ReturnType<typeof makeMockContext>
-
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = makeMockContext()
-    // ensure clean reply and scene mocks
-    ctx.reply = jest.fn(() => Promise.resolve()) as any
-    ctx.scene.enter = jest.fn(() => Promise.resolve())
-    ctx.scene.leave = jest.fn(() => Promise.resolve())
   })
 
   it('handles Russian cancel command', async () => {
-    ctx.from = { language_code: 'ru' } as any
-    ctx.message = { text: 'Отмена' } as any
+    const ctx = makeMockContext({
+      message: {
+        text: 'Отмена',
+        from: { id: 1, language_code: 'ru', is_bot: false, first_name: 'Test' },
+        chat: { id: 1, type: 'private' },
+      },
+    } as any)
+    ctx.session = { ...defaultSession }
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+    ctx.scene.enter = jest.fn(() => Promise.resolve({}))
+    ctx.scene.leave = jest.fn(() => Promise.resolve())
+
     const result = await handleHelpCancel(ctx as any)
     expect(result).toBe(true)
     expect(ctx.reply).toHaveBeenCalledWith('❌ Процесс отменён.')
@@ -24,8 +28,18 @@ describe('handleHelpCancel', () => {
   })
 
   it('handles English cancel command', async () => {
-    ctx.from = { language_code: 'en' } as any
-    ctx.message = { text: 'Cancel' } as any
+    const ctx = makeMockContext({
+      message: {
+        text: 'Cancel',
+        from: { id: 2, language_code: 'en', is_bot: false, first_name: 'Test' },
+        chat: { id: 2, type: 'private' },
+      },
+    } as any)
+    ctx.session = { ...defaultSession }
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+    ctx.scene.enter = jest.fn(() => Promise.resolve({}))
+    ctx.scene.leave = jest.fn(() => Promise.resolve())
+
     const result = await handleHelpCancel(ctx as any)
     expect(result).toBe(true)
     expect(ctx.reply).toHaveBeenCalledWith('❌ Process cancelled.')
@@ -34,8 +48,18 @@ describe('handleHelpCancel', () => {
   })
 
   it('handles Russian help for the command', async () => {
-    ctx.from = { language_code: 'ru' } as any
-    ctx.message = { text: 'Справка по команде' } as any
+    const ctx = makeMockContext({
+      message: {
+        text: 'Справка по команде',
+        from: { id: 3, language_code: 'ru', is_bot: false, first_name: 'Test' },
+        chat: { id: 3, type: 'private' },
+      },
+    } as any)
+    ctx.session = { ...defaultSession }
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+    ctx.scene.enter = jest.fn(() => Promise.resolve({}))
+    ctx.scene.leave = jest.fn(() => Promise.resolve())
+
     const result = await handleHelpCancel(ctx as any)
     expect(result).toBe(true)
     expect(ctx.reply).not.toHaveBeenCalled()
@@ -44,8 +68,18 @@ describe('handleHelpCancel', () => {
   })
 
   it('handles English help for the command', async () => {
-    ctx.from = { language_code: 'en' } as any
-    ctx.message = { text: 'Help for the command' } as any
+    const ctx = makeMockContext({
+      message: {
+        text: 'Help for the command',
+        from: { id: 4, language_code: 'en', is_bot: false, first_name: 'Test' },
+        chat: { id: 4, type: 'private' },
+      },
+    } as any)
+    ctx.session = { ...defaultSession }
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+    ctx.scene.enter = jest.fn(() => Promise.resolve({}))
+    ctx.scene.leave = jest.fn(() => Promise.resolve())
+
     const result = await handleHelpCancel(ctx as any)
     expect(result).toBe(true)
     expect(ctx.reply).not.toHaveBeenCalled()
@@ -54,8 +88,18 @@ describe('handleHelpCancel', () => {
   })
 
   it('returns false for non-matching text', async () => {
-    ctx.from = { language_code: 'ru' } as any
-    ctx.message = { text: 'something else' } as any
+    const ctx = makeMockContext({
+      message: {
+        text: 'something else',
+        from: { id: 5, language_code: 'ru', is_bot: false, first_name: 'Test' },
+        chat: { id: 5, type: 'private' },
+      },
+    } as any)
+    ctx.session = { ...defaultSession }
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+    ctx.scene.enter = jest.fn(() => Promise.resolve({}))
+    ctx.scene.leave = jest.fn(() => Promise.resolve())
+
     const result = await handleHelpCancel(ctx as any)
     expect(result).toBe(false)
     expect(ctx.reply).not.toHaveBeenCalled()
@@ -64,8 +108,17 @@ describe('handleHelpCancel', () => {
   })
 
   it('returns false when message is missing', async () => {
-    ctx.from = { language_code: 'en' } as any
-    ctx.message = undefined as any
+    const ctx = makeMockContext({
+      update_id: 6,
+      callback_query: {
+        from: { id: 6, language_code: 'en', is_bot: false, first_name: 'Test' },
+      },
+    } as any)
+    ctx.session = { ...defaultSession }
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+    ctx.scene.enter = jest.fn(() => Promise.resolve({}))
+    ctx.scene.leave = jest.fn(() => Promise.resolve())
+
     const result = await handleHelpCancel(ctx as any)
     expect(result).toBe(false)
   })

@@ -1,6 +1,7 @@
-import { supabaseAdmin } from '@/core/supabase' // Используем admin клиента для операций с платежами
+import { supabase, supabaseAdmin } from './client'
 import { logger } from '@/utils/logger'
-import { Payment } from '@/interfaces' // Предполагаем, что есть интерфейс Payment
+import { Payment, PaymentStatus } from '@/interfaces' // Предполагаем, что есть интерфейс Payment
+import { PostgrestError } from '@supabase/supabase-js'
 
 /**
  * Находит платеж по InvId со статусом PENDING.
@@ -11,7 +12,7 @@ export const getPendingPayment = async (
 ): Promise<{ data: Payment | null; error: any }> => {
   try {
     const { data, error } = await supabaseAdmin
-      .from('payments') // Убедитесь, что таблица называется 'payments'
+      .from('payments_v2') // Убедитесь, что таблица называется 'payments'
       .select('*')
       .eq('InvId', invId)
       .eq('status', 'PENDING')
@@ -40,7 +41,7 @@ export const getPaymentByInvId = async (
 ): Promise<{ data: Payment | null; error: any }> => {
   try {
     const { data, error } = await supabaseAdmin
-      .from('payments')
+      .from('payments_v2')
       .select('*')
       .eq('InvId', invId)
       .maybeSingle() // Может быть один или ноль
@@ -69,7 +70,7 @@ export const updatePaymentStatus = async (
 ): Promise<{ data: any; error: any }> => {
   try {
     const { data, error } = await supabaseAdmin
-      .from('payments')
+      .from('payments_v2')
       .update({ status: newStatus, updated_at: new Date() })
       .eq('InvId', invId)
       .select() // Возвращаем обновленные данные для логгирования/проверки

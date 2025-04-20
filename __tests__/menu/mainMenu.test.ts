@@ -1,4 +1,6 @@
 import makeMockContext from '../utils/mockTelegrafContext'
+import { defaultSession } from '@/store'
+import { SubscriptionType } from '@/interfaces'
 
 // Mock dependencies
 jest.mock('@/core/supabase', () => ({ checkPaymentStatus: jest.fn() }))
@@ -9,20 +11,30 @@ describe('mainMenu', () => {
   let ctx: ReturnType<typeof makeMockContext>
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = makeMockContext()
-    ctx.session = { telegram_id: 1, subscription: 'stars', inviteCount: 0 } as any
-    ctx.from = { id: 1, username: 'u', language_code: 'ru' } as any
+    ctx = makeMockContext({
+      message: {
+        from: {
+          id: 1,
+          username: 'u',
+          language_code: 'ru',
+          is_bot: false,
+          first_name: 'Test',
+        },
+      },
+    } as any)
+    ctx.session = {
+      ...defaultSession,
+      subscription: SubscriptionType.STARS,
+    }
     process.env.ADMIN_IDS = ''
-    // stub reply
-    ctx.reply = jest.fn(() => Promise.resolve()) as any
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
   })
 
   it('shows only subscribe button when stars subscription and inviteCount=0 and no full access', async () => {
-    (checkPaymentStatus as jest.Mock).mockResolvedValue(false)
+    ;(checkPaymentStatus as jest.Mock).mockResolvedValue(false)
     const markup = await mainMenu({
       isRu: true,
-      inviteCount: 0,
-      subscription: 'stars',
+      subscription: SubscriptionType.STARS,
       level: 0,
       ctx: ctx as any,
     })
@@ -32,12 +44,11 @@ describe('mainMenu', () => {
   })
 
   it('adds admin buttons when user is admin', async () => {
-    (checkPaymentStatus as jest.Mock).mockResolvedValue(true)
+    ;(checkPaymentStatus as jest.Mock).mockResolvedValue(true)
     process.env.ADMIN_IDS = '1,2'
     const markup = await mainMenu({
       isRu: false,
-      inviteCount: 0,
-      subscription: 'neurotester',
+      subscription: SubscriptionType.NEUROTESTER,
       level: 0,
       ctx: ctx as any,
     })
@@ -49,11 +60,10 @@ describe('mainMenu', () => {
   })
 
   it('shows multiple levels for neurotester with full access', async () => {
-    (checkPaymentStatus as jest.Mock).mockResolvedValue(true)
+    ;(checkPaymentStatus as jest.Mock).mockResolvedValue(true)
     const markup = await mainMenu({
       isRu: false,
-      inviteCount: 5,
-      subscription: 'neurotester',
+      subscription: SubscriptionType.NEUROTESTER,
       level: 2,
       ctx: ctx as any,
     })
@@ -66,11 +76,10 @@ describe('mainMenu', () => {
   })
 
   it('fallbacks when no available levels', async () => {
-    (checkPaymentStatus as jest.Mock).mockResolvedValue(false)
+    ;(checkPaymentStatus as jest.Mock).mockResolvedValue(false)
     // subscription unknown, so subscriptionLevelsMap returns undefined => availableLevels empty
     const markup = await mainMenu({
       isRu: true,
-      inviteCount: 0,
       subscription: 'unknown' as any,
       level: 0,
       ctx: ctx as any,

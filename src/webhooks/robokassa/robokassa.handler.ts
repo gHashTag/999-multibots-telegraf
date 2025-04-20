@@ -43,7 +43,10 @@ export async function handleRobokassaResult(
   const outSum = parseFloat(OutSum)
 
   // 2. Проверяем пароль Robokassa (Password #2)
-  const robokassaPassword2 = process.env.ROBOKASSA_PASSWORD_2
+  // --- DEBUG LOG --- Добавляем лог для проверки наличия PASSWORD2
+  console.log('[DEBUG] Checking process.env.PASSWORD2:', process.env.PASSWORD2)
+  // --- END DEBUG LOG ---
+  const robokassaPassword2 = process.env.PASSWORD2
   if (!robokassaPassword2) {
     logger.error('[Robokassa Result] Robokassa Password #2 is not configured!')
     res.status(500).send('Internal Server Error: Configuration missing')
@@ -69,7 +72,7 @@ export async function handleRobokassaResult(
     // 4. Ищем платеж в БД
     const { data: payment, error: paymentError } = await supabase
       .from('payments_v2')
-      .select('*, users(telegram_id, username, language_code)') // Загружаем данные пользователя сразу
+      .select('*')
       .eq('inv_id', invId)
       .maybeSingle()
 
@@ -90,10 +93,10 @@ export async function handleRobokassaResult(
       return
     }
 
-    // Извлекаем данные для отправки уведомления
-    const telegramId = payment.users?.telegram_id
+    // Получаем telegram_id и bot_name напрямую из записи payment
+    const telegramId = payment.telegram_id
     const botName = payment.bot_name
-    const languageCode = payment.users?.language_code || 'ru' // Язык по умолчанию - русский
+    // languageCode пока уберем или получим отдельно позже, если нужен
 
     // Проверяем наличие telegram_id и bot_name
     if (!telegramId || !botName) {

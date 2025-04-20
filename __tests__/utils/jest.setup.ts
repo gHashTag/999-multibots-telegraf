@@ -1,4 +1,4 @@
-import { jest, afterAll } from '@jest/globals'
+// import { jest, afterAll } from '@jest/globals'
 import dotenv from 'dotenv'
 
 // Убираем установку process.env
@@ -93,18 +93,24 @@ jest.mock('@/core/bot', () => ({
 // Подавляем вывод логов приложения во время тестов
 
 // Suppress console output during tests
-jest.spyOn(console, 'log').mockImplementation(() => {
-  /* suppressed in tests */
-})
-jest.spyOn(console, 'info').mockImplementation(() => {
-  /* suppressed in tests */
-})
-jest.spyOn(console, 'warn').mockImplementation(() => {
-  /* suppressed in tests */
-})
-jest.spyOn(console, 'error').mockImplementation(() => {
-  /* suppressed in tests */
-})
+jest.spyOn(console, 'log').mockImplementation(jest.fn())
+jest.spyOn(console, 'info').mockImplementation(jest.fn())
+jest.spyOn(console, 'warn').mockImplementation(jest.fn())
+jest.spyOn(console, 'error').mockImplementation(jest.fn())
+// Suppress logger output
+jest.spyOn(logger, 'info').mockImplementation(jest.fn())
+jest.spyOn(logger, 'warn').mockImplementation(jest.fn())
+jest.spyOn(logger, 'error').mockImplementation(jest.fn())
+jest.spyOn(logger, 'debug').mockImplementation(jest.fn())
+// Suppress botLogger output
+jest.spyOn(botLogger, 'info').mockImplementation(jest.fn())
+jest.spyOn(botLogger, 'warn').mockImplementation(jest.fn())
+jest.spyOn(botLogger, 'error').mockImplementation(jest.fn())
+jest.spyOn(botLogger, 'debug').mockImplementation(jest.fn())
+// Suppress securityLogger output
+jest.spyOn(securityLogger, 'info').mockImplementation(jest.fn())
+jest.spyOn(securityLogger, 'warn').mockImplementation(jest.fn())
+jest.spyOn(securityLogger, 'error').mockImplementation(jest.fn())
 
 // УДАЛЯЕМ ГЛОБАЛЬНЫЕ МОКИ ДЛЯ logger, botLogger, securityLogger
 // jest.spyOn(logger, 'info').mockImplementation((_infoObject) => logger)

@@ -4,6 +4,7 @@
 import makeMockContext from '../utils/mockTelegrafContext'
 import { handleBuySubscription } from '../../src/handlers/handleBuySubscription'
 import { handleSelectStars } from '../../src/handlers/handleSelectStars'
+import { SubscriptionType } from '@/interfaces'
 
 describe('handleBuySubscription', () => {
   let ctx: ReturnType<typeof makeMockContext>
@@ -20,7 +21,7 @@ describe('handleBuySubscription', () => {
   })
 
   it('sends invoice and leaves scene for neurophoto subscription (RU)', async () => {
-    ctx.session.subscription = 'neurophoto'
+    ctx.session.subscription = SubscriptionType.NEUROPHOTO
     const replyInv = ctx.replyWithInvoice as jest.Mock
     await handleBuySubscription({ ctx, isRu: true })
     expect(replyInv).toHaveBeenCalledTimes(1)
@@ -33,7 +34,7 @@ describe('handleBuySubscription', () => {
   })
 
   it('sends invoice and leaves scene for neurobase subscription (EN)', async () => {
-    ctx.session.subscription = 'neurobase'
+    ctx.session.subscription = SubscriptionType.NEUROBASE
     const replyInv = ctx.replyWithInvoice as jest.Mock
     await handleBuySubscription({ ctx, isRu: false })
     expect(replyInv).toHaveBeenCalledTimes(1)
@@ -57,10 +58,12 @@ describe('handleSelectStars', () => {
     const markup = reply.extra.reply_markup
     expect(markup.inline_keyboard.length).toBe(2)
     expect(markup.inline_keyboard[0].map((b: any) => b.callback_data)).toEqual([
-      'top_up_5', 'top_up_10', 'top_up_15'
+      'top_up_5',
+      'top_up_10',
+      'top_up_15',
     ])
     expect(markup.inline_keyboard[1].map((b: any) => b.callback_data)).toEqual([
-      'top_up_20'
+      'top_up_20',
     ])
     expect(reply.message).toBe('Выберите количество звезд для покупки:')
   })
@@ -71,7 +74,9 @@ describe('handleSelectStars', () => {
     const markup = reply.extra.reply_markup
     expect(markup.inline_keyboard.length).toBe(1)
     expect(markup.inline_keyboard[0].map((b: any) => b.text)).toEqual([
-      '1⭐️', '2⭐️', '3⭐️'
+      '1⭐️',
+      '2⭐️',
+      '3⭐️',
     ])
     expect(reply.message).toBe('Choose the number of stars to buy:')
   })

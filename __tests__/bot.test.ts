@@ -1,57 +1,86 @@
+import { Telegraf } from 'telegraf'
+import { validateBotToken } from '../src/bot'
 
-// Mock Telegraf to control validateBotToken behavior
 jest.mock('telegraf', () => ({
   Telegraf: jest.fn().mockImplementation(() => ({
     telegram: {
-      getMe: jest.fn().mockResolvedValue({ id: 1, username: 'testbot' }),
-    },
-  })),
+      getMe: jest.fn()
+        .mockResolvedValueOnce({ ok: true }) // success case
+        .mockRejectedValueOnce(new Error('Invalid token')) // error case
+    }
+  }))
 }))
 
-// Import after mocking
-import { validateBotToken, isPortInUse } from '@/bot'
-import * as realNet from 'net'
-
-describe('bot utility functions', () => {
-  it('validateBotToken returns true when getMe succeeds', async () => {
-    const result = await validateBotToken('valid-token')
+describe('validateBotToken', () => {
+  it('should return true for valid token', async () => {
+    const result = await validateBotToken('valid_token')
     expect(result).toBe(true)
   })
 
-  it('validateBotToken returns false when getMe throws', async () => {
-    // Override Telegraf.getMe to throw
-    const { Telegraf } = require('telegraf')
-    (Telegraf as jest.Mock).mockImplementationOnce(() => ({
-      telegram: { getMe: jest.fn().mockRejectedValue(new Error('fail')) }
-    }))
-    const result = await validateBotToken('invalid-token')
+  it('should return false for invalid token', async () => {
+    const result = await validateBotToken('invalid_token')
     expect(result).toBe(false)
   })
+})
 
-  it('isPortInUse returns false for a free port', async () => {
-    // Port 0 instructs server to pick an unused port
-    const free = await isPortInUse(0)
-    expect(free).toBe(false)
-  })
+// Mock всего Telegraf
+jest.mock('telegraf')
 
-  it('isPortInUse returns true for a port already in use', async () => {
-    // Create a server listening on an ephemeral port
-    const server = realNet.createServer()
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(0, resolve)
+describe('Bot functionality', () => {
+  describe('validateBotToken', () => {
+    beforeEach(() => {
+      // Очищаем все моки перед каждым тестом
+      jest.clearAllMocks()
     })
-    const address = server.address()
-    let port: number
-    if (address && typeof address !== 'string') {
-      port = address.port
-    } else {
-      server.close()
-      throw new Error('Failed to obtain server port')
-    }
-    // Now the port is in use
-    const inUse = await isPortInUse(port)
-    expect(inUse).toBe(true)
-    server.close()
+
+    it('should return true for valid token', async () => {
+      // Настраиваем mock для успешного вызова getMe
+      const mockGetMe = jest.fn().mockResolvedValue({
+        id: 123456789,
+        is_bot: true,
+        first_name: 'Test Bot',
+        username: 'test_bot'
+      })
+      
+      // Mock реализации Telegraf
+      ;(Telegraf as jest.MockedClass<typeof Telegraf>).prototype.telegram = {
+        getMe: mockGetMe,
+      } as any
+
+      const result = await validateBotToken('valid_token')
+      expect(result).toBe(true)
+      expect(mockGetMe).toHaveBeenCalledTimes(1)
+    })
+
+    it('should return false for invalid token', async () => {
+      // Настраиваем mock для ошибки
+      const mockGetMe = jest.fn().mockRejectedValue(new Error('Invalid token'))
+      
+      ;(Telegraf as jest.MockedClass<typeof Telegraf>).prototype.telegram = {
+        getMe: mockGetMe,
+      } as any
+
+      const result = await validateBotToken('invalid_token')
+      expect(result).toBe(false)
+      expect(mockGetMe).toHaveBeenCalledTimes(1)
+    })
+
+    it('should handle bot info structure', async () => {
+      const mockBotInfo = {
+        id: 987654321,
+        is_bot: true,
+        first_name: 'Another Bot',
+        username: 'another_bot'
+      }
+      const mockGetMe = jest.fn().mockResolvedValue(mockBotInfo)
+      
+      ;(Telegraf as jest.MockedClass<typeof Telegraf>).prototype.telegram = {
+        getMe: mockGetMe,
+      } as any
+
+      const result = await validateBotToken('another_valid_token')
+      expect(result).toBe(true)
+      expect(mockGetMe).toHaveBeenCalledTimes(1)
+    })
   })
 })

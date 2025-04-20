@@ -1,3 +1,4 @@
+jest.mock('@/config') // Мокаем конфиг
 
 // Prevent dotenv loading
 jest.mock('dotenv', () => ({ config: jest.fn() }))
@@ -24,7 +25,12 @@ describe('getBotByName error handling', () => {
       jest.doMock('telegraf', () => ({
         Telegraf: jest.fn().mockImplementation(() => ({})),
       }))
-      const { getBotByName, DEFAULT_BOT_NAME, BOT_NAMES, bots } = require('@/core/bot')
+      const {
+        getBotByName,
+        DEFAULT_BOT_NAME,
+        BOT_NAMES,
+        bots,
+      } = require('@/core/bot')
       const idx = Object.keys(BOT_NAMES).indexOf(DEFAULT_BOT_NAME)
       // Break existing default bot instance to trigger recreation logic
       bots[idx] = {} as any

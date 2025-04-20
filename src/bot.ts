@@ -26,7 +26,7 @@ const botInstances: Telegraf[] = []
 let robokassaServer: http.Server | null = null
 
 // Функция для проверки валидности токена
-async function validateBotToken(token: string): Promise<boolean> {
+export async function validateBotToken(token: string): Promise<boolean> {
   try {
     const bot = new Telegraf(token)
     await bot.telegram.getMe()
@@ -38,7 +38,7 @@ async function validateBotToken(token: string): Promise<boolean> {
 }
 
 // Функция для проверки занятости порта
-async function isPortInUse(port: number): Promise<boolean> {
+export async function isPortInUse(port: number): Promise<boolean> {
   try {
     const net = await import('net')
     return new Promise(resolve => {
@@ -57,7 +57,7 @@ async function isPortInUse(port: number): Promise<boolean> {
 }
 
 // Функция запуска сервера для обработки Robokassa вебхуков
-async function startRobokassaWebhookServer(): Promise<http.Server | null> {
+export async function startRobokassaWebhookServer(): Promise<http.Server | null> {
   // Порт для Robokassa webhook
   const robokassaPort = process.env.ROBOKASSA_WEBHOOK_PORT || 2999
 
@@ -250,6 +250,7 @@ async function initializeBots() {
           console.log(
             `🚀 Бот ${botInfo.username} запущен в продакшен режиме на порту ${currentPort}`
           )
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Добавляем задержку в 2 секунды
         } catch (error) {
           console.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)
         }

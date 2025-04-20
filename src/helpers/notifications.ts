@@ -14,18 +14,19 @@ export const sendPaymentSuccessMessage = async (
   telegramId: string | number,
   stars: number,
   languageCode = 'ru'
-): Promise<void> => {
+): Promise<any> => {
   const isRu = languageCode.toLowerCase().startsWith('ru')
   const message = isRu
     ? `✅ Ваш баланс успешно пополнен на ${stars} ⭐️!`
     : `✅ Your balance has been successfully topped up with ${stars} ⭐️!`
 
   try {
-    await bot.telegram.sendMessage(telegramId, message)
+    const result = await bot.telegram.sendMessage(telegramId, message)
     logger.info(
       `[sendPaymentSuccessMessage] Success notification sent to ${telegramId}`,
       { telegramId, stars }
     )
+    return result
   } catch (error: any) {
     logger.error(
       `[sendPaymentSuccessMessage] Failed to send notification to ${telegramId}`,
@@ -35,5 +36,6 @@ export const sendPaymentSuccessMessage = async (
         error: error instanceof Error ? error.message : String(error),
       }
     )
+    throw error
   }
 }

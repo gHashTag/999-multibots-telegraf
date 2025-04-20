@@ -14,6 +14,7 @@ import {
   calculateCostInDollars,
   calculateCostInRubles,
 } from '@/price/helpers/calculateTrainingCost'
+import { defaultSession } from '@/store'
 
 import { Markup } from 'telegraf'
 import { MyContext, MySession, UserModel, ModelUrl } from '@/interfaces'
@@ -101,12 +102,17 @@ describe('Price Helpers', () => {
   })
 
   it('training cost helpers: cost in stars, dollars, rubles', () => {
-    // Provide the full expected rates object structure
-    const rates = { costPerStepInStars: 2, costPerStarInDollars: 0.5, rublesToDollarsRate: 1/80 }; // Correct structure
-    expect(calcTrainingStars(3, { costPerStepInStars: 2 })).toBe(6.00)
-    expect(calculateCostInDollars(3, rates)).toBe(3.00)
-    // Now calculation should be correct: 3 steps * 2 stars/step * 0.5 $/star / (1/80 $/RUB) = 3 * 80 = 240
-    expect(calculateCostInRubles(3, rates)).toBe(240.00)
+    const rates = {
+      costPerStepInStars: 2,
+      costPerStarInDollars: 0.5,
+      rublesToDollarsRate: 80,
+    }
+    // stars: steps * 2, rounded to 2 decimals
+    expect(calcTrainingStars(3, { costPerStepInStars: 2 })).toBe(6.0)
+    // cost in dollars: 3*2*0.5=3.00
+    expect(calculateCostInDollars(3, rates)).toBe(3.0)
+    // rubles: 3*2*0.5*80 = 240
+    expect(calculateCostInRubles(3, rates)).toBe(240.0)
   })
 
   // This test was separate, keep it separate but use correct rates structure
@@ -139,30 +145,63 @@ describe('validateAndCalculateImageModelPrice', () => {
   })
 
   it('returns null and prompts when model is invalid', async () => {
-    const result = await validateAndCalculateImageModelPrice('', availableModels, 100, true, ctx)
+    const result = await validateAndCalculateImageModelPrice(
+      '',
+      availableModels,
+      100,
+      true,
+      ctx
+    )
     expect(result).toBeNull()
-    expect(ctx.reply).toHaveBeenCalledWith('Пожалуйста, выберите корректную модель')
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Пожалуйста, выберите корректную модель'
+    )
   })
 
   it('returns null and prompts when costPerImage missing', async () => {
-    const result = await validateAndCalculateImageModelPrice('unknown', ['unknown'], 100, false, ctx)
+    // Use a model not in price list
+    const result = await validateAndCalculateImageModelPrice(
+      'unknown',
+      ['unknown'],
+      100,
+      false,
+      ctx
+    )
     expect(result).toBeNull()
     expect(ctx.reply).toHaveBeenCalledWith('Error: invalid image model.')
   })
 
   it('returns null when balance is insufficient', async () => {
-    const model = 'modelA'
-    const price = 10
-    const result = await validateAndCalculateImageModelPrice(model, [model], price - 1, false, ctx)
+    // Choose a known model from imageModelPrices
+    const model = Object.keys(
+      require('@/price/models/imageModelPrices').imageModelPrices
+    )[0]
+    const priceList =
+      require('@/price/models/imageModelPrices').imageModelPrices
+    const price = priceList[model].costPerImage
+    const result = await validateAndCalculateImageModelPrice(
+      model,
+      [model],
+      price - 1,
+      false,
+      ctx
+    )
     expect(result).toBeNull()
     expect(ctx.reply).toHaveBeenCalledWith('Insufficient balance')
   })
 
   it('returns price and sets session when sufficient balance', async () => {
-    const model = 'modelA'
-    const price = 10
-    ctx.session = createMinimalMySession()
-    const result = await validateAndCalculateImageModelPrice(model, [model], price + 1, true, ctx)
+    const models = require('@/price/models/imageModelPrices').imageModelPrices
+    const model = Object.keys(models)[0]
+    const price = models[model].costPerImage
+    ctx.session = { ...defaultSession, paymentAmount: 0 }
+    const result = await validateAndCalculateImageModelPrice(
+      model,
+      [model],
+      price + 1,
+      true,
+      ctx
+    )
     expect(result).toBe(price)
     expect(ctx.session.paymentAmount).toBe(price)
   })
@@ -186,24 +225,46 @@ describe('validateAndCalculateVideoModelPrice', () => {
   })
 
   it('returns null and prompts when model is invalid', async () => {
-    const result = await validateAndCalculateVideoModelPrice('', availableModels, 10, true, ctx)
+    const result = await validateAndCalculateVideoModelPrice(
+      '',
+      availableModels,
+      10,
+      true,
+      ctx
+    )
     expect(result).toBeNull()
-    expect(ctx.reply).toHaveBeenCalledWith('Пожалуйста, выберите корректную модель')
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Пожалуйста, выберите корректную модель'
+    )
   })
 
   it('returns null when balance is insufficient', async () => {
-    const model = 'minimax'
-    const price = calculateFinalPrice(model)
-    const result = await validateAndCalculateVideoModelPrice(model, [model], price - 1, false, ctx)
+    const model: any = 'minimax'
+    const price =
+      require('@/price/helpers/calculateFinalPrice').calculateFinalPrice(model)
+    const result = await validateAndCalculateVideoModelPrice(
+      model,
+      [model],
+      price - 1,
+      false,
+      ctx
+    )
     expect(result).toBeNull()
     expect(ctx.reply).toHaveBeenCalledWith('Insufficient balance')
   })
 
   it('returns price and sets session when sufficient balance', async () => {
-    const model = 'minimax'
-    const price = calculateFinalPrice(model)
-    ctx.session = createMinimalMySession()
-    const result = await validateAndCalculateVideoModelPrice(model, [model], price + 1, true, ctx)
+    const model: any = 'minimax'
+    const price =
+      require('@/price/helpers/calculateFinalPrice').calculateFinalPrice(model)
+    ctx.session = { ...defaultSession, paymentAmount: 0 }
+    const result = await validateAndCalculateVideoModelPrice(
+      model,
+      [model],
+      price + 1,
+      true,
+      ctx
+    )
     expect(result).toBe(price)
     expect(ctx.session.paymentAmount).toBe(price)
   })
