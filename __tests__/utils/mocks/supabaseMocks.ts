@@ -1,49 +1,56 @@
 import { PostgrestSingleResponse, PostgrestError } from '@supabase/supabase-js'
-import { Payment } from '@/interfaces'
+import {
+  Payment,
+  PaymentStatus,
+  SubscriptionType,
+  TransactionType,
+  ModeEnum,
+} from '@/interfaces' // Основные интерфейсы через алиас
+import { TelegramId } from '../../../src/interfaces/telegram.interface'
+import { PaymentType } from '../../../src/interfaces/payments.interface'
 
-// Пример успешного ответа для setPayments
-// Ты можешь настроить данные по умолчанию как тебе нужно
+// Пример успешного ответа для setPayments (insert/update)
 export const setPaymentsSuccessResponse: PostgrestSingleResponse<Payment[]> = {
   data: [
     {
-      id: 1,
-      created_at: new Date().toISOString(),
-      user_id: 'uuid-user-123',
-      telegram_id: '123456789',
-      payment_method: 'Robokassa', // или 'TelegramStars'
-      status: 'PENDING', // или 'SUCCESS'
-      currency: 'RUB', // или 'STARS'
-      out_sum: '100', // Сумма в валюте платежа
-      stars: 50, // Количество звезд (может быть равно out_sum для STARS)
-      inv_id: 'mockInvId123', // ID инвойса/транзакции
-      signature_value: 'mocksigvalue', // Только для Robokassa
-      subscription: 'stars', // 'stars', 'neurobase', etc.
+      id: 'mock-payment-id-123',
+      telegram_id: '456',
+      amount: 100,
+      stars: 50,
+      type: PaymentType.MONEY_INCOME,
+      description: 'Test Payment',
       bot_name: 'test_bot',
-      language: 'ru',
-      email: null, // Добавляем опциональные поля
-      is_test: null,
-      receipt_url: null,
-      shp_item: null,
+      service_type: ModeEnum.MenuScene,
+      payment_method: 'Robokassa',
+      operation_id: 'op-123',
+      inv_id: 'inv-123',
+      status: PaymentStatus.PENDING,
+      metadata: { key: 'value' },
+      subscription: SubscriptionType.STARS,
+      payment_id: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     },
   ],
-  error: null,
   count: 1,
-  status: 201, // Created
+  status: 201,
   statusText: 'Created',
+  error: null,
 }
 
 // Пример ответа с ошибкой для setPayments
 export const setPaymentsErrorResponse: PostgrestSingleResponse<Payment[]> = {
   data: null,
-  error: {
-    message: 'Database error occurred',
-    details: 'Error details',
-    hint: 'Error hint',
-    code: 'DB500',
-  } as PostgrestError,
   count: null,
   status: 500,
   statusText: 'Internal Server Error',
+  error: {
+    message: 'Database error during payment processing',
+    details: '...',
+    hint: '...',
+    code: 'DB500',
+    name: 'PostgrestError', // Добавляем недостающее поле name
+  },
 }
 
 // Можешь добавить другие моки ответов Supabase сюда же

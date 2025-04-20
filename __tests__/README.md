@@ -16,6 +16,32 @@
 2.  **Проблема:** Ошибки TypeScript `TS2307: Cannot find module '../../../../src/core/...'` при использовании относительных путей в импортах внутри тестов.
     **Решение:** Заменить относительные пути на алиасы (`@/core/...`), настроенные в `tsconfig.json`. Это решило проблему разрешения модулей для TypeScript в контексте Jest.
 
+3.  **Проблема:** (2024-07-21) Устойчивые ошибки `TS2307: Cannot find module '@/...'` и `TS2307: Cannot find module '@/__tests__/...'` в тестах (`*.test.ts`), несмотря на использование алиасов и корректную конфигурацию.
+    **Детали:** Проблема сохраняется даже после:
+        *   Проверки `tsconfig.json` (`baseUrl`, `paths`).
+        *   Проверки `jest.config.js` (`preset: 'ts-jest'`, `moduleNameMapper` для `@/` и `@/__tests__/`).
+        *   Многократной очистки кеша Jest (`--clearCache`, `--no-cache`).
+        *   Упрощения конфигурации `ts-jest` (удаление `require: ['tsconfig-paths/register']`).
+        *   Использования утилиты `pathsToModuleNameMapper` в `jest.config.js`.
+    **Статус:** ⏳ Не решено. `ts-jest` не может корректно разрешить алиасы путей.
+    **Следующие шаги:** Исследовать версии зависимостей (`jest`, `ts-jest`, `typescript`), рассмотреть временный откат к относительным путям как крайнюю меру.
+
+4.  **Проблема:** (2024-07-21 -> 2024-07-22) Прогресс и новые проблемы:
+    *   ✅ `TS2307`, `TS2741`, `TS2322` (типы `telegram_id`/`type`) в `supabaseMocks.ts` исправлены.
+    *   ✅ `TS2304: Cannot find name 'PaymentStatus'` в `starPaymentScene.test.ts` исправлен (добавлен импорт).
+    *   ✅ `TS2353` (`provider`), `TS2322` (`id`), `TS2353` (`payment_uuid` vs `payment_id`) в `robokassaWebhook.test.ts` исправлены.
+    *   ✅ Исправлены пути импортов (`handleRobokassaWebhook`, `supabaseClient`, `calculateRobokassaSignature`, `sendPaymentSuccessMessage`) в `robokassaWebhook.test.ts`.
+    *   ✅ Исправлен импорт `ModeEnum` в `robokassaWebhook.test.ts`.
+    *   ✅ Исправлен вызов `handleRobokassaWebhook` (ошибка `TS2554`) в `robokassaWebhook.test.ts`.
+    *   ✅ Восстановлена полнота мока `validPayment` в `robokassaWebhook.test.ts`.
+    *   ⚠️ `next(ctx) called with invalid context` в `paymentScene.test.ts` и `rublePaymentScene.test.ts` **остаются**.
+    *   ⚠️ `TypeError: Cannot read properties of undefined (reading 'get')` на `rublePaymentScene.actions.get` **остается**.
+    *   ⚠️ Тесты в `starPaymentScene.test.ts` **падают**: `handleSelectStars`/`handleBuySubscription` не вызываются, `Action handler not registered`.
+    **Статус:** ⏳ `robokassaWebhook.test.ts` почти готов. Фокус на ошибках в сценах.
+    **Следующие шаги:**
+        1.  Запустить `pnpm test:payment` и проверить результат для `robokassaWebhook.test.ts`.
+        2.  Начать разбираться с `next(ctx) called with invalid context` в `paymentScene.test.ts`.
+
 ## 🔧 Общие паттерны и шаблоны
 - Документация: `docs/PATTERNS.md`
 - Генерация шаблонов тестов (Plop):

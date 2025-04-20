@@ -7,6 +7,7 @@ import { updateUserSubscription } from '@/core/supabase/updateUserSubscription'
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
+import { PaymentStatus } from '@/interfaces'
 
 /**
  * Обработчик вебхуков Robokassa
@@ -71,9 +72,12 @@ export const handleRobokassaWebhook =
         const { data: successPayment, error: successPaymentError } =
           await supabase.getPaymentByInvId(InvId as string)
 
-        if (successPayment && successPayment.status === 'SUCCESS') {
+        if (
+          successPayment &&
+          successPayment.status === PaymentStatus.COMPLETED
+        ) {
           logger.warn(
-            `⚠️ Robokassa Webhook: Payment ${InvId} already processed (SUCCESS). Ignoring.`,
+            `⚠️ Robokassa Webhook: Payment ${InvId} already processed (COMPLETED). Ignoring.`,
             { InvId }
           )
           // Отвечаем OK, так как платеж уже успешно обработан ранее
@@ -91,11 +95,11 @@ export const handleRobokassaWebhook =
       }
 
       // Проверка соответствия суммы (дополнительная безопасность)
-      if (Number(payment.out_sum) !== Number(OutSum)) {
+      if (Number(payment.amount) !== Number(OutSum)) {
         logger.error(
           `❌ Robokassa Webhook: Amount mismatch for InvId ${InvId}`,
           {
-            dbAmount: payment.out_sum,
+            dbAmount: payment.amount,
             webhookAmount: OutSum,
             telegram_id: payment.telegram_id,
           }
@@ -106,14 +110,14 @@ export const handleRobokassaWebhook =
 
       logger.info(`🅿️ Robokassa Webhook: Found PENDING payment ${InvId}`, {
         telegram_id: payment.telegram_id,
-        amount: payment.out_sum,
+        amount: payment.amount,
         stars: payment.stars,
       })
 
       // 3. Обновление статуса платежа на SUCCESS
       const { error: updateError } = await supabase.updatePaymentStatus(
         InvId as string,
-        'SUCCESS'
+        PaymentStatus.COMPLETED
       )
       if (updateError) {
         logger.error(
@@ -131,24 +135,29 @@ export const handleRobokassaWebhook =
         `✅ Robokassa Webhook: Payment ${InvId} status updated to SUCCESS`
       )
 
-      // 4. Обновление подписки/баланса пользователя
-      const { error: userUpdateError } = await updateUserSubscription({
-        telegramId: payment.telegram_id,
-        starsToAdd: payment.stars ?? 0,
-        subscriptionType: 'stars', // Всегда пополняем баланс звезд при оплате рублями
-        paymentId: InvId as string,
-      })
+      // 4. Обновление баланса пользователя (зачисление звезд)
+      const balanceUpdated = await supabase.updateUserBalance(
+        payment.telegram_id,
+        payment.stars ?? 0, // Сумма звезд для зачисления
+        'money_income', // Тип операции - пополнение
+        `Пополнение звезд по Robokassa (InvId: ${InvId})`, // Описание
+        {
+          // Доп. метаданные, если нужны
+          payment_method: 'Robokassa',
+          inv_id: InvId as string,
+        }
+      )
 
-      if (userUpdateError) {
+      // Логируем результат обновления баланса
+      if (!balanceUpdated) {
         // Это критическая ошибка, но статус платежа уже SUCCESS.
         // Логируем подробно, но отвечаем OK, чтобы Robokassa не повторяла.
-        // Проблему нужно будет решать вручную или отдельным процессом.
         logger.error(
-          `🆘 CRITICAL: Robokassa Webhook: DB Error updating user balance/subscription for InvId ${InvId} AFTER payment success!`,
+          `🆘 CRITICAL: Robokassa Webhook: Failed to update user balance for InvId ${InvId} AFTER payment success!`,
           {
-            error: userUpdateError.message,
             telegram_id: payment.telegram_id,
             stars_to_add: payment.stars,
+            inv_id: InvId as string,
           }
         )
         // Все равно отвечаем OK, т.к. деньги получены, статус обновлен.
@@ -165,7 +174,7 @@ export const handleRobokassaWebhook =
         bot,
         payment.telegram_id,
         payment.stars ?? 0,
-        payment.language ?? 'ru'
+        'ru'
       ).catch(err => {
         logger.error(
           `❌ Robokassa Webhook: Failed to send success notification to user ${payment.telegram_id} for InvId ${InvId}`,
