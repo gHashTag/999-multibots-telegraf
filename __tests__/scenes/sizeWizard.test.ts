@@ -1,4 +1,3 @@
-import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 // Мокаем внешние зависимости до импортов
 jest.mock('@/helpers/language', () => ({ isRussian: jest.fn() }))
 jest.mock('@/handlers', () => ({ handleSizeSelection: jest.fn() }))

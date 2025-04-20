@@ -8,7 +8,6 @@ import {
   expect,
   beforeEach,
   afterEach,
-} from '@jest/globals'
 import { subscriptionCheckScene } from '../../src/scenes/subscriptionCheckScene'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { checkSubscriptionByTelegramId as checkSubscription } from '../../src/core/supabase/checkSubscriptionByTelegramId'

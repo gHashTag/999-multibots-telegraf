@@ -1,4 +1,3 @@
-import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 // Мокаем зависимости
 jest.mock('@/handlers', () => ({ getSubScribeChannel: jest.fn() }))
 jest.mock('@/helpers', () => ({ isRussian: jest.fn() }))

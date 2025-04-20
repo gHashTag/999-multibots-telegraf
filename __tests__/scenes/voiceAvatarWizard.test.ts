@@ -1,7 +1,6 @@
 /**
  * Тесты для сцены voiceAvatarWizard
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { voiceAvatarWizard } from '../../src/scenes/voiceAvatarWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
 

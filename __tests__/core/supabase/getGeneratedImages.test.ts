@@ -1,4 +1,3 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals'
 
 describe('getGeneratedImages', () => {
   let mockSingle: jest.Mock

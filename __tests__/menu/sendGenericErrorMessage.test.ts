@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 // Mock logger
 jest.mock('@/utils/logger', () => ({ error: jest.fn() }))

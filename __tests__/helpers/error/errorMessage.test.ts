@@ -1,4 +1,3 @@
-import { jest, describe, it, expect } from '@jest/globals'
 import { errorMessage } from '@/helpers/error/errorMessage'
 
 describe('errorMessage', () => {

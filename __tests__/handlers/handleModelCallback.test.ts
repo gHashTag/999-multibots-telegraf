@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 
 // Mock setModel from supabase

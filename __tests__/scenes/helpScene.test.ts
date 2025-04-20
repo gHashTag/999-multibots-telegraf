@@ -1,4 +1,3 @@
-import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 // Мокаем внешние зависимости
 jest.mock('@/scenes/levelQuestWizard/handlers', () => ({
   handleLevel1: jest.fn(),

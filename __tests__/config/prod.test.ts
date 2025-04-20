@@ -1,4 +1,3 @@
-import { jest, describe, it, beforeEach, afterEach, expect } from '@jest/globals'
 
 describe('config production logging block', () => {
   let logSpy: jest.SpyInstance

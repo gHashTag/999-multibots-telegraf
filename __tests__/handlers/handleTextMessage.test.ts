@@ -1,4 +1,3 @@
-import { jest, describe, it, beforeEach, expect } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 
 // Mock Supabase wrappers

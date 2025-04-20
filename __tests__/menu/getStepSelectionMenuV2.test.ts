@@ -1,4 +1,3 @@
-import { describe, it, expect } from '@jest/globals'
 import { getStepSelectionMenuV2 } from '@/menu/getStepSelectionMenuV2'
 
 describe('getStepSelectionMenuV2', () => {

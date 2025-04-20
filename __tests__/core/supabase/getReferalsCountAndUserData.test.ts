@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 
 describe('getReferalsCountAndUserData', () => {
   let getReferalsCountAndUserData: typeof import('@/core/supabase/getReferalsCountAndUserData').getReferalsCountAndUserData

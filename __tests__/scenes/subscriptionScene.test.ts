@@ -1,7 +1,6 @@
 /**
  * Тесты для сцены подписок (subscriptionScene)
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { subscriptionScene } from '../../src/scenes/subscriptionScene'
 import makeMockContext from '../utils/mockTelegrafContext'
 /* eslint-disable @typescript-eslint/ban-ts-comment */

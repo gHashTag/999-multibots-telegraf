@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { checkSubscription } from '@/middlewares/checkSubscription'
 
 describe('checkSubscription', () => {

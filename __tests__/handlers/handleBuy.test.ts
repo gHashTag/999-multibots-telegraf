@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 
 // Mock starAmounts array
 jest.mock('@/price/helpers', () => ({ starAmounts: [5, 10, 20] }))

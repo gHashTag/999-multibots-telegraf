@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals'
 import { getConfig, Config } from '../../src/utils/getConfig'
 
 describe('getConfig', () => {

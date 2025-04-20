@@ -1,4 +1,3 @@
-import { describe, test, expect, jest } from '@jest/globals';
 
 // Mock BOT_TOKENS to a known set
 jest.mock('@/core/bot', () => ({

@@ -1,4 +1,3 @@
-import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 // Мокаем зависимости до импортов
 jest.mock('@/services/generateNeuroImage', () => jest.fn())
 jest.mock('@/handlers/handleHelpCancel', () => ({

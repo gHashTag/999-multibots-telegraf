@@ -1,4 +1,3 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals'
 import { generateTextToImage } from '@/services/generateTextToImage'
 import { logger } from '@/utils/logger'
 

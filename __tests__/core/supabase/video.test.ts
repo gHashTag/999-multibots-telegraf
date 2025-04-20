@@ -1,8 +1,8 @@
 /**
  * TODO: add unit tests for video
  */
-import { video } from '../../../../src/core/supabase/video'
-import { supabase } from '../../../../src/core/supabase'
+import { uploadVideo, getVideoUrl } from '@/core/supabase/video'
+import { supabase } from '@/core/supabase'
 
 describe('video', () => {
   it('TODO: implement tests for video', async () => {

@@ -1,4 +1,3 @@
-import { jest, describe, it, beforeEach, afterEach, expect } from '@jest/globals'
 import { configureWebhooks, removeWebhook, WebhookConfig } from '../../src/utils/webhooks'
 import { botLogger } from '../../src/utils/logger'
 

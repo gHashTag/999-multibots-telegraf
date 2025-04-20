@@ -1,4 +1,3 @@
-import { describe, it, expect, jest } from '@jest/globals'
 import { handlePreCheckoutQuery } from '@/handlers/paymentHandlers/handlePreCheckoutQuery'
 
 describe('handlePreCheckoutQuery', () => {

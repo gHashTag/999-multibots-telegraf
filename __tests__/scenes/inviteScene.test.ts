@@ -1,4 +1,3 @@
-import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 // Мокаем внешние зависимые функции
 jest.mock('@/core/supabase', () => ({ getReferalsCountAndUserData: jest.fn() }))
 

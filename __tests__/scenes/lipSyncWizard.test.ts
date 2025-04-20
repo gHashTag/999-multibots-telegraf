@@ -1,7 +1,6 @@
 /**
  * Tests for lipSyncWizard
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { lipSyncWizard } from '../../src/scenes/lipSyncWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
 

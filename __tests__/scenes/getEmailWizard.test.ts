@@ -1,4 +1,3 @@
-import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 // Мокаем handleHelpCancel
 jest.mock('../../src/handlers/handleHelpCancel', () => ({
   handleHelpCancel: jest.fn(),

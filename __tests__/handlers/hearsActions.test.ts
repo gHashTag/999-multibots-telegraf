@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { registerHearsActions } from '@/handlers/hearsActions'
 import makeMockContext from '../utils/mockTelegrafContext'
 

@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import axios from 'axios'
 import { fetchWithAxios } from '@/core/axios/fetchWithAxios'
 

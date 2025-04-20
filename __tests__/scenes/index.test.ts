@@ -1,4 +1,3 @@
-import { describe, it, expect } from '@jest/globals'
 import * as scenes from '@/scenes'
 
 describe('scenes index', () => {

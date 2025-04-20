@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeAll, jest } from '@jest/globals'
 // Mock BOT_TOKENS to distinct values for coverage
 jest.mock('@/core/bot', () => ({
   BOT_TOKENS: ['firstToken', 'secondToken', 'thirdToken'],

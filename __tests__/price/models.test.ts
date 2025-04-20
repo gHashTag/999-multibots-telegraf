@@ -1,4 +1,3 @@
-import { describe, it, expect } from '@jest/globals'
 import { imageModelPrices } from '@/price/models/imageModelPrices'
 import { videoModelPrices } from '@/price/models/videoModelPrices'
 import { calculateFinalImageCostInStars } from '@/price/models/calculateFinalImageCostInStars'

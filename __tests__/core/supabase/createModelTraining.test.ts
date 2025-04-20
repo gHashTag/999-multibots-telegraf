@@ -1,4 +1,3 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals'
 
 describe('createModelTraining', () => {
   let mockInsert: jest.Mock

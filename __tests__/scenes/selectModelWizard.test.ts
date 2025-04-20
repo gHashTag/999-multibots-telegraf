@@ -1,4 +1,3 @@
-import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 // Мокаем внешние зависимости до импортов
 // Мокаем getAvailableModels как именованный экспорт
 jest.mock('../../src/commands/selectModelCommand/getAvailableModels', () => ({

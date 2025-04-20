@@ -1,7 +1,6 @@
 /**
  * Tests for payment-related handlers: handleBuySubscription and handleSelectStars
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { handleBuySubscription } from '../../src/handlers/handleBuySubscription'
 import { handleSelectStars } from '../../src/handlers/handleSelectStars'

@@ -1,4 +1,3 @@
-import { describe, it, expect } from '@jest/globals'
 import { calculateDiscountedPrice, interestRate, basePrice } from '../../src/price'
 
 describe('calculateDiscountedPrice and constants', () => {

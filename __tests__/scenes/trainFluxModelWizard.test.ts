@@ -1,7 +1,6 @@
 /**
  * Tests for trainFluxModelWizard
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { trainFluxModelWizard } from '../../src/scenes/trainFluxModelWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
 

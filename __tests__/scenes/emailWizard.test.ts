@@ -1,4 +1,3 @@
-import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 import emailWizard from '../../src/scenes/emailWizard'
 import { saveUserEmail } from '@/core/supabase'

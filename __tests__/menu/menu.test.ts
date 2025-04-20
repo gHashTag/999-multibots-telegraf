@@ -1,7 +1,6 @@
 /**
  * Unit tests for menu utilities and keyboards
  */
-import { jest, describe, it, expect } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 
 import { cancelHelpArray } from '../../src/menu/cancelHelpArray'

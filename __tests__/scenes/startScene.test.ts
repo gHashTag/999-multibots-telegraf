@@ -1,7 +1,6 @@
 /**
  * Тесты для startScene
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { startScene } from '../../src/scenes/startScene'
 import makeMockContext from '../utils/mockTelegrafContext'
 
