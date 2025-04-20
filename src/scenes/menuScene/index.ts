@@ -149,6 +149,20 @@ const menuCommandStep = async (ctx: MyContext) => {
   }
 }
 
+/**
+ * !!! ВНИМАНИЕ !!! КРИТИЧЕСКАЯ ПРОБЛЕМА !!! ВНИМАНИЕ !!!
+ *
+ * НИКОГДА НЕ ДОБАВЛЯЙТЕ БЕЗУСЛОВНЫЙ ctx.scene.leave() В КОНЦЕ ЭТОЙ ФУНКЦИИ!!!
+ *
+ * Такой вызов приводит к принудительному выходу из любой сцены, куда переходит
+ * пользователь, ДАЖЕ ЕСЛИ ПЕРЕХОД ТОЛЬКО ЧТО ПРОИЗОШЁЛ!
+ *
+ * Это вызывало серьёзный баг, когда пользователь входил в сцену нейрофото
+ * и сразу из неё выходил - меню открывалось, затем автоматически закрывалось.
+ *
+ * Безусловный вызов ctx.scene.leave() здесь уместен ТОЛЬКО в блоке else,
+ * когда обработать сообщение другим способом невозможно.
+ */
 const menuNextStep = async (ctx: MyContext) => {
   console.log('CASE 1: menuScene.next')
   if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
@@ -166,7 +180,6 @@ const menuNextStep = async (ctx: MyContext) => {
     console.log('CASE: menuScene.next.else', ctx)
     ctx.scene.leave()
   }
-  ctx.scene.leave()
 }
 export const menuScene = new WizardScene(
   ModeEnum.MainMenu,

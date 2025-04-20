@@ -415,6 +415,99 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
       step: 'prepare_switch',
     })
 
+    // Специальная обработка для сцены нейрофото
+    if (
+      String(mode) === String(ModeEnum.NeuroPhoto) ||
+      String(mode) === 'neuro_photo'
+    ) {
+      logger.info({
+        message: `[enterTargetScene] Переход к сцене нейрофото`,
+        telegramId,
+        function: 'enterTargetScene',
+        fromMode: mode,
+        toScene: ModeEnum.NeuroPhoto,
+        specialHandling: true,
+      })
+
+      // ТРАССИРОВКА
+      console.log(
+        `[enterTargetScene] ТРАССИРОВКА СТЕКА ПЕРЕД ВХОДОМ В НЕЙРОФОТО:`,
+        new Error().stack
+      )
+
+      try {
+        // Сохраняем ссылку на текущий scene
+        const capturedScene = ctx.scene
+        // Сохраняем ссылку на оригинальный метод leave
+        const originalLeave = capturedScene.leave.bind(capturedScene)
+
+        // Переопределяем метод leave для блокировки его вызова
+        capturedScene.leave = function (...args) {
+          console.log(
+            `⚠️ [КРИТИЧНО] ctx.scene.leave ВЫЗВАН ДЛЯ НЕЙРОФОТО! Stack:`,
+            new Error().stack
+          )
+          console.log(`⚠️ [КРИТИЧНО] Аргументы leave:`, JSON.stringify(args))
+
+          // Проверяем текущую сцену
+          if (String(capturedScene.current) === String(ModeEnum.NeuroPhoto)) {
+            console.log(
+              `🛡️ [ЗАЩИТА] Блокировка преждевременного закрытия сцены нейрофото`
+            )
+            logger.warn({
+              message: `[enterTargetScene] Блокировка преждевременного закрытия сцены нейрофото`,
+              telegramId,
+              currentScene: capturedScene.current,
+              stack: new Error().stack,
+            })
+            // Возвращаем void, не вызывая оригинальный метод
+            return
+          }
+
+          // Для других сцен вызываем оригинальный метод
+          return originalLeave(...args)
+        }
+
+        // Входим в сцену нейрофото
+        console.log(
+          `[enterTargetScene] Вызываем ctx.scene.enter для NeuroPhoto`
+        )
+        await ctx.scene.enter(ModeEnum.NeuroPhoto)
+        console.log(
+          `[enterTargetScene] После вызова ctx.scene.enter для NeuroPhoto`
+        )
+      } catch (sceneError) {
+        console.error(
+          `[enterTargetScene] ОШИБКА ПРИ ВХОДЕ В СЦЕНУ НЕЙРОФОТО:`,
+          sceneError
+        )
+        logger.error({
+          message: `[enterTargetScene] Ошибка при входе в сцену нейрофото`,
+          telegramId,
+          error:
+            sceneError instanceof Error
+              ? sceneError.message
+              : String(sceneError),
+          stack: sceneError instanceof Error ? sceneError.stack : undefined,
+        })
+      }
+
+      logger.info({
+        message: `[enterTargetScene] Переход в сцену нейрофото завершен (ранний возврат)`,
+        telegramId,
+        function: 'enterTargetScene',
+        targetScene: mode,
+        step: 'switch_completed_early',
+        result: 'early_return',
+      })
+
+      console.log(
+        `[enterTargetScene] ЗАВЕРШАЕМ функцию с ранним возвратом true для нейрофото`
+      )
+      return true // Ранний возврат для предотвращения дополнительной обработки
+    }
+
+    // Стандартная обработка для всех остальных сцен
     let result: any = null
 
     switch (mode) {
@@ -437,16 +530,6 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
           toScene: ModeEnum.DigitalAvatarBodyV2,
         })
         result = await ctx.scene.enter(ModeEnum.DigitalAvatarBodyV2)
-        break
-      case ModeEnum.NeuroPhoto:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене нейрофото`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.NeuroPhoto,
-        })
-        result = await ctx.scene.enter(ModeEnum.NeuroPhoto)
         break
       case ModeEnum.NeuroPhotoV2:
         logger.info({
@@ -497,6 +580,16 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
           toScene: ModeEnum.SelectModel,
         })
         result = await ctx.scene.enter(ModeEnum.SelectModel)
+        break
+      case ModeEnum.SelectAiTextModel:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене выбора текста модели`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.SelectAiTextModel,
+        })
+        result = await ctx.scene.enter(ModeEnum.SelectAiTextModel)
         break
       case ModeEnum.Voice:
         logger.info({
@@ -568,8 +661,7 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
         })
         result = await ctx.scene.enter(ModeEnum.VideoInUrl)
         break
-      // --- Добавь сюда другие режимы/сцены, если они есть ---
-      case ModeEnum.TopUpBalance: // Пример: если нужно проверить что-то перед пополнением (хотя обычно нет)
+      case ModeEnum.TopUpBalance:
         logger.info({
           message: `[enterTargetScene] Переход к сцене пополнения баланса`,
           telegramId,
@@ -609,10 +701,7 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
         })
         result = await ctx.scene.enter('helpScene')
         break
-      // -------------------------------------------------------
       default:
-        // Этот default не должен вызываться, если все режимы,
-        // которые устанавливаются перед checkBalanceScene, перечислены выше.
         logger.error({
           message: `[enterTargetScene] Неизвестный или необработанный режим: ${mode}. Возврат в главное меню.`,
           telegramId,
@@ -627,7 +716,7 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
             ? 'Неизвестный режим. Возврат в главное меню.'
             : 'Unknown mode. Returning to main menu.'
         )
-        result = await ctx.scene.enter(ModeEnum.StartScene) // Возврат в главное меню как запасной вариант
+        result = await ctx.scene.enter(ModeEnum.StartScene)
     }
 
     logger.info({

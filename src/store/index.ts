@@ -39,4 +39,5 @@ export const defaultSession: MySession = {
   videoModel: '',
   translations: [],
   buttons: [],
+  neuroPhotoInitialized: false,
 }

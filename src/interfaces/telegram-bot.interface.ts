@@ -152,6 +152,7 @@ export interface WizardSessionData extends Scenes.WizardSessionData {
 export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   cursor: number
   mode?: ModeEnum
+  neuroPhotoInitialized?: boolean
   subscription?: SubscriptionType
   selectedSize?: string
   bypass_payment_check?: boolean

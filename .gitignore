@@ -136,3 +136,5 @@ tmp/
 .env.production
 
 .vault_password
+
+src/uploads/144022504/neuro-photo-direct/

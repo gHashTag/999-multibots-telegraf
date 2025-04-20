@@ -40,7 +40,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 💫 Оформление подписки')
         ctx.session.mode = ModeEnum.Subscribe
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.SubscriptionScene}`
+        )
         await ctx.scene.enter(ModeEnum.SubscriptionScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SubscriptionScene}`
+        )
       },
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         logger.info({
@@ -52,7 +58,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🤖 Цифровое тело')
         ctx.session.mode = ModeEnum.DigitalAvatarBody
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2']: async () => {
         logger.info({
@@ -64,7 +76,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🤖 Цифровое тело 2')
         ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
         logger.info({
@@ -76,7 +94,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE handleMenu: 📸 Нейрофото')
         ctx.session.mode = ModeEnum.NeuroPhoto
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? '📸 Нейрофото 2' : '📸 NeuroPhoto 2']: async () => {
         logger.info({
@@ -88,7 +112,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 📸 Нейрофото 2')
         ctx.session.mode = ModeEnum.NeuroPhotoV2
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
         logger.info({
@@ -100,7 +130,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🔍 Промпт из фото')
         ctx.session.mode = ModeEnum.ImageToPrompt
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? levels[4].title_ru : levels[4].title_en]: async () => {
         logger.info({
@@ -112,7 +148,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🧠 Мозг аватара')
         ctx.session.mode = ModeEnum.Avatar
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? levels[5].title_ru : levels[5].title_en]: async () => {
         logger.info({
@@ -124,7 +166,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 💭 Чат с аватаром')
         ctx.session.mode = ModeEnum.ChatWithAvatar
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? levels[6].title_ru : levels[6].title_en]: async () => {
         logger.info({
@@ -136,7 +184,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🤖 Выбор модели ИИ')
         ctx.session.mode = ModeEnum.SelectModel
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? levels[7].title_ru : levels[7].title_en]: async () => {
         logger.info({
@@ -148,7 +202,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🎤 Голос аватара')
         ctx.session.mode = ModeEnum.Voice
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? levels[8].title_ru : levels[8].title_en]: async () => {
         logger.info({
@@ -160,7 +220,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🎙️ Текст в голос')
         ctx.session.mode = ModeEnum.TextToSpeech
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? levels[9].title_ru : levels[9].title_en]: async () => {
         logger.info({
@@ -172,7 +238,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🎥 Фото в видео')
         ctx.session.mode = ModeEnum.ImageToVideo
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? levels[10].title_ru : levels[10].title_en]: async () => {
         logger.info({
@@ -184,7 +256,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE:  Видео из текста')
         ctx.session.mode = ModeEnum.TextToVideo
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
         logger.info({
@@ -196,7 +274,13 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🖼️ Текст в фото')
         ctx.session.mode = ModeEnum.TextToImage
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
       },
       // [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
       //   console.log('CASE: 🎤 Синхронизация губ')
@@ -218,7 +302,9 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 💎 Пополнить баланс')
         ctx.session.mode = ModeEnum.TopUpBalance
+        console.log(`🔄 [handleMenu] Вход в сцену ${'paymentScene'}`)
         await ctx.scene.enter('paymentScene')
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${'paymentScene'}`)
       },
       [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
         logger.info({
@@ -230,7 +316,9 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🤑 Баланс')
         ctx.session.mode = ModeEnum.Balance
+        console.log(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
         await ctx.scene.enter('balanceScene')
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
       },
       [isRu ? levels[102].title_ru : levels[102].title_en]: async () => {
         logger.info({
@@ -242,7 +330,9 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = ModeEnum.Invite
+        console.log(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
         await ctx.scene.enter('inviteScene')
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
       },
       [isRu ? levels[103].title_ru : levels[103].title_en]: async () => {
         logger.info({
@@ -254,7 +344,11 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.HelpScene}`)
         await ctx.scene.enter(ModeEnum.HelpScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.HelpScene}`
+        )
       },
       [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
         logger.info({
@@ -267,7 +361,11 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 🏠 Главное меню')
         // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
         await ctx.scene.enter(ModeEnum.MainMenu)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
+        )
       },
       '/invite': async () => {
         logger.info({
@@ -280,7 +378,9 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = ModeEnum.Invite
+        console.log(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
         await ctx.scene.enter('inviteScene')
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
       },
       '/price': async () => {
         logger.info({
@@ -291,7 +391,9 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 💰 Цена')
         ctx.session.mode = ModeEnum.Price
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Price}`)
         await priceCommand(ctx)
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${ModeEnum.Price}`)
       },
       '/buy': async () => {
         logger.info({
@@ -304,7 +406,9 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 💰 Пополнить баланс')
         ctx.session.mode = ModeEnum.TopUpBalance
+        console.log(`🔄 [handleMenu] Вход в сцену ${'paymentScene'}`)
         await ctx.scene.enter('paymentScene')
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${'paymentScene'}`)
       },
       '/balance': async () => {
         logger.info({
@@ -316,7 +420,9 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 💰 Баланс')
         ctx.session.mode = ModeEnum.Balance
+        console.log(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
         await ctx.scene.enter('balanceScene')
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
       },
       '/help': async () => {
         logger.info({
@@ -328,7 +434,11 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.HelpScene}`)
         await ctx.scene.enter('helpScene')
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.HelpScene}`
+        )
       },
       '/menu': async () => {
         logger.info({
@@ -341,7 +451,11 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 🏠 Главное меню')
         // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
         await ctx.scene.enter(ModeEnum.MainMenu)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
+        )
       },
       '/start': async () => {
         logger.info({
@@ -353,7 +467,11 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🚀 Начать обучение')
         ctx.session.mode = ModeEnum.StartScene
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.StartScene}`)
         await ctx.scene.enter(ModeEnum.StartScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.StartScene}`
+        )
       },
     }
 
