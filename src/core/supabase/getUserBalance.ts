@@ -1,6 +1,6 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
-import { supabase } from './index'
+import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
 // Кэш для хранения балансов пользователей

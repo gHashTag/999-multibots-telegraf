@@ -1,101 +1,59 @@
-import { createClient } from '@supabase/supabase-js'
-import {
-  SUPABASE_URL,
-  SUPABASE_SERVICE_KEY,
-  SUPABASE_SERVICE_ROLE_KEY,
-  isSupabaseConfigured,
-} from '../../config'
-import logger from '../../utils/logger'
+export { supabase, supabaseAdmin } from './client'
 
-// Создаем клиент с service role key
-export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-export const supabaseAdmin = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY
-)
-
-/**
- * Получает информацию о ботах из базы данных Supabase
- * @returns Массив с информацией о ботах
- */
-export async function getBotsFromSupabase() {
-  // Проверяем, настроен ли Supabase
-  if (!isSupabaseConfigured) {
-    logger.warn(
-      'Supabase не настроен. Невозможно получить ботов из базы данных.'
-    )
-    return []
-  }
-
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('bots')
-      .select('*')
-      .eq('is_active', true)
-
-    if (error) {
-      logger.error(`Ошибка при получении ботов из Supabase: ${error.message}`)
-      return []
-    }
-
-    if (!data || data.length === 0) {
-      logger.info('В Supabase не найдено активных ботов')
-      return []
-    }
-
-    logger.info(`Получено ${data.length} ботов из Supabase`)
-    return data
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error(`Ошибка при получении ботов из Supabase: ${errorMessage}`)
-    return []
-  }
-}
-export * from './saveVideoUrlToSupabase'
-export * from './updateHistory'
-export * from './getAiFeedbackFromSupabase'
-export * from './getBotGroupFromAvatars'
-export * from './createUser'
-export * from './createModelTraining'
-export * from './updateUserBalance'
-export * from './getAspectRatio'
-export * from './getGeneratedImages'
-export * from './getHistory'
-export * from './getModel'
-export * from './getPrompt'
-export * from './getUserData'
-export * from './incrementGeneratedImages'
-export * from './isLimitAi'
-export * from './savePrompt'
-export * from './setAspectRatio'
-export * from './getUidInviter'
-export * from './getUserBalance'
-export * from './updateUserVoice'
-export * from './getUserModel'
-export * from './getReferalsCountAndUserData'
-export * from './cleanupOldArchives'
-export * from './deleteFileFromSupabase'
-export * from './ensureSupabaseAuth'
-export * from './getTelegramIdByUserId'
-export * from './getVoiceId'
-export * from './saveUserEmail'
-export * from './sendPaymentInfo'
-export * from './getPaymentsInfoByTelegramId'
-export * from './setModel'
-export * from './updateModelTraining'
-export * from './updateUserSoul'
-export * from './getUserByTelegramId'
-export * from './incrementBalance'
-export * from './getLatestUserModel'
-export * from './setPayments'
-export * from './getUid'
-export * from './updateUserSubscription'
-export * from './getTranslation'
-export * from './checkPaymentStatus'
-export * from './updateUserLevelPlusOne'
-export * from './savePromptDirect' //neurophoto
-export * from './getUserByTelegramIdString'
-export * from './getUserDetails'
+// Явные экспорты вместо export *
+export { getBotsFromSupabase } from './getBotsFromSupabase'
+export { saveVideoUrlToSupabase } from './saveVideoUrlToSupabase'
+export { updateHistory } from './updateHistory'
+export { getAiFeedbackFromSupabase } from './getAiFeedbackFromSupabase'
+export { getBotGroupFromAvatars } from './getBotGroupFromAvatars'
+export { createUser } from './createUser'
+export { createModelTraining } from './createModelTraining'
+export { updateUserBalance } from './updateUserBalance'
+export { getAspectRatio } from './getAspectRatio'
+export { getGeneratedImages } from './getGeneratedImages'
+export { getHistory } from './getHistory'
+export { getModel } from './getModel'
+export { getPrompt } from './getPrompt'
+export { getUserData } from './getUserData'
+export { incrementGeneratedImages } from './incrementGeneratedImages'
+export { isLimitAi } from './isLimitAi'
+export { savePrompt } from './savePrompt'
+export { setAspectRatio } from './setAspectRatio'
+export { getUidInviter } from './getUidInviter'
+export {
+  getUserBalance,
+  invalidateBalanceCache,
+  getUserBalanceStats,
+  type PaymentDetail,
+  type UserBalanceStats,
+} from './getUserBalance'
+export { updateUserVoice } from './updateUserVoice'
+export { getUserModel } from './getUserModel'
+export { getReferalsCountAndUserData } from './getReferalsCountAndUserData'
+export { cleanupOldArchives } from './cleanupOldArchives'
+export { deleteFileFromSupabase } from './deleteFileFromSupabase'
+export { ensureSupabaseAuth } from './ensureSupabaseAuth'
+export { getTelegramIdByUserId } from './getTelegramIdByUserId'
+export { getVoiceId } from './getVoiceId'
+export { saveUserEmail } from './saveUserEmail'
+export { sendPaymentInfo } from './sendPaymentInfo'
+export { getPaymentsInfoByTelegramId } from './getPaymentsInfoByTelegramId'
+export { updateUserSoul } from './updateUserSoul'
+export { getUserByTelegramId } from './getUserByTelegramId'
+export { incrementBalance } from './incrementBalance'
+export { getLatestUserModel } from './getLatestUserModel'
+export { setPayments } from './setPayments'
+export { getUid } from './getUid'
+export { updateUserSubscription } from './updateUserSubscription'
+export { getTranslation } from './getTranslation'
+export { checkPaymentStatus } from './checkPaymentStatus'
+export { updateUserLevelPlusOne } from './updateUserLevelPlusOne'
+export { savePromptDirect } from './savePromptDirect'
+export { getUserByTelegramIdString } from './getUserByTelegramIdString'
+export { getUserDetails } from './getUserDetails'
 export { createSuccessfulPayment as setSuccessfulPayment } from './createSuccessfulPayment'
-export * from './payments'
+export {
+  getPendingPayment,
+  getPaymentByInvId,
+  updatePaymentStatus,
+} from './payments'

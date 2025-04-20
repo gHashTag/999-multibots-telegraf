@@ -120,10 +120,14 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
       await ctx.scene.leave()
       return
     }
-  )
-  // Просто переходим в новую сцену, передавая управление ей
-  // ctx.session.subscription остается как есть (если был установлен ранее)
-  await ctx.scene.enter(ModeEnum.StarPaymentScene)
+  } catch (error) {
+    logger.error(`❌ [${ModeEnum.PaymentScene}] Error in Hears '⭐️ Звездами':`, {
+      error: error instanceof Error ? error.message : String(error),
+      telegram_id: ctx.from?.id,
+    })
+    await ctx.reply(isRu ? 'Произошла ошибка при обработке звезд.' : 'An error occurred while processing stars.')
+    await ctx.scene.leave()
+  }
 })
 
 // Переход в сцену оплаты Рублями
@@ -147,92 +151,89 @@ paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx
   await ctx.scene.enter(ModeEnum.MenuScene)
 })
 
-// Убираем обработчики action (top_up_*, buy_sub_*), т.к. они теперь в дочерних сценах
+// Обработка нажатия на кнопки пополнения рублями
+paymentScene.action(/top_up_rub_(\d+)/, async ctx => {
+  // Получаем сумму и язык из контекста
+  const amountRub = parseInt(ctx.match[1], 10)
+  const isRu = isRussian(ctx)
 
-    try {
-      await ctx.answerCbQuery() // Отвечаем на колбэк
-    } catch (e) {
-      console.error('[PaymentScene] Ошибка при ответе на callback rub:', e)
-    }
+  // ---- Начало "плавающего" блока ----
+  try {
+    await ctx.answerCbQuery() // Отвечаем на колбэк
+  } catch (e) {
+    console.error('[PaymentScene] Ошибка при ответе на callback rub:', e)
+  }
 
-    // Ищем опцию пополнения, чтобы получить кол-во звезд
-    const selectedOption = rubTopUpOptions.find(o => o.amountRub === amountRub)
-    if (!selectedOption) {
-      console.error(
-        `[PaymentScene] Не найдена опция пополнения для ${amountRub} руб`
-      )
-      await ctx.reply(
-        isRu
-          ? 'Произошла ошибка: неверная сумма пополнения.'
-          : 'An error occurred: invalid top-up amount.'
-      )
-      return ctx.scene.leave()
-    }
-
-    const stars = selectedOption.stars
-    const userId = ctx.from?.id
-    const invId = Math.floor(Math.random() * 1000000) // Генерируем ID счета
-    const description = isRu
-      ? `Пополнение баланса на ${stars} звезд`
-      : `Balance top-up for ${stars} stars`
-
-    console.log(
-      `[PaymentScene] Генерируем Robokassa URL для ${amountRub} руб (${stars} звезд)`
+  // Ищем опцию пополнения, чтобы получить кол-во звезд
+  const selectedOption = rubTopUpOptions.find(o => o.amountRub === amountRub)
+  if (!selectedOption) {
+    console.error(
+      `[PaymentScene] Не найдена опция пополнения для ${amountRub} руб`
     )
-    const invoiceURL = await getInvoiceId(
-      MERCHANT_LOGIN,
-      amountRub,
-      invId,
-      description,
-      PASSWORD1
-    )
-
-    const { bot_name } = getBotNameByToken(ctx.telegram.token)
-
-    // Сохраняем платеж в БД со статусом PENDING (используем payments_v2)
-    await setPayments({
-      telegram_id: userId.toString(),
-      OutSum: amountRub.toString(),
-      InvId: invId.toString(),
-      currency: 'RUB', // Валюта - Рубли
-      stars: stars, // Количество звезд за это пополнение
-      status: 'PENDING',
-      payment_method: 'Robokassa',
-      subscription: 'stars', // Тип - пополнение звезд (или BALANCE_TOPUP?)
-      bot_name,
-      language: ctx.from?.language_code,
-    })
-
-    // Формируем сообщение с кнопкой оплаты
-    const inlineKeyboard = [
-      [
-        {
-          text: isRu ? `Оплатить ${amountRub} ₽` : `Pay ${amountRub} RUB`,
-          url: invoiceURL,
-        },
-      ],
-    ]
-
     await ctx.reply(
       isRu
-        ? `✅ <b>Счет создан</b>\nСумма: ${amountRub} ₽ (${stars} ⭐️)\n\nНажмите кнопку ниже для перехода к оплате через Robokassa.`
-        : `✅ <b>Invoice created</b>\nAmount: ${amountRub} RUB (${stars} ⭐️)\n\nClick the button below to proceed with payment via Robokassa.`,
-      {
-        reply_markup: {
-          inline_keyboard: inlineKeyboard,
-        },
-        parse_mode: 'HTML',
-      }
-    )
-    console.log('[PaymentScene] Robokassa invoice message sent to user')
-    return ctx.scene.leave()
-  } catch (error) {
-    console.error('[PaymentScene] Ошибка обработки callback top_up_rub:', error)
-    await ctx.reply(
-      isRu
-        ? 'Произошла ошибка при создании счета Robokassa.'
-        : 'An error occurred while creating the Robokassa invoice.'
+        ? 'Произошла ошибка: неверная сумма пополнения.'
+        : 'An error occurred: invalid top-up amount.'
     )
     return ctx.scene.leave()
   }
+
+  const stars = selectedOption.stars
+  const userId = ctx.from?.id
+  const invId = Math.floor(Math.random() * 1000000) // Генерируем ID счета
+  const description = isRu
+    ? `Пополнение баланса на ${stars} звезд`
+    : `Balance top-up for ${stars} stars`
+
+  console.log(
+    `[PaymentScene] Генерируем Robokassa URL для ${amountRub} руб (${stars} звезд)`
+  )
+  const invoiceURL = await getInvoiceId(
+    MERCHANT_LOGIN,
+    amountRub,
+    invId,
+    description,
+    PASSWORD1
+  )
+
+  const { bot_name } = getBotNameByToken(ctx.telegram.token)
+
+  // Сохраняем платеж в БД со статусом PENDING (используем payments_v2)
+  await setPayments({
+    telegram_id: userId.toString(),
+    OutSum: amountRub.toString(),
+    InvId: invId.toString(),
+    currency: 'RUB', // Валюта - Рубли
+    stars: stars, // Количество звезд за это пополнение
+    status: 'PENDING',
+    payment_method: 'Robokassa',
+    subscription: 'stars', // Тип - пополнение звезд (или BALANCE_TOPUP?)
+    bot_name,
+    language: ctx.from?.language_code,
+  })
+
+  // Формируем сообщение с кнопкой оплаты
+  const inlineKeyboard = [
+    [
+      {
+        text: isRu ? `Оплатить ${amountRub} ₽` : `Pay ${amountRub} RUB`,
+        url: invoiceURL,
+      },
+    ],
+  ]
+
+  await ctx.reply(
+    isRu
+      ? `✅ <b>Счет создан</b>\nСумма: ${amountRub} ₽ (${stars} ⭐️)\n\nНажмите кнопку ниже для перехода к оплате через Robokassa.`
+      : `✅ <b>Invoice created</b>\nAmount: ${amountRub} RUB (${stars} ⭐️)\n\nClick the button below to proceed with payment via Robokassa.`,
+    {
+      reply_markup: {
+        inline_keyboard: inlineKeyboard,
+      },
+      parse_mode: 'HTML',
+    }
+  )
+  console.log('[PaymentScene] Robokassa invoice message sent to user')
+  return ctx.scene.leave()
+  // ---- Конец "плавающего" блока ----
 })

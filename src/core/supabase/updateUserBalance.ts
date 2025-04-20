@@ -1,4 +1,4 @@
-import { supabase } from './index'
+import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
 type BalanceUpdateMetadata = {

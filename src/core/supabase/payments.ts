@@ -1,4 +1,4 @@
-import { supabaseAdmin } from './index' // Используем admin клиента для операций с платежами
+import { supabaseAdmin } from '@/core/supabase' // Используем admin клиента для операций с платежами
 import { logger } from '@/utils/logger'
 import { Payment } from '@/interfaces' // Предполагаем, что есть интерфейс Payment
 
