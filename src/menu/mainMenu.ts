@@ -130,7 +130,7 @@ export async function mainMenu({
 
   // Определяем доступные уровни в зависимости от подписки
   const subscriptionLevelsMap = {
-    stars: [levels[0]],
+    stars: [],
     neurophoto: [
       levels[1],
       levels[2],
@@ -147,8 +147,11 @@ export async function mainMenu({
 
   let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []
 
-  // Если подписка neurotester, предоставляем полный доступ
-  if (subscription === SubscriptionType.NEUROTESTER) {
+  // Если подписка neurotester или neurobase, предоставляем полный доступ
+  if (
+    subscription === SubscriptionType.NEUROTESTER ||
+    subscription === SubscriptionType.NEUROBASE
+  ) {
     hasFullAccess = true
     availableLevels = Object.values(levels)
   } else if (subscription === SubscriptionType.STARS) {
@@ -160,8 +163,11 @@ export async function mainMenu({
   // Удаляем дубликаты уровней
   availableLevels = Array.from(new Set(availableLevels))
 
-  // Фильтруем уровни, чтобы показывать только текущий уровень, кроме neurotester
-  if (subscription !== SubscriptionType.NEUROTESTER) {
+  // Фильтруем уровни, чтобы показывать только текущий уровень, кроме neurotester и neurobase
+  if (
+    subscription !== SubscriptionType.NEUROTESTER &&
+    subscription !== SubscriptionType.NEUROBASE
+  ) {
     availableLevels = availableLevels.filter((_, index) => index <= level)
   }
 
@@ -193,10 +199,8 @@ export async function mainMenu({
     buttonRows.push(buttons.slice(i, i + 2))
   }
 
-  // Добавляем кнопку подписки в конце, если нет полного доступа
-  if (!hasFullAccess) {
-    buttonRows.push([Markup.button.text(subscriptionButtonText)])
-  }
+  // Всегда добавляем кнопку подписки
+  buttonRows.push([Markup.button.text(subscriptionButtonText)])
 
   return Markup.keyboard(buttonRows).resize()
 }
