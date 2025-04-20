@@ -5,6 +5,7 @@ import {
   getUserDetails,
   createUser,
   getReferalsCountAndUserData,
+  getUserData,
 } from '@/core/supabase'
 import { BOT_URLS } from '@/core/bot'
 import { logger } from '@/utils/logger'
@@ -12,6 +13,7 @@ import { levels } from '@/menu/mainMenu'
 import { ModeEnum } from '@/interfaces/modes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { isRussian } from '@/helpers/language'
+import { startMenu } from '@/menu'
 
 export const startScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.StartScene,
@@ -19,7 +21,11 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     console.log('[TEST_DEBUG] Entered startScene handler')
     const telegramId = ctx.from?.id?.toString() || 'unknown'
     const isRu = ctx.from?.language_code === 'ru'
-    const botName = ctx.botInfo.username
+    const currentBotName = ctx.botInfo.username
+    const finalUsername =
+      ctx.from?.username || ctx.from?.first_name || telegramId
+    const telegram_id = ctx.from?.id
+    const subscribeChannelId = process.env.SUBSCRIBE_CHANNEL_ID
 
     logger.info({
       message: `[StartScene ENTRY] User: ${telegramId}, Lang: ${
@@ -71,20 +77,20 @@ export const startScene = new Scenes.WizardScene<MyContext>(
 
         let refCount = 0
         let referrerData: { user_id?: string; username?: string } = {}
+        const invite_code = ctx.session.inviteCode
 
         try {
-          if (ctx.session.inviteCode) {
+          if (invite_code) {
             logger.info({
-              message: `[StartScene/CreateLogic] Found invite code: ${ctx.session.inviteCode}. Fetching referrer...`,
+              message: `[StartScene/CreateLogic] Found invite code: ${invite_code}. Fetching referrer...`,
               telegramId,
               function: 'startScene',
               step: 'fetch_referrer',
             })
-            const { count, userData } = await getReferalsCountAndUserData(
-              ctx.session.inviteCode.toString()
-            )
+            const { count, userData: refUserData } =
+              await getReferalsCountAndUserData(invite_code.toString())
             refCount = count
-            referrerData = userData || {}
+            referrerData = refUserData || {}
             ctx.session.inviter = referrerData.user_id // Сохраняем ID инвайтера
             logger.info({
               message: `[StartScene/CreateLogic] Referrer data fetched.`,
@@ -105,7 +111,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
               })
               try {
                 await ctx.telegram.sendMessage(
-                  ctx.session.inviteCode,
+                  invite_code,
                   isRussian(ctx)
                     ? `🔗 Новый пользователь @${finalUsername} зарегистрировался по вашей ссылке.\n🆔 Уровень: ${refCount}`
                     : `🔗 New user @${finalUsername} registered via your link.\n🆔 Level: ${refCount}`
@@ -125,28 +131,46 @@ export const startScene = new Scenes.WizardScene<MyContext>(
                 })
               }
 
-              // --- Отправка в общую группу (с рефералом) --- MUST HAVE
-              try {
-                await ctx.telegram.sendMessage(
-                  '@neuro_blogger_pulse', // Всегда отправляем сюда
-                  `[${currentBotName}] 🔗 Новый пользователь @${finalUsername} (ID: ${telegram_id}) по реф. от @${referrerData.username}`
+              // --- Отправка в общую группу (с рефералом) ---
+              if (subscribeChannelId) {
+                try {
+                  const targetChatId =
+                    typeof subscribeChannelId === 'string' &&
+                    !subscribeChannelId.startsWith('-')
+                      ? `@${subscribeChannelId}`
+                      : subscribeChannelId
+                  await ctx.telegram.sendMessage(
+                    targetChatId,
+                    `[${currentBotName}] 🔗 Новый пользователь @${finalUsername} (ID: ${telegram_id}) по реф. от @${referrerData.username}`
+                  )
+                  logger.info({
+                    message: `[StartScene/CreateLogic] General admin channel notified (${targetChatId}, with ref).`,
+                    telegramId: telegram_id,
+                    function: 'startScene',
+                    step: 'notify_general_admin_ref_success',
+                    channel: targetChatId,
+                  })
+                } catch (pulseErr) {
+                  logger.error({
+                    message: `[StartScene/CreateLogic] FAILED to notify general admin channel ${subscribeChannelId} (with ref)`,
+                    telegramId: telegram_id,
+                    function: 'startScene',
+                    error:
+                      pulseErr instanceof Error
+                        ? pulseErr.message
+                        : String(pulseErr),
+                    channel: subscribeChannelId,
+                  })
+                }
+              } else {
+                logger.warn(
+                  '[StartScene/CreateLogic] SUBSCRIBE_CHANNEL_ID is not set in .env, skipping general notification (with ref).',
+                  {
+                    telegram_id,
+                    username: finalUsername,
+                    bot_name: currentBotName,
+                  }
                 )
-                logger.info({
-                  message: `[StartScene/CreateLogic] General admin channel notified (@neuro_blogger_pulse, with ref).`,
-                  telegramId,
-                  function: 'startScene',
-                  step: 'notify_general_admin_ref_success',
-                })
-              } catch (pulseErr) {
-                logger.error({
-                  message: `[StartScene/CreateLogic] FAILED to notify general admin channel @neuro_blogger_pulse (with ref)`,
-                  telegramId,
-                  function: 'startScene',
-                  error:
-                    pulseErr instanceof Error
-                      ? pulseErr.message
-                      : String(pulseErr),
-                })
               }
               // --- КОНЕЦ Отправки в общую группу ---
             }
@@ -162,28 +186,46 @@ export const startScene = new Scenes.WizardScene<MyContext>(
             )
             refCount = count
 
-            // --- Отправка в общую группу (без реферала) --- MUST HAVE
-            try {
-              await ctx.telegram.sendMessage(
-                '@neuro_blogger_pulse', // Всегда отправляем сюда
-                `[${currentBotName}] 🔗 Новый пользователь @${finalUsername} (ID: ${telegram_id})`
+            // --- Отправка в общую группу (без реферала) ---
+            if (subscribeChannelId) {
+              try {
+                const targetChatId =
+                  typeof subscribeChannelId === 'string' &&
+                  !subscribeChannelId.startsWith('-')
+                    ? `@${subscribeChannelId}`
+                    : subscribeChannelId
+                await ctx.telegram.sendMessage(
+                  targetChatId,
+                  `[${currentBotName}] 🔗 Новый пользователь @${finalUsername} (ID: ${telegram_id})`
+                )
+                logger.info({
+                  message: `[StartScene/CreateLogic] General admin channel notified (${targetChatId}, no ref).`,
+                  telegramId: telegram_id,
+                  function: 'startScene',
+                  step: 'notify_general_admin_success',
+                  channel: targetChatId,
+                })
+              } catch (pulseErr) {
+                logger.error({
+                  message: `[StartScene/CreateLogic] FAILED to notify general admin channel ${subscribeChannelId} (no ref)`,
+                  telegramId: telegram_id,
+                  function: 'startScene',
+                  error:
+                    pulseErr instanceof Error
+                      ? pulseErr.message
+                      : String(pulseErr),
+                  channel: subscribeChannelId,
+                })
+              }
+            } else {
+              logger.warn(
+                '[StartScene/CreateLogic] SUBSCRIBE_CHANNEL_ID is not set in .env, skipping general notification (no ref).',
+                {
+                  telegram_id,
+                  username: finalUsername,
+                  bot_name: currentBotName,
+                }
               )
-              logger.info({
-                message: `[StartScene/CreateLogic] General admin channel notified (@neuro_blogger_pulse).`,
-                telegramId,
-                function: 'startScene',
-                step: 'notify_general_admin_success',
-              })
-            } catch (pulseErr) {
-              logger.error({
-                message: `[StartScene/CreateLogic] FAILED to notify general admin channel @neuro_blogger_pulse`,
-                telegramId,
-                function: 'startScene',
-                error:
-                  pulseErr instanceof Error
-                    ? pulseErr.message
-                    : String(pulseErr),
-              })
             }
             // --- КОНЕЦ Отправки в общую группу ---
           }
@@ -257,6 +299,46 @@ export const startScene = new Scenes.WizardScene<MyContext>(
           function: 'startScene',
           step: 'existing_user_continue',
         })
+        // Отправка уведомления в ОБЩУЮ группу при повторном /start
+        if (subscribeChannelId) {
+          try {
+            const targetChatId =
+              typeof subscribeChannelId === 'string' &&
+              !subscribeChannelId.startsWith('-')
+                ? `@${subscribeChannelId}`
+                : subscribeChannelId
+            await ctx.telegram.sendMessage(
+              targetChatId,
+              `[${currentBotName}] 🔄 Пользователь @${finalUsername} (ID: ${telegram_id}) перезапустил бота (/start).`
+            )
+            logger.info(
+              `[StartScene/ExistingUser] Successfully notified general channel ${targetChatId} about restart`,
+              {
+                telegram_id,
+                username: finalUsername,
+                channel: targetChatId,
+                bot_name: currentBotName,
+              }
+            )
+          } catch (notifyError) {
+            logger.error(
+              `[StartScene/ExistingUser] FAILED to notify general channel ${subscribeChannelId} about restart`,
+              {
+                telegram_id,
+                username: finalUsername,
+                error: notifyError,
+                channel: subscribeChannelId,
+                bot_name: currentBotName,
+              }
+            )
+          }
+        } else {
+          logger.warn(
+            '[StartScene/ExistingUser] SUBSCRIBE_CHANNEL_ID is not set in .env, skipping general notification (restart).',
+            { telegram_id, username: finalUsername, bot_name: currentBotName }
+          )
+        }
+        // НЕ отправляем уведомление в группу бота при повторном /start
       }
     } catch (error) {
       logger.error({
@@ -272,20 +354,20 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     }
     // --- КОНЕЦ: Логика проверки и создания пользователя ---
 
-    // --- НАЧАЛО: Текущая логика StartScene (приветствие, туториал) ---
+    // --- НАЧАЛО: Текущая логика StartScene (приветствие) ---
     // Эта часть выполняется ВСЕГДА (и для новых, и для старых)
     logger.info({
       message: '📡 [StartScene] Получение перевода для стартового сообщения',
       telegramId,
       function: 'startScene',
-      bot_name: botName,
+      bot_name: currentBotName,
       step: 'fetching_translation',
     })
 
     const { translation, url } = await getTranslation({
       key: 'start',
       ctx,
-      bot_name: botName,
+      bot_name: currentBotName,
     })
 
     logger.info({
@@ -312,10 +394,10 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       })
     } else {
       logger.info({
-        message: '📝 [StartScene] Отправка текстового приветствия',
+        message: '📝 [StartScene] Отправка текстового приветствия (упрощенная)',
         telegramId,
         function: 'startScene',
-        step: 'sending_welcome_text',
+        step: 'sending_welcome_text_simplified',
       })
 
       await ctx.reply(translation, {
@@ -323,76 +405,11 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       })
     }
 
-    const tutorialUrl = BOT_URLS[botName]
-    let replyKeyboard
-
-    if (tutorialUrl) {
-      logger.info({
-        message: `🎬 [StartScene] Отправка ссылки на туториал для ${botName}`,
-        telegramId,
-        function: 'startScene',
-        tutorialUrl,
-        step: 'sending_tutorial',
-      })
-
-      const tutorialText = isRu
-        ? `🎬 Посмотрите [видео-инструкцию](${tutorialUrl}), как создавать нейрофото в этом боте.\n\nВ этом видео вы научитесь тренировать свою модель (Цифровое тело аватара), создавать фотографии и получать prompt из любого фото, которым вы вдохновились.`
-        : `🎬 Watch this [tutorial video](${tutorialUrl}) on how to create neurophotos in this bot.\n\nIn this video, you will learn how to train your model (Digital avatar body), create photos, and get a prompt from any photo that inspires you.`
-
-      replyKeyboard = Markup.keyboard([
-        Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en),
-        Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en),
-      ]).resize()
-
-      logger.info({
-        message: `📤 [StartScene] Отправка текста с туториалом и клавиатурой`,
-        telegramId,
-        function: 'startScene',
-        step: 'sending_tutorial_text_with_keyboard',
-        buttons: [
-          isRu ? levels[105].title_ru : levels[105].title_en,
-          isRu ? levels[103].title_ru : levels[103].title_en,
-        ],
-      })
-
-      await ctx.reply(tutorialText, {
-        parse_mode: 'Markdown',
-        reply_markup: replyKeyboard.reply_markup,
-      })
-    } else {
-      logger.info({
-        message: `ℹ️ [StartScene] Ссылка на туториал для ${botName} не найдена`,
-        telegramId,
-        function: 'startScene',
-        step: 'tutorial_url_not_found',
-      })
-
-      replyKeyboard = Markup.keyboard([
-        Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en),
-        Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en),
-      ]).resize()
-
-      logger.info({
-        message: `📤 [StartScene] Отправка простого меню выбора действия`,
-        telegramId,
-        function: 'startScene',
-        step: 'sending_basic_menu',
-        buttons: [
-          isRu ? levels[105].title_ru : levels[105].title_en,
-          isRu ? levels[103].title_ru : levels[103].title_en,
-        ],
-      })
-
-      await ctx.reply(isRu ? 'Выберите действие:' : 'Choose an action:', {
-        reply_markup: replyKeyboard.reply_markup,
-      })
-    }
-
     logger.info({
-      message: `🏁 [StartScene] Завершение сцены старта`,
+      message: `🏁 [StartScene] Завершение сцены старта (упрощенное)`,
       telegramId,
       function: 'startScene',
-      step: 'scene_leave',
+      step: 'scene_leave_simplified',
     })
 
     return ctx.scene.leave()
