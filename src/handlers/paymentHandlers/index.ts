@@ -60,6 +60,12 @@ async function processPayment(
 }
 
 export async function handleSuccessfulPayment(ctx: MyContext) {
+  // Добавляем подробное логирование
+  console.log(
+    '[handleSuccessfulPayment] Received successful_payment event.',
+    JSON.stringify(ctx.update, null, 2)
+  )
+
   if (!ctx.chat || !ctx.from?.id) {
     console.error(
       'handleSuccessfulPayment: Update does not belong to a chat or user ID is missing'
@@ -87,6 +93,17 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
   const stars = successfulPayment.total_amount || 0 // Сумма в минимальных единицах валюты, переводим?
   const subscriptionType = ctx.session?.subscription // Берем из глобальной сессии
   const userId = ctx.from.id.toString()
+
+  // Логируем извлеченные данные
+  console.log('[handleSuccessfulPayment] Extracted Data:', {
+    userId,
+    stars,
+    subscriptionType,
+    invoicePayload: successfulPayment.invoice_payload,
+    providerPaymentChargeId: successfulPayment.provider_payment_charge_id,
+    telegramPaymentChargeId: successfulPayment.telegram_payment_charge_id,
+  })
+
   const botUsername = ctx.botInfo?.username ?? 'unknown_bot'
   const username = ctx.from?.username ?? 'unknown'
 
@@ -99,6 +116,9 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
     subscriptionType && subscriptionType in subscriptionDetails
 
   if (isKnownSubscription) {
+    console.log(
+      `[handleSuccessfulPayment] Processing known subscription: ${subscriptionType}`
+    )
     const {
       amount,
       name,
@@ -106,6 +126,9 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
     } = subscriptionDetails[subscriptionType]
     await processPayment(ctx, stars, name, stars)
   } else {
+    console.log(
+      `[handleSuccessfulPayment] Processing as star top-up (subscriptionType: ${subscriptionType})`
+    )
     await incrementBalance({
       telegram_id: userId,
       amount: stars,
@@ -133,4 +156,5 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
       language: ctx.from?.language_code ?? 'en',
     })
   }
+  console.log('[handleSuccessfulPayment] Finished processing.')
 }

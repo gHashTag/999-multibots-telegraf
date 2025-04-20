@@ -99,3 +99,4 @@ export * from './savePromptDirect' //neurophoto
 export * from './getUserByTelegramIdString'
 export * from './setPayments'
 export * from './getUserDetails'
+export { createSuccessfulPayment as setSuccessfulPayment } from './createSuccessfulPayment'
