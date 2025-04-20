@@ -72,6 +72,9 @@ importers:
       '@golevelup/ts-jest':
         specifier: ^0.6.2
         version: 0.6.2
+      '@jest/globals':
+        specifier: ^29.7.0
+        version: 29.7.0
       '@swc/cli':
         specifier: ^0.1.57
         version: 0.1.65(@swc/core@1.11.21)(chokidar@3.6.0)
@@ -2780,6 +2783,7 @@ packages:
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
+    deprecated: Use your platform's native DOMException instead
 
   node-fetch@2.7.0:
     resolution: {integrity: sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==}

@@ -1,28 +1,62 @@
-// Mock supabase client
-jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
+import { describe, it, expect, jest, beforeEach } from '@jest/globals'
+
+// Мокаем полную цепочку вызовов supabase
+const mockMaybeSingle = jest.fn<() => Promise<{ data: any; error: any }>>()
+const mockEq = jest.fn(() => ({ maybeSingle: mockMaybeSingle }))
+const mockSelect = jest.fn(() => ({ eq: mockEq }))
+jest.mock('@/core/supabase', () => ({
+  supabase: {
+    from: jest.fn(() => ({ select: mockSelect })),
+  },
+}))
+
 import { supabase } from '@/core/supabase'
 import { getUserData } from '@/core/supabase/getUserData'
 
 describe('getUserData', () => {
-  const telegram_id = '77'
+  const telegram_id = '123'
   beforeEach(() => {
-    jest.resetModules()
-    jest.clearAllMocks()
+    mockMaybeSingle.mockReset()
+    mockEq.mockClear()
+    mockSelect.mockClear()
+    ;(supabase.from as jest.Mock).mockClear()
   })
 
   it('throws error on supabase error', async () => {
-    const mockMaybeSingle = jest.fn().mockResolvedValue({ data: null, error: { message: 'err' } })
-    const selectMock = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle })
-    ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
-    await expect(getUserData(telegram_id)).rejects.toThrow('Ошибка при получении данных пользователя: err')
+    // Мокаем ошибку
+    mockMaybeSingle.mockResolvedValue({ data: null, error: { message: 'err' } })
+    await expect(getUserData(telegram_id)).rejects.toThrow('Ошибка при получении данных пользователя: [object Object]')
+    // Проверяем вызовы
+    expect(supabase.from).toHaveBeenCalledWith('users')
+    expect(mockSelect).toHaveBeenCalledWith(
+      'username, first_name, last_name, company, position, designation, language_code'
+    )
+    expect(mockEq).toHaveBeenCalledWith('telegram_id', telegram_id.toString())
+    expect(mockMaybeSingle).toHaveBeenCalledTimes(1)
   })
 
   it('returns data when successful', async () => {
-    const data = { username: 'u', first_name: 'f', last_name: 'l', company: 'c', position: 'p', designation: 'd', language_code: 'en' }
-    const mockMaybeSingle = jest.fn().mockResolvedValue({ data, error: null })
-    const selectMock = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle })
-    ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
+    const userData = { username: 'test', first_name: 'fn' }
+    // Мокаем успех
+    mockMaybeSingle.mockResolvedValue({ data: userData, error: null })
     const result = await getUserData(telegram_id)
-    expect(result).toBe(data)
+    expect(result).toEqual(userData)
+    expect(supabase.from).toHaveBeenCalledWith('users')
+    expect(mockSelect).toHaveBeenCalledWith(
+      'username, first_name, last_name, company, position, designation, language_code'
+    )
+    expect(mockEq).toHaveBeenCalledWith('telegram_id', telegram_id.toString())
+  })
+
+  // Добавляем тест на случай, когда пользователь не найден (data: null, error: null)
+  it('returns null when user not found', async () => {
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null })
+    const result = await getUserData(telegram_id)
+    expect(result).toBeNull()
+    expect(supabase.from).toHaveBeenCalledWith('users')
+    expect(mockSelect).toHaveBeenCalledWith(
+      'username, first_name, last_name, company, position, designation, language_code'
+    )
+    expect(mockEq).toHaveBeenCalledWith('telegram_id', telegram_id.toString())
   })
 })

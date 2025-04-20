@@ -1,4 +1,4 @@
-import { supabase } from '../../core/supabase'
+import { supabase } from '@/core/supabase'
 
 export const incrementBalance = async ({
   telegram_id,

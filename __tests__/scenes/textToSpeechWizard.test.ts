@@ -1,84 +1,75 @@
 /**
  * Tests for textToSpeechWizard
  */
+import { describe, it, expect, jest, beforeEach } from '@jest/globals'
 import { Composer } from 'telegraf'
 import { textToSpeechWizard } from '../../src/scenes/textToSpeechWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
 
-// Mock dependencies
-jest.mock('../../src/helpers/language', () => ({ isRussian: jest.fn() }))
-// jest.mock('../../src/menu/createHelpCancelKeyboard', () => ({ createHelpCancelKeyboard: jest.fn() }))
-jest.mock('../../src/handlers/handleHelpCancel', () => ({
-  handleHelpCancel: jest.fn(),
-}))
-jest.mock('../../src/core/supabase', () => ({ getVoiceId: jest.fn() }))
-jest.mock('../../src/services/generateTextToSpeech', () => ({
-  generateTextToSpeech: jest.fn(),
-}))
+// Import original modules for spyOn
+import * as languageHelper from '../../src/helpers/language'
+import * as helpCancelHandler from '../../src/handlers/handleHelpCancel'
+import * as supabaseCore from '../../src/core/supabase'
+import * as ttsService from '../../src/services/generateTextToSpeech'
 
-import { isRussian } from '../../src/helpers/language'
-// import { createHelpCancelKeyboard } from '../../src/menu/createHelpCancelKeyboard'
-import { handleHelpCancel } from '../../src/handlers/handleHelpCancel'
-import { getVoiceId } from '../../src/core/supabase'
-import { generateTextToSpeech } from '../../src/services/generateTextToSpeech'
-
-// Удаляем ненужный мок next
-// const mockNext = jest.fn()
+// Remove module-level mocks
+// jest.mock('../../src/helpers/language', () => ({ isRussian: jest.fn() }))
+// jest.mock('../../src/handlers/handleHelpCancel', () => ({ handleHelpCancel: jest.fn() }))
+// jest.mock('../../src/core/supabase', () => ({ getVoiceId: jest.fn() }))
+// jest.mock('../../src/services/generateTextToSpeech', () => ({ generateTextToSpeech: jest.fn() }))
 
 describe('textToSpeechWizard', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    // Удаляем очистку mockNext
-    // mockNext.mockClear() 
+    jest.restoreAllMocks() // Use restoreAllMocks with spyOn
   })
 
   it('step 0: prompts and calls next()', async () => {
     const ctx = makeMockContext({ message: { text: 'initial' } })
-    ;(isRussian as jest.Mock).mockReturnValueOnce(true)
-    // Используем Composer.unwrap для получения функции шага
+    // Use spyOn instead of module mock
+    const isRussianSpy = jest.spyOn(languageHelper, 'isRussian').mockReturnValueOnce(true)
     const step0 = Composer.unwrap(textToSpeechWizard.steps[0])
-    // Шаги Wizard принимают только ctx, next() не передается
     await step0(ctx, async () => {})
-    expect(isRussian).toHaveBeenCalledWith(ctx)
+    expect(isRussianSpy).toHaveBeenCalledWith(ctx)
     expect(ctx.reply).toHaveBeenCalledWith(
-      '🎙️ Отправьте текст, для преобразования его в голос',
-      // Убираем некорректный reply_markup, если его нет в реальной логике
-      // { reply_markup: { kb: true } } 
+      '🎙️ Отправьте текст, для преобразования его в голос'
     )
-    // Wizard сам управляет переходом, ctx.wizard.next не вызывается напрямую в шаге
-    // expect(ctx.wizard.next).toHaveBeenCalled() 
   })
 
   it('step 1: no text message prompts ask', async () => {
-    // Передаем language_code при создании контекста, исправляем структуру
     const ctx = makeMockContext({ message: { text: 'initial', from: { id: 1, is_bot: false, first_name: 'Test', language_code: 'en' } } })
-    ;(isRussian as jest.Mock).mockReturnValueOnce(false)
+    // Use spyOn
+    const isRussianSpy = jest.spyOn(languageHelper, 'isRussian').mockReturnValueOnce(false)
     const step1 = Composer.unwrap(textToSpeechWizard.steps[1])
-    // Шаги Wizard принимают только ctx, next() не передается
     await step1(ctx, async () => {})
+    expect(isRussianSpy).toHaveBeenCalledWith(ctx)
     expect(ctx.reply).toHaveBeenCalledWith('✍️ Please send text')
   })
 
   it('step 1: cancel leaves scene', async () => {
-    // Передаем language_code при создании контекста, исправляем структуру
     const ctx = makeMockContext({ message: { text: 'Cancel', from: { id: 2, is_bot: false, first_name: 'Test', language_code: 'en' } } })
-    ;(isRussian as jest.Mock).mockReturnValueOnce(false)
-    ;(handleHelpCancel as jest.Mock).mockResolvedValueOnce(true)
+    // Use spyOn
+    const isRussianSpy = jest.spyOn(languageHelper, 'isRussian').mockReturnValueOnce(false)
+    const handleHelpCancelSpy = jest.spyOn(helpCancelHandler, 'handleHelpCancel').mockResolvedValueOnce(true)
     const step1 = Composer.unwrap(textToSpeechWizard.steps[1])
-    // Шаги Wizard принимают только ctx, next() не передается
     await step1(ctx, async () => {})
+    expect(isRussianSpy).toHaveBeenCalledWith(ctx)
+    expect(handleHelpCancelSpy).toHaveBeenCalledWith(ctx)
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
   it('step 1: no voice_id prompts training message and leaves', async () => {
-    // Передаем language_code при создании контекста, исправляем структуру
     const ctx = makeMockContext({ message: { text: 'Hello', from: { id: 3, language_code: 'ru', is_bot: false, first_name: 'Test' } } })
-    ;(isRussian as jest.Mock).mockReturnValueOnce(true)
-    ;(handleHelpCancel as jest.Mock).mockResolvedValueOnce(false)
-    ;(getVoiceId as jest.Mock).mockResolvedValueOnce(null)
+    // Use spyOn
+    const isRussianSpy = jest.spyOn(languageHelper, 'isRussian').mockReturnValueOnce(true)
+    const handleHelpCancelSpy = jest.spyOn(helpCancelHandler, 'handleHelpCancel').mockResolvedValueOnce(false)
+    const getVoiceIdSpy = jest.spyOn(supabaseCore, 'getVoiceId').mockResolvedValueOnce(undefined) // Use undefined as per function signature
+
     const step1 = Composer.unwrap(textToSpeechWizard.steps[1])
-    // Шаги Wizard принимают только ctx, next() не передается
     await step1(ctx, async () => {})
+
+    expect(isRussianSpy).toHaveBeenCalledWith(ctx)
+    expect(handleHelpCancelSpy).toHaveBeenCalledWith(ctx)
+    expect(getVoiceIdSpy).toHaveBeenCalledWith('3') // Assuming ctx.from.id is used
     expect(ctx.reply).toHaveBeenCalledWith(
       '🎯 Для корректной работы обучите аватар используя 🎤 Голос для аватара в главном меню'
     )
@@ -86,21 +77,26 @@ describe('textToSpeechWizard', () => {
   })
 
   it('step 1: generates text to speech and leaves', async () => {
-    // Передаем language_code и username при создании контекста, исправляем структуру
     const ctx = makeMockContext({ message: { text: 'Hello', from: { id: 4, username: 'u', language_code: 'en', is_bot: false, first_name: 'Test' } } })
-    ;(isRussian as jest.Mock).mockReturnValueOnce(false)
-    ;(handleHelpCancel as jest.Mock).mockResolvedValueOnce(false)
-    ;(getVoiceId as jest.Mock).mockResolvedValueOnce('voice123')
+    // Use spyOn
+    const isRussianSpy = jest.spyOn(languageHelper, 'isRussian').mockReturnValueOnce(false)
+    const handleHelpCancelSpy = jest.spyOn(helpCancelHandler, 'handleHelpCancel').mockResolvedValueOnce(false)
+    const getVoiceIdSpy = jest.spyOn(supabaseCore, 'getVoiceId').mockResolvedValueOnce('voice123')
+    const generateTextToSpeechSpy = jest.spyOn(ttsService, 'generateTextToSpeech').mockResolvedValueOnce(undefined) // Assuming it returns Promise<void> or similar
+
     const step1 = Composer.unwrap(textToSpeechWizard.steps[1])
-    // Шаги Wizard принимают только ctx, next() не передается
     await step1(ctx, async () => {})
-    expect(generateTextToSpeech).toHaveBeenCalledWith(
+
+    expect(isRussianSpy).toHaveBeenCalledWith(ctx)
+    expect(handleHelpCancelSpy).toHaveBeenCalledWith(ctx)
+    expect(getVoiceIdSpy).toHaveBeenCalledWith('4')
+    expect(generateTextToSpeechSpy).toHaveBeenCalledWith(
       'Hello',
       'voice123',
       4,
       'u',
-      false,
-      undefined
+      false, // isRu
+      undefined // bot_name
     )
     expect(ctx.scene.leave).toHaveBeenCalled()
   })

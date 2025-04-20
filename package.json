@@ -52,6 +52,7 @@
   },
   "devDependencies": {
     "@golevelup/ts-jest": "^0.6.2",
+    "@jest/globals": "^29.7.0",
     "@swc/cli": "^0.1.57",
     "@swc/core": "^1.2.220",
     "@types/bcrypt": "^5.0.0",

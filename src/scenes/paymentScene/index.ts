@@ -120,18 +120,19 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
       await ctx.scene.leave()
       return
     }
-  } catch (error: any) {
-    logger.error(`❌ [${ModeEnum.PaymentScene}] Error in hears:`, {
-      error: error.message,
-      stack: error.stack,
-      telegram_id: ctx.from?.id,
-    })
+  } catch (error) {
+    logger.error(
+      `❌ [${ModeEnum.PaymentScene}] Error in Hears '⭐️ Звездами':`,
+      {
+        error: error instanceof Error ? error.message : String(error),
+        telegram_id: ctx.from?.id,
+      }
+    )
     await ctx.reply(
       isRu
-        ? 'Произошла ошибка. Пожалуйста, попробуйте войти снова через меню.'
-        : 'An error occurred. Please try entering again via the menu.'
+        ? 'Произошла ошибка при обработке звезд.'
+        : 'An error occurred while processing stars.'
     )
-    // Выходим из сцены в случае ошибки входа
     await ctx.scene.leave()
   }
 })

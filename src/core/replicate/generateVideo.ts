@@ -1,5 +1,5 @@
 import { replicate } from '.'
-import { supabase } from '../supabase'
+import { supabase } from '@/core/supabase'
 import axios, { isAxiosError } from 'axios'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB - максимальный размер для Telegram

@@ -1,7 +1,7 @@
 // В файле src/core/supabase/directPayment.ts
 
 import { v4 as uuidv4 } from 'uuid'
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import {

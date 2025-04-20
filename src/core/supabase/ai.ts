@@ -1,4 +1,4 @@
-import { supabase } from './index'
+import { supabase } from '@/core/supabase'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'

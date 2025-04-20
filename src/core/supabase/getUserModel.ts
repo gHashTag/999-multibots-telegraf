@@ -1,4 +1,4 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 
 export const getUserModel = async (telegram_id: string): Promise<string> => {
   const { data, error } = await supabase

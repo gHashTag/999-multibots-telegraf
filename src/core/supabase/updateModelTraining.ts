@@ -1,4 +1,4 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 
 // Определяем тип для обновлений и экспортируем его
 export type ModelTrainingUpdate = {
