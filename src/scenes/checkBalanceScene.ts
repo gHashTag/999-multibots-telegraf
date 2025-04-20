@@ -711,6 +711,16 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
         })
         result = await ctx.scene.enter(ModeEnum.MainMenu)
         break
+      case ModeEnum.StartScene:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене старта`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.StartScene,
+        })
+        result = await ctx.scene.enter(ModeEnum.StartScene)
+        break
       default:
         logger.error({
           message: `[enterTargetScene] Неизвестный или необработанный режим: ${mode}. Возврат в главное меню.`,
