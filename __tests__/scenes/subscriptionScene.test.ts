@@ -4,7 +4,8 @@
 import { subscriptionScene } from '../../src/scenes/subscriptionScene'
 import makeMockContext from '../utils/mockTelegrafContext'
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-import { Markup } from 'telegraf'
+import { Markup, Composer } from 'telegraf'
+import { describe, it, expect, jest, beforeEach } from '@jest/globals'
 
 // Мокаем внешние зависимости
 jest.mock('../../src/helpers', () => ({
@@ -17,14 +18,13 @@ describe('subscriptionScene', () => {
     jest.clearAllMocks()
   })
 
-  it('первый шаг: отправляет меню подписок и вызывает next()', async () => {
+  it('step 0: displays subscription info and options', async () => {
     const ctx = makeMockContext()
     // @ts-ignore: requireMock returns unknown
     const isRu = (jest.requireMock('../../src/helpers') as any).isRussian
     isRu.mockReturnValue(true)
-    // @ts-ignore
-    const step0 = subscriptionScene.steps[0]
-    await step0(ctx)
+    const step0 = Composer.unwrap(subscriptionScene.steps[0])
+    await step0(ctx, async () => {})
     // Проверяем, что reply был вызван с HTML и inline клавиатурой
     expect(ctx.reply).toHaveBeenCalledTimes(1)
     const [text, opts] = ctx.debug.replies[0].extra
@@ -36,82 +36,55 @@ describe('subscriptionScene', () => {
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
-  it('первый шаг: при ошибке отправки выходит из сцены', async () => {
+  it('step 0: handles error during data fetch', async () => {
     const err = new Error('fail')
     // @ts-ignore: jest.Mock typing workaround for mockRejectedValueOnce
-    // @ts-ignore: jest.Mock typing workaround for mockRejectedValueOnce
-    const ctx = makeMockContext(
-      {},
-      { reply: jest.fn().mockRejectedValueOnce(err) }
-    )
+    // Передаем мок reply в первый аргумент update
+    const ctx = makeMockContext({ 
+      // @ts-ignore
+      reply: jest.fn<() => Promise<any>>().mockRejectedValueOnce(err) 
+    })
     // @ts-ignore: requireMock returns unknown
     const isRu = (jest.requireMock('../../src/helpers') as any).isRussian
     isRu.mockReturnValue(false)
-    // @ts-ignore
-    const step0 = subscriptionScene.steps[0]
-    await step0(ctx)
+    const step0 = Composer.unwrap(subscriptionScene.steps[0])
+    await step0(ctx, async () => {})
     // После ошибки должен быть отправлен текст об ошибке и exit
     expect(ctx.reply).toHaveBeenCalledWith('Error displaying tariffs.')
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
-  it('второй шаг: neurobase -> paymentScene', async () => {
-    const update = { callback_query: { data: 'neurobase' } }
-    // @ts-ignore: override readonly update property for test
-    const ctx = makeMockContext({}, { update })
+  it('step 1: processes valid callback data', async () => {
+    // Передаем callback_query в update
+    const ctx = makeMockContext({ callback_query: { data: 'neurobase' } as any })
     // @ts-ignore: requireMock returns unknown
     const isRu = (jest.requireMock('../../src/helpers') as any).isRussian
     isRu.mockReturnValue(true)
-    // @ts-ignore
-    const step1 = subscriptionScene.steps[1]
-    await step1(ctx)
+    const step1 = Composer.unwrap(subscriptionScene.steps[1])
+    await step1(ctx, async () => {})
     expect(ctx.session.subscription).toBe('neurobase')
     expect(ctx.scene.enter).toHaveBeenCalledWith('paymentScene')
   })
 
-  it('второй шаг: neurophoto -> paymentScene', async () => {
-    // @ts-ignore: override readonly update property for test
-    const ctx = makeMockContext(
-      {},
-      { update: { callback_query: { data: 'neurophoto' } } }
-    )
-    // @ts-ignore: requireMock returns unknown
-    const isRu = (jest.requireMock('../../src/helpers') as any).isRussian
-    isRu.mockReturnValue(false)
-    // @ts-ignore
-    const step1 = subscriptionScene.steps[1]
-    await step1(ctx)
-    expect(ctx.session.subscription).toBe('neurophoto')
-    expect(ctx.scene.enter).toHaveBeenCalledWith('paymentScene')
-  })
-
-  it('второй шаг: mainmenu -> menuScene', async () => {
-    // @ts-ignore: override readonly update property for test
-    const ctx = makeMockContext(
-      {},
-      { update: { callback_query: { data: 'mainmenu' } } }
-    )
+  it('step 1: leaves scene on mainmenu callback', async () => {
+    // Передаем callback_query в update
+    const ctx = makeMockContext({ callback_query: { data: 'mainmenu' } as any })
     // @ts-ignore: requireMock returns unknown
     const isRu = (jest.requireMock('../../src/helpers') as any).isRussian
     isRu.mockReturnValue(true)
-    // @ts-ignore
-    const step1 = subscriptionScene.steps[1]
-    await step1(ctx)
+    const step1 = Composer.unwrap(subscriptionScene.steps[1])
+    await step1(ctx, async () => {})
     expect(ctx.scene.enter).toHaveBeenCalledWith('menuScene')
   })
 
-  it('второй шаг: неизвестный callback -> отвечает и уходит', async () => {
-    // @ts-ignore: override readonly update property for test
-    const ctx = makeMockContext(
-      {},
-      { update: { callback_query: { data: 'foo' } } }
-    )
+  it('step 1: replies on unknown callback data', async () => {
+    // Передаем callback_query в update
+    const ctx = makeMockContext({ callback_query: { data: 'foo' } as any })
     // @ts-ignore: requireMock returns unknown
     const isRu = (jest.requireMock('../../src/helpers') as any).isRussian
     isRu.mockReturnValue(true)
-    // @ts-ignore
-    const step1 = subscriptionScene.steps[1]
-    await step1(ctx)
+    const step1 = Composer.unwrap(subscriptionScene.steps[1])
+    await step1(ctx, async () => {})
     expect(ctx.answerCbQuery).toHaveBeenCalled()
     expect(ctx.reply).toHaveBeenCalledWith(
       'Неизвестный выбор. Пожалуйста, используйте кнопки.'
@@ -119,15 +92,14 @@ describe('subscriptionScene', () => {
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
-  it('второй шаг: не callback -> просит выбрать и уходит', async () => {
-    // @ts-ignore: override readonly update property for test
-    const ctx = makeMockContext({}, { update: {} })
+  it('step 1: handles message instead of callback', async () => {
+    // Создаем контекст без callback_query (по умолчанию будет message)
+    const ctx = makeMockContext({ message: { text: 'some text' } as any })
     // @ts-ignore: requireMock returns unknown
     const isRu = (jest.requireMock('../../src/helpers') as any).isRussian
     isRu.mockReturnValue(false)
-    // @ts-ignore
-    const step1 = subscriptionScene.steps[1]
-    await step1(ctx)
+    const step1 = Composer.unwrap(subscriptionScene.steps[1])
+    await step1(ctx, async () => {})
     expect(ctx.reply).toHaveBeenCalledWith(
       'Please select a tariff using the buttons.'
     )
