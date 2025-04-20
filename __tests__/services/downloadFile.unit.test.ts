@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { EventEmitter } from 'events'
 
 // Mock axios.get and fs.createWriteStream

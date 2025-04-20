@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 
 describe('config/index debug .env loading', () => {
   let logSpy: jest.SpyInstance

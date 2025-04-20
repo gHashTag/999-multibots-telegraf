@@ -1,7 +1,6 @@
 /**
  * Tests for levelQuestWizard scenes: step0Scene and completeScene
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 import {
   step0Scene,

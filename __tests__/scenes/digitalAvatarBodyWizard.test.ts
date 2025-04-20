@@ -1,4 +1,3 @@
-import { describe, test, expect, beforeEach, jest } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 
 jest.mock('@/helpers/language', () => ({ isRussian: jest.fn() }))

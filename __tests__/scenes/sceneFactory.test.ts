@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 
 // Mock WizardScene from telegraf/scenes
 jest.mock('telegraf/scenes', () => ({

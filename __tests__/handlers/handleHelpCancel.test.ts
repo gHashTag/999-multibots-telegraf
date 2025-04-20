@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 

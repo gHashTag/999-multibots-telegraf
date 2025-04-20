@@ -1,7 +1,6 @@
 /**
  * Тесты для нейрофото-сцены (neuroPhotoWizard)
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { neuroPhotoWizard } from '../../src/scenes/neuroPhotoWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
 /* eslint-disable @typescript-eslint/ban-ts-comment */

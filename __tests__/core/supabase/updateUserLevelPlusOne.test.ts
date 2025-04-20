@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 
 describe('updateUserLevelPlusOne', () => {
   let updateUserLevelPlusOne: typeof import('@/core/supabase/updateUserLevelPlusOne').updateUserLevelPlusOne

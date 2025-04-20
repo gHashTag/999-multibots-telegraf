@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { supabase } from '@/core/supabase'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 

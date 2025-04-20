@@ -1,4 +1,3 @@
-import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 // Мокаем внешние зависимости до импортов
 jest.mock('../../src/services/generateImageFromPrompt', () => jest.fn())
 jest.mock('../../src/handlers/handleHelpCancel', () => ({

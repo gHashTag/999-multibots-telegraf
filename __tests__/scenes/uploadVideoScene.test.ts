@@ -1,7 +1,6 @@
 /**
  * Тесты для сцены uploadVideoScene
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { uploadVideoScene } from '../../src/scenes/uploadVideoScene'
 import makeMockContext from '../utils/mockTelegrafContext'
 

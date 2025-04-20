@@ -1,4 +1,3 @@
-import { describe, it, expect, jest } from '@jest/globals'
 
 // Mock Telegraf to control validateBotToken behavior
 jest.mock('telegraf', () => ({

@@ -1,7 +1,6 @@
 /**
  * Tests for improvePromptWizard
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { improvePromptWizard } from '../../src/scenes/improvePromptWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { MyContext, ModeEnum } from '../../src/interfaces'

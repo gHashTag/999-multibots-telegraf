@@ -1,4 +1,3 @@
-import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { imageToVideoWizard } from '../../src/scenes/imageToVideoWizard'
 import { isRussian } from '@/helpers/language'

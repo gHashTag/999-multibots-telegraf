@@ -1,4 +1,3 @@
-import { describe, it, expect } from '@jest/globals'
 import { createHelpCancelKeyboard } from '@/menu/createHelpCancelKeyboard'
 import { cancelHelpArray } from '@/menu/cancelHelpArray'
 

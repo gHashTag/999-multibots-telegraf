@@ -1,8 +1,8 @@
 /**
  * TODO: add unit tests for updateUserLevel
  */
-import { updateUserLevel } from '../../../../src/core/supabase/updateUserLevel'
-import { supabase } from '../../../../src/core/supabase'
+import { updateUserLevel } from '@/core/supabase/updateUserLevel'
+import { supabase } from '@/core/supabase'
 
 describe('updateUserLevel', () => {
   it('TODO: implement tests for updateUserLevel', async () => {

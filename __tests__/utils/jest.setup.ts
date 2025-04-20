@@ -3,7 +3,6 @@ import dotenv from 'dotenv'
 // Загружаем переменные окружения ДО импорта других модулей
 dotenv.config({ path: '.env.test' })
 
-import { jest, afterAll } from '@jest/globals'
 import { transports } from 'winston'
 import logger, { botLogger, securityLogger } from '../../src/utils/logger'
 

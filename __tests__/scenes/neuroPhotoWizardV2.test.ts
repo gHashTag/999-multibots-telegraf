@@ -1,7 +1,6 @@
 /**
  * Tests for neuroPhotoWizardV2
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { neuroPhotoWizardV2 } from '../../src/scenes/neuroPhotoWizardV2'
 import makeMockContext from '../utils/mockTelegrafContext'
 

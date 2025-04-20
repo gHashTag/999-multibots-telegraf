@@ -1,4 +1,3 @@
-import { describe, it, expect } from '@jest/globals'
 import { videoModelKeyboard } from '@/menu/videoModelMenu'
 
 describe('videoModelKeyboard', () => {

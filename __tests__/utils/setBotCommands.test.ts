@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 
 // Mock botLogger to capture logs
 jest.mock('@/utils/logger', () => ({

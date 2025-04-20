@@ -1,4 +1,3 @@
-import { describe, it, expect } from '@jest/globals'
 import { urlJoin } from '@/utils/url'
 import { getConfig } from '@/utils/getConfig'
 import { isRussian } from '@/helpers/language'

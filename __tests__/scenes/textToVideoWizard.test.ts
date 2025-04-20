@@ -1,7 +1,6 @@
 /**
  * Tests for textToVideoWizard
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { textToVideoWizard } from '../../src/scenes/textToVideoWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
 

@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { sendGenerationErrorMessage } from '@/menu/sendGenerationErrorMessage'
 

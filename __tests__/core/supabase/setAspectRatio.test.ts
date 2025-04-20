@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 
 describe('setAspectRatio', () => {
   let setAspectRatio: typeof import('@/core/supabase/setAspectRatio').setAspectRatio

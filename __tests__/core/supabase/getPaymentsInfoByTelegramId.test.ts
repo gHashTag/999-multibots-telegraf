@@ -1,4 +1,3 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals'
 
 // Mock supabase client
 const mockEq = jest.fn()

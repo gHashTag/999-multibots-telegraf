@@ -1,7 +1,6 @@
 /**
  * Тесты для сцены avatarBrainWizard
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { avatarBrainWizard } from '../../src/scenes/avatarBrainWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
 

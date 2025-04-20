@@ -1,8 +1,8 @@
 /**
  * TODO: add unit tests for getUserLevel
  */
-import { getUserLevel } from '../../../../src/core/supabase/getUserLevel'
-import { supabase } from '../../../../src/core/supabase'
+import { getUserLevel } from '@/core/supabase/getUserLevel'
+import { supabase } from '@/core/supabase'
 
 describe('getUserLevel', () => {
   it('TODO: implement tests for getUserLevel', async () => {

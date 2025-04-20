@@ -1,6 +1,7 @@
-import { setBotCommands } from '@/setCommands'
+import { setBotCommands } from '../../src/setCommands'
 import { Telegraf } from 'telegraf'
-import { botLogger } from '@/utils/logger'
+import { botLogger } from '../../src/utils/logger'
+import { MyContext } from '../../src/interfaces'
 
 describe('setBotCommands', () => {
   let mockBot: any
@@ -17,7 +18,7 @@ describe('setBotCommands', () => {
   })
 
   it('should set commands and return true on success', async () => {
-    const result = await setBotCommands(mockBot as Telegraf)
+    const result = await setBotCommands(mockBot as Telegraf<MyContext>)
     expect(mockBot.telegram.setMyCommands).toHaveBeenCalledWith([
       { command: 'start', description: '👤 Start / Начать' },
       { command: 'menu', description: '👤 Menu / Главное меню' },
@@ -36,7 +37,7 @@ describe('setBotCommands', () => {
   it('should return false and log error on failure', async () => {
     const error = new Error('fail')
     mockBot.telegram.setMyCommands.mockRejectedValue(error)
-    const result = await setBotCommands(mockBot as Telegraf)
+    const result = await setBotCommands(mockBot as Telegraf<MyContext>)
     expect(botLogger.error).toHaveBeenCalledWith(
       'testbot',
       expect.stringContaining('Ошибка при установке команд')

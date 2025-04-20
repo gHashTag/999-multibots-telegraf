@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 
 // Prevent loading real .env file
 jest.mock('dotenv', () => ({ config: jest.fn() }))

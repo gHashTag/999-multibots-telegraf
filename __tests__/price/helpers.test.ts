@@ -1,7 +1,6 @@
 /**
  * Unit tests for price helper functions
  */
-import { describe, it, expect } from '@jest/globals'
 
 // Test calculateCostInStars (dollars to stars)
 import { calculateCostInStars as calcStarsFromDollars } from '@/price/helpers/calculateCostInStars'

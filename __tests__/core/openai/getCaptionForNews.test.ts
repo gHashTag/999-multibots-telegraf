@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 
 // Mock the OpenAI client
 const mockCreate = jest.fn()

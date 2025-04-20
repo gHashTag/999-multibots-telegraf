@@ -1,7 +1,6 @@
 /**
  * Дополнительные тесты для платежных handler’ов
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 
 import { handlePreCheckoutQuery } from '../../src/handlers/paymentHandlers/handlePreCheckoutQuery'

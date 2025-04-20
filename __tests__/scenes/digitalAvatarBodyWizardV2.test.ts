@@ -1,7 +1,6 @@
 /**
  * Тесты для сцены цифрового тела аватара V2 (digitalAvatarBodyWizardV2)
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { digitalAvatarBodyWizardV2 } from '../../src/scenes/digitalAvatarBodyWizardV2'
 import makeMockContext from '../utils/mockTelegrafContext'
 /* eslint-disable @typescript-eslint/ban-ts-comment */

@@ -1,7 +1,6 @@
 /**
  * Tests for balanceScene
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { balanceScene } from '../../src/scenes/balanceScene'
 import makeMockContext from '../utils/mockTelegrafContext'
 
