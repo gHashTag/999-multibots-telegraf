@@ -9,7 +9,9 @@ jest.mock('@/core/supabase/client', () => ({
   supabase: {
     // Создаем мок rpc сразу как jest.fn()
     // Уточняем сигнатуру: принимает funcName и args
-    rpc: jest.fn<(funcName: string, args: any) => Promise<{ data: any; error: any }>>(),
+    rpc: jest.fn<
+      (funcName: string, args: any) => Promise<{ data: any; error: any }>
+    >(),
     // Оставляем from на случай, если другие тесты его используют, но основной мок - rpc
     from: jest.fn(() => ({
       select: jest.fn(() => ({
@@ -23,7 +25,7 @@ jest.mock('@/core/supabase/client', () => ({
 
 describe('getUserBalance Unit Tests', () => {
   // Используем jest.MockedFunction для более строгой типизации
-  const mockedRpc = supabase.rpc as jest.MockedFunction<typeof supabase.rpc>;
+  const mockedRpc = supabase.rpc as jest.MockedFunction<typeof supabase.rpc>
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -36,8 +38,20 @@ describe('getUserBalance Unit Tests', () => {
   it('should throw error if user not found (simulated via rpc returning null data/error)', async () => {
     // get_user_balance вернет ошибку или null, если пользователь не найден.
     // Для теста симулируем ошибку, как будто rpc вернул её.
-    const rpcError = { message: 'User balance function error', code: 'FUNC404', details: '', hint: '', name: 'MockRPCError' }
-    mockedRpc.mockResolvedValue({ data: null, error: rpcError, count: null, status: 500, statusText: 'Internal Server Error' })
+    const rpcError = {
+      message: 'User balance function error',
+      code: 'FUNC404',
+      details: '',
+      hint: '',
+      name: 'MockRPCError',
+    }
+    mockedRpc.mockResolvedValue({
+      data: null,
+      error: rpcError,
+      count: null,
+      status: 500,
+      statusText: 'Internal Server Error',
+    })
 
     await expect(getUserBalance('123')).rejects.toThrow(
       'Не удалось получить баланс пользователя: User balance function error'
@@ -48,9 +62,21 @@ describe('getUserBalance Unit Tests', () => {
   })
 
   it('should throw generic error for other Supabase RPC errors', async () => {
-    const error = { message: 'Generic DB error', code: 'XXXXX', details: '', hint: '', name: 'MockGenericError' }
+    const error = {
+      message: 'Generic DB error',
+      code: 'XXXXX',
+      details: '',
+      hint: '',
+      name: 'MockGenericError',
+    }
     // Симулируем, что rpc вернул ошибку
-    mockedRpc.mockResolvedValue({ data: null, error, count: null, status: 500, statusText: 'Internal Server Error' })
+    mockedRpc.mockResolvedValue({
+      data: null,
+      error,
+      count: null,
+      status: 500,
+      statusText: 'Internal Server Error',
+    })
 
     await expect(getUserBalance('456')).rejects.toThrow(
       'Не удалось получить баланс пользователя: Generic DB error'
@@ -62,7 +88,13 @@ describe('getUserBalance Unit Tests', () => {
 
   it('should return balance when user exists and balance is number', async () => {
     // Симулируем успешный ответ от rpc
-    mockedRpc.mockResolvedValue({ data: 500, error: null, count: 1, status: 200, statusText: 'OK' }) // data - это сам баланс
+    mockedRpc.mockResolvedValue({
+      data: 500,
+      error: null,
+      count: 1,
+      status: 200,
+      statusText: 'OK',
+    }) // data - это сам баланс
 
     const result = await getUserBalance('789')
     expect(result).toBe(500)
@@ -73,7 +105,13 @@ describe('getUserBalance Unit Tests', () => {
 
   it('should return 0 when user exists but balance is null/undefined from rpc', async () => {
     // Симулируем ответ, где data = null
-    mockedRpc.mockResolvedValue({ data: null, error: null, count: 1, status: 200, statusText: 'OK' })
+    mockedRpc.mockResolvedValue({
+      data: null,
+      error: null,
+      count: 1,
+      status: 200,
+      statusText: 'OK',
+    })
 
     const result = await getUserBalance('101')
     expect(result).toBe(0) // Функция должна вернуть 0, если data is null
@@ -84,7 +122,13 @@ describe('getUserBalance Unit Tests', () => {
 
   it('should return 0 when user exists but balance is 0 from rpc', async () => {
     // Симулируем ответ, где data = 0
-    mockedRpc.mockResolvedValue({ data: 0, error: null, count: 1, status: 200, statusText: 'OK' })
+    mockedRpc.mockResolvedValue({
+      data: 0,
+      error: null,
+      count: 1,
+      status: 200,
+      statusText: 'OK',
+    })
 
     const result = await getUserBalance('112')
     expect(result).toBe(0)

@@ -1,4 +1,3 @@
-
 describe('cleanupOldArchives', () => {
   let cleanupOldArchives: typeof import('@/core/supabase/cleanupOldArchives').cleanupOldArchives
   const mockList = jest.fn()
@@ -10,14 +9,18 @@ describe('cleanupOldArchives', () => {
     mockList.mockReset()
     mockRemove.mockReset()
     // storage.from mock returns object with list and remove
-    mockStorageFrom.mockImplementation(() => ({ list: mockList, remove: mockRemove }))
+    mockStorageFrom.mockImplementation(() => ({
+      list: mockList,
+      remove: mockRemove,
+    }))
     jest.doMock('@/core/supabase', () => ({
-      supabase: { storage: { from: mockStorageFrom } }
+      supabase: { storage: { from: mockStorageFrom } },
     }))
     // Import under test
     jest.isolateModules(() => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      cleanupOldArchives = require('@/core/supabase/cleanupOldArchives').cleanupOldArchives
+      cleanupOldArchives =
+        require('@/core/supabase/cleanupOldArchives').cleanupOldArchives
     })
   })
 
@@ -37,9 +40,18 @@ describe('cleanupOldArchives', () => {
 
   it('removes all but latest file', async () => {
     const files = [
-      { name: 'old.zip', created_at: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString() },
-      { name: 'mid.zip', created_at: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString() },
-      { name: 'new.zip', created_at: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString() },
+      {
+        name: 'old.zip',
+        created_at: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
+      },
+      {
+        name: 'mid.zip',
+        created_at: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
+      },
+      {
+        name: 'new.zip',
+        created_at: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
+      },
     ]
     mockList.mockResolvedValue({ data: files, error: null })
     await cleanupOldArchives('user3')

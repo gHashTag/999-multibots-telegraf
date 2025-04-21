@@ -1,4 +1,3 @@
-
 describe('config/index debug .env loading', () => {
   let logSpy: jest.SpyInstance
   let errorSpy: jest.SpyInstance

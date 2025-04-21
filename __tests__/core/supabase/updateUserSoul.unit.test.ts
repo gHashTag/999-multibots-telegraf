@@ -1,4 +1,3 @@
-
 // Mock supabase client
 jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
 import { supabase } from '@/core/supabase'
@@ -18,7 +17,9 @@ describe('updateUserSoul', () => {
     const eqMock = jest.fn()
     const updateMock = jest.fn().mockReturnValue({ eq: eqMock })
     ;(supabase.from as jest.Mock).mockReturnValue({ update: updateMock })
-    await expect(updateUserSoul(telegram_id, company, position, designation)).resolves.toBeUndefined()
+    await expect(
+      updateUserSoul(telegram_id, company, position, designation)
+    ).resolves.toBeUndefined()
     expect(supabase.from).toHaveBeenCalledWith('users')
     expect(updateMock).toHaveBeenCalledWith({ company, position, designation })
     expect(eqMock).toHaveBeenCalledWith('telegram_id', telegram_id)
@@ -29,9 +30,16 @@ describe('updateUserSoul', () => {
     const eqMock = jest.fn()
     const updateMock = jest.fn().mockReturnValue({ error: errorObj })
     ;(supabase.from as jest.Mock).mockReturnValue({ update: updateMock })
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
-    await expect(updateUserSoul(telegram_id, company, position, designation)).resolves.toBeUndefined()
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Ошибка в updateUserSoul:', expect.any(Error))
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
+    await expect(
+      updateUserSoul(telegram_id, company, position, designation)
+    ).resolves.toBeUndefined()
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Ошибка в updateUserSoul:',
+      expect.any(Error)
+    )
     consoleErrorSpy.mockRestore()
   })
 })

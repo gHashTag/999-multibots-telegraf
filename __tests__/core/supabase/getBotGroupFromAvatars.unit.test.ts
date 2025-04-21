@@ -1,4 +1,3 @@
-
 // Mock supabase and logger
 jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
 jest.mock('@/utils/logger', () => ({ logger: { error: jest.fn() } }))
@@ -33,17 +32,27 @@ describe('getBotGroupFromAvatars', () => {
     expect(result).toBeNull()
     expect(logger.error).toHaveBeenCalledWith(
       '❌ Ошибка при получении данных из Avatars:',
-      expect.objectContaining({ description: expect.any(String), error: err, bot_name })
+      expect.objectContaining({
+        description: expect.any(String),
+        error: err,
+        bot_name,
+      })
     )
   })
 
   it('returns null on exception and logs', async () => {
-    (supabase.from as jest.Mock).mockImplementation(() => { throw new Error('boom') })
+    ;(supabase.from as jest.Mock).mockImplementation(() => {
+      throw new Error('boom')
+    })
     const result = await getBotGroupFromAvatars(bot_name)
     expect(result).toBeNull()
     expect(logger.error).toHaveBeenCalledWith(
       '❌ Непредвиденная ошибка при получении данных из Avatars:',
-      expect.objectContaining({ description: expect.any(String), error: expect.any(Error), bot_name })
+      expect.objectContaining({
+        description: expect.any(String),
+        error: expect.any(Error),
+        bot_name,
+      })
     )
   })
 })

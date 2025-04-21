@@ -1,4 +1,3 @@
-
 describe('config production logging block', () => {
   let logSpy: jest.SpyInstance
   let warnSpy: jest.SpyInstance

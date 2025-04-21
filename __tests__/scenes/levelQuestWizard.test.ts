@@ -14,7 +14,10 @@ jest.mock('../../src/scenes/levelQuestWizard/handlers', () => ({
 }))
 jest.mock('@/helpers', () => ({ isRussian: jest.fn() }))
 
-import { handleQuestRules, handleQuestComplete } from '../../src/scenes/levelQuestWizard/handlers'
+import {
+  handleQuestRules,
+  handleQuestComplete,
+} from '../../src/scenes/levelQuestWizard/handlers'
 import { isRussian } from '@/helpers'
 
 describe('levelQuestWizard - step0Scene', () => {

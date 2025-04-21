@@ -15,8 +15,8 @@ describe('startMenu', () => {
       'Выберите действие в меню:',
       expect.objectContaining({
         reply_markup: expect.objectContaining({
-          keyboard: [[{ text: levels[104].title_ru }]]
-        })
+          keyboard: [[{ text: levels[104].title_ru }]],
+        }),
       })
     )
   })
@@ -27,8 +27,8 @@ describe('startMenu', () => {
       'Choose an action in the menu:',
       expect.objectContaining({
         reply_markup: expect.objectContaining({
-          keyboard: [[{ text: levels[104].title_en }]]
-        })
+          keyboard: [[{ text: levels[104].title_en }]],
+        }),
       })
     )
   })

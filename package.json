@@ -25,11 +25,10 @@
     "start:multi": "node dist/multi.js",
     "deploy": "./scripts/update-host.sh",
     "deploy:test": "bash scripts/deploy-test.sh",
-    "deploy:server": "./scripts/update-docker.sh",
+    "deploy:server": "./scripts/deploy.sh",
     "docker:prod": "docker-compose -f docker-compose.webhook.yml up -d",
     "docker:dev": "docker-compose -f docker-compose.multi.yml up -d",
     "docker:test": "docker-compose -f docker-compose.test.yml up"
-    
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.10",
@@ -104,7 +103,6 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.5.4",
     "wait-for-expect": "^3.0.2"
-
   },
   "lint-staged": {
     "*.ts": [

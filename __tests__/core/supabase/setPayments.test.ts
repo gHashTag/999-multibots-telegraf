@@ -1,4 +1,3 @@
-
 describe('setPayments', () => {
   let setPayments: typeof import('@/core/supabase/setPayments').setPayments
   const paymentArgs = {
@@ -11,6 +10,7 @@ describe('setPayments', () => {
     payment_method: 'Stripe' as const,
     bot_name: 'bot1',
     language: 'en',
+    subscription: 'NEUROPHOTO' as string | null,
   }
   beforeEach(() => {
     jest.resetModules()
@@ -43,6 +43,7 @@ describe('setPayments', () => {
       bot_name: paymentArgs.bot_name,
       type: 'money_income',
       language: paymentArgs.language,
+      subscription_type: paymentArgs.subscription,
     })
   })
 

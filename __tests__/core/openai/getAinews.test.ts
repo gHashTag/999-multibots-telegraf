@@ -17,14 +17,20 @@ describe('getAinews', () => {
     mockCreate.mockResolvedValue({ choices: [{ message: { content } }] })
     const result = await getAinews({ prompt: 'test prompt' })
     expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: expect.any(String), messages: expect.any(Array), temperature: expect.any(Number) })
+      expect.objectContaining({
+        model: expect.any(String),
+        messages: expect.any(Array),
+        temperature: expect.any(Number),
+      })
     )
     expect(result).toBe(content)
   })
 
   it('throws error when content is null', async () => {
     mockCreate.mockResolvedValue({ choices: [{ message: { content: null } }] })
-    await expect(getAinews({ prompt: 'test' })).rejects.toThrow('Received null content from OpenAI')
+    await expect(getAinews({ prompt: 'test' })).rejects.toThrow(
+      'Received null content from OpenAI'
+    )
   })
 
   it('throws when OpenAI request fails', async () => {

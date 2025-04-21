@@ -21,6 +21,8 @@ describe('getTriggerReel', () => {
 
   it('throws error when content is null', async () => {
     mockCreate.mockResolvedValue({ choices: [{ message: { content: null } }] })
-    await expect(getTriggerReel({ prompt: 'test' })).rejects.toThrow('Received null content from OpenAI')
+    await expect(getTriggerReel({ prompt: 'test' })).rejects.toThrow(
+      'Received null content from OpenAI'
+    )
   })
 })

@@ -1,10 +1,11 @@
-
 // Mock WizardScene from telegraf/scenes
 jest.mock('telegraf/scenes', () => ({
-  WizardScene: jest.fn().mockImplementation((sceneType: string, ...handlers: any[]) => ({
-    sceneType,
-    handlers,
-  })),
+  WizardScene: jest
+    .fn()
+    .mockImplementation((sceneType: string, ...handlers: any[]) => ({
+      sceneType,
+      handlers,
+    })),
 }))
 
 import { composeWizardScene } from '@/scenes/sceneFactory'
@@ -24,7 +25,7 @@ describe('composeWizardScene', () => {
   it('creates WizardScene with sceneType and handlers', () => {
     const step1 = jest.fn(async (ctx, done, next) => {})
     const step2 = jest.fn(async (ctx, done, next) => {})
-    const nextScene = jest.fn(async (ctx) => 'nextId')
+    const nextScene = jest.fn(async ctx => 'nextId')
     const createWizard = composeWizardScene(step1, step2)
     const scene: any = createWizard('sceneA', nextScene)
     expect(scene.sceneType).toBe('sceneA')
@@ -40,7 +41,9 @@ describe('composeWizardScene', () => {
     const createWizard = composeWizardScene(step)
     const scene: any = createWizard('sceneB', nextScene)
     const [handler] = scene.handlers
-    const ctx: any = { scene: { enter: jest.fn(), leave: jest.fn(), state: {} } }
+    const ctx: any = {
+      scene: { enter: jest.fn(), leave: jest.fn(), state: {} },
+    }
     const result = await handler(ctx, jest.fn())
     expect(result).toBeUndefined()
     expect(step).not.toHaveBeenCalled()

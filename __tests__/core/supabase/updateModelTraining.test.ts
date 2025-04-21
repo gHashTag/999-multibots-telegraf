@@ -1,4 +1,3 @@
-
 describe('updateModelTraining', () => {
   let updateModelTraining: typeof import('@/core/supabase/updateModelTraining').updateModelTraining
   const user_id = 'user1'
@@ -17,7 +16,8 @@ describe('updateModelTraining', () => {
     supabaseModule.supabase.from = jest.fn().mockReturnValue(chain)
     // Import function under test
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    updateModelTraining = require('@/core/supabase/updateModelTraining').updateModelTraining
+    updateModelTraining =
+      require('@/core/supabase/updateModelTraining').updateModelTraining
     // Expose chain for assertions
     ;(updateModelTraining as any).__chain = chain
   })
@@ -26,7 +26,9 @@ describe('updateModelTraining', () => {
     const chain = (updateModelTraining as any).__chain
     // Mock final resolution: no error
     chain.then.mockImplementation(resolve => resolve({ error: null }))
-    await expect(updateModelTraining(user_id, model_name, updates)).resolves.toBeUndefined()
+    await expect(
+      updateModelTraining(user_id, model_name, updates)
+    ).resolves.toBeUndefined()
     // Verify chain calls
     expect(chain.update).toHaveBeenCalledWith(updates)
     expect(chain.eq).toHaveBeenCalledWith('user_id', user_id)
@@ -40,9 +42,11 @@ describe('updateModelTraining', () => {
   it('throws when update returns error', async () => {
     const chain = (updateModelTraining as any).__chain
     // Mock final resolution: error present
-    chain.then.mockImplementation(resolve => resolve({ error: { message: 'db fail' } }))
-    await expect(updateModelTraining(user_id, model_name, updates)).rejects.toThrow(
-      'Ошибка при обновлении записи о тренировке: db fail'
+    chain.then.mockImplementation(resolve =>
+      resolve({ error: { message: 'db fail' } })
     )
+    await expect(
+      updateModelTraining(user_id, model_name, updates)
+    ).rejects.toThrow('Ошибка при обновлении записи о тренировке: db fail')
   })
 })

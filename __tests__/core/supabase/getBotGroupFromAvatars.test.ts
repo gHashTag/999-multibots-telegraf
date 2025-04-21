@@ -1,4 +1,3 @@
-
 describe('getBotGroupFromAvatars', () => {
   let mockSingle: jest.Mock<any, any>
   let mockEq: jest.Mock<any, any>
@@ -16,15 +15,17 @@ describe('getBotGroupFromAvatars', () => {
     mockFrom = jest.fn(() => ({ select: mockSelect }))
     // Mock supabase client
     jest.doMock('@/core/supabase', () => ({
-      supabase: { from: mockFrom }
+      supabase: { from: mockFrom },
     }))
     // Spy on logger.error
     // Get default logger instance
-    logger = require('@/utils/logger').logger || require('@/utils/logger').default
+    logger =
+      require('@/utils/logger').logger || require('@/utils/logger').default
     jest.spyOn(logger, 'error').mockImplementation(() => {})
     // Import function under test
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    getBotGroupFromAvatars = require('@/core/supabase/getBotGroupFromAvatars').getBotGroupFromAvatars
+    getBotGroupFromAvatars =
+      require('@/core/supabase/getBotGroupFromAvatars').getBotGroupFromAvatars
   })
 
   afterEach(() => {
@@ -47,7 +48,11 @@ describe('getBotGroupFromAvatars', () => {
     const result = await getBotGroupFromAvatars('bot2')
     expect(logger.error).toHaveBeenCalledWith(
       '❌ Ошибка при получении данных из Avatars:',
-      { description: 'Error fetching data from Avatars table', error: err, bot_name: 'bot2' }
+      {
+        description: 'Error fetching data from Avatars table',
+        error: err,
+        bot_name: 'bot2',
+      }
     )
     expect(result).toBeNull()
   })
@@ -58,7 +63,11 @@ describe('getBotGroupFromAvatars', () => {
     const result = await getBotGroupFromAvatars('bot3')
     expect(logger.error).toHaveBeenCalledWith(
       '❌ Непредвиденная ошибка при получении данных из Avatars:',
-      { description: 'Unexpected error fetching data from Avatars table', error: unexpected, bot_name: 'bot3' }
+      {
+        description: 'Unexpected error fetching data from Avatars table',
+        error: unexpected,
+        bot_name: 'bot3',
+      }
     )
     expect(result).toBeNull()
   })

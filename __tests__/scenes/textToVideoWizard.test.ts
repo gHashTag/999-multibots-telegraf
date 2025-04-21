@@ -4,9 +4,20 @@
 import { textToVideoWizard } from '@/scenes/textToVideoWizard'
 import { makeMockContext, MockContextWithSession } from '../utils/mockContext'
 import { Scenes, MiddlewareFn } from 'telegraf'
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals'
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals'
 import { MyContext, MySession } from '../../src/interfaces'
-import { User, Message, UserFromGetMe } from 'telegraf/typings/core/types/typegram'
+import {
+  User,
+  Message,
+  UserFromGetMe,
+} from 'telegraf/typings/core/types/typegram'
 import { botLogger } from '@/utils/logger'
 
 // Mock dependencies
@@ -15,32 +26,54 @@ jest.mock('@/menu', () => ({
   videoModelKeyboard: jest.fn(),
   sendGenericErrorMessage: jest.fn(),
 }))
-jest.mock('@/core/supabase/getUserBalance', () => ({ getUserBalance: jest.fn() }))
+jest.mock('@/core/supabase/getUserBalance', () => ({
+  getUserBalance: jest.fn(),
+}))
 jest.mock('@/price/helpers', () => ({
   validateAndCalculateVideoModelPrice: jest.fn(),
   sendBalanceMessage: jest.fn(),
 }))
-jest.mock('@/services/generateTextToVideo', () => ({ generateTextToVideo: jest.fn() }))
+jest.mock('@/services/generateTextToVideo', () => ({
+  generateTextToVideo: jest.fn(),
+}))
 jest.mock('@/handlers/handleHelpCancel')
 jest.mock('@/utils/logger')
 
 import { isRussian } from '@/helpers/language'
 import { videoModelKeyboard, sendGenericErrorMessage } from '@/menu'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { validateAndCalculateVideoModelPrice, sendBalanceMessage } from '@/price/helpers'
+import {
+  validateAndCalculateVideoModelPrice,
+  sendBalanceMessage,
+} from '@/price/helpers'
 import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { handleHelpCancel as handleHelpCancelHandler } from '@/handlers/handleHelpCancel'
 
 // Типизируем моки
 const mockedIsRussian = isRussian as jest.Mock<() => boolean>
 const mockedVideoKeyboard = videoModelKeyboard as jest.Mock
-const mockedGetUserBalance = getUserBalance as jest.MockedFunction<typeof getUserBalance>
-const mockedValidateAndCalculateVideoModelPrice = validateAndCalculateVideoModelPrice as jest.MockedFunction<
-  (videoModel: string, availableModels: string[], currentBalance: number, isRu: boolean, ctx: MyContext) => Promise<number | null>
+const mockedGetUserBalance = getUserBalance as jest.MockedFunction<
+  typeof getUserBalance
 >
-const mockedSendBalance = sendBalanceMessage as jest.MockedFunction<typeof sendBalanceMessage>
-const mockedGenerateTextToVideo = generateTextToVideo as jest.MockedFunction<typeof generateTextToVideo>
-const mockedHandleHelpCancel = handleHelpCancelHandler as jest.MockedFunction<typeof handleHelpCancelHandler>
+const mockedValidateAndCalculateVideoModelPrice =
+  validateAndCalculateVideoModelPrice as jest.MockedFunction<
+    (
+      videoModel: string,
+      availableModels: string[],
+      currentBalance: number,
+      isRu: boolean,
+      ctx: MyContext
+    ) => Promise<number | null>
+  >
+const mockedSendBalance = sendBalanceMessage as jest.MockedFunction<
+  typeof sendBalanceMessage
+>
+const mockedGenerateTextToVideo = generateTextToVideo as jest.MockedFunction<
+  typeof generateTextToVideo
+>
+const mockedHandleHelpCancel = handleHelpCancelHandler as jest.MockedFunction<
+  typeof handleHelpCancelHandler
+>
 const mockedSendGenericError = sendGenericErrorMessage as jest.Mock
 
 // Определяем мок next
@@ -48,7 +81,13 @@ const mockNext = jest.fn<() => Promise<void>>().mockResolvedValue()
 
 describe('textToVideoWizard', () => {
   let ctx: MockContextWithSession<Scenes.WizardSessionData & MySession>
-  const mockFrom: User = { id: 7, is_bot: false, first_name: 'User', username: 'user', language_code: 'ru' }
+  const mockFrom: User = {
+    id: 7,
+    is_bot: false,
+    first_name: 'User',
+    username: 'user',
+    language_code: 'ru',
+  }
   const mockChat = { id: 1, type: 'private' as const, first_name: 'User' }
   const mockBotInfo: UserFromGetMe = {
     id: 1,
@@ -60,7 +99,7 @@ describe('textToVideoWizard', () => {
     supports_inline_queries: false,
   }
 
-  const steps = textToVideoWizard.steps as MiddlewareFn<MyContext>[];
+  const steps = textToVideoWizard.steps as MiddlewareFn<MyContext>[]
   const step0 = steps[0] as MiddlewareFn<MyContext>
   const step1 = steps[1] as MiddlewareFn<MyContext>
   const step2 = steps[2] as MiddlewareFn<MyContext>
@@ -69,8 +108,20 @@ describe('textToVideoWizard', () => {
     jest.clearAllMocks()
     mockNext.mockClear()
     ctx = makeMockContext(
-      { update_id: 1, message: { message_id: 1, date: 1, chat: mockChat, from: mockFrom, text: '/start' } },
-      { scene: { enter: jest.fn(), leave: jest.fn() }, session: { state: {} } as any },
+      {
+        update_id: 1,
+        message: {
+          message_id: 1,
+          date: 1,
+          chat: mockChat,
+          from: mockFrom,
+          text: '/start',
+        },
+      },
+      {
+        scene: { enter: jest.fn(), leave: jest.fn() },
+        session: { state: {} } as any,
+      },
       { botInfo: mockBotInfo }
     )
     mockedHandleHelpCancel.mockResolvedValue(true)
@@ -80,21 +131,22 @@ describe('textToVideoWizard', () => {
 
   it('step0: prompts model selection and calls next()', async () => {
     mockedIsRussian.mockReturnValueOnce(true)
-    const kb = { reply_markup: { keyboard: [[{ text: 'model1' }]], resize_keyboard: true } }
+    const kb = {
+      reply_markup: { keyboard: [[{ text: 'model1' }]], resize_keyboard: true },
+    }
     mockedVideoKeyboard.mockReturnValueOnce(kb)
 
     await step0(ctx, mockNext)
 
-    expect(ctx.reply).toHaveBeenCalledWith(
-      'Выберите модель для генерации:',
-      kb
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('Выберите модель для генерации:', kb)
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
   it('step0: handles exception and leaves scene', async () => {
     mockedIsRussian.mockReturnValueOnce(false)
-    mockedVideoKeyboard.mockImplementationOnce(() => { throw new Error('fail') })
+    mockedVideoKeyboard.mockImplementationOnce(() => {
+      throw new Error('fail')
+    })
 
     await step0(ctx, mockNext)
 
@@ -104,7 +156,16 @@ describe('textToVideoWizard', () => {
 
   it('step1: no text sends error and leaves', async () => {
     ctx = makeMockContext(
-      { update_id: 1, message: { message_id: 1, date: 1, chat: mockChat, from: mockFrom, text: '' } },
+      {
+        update_id: 1,
+        message: {
+          message_id: 1,
+          date: 1,
+          chat: mockChat,
+          from: mockFrom,
+          text: '',
+        },
+      },
       {},
       { botInfo: mockBotInfo }
     )
@@ -115,7 +176,13 @@ describe('textToVideoWizard', () => {
   })
 
   it('step1: cancel leaves scene', async () => {
-    const cancelMessage: Message.TextMessage = { message_id: 1, date: 1, chat: mockChat, from: mockFrom, text: 'Отмена' }
+    const cancelMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: mockChat,
+      from: mockFrom,
+      text: 'Отмена',
+    }
     ctx = makeMockContext(
       { update_id: 1, message: cancelMessage },
       {},
@@ -131,7 +198,13 @@ describe('textToVideoWizard', () => {
   })
 
   it('step1: insufficient funds leaves scene', async () => {
-    const modelMessage: Message.TextMessage = { message_id: 1, date: 1, chat: mockChat, from: mockFrom, text: 'modelx' }
+    const modelMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: mockChat,
+      from: mockFrom,
+      text: 'modelx',
+    }
     ctx = makeMockContext(
       { update_id: 1, message: modelMessage },
       {},
@@ -145,16 +218,29 @@ describe('textToVideoWizard', () => {
     await step1(ctx, mockNext)
 
     expect(mockedValidateAndCalculateVideoModelPrice).toHaveBeenCalledWith(
-        'modelx', expect.any(Array), 5, true, ctx
+      'modelx',
+      expect.any(Array),
+      5,
+      true,
+      ctx
     )
     expect(mockedGetUserBalance).toHaveBeenCalledWith(7)
-    expect(ctx.reply).toHaveBeenCalledWith('❌ Недостаточно средств. Ваш баланс: 5 T.', expect.any(Object))
+    expect(ctx.reply).toHaveBeenCalledWith(
+      '❌ Недостаточно средств. Ваш баланс: 5 T.',
+      expect.any(Object)
+    )
     expect(mockedSendBalance).not.toHaveBeenCalled()
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
   it('step1: valid selection sends balance and next', async () => {
-    const modelMessage: Message.TextMessage = { message_id: 1, date: 1, chat: mockChat, from: mockFrom, text: 'modelx' }
+    const modelMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: mockChat,
+      from: mockFrom,
+      text: 'modelx',
+    }
     ctx = makeMockContext(
       { update_id: 1, message: modelMessage },
       { session: { state: {} } as any },
@@ -168,17 +254,36 @@ describe('textToVideoWizard', () => {
     await step1(ctx, mockNext)
 
     expect(mockedValidateAndCalculateVideoModelPrice).toHaveBeenCalledWith(
-        'modelx', expect.any(Array), 100, false, ctx
+      'modelx',
+      expect.any(Array),
+      100,
+      false,
+      ctx
     )
     expect(mockedGetUserBalance).toHaveBeenCalledWith(7)
-    expect(mockedSendBalance).toHaveBeenCalledWith(ctx, 100, 20, false, 'TestBot')
-    expect(ctx.reply).toHaveBeenCalledWith('Please send a text description', expect.any(Object))
+    expect(mockedSendBalance).toHaveBeenCalledWith(
+      ctx,
+      100,
+      20,
+      false,
+      'TestBot'
+    )
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Please send a text description',
+      expect.any(Object)
+    )
     expect(ctx.session.videoModel).toBe('modelx')
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
   it('step2: processes prompt and generates video then leave', async () => {
-    const promptMessage: Message.TextMessage = { message_id: 1, date: 1, chat: mockChat, from: mockFrom, text: 'hello' }
+    const promptMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: mockChat,
+      from: mockFrom,
+      text: 'hello',
+    }
     const sessionData: Partial<MySession> = { videoModel: 'm1' }
     ctx = makeMockContext(
       { update_id: 1, message: promptMessage },
@@ -203,7 +308,13 @@ describe('textToVideoWizard', () => {
   })
 
   it('step2: no text sends error and leaves', async () => {
-    const emptyMessage: Message.TextMessage = { message_id: 1, date: 1, chat: mockChat, from: mockFrom, text: '' }
+    const emptyMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: mockChat,
+      from: mockFrom,
+      text: '',
+    }
     const sessionData: Partial<MySession> = { videoModel: 'm1' }
     ctx = makeMockContext(
       { update_id: 1, message: emptyMessage },
@@ -220,7 +331,13 @@ describe('textToVideoWizard', () => {
 
   it('step1: invalid model leaves scene', async () => {
     mockedValidateAndCalculateVideoModelPrice.mockResolvedValue(null)
-    const modelMessage: Message.TextMessage = { message_id: 1, date: 1, chat: mockChat, from: mockFrom, text: 'some invalid model' }
+    const modelMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: mockChat,
+      from: mockFrom,
+      text: 'some invalid model',
+    }
     ctx = makeMockContext(
       { update_id: 1, message: modelMessage },
       {},
@@ -232,14 +349,24 @@ describe('textToVideoWizard', () => {
     await step1(ctx, mockNext)
 
     expect(mockedValidateAndCalculateVideoModelPrice).toHaveBeenCalledWith(
-        'some invalid model', expect.any(Array), 1000, false, ctx
+      'some invalid model',
+      expect.any(Array),
+      1000,
+      false,
+      ctx
     )
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
   it('step1: valid model sends balance and next', async () => {
     mockedValidateAndCalculateVideoModelPrice.mockResolvedValue(10)
-    const modelMessage: Message.TextMessage = { message_id: 1, date: 1, chat: mockChat, from: mockFrom, text: 'valid_model' }
+    const modelMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: mockChat,
+      from: mockFrom,
+      text: 'valid_model',
+    }
     ctx = makeMockContext(
       { update_id: 1, message: modelMessage },
       { session: { state: {} } as any },
@@ -251,11 +378,24 @@ describe('textToVideoWizard', () => {
     await step1(ctx, mockNext)
 
     expect(mockedValidateAndCalculateVideoModelPrice).toHaveBeenCalledWith(
-        'valid_model', expect.any(Array), 1000, false, ctx
+      'valid_model',
+      expect.any(Array),
+      1000,
+      false,
+      ctx
     )
     expect(mockedGetUserBalance).toHaveBeenCalledWith(7)
-    expect(mockedSendBalance).toHaveBeenCalledWith(ctx, 1000, 10, false, 'TestBot')
-    expect(ctx.reply).toHaveBeenCalledWith('Please send a text description', expect.any(Object))
+    expect(mockedSendBalance).toHaveBeenCalledWith(
+      ctx,
+      1000,
+      10,
+      false,
+      'TestBot'
+    )
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Please send a text description',
+      expect.any(Object)
+    )
     expect(ctx.session.videoModel).toBe('valid_model')
     expect(ctx.wizard.next).toHaveBeenCalled()
   })

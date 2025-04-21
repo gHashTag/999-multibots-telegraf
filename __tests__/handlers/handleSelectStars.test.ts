@@ -10,7 +10,11 @@ describe('handleSelectStars', () => {
   })
 
   it('renders a single row of three stars in English', async () => {
-    await handleSelectStars({ ctx: ctx as any, starAmounts: [10, 20, 30], isRu: false })
+    await handleSelectStars({
+      ctx: ctx as any,
+      starAmounts: [10, 20, 30],
+      isRu: false,
+    })
     expect(ctx.reply).toHaveBeenCalledWith(
       'Choose the number of stars to buy:',
       {
@@ -28,7 +32,11 @@ describe('handleSelectStars', () => {
   })
 
   it('renders a single row of two stars in Russian', async () => {
-    await handleSelectStars({ ctx: ctx as any, starAmounts: [5, 15], isRu: true })
+    await handleSelectStars({
+      ctx: ctx as any,
+      starAmounts: [5, 15],
+      isRu: true,
+    })
     expect(ctx.reply).toHaveBeenCalledWith(
       'Выберите количество звезд для покупки:',
       {
@@ -45,7 +53,11 @@ describe('handleSelectStars', () => {
   })
 
   it('renders multiple rows with leftover items', async () => {
-    await handleSelectStars({ ctx: ctx as any, starAmounts: [1, 2, 3, 4], isRu: false })
+    await handleSelectStars({
+      ctx: ctx as any,
+      starAmounts: [1, 2, 3, 4],
+      isRu: false,
+    })
     expect(ctx.reply).toHaveBeenCalledWith(
       'Choose the number of stars to buy:',
       {
@@ -56,9 +68,7 @@ describe('handleSelectStars', () => {
               { text: '2⭐️', callback_data: 'top_up_2' },
               { text: '3⭐️', callback_data: 'top_up_3' },
             ],
-            [
-              { text: '4⭐️', callback_data: 'top_up_4' },
-            ],
+            [{ text: '4⭐️', callback_data: 'top_up_4' }],
           ],
         },
       }

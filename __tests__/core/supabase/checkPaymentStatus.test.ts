@@ -1,4 +1,3 @@
-
 describe('checkPaymentStatus', () => {
   let mockSinglePayments: jest.Mock
   let mockLimitPayments: jest.Mock
@@ -25,7 +24,9 @@ describe('checkPaymentStatus', () => {
     mockOrderPayments = jest.fn(() => ({ limit: mockLimitPayments }))
     mockEqPayments = jest.fn(() => ({ order: mockOrderPayments }))
     mockSelectPayments = jest.fn(() => ({ eq: mockEqPayments }))
-    mockFromPayments = jest.fn((table: string) => ({ select: mockSelectPayments }))
+    mockFromPayments = jest.fn((table: string) => ({
+      select: mockSelectPayments,
+    }))
 
     // Mock supabase users update chain
     mockEqUsers = jest.fn().mockResolvedValue({ error: null })
@@ -36,9 +37,7 @@ describe('checkPaymentStatus', () => {
     jest.doMock('@/core/supabase', () => ({
       supabase: {
         from: (table: string) =>
-          table === 'payments'
-            ? mockFromPayments(table)
-            : mockFromUsers(table),
+          table === 'payments' ? mockFromPayments(table) : mockFromUsers(table),
       },
     }))
 
@@ -58,7 +57,8 @@ describe('checkPaymentStatus', () => {
 
     // Import function under test
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    checkPaymentStatus = require('@/core/supabase/checkPaymentStatus').checkPaymentStatus
+    checkPaymentStatus =
+      require('@/core/supabase/checkPaymentStatus').checkPaymentStatus
   })
 
   afterEach(() => {
@@ -72,7 +72,10 @@ describe('checkPaymentStatus', () => {
   })
 
   it('returns false when payment query errors', async () => {
-    mockSinglePayments.mockResolvedValueOnce({ data: null, error: new Error('fail') })
+    mockSinglePayments.mockResolvedValueOnce({
+      data: null,
+      error: new Error('fail'),
+    })
     const result = await checkPaymentStatus(ctx, 'basic')
     expect(mockFromPayments).toHaveBeenCalledWith('payments')
     expect(result).toBe(false)
@@ -81,7 +84,10 @@ describe('checkPaymentStatus', () => {
   it('returns true and updates subscription when last payment older than 30 days', async () => {
     // Older than 30 days
     const oldDate = new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString()
-    mockSinglePayments.mockResolvedValueOnce({ data: { payment_date: oldDate }, error: null })
+    mockSinglePayments.mockResolvedValueOnce({
+      data: { payment_date: oldDate },
+      error: null,
+    })
     const result = await checkPaymentStatus(ctx, 'basic')
     expect(result).toBe(true)
     expect(mockFromUsers).toHaveBeenCalledWith('users')
@@ -92,18 +98,24 @@ describe('checkPaymentStatus', () => {
   it('returns false and replies when last payment within 30 days and full access', async () => {
     // Recent payment
     const recentDate = new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
-    mockSinglePayments.mockResolvedValueOnce({ data: { payment_date: recentDate }, error: null })
+    mockSinglePayments.mockResolvedValueOnce({
+      data: { payment_date: recentDate },
+      error: null,
+    })
     // Force non-dev to send reply
     process.env.NODE_ENV = 'production'
     const result = await checkPaymentStatus(ctx, 'basic')
     expect(result).toBe(false)
     expect(ctx.reply).toHaveBeenCalled()
   })
-  
+
   it('replies English message when subscription expired and not Russian', async () => {
     // Recent payment
     const recentDate = new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
-    mockSinglePayments.mockResolvedValueOnce({ data: { payment_date: recentDate }, error: null })
+    mockSinglePayments.mockResolvedValueOnce({
+      data: { payment_date: recentDate },
+      error: null,
+    })
     // full access true and not Russian
     const cf = jest.requireMock('@/handlers/checkFullAccess').checkFullAccess
     cf.mockReturnValue(true)
@@ -119,7 +131,10 @@ describe('checkPaymentStatus', () => {
   it('returns true and updates when recent payment but no full access', async () => {
     // Recent payment
     const recentDate = new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
-    mockSinglePayments.mockResolvedValueOnce({ data: { payment_date: recentDate }, error: null })
+    mockSinglePayments.mockResolvedValueOnce({
+      data: { payment_date: recentDate },
+      error: null,
+    })
     // Override full access to false
     const cf = jest.requireMock('@/handlers/checkFullAccess').checkFullAccess
     cf.mockReturnValue(false)
@@ -132,7 +147,10 @@ describe('checkPaymentStatus', () => {
   it('returns false without reply when in development environment', async () => {
     // Recent payment
     const recentDate = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString()
-    mockSinglePayments.mockResolvedValueOnce({ data: { payment_date: recentDate }, error: null })
+    mockSinglePayments.mockResolvedValueOnce({
+      data: { payment_date: recentDate },
+      error: null,
+    })
     // full access true
     const cf2 = jest.requireMock('@/handlers/checkFullAccess').checkFullAccess
     cf2.mockReturnValue(true)
@@ -147,7 +165,10 @@ describe('checkPaymentStatus', () => {
   it('does not reply when subscription is neurotester', async () => {
     // Recent payment
     const recentDate = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString()
-    mockSinglePayments.mockResolvedValueOnce({ data: { payment_date: recentDate }, error: null })
+    mockSinglePayments.mockResolvedValueOnce({
+      data: { payment_date: recentDate },
+      error: null,
+    })
     // full access true
     const cf3 = jest.requireMock('@/handlers/checkFullAccess').checkFullAccess
     cf3.mockReturnValue(true)
@@ -162,7 +183,10 @@ describe('checkPaymentStatus', () => {
   it('logs error and returns true when updateError present', async () => {
     // Old payment triggers update path
     const oldDate = new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString()
-    mockSinglePayments.mockResolvedValueOnce({ data: { payment_date: oldDate }, error: null })
+    mockSinglePayments.mockResolvedValueOnce({
+      data: { payment_date: oldDate },
+      error: null,
+    })
     // Simulate update returning an error
     mockEqUsers.mockResolvedValueOnce({ error: new Error('update fail') })
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
@@ -174,17 +198,25 @@ describe('checkPaymentStatus', () => {
     )
     errorSpy.mockRestore()
   })
-  
+
   it('logs error and returns false when update throws exception', async () => {
     // Old payment triggers update
     const oldDate = new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString()
-    mockSinglePayments.mockResolvedValueOnce({ data: { payment_date: oldDate }, error: null })
+    mockSinglePayments.mockResolvedValueOnce({
+      data: { payment_date: oldDate },
+      error: null,
+    })
     // Simulate update throwing error
-    mockUpdateUsers.mockImplementationOnce(() => { throw new Error('upd fail') })
+    mockUpdateUsers.mockImplementationOnce(() => {
+      throw new Error('upd fail')
+    })
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
     const result = await checkPaymentStatus(ctx, 'basic')
     expect(result).toBe(false)
-    expect(errorSpy).toHaveBeenCalledWith('Ошибка при проверке статуса оплаты:', expect.any(Error))
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Ошибка при проверке статуса оплаты:',
+      expect.any(Error)
+    )
     errorSpy.mockRestore()
   })
 })

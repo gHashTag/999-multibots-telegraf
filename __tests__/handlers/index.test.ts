@@ -16,8 +16,19 @@ describe('handlers index re-exports', () => {
   it('should export handleTextMessage', () => {
     expect(typeof handlers.handleTextMessage).toBe('function')
   })
-  // registerCallbackActions is removed; ensure hearsActions is still exported
-  it('should export registerHearsActions', () => {
-    expect(typeof handlers.registerHearsActions).toBe('function')
+  it('should export handleMenu', () => {
+    expect(typeof handlers.handleMenu).toBe('function')
+  })
+  it('should have checkFullAccess property', () => {
+    expect(handlers).toHaveProperty('checkFullAccess')
+  })
+  it('should export checkFullAccess', () => {
+    expect(typeof handlers.checkFullAccess).toBe('function')
+  })
+  it('should have handleSelectRubAmount property', () => {
+    expect(handlers).toHaveProperty('handleSelectRubAmount')
+  })
+  it('should export handleSelectRubAmount', () => {
+    expect(typeof handlers.handleSelectRubAmount).toBe('function')
   })
 })

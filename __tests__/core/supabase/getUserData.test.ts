@@ -1,4 +1,3 @@
-
 describe('getUserData', () => {
   let builder: any
   let mockFrom: jest.Mock
@@ -10,7 +9,7 @@ describe('getUserData', () => {
     builder = {
       select: jest.fn().mockReturnThis(),
       eq: jest.fn().mockReturnThis(),
-      maybeSingle: jest.fn()
+      maybeSingle: jest.fn(),
     }
     mockFrom = jest.fn(() => builder)
     // Mock supabase client
@@ -26,8 +25,13 @@ describe('getUserData', () => {
 
   it('returns user data when found', async () => {
     const userData = {
-      username: 'u', first_name: 'f', last_name: 'l', company: 'c',
-      position: 'pos', designation: 'des', language_code: 'en'
+      username: 'u',
+      first_name: 'f',
+      last_name: 'l',
+      company: 'c',
+      position: 'pos',
+      designation: 'des',
+      language_code: 'en',
     }
     builder.maybeSingle.mockResolvedValueOnce({ data: userData, error: null })
     const res = await getUserData('123')

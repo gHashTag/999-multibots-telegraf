@@ -1,4 +1,3 @@
-
 describe('checkSubscriptionByTelegramId', () => {
   let mockSingle: jest.Mock
   let mockLimit: jest.Mock
@@ -22,7 +21,8 @@ describe('checkSubscriptionByTelegramId', () => {
     jest.spyOn(console, 'error').mockImplementation(() => {})
     // Import function under test
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    checkSubscriptionByTelegramId = require('@/core/supabase/checkSubscriptionByTelegramId').checkSubscriptionByTelegramId
+    checkSubscriptionByTelegramId =
+      require('@/core/supabase/checkSubscriptionByTelegramId').checkSubscriptionByTelegramId
   })
 
   afterEach(() => {
@@ -36,7 +36,10 @@ describe('checkSubscriptionByTelegramId', () => {
     expect(mockFrom).toHaveBeenCalledWith('payments')
     expect(mockSelect).toHaveBeenCalledWith('*')
     expect(mockEq).toHaveBeenCalledWith('telegram_id', '42')
-    expect(console.error).toHaveBeenCalledWith('Ошибка при получении информации о подписке:', err)
+    expect(console.error).toHaveBeenCalledWith(
+      'Ошибка при получении информации о подписке:',
+      err
+    )
     expect(result).toBe('unsubscribed')
   })
 
@@ -48,14 +51,20 @@ describe('checkSubscriptionByTelegramId', () => {
 
   it('returns unsubscribed when last payment older than 30 days', async () => {
     const oldDate = new Date(Date.now() - 31 * 24 * 3600 * 1000).toISOString()
-    mockSingle.mockResolvedValueOnce({ data: { created_at: oldDate, level: 'premium' }, error: null })
+    mockSingle.mockResolvedValueOnce({
+      data: { created_at: oldDate, level: 'premium' },
+      error: null,
+    })
     const result = await checkSubscriptionByTelegramId('100')
     expect(result).toBe('unsubscribed')
   })
 
   it('returns level when last payment within 30 days', async () => {
     const recentDate = new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
-    mockSingle.mockResolvedValueOnce({ data: { created_at: recentDate, level: 'gold' }, error: null })
+    mockSingle.mockResolvedValueOnce({
+      data: { created_at: recentDate, level: 'gold' },
+      error: null,
+    })
     const result = await checkSubscriptionByTelegramId('200')
     expect(result).toBe('gold')
   })

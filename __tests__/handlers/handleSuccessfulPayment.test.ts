@@ -3,7 +3,9 @@ import { incrementBalance } from '@/core/supabase/incrementBalance'
 import { setPayments } from '@/core/supabase/setPayments'
 import { isRussian } from '@/helpers/language'
 
-jest.mock('@/core/supabase/incrementBalance', () => ({ incrementBalance: jest.fn() }))
+jest.mock('@/core/supabase/incrementBalance', () => ({
+  incrementBalance: jest.fn(),
+}))
 jest.mock('@/core/supabase/setPayments', () => ({ setPayments: jest.fn() }))
 jest.mock('@/helpers/language', () => ({ isRussian: jest.fn() }))
 
@@ -14,10 +16,17 @@ describe('handleSuccessfulPayment (paymentHandlers)', () => {
     ctx = {
       chat: { id: 1 },
       from: { id: 42, language_code: 'ru', username: 'user42' },
-      update: { message: { successful_payment: { total_amount: 100, invoice_payload: 'payload1' } } },
+      update: {
+        message: {
+          successful_payment: {
+            total_amount: 100,
+            invoice_payload: 'payload1',
+          },
+        },
+      },
       session: {},
       reply: jest.fn(),
-      botInfo: { username: 'bot' }
+      botInfo: { username: 'bot' },
     }
     isRussian.mockReturnValue(true)
   })
@@ -41,9 +50,20 @@ describe('handleSuccessfulPayment (paymentHandlers)', () => {
   it('processes fallback top-up for unknown subscription', async () => {
     ctx.session.subscription = undefined
     await handleSuccessfulPayment(ctx)
-    expect(incrementBalance).toHaveBeenCalledWith({ telegram_id: '42', amount: 100 })
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Ваш баланс пополнен на 100'))
-    expect(setPayments).toHaveBeenCalledWith(expect.objectContaining({ OutSum: '100', stars: 100, subscription: 'stars' }))
+    expect(incrementBalance).toHaveBeenCalledWith({
+      telegram_id: '42',
+      amount: 100,
+    })
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Ваш баланс пополнен на 100')
+    )
+    expect(setPayments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        OutSum: '100',
+        stars: 100,
+        subscription: 'stars',
+      })
+    )
   })
 
   it('processes known subscription path', async () => {
@@ -51,6 +71,8 @@ describe('handleSuccessfulPayment (paymentHandlers)', () => {
     await handleSuccessfulPayment(ctx)
     expect(incrementBalance).toHaveBeenCalled()
     expect(setPayments).toHaveBeenCalled()
-    expect(ctx.reply).not.toHaveBeenCalledWith(expect.stringContaining('Ваш баланс пополнен'))
+    expect(ctx.reply).not.toHaveBeenCalledWith(
+      expect.stringContaining('Ваш баланс пополнен')
+    )
   })
 })

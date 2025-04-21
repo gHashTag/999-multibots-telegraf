@@ -25,7 +25,9 @@ describe('getUserData', () => {
   it('throws error on supabase error', async () => {
     // Мокаем ошибку
     mockMaybeSingle.mockResolvedValue({ data: null, error: { message: 'err' } })
-    await expect(getUserData(telegram_id)).rejects.toThrow('Ошибка при получении данных пользователя: [object Object]')
+    await expect(getUserData(telegram_id)).rejects.toThrow(
+      'Ошибка при получении данных пользователя: [object Object]'
+    )
     // Проверяем вызовы
     expect(supabase.from).toHaveBeenCalledWith('users')
     expect(mockSelect).toHaveBeenCalledWith(

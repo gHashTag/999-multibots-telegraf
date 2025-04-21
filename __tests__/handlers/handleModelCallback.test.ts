@@ -37,7 +37,9 @@ describe('handleModelCallback', () => {
     // Создаем базовый мок контекста
     ctx = {
       from: { id: 123, language_code: 'ru', is_bot: false, first_name: 'Test' },
-      reply: jest.fn<() => Promise<Message.TextMessage>>().mockResolvedValue(mockMessage),
+      reply: jest
+        .fn<() => Promise<Message.TextMessage>>()
+        .mockResolvedValue(mockMessage),
     }
     // Убедимся, что мок для updateUserModel существует и готов
     mockedSupabase.updateUserModel.mockResolvedValue(undefined)
@@ -46,7 +48,9 @@ describe('handleModelCallback', () => {
   it('должен вызывать updateUserModel с правильными аргументами', async () => {
     await handleModelCallback(ctx as MyContext, 'modelX')
     expect(mockedSupabase.updateUserModel).toHaveBeenCalledWith('123', 'modelX')
-    expect(ctx.reply).toHaveBeenCalledWith('✅ Модель успешно изменена на modelX')
+    expect(ctx.reply).toHaveBeenCalledWith(
+      '✅ Модель успешно изменена на modelX'
+    )
   })
 
   it('должен вызывать reply с сообщением об ошибке, если updateUserModel падает', async () => {
@@ -55,7 +59,10 @@ describe('handleModelCallback', () => {
 
     await handleModelCallback(ctx as MyContext, 'mymodel')
 
-    expect(mockedSupabase.updateUserModel).toHaveBeenCalledWith('123', 'mymodel')
+    expect(mockedSupabase.updateUserModel).toHaveBeenCalledWith(
+      '123',
+      'mymodel'
+    )
     expect(ctx.reply).toHaveBeenCalledWith('❌ Ошибка при изменении модели')
   })
 
@@ -63,7 +70,9 @@ describe('handleModelCallback', () => {
     ctx.from!.language_code = 'en'
     await handleModelCallback(ctx as MyContext, 'abc')
     expect(mockedSupabase.updateUserModel).toHaveBeenCalledWith('123', 'abc')
-    expect(ctx.reply).toHaveBeenCalledWith('✅ Model successfully changed to abc')
+    expect(ctx.reply).toHaveBeenCalledWith(
+      '✅ Model successfully changed to abc'
+    )
   })
 
   it('должен использовать английский текст ошибки, если язык не ru', async () => {

@@ -1,4 +1,3 @@
-
 describe('getVoiceId', () => {
   let getVoiceId: typeof import('@/core/supabase/getVoiceId').getVoiceId
   let builder: any
@@ -6,7 +5,11 @@ describe('getVoiceId', () => {
   beforeEach(() => {
     jest.resetModules()
     const { supabase } = require('@/core/supabase')
-    builder = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn() }
+    builder = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn(),
+    }
     jest.spyOn(supabase, 'from').mockReturnValue(builder)
     // import function under test
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -15,7 +18,10 @@ describe('getVoiceId', () => {
 
   it('returns voice_id when present', async () => {
     const voice = 'vid'
-    builder.maybeSingle.mockResolvedValue({ data: { voice_id_elevenlabs: voice }, error: null })
+    builder.maybeSingle.mockResolvedValue({
+      data: { voice_id_elevenlabs: voice },
+      error: null,
+    })
     const res = await getVoiceId(telegram_id)
     expect(res).toBe(voice)
     const { supabase } = require('@/core/supabase')

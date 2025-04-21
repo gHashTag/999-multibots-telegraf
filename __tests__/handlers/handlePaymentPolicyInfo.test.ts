@@ -2,6 +2,9 @@ import makeMockContext from '../utils/mockTelegrafContext'
 import { handlePaymentPolicyInfo } from '@/handlers/paymentHandlers/handlePaymentPolicyInfo'
 
 describe('handlePaymentPolicyInfo', () => {
+  let ctx: any
+  console.log('ctx', ctx)
+
   beforeEach(() => {
     ctx = {
       from: { language_code: 'ru' },
@@ -72,6 +75,5 @@ describe('handlePaymentPolicyInfo', () => {
     expect(ctx.reply).toHaveBeenCalledWith(
       expect.stringContaining('💳 Payment is processed')
     )
->>>>>>> origin/new-test-1
   })
 })

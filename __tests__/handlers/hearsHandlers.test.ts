@@ -5,7 +5,10 @@ import { MyContext } from '../src/interfaces'
 // jest.mock('@/bot', () => ({ composer: { hears: jest.fn() } }))
 
 // Используем относительные пути для jest.mock
-jest.mock('../src/menu', () => ({ imageModelMenu: jest.fn(), levels: jest.fn() })) // Мокируем и levels
+jest.mock('../src/menu', () => ({
+  imageModelMenu: jest.fn(),
+  levels: jest.fn(),
+})) // Мокируем и levels
 jest.mock('../src/services/generateTextToImage', () => ({
   generateTextToImage: jest.fn(),
 }))

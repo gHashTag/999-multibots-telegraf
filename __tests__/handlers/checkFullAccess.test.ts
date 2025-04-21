@@ -1,7 +1,13 @@
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 
 describe('checkFullAccess', () => {
-  const valid = ['neurophoto', 'neurobase', 'neuromeeting', 'neuroblogger', 'neurotester']
+  const valid = [
+    'neurophoto',
+    'neurobase',
+    'neuromeeting',
+    'neuroblogger',
+    'neurotester',
+  ]
   for (const sub of valid) {
     it(`returns true for subscription '${sub}'`, () => {
       expect(checkFullAccess(sub)).toBe(true)

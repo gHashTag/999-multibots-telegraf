@@ -2,8 +2,16 @@ import makeMockContext from '../utils/mockTelegrafContext'
 import { imageToVideoWizard } from '../../src/scenes/imageToVideoWizard'
 import { isRussian } from '@/helpers/language'
 import { handleHelpCancel, getBotToken } from '@/handlers'
-import { videoModelKeyboard, createHelpCancelKeyboard, sendGenerationCancelledMessage, sendGenericErrorMessage } from '@/menu'
-import { processBalanceVideoOperation, ProcessBalanceResult } from '@/price/helpers/processBalanceVideoOperation'
+import {
+  videoModelKeyboard,
+  createHelpCancelKeyboard,
+  sendGenerationCancelledMessage,
+  sendGenericErrorMessage,
+} from '@/menu'
+import {
+  processBalanceVideoOperation,
+  ProcessBalanceResult,
+} from '@/price/helpers/processBalanceVideoOperation'
 import { sendBalanceMessage } from '@/price/helpers'
 import { generateImageToVideo } from '@/services/generateImageToVideo'
 import { Composer } from 'telegraf'
@@ -26,12 +34,18 @@ jest.mock('@/price/helpers/processBalanceVideoOperation', () => ({
   processBalanceVideoOperation: jest.fn(),
 }))
 jest.mock('@/price/helpers', () => ({ sendBalanceMessage: jest.fn() }))
-jest.mock('@/services/generateImageToVideo', () => ({ generateImageToVideo: jest.fn() }))
+jest.mock('@/services/generateImageToVideo', () => ({
+  generateImageToVideo: jest.fn(),
+}))
 
 // Типизируем моки
 const mockedIsRussian = isRussian as jest.Mock<() => boolean>
-const mockedHandleHelpCancel = handleHelpCancel as jest.Mock<(...args: any[]) => Promise<boolean>>
-const mockedProcessBalance = processBalanceVideoOperation as jest.Mock<(...args: any[]) => Promise<ProcessBalanceResult>>
+const mockedHandleHelpCancel = handleHelpCancel as jest.Mock<
+  (...args: any[]) => Promise<boolean>
+>
+const mockedProcessBalance = processBalanceVideoOperation as jest.Mock<
+  (...args: any[]) => Promise<ProcessBalanceResult>
+>
 const mockedVideoModelKeyboard = videoModelKeyboard as jest.Mock
 const mockedCreateHelpCancelKeyboard = createHelpCancelKeyboard as jest.Mock
 const mockedSendGenCancelled = sendGenerationCancelledMessage as jest.Mock
@@ -54,10 +68,9 @@ describe('imageToVideoWizard', () => {
     mockedVideoModelKeyboard.mockReturnValueOnce(keyboard)
     const ctx = makeMockContext()
     await step0(ctx, mockNext)
-    expect(ctx.reply).toHaveBeenCalledWith(
-      'Choose generation model:',
-      { reply_markup: {} }
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('Choose generation model:', {
+      reply_markup: {},
+    })
   })
 
   it('step1: cancellation leaves scene', async () => {
@@ -76,7 +89,11 @@ describe('imageToVideoWizard', () => {
     ctx.session = sessionData as MySession
 
     mockedHandleHelpCancel.mockResolvedValueOnce(false)
-    mockedProcessBalance.mockResolvedValueOnce({ newBalance: 10, success: true, modePrice: 5 })
+    mockedProcessBalance.mockResolvedValueOnce({
+      newBalance: 10,
+      success: true,
+      modePrice: 5,
+    })
     const keyboard = { reply_markup: {} }
     mockedCreateHelpCancelKeyboard.mockReturnValue(keyboard)
     await step1(ctx, mockNext)

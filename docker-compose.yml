@@ -57,8 +57,8 @@ services:
       - 8.8.8.8
       - 8.8.4.4
     extra_hosts:
-      - "api.elevenlabs.io:127.0.0.1"
-      - "host.docker.internal:172.27.0.1"
+      - 'api.elevenlabs.io:127.0.0.1'
+      - 'host.docker.internal:172.27.0.1'
     networks:
       - app-network
     restart: unless-stopped
@@ -90,4 +90,4 @@ networks:
 
 # Объявляем Docker Volume
 volumes:
-  nginx-config-volume: 
+  nginx-config-volume:

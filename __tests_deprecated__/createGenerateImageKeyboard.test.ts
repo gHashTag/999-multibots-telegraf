@@ -9,7 +9,10 @@ describe('createGenerateImageKeyboard', () => {
     expect(rows.length).toBe(1)
     const row = rows[0]
     expect(row).toHaveLength(2)
-    expect(row[0]).toMatchObject({ text: 'Сгенерировать', callback_data: 'generate_image' })
+    expect(row[0]).toMatchObject({
+      text: 'Сгенерировать',
+      callback_data: 'generate_image',
+    })
     expect(row[1]).toMatchObject({ text: 'Отмена', callback_data: 'cancel' })
   })
 })

@@ -2,7 +2,10 @@ import makeMockContext from '../utils/mockTelegrafContext'
 
 // Mock sendGenericErrorMessage
 const mockSendGenericError = jest.fn()
-jest.mock('@/menu', () => ({ sendGenericErrorMessage: (ctx, isRu, err) => mockSendGenericError(ctx, isRu, err) }))
+jest.mock('@/menu', () => ({
+  sendGenericErrorMessage: (ctx, isRu, err) =>
+    mockSendGenericError(ctx, isRu, err),
+}))
 // Mock language
 jest.mock('@/helpers/language', () => ({ isRussian: () => true }))
 
@@ -43,7 +46,8 @@ describe('handleCallback', () => {
     ctx.callbackQuery = { data: '' }
     // initial answerCbQuery (swallow) then second call throws
     const seq = jest.fn()
-    ctx.answerCbQuery = jest.fn()
+    ctx.answerCbQuery = jest
+      .fn()
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('err2'))
     await expect(handleCallback(ctx)).rejects.toThrow('No callback query data')

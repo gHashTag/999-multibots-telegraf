@@ -33,22 +33,44 @@ describe('createModelTraining', () => {
     // Mock fs.promises.unlink
     jest.spyOn(fs.promises, 'unlink').mockResolvedValue(undefined)
     // Mock axios.post
-    mockedAxios.post.mockResolvedValue({ data: { message: 'ok', model_id: 'm1', bot_name: 'b1' } } as any)
-    // Import module under test
-    ({ createModelTraining } = require('@/services/createModelTraining'))
+    mockedAxios.post.mockResolvedValue({
+      data: { message: 'ok', model_id: 'm1', bot_name: 'b1' },
+    } as any)(
+      // Import module under test
+      ({ createModelTraining } = require('@/services/createModelTraining'))
+    )
     ctx = { session: { mode: 'digital_avatar_body' } }
   })
 
   it('throws error if file does not exist', async () => {
-    (fs.existsSync as jest.Mock).mockReturnValue(false)
+    ;(fs.existsSync as jest.Mock).mockReturnValue(false)
     await expect(
-      createModelTraining({ filePath: dummyFile, triggerWord: 't', modelName: 'n', telegram_id: 'u', is_ru: false, steps: 1, botName: 'b' }, ctx)
+      createModelTraining(
+        {
+          filePath: dummyFile,
+          triggerWord: 't',
+          modelName: 'n',
+          telegram_id: 'u',
+          is_ru: false,
+          steps: 1,
+          botName: 'b',
+        },
+        ctx
+      )
     ).rejects.toThrow('Файл не найден: ' + dummyFile)
   })
 
   it('posts form data to create-model-training endpoint and unlinks file', async () => {
     ctx.session.mode = 'digital_avatar_body'
-    const request = { filePath: dummyFile, triggerWord: 't', modelName: 'n', telegram_id: 'u', is_ru: false, steps: 2, botName: 'b' }
+    const request = {
+      filePath: dummyFile,
+      triggerWord: 't',
+      modelName: 'n',
+      telegram_id: 'u',
+      is_ru: false,
+      steps: 2,
+      botName: 'b',
+    }
     const res = await createModelTraining(request, ctx)
     // URL should use LOCAL_SERVER_URL in dev
     expect(mockedAxios.post).toHaveBeenCalled()
@@ -64,18 +86,42 @@ describe('createModelTraining', () => {
 
   it('uses create-model-training-v2 for other mode', async () => {
     ctx.session.mode = 'other_mode'
-    await createModelTraining({ filePath: dummyFile, triggerWord: 't', modelName: 'n', telegram_id: 'u', is_ru: true, steps: 3, botName: 'b' }, ctx)
-    expect(mockedAxios.post.mock.calls[0][0]).toBe('http://localhost/generate/create-model-training-v2')
+    await createModelTraining(
+      {
+        filePath: dummyFile,
+        triggerWord: 't',
+        modelName: 'n',
+        telegram_id: 'u',
+        is_ru: true,
+        steps: 3,
+        botName: 'b',
+      },
+      ctx
+    )
+    expect(mockedAxios.post.mock.calls[0][0]).toBe(
+      'http://localhost/generate/create-model-training-v2'
+    )
   })
 
   it('propagates axios errors and does not unlink file', async () => {
     mockedAxios.post.mockRejectedValue(new Error('net fail'))
     await expect(
-      createModelTraining({ filePath: dummyFile, triggerWord: 't', modelName: 'n', telegram_id: 'u', is_ru: true, steps: 1, botName: 'b' }, ctx)
+      createModelTraining(
+        {
+          filePath: dummyFile,
+          triggerWord: 't',
+          modelName: 'n',
+          telegram_id: 'u',
+          is_ru: true,
+          steps: 1,
+          botName: 'b',
+        },
+        ctx
+      )
     ).rejects.toThrow('net fail')
     expect(fs.promises.unlink).not.toHaveBeenCalled()
   })
-  
+
   it('uses ELESTIO_URL when in production mode', async () => {
     // Reset modules to apply new config and mocks
     jest.resetModules()
@@ -90,22 +136,36 @@ describe('createModelTraining', () => {
     jest.doMock('fs', () => ({
       existsSync: () => true,
       createReadStream: () => '<stream>',
-      promises: { unlink: () => Promise.resolve() }
+      promises: { unlink: () => Promise.resolve() },
     }))
-    jest.doMock('axios', () => ({ post: jest.fn().mockResolvedValue({ data: { m: 'ok' } }) }))
+    jest.doMock('axios', () => ({
+      post: jest.fn().mockResolvedValue({ data: { m: 'ok' } }),
+    }))
     // Import under test and mocks
     const axiosMock = require('axios') as any
     const fsMock = require('fs')
     const { createModelTraining } = require('@/services/createModelTraining')
     const ctxProd = { session: { mode: 'digital_avatar_body' } }
-    const req = { filePath: dummyFile, triggerWord: 't', modelName: 'n', telegram_id: 'u', is_ru: true, steps: 1, botName: 'b' }
+    const req = {
+      filePath: dummyFile,
+      triggerWord: 't',
+      modelName: 'n',
+      telegram_id: 'u',
+      is_ru: true,
+      steps: 1,
+      botName: 'b',
+    }
     // Call
-    await expect(createModelTraining(req, ctxProd)).resolves.toEqual({ m: 'ok' })
+    await expect(createModelTraining(req, ctxProd)).resolves.toEqual({
+      m: 'ok',
+    })
     // Assert URL called correctly
     expect(axiosMock.post).toHaveBeenCalledWith(
       'https://ele.stio/generate/create-model-training',
       expect.any(FormData),
-      expect.objectContaining({ headers: expect.objectContaining({ 'x-secret-key': 'secret-key' }) })
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'x-secret-key': 'secret-key' }),
+      })
     )
   })
 })

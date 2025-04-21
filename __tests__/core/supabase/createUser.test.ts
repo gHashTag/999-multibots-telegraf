@@ -1,4 +1,3 @@
-
 interface CreateUserData {
   username: string
   telegram_id: number
@@ -53,7 +52,11 @@ describe('createUser', () => {
     mockEqUpdate = jest.fn()
     mockUpdate = jest.fn(() => ({ eq: mockEqUpdate }))
     mockInsert = jest.fn()
-    mockFrom = jest.fn(() => ({ select: mockSelect, update: mockUpdate, insert: mockInsert }))
+    mockFrom = jest.fn(() => ({
+      select: mockSelect,
+      update: mockUpdate,
+      insert: mockInsert,
+    }))
     jest.doMock('@/core/supabase', () => ({ supabase: { from: mockFrom } }))
     // Import createUser
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -65,14 +68,18 @@ describe('createUser', () => {
     // inviter check select
     mockMaybeSingle.mockResolvedValueOnce({ data: null, error: err })
     const data = { ...baseData, inviter: 999 }
-    await expect(createUser(data)).rejects.toThrow(`Ошибка при проверке инвайтера: ${err.message}`)
+    await expect(createUser(data)).rejects.toThrow(
+      `Ошибка при проверке инвайтера: ${err.message}`
+    )
   })
 
   it('throws if existing user select fails', async () => {
     // inviter absent => first select is existing user
     const err = new Error('select error')
     mockMaybeSingle.mockResolvedValueOnce({ data: null, error: err })
-    await expect(createUser(baseData)).rejects.toThrow(`Ошибка при проверке существующего пользователя: ${err.message}`)
+    await expect(createUser(baseData)).rejects.toThrow(
+      `Ошибка при проверке существующего пользователя: ${err.message}`
+    )
   })
 
   it('updates existing user when found without inviter', async () => {
@@ -84,7 +91,10 @@ describe('createUser', () => {
     const result = await createUser(baseData)
     expect(result).toBe(existingUser)
     expect(mockUpdate).toHaveBeenCalled()
-    expect(mockEqUpdate).toHaveBeenCalledWith('telegram_id', baseData.telegram_id.toString())
+    expect(mockEqUpdate).toHaveBeenCalledWith(
+      'telegram_id',
+      baseData.telegram_id.toString()
+    )
   })
 
   it('inserts new user when not exists', async () => {
@@ -92,7 +102,9 @@ describe('createUser', () => {
     mockInsert.mockResolvedValueOnce({ error: null })
     const result = await createUser(baseData)
     expect(result).toBe(null)
-    expect(mockInsert).toHaveBeenCalledWith([expect.objectContaining({ telegram_id: baseData.telegram_id })])
+    expect(mockInsert).toHaveBeenCalledWith([
+      expect.objectContaining({ telegram_id: baseData.telegram_id }),
+    ])
   })
 
   it('throws on update error', async () => {
@@ -100,13 +112,17 @@ describe('createUser', () => {
     mockMaybeSingle.mockResolvedValueOnce({ data: existingUser, error: null })
     const upErr = new Error('upd error')
     mockEqUpdate.mockResolvedValueOnce({ error: upErr })
-    await expect(createUser(baseData)).rejects.toThrow(`Ошибка при обновлении пользователя: ${upErr.message}`)
+    await expect(createUser(baseData)).rejects.toThrow(
+      `Ошибка при обновлении пользователя: ${upErr.message}`
+    )
   })
 
   it('throws on insert error', async () => {
     mockMaybeSingle.mockResolvedValueOnce({ data: null, error: null })
     const insErr = new Error('ins error')
     mockInsert.mockResolvedValueOnce({ error: insErr })
-    await expect(createUser(baseData)).rejects.toThrow(`Ошибка при добавлении пользователя: ${insErr.message}`)
+    await expect(createUser(baseData)).rejects.toThrow(
+      `Ошибка при добавлении пользователя: ${insErr.message}`
+    )
   })
 })

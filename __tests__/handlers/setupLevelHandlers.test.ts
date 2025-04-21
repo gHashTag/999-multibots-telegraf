@@ -30,8 +30,9 @@ describe('setupLevelHandlers', () => {
         idx + 1,
         action,
         (handlers as any)[
-          action === 'level_complete' ? 'handleQuestComplete' :
-          `handleLevel${action.split('_')[1]}`
+          action === 'level_complete'
+            ? 'handleQuestComplete'
+            : `handleLevel${action.split('_')[1]}`
         ]
       )
     })

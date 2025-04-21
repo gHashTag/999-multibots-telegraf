@@ -14,4 +14,4 @@ services:
       - ./coverage:/app/coverage
     environment:
       - NODE_ENV=test
-    command: npm run test 
+    command: npm run test

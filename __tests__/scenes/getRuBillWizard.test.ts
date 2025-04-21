@@ -32,7 +32,9 @@ describe('generateInvoiceStep', () => {
   })
 
   // Создаем полный мок MySession
-  const createMockSession = (overrides: Partial<MySession> = {}): MySession => ({
+  const createMockSession = (
+    overrides: Partial<MySession> = {}
+  ): MySession => ({
     activeWizard: false,
     wizards: {},
     scene: { current: '', state: {} },
@@ -48,9 +50,16 @@ describe('generateInvoiceStep', () => {
   })
 
   it('should process selectedPayment, create invoice and leave scene (RU)', async () => {
-    (isRussian as jest.Mock).mockReturnValue(true)
-    ;(getInvoiceId as jest.Mock<() => Promise<string | null>>).mockResolvedValueOnce('https://pay.url')
-    const mockFrom = { id: 1, language_code: 'ru', is_bot: false, first_name: 'TestUser' }
+    ;(isRussian as jest.Mock).mockReturnValue(true)
+    ;(
+      getInvoiceId as jest.Mock<() => Promise<string | null>>
+    ).mockResolvedValueOnce('https://pay.url')
+    const mockFrom = {
+      id: 1,
+      language_code: 'ru',
+      is_bot: false,
+      first_name: 'TestUser',
+    }
     // Дополняем selectedPayment
     const selectedPaymentData = {
       subscription: SubscriptionType.NEUROPHOTO,
@@ -60,7 +69,10 @@ describe('generateInvoiceStep', () => {
       email: 'e@e',
     }
     // Создаем полный мок сессии
-    const sessionData = createMockSession({ selectedPayment: selectedPaymentData, email: 'e@e' })
+    const sessionData = createMockSession({
+      selectedPayment: selectedPaymentData,
+      email: 'e@e',
+    })
 
     const ctx = makeMockContext(
       { message: { from: mockFrom } },
@@ -68,18 +80,20 @@ describe('generateInvoiceStep', () => {
     )
     await generateInvoiceStep(ctx)
     // setPayments called
-    expect(setPayments).toHaveBeenCalledWith(expect.objectContaining({
-      telegram_id: '1',
-      OutSum: '1110',
-      InvId: expect.any(String),
-      currency: 'RUB',
-      stars: 476,
-      status: 'PENDING',
-      payment_method: 'Telegram',
-      subscription: SubscriptionType.NEUROPHOTO,
-      bot_name: 'bot1',
-      language: 'ru',
-    }))
+    expect(setPayments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        telegram_id: '1',
+        OutSum: '1110',
+        InvId: expect.any(String),
+        currency: 'RUB',
+        stars: 476,
+        status: 'PENDING',
+        payment_method: 'Telegram',
+        subscription: SubscriptionType.NEUROPHOTO,
+        bot_name: 'bot1',
+        language: 'ru',
+      })
+    )
     // reply with HTML invoice message
     expect(ctx.reply).toHaveBeenCalledWith(
       expect.stringContaining('<b>💵 Чек создан для подписки Фото'),
@@ -92,7 +106,7 @@ describe('generateInvoiceStep', () => {
   })
 
   it('should reply error when no selectedPayment', async () => {
-    (isRussian as jest.Mock).mockReturnValue(false)
+    ;(isRussian as jest.Mock).mockReturnValue(false)
     // Создаем полный мок сессии
     const sessionData = createMockSession({ selectedPayment: null })
     const ctx = makeMockContext(

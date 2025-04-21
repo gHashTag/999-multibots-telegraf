@@ -24,18 +24,31 @@ describe('cancelPredictionsWizard', () => {
 
   test('cancels matching predictions and refunds', async () => {
     const preds = [
-      { id: '1', input: { prompt: 'match' }, status: 'processing', urls: { cancel: 'url1' } },
-      { id: '2', input: { prompt: 'nomatch' }, status: 'queued', urls: { cancel: 'url2' } },
-      { id: '3', input: { prompt: 'match' }, status: 'succeeded', urls: { cancel: 'url3' } },
+      {
+        id: '1',
+        input: { prompt: 'match' },
+        status: 'processing',
+        urls: { cancel: 'url1' },
+      },
+      {
+        id: '2',
+        input: { prompt: 'nomatch' },
+        status: 'queued',
+        urls: { cancel: 'url2' },
+      },
+      {
+        id: '3',
+        input: { prompt: 'match' },
+        status: 'succeeded',
+        urls: { cancel: 'url3' },
+      },
     ]
     fakeGet.mockResolvedValue({ data: { results: preds } })
     fakePost.mockResolvedValue({})
     await step(ctx)
     // Should cancel only id '1'
     expect(fakePost).toHaveBeenCalledWith('url1', {}, expect.any(Object))
-    expect(ctx.reply).toHaveBeenCalledWith(
-      'Запрос с ID: 1 успешно отменен.'
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('Запрос с ID: 1 успешно отменен.')
     expect(refundUser).toHaveBeenCalledWith(ctx, 50)
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
@@ -44,7 +57,9 @@ describe('cancelPredictionsWizard', () => {
     fakeGet.mockRejectedValue(new Error('fail'))
     await step(ctx)
     expect(sendGenericErrorMessage).toHaveBeenCalledWith(
-      ctx, true, expect.any(Error)
+      ctx,
+      true,
+      expect.any(Error)
     )
     expect(ctx.scene.leave).toHaveBeenCalled()
   })

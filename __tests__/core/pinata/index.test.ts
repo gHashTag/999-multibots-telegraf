@@ -1,4 +1,3 @@
-
 // Mock pinata-web3 SDK
 const mockPinataSDK = jest.fn().mockImplementation(function (opts) {
   this.opts = opts
@@ -32,3 +31,4 @@ describe('core/pinata index', () => {
       pinataGateway: 'https://gateway.pinata.test',
     })
   })
+})

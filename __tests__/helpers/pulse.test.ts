@@ -6,7 +6,8 @@ describe('pulse', () => {
   let logError: jest.SpyInstance
   const prompt = 'test prompt'
   const command = 'CMD'
-  const base64Image = 'data:image/png;base64,' + Buffer.from('IMG').toString('base64')
+  const base64Image =
+    'data:image/png;base64,' + Buffer.from('IMG').toString('base64')
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -29,7 +30,8 @@ describe('pulse', () => {
     await pulse(ctx, base64Image, prompt, command)
     const chatId = '-4166575919'
     expect(ctx.telegram.sendPhoto).toHaveBeenCalledTimes(1)
-    const [sentChatId, photo, opts] = (ctx.telegram.sendPhoto as jest.Mock).mock.calls[0]
+    const [sentChatId, photo, opts] = (ctx.telegram.sendPhoto as jest.Mock).mock
+      .calls[0]
     expect(sentChatId).toBe(chatId)
     expect(photo).toHaveProperty('source')
     expect(opts).toHaveProperty('caption')
@@ -49,7 +51,9 @@ describe('pulse', () => {
 
   it('retries sending photo on migrate_to_chat_id error', async () => {
     process.env.NODE_ENV = 'production'
-    const error: any = { response: { parameters: { migrate_to_chat_id: 'newChat' } } }
+    const error: any = {
+      response: { parameters: { migrate_to_chat_id: 'newChat' } },
+    }
     let call = 0
     ctx.telegram.sendPhoto = jest.fn().mockImplementation(async () => {
       if (call++ === 0) throw error

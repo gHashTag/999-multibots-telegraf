@@ -14,10 +14,7 @@ import { levels } from '../../src/menu/mainMenu'
 
 describe('cancelHelpArray', () => {
   it('returns Russian commands when isRu=true', () => {
-    expect(cancelHelpArray(true)).toEqual([
-      ['Справка по команде'],
-      ['Отмена'],
-    ])
+    expect(cancelHelpArray(true)).toEqual([['Справка по команде'], ['Отмена']])
   })
   it('returns English commands when isRu=false', () => {
     expect(cancelHelpArray(false)).toEqual([
@@ -72,20 +69,14 @@ describe('getStepSelectionMenuV2', () => {
     const kb = markup.reply_markup.keyboard
     expect(kb[0][0].text).toBe('100 шагов')
     const last = kb[kb.length - 1]
-    expect(last).toEqual([
-      { text: 'Справка по команде' },
-      { text: 'Отмена' },
-    ])
+    expect(last).toEqual([{ text: 'Справка по команде' }, { text: 'Отмена' }])
   })
   it('includes correct English labels when isRu=false', () => {
     const markup: any = getStepSelectionMenuV2(false)
     const kb = markup.reply_markup.keyboard
     expect(kb[0][0].text).toBe('100 steps')
     const last = kb[kb.length - 1]
-    expect(last).toEqual([
-      { text: 'Help for the command' },
-      { text: 'Cancel' },
-    ])
+    expect(last).toEqual([{ text: 'Help for the command' }, { text: 'Cancel' }])
   })
 })
 
@@ -95,20 +86,14 @@ describe('videoModelKeyboard', () => {
     const kb = markup.reply_markup.keyboard
     expect(kb[0].map(b => b.text)).toEqual(['Minimax', 'Haiper'])
     const last = kb[kb.length - 1]
-    expect(last).toEqual([
-      { text: 'Справка по команде' },
-      { text: 'Отмена' },
-    ])
+    expect(last).toEqual([{ text: 'Справка по команде' }, { text: 'Отмена' }])
   })
   it('builds correct English keyboard', () => {
     const markup: any = videoModelKeyboard(false)
     const kb = markup.reply_markup.keyboard
     expect(kb[0].map(b => b.text)).toEqual(['Minimax', 'Haiper'])
     const last = kb[kb.length - 1]
-    expect(last).toEqual([
-      { text: 'Help for the command' },
-      { text: 'Cancel' },
-    ])
+    expect(last).toEqual([{ text: 'Help for the command' }, { text: 'Cancel' }])
   })
 })
 
@@ -148,7 +133,10 @@ describe('startMenu', () => {
 
 describe('createHelpCancelKeyboard', () => {
   it('builds keyboard with help and cancel for Russian', () => {
-    const markup: any = require('../../src/menu/createHelpCancelKeyboard/createHelpCancelKeyboard').createHelpCancelKeyboard(true)
+    const markup: any =
+      require('../../src/menu/createHelpCancelKeyboard/createHelpCancelKeyboard').createHelpCancelKeyboard(
+        true
+      )
     const rm = markup.reply_markup
     expect(rm.keyboard).toEqual([
       [{ text: 'Справка по команде' }],
@@ -156,7 +144,10 @@ describe('createHelpCancelKeyboard', () => {
     ])
   })
   it('builds keyboard with help and cancel for English', () => {
-    const markup: any = require('../../src/menu/createHelpCancelKeyboard/createHelpCancelKeyboard').createHelpCancelKeyboard(false)
+    const markup: any =
+      require('../../src/menu/createHelpCancelKeyboard/createHelpCancelKeyboard').createHelpCancelKeyboard(
+        false
+      )
     const rm = markup.reply_markup
     expect(rm.keyboard).toEqual([
       [{ text: 'Help for the command' }],
@@ -167,7 +158,9 @@ describe('createHelpCancelKeyboard', () => {
 
 describe('sendGenerationErrorMessage', () => {
   it('replies with generation error message', async () => {
-    const { sendGenerationErrorMessage } = require('../../src/menu/sendGenerationErrorMessage')
+    const {
+      sendGenerationErrorMessage,
+    } = require('../../src/menu/sendGenerationErrorMessage')
     const ctx = makeMockContext()
     await sendGenerationErrorMessage(ctx, false)
     expect(ctx.reply).toHaveBeenCalledWith(
@@ -178,7 +171,9 @@ describe('sendGenerationErrorMessage', () => {
 
 describe('sendPromptImprovementMessage', () => {
   it('replies with starting prompt improvement message', async () => {
-    const { sendPromptImprovementMessage } = require('../../src/menu/sendPromptImprovementMessage')
+    const {
+      sendPromptImprovementMessage,
+    } = require('../../src/menu/sendPromptImprovementMessage')
     const ctx = makeMockContext()
     await sendPromptImprovementMessage(ctx, true)
     expect(ctx.reply).toHaveBeenCalledWith('⏳ Начинаю улучшение промпта...')
@@ -187,7 +182,9 @@ describe('sendPromptImprovementMessage', () => {
 
 describe('sendPromptImprovementFailureMessage', () => {
   it('replies with failure prompt improvement message', async () => {
-    const { sendPromptImprovementFailureMessage } = require('../../src/menu/sendPromptImprovementFailureMessage')
+    const {
+      sendPromptImprovementFailureMessage,
+    } = require('../../src/menu/sendPromptImprovementFailureMessage')
     const ctx = makeMockContext()
     await sendPromptImprovementFailureMessage(ctx, false)
     expect(ctx.reply).toHaveBeenCalledWith('❌ Failed to improve prompt')
@@ -196,7 +193,9 @@ describe('sendPromptImprovementFailureMessage', () => {
 
 describe('sendPhotoDescriptionRequest', () => {
   it('replies requesting neurophoto description in Russian', async () => {
-    const { sendPhotoDescriptionRequest } = require('../../src/menu/sendPhotoDescriptionRequest')
+    const {
+      sendPhotoDescriptionRequest,
+    } = require('../../src/menu/sendPhotoDescriptionRequest')
     const ctx = makeMockContext()
     await sendPhotoDescriptionRequest(ctx, true, 'neuro_photo')
     expect(ctx.reply).toHaveBeenCalledWith(
@@ -205,7 +204,9 @@ describe('sendPhotoDescriptionRequest', () => {
     )
   })
   it('replies requesting photo description in English for other mode', async () => {
-    const { sendPhotoDescriptionRequest } = require('../../src/menu/sendPhotoDescriptionRequest')
+    const {
+      sendPhotoDescriptionRequest,
+    } = require('../../src/menu/sendPhotoDescriptionRequest')
     const ctx = makeMockContext()
     await sendPhotoDescriptionRequest(ctx, false, 'other')
     expect(ctx.reply).toHaveBeenCalledWith(
@@ -213,5 +214,4 @@ describe('sendPhotoDescriptionRequest', () => {
       { reply_markup: expect.any(Object) }
     )
   })
-})
 })

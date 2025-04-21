@@ -1,4 +1,3 @@
-
 // Mock starAmounts array
 jest.mock('@/price/helpers', () => ({ starAmounts: [5, 10, 20] }))
 const { starAmounts } = require('@/price/helpers')
@@ -11,7 +10,7 @@ describe('handlers/handleBuy', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     ctx = {
-      replyWithInvoice: jest.fn().mockResolvedValue(undefined)
+      replyWithInvoice: jest.fn().mockResolvedValue(undefined),
     }
   })
 

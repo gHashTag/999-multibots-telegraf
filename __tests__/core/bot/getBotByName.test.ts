@@ -37,7 +37,7 @@ describe('getBotByName', () => {
     expect(typeof res.bot.telegram?.sendMessage).toBe('function')
     expect(res.error).toBeUndefined()
   })
-  
+
   it('recreates bot instance when existing one lacks telegram.sendMessage', () => {
     const mod = require('@/core/bot')
     const { getBotByName, DEFAULT_BOT_NAME, BOT_NAMES, bots } = mod

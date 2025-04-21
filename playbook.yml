@@ -5,5 +5,4 @@
     - vault.yml
   roles:
     - nginx
-
 # ansible-playbook playbook.yml --vault-password-file .vault_password

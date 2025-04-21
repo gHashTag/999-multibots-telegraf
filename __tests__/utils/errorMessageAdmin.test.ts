@@ -23,7 +23,9 @@ describe('errorMessageAdmin', () => {
     // override isDev to true
     jest.resetModules()
     jest.mock('../../src/config', () => ({ isDev: true }))
-    const { errorMessageAdmin: emAdmin } = require('../../src/helpers/error/errorMessageAdmin')
+    const {
+      errorMessageAdmin: emAdmin,
+    } = require('../../src/helpers/error/errorMessageAdmin')
     const ctx2 = makeMockContext()
     emAdmin(ctx2, new Error('e'))
     expect(ctx2.telegram.sendMessage).not.toHaveBeenCalled()

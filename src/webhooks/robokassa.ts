@@ -3,7 +3,7 @@ import * as supabase from '@/core/supabase'
 import { PASSWORD2 } from '@/config'
 import { validateRobokassaSignature } from '@/core/robokassa'
 import { sendPaymentSuccessMessage } from '@/helpers/notifications'
-import { updateUserSubscription } from '@/core/supabase/updateUserSubscription'
+
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'

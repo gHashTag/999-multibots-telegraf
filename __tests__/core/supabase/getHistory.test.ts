@@ -1,9 +1,10 @@
-
 describe('getHistory', () => {
   let getHistory: typeof import('@/core/supabase/getHistory').getHistory
   let chain: any
   const mockFrom = jest.fn()
-  const brand = 'b', command = 'c', type = 't'
+  const brand = 'b',
+    command = 'c',
+    type = 't'
   const sampleData = [{ id: 1 }, { id: 2 }]
 
   beforeEach(() => {
@@ -27,7 +28,9 @@ describe('getHistory', () => {
 
   it('returns data when query successful', async () => {
     // Mock final resolution for success
-    chain.then.mockImplementation(resolve => resolve({ data: sampleData, error: null }))
+    chain.then.mockImplementation(resolve =>
+      resolve({ data: sampleData, error: null })
+    )
     const res = await getHistory(brand, command, type)
     expect(mockFrom).toHaveBeenCalledWith('clips')
     expect(chain.select).toHaveBeenCalledWith('*')
@@ -41,7 +44,9 @@ describe('getHistory', () => {
 
   it('returns empty array when error', async () => {
     // Mock error resolution
-    chain.then.mockImplementation(resolve => resolve({ data: null, error: { message: 'fail' } }))
+    chain.then.mockImplementation(resolve =>
+      resolve({ data: null, error: { message: 'fail' } })
+    )
     const res = await getHistory(brand, command, type)
     expect(res).toEqual([])
   })

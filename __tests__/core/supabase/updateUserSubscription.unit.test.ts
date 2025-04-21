@@ -1,4 +1,3 @@
-
 // Mock supabase client
 jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
 import { supabase } from '@/core/supabase'
@@ -17,7 +16,10 @@ describe('updateUserSubscription', () => {
     const eqMock = jest.fn()
     const updateReturn = { data, error: null }
     const updateMock = jest.fn().mockResolvedValue(updateReturn)
-    ;(supabase.from as jest.Mock).mockReturnValue({ update: updateMock, eq: eqMock })
+    ;(supabase.from as jest.Mock).mockReturnValue({
+      update: updateMock,
+      eq: eqMock,
+    })
     const result = await updateUserSubscription(userId, subscription)
     expect(updateMock).toHaveBeenCalledWith({ subscription })
     expect(eqMock).toHaveBeenCalledWith('telegram_id', userId)
@@ -28,12 +30,19 @@ describe('updateUserSubscription', () => {
     const err = { message: 'errSub' }
     const eqMock = jest.fn()
     const updateMock = jest.fn().mockResolvedValue({ data: null, error: err })
-    ;(supabase.from as jest.Mock).mockReturnValue({ update: updateMock, eq: eqMock })
+    ;(supabase.from as jest.Mock).mockReturnValue({
+      update: updateMock,
+      eq: eqMock,
+    })
     await expect(updateUserSubscription(userId, subscription)).rejects.toBe(err)
   })
 
   it('throws error on unexpected exception', async () => {
-    ;(supabase.from as jest.Mock).mockImplementation(() => { throw new Error('boom') })
-    await expect(updateUserSubscription(userId, subscription)).rejects.toThrow('boom')
+    ;(supabase.from as jest.Mock).mockImplementation(() => {
+      throw new Error('boom')
+    })
+    await expect(updateUserSubscription(userId, subscription)).rejects.toThrow(
+      'boom'
+    )
   })
 })

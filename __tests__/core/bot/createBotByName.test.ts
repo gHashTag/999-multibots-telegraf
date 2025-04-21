@@ -1,4 +1,3 @@
-
 // Mock supabase function
 jest.mock('@/core/supabase', () => ({
   getBotGroupFromAvatars: jest.fn().mockResolvedValue('group1'),
@@ -39,7 +38,7 @@ describe('createBotByName', () => {
     const result = await createBotByName('InvalidBot')
     expect(result).toBeUndefined()
   })
-  
+
   it('returns undefined and logs error when bot instance not found', async () => {
     // Reload module to get fresh bots array
     const mod = require('@/core/bot')

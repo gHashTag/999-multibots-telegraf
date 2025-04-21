@@ -5,7 +5,10 @@ jest.mock('@/menu')
 jest.mock('@/core/supabase')
 jest.mock('@/helpers/error')
 
-import { handleQuestRules, handleQuestComplete } from '@/scenes/levelQuestWizard/handlers'
+import {
+  handleQuestRules,
+  handleQuestComplete,
+} from '@/scenes/levelQuestWizard/handlers'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { getSubScribeChannel } from '@/handlers'
 import { isRussian } from '@/helpers'
@@ -33,8 +36,15 @@ const mockedErrorMessage = errorMessage as jest.Mock
 
 describe('levelQuestWizard handlers', () => {
   let ctx: ReturnType<typeof makeMockContext>
-  const mockFrom: User = { id: 99, is_bot: false, first_name: 'TestQuest', language_code: 'ru' }
-  const createMockSession = (overrides: Partial<MySession> = {}): MySession => ({
+  const mockFrom: User = {
+    id: 99,
+    is_bot: false,
+    first_name: 'TestQuest',
+    language_code: 'ru',
+  }
+  const createMockSession = (
+    overrides: Partial<MySession> = {}
+  ): MySession => ({
     selectedPayment: null,
     cursor: 0,
     images: [],
@@ -93,12 +103,18 @@ describe('levelQuestWizard handlers', () => {
       const sessionData = createMockSession()
       ctx = makeMockContext({ message: { from: mockFrom } }, sessionData)
       mockedIsRussian.mockReturnValue(false)
-      mockedGetSubChannel.mockImplementation(() => { throw new Error('fail') })
+      mockedGetSubChannel.mockImplementation(() => {
+        throw new Error('fail')
+      })
 
       // Обработчик сам ловит ошибку, поэтому не используем rejects.toThrow
       await handleQuestRules(ctx)
 
-      expect(mockedErrorMessage).toHaveBeenCalledWith(ctx, expect.any(Error), false)
+      expect(mockedErrorMessage).toHaveBeenCalledWith(
+        ctx,
+        expect.any(Error),
+        false
+      )
     })
   })
 
@@ -107,7 +123,13 @@ describe('levelQuestWizard handlers', () => {
       const sessionData = createMockSession()
       ctx = makeMockContext({ message: { from: mockFrom } }, sessionData)
       mockedIsRussian.mockReturnValue(false)
-      mockedGetReferals.mockResolvedValue({ count: 5, subscriptionType: SubscriptionType.NEUROBLOGGER, level: 3, userData: null, isExist: true })
+      mockedGetReferals.mockResolvedValue({
+        count: 5,
+        subscriptionType: SubscriptionType.NEUROBLOGGER,
+        level: 3,
+        userData: null,
+        isExist: true,
+      })
       mockedMainMenu.mockReturnValue({ reply_markup: { keyboard: [['m']] } })
 
       await handleQuestComplete(ctx)

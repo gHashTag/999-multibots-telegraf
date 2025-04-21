@@ -1,4 +1,3 @@
-
 describe('getUid', () => {
   let builder: any
   let mockFrom: jest.Mock
@@ -30,7 +29,9 @@ describe('getUid', () => {
   it('returns null and warns when no telegram_id provided', async () => {
     // @ts-ignore
     const res = await getUid(undefined)
-    expect(consoleWarn).toHaveBeenCalledWith('No telegram_id provided to getUid')
+    expect(consoleWarn).toHaveBeenCalledWith(
+      'No telegram_id provided to getUid'
+    )
     expect(res).toBeNull()
   })
 
@@ -39,7 +40,9 @@ describe('getUid', () => {
     builder.eq.mockReturnValueOnce(Promise.resolve({ data: null, error: err }))
     const res = await getUid('42')
     expect(mockFrom).toHaveBeenCalledWith('users')
-    expect(builder.select).toHaveBeenCalledWith('user_id, username, telegram_id')
+    expect(builder.select).toHaveBeenCalledWith(
+      'user_id, username, telegram_id'
+    )
     expect(builder.eq).toHaveBeenCalledWith('telegram_id', '42')
     expect(consoleError).toHaveBeenCalledWith('Error getting user_id:', err)
     expect(res).toBeNull()

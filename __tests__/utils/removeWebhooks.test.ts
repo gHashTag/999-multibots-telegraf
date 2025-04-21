@@ -1,4 +1,11 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals'
+import {
+  describe,
+  it,
+  expect,
+  jest,
+  beforeEach,
+  afterEach,
+} from '@jest/globals'
 import { removeWebhooks } from '../../src/utils/removeWebhooks'
 
 // Полностью мокаем модуль логгера
@@ -55,7 +62,9 @@ describe('removeWebhooks util', () => {
     bot.telegram.deleteWebhook.mockResolvedValue({})
     const res = await removeWebhooks(bot)
     expect(res).toBe(true)
-    expect(bot.telegram.deleteWebhook).toHaveBeenCalledWith({ drop_pending_updates: true })
+    expect(bot.telegram.deleteWebhook).toHaveBeenCalledWith({
+      drop_pending_updates: true,
+    })
     // Проверяем вызов мока
     expect(mockedLogger.info).toHaveBeenCalledWith(
       '✅ Вебхук удален:',

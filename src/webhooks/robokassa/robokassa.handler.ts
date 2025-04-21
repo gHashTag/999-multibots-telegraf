@@ -1,15 +1,9 @@
 import { Request, Response } from 'express'
-import { Telegraf } from 'telegraf'
+
 import { logger } from '@/utils/logger'
-import {
-  supabase,
-  incrementBalance,
-  updateUserSubscription,
-  updateUserBalance,
-} from '../../core/supabase'
+import { supabase, updateUserBalance } from '@/core/supabase'
 import { validateRobokassaSignature } from './utils/validateSignature'
-import { createBotByName } from '../../core/bot'
-import { MyContext } from '@/interfaces'
+import { createBotByName } from '@/core/bot'
 
 /**
  * Обрабатывает уведомления об успешном платеже от Robokassa (Result URL).

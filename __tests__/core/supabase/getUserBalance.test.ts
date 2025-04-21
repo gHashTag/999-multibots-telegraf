@@ -22,7 +22,9 @@ jest.mock('@/core/supabase/client', () => ({
 describe('getUserBalance', () => {
   const mockedFrom = supabase.from as jest.Mock
   // Мокаем возвращаемые значения методов
-  const mockEqReturn = { single: jest.fn<() => Promise<{ data: any; error: any }>>() }
+  const mockEqReturn = {
+    single: jest.fn<() => Promise<{ data: any; error: any }>>(),
+  }
   const mockSelectReturn = { eq: jest.fn().mockReturnValue(mockEqReturn) }
   const mockFromReturn = { select: jest.fn().mockReturnValue(mockSelectReturn) }
 
@@ -39,19 +41,25 @@ describe('getUserBalance', () => {
 
   it('should return balance for existing user', async () => {
     // Теперь передаем объект напрямую, так как single ожидает Promise
-    mockEqReturn.single.mockResolvedValue({ data: { balance: 100 }, error: null })
+    mockEqReturn.single.mockResolvedValue({
+      data: { balance: 100 },
+      error: null,
+    })
 
     const balance = await getUserBalance('99')
     expect(balance).toBe(100)
     expect(mockedFrom).toHaveBeenCalledWith('users')
     // Используем as any для обхода ошибки типа
-    expect((mockedFrom('users') as any).select).toHaveBeenCalledWith('balance') 
+    expect((mockedFrom('users') as any).select).toHaveBeenCalledWith('balance')
     expect(mockSelectReturn.eq).toHaveBeenCalledWith('telegram_id', '99')
     expect(mockEqReturn.single).toHaveBeenCalled()
   })
 
   it('should return 0 if user has no balance field (or null)', async () => {
-    mockEqReturn.single.mockResolvedValue({ data: { balance: null }, error: null })
+    mockEqReturn.single.mockResolvedValue({
+      data: { balance: null },
+      error: null,
+    })
 
     const balance = await getUserBalance('55')
     expect(balance).toBe(0)
@@ -69,7 +77,9 @@ describe('getUserBalance', () => {
     const error = new Error('Supabase error')
     mockEqReturn.single.mockResolvedValue({ data: null, error })
 
-    await expect(getUserBalance('2')).rejects.toThrow('Не удалось получить баланс пользователя: Supabase error')
+    await expect(getUserBalance('2')).rejects.toThrow(
+      'Не удалось получить баланс пользователя: Supabase error'
+    )
     expect(mockSelectReturn.eq).toHaveBeenCalledWith('telegram_id', '2')
   })
 })

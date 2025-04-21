@@ -28,10 +28,9 @@ describe('balanceScene', () => {
     // Expect getUserBalance called with telegram ID
     expect(getUserBalance).toHaveBeenCalledWith(ctx.from.id)
     // Expect reply with Russian text and HTML parse mode
-    expect(ctx.reply).toHaveBeenCalledWith(
-      '💰✨ <b>Ваш баланс:</b> 456 ⭐️',
-      { parse_mode: 'HTML' }
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('💰✨ <b>Ваш баланс:</b> 456 ⭐️', {
+      parse_mode: 'HTML',
+    })
     // Expect to enter menuScene
     expect(ctx.scene.enter).toHaveBeenCalledWith('menuScene')
   })
@@ -57,7 +56,7 @@ describe('balanceScene', () => {
     // Expect to enter menuScene
     expect(ctx.scene.enter).toHaveBeenCalledWith('menuScene')
   })
-  
+
   it('throws error when getUserBalance rejects', async () => {
     const ctx = makeMockContext()
     const error = new Error('fetch failed')

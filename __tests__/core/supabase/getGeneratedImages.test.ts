@@ -1,10 +1,11 @@
-
 describe('getGeneratedImages', () => {
   let mockSingle: jest.Mock
   let mockEq: jest.Mock
   let mockSelect: jest.Mock
   let mockFrom: jest.Mock
-  let getGeneratedImages: (id: number) => Promise<{ count: number; limit: number }>
+  let getGeneratedImages: (
+    id: number
+  ) => Promise<{ count: number; limit: number }>
 
   beforeEach(() => {
     jest.resetModules()
@@ -18,7 +19,8 @@ describe('getGeneratedImages', () => {
     jest.spyOn(console, 'log').mockImplementation(() => {})
     // Import function
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    getGeneratedImages = require('@/core/supabase/getGeneratedImages').getGeneratedImages
+    getGeneratedImages =
+      require('@/core/supabase/getGeneratedImages').getGeneratedImages
   })
 
   afterEach(() => {
@@ -39,7 +41,10 @@ describe('getGeneratedImages', () => {
     const err = new Error('db error')
     mockSingle.mockResolvedValueOnce({ data: null, error: err })
     const result = await getGeneratedImages(100)
-    expect(console.log).toHaveBeenCalledWith('Ошибка при получении count для telegram_id:', err)
+    expect(console.log).toHaveBeenCalledWith(
+      'Ошибка при получении count для telegram_id:',
+      err
+    )
     expect(result).toEqual({ count: 0, limit: 2 })
   })
 

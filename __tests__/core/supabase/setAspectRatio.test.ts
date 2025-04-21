@@ -1,4 +1,3 @@
-
 describe('setAspectRatio', () => {
   let setAspectRatio: typeof import('@/core/supabase/setAspectRatio').setAspectRatio
   const mockEq = jest.fn()

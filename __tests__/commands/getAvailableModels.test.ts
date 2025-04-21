@@ -1,9 +1,10 @@
-
 // Mock OpenAI and config
 const mockList = jest.fn()
 jest.mock('openai', () => {
   return {
-    default: jest.fn().mockImplementation(() => ({ models: { list: mockList } })),
+    default: jest
+      .fn()
+      .mockImplementation(() => ({ models: { list: mockList } })),
   }
 })
 jest.mock('@/config', () => ({
@@ -30,12 +31,7 @@ describe('getAvailableModels', () => {
     mockList.mockResolvedValue({ data: modelsData })
     const result = await getAvailableModels()
     // Expect only ids including 'gpt', excluding 'instruct', '0613'
-    expect(result).toEqual([
-      'gpt-3.5',
-      'gpt-3.5-turbo',
-      'gpt-4',
-      'gpt-4-turbo',
-    ])
+    expect(result).toEqual(['gpt-3.5', 'gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo'])
   })
 
   it('returns fallback on error', async () => {

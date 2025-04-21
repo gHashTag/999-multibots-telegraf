@@ -1,44 +1,105 @@
-
 // Mock supabase client
-jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
+jest.mock('@/core/supabase', () => ({
+  supabase: {
+    from: jest.fn(),
+  },
+  createBotByName: jest.fn(),
+}))
 import { supabase } from '@/core/supabase'
+import { createBotByName } from '@/core/bot'
 import { sendPaymentInfo } from '@/core/supabase/sendPaymentInfo'
 
+jest.mock('@/core/bot', () => ({
+  createBotByName: jest.fn(),
+}))
+
+jest.mock('@/utils/logger', () => ({
+  logger: {
+    error: jest.fn(),
+    info: jest.fn(),
+  },
+}))
+
 describe('sendPaymentInfo', () => {
-  const user_id = '42'
-  const level = 'gold'
+  const invId = '12345'
   beforeEach(() => {
     jest.resetModules()
     jest.clearAllMocks()
   })
 
-  it('throws error when supabase.insert returns error', async () => {
-    const mockSingle = jest.fn().mockResolvedValue({ data: null, error: { message: 'fail' } })
-    const mockInsert = jest.fn().mockReturnValue({ single: mockSingle })
-    ;(supabase.from as jest.Mock).mockReturnValue({ insert: mockInsert })
-    await expect(sendPaymentInfo(user_id, level))
-      .rejects.toThrow('Failed to send payment info: fail')
+  it('returns false when no payment data found', async () => {
+    const mockSingle = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'not found' } })
+    const mockEq = jest.fn().mockReturnValue({ single: mockSingle })
+    const mockSelect = jest.fn().mockReturnValue({ eq: mockEq })
+    ;(supabase.from as jest.Mock).mockReturnValue({ select: mockSelect })
+
+    const result = await sendPaymentInfo(invId)
+
+    expect(supabase.from).toHaveBeenCalledWith('payments_v2')
+    expect(mockSelect).toHaveBeenCalledWith('*')
+    expect(mockEq).toHaveBeenCalledWith('inv_id', invId)
+    expect(result).toBe(false)
   })
 
-  it('throws error when no data returned', async () => {
-    const mockSingle = jest.fn().mockResolvedValue({ data: null, error: null })
-    const mockInsert = jest.fn().mockReturnValue({ single: mockSingle })
-    ;(supabase.from as jest.Mock).mockReturnValue({ insert: mockInsert })
-    await expect(sendPaymentInfo(user_id, level))
-      .rejects.toThrow('No data returned after inserting payment info.')
+  it('returns false when bot creation fails', async () => {
+    const paymentData = {
+      bot_name: 'testbot',
+      amount: 100,
+      telegram_id: '42',
+      currency: 'USD',
+      username: 'user123',
+      stars: 50,
+    }
+
+    const mockSingle = jest
+      .fn()
+      .mockResolvedValue({ data: paymentData, error: null })
+    const mockEq = jest.fn().mockReturnValue({ single: mockSingle })
+    const mockSelect = jest.fn().mockReturnValue({ eq: mockEq })
+    ;(supabase.from as jest.Mock).mockReturnValue({ select: mockSelect })
+    ;(createBotByName as jest.Mock).mockResolvedValue(null)
+
+    const result = await sendPaymentInfo(invId)
+
+    expect(createBotByName).toHaveBeenCalledWith('testbot')
+    expect(result).toBe(false)
   })
 
-  it('returns data when insert succeeds', async () => {
-    const payment = { id: 1, user_id, level, created_at: '2025-04-19T00:00:00Z' }
-    const mockSingle = jest.fn().mockResolvedValue({ data: payment, error: null })
-    const mockInsert = jest.fn().mockReturnValue({ single: mockSingle })
-    ;(supabase.from as jest.Mock).mockReturnValue({ insert: mockInsert })
-    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
-    const result = await sendPaymentInfo(user_id, level)
-    expect(mockInsert).toHaveBeenCalledWith([{ user_id, level }])
-    expect(mockSingle).toHaveBeenCalled()
-    expect(consoleLogSpy).toHaveBeenCalledWith('Payment info sent successfully:', payment)
-    expect(result).toEqual(payment)
-    consoleLogSpy.mockRestore()
+  it('sends notification and returns true when successful', async () => {
+    const paymentData = {
+      bot_name: 'testbot',
+      amount: 100,
+      telegram_id: '42',
+      currency: 'USD',
+      username: 'user123',
+      stars: 50,
+    }
+
+    const botData = {
+      bot: {
+        telegram: {
+          sendMessage: jest.fn().mockResolvedValue(true),
+        },
+      },
+      groupId: 'group123',
+    }
+
+    const mockSingle = jest
+      .fn()
+      .mockResolvedValue({ data: paymentData, error: null })
+    const mockEq = jest.fn().mockReturnValue({ single: mockSingle })
+    const mockSelect = jest.fn().mockReturnValue({ eq: mockEq })
+    ;(supabase.from as jest.Mock).mockReturnValue({ select: mockSelect })
+    ;(createBotByName as jest.Mock).mockResolvedValue(botData)
+
+    const result = await sendPaymentInfo(invId)
+
+    expect(botData.bot.telegram.sendMessage).toHaveBeenCalledWith(
+      'group123',
+      expect.stringContaining('Новый платеж!')
+    )
+    expect(result).toBe(true)
   })
 })

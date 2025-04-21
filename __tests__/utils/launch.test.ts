@@ -1,7 +1,10 @@
-
 // Mocks
-jest.mock('@/utils/removeWebhooks', () => ({ removeWebhooks: jest.fn().mockResolvedValue(true) }))
-jest.mock('@/utils/logger', () => ({ logger: { info: jest.fn(), error: jest.fn() } }))
+jest.mock('@/utils/removeWebhooks', () => ({
+  removeWebhooks: jest.fn().mockResolvedValue(true),
+}))
+jest.mock('@/utils/logger', () => ({
+  logger: { info: jest.fn(), error: jest.fn() },
+}))
 // Mock express
 const useMock = jest.fn()
 const listenMock = jest.fn((port, cb) => cb())
@@ -30,7 +33,10 @@ describe('Launch Utilities', () => {
         deleteWebhook: jest.fn().mockResolvedValue(undefined),
         getMe: jest.fn().mockResolvedValue({}),
         setWebhook: jest.fn().mockResolvedValue(undefined),
-        getWebhookInfo: jest.fn().mockResolvedValue({ url: 'https://test/hook', pending_update_count: 0 }),
+        getWebhookInfo: jest.fn().mockResolvedValue({
+          url: 'https://test/hook',
+          pending_update_count: 0,
+        }),
       },
       launch: jest.fn().mockResolvedValue(undefined),
       handleUpdate: jest.fn().mockResolvedValue(undefined),
@@ -42,32 +48,49 @@ describe('Launch Utilities', () => {
     await expect(development(bot)).resolves.toBeUndefined()
     expect(bot.telegram.deleteWebhook).toHaveBeenCalledTimes(1)
     expect(bot.launch).toHaveBeenCalledTimes(1)
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('✅ Бот запущен в режиме разработки:'), expect.objectContaining({ bot_name: 'testBot' }))
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('✅ Бот запущен в режиме разработки:'),
+      expect.objectContaining({ bot_name: 'testBot' })
+    )
   })
 
   it('development: logs error and rethrows on failure', async () => {
     const err = new Error('fail')
     bot.launch.mockRejectedValueOnce(err)
     await expect(development(bot)).rejects.toThrow('fail')
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('❌ Ошибка запуска бота в режиме разработки:'), expect.objectContaining({ bot_name: 'testBot', error: 'fail' }))
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('❌ Ошибка запуска бота в режиме разработки:'),
+      expect.objectContaining({ bot_name: 'testBot', error: 'fail' })
+    )
   })
 
   it('production: sets up webhook and starts express server', async () => {
     const config = { port: 1234, url: 'https://d.com/path', path: '/hookpath' }
-    await expect(production(bot, config.port, config.url, config.path)).resolves.toBeUndefined()
+    await expect(
+      production(bot, config.port, config.url, config.path)
+    ).resolves.toBeUndefined()
     // removeWebhooks called
     expect(removeWebhooks).toHaveBeenCalledWith(bot)
     // Telegram methods
     expect(bot.telegram.getMe).toHaveBeenCalled()
-    expect(bot.telegram.setWebhook).toHaveBeenCalledWith(config.url, expect.objectContaining({ drop_pending_updates: true }))
+    expect(bot.telegram.setWebhook).toHaveBeenCalledWith(
+      config.url,
+      expect.objectContaining({ drop_pending_updates: true })
+    )
     expect(bot.telegram.getWebhookInfo).toHaveBeenCalled()
     // Express setup
     expect(jsonMock).toHaveBeenCalled()
     expect(useMock).toHaveBeenCalled()
     expect(listenMock).toHaveBeenCalledWith(config.port, expect.any(Function))
     // Logs
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('📡 Информация о вебхуке:'), expect.any(Object))
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('✅ Бот слушает вебхуки:'), expect.any(Object))
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('📡 Информация о вебхуке:'),
+      expect.any(Object)
+    )
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('✅ Бот слушает вебхуки:'),
+      expect.any(Object)
+    )
   })
 
   // TODO: test error path for production launch when removeWebhooks fails

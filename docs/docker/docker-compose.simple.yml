@@ -9,4 +9,4 @@ services:
       sh -c "npm install telegraf && node bot-test.js"
     volumes:
       - ./bot-test.js:/app/bot-test.js
-    restart: unless-stopped 
+    restart: unless-stopped

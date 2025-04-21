@@ -1,4 +1,3 @@
-
 // Mock PinataSDK to capture constructor args
 jest.mock('pinata-web3', () => ({
   PinataSDK: jest.fn().mockImplementation(opts => ({ opts })),
@@ -25,6 +24,9 @@ describe('core/pinata client', () => {
       pinataGateway: 'gateway-url',
     })
     // Instance should expose opts matching input
-    expect(pinata.opts).toEqual({ pinataJwt: 'jwt-token', pinataGateway: 'gateway-url' })
+    expect(pinata.opts).toEqual({
+      pinataJwt: 'jwt-token',
+      pinataGateway: 'gateway-url',
+    })
   })
 })

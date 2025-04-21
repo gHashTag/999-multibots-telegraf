@@ -11,13 +11,20 @@ describe('getUserLevel', () => {
   })
 
   it('returns null on supabase error', async () => {
-    const mockSingle = jest.fn().mockResolvedValue({ data: null, error: { message: 'err' } })
+    const mockSingle = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'err' } })
     const selectMock = jest.fn().mockReturnValue({ single: mockSingle })
     ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
     const result = await getUserLevel(telegram_id)
     expect(result).toBeNull()
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Ошибка при получении уровня пользователя:', { message: 'err' })
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Ошибка при получении уровня пользователя:',
+      { message: 'err' }
+    )
     consoleErrorSpy.mockRestore()
   })
 
@@ -34,18 +41,27 @@ describe('getUserLevel', () => {
     const mockSingle = jest.fn().mockResolvedValue({ data: null, error: null })
     const selectMock = jest.fn().mockReturnValue({ single: mockSingle })
     ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
     const result = await getUserLevel(telegram_id)
     expect(result).toBeNull()
     consoleErrorSpy.mockRestore()
   })
 
   it('returns null on exception', async () => {
-    (supabase.from as jest.Mock).mockImplementation(() => { throw new Error('boom') })
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    ;(supabase.from as jest.Mock).mockImplementation(() => {
+      throw new Error('boom')
+    })
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
     const result = await getUserLevel(telegram_id)
     expect(result).toBeNull()
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Ошибка в функции getUserLevel:', expect.any(Error))
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Ошибка в функции getUserLevel:',
+      expect.any(Error)
+    )
     consoleErrorSpy.mockRestore()
   })
 })

@@ -55,11 +55,25 @@ describe('improvePromptWizard', () => {
 
   it('step 0: upgradePrompt fails -> failure message and leave', async () => {
     const ctx = makeMockContext(
-      { message: { from: { id: 1, is_bot: false, first_name: 'Test', language_code: 'ru' }, text: 'any' } },
+      {
+        message: {
+          from: {
+            id: 1,
+            is_bot: false,
+            first_name: 'Test',
+            language_code: 'ru',
+          },
+          text: 'any',
+        },
+      },
       { prompt: 'orig' }
     )
-    ;(sendPromptImprovementMessage as jest.Mock<() => Promise<void>>).mockResolvedValue(undefined)
-    ;(upgradePrompt as jest.Mock<() => Promise<string | null>>).mockResolvedValueOnce(null)
+    ;(
+      sendPromptImprovementMessage as jest.Mock<() => Promise<void>>
+    ).mockResolvedValue(undefined)
+    ;(
+      upgradePrompt as jest.Mock<() => Promise<string | null>>
+    ).mockResolvedValueOnce(null)
     const step0 = Composer.unwrap(improvePromptWizard.steps[0])
     await step0(ctx, async () => {})
     expect(sendPromptImprovementMessage).toHaveBeenCalledWith(ctx, true)
@@ -69,11 +83,25 @@ describe('improvePromptWizard', () => {
 
   it('step 0: upgradePrompt succeeds -> reply improved and next', async () => {
     const ctx = makeMockContext(
-      { message: { from: { id: 1, is_bot: false, first_name: 'Test', language_code: 'en' }, text: 'any' } },
+      {
+        message: {
+          from: {
+            id: 1,
+            is_bot: false,
+            first_name: 'Test',
+            language_code: 'en',
+          },
+          text: 'any',
+        },
+      },
       { prompt: 'hello' }
     )
-    ;(sendPromptImprovementMessage as jest.Mock<() => Promise<void>>).mockResolvedValue(undefined)
-    ;(upgradePrompt as jest.Mock<() => Promise<string | null>>).mockResolvedValueOnce('improved')
+    ;(
+      sendPromptImprovementMessage as jest.Mock<() => Promise<void>>
+    ).mockResolvedValue(undefined)
+    ;(
+      upgradePrompt as jest.Mock<() => Promise<string | null>>
+    ).mockResolvedValueOnce('improved')
     const step0 = Composer.unwrap(improvePromptWizard.steps[0])
     await step0(ctx, async () => {})
     expect(sendPromptImprovementMessage).toHaveBeenCalledWith(ctx, false)
@@ -86,7 +114,14 @@ describe('improvePromptWizard', () => {
   })
 
   it('step 1: no message leaves scene', async () => {
-    const ctx = makeMockContext({ callback_query: { id: '1', from: { id: 1, is_bot: false, first_name: 'Test' }, message: undefined, data:'any' } })
+    const ctx = makeMockContext({
+      callback_query: {
+        id: '1',
+        from: { id: 1, is_bot: false, first_name: 'Test' },
+        message: undefined,
+        data: 'any',
+      },
+    })
     const step1 = Composer.unwrap(improvePromptWizard.steps[1])
     await step1(ctx, async () => {})
     expect(ctx.scene.leave).not.toHaveBeenCalled()
@@ -94,11 +129,25 @@ describe('improvePromptWizard', () => {
 
   it('step 1: cancel case', async () => {
     const ctx = makeMockContext(
-      { message: { from: { id: 1, is_bot: false, first_name: 'Test', language_code: 'en' }, text: '❌ Cancel' } },
+      {
+        message: {
+          from: {
+            id: 1,
+            is_bot: false,
+            first_name: 'Test',
+            language_code: 'en',
+          },
+          text: '❌ Cancel',
+        },
+      },
       {
         prompt: 'p',
         mode: ModeEnum.NeuroPhotoV2,
-        userModel: { model_url: 'a/b:c', model_name: 'test_model', trigger_word: 'test_trigger' },
+        userModel: {
+          model_url: 'a/b:c',
+          model_name: 'test_model',
+          trigger_word: 'test_trigger',
+        },
       }
     )
     const step1 = Composer.unwrap(improvePromptWizard.steps[1])
@@ -109,14 +158,31 @@ describe('improvePromptWizard', () => {
 
   it('step 1: yes generate for neuro_photo', async () => {
     const ctx = makeMockContext(
-      { message: { from: { id: 1, username: 'u', is_bot: false, first_name: 'Test', language_code: 'ru' }, text: '✅ Да. Cгенерировать?' } },
+      {
+        message: {
+          from: {
+            id: 1,
+            username: 'u',
+            is_bot: false,
+            first_name: 'Test',
+            language_code: 'ru',
+          },
+          text: '✅ Да. Cгенерировать?',
+        },
+      },
       {
         prompt: 'pr',
         mode: ModeEnum.NeuroPhotoV2,
-        userModel: { model_url: 'a/b:c', model_name: 'test_model', trigger_word: 'test_trigger' },
+        userModel: {
+          model_url: 'a/b:c',
+          model_name: 'test_model',
+          trigger_word: 'test_trigger',
+        },
       }
     )
-    ;(generateNeuroImage as jest.Mock<() => Promise<any>>).mockResolvedValueOnce(undefined)
+    ;(
+      generateNeuroImage as jest.Mock<() => Promise<any>>
+    ).mockResolvedValueOnce(undefined)
     const step1 = Composer.unwrap(improvePromptWizard.steps[1])
     await step1(ctx, async () => {})
     expect(generateNeuroImage).toHaveBeenCalledWith(
@@ -132,10 +198,19 @@ describe('improvePromptWizard', () => {
 
   it('should navigate to menuScene if no mode in session', async () => {
     const ctx = makeMockContext(
-      { message: { from: { id: 1, is_bot: false, first_name: 'Test' }, text: 'any' } },
+      {
+        message: {
+          from: { id: 1, is_bot: false, first_name: 'Test' },
+          text: 'any',
+        },
+      },
       {
         prompt: 'p',
-        userModel: { model_url: 'a/b:c', model_name: 'test_model', trigger_word: 'test_trigger' },
+        userModel: {
+          model_url: 'a/b:c',
+          model_name: 'test_model',
+          trigger_word: 'test_trigger',
+        },
       }
     )
     const step1 = Composer.unwrap(improvePromptWizard.steps[1])
@@ -146,7 +221,12 @@ describe('improvePromptWizard', () => {
 
   it('should navigate to menuScene if userModel not in session', async () => {
     const ctx = makeMockContext(
-      { message: { from: { id: 1, is_bot: false, first_name: 'Test' }, text: 'any' } },
+      {
+        message: {
+          from: { id: 1, is_bot: false, first_name: 'Test' },
+          text: 'any',
+        },
+      },
       {
         prompt: 'p',
         mode: ModeEnum.NeuroPhotoV2,
@@ -160,14 +240,31 @@ describe('improvePromptWizard', () => {
 
   it('should call generateImageFromPrompt for neuro_photo mode (RU)', async () => {
     const ctx = makeMockContext(
-      { message: { from: { id: 1, username: 'u', is_bot: false, first_name: 'Test', language_code: 'ru' }, text: 'any' } },
+      {
+        message: {
+          from: {
+            id: 1,
+            username: 'u',
+            is_bot: false,
+            first_name: 'Test',
+            language_code: 'ru',
+          },
+          text: 'any',
+        },
+      },
       {
         prompt: 'pr',
         mode: ModeEnum.NeuroPhotoV2,
-        userModel: { model_url: 'a/b:c', model_name: 'test_model', trigger_word: 'test_trigger' },
+        userModel: {
+          model_url: 'a/b:c',
+          model_name: 'test_model',
+          trigger_word: 'test_trigger',
+        },
       }
     )
-    ;(generateImageFromPrompt as jest.Mock<() => Promise<string | void>>).mockResolvedValue('done')
+    ;(
+      generateImageFromPrompt as jest.Mock<() => Promise<string | void>>
+    ).mockResolvedValue('done')
 
     const step1 = Composer.unwrap(improvePromptWizard.steps[1])
     await step1(ctx, async () => {})

@@ -50,6 +50,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
       ctx
     )
 
+    // Закомментировано, так как файл уже удаляется в createModelTraining.js
     // await deleteFile(zipPath)
   } catch (error) {
     console.error('Error in uploadTrainFluxModelScene:', error)

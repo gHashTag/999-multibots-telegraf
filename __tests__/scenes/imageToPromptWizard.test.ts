@@ -21,7 +21,9 @@ jest.mock('@/helpers/language')
 import { isRussian } from '@/helpers/language'
 
 // Type mocks
-const mockedHandleCancel = handleHelpCancel as jest.Mock<(...args: any[]) => Promise<boolean>>
+const mockedHandleCancel = handleHelpCancel as jest.Mock<
+  (...args: any[]) => Promise<boolean>
+>
 const mockedCreateKb = createHelpCancelKeyboard as jest.Mock
 const mockedGenerate = generateImageToPrompt as jest.Mock
 const mockedGetToken = getBotToken as jest.Mock<() => [string, string] | null>
@@ -33,8 +35,15 @@ describe('imageToPromptWizard steps', () => {
   const step0 = steps[0]
   const step1 = steps[1]
   const mockNext = (): Promise<void> => Promise.resolve()
-  const mockFrom: User = { id: 12345, is_bot: false, first_name: 'Test', language_code: 'en' }
-  const createMockSession = (overrides: Partial<MySession> = {}): MySession => ({
+  const mockFrom: User = {
+    id: 12345,
+    is_bot: false,
+    first_name: 'Test',
+    language_code: 'en',
+  }
+  const createMockSession = (
+    overrides: Partial<MySession> = {}
+  ): MySession => ({
     selectedPayment: null,
     cursor: 0,
     images: [],
@@ -108,10 +117,9 @@ describe('imageToPromptWizard steps', () => {
 
     await step1(ctx, mockNext)
 
-    expect(ctx.reply).toHaveBeenCalledWith(
-      'Please send an image',
-      { reply_markup: keyboard.reply_markup }
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('Please send an image', {
+      reply_markup: keyboard.reply_markup,
+    })
   })
 
   it('step1: leaves if cancelled', async () => {
@@ -127,11 +135,16 @@ describe('imageToPromptWizard steps', () => {
     ;(handleHelpCancel as jest.Mock).mockResolvedValue(false)
     ;(getBotToken as jest.Mock).mockResolvedValueOnce(['tok', 'botName'])
     ;(getBotToken as jest.Mock).mockResolvedValueOnce(['tok', 'botName'])
-    const ctx = makeMockContext({}, {
-      message: { photo: [{ file_id: 'fid1' }, { file_id: 'fid2' }] }
-    })
+    const ctx = makeMockContext(
+      {},
+      {
+        message: { photo: [{ file_id: 'fid1' }, { file_id: 'fid2' }] },
+      }
+    )
     // mock getFileLink
-    ctx.telegram.getFileLink = jest.fn().mockResolvedValue({ href: 'http://file.jpg' })
+    ctx.telegram.getFileLink = jest
+      .fn()
+      .mockResolvedValue({ href: 'http://file.jpg' })
     // @ts-ignore
     const step1 = imageToPromptWizard.steps[1]
     await step1(ctx)

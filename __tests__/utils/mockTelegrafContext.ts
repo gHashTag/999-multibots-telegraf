@@ -4,7 +4,15 @@
  */
 
 import { Context, Telegraf } from 'telegraf'
-import { Update, Message, User, Chat, CallbackQuery, PreCheckoutQuery, InlineQuery } from 'telegraf/typings/core/types/typegram'
+import {
+  Update,
+  Message,
+  User,
+  Chat,
+  CallbackQuery,
+  PreCheckoutQuery,
+  InlineQuery,
+} from 'telegraf/typings/core/types/typegram'
 import { MyContext, MySession } from '../../src/interfaces'
 
 // Тип для дебаг-ответов
@@ -57,47 +65,68 @@ export function makeMockContext(
       debug.replies.map(reply => reply.message).filter(Boolean),
   }
 
-  const defaultFrom: User = { id: 12345, is_bot: false, first_name: 'Test', username: 'testuser', language_code: 'ru' }
-  const defaultChat: Chat.PrivateChat = { id: 12345, type: 'private', first_name: 'Test', username: 'testuser' }
+  const defaultFrom: User = {
+    id: 12345,
+    is_bot: false,
+    first_name: 'Test',
+    username: 'testuser',
+    language_code: 'ru',
+  }
+  const defaultChat: Chat.PrivateChat = {
+    id: 12345,
+    type: 'private',
+    first_name: 'Test',
+    username: 'testuser',
+  }
 
-  const messageUpdate = ('message' in update && update.message)
-    ? {
-        message_id: 1,
-        date: Date.now() / 1000,
-        chat: update.message.chat ?? defaultChat,
-        from: update.message.from ?? defaultFrom,
-        text: '',
-        ...update.message,
-      } as Message.TextMessage
-    : undefined;
+  const messageUpdate =
+    'message' in update && update.message
+      ? ({
+          message_id: 1,
+          date: Date.now() / 1000,
+          chat: update.message.chat ?? defaultChat,
+          from: update.message.from ?? defaultFrom,
+          text: '',
+          ...update.message,
+        } as Message.TextMessage)
+      : undefined
 
   const fullUpdate: Update = {
     update_id: update.update_id ?? 1,
     ...(messageUpdate && { message: messageUpdate }),
-    ...(('callback_query' in update && update.callback_query) && { callback_query: update.callback_query as CallbackQuery }),
-    ...(('inline_query' in update && update.inline_query) && { inline_query: update.inline_query as InlineQuery }),
-    ...(('pre_checkout_query' in update && update.pre_checkout_query) && { pre_checkout_query: update.pre_checkout_query as PreCheckoutQuery }),
+    ...('callback_query' in update &&
+      update.callback_query && {
+        callback_query: update.callback_query as CallbackQuery,
+      }),
+    ...('inline_query' in update &&
+      update.inline_query && {
+        inline_query: update.inline_query as InlineQuery,
+      }),
+    ...('pre_checkout_query' in update &&
+      update.pre_checkout_query && {
+        pre_checkout_query: update.pre_checkout_query as PreCheckoutQuery,
+      }),
   }
 
-  let from: User | undefined = undefined;
-  let chat: Chat | undefined = undefined;
-  let message: Message.TextMessage | undefined = undefined;
-  let callbackQuery: CallbackQuery | undefined = undefined;
+  let from: User | undefined = undefined
+  let chat: Chat | undefined = undefined
+  let message: Message.TextMessage | undefined = undefined
+  let callbackQuery: CallbackQuery | undefined = undefined
 
   if ('message' in fullUpdate && fullUpdate.message) {
-    message = fullUpdate.message as Message.TextMessage;
-    from = message.from;
-    chat = message.chat;
+    message = fullUpdate.message as Message.TextMessage
+    from = message.from
+    chat = message.chat
   } else if ('callback_query' in fullUpdate && fullUpdate.callback_query) {
-    callbackQuery = fullUpdate.callback_query;
-    from = callbackQuery.from;
+    callbackQuery = fullUpdate.callback_query
+    from = callbackQuery.from
     if (callbackQuery.message) {
-      chat = callbackQuery.message.chat;
+      chat = callbackQuery.message.chat
     }
   }
 
-  from = from ?? defaultFrom;
-  chat = chat ?? defaultChat;
+  from = from ?? defaultFrom
+  chat = chat ?? defaultChat
 
   const ctx = {
     update: fullUpdate,
@@ -128,7 +157,7 @@ export function makeMockContext(
     reply: jest.fn((message, extra = undefined) => {
       debug.replies.push({ message, extra })
       return Promise.resolve()
-    }),
+    }) as jest.Mock,
     replyWithPhoto: jest.fn((url: any, extra: any = undefined) => {
       debug.replies.push({
         type: 'photo',
@@ -137,24 +166,24 @@ export function makeMockContext(
         extra,
       })
       return Promise.resolve()
-    }),
+    }) as jest.Mock,
     replyWithInvoice: jest.fn((invoice: any) => {
       debug.replies.push({ type: 'invoice', message: invoice })
       return Promise.resolve()
-    }),
-    answerCbQuery: jest.fn(() => Promise.resolve()),
-    answerPreCheckoutQuery: jest.fn(() => Promise.resolve()),
+    }) as jest.Mock,
+    answerCbQuery: jest.fn(() => Promise.resolve()) as jest.Mock,
+    answerPreCheckoutQuery: jest.fn(() => Promise.resolve()) as jest.Mock,
     match: jest.fn((pattern: string | RegExp) => {
-      let matchResult: RegExpExecArray | string[] | null = null;
+      let matchResult: RegExpExecArray | string[] | null = null
       if (typeof pattern === 'string') {
         if (message?.text && message.text.includes(pattern)) {
-          matchResult = [message.text, pattern];
+          matchResult = [message.text, pattern]
         }
       } else if (message?.text) {
-        matchResult = pattern.exec(message.text);
+        matchResult = pattern.exec(message.text)
       }
-      (ctx as any).match = matchResult;
-      return undefined;
+      ;(ctx as any).match = matchResult
+      return undefined
     }),
     message: message,
     callback_query: callbackQuery,

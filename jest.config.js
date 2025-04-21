@@ -31,7 +31,10 @@ module.exports = {
       },
     ],
   },
+  // Run all tests in __tests__ and tests directories
   testMatch: ['**/__tests__/**/*.test.ts', '**/tests/**/*.test.ts'],
+  // Ignore node_modules directory
+  testPathIgnorePatterns: ['/node_modules/'],
   coveragePathIgnorePatterns: ['/node_modules/'],
   // Use default reporter only
   reporters: ['default'],

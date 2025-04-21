@@ -8,4 +8,4 @@
   "events": {
     "restart": "node scripts/kill-port.cjs 2999 3001"
   }
-} 
+}

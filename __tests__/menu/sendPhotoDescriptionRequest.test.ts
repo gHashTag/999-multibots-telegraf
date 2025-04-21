@@ -2,7 +2,9 @@ import makeMockContext from '../utils/mockTelegrafContext'
 
 // Mock createHelpCancelKeyboard
 jest.mock('@/menu', () => ({
-  createHelpCancelKeyboard: (isRu: boolean) => ({ reply_markup: { keyboard: isRu ? [['A']] : [['B']] } }),
+  createHelpCancelKeyboard: (isRu: boolean) => ({
+    reply_markup: { keyboard: isRu ? [['A']] : [['B']] },
+  }),
 }))
 import { sendPhotoDescriptionRequest } from '@/menu/sendPhotoDescriptionRequest'
 import { createHelpCancelKeyboard } from '@/menu'

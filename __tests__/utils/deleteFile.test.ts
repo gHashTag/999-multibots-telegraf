@@ -7,7 +7,9 @@ describe('deleteFile', () => {
   })
 
   it('should call fs.promises.unlink with given path', async () => {
-    const unlinkSpy = jest.spyOn(fs.promises, 'unlink').mockResolvedValue(undefined)
+    const unlinkSpy = jest
+      .spyOn(fs.promises, 'unlink')
+      .mockResolvedValue(undefined)
     const file = '/tmp/file.txt'
     await expect(deleteFile(file)).resolves.toBeUndefined()
     expect(unlinkSpy).toHaveBeenCalledWith(file)

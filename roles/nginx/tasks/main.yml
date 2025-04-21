@@ -2,7 +2,7 @@
 
 - name: Remove old bot location configs
   file:
-    path: "/etc/nginx/conf.d/{{ item }}"
+    path: '/etc/nginx/conf.d/{{ item }}'
     state: absent
   loop:
     - bot1.locations
@@ -84,7 +84,7 @@
 - name: Copy API location configuration
   template:
     src: api.locations.j2
-    dest: "/etc/nginx/conf.d/api.locations"
+    dest: '/etc/nginx/conf.d/api.locations'
     owner: root
     group: root
     mode: '0644'

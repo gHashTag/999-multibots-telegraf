@@ -12,7 +12,11 @@ import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 import { isRussian } from '@/helpers/language'
 // Импорты из @/core/supabase
-import { updateUserSoul, getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+import {
+  updateUserSoul,
+  getUserByTelegramId,
+  updateUserLevelPlusOne,
+} from '@/core/supabase'
 
 // Моки
 jest.mock('@/menu')
@@ -31,24 +35,26 @@ const mockedUpdateUserLevelPlusOne = jest.mocked(updateUserLevelPlusOne)
 const mockUserModel: UserModel = {
   model_name: 'test-brain-model',
   trigger_word: 'brain',
-  model_url: 'org/brain:latest'
+  model_url: 'org/brain:latest',
 }
 
 // Определяем тип для state, используемый в этом визарде
 interface AvatarBrainWizardState {
-  company?: string;
-  position?: string;
+  company?: string
+  position?: string
 }
 
 // Передаем state через sessionData
-const createMockSession = (initialState: AvatarBrainWizardState = {}): MySession => ({
+const createMockSession = (
+  initialState: AvatarBrainWizardState = {}
+): MySession => ({
   userModel: mockUserModel,
   targetUserId: 'user123',
   images: [],
   cursor: 0,
   // Передаем state через __scenes, типизируя его
   __scenes: { state: initialState } as any,
-});
+})
 
 // Мок для next()
 const mockNext = jest.fn<() => Promise<void>>().mockResolvedValue()
@@ -60,7 +66,9 @@ describe('avatarBrainWizard', () => {
     jest.clearAllMocks()
     mockedIsRussian.mockReturnValue(true)
     mockedHandleHelpCancel.mockResolvedValue(false)
-    mockedCreateHelpCancelKeyboard.mockReturnValue({ reply_markup: { keyboard: [['Help'], ['Cancel']] } } as any)
+    mockedCreateHelpCancelKeyboard.mockReturnValue({
+      reply_markup: { keyboard: [['Help'], ['Cancel']] },
+    } as any)
     // Настроим базовые возвращаемые значения
     mockedUpdateUserSoul.mockResolvedValue(undefined) // Возвращает void
     mockedGetUserByTelegramId.mockResolvedValue({ data: { level: 1 } }) // Базовый уровень
@@ -113,9 +121,15 @@ describe('avatarBrainWizard', () => {
 
   it('step 3: should save skills, update soul, check level <= 2 and leave', async () => {
     // Передаем company и position в начальном state
-    const session = createMockSession({ company: 'AcmeCorp', position: 'Developer' })
+    const session = createMockSession({
+      company: 'AcmeCorp',
+      position: 'Developer',
+    })
     const userFrom = { id: 555 } as User
-    ctx = makeMockContext({ message: { text: 'JS, TS', from: userFrom } } as Update, session)
+    ctx = makeMockContext(
+      { message: { text: 'JS, TS', from: userFrom } } as Update,
+      session
+    )
 
     // Устанавливаем нужный уровень для этого теста
     mockedGetUserByTelegramId.mockResolvedValue({ data: { level: 2 } })
@@ -124,10 +138,10 @@ describe('avatarBrainWizard', () => {
     await (step3 as MiddlewareFn<MyContext>)(ctx, mockNext)
 
     expect(mockedUpdateUserSoul).toHaveBeenCalledWith(
-      '555',        // userId
-      'AcmeCorp',   // company (из state)
-      'Developer',  // position (из state)
-      'JS, TS'      // skills (из message)
+      '555', // userId
+      'AcmeCorp', // company (из state)
+      'Developer', // position (из state)
+      'JS, TS' // skills (из message)
     )
     expect(ctx.reply).toHaveBeenCalledWith(
       expect.stringContaining('✅ Аватар успешно получил информацию'),
@@ -140,17 +154,31 @@ describe('avatarBrainWizard', () => {
   })
 
   it('step 3: should save skills, update soul, check level = 3, update level and leave', async () => {
-    const session = createMockSession({ company: 'BigCorp', position: 'Manager' })
+    const session = createMockSession({
+      company: 'BigCorp',
+      position: 'Manager',
+    })
     const userFrom = { id: 666 } as User
-    ctx = makeMockContext({ message: { text: 'Leadership', from: userFrom } } as Update, session)
+    ctx = makeMockContext(
+      { message: { text: 'Leadership', from: userFrom } } as Update,
+      session
+    )
 
     mockedGetUserByTelegramId.mockResolvedValue({ data: { level: 3 } })
 
     const step3 = avatarBrainWizard.steps[3]
     await (step3 as MiddlewareFn<MyContext>)(ctx, mockNext)
 
-    expect(mockedUpdateUserSoul).toHaveBeenCalledWith('666', 'BigCorp', 'Manager', 'Leadership')
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('✅ Аватар успешно получил информацию'), { parse_mode: 'HTML' })
+    expect(mockedUpdateUserSoul).toHaveBeenCalledWith(
+      '666',
+      'BigCorp',
+      'Manager',
+      'Leadership'
+    )
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('✅ Аватар успешно получил информацию'),
+      { parse_mode: 'HTML' }
+    )
     expect(mockedGetUserByTelegramId).toHaveBeenCalledWith(ctx)
     expect(mockedUpdateUserLevelPlusOne).toHaveBeenCalledWith('666', 3) // Уровень должен обновиться
     expect(ctx.scene.leave).toHaveBeenCalled()
@@ -160,15 +188,26 @@ describe('avatarBrainWizard', () => {
   it('step 3: should save skills, update soul, check level > 3 and leave', async () => {
     const session = createMockSession({ company: 'Startup', position: 'CTO' })
     const userFrom = { id: 777 } as User
-    ctx = makeMockContext({ message: { text: 'Strategy', from: userFrom } } as Update, session)
+    ctx = makeMockContext(
+      { message: { text: 'Strategy', from: userFrom } } as Update,
+      session
+    )
 
     mockedGetUserByTelegramId.mockResolvedValue({ data: { level: 4 } })
 
     const step3 = avatarBrainWizard.steps[3]
     await (step3 as MiddlewareFn<MyContext>)(ctx, mockNext)
 
-    expect(mockedUpdateUserSoul).toHaveBeenCalledWith('777', 'Startup', 'CTO', 'Strategy')
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('✅ Аватар успешно получил информацию'), { parse_mode: 'HTML' })
+    expect(mockedUpdateUserSoul).toHaveBeenCalledWith(
+      '777',
+      'Startup',
+      'CTO',
+      'Strategy'
+    )
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('✅ Аватар успешно получил информацию'),
+      { parse_mode: 'HTML' }
+    )
     expect(mockedGetUserByTelegramId).toHaveBeenCalledWith(ctx)
     expect(mockedUpdateUserLevelPlusOne).not.toHaveBeenCalled() // Уровень не должен обновляться
     expect(ctx.scene.leave).toHaveBeenCalled()
@@ -176,9 +215,15 @@ describe('avatarBrainWizard', () => {
   })
 
   it('step 3: should throw error if user not found', async () => {
-    const session = createMockSession({ company: 'Ghost Inc.', position: 'Phantom' })
+    const session = createMockSession({
+      company: 'Ghost Inc.',
+      position: 'Phantom',
+    })
     const userFrom = { id: 404 } as User
-    ctx = makeMockContext({ message: { text: 'Invisibility', from: userFrom } } as Update, session)
+    ctx = makeMockContext(
+      { message: { text: 'Invisibility', from: userFrom } } as Update,
+      session
+    )
 
     mockedGetUserByTelegramId.mockResolvedValue({ data: null }) // Пользователь не найден
 
@@ -188,9 +233,13 @@ describe('avatarBrainWizard', () => {
     ).rejects.toThrow('User with ID 404 does not exist.')
 
     // Проверяем, что updateUserSoul был вызван до ошибки
-    expect(mockedUpdateUserSoul).toHaveBeenCalledWith('404', 'Ghost Inc.', 'Phantom', 'Invisibility')
+    expect(mockedUpdateUserSoul).toHaveBeenCalledWith(
+      '404',
+      'Ghost Inc.',
+      'Phantom',
+      'Invisibility'
+    )
     expect(mockedUpdateUserLevelPlusOne).not.toHaveBeenCalled()
     expect(ctx.scene.leave).not.toHaveBeenCalled() // Не должен выйти штатно
   })
-
 })

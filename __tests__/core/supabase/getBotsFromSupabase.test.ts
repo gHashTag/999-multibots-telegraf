@@ -1,4 +1,3 @@
-
 // Prevent loading real .env file
 jest.mock('dotenv', () => ({ config: jest.fn() }))
 
@@ -34,8 +33,8 @@ describe('core/supabase getBotsFromSupabase', () => {
     // Mock supabaseAdmin.from().select().eq() to return error
     supabaseAdmin.from = jest.fn(() => ({
       select: () => ({
-        eq: async () => ({ data: null, error: { message: 'fail' } })
-      })
+        eq: async () => ({ data: null, error: { message: 'fail' } }),
+      }),
     }))
     const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {})
     const bots = await getBotsFromSupabase()
@@ -50,8 +49,8 @@ describe('core/supabase getBotsFromSupabase', () => {
     const { supabaseAdmin, getBotsFromSupabase } = supabaseModule
     supabaseAdmin.from = jest.fn(() => ({
       select: () => ({
-        eq: async () => ({ data: [], error: null })
-      })
+        eq: async () => ({ data: [], error: null }),
+      }),
     }))
     const infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => {})
     const bots = await getBotsFromSupabase()
@@ -65,20 +64,24 @@ describe('core/supabase getBotsFromSupabase', () => {
     const { supabaseAdmin, getBotsFromSupabase } = supabaseModule
     supabaseAdmin.from = jest.fn(() => ({
       select: () => ({
-        eq: async () => ({ data: fakeData, error: null })
-      })
+        eq: async () => ({ data: fakeData, error: null }),
+      }),
     }))
     const infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => {})
     const bots = await getBotsFromSupabase()
     expect(bots).toEqual(fakeData)
-    expect(infoSpy).toHaveBeenCalledWith(`Получено ${fakeData.length} ботов из Supabase`)
+    expect(infoSpy).toHaveBeenCalledWith(
+      `Получено ${fakeData.length} ботов из Supabase`
+    )
     infoSpy.mockRestore()
   })
-  
+
   it('logs error and returns empty array when supabaseAdmin throws exception', async () => {
     const { supabaseAdmin, getBotsFromSupabase } = supabaseModule
     // Simulate thrown error
-    supabaseAdmin.from = jest.fn(() => { throw new Error('fatal') })
+    supabaseAdmin.from = jest.fn(() => {
+      throw new Error('fatal')
+    })
     const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {})
     const bots = await getBotsFromSupabase()
     expect(bots).toEqual([])

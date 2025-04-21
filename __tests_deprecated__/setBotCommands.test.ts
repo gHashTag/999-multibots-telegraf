@@ -1,4 +1,3 @@
-
 // Mock botLogger to capture logs
 jest.mock('@/utils/logger', () => ({
   botLogger: {
@@ -62,9 +61,6 @@ describe('setBotCommands', () => {
     bot.botInfo = undefined
     const result = await setBotCommands(bot)
     expect(result).toBe(true)
-    expect(botLogger.info).toHaveBeenCalledWith(
-      'unknown',
-      expect.any(String)
-    )
+    expect(botLogger.info).toHaveBeenCalledWith('unknown', expect.any(String))
   })
 })

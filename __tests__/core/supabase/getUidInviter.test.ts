@@ -1,4 +1,3 @@
-
 describe('getUidInviter', () => {
   let builder: any
   let mockFrom: jest.Mock
@@ -30,7 +29,9 @@ describe('getUidInviter', () => {
   it('returns null and warns when no telegram_id provided', async () => {
     // @ts-ignore
     const res = await getUidInviter(undefined)
-    expect(consoleWarn).toHaveBeenCalledWith('No telegram_id provided to getUid')
+    expect(consoleWarn).toHaveBeenCalledWith(
+      'No telegram_id provided to getUid'
+    )
     expect(res).toBeNull()
   })
 
@@ -39,14 +40,18 @@ describe('getUidInviter', () => {
     builder.eq.mockReturnValueOnce(Promise.resolve({ data: null, error: err }))
     const res = await getUidInviter('42')
     expect(mockFrom).toHaveBeenCalledWith('users')
-    expect(builder.select).toHaveBeenCalledWith('user_id, username, telegram_id, balance')
+    expect(builder.select).toHaveBeenCalledWith(
+      'user_id, username, telegram_id, balance'
+    )
     expect(builder.eq).toHaveBeenCalledWith('telegram_id', '42')
     expect(consoleError).toHaveBeenCalledWith('Error getting user_id:', err)
     expect(res).toBeNull()
   })
 
   it('returns inviter info when data returned', async () => {
-    const data = [{ user_id: 'u1', username: 'user1', telegram_id: '42', balance: 100 }]
+    const data = [
+      { user_id: 'u1', username: 'user1', telegram_id: '42', balance: 100 },
+    ]
     builder.eq.mockReturnValueOnce(Promise.resolve({ data, error: null }))
     const res = await getUidInviter('42')
     expect(res).toEqual({

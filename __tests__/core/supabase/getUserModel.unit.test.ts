@@ -1,7 +1,6 @@
-
 // Mock supabase client
 jest.mock('@/core/supabase', () => ({
-  supabase: { from: jest.fn() }
+  supabase: { from: jest.fn() },
 }))
 import { supabase } from '@/core/supabase'
 import { getUserModel } from '@/core/supabase/getUserModel'
@@ -14,7 +13,9 @@ describe('getUserModel', () => {
   })
 
   it('returns default model when supabase returns error', async () => {
-    const mockSingle = jest.fn().mockResolvedValue({ data: null, error: { message: 'fail' } })
+    const mockSingle = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'fail' } })
     const builderEq = { single: mockSingle }
     const mockEq = jest.fn().mockReturnValue(builderEq)
     const mockSelect = jest.fn().mockReturnValue({ eq: mockEq })

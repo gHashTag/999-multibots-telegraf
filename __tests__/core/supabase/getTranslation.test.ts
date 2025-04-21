@@ -1,4 +1,3 @@
-
 describe('getTranslation', () => {
   let getTranslation: typeof import('@/core/supabase/getTranslation').getTranslation
   // Mocks
@@ -6,16 +5,26 @@ describe('getTranslation', () => {
   const mockEq = jest.fn().mockReturnThis()
   const mockSelect = jest.fn().mockReturnThis()
   const mockFrom = jest.fn().mockReturnValue({ select: mockSelect })
-  const ctx = { from: { language_code: 'en' }, telegram: { token: 'tok1' } } as any
+  const ctx = {
+    from: { language_code: 'en' },
+    telegram: { token: 'tok1' },
+  } as any
   const key = 'start'
   const gtbt = jest.fn().mockReturnValue({ bot_name: 'bot1' })
   // Fallback for key 'start' as per getFallbackTranslation
-  const expectedFallback = { translation: 'Добро пожаловать в NeuroBot! Бот готов помочь вам с нейросетями.', url: '' }
+  const expectedFallback = {
+    translation:
+      'Добро пожаловать в NeuroBot! Бот готов помочь вам с нейросетями.',
+    url: '',
+  }
 
   beforeEach(() => {
     jest.resetModules()
     // Mock core/bot and logger
-    jest.doMock('@/core/bot', () => ({ getBotNameByToken: gtbt, DEFAULT_BOT_NAME: 'defaultBot' }))
+    jest.doMock('@/core/bot', () => ({
+      getBotNameByToken: gtbt,
+      DEFAULT_BOT_NAME: 'defaultBot',
+    }))
     jest.doMock('@/utils/logger', () => ({ warn: jest.fn(), error: jest.fn() }))
     // Mock supabase
     // fetchTranslation uses supabase.from().select().eq().eq().eq().single()
@@ -34,7 +43,10 @@ describe('getTranslation', () => {
   })
 
   it('returns translation when first fetch succeeds', async () => {
-    mockSingle.mockResolvedValue({ data: { translation: 't1', url: 'u1' }, error: null })
+    mockSingle.mockResolvedValue({
+      data: { translation: 't1', url: 'u1' },
+      error: null,
+    })
     const res = await getTranslation({ key, ctx, bot_name: 'bot1' })
     expect(res).toEqual({ translation: 't1', url: 'u1' })
   })
@@ -43,7 +55,10 @@ describe('getTranslation', () => {
     // First call error
     mockSingle.mockResolvedValueOnce({ data: null, error: { message: 'e1' } })
     // Second call success
-    mockSingle.mockResolvedValueOnce({ data: { translation: 't2', url: 'u2' }, error: null })
+    mockSingle.mockResolvedValueOnce({
+      data: { translation: 't2', url: 'u2' },
+      error: null,
+    })
     const res = await getTranslation({ key, ctx, bot_name: undefined })
     expect(gtbt).toHaveBeenCalledWith('tok1')
     expect(res).toEqual({ translation: 't2', url: 'u2' })
@@ -56,7 +71,9 @@ describe('getTranslation', () => {
   })
 
   it('returns fallback on exception', async () => {
-    mockSelect.mockImplementation(() => { throw new Error('oops') })
+    mockSelect.mockImplementation(() => {
+      throw new Error('oops')
+    })
     const res = await getTranslation({ key, ctx, bot_name: 'bot1' })
     expect(res).toEqual(expectedFallback)
   })

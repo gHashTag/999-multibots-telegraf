@@ -12,8 +12,8 @@ describe('helpers index', () => {
     expect(typeof helpers.ensureDirectoryExistence).toBe('function')
     expect(helpers).toHaveProperty('pulse')
     expect(typeof helpers.pulse).toBe('function')
-    expect(helpers).toHaveProperty('language')
-    expect(typeof helpers.language).toBe('function')
+    expect(helpers).toHaveProperty('isRussian')
+    expect(typeof helpers.isRussian).toBe('function')
     // images helpers
     expect(helpers).toHaveProperty('createImagesZip')
     expect(typeof helpers.createImagesZip).toBe('function')

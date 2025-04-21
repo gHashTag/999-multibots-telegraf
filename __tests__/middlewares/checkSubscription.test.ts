@@ -12,19 +12,25 @@ describe('checkSubscription', () => {
   })
 
   it('returns true for member statuses', async () => {
-    ;(ctx.telegram.getChatMember as jest.Mock).mockResolvedValue({ status: 'member' })
+    ;(ctx.telegram.getChatMember as jest.Mock).mockResolvedValue({
+      status: 'member',
+    })
     await expect(checkSubscription(ctx, channel)).resolves.toBe(true)
     expect(ctx.telegram.getChatMember).toHaveBeenCalledWith('@mychannel', 123)
   })
 
   it('returns false for non-member statuses', async () => {
-    ;(ctx.telegram.getChatMember as jest.Mock).mockResolvedValue({ status: 'left' })
+    ;(ctx.telegram.getChatMember as jest.Mock).mockResolvedValue({
+      status: 'left',
+    })
     await expect(checkSubscription(ctx, channel)).resolves.toBe(false)
   })
 
   it('throws error when from.id undefined', async () => {
     ctx.from = {}
-    await expect(checkSubscription(ctx, channel)).rejects.toThrow('User ID is undefined')
+    await expect(checkSubscription(ctx, channel)).rejects.toThrow(
+      'User ID is undefined'
+    )
   })
 
   it('propagates error from getChatMember', async () => {

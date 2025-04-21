@@ -19,7 +19,9 @@ describe('core/replicate client and utilities', () => {
     expect(replicate.opts).toEqual({ auth: 'rep-token' })
   })
   it('modelPricing contains expected entries', () => {
-    expect(modelPricing['black-forest-labs/flux-1.1-pro']).toBe('$0.040 / image')
+    expect(modelPricing['black-forest-labs/flux-1.1-pro']).toBe(
+      '$0.040 / image'
+    )
     expect(modelPricing['ideogram-ai/ideogram-v2']).toBe('$0.080 / image')
   })
   describe('models.flux.getInput', () => {
@@ -33,15 +35,18 @@ describe('core/replicate client and utilities', () => {
     })
     it('handles 1:1', () => {
       const input = models.flux.getInput('p', '1:1')
-      expect(input.width).toBe(1024); expect(input.height).toBe(1024)
+      expect(input.width).toBe(1024)
+      expect(input.height).toBe(1024)
     })
     it('handles 9:16', () => {
       const input = models.flux.getInput('p', '9:16')
-      expect(input.width).toBe(768); expect(input.height).toBe(1368)
+      expect(input.width).toBe(768)
+      expect(input.height).toBe(1368)
     })
     it('defaults dims for unknown ratio', () => {
       const input = models.flux.getInput('p', 'foo')
-      expect(input.width).toBe(1368); expect(input.height).toBe(1024)
+      expect(input.width).toBe(1368)
+      expect(input.height).toBe(1024)
     })
   })
   it('invokes getInput wrapper for all models', () => {

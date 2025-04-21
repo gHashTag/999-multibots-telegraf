@@ -28,7 +28,9 @@ const mockedUploadVideoToServer = uploadVideoToServer as jest.MockedFunction<
 >
 const mockedCancelMenu = cancelMenu as jest.Mock
 const mockedSendGenericError = sendGenericErrorMessage as jest.Mock
-const mockedHandleHelpCancel = handleHelpCancel as jest.MockedFunction<typeof handleHelpCancel>
+const mockedHandleHelpCancel = handleHelpCancel as jest.MockedFunction<
+  typeof handleHelpCancel
+>
 
 // Определяем мок next
 const mockNext = jest.fn<() => Promise<void>>().mockResolvedValue()
@@ -36,7 +38,10 @@ const mockNext = jest.fn<() => Promise<void>>().mockResolvedValue()
 describe('uploadVideoScene', () => {
   let ctx: MockContextWithSession<Scenes.WizardSessionData & MySession>
   const mockBotInfo: UserFromGetMe = {
-    id: 1, is_bot: true, first_name: 'TestBot', username: 'TestBot',
+    id: 1,
+    is_bot: true,
+    first_name: 'TestBot',
+    username: 'TestBot',
     can_join_groups: true,
     can_read_all_group_messages: false,
     supports_inline_queries: false,
@@ -75,7 +80,13 @@ describe('uploadVideoScene', () => {
 
   it('step1: handles cancel', async () => {
     // Создаем контекст с сообщением 'Отмена'
-    const cancelMessage: Message.TextMessage = { message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'User' }, from: { id: 1, is_bot: false, first_name: 'User' }, text: 'Отмена' }
+    const cancelMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'User' },
+      from: { id: 1, is_bot: false, first_name: 'User' },
+      text: 'Отмена',
+    }
     ctx = makeMockContext(
       { update_id: 1, message: cancelMessage },
       { scene: { enter: jest.fn(), leave: jest.fn() }, session: {} },
@@ -93,8 +104,18 @@ describe('uploadVideoScene', () => {
   it('step1: handles large video file', async () => {
     // Создаем контекст с большим видео
     const largeVideoMessage: Message.VideoMessage = {
-      message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'User' }, from: { id: 1, is_bot: false, first_name: 'User' },
-      video: { file_id: 'vid1', file_unique_id: 'vid1_unique', duration: 10, width: 10, height: 10, file_size: 60 * 1024 * 1024 }
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'User' },
+      from: { id: 1, is_bot: false, first_name: 'User' },
+      video: {
+        file_id: 'vid1',
+        file_unique_id: 'vid1_unique',
+        duration: 10,
+        width: 10,
+        height: 10,
+        file_size: 60 * 1024 * 1024,
+      },
     }
     ctx = makeMockContext(
       { update_id: 1, message: largeVideoMessage },
@@ -112,7 +133,13 @@ describe('uploadVideoScene', () => {
 
   it('step1: handles non-video message', async () => {
     // Создаем контекст с текстовым сообщением
-    const textMessage: Message.TextMessage = { message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'User' }, from: { id: 1, is_bot: false, first_name: 'User' }, text: 'hello' }
+    const textMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'User' },
+      from: { id: 1, is_bot: false, first_name: 'User' },
+      text: 'hello',
+    }
     ctx = makeMockContext(
       { update_id: 1, message: textMessage },
       { scene: { enter: jest.fn(), leave: jest.fn() }, session: {} },
@@ -130,8 +157,18 @@ describe('uploadVideoScene', () => {
   it('step1: processes valid video and asks for voice', async () => {
     // Создаем контекст с валидным видео
     const validVideoMessage: Message.VideoMessage = {
-      message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'User' }, from: { id: 1, is_bot: false, first_name: 'User' },
-      video: { file_id: 'vid2', file_unique_id: 'vid2_unique', duration: 10, width: 10, height: 10, file_size: 10 * 1024 * 1024 }
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'User' },
+      from: { id: 1, is_bot: false, first_name: 'User' },
+      video: {
+        file_id: 'vid2',
+        file_unique_id: 'vid2_unique',
+        duration: 10,
+        width: 10,
+        height: 10,
+        file_size: 10 * 1024 * 1024,
+      },
     }
     ctx = makeMockContext(
       { update_id: 1, message: validVideoMessage },
@@ -154,10 +191,19 @@ describe('uploadVideoScene', () => {
 
   it('step2: handles cancel', async () => {
     // Создаем контекст с сообщением 'Отмена'
-    const cancelMessage: Message.TextMessage = { message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'User' }, from: { id: 2, is_bot: false, first_name: 'User' }, text: 'Отмена' }
+    const cancelMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'User' },
+      from: { id: 2, is_bot: false, first_name: 'User' },
+      text: 'Отмена',
+    }
     ctx = makeMockContext(
       { update_id: 1, message: cancelMessage },
-      { scene: { enter: jest.fn(), leave: jest.fn() }, session: { videoUrl: 'url.mp4' } },
+      {
+        scene: { enter: jest.fn(), leave: jest.fn() },
+        session: { videoUrl: 'url.mp4' },
+      },
       { botInfo: mockBotInfo }
     )
     mockedHandleHelpCancel.mockResolvedValue(true)
@@ -171,10 +217,19 @@ describe('uploadVideoScene', () => {
 
   it('step2: handles non-voice/audio message', async () => {
     // Создаем контекст с текстовым сообщением
-    const textMessage: Message.TextMessage = { message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'User' }, from: { id: 3, is_bot: false, first_name: 'User' }, text: 'some text' }
+    const textMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'User' },
+      from: { id: 3, is_bot: false, first_name: 'User' },
+      text: 'some text',
+    }
     ctx = makeMockContext(
       { update_id: 1, message: textMessage },
-      { scene: { enter: jest.fn(), leave: jest.fn() }, session: { videoUrl: 'url.mp4' } },
+      {
+        scene: { enter: jest.fn(), leave: jest.fn() },
+        session: { videoUrl: 'url.mp4' },
+      },
       { botInfo: mockBotInfo }
     )
     mockedHandleHelpCancel.mockResolvedValue(false)
@@ -189,12 +244,23 @@ describe('uploadVideoScene', () => {
   it('step2: processes valid voice message and generates avatar', async () => {
     // Создаем контекст с голосовым сообщением
     const voiceMessage: Message.VoiceMessage = {
-      message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'User' }, from: { id: 4, is_bot: false, first_name: 'User' },
-      voice: { file_id: 'voice1', file_unique_id: 'voice1_unique', duration: 30, mime_type: 'audio/ogg' }
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'User' },
+      from: { id: 4, is_bot: false, first_name: 'User' },
+      voice: {
+        file_id: 'voice1',
+        file_unique_id: 'voice1_unique',
+        duration: 30,
+        mime_type: 'audio/ogg',
+      },
     }
     ctx = makeMockContext(
       { update_id: 1, message: voiceMessage },
-      { scene: { enter: jest.fn(), leave: jest.fn() }, session: { videoUrl: 'url.mp4' } },
+      {
+        scene: { enter: jest.fn(), leave: jest.fn() },
+        session: { videoUrl: 'url.mp4' },
+      },
       { botInfo: mockBotInfo }
     )
     mockedHandleHelpCancel.mockResolvedValue(false)
@@ -203,8 +269,15 @@ describe('uploadVideoScene', () => {
     // Вызываем шаг с next
     await step2(ctx, mockNext)
 
-    expect(mockedUploadVideoToServer).toHaveBeenCalledWith(ctx, 'url.mp4', 'voice1', '4')
-    expect(ctx.reply).toHaveBeenCalledWith('Видео успешно загружено и обрабатывается.')
+    expect(mockedUploadVideoToServer).toHaveBeenCalledWith(
+      ctx,
+      'url.mp4',
+      'voice1',
+      '4'
+    )
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Видео успешно загружено и обрабатывается.'
+    )
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 })

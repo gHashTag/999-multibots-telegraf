@@ -44,6 +44,7 @@ curl -s "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"
 ```
 
 Например:
+
 ```bash
 curl -s "https://api.telegram.org/bot7655182164:AAH-bql07FKmsVm4GsT6d2GvFEE4NRoUnMw/getWebhookInfo"
 ```
@@ -96,8 +97,8 @@ docker-compose -f docker-compose.multi.yml up -d
 1. Если бот не отвечает:
    - Проверьте логи: `docker-compose -f docker-compose.webhook.yml logs webhook-bot -f`
    - Проверьте статус webhook: `curl -s "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"`
-   
 2. Если в логах ошибка авторизации (401):
+
    - Проверьте правильность токена в .env файле
    - Возможно, токен был отозван или заменен
 
@@ -107,6 +108,7 @@ docker-compose -f docker-compose.multi.yml up -d
 ## Важные дополнения
 
 1. Webhook имеет преимущество над long polling. Если вы переключаетесь между режимами, убедитесь что предыдущий контейнер остановлен:
+
    ```bash
    docker-compose -f docker-compose.multi.yml down
    docker-compose -f docker-compose.webhook.yml down
@@ -118,4 +120,4 @@ docker-compose -f docker-compose.multi.yml up -d
      '<TOKEN>': '<BOT_NAME>',
      // ...
    }
-   ``` 
+   ```

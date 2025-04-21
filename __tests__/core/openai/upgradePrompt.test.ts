@@ -14,7 +14,9 @@ describe('upgradePrompt', () => {
 
   it('returns upgraded prompt from OpenAI', async () => {
     const upgraded = 'enhanced prompt'
-    mockCreate.mockResolvedValue({ choices: [{ message: { content: upgraded } }] })
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: upgraded } }],
+    })
     const result = await upgradePrompt('original prompt')
     expect(result).toBe(upgraded)
   })

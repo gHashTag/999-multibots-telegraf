@@ -39,17 +39,43 @@ describe('trainFluxModelWizard', () => {
     ctx = makeMockContext(
       { update_id: 1 },
       { scene: { enter: jest.fn(), leave: jest.fn() }, session: {} },
-      { botInfo: { id: 1, is_bot: true, first_name: 'Bot', username: 'TestBot' } }
+      {
+        botInfo: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Bot',
+          username: 'TestBot',
+        },
+      }
     )
   })
 
   it('step 0: valid message sets session and advances wizard', async () => {
     mockedIsRussian.mockReturnValue(false)
-    const message: Message.TextMessage = { message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'Bob' }, from: { id: 111, is_bot: false, first_name: 'Bob', username: 'Bob', language_code: 'en' }, text: '/trainFluxModelWizard 9876 Bob' }
+    const message: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'Bob' },
+      from: {
+        id: 111,
+        is_bot: false,
+        first_name: 'Bob',
+        username: 'Bob',
+        language_code: 'en',
+      },
+      text: '/trainFluxModelWizard 9876 Bob',
+    }
     ctx = makeMockContext(
       { update_id: 1, message },
       { scene: { enter: jest.fn(), leave: jest.fn() }, session: {} },
-      { botInfo: { id: 1, is_bot: true, first_name: 'Bot', username: 'TestBot' } }
+      {
+        botInfo: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Bot',
+          username: 'TestBot',
+        },
+      }
     )
 
     await step0(ctx, mockNext)
@@ -68,11 +94,24 @@ describe('trainFluxModelWizard', () => {
 
   it('step 0: missing username replies error and leaves', async () => {
     mockedIsRussian.mockReturnValue(false)
-    const message: Message.TextMessage = { message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'User' }, from: { id: 112, is_bot: false, first_name: 'User', language_code: 'en' }, text: '/trainFluxModelWizard 1234' }
+    const message: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'User' },
+      from: { id: 112, is_bot: false, first_name: 'User', language_code: 'en' },
+      text: '/trainFluxModelWizard 1234',
+    }
     ctx = makeMockContext(
       { update_id: 1, message },
       { scene: { enter: jest.fn(), leave: jest.fn() }, session: {} },
-      { botInfo: { id: 1, is_bot: true, first_name: 'Bot', username: 'TestBot' } }
+      {
+        botInfo: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Bot',
+          username: 'TestBot',
+        },
+      }
     )
 
     await step0(ctx, mockNext)
@@ -85,11 +124,27 @@ describe('trainFluxModelWizard', () => {
 
   it('step 1: /done with <10 images prompts count and does not leave', async () => {
     mockedIsRussian.mockReturnValue(false)
-    const message: Message.TextMessage = { message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'User' }, from: { id: 113, is_bot: false, first_name: 'User', language_code: 'en' }, text: '/done' }
+    const message: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'User' },
+      from: { id: 113, is_bot: false, first_name: 'User', language_code: 'en' },
+      text: '/done',
+    }
     ctx = makeMockContext(
       { update_id: 1, message },
-      { scene: { enter: jest.fn(), leave: jest.fn() }, session: { images: [] } },
-      { botInfo: { id: 1, is_bot: true, first_name: 'Bot', username: 'TestBot' } }
+      {
+        scene: { enter: jest.fn(), leave: jest.fn() },
+        session: { images: [] },
+      },
+      {
+        botInfo: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Bot',
+          username: 'TestBot',
+        },
+      }
     )
     mockedHandleHelpCancel.mockResolvedValue(false)
 
@@ -104,12 +159,28 @@ describe('trainFluxModelWizard', () => {
 
   it('step 1: /done with >=10 images enters upload scene', async () => {
     mockedIsRussian.mockReturnValue(false)
-    const message: Message.TextMessage = { message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'User' }, from: { id: 114, is_bot: false, first_name: 'User', language_code: 'en' }, text: '/done' }
+    const message: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'User' },
+      from: { id: 114, is_bot: false, first_name: 'User', language_code: 'en' },
+      text: '/done',
+    }
     const initialSession = { images: Array(10).fill('file_id') }
     ctx = makeMockContext(
       { update_id: 1, message },
-      { scene: { enter: jest.fn(), leave: jest.fn() }, session: initialSession },
-      { botInfo: { id: 1, is_bot: true, first_name: 'Bot', username: 'TestBot' } }
+      {
+        scene: { enter: jest.fn(), leave: jest.fn() },
+        session: initialSession,
+      },
+      {
+        botInfo: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Bot',
+          username: 'TestBot',
+        },
+      }
     )
     mockedHandleHelpCancel.mockResolvedValue(false)
 
@@ -120,11 +191,27 @@ describe('trainFluxModelWizard', () => {
 
   it('step 1: cancel leaves the scene', async () => {
     mockedIsRussian.mockReturnValue(false)
-    const message: Message.TextMessage = { message_id: 1, date: 1, chat: { id: 1, type: 'private', first_name: 'User' }, from: { id: 115, is_bot: false, first_name: 'User', language_code: 'en' }, text: 'irrelevant' }
+    const message: Message.TextMessage = {
+      message_id: 1,
+      date: 1,
+      chat: { id: 1, type: 'private', first_name: 'User' },
+      from: { id: 115, is_bot: false, first_name: 'User', language_code: 'en' },
+      text: 'irrelevant',
+    }
     ctx = makeMockContext(
       { update_id: 1, message },
-      { scene: { enter: jest.fn(), leave: jest.fn() }, session: { images: [] } },
-      { botInfo: { id: 1, is_bot: true, first_name: 'Bot', username: 'TestBot' } }
+      {
+        scene: { enter: jest.fn(), leave: jest.fn() },
+        session: { images: [] },
+      },
+      {
+        botInfo: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Bot',
+          username: 'TestBot',
+        },
+      }
     )
     mockedHandleHelpCancel.mockResolvedValue(true)
 

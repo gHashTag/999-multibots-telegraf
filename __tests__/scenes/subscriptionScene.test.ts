@@ -40,9 +40,9 @@ describe('subscriptionScene', () => {
     const err = new Error('fail')
     // @ts-ignore: jest.Mock typing workaround for mockRejectedValueOnce
     // Передаем мок reply в первый аргумент update
-    const ctx = makeMockContext({ 
+    const ctx = makeMockContext({
       // @ts-ignore
-      reply: jest.fn<() => Promise<any>>().mockRejectedValueOnce(err) 
+      reply: jest.fn<() => Promise<any>>().mockRejectedValueOnce(err),
     })
     // @ts-ignore: requireMock returns unknown
     const isRu = (jest.requireMock('../../src/helpers') as any).isRussian
@@ -56,7 +56,9 @@ describe('subscriptionScene', () => {
 
   it('step 1: processes valid callback data', async () => {
     // Передаем callback_query в update
-    const ctx = makeMockContext({ callback_query: { data: 'neurobase' } as any })
+    const ctx = makeMockContext({
+      callback_query: { data: 'neurobase' } as any,
+    })
     // @ts-ignore: requireMock returns unknown
     const isRu = (jest.requireMock('../../src/helpers') as any).isRussian
     isRu.mockReturnValue(true)

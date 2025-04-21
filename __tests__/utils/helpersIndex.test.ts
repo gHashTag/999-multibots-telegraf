@@ -1,4 +1,3 @@
-
 describe('helpers index exports', () => {
   let helpers: typeof import('@/helpers')
   beforeEach(() => {

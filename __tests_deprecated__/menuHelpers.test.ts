@@ -60,14 +60,28 @@ describe('getStepSelectionMenu', () => {
   it('builds first-level step menu in Russian', () => {
     const kb = getStepSelectionMenu(true) as any
     const rows = kb.reply_markup.keyboard
-    expect(rows[0]).toEqual([{ text: '1000 шагов' }, { text: '1500 шагов' }, { text: '2000 шагов' }])
-    expect(rows[3]).toEqual([{ text: 'Справка по команде' }, { text: 'Отмена' }])
+    expect(rows[0]).toEqual([
+      { text: '1000 шагов' },
+      { text: '1500 шагов' },
+      { text: '2000 шагов' },
+    ])
+    expect(rows[3]).toEqual([
+      { text: 'Справка по команде' },
+      { text: 'Отмена' },
+    ])
   })
   it('builds first-level step menu in English', () => {
     const kb = getStepSelectionMenu(false) as any
     const rows = kb.reply_markup.keyboard
-    expect(rows[0]).toEqual([{ text: '1000 steps' }, { text: '1500 steps' }, { text: '2000 steps' }])
-    expect(rows[3]).toEqual([{ text: 'Help for the command' }, { text: 'Cancel' }])
+    expect(rows[0]).toEqual([
+      { text: '1000 steps' },
+      { text: '1500 steps' },
+      { text: '2000 steps' },
+    ])
+    expect(rows[3]).toEqual([
+      { text: 'Help for the command' },
+      { text: 'Cancel' },
+    ])
   })
 })
 
@@ -75,14 +89,28 @@ describe('getStepSelectionMenuV2', () => {
   it('builds second-level step menu in Russian', () => {
     const kb = getStepSelectionMenuV2(true) as any
     const rows = kb.reply_markup.keyboard
-    expect(rows[0]).toEqual([{ text: '100 шагов' }, { text: '200 шагов' }, { text: '300 шагов' }])
-    expect(rows[3]).toEqual([{ text: 'Справка по команде' }, { text: 'Отмена' }])
+    expect(rows[0]).toEqual([
+      { text: '100 шагов' },
+      { text: '200 шагов' },
+      { text: '300 шагов' },
+    ])
+    expect(rows[3]).toEqual([
+      { text: 'Справка по команде' },
+      { text: 'Отмена' },
+    ])
   })
   it('builds second-level step menu in English', () => {
     const kb = getStepSelectionMenuV2(false) as any
     const rows = kb.reply_markup.keyboard
-    expect(rows[0]).toEqual([{ text: '100 steps' }, { text: '200 steps' }, { text: '300 steps' }])
-    expect(rows[3]).toEqual([{ text: 'Help for the command' }, { text: 'Cancel' }])
+    expect(rows[0]).toEqual([
+      { text: '100 steps' },
+      { text: '200 steps' },
+      { text: '300 steps' },
+    ])
+    expect(rows[3]).toEqual([
+      { text: 'Help for the command' },
+      { text: 'Cancel' },
+    ])
   })
 })
 
@@ -119,10 +147,16 @@ describe('imageModelMenu', () => {
       expect.objectContaining({
         reply_markup: expect.objectContaining({
           keyboard: expect.arrayContaining([
-            expect.arrayContaining([{ text: 'FLUX1.1 [pro]' }, { text: 'FLUX1.1 [pro] Ultra' }]),
-            expect.arrayContaining([{ text: 'Отмена' }, { text: 'Справка по команде' }])
-          ])
-        })
+            expect.arrayContaining([
+              { text: 'FLUX1.1 [pro]' },
+              { text: 'FLUX1.1 [pro] Ultra' },
+            ]),
+            expect.arrayContaining([
+              { text: 'Отмена' },
+              { text: 'Справка по команде' },
+            ]),
+          ]),
+        }),
       })
     )
   })
@@ -136,10 +170,16 @@ describe('imageModelMenu', () => {
       expect.objectContaining({
         reply_markup: expect.objectContaining({
           keyboard: expect.arrayContaining([
-            expect.arrayContaining([{ text: 'FLUX1.1 [pro]' }, { text: 'FLUX1.1 [pro] Ultra' }]),
-            expect.arrayContaining([{ text: 'Cancel' }, { text: 'Help for the command' }])
-          ])
-        })
+            expect.arrayContaining([
+              { text: 'FLUX1.1 [pro]' },
+              { text: 'FLUX1.1 [pro] Ultra' },
+            ]),
+            expect.arrayContaining([
+              { text: 'Cancel' },
+              { text: 'Help for the command' },
+            ]),
+          ]),
+        }),
       })
     )
   })

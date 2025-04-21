@@ -17,9 +17,13 @@ jest.mock('@/handlers/handleHelpCancel', () => ({
 }))
 
 // Typing mocks
-const mockedSaveUserEmail = saveUserEmail as jest.Mock< (userId: string, email: string) => Promise<void> >
+const mockedSaveUserEmail = saveUserEmail as jest.Mock<
+  (userId: string, email: string) => Promise<void>
+>
 const mockedIsRussian = isRussian as jest.Mock<() => boolean>
-const mockedHandleCancel = handleHelpCancel as jest.Mock<(...args: any[]) => Promise<boolean>>
+const mockedHandleCancel = handleHelpCancel as jest.Mock<
+  (...args: any[]) => Promise<boolean>
+>
 
 describe('emailWizardEnterHandler', () => {
   beforeEach(() => {

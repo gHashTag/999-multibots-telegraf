@@ -1,11 +1,15 @@
-
 describe('getLatestUserModel', () => {
   let getLatestUserModel: typeof import('@/core/supabase/getLatestUserModel').getLatestUserModel
   let chain: any
   const mockFrom = jest.fn()
   const telegram_id = 123
   const api = 'test-api'
-  const modelData = { telegram_id, api, status: 'SUCCESS', created_at: '2025-04-01T00:00:00Z' }
+  const modelData = {
+    telegram_id,
+    api,
+    status: 'SUCCESS',
+    created_at: '2025-04-01T00:00:00Z',
+  }
 
   beforeEach(() => {
     jest.resetModules()
@@ -21,12 +25,15 @@ describe('getLatestUserModel', () => {
     jest.doMock('@/core/supabase', () => ({ supabase: { from: mockFrom } }))
     jest.isolateModules(() => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      getLatestUserModel = require('@/core/supabase/getLatestUserModel').getLatestUserModel
+      getLatestUserModel =
+        require('@/core/supabase/getLatestUserModel').getLatestUserModel
     })
   })
 
   it('returns model data on success', async () => {
-    chain.then.mockImplementation(resolve => resolve({ data: modelData, error: null }))
+    chain.then.mockImplementation(resolve =>
+      resolve({ data: modelData, error: null })
+    )
     const res = await getLatestUserModel(telegram_id, api)
     expect(mockFrom).toHaveBeenCalledWith('model_trainings')
     expect(chain.select).toHaveBeenCalledWith('*')
@@ -39,13 +46,17 @@ describe('getLatestUserModel', () => {
   })
 
   it('returns null on error', async () => {
-    chain.then.mockImplementation(resolve => resolve({ data: null, error: { message: 'fail' } }))
+    chain.then.mockImplementation(resolve =>
+      resolve({ data: null, error: { message: 'fail' } })
+    )
     const res = await getLatestUserModel(telegram_id, api)
     expect(res).toBeNull()
   })
 
   it('returns null on exception', async () => {
-    chain.select.mockImplementation(() => { throw new Error('oops') })
+    chain.select.mockImplementation(() => {
+      throw new Error('oops')
+    })
     const res = await getLatestUserModel(telegram_id, api)
     expect(res).toBeNull()
   })

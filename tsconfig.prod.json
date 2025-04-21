@@ -40,5 +40,11 @@
     }
   },
   "include": ["src/**/*.ts", "src/**/*.json", ".env"],
-  "exclude": ["node_modules", "src/http", "src/logs", "**/*.test.ts", "**/*.spec.ts"]
-} 
+  "exclude": [
+    "node_modules",
+    "src/http",
+    "src/logs",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}

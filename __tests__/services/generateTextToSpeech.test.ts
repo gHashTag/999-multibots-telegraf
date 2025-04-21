@@ -5,8 +5,8 @@ import {
   jest,
   beforeEach,
   afterEach,
-import axios from 'axios'
-import makeMockContext from '../../../__tests__/utils/mockTelegrafContext'
+} from '@jest/globals'
+import makeMockContext from '../utils/mockTelegrafContext'
 import { MyContext } from '@/interfaces'
 
 // Mock config and dependencies

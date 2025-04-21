@@ -1,4 +1,3 @@
-
 describe('setModel', () => {
   let setModel: typeof import('@/core/supabase/setModel').setModel
   const telegram_id = '42'

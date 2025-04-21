@@ -1,4 +1,3 @@
-
 // Mock supabase client
 jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
 import { supabase } from '@/core/supabase'
@@ -22,10 +21,15 @@ describe('getHistory', () => {
     chain.eq = jest.fn().mockReturnValue({ data: null, error: mockError })
     const selectMock = jest.fn().mockReturnValue(chain)
     ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
     const result = await getHistory(brand, command, type)
     expect(result).toEqual([])
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching lifehacks history:', mockError)
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Error fetching lifehacks history:',
+      mockError
+    )
     consoleErrorSpy.mockRestore()
   })
 
@@ -38,7 +42,9 @@ describe('getHistory', () => {
     chain.eq = jest.fn().mockReturnValue({ data: sampleData, error: null })
     const selectMock = jest.fn().mockReturnValue(chain)
     ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
-    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
+    const consoleLogSpy = jest
+      .spyOn(console, 'log')
+      .mockImplementation(() => {})
     const result = await getHistory(brand, command, type)
     expect(result).toBe(sampleData)
     expect(consoleLogSpy).toHaveBeenCalledWith(sampleData)

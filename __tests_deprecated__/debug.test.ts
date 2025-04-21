@@ -1,6 +1,13 @@
 import fs from 'fs'
 import path from 'path'
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals'
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals'
 
 // Mock fs module
 jest.mock('fs')
@@ -47,12 +54,18 @@ describe('Debug Config Loading', () => {
     // Mock existsSync to return true
     mockFs.existsSync.mockReturnValue(true)
     // Mock require to throw an error
-    jest.mock(debugConfigPath, () => {
-      throw requireError
-    }, { virtual: true })
+    jest.mock(
+      debugConfigPath,
+      () => {
+        throw requireError
+      },
+      { virtual: true }
+    )
 
     // Mock console.error
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
 
     const loadedConfig = loadDebugConfig()
     expect(loadedConfig).toEqual({}) // Should return empty object on error
@@ -76,7 +89,9 @@ describe('config debug loading block', () => {
     delete process.env.JEST_WORKER_ID
     try {
       fs.writeFileSync(envPath, 'FOO=bar')
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
     logSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
     errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
   })
@@ -112,9 +127,13 @@ describe('config debug loading block', () => {
   })
 
   it('handles error if .env file does not exist', () => {
-    try { fs.unlinkSync(envPath) } catch {}
+    try {
+      fs.unlinkSync(envPath)
+    } catch {}
     require('../../src/config')
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Error loading .env file'))
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Error loading .env file')
+    )
     expect(logSpy).toHaveBeenCalledWith('Executing in debug mode...')
     expect(process.env.FOO).toBeUndefined()
   })

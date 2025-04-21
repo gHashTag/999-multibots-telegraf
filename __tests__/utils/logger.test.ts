@@ -26,16 +26,23 @@ jest.mock('@/utils/logger', () => ({
   // Убираем logSecurityEvent из мока модуля
   // Используем jest.requireActual для этого
   // Добавляем явное указание типа
-  logSecurityEvent: (jest.requireActual('@/utils/logger') as typeof LoggerTypes).logSecurityEvent,
+  logSecurityEvent: (jest.requireActual('@/utils/logger') as typeof LoggerTypes)
+    .logSecurityEvent,
 }))
 
 // Теперь импортируем мокированные версии
-import logger, { botLogger, securityLogger, logSecurityEvent } from '../../src/utils/logger'
+import logger, {
+  botLogger,
+  securityLogger,
+  logSecurityEvent,
+} from '../../src/utils/logger'
 
 // Типизируем мокированные объекты/функции для TypeScript
 const mockedLogger = logger as jest.Mocked<typeof logger>
 const mockedBotLogger = botLogger as jest.Mocked<typeof botLogger>
-const mockedSecurityLogger = securityLogger as jest.Mocked<typeof securityLogger>
+const mockedSecurityLogger = securityLogger as jest.Mocked<
+  typeof securityLogger
+>
 
 describe.skip('botLogger', () => {
   beforeEach(() => {
@@ -46,7 +53,9 @@ describe.skip('botLogger', () => {
   it('info logs with bot name prefix', () => {
     mockedBotLogger.info('botX', 'message', { extra: true })
     // Проверяем вызов конкретного мока
-    expect(mockedLogger.info).toHaveBeenCalledWith('[botX] message', { extra: true })
+    expect(mockedLogger.info).toHaveBeenCalledWith('[botX] message', {
+      extra: true,
+    })
   })
   it('warn logs with bot name prefix', () => {
     mockedBotLogger.warn('botY', 'warnmsg', { w: 1 })
@@ -54,7 +63,9 @@ describe.skip('botLogger', () => {
   })
   it('error logs with bot name prefix', () => {
     mockedBotLogger.error('botZ', 'errormsg', { e: 'x' })
-    expect(mockedLogger.error).toHaveBeenCalledWith('[botZ] errormsg', { e: 'x' })
+    expect(mockedLogger.error).toHaveBeenCalledWith('[botZ] errormsg', {
+      e: 'x',
+    })
   })
   it('debug logs with bot name prefix', () => {
     mockedBotLogger.debug('botD', 'dbgmsg', { d: 2 })

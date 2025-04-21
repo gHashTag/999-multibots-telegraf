@@ -1,10 +1,14 @@
 import makeMockContext from '../utils/mockTelegrafContext'
 // Mock supabase and mainMenu
 jest.mock('../../src/core/supabase', () => ({
-  getReferalsCountAndUserData: jest.fn().mockResolvedValue({ count: 2, subscription: 'stars', level: 1 }),
+  getReferalsCountAndUserData: jest
+    .fn()
+    .mockResolvedValue({ count: 2, subscription: 'stars', level: 1 }),
 }))
 jest.mock('../../src/menu/mainMenu', () => ({
-  mainMenu: jest.fn().mockResolvedValue({ reply_markup: { keyboard: [['X']] } }),
+  mainMenu: jest
+    .fn()
+    .mockResolvedValue({ reply_markup: { keyboard: [['X']] } }),
 }))
 import { sendGenerationCancelledMessage } from '../../src/menu/sendGenerationCancelledMessage'
 import { sendGenerationErrorMessage } from '../../src/menu/sendGenerationErrorMessage'
@@ -66,7 +70,10 @@ describe('sendPromptImprovementFailureMessage', () => {
     const ctx = makeMockContext()
     ctx.from.language_code = 'ru'
     await sendPromptImprovementFailureMessage(ctx as any)
-    expect(ctx.reply).toHaveBeenCalledWith('Не удалось улучшить запрос.', expect.anything())
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Не удалось улучшить запрос.',
+      expect.anything()
+    )
   })
 })
 

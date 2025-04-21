@@ -3,12 +3,14 @@ import fs from 'fs'
 
 describe('ensureDirectoryExistence', () => {
   const dirPath = '/tmp/testdir'
-  let mkdirMock: jest.SpyInstance;
-  let logSpy: jest.SpyInstance;
-  let errorSpy: jest.SpyInstance;
+  let mkdirMock: jest.SpyInstance
+  let logSpy: jest.SpyInstance
+  let errorSpy: jest.SpyInstance
 
   beforeEach(() => {
-    mkdirMock = jest.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined as any)
+    mkdirMock = jest
+      .spyOn(fs.promises, 'mkdir')
+      .mockResolvedValue(undefined as any)
     logSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
     errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
   })
@@ -29,6 +31,8 @@ describe('ensureDirectoryExistence', () => {
     const testError = new Error('mkfail')
     mkdirMock.mockRejectedValue(testError)
     await expect(ensureDirectoryExistence(dirPath)).rejects.toBe(testError)
-    expect(errorSpy).toHaveBeenCalledWith(`Error creating directory: ${testError}`)
+    expect(errorSpy).toHaveBeenCalledWith(
+      `Error creating directory: ${testError}`
+    )
   })
 })

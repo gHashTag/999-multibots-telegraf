@@ -1,4 +1,3 @@
-
 describe('getModel', () => {
   let builder: any
   let mockFrom: jest.Mock
@@ -24,7 +23,10 @@ describe('getModel', () => {
   })
 
   it('returns model when data exists', async () => {
-    builder.single.mockResolvedValueOnce({ data: { model: 'testModel' }, error: null })
+    builder.single.mockResolvedValueOnce({
+      data: { model: 'testModel' },
+      error: null,
+    })
     const result = await getModel('42')
     expect(mockFrom).toHaveBeenCalledWith('users')
     expect(builder.select).toHaveBeenCalledWith('model')

@@ -20,7 +20,7 @@ const mockedGetReferals = getReferalsCountAndUserData as jest.Mock<
     userData: UserType | null
     isExist: boolean
   } | null>
->;
+>
 
 // --- Логика обработчика входа (скопирована/адаптирована из inviteScene.enter) ---
 // Мы тестируем эту логику напрямую, а не через enterMiddleware
@@ -78,9 +78,15 @@ const inviteSceneEnterHandler = async (ctx: MyContext) => {
 // Убираем мок next
 // const mockNext = jest.fn<() => Promise<void>>().mockResolvedValue();
 
-describe('inviteScene enter handler logic', () => { // Переименовываем describe
+describe('inviteScene enter handler logic', () => {
+  // Переименовываем describe
   let ctx: ReturnType<typeof makeMockContext>
-  const mockFrom: User = { id: 123, is_bot: false, first_name: 'Inviter', language_code: 'ru' }
+  const mockFrom: User = {
+    id: 123,
+    is_bot: false,
+    first_name: 'Inviter',
+    language_code: 'ru',
+  }
   const mockBotInfo: UserFromGetMe = {
     id: 1,
     is_bot: true,
@@ -103,9 +109,15 @@ describe('inviteScene enter handler logic', () => { // Переименовыв�
 
   it('sends invitation text and link, then enters MainMenu', async () => {
     // Переопределяем мок scene.enter локально, чтобы соответствовать сигнатуре
-    ctx.scene.enter = jest.fn<
-      (sceneId: string, initialState?: object, silent?: boolean) => Promise<unknown>
-    >().mockResolvedValue({} as unknown); // Возвращаем пустой Promise
+    ctx.scene.enter = jest
+      .fn<
+        (
+          sceneId: string,
+          initialState?: object,
+          silent?: boolean
+        ) => Promise<unknown>
+      >()
+      .mockResolvedValue({} as unknown) // Возвращаем пустой Promise
 
     mockedGetReferals.mockResolvedValueOnce({
       count: 7,
@@ -134,9 +146,15 @@ describe('inviteScene enter handler logic', () => { // Переименовыв�
 
   it('handles error by notifying user', async () => {
     // Переопределяем мок scene.enter локально, чтобы соответствовать сигнатуре
-    ctx.scene.enter = jest.fn<
-      (sceneId: string, initialState?: object, silent?: boolean) => Promise<unknown>
-    >().mockResolvedValue({} as unknown);
+    ctx.scene.enter = jest
+      .fn<
+        (
+          sceneId: string,
+          initialState?: object,
+          silent?: boolean
+        ) => Promise<unknown>
+      >()
+      .mockResolvedValue({} as unknown)
 
     mockedGetReferals.mockRejectedValueOnce(new Error('err'))
 

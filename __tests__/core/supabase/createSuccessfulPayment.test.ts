@@ -40,18 +40,14 @@ describe('createSuccessfulPayment', () => {
       .fn()
       .mockResolvedValue({ data: existing, error: null })
     const chain1 = {
-      select: jest
-        .fn()
-        .mockReturnValue({
-          eq: jest.fn().mockReturnValue({ maybeSingle: fakeMaybe }),
-        }),
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({ maybeSingle: fakeMaybe }),
+      }),
     }
     const chain2 = {
-      select: jest
-        .fn()
-        .mockReturnValue({
-          eq: jest.fn().mockReturnValue({ single: fakeSingle }),
-        }),
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({ single: fakeSingle }),
+      }),
     }
     fromMock.mockReturnValueOnce(chain1).mockReturnValueOnce(chain2)
     const res = await createSuccessfulPayment(dummyParams)
@@ -64,11 +60,9 @@ describe('createSuccessfulPayment', () => {
     // Duplicate stage returns null, then getUserByTelegramIdString returns null
     const fakeMaybe = jest.fn().mockResolvedValue({ data: null, error: null })
     fromMock.mockReturnValue({
-      select: jest
-        .fn()
-        .mockReturnValue({
-          eq: jest.fn().mockReturnValue({ maybeSingle: fakeMaybe }),
-        }),
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({ maybeSingle: fakeMaybe }),
+      }),
       insert: jest.fn(),
     })
     ;(getUserByTelegramIdString as jest.Mock).mockResolvedValue(null)
@@ -80,23 +74,15 @@ describe('createSuccessfulPayment', () => {
   it('inserts new payment and returns data on success', async () => {
     // No duplicate
     const fakeMaybe = jest.fn().mockResolvedValue({ data: null, error: null })
-    const insertMock = jest
-      .fn()
-      .mockReturnValue({
-        select: jest
-          .fn()
-          .mockReturnValue({
-            single: jest
-              .fn()
-              .mockResolvedValue({ data: { id: 99 }, error: null }),
-          }),
-      })
+    const insertMock = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        single: jest.fn().mockResolvedValue({ data: { id: 99 }, error: null }),
+      }),
+    })
     fromMock.mockReturnValueOnce({
-      select: jest
-        .fn()
-        .mockReturnValue({
-          eq: jest.fn().mockReturnValue({ maybeSingle: fakeMaybe }),
-        }),
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({ maybeSingle: fakeMaybe }),
+      }),
     })
     fromMock.mockReturnValueOnce({ from: supabase.from, insert: insertMock }) // ensure chain
     ;(getUserByTelegramIdString as jest.Mock).mockResolvedValue({ id: 'u1' })
@@ -108,26 +94,18 @@ describe('createSuccessfulPayment', () => {
   it('throws on insert error code 23505', async () => {
     // No duplicate
     const fakeMaybe = jest.fn().mockResolvedValue({ data: null, error: null })
-    const insertMock = jest
-      .fn()
-      .mockReturnValue({
-        select: jest
-          .fn()
-          .mockReturnValue({
-            single: jest
-              .fn()
-              .mockResolvedValue({
-                data: null,
-                error: { code: '23505', message: 'dup' },
-              }),
-          }),
-      })
-    fromMock.mockReturnValueOnce({
-      select: jest
-        .fn()
-        .mockReturnValue({
-          eq: jest.fn().mockReturnValue({ maybeSingle: fakeMaybe }),
+    const insertMock = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        single: jest.fn().mockResolvedValue({
+          data: null,
+          error: { code: '23505', message: 'dup' },
         }),
+      }),
+    })
+    fromMock.mockReturnValueOnce({
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({ maybeSingle: fakeMaybe }),
+      }),
     })
     fromMock.mockReturnValueOnce({ insert: insertMock })
     ;(getUserByTelegramIdString as jest.Mock).mockResolvedValue({ id: 'u2' })

@@ -53,7 +53,9 @@ describe('registerCommands', () => {
     jest.clearAllMocks()
     ;(handleTechSupport as jest.Mock).mockClear()
     ;(get100Command as jest.Mock).mockClear()
-    ;(getUserDetails as jest.Mock).mockResolvedValue({ isSubscriptionActive: false }) // Default mock value
+    ;(getUserDetails as jest.Mock).mockResolvedValue({
+      isSubscriptionActive: false,
+    }) // Default mock value
 
     bot = {
       use: jest.fn(),
@@ -94,7 +96,10 @@ describe('registerCommands', () => {
     expect(bot.command).toHaveBeenCalledWith('invite', expect.any(Function))
     expect(bot.command).toHaveBeenCalledWith('balance', expect.any(Function))
     expect(bot.command).toHaveBeenCalledWith('help', expect.any(Function))
-    expect(bot.command).toHaveBeenCalledWith('neuro_coder', expect.any(Function))
+    expect(bot.command).toHaveBeenCalledWith(
+      'neuro_coder',
+      expect.any(Function)
+    )
   })
 
   it('should register hears handlers for menu items', () => {
@@ -109,7 +114,10 @@ describe('registerCommands', () => {
   })
 
   it('should register action handler for top_up', () => {
-    expect(bot.action).toHaveBeenCalledWith(/top_up_(\d+)$/, expect.any(Function))
+    expect(bot.action).toHaveBeenCalledWith(
+      /top_up_(\d+)$/,
+      expect.any(Function)
+    )
   })
 
   // --- Тесты для логики колбэков ---
@@ -119,7 +127,10 @@ describe('registerCommands', () => {
       const startCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'start'
       )[1]
-      const mockCtx = { session: { someData: 'test' }, scene: { enter: jest.fn() } }
+      const mockCtx = {
+        session: { someData: 'test' },
+        scene: { enter: jest.fn() },
+      }
       await startCallback(mockCtx)
       expect(mockCtx.session).toEqual({}) // Session should be reset
       expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.StartScene)
@@ -135,7 +146,9 @@ describe('registerCommands', () => {
     })
 
     it('/menu should check subscription and enter correct scene (active)', async () => {
-      ;(getUserDetails as jest.Mock).mockResolvedValue({ isSubscriptionActive: true })
+      ;(getUserDetails as jest.Mock).mockResolvedValue({
+        isSubscriptionActive: true,
+      })
       const menuCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'menu'
       )[1]
@@ -150,7 +163,9 @@ describe('registerCommands', () => {
     })
 
     it('/menu should check subscription and enter correct scene (inactive)', async () => {
-      ;(getUserDetails as jest.Mock).mockResolvedValue({ isSubscriptionActive: false })
+      ;(getUserDetails as jest.Mock).mockResolvedValue({
+        isSubscriptionActive: false,
+      })
       const menuCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'menu'
       )[1]
@@ -161,16 +176,24 @@ describe('registerCommands', () => {
       }
       await menuCallback(mockCtx)
       expect(getUserDetails).toHaveBeenCalledWith(789)
-      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.SubscriptionScene) // Должен войти в сцену подписки
+      expect(mockCtx.scene.enter).toHaveBeenCalledWith(
+        ModeEnum.SubscriptionScene
+      ) // Должен войти в сцену подписки
     })
 
     it('/buy should set session and enter payment scene', async () => {
       const buyCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'buy'
       )[1]
-      const mockCtx = { session: {}, scene: { enter: jest.fn() }, from: { id: 111 } }
+      const mockCtx = {
+        session: {},
+        scene: { enter: jest.fn() },
+        from: { id: 111 },
+      }
       await buyCallback(mockCtx)
-      expect((mockCtx.session as MyContext['session']).subscription).toBe(SubscriptionType.STARS)
+      expect((mockCtx.session as MyContext['session']).subscription).toBe(
+        SubscriptionType.STARS
+      )
       expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.PaymentScene)
     })
 
@@ -179,38 +202,46 @@ describe('registerCommands', () => {
     it('/invite should reply with invite message', async () => {
       const inviteCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'invite'
-      )[1];
-      const mockCtx = { reply: jest.fn() };
-      await inviteCallback(mockCtx);
-      expect(mockCtx.reply).toHaveBeenCalledWith('Пригласительная ссылка пока не настроена. Следите за обновлениями!'); // Проверяем сообщение
-    });
+      )[1]
+      const mockCtx = { reply: jest.fn() }
+      await inviteCallback(mockCtx)
+      expect(mockCtx.reply).toHaveBeenCalledWith(
+        'Пригласительная ссылка пока не настроена. Следите за обновлениями!'
+      ) // Проверяем сообщение
+    })
 
     it('/balance should reply with balance info', async () => {
       const balanceCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'balance'
-      )[1];
-      const mockCtx = { reply: jest.fn() };
-      await balanceCallback(mockCtx);
-      expect(mockCtx.reply).toHaveBeenCalledWith('Баланс пока не реализован. Следите за обновлениями!'); // Проверяем сообщение
-    });
+      )[1]
+      const mockCtx = { reply: jest.fn() }
+      await balanceCallback(mockCtx)
+      expect(mockCtx.reply).toHaveBeenCalledWith(
+        'Баланс пока не реализован. Следите за обновлениями!'
+      ) // Проверяем сообщение
+    })
 
     it('/help should reply with help message', async () => {
       const helpCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'help'
-      )[1];
-      const mockCtx = { reply: jest.fn() };
-      await helpCallback(mockCtx);
-      expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('Список команд')); // Проверяем, что сообщение содержит "Список команд"
-    });
+      )[1]
+      const mockCtx = { reply: jest.fn() }
+      await helpCallback(mockCtx)
+      expect(mockCtx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('Список команд')
+      ) // Проверяем, что сообщение содержит "Список команд"
+    })
 
     it('/neuro_coder should reply with neuro_coder info', async () => {
       const neuroCoderCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'neuro_coder'
-      )[1];
-      const mockCtx = { reply: jest.fn() };
-      await neuroCoderCallback(mockCtx);
-      expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('НейроКодер')); // Проверяем, что сообщение содержит "НейроКодер"
-    });
+      )[1]
+      const mockCtx = { reply: jest.fn() }
+      await neuroCoderCallback(mockCtx)
+      expect(mockCtx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('НейроКодер')
+      ) // Проверяем, что сообщение содержит "НейроКодер"
+    })
   })
 
   describe('hears callbacks', () => {
@@ -229,7 +260,9 @@ describe('registerCommands', () => {
       )[1]
       const mockCtx = { scene: { enter: jest.fn() } }
       await subscribeHearsCallback(mockCtx)
-      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.SubscriptionScene)
+      expect(mockCtx.scene.enter).toHaveBeenCalledWith(
+        ModeEnum.SubscriptionScene
+      )
     })
   })
 

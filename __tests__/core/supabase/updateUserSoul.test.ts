@@ -1,4 +1,3 @@
-
 describe('updateUserSoul', () => {
   let updateUserSoul: typeof import('@/core/supabase/updateUserSoul').updateUserSoul
   const telegram_id = '99'
@@ -22,23 +21,41 @@ describe('updateUserSoul', () => {
 
   it('calls update and eq and resolves on success', async () => {
     builder.eq.mockResolvedValue({ error: null })
-    await expect(updateUserSoul(telegram_id, company, position, designation)).resolves.toBeUndefined()
+    await expect(
+      updateUserSoul(telegram_id, company, position, designation)
+    ).resolves.toBeUndefined()
     const { supabase } = require('@/core/supabase')
     expect(supabase.from).toHaveBeenCalledWith('users')
-    expect(builder.update).toHaveBeenCalledWith({ company, position, designation })
+    expect(builder.update).toHaveBeenCalledWith({
+      company,
+      position,
+      designation,
+    })
     expect(builder.eq).toHaveBeenCalledWith('telegram_id', telegram_id)
   })
 
   it('logs and resolves on update error', async () => {
     const err = { message: 'fail' }
     builder.eq.mockResolvedValue({ error: err })
-    await expect(updateUserSoul(telegram_id, company, position, designation)).resolves.toBeUndefined()
-    expect(console.error).toHaveBeenCalledWith('Ошибка в updateUserSoul:', expect.any(Error))
+    await expect(
+      updateUserSoul(telegram_id, company, position, designation)
+    ).resolves.toBeUndefined()
+    expect(console.error).toHaveBeenCalledWith(
+      'Ошибка в updateUserSoul:',
+      expect.any(Error)
+    )
   })
 
   it('logs and resolves on exception', async () => {
-    builder.update.mockImplementation(() => { throw new Error('oops') })
-    await expect(updateUserSoul(telegram_id, company, position, designation)).resolves.toBeUndefined()
-    expect(console.error).toHaveBeenCalledWith('Ошибка в updateUserSoul:', expect.any(Error))
+    builder.update.mockImplementation(() => {
+      throw new Error('oops')
+    })
+    await expect(
+      updateUserSoul(telegram_id, company, position, designation)
+    ).resolves.toBeUndefined()
+    expect(console.error).toHaveBeenCalledWith(
+      'Ошибка в updateUserSoul:',
+      expect.any(Error)
+    )
   })
 })

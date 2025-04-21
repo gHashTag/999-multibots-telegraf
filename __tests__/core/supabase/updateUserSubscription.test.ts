@@ -1,4 +1,3 @@
-
 describe('updateUserSubscription', () => {
   let updateUserSubscription: typeof import('@/core/supabase/updateUserSubscription').updateUserSubscription
   const userId = 'userX'
@@ -16,7 +15,8 @@ describe('updateUserSubscription', () => {
     jest.spyOn(console, 'error').mockImplementation(() => {})
     // Import function under test
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    updateUserSubscription = require('@/core/supabase/updateUserSubscription').updateUserSubscription
+    updateUserSubscription =
+      require('@/core/supabase/updateUserSubscription').updateUserSubscription
   })
 
   it('updates subscription and returns data on success', async () => {
@@ -33,13 +33,25 @@ describe('updateUserSubscription', () => {
   it('throws and logs error when update error occurs', async () => {
     const err = { message: 'fail' }
     builder.eq.mockResolvedValue({ data: null, error: err })
-    await expect(updateUserSubscription(userId, subscription)).rejects.toEqual(err)
-    expect(console.error).toHaveBeenCalledWith('Error updating subscription:', err)
+    await expect(updateUserSubscription(userId, subscription)).rejects.toEqual(
+      err
+    )
+    expect(console.error).toHaveBeenCalledWith(
+      'Error updating subscription:',
+      err
+    )
   })
 
   it('throws and logs error when exception occurs', async () => {
-    builder.update.mockImplementation(() => { throw new Error('oops') })
-    await expect(updateUserSubscription(userId, subscription)).rejects.toThrow('oops')
-    expect(console.error).toHaveBeenCalledWith('Error updating subscription:', expect.any(Error))
+    builder.update.mockImplementation(() => {
+      throw new Error('oops')
+    })
+    await expect(updateUserSubscription(userId, subscription)).rejects.toThrow(
+      'oops'
+    )
+    expect(console.error).toHaveBeenCalledWith(
+      'Error updating subscription:',
+      expect.any(Error)
+    )
   })
 })

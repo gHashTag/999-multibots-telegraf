@@ -1,4 +1,3 @@
-
 describe('sendPaymentInfo', () => {
   let builder: any
   let mockFrom: jest.Mock
@@ -11,7 +10,7 @@ describe('sendPaymentInfo', () => {
     // Build supabase.from chain for insert
     builder = {
       insert: jest.fn().mockReturnThis(),
-      single: jest.fn()
+      single: jest.fn(),
     }
     mockFrom = jest.fn(() => builder)
     jest.doMock('@/core/supabase', () => ({ supabase: { from: mockFrom } }))
@@ -32,9 +31,14 @@ describe('sendPaymentInfo', () => {
     builder.single.mockResolvedValueOnce({ data: dataObj, error: null })
     const result = await sendPaymentInfo('u1', 'gold')
     expect(mockFrom).toHaveBeenCalledWith('payments')
-    expect(builder.insert).toHaveBeenCalledWith([{ user_id: 'u1', level: 'gold' }])
+    expect(builder.insert).toHaveBeenCalledWith([
+      { user_id: 'u1', level: 'gold' },
+    ])
     expect(builder.single).toHaveBeenCalled()
-    expect(consoleLog).toHaveBeenCalledWith('Payment info sent successfully:', dataObj)
+    expect(consoleLog).toHaveBeenCalledWith(
+      'Payment info sent successfully:',
+      dataObj
+    )
     expect(result).toBe(dataObj)
   })
 
@@ -44,7 +48,10 @@ describe('sendPaymentInfo', () => {
     await expect(sendPaymentInfo('u2', 'silver')).rejects.toThrow(
       `Failed to send payment info: ${err.message}`
     )
-    expect(consoleError).toHaveBeenCalledWith('Error sending payment info:', err)
+    expect(consoleError).toHaveBeenCalledWith(
+      'Error sending payment info:',
+      err
+    )
   })
 
   it('throws error when no data returned', async () => {

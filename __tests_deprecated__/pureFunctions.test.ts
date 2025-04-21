@@ -4,7 +4,11 @@ import { isRussian } from '@/helpers/language'
 import { calculateCostInStars } from '@/price/helpers/calculateCostInStars'
 import { calculateStars } from '@/price/helpers/calculateStars'
 import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
-import { calculateCostInStars as calcTrainStars, calculateCostInDollars, calculateCostInRubles } from '@/price/helpers/calculateTrainingCost'
+import {
+  calculateCostInStars as calcTrainStars,
+  calculateCostInDollars,
+  calculateCostInRubles,
+} from '@/price/helpers/calculateTrainingCost'
 import { starAmounts } from '@/price/helpers/starAmounts'
 import { starCost } from '@/price/starCost'
 
@@ -52,10 +56,21 @@ describe('Pure utility functions', () => {
       expect(calcTrainStars(10, { costPerStepInStars: 0.5 })).toBe(5)
     })
     it('calculates training dollars cost correctly', () => {
-      expect(calculateCostInDollars(10, { costPerStepInStars: 1, costPerStarInDollars: 0.1 })).toBe(1)
+      expect(
+        calculateCostInDollars(10, {
+          costPerStepInStars: 1,
+          costPerStarInDollars: 0.1,
+        })
+      ).toBe(1)
     })
     it('calculates training rubles cost correctly', () => {
-      expect(calculateCostInRubles(10, { costPerStepInStars: 1, costPerStarInDollars: 0.1, rublesToDollarsRate: 60 })).toBe(60)
+      expect(
+        calculateCostInRubles(10, {
+          costPerStepInStars: 1,
+          costPerStarInDollars: 0.1,
+          rublesToDollarsRate: 60,
+        })
+      ).toBe(60)
     })
   })
 

@@ -1,4 +1,3 @@
-
 // Mock supabase client
 jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
 import { supabase } from '@/core/supabase'
@@ -14,7 +13,9 @@ describe('isLimitAi', () => {
 
   it('returns false when user query error', async () => {
     // user query error
-    const singleUser = jest.fn().mockResolvedValue({ data: null, error: { message: 'err' } })
+    const singleUser = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'err' } })
     const eqUser = () => ({ single: singleUser })
     const selectUser = () => ({ eq: eqUser })
     ;(supabase.from as jest.Mock).mockReturnValue({ select: selectUser })
@@ -24,12 +25,16 @@ describe('isLimitAi', () => {
 
   it('returns false when limit query error not PGRST116', async () => {
     // user ok
-    const singleUser = jest.fn().mockResolvedValue({ data: { user_id: 1 }, error: null })
+    const singleUser = jest
+      .fn()
+      .mockResolvedValue({ data: { user_id: 1 }, error: null })
     const eqUser = () => ({ single: singleUser })
     const selectUser = () => ({ eq: eqUser })
     // limit error
     const limitErr = { code: 'OTHER' }
-    const singleLimit = jest.fn().mockResolvedValue({ data: null, error: limitErr })
+    const singleLimit = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: limitErr })
     const limitChain = () => ({ single: singleLimit })
     const orderLimit = () => ({ limit: () => limitChain() })
     const eqLimit = () => ({ order: orderLimit })
@@ -43,7 +48,9 @@ describe('isLimitAi', () => {
 
   it('inserts new record when no limitData or date mismatch, return false on success', async () => {
     // user ok
-    const singleUser = jest.fn().mockResolvedValue({ data: { user_id: 2 }, error: null })
+    const singleUser = jest
+      .fn()
+      .mockResolvedValue({ data: { user_id: 2 }, error: null })
     const eqUser = () => ({ single: singleUser })
     const selectUser = () => ({ eq: eqUser })
     // no limitData
@@ -55,22 +62,30 @@ describe('isLimitAi', () => {
     // insert success
     const insertFn = jest.fn().mockResolvedValue({ error: null })
     const fromMock = supabase.from as jest.Mock
-    fromMock.mockReturnValueOnce({ select: selectUser })  // users
+    fromMock.mockReturnValueOnce({ select: selectUser }) // users
     fromMock.mockReturnValueOnce({ select: selectLimit }) // ai_requests select
-    fromMock.mockReturnValueOnce({ insert: insertFn })    // ai_requests insert
+    fromMock.mockReturnValueOnce({ insert: insertFn }) // ai_requests insert
     const result = await isLimitAi(telegram_id)
-    expect(insertFn).toHaveBeenCalledWith({ user_id: 2, count: 1, created_at: expect.any(String) })
+    expect(insertFn).toHaveBeenCalledWith({
+      user_id: 2,
+      count: 1,
+      created_at: expect.any(String),
+    })
     expect(result).toBe(false)
   })
 
   it('returns false when insert new record fails', async () => {
     // user ok
-    const singleUser = jest.fn().mockResolvedValue({ data: { user_id: 3 }, error: null })
+    const singleUser = jest
+      .fn()
+      .mockResolvedValue({ data: { user_id: 3 }, error: null })
     const eqUser = () => ({ single: singleUser })
     const selectUser = () => ({ eq: eqUser })
     // no limitData
     const singleLimit = jest.fn().mockResolvedValue({ data: null, error: null })
-    const eqLimit = () => ({ order: () => ({ limit: () => ({ single: singleLimit }) }) })
+    const eqLimit = () => ({
+      order: () => ({ limit: () => ({ single: singleLimit }) }),
+    })
     const selectLimit = () => ({ eq: eqLimit })
     // insert error
     const insertFn = jest.fn().mockResolvedValue({ error: { message: 'fail' } })
@@ -84,13 +99,24 @@ describe('isLimitAi', () => {
 
   it('updates existing record when count < limit and returns false', async () => {
     // user ok
-    const singleUser = jest.fn().mockResolvedValue({ data: { user_id: 4 }, error: null })
+    const singleUser = jest
+      .fn()
+      .mockResolvedValue({ data: { user_id: 4 }, error: null })
     const eqUser = () => ({ single: singleUser })
     const selectUser = () => ({ eq: eqUser })
     // limitData with count < dailyLimit
-    const limitData = { id: 7, user_id: 4, count: 1, created_at: today + 'T00:00:00.000Z' }
-    const singleLimit = jest.fn().mockResolvedValue({ data: limitData, error: null })
-    const eqLimit = () => ({ order: () => ({ limit: () => ({ single: singleLimit }) }) })
+    const limitData = {
+      id: 7,
+      user_id: 4,
+      count: 1,
+      created_at: today + 'T00:00:00.000Z',
+    }
+    const singleLimit = jest
+      .fn()
+      .mockResolvedValue({ data: limitData, error: null })
+    const eqLimit = () => ({
+      order: () => ({ limit: () => ({ single: singleLimit }) }),
+    })
     const selectLimit = () => ({ eq: eqLimit })
     // update success
     const eqUpdate = jest.fn().mockReturnValue({ error: null })
@@ -107,12 +133,23 @@ describe('isLimitAi', () => {
 
   it('returns true when limit reached', async () => {
     // user ok
-    const singleUser = jest.fn().mockResolvedValue({ data: { user_id: 5 }, error: null })
+    const singleUser = jest
+      .fn()
+      .mockResolvedValue({ data: { user_id: 5 }, error: null })
     const selectUser = () => ({ eq: () => ({ single: singleUser }) })
     // limitData with count >= dailyLimit
-    const limitData = { id: 8, user_id: 5, count: 3, created_at: today + 'T00:00:00.000Z' }
-    const singleLimit = jest.fn().mockResolvedValue({ data: limitData, error: null })
-    const selectLimit = () => ({ eq: () => ({ order: () => ({ limit: () => ({ single: singleLimit }) }) }) })
+    const limitData = {
+      id: 8,
+      user_id: 5,
+      count: 3,
+      created_at: today + 'T00:00:00.000Z',
+    }
+    const singleLimit = jest
+      .fn()
+      .mockResolvedValue({ data: limitData, error: null })
+    const selectLimit = () => ({
+      eq: () => ({ order: () => ({ limit: () => ({ single: singleLimit }) }) }),
+    })
     const fromMock = supabase.from as jest.Mock
     fromMock.mockReturnValueOnce({ select: selectUser })
     fromMock.mockReturnValueOnce({ select: selectLimit })

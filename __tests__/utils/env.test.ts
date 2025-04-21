@@ -53,7 +53,7 @@ describe('env utils', () => {
       expect(getEnvBoolean('UNKNOWN', false)).toBe(false)
     })
     it('parses truthy strings (case-insensitive)', () => {
-      ['true', 'Yes', '1', 'Y'].forEach(val => {
+      ;['true', 'Yes', '1', 'Y'].forEach(val => {
         process.env.TEST_VAR = val
         expect(getEnvBoolean('TEST_VAR', false)).toBe(true)
       })

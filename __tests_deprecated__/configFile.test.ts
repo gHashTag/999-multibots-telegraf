@@ -12,8 +12,12 @@ import fs from 'fs'
 import { loadBotsConfig, loadSecurityConfig } from '@/utils/config'
 
 // Явно типизируем замоканные функции fs
-const mockedExistsSync = fs.existsSync as jest.MockedFunction<typeof fs.existsSync>
-const mockedReadFileSync = fs.readFileSync as jest.MockedFunction<typeof fs.readFileSync>
+const mockedExistsSync = fs.existsSync as jest.MockedFunction<
+  typeof fs.existsSync
+>
+const mockedReadFileSync = fs.readFileSync as jest.MockedFunction<
+  typeof fs.readFileSync
+>
 
 describe('loadBotsConfig', () => {
   const { botLogger, logSecurityEvent } = require('@/utils/logger')

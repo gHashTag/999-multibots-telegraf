@@ -1,4 +1,3 @@
-
 describe('config index exports', () => {
   beforeEach(() => {
     jest.resetModules()

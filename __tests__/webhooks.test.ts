@@ -1,91 +1,93 @@
-import { expect } from '@jest/globals';
-import { setupWebhookHandlers } from '../src/webhookHandler';
-import { Telegraf } from 'telegraf';
-import express from 'express';
-import { MyContext } from '../src/interfaces';
-import http from 'http';
+import { expect } from '@jest/globals'
+import { setupWebhookHandlers } from '../src/webhookHandler'
+import { Telegraf } from 'telegraf'
+import express from 'express'
+import { MyContext } from '../src/interfaces'
+import http from 'http'
 
 describe('Webhook Handlers', () => {
-  let mockBot: jest.Mocked<Telegraf<MyContext>>;
-  let app: express.Express;
-  let consoleSpy: jest.SpyInstance;
-  let consoleErrorSpy: jest.SpyInstance;
+  let mockBot: jest.Mocked<Telegraf<MyContext>>
+  let app: express.Express
+  let consoleSpy: jest.SpyInstance
+  let consoleErrorSpy: jest.SpyInstance
 
   beforeEach(() => {
-    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
 
     mockBot = {
       telegram: {
-        getMe: jest.fn().mockResolvedValue({ username: 'test_bot' })
+        getMe: jest.fn().mockResolvedValue({ username: 'test_bot' }),
       },
       secretPathComponent: jest.fn().mockReturnValue('test_token'),
-      handleUpdate: jest.fn()
-    } as unknown as jest.Mocked<Telegraf<MyContext>>;
+      handleUpdate: jest.fn(),
+    } as unknown as jest.Mocked<Telegraf<MyContext>>
 
-    app = setupWebhookHandlers([mockBot], false);
-  });
+    app = setupWebhookHandlers([mockBot], false)
+  })
 
   afterEach(async () => {
-    consoleSpy.mockRestore();
-    consoleErrorSpy.mockRestore();
-  });
+    consoleSpy.mockRestore()
+    consoleErrorSpy.mockRestore()
+  })
 
   describe('Successful scenarios', () => {
     it('should register bot webhook', async () => {
-      expect(mockBot.telegram.getMe).toHaveBeenCalled();
-      expect(mockBot.secretPathComponent).toHaveBeenCalled();
-    });
+      expect(mockBot.telegram.getMe).toHaveBeenCalled()
+      expect(mockBot.secretPathComponent).toHaveBeenCalled()
+    })
 
     it('should handle health check', async () => {
-      const req = { method: 'GET', path: '/' } as any;
-      const res = { send: jest.fn() } as any;
-      
-      app(req, res);
-      expect(res.send).toHaveBeenCalledWith('Telegram Bot API вебхук сервер работает!');
-    });
+      const req = { method: 'GET', path: '/' } as any
+      const res = { send: jest.fn() } as any
+
+      app(req, res)
+      expect(res.send).toHaveBeenCalledWith(
+        'Telegram Bot API вебхук сервер работает!'
+      )
+    })
 
     it('should handle valid webhook', async () => {
       const req = {
         method: 'POST',
         path: '/telegraf/test_token',
         params: { token: 'test_token' },
-        body: { update_id: 1 }
-      } as any;
-      const res = {} as any;
-      
-      app(req, res);
-      expect(mockBot.handleUpdate).toHaveBeenCalledWith({ update_id: 1 }, res);
-    });
-  });
+        body: { update_id: 1 },
+      } as any
+      const res = {} as any
+
+      app(req, res)
+      expect(mockBot.handleUpdate).toHaveBeenCalledWith({ update_id: 1 }, res)
+    })
+  })
 
   describe('Error handling', () => {
     it('should handle registration error', async () => {
       const errorBot = {
         telegram: {
-          getMe: jest.fn().mockRejectedValue(new Error('API error'))
+          getMe: jest.fn().mockRejectedValue(new Error('API error')),
         },
         secretPathComponent: jest.fn().mockReturnValue('error_token'),
-        handleUpdate: jest.fn()
-      } as unknown as jest.Mocked<Telegraf<MyContext>>;
+        handleUpdate: jest.fn(),
+      } as unknown as jest.Mocked<Telegraf<MyContext>>
 
-      setupWebhookHandlers([errorBot], false);
-      expect(consoleErrorSpy).toHaveBeenCalled();
-    });
+      setupWebhookHandlers([errorBot], false)
+      expect(consoleErrorSpy).toHaveBeenCalled()
+    })
 
     it('should reject unknown token', async () => {
       const req = {
-        method: 'POST', 
+        method: 'POST',
         path: '/telegraf/invalid_token',
-        params: { token: 'invalid_token' }
-      } as any;
+        params: { token: 'invalid_token' },
+      } as any
       const res = {
         status: jest.fn().mockReturnThis(),
-        send: jest.fn()
-      } as any;
-      
-      app(req, res);
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
-  });
-});
+        send: jest.fn(),
+      } as any
+
+      app(req, res)
+      expect(res.status).toHaveBeenCalledWith(404)
+    })
+  })
+})

@@ -11,7 +11,9 @@ describe('generateImageFromPrompt', () => {
   })
 
   it('logs the input parameters and returns fake URL', async () => {
-    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
+    const consoleLogSpy = jest
+      .spyOn(console, 'log')
+      .mockImplementation(() => {})
     const url = await generateImageFromPrompt(
       prompt,
       userId,

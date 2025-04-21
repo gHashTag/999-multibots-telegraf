@@ -4,11 +4,12 @@ import { validateBotToken } from '../src/bot'
 jest.mock('telegraf', () => ({
   Telegraf: jest.fn().mockImplementation(() => ({
     telegram: {
-      getMe: jest.fn()
+      getMe: jest
+        .fn()
         .mockResolvedValueOnce({ ok: true }) // success case
-        .mockRejectedValueOnce(new Error('Invalid token')) // error case
-    }
-  }))
+        .mockRejectedValueOnce(new Error('Invalid token')), // error case
+    },
+  })),
 }))
 
 describe('validateBotToken', () => {
@@ -39,9 +40,9 @@ describe('Bot functionality', () => {
         id: 123456789,
         is_bot: true,
         first_name: 'Test Bot',
-        username: 'test_bot'
+        username: 'test_bot',
       })
-      
+
       // Mock реализации Telegraf
       ;(Telegraf as jest.MockedClass<typeof Telegraf>).prototype.telegram = {
         getMe: mockGetMe,
@@ -55,7 +56,7 @@ describe('Bot functionality', () => {
     it('should return false for invalid token', async () => {
       // Настраиваем mock для ошибки
       const mockGetMe = jest.fn().mockRejectedValue(new Error('Invalid token'))
-      
+
       ;(Telegraf as jest.MockedClass<typeof Telegraf>).prototype.telegram = {
         getMe: mockGetMe,
       } as any
@@ -70,10 +71,10 @@ describe('Bot functionality', () => {
         id: 987654321,
         is_bot: true,
         first_name: 'Another Bot',
-        username: 'another_bot'
+        username: 'another_bot',
       }
       const mockGetMe = jest.fn().mockResolvedValue(mockBotInfo)
-      
+
       ;(Telegraf as jest.MockedClass<typeof Telegraf>).prototype.telegram = {
         getMe: mockGetMe,
       } as any

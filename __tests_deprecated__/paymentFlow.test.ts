@@ -48,7 +48,9 @@ describe('handlePaymentPolicyInfo', () => {
     ctx.from.language_code = 'en'
     await handlePaymentPolicyInfo(ctx)
     expect(ctx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('💳 Payment is processed through the Robokassa system')
+      expect.stringContaining(
+        '💳 Payment is processed through the Robokassa system'
+      )
     )
   })
 })
@@ -59,7 +61,9 @@ describe('handleTopUp', () => {
     // @ts-ignore
     ctx.match = ['top_up_50']
     ctx.from.language_code = 'ru'
-    const spy = jest.spyOn(handleBuyModule, 'handleBuy').mockResolvedValueOnce(undefined)
+    const spy = jest
+      .spyOn(handleBuyModule, 'handleBuy')
+      .mockResolvedValueOnce(undefined)
     await handleTopUp(ctx)
     expect(spy).toHaveBeenCalledWith({ ctx, data: 'top_up_50', isRu: true })
   })
@@ -75,7 +79,7 @@ describe('handleSuccessfulPayment', () => {
     ctx.botInfo = { username: 'bot' }
     ctx.session = { subscription: '', telegram_id: 11 }
     ctx.message = {
-      successful_payment: { total_amount: 123, invoice_payload: 'payload' }
+      successful_payment: { total_amount: 123, invoice_payload: 'payload' },
     }
     ctx.telegram.sendMessage = jest.fn(() => Promise.resolve())
   })

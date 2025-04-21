@@ -21,9 +21,16 @@ describe('sizeWizard steps', () => {
   const step0 = steps[0]
   const step1 = steps[1]
   const mockNext = (): Promise<void> => Promise.resolve()
-  const mockFrom: User = { id: 1, is_bot: false, first_name: 'Test', language_code: 'ru' }
+  const mockFrom: User = {
+    id: 1,
+    is_bot: false,
+    first_name: 'Test',
+    language_code: 'ru',
+  }
 
-  const createMockSession = (overrides: Partial<MySession> = {}): MySession => ({
+  const createMockSession = (
+    overrides: Partial<MySession> = {}
+  ): MySession => ({
     selectedPayment: null,
     cursor: 0,
     images: [],
@@ -90,7 +97,10 @@ describe('sizeWizard steps', () => {
   it('step 1: rejects invalid size and stays', async () => {
     const sessionData = createMockSession()
     // Передаем message с невалидным текстом
-    ctx = makeMockContext({ message: { from: mockFrom, text: 'foo' } }, sessionData)
+    ctx = makeMockContext(
+      { message: { from: mockFrom, text: 'foo' } },
+      sessionData
+    )
     mockedIsRussian.mockReturnValueOnce(true)
 
     await step1(ctx, mockNext)
@@ -105,7 +115,10 @@ describe('sizeWizard steps', () => {
   it('step 1: handles valid size and leaves', async () => {
     const sessionData = createMockSession()
     // Передаем message с валидным текстом
-    ctx = makeMockContext({ message: { from: mockFrom, text: '16:9' } }, sessionData)
+    ctx = makeMockContext(
+      { message: { from: mockFrom, text: '16:9' } },
+      sessionData
+    )
     mockedIsRussian.mockReturnValueOnce(false)
 
     await step1(ctx, mockNext)

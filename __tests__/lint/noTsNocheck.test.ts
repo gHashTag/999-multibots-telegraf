@@ -22,7 +22,7 @@ describe('TS-NOCHECK ban in tests', () => {
     const files = collectFiles(testRoot)
     files.forEach(file => {
       const content = fs.readFileSync(file, 'utf8')
-      expect(content).not.toMatch(/\/\/\s*@ts-nocheck/)  
+      expect(content).not.toMatch(/\/\/\s*@ts-nocheck/)
     })
   })
 })

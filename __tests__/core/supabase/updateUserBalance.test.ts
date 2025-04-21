@@ -1,4 +1,11 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals'
+import {
+  describe,
+  it,
+  expect,
+  jest,
+  beforeEach,
+  afterEach,
+} from '@jest/globals'
 // Используем import вместо require и типизируем telegram_id как string
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 
@@ -31,7 +38,11 @@ describe('updateUserBalance', () => {
     // Успешный ответ от Supabase
     mockEq.mockResolvedValueOnce({ data: null, error: null })
 
-    const result = await updateUserBalance(telegram_id, new_balance, 'money_income')
+    const result = await updateUserBalance(
+      telegram_id,
+      new_balance,
+      'money_income'
+    )
     expect(mockFrom).toHaveBeenCalledWith('users')
     expect(mockUpdate).toHaveBeenCalledWith({ balance: 100 })
     expect(mockEq).toHaveBeenCalledWith('telegram_id', '42')
@@ -45,7 +56,11 @@ describe('updateUserBalance', () => {
     // Ответ с ошибкой от Supabase
     mockEq.mockResolvedValueOnce({ data: null, error: expectedError })
 
-    const result = await updateUserBalance(telegram_id, new_balance, 'money_income')
+    const result = await updateUserBalance(
+      telegram_id,
+      new_balance,
+      'money_income'
+    )
     expect(console.error).toHaveBeenCalledWith(
       'Ошибка обновления баланса:',
       expect.any(Object)

@@ -19,9 +19,16 @@ jest.mock('@/handlers')
 
 // Импортируем мокированные версии
 import { getUserInfo } from '@/handlers/getUserInfo'
-import { getLatestUserModel, getReferalsCountAndUserData } from '@/core/supabase'
+import {
+  getLatestUserModel,
+  getReferalsCountAndUserData,
+} from '@/core/supabase'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
-import { mainMenu, sendPhotoDescriptionRequest, sendGenericErrorMessage } from '@/menu'
+import {
+  mainMenu,
+  sendPhotoDescriptionRequest,
+  sendGenericErrorMessage,
+} from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { handleMenu } from '@/handlers'
 
@@ -30,17 +37,24 @@ const mockedGetUserInfo = getUserInfo as jest.Mock
 const mockedGetLatestModel = getLatestUserModel as jest.Mock
 const mockedGetReferals = getReferalsCountAndUserData as jest.Mock
 const mockedGenerateImage = generateNeuroImage as jest.Mock
-const mockedMainMenu = mainMenu as jest.Mock<() => Promise<{text: string, keyboard: Markup.Markup<any>}>> // Типизируем mainMenu
+const mockedMainMenu = mainMenu as jest.Mock<
+  () => Promise<{ text: string; keyboard: Markup.Markup<any> }>
+> // Типизируем mainMenu
 const mockedSendDescRequest = sendPhotoDescriptionRequest as jest.Mock
 const mockedSendGenericError = sendGenericErrorMessage as jest.Mock
-const mockedHandleHelpCancel = handleHelpCancel as jest.Mock<(...args: any[]) => Promise<boolean>>
+const mockedHandleHelpCancel = handleHelpCancel as jest.Mock<
+  (...args: any[]) => Promise<boolean>
+>
 const mockedHandleMenu = handleMenu as jest.Mock
 
 describe('neuroPhotoWizard', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     // Настраиваем мок mainMenu (если он используется в этой сцене)
-    mockedMainMenu.mockResolvedValue({ text: 'Menu', keyboard: Markup.keyboard([['Btn']]).reply_markup })
+    mockedMainMenu.mockResolvedValue({
+      text: 'Menu',
+      keyboard: Markup.keyboard([['Btn']]).reply_markup,
+    })
   })
 
   it('должна выйти, если нет обученной модели', async () => {

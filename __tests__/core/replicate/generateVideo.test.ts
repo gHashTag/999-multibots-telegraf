@@ -16,11 +16,9 @@ jest.mock('@/core/replicate', () => ({
 // Мокаем supabase insert
 jest.mock('@/core/supabase', () => ({
   supabase: {
-    from: jest
-      .fn()
-      .mockReturnValue({
-        insert: jest.fn().mockResolvedValue({ data: [], error: null }),
-      }),
+    from: jest.fn().mockReturnValue({
+      insert: jest.fn().mockResolvedValue({ data: [], error: null }),
+    }),
   },
 }))
 

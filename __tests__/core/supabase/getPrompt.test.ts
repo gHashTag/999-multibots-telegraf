@@ -1,4 +1,3 @@
-
 describe('getPrompt', () => {
   let builder: any
   let mockFrom: jest.Mock
@@ -42,7 +41,8 @@ describe('getPrompt', () => {
     builder.single.mockResolvedValueOnce({ data: null, error: err })
     const result = await getPrompt('p2')
     expect(console.error).toHaveBeenCalledWith(
-      'Ошибка при получении промпта по prompt_id:', err
+      'Ошибка при получении промпта по prompt_id:',
+      err
     )
     expect(result).toBeNull()
   })
@@ -51,7 +51,8 @@ describe('getPrompt', () => {
     builder.single.mockResolvedValueOnce({ data: undefined, error: null })
     const result = await getPrompt('p3')
     expect(console.error).toHaveBeenCalledWith(
-      'Ошибка при получении промпта по prompt_id:', null
+      'Ошибка при получении промпта по prompt_id:',
+      null
     )
     expect(result).toBeNull()
   })

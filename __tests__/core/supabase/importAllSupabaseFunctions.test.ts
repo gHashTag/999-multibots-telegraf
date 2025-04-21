@@ -16,11 +16,9 @@ jest.mock('@/core/supabase/client', () => {
   }
   const mFrom = jest.fn().mockReturnValue(mQuery)
   const storageMock = {
-    from: jest
-      .fn()
-      .mockReturnValue({
-        remove: jest.fn().mockResolvedValue({ data: [], error: null }),
-      }),
+    from: jest.fn().mockReturnValue({
+      remove: jest.fn().mockResolvedValue({ data: [], error: null }),
+    }),
   }
   const supabaseMock = { rpc: mRpc, from: mFrom, storage: storageMock }
   return { supabase: supabaseMock, supabaseAdmin: supabaseMock }

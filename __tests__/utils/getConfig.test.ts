@@ -24,7 +24,7 @@ describe('getConfig', () => {
       PORT: 3000,
       WEBHOOK_URL: undefined,
       WEBHOOK_SECRET: undefined,
-      NODE_ENV: 'development'
+      NODE_ENV: 'development',
     })
   })
 

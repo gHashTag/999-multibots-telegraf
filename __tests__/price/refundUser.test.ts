@@ -41,9 +41,9 @@ describe('refundUser', () => {
     // Prepare mocks
     // @ts-ignore
     ctx.from.id = 7
-    ctx.from.language_code = 'en'
-    (getUserBalance as jest.Mock).mockResolvedValueOnce(20)
-    (getReferalsCountAndUserData as jest.Mock).mockResolvedValueOnce({ count: 2, subscription: false, level: 1 })
+    ctx.from.language_code = 'en'(getUserBalance as jest.Mock)
+      .mockResolvedValueOnce(20)(getReferalsCountAndUserData as jest.Mock)
+      .mockResolvedValueOnce({ count: 2, subscription: false, level: 1 })
     // @ts-ignore
     const reply = ctx.reply as jest.Mock
     await refundUser(ctx, 5)

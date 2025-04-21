@@ -1,4 +1,3 @@
-
 // Mock supabase client
 jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
 import { supabase } from '@/core/supabase'
@@ -12,14 +11,21 @@ describe('getAspectRatio', () => {
   })
 
   it('returns null on error', async () => {
-    const mockSingle = jest.fn().mockResolvedValue({ data: null, error: { message: 'fail' } })
+    const mockSingle = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'fail' } })
     const eqMock = jest.fn().mockReturnValue({ single: mockSingle })
     const mockSelect = jest.fn().mockReturnValue({ eq: eqMock })
     ;(supabase.from as jest.Mock).mockReturnValue({ select: mockSelect })
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
     const result = await getAspectRatio(telegram_id)
     expect(result).toBeNull()
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Ошибка при получении aspect_ratio для telegram_id:', { message: 'fail' })
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Ошибка при получении aspect_ratio для telegram_id:',
+      { message: 'fail' }
+    )
     consoleErrorSpy.mockRestore()
   })
 

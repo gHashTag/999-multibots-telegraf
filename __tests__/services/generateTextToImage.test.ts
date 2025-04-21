@@ -33,7 +33,9 @@ describe('generateTextToImage', () => {
       isRu: true,
       botName,
     })
-    expect(ctx.reply).toHaveBeenCalledWith('Функция генерации изображений временно недоступна.')
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Функция генерации изображений временно недоступна.'
+    )
   })
 
   it('logs info and replies in English when isRu=false', async () => {
@@ -51,6 +53,8 @@ describe('generateTextToImage', () => {
       isRu: false,
       botName,
     })
-    expect(ctx.reply).toHaveBeenCalledWith('Image generation function is temporarily unavailable.')
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Image generation function is temporarily unavailable.'
+    )
   })
 })

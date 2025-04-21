@@ -1,9 +1,15 @@
 import makeMockContext from '../utils/mockTelegrafContext'
 
 // Mock dependencies
-jest.mock('@/services/generateNeuroImage', () => ({ generateNeuroImage: jest.fn() }))
-jest.mock('@/core/replicate', () => ({ models: { neuro_coder: { key: 'model/key:tag' } } }))
-jest.mock('@/commands/get100Command/prompts', () => ({ solarPunkAngelPrompt: 'test-prompt' }))
+jest.mock('@/services/generateNeuroImage', () => ({
+  generateNeuroImage: jest.fn(),
+}))
+jest.mock('@/core/replicate', () => ({
+  models: { neuro_coder: { key: 'model/key:tag' } },
+}))
+jest.mock('@/commands/get100Command/prompts', () => ({
+  solarPunkAngelPrompt: 'test-prompt',
+}))
 
 import { get100Command } from '@/commands/get100Command'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
@@ -23,13 +29,19 @@ describe('get100Command', () => {
   it('should throw error when from.id missing', async () => {
     // Clear from.id to simulate missing user id
     delete ctx.from.id
-    await expect(get100Command(ctx)).rejects.toThrow('Message or user id not found')
-    expect(ctx.reply).toHaveBeenCalledWith('Ошибка при генерации изображения !message || !ctx.from?.id')
+    await expect(get100Command(ctx)).rejects.toThrow(
+      'Message or user id not found'
+    )
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Ошибка при генерации изображения !message || !ctx.from?.id'
+    )
   })
 
   it('should reply error and return when chat.id is missing', async () => {
     // Set prompt
-    jest.mocked(require('@/commands/get100Command/prompts')).solarPunkAngelPrompt = origPrompt
+    jest.mocked(
+      require('@/commands/get100Command/prompts')
+    ).solarPunkAngelPrompt = origPrompt
     delete ctx.chat.id
     await get100Command(ctx)
     expect(ctx.reply).toHaveBeenCalledWith('Генерация изображения началась...')

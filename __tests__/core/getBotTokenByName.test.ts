@@ -1,7 +1,7 @@
 import { getBotTokenByName } from '@/core/getBotTokenByName'
 // Мокаем logger, чтобы перехватить предупреждения
 jest.mock('@/utils/logger', () => ({
-  logger: { warn: jest.fn() }
+  logger: { warn: jest.fn() },
 }))
 import { logger } from '@/utils/logger'
 
@@ -28,7 +28,9 @@ describe('getBotTokenByName', () => {
     const token = getBotTokenByName('unknown_bot')
     expect(token).toBeUndefined()
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('No environment variable mapped for bot name: unknown_bot')
+      expect.stringContaining(
+        'No environment variable mapped for bot name: unknown_bot'
+      )
     )
   })
 
@@ -38,7 +40,9 @@ describe('getBotTokenByName', () => {
     const token = getBotTokenByName('clip_maker_neuro_bot')
     expect(token).toBeUndefined()
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Token not found in environment variable: BOT_TOKEN_TEST_2')
+      expect.stringContaining(
+        'Token not found in environment variable: BOT_TOKEN_TEST_2'
+      )
     )
   })
 

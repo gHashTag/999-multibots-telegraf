@@ -8,7 +8,10 @@ describe('videoModelKeyboard', () => {
     expect(kb).toHaveLength(3)
     expect(kb[0].map((b: any) => b.text)).toEqual(['Minimax', 'Haiper'])
     expect(kb[1].map((b: any) => b.text)).toEqual(['Ray', 'I2VGen-XL'])
-    expect(kb[2].map((b: any) => b.text)).toEqual(['Справка по команде', 'Отмена'])
+    expect(kb[2].map((b: any) => b.text)).toEqual([
+      'Справка по команде',
+      'Отмена',
+    ])
   })
 
   it('builds keyboard with model names and control buttons in English', () => {
@@ -18,6 +21,9 @@ describe('videoModelKeyboard', () => {
     expect(kb).toHaveLength(3)
     expect(kb[0].map((b: any) => b.text)).toEqual(['Minimax', 'Haiper'])
     expect(kb[1].map((b: any) => b.text)).toEqual(['Ray', 'I2VGen-XL'])
-    expect(kb[2].map((b: any) => b.text)).toEqual(['Help for the command', 'Cancel'])
+    expect(kb[2].map((b: any) => b.text)).toEqual([
+      'Help for the command',
+      'Cancel',
+    ])
   })
 })

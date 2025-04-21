@@ -1,16 +1,15 @@
-
 // Mocks for modules loaded by index.ts
 jest.mock('dotenv', () => ({ config: jest.fn() }))
 jest.mock('telegraf', () => ({
   Telegraf: jest.fn().mockImplementation(token => ({
-    telegram: { sendMessage: jest.fn() }
+    telegram: { sendMessage: jest.fn() },
   })),
 }))
 jest.mock('@/core/supabase', () => ({
   getBotGroupFromAvatars: jest.fn(async () => 'group123'),
 }))
 jest.mock('@/utils/logger', () => ({
-  logger: { info: jest.fn(), error: jest.fn() }
+  logger: { info: jest.fn(), error: jest.fn() },
 }))
 // Mock config to control NODE_ENV
 jest.mock('@/config', () => ({ NODE_ENV: 'production' }))
@@ -20,8 +19,16 @@ describe('core/bot index', () => {
     jest.resetModules()
     // Clear only bot-related environment variables to isolate tests
     const keys = [
-      'BOT_TOKEN_1','BOT_TOKEN_2','BOT_TOKEN_3','BOT_TOKEN_4','BOT_TOKEN_5','BOT_TOKEN_6','BOT_TOKEN_7',
-      'BOT_TOKEN_TEST_1','BOT_TOKEN_TEST_2','SUPPORT_CHAT_ID'
+      'BOT_TOKEN_1',
+      'BOT_TOKEN_2',
+      'BOT_TOKEN_3',
+      'BOT_TOKEN_4',
+      'BOT_TOKEN_5',
+      'BOT_TOKEN_6',
+      'BOT_TOKEN_7',
+      'BOT_TOKEN_TEST_1',
+      'BOT_TOKEN_TEST_2',
+      'SUPPORT_CHAT_ID',
     ]
     keys.forEach(key => delete process.env[key])
   })

@@ -1,7 +1,6 @@
-
 // Mock supabase client
 jest.mock('@/core/supabase', () => ({
-  supabase: { from: jest.fn() }
+  supabase: { from: jest.fn() },
 }))
 import { supabase } from '@/core/supabase'
 import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
@@ -9,7 +8,7 @@ import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
 describe('getUserByTelegramId', () => {
   const ctx: any = {
     from: { id: 123 },
-    botInfo: { username: 'newBot' }
+    botInfo: { username: 'newBot' },
   }
   beforeEach(() => {
     jest.resetModules()
@@ -17,7 +16,9 @@ describe('getUserByTelegramId', () => {
   })
 
   it('returns null if select returns error', async () => {
-    const mockSingle = jest.fn().mockResolvedValue({ data: null, error: { message: 'err' } })
+    const mockSingle = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'err' } })
     const mockEq = jest.fn().mockReturnValue({ single: mockSingle })
     const mockSelect = jest.fn().mockReturnValue({ eq: mockEq })
     ;(supabase.from as jest.Mock).mockReturnValue({ select: mockSelect })
@@ -29,7 +30,9 @@ describe('getUserByTelegramId', () => {
 
   it('returns data and does not update if bot_name matches', async () => {
     const userData = { bot_name: 'newBot', foo: 'bar' }
-    const mockSingle = jest.fn().mockResolvedValue({ data: userData, error: null })
+    const mockSingle = jest
+      .fn()
+      .mockResolvedValue({ data: userData, error: null })
     const mockEq = jest.fn().mockReturnValue({ single: mockSingle })
     const mockSelect = jest.fn().mockReturnValue({ eq: mockEq })
     ;(supabase.from as jest.Mock).mockReturnValue({ select: mockSelect })
@@ -40,7 +43,9 @@ describe('getUserByTelegramId', () => {
 
   it('updates bot_name when differs and returns data', async () => {
     const oldData = { bot_name: 'oldBot' }
-    const mockSingle = jest.fn().mockResolvedValue({ data: oldData, error: null })
+    const mockSingle = jest
+      .fn()
+      .mockResolvedValue({ data: oldData, error: null })
     const mockEqSelect = jest.fn().mockReturnValue({ single: mockSingle })
     const mockSelect = jest.fn().mockReturnValue({ eq: mockEqSelect })
     const mockEqUpdate = jest.fn().mockResolvedValue({ error: null })
@@ -56,7 +61,9 @@ describe('getUserByTelegramId', () => {
   })
 
   it('returns null on unexpected exception', async () => {
-    (supabase.from as jest.Mock).mockImplementation(() => { throw new Error('fail') })
+    ;(supabase.from as jest.Mock).mockImplementation(() => {
+      throw new Error('fail')
+    })
     const result = await getUserByTelegramId(ctx)
     expect(result).toBeNull()
   })

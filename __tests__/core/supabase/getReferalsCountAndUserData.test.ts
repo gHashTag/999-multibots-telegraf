@@ -1,4 +1,3 @@
-
 describe('getReferalsCountAndUserData', () => {
   let getReferalsCountAndUserData: typeof import('@/core/supabase/getReferalsCountAndUserData').getReferalsCountAndUserData
   const mockBuilderUser: any = {}
@@ -22,28 +21,48 @@ describe('getReferalsCountAndUserData', () => {
     jest.doMock('@/core/supabase', () => ({ supabase: { from: mockFrom } }))
     jest.isolateModules(() => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      getReferalsCountAndUserData = require('@/core/supabase/getReferalsCountAndUserData').getReferalsCountAndUserData
+      getReferalsCountAndUserData =
+        require('@/core/supabase/getReferalsCountAndUserData').getReferalsCountAndUserData
     })
   })
 
   it('returns default when user lookup fails', async () => {
-    mockBuilderUser.single.mockResolvedValue({ data: null, error: { message: 'fail' } })
+    mockBuilderUser.single.mockResolvedValue({
+      data: null,
+      error: { message: 'fail' },
+    })
     const res = await getReferalsCountAndUserData(telegram_id)
-    expect(res).toEqual({ count: 0, subscription: 'stars', level: 0, userData: null, isExist: false })
+    expect(res).toEqual({
+      count: 0,
+      subscription: 'stars',
+      level: 0,
+      userData: null,
+      isExist: false,
+    })
   })
 
   it('returns default when referral query errors', async () => {
     // First successful user lookup
     mockBuilderUser.single.mockResolvedValue({ data: userData, error: null })
     // Second query error
-    mockBuilderRef.eq.mockReturnValue(Promise.resolve({ data: null, error: { message: 'fail' } }))
+    mockBuilderRef.eq.mockReturnValue(
+      Promise.resolve({ data: null, error: { message: 'fail' } })
+    )
     const res = await getReferalsCountAndUserData(telegram_id)
-    expect(res).toEqual({ count: 0, subscription: 'stars', level: 0, userData: null, isExist: false })
+    expect(res).toEqual({
+      count: 0,
+      subscription: 'stars',
+      level: 0,
+      userData: null,
+      isExist: false,
+    })
   })
 
   it('returns correct count and user data on success', async () => {
     mockBuilderUser.single.mockResolvedValue({ data: userData, error: null })
-    mockBuilderRef.eq.mockReturnValue(Promise.resolve({ data: refs, error: null }))
+    mockBuilderRef.eq.mockReturnValue(
+      Promise.resolve({ data: refs, error: null })
+    )
     const res = await getReferalsCountAndUserData(telegram_id)
     expect(res).toEqual({
       count: refs.length,

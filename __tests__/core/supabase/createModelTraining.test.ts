@@ -1,4 +1,3 @@
-
 describe('createModelTraining', () => {
   let mockInsert: jest.Mock
   let createModelTraining: (training: any) => Promise<void>
@@ -11,7 +10,8 @@ describe('createModelTraining', () => {
     jest.doMock('@/core/supabase', () => ({ supabase: { from: mockFrom } }))
     // Import function under test
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    createModelTraining = require('@/core/supabase/createModelTraining').createModelTraining
+    createModelTraining =
+      require('@/core/supabase/createModelTraining').createModelTraining
   })
 
   afterEach(() => {
@@ -33,7 +33,12 @@ describe('createModelTraining', () => {
   it('throws error when insert fails', async () => {
     const supabaseError = new Error('db error')
     mockInsert.mockResolvedValueOnce({ error: supabaseError })
-    const training = { user_id: 'u2', model_name: 'm2', trigger_word: 't2', zip_url: 'http://zip2' }
+    const training = {
+      user_id: 'u2',
+      model_name: 'm2',
+      trigger_word: 't2',
+      zip_url: 'http://zip2',
+    }
     await expect(createModelTraining(training)).rejects.toThrow(
       `Ошибка при создании записи о тренировке: ${supabaseError.message}`
     )

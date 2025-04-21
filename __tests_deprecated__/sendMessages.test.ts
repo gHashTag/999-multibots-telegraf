@@ -50,7 +50,9 @@ describe('Price message helpers', () => {
 
   it('sendPaymentNotification (ru)', async () => {
     ctx.from.language_code = 'ru'
-    const sendSpy = jest.spyOn(ctx.telegram, 'sendMessage').mockResolvedValue(undefined)
+    const sendSpy = jest
+      .spyOn(ctx.telegram, 'sendMessage')
+      .mockResolvedValue(undefined)
     await sendPaymentNotification(ctx, 200, 20, '789', 'ru', 'ivan')
     expect(sendSpy).toHaveBeenCalledWith(
       '-4166575919',

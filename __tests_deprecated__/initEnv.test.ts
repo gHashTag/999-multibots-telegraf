@@ -42,7 +42,7 @@ describe('core/bot module initialization', () => {
     process.env.BOT_TOKEN_7 = 'd'
     expect(() => require('@/core/bot')).toThrow('BOT_TOKEN_TEST_1 is not set')
   })
-  
+
   it('throws error if BOT_TOKEN_TEST_2 is not set', () => {
     // Provide all production tokens and BOT_TOKEN_TEST_1, but remove BOT_TOKEN_TEST_2
     process.env.BOT_TOKEN_1 = 'x1'

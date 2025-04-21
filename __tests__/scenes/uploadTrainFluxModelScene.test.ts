@@ -55,7 +55,7 @@ describe('uploadTrainFluxModelScene', () => {
     const sessionData: MySession = {
       images: [
         { buffer: Buffer.from('img1'), filename: 'img1.jpg' },
-        { buffer: Buffer.from('img2'), filename: 'img2.jpg' }
+        { buffer: Buffer.from('img2'), filename: 'img2.jpg' },
       ], // Используем объекты с буфером
       username: 'userX',
       modelName: 'model1',
@@ -72,19 +72,23 @@ describe('uploadTrainFluxModelScene', () => {
     ctx.session = sessionData // Присваиваем полную сессию
 
     // Мокаем ctx.reply правильно
-    ctx.reply = jest.fn(async (_text: string, _extra?: any): Promise<Message.TextMessage> => {
-      // Возвращаем мок TextMessage
-      return {
-        message_id: Date.now(),
-        date: Date.now() / 1000,
-        chat: { id: 1, type: 'private' }, // Пример
-        text: _text,
-        from: { id: 1, is_bot: true, first_name: 'bot' } // Пример
-      } as Message.TextMessage
-    })
+    ctx.reply = jest.fn(
+      async (_text: string, _extra?: any): Promise<Message.TextMessage> => {
+        // Возвращаем мок TextMessage
+        return {
+          message_id: Date.now(),
+          date: Date.now() / 1000,
+          chat: { id: 1, type: 'private' }, // Пример
+          text: _text,
+          from: { id: 1, is_bot: true, first_name: 'bot' }, // Пример
+        } as Message.TextMessage
+      }
+    )
     ctx.scene = { enter: jest.fn(), leave: jest.fn() } as any
     // Типизируем моки
-    ;(createImagesZip as jest.Mock<() => Promise<string | null>>).mockResolvedValue(zipPath)
+    ;(
+      createImagesZip as jest.Mock<() => Promise<string | null>>
+    ).mockResolvedValue(zipPath)
     ;(ensureSupabaseAuth as jest.Mock<() => Promise<void>>).mockResolvedValue()
   })
 

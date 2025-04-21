@@ -1,4 +1,3 @@
-
 // Mock dotenv to prevent real .env loading
 jest.mock('dotenv', () => ({ config: jest.fn() }))
 // Spy on logger to suppress and verify info calls
@@ -35,7 +34,15 @@ describe('core/bot module initialization and exports', () => {
       // BOT_URLS should contain known bot keys
       expect(coreBot.BOT_URLS).toHaveProperty('neuro_blogger_bot')
       // BOT_TOKENS array length should match production tokens
-      expect(coreBot.BOT_TOKENS).toEqual(['p1','p2','p3','p4','p5','p6','p7'])
+      expect(coreBot.BOT_TOKENS).toEqual([
+        'p1',
+        'p2',
+        'p3',
+        'p4',
+        'p5',
+        'p6',
+        'p7',
+      ])
       // bots array should instantiate 7 bots
       expect(Array.isArray(coreBot.bots)).toBe(true)
       expect(coreBot.bots).toHaveLength(7)

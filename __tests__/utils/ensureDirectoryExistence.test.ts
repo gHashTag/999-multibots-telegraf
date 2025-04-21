@@ -7,7 +7,9 @@ describe('ensureDirectoryExistence', () => {
   })
 
   it('should call fs.promises.mkdir with recursive true', async () => {
-    const mkdirSpy = jest.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined)
+    const mkdirSpy = jest
+      .spyOn(fs.promises, 'mkdir')
+      .mockResolvedValue(undefined)
     const dir = '/tmp/test-dir'
     await expect(ensureDirectoryExistence(dir)).resolves.toBeUndefined()
     expect(mkdirSpy).toHaveBeenCalledWith(dir, { recursive: true })

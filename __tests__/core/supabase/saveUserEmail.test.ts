@@ -1,4 +1,3 @@
-
 describe('saveUserEmail', () => {
   let builder: any
   let mockFrom: jest.Mock
@@ -39,7 +38,12 @@ describe('saveUserEmail', () => {
     const eqMock = builder.update().eq
     const err = new Error('upd fail')
     eqMock.mockResolvedValueOnce({ error: err })
-    await expect(saveUserEmail('99', 'c@d.com')).rejects.toThrow('Не удалось сохранить e-mail пользователя')
-    expect(console.error).toHaveBeenCalledWith('Ошибка при сохранении e-mail:', err)
+    await expect(saveUserEmail('99', 'c@d.com')).rejects.toThrow(
+      'Не удалось сохранить e-mail пользователя'
+    )
+    expect(console.error).toHaveBeenCalledWith(
+      'Ошибка при сохранении e-mail:',
+      err
+    )
   })
 })

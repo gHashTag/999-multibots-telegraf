@@ -1,4 +1,3 @@
-
 // Set required environment before importing module
 beforeAll(() => {
   process.env.BOT_TOKEN_1 = 'b1'
@@ -35,11 +34,9 @@ describe('supportRequest', () => {
 
   it('throws an error if sendMessage rejects', async () => {
     const { supportRequest, pulseBot } = require('@/core/bot')
-    jest
-      .spyOn(pulseBot.telegram, 'sendMessage')
-      .mockImplementation(() => {
-        throw new Error('fail')
-      })
+    jest.spyOn(pulseBot.telegram, 'sendMessage').mockImplementation(() => {
+      throw new Error('fail')
+    })
     await expect(supportRequest('T', { x: 1 })).rejects.toThrow(
       /Error supportRequest:/
     )

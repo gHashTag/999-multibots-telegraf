@@ -1,4 +1,3 @@
-
 describe('incrementGeneratedImages', () => {
   let builder: any
   let mockFrom: jest.Mock
@@ -26,7 +25,8 @@ describe('incrementGeneratedImages', () => {
     consoleError = jest.spyOn(console, 'error').mockImplementation(() => {})
     // Import function under test
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    incrementGeneratedImages = require('@/core/supabase/incrementGeneratedImages').incrementGeneratedImages
+    incrementGeneratedImages =
+      require('@/core/supabase/incrementGeneratedImages').incrementGeneratedImages
   })
 
   afterEach(() => {
@@ -49,7 +49,10 @@ describe('incrementGeneratedImages', () => {
     builder.single.mockResolvedValueOnce({ data: null, error: err })
     builder.insert.mockResolvedValueOnce({ error: insErr })
     const result = await incrementGeneratedImages(88)
-    expect(consoleError).toHaveBeenCalledWith('Ошибка при добавлении нового telegram_id:', insErr)
+    expect(consoleError).toHaveBeenCalledWith(
+      'Ошибка при добавлении нового telegram_id:',
+      insErr
+    )
     expect(result).toBe(false)
   })
 
@@ -70,7 +73,10 @@ describe('incrementGeneratedImages', () => {
     const updateEq = jest.fn().mockResolvedValue({ error: upErr })
     builder.update.mockReturnValue({ eq: updateEq })
     const result = await incrementGeneratedImages(100)
-    expect(consoleError).toHaveBeenCalledWith('Ошибка при обновлении count для telegram_id:', upErr)
+    expect(consoleError).toHaveBeenCalledWith(
+      'Ошибка при обновлении count для telegram_id:',
+      upErr
+    )
     expect(result).toBe(false)
   })
 
@@ -78,7 +84,10 @@ describe('incrementGeneratedImages', () => {
     const err = { code: 'OTHER' }
     builder.single.mockResolvedValueOnce({ data: null, error: err })
     const result = await incrementGeneratedImages(123)
-    expect(consoleError).toHaveBeenCalledWith('Ошибка при проверке существования telegram_id:', err)
+    expect(consoleError).toHaveBeenCalledWith(
+      'Ошибка при проверке существования telegram_id:',
+      err
+    )
     expect(result).toBe(false)
   })
 })

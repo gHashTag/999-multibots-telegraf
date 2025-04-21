@@ -28,7 +28,9 @@ describe('getModel', () => {
     // Мокаем ошибку на этапе single
     mockSingle.mockResolvedValue({ data: null, error: { message: 'err' } })
     // Вызываем функцию
-    await expect(getModel(telegram_id)).rejects.toThrow('Error getModel: [object Object]')
+    await expect(getModel(telegram_id)).rejects.toThrow(
+      'Error getModel: [object Object]'
+    )
     // Проверяем вызовы
     expect(supabase.from).toHaveBeenCalledWith('users')
     expect(mockSelect).toHaveBeenCalledWith('model')

@@ -1,4 +1,3 @@
-
 // Mock supabase client
 jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
 import { supabase } from '@/core/supabase'
@@ -12,14 +11,21 @@ describe('getGeneratedImages', () => {
   })
 
   it('returns default when error', async () => {
-    const mockSingle = jest.fn().mockResolvedValue({ data: null, error: { message: 'err' } })
+    const mockSingle = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'err' } })
     const eqMock = jest.fn().mockReturnValue({ single: mockSingle })
     const mockSelect = jest.fn().mockReturnValue({ eq: eqMock })
     ;(supabase.from as jest.Mock).mockReturnValue({ select: mockSelect })
-    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
+    const consoleLogSpy = jest
+      .spyOn(console, 'log')
+      .mockImplementation(() => {})
     const result = await getGeneratedImages(telegram_id)
     expect(result).toEqual({ count: 0, limit: 2 })
-    expect(consoleLogSpy).toHaveBeenCalledWith('Ошибка при получении count для telegram_id:', { message: 'err' })
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      'Ошибка при получении count для telegram_id:',
+      { message: 'err' }
+    )
     consoleLogSpy.mockRestore()
   })
 

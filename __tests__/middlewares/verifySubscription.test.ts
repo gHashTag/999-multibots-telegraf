@@ -1,8 +1,12 @@
 import makeMockContext from '../utils/mockTelegrafContext'
 
 // Mock dependencies
-jest.mock('@/middlewares/checkSubscription', () => ({ checkSubscription: jest.fn() }))
-jest.mock('@/middlewares/handleSubscriptionMessage', () => ({ handleSubscriptionMessage: jest.fn() }))
+jest.mock('@/middlewares/checkSubscription', () => ({
+  checkSubscription: jest.fn(),
+}))
+jest.mock('@/middlewares/handleSubscriptionMessage', () => ({
+  handleSubscriptionMessage: jest.fn(),
+}))
 import { verifySubscription } from '@/middlewares/verifySubscription'
 import { checkSubscription } from '@/middlewares/checkSubscription'
 import { handleSubscriptionMessage } from '@/middlewares/handleSubscriptionMessage'
@@ -31,6 +35,8 @@ describe('verifySubscription', () => {
   it('propagates error from checkSubscription', async () => {
     const err = new Error('fail')
     ;(checkSubscription as jest.Mock).mockRejectedValue(err)
-    await expect(verifySubscription(ctx as any, 'ru', 'chan')).rejects.toThrow(err)
+    await expect(verifySubscription(ctx as any, 'ru', 'chan')).rejects.toThrow(
+      err
+    )
   })
 })

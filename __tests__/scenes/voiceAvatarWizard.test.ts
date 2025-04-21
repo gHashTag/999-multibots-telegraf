@@ -4,14 +4,29 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { Context, MiddlewareFn } from 'telegraf'
 import { Scenes } from 'telegraf' // Импортируем Scenes для WizardScene
-import { Update, Message, CallbackQuery, InlineQuery, PreCheckoutQuery, User, Chat, File, Voice, UserFromGetMe } from 'telegraf/typings/core/types/typegram'
+import {
+  Update,
+  Message,
+  CallbackQuery,
+  InlineQuery,
+  PreCheckoutQuery,
+  User,
+  Chat,
+  File,
+  Voice,
+  UserFromGetMe,
+} from 'telegraf/typings/core/types/typegram'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { voiceAvatarWizard } from '../../src/scenes/voiceAvatarWizard/index' // Правильный путь к визарду
 import { MyContext, MySession, UserModel } from '../../src/interfaces'
 import { createHelpCancelKeyboard } from '../../src/menu/createHelpCancelKeyboard/createHelpCancelKeyboard'
 import { isRussian } from '@/helpers/language' // Мок
 import { getUserBalance } from '@/core/supabase' // Мок
-import { sendInsufficientStarsMessage, sendBalanceMessage, voiceConversationCost } from '@/price/helpers' // Мок
+import {
+  sendInsufficientStarsMessage,
+  sendBalanceMessage,
+  voiceConversationCost,
+} from '@/price/helpers' // Мок
 import { handleHelpCancel } from '@/handlers' // Мок
 import { generateVoiceAvatar } from '@/services/generateVoiceAvatar' // Мок
 
@@ -26,7 +41,9 @@ jest.mock('@/services/generateVoiceAvatar')
 const mockedCreateHelpCancelKeyboard = jest.mocked(createHelpCancelKeyboard)
 const mockedIsRussian = jest.mocked(isRussian)
 const mockedGetUserBalance = jest.mocked(getUserBalance)
-const mockedSendInsufficientStarsMessage = jest.mocked(sendInsufficientStarsMessage)
+const mockedSendInsufficientStarsMessage = jest.mocked(
+  sendInsufficientStarsMessage
+)
 const mockedSendBalanceMessage = jest.mocked(sendBalanceMessage)
 const mockedHandleHelpCancel = jest.mocked(handleHelpCancel)
 const mockedGenerateVoiceAvatar = jest.mocked(generateVoiceAvatar)
@@ -34,7 +51,7 @@ const mockedGenerateVoiceAvatar = jest.mocked(generateVoiceAvatar)
 const mockUserModel: UserModel = {
   model_name: 'test-model',
   trigger_word: 'test',
-  model_url: 'org/repo:version'
+  model_url: 'org/repo:version',
 }
 
 const createMockSession = (overrides: Partial<MySession> = {}): MySession => ({
@@ -44,8 +61,8 @@ const createMockSession = (overrides: Partial<MySession> = {}): MySession => ({
   cursor: 0,
   // Добавляем другие обязательные поля MySession, если они есть
   // ...
-  ...overrides
-});
+  ...overrides,
+})
 // -------------
 
 describe('voiceAvatarWizard', () => {
@@ -65,15 +82,26 @@ describe('voiceAvatarWizard', () => {
     mockedGetUserBalance.mockResolvedValue(100) // Достаточный баланс
     mockedHandleHelpCancel.mockResolvedValue(false) // Не отмена/помощь
     // Добавляем duration в мок Voice
-    mockGetFile.mockResolvedValue({ file_id: 'file_id', file_unique_id: 'unique_id', file_path: 'path/to/file', duration: 10 } as Voice)
+    mockGetFile.mockResolvedValue({
+      file_id: 'file_id',
+      file_unique_id: 'unique_id',
+      file_path: 'path/to/file',
+      duration: 10,
+    } as Voice)
 
-    mockedCreateHelpCancelKeyboard.mockImplementation((isRu: boolean) => ({
-      reply_markup: {
-        keyboard: [[{ text: isRu ? 'Помощь' : 'Help' }], [{ text: isRu ? 'Отмена' : 'Cancel' }]],
-        resize_keyboard: true,
-        one_time_keyboard: true
-      }
-    } as any))
+    mockedCreateHelpCancelKeyboard.mockImplementation(
+      (isRu: boolean) =>
+        ({
+          reply_markup: {
+            keyboard: [
+              [{ text: isRu ? 'Помощь' : 'Help' }],
+              [{ text: isRu ? 'Отмена' : 'Cancel' }],
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true,
+          },
+        } as any)
+    )
   })
 
   // --- Тесты для Шага 0 ---
@@ -95,30 +123,63 @@ describe('voiceAvatarWizard', () => {
 
   it('step 0: should leave if balance is insufficient', async () => {
     const session = createMockSession()
-    ctx = makeMockContext({ message: { text: 'start', from: { id: 123 } as User } } as Update, session)
+    ctx = makeMockContext(
+      { message: { text: 'start', from: { id: 123 } as User } } as Update,
+      session
+    )
     mockedGetUserBalance.mockResolvedValueOnce(voiceConversationCost - 1) // Недостаточный баланс
 
     const step0 = voiceAvatarWizard.steps[0]
     await (step0 as MiddlewareFn<MyContext>)(ctx, mockNext)
 
     expect(mockedGetUserBalance).toHaveBeenCalledWith('123')
-    expect(mockedSendInsufficientStarsMessage).toHaveBeenCalledWith(ctx, voiceConversationCost - 1, true)
+    expect(mockedSendInsufficientStarsMessage).toHaveBeenCalledWith(
+      ctx,
+      voiceConversationCost - 1,
+      true
+    )
     expect(ctx.scene.leave).toHaveBeenCalled()
-    expect(ctx.reply).not.toHaveBeenCalledWith(expect.stringContaining('Пожалуйста, отправьте голосовое'))
+    expect(ctx.reply).not.toHaveBeenCalledWith(
+      expect.stringContaining('Пожалуйста, отправьте голосовое')
+    )
     expect(ctx.wizard.next).not.toHaveBeenCalled()
   })
 
   it('step 0: should prompt for voice, send balance and advance if balance sufficient', async () => {
     const session = createMockSession()
-    const fromUser = { id: 123, is_bot: false, first_name: 'Tester', username: 'testuser', language_code: 'ru' }
-    const botInfo = { id: 1, is_bot: true, username: 'test_bot', first_name: 'Bot', can_join_groups: false, can_read_all_group_messages: false, supports_inline_queries: false } as UserFromGetMe
-    ctx = makeMockContext({ message: { text: 'start', from: fromUser } } as Update, session, { botInfo })
+    const fromUser = {
+      id: 123,
+      is_bot: false,
+      first_name: 'Tester',
+      username: 'testuser',
+      language_code: 'ru',
+    }
+    const botInfo = {
+      id: 1,
+      is_bot: true,
+      username: 'test_bot',
+      first_name: 'Bot',
+      can_join_groups: false,
+      can_read_all_group_messages: false,
+      supports_inline_queries: false,
+    } as UserFromGetMe
+    ctx = makeMockContext(
+      { message: { text: 'start', from: fromUser } } as Update,
+      session,
+      { botInfo }
+    )
 
     const step0 = voiceAvatarWizard.steps[0]
     await (step0 as MiddlewareFn<MyContext>)(ctx, mockNext)
 
     expect(mockedGetUserBalance).toHaveBeenCalledWith('123')
-    expect(mockedSendBalanceMessage).toHaveBeenCalledWith(ctx, 100, voiceConversationCost, true, 'test_bot')
+    expect(mockedSendBalanceMessage).toHaveBeenCalledWith(
+      ctx,
+      100,
+      voiceConversationCost,
+      true,
+      'test_bot'
+    )
     expect(ctx.reply).toHaveBeenCalledWith(
       '🎙️ Пожалуйста, отправьте голосовое сообщение для создания голосового аватара',
       mockedCreateHelpCancelKeyboard(true)
@@ -138,7 +199,9 @@ describe('voiceAvatarWizard', () => {
     const step1 = voiceAvatarWizard.steps[1]
     await (step1 as MiddlewareFn<MyContext>)(ctx, mockNext)
 
-    expect(ctx.reply).toHaveBeenCalledWith('🎙️ Пожалуйста, отправьте голосовое сообщение')
+    expect(ctx.reply).toHaveBeenCalledWith(
+      '🎙️ Пожалуйста, отправьте голосовое сообщение'
+    )
     expect(mockedHandleHelpCancel).not.toHaveBeenCalled()
     expect(ctx.scene.leave).not.toHaveBeenCalled()
   })
@@ -159,9 +222,25 @@ describe('voiceAvatarWizard', () => {
 
   it('step 1: should handle voice message, generate avatar and leave', async () => {
     const session = createMockSession()
-    const fromUser = { id: 123, is_bot: false, first_name: 'Tester', username: 'testuser', language_code: 'ru' }
-    const botInfo = { id: 1, is_bot: true, username: 'test_bot', first_name: 'Bot', can_join_groups: false, can_read_all_group_messages: false, supports_inline_queries: false } as UserFromGetMe
-    const voiceMessage = { message: { voice: { file_id: 'voice_file_id' }, from: fromUser } }
+    const fromUser = {
+      id: 123,
+      is_bot: false,
+      first_name: 'Tester',
+      username: 'testuser',
+      language_code: 'ru',
+    }
+    const botInfo = {
+      id: 1,
+      is_bot: true,
+      username: 'test_bot',
+      first_name: 'Bot',
+      can_join_groups: false,
+      can_read_all_group_messages: false,
+      supports_inline_queries: false,
+    } as UserFromGetMe
+    const voiceMessage = {
+      message: { voice: { file_id: 'voice_file_id' }, from: fromUser },
+    }
     ctx = makeMockContext(voiceMessage as Update, session, { botInfo })
 
     ctx.telegram.getFile = mockGetFile
@@ -180,14 +259,32 @@ describe('voiceAvatarWizard', () => {
       'test_bot'
     )
     expect(ctx.scene.leave).toHaveBeenCalled()
-    expect(ctx.reply).not.toHaveBeenCalledWith(expect.stringContaining('Ошибка'))
+    expect(ctx.reply).not.toHaveBeenCalledWith(
+      expect.stringContaining('Ошибка')
+    )
   })
 
   it('step 1: should handle audio message, generate avatar and leave', async () => {
     const session = createMockSession()
-    const fromUser = { id: 123, is_bot: false, first_name: 'Tester', username: 'testuser', language_code: 'ru' }
-    const botInfo = { id: 1, is_bot: true, username: 'test_bot', first_name: 'Bot', can_join_groups: false, can_read_all_group_messages: false, supports_inline_queries: false } as UserFromGetMe
-    const audioMessage = { message: { audio: { file_id: 'audio_file_id' }, from: fromUser } }
+    const fromUser = {
+      id: 123,
+      is_bot: false,
+      first_name: 'Tester',
+      username: 'testuser',
+      language_code: 'ru',
+    }
+    const botInfo = {
+      id: 1,
+      is_bot: true,
+      username: 'test_bot',
+      first_name: 'Bot',
+      can_join_groups: false,
+      can_read_all_group_messages: false,
+      supports_inline_queries: false,
+    } as UserFromGetMe
+    const audioMessage = {
+      message: { audio: { file_id: 'audio_file_id' }, from: fromUser },
+    }
     ctx = makeMockContext(audioMessage as Update, session, { botInfo })
     ctx.telegram.getFile = mockGetFile
 
@@ -205,18 +302,25 @@ describe('voiceAvatarWizard', () => {
       'test_bot'
     )
     expect(ctx.scene.leave).toHaveBeenCalled()
-    expect(ctx.reply).not.toHaveBeenCalledWith(expect.stringContaining('Ошибка'))
+    expect(ctx.reply).not.toHaveBeenCalledWith(
+      expect.stringContaining('Ошибка')
+    )
   })
 
   it('step 1: should reply with error and leave if text message is not help/cancel', async () => {
     const session = createMockSession()
-    ctx = makeMockContext({ message: { text: 'some random text' } } as Update, session)
+    ctx = makeMockContext(
+      { message: { text: 'some random text' } } as Update,
+      session
+    )
 
     const step1 = voiceAvatarWizard.steps[1]
     await (step1 as MiddlewareFn<MyContext>)(ctx, mockNext)
 
     expect(mockedHandleHelpCancel).toHaveBeenCalledWith(ctx)
-    expect(ctx.reply).toHaveBeenCalledWith('Ошибка: не удалось получить идентификатор файла')
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Ошибка: не удалось получить идентификатор файла'
+    )
     expect(ctx.scene.leave).toHaveBeenCalled()
     expect(mockGetFile).not.toHaveBeenCalled()
     expect(mockedGenerateVoiceAvatar).not.toHaveBeenCalled()
@@ -235,7 +339,9 @@ describe('voiceAvatarWizard', () => {
 
     expect(mockedHandleHelpCancel).toHaveBeenCalledWith(ctx)
     expect(mockGetFile).toHaveBeenCalledWith('voice_file_id')
-    expect(ctx.reply).toHaveBeenCalledWith('❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.')
+    expect(ctx.reply).toHaveBeenCalledWith(
+      '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'
+    )
     expect(mockedGenerateVoiceAvatar).not.toHaveBeenCalled()
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
@@ -254,7 +360,9 @@ describe('voiceAvatarWizard', () => {
     expect(mockedHandleHelpCancel).toHaveBeenCalledWith(ctx)
     expect(mockGetFile).toHaveBeenCalledWith('voice_file_id')
     expect(mockedGenerateVoiceAvatar).toHaveBeenCalled()
-    expect(ctx.reply).toHaveBeenCalledWith('❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.')
+    expect(ctx.reply).toHaveBeenCalledWith(
+      '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'
+    )
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 })

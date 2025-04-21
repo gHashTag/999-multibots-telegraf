@@ -10,7 +10,7 @@ describe('getUserPhotoUrl', () => {
         token: 'TOKEN',
         getUserProfilePhotos: jest.fn(),
         getFile: jest.fn(),
-      }
+      },
     }
     jest.clearAllMocks()
   })
@@ -21,7 +21,10 @@ describe('getUserPhotoUrl', () => {
   })
 
   it('returns null when file_path missing', async () => {
-    ctx.telegram.getUserProfilePhotos.mockResolvedValue({ total_count: 1, photos: [[{ file_id: 'fid' }]] })
+    ctx.telegram.getUserProfilePhotos.mockResolvedValue({
+      total_count: 1,
+      photos: [[{ file_id: 'fid' }]],
+    })
     ctx.telegram.getFile.mockResolvedValue({})
     await expect(getUserPhotoUrl(ctx, userId)).resolves.toBeNull()
   })

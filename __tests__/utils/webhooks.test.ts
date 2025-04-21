@@ -1,4 +1,8 @@
-import { configureWebhooks, removeWebhook, WebhookConfig } from '../../src/utils/webhooks'
+import {
+  configureWebhooks,
+  removeWebhook,
+  WebhookConfig,
+} from '../../src/utils/webhooks'
 import { botLogger } from '../../src/utils/logger'
 
 describe('configureWebhooks util', () => {
@@ -7,7 +11,12 @@ describe('configureWebhooks util', () => {
   let errorSpy: jest.SpyInstance
   let warnSpy: jest.SpyInstance
   const botName = 'bot1'
-  const config: WebhookConfig = { enabled: true, domain: 'test.com', path: '/hook', port: 1234 }
+  const config: WebhookConfig = {
+    enabled: true,
+    domain: 'test.com',
+    path: '/hook',
+    port: 1234,
+  }
 
   beforeEach(() => {
     jest.resetModules()
@@ -33,25 +42,37 @@ describe('configureWebhooks util', () => {
     const cfg = { ...config, enabled: false }
     const res = await configureWebhooks(bot, cfg, botName)
     expect(res).toBe(false)
-    expect(infoSpy).toHaveBeenCalledWith(botName, 'Вебхуки отключены в конфигурации')
+    expect(infoSpy).toHaveBeenCalledWith(
+      botName,
+      'Вебхуки отключены в конфигурации'
+    )
   })
 
   it('returns false when domain missing', async () => {
     const cfg = { ...config, domain: '' }
     const res = await configureWebhooks(bot, cfg, botName)
     expect(res).toBe(false)
-    expect(errorSpy).toHaveBeenCalledWith(botName, 'Домен для вебхуков не указан')
+    expect(errorSpy).toHaveBeenCalledWith(
+      botName,
+      'Домен для вебхуков не указан'
+    )
   })
 
   it('sets webhook when enabled and domain present', async () => {
     const url = `https://${config.domain}${config.path}`
     bot.telegram.setWebhook.mockResolvedValue({})
-    bot.telegram.getWebhookInfo.mockResolvedValue({ url, pending_update_count: 0 })
+    bot.telegram.getWebhookInfo.mockResolvedValue({
+      url,
+      pending_update_count: 0,
+    })
     const res = await configureWebhooks(bot, config, botName)
     expect(res).toBe(true)
     expect(bot.telegram.setWebhook).toHaveBeenCalledWith(url)
     expect(infoSpy).toHaveBeenCalledWith(botName, `Настройка вебхука: ${url}`)
-    expect(infoSpy).toHaveBeenCalledWith(botName, `Вебхук успешно настроен: ${url}`)
+    expect(infoSpy).toHaveBeenCalledWith(
+      botName,
+      `Вебхук успешно настроен: ${url}`
+    )
   })
 })
 

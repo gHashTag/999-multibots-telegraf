@@ -46,15 +46,21 @@ describe('digitalAvatarBodyWizardV2', () => {
   it('первый шаг: отправляет сообщение со стоимостью и вызывает next()', async () => {
     const ctx = makeMockContext()
     // @ts-ignore: requireMock returns unknown
-    const isRu = (jest.requireMock('../../src/helpers/language') as any).isRussian
+    const isRu = (jest.requireMock('../../src/helpers/language') as any)
+      .isRussian
     // @ts-ignore: requireMock returns unknown
-    const calc = (jest.requireMock('../../src/price/priceCalculator') as any).calculateCost
+    const calc = (jest.requireMock('../../src/price/priceCalculator') as any)
+      .calculateCost
     // @ts-ignore: requireMock returns unknown
-    const genMsg = (jest.requireMock('../../src/price/priceCalculator') as any).generateCostMessage
+    const genMsg = (jest.requireMock('../../src/price/priceCalculator') as any)
+      .generateCostMessage
     // @ts-ignore: requireMock returns unknown
-    const stepsOpt = (jest.requireMock('../../src/price/priceCalculator') as any).stepOptions
+    const stepsOpt = (
+      jest.requireMock('../../src/price/priceCalculator') as any
+    ).stepOptions
     // @ts-ignore: requireMock returns unknown
-    const menu = (jest.requireMock('../../src/menu') as any).getStepSelectionMenuV2
+    const menu = (jest.requireMock('../../src/menu') as any)
+      .getStepSelectionMenuV2
     // Настраиваем моки
     isRu.mockReturnValueOnce(true)
     calc.mockReturnValue(5)
@@ -74,9 +80,11 @@ describe('digitalAvatarBodyWizardV2', () => {
     // @ts-ignore: override readonly properties for test
     const ctx = makeMockContext({}, { session: {}, message: { text: '2' } })
     // @ts-ignore: requireMock returns unknown
-    const isRu = (jest.requireMock('../../src/helpers/language') as any).isRussian
+    const isRu = (jest.requireMock('../../src/helpers/language') as any)
+      .isRussian
     // @ts-ignore: requireMock returns unknown
-    const costHelper = (jest.requireMock('../../src/price/helpers') as any).handleTrainingCost
+    const costHelper = (jest.requireMock('../../src/price/helpers') as any)
+      .handleTrainingCost
     isRu.mockReturnValue(false)
     costHelper.mockResolvedValue({
       leaveScene: false,
@@ -94,9 +102,11 @@ describe('digitalAvatarBodyWizardV2', () => {
     // @ts-ignore: override readonly properties for test
     const ctx = makeMockContext({}, { session: {}, message: { text: '1' } })
     // @ts-ignore: requireMock returns unknown
-    const isRu = (jest.requireMock('../../src/helpers/language') as any).isRussian
+    const isRu = (jest.requireMock('../../src/helpers/language') as any)
+      .isRussian
     // @ts-ignore: requireMock returns unknown
-    const costHelper = (jest.requireMock('../../src/price/helpers') as any).handleTrainingCost
+    const costHelper = (jest.requireMock('../../src/price/helpers') as any)
+      .handleTrainingCost
     isRu.mockReturnValue(true)
     costHelper.mockResolvedValue({
       leaveScene: true,
@@ -112,9 +122,12 @@ describe('digitalAvatarBodyWizardV2', () => {
     // @ts-ignore: override readonly properties for test
     const ctx = makeMockContext({}, { session: {}, message: { text: 'abc' } })
     // @ts-ignore: requireMock returns unknown
-    const isRu = (jest.requireMock('../../src/helpers/language') as any).isRussian
+    const isRu = (jest.requireMock('../../src/helpers/language') as any)
+      .isRussian
     // @ts-ignore: requireMock returns unknown
-    const cancel = (jest.requireMock('../../src/handlers/handleHelpCancel') as any).handleHelpCancel
+    const cancel = (
+      jest.requireMock('../../src/handlers/handleHelpCancel') as any
+    ).handleHelpCancel
     isRu.mockReturnValue(true)
     cancel.mockResolvedValueOnce(true)
     // @ts-ignore
@@ -126,9 +139,12 @@ describe('digitalAvatarBodyWizardV2', () => {
     // @ts-ignore: override readonly properties for test
     const ctx = makeMockContext({}, { session: {}, message: { text: 'xyz' } })
     // @ts-ignore: requireMock returns unknown
-    const isRu = (jest.requireMock('../../src/helpers/language') as any).isRussian
+    const isRu = (jest.requireMock('../../src/helpers/language') as any)
+      .isRussian
     // @ts-ignore: requireMock returns unknown
-    const cancel = (jest.requireMock('../../src/handlers/handleHelpCancel') as any).handleHelpCancel
+    const cancel = (
+      jest.requireMock('../../src/handlers/handleHelpCancel') as any
+    ).handleHelpCancel
     isRu.mockReturnValue(false)
     cancel.mockResolvedValueOnce(false)
     // @ts-ignore

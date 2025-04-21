@@ -53,6 +53,7 @@ export interface SubscriptionRenewalParams {
   telegram_id: string
   type: SubscriptionType
   extend_days: number
+  subscription?: string | null
 }
 
 export const SUBSCRIPTION_ERROR_MESSAGES = {

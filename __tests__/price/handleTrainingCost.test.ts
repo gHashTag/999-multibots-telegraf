@@ -7,11 +7,13 @@ import { handleTrainingCost } from '@/price/helpers/handleTrainingCost'
 // Мокаем зависимости
 jest.mock('@/price/helpers/calculateTrainingCost', () => ({
   // @ts-ignore
-  calculateCostInStars: jest.fn((steps, rates) => steps * rates.costPerStepInStars)
+  calculateCostInStars: jest.fn(
+    (steps, rates) => steps * rates.costPerStepInStars
+  ),
 }))
 jest.mock('@/core/supabase', () => ({
   // @ts-ignore
-  getUserBalance: jest.fn()
+  getUserBalance: jest.fn(),
 }))
 import { calculateCostInStars } from '@/price/helpers/calculateTrainingCost'
 import { getUserBalance } from '@/core/supabase'
@@ -29,8 +31,8 @@ describe('handleTrainingCost', () => {
 
   it('should prompt and set leaveScene=true when balance is insufficient (RU)', async () => {
     // @ts-ignore
-    (calculateCostInStars as jest.Mock).mockReturnValueOnce(steps * 0.25);
-    (getUserBalance as jest.Mock).mockResolvedValueOnce(steps * 0.25 - 1);
+    ;(calculateCostInStars as jest.Mock).mockReturnValueOnce(steps * 0.25)
+    ;(getUserBalance as jest.Mock).mockResolvedValueOnce(steps * 0.25 - 1)
 
     const result = await handleTrainingCost(ctx, steps, isRu)
     expect(calculateCostInStars).toHaveBeenCalledWith(steps, expect.any(Object))
@@ -46,8 +48,8 @@ describe('handleTrainingCost', () => {
 
   it('should return leaveScene=false when balance is sufficient', async () => {
     // @ts-ignore
-    (calculateCostInStars as jest.Mock).mockReturnValueOnce(steps * 0.25);
-    (getUserBalance as jest.Mock).mockResolvedValueOnce(steps * 0.25 + 10);
+    ;(calculateCostInStars as jest.Mock).mockReturnValueOnce(steps * 0.25)
+    ;(getUserBalance as jest.Mock).mockResolvedValueOnce(steps * 0.25 + 10)
 
     const result = await handleTrainingCost(ctx, steps, false)
     expect(result.leaveScene).toBe(false)

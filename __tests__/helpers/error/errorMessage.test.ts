@@ -2,7 +2,10 @@ import { errorMessage } from '@/helpers/error/errorMessage'
 
 describe('errorMessage', () => {
   const sendMessageMock = jest.fn()
-  const ctx: any = { telegram: { sendMessage: sendMessageMock }, from: { id: 42 } }
+  const ctx: any = {
+    telegram: { sendMessage: sendMessageMock },
+    from: { id: 42 },
+  }
   const testError = new Error('oops')
 
   beforeEach(() => {

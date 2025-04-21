@@ -1,4 +1,3 @@
-
 // Mocks for file system operations
 import fs from 'fs'
 import path from 'path'

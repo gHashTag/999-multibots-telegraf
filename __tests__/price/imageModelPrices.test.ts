@@ -6,9 +6,7 @@ describe('imageModelPrices', () => {
     const key = 'black-forest-labs/flux-1.1-pro'
     const info = imageModelPrices[key]
     expect(info).toBeDefined()
-    expect(info.costPerImage).toBe(
-      calculateFinalImageCostInStars(0.04)
-    )
+    expect(info.costPerImage).toBe(calculateFinalImageCostInStars(0.04))
   })
 
   it('should have valid inputType array', () => {

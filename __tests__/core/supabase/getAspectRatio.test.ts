@@ -1,4 +1,3 @@
-
 // Mock supabase client
 const mockSingle = jest.fn()
 const mockEq = jest.fn(() => ({ single: mockSingle }))
@@ -14,7 +13,10 @@ describe('getAspectRatio', () => {
   })
 
   it('returns aspect_ratio when data exists and no error', async () => {
-    mockSingle.mockResolvedValue({ data: { aspect_ratio: '16:9' }, error: null })
+    mockSingle.mockResolvedValue({
+      data: { aspect_ratio: '16:9' },
+      error: null,
+    })
     const result = await getAspectRatio(42)
     expect(mockFrom).toHaveBeenCalledWith('users')
     expect(mockSelect).toHaveBeenCalledWith('aspect_ratio')

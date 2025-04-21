@@ -11,14 +11,21 @@ describe('getTelegramIdByUserId', () => {
   })
 
   it('returns null on error', async () => {
-    const mockSingle = jest.fn().mockResolvedValue({ data: null, error: { message: 'err' } })
+    const mockSingle = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'err' } })
     const eqMock = jest.fn().mockReturnValue({ single: mockSingle })
     const selectMock = jest.fn().mockReturnValue({ eq: eqMock })
     ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
     const result = await getTelegramIdByUserId(userId)
     expect(result).toBeNull()
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Ошибка при получении telegram_id:', { message: 'err' })
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Ошибка при получении telegram_id:',
+      { message: 'err' }
+    )
     consoleErrorSpy.mockRestore()
   })
 
@@ -33,7 +40,9 @@ describe('getTelegramIdByUserId', () => {
   })
 
   it('throws on exception', async () => {
-    (supabase.from as jest.Mock).mockImplementation(() => { throw new Error('boom') })
+    ;(supabase.from as jest.Mock).mockImplementation(() => {
+      throw new Error('boom')
+    })
     await expect(getTelegramIdByUserId(userId)).rejects.toThrow('boom')
   })
 })

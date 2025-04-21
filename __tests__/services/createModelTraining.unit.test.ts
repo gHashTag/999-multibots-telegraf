@@ -2,14 +2,14 @@
 jest.mock('fs', () => ({
   existsSync: jest.fn(),
   createReadStream: jest.fn(),
-  promises: { unlink: jest.fn() }
+  promises: { unlink: jest.fn() },
 }))
 jest.mock('axios')
 jest.mock('@/config', () => ({
   isDev: true,
   SECRET_API_KEY: 'secret',
   ELESTIO_URL: 'https://prod.example.com',
-  LOCAL_SERVER_URL: 'http://localhost'
+  LOCAL_SERVER_URL: 'http://localhost',
 }))
 import fs from 'fs'
 import axios from 'axios'
@@ -25,7 +25,7 @@ describe('createModelTraining', () => {
     telegram_id: '123',
     is_ru: false,
     steps: 5,
-    botName: 'botA'
+    botName: 'botA',
   }
   const ctx: any = { session: { mode: 'digital_avatar_body' } }
   beforeEach(() => {
@@ -34,16 +34,18 @@ describe('createModelTraining', () => {
 
   it('throws if file does not exist', async () => {
     ;(fs.existsSync as jest.Mock).mockReturnValue(false)
-    await expect(createModelTraining(reqData, ctx))
-      .rejects.toThrow('Файл не найден: ' + dummyPath)
+    await expect(createModelTraining(reqData, ctx)).rejects.toThrow(
+      'Файл не найден: ' + dummyPath
+    )
   })
 
   it('posts to correct URL, unlinks file, and returns response data', async () => {
-    (fs.existsSync as jest.Mock).mockReturnValue(true)
+    ;(fs.existsSync as jest.Mock).mockReturnValue(true)
     const postMock = jest.fn().mockResolvedValue({ data: { message: 'ok' } })
     ;(axios.post as jest.Mock) = postMock
-    const unlinkMock = (fs.promises.unlink as jest.Mock)
-      .mockResolvedValue(undefined)
+    const unlinkMock = (fs.promises.unlink as jest.Mock).mockResolvedValue(
+      undefined
+    )
     // Mock FormData headers
     const formDataInstance = new FormData()
     const getHeaders = formDataInstance.getHeaders()
@@ -56,10 +58,11 @@ describe('createModelTraining', () => {
   })
 
   it('uses v2 URL when mode is not digital_avatar_body', async () => {
-    (fs.existsSync as jest.Mock).mockReturnValue(true)
+    ;(fs.existsSync as jest.Mock).mockReturnValue(true)
     const postMock = jest.fn().mockResolvedValue({ data: { message: 'done' } })
-    ;(axios.post as jest.Mock) = postMock
-    (fs.promises.unlink as jest.Mock).mockResolvedValue(undefined)
+    ;(axios.post as jest.Mock) = postMock(
+      fs.promises.unlink as jest.Mock
+    ).mockResolvedValue(undefined)
     const ctx2: any = { session: { mode: 'other' } }
     await createModelTraining(reqData, ctx2)
     // Check URL includes create-model-training-v2
@@ -68,10 +71,8 @@ describe('createModelTraining', () => {
   })
 
   it('propagates unexpected errors', async () => {
-    (fs.existsSync as jest.Mock).mockReturnValue(true)
-    const err = new Error('xyz')
-    (axios.post as jest.Mock).mockRejectedValue(err)
-    await expect(createModelTraining(reqData, ctx))
-      .rejects.toBe(err)
+    ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+    const err = new Error('xyz')(axios.post as jest.Mock).mockRejectedValue(err)
+    await expect(createModelTraining(reqData, ctx)).rejects.toBe(err)
   })
 })

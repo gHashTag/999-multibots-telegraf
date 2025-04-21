@@ -25,7 +25,9 @@ describe('updateUserVoice', () => {
   it('resolves when update succeeds', async () => {
     // Мокаем успех
     mockEq.mockResolvedValue({ data: {}, error: null })
-    await expect(updateUserVoice(telegram_id, voice_id_elevenlabs)).resolves.toBeUndefined()
+    await expect(
+      updateUserVoice(telegram_id, voice_id_elevenlabs)
+    ).resolves.toBeUndefined()
     expect(supabase.from).toHaveBeenCalledWith('users')
     expect(mockUpdate).toHaveBeenCalledWith({ voice_id_elevenlabs })
     expect(mockEq).toHaveBeenCalledWith('telegram_id', telegram_id)
@@ -35,8 +37,9 @@ describe('updateUserVoice', () => {
     const errorObj = { message: 'failVoice' }
     // Мокаем ошибку
     mockEq.mockResolvedValue({ data: null, error: errorObj })
-    await expect(updateUserVoice(telegram_id, voice_id_elevenlabs))
-      .rejects.toThrow(`Ошибка при обновлении пользователя: ${errorObj.message}`)
+    await expect(
+      updateUserVoice(telegram_id, voice_id_elevenlabs)
+    ).rejects.toThrow(`Ошибка при обновлении пользователя: ${errorObj.message}`)
     expect(supabase.from).toHaveBeenCalledWith('users')
     expect(mockUpdate).toHaveBeenCalledWith({ voice_id_elevenlabs })
     expect(mockEq).toHaveBeenCalledWith('telegram_id', telegram_id)

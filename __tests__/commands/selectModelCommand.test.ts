@@ -7,7 +7,8 @@ jest.mock('../../src/commands/selectModelCommand/getAvailableModels', () => ({
 }))
 const mockSendGenericError = jest.fn()
 jest.mock('../../src/menu', () => ({
-  sendGenericErrorMessage: (ctx: any, isRu: boolean, err: any) => mockSendGenericError(ctx, isRu, err),
+  sendGenericErrorMessage: (ctx: any, isRu: boolean, err: any) =>
+    mockSendGenericError(ctx, isRu, err),
 }))
 
 // Import after mocks

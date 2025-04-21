@@ -24,7 +24,9 @@ describe('processBalanceOperation', () => {
 
   it('returns success and updates balance', async () => {
     jest.spyOn(supabase, 'getUserBalance').mockResolvedValue(20)
-    const spyUpdate = jest.spyOn(supabase, 'updateUserBalance').mockResolvedValue(undefined)
+    const spyUpdate = jest
+      .spyOn(supabase, 'updateUserBalance')
+      .mockResolvedValue(undefined)
     const res = await processBalanceOperation({
       ctx,
       telegram_id,

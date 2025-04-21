@@ -9,4 +9,4 @@ services:
       - ./multi-bot-simple.js:/app/bot.js
       - ./.env:/app/.env
     command: sh -c "cd /app && npm install telegraf dotenv && node -e \"require('dotenv').config(); require('./bot.js')\""
-    restart: unless-stopped 
+    restart: unless-stopped

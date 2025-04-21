@@ -1,4 +1,3 @@
-
 describe('getTelegramIdByUserId', () => {
   let getTelegramIdByUserId: typeof import('@/core/supabase/getTelegramIdByUserId').getTelegramIdByUserId
   let chain: any
@@ -17,12 +16,15 @@ describe('getTelegramIdByUserId', () => {
     jest.doMock('@/core/supabase', () => ({ supabase: { from: mockFrom } }))
     jest.isolateModules(() => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      getTelegramIdByUserId = require('@/core/supabase/getTelegramIdByUserId').getTelegramIdByUserId
+      getTelegramIdByUserId =
+        require('@/core/supabase/getTelegramIdByUserId').getTelegramIdByUserId
     })
   })
 
   it('returns telegram_id when found', async () => {
-    chain.then.mockImplementation(resolve => resolve({ data: { telegram_id: 999 }, error: null }))
+    chain.then.mockImplementation(resolve =>
+      resolve({ data: { telegram_id: 999 }, error: null })
+    )
     const res = await getTelegramIdByUserId(userId)
     expect(mockFrom).toHaveBeenCalledWith('users')
     expect(chain.select).toHaveBeenCalledWith('telegram_id')
@@ -31,7 +33,9 @@ describe('getTelegramIdByUserId', () => {
   })
 
   it('returns null on error', async () => {
-    chain.then.mockImplementation(resolve => resolve({ data: null, error: { message: 'fail' } }))
+    chain.then.mockImplementation(resolve =>
+      resolve({ data: null, error: { message: 'fail' } })
+    )
     const res = await getTelegramIdByUserId(userId)
     expect(res).toBeNull()
   })
@@ -43,7 +47,9 @@ describe('getTelegramIdByUserId', () => {
   })
 
   it('throws on exception', async () => {
-    chain.select.mockImplementation(() => { throw new Error('oops') })
+    chain.select.mockImplementation(() => {
+      throw new Error('oops')
+    })
     await expect(getTelegramIdByUserId(userId)).rejects.toThrow('oops')
   })
 })

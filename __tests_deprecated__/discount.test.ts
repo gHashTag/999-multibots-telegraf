@@ -1,4 +1,8 @@
-import { calculateDiscountedPrice, interestRate, basePrice } from '../../src/price'
+import {
+  calculateDiscountedPrice,
+  interestRate,
+  basePrice,
+} from '../../src/price'
 
 describe('calculateDiscountedPrice and constants', () => {
   it('interestRate should be 0.1 and basePrice 100', () => {

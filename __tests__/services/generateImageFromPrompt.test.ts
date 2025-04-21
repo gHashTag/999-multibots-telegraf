@@ -7,7 +7,13 @@ describe('generateImageFromPrompt', () => {
   })
 
   it('returns dummy URL and logs parameters with all args', async () => {
-    const result = await generateImageFromPrompt('hello', 123, 'styleX', 'neg', '800x600')
+    const result = await generateImageFromPrompt(
+      'hello',
+      123,
+      'styleX',
+      'neg',
+      '800x600'
+    )
     expect(result).toBe('https://example.com/generated_image.png')
     expect(console.log).toHaveBeenCalledWith('Генерация изображения:', {
       prompt: 'hello',

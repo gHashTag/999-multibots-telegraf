@@ -14,8 +14,12 @@ describe('config utils', () => {
     delete process.env.WEBHOOK_PATH
     delete process.env.WEBHOOK_PORT
     // Remove test config files
-    try { fs.unlinkSync(path.resolve(process.cwd(), 'config', 'testBots.json')) } catch {};
-    try { fs.rmdirSync(path.resolve(process.cwd(), 'config'), { recursive: true }) } catch {};
+    try {
+      fs.unlinkSync(path.resolve(process.cwd(), 'config', 'testBots.json'))
+    } catch {}
+    try {
+      fs.rmdirSync(path.resolve(process.cwd(), 'config'), { recursive: true })
+    } catch {}
   })
 
   it('validateToken should reject invalid formats', () => {
@@ -80,7 +84,9 @@ describe('config utils', () => {
       fs.mkdirSync(configDir, { recursive: true })
     })
     afterEach(() => {
-      try { fs.unlinkSync(fullTestPath) } catch {}
+      try {
+        fs.unlinkSync(fullTestPath)
+      } catch {}
     })
 
     it('should return empty array when file missing', () => {
@@ -92,8 +98,16 @@ describe('config utils', () => {
     it('should disable invalid tokens and duplicates', () => {
       const bots = [
         { name: 'botA', token: 'badtoken', enabled: true },
-        { name: 'botA', token: '123:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi_jklmno', enabled: true },
-        { name: 'botB', token: '123:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi_jklmno', enabled: true },
+        {
+          name: 'botA',
+          token: '123:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi_jklmno',
+          enabled: true,
+        },
+        {
+          name: 'botB',
+          token: '123:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi_jklmno',
+          enabled: true,
+        },
       ]
       fs.writeFileSync(fullTestPath, JSON.stringify(bots), 'utf8')
       const { loadBotsConfig } = require('../../src/utils/config')

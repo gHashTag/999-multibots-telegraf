@@ -46,7 +46,8 @@ describe('pulse helper', () => {
   it('retries sendPhoto on migrate_to_chat_id error', async () => {
     const migrateError: any = new Error('migrate')
     migrateError.response = { parameters: { migrate_to_chat_id: 'new_chat' } }
-    ctx.telegram.sendPhoto = jest.fn()
+    ctx.telegram.sendPhoto = jest
+      .fn()
       .mockRejectedValueOnce(migrateError)
       .mockResolvedValue(undefined)
     await pulse(ctx, image, prompt, command)
@@ -61,7 +62,8 @@ describe('pulse helper', () => {
   it('retries sendMessage on migrate_to_chat_id error', async () => {
     const migrateError: any = new Error('migrate')
     migrateError.response = { parameters: { migrate_to_chat_id: 'new_chat' } }
-    ctx.telegram.sendMessage = jest.fn()
+    ctx.telegram.sendMessage = jest
+      .fn()
       .mockRejectedValueOnce(migrateError)
       .mockResolvedValue(undefined)
     await pulse(ctx, null, prompt, command)
@@ -76,7 +78,8 @@ describe('pulse helper', () => {
     const randomError: any = new Error('random')
     randomError.response = { parameters: {} }
     ctx.telegram.sendMessage = jest.fn().mockRejectedValue(randomError)
-    await expect(pulse(ctx, null, prompt, command))
-      .rejects.toThrow('Ошибка при отправке пульса')
+    await expect(pulse(ctx, null, prompt, command)).rejects.toThrow(
+      'Ошибка при отправке пульса'
+    )
   })
 })

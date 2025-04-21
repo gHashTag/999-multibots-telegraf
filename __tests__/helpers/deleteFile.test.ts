@@ -3,12 +3,14 @@ import fs from 'fs'
 
 describe('deleteFile', () => {
   const filePath = '/path/to/file'
-  let unlinkMock: jest.SpyInstance;
-  let logSpy: jest.SpyInstance;
-  let errorSpy: jest.SpyInstance;
+  let unlinkMock: jest.SpyInstance
+  let logSpy: jest.SpyInstance
+  let errorSpy: jest.SpyInstance
 
   beforeEach(() => {
-    unlinkMock = jest.spyOn(fs.promises, 'unlink').mockResolvedValue(undefined as any)
+    unlinkMock = jest
+      .spyOn(fs.promises, 'unlink')
+      .mockResolvedValue(undefined as any)
     logSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
     errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
   })
