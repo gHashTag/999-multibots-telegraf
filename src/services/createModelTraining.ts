@@ -67,8 +67,8 @@ export async function createModelTraining(
       }
     )
 
-    await fs.promises.unlink(requestData.filePath)
-    console.log('Model training response:', response.data)
+    // await fs.promises.unlink(requestData.filePath)
+    // console.log('Model training response:', response.data)
     return response.data
   } catch (error) {
     // if (axios.isAxiosError(error)) {

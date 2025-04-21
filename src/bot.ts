@@ -76,9 +76,6 @@ export async function startRobokassaWebhookServer(): Promise<http.Server | null>
   // POST маршрут для обработки успешных платежей от Robokassa
   app.post('/payment-success', handleRobokassaResult)
 
-  // POST маршрут для обработки результатов от Robokassa
-  app.post('/robokassa-result', handleRobokassaResult)
-
   // Проверка работоспособности сервера
   app.get('/health', (req, res) => {
     res.status(200).send('OK')
@@ -250,7 +247,7 @@ async function initializeBots() {
           console.log(
             `🚀 Бот ${botInfo.username} запущен в продакшен режиме на порту ${currentPort}`
           )
-          await new Promise(resolve => setTimeout(resolve, 2000)); // Добавляем задержку в 2 секунды
+          await new Promise(resolve => setTimeout(resolve, 2000)) // Добавляем задержку в 2 секунды
         } catch (error) {
           console.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)
         }

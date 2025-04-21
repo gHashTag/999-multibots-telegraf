@@ -50,7 +50,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
       ctx
     )
 
-    await deleteFile(zipPath)
+    // await deleteFile(zipPath)
   } catch (error) {
     console.error('Error in uploadTrainFluxModelScene:', error)
     //await sendGenericErrorMessage(ctx, isRu, error)
