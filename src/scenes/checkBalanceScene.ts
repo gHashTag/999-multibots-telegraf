@@ -364,16 +364,57 @@ checkBalanceScene.enter(async ctx => {
       result: 'access_granted',
     })
 
-    // Шаг 8: Переходим к целевой функции
+    // --- ИСПРАВЛЕНИЕ ЦИКЛА (ПОПЫТКА 3 - с console.log) ---
+    const targetMode = mode // Сохраняем режим для логов
+    const comparisonMode = ModeEnum.SubscriptionScene
+    // Сравниваем как строки для надежности
+    const areModesEqual = String(targetMode) === String(comparisonMode)
+
+    // Логируем переменные перед сравнением
+    console.log(
+      `[DEBUG CheckBalanceScene Enter] CHECKING LOOP: targetMode='${targetMode}' (type: ${typeof targetMode}), comparisonMode='${comparisonMode}' (type: ${typeof comparisonMode}), areEqual=${areModesEqual}`
+    )
     logger.info({
-      message: `[CheckBalanceScene] Вызов функции перехода к целевой сцене: ${mode}`,
+      message: `[CheckBalanceScene] Проверка условия цикла: mode === ModeEnum.SubscriptionScene`,
       telegramId,
       function: 'checkBalanceScene.enter',
-      step: 'entering_target_scene',
-      targetScene: mode,
+      step: 'loop_condition_check',
+      modeValue: targetMode,
+      modeEnumType: typeof comparisonMode,
+      modeEnumValue: comparisonMode,
+      comparisonResult: areModesEqual,
     })
-    return enterTargetScene(ctx, mode)
+
+    // Проверяем, является ли целевая сцена сценой подписки
+    if (areModesEqual) {
+      // Если ДА, входим напрямую
+      console.log(
+        `[DEBUG CheckBalanceScene Enter] Condition TRUE. Entering SubscriptionScene directly.`
+      )
+      logger.info({
+        message: `[CheckBalanceScene] Условие цикла ИСТИННО. Прямой переход в SubscriptionScene, минуя enterTargetScene`,
+        telegramId,
+        function: 'checkBalanceScene.enter',
+        step: 'direct_enter_subscription',
+        targetScene: targetMode,
+      })
+      return ctx.scene.enter(ModeEnum.SubscriptionScene) // <--- Прямой вход
+    } else {
+      // Если НЕТ, вызываем enterTargetScene
+      console.log(
+        `[DEBUG CheckBalanceScene Enter] Condition FALSE. Calling enterTargetScene for mode: ${targetMode}`
+      )
+      logger.info({
+        message: `[CheckBalanceScene] Условие цикла ЛОЖНО. Вызов enterTargetScene.`,
+        telegramId,
+        function: 'checkBalanceScene.enter',
+        step: 'entering_target_scene_fallback',
+        targetScene: targetMode,
+      })
+      return enterTargetScene(ctx, targetMode) // <--- Вызов старой функции
+    }
   } catch (error) {
+    console.error('[DEBUG CheckBalanceScene Enter] Error caught:', error) // Добавлено
     logger.error({
       message: `[CheckBalanceScene] Ошибка при проверке баланса`,
       telegramId,
@@ -406,6 +447,23 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
   const isRu = ctx.from?.language_code === 'ru'
 
   try {
+    // --- ДОБАВИТЬ ЯВНУЮ ОБРАБОТКУ SUBSCRIPTION_SCENE (на всякий случай) ---
+    if (String(mode) === String(ModeEnum.SubscriptionScene)) {
+      console.log(
+        `[DEBUG enterTargetScene] Explicitly handling SubscriptionScene. Entering...`
+      )
+      logger.info({
+        message: `[enterTargetScene] Явная обработка SubscriptionScene`,
+        telegramId,
+        function: 'enterTargetScene',
+        targetScene: mode,
+        step: 'explicit_handle_subscription',
+      })
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+      return // Важно выйти после входа
+    }
+    // --- КОНЕЦ ДОБАВЛЕНИЯ ---
+
     // Переход к соответствующей сцене в зависимости от режима
     logger.info({
       message: `[enterTargetScene] Подготовка к переключению на сцену: ${mode}`,
@@ -721,6 +779,16 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
         })
         result = await ctx.scene.enter(ModeEnum.StartScene)
         break
+      case ModeEnum.SubscriptionScene:
+        logger.info({
+          message: `[enterTargetScene] Переход к сцене подписки`,
+          telegramId,
+          function: 'enterTargetScene',
+          fromMode: mode,
+          toScene: ModeEnum.SubscriptionScene,
+        })
+        result = await ctx.scene.enter(ModeEnum.SubscriptionScene)
+        break
       default:
         logger.error({
           message: `[enterTargetScene] Неизвестный или необработанный режим: ${mode}. Возврат в главное меню.`,
@@ -750,6 +818,7 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
 
     return result
   } catch (error) {
+    console.error('[DEBUG enterTargetScene] Error caught:', error) // Добавлено
     logger.error({
       message: `[enterTargetScene] Ошибка при переходе в сцену: ${mode}`,
       telegramId,
@@ -778,6 +847,18 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
             : String(fallbackError),
       })
       return ctx.scene.leave() // Последнее средство - просто выходим из всех сцен
+    } finally {
+      console.log(
+        `[DEBUG enterTargetScene] <=== Function finished for mode: ${mode}`
+      ) // Добавлено
+      logger.info({
+        message: `[enterTargetScene] Переход в сцену ${mode} завершен`,
+        telegramId,
+        function: 'enterTargetScene',
+        targetScene: mode,
+        step: 'switch_completed',
+        result: 'success',
+      })
     }
   }
 }

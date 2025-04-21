@@ -43,7 +43,6 @@ export const BASE_COSTS = {
   [ModeEnum.TextToImage]: 0,
   [ModeEnum.LipSync]: 0.9,
   [ModeEnum.VoiceToText]: 0.08,
-  [ModeEnum.Subscribe]: 0,
   [ModeEnum.CheckBalanceScene]: 0,
   [ModeEnum.CreateUserScene]: 0,
   [ModeEnum.SubscriptionScene]: 0,

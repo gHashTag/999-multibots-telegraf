@@ -38,10 +38,6 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       message: `[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.CheckBalanceScene}`,
       userDetails,
     })
-    if (userDetails.isSubscriptionActive) {
-      return ctx.scene.enter(ModeEnum.CheckBalanceScene)
-    }
-
     const isRu = isRussian(ctx)
     const { translation, buttons } = await getTranslation({
       key: 'subscriptionScene',

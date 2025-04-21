@@ -119,6 +119,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
   bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
     console.log('CASE bot.hears: 💫 Оформить подписку / Subscribe')
+    ctx.session.mode = ModeEnum.SubscriptionScene
     await ctx.scene.enter(ModeEnum.SubscriptionScene)
   })
 

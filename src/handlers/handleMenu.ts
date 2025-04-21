@@ -39,7 +39,7 @@ export const handleMenu = async (ctx: MyContext) => {
           nextScene: ModeEnum.SubscriptionScene,
         })
         console.log('CASE: 💫 Оформление подписки')
-        ctx.session.mode = ModeEnum.Subscribe
+        ctx.session.mode = ModeEnum.SubscriptionScene
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.SubscriptionScene}`
         )

@@ -118,9 +118,6 @@ const getNextScene = (currentMode: ModeEnum | undefined): ModeEnum => {
   if (currentMode === ModeEnum.MainMenu || !currentMode) {
     return ModeEnum.MainMenu
   }
-  if (currentMode === ModeEnum.Subscribe) {
-    return ModeEnum.SubscriptionScene
-  }
   return currentMode
 }
 
