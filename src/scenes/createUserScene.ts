@@ -3,11 +3,10 @@ import { WizardScene } from 'telegraf/scenes'
 import { createUser, getReferalsCountAndUserData } from '@/core/supabase'
 
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
-import { getSubScribeChannel } from '@/handlers'
+
 import { isRussian } from '@/helpers/language'
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
-import { pulseBot } from '@/core'
 
 const createUserStep = async (ctx: MyTextMessageContext) => {
   console.log('CASE:createUserStep', ctx.from)
@@ -69,16 +68,17 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}  `
           : `🔗 New user registered through your link: @${finalUsername}`
       )
-      await pulseBot.telegram.sendMessage(
+
+      ctx.scene.enter(ModeEnum.StartScene)
+      await ctx.telegram.sendMessage(
         `@${SUBSCRIBE_CHANNEL_ID}`,
         `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке от: @${userData.username}`
       )
-      ctx.scene.enter(ModeEnum.StartScene)
     }
   } else {
     console.log('CASE: ctx.session.inviteCode not exists')
 
-    await pulseBot.telegram.sendMessage(
+    await ctx.telegram.sendMessage(
       `@${SUBSCRIBE_CHANNEL_ID}`,
       `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}`
     )
@@ -111,7 +111,6 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   if (!ctx.session.inviteCode) {
     return ctx.scene.enter(ModeEnum.StartScene)
   }
-  return ctx.scene.enter(ModeEnum.SubscriptionScene)
 }
 
 export const createUserScene = new WizardScene<MyContext>(
