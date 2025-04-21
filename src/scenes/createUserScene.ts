@@ -1,3 +1,4 @@
+import { logger } from '@/utils/logger'
 import { MyTextMessageContext } from '@/interfaces'
 import { WizardScene } from 'telegraf/scenes'
 import { createUser, getReferalsCountAndUserData } from '@/core/supabase'
@@ -51,7 +52,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
   ctx.session.inviteCode = startNumber
 
-  const SUBSCRIBE_CHANNEL_ID = 'neuro_blogger_pulse'
+  const SUBSCRIBE_CHANNEL_ID = '@neuro_blogger_pulse'
 
   if (ctx.session.inviteCode) {
     console.log('CASE: ctx.session.inviteCode', ctx.session.inviteCode)
@@ -62,26 +63,86 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     ctx.session.inviter = userData.user_id
 
     if (ctx.session.inviteCode) {
-      await ctx.telegram.sendMessage(
-        ctx.session.inviteCode,
-        isRussian(ctx)
-          ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}  `
-          : `🔗 New user registered through your link: @${finalUsername}`
-      )
+      try {
+        await ctx.telegram.sendMessage(
+          ctx.session.inviteCode,
+          isRussian(ctx)
+            ? `🔗 Новый пользователь @${finalUsername} зарегистрировался по вашей ссылке!`
+            : `🔗 New user @${finalUsername} registered using your link!`
+        )
+        logger.info({
+          message: '✉️ [CreateUserScene] Уведомление пригласившему отправлено',
+          telegramId: telegram_id.toString(),
+          inviterId: ctx.session.inviteCode,
+          step: 'inviter_notification_sent',
+        })
+      } catch (inviterNotifyError) {
+        if (inviterNotifyError instanceof Error && 'code' in inviterNotifyError && inviterNotifyError.code === 403) {
+          logger.warn({
+            message: '⚠️ [CreateUserScene] Не удалось отправить уведомление пригласившему (возможно, бот заблокирован им)',
+            telegramId: telegram_id.toString(),
+            inviterId: ctx.session.inviteCode,
+            botName: ctx.botInfo.username,
+            error: inviterNotifyError.message,
+            step: 'inviter_notification_failed_403',
+          })
+        } else {
+          logger.error({
+            message: '❌ [CreateUserScene] Ошибка при отправке уведомления пригласившему',
+            telegramId: telegram_id.toString(),
+            inviterId: ctx.session.inviteCode,
+            error: inviterNotifyError instanceof Error ? inviterNotifyError.message : String(inviterNotifyError),
+            step: 'inviter_notification_error',
+          })
+        }
+      }
 
-      ctx.scene.enter(ModeEnum.StartScene)
       await ctx.telegram.sendMessage(
-        `@${SUBSCRIBE_CHANNEL_ID}`,
-        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке от: @${userData.username}`
+        SUBSCRIBE_CHANNEL_ID,
+        `🔗 Новый пользователь @${finalUsername} зарегистрировался. По реф. ссылке от: @${userData.username}`
       )
+      logger.info({
+        message: '📢 [CreateUserScene] Уведомление о новом пользователе (с рефералом) отправлено в канал',
+        telegramId: telegram_id.toString(),
+        channel: SUBSCRIBE_CHANNEL_ID,
+        inviterUsername: userData.username,
+        step: 'admin_notification_sent_referral',
+      })
     }
   } else {
     console.log('CASE: ctx.session.inviteCode not exists')
 
-    await ctx.telegram.sendMessage(
-      `@${SUBSCRIBE_CHANNEL_ID}`,
-      `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}`
-    )
+    try {
+      await ctx.telegram.sendMessage(
+        SUBSCRIBE_CHANNEL_ID,
+        `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}`
+      )
+      logger.info({
+        message: '📢 [CreateUserScene] Уведомление о новом пользователе (без реферала) отправлено в канал',
+        telegramId: telegram_id.toString(),
+        channel: SUBSCRIBE_CHANNEL_ID,
+        step: 'admin_notification_sent_no_referral',
+      })
+    } catch (notifyError) {
+       if (notifyError instanceof Error && 'code' in notifyError && notifyError.code === 403) {
+          logger.warn({
+             message: '⚠️ [CreateUserScene] Не удалось отправить уведомление в канал админов (без реферала) (возможно, бот не участник или нет прав)',
+             telegramId: telegram_id.toString(),
+             channel: SUBSCRIBE_CHANNEL_ID,
+             botName: ctx.botInfo.username,
+             error: notifyError.message,
+             step: 'admin_notification_no_referral_failed_403',
+          })
+       } else {
+          logger.error({
+             message: '❌ [CreateUserScene] Ошибка при отправке уведомления в канал админов (без реферала)',
+             telegramId: telegram_id.toString(),
+             channel: SUBSCRIBE_CHANNEL_ID,
+             error: notifyError instanceof Error ? notifyError.message : String(notifyError),
+             step: 'admin_notification_no_referral_error',
+          })
+       }
+    }
   }
 
   const userData = {
@@ -102,15 +163,14 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     bot_name: botName,
   }
 
-  await createUser(userData)
+  await createUser(userData, ctx)
   await ctx.reply(
     isRussian(ctx)
       ? '✅ Аватар успешно создан!'
       : '✅ Avatar created successfully!'
   )
-  if (!ctx.session.inviteCode) {
-    return ctx.scene.enter(ModeEnum.StartScene)
-  }
+
+  return ctx.scene.enter(ModeEnum.StartScene)
 }
 
 export const createUserScene = new WizardScene<MyContext>(
