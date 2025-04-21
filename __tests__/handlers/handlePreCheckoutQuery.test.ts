@@ -1,4 +1,4 @@
-import { handlePreCheckoutQuery } from '@/handlers/handleSuccessfulPayment'
+import { handlePreCheckoutQuery } from '@/handlers/paymentHandlers/handlePreCheckoutQuery'
 
 describe('handlePreCheckoutQuery', () => {
   it('calls answerPreCheckoutQuery with true', async () => {

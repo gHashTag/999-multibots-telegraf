@@ -2,7 +2,7 @@
   "watch": ["src"],
   "ext": "ts,json",
   "ignore": ["src/**/*.spec.ts", "src/**/*.test.ts", "logs/*", "last-dev.log"],
-  "exec": "npx ts-node --transpile-only -r tsconfig-paths/register src/bot.ts",
+  "exec": "npx ts-node -r tsconfig-paths/register src/bot.ts",
   "signal": "SIGINT",
   "delay": 1500,
   "events": {

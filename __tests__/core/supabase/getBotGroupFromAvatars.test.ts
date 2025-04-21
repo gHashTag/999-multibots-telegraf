@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals'
 
 describe('getBotGroupFromAvatars', () => {
   let mockSingle: jest.Mock<any, any>

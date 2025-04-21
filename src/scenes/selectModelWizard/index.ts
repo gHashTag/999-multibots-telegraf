@@ -3,7 +3,7 @@ import { MyContext } from '../../interfaces'
 import { getAvailableModels } from '../../commands/selectModelCommand/getAvailableModels'
 import { sendGenericErrorMessage } from '@/menu'
 import { isRussian } from '@/helpers/language'
-import { setModel } from '@/core/supabase'
+import { updateUserModel } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 
@@ -79,7 +79,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      await setModel(ctx.from.id.toString(), model)
+      await updateUserModel(ctx.from.id.toString(), model)
 
       await ctx.reply(
         isRu

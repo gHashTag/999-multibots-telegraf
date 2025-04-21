@@ -1,4 +1,3 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals'
 
 // Mock config and axios
 jest.mock('@/config', () => ({

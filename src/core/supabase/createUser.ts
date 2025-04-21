@@ -1,5 +1,5 @@
 import { CreateUserData } from '@/interfaces'
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 
 export const createUser = async ({
   username,

@@ -1,7 +1,7 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "target": "es2017",
+    "target": "es6",
     "lib": ["esnext", "dom"],
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
@@ -20,7 +20,7 @@
     "importHelpers": true,
     "baseUrl": "src",
     "paths": {
-      "@/*": ["*"],
+      "@/*": ["./*"],
       "@/config": ["config"],
       "@/controllers/*": ["controllers/*"],
       "@/dtos/*": ["dtos/*"],
@@ -37,12 +37,12 @@
       "@/store/*": ["store/*"],
       "@/handlers/*": ["handlers/*"],
       "@/helpers/*": ["helpers/*"],
-      "@/scripts/*": ["scripts/*"],
+      "@/scripts/*": ["scripts/*"]
     }
   },
   "ts-node": {
     "require": ["tsconfig-paths/register"]
   },
-  "include": ["src/**/*.ts", "src/**/*.json"],
+  "include": ["src/**/*.ts", "src/**/*.json", "__tests__/**/*.ts"],
   "exclude": ["node_modules", "src/node_modules", "dist"]
 }

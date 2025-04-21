@@ -1,4 +1,4 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 
 /**
  * Функция для получения уровня пользователя по его telegram_id.

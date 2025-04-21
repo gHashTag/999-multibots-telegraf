@@ -1,4 +1,3 @@
-import { describe, it, beforeEach, expect, jest } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 
 // Mock logger to provide named export 'logger'

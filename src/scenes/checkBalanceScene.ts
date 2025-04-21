@@ -469,285 +469,67 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
       message: `[enterTargetScene] Подготовка к переключению на сцену: ${mode}`,
       telegramId,
       function: 'enterTargetScene',
-      targetScene: mode,
+      targetScene: mode, // Используем mode как предполагаемую целевую сцену
       step: 'prepare_switch',
     })
 
-    // Специальная обработка для сцены нейрофото
-    if (
-      String(mode) === String(ModeEnum.NeuroPhoto) ||
-      String(mode) === 'neuro_photo'
-    ) {
-      logger.info({
-        message: `[enterTargetScene] Переход к сцене нейрофото`,
-        telegramId,
-        function: 'enterTargetScene',
-        fromMode: mode,
-        toScene: ModeEnum.NeuroPhoto,
-        specialHandling: true,
-      })
-
-      // ТРАССИРОВКА
-      console.log(
-        `[enterTargetScene] ТРАССИРОВКА СТЕКА ПЕРЕД ВХОДОМ В НЕЙРОФОТО:`,
-        new Error().stack
-      )
-
-      try {
-        // Сохраняем ссылку на текущий scene
-        const capturedScene = ctx.scene
-        // Сохраняем ссылку на оригинальный метод leave
-        const originalLeave = capturedScene.leave.bind(capturedScene)
-
-        // Переопределяем метод leave для блокировки его вызова
-        capturedScene.leave = function (...args) {
-          console.log(
-            `⚠️ [КРИТИЧНО] ctx.scene.leave ВЫЗВАН ДЛЯ НЕЙРОФОТО! Stack:`,
-            new Error().stack
-          )
-          console.log(`⚠️ [КРИТИЧНО] Аргументы leave:`, JSON.stringify(args))
-
-          // Проверяем текущую сцену
-          if (String(capturedScene.current) === String(ModeEnum.NeuroPhoto)) {
-            console.log(
-              `🛡️ [ЗАЩИТА] Блокировка преждевременного закрытия сцены нейрофото`
-            )
-            logger.warn({
-              message: `[enterTargetScene] Блокировка преждевременного закрытия сцены нейрофото`,
-              telegramId,
-              currentScene: capturedScene.current,
-              stack: new Error().stack,
-            })
-            // Возвращаем void, не вызывая оригинальный метод
-            return
-          }
-
-          // Для других сцен вызываем оригинальный метод
-          return originalLeave(...args)
-        }
-
-        // Входим в сцену нейрофото
-        console.log(
-          `[enterTargetScene] Вызываем ctx.scene.enter для NeuroPhoto`
-        )
-        await ctx.scene.enter(ModeEnum.NeuroPhoto)
-        console.log(
-          `[enterTargetScene] После вызова ctx.scene.enter для NeuroPhoto`
-        )
-      } catch (sceneError) {
-        console.error(
-          `[enterTargetScene] ОШИБКА ПРИ ВХОДЕ В СЦЕНУ НЕЙРОФОТО:`,
-          sceneError
-        )
-        logger.error({
-          message: `[enterTargetScene] Ошибка при входе в сцену нейрофото`,
-          telegramId,
-          error:
-            sceneError instanceof Error
-              ? sceneError.message
-              : String(sceneError),
-          stack: sceneError instanceof Error ? sceneError.stack : undefined,
-        })
-      }
-
-      logger.info({
-        message: `[enterTargetScene] Переход в сцену нейрофото завершен (ранний возврат)`,
-        telegramId,
-        function: 'enterTargetScene',
-        targetScene: mode,
-        step: 'switch_completed_early',
-        result: 'early_return',
-      })
-
-      console.log(
-        `[enterTargetScene] ЗАВЕРШАЕМ функцию с ранним возвратом true для нейрофото`
-      )
-      return true // Ранний возврат для предотвращения дополнительной обработки
-    }
-
-    // Стандартная обработка для всех остальных сцен
-    let result: any = null
-
+    // TODO: Убедиться, что все ModeEnum используются корректно
     switch (mode) {
-      case ModeEnum.DigitalAvatarBody:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене цифрового тела аватара`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.DigitalAvatarBody,
-        })
-        result = await ctx.scene.enter(ModeEnum.DigitalAvatarBody)
-        break
-      case ModeEnum.DigitalAvatarBodyV2:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене цифрового тела аватара V2`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.DigitalAvatarBodyV2,
-        })
-        result = await ctx.scene.enter(ModeEnum.DigitalAvatarBodyV2)
+      case ModeEnum.NeuroPhoto:
+        targetScene = ModeEnum.NeuroPhoto
         break
       case ModeEnum.NeuroPhotoV2:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене нейрофото V2`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.NeuroPhotoV2,
-        })
-        result = await ctx.scene.enter(ModeEnum.NeuroPhotoV2)
+        targetScene = ModeEnum.NeuroPhotoV2
+        break
+      case ModeEnum.NeuroAudio:
+        targetScene = ModeEnum.NeuroAudio
         break
       case ModeEnum.ImageToPrompt:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене промпта из фото`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.ImageToPrompt,
-        })
-        result = await ctx.scene.enter(ModeEnum.ImageToPrompt)
+        targetScene = ModeEnum.ImageToPrompt
         break
       case ModeEnum.Avatar:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене аватара`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.Avatar,
-        })
-        result = await ctx.scene.enter(ModeEnum.Avatar)
+        targetScene = ModeEnum.Avatar
         break
       case ModeEnum.ChatWithAvatar:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене чата с аватаром`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.ChatWithAvatar,
-        })
-        result = await ctx.scene.enter(ModeEnum.ChatWithAvatar)
+        targetScene = ModeEnum.ChatWithAvatar
         break
       case ModeEnum.SelectModel:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене выбора модели`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.SelectModel,
-        })
-        result = await ctx.scene.enter(ModeEnum.SelectModel)
+        targetScene = ModeEnum.SelectModel
         break
       case ModeEnum.SelectAiTextModel:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене выбора текста модели`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.SelectAiTextModel,
-        })
-        result = await ctx.scene.enter(ModeEnum.SelectAiTextModel)
+        targetScene = ModeEnum.SelectAiTextModel
         break
       case ModeEnum.Voice:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене голоса`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.Voice,
-        })
-        result = await ctx.scene.enter(ModeEnum.Voice)
+        targetScene = ModeEnum.Voice
         break
       case ModeEnum.TextToSpeech:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене текста в голос`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.TextToSpeech,
-        })
-        result = await ctx.scene.enter(ModeEnum.TextToSpeech)
+        targetScene = ModeEnum.TextToSpeech
         break
       case ModeEnum.ImageToVideo:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене фото в видео`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.ImageToVideo,
-        })
-        result = await ctx.scene.enter(ModeEnum.ImageToVideo)
+        targetScene = ModeEnum.ImageToVideo
         break
       case ModeEnum.TextToVideo:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене текста в видео`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.TextToVideo,
-        })
-        result = await ctx.scene.enter(ModeEnum.TextToVideo)
+        targetScene = ModeEnum.TextToVideo
         break
       case ModeEnum.TextToImage:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене текста в фото`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.TextToImage,
-        })
-        result = await ctx.scene.enter(ModeEnum.TextToImage)
+        targetScene = ModeEnum.TextToImage
         break
       case ModeEnum.LipSync:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене синхронизации губ`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.LipSync,
-        })
-        result = await ctx.scene.enter(ModeEnum.LipSync)
+        targetScene = ModeEnum.LipSync
         break
-      case ModeEnum.VideoInUrl:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене видео по URL`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.VideoInUrl,
-        })
-        result = await ctx.scene.enter(ModeEnum.VideoInUrl)
+      case ModeEnum.VoiceToText:
+        targetScene = ModeEnum.VoiceToText
         break
-      case ModeEnum.TopUpBalance:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене пополнения баланса`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.PaymentScene,
-        })
-        result = await ctx.scene.enter(ModeEnum.PaymentScene)
+      case ModeEnum.DigitalAvatarBody:
+        targetScene = ModeEnum.DigitalAvatarBody
         break
-      case ModeEnum.Invite:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене приглашения`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: 'inviteScene',
-        })
-        result = await ctx.scene.enter('inviteScene')
+      case ModeEnum.DigitalAvatarBodyV2:
+        targetScene = ModeEnum.DigitalAvatarBodyV2
         break
-      case ModeEnum.Balance:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене баланса`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: 'balanceScene',
-        })
-        result = await ctx.scene.enter('balanceScene')
+      // ДОБАВЛЯЕМ ОБРАБОТКУ РЕЖИМА ПОДПИСКИ/ОПЛАТЫ
+      case ModeEnum.Subscribe: // или 'subscribe', если ModeEnum не используется
+      case ModeEnum.PaymentScene:
+        targetScene = ModeEnum.PaymentScene // Переходим в сцену выбора оплаты
         break
       case ModeEnum.Help:
         logger.info({
@@ -798,49 +580,65 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
           step: 'unknown_mode_error',
           result: 'fallback_to_start',
         })
+        // Если режим не распознан, безопасно выходим в главное меню
+        //await ctx.scene.enter(ModeEnum.MenuScene)
+        await ctx.scene.enter(ModeEnum.StartScene) // Возвращаемся в самое начало
+        return // Важно выйти из функции после входа в другую сцену
+    }
 
-        await ctx.reply(
-          isRu
-            ? 'Неизвестный режим. Возврат в главное меню.'
-            : 'Unknown mode. Returning to main menu.'
-        )
-        result = await ctx.scene.enter(ModeEnum.StartScene)
+    if (targetScene) {
+      logger.info({
+        message: `[enterTargetScene] Переход в сцену ${targetScene}`,
+        telegramId,
+        function: 'enterTargetScene',
+        targetScene,
+        step: 'entering_scene',
+      })
+      await ctx.scene.enter(targetScene)
+    } else {
+      // Эта ветка не должна выполняться при правильной логике switch,
+      // но оставляем на всякий случай
+      logger.error({
+        message: `[enterTargetScene] Целевая сцена не определена для режима: ${mode}. Возврат в главное меню.`,
+        telegramId,
+        function: 'enterTargetScene',
+        mode,
+        step: 'target_scene_undefined_error',
+        result: 'fallback_to_start',
+      })
+      //await ctx.scene.enter(ModeEnum.MenuScene)
+      await ctx.scene.enter(ModeEnum.StartScene) // Возвращаемся в самое начало
     }
 
     logger.info({
       message: `[enterTargetScene] Переход в сцену ${mode} завершен`,
       telegramId,
       function: 'enterTargetScene',
-      targetScene: mode,
+      targetScene: mode, // Логируем исходный запрошенный режим
       step: 'switch_completed',
-      result: result ? 'success' : 'completed',
+      result: 'completed',
     })
-
-    return result
   } catch (error) {
     console.error('[DEBUG enterTargetScene] Error caught:', error) // Добавлено
     logger.error({
-      message: `[enterTargetScene] Ошибка при переходе в сцену: ${mode}`,
+      message: `[enterTargetScene] Ошибка при переходе в целевую сцену ${mode}`,
       telegramId,
       function: 'enterTargetScene',
-      targetScene: mode,
+      mode,
+      step: 'transition_error',
       error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
     })
-
-    // В случае ошибки пытаемся вернуться на стартовую сцену
+    // В случае любой ошибки при переходе, отправляем пользователя в главное меню
     try {
-      await ctx.reply(
-        isRu
-          ? '❌ Произошла ошибка при переходе к выбранной функции. Возврат в главное меню.'
-          : '❌ An error occurred while navigating to the selected function. Returning to main menu.'
-      )
-      return ctx.scene.enter(ModeEnum.StartScene)
+      //await ctx.scene.enter(ModeEnum.MenuScene)
+      await ctx.scene.enter(ModeEnum.StartScene) // Возвращаемся в самое начало
     } catch (fallbackError) {
       logger.error({
-        message: `[enterTargetScene] Критическая ошибка при попытке перехода на StartScene`,
+        message: `[enterTargetScene] КРИТИЧЕСКАЯ ОШИБКА при попытке отката в StartScene`,
         telegramId,
         function: 'enterTargetScene',
+        mode,
+        step: 'fallback_scene_error',
         error:
           fallbackError instanceof Error
             ? fallbackError.message

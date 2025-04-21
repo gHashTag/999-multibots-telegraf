@@ -1,32 +1,44 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
+import { describe, it, expect, jest, beforeEach } from '@jest/globals'
 
-// Mock supabase client
-jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
+// Мокаем цепочку
+const mockEq = jest.fn<() => Promise<{ data: any; error: any }>>()
+const mockUpdate = jest.fn(() => ({ eq: mockEq }))
+jest.mock('@/core/supabase', () => ({
+  supabase: {
+    from: jest.fn(() => ({ update: mockUpdate })),
+  },
+}))
+
 import { supabase } from '@/core/supabase'
 import { updateUserVoice } from '@/core/supabase/updateUserVoice'
 
 describe('updateUserVoice', () => {
-  const telegram_id = '77'
+  const telegram_id = 'user789'
   const voice_id_elevenlabs = 'voice123'
+
   beforeEach(() => {
-    jest.resetModules()
-    jest.clearAllMocks()
+    mockEq.mockReset()
+    mockUpdate.mockClear()
+    ;(supabase.from as jest.Mock).mockClear()
   })
 
   it('resolves when update succeeds', async () => {
-    const eqMock = jest.fn()
-    const updateMock = jest.fn().mockReturnValue({ eq: eqMock, error: null })
-    ;(supabase.from as jest.Mock).mockReturnValue({ update: updateMock })
+    // Мокаем успех
+    mockEq.mockResolvedValue({ data: {}, error: null })
     await expect(updateUserVoice(telegram_id, voice_id_elevenlabs)).resolves.toBeUndefined()
-    expect(updateMock).toHaveBeenCalledWith({ voice_id_elevenlabs })
-    expect(eqMock).toHaveBeenCalledWith('telegram_id', telegram_id)
+    expect(supabase.from).toHaveBeenCalledWith('users')
+    expect(mockUpdate).toHaveBeenCalledWith({ voice_id_elevenlabs })
+    expect(mockEq).toHaveBeenCalledWith('telegram_id', telegram_id)
   })
 
   it('throws error when update returns error', async () => {
     const errorObj = { message: 'failVoice' }
-    const updateMock = jest.fn().mockReturnValue({ error: errorObj })
-    ;(supabase.from as jest.Mock).mockReturnValue({ update: updateMock })
+    // Мокаем ошибку
+    mockEq.mockResolvedValue({ data: null, error: errorObj })
     await expect(updateUserVoice(telegram_id, voice_id_elevenlabs))
       .rejects.toThrow(`Ошибка при обновлении пользователя: ${errorObj.message}`)
+    expect(supabase.from).toHaveBeenCalledWith('users')
+    expect(mockUpdate).toHaveBeenCalledWith({ voice_id_elevenlabs })
+    expect(mockEq).toHaveBeenCalledWith('telegram_id', telegram_id)
   })
 })

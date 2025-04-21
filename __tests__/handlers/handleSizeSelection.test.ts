@@ -1,5 +1,6 @@
-import { handleSizeSelection } from '@/handlers/handleSizeSelection'
-import { ModeEnum } from '@/interfaces/modes'
+import makeMockContext from '../utils/mockTelegrafContext'
+import { defaultSession } from '@/store'
+import { ModeEnum } from '@/interfaces'
 
 // Mock dependencies
 jest.mock('@/core/supabase', () => ({
@@ -26,47 +27,121 @@ describe('handleSizeSelection', () => {
   let ctx: any
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = makeCtx()
+    ctx = makeMockContext()
+    ctx.session = { ...defaultSession }
+    ctx.reply = jest.fn(() => Promise.resolve()) as any
+    ctx.scene.enter = jest.fn(() => Promise.resolve())
   })
 
-  it('sets selectedSize and calls setAspectRatio, replies and enters NeuroPhoto scene', async () => {
-    isRussian.mockReturnValue(true)
-    ctx.session.mode = ModeEnum.NeuroPhoto
-    await handleSizeSelection(ctx, '16:9')
-    expect(ctx.session.selectedSize).toBe('16:9')
-    expect(setAspectRatio).toHaveBeenCalledWith(ctx.from.id, '16:9')
-    expect(ctx.reply).toHaveBeenCalledWith('✅ Вы выбрали размер: 16:9')
-    expect(ctx.scene.enter).toHaveBeenCalledWith(ModeEnum.NeuroPhoto)
+  it('handles neuro_photo mode in Russian', async () => {
+    ;(isRussian as jest.Mock).mockReturnValue(true)
+    const testCtx = makeMockContext(
+      {
+        message: {
+          from: {
+            id: 1,
+            language_code: 'ru',
+            is_bot: false,
+            first_name: 'Test',
+          },
+        },
+      } as any,
+      { mode: ModeEnum.NeuroPhotoV2 }
+    )
+    testCtx.reply = ctx.reply
+    testCtx.scene.enter = ctx.scene.enter
+
+    await handleSizeSelection(testCtx as any, '16:9')
+    expect(setAspectRatio).toHaveBeenCalledWith(1, '16:9')
+    expect(testCtx.session.selectedSize).toBe('16:9')
+    expect(testCtx.reply).toHaveBeenCalledWith('✅ Вы выбрали размер: 16:9')
+    expect(testCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.NeuroPhotoV2)
   })
 
-  it('enters text_to_image when mode matches string', async () => {
-    isRussian.mockReturnValue(false)
-    ctx.session.mode = 'text_to_image'
-    await handleSizeSelection(ctx, '1:1')
-    expect(setAspectRatio).toHaveBeenCalledWith(ctx.from.id, '1:1')
-    expect(ctx.reply).toHaveBeenCalledWith('✅ You selected size: 1:1')
-    expect(ctx.scene.enter).toHaveBeenCalledWith('text_to_image')
+  it('handles text_to_image mode in English', async () => {
+    ;(isRussian as jest.Mock).mockReturnValue(false)
+    const testCtx = makeMockContext(
+      {
+        message: {
+          from: {
+            id: 2,
+            language_code: 'en',
+            is_bot: false,
+            first_name: 'Test',
+          },
+        },
+      } as any,
+      { mode: ModeEnum.TextToImage }
+    )
+    testCtx.reply = ctx.reply
+    testCtx.scene.enter = ctx.scene.enter
+
+    await handleSizeSelection(testCtx as any, '1:1')
+    expect(setAspectRatio).toHaveBeenCalledWith(2, '1:1')
+    expect(testCtx.reply).toHaveBeenCalledWith('✅ You selected size: 1:1')
+    expect(testCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.TextToImage)
   })
 
   it('calls mainMenu when mode unknown and user exists', async () => {
-    isRussian.mockReturnValue(false)
-    ctx.session.mode = 'unknown'
-    (getReferalsCountAndUserData as jest.Mock).mockResolvedValue({ count: 3, subscriptionType: 'stars', level: 1, isExist: true })
-    await handleSizeSelection(ctx, '4:3')
+    ;(isRussian as jest.Mock).mockReturnValue(false)
+    const testCtx = makeMockContext(
+      {
+        message: {
+          from: {
+            id: 3,
+            language_code: 'en',
+            is_bot: false,
+            first_name: 'Test',
+          },
+        },
+      } as any,
+      { mode: ModeEnum.MainMenu }
+    )
+    testCtx.reply = ctx.reply
+    testCtx.scene.enter = ctx.scene.enter
+    ;(getReferalsCountAndUserData as jest.Mock).mockResolvedValue({
+      count: 5,
+      subscription: 'sub',
+      level: 2,
+      isExist: true,
+    })
+    await handleSizeSelection(testCtx as any, '4:3')
+    expect(setAspectRatio).toHaveBeenCalledWith(3, '4:3')
+    expect(getReferalsCountAndUserData).toHaveBeenCalledWith(3)
     expect(mainMenu).toHaveBeenCalledWith({
       isRu: false,
-      inviteCount: 3,
-      subscription: 'stars',
-      ctx,
-      level: 1,
+      inviteCount: 5,
+      subscription: 'sub',
+      ctx: testCtx,
+      level: 2,
     })
   })
 
   it('enters helpScene when mode unknown and user does not exist', async () => {
-    isRussian.mockReturnValue(true)
-    ctx.session.mode = 'other'
-    (getReferalsCountAndUserData as jest.Mock).mockResolvedValue({ count: 0, subscriptionType: '', level: 0, isExist: false })
-    await handleSizeSelection(ctx, '3:2')
-    expect(ctx.scene.enter).toHaveBeenCalledWith('helpScene')
+    ;(isRussian as jest.Mock).mockReturnValue(true)
+    const testCtx = makeMockContext(
+      {
+        message: {
+          from: {
+            id: 4,
+            language_code: 'ru',
+            is_bot: false,
+            first_name: 'Test',
+          },
+        },
+      } as any,
+      { mode: ModeEnum.MainMenu }
+    )
+    testCtx.reply = ctx.reply
+    testCtx.scene.enter = ctx.scene.enter
+    ;(getReferalsCountAndUserData as jest.Mock).mockResolvedValue({
+      count: 0,
+      subscription: '',
+      level: 0,
+      isExist: false,
+    })
+    await handleSizeSelection(testCtx as any, '2:1')
+    expect(setAspectRatio).toHaveBeenCalledWith(4, '2:1')
+    expect(testCtx.scene.enter).toHaveBeenCalledWith('helpScene')
   })
 })

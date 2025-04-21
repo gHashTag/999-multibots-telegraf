@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { setupLevelHandlers } from '@/handlers/setupLevelHandlers'
 // Import handlers to reference them
 import * as handlers from '@/scenes/levelQuestWizard/handlers'

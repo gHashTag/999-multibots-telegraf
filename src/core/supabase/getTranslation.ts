@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 import { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
 import logger from '@/utils/logger'
 import { isRussian } from '@/helpers/language'

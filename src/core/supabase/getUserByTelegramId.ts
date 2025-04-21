@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 
 export async function getUserByTelegramId(ctx: MyContext) {
   try {

@@ -1,7 +1,6 @@
 /**
  * Unit tests for handleTrainingCost helper
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { handleTrainingCost } from '@/price/helpers/handleTrainingCost'
 

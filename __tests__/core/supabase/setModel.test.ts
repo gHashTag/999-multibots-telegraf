@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 
 describe('setModel', () => {
   let setModel: typeof import('@/core/supabase/setModel').setModel

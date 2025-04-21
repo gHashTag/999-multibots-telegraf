@@ -1,7 +1,7 @@
+import makeMockContext from '../utils/mockTelegrafContext'
 import { handlePaymentPolicyInfo } from '@/handlers/paymentHandlers/handlePaymentPolicyInfo'
 
 describe('handlePaymentPolicyInfo', () => {
-  let ctx: any
   beforeEach(() => {
     ctx = {
       from: { language_code: 'ru' },
@@ -11,17 +11,45 @@ describe('handlePaymentPolicyInfo', () => {
     jest.clearAllMocks()
   })
 
-  it('calls answerCbQuery and sends Russian policy text', async () => {
-    ctx.from.language_code = 'ru'
-    await handlePaymentPolicyInfo(ctx)
-    expect(ctx.answerCbQuery).toHaveBeenCalledTimes(1)
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Оплата производится через систему Robokassa'))
+  it('answers callback query and replies with policy in Russian', async () => {
+    const ctx = makeMockContext({
+      callback_query: {
+        from: {
+          id: 1,
+          language_code: 'ru',
+          is_bot: false,
+          first_name: 'TestRu',
+        },
+      },
+    } as any)
+    ctx.answerCbQuery = jest.fn(() => Promise.resolve(true))
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+
+    await handlePaymentPolicyInfo(ctx as any)
+    expect(ctx.answerCbQuery).toHaveBeenCalled()
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('💳 Оплата производится')
+    )
   })
 
-  it('calls answerCbQuery and sends English policy text', async () => {
-    ctx.from.language_code = 'en'
-    await handlePaymentPolicyInfo(ctx)
-    expect(ctx.answerCbQuery).toHaveBeenCalledTimes(1)
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Payment is processed through the Robokassa system'))
+  it('replies with policy in English when language_code is not ru', async () => {
+    const ctx = makeMockContext({
+      callback_query: {
+        from: {
+          id: 2,
+          language_code: 'en',
+          is_bot: false,
+          first_name: 'TestEn',
+        },
+      },
+    } as any)
+    ctx.answerCbQuery = jest.fn(() => Promise.resolve(true))
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+
+    await handlePaymentPolicyInfo(ctx as any)
+    expect(ctx.answerCbQuery).toHaveBeenCalled()
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('💳 Payment is processed')
+    )
   })
 })

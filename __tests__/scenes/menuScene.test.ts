@@ -1,7 +1,6 @@
 /**
  * Tests for menuScene (WizardScene)
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { menuScene } from '../../src/scenes/menuScene'
 import makeMockContext from '../utils/mockTelegrafContext'
 

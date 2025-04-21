@@ -29,20 +29,28 @@ const commonFormat = format.combine(
   })
 )
 
-// Основной логгер приложения
-export const logger = createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: commonFormat,
-  transports: [
-    new transports.Console(),
+// Определяем базовые транспорты (консоль)
+// Указываем тип any[], чтобы разрешить разные транспорты
+const baseTransports: any[] = [new transports.Console()]
+
+// Добавляем файловые транспорты только если не режим теста
+if (process.env.NODE_ENV !== 'test') {
+  baseTransports.push(
     new transports.File({
       filename: path.join(logDir, 'error.log'),
       level: 'error',
     }),
     new transports.File({
       filename: path.join(logDir, 'combined.log'),
-    }),
-  ],
+    })
+  )
+}
+
+// Основной логгер приложения
+export const logger = createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: commonFormat,
+  transports: baseTransports, // Используем сформированный массив транспортов
 })
 
 // Логгер для ботов с дополнительным контекстом имени бота
@@ -61,6 +69,36 @@ export const botLogger = {
   },
 }
 
+// Определяем транспорты для логгера безопасности
+// Указываем тип any[], чтобы разрешить разные транспорты
+const securityTransports: any[] = []
+
+// Добавляем файловые транспорты только если не режим теста
+if (process.env.NODE_ENV !== 'test') {
+  securityTransports.push(
+    new transports.File({
+      filename: path.join(securityLogsDir, 'security.log'),
+    }),
+    // Критические проблемы безопасности также идут в основной лог ошибок
+    new transports.File({
+      filename: path.join(logDir, 'error.log'),
+      level: 'error',
+    })
+  )
+}
+
+// Если мы не в продакшене И не в тесте, также выводим логи безопасности в консоль
+if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
+  // Добавляем Console транспорт, если его еще нет
+  if (!securityTransports.some(t => t instanceof transports.Console)) {
+    securityTransports.push(
+      new transports.Console({
+        format: format.combine(format.colorize(), format.simple()),
+      })
+    )
+  }
+}
+
 // Логгер безопасности для отслеживания подозрительной активности
 export const securityLogger = createLogger({
   level: 'info',
@@ -69,26 +107,8 @@ export const securityLogger = createLogger({
     format.json()
   ),
   defaultMeta: { service: 'security' },
-  transports: [
-    new transports.File({
-      filename: path.join(securityLogsDir, 'security.log'),
-    }),
-    // Критические проблемы безопасности также идут в основной лог ошибок
-    new transports.File({
-      filename: path.join(logDir, 'error.log'),
-      level: 'error',
-    }),
-  ],
+  transports: securityTransports, // Используем сформированный массив транспортов
 })
-
-// Если мы не в продакшене, также выводим логи безопасности в консоль
-if (process.env.NODE_ENV !== 'production') {
-  securityLogger.add(
-    new transports.Console({
-      format: format.combine(format.colorize(), format.simple()),
-    })
-  )
-}
 
 // Хелпер для логирования попыток неавторизованного доступа
 export const logSecurityEvent = (

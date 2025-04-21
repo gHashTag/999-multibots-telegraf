@@ -1,4 +1,3 @@
-import { describe, it, expect } from '@jest/globals'
 import * as handlers from '@/handlers'
 
 describe('handlers index re-exports', () => {

@@ -1,4 +1,3 @@
-import { describe, it, expect } from '@jest/globals'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 
 describe('checkFullAccess', () => {

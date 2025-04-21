@@ -1,13 +1,16 @@
-import { delay } from '@/helpers/delay';
-
-jest.useFakeTimers();
+import { delay } from '@/helpers/delay'
 
 describe('delay', () => {
-  test('resolves after the specified time', async () => {
-    const callback = jest.fn();
-    const promise = delay(100);
-    promise.then(callback);
-    jest.advanceTimersByTime(100);
-    expect(callback).toHaveBeenCalled();
-  });
-});
+  beforeAll(() => {
+    jest.useFakeTimers()
+  })
+  afterAll(() => {
+    jest.useRealTimers()
+  })
+
+  it('should resolve after given milliseconds', async () => {
+    const promise = delay(500)
+    jest.advanceTimersByTime(500)
+    await expect(promise).resolves.toBeUndefined()
+  })
+})

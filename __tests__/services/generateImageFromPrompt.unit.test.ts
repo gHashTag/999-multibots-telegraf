@@ -1,4 +1,3 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { generateImageFromPrompt } from '@/services/generateImageFromPrompt'
 
 describe('generateImageFromPrompt', () => {

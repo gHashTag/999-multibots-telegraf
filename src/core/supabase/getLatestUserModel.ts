@@ -1,4 +1,4 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 import { ModelTraining } from '@/interfaces'
 
 export async function getLatestUserModel(

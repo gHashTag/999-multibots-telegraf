@@ -1,58 +1,86 @@
-import { jest, describe, it, beforeEach, afterEach, expect } from '@jest/globals'
+import { jest, describe, it, expect, beforeEach } from '@jest/globals'
+
+// Импортируем типы для реального модуля
+import type * as LoggerTypes from '../../src/utils/logger'
+
+// Полностью мокаем модуль логгера
+jest.mock('@/utils/logger', () => ({
+  // Создаем моки для каждого экспортируемого элемента
+  logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+  },
+  botLogger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+  },
+  securityLogger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+  // Убираем logSecurityEvent из мока модуля
+  // Используем jest.requireActual для этого
+  // Добавляем явное указание типа
+  logSecurityEvent: (jest.requireActual('@/utils/logger') as typeof LoggerTypes).logSecurityEvent,
+}))
+
+// Теперь импортируем мокированные версии
 import logger, { botLogger, securityLogger, logSecurityEvent } from '../../src/utils/logger'
 
+// Типизируем мокированные объекты/функции для TypeScript
+const mockedLogger = logger as jest.Mocked<typeof logger>
+const mockedBotLogger = botLogger as jest.Mocked<typeof botLogger>
+const mockedSecurityLogger = securityLogger as jest.Mocked<typeof securityLogger>
+
 describe.skip('botLogger', () => {
-  let infoSpy: jest.SpyInstance
   beforeEach(() => {
-    infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => {})
+    // Очищаем вызовы моков перед каждым тестом
+    jest.clearAllMocks()
   })
-  afterEach(() => {
-    infoSpy.mockRestore()
-  })
+
   it('info logs with bot name prefix', () => {
-    botLogger.info('botX', 'message', { extra: true })
-    expect(infoSpy).toHaveBeenCalledWith('[botX] message', { extra: true })
+    mockedBotLogger.info('botX', 'message', { extra: true })
+    // Проверяем вызов конкретного мока
+    expect(mockedLogger.info).toHaveBeenCalledWith('[botX] message', { extra: true })
   })
   it('warn logs with bot name prefix', () => {
-    const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {})
-    botLogger.warn('botY', 'warnmsg', { w: 1 })
-    expect(warnSpy).toHaveBeenCalledWith('[botY] warnmsg', { w: 1 })
-    warnSpy.mockRestore()
+    mockedBotLogger.warn('botY', 'warnmsg', { w: 1 })
+    expect(mockedLogger.warn).toHaveBeenCalledWith('[botY] warnmsg', { w: 1 })
   })
   it('error logs with bot name prefix', () => {
-    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {})
-    botLogger.error('botZ', 'errormsg', { e: 'x' })
-    expect(errorSpy).toHaveBeenCalledWith('[botZ] errormsg', { e: 'x' })
-    errorSpy.mockRestore()
+    mockedBotLogger.error('botZ', 'errormsg', { e: 'x' })
+    expect(mockedLogger.error).toHaveBeenCalledWith('[botZ] errormsg', { e: 'x' })
   })
   it('debug logs with bot name prefix', () => {
-    const debugSpy = jest.spyOn(logger, 'debug').mockImplementation(() => {})
-    botLogger.debug('botD', 'dbgmsg', { d: 2 })
-    expect(debugSpy).toHaveBeenCalledWith('[botD] dbgmsg', { d: 2 })
-    debugSpy.mockRestore()
+    mockedBotLogger.debug('botD', 'dbgmsg', { d: 2 })
+    expect(mockedLogger.debug).toHaveBeenCalledWith('[botD] dbgmsg', { d: 2 })
   })
 })
 
 describe('logSecurityEvent', () => {
-  let warnSpy: jest.SpyInstance
   beforeEach(() => {
-    warnSpy = jest.spyOn(securityLogger, 'warn').mockImplementation(() => {})
+    jest.clearAllMocks()
   })
-  afterEach(() => {
-    warnSpy.mockRestore()
-  })
+
   it('logs security event with default severity warn', () => {
     const details = { foo: 'bar' }
+    // Вызываем реальный logSecurityEvent
     logSecurityEvent('EVT', details)
-    expect(warnSpy).toHaveBeenCalledWith(
+    // Проверяем вызов метода у мока securityLogger
+    expect(mockedSecurityLogger.warn).toHaveBeenCalledWith(
       'Событие безопасности: EVT',
       expect.objectContaining({ ...details, eventType: 'EVT' })
     )
   })
   it('logs security event with specified severity', () => {
-    const infoSpy = jest.spyOn(securityLogger, 'info').mockImplementation(() => {})
+    // Вызываем реальный logSecurityEvent
     logSecurityEvent('INFO_EVT', { a: 1 }, 'info')
-    expect(infoSpy).toHaveBeenCalled()
-    infoSpy.mockRestore()
+    // Проверяем вызов метода у мока securityLogger
+    expect(mockedSecurityLogger.info).toHaveBeenCalled()
   })
 })

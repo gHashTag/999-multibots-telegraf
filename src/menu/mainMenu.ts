@@ -123,11 +123,6 @@ export async function mainMenu({
   console.log('💻 CASE: mainMenu')
   let hasFullAccess = checkFullAccess(subscription)
 
-  // Используем levels[105] для кнопки подписки
-  const subscriptionButtonText = isRu
-    ? levels[105].title_ru
-    : levels[105].title_en
-
   // Определяем доступные уровни в зависимости от подписки
   const subscriptionLevelsMap = {
     stars: [],
@@ -135,9 +130,10 @@ export async function mainMenu({
       levels[1],
       levels[2],
       levels[3],
-      levels[100],
-      levels[101],
-      levels[102],
+      // Убираем добавление кнопок баланса/пополнения/приглашения отсюда
+      // levels[100],
+      // levels[101],
+      // levels[102],
     ],
     neurobase: Object.values(levels).slice(1),
     neuromeeting: Object.values(levels).slice(1),
@@ -153,7 +149,15 @@ export async function mainMenu({
     subscription === SubscriptionType.NEUROBASE
   ) {
     hasFullAccess = true
-    availableLevels = Object.values(levels)
+    availableLevels = Object.values(levels).filter(
+      l =>
+        l !== levels[100] &&
+        l !== levels[101] &&
+        l !== levels[102] &&
+        l !== levels[103] &&
+        l !== levels[104] &&
+        l !== levels[105]
+    ) // Исключаем служебные
   } else if (subscription === SubscriptionType.STARS) {
     availableLevels = availableLevels.concat(
       Object.values(levels).slice(0, inviteCount + 1)
@@ -169,15 +173,6 @@ export async function mainMenu({
     subscription !== SubscriptionType.NEUROBASE
   ) {
     availableLevels = availableLevels.filter((_, index) => index <= level)
-  }
-
-  if (availableLevels.length === 0) {
-    console.warn(
-      'No available levels for the current invite count and subscription status.'
-    )
-    return Markup.keyboard([
-      [Markup.button.text(subscriptionButtonText)],
-    ]).resize()
   }
 
   const buttons = availableLevels.map(level =>
@@ -199,8 +194,23 @@ export async function mainMenu({
     buttonRows.push(buttons.slice(i, i + 2))
   }
 
-  // Всегда добавляем кнопку подписки
-  buttonRows.push([Markup.button.text(subscriptionButtonText)])
+  // Всегда добавляем кнопки баланса, пополнения и подписки
+  const balanceButtonText = isRu ? levels[101].title_ru : levels[101].title_en
+  const topUpButtonText = isRu ? levels[100].title_ru : levels[100].title_en
+  const subscriptionButtonText = isRu
+    ? levels[105].title_ru
+    : levels[105].title_en
+  const supportButtonText = isRu ? levels[103].title_ru : levels[103].title_en // Добавили кнопку техподдержки
+
+  // Добавляем кнопки управления в последние ряды
+  buttonRows.push([
+    Markup.button.text(balanceButtonText),
+    Markup.button.text(topUpButtonText),
+  ])
+  buttonRows.push([
+    Markup.button.text(subscriptionButtonText),
+    Markup.button.text(supportButtonText), // Добавили кнопку техподдержки
+  ])
 
   return Markup.keyboard(buttonRows).resize()
 }

@@ -1,5 +1,5 @@
 import { Payment } from '@/interfaces/payments.interface'
-import { supabase } from './index'
+import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { createBotByName } from '../bot'
 

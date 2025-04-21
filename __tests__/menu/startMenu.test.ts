@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { startMenu } from '@/menu/startMenu'
 import { levels } from '@/menu/mainMenu'

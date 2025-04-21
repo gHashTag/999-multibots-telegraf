@@ -1,4 +1,4 @@
-import { jest, describe, it, expect } from '@jest/globals'
+jest.mock('@/config') // Мокаем конфиг
 
 // Mock dotenv to prevent loading real .env file
 jest.mock('dotenv', () => ({ config: jest.fn() }))

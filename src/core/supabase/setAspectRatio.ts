@@ -1,4 +1,4 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 
 export const setAspectRatio = async (
   telegram_id: number,

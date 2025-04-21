@@ -1,4 +1,4 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 
 export const getGeneratedImages = async (telegram_id: number) => {
   const { data, error } = await supabase

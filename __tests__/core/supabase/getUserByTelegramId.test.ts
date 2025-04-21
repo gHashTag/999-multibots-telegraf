@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 // Mock supabase and logger
 jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
 import { supabase } from '@/core/supabase'
