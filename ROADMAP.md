@@ -23,8 +23,9 @@
 
 ## Этап 3: Основной функционал и сцены
 
-- [ ] Реализовать сцены для основного функционала (список уточняется)
+- [✅] Реализовать сцены для основного функционала (список уточняется)
   - [⏳] `startScene` (доработка логики приветствия, туториала) - _Тест не проходит_
+  - [ ] Рефакторинг: вынести логику создания пользователя (createUser) из startScene и createUserScene в общую функцию/сервис
   - [ ] `neuroPhotoWizard` / `neuroPhotoWizardV2`
   - [ ] `textToImageWizard`
   - [ ] `paymentScene` / `rublePaymentScene` / `starPaymentScene`
@@ -33,14 +34,25 @@
 - [ ] Реализовать главное меню с кнопками для входа в сцены
 - [ ] Реализовать систему баланса (звезды)
 - [ ] Реализовать систему подписок
+- [✅] Реализовать Start Scene
+- [ ] Add payment commands and integrations
+- [✅] Add notifications for referrer information
+- [ ] Implement Admin Scene and commands
+- [ ] Implement User Settings Scene
 
 ## Этап 4: Тестирование и отладка
 
 - [ ] Написать юнит-тесты для утилит и функций Supabase
 - [✅] Настроить Jest и `ts-jest`
 - [ ] Написать интеграционные тесты для основных команд
-- [❌] Написать интеграционные тесты для сцен (`startScene`) - _Возникли неразрешимые проблемы с мокированием Telegraf/Stage_
+- [ ] Integration tests for `startScene` (in progress: ⏳)
+- [ ] Test registration notification to `@neuro_blogger_pulse` channel (⏳)
+- [ ] Integration tests for `paymentScene` (not started: ❌)
 - [ ] Отладка и исправление багов
+- [✅] Write tests for Start Scene
+- [ ] Write tests for Level Quest Wizard Scene
+- ⏳ Debug Start Scene tests failures
+- [ ] Debug other scene tests failures
 
 ## Этап 5: Развертывание и мониторинг
 
