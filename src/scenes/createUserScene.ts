@@ -7,6 +7,7 @@ import { getSubScribeChannel } from '@/handlers'
 import { isRussian } from '@/helpers/language'
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
+import { pulseBot } from '@/core'
 
 const createUserStep = async (ctx: MyTextMessageContext) => {
   console.log('CASE:createUserStep', ctx.from)
@@ -51,7 +52,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
   ctx.session.inviteCode = startNumber
 
-  const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
+  const SUBSCRIBE_CHANNEL_ID = 'neuro_blogger_pulse'
 
   if (ctx.session.inviteCode) {
     console.log('CASE: ctx.session.inviteCode', ctx.session.inviteCode)
@@ -65,21 +66,21 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       await ctx.telegram.sendMessage(
         ctx.session.inviteCode,
         isRussian(ctx)
-          ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}.\n🆔 Уровень аватара: ${count} `
+          ? `🔗 Новый пользователь зарегистрировался по вашей ссылке: @${finalUsername}  `
           : `🔗 New user registered through your link: @${finalUsername}`
       )
-      await ctx.telegram.sendMessage(
+      await pulseBot.telegram.sendMessage(
         `@${SUBSCRIBE_CHANNEL_ID}`,
         `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}. По реферальной ссылке от: @${userData.username}`
       )
+      ctx.scene.enter(ModeEnum.StartScene)
     }
   } else {
     console.log('CASE: ctx.session.inviteCode not exists')
 
-    const { count } = await getReferalsCountAndUserData(telegram_id.toString())
-    await ctx.telegram.sendMessage(
+    await pulseBot.telegram.sendMessage(
       `@${SUBSCRIBE_CHANNEL_ID}`,
-      `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}.\n🆔 Уровень аватара: ${count}.`
+      `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}`
     )
   }
 
@@ -107,10 +108,13 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       ? '✅ Аватар успешно создан!'
       : '✅ Avatar created successfully!'
   )
+  if (!ctx.session.inviteCode) {
+    return ctx.scene.enter(ModeEnum.StartScene)
+  }
   return ctx.scene.enter(ModeEnum.SubscriptionScene)
 }
 
 export const createUserScene = new WizardScene<MyContext>(
-  'createUserScene',
+  ModeEnum.CreateUserScene,
   createUserStep
 )

@@ -103,7 +103,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     console.log('CASE bot.command: start')
     ctx.session = { ...defaultSession } // Reset session
     ctx.session.mode = ModeEnum.StartScene
-    await ctx.scene.enter(ModeEnum.StartScene)
+    await ctx.scene.enter(ModeEnum.CreateUserScene)
   })
 
   bot.command('support', async ctx => {

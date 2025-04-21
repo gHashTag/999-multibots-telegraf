@@ -1,173 +1,50 @@
 import { MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
-import {
-  getTranslation,
-  getUserDetails,
-  createUser,
-  getReferalsCountAndUserData,
-  getUserData,
-} from '@/core/supabase'
+import { getTranslation } from '@/core/supabase'
 import { BOT_URLS } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { levels } from '@/menu/mainMenu'
 import { ModeEnum } from '@/interfaces/modes'
-import { getPhotoUrl } from '@/handlers/getPhotoUrl'
-import { isRussian } from '@/helpers/language'
-import { startMenu } from '@/menu'
 
 export const startScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.StartScene,
   async ctx => {
     const telegramId = ctx.from?.id?.toString() || 'unknown'
+    logger.info({
+      message: '🚀 [StartScene] Начало работы с ботом',
+      telegramId,
+      function: 'startScene',
+      username: ctx.from?.username,
+      language: ctx.from?.language_code,
+      sessionData: JSON.stringify(ctx.session || {}),
+    })
+
     const isRu = ctx.from?.language_code === 'ru'
-    const currentBotName = ctx.botInfo.username
-    const finalUsername =
-      ctx.from?.username || ctx.from?.first_name || telegramId
-    const telegram_id = ctx.from?.id
-    const subscribeChannelId = process.env.SUBSCRIBE_CHANNEL_ID
+    const botName = ctx.botInfo.username
 
-    try {
-      const userDetails = await getUserDetails(telegramId)
+    logger.info({
+      message: '📡 [StartScene] Получение перевода для стартового сообщения',
+      telegramId,
+      function: 'startScene',
+      bot_name: botName,
+      step: 'fetching_translation',
+    })
 
-      if (!userDetails.isExist) {
-        // --- Новый пользователь ---
-        const {
-          username,
-          id: tg_id,
-          first_name,
-          last_name,
-          is_bot,
-          language_code,
-        } = ctx.from!
-        const final_username_create = username || first_name || tg_id.toString()
-        const photo_url = getPhotoUrl(ctx, 1)
-
-        let refCount = 0
-        let referrerData: { user_id?: string; username?: string } = {}
-        const invite_code = ctx.session.inviteCode
-
-        try {
-          if (invite_code) {
-            // С рефералом
-            const { count, userData: refUserData } =
-              await getReferalsCountAndUserData(invite_code.toString())
-            refCount = count
-            referrerData = refUserData || {}
-            ctx.session.inviter = referrerData.user_id
-            // Уведомление рефереру
-            try {
-              await ctx.telegram.sendMessage(
-                invite_code,
-                isRussian(ctx)
-                  ? `🔗 Новый пользователь @${final_username_create} зарегистрировался по вашей ссылке.\n🆔 Уровень: ${refCount}`
-                  : `🔗 New user @${final_username_create} registered via your link.\n🆔 Level: ${refCount}`
-              )
-            } catch (err) {
-              /* лог ошибки */
-            }
-            // Уведомление админу (с рефом)
-            if (subscribeChannelId) {
-              try {
-                const targetChatId =
-                  typeof subscribeChannelId === 'string' &&
-                  !subscribeChannelId.startsWith('-')
-                    ? `@${subscribeChannelId}`
-                    : subscribeChannelId
-                await ctx.telegram.sendMessage(
-                  targetChatId,
-                  `[${currentBotName}] 🔗 Новый пользователь @${final_username_create} (ID: ${tg_id}) по реф. от @${referrerData.username}`
-                )
-              } catch (pulseErr) {
-                /* лог ошибки */
-              }
-            } else {
-              /* лог warn */
-            }
-          } else {
-            // Без реферала
-            const { count } = await getReferalsCountAndUserData(
-              tg_id.toString()
-            )
-            refCount = count
-            // Уведомление админу (без рефа)
-            if (subscribeChannelId) {
-              try {
-                const targetChatId =
-                  typeof subscribeChannelId === 'string' &&
-                  !subscribeChannelId.startsWith('-')
-                    ? `@${subscribeChannelId}`
-                    : subscribeChannelId
-                await ctx.telegram.sendMessage(
-                  targetChatId,
-                  `[${currentBotName}] 🔗 Новый пользователь @${final_username_create} (ID: ${tg_id})`
-                )
-              } catch (pulseErr) {
-                /* лог ошибки */
-              }
-            } else {
-              /* лог warn */
-            }
-          }
-        } catch (error) {
-          /* лог ошибки */
-        }
-
-        // Создание пользователя
-        const userDataToCreate = {
-          username: final_username_create,
-          telegram_id: tg_id.toString(),
-          first_name: first_name || null,
-          last_name: last_name || null,
-          is_bot: is_bot || false,
-          language_code: language_code || 'en',
-          photo_url,
-          chat_id: ctx.chat?.id || null,
-          mode: 'clean',
-          model: 'gpt-4-turbo',
-          count: 0,
-          aspect_ratio: '9:16',
-          balance: 0,
-          inviter: ctx.session.inviter || null,
-          bot_name: currentBotName,
-        }
-        try {
-          await createUser(userDataToCreate)
-        } catch (error) {
-          /* лог ошибки + reply + return */
-        }
-      } else {
-        // --- Существующий пользователь ---
-        // Уведомление админу о рестарте
-        if (subscribeChannelId) {
-          try {
-            const targetChatId =
-              typeof subscribeChannelId === 'string' &&
-              !subscribeChannelId.startsWith('-')
-                ? `@${subscribeChannelId}`
-                : subscribeChannelId
-            await ctx.telegram.sendMessage(
-              targetChatId,
-              `[${currentBotName}] 🔄 Пользователь @${finalUsername} (ID: ${telegram_id}) перезапустил бота (/start).`
-            )
-          } catch (notifyError) {
-            /* лог ошибки */
-          }
-        } else {
-          /* лог warn */
-        }
-      }
-    } catch (error) {
-      /* лог ошибки + reply + return */
-    }
-    // --- КОНЕЦ: Логика проверки и создания пользователя ---
-
-    // --- НАЧАЛО: Приветствие + Видео-инструкция ---
     const { translation, url } = await getTranslation({
       key: 'start',
       ctx,
-      bot_name: currentBotName,
+      bot_name: botName,
     })
-    // Отправка фото или текста
+
+    logger.info({
+      message: '✅ [StartScene] Перевод получен',
+      telegramId,
+      function: 'startScene',
+      translationReceived: !!translation,
+      imageUrlReceived: !!url,
+      step: 'translation_received',
+    })
+
     if (url && url.trim() !== '') {
       logger.info({
         message:
@@ -180,6 +57,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
 
       await ctx.replyWithPhoto(url, {
         caption: translation,
+        parse_mode: 'Markdown',
       })
     } else {
       logger.info({
@@ -194,13 +72,12 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       })
     }
 
-    // Отправка видео-инструкции (ВОССТАНОВЛЕНА)
-    const tutorialUrl = BOT_URLS[currentBotName]
+    const tutorialUrl = BOT_URLS[botName]
     let replyKeyboard
 
     if (tutorialUrl) {
       logger.info({
-        message: `🎬 [StartScene] Отправка ссылки на туториал для ${currentBotName}`,
+        message: `🎬 [StartScene] Отправка ссылки на туториал для ${botName}`,
         telegramId,
         function: 'startScene',
         tutorialUrl,
@@ -233,7 +110,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       })
     } else {
       logger.info({
-        message: `ℹ️ [StartScene] Ссылка на туториал для ${currentBotName} не найдена`,
+        message: `ℹ️ [StartScene] Ссылка на туториал для ${botName} не найдена`,
         telegramId,
         function: 'startScene',
         step: 'tutorial_url_not_found',
@@ -259,7 +136,6 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         reply_markup: replyKeyboard.reply_markup,
       })
     }
-    // --- КОНЕЦ: Приветствие + Видео-инструкция ---
 
     logger.info({
       message: `🏁 [StartScene] Завершение сцены старта`,
