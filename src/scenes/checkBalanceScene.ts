@@ -434,20 +434,13 @@ checkBalanceScene.enter(async ctx => {
  * @param {MyContext} ctx - Контекст Telegraf.
  * @param {ModeEnum} mode - Режим, определяющий целевую сцену.
  */
-async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
-  const telegramId = ctx.from?.id?.toString() || 'unknown'
-  logger.info({
-    message: `[enterTargetScene] Начало перехода в целевую сцену: ${mode}`,
-    telegramId,
-    function: 'enterTargetScene',
-    requestedMode: mode,
-    sessionData: JSON.stringify(ctx.session || {}),
-  })
-
-  const isRu = ctx.from?.language_code === 'ru'
+export async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
+  const telegramId = ctx.from?.id.toString()
+  let targetScene: ModeEnum | undefined // <--- ОБЪЯВЛЕНИЕ ПЕРЕМЕННОЙ
+  let result: any // Для хранения результата ctx.scene.enter
 
   try {
-    // --- ДОБАВИТЬ ЯВНУЮ ОБРАБОТКУ SUBSCRIPTION_SCENE (на всякий случай) ---
+    // Проверка подписки пользователя, если требуется
     if (String(mode) === String(ModeEnum.SubscriptionScene)) {
       console.log(
         `[DEBUG enterTargetScene] Explicitly handling SubscriptionScene. Entering...`
@@ -462,7 +455,6 @@ async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
       await ctx.scene.enter(ModeEnum.SubscriptionScene)
       return // Важно выйти после входа
     }
-    // --- КОНЕЦ ДОБАВЛЕНИЯ ---
 
     // Переход к соответствующей сцене в зависимости от режима
     logger.info({
