@@ -10,7 +10,7 @@
 // Флаг существования (из users). НЕ ВОЗВРАЩАЕТ LEVEL.
 // ==================================================================
 
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import {
   normalizeTelegramId,

@@ -1,4 +1,3 @@
-import { describe, it, expect } from '@jest/globals'
 import { cancelMenu } from '@/menu/cancelMenu'
 
 describe('cancelMenu', () => {

@@ -1,4 +1,4 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 
 export async function getModel(telegram_id: string): Promise<string> {
   try {

@@ -1,5 +1,5 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 
 export async function getUserByTelegramIdString(telegram_id: TelegramId) {
   try {

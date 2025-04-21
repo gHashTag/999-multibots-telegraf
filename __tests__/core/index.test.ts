@@ -1,4 +1,3 @@
-import { describe, it, expect } from '@jest/globals'
 import * as core from '@/core'
 
 describe('core index', () => {

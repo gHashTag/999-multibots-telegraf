@@ -1,62 +1,54 @@
 /**
  * Тесты для нейрофото-сцены (neuroPhotoWizard)
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { neuroPhotoWizard } from '../../src/scenes/neuroPhotoWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
-/* eslint-disable @typescript-eslint/ban-ts-comment */
+import { Composer } from 'telegraf'
+import { jest, describe, it, expect, beforeEach } from '@jest/globals'
+import { MySession } from '@/interfaces' // Убираем User
+import { User } from 'telegraf/typings/core/types/typegram' // Импортируем User отсюда
+import { Markup } from 'telegraf' // Импортируем Markup
 
 // Мокаем зависимости
-jest.mock('../../src/handlers/getUserInfo', () => ({
-  // @ts-ignore
-  getUserInfo: jest.fn(),
-}))
-jest.mock('../../src/core/supabase', () => ({
-  // @ts-ignore
-  getLatestUserModel: jest.fn(),
-  // @ts-ignore
-  getReferalsCountAndUserData: jest.fn(),
-}))
-jest.mock('../../src/services/generateNeuroImage', () => ({
-  // @ts-ignore
-  generateNeuroImage: jest.fn(),
-}))
-jest.mock('../../src/menu', () => ({
-  // @ts-ignore
-  levels: { 104: { title_ru: 'RU_MENU', title_en: 'EN_MENU' } },
-  // @ts-ignore
-  mainMenu: jest.fn().mockResolvedValue({ reply_markup: { keyboard: [] } }),
-  // @ts-ignore
-  sendPhotoDescriptionRequest: jest.fn(),
-  // @ts-ignore
-  sendGenericErrorMessage: jest.fn(),
-}))
-jest.mock('../../src/handlers/handleHelpCancel', () => ({
-  // @ts-ignore
-  handleHelpCancel: jest.fn(),
-}))
-jest.mock('../../src/handlers', () => ({
-  // @ts-ignore
-  handleMenu: jest.fn(),
-}))
+jest.mock('@/handlers/getUserInfo')
+jest.mock('@/core/supabase')
+jest.mock('@/services/generateNeuroImage')
+jest.mock('@/menu')
+jest.mock('@/handlers/handleHelpCancel')
+jest.mock('@/handlers')
+
+// Импортируем мокированные версии
+import { getUserInfo } from '@/handlers/getUserInfo'
+import { getLatestUserModel, getReferalsCountAndUserData } from '@/core/supabase'
+import { generateNeuroImage } from '@/services/generateNeuroImage'
+import { mainMenu, sendPhotoDescriptionRequest, sendGenericErrorMessage } from '@/menu'
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { handleMenu } from '@/handlers'
+
+// Типизируем моки (теперь можно использовать импорты)
+const mockedGetUserInfo = getUserInfo as jest.Mock
+const mockedGetLatestModel = getLatestUserModel as jest.Mock
+const mockedGetReferals = getReferalsCountAndUserData as jest.Mock
+const mockedGenerateImage = generateNeuroImage as jest.Mock
+const mockedMainMenu = mainMenu as jest.Mock<() => Promise<{text: string, keyboard: Markup.Markup<any>}>> // Типизируем mainMenu
+const mockedSendDescRequest = sendPhotoDescriptionRequest as jest.Mock
+const mockedSendGenericError = sendGenericErrorMessage as jest.Mock
+const mockedHandleHelpCancel = handleHelpCancel as jest.Mock<(...args: any[]) => Promise<boolean>>
+const mockedHandleMenu = handleMenu as jest.Mock
 
 describe('neuroPhotoWizard', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    // Настраиваем мок mainMenu (если он используется в этой сцене)
+    mockedMainMenu.mockResolvedValue({ text: 'Menu', keyboard: Markup.keyboard([['Btn']]).reply_markup })
   })
 
   it('должна выйти, если нет обученной модели', async () => {
     const ctx = makeMockContext()
     // Настраиваем моки
-    // @ts-ignore: requireMock returns unknown
-    const getUserInfo = (
-      jest.requireMock('../../src/handlers/getUserInfo') as any
-    ).getUserInfo
-    getUserInfo.mockReturnValue({ userId: 'u1', telegramId: 't1' })
-    // @ts-ignore: requireMock returns unknown
-    const sb = jest.requireMock('../../src/core/supabase') as any
-    sb.getLatestUserModel.mockResolvedValueOnce(null)
-    sb.getReferalsCountAndUserData.mockResolvedValueOnce({
+    mockedGetUserInfo.mockReturnValue({ userId: 'u1', telegramId: 't1' })
+    mockedGetLatestModel.mockResolvedValueOnce(null)
+    mockedGetReferals.mockResolvedValueOnce({
       count: 0,
       subscription: 'stars',
       level: 1,
@@ -71,55 +63,37 @@ describe('neuroPhotoWizard', () => {
 
   it('должна запросить описание и перейти к следующему шагу, если модель есть и не отмена', async () => {
     const ctx = makeMockContext()
-    const getUserInfo = jest.requireMock(
-      '../../src/handlers/getUserInfo'
-    ).getUserInfo
-    getUserInfo.mockReturnValue({ userId: 'u2', telegramId: 't2' })
-    const sb = jest.requireMock('../../src/core/supabase')
-    sb.getLatestUserModel.mockResolvedValueOnce({
+    mockedGetUserInfo.mockReturnValue({ userId: 'u2', telegramId: 't2' })
+    mockedGetLatestModel.mockResolvedValueOnce({
       model_url: 'url1',
       trigger_word: 'tw',
     })
-    sb.getReferalsCountAndUserData.mockResolvedValueOnce({
+    mockedGetReferals.mockResolvedValueOnce({
       count: 5,
       subscription: 'premium',
       level: 2,
     })
-    const menu = jest.requireMock('../../src/menu')
-    // @ts-ignore: requireMock returns unknown
-    const sendDesc = (menu as any).sendPhotoDescriptionRequest
-    // @ts-ignore: requireMock returns unknown
-    const cancel = (
-      jest.requireMock('../../src/handlers/handleHelpCancel') as any
-    ).handleHelpCancel
-    cancel.mockResolvedValueOnce(false)
+    mockedHandleHelpCancel.mockResolvedValueOnce(false)
     // @ts-ignore
     const step = neuroPhotoWizard.steps[0]
     await step(ctx)
-    expect(sendDesc).toHaveBeenCalledWith(ctx, true, 'neuro_photo')
+    expect(mockedSendDescRequest).toHaveBeenCalledWith(ctx, true, 'neuro_photo')
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
   it('должна выйти из сцены, если отмена при запросе описания', async () => {
     const ctx = makeMockContext()
-    const getUserInfo = jest.requireMock(
-      '../../src/handlers/getUserInfo'
-    ).getUserInfo
-    getUserInfo.mockReturnValue({ userId: 'u3', telegramId: 't3' })
-    const sb = jest.requireMock('../../src/core/supabase')
-    sb.getLatestUserModel.mockResolvedValueOnce({
+    mockedGetUserInfo.mockReturnValue({ userId: 'u3', telegramId: 't3' })
+    mockedGetLatestModel.mockResolvedValueOnce({
       model_url: 'url2',
       trigger_word: 'x',
     })
-    sb.getReferalsCountAndUserData.mockResolvedValueOnce({
+    mockedGetReferals.mockResolvedValueOnce({
       count: 1,
       subscription: 'basic',
       level: 1,
     })
-    const cancel = jest.requireMock(
-      '../../src/handlers/handleHelpCancel'
-    ).handleHelpCancel
-    cancel.mockResolvedValueOnce(true)
+    mockedHandleHelpCancel.mockResolvedValueOnce(true)
     // @ts-ignore
     const step = neuroPhotoWizard.steps[0]
     await step(ctx)
@@ -134,20 +108,12 @@ describe('neuroPhotoWizard', () => {
       {},
       { session: { userModel }, message: { text: 'hello' } }
     )
-    // @ts-ignore: requireMock returns unknown
-    const gen = (
-      jest.requireMock('../../src/services/generateNeuroImage') as any
-    ).generateNeuroImage
-    // @ts-ignore: requireMock returns unknown
-    const cancel = (
-      jest.requireMock('../../src/handlers/handleHelpCancel') as any
-    ).handleHelpCancel
-    cancel.mockResolvedValueOnce(false)
+    mockedHandleHelpCancel.mockResolvedValueOnce(false)
     // @ts-ignore
     const step = neuroPhotoWizard.steps[1]
     await step(ctx)
     expect(ctx.session.prompt).toBe('hello')
-    expect(gen).toHaveBeenCalled()
+    expect(mockedGenerateImage).toHaveBeenCalled()
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 

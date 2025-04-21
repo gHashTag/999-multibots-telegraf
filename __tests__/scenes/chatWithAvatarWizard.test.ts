@@ -1,7 +1,6 @@
 /**
  * Tests for chatWithAvatarWizard
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { chatWithAvatarWizard } from '../../src/scenes/chatWithAvatarWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
 

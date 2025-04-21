@@ -5,7 +5,6 @@ import {
   jest,
   beforeEach,
   afterEach,
-} from '@jest/globals'
 import axios from 'axios'
 import makeMockContext from '../../../__tests__/utils/mockTelegrafContext'
 import { MyContext } from '@/interfaces'

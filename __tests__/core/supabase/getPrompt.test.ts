@@ -1,4 +1,3 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals'
 
 describe('getPrompt', () => {
   let builder: any

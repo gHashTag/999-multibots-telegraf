@@ -1,4 +1,4 @@
-import { supabase } from './index'
+import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 // import { determineSubscriptionType } from '@/price/constants' // Исправлен путь импорта
 // import { PaymentProcessParams } from '@/interfaces/payments.interface' // Убран импорт, используется локальный тип

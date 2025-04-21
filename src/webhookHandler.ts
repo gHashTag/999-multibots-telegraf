@@ -9,10 +9,11 @@ app.use(express.json())
 /**
  * Настраивает обработку вебхуков для ботов на основном порту
  * @param botInstances Массив экземпляров ботов
+ * @param shouldStartServer Флаг, указывающий нужно ли запускать сервер (по умолчанию true)
  */
-
 export function setupWebhookHandlers(
-  botInstances: Telegraf<MyContext>[]
+  botInstances: Telegraf<MyContext>[],
+  shouldStartServer = true
 ): Express {
   // Логирование всех входящих запросов
   app.use((req, res, next) => {
@@ -57,11 +58,13 @@ export function setupWebhookHandlers(
     }
   })
 
-  // Запуск сервера на порту 2999
-  const PORT = 2999
-  app.listen(PORT, () => {
-    console.log(`🚀 Вебхук сервер запущен на порту ${PORT}`)
-  })
+  // Запуск сервера (если не отключен)
+  if (shouldStartServer) {
+    const PORT = 2999
+    app.listen(PORT, () => {
+      console.log(`🚀 Вебхук сервер запущен на порту ${PORT}`)
+    })
+  }
 
   return app
 }

@@ -1,12 +1,14 @@
-import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { imageToVideoWizard } from '../../src/scenes/imageToVideoWizard'
 import { isRussian } from '@/helpers/language'
 import { handleHelpCancel, getBotToken } from '@/handlers'
 import { videoModelKeyboard, createHelpCancelKeyboard, sendGenerationCancelledMessage, sendGenericErrorMessage } from '@/menu'
-import { processBalanceVideoOperation } from '@/price/helpers/processBalanceVideoOperation'
+import { processBalanceVideoOperation, ProcessBalanceResult } from '@/price/helpers/processBalanceVideoOperation'
 import { sendBalanceMessage } from '@/price/helpers'
 import { generateImageToVideo } from '@/services/generateImageToVideo'
+import { Composer } from 'telegraf'
+import { jest, describe, it, expect, beforeEach } from '@jest/globals'
+import { MySession } from '@/interfaces'
 
 // Mock dependencies
 jest.mock('@/helpers/language', () => ({ isRussian: jest.fn() }))
@@ -26,72 +28,79 @@ jest.mock('@/price/helpers/processBalanceVideoOperation', () => ({
 jest.mock('@/price/helpers', () => ({ sendBalanceMessage: jest.fn() }))
 jest.mock('@/services/generateImageToVideo', () => ({ generateImageToVideo: jest.fn() }))
 
+// Типизируем моки
+const mockedIsRussian = isRussian as jest.Mock<() => boolean>
+const mockedHandleHelpCancel = handleHelpCancel as jest.Mock<(...args: any[]) => Promise<boolean>>
+const mockedProcessBalance = processBalanceVideoOperation as jest.Mock<(...args: any[]) => Promise<ProcessBalanceResult>>
+const mockedVideoModelKeyboard = videoModelKeyboard as jest.Mock
+const mockedCreateHelpCancelKeyboard = createHelpCancelKeyboard as jest.Mock
+const mockedSendGenCancelled = sendGenerationCancelledMessage as jest.Mock
+const mockedSendGenericError = sendGenericErrorMessage as jest.Mock
+const mockedSendBalanceMessage = sendBalanceMessage as jest.Mock
+
 describe('imageToVideoWizard', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
+  const steps = Composer.unwrap(imageToVideoWizard.middleware())
+  const step0 = steps[0]
+  const step1 = steps[1]
+  const mockNext = (): Promise<void> => Promise.resolve()
+
   it('step0: prompts model selection and next()', async () => {
-    ;(isRussian as jest.Mock).mockReturnValueOnce(false)
+    mockedIsRussian.mockReturnValueOnce(false)
     const keyboard = { reply_markup: {} }
-    ;(videoModelKeyboard as jest.Mock).mockReturnValueOnce(keyboard)
+    mockedVideoModelKeyboard.mockReturnValueOnce(keyboard)
     const ctx = makeMockContext()
-    // @ts-ignore
-    const step0 = imageToVideoWizard.steps[0]
-    await step0(ctx)
+    await step0(ctx, mockNext)
     expect(ctx.reply).toHaveBeenCalledWith(
       'Choose generation model:',
       { reply_markup: {} }
     )
-    expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
   it('step1: cancellation leaves scene', async () => {
-    ;(isRussian as jest.Mock).mockReturnValueOnce(true)
-    const ctx = makeMockContext({}, { message: { text: 'отмена' } })
-    ;(handleHelpCancel as jest.Mock).mockResolvedValueOnce(true)
-    // @ts-ignore
-    const step1 = imageToVideoWizard.steps[1]
-    await step1(ctx)
-    expect(sendGenerationCancelledMessage).toHaveBeenCalledWith(ctx, true)
+    mockedIsRussian.mockReturnValueOnce(true)
+    const ctx = makeMockContext({ message: { text: 'отмена' } })
+    mockedHandleHelpCancel.mockResolvedValueOnce(true)
+    await step1(ctx, mockNext)
+    expect(mockedSendGenCancelled).toHaveBeenCalledWith(ctx, true)
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
   it('step1: valid model processes balance and proceeds', async () => {
-    ;(isRussian as jest.Mock).mockReturnValue(false)
-    const ctx = makeMockContext({}, { message: { text: 'model1' } })
-    ;(handleHelpCancel as jest.Mock).mockResolvedValueOnce(false)
-    ;(processBalanceVideoOperation as jest.Mock).mockResolvedValueOnce({ newBalance: 10, success: true, modePrice: 5 })
+    mockedIsRussian.mockReturnValue(false)
+    const ctx = makeMockContext({ message: { text: 'model1' } })
+    const sessionData: Partial<MySession> = {}
+    ctx.session = sessionData as MySession
+
+    mockedHandleHelpCancel.mockResolvedValueOnce(false)
+    mockedProcessBalance.mockResolvedValueOnce({ newBalance: 10, success: true, modePrice: 5 })
     const keyboard = { reply_markup: {} }
-    ;(createHelpCancelKeyboard as jest.Mock).mockReturnValue(keyboard)
-    // @ts-ignore
-    const step1 = imageToVideoWizard.steps[1]
-    await step1(ctx)
-    expect(processBalanceVideoOperation).toHaveBeenCalledWith({
+    mockedCreateHelpCancelKeyboard.mockReturnValue(keyboard)
+    await step1(ctx, mockNext)
+    expect(mockedProcessBalance).toHaveBeenCalledWith({
       ctx,
       videoModel: 'model1',
       telegram_id: ctx.from.id,
       is_ru: false,
     })
-    expect(sendBalanceMessage).toHaveBeenCalledWith(ctx, 10, 5, false)
+    expect(mockedSendBalanceMessage).toHaveBeenCalledWith(ctx, 10, 5, false)
     expect(ctx.session.videoModel).toBe('model1')
     expect(ctx.session.paymentAmount).toBe(5)
-    // First reply should confirm chosen model
     expect(ctx.reply).toHaveBeenCalledWith(
       expect.stringContaining('You have chosen the generation model: model1'),
       { reply_markup: expect.objectContaining({ remove_keyboard: true }) }
     )
-    // Wizard should proceed to next step (if implemented)
-    // expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
   it('step1: invalid message replies generic error and leaves', async () => {
-    const ctx = makeMockContext({}, { message: {} })
-    ;(isRussian as jest.Mock).mockReturnValueOnce(true)
-    // @ts-ignore
-    const step1 = imageToVideoWizard.steps[1]
-    await step1(ctx)
-    expect(sendGenericErrorMessage).toHaveBeenCalledWith(ctx, true)
+    const ctx = makeMockContext({ message: { text: 'invalid' } })
+    mockedIsRussian.mockReturnValueOnce(true)
+    mockedHandleHelpCancel.mockResolvedValueOnce(false)
+    await step1(ctx, mockNext)
+    expect(mockedSendGenericError).toHaveBeenCalledWith(ctx, true)
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 })

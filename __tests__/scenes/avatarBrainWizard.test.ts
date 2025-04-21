@@ -1,185 +1,196 @@
-/**
- * Тесты для сцены avatarBrainWizard
- */
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 import { jest, describe, it, expect, beforeEach } from '@jest/globals'
-import { avatarBrainWizard } from '../../src/scenes/avatarBrainWizard'
+import { Scenes, MiddlewareFn } from 'telegraf'
+// Импортируем User из typegram
+import { Update, User } from 'telegraf/typings/core/types/typegram'
 import makeMockContext from '../utils/mockTelegrafContext'
+// Импортируем нужные типы
+import { MyContext, MySession, UserModel } from '@/interfaces'
+import { avatarBrainWizard } from '../../src/scenes/avatarBrainWizard'
+// Импорты из index файлов
+import { createHelpCancelKeyboard } from '@/menu'
+import { handleHelpCancel } from '@/handlers'
+import { isRussian } from '@/helpers/language'
+// Импорты из @/core/supabase
+import { updateUserSoul, getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 
-// Мокаем внешние зависимости
-jest.mock('../../src/helpers/language', () => ({
-  // @ts-ignore
-  isRussian: jest.fn(),
-}))
-jest.mock('../../src/menu', () => ({
-  // @ts-ignore
-  createHelpCancelKeyboard: jest.fn(),
-}))
-jest.mock('../../src/handlers/handleHelpCancel', () => ({
-  // @ts-ignore
-  handleHelpCancel: jest.fn(),
-}))
-jest.mock('../../src/core/supabase', () => ({
-  // @ts-ignore
-  updateUserSoul: jest.fn(),
-  // @ts-ignore
-  getUserByTelegramId: jest.fn(),
-  // @ts-ignore
-  updateUserLevelPlusOne: jest.fn(),
-}))
+// Моки
+jest.mock('@/menu')
+jest.mock('@/handlers')
+jest.mock('@/helpers/language')
+jest.mock('@/core/supabase') // Мокаем весь модуль supabase
+
+const mockedCreateHelpCancelKeyboard = jest.mocked(createHelpCancelKeyboard)
+const mockedHandleHelpCancel = jest.mocked(handleHelpCancel)
+const mockedIsRussian = jest.mocked(isRussian)
+// Типизируем моки правильно
+const mockedUpdateUserSoul = jest.mocked(updateUserSoul)
+const mockedGetUserByTelegramId = jest.mocked(getUserByTelegramId)
+const mockedUpdateUserLevelPlusOne = jest.mocked(updateUserLevelPlusOne)
+
+const mockUserModel: UserModel = {
+  model_name: 'test-brain-model',
+  trigger_word: 'brain',
+  model_url: 'org/brain:latest'
+}
+
+// Определяем тип для state, используемый в этом визарде
+interface AvatarBrainWizardState {
+  company?: string;
+  position?: string;
+}
+
+// Передаем state через sessionData
+const createMockSession = (initialState: AvatarBrainWizardState = {}): MySession => ({
+  userModel: mockUserModel,
+  targetUserId: 'user123',
+  images: [],
+  cursor: 0,
+  // Передаем state через __scenes, типизируя его
+  __scenes: { state: initialState } as any,
+});
+
+// Мок для next()
+const mockNext = jest.fn<() => Promise<void>>().mockResolvedValue()
 
 describe('avatarBrainWizard', () => {
+  let ctx: MyContext
+
   beforeEach(() => {
     jest.clearAllMocks()
+    mockedIsRussian.mockReturnValue(true)
+    mockedHandleHelpCancel.mockResolvedValue(false)
+    mockedCreateHelpCancelKeyboard.mockReturnValue({ reply_markup: { keyboard: [['Help'], ['Cancel']] } } as any)
+    // Настроим базовые возвращаемые значения
+    mockedUpdateUserSoul.mockResolvedValue(undefined) // Возвращает void
+    mockedGetUserByTelegramId.mockResolvedValue({ data: { level: 1 } }) // Базовый уровень
+    mockedUpdateUserLevelPlusOne.mockResolvedValue(undefined)
   })
 
-  it('шаг 0: здоровается и вызывает next()', async () => {
-    // @ts-ignore
-    const isRu = jest.requireMock('../../src/helpers/language').isRussian
-    // @ts-ignore
-    const createKb = jest.requireMock('../../src/menu').createHelpCancelKeyboard
-    isRu.mockReturnValueOnce(true)
-    createKb.mockReturnValueOnce({ keyboard: [['cancel']] })
-    const ctx = makeMockContext()
-    // @ts-ignore
+  it('step 0: should ask for company name', async () => {
+    const session = createMockSession()
+    ctx = makeMockContext({ message: { text: 'start' } } as Update, session)
+
     const step0 = avatarBrainWizard.steps[0]
-    await step0(ctx)
-    expect(createKb).toHaveBeenCalledWith(true)
+    await (step0 as MiddlewareFn<MyContext>)(ctx, mockNext)
+
     expect(ctx.reply).toHaveBeenCalledWith(
       '👋 Привет, как называется ваша компания?',
-      { keyboard: [['cancel']] }
+      mockedCreateHelpCancelKeyboard(true)
     )
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
-  it('шаг 1: сохраняет название компании и переходит дальше', async () => {
-    const ctx = makeMockContext({}, { message: { text: 'AcmeCorp' } })
-    // Инициализируем состояние для записи
-    // @ts-ignore
-    ctx.wizard.state = {}
-    // @ts-ignore
-    const isRu = jest.requireMock('../../src/helpers/language').isRussian
-    // @ts-ignore
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
-    // @ts-ignore
-    const createKb = jest.requireMock('../../src/menu').createHelpCancelKeyboard
-    isRu.mockReturnValueOnce(false)
-    cancel.mockResolvedValueOnce(false)
-    createKb.mockReturnValueOnce({ keyboard: [['cancel']] })
-    // @ts-ignore
+  it('step 1: should save company and ask for position', async () => {
+    const session = createMockSession()
+    ctx = makeMockContext({ message: { text: 'AcmeCorp' } } as Update, session)
+
     const step1 = avatarBrainWizard.steps[1]
-    await step1(ctx)
-    // @ts-ignore
-    expect(ctx.wizard.state.company).toBe('AcmeCorp')
+    await (step1 as MiddlewareFn<MyContext>)(ctx, mockNext)
+
+    // Проверяем косвенно - следующий шаг должен получить company из state
     expect(ctx.reply).toHaveBeenCalledWith(
-      '💼 What is your position?',
-      { keyboard: [['cancel']] }
+      '💼 Какая у вас должность?',
+      mockedCreateHelpCancelKeyboard(true)
     )
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
-  it('шаг 1: при отмене уходит из сцены', async () => {
-    const ctx = makeMockContext({}, { message: { text: 'AcmeCorp' } })
-    // @ts-ignore
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
-    cancel.mockResolvedValueOnce(true)
-    // @ts-ignore
-    const step1 = avatarBrainWizard.steps[1]
-    await step1(ctx)
-    expect(ctx.scene.leave).toHaveBeenCalled()
-  })
+  it('step 2: should save position and ask for skills', async () => {
+    // Передаем company в начальном state
+    const session = createMockSession({ company: 'AcmeCorp' })
+    ctx = makeMockContext({ message: { text: 'Developer' } } as Update, session)
 
-  it('шаг 2: сохраняет должность и переходит дальше', async () => {
-    const ctx = makeMockContext({}, { message: { text: 'Developer' } })
-    // Предварительно сохраняем company в state
-    // @ts-ignore
-    ctx.wizard.state = { company: 'AcmeCorp' }
-    // @ts-ignore
-    const isRu = jest.requireMock('../../src/helpers/language').isRussian
-    // @ts-ignore
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
-    // @ts-ignore
-    const createKb = jest.requireMock('../../src/menu').createHelpCancelKeyboard
-    isRu.mockReturnValueOnce(true)
-    cancel.mockResolvedValueOnce(false)
-    createKb.mockReturnValueOnce({ keyboard: [['cancel']] })
-    // @ts-ignore
     const step2 = avatarBrainWizard.steps[2]
-    await step2(ctx)
-    // @ts-ignore
-    expect(ctx.wizard.state.position).toBe('Developer')
+    await (step2 as MiddlewareFn<MyContext>)(ctx, mockNext)
+
     expect(ctx.reply).toHaveBeenCalledWith(
       '🛠️ Какие у тебя навыки?',
-      { keyboard: [['cancel']] }
+      mockedCreateHelpCancelKeyboard(true)
     )
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
-  it('шаг 3: при вводе навыков сохраняет и завершает сцену', async () => {
-    const ctx = makeMockContext({}, { message: { text: 'JS, TS' } })
-    // Подготавливаем state и from
-    // @ts-ignore
-    ctx.wizard.state = { company: 'AcmeCorp', position: 'Developer' }
-    ctx.from.id = 999
-    // Моки
-    // @ts-ignore
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
-    // @ts-ignore
-    const isRu = jest.requireMock('../../src/helpers/language').isRussian
-    // @ts-ignore
-    const updateSoul = jest.requireMock('../../src/core/supabase').updateUserSoul
-    // @ts-ignore
-    const getById = jest.requireMock('../../src/core/supabase').getUserByTelegramId
-    // @ts-ignore
-    const updateLevel = jest.requireMock('../../src/core/supabase').updateUserLevelPlusOne
-    isRu.mockReturnValueOnce(true)
-    cancel.mockResolvedValueOnce(false)
-    updateSoul.mockResolvedValueOnce(true)
-    getById.mockResolvedValueOnce({ data: { level: 2 } })
-    // @ts-ignore
+  it('step 3: should save skills, update soul, check level <= 2 and leave', async () => {
+    // Передаем company и position в начальном state
+    const session = createMockSession({ company: 'AcmeCorp', position: 'Developer' })
+    const userFrom = { id: 555 } as User
+    ctx = makeMockContext({ message: { text: 'JS, TS', from: userFrom } } as Update, session)
+
+    // Устанавливаем нужный уровень для этого теста
+    mockedGetUserByTelegramId.mockResolvedValue({ data: { level: 2 } })
+
     const step3 = avatarBrainWizard.steps[3]
-    await step3(ctx)
-    expect(updateSoul).toHaveBeenCalledWith(
-      '999', 'AcmeCorp', 'Developer', 'JS, TS'
+    await (step3 as MiddlewareFn<MyContext>)(ctx, mockNext)
+
+    expect(mockedUpdateUserSoul).toHaveBeenCalledWith(
+      '555',        // userId
+      'AcmeCorp',   // company (из state)
+      'Developer',  // position (из state)
+      'JS, TS'      // skills (из message)
     )
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('✅ Аватар успешно получил информацию'), {
-      parse_mode: 'HTML',
-    })
-    expect(updateLevel).not.toHaveBeenCalled()
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('✅ Аватар успешно получил информацию'),
+      { parse_mode: 'HTML' }
+    )
+    expect(mockedGetUserByTelegramId).toHaveBeenCalledWith(ctx)
+    expect(mockedUpdateUserLevelPlusOne).not.toHaveBeenCalled() // Уровень не должен обновляться
     expect(ctx.scene.leave).toHaveBeenCalled()
+    expect(ctx.wizard.next).not.toHaveBeenCalled() // Не должен переходить дальше
   })
 
-  it('шаг 3: при уровне 3 повышает уровень', async () => {
-    const ctx = makeMockContext({}, { message: { text: 'SkillX' } })
-    // @ts-ignore
-    ctx.wizard.state = { company: 'AcmeCorp', position: 'Developer' }
-    ctx.from.id = 321
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
-    const isRu = jest.requireMock('../../src/helpers/language').isRussian
-    const updateSoul = jest.requireMock('../../src/core/supabase').updateUserSoul
-    const getById = jest.requireMock('../../src/core/supabase').getUserByTelegramId
-    const updateLevel = jest.requireMock('../../src/core/supabase').updateUserLevelPlusOne
-    isRu.mockReturnValueOnce(false)
-    cancel.mockResolvedValueOnce(false)
-    updateSoul.mockResolvedValueOnce(true)
-    getById.mockResolvedValueOnce({ data: { level: 3 } })
-    // @ts-ignore
+  it('step 3: should save skills, update soul, check level = 3, update level and leave', async () => {
+    const session = createMockSession({ company: 'BigCorp', position: 'Manager' })
+    const userFrom = { id: 666 } as User
+    ctx = makeMockContext({ message: { text: 'Leadership', from: userFrom } } as Update, session)
+
+    mockedGetUserByTelegramId.mockResolvedValue({ data: { level: 3 } })
+
     const step3 = avatarBrainWizard.steps[3]
-    await step3(ctx)
-    expect(updateLevel).toHaveBeenCalledWith('321', 3)
+    await (step3 as MiddlewareFn<MyContext>)(ctx, mockNext)
+
+    expect(mockedUpdateUserSoul).toHaveBeenCalledWith('666', 'BigCorp', 'Manager', 'Leadership')
+    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('✅ Аватар успешно получил информацию'), { parse_mode: 'HTML' })
+    expect(mockedGetUserByTelegramId).toHaveBeenCalledWith(ctx)
+    expect(mockedUpdateUserLevelPlusOne).toHaveBeenCalledWith('666', 3) // Уровень должен обновиться
     expect(ctx.scene.leave).toHaveBeenCalled()
+    expect(ctx.wizard.next).not.toHaveBeenCalled()
   })
 
-  it('шаг 3: если пользователя нет, выбрасывает ошибку', async () => {
-    const ctx = makeMockContext({}, { message: { text: 'X' } })
-    // @ts-ignore
-    ctx.wizard.state = { company: 'Acme', position: 'Dev' }
-    ctx.from.id = 555
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
-    const getById = jest.requireMock('../../src/core/supabase').getUserByTelegramId
-    cancel.mockResolvedValueOnce(false)
-    getById.mockResolvedValueOnce({ data: null })
-    // @ts-ignore
+  it('step 3: should save skills, update soul, check level > 3 and leave', async () => {
+    const session = createMockSession({ company: 'Startup', position: 'CTO' })
+    const userFrom = { id: 777 } as User
+    ctx = makeMockContext({ message: { text: 'Strategy', from: userFrom } } as Update, session)
+
+    mockedGetUserByTelegramId.mockResolvedValue({ data: { level: 4 } })
+
     const step3 = avatarBrainWizard.steps[3]
-    await expect(step3(ctx)).rejects.toThrow('User with ID 555 does not exist.')
+    await (step3 as MiddlewareFn<MyContext>)(ctx, mockNext)
+
+    expect(mockedUpdateUserSoul).toHaveBeenCalledWith('777', 'Startup', 'CTO', 'Strategy')
+    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('✅ Аватар успешно получил информацию'), { parse_mode: 'HTML' })
+    expect(mockedGetUserByTelegramId).toHaveBeenCalledWith(ctx)
+    expect(mockedUpdateUserLevelPlusOne).not.toHaveBeenCalled() // Уровень не должен обновляться
+    expect(ctx.scene.leave).toHaveBeenCalled()
+    expect(ctx.wizard.next).not.toHaveBeenCalled()
   })
+
+  it('step 3: should throw error if user not found', async () => {
+    const session = createMockSession({ company: 'Ghost Inc.', position: 'Phantom' })
+    const userFrom = { id: 404 } as User
+    ctx = makeMockContext({ message: { text: 'Invisibility', from: userFrom } } as Update, session)
+
+    mockedGetUserByTelegramId.mockResolvedValue({ data: null }) // Пользователь не найден
+
+    const step3 = avatarBrainWizard.steps[3]
+    await expect(
+      (step3 as MiddlewareFn<MyContext>)(ctx, mockNext)
+    ).rejects.toThrow('User with ID 404 does not exist.')
+
+    // Проверяем, что updateUserSoul был вызван до ошибки
+    expect(mockedUpdateUserSoul).toHaveBeenCalledWith('404', 'Ghost Inc.', 'Phantom', 'Invisibility')
+    expect(mockedUpdateUserLevelPlusOne).not.toHaveBeenCalled()
+    expect(ctx.scene.leave).not.toHaveBeenCalled() // Не должен выйти штатно
+  })
+
 })

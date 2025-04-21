@@ -1,4 +1,4 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 
 export const incrementLimit = async ({
   telegram_id,

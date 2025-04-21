@@ -1,56 +1,88 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
-import makeMockContext from '../utils/mockTelegrafContext'
-
-// Mock setModel from supabase
-jest.mock('@/core/supabase', () => ({ setModel: jest.fn() }))
-import { setModel } from '@/core/supabase'
+import { describe, it, expect, jest, beforeEach } from '@jest/globals'
 import { handleModelCallback } from '@/handlers/handleModelCallback'
+import { MyContext } from '@/interfaces'
+import * as supabase from '@/core/supabase'
+import { Message, Chat } from 'telegraf/types'
+
+// Мокируем весь модуль supabase
+jest.mock('@/core/supabase')
+
+// Типизируем мок
+const mockedSupabase = supabase as jest.Mocked<typeof supabase>
 
 describe('handleModelCallback', () => {
-  let ctx: ReturnType<typeof makeMockContext>
+  let ctx: Partial<MyContext>
+
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = makeMockContext()
-    // stub reply
-    ctx.reply = jest.fn(() => Promise.resolve()) as any
+
+    // Создаем полный мок PrivateChat
+    const mockChat: Chat.PrivateChat = {
+      id: 123,
+      type: 'private',
+      first_name: 'Test',
+      last_name: 'User',
+      username: 'testuser',
+    }
+
+    // Создаем мок сообщения для reply
+    const mockMessage: Message.TextMessage = {
+      message_id: 1,
+      date: Date.now(),
+      chat: mockChat,
+      text: 'mock reply',
+      from: { id: 456, is_bot: false, first_name: 'Bot' },
+    }
+
+    // Создаем базовый мок контекста
+    ctx = {
+      from: { id: 123, language_code: 'ru', is_bot: false, first_name: 'Test' },
+      reply: jest.fn<() => Promise<Message.TextMessage>>().mockResolvedValue(mockMessage),
+    }
+    // Убедимся, что мок для updateUserModel существует и готов
+    mockedSupabase.updateUserModel.mockResolvedValue(undefined)
   })
 
-  it('returns early if ctx.from is undefined', async () => {
-    ctx.from = undefined as any
-    // Should not throw
-    await expect(handleModelCallback(ctx as any, 'modelX')).resolves.toBeUndefined()
-    expect(setModel).not.toHaveBeenCalled()
-    expect(ctx.reply).not.toHaveBeenCalled()
+  it('должен вызывать updateUserModel с правильными аргументами', async () => {
+    await handleModelCallback(ctx as MyContext, 'modelX')
+    expect(mockedSupabase.updateUserModel).toHaveBeenCalledWith('123', 'modelX')
+    expect(ctx.reply).toHaveBeenCalledWith('✅ Модель успешно изменена на modelX')
   })
 
-  it('replies success in Russian when setModel succeeds', async () => {
-    ctx.from = { id: 1, language_code: 'ru' } as any
-    (setModel as jest.Mock).mockResolvedValue(undefined)
-    await handleModelCallback(ctx as any, 'mymodel')
-    expect(setModel).toHaveBeenCalledWith('1', 'mymodel')
-    expect(ctx.reply).toHaveBeenCalledWith('✅ Модель успешно изменена на mymodel')
-  })
+  it('должен вызывать reply с сообщением об ошибке, если updateUserModel падает', async () => {
+    const error = new Error('Supabase error')
+    mockedSupabase.updateUserModel.mockRejectedValue(error)
 
-  it('replies success in English when setModel succeeds', async () => {
-    ctx.from = { id: 2, language_code: 'en' } as any
-    (setModel as jest.Mock).mockResolvedValue(undefined)
-    await handleModelCallback(ctx as any, 'abc')
-    expect(ctx.reply).toHaveBeenCalledWith('✅ Model successfully changed to abc')
-  })
+    await handleModelCallback(ctx as MyContext, 'mymodel')
 
-  it('replies error in Russian when setModel fails', async () => {
-    ctx.from = { id: 3, language_code: 'ru' } as any
-    const err = new Error('fail')
-    (setModel as jest.Mock).mockRejectedValue(err)
-    await handleModelCallback(ctx as any, 'x')
-    expect(setModel).toHaveBeenCalledWith('3', 'x')
+    expect(mockedSupabase.updateUserModel).toHaveBeenCalledWith('123', 'mymodel')
     expect(ctx.reply).toHaveBeenCalledWith('❌ Ошибка при изменении модели')
   })
 
-  it('replies error in English when setModel fails', async () => {
-    ctx.from = { id: 4, language_code: 'fr' } as any
-    (setModel as jest.Mock).mockRejectedValue(new Error('fail2'))
-    await handleModelCallback(ctx as any, 'y')
+  it('должен использовать английский текст, если язык не ru', async () => {
+    ctx.from!.language_code = 'en'
+    await handleModelCallback(ctx as MyContext, 'abc')
+    expect(mockedSupabase.updateUserModel).toHaveBeenCalledWith('123', 'abc')
+    expect(ctx.reply).toHaveBeenCalledWith('✅ Model successfully changed to abc')
+  })
+
+  it('должен использовать английский текст ошибки, если язык не ru', async () => {
+    ctx.from!.language_code = 'en'
+    const error = new Error('Supabase error')
+    mockedSupabase.updateUserModel.mockRejectedValue(error)
+
+    await handleModelCallback(ctx as MyContext, 'x')
+
+    expect(mockedSupabase.updateUserModel).toHaveBeenCalledWith('123', 'x')
     expect(ctx.reply).toHaveBeenCalledWith('❌ Error changing model')
+  })
+
+  it('не должен падать, если ctx.from не определен (хотя TS не позволяет)', async () => {
+    // @ts-expect-error Тестируем граничный случай
+    delete ctx.from
+    await handleModelCallback(ctx as MyContext, 'y')
+    // В этом случае функция должна просто выйти, ничего не делая и не вызывая
+    expect(mockedSupabase.updateUserModel).not.toHaveBeenCalled()
+    expect(ctx.reply).not.toHaveBeenCalled()
   })
 })

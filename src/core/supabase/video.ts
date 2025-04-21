@@ -1,4 +1,4 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 import fs from 'fs'
 
 export async function uploadVideo(

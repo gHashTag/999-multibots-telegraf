@@ -1,7 +1,8 @@
 /**
  * Tests for improvePromptWizard
  */
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
+import { describe, it, expect, jest, beforeEach } from '@jest/globals'
+import { Composer } from 'telegraf'
 import { improvePromptWizard } from '../../src/scenes/improvePromptWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { MyContext, ModeEnum } from '../../src/interfaces'
@@ -29,7 +30,6 @@ jest.mock('@/services/generateTextToImage', () => ({
 jest.mock('@/services/generateImageFromPrompt', () => ({
   generateImageFromPrompt: jest.fn(),
 }))
-jest.mock('@/utils/isRussian', () => ({ isRussian: jest.fn() }))
 
 import { upgradePrompt } from '@/core/openai/upgradePrompt'
 import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
@@ -39,7 +39,6 @@ import { generateNeuroImage } from '@/services/generateNeuroImage'
 import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { generateTextToImage } from '@/services/generateTextToImage'
 import { generateImageFromPrompt } from '@/services/generateImageFromPrompt'
-import { isRussian } from '@/utils/isRussian'
 
 describe('improvePromptWizard', () => {
   beforeEach(() => {
@@ -47,38 +46,36 @@ describe('improvePromptWizard', () => {
   })
 
   it('step 0: missing ctx.from leaves scene', async () => {
-    const ctx = makeMockContext()
-    delete ctx.from
-    // @ts-ignore
-    const step0 = improvePromptWizard.steps[0]
-    await step0(ctx)
+    const ctx = makeMockContext({ update_id: 1 })
+    const step0 = Composer.unwrap(improvePromptWizard.steps[0])
+    await step0(ctx, async () => {})
     expect(ctx.reply).toHaveBeenCalledWith('User identification error')
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
   it('step 0: upgradePrompt fails -> failure message and leave', async () => {
-    const ctx = makeMockContext()
-    ctx.from.language_code = 'ru'
-    ctx.session = { prompt: 'orig' }
-    ;(sendPromptImprovementMessage as jest.Mock).mockResolvedValue(undefined)
-    ;(upgradePrompt as jest.Mock).mockResolvedValueOnce(null)
-    // @ts-ignore
-    const step0 = improvePromptWizard.steps[0]
-    await step0(ctx)
+    const ctx = makeMockContext(
+      { message: { from: { id: 1, is_bot: false, first_name: 'Test', language_code: 'ru' }, text: 'any' } },
+      { prompt: 'orig' }
+    )
+    ;(sendPromptImprovementMessage as jest.Mock<() => Promise<void>>).mockResolvedValue(undefined)
+    ;(upgradePrompt as jest.Mock<() => Promise<string | null>>).mockResolvedValueOnce(null)
+    const step0 = Composer.unwrap(improvePromptWizard.steps[0])
+    await step0(ctx, async () => {})
     expect(sendPromptImprovementMessage).toHaveBeenCalledWith(ctx, true)
     expect(sendPromptImprovementFailureMessage).toHaveBeenCalledWith(ctx, true)
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
   it('step 0: upgradePrompt succeeds -> reply improved and next', async () => {
-    const ctx = makeMockContext()
-    ctx.from.language_code = 'en'
-    ctx.session = { prompt: 'hello' }
-    ;(sendPromptImprovementMessage as jest.Mock).mockResolvedValue(undefined)
-    ;(upgradePrompt as jest.Mock).mockResolvedValueOnce('improved')
-    // @ts-ignore
-    const step0 = improvePromptWizard.steps[0]
-    await step0(ctx)
+    const ctx = makeMockContext(
+      { message: { from: { id: 1, is_bot: false, first_name: 'Test', language_code: 'en' }, text: 'any' } },
+      { prompt: 'hello' }
+    )
+    ;(sendPromptImprovementMessage as jest.Mock<() => Promise<void>>).mockResolvedValue(undefined)
+    ;(upgradePrompt as jest.Mock<() => Promise<string | null>>).mockResolvedValueOnce('improved')
+    const step0 = Composer.unwrap(improvePromptWizard.steps[0])
+    await step0(ctx, async () => {})
     expect(sendPromptImprovementMessage).toHaveBeenCalledWith(ctx, false)
     expect(ctx.session.prompt).toBe('improved')
     expect(ctx.reply).toHaveBeenCalledWith(
@@ -89,49 +86,42 @@ describe('improvePromptWizard', () => {
   })
 
   it('step 1: no message leaves scene', async () => {
-    const ctx = makeMockContext()
-    // @ts-ignore
-    const step1 = improvePromptWizard.steps[1]
-    await step1(ctx)
-    // Should not leave scene when no message text provided
+    const ctx = makeMockContext({ callback_query: { id: '1', from: { id: 1, is_bot: false, first_name: 'Test' }, message: undefined, data:'any' } })
+    const step1 = Composer.unwrap(improvePromptWizard.steps[1])
+    await step1(ctx, async () => {})
     expect(ctx.scene.leave).not.toHaveBeenCalled()
   })
 
   it('step 1: cancel case', async () => {
-    const ctx = makeMockContext({}, { message: { text: '❌ Cancel' } })
-    ctx.from.language_code = 'en'
-    ctx.session = {
-      prompt: 'p',
-      mode: 'neuro_photo',
-      userModel: { model_url: 'url' },
-    }
-    // @ts-ignore
-    const step1 = improvePromptWizard.steps[1]
-    await step1(ctx)
+    const ctx = makeMockContext(
+      { message: { from: { id: 1, is_bot: false, first_name: 'Test', language_code: 'en' }, text: '❌ Cancel' } },
+      {
+        prompt: 'p',
+        mode: ModeEnum.NeuroPhotoV2,
+        userModel: { model_url: 'a/b:c', model_name: 'test_model', trigger_word: 'test_trigger' },
+      }
+    )
+    const step1 = Composer.unwrap(improvePromptWizard.steps[1])
+    await step1(ctx, async () => {})
     expect(ctx.reply).toHaveBeenCalledWith('Operation cancelled')
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
   it('step 1: yes generate for neuro_photo', async () => {
-    // simulate Russian locale for branch
     const ctx = makeMockContext(
-      {},
-      { message: { text: '✅ Да. Cгенерировать?' } }
+      { message: { from: { id: 1, username: 'u', is_bot: false, first_name: 'Test', language_code: 'ru' }, text: '✅ Да. Cгенерировать?' } },
+      {
+        prompt: 'pr',
+        mode: ModeEnum.NeuroPhotoV2,
+        userModel: { model_url: 'a/b:c', model_name: 'test_model', trigger_word: 'test_trigger' },
+      }
     )
-    ctx.from = { id: 1, username: 'u', language_code: 'ru' }
-    ctx.session = {
-      prompt: 'pr',
-      mode: 'neuro_photo',
-      userModel: { model_url: 'url' },
-    }
-    // step 1 generate branch, no handleHelpCancel
-    ;(generateNeuroImage as jest.Mock).mockResolvedValueOnce(undefined)
-    // @ts-ignore
-    const step1 = improvePromptWizard.steps[1]
-    await step1(ctx)
+    ;(generateNeuroImage as jest.Mock<() => Promise<any>>).mockResolvedValueOnce(undefined)
+    const step1 = Composer.unwrap(improvePromptWizard.steps[1])
+    await step1(ctx, async () => {})
     expect(generateNeuroImage).toHaveBeenCalledWith(
       'pr',
-      'url',
+      'a/b:c',
       1,
       '1',
       ctx,
@@ -141,39 +131,46 @@ describe('improvePromptWizard', () => {
   })
 
   it('should navigate to menuScene if no mode in session', async () => {
-    // @ts-ignore
-    ctx.session = {
-      prompt: 'p',
-      /* mode: 'neuro_photo', */ userModel: { model_url: 'a/b:c' },
-    } // Закомментирован mode
-    await step1(ctx)
+    const ctx = makeMockContext(
+      { message: { from: { id: 1, is_bot: false, first_name: 'Test' }, text: 'any' } },
+      {
+        prompt: 'p',
+        userModel: { model_url: 'a/b:c', model_name: 'test_model', trigger_word: 'test_trigger' },
+      }
+    )
+    const step1 = Composer.unwrap(improvePromptWizard.steps[1])
+    await step1(ctx, async () => {})
     expect(ctx.reply).toHaveBeenCalledWith('An error occurred.')
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
   it('should navigate to menuScene if userModel not in session', async () => {
-    // @ts-ignore
-    ctx.session = {
-      prompt: 'p',
-      mode: ModeEnum.NeuroPhotoV2 /* userModel: { model_url: 'url' } */,
-    } // Используем ModeEnum
-    await step1(ctx)
+    const ctx = makeMockContext(
+      { message: { from: { id: 1, is_bot: false, first_name: 'Test' }, text: 'any' } },
+      {
+        prompt: 'p',
+        mode: ModeEnum.NeuroPhotoV2,
+      }
+    )
+    const step1 = Composer.unwrap(improvePromptWizard.steps[1])
+    await step1(ctx, async () => {})
     expect(ctx.reply).toHaveBeenCalledWith('An error occurred.')
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
   it('should call generateImageFromPrompt for neuro_photo mode (RU)', async () => {
-    ctx.from = { id: 1, username: 'u', language_code: 'ru' }
-    // @ts-ignore
-    ctx.session = {
-      prompt: 'pr',
-      mode: ModeEnum.NeuroPhotoV2,
-      userModel: { model_url: 'a/b:c' },
-    } // Используем ModeEnum
-    ;(isRussian as jest.Mock).mockReturnValue(true)
-    ;(generateImageFromPrompt as jest.Mock).mockResolvedValue('done')
+    const ctx = makeMockContext(
+      { message: { from: { id: 1, username: 'u', is_bot: false, first_name: 'Test', language_code: 'ru' }, text: 'any' } },
+      {
+        prompt: 'pr',
+        mode: ModeEnum.NeuroPhotoV2,
+        userModel: { model_url: 'a/b:c', model_name: 'test_model', trigger_word: 'test_trigger' },
+      }
+    )
+    ;(generateImageFromPrompt as jest.Mock<() => Promise<string | void>>).mockResolvedValue('done')
 
-    await step1(ctx)
+    const step1 = Composer.unwrap(improvePromptWizard.steps[1])
+    await step1(ctx, async () => {})
     expect(generateImageFromPrompt).toHaveBeenCalledWith(
       ctx,
       'a/b:c',

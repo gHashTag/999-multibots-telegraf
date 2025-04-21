@@ -1,4 +1,4 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
 export async function getBotGroupFromAvatars(

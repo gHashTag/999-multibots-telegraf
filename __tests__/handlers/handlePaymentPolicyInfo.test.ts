@@ -1,18 +1,25 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { handlePaymentPolicyInfo } from '@/handlers/paymentHandlers/handlePaymentPolicyInfo'
 
 describe('handlePaymentPolicyInfo', () => {
-  let ctx: ReturnType<typeof makeMockContext>
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = makeMockContext()
-    ctx.answerCbQuery = jest.fn(() => Promise.resolve()) as any
-    ctx.reply = jest.fn(() => Promise.resolve()) as any
-    ctx.from = { language_code: 'ru', id: 1 } as any
   })
 
   it('answers callback query and replies with policy in Russian', async () => {
+    const ctx = makeMockContext({
+      callback_query: {
+        from: {
+          id: 1,
+          language_code: 'ru',
+          is_bot: false,
+          first_name: 'TestRu',
+        },
+      },
+    } as any)
+    ctx.answerCbQuery = jest.fn(() => Promise.resolve(true))
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+
     await handlePaymentPolicyInfo(ctx as any)
     expect(ctx.answerCbQuery).toHaveBeenCalled()
     expect(ctx.reply).toHaveBeenCalledWith(
@@ -21,7 +28,19 @@ describe('handlePaymentPolicyInfo', () => {
   })
 
   it('replies with policy in English when language_code is not ru', async () => {
-    ctx.from.language_code = 'en'
+    const ctx = makeMockContext({
+      callback_query: {
+        from: {
+          id: 2,
+          language_code: 'en',
+          is_bot: false,
+          first_name: 'TestEn',
+        },
+      },
+    } as any)
+    ctx.answerCbQuery = jest.fn(() => Promise.resolve(true))
+    ctx.reply = jest.fn(() => Promise.resolve({} as any))
+
     await handlePaymentPolicyInfo(ctx as any)
     expect(ctx.answerCbQuery).toHaveBeenCalled()
     expect(ctx.reply).toHaveBeenCalledWith(

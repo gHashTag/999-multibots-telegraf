@@ -1,4 +1,3 @@
-import { describe, it, expect, jest } from '@jest/globals'
 // Mock supabase functions
 // const mockGetUserBalance = jest.fn() // Старое объявление
 // const mockUpdateUserBalance = jest.fn() // Старое объявление

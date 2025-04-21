@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach } from '@jest/globals'
 import { pulse } from '@/helpers/pulse'
 
 describe('pulse helper', () => {

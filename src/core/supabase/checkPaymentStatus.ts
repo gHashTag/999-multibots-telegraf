@@ -1,5 +1,5 @@
 import { MyWizardContext, Subscription } from '@/interfaces'
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { isDev } from '@/config'

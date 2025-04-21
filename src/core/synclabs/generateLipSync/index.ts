@@ -1,5 +1,5 @@
 import { isDev } from '@/config'
-import { supabase } from '../../supabase'
+import { supabase } from '@/core/supabase'
 import axios from 'axios'
 
 if (!process.env.SYNC_LABS_API_KEY) {

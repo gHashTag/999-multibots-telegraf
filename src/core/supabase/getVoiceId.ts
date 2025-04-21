@@ -1,4 +1,4 @@
-import { supabase } from '.'
+import { supabase } from '@/core/supabase'
 
 export const getVoiceId = async (telegram_id: string) => {
   const { data, error } = await supabase
