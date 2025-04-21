@@ -7,23 +7,25 @@ console.log(
 console.log(`[BOT] process.env.NODE_ENV: ${process.env.NODE_ENV}`)
 console.log(`--- End Bot Logic Check ---`)
 
-import { Composer, Telegraf, Scenes } from 'telegraf'
-// Удаляем экспорт composer
-// export const composer = new Composer()
-
+import { Composer, Telegraf, Scenes, Context } from 'telegraf'
+import { Update } from 'telegraf/typings/core/types/typegram'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
 import { setupWebhookHandlers } from './webhookHandler'
-// Импортируем Express для Robokassa вебхуков
 import express from 'express'
 import fileUpload from 'express-fileupload'
 import { handleRobokassaResult } from './webhooks/robokassa/robokassa.handler'
 import * as http from 'http'
-import util from 'util' // Добавляем util для promisify
+import util from 'util'
+import { Server } from 'http'
 
 // Инициализация ботов
-const botInstances: Telegraf[] = []
+const botInstances: Telegraf<MyContext>[] = []
 let robokassaServer: http.Server | null = null
+let server: http.Server | null = null
+
+const app = express()
+const PORT = process.env.PORT || 3000
 
 // Функция для проверки валидности токена
 export async function validateBotToken(token: string): Promise<boolean> {
@@ -32,7 +34,7 @@ export async function validateBotToken(token: string): Promise<boolean> {
     await bot.telegram.getMe()
     return true
   } catch (error) {
-    console.error(`❌ Ошибка валидации токена: ${error.message}`)
+    console.error(`❌ Ошибка валидации токена: ${(error as Error).message}`)
     return false
   }
 }
@@ -82,28 +84,26 @@ export async function startRobokassaWebhookServer(): Promise<http.Server | null>
   })
 
   // Запуск сервера и сохранение экземпляра
-  // Убираем setTimeout, полагаемся на корректное закрытие при SIGINT/SIGTERM
   const server = await new Promise<http.Server | null>(resolve => {
     const expressServer = app
       .listen(robokassaPort, () => {
         console.log(
           `[Robokassa] Webhook server running on port ${robokassaPort}`
         )
-        resolve(expressServer) // Резолвим промис с экземпляром сервера
+        resolve(expressServer)
       })
-      .on('error', err => {
+      .on('error', (err: NodeJS.ErrnoException) => {
         console.error(
           `[Robokassa] Failed to start webhook server: ${err.message}`
         )
-        if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+        if (err.code === 'EADDRINUSE') {
           console.error(
             `[Robokassa] Port ${robokassaPort} is already in use. Maybe another instance is running?`
           )
         }
-        resolve(null) // В случае ошибки вернем null
+        resolve(null)
       })
   })
-  // Убираем setTimeout
 
   return server
 }
@@ -123,10 +123,10 @@ async function initializeBots() {
       '📊 [SCENE_DEBUG] Количество обработчиков сцен:',
       stageInfo.length
     )
-  } catch (e) {
+  } catch (error) {
     console.log(
       '⚠️ [SCENE_DEBUG] Не удалось получить информацию о количестве сцен:',
-      e.message
+      (error as Error).message
     )
   }
 
@@ -148,8 +148,9 @@ async function initializeBots() {
       .filter(Boolean) as string[]
 
     let bot: Telegraf<MyContext> | null = null
-    let foundBotInfo: Awaited<ReturnType<typeof bot.telegram.getMe>> | null =
-      null
+    let foundBotInfo: Awaited<
+      ReturnType<Telegraf<MyContext>['telegram']['getMe']>
+    > | null = null
 
     for (const token of potentialTokens) {
       try {
@@ -205,26 +206,21 @@ async function initializeBots() {
       process.env.BOT_TOKEN_5,
       process.env.BOT_TOKEN_6,
       process.env.BOT_TOKEN_7,
-    ].filter(Boolean)
+    ].filter((token): token is string => Boolean(token))
 
-    // Начинаем с порта 3001 для первого бота
     let currentPort = 3001
 
     for (const token of botTokens) {
       if (await validateBotToken(token)) {
         const bot = new Telegraf<MyContext>(token)
-        // Используем Composer.log() напрямую
         bot.use(Composer.log())
 
-        // Убираем composer из вызова
-        // Передаем только bot
         registerCommands({ bot })
 
         botInstances.push(bot)
         const botInfo = await bot.telegram.getMe()
         console.log(`🤖 Бот ${botInfo.username} инициализирован`)
 
-        // Проверяем, свободен ли порт
         while (await isPortInUse(currentPort)) {
           console.log(`⚠️ Порт ${currentPort} занят, пробуем следующий...`)
           currentPort++
@@ -234,25 +230,24 @@ async function initializeBots() {
           `🔌 Используем порт ${currentPort} для бота ${botInfo.username}`
         )
 
-        // В продакшене используем вебхуки
-        try {
-          bot.launch({
-            webhook: {
-              domain: process.env.WEBHOOK_DOMAIN,
-              port: currentPort,
-              path: `/telegraf/${bot.secretPathComponent()}`,
-            },
-            allowedUpdates: ['message', 'callback_query'],
-          })
-          console.log(
-            `🚀 Бот ${botInfo.username} запущен в продакшен режиме на порту ${currentPort}`
-          )
-          await new Promise(resolve => setTimeout(resolve, 2000)) // Добавляем задержку в 2 секунды
-        } catch (error) {
-          console.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)
+        const webhookDomain = process.env.WEBHOOK_DOMAIN
+        if (!webhookDomain) {
+          throw new Error('WEBHOOK_DOMAIN не установлен в переменных окружения')
         }
 
-        // Увеличиваем порт для следующего бота
+        bot.launch({
+          webhook: {
+            domain: webhookDomain,
+            port: currentPort,
+            path: `/telegraf/${bot.secretPathComponent()}`,
+          },
+          allowedUpdates: ['message', 'callback_query'],
+        })
+
+        console.log(
+          `🚀 Бот ${botInfo.username} запущен в продакшен режиме на порту ${currentPort}`
+        )
+        await new Promise(resolve => setTimeout(resolve, 2000))
         currentPort++
       }
     }
@@ -275,10 +270,16 @@ async function initializeBots() {
 
 // Промисификация server.close
 const closeServerAsync = robokassaServer
-  ? util.promisify(robokassaServer.close.bind(robokassaServer))
+  ? util.promisify((callback: (err?: Error) => void) => {
+      if (robokassaServer) {
+        robokassaServer.close(callback)
+      } else {
+        callback()
+      }
+    })
   : async () => {
       /* No-op if server is null */
-    } // Исправляем пустую функцию
+    }
 
 // Асинхронная функция для остановки
 async function gracefulShutdown(signal: string) {
@@ -346,3 +347,44 @@ console.log('🏁 Запуск приложения')
 initializeBots()
   .then(() => console.log('✅ Боты успешно запущены'))
   .catch(error => console.error('❌ Ошибка при запуске ботов:', error))
+
+export const startServer = async (): Promise<http.Server> => {
+  return new Promise((resolve, reject) => {
+    try {
+      const newServer = app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`)
+        server = newServer
+        resolve(newServer)
+      })
+
+      newServer.on('error', error => {
+        console.error('Failed to start server:', error)
+        reject(error)
+      })
+    } catch (error) {
+      console.error('Failed to start server:', error)
+      reject(error)
+    }
+  })
+}
+
+export const stopServer = async (): Promise<void> => {
+  if (!server) {
+    console.log('Server is not running')
+    return
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const currentServer = server as http.Server
+    currentServer.close(err => {
+      if (err) {
+        console.error('Error closing server:', err)
+        reject(err)
+      } else {
+        console.log('Server closed successfully')
+        server = null
+        resolve()
+      }
+    })
+  })
+}

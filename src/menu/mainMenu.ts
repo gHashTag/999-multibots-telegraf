@@ -124,21 +124,12 @@ export async function mainMenu({
   let hasFullAccess = checkFullAccess(subscription)
 
   // Определяем доступные уровни в зависимости от подписки
-  const subscriptionLevelsMap = {
-    stars: [],
-    neurophoto: [
-      levels[1],
-      levels[2],
-      levels[3],
-      // Убираем добавление кнопок баланса/пополнения/приглашения отсюда
-      // levels[100],
-      // levels[101],
-      // levels[102],
-    ],
-    neurobase: Object.values(levels).slice(1),
-    neuromeeting: Object.values(levels).slice(1),
-    neuroblogger: Object.values(levels).slice(1),
-    neurotester: Object.values(levels),
+  const subscriptionLevelsMap: Record<SubscriptionType, Level[]> = {
+    [SubscriptionType.STARS]: [],
+    [SubscriptionType.NEUROPHOTO]: [levels[1], levels[2], levels[3]],
+    [SubscriptionType.NEUROBASE]: Object.values(levels).slice(1),
+    [SubscriptionType.NEUROBLOGGER]: Object.values(levels).slice(1),
+    [SubscriptionType.NEUROTESTER]: Object.values(levels),
   }
 
   let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []

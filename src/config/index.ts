@@ -98,6 +98,9 @@ export const {
   PINATA_JWT,
   PINATA_GATEWAY,
   LOCAL_SERVER_URL,
+  INNGEST_EVENT_KEY,
+  INNGEST_URL,
+  INNGEST_SIGNING_KEY,
 } = process.env
 
 // Парсинг ADMIN_IDS в массив чисел

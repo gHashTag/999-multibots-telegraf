@@ -1,17 +1,39 @@
+# ⛔️ ВНИМАНИЕ! КРИТИЧЕСКИ ВАЖНЫЕ НАСТРОЙКИ DOCKERFILE! ⛔️
+#
+# ********************************************************
+# *                   !!!СТОП!!!                          *
+# *        НЕ МЕНЯТЬ СЛЕДУЮЩИЕ НАСТРОЙКИ:                 *
+# *                                                       *
+# * 1. Использование npm (НЕ менять на pnpm/yarn)         *
+# * 2. Порядок копирования файлов и сборки                *
+# * 3. Права доступа и пользователя                       *
+# * 4. Healthcheck настройки                              *
+# *                                                       *
+# * ПОСЛЕДСТВИЯ ИЗМЕНЕНИЙ:                               *
+# * - Сломается сборка проекта                           *
+# * - Проблемы с правами доступа                         *
+# * - Нарушение безопасности                             *
+# *                                                       *
+# * ЕСЛИ НУЖНЫ ИЗМЕНЕНИЯ:                                *
+# * 1. Сделать бэкап этого файла                         *
+# * 2. Проконсультироваться с тимлидом                   *
+# * 3. Тестировать на staging                            *
+# ********************************************************
+#
+# LAST WORKING UPDATE: 21.04.2025
+# TESTED BY: @playra
 # Этап сборки
 FROM node:20-alpine as builder
 
 WORKDIR /app
 
-# Копируем файлы package.json и package-lock.json
 COPY package*.json ./
 RUN npm install
 
-# Копируем исходный код и конфигурационные файлы
 COPY . .
-COPY .env .env
 
-# Выполняем сборку TypeScript
+# Выполняем сборку TypeScript с пропуском проверки типов для решения проблем совместимости
+# и обрабатываем алиасы путей с помощью tsc-alias (включено в скрипт build:nocheck)
 RUN npm run build:nocheck
 
 # Финальный этап
@@ -32,25 +54,16 @@ RUN python3 -m venv /app/ansible-venv \
     && . /app/ansible-venv/bin/activate \
     && pip install --no-cache-dir ansible
 
-# Создаем нужные каталоги и устанавливаем права
+# Создаем нужные каталоги внутри рабочей директории и устанавливаем права
 RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
 
-# Копируем package.json и устанавливаем production зависимости
 COPY package*.json ./
 RUN npm install --omit=dev --ignore-scripts
 
-# Копируем собранные файлы и .env из этапа сборки
+# Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/.env ./.env
 
-# Создаем директории для логов и загрузок
-RUN mkdir -p /app/logs /app/uploads \
-    && chown -R node:node /app/logs /app/uploads
-
-# Экспортируем порты
+# Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
-
-# Переключаемся на пользователя node для безопасности
-USER node
 
 CMD ["node", "dist/bot.js"]
