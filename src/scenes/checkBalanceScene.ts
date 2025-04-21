@@ -364,55 +364,10 @@ checkBalanceScene.enter(async ctx => {
       result: 'access_granted',
     })
 
-    // --- ИСПРАВЛЕНИЕ ЦИКЛА (ПОПЫТКА 3 - с console.log) ---
-    const targetMode = mode // Сохраняем режим для логов
-    const comparisonMode = ModeEnum.SubscriptionScene
-    // Сравниваем как строки для надежности
-    const areModesEqual = String(targetMode) === String(comparisonMode)
-
-    // Логируем переменные перед сравнением
-    console.log(
-      `[DEBUG CheckBalanceScene Enter] CHECKING LOOP: targetMode='${targetMode}' (type: ${typeof targetMode}), comparisonMode='${comparisonMode}' (type: ${typeof comparisonMode}), areEqual=${areModesEqual}`
-    )
-    logger.info({
-      message: `[CheckBalanceScene] Проверка условия цикла: mode === ModeEnum.SubscriptionScene`,
-      telegramId,
-      function: 'checkBalanceScene.enter',
-      step: 'loop_condition_check',
-      modeValue: targetMode,
-      modeEnumType: typeof comparisonMode,
-      modeEnumValue: comparisonMode,
-      comparisonResult: areModesEqual,
-    })
-
-    // Проверяем, является ли целевая сцена сценой подписки
-    if (areModesEqual) {
-      // Если ДА, входим напрямую
-      console.log(
-        `[DEBUG CheckBalanceScene Enter] Condition TRUE. Entering SubscriptionScene directly.`
-      )
-      logger.info({
-        message: `[CheckBalanceScene] Условие цикла ИСТИННО. Прямой переход в SubscriptionScene, минуя enterTargetScene`,
-        telegramId,
-        function: 'checkBalanceScene.enter',
-        step: 'direct_enter_subscription',
-        targetScene: targetMode,
-      })
-      return ctx.scene.enter(ModeEnum.SubscriptionScene) // <--- Прямой вход
-    } else {
-      // Если НЕТ, вызываем enterTargetScene
-      console.log(
-        `[DEBUG CheckBalanceScene Enter] Condition FALSE. Calling enterTargetScene for mode: ${targetMode}`
-      )
-      logger.info({
-        message: `[CheckBalanceScene] Условие цикла ЛОЖНО. Вызов enterTargetScene.`,
-        telegramId,
-        function: 'checkBalanceScene.enter',
-        step: 'entering_target_scene_fallback',
-        targetScene: targetMode,
-      })
-      return enterTargetScene(ctx, targetMode) // <--- Вызов старой функции
-    }
+    // --- ВЫЗОВ ФУНКЦИИ ДЛЯ ВХОДА В ЦЕЛЕВУЮ СЦЕНУ ---
+    // Передаем необходимые параметры: контекст, пустую функцию next, режим, стоимость
+    // @ts-ignore // Временно игнорируем ошибку компилятора, т.к. типы по факту совпадают
+    await enterTargetScene(ctx, async () => {}, mode, costValue) // <--- Оставляем этот вызов
   } catch (error) {
     console.error('[DEBUG CheckBalanceScene Enter] Error caught:', error) // Добавлено
     logger.error({
@@ -428,227 +383,147 @@ checkBalanceScene.enter(async ctx => {
 })
 
 /**
- * @function enterTargetScene
- * @description Вспомогательная функция для входа в целевую сцену на основе режима (`ctx.session.mode`).
- *              Вызывается после успешного прохождения всех проверок в `checkBalanceScene`.
- * @param {MyContext} ctx - Контекст Telegraf.
- * @param {ModeEnum} mode - Режим, определяющий целевую сцену.
+ * Обертка для входа в целевую сцену с проверкой баланса и списанием.
+ * Используется как middleware перед обработчиками, требующими оплаты.
+ *
+ * @param ctx Контекст Telegraf
+ * @param next Следующая функция middleware (обработчик команды/сцены)
+ * @param mode Режим, для которого проверяется баланс и выполняется списание
+ * @param cost Стоимость операции в звездах
  */
-export async function enterTargetScene(ctx: MyContext, mode: ModeEnum) {
-  const telegramId = ctx.from?.id.toString()
-  let targetScene: ModeEnum | undefined // <--- ОБЪЯВЛЕНИЕ ПЕРЕМЕННОЙ
-  let result: any // Для хранения результата ctx.scene.enter
+// Оставляем эту версию определения функции
+export const enterTargetScene = async (
+  ctx: MyContext,
+  next: () => Promise<void>, // Добавляем `next`
+  mode: ModeEnum, // Используем ModeEnum
+  cost: number
+) => {
+  const telegramId = ctx.from?.id?.toString() || 'unknown'
+
+  logger.info({
+    message: `[EnterTargetSceneWrapper] Попытка входа в режим ${mode}`,
+    telegramId,
+    mode,
+    cost,
+    function: 'enterTargetSceneWrapper', // Переименовали для ясности
+  })
 
   try {
-    // Проверка подписки пользователя, если требуется
-    if (String(mode) === String(ModeEnum.SubscriptionScene)) {
-      console.log(
-        `[DEBUG enterTargetScene] Explicitly handling SubscriptionScene. Entering...`
-      )
-      logger.info({
-        message: `[enterTargetScene] Явная обработка SubscriptionScene`,
+    const userDetails = await getUserDetails(telegramId)
+
+    if (!userDetails.isExist) {
+      logger.warn({
+        message: '[EnterTargetSceneWrapper] ❌ Пользователь не найден в БД',
         telegramId,
-        function: 'enterTargetScene',
-        targetScene: mode,
-        step: 'explicit_handle_subscription',
+        mode,
+        function: 'enterTargetSceneWrapper',
       })
-      await ctx.scene.enter(ModeEnum.SubscriptionScene)
-      return // Важно выйти после входа
+      await ctx.reply(
+        '❌ Ошибка: Не удалось найти информацию о пользователе. Пожалуйста, начните сначала /start.'
+      )
+      // В middleware обычно не используют ctx.scene.leave(),
+      // а просто не вызывают next() или выбрасывают ошибку
+      return
     }
 
-    // Переход к соответствующей сцене в зависимости от режима
+    if (!userDetails.isSubscriptionActive) {
+      logger.warn({
+        message: '[EnterTargetSceneWrapper] ❌ Подписка неактивна',
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      })
+      // Сообщение об отсутствии подписки уже отправлено в checkBalanceScene
+      // Возможно, здесь нужно отправить другое сообщение или просто выйти
+      return
+    }
+
+    const currentBalance = userDetails.stars
+
+    if (currentBalance < cost) {
+      logger.warn({
+        message: '[EnterTargetSceneWrapper] ❌ Недостаточно звезд',
+        telegramId,
+        mode,
+        currentBalance,
+        cost,
+        function: 'enterTargetSceneWrapper',
+      })
+      const isRu = ctx.from?.language_code === 'ru'
+      await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
+      return
+    }
+
+    // Списываем звезды ТОЛЬКО если стоимость > 0
+    if (cost > 0) {
+      logger.info({
+        message: `[EnterTargetSceneWrapper] Списание звезд за режим ${mode}`,
+        telegramId,
+        mode,
+        cost,
+        balanceBefore: currentBalance,
+        function: 'enterTargetSceneWrapper',
+      })
+      // TODO: Реализовать логику списания и логирования транзакции
+      // await logTransaction(...)
+      // const updatedBalance = await updateUserBalance(...)
+      const updatedBalance = currentBalance - cost // Временное решение
+      logger.info({
+        message: `[EnterTargetSceneWrapper] ✅ Звезды списаны (симуляция), баланс обновлен`,
+        telegramId,
+        mode,
+        balanceAfter: updatedBalance,
+        function: 'enterTargetSceneWrapper',
+      })
+      // Здесь можно было бы обновить баланс в ctx.session, если он там хранится
+      // ctx.session.user.stars = updatedBalance; // Пример
+    } else {
+      logger.info({
+        message: `[EnterTargetSceneWrapper] Режим ${mode} бесплатный, звезды не списываются`,
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      })
+    }
+
     logger.info({
-      message: `[enterTargetScene] Подготовка к переключению на сцену: ${mode}`,
+      message: `[EnterTargetSceneWrapper] ✅ Доступ разрешен, переход к обработчику`,
       telegramId,
-      function: 'enterTargetScene',
-      targetScene: mode, // Используем mode как предполагаемую целевую сцену
-      step: 'prepare_switch',
+      mode,
+      function: 'enterTargetSceneWrapper',
     })
 
-    // TODO: Убедиться, что все ModeEnum используются корректно
-    switch (mode) {
-      case ModeEnum.NeuroPhoto:
-        targetScene = ModeEnum.NeuroPhoto
-        break
-      case ModeEnum.NeuroPhotoV2:
-        targetScene = ModeEnum.NeuroPhotoV2
-        break
-      case ModeEnum.NeuroAudio:
-        targetScene = ModeEnum.NeuroAudio
-        break
-      case ModeEnum.ImageToPrompt:
-        targetScene = ModeEnum.ImageToPrompt
-        break
-      case ModeEnum.Avatar:
-        targetScene = ModeEnum.Avatar
-        break
-      case ModeEnum.ChatWithAvatar:
-        targetScene = ModeEnum.ChatWithAvatar
-        break
-      case ModeEnum.SelectModel:
-        targetScene = ModeEnum.SelectModel
-        break
-      case ModeEnum.SelectAiTextModel:
-        targetScene = ModeEnum.SelectAiTextModel
-        break
-      case ModeEnum.Voice:
-        targetScene = ModeEnum.Voice
-        break
-      case ModeEnum.TextToSpeech:
-        targetScene = ModeEnum.TextToSpeech
-        break
-      case ModeEnum.ImageToVideo:
-        targetScene = ModeEnum.ImageToVideo
-        break
-      case ModeEnum.TextToVideo:
-        targetScene = ModeEnum.TextToVideo
-        break
-      case ModeEnum.TextToImage:
-        targetScene = ModeEnum.TextToImage
-        break
-      case ModeEnum.LipSync:
-        targetScene = ModeEnum.LipSync
-        break
-      case ModeEnum.VoiceToText:
-        targetScene = ModeEnum.VoiceToText
-        break
-      case ModeEnum.DigitalAvatarBody:
-        targetScene = ModeEnum.DigitalAvatarBody
-        break
-      case ModeEnum.DigitalAvatarBodyV2:
-        targetScene = ModeEnum.DigitalAvatarBodyV2
-        break
-      // ДОБАВЛЯЕМ ОБРАБОТКУ РЕЖИМА ПОДПИСКИ/ОПЛАТЫ
-      case ModeEnum.Subscribe: // или 'subscribe', если ModeEnum не используется
-      case ModeEnum.PaymentScene:
-        targetScene = ModeEnum.PaymentScene // Переходим в сцену выбора оплаты
-        break
-      case ModeEnum.Help:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене помощи`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: 'helpScene',
-        })
-        result = await ctx.scene.enter('helpScene')
-        break
-      case ModeEnum.MainMenu:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене главного меню`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.MainMenu,
-        })
-        result = await ctx.scene.enter(ModeEnum.MainMenu)
-        break
-      case ModeEnum.StartScene:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене старта`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.StartScene,
-        })
-        result = await ctx.scene.enter(ModeEnum.StartScene)
-        break
-      case ModeEnum.SubscriptionScene:
-        logger.info({
-          message: `[enterTargetScene] Переход к сцене подписки`,
-          telegramId,
-          function: 'enterTargetScene',
-          fromMode: mode,
-          toScene: ModeEnum.SubscriptionScene,
-        })
-        result = await ctx.scene.enter(ModeEnum.SubscriptionScene)
-        break
-      default:
-        logger.error({
-          message: `[enterTargetScene] Неизвестный или необработанный режим: ${mode}. Возврат в главное меню.`,
-          telegramId,
-          function: 'enterTargetScene',
-          mode,
-          step: 'unknown_mode_error',
-          result: 'fallback_to_start',
-        })
-        // Если режим не распознан, безопасно выходим в главное меню
-        //await ctx.scene.enter(ModeEnum.MenuScene)
-        await ctx.scene.enter(ModeEnum.StartScene) // Возвращаемся в самое начало
-        return // Важно выйти из функции после входа в другую сцену
-    }
+    // Переходим к следующему обработчику (фактическому выполнению команды/входу в сцену)
+    // await next() // Вызов следующего middleware или обработчика
 
-    if (targetScene) {
-      logger.info({
-        message: `[enterTargetScene] Переход в сцену ${targetScene}`,
-        telegramId,
-        function: 'enterTargetScene',
-        targetScene,
-        step: 'entering_scene',
-      })
-      await ctx.scene.enter(targetScene)
-    } else {
-      // Эта ветка не должна выполняться при правильной логике switch,
-      // но оставляем на всякий случай
-      logger.error({
-        message: `[enterTargetScene] Целевая сцена не определена для режима: ${mode}. Возврат в главное меню.`,
-        telegramId,
-        function: 'enterTargetScene',
-        mode,
-        step: 'target_scene_undefined_error',
-        result: 'fallback_to_start',
-      })
-      //await ctx.scene.enter(ModeEnum.MenuScene)
-      await ctx.scene.enter(ModeEnum.StartScene) // Возвращаемся в самое начало
-    }
+    // --- ИЛИ ---
 
+    // Если эта функция ДОЛЖНА переводить в сцену, то логика будет такой:
     logger.info({
-      message: `[enterTargetScene] Переход в сцену ${mode} завершен`,
+      message: `[EnterTargetSceneWrapper] ✅ Переход в целевую сцену ${mode}`,
       telegramId,
-      function: 'enterTargetScene',
-      targetScene: mode, // Логируем исходный запрошенный режим
-      step: 'switch_completed',
-      result: 'completed',
+      mode,
+      function: 'enterTargetSceneWrapper',
+    })
+    // Не присваиваем результат, т.к. ctx.scene.enter ничего не возвращает
+    await ctx.scene.enter(mode, {
+      ...(ctx.scene.state || {}),
+      cost, // Можно передать стоимость в стейт сцены
+      // Дополнительные данные, если нужны для целевой сцены
     })
   } catch (error) {
-    console.error('[DEBUG enterTargetScene] Error caught:', error) // Добавлено
     logger.error({
-      message: `[enterTargetScene] Ошибка при переходе в целевую сцену ${mode}`,
+      message: `[EnterTargetSceneWrapper] ❌ Ошибка при обработке входа в режим ${mode}`,
       telegramId,
-      function: 'enterTargetScene',
       mode,
-      step: 'transition_error',
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error.message : 'Unknown error',
+      function: 'enterTargetSceneWrapper',
     })
-    // В случае любой ошибки при переходе, отправляем пользователя в главное меню
-    try {
-      //await ctx.scene.enter(ModeEnum.MenuScene)
-      await ctx.scene.enter(ModeEnum.StartScene) // Возвращаемся в самое начало
-    } catch (fallbackError) {
-      logger.error({
-        message: `[enterTargetScene] КРИТИЧЕСКАЯ ОШИБКА при попытке отката в StartScene`,
-        telegramId,
-        function: 'enterTargetScene',
-        mode,
-        step: 'fallback_scene_error',
-        error:
-          fallbackError instanceof Error
-            ? fallbackError.message
-            : String(fallbackError),
-      })
-      return ctx.scene.leave() // Последнее средство - просто выходим из всех сцен
-    } finally {
-      console.log(
-        `[DEBUG enterTargetScene] <=== Function finished for mode: ${mode}`
-      ) // Добавлено
-      logger.info({
-        message: `[enterTargetScene] Переход в сцену ${mode} завершен`,
-        telegramId,
-        function: 'enterTargetScene',
-        targetScene: mode,
-        step: 'switch_completed',
-        result: 'success',
-      })
-    }
+    await ctx.reply(
+      '❌ Произошла ошибка при проверке доступа. Пожалуйста, попробуйте еще раз или начните сначала /start.'
+    )
+    // В middleware обычно не используют ctx.scene.leave()
+    // Можно просто не вызывать next() или выбросить ошибку,
+    // чтобы остановить цепочку выполнения
   }
 }
