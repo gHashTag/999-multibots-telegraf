@@ -16,7 +16,10 @@ jest.mock('@/config', () => ({
 jest.mock('@/price/helpers', () => ({
   // Типизируем мок processBalanceOperation здесь
   processBalanceOperation: jest.fn<
-    () => Promise<{
+    (
+      // Указываем тип аргументов, если они есть, иначе пустой массив
+      args: any // Или более конкретный тип, если известен
+    ) => Promise<{
       success: boolean
       newBalance: number
       error?: string
@@ -112,8 +115,9 @@ describe('generateTextToSpeech', () => {
       expect.objectContaining({ append: expect.any(Function) }), // Проверяем наличие append
       expect.any(Object) // Проверяем заголовки и тип ответа
     )
-    const formDataInstance = (global.FormData as jest.Mock).mock.results[0]
-      .value
+    // Указываем тип для formDataInstance
+    const formDataInstance: FormData = (global.FormData as jest.Mock).mock
+      .results[0].value
     expect(formDataInstance.append).toHaveBeenCalledWith('text', text)
     expect(formDataInstance.append).toHaveBeenCalledWith('language', language)
     expect(formDataInstance.append).toHaveBeenCalledWith('audio_id', 'audio123')
@@ -146,4 +150,72 @@ describe('generateTextToSpeech', () => {
     // Assert
     expect(result).toBeNull()
   })
+
+  it('should call ElevenLabs API and return audio URL on success', async () => {
+    const mockText = 'Hello, world!'
+    const mockVoiceId = 'voice-123'
+    const mockStream = new PassThrough() // Create a readable stream
+    const mockAudioUrl = 'http://mock-audio.url/audio.mp3'
+
+    // Mock the ElevenLabs client method
+    mockedElevenLabsClient.generate.mockResolvedValue(mockStream)
+    // Mock the Supabase storage upload
+    mockedUploadFileToSupabaseStorage.mockResolvedValue(mockAudioUrl)
+
+    // Simulate reading from the stream (important for the test to proceed)
+    setImmediate(() => {
+      mockStream.push(Buffer.from('fake audio data'))
+      mockStream.push(null) // End the stream
+    })
+
+    const result = await generateTextToSpeech(mockText, mockVoiceId)
+
+    expect(mockedElevenLabsClient.generate).toHaveBeenCalledWith({
+      voice_id: mockVoiceId,
+      text: mockText,
+      // model_id: 'eleven_multilingual_v2', // Verify if default is used or specify if needed
+    })
+    expect(mockedUploadFileToSupabaseStorage).toHaveBeenCalledWith(
+      mockStream, // Check if the stream is passed
+      expect.stringContaining('audio/mpeg'), // Check content type
+      expect.stringMatching(/\.mp3$/) // Check if filename ends with .mp3
+    )
+    expect(result).toBe(mockAudioUrl)
+  })
+
+  it('should throw error if ElevenLabs API fails', async () => {
+    const mockText = 'Test error case'
+    const mockVoiceId = 'voice-error'
+    const mockError = new Error('ElevenLabs API Error')
+
+    mockedElevenLabsClient.generate.mockRejectedValue(mockError)
+
+    await expect(generateTextToSpeech(mockText, mockVoiceId)).rejects.toThrow(
+      'ElevenLabs API Error'
+    )
+    expect(mockedUploadFileToSupabaseStorage).not.toHaveBeenCalled()
+  })
+
+  it('should throw error if Supabase upload fails', async () => {
+    const mockText = 'Test upload failure'
+    const mockVoiceId = 'voice-upload-fail'
+    const mockStream = new PassThrough()
+    const mockError = new Error('Supabase Upload Error')
+
+    mockedElevenLabsClient.generate.mockResolvedValue(mockStream)
+    mockedUploadFileToSupabaseStorage.mockRejectedValue(mockError)
+
+    // Simulate stream data
+    setImmediate(() => {
+      mockStream.push(Buffer.from('audio data'))
+      mockStream.push(null)
+    })
+
+    await expect(generateTextToSpeech(mockText, mockVoiceId)).rejects.toThrow(
+      'Supabase Upload Error'
+    )
+    expect(mockedUploadFileToSupabaseStorage).toHaveBeenCalledTimes(1)
+  })
+
+  // Add tests for invalid input if necessary (e.g., empty text)
 })

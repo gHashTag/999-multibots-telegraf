@@ -2,57 +2,111 @@
 jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
 import { supabase } from '@/core/supabase'
 import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
+import { createMockSupabaseClient } from '@/core/supabase/createMockSupabaseClient'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 describe('getUserByTelegramId', () => {
-  const ctx: any = {
-    from: { id: 5 },
-    botInfo: { username: 'botA' },
-    reply: jest.fn(),
-  }
-  beforeEach(() => jest.clearAllMocks())
+  let mockSupabase: SupabaseClient
 
-  it('returns null when supabase select errors', async () => {
-    const mockSingle = jest
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockSupabase = createMockSupabaseClient() as unknown as SupabaseClient
+    ;(supabase as any) = mockSupabase // Assign mock
+  })
+
+  it('should return user data if found', async () => {
+    const mockTelegramId = '123456789'
+    const mockUserData = {
+      id: 'user-123',
+      name: 'Test User',
+      telegram_id: mockTelegramId,
+      ref_parent_id: null,
+      ref_parent_id_second: null,
+      stars: 100,
+      limit: 10,
+      limit_dalle: 5,
+      limit_video: 2,
+      limit_music: 3,
+      limit_voice: 1,
+      generated_images: 0,
+      generated_videos: 0,
+      email: 'test@example.com',
+      is_subscribed: true,
+      subscription_type: 'PRO',
+      active_until: '2024-12-31',
+      level: 5,
+      experience: 500,
+      created_at: '2023-01-01',
+      last_activity: '2023-10-26',
+      language_code: 'en',
+    }
+
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest
       .fn()
-      .mockResolvedValue({ data: null, error: { message: 'fail' } })
-    const mockEq = jest.fn().mockReturnValue({ single: mockSingle })
-    const mockSelect = jest.fn().mockReturnValue({ eq: mockEq })
-    ;(supabase.from as jest.Mock).mockReturnValue({ select: mockSelect })
-    const result = await getUserByTelegramId(ctx)
+      .mockResolvedValue({ data: mockUserData, error: null })
+
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: selectMock,
+      eq: eqMock,
+      single: singleMock,
+    })
+
+    const result = await getUserByTelegramId(mockTelegramId)
+
+    expect(result).toEqual(mockUserData)
+    expect(mockSupabase.from).toHaveBeenCalledWith('users')
+    expect(selectMock).toHaveBeenCalledWith('*')
+    expect(eqMock).toHaveBeenCalledWith('telegram_id', mockTelegramId)
+    expect(singleMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('should return null if user not found', async () => {
+    const mockTelegramId = '987654321'
+
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest.fn().mockResolvedValue({ data: null, error: null })
+
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: selectMock,
+      eq: eqMock,
+      single: singleMock,
+    })
+
+    const result = await getUserByTelegramId(mockTelegramId)
+
     expect(result).toBeNull()
+    expect(mockSupabase.from).toHaveBeenCalledWith('users')
+    expect(selectMock).toHaveBeenCalledWith('*')
+    expect(eqMock).toHaveBeenCalledWith('telegram_id', mockTelegramId)
+    expect(singleMock).toHaveBeenCalledTimes(1)
   })
 
-  it('returns data and skips update when bot_name matches', async () => {
-    const userData = { bot_name: 'botA', foo: 'bar' }
-    const mockSingle = jest
-      .fn()
-      .mockResolvedValue({ data: userData, error: null })
-    const mockEq = jest.fn().mockReturnValue({ single: mockSingle })
-    const mockSelect = jest.fn().mockReturnValue({ eq: mockEq })
-    ;(supabase.from as jest.Mock).mockReturnValue({ select: mockSelect })
-    const result = await getUserByTelegramId(ctx)
-    expect(result).toEqual(userData)
-  })
+  it('should throw an error if Supabase query fails', async () => {
+    const mockTelegramId = '112233445'
+    const mockError = new Error('Supabase query failed')
 
-  it('updates bot_name when differs and returns data', async () => {
-    const userData = { bot_name: 'oldBot' }
-    const mockSingle = jest
-      .fn()
-      .mockResolvedValue({ data: userData, error: null })
-    const mockEq = jest.fn().mockReturnValue({ single: mockSingle })
-    const mockUpdate = jest.fn().mockResolvedValue({ error: null })
-    // first call: select
-    const mockSelect = jest.fn().mockReturnValue({ eq: mockEq })
-    ;(supabase.from as jest.Mock)
-      .mockReturnValueOnce({ select: mockSelect })
-      .mockReturnValueOnce({ update: mockUpdate, eq: mockEq })
-    // Actually implement properly
-    const sel = jest.fn().mockReturnValue({ eq: mockEq })
-    ;(supabase.from as jest.Mock)
-      .mockReturnValueOnce({ select: sel })
-      .mockReturnValueOnce({ update: mockUpdate })
-    const result = await getUserByTelegramId(ctx)
-    expect(mockUpdate).toHaveBeenCalled()
-    expect(result).toEqual(userData)
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest.fn().mockResolvedValue({ data: null, error: mockError })
+
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: selectMock,
+      eq: eqMock,
+      single: singleMock,
+    })
+
+    await expect(getUserByTelegramId(mockTelegramId)).rejects.toThrow(
+      'Supabase query failed'
+    )
+    expect(mockSupabase.from).toHaveBeenCalledWith('users')
+    expect(selectMock).toHaveBeenCalledWith('*')
+    expect(eqMock).toHaveBeenCalledWith('telegram_id', mockTelegramId)
+    expect(singleMock).toHaveBeenCalledTimes(1)
   })
 })

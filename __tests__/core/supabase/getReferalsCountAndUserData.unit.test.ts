@@ -4,98 +4,192 @@ jest.mock('@/utils/logger', () => ({ logger: { error: jest.fn() } }))
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getReferalsCountAndUserData } from '@/core/supabase/getReferalsCountAndUserData'
+import { createMockSupabaseClient } from '@/core/supabase/mockSupabaseClient'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 describe('getReferalsCountAndUserData', () => {
-  const telegram_id = '100'
+  let mockSupabase: SupabaseClient
+
   beforeEach(() => {
-    jest.resetModules()
     jest.clearAllMocks()
+    mockSupabase = createMockSupabaseClient() as unknown as SupabaseClient
+    ;(supabase as any) = mockSupabase // Assign mock
   })
 
-  it('returns defaults when user fetch errors', async () => {
-    const eqMock = jest.fn().mockReturnValue({
-      single: jest
-        .fn()
-        .mockResolvedValue({ data: null, error: { message: 'uerr' } }),
-    })
-    const selectMock = jest.fn().mockReturnValue({ eq: eqMock })
-    ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
-    const result = await getReferalsCountAndUserData(telegram_id)
-    expect(result).toEqual({
-      count: 0,
-      subscription: 'stars',
-      level: 0,
-      userData: null,
-      isExist: false,
-    })
-  })
+  it('should return user data and referral count on success', async () => {
+    const mockUserId = 'user-123'
+    const mockUserData = {
+      id: mockUserId,
+      name: 'Test User',
+      telegram_id: '123456',
+      ref_parent_id: null,
+      ref_parent_id_second: null,
+      stars: 100,
+      limit: 10,
+      limit_dalle: 5,
+      limit_video: 2,
+      limit_music: 3,
+      limit_voice: 1,
+      generated_images: 0,
+      generated_videos: 0,
+      email: 'test@example.com',
+      is_subscribed: true,
+      subscription_type: 'PRO',
+      active_until: '2024-12-31',
+      level: 5,
+      experience: 500,
+      created_at: '2023-01-01',
+      last_activity: '2023-10-26',
+      language_code: 'en',
+    }
+    const mockReferralsCount = 5
 
-  it('returns defaults when referals fetch errors', async () => {
-    // user ok
-    const userData = { user_id: 5, level: 2, subscription: 'gold' }
-    const singleUser = jest
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest
       .fn()
-      .mockResolvedValue({ data: userData, error: null })
-    const eqUser = jest.fn().mockReturnValue({ single: singleUser })
-    const selectUser = jest.fn().mockReturnValue({ eq: eqUser })
-    // referals error
-    const selectRefs = jest.fn().mockReturnValue({
-      eq: jest
-        .fn()
-        .mockResolvedValue({ data: null, error: { message: 'referr' } }),
+      .mockResolvedValue({ data: mockUserData, error: null })
+    const countMock = jest.fn().mockResolvedValue({ count: mockReferralsCount, error: null })
+
+    mockSupabase.from = jest.fn(tableName => {
+      if (tableName === 'users') {
+        return {
+          select: selectMock,
+          eq: eqMock,
+          single: singleMock,
+        }
+      } else if (tableName === 'referals') {
+        return {
+          select: selectMock,
+          eq: eqMock,
+          count: countMock,
+        }
+      }
+      return { select: jest.fn() } // Default mock for other tables
     })
-    const fromMock = supabase.from as jest.Mock
-    fromMock.mockReturnValueOnce({ select: selectUser })
-    fromMock.mockReturnValueOnce({ select: selectRefs })
-    const result = await getReferalsCountAndUserData(telegram_id)
+
+    const result = await getReferalsCountAndUserData(mockUserId)
+
     expect(result).toEqual({
-      count: 0,
-      subscription: 'stars',
-      level: 0,
-      userData: null,
-      isExist: false,
+      userData: mockUserData,
+      referalsCount: mockReferralsCount,
     })
+    expect(mockSupabase.from).toHaveBeenCalledWith('users')
+    expect(selectMock).toHaveBeenCalledWith('*')
+    expect(eqMock).toHaveBeenCalledWith('id', mockUserId)
+    expect(singleMock).toHaveBeenCalledTimes(1)
+
+    expect(mockSupabase.from).toHaveBeenCalledWith('referals')
+    expect(selectMock).toHaveBeenCalledWith('*', { count: 'exact' })
+    expect(eqMock).toHaveBeenCalledWith('parent_user_id', mockUserId)
+    expect(countMock).toHaveBeenCalledTimes(1)
   })
 
-  it('returns correct data on success', async () => {
-    const userData = { user_id: 10, level: 3, subscription: 'silver' }
-    const singleUser = jest
-      .fn()
-      .mockResolvedValue({ data: userData, error: null })
-    const eqUser = jest.fn().mockReturnValue({ single: singleUser })
-    const selectUser = jest.fn().mockReturnValue({ eq: eqUser })
-    const refData = [{ inviter: 10 }, { inviter: 10 }]
-    const selectRefs = jest.fn().mockReturnValue({
-      eq: jest.fn().mockResolvedValue({ data: refData, error: null }),
+  it('should return null user data and 0 referrals if user not found', async () => {
+    const mockUserId = 'non-existent-user'
+
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest.fn().mockResolvedValue({ data: null, error: null })
+    const countMock = jest.fn().mockResolvedValue({ count: 0, error: null })
+
+    mockSupabase.from = jest.fn(tableName => {
+      if (tableName === 'users') {
+        return {
+          select: selectMock,
+          eq: eqMock,
+          single: singleMock,
+        }
+      } else if (tableName === 'referals') {
+        return {
+          select: selectMock,
+          eq: eqMock,
+          count: countMock,
+        }
+      }
+      return { select: jest.fn() } // Default mock for other tables
     })
-    const fromMock = supabase.from as jest.Mock
-    fromMock.mockReturnValueOnce({ select: selectUser })
-    fromMock.mockReturnValueOnce({ select: selectRefs })
-    const result = await getReferalsCountAndUserData(telegram_id)
+
+    const result = await getReferalsCountAndUserData(mockUserId)
+
     expect(result).toEqual({
-      count: 2,
-      level: 3,
-      subscription: 'silver',
-      userData,
-      isExist: true,
+      userData: null,
+      referalsCount: 0,
     })
+    expect(singleMock).toHaveBeenCalledTimes(1)
+    expect(countMock).toHaveBeenCalledTimes(1)
   })
 
-  it('returns defaults on exception', async () => {
-    ;(supabase.from as jest.Mock).mockImplementation(() => {
-      throw new Error('boom')
+  it('should throw error if Supabase user query fails', async () => {
+    const mockUserId = 'error-user'
+    const mockError = new Error('User query failed')
+
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest.fn().mockResolvedValue({ data: null, error: mockError })
+    const countMock = jest.fn().mockResolvedValue({ count: 0, error: null })
+
+    mockSupabase.from = jest.fn(tableName => {
+      if (tableName === 'users') {
+        return {
+          select: selectMock,
+          eq: eqMock,
+          single: singleMock,
+        }
+      } else if (tableName === 'referals') {
+        return {
+          select: selectMock,
+          eq: eqMock,
+          count: countMock,
+        }
+      }
+      return { select: jest.fn() }
     })
-    const result = await getReferalsCountAndUserData(telegram_id)
-    expect(result).toEqual({
-      count: 0,
-      subscription: 'stars',
-      level: 0,
-      userData: null,
-      isExist: false,
-    })
-    expect(logger.error).toHaveBeenCalledWith(
-      'Ошибка в getReferalsCountAndUserData:',
-      expect.any(Error)
+
+    await expect(getReferalsCountAndUserData(mockUserId)).rejects.toThrow(
+      'User query failed'
     )
+    expect(singleMock).toHaveBeenCalledTimes(1)
+    expect(countMock).not.toHaveBeenCalled()
+  })
+
+  it('should throw error if Supabase referral query fails', async () => {
+    const mockUserId = 'referral-error-user'
+    const mockUserData = { id: mockUserId, name: 'Test User' } // Assume user data is found
+    const mockError = new Error('Referral query failed')
+
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest
+      .fn()
+      .mockResolvedValue({ data: mockUserData, error: null })
+    const countMock = jest.fn().mockResolvedValue({ count: null, error: mockError })
+
+    mockSupabase.from = jest.fn(tableName => {
+      if (tableName === 'users') {
+        return {
+          select: selectMock,
+          eq: eqMock,
+          single: singleMock,
+        }
+      } else if (tableName === 'referals') {
+        return {
+          select: selectMock,
+          eq: eqMock,
+          count: countMock,
+        }
+      }
+      return { select: jest.fn() }
+    })
+
+    await expect(getReferalsCountAndUserData(mockUserId)).rejects.toThrow(
+      'Referral query failed'
+    )
+    expect(singleMock).toHaveBeenCalledTimes(1)
+    expect(countMock).toHaveBeenCalledTimes(1)
   })
 })

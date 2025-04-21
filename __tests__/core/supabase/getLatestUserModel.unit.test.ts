@@ -2,68 +2,99 @@
 jest.mock('@/core/supabase', () => ({ supabase: { from: jest.fn() } }))
 import { supabase } from '@/core/supabase'
 import { getLatestUserModel } from '@/core/supabase/getLatestUserModel'
+import { createMockSupabaseClient } from '@/core/supabase/createMockSupabaseClient'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 describe('getLatestUserModel', () => {
-  const telegram_id = 10
-  const api = 'apiX'
+  let mockSupabase: SupabaseClient
+
   beforeEach(() => {
-    jest.resetModules()
     jest.clearAllMocks()
+    mockSupabase = createMockSupabaseClient() as unknown as SupabaseClient
+    ;(supabase as any) = mockSupabase // Assign mock
   })
 
-  it('returns null on error', async () => {
-    const mockSingle = jest
-      .fn()
-      .mockResolvedValue({ data: null, error: { message: 'err' } })
-    const selectMock = jest.fn().mockReturnValue({
-      order: () => ({ limit: () => ({ single: mockSingle }) }),
+  it('should return the latest user model if found', async () => {
+    const mockTelegramId = '12345'
+    const mockModels = [
+      {
+        id: 1,
+        user_id: 'user1',
+        model_id: 'modelA',
+        created_at: '2023-01-01T10:00:00Z',
+      },
+      {
+        id: 2,
+        user_id: 'user1',
+        model_id: 'modelB',
+        created_at: '2023-01-02T12:00:00Z',
+      }, // latest
+    ]
+    // Mock the chain of Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const orderMock = jest.fn().mockResolvedValue({ data: mockModels, error: null })
+
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: selectMock,
+      eq: eqMock,
+      order: orderMock,
     })
-    ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
-    const consoleErrorSpy = jest
-      .spyOn(console, 'error')
-      .mockImplementation(() => {})
-    const result = await getLatestUserModel(telegram_id, api)
+
+    const result = await getLatestUserModel(mockTelegramId)
+
+    expect(result).toBe('modelB')
+    expect(mockSupabase.from).toHaveBeenCalledWith('user_models')
+    expect(selectMock).toHaveBeenCalledWith('model_id, created_at')
+    expect(eqMock).toHaveBeenCalledWith('user_id', mockTelegramId)
+    expect(orderMock).toHaveBeenCalledWith('created_at', { ascending: false })
+  })
+
+  it('should return null if no models are found for the user', async () => {
+    const mockTelegramId = '67890'
+
+    // Mock the chain of Supabase calls to return empty data
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const orderMock = jest.fn().mockResolvedValue({ data: [], error: null })
+
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: selectMock,
+      eq: eqMock,
+      order: orderMock,
+    })
+
+    const result = await getLatestUserModel(mockTelegramId)
+
     expect(result).toBeNull()
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Error getting user model:', {
-      message: 'err',
-    })
-    consoleErrorSpy.mockRestore()
+    expect(mockSupabase.from).toHaveBeenCalledWith('user_models')
+    expect(selectMock).toHaveBeenCalledWith('model_id, created_at')
+    expect(eqMock).toHaveBeenCalledWith('user_id', mockTelegramId)
+    expect(orderMock).toHaveBeenCalledWith('created_at', { ascending: false })
   })
 
-  it('returns data on success', async () => {
-    const modelTraining = { id: 'x', telegram_id, status: 'SUCCESS', api }
-    const mockSingle = jest
-      .fn()
-      .mockResolvedValue({ data: modelTraining, error: null })
-    const selectMock = jest.fn().mockReturnValue({
-      order: () => ({ limit: () => ({ single: mockSingle }) }),
-    })
-    ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
-    const consoleLogSpy = jest
-      .spyOn(console, 'log')
-      .mockImplementation(() => {})
-    const result = await getLatestUserModel(telegram_id, api)
-    expect(result).toEqual(modelTraining)
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      modelTraining,
-      'getLatestUserModel'
-    )
-    consoleLogSpy.mockRestore()
-  })
+  it('should throw an error if Supabase query fails', async () => {
+    const mockTelegramId = '11223'
+    const mockError = new Error('Supabase query failed')
 
-  it('returns null on exception', async () => {
-    ;(supabase.from as jest.Mock).mockImplementation(() => {
-      throw new Error('boom2')
+    // Mock the chain of Supabase calls to return an error
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const orderMock = jest.fn().mockResolvedValue({ data: null, error: mockError })
+
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: selectMock,
+      eq: eqMock,
+      order: orderMock,
     })
-    const consoleErrorSpy = jest
-      .spyOn(console, 'error')
-      .mockImplementation(() => {})
-    const result = await getLatestUserModel(telegram_id, api)
-    expect(result).toBeNull()
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      'Error getting user model:',
-      expect.any(Error)
+
+    await expect(getLatestUserModel(mockTelegramId)).rejects.toThrow(
+      'Supabase query failed'
     )
-    consoleErrorSpy.mockRestore()
+
+    expect(mockSupabase.from).toHaveBeenCalledWith('user_models')
+    expect(selectMock).toHaveBeenCalledWith('model_id, created_at')
+    expect(eqMock).toHaveBeenCalledWith('user_id', mockTelegramId)
+    expect(orderMock).toHaveBeenCalledWith('created_at', { ascending: false })
   })
 })

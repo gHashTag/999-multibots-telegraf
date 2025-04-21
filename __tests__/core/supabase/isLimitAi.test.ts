@@ -12,102 +12,190 @@ async function runIsLimitAiWithBuilders(builders: any[]) {
 }
 
 describe('isLimitAi', () => {
-  it('returns false when user lookup error', async () => {
-    const builderUsers = {
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest
-        .fn()
-        .mockResolvedValue({ data: null, error: { message: 'uerr' } }),
-    }
-    const res = await runIsLimitAiWithBuilders([builderUsers])
-    expect(res).toBe(false)
+  let mockSupabase: SupabaseClient
+  let loggerSpy: jest.SpyInstance
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockSupabase = createMockSupabaseClient() as unknown as SupabaseClient
+    ;(supabase as any) = mockSupabase // Assign mock
+    // Spy on logger.info
+    loggerSpy = jest.spyOn(logger, 'info').mockImplementation(() => {})
   })
 
-  it('inserts new record when no limitData or stale date and returns false', async () => {
-    const today = new Date().toISOString().split('T')[0]
-    const builderUsers = {
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest
-        .fn()
-        .mockResolvedValue({ data: { user_id: 'u1' }, error: null }),
+  afterEach(() => {
+    loggerSpy.mockRestore() // Restore original logger behavior
+  })
+
+  it('should return false and log if user has enough limit', async () => {
+    const mockTelegramId = 'user-with-limit'
+    const mockLimit = 5
+    const mockUserData = {
+      limit: mockLimit,
+      id: 'user1',
+      // other fields...
     }
-    const builderLimit = {
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      order: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({ data: null, error: null }),
-    }
-    const builderInsert = {
-      insert: jest.fn().mockReturnValue(Promise.resolve({ error: null })),
-    }
-    const res = await runIsLimitAiWithBuilders([
-      builderUsers,
-      builderLimit,
-      builderInsert,
-    ])
-    expect(builderInsert.insert).toHaveBeenCalledWith({
-      user_id: 'u1',
-      count: 1,
-      created_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}/),
+
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest
+      .fn()
+      .mockResolvedValue({ data: mockUserData, error: null })
+
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: selectMock,
+      eq: eqMock,
+      single: singleMock,
     })
-    expect(res).toBe(false)
+
+    const result = await isLimitAi(mockTelegramId)
+
+    expect(result).toBe(false)
+    expect(mockSupabase.from).toHaveBeenCalledWith('users')
+    expect(selectMock).toHaveBeenCalledWith('limit')
+    expect(eqMock).toHaveBeenCalledWith('telegram_id', mockTelegramId)
+    expect(singleMock).toHaveBeenCalledTimes(1)
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Лимит НЕ превышен',
+        telegramId: mockTelegramId,
+        userLimit: mockLimit,
+      })
+    )
   })
 
-  it('updates count when under daily limit and returns false', async () => {
-    const today = new Date().toISOString().split('T')[0]
-    const builderUsers = {
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest
-        .fn()
-        .mockResolvedValue({ data: { user_id: 'u2' }, error: null }),
+  it('should return true and log if user limit is 0', async () => {
+    const mockTelegramId = 'user-limit-zero'
+    const mockUserData = {
+      limit: 0,
+      id: 'user2',
+      // other fields...
     }
-    const builderLimit = {
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      order: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({
-        data: { id: 'r1', count: 2, created_at: today + 'T00:00:00Z' },
-        error: null,
-      }),
-    }
-    const builderUpdate = {
-      update: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnValue(Promise.resolve({ error: null })),
-    }
-    const res = await runIsLimitAiWithBuilders([
-      builderUsers,
-      builderLimit,
-      builderUpdate,
-    ])
-    expect(builderUpdate.update).toHaveBeenCalledWith({ count: 3 })
-    expect(res).toBe(false)
+
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest
+      .fn()
+      .mockResolvedValue({ data: mockUserData, error: null })
+
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: selectMock,
+      eq: eqMock,
+      single: singleMock,
+    })
+
+    const result = await isLimitAi(mockTelegramId)
+
+    expect(result).toBe(true)
+    expect(mockSupabase.from).toHaveBeenCalledWith('users')
+    expect(selectMock).toHaveBeenCalledWith('limit')
+    expect(eqMock).toHaveBeenCalledWith('telegram_id', mockTelegramId)
+    expect(singleMock).toHaveBeenCalledTimes(1)
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Лимит превышен',
+        telegramId: mockTelegramId,
+        userLimit: 0,
+      })
+    )
   })
 
-  it('returns true when daily limit reached', async () => {
-    const today = new Date().toISOString().split('T')[0]
-    const builderUsers = {
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest
-        .fn()
-        .mockResolvedValue({ data: { user_id: 'u3' }, error: null }),
+  it('should return true and log if user limit is negative', async () => {
+    const mockTelegramId = 'user-limit-negative'
+    const mockUserData = {
+      limit: -1,
+      id: 'user3',
+      // other fields...
     }
-    const builderLimit = {
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      order: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({
-        data: { id: 'r2', count: 3, created_at: today + 'T12:00:00Z' },
-        error: null,
-      }),
-    }
-    const res = await runIsLimitAiWithBuilders([builderUsers, builderLimit])
-    expect(res).toBe(true)
+
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest
+      .fn()
+      .mockResolvedValue({ data: mockUserData, error: null })
+
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: selectMock,
+      eq: eqMock,
+      single: singleMock,
+    })
+
+    const result = await isLimitAi(mockTelegramId)
+
+    expect(result).toBe(true)
+    expect(mockSupabase.from).toHaveBeenCalledWith('users')
+    expect(selectMock).toHaveBeenCalledWith('limit')
+    expect(eqMock).toHaveBeenCalledWith('telegram_id', mockTelegramId)
+    expect(singleMock).toHaveBeenCalledTimes(1)
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Лимит превышен',
+        telegramId: mockTelegramId,
+        userLimit: -1,
+      })
+    )
+  })
+
+  it('should return true and log error if user is not found', async () => {
+    const mockTelegramId = 'user-not-found'
+
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest.fn().mockResolvedValue({ data: null, error: null })
+
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: selectMock,
+      eq: eqMock,
+      single: singleMock,
+    })
+
+    const result = await isLimitAi(mockTelegramId)
+
+    expect(result).toBe(true)
+    expect(mockSupabase.from).toHaveBeenCalledWith('users')
+    expect(selectMock).toHaveBeenCalledWith('limit')
+    expect(eqMock).toHaveBeenCalledWith('telegram_id', mockTelegramId)
+    expect(singleMock).toHaveBeenCalledTimes(1)
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Пользователь не найден в БД',
+        telegramId: mockTelegramId,
+      })
+    )
+  })
+
+  it('should return true and log error if Supabase query fails', async () => {
+    const mockTelegramId = 'user-query-fail'
+    const mockError = new Error('DB query failed')
+
+    // Mock Supabase calls
+    const selectMock = jest.fn().mockReturnThis()
+    const eqMock = jest.fn().mockReturnThis()
+    const singleMock = jest.fn().mockResolvedValue({ data: null, error: mockError })
+
+    mockSupabase.from = jest.fn().mockReturnValue({
+      select: selectMock,
+      eq: eqMock,
+      single: singleMock,
+    })
+
+    const result = await isLimitAi(mockTelegramId)
+
+    expect(result).toBe(true)
+    expect(mockSupabase.from).toHaveBeenCalledWith('users')
+    expect(selectMock).toHaveBeenCalledWith('limit')
+    expect(eqMock).toHaveBeenCalledWith('telegram_id', mockTelegramId)
+    expect(singleMock).toHaveBeenCalledTimes(1)
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Ошибка при проверке лимита AI',
+        telegramId: mockTelegramId,
+        error: mockError.message,
+      })
+    )
   })
 })

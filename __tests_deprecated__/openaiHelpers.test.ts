@@ -1,9 +1,17 @@
 // Mock OpenAI constructor and chat.completions.create
 const mockCreate = jest.fn()
 jest.mock('openai', () =>
+<<<<<<< Updated upstream
   jest.fn().mockImplementation(() => ({
     chat: { completions: { create: mockCreate } },
   }))
+=======
+  jest
+    .fn()
+    .mockImplementation(() => ({
+      chat: { completions: { create: mockCreate } },
+    }))
+>>>>>>> Stashed changes
 )
 describe('core/openai index and helpers', () => {
   beforeEach(() => {

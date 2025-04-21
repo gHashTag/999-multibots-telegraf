@@ -19,9 +19,11 @@ jest.mock('express', () => {
 import { development, production } from '@/utils/launch'
 import { removeWebhooks } from '@/utils/removeWebhooks'
 import { logger } from '@/utils/logger'
+import { Telegraf, MyContext } from 'telegraf'
+import express from 'express'
 
 describe('Launch Utilities', () => {
-  let bot: any
+  let bot: Telegraf<MyContext>
   const OLD_ENV = process.env
 
   beforeEach(() => {
@@ -30,38 +32,78 @@ describe('Launch Utilities', () => {
     // Bot stub
     bot = {
       telegram: {
-        deleteWebhook: jest.fn().mockResolvedValue(undefined),
-        getMe: jest.fn().mockResolvedValue({}),
-        setWebhook: jest.fn().mockResolvedValue(undefined),
-        getWebhookInfo: jest.fn().mockResolvedValue({
-          url: 'https://test/hook',
-          pending_update_count: 0,
-        }),
+        deleteWebhook: jest.fn(),
+        setWebhook: jest.fn(),
       },
-      launch: jest.fn().mockResolvedValue(undefined),
-      handleUpdate: jest.fn().mockResolvedValue(undefined),
-      botInfo: { username: 'testBot' },
+      launch: jest.fn(),
+      handleUpdate: jest.fn(),
+      catch: jest.fn(),
+      use: jest.fn(),
+    } as unknown as Telegraf<MyContext>
+    // Mock process.env
+    process.env = {
+      ...process.env,
+      MODE: 'polling',
+      WEBHOOK_DOMAIN: 'https://example.com',
+      SECRET_PATH: 'supersecret',
     }
   })
 
-  it('development: deletes webhook and launches bot, logs info', async () => {
-    await expect(development(bot)).resolves.toBeUndefined()
-    expect(bot.telegram.deleteWebhook).toHaveBeenCalledTimes(1)
-    expect(bot.launch).toHaveBeenCalledTimes(1)
-    expect(logger.info).toHaveBeenCalledWith(
-      expect.stringContaining('✅ Бот запущен в режиме разработки:'),
-      expect.objectContaining({ bot_name: 'testBot' })
-    )
-  })
+  describe('development', () => {
+    it('should launch in polling mode if MODE=polling', async () => {
+      process.env.MODE = 'polling'
+      await development(bot)
+      expect(bot.telegram.deleteWebhook).toHaveBeenCalled()
+      expect(bot.launch).toHaveBeenCalled()
+      expect(bot.telegram.setWebhook).not.toHaveBeenCalled()
+    })
 
-  it('development: logs error and rethrows on failure', async () => {
-    const err = new Error('fail')
-    bot.launch.mockRejectedValueOnce(err)
-    await expect(development(bot)).rejects.toThrow('fail')
-    expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining('❌ Ошибка запуска бота в режиме разработки:'),
-      expect.objectContaining({ bot_name: 'testBot', error: 'fail' })
-    )
+    it('should launch in webhook mode if MODE=webhook', async () => {
+      process.env.MODE = 'webhook'
+      // Mock express app methods used in webhook launch
+      const mockApp = {
+        use: jest.fn().mockReturnThis(),
+        listen: jest.fn(),
+      }
+      ;(express as unknown as jest.Mock).mockReturnValue(mockApp)
+
+      await development(bot)
+
+      expect(bot.telegram.setWebhook).toHaveBeenCalledWith(
+        'https://example.com/supersecret'
+      )
+      // Check if express app is configured and listened on PORT
+      expect(express).toHaveBeenCalledTimes(1)
+      expect(mockApp.use).toHaveBeenCalledWith(await bot.createWebhook({ domain: 'https://example.com', path: '/supersecret' }))
+      expect(mockApp.listen).toHaveBeenCalledWith(
+        process.env.PORT || 3000,
+        expect.any(Function)
+      )
+      expect(bot.launch).not.toHaveBeenCalled()
+    })
+
+    it('should default to polling if MODE is not set', async () => {
+      delete process.env.MODE
+      await development(bot)
+      expect(bot.telegram.deleteWebhook).toHaveBeenCalled()
+      expect(bot.launch).toHaveBeenCalled()
+    })
+
+    it('should throw error if webhook domain is missing in webhook mode', async () => {
+      process.env.MODE = 'webhook'
+      delete process.env.WEBHOOK_DOMAIN
+      await expect(development(bot)).rejects.toThrow(
+        'WEBHOOK_DOMAIN is not defined in .env file'
+      )
+    })
+
+    it('should handle errors during launch', async () => {
+      process.env.MODE = 'polling'
+      const launchError = new Error('Polling launch failed')
+      bot.launch = jest.fn().mockRejectedValue(launchError)
+
+      await expect(development(bot)).rejects.toThrow('Polling launch failed')
+    })
   })
 
   it('production: sets up webhook and starts express server', async () => {

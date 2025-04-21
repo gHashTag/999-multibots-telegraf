@@ -11,6 +11,8 @@ describe('registerPaymentActions', () => {
       'payment_policy_info',
       paymentHandlers.handlePaymentPolicyInfo
     )
+  })
+  it('registers pre_checkout_query handler', () => {
     expect(bot.on).toHaveBeenCalledWith(
       'pre_checkout_query',
       paymentHandlers.handlePreCheckoutQuery

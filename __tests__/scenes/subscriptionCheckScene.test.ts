@@ -10,6 +10,8 @@ import { checkSubscriptionByTelegramId } from '../../src/core/supabase/checkSubs
 import { MyContext, ModeEnum, SubscriptionType, MySession } from '@/interfaces' // Импортируем нужные типы
 import { Composer } from 'telegraf' // Импорт Composer
 import { ADMIN_IDS_ARRAY } from '@/config' // Импортируем реальную переменную, но будем мокать ее значение
+import { subscriptionMiddleware } from '../../src/scenes/subscriptionMiddleware'
+import { logger } from '../../src/utils/logger'
 
 // Мокируем зависимости
 jest.mock('../../src/core/supabase/checkSubscriptionByTelegramId')
@@ -54,6 +56,70 @@ const createMockSession = (): MySession => ({
 })
 
 describe('subscriptionCheckScene', () => {
+  let mockCtx: MyContext
+  let checkSubscriptionMock: jest.SpyInstance
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockCtx = makeMockContext() as MyContext
+    // Mock the checkSubscription function itself for these tests
+    checkSubscriptionMock = jest
+      .spyOn(subscriptionMiddleware, 'checkSubscription')
+      .mockResolvedValue(undefined) // Default mock to resolve without action
+  })
+
+  afterEach(() => {
+    checkSubscriptionMock.mockRestore()
+  })
+
+  it('should call checkSubscription and leave scene on enter', async () => {
+    await subscriptionCheckScene.enter(mockCtx)
+
+    // Verify checkSubscription was called
+    expect(checkSubscriptionMock).toHaveBeenCalledWith(mockCtx)
+    expect(checkSubscriptionMock).toHaveBeenCalledTimes(1)
+
+    // Verify scene leave was called
+    expect(mockCtx.scene.leave).toHaveBeenCalledTimes(1)
+  })
+
+  it('should log error if checkSubscription fails', async () => {
+    const mockError = new Error('Check failed')
+    checkSubscriptionMock.mockRejectedValue(mockError)
+    const loggerSpy = jest.spyOn(logger, 'error').mockImplementation(() => {})
+
+    await subscriptionCheckScene.enter(mockCtx)
+
+    // Verify checkSubscription was called
+    expect(checkSubscriptionMock).toHaveBeenCalledWith(mockCtx)
+    expect(checkSubscriptionMock).toHaveBeenCalledTimes(1)
+
+    // Verify scene leave was still called
+    expect(mockCtx.scene.leave).toHaveBeenCalledTimes(1)
+
+    // Verify error was logged
+    expect(loggerSpy).toHaveBeenCalledWith(
+      'Error in subscriptionCheckScene:',
+      mockError
+    )
+    loggerSpy.mockRestore()
+  })
+
+  it('should still leave scene even if checkSubscription fails', async () => {
+    const mockError = new Error('Intentional failure')
+    checkSubscriptionMock.mockRejectedValue(mockError)
+
+    // Use try-catch to prevent test failure due to expected error
+    try {
+      await subscriptionCheckScene.enter(mockCtx)
+    } catch (e) {
+      // Expected error
+    }
+
+    // Verify scene leave was called despite the error
+    expect(mockCtx.scene.leave).toHaveBeenCalledTimes(1)
+  })
+
   let ctx: MyContext
   let next: jest.Mock
   let adminId: number

@@ -1,105 +1,93 @@
 import makeMockContext from '../utils/mockTelegrafContext'
 import emailWizard from '../../src/scenes/emailWizard'
-import { saveUserEmail } from '@/core/supabase'
-import { isRussian } from '@/helpers'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import * as supabaseHelpers from '@/core/supabase'
+import * as helpers from '@/helpers'
+import * as handlers from '@/handlers/handleHelpCancel'
 
 // Mock dependencies
-jest.mock('@/core/supabase', () => ({
-  saveUserEmail: jest.fn(),
-  setPayments: jest.fn(),
-}))
-jest.mock('@/helpers', () => ({
-  isRussian: jest.fn(),
-}))
-jest.mock('@/handlers/handleHelpCancel', () => ({
-  handleHelpCancel: jest.fn(),
-}))
+jest.mock('@/core/supabase')
+jest.mock('@/helpers')
+jest.mock('@/handlers/handleHelpCancel')
 
-// Typing mocks
-const mockedSaveUserEmail = saveUserEmail as jest.Mock<
-  (userId: string, email: string) => Promise<void>
->
-const mockedIsRussian = isRussian as jest.Mock<() => boolean>
-const mockedHandleCancel = handleHelpCancel as jest.Mock<
-  (...args: any[]) => Promise<boolean>
->
+// Typing mocks using jest.mocked()
+const mockedSaveUserEmail = jest.mocked(supabaseHelpers.saveUserEmail)
+const mockedIsRussian = jest.mocked(helpers.isRussian)
+const mockedHandleCancel = jest.mocked(handlers.handleHelpCancel)
 
-describe('emailWizardEnterHandler', () => {
+describe('emailWizard', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('should prompt for email with cancel button (RU)', async () => {
-    mockedIsRussian.mockReturnValueOnce(true)
-    const ctx = makeMockContext()
-    await emailWizard.enterHandler(ctx)
-    expect(ctx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('👉 Для формирования счета'),
-      expect.objectContaining({
-        reply_markup: expect.objectContaining({
-          keyboard: expect.any(Array),
-        }),
-      })
-    )
+  describe('.enter', () => {
+    it('should prompt for email with cancel button (RU)', async () => {
+      mockedIsRussian.mockReturnValueOnce(true)
+      const ctx = makeMockContext()
+      await emailWizard.enterHandler(ctx, jest.fn())
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('👉 Для формирования счета'),
+        expect.objectContaining({
+          reply_markup: expect.objectContaining({
+            keyboard: expect.any(Array),
+          }),
+        })
+      )
+    })
+
+    it('should prompt for email with cancel button (EN)', async () => {
+      mockedIsRussian.mockReturnValueOnce(false)
+      const ctx = makeMockContext()
+      await emailWizard.enterHandler(ctx, jest.fn())
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('To generate an invoice'),
+        expect.objectContaining({
+          reply_markup: expect.objectContaining({
+            keyboard: expect.any(Array),
+          }),
+        })
+      )
+    })
   })
 
-  it('should prompt for email with cancel button (EN)', async () => {
-    mockedIsRussian.mockReturnValueOnce(false)
-    const ctx = makeMockContext()
-    await emailWizard.enterHandler(ctx)
-    expect(ctx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('To generate an invoice'),
-      expect.objectContaining({
-        reply_markup: expect.objectContaining({
-          keyboard: expect.any(Array),
-        }),
-      })
-    )
-  })
-})
+  describe('.hears(/@/) - Email Input', () => {
+    it('should save email and show payment options (RU)', async () => {
+      mockedIsRussian.mockReturnValueOnce(true)
+      mockedSaveUserEmail.mockResolvedValueOnce(undefined)
+      const ctx = makeMockContext()
+      ctx.message = { text: 'user@example.com', date: Date.now(), message_id: 123, chat: { id: 1, type: 'private' } }
+      ctx.updateType = 'message'
 
-describe('emailWizardEmailHandler', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
-  })
+      const middleware = emailWizard.middleware()
+      await middleware(ctx, jest.fn())
 
-  it('should save email and show payment options (RU)', async () => {
-    mockedIsRussian.mockReturnValueOnce(true)
-    mockedHandleCancel.mockResolvedValueOnce(false)
-    mockedSaveUserEmail.mockResolvedValueOnce(undefined)
-    const ctx = makeMockContext()
-    // @ts-ignore
-    ctx.message = { text: 'user@example.com' }
-    await emailWizard.emailHandler(ctx)
-    expect(mockedSaveUserEmail).toHaveBeenCalledWith(
-      ctx.from.id.toString(),
-      'user@example.com'
-    )
-    expect(ctx.session.email).toBe('user@example.com')
-    expect(ctx.reply).toHaveBeenCalledTimes(2)
-    expect(ctx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('Ваш e-mail успешно сохранен'),
-      expect.objectContaining({
-        reply_markup: expect.objectContaining({ remove_keyboard: true }),
-      })
-    )
-    expect(ctx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('Выберите сумму'),
-      expect.objectContaining({ reply_markup: expect.any(Object) })
-    )
+      expect(mockedSaveUserEmail).toHaveBeenCalledWith(ctx.from?.id.toString(), 'user@example.com')
+      expect(ctx.session.email).toBe('user@example.com')
+      expect(ctx.reply).toHaveBeenCalledTimes(2)
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('Ваш e-mail успешно сохранен'),
+        expect.objectContaining({ reply_markup: expect.objectContaining({ remove_keyboard: true }) })
+      )
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('Выберите сумму'),
+        expect.objectContaining({ reply_markup: expect.any(Object) })
+      )
+    })
+
+    it('should handle save error (EN)', async () => {
+      mockedIsRussian.mockReturnValueOnce(false)
+      mockedSaveUserEmail.mockRejectedValueOnce(new Error('DB fail'))
+      const ctx = makeMockContext()
+      ctx.message = { text: 'a@b.com', date: Date.now(), message_id: 124, chat: { id: 1, type: 'private' } }
+      ctx.updateType = 'message'
+
+      const middleware = emailWizard.middleware()
+      await middleware(ctx, jest.fn())
+
+      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Error saving e-mail'))
+    })
   })
 
-  it('should handle save error (EN)', async () => {
-    mockedIsRussian.mockReturnValueOnce(false)
-    // @ts-ignore
-    mockedSaveUserEmail.mockRejectedValueOnce(new Error('fail'))
-    const ctx = makeMockContext()
-    // @ts-ignore
-    ctx.message = { text: 'a@b' }
-    await emailWizard.emailHandler(ctx)
-    expect(ctx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('Error saving e-mail')
-    )
-  })
+  // TODO: Добавить тесты для .on('text', ...) - обработки выбора суммы
+  // describe('.on('text') - Amount Selection', () => { ... })
+
 })
