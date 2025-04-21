@@ -9,6 +9,7 @@ import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { TranslationButton } from '@/interfaces/supabase.interface'
 import { getUserDetails } from '@/core/supabase'
 import { logger } from '@/utils/logger'
+import { TransactionType } from '@/interfaces/payments.interface'
 // Проверка валидности типа подписки
 export function isValidPaymentSubscription(value: string): value is string {
   // Преобразуем значение в верхний регистр для сравнения с SubscriptionType
@@ -140,7 +141,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
             amount: selectedPayment.amount,
             stars: Number(selectedPayment.stars),
             subscription: subscription as SubscriptionType,
-            type: subscription,
+            type: TransactionType.SUBSCRIPTION_PURCHASE,
           }
           return ctx.scene.enter(ModeEnum.PaymentScene)
         } else {

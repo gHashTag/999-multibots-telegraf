@@ -57,7 +57,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
 
       ctx.session.images = []
       ctx.session.modelName = `${username.toLowerCase()}`
-      ctx.session.targetUserId = targetUserId
+      ctx.session.targetUserId = parseInt(targetUserId)
       ctx.session.username = username
       ctx.session.triggerWord = `${username.toLowerCase()}`
 

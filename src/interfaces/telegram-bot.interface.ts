@@ -151,14 +151,15 @@ export interface WizardSessionData extends Scenes.WizardSessionData {
 
 export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   cursor: number
-  mode?: ModeEnum
+  mode: ModeEnum
   neuroPhotoInitialized?: boolean
   subscription?: SubscriptionType
   selectedSize?: string
   bypass_payment_check?: boolean
   images: BufferType
+
   modelName?: string
-  targetUserId: string
+  targetUserId: number
   username?: string
   triggerWord?: string
   steps?: number
@@ -187,15 +188,12 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   videoModel?: string
   translations?: Translation[]
   buttons?: TranslationButton[]
-  selectedPayment?: {
-    amount: number
-    stars: number
-    subscription?: SubscriptionType
-    type: string
-  }
+  selectedPayment?: SessionPayment
   memory?: Memory
   attempts?: number
   amount?: number
+  ru?: string
+  en?: string
 }
 
 export interface MyContext extends Context {

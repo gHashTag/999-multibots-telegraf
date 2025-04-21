@@ -19,7 +19,6 @@
     "resolveJsonModule": true,
     "importHelpers": true,
     "baseUrl": "src",
-    "types": ["jest", "node"],
     "paths": {
       "@/*": ["./*"],
       "@/config": ["config"],

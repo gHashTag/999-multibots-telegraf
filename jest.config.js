@@ -20,7 +20,6 @@ module.exports = {
   modulePaths: ['<rootDir>'],
   // Возвращаем более простой маппинг
   moduleNameMapper: {
-    '^@/__tests__/(.*)$': '<rootDir>/__tests__/$1',
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   transform: {

@@ -13,7 +13,7 @@ export const defaultSession: MySession = {
     model_url: 'placeholder/placeholder:placeholder',
     finetune_id: '',
   },
-  targetUserId: '0',
+  targetUserId: 0,
   steps: 0,
   selectedSize: '',
   subscription: SubscriptionType.STARS,
