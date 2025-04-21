@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "test": "jest --coverage --verbose"
+    "test": "jest --no-watchman --coverage --verbose"
   },
   "dependencies": {
     "telegraf": "^4.16.3"

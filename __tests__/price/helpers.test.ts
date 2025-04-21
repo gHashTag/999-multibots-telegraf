@@ -32,12 +32,14 @@ jest.mock('@/price/models/imageModelPrices', () => ({
   imageModelPrices: {
     modelA: { costPerImage: 10 },
     // Add other models if needed by tests
-  }
-}));
-jest.mock('@/price/helpers/calculateFinalPrice');
+  },
+}))
+jest.mock('@/price/helpers/calculateFinalPrice')
 
 // Helper to create a minimal valid MySession object
-const createMinimalMySession = (overrides: Partial<MySession> = {}): MySession => ({
+const createMinimalMySession = (
+  overrides: Partial<MySession> = {}
+): MySession => ({
   cursor: 0,
   images: [],
   targetUserId: 'default-user-id',
@@ -48,7 +50,7 @@ const createMinimalMySession = (overrides: Partial<MySession> = {}): MySession =
     model_url: 'org/repo:version' as ModelUrl, // Use type assertion
   },
   ...overrides,
-});
+})
 
 // Helper to create a minimal valid Message object (TextMessage for reply)
 const createMinimalTextMessage = (): Message.TextMessage => ({
@@ -58,19 +60,19 @@ const createMinimalTextMessage = (): Message.TextMessage => ({
   chat: { id: 1, type: 'private', first_name: 'MockChat' } as Chat.PrivateChat,
   from: { id: 1, is_bot: false, first_name: 'User' },
   text: 'mock reply',
-});
+})
 
 describe('Price Helpers', () => {
-  let ctx: ReturnType<typeof makeMockContext>; // Use the type from the mock context creator
+  let ctx: ReturnType<typeof makeMockContext> // Use the type from the mock context creator
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.clearAllMocks()
     // Use the imported mock context creator
-    ctx = makeMockContext();
+    ctx = makeMockContext()
     // Assign a valid session using the helper
-    ctx.session = createMinimalMySession();
+    ctx.session = createMinimalMySession()
     // Correctly type the mock reply function using jest.MockedFunction
-    ctx.reply = jest.fn().mockResolvedValue(undefined) as jest.Mock;
+    ctx.reply = jest.fn().mockResolvedValue(undefined) as jest.Mock
   })
 
   it('calcStarsFromDollars: should convert dollars to stars', () => {
@@ -92,11 +94,13 @@ describe('Price Helpers', () => {
 
   it('calculateFinalPrice: computes final stars price for video models', () => {
     // Mock the imported function directly
-    (calculateFinalPrice as jest.Mock).mockImplementation((modelName: string) => {
-      if (modelName === 'minimax') return 34;
-      if (modelName === 'haiper') return 3;
-      return 0; // Default or throw error
-    });
+    ;(calculateFinalPrice as jest.Mock).mockImplementation(
+      (modelName: string) => {
+        if (modelName === 'minimax') return 34
+        if (modelName === 'haiper') return 3
+        return 0 // Default or throw error
+      }
+    )
     expect(calculateFinalPrice('minimax')).toBe(34)
     expect(calculateFinalPrice('haiper')).toBe(3)
   })
@@ -117,8 +121,12 @@ describe('Price Helpers', () => {
 
   // This test was separate, keep it separate but use correct rates structure
   it('calculateCostInRubles: should convert stars to rubles using different rates', () => {
-    const rates = { costPerStepInStars: 1, costPerStarInDollars: 1, rublesToDollarsRate: 1/80 }; // Correct structure
-    expect(calculateCostInRubles(3, rates)).toBe(240.00)
+    const rates = {
+      costPerStepInStars: 1,
+      costPerStarInDollars: 1,
+      rublesToDollarsRate: 1 / 80,
+    } // Correct structure
+    expect(calculateCostInRubles(3, rates)).toBe(240.0)
     expect(calculateCostInRubles(0, rates)).toBe(0)
   })
 
@@ -141,7 +149,7 @@ describe('validateAndCalculateImageModelPrice', () => {
     ctx = makeMockContext()
     ctx.session = createMinimalMySession()
     // Correctly type the mock reply function here as well
-    ctx.reply = jest.fn().mockResolvedValue(undefined) as jest.Mock;
+    ctx.reply = jest.fn().mockResolvedValue(undefined) as jest.Mock
   })
 
   it('returns null and prompts when model is invalid', async () => {
@@ -215,13 +223,13 @@ describe('validateAndCalculateVideoModelPrice', () => {
     ctx = makeMockContext()
     ctx.session = createMinimalMySession()
     // Correctly type the mock reply function here too
-    ctx.reply = jest.fn().mockResolvedValue(undefined) as jest.Mock;
+    ctx.reply = jest.fn().mockResolvedValue(undefined) as jest.Mock
     // Mock calculateFinalPrice with type assertion
-    const mockedCalculateFinalPrice = calculateFinalPrice as jest.Mock;
+    const mockedCalculateFinalPrice = calculateFinalPrice as jest.Mock
     mockedCalculateFinalPrice.mockImplementation((modelName: string) => {
-        if (modelName === 'minimax') return 34;
-        return 0;
-    });
+      if (modelName === 'minimax') return 34
+      return 0
+    })
   })
 
   it('returns null and prompts when model is invalid', async () => {

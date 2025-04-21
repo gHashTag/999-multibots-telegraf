@@ -25,6 +25,7 @@ describe('mainMenu', () => {
     ctx.session = {
       ...defaultSession,
       subscription: SubscriptionType.STARS,
+      inviteCount: 0,
     }
     process.env.ADMIN_IDS = ''
     ctx.reply = jest.fn(() => Promise.resolve({} as any))
@@ -34,6 +35,7 @@ describe('mainMenu', () => {
     ;(checkPaymentStatus as jest.Mock).mockResolvedValue(false)
     const markup = await mainMenu({
       isRu: true,
+      inviteCount: 0,
       subscription: SubscriptionType.STARS,
       level: 0,
       ctx: ctx as any,
@@ -48,6 +50,7 @@ describe('mainMenu', () => {
     process.env.ADMIN_IDS = '1,2'
     const markup = await mainMenu({
       isRu: false,
+      inviteCount: 0,
       subscription: SubscriptionType.NEUROTESTER,
       level: 0,
       ctx: ctx as any,
@@ -63,6 +66,7 @@ describe('mainMenu', () => {
     ;(checkPaymentStatus as jest.Mock).mockResolvedValue(true)
     const markup = await mainMenu({
       isRu: false,
+      inviteCount: 5,
       subscription: SubscriptionType.NEUROTESTER,
       level: 2,
       ctx: ctx as any,
@@ -80,6 +84,7 @@ describe('mainMenu', () => {
     // subscription unknown, so subscriptionLevelsMap returns undefined => availableLevels empty
     const markup = await mainMenu({
       isRu: true,
+      inviteCount: 0,
       subscription: 'unknown' as any,
       level: 0,
       ctx: ctx as any,

@@ -140,3 +140,5 @@ tmp/
 src/uploads/144022504/neuro-photo-direct/
 
 .env.development
+
+tmp_tests

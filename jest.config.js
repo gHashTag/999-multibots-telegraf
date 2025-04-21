@@ -5,6 +5,10 @@
 
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
+  // Disable watchman to prevent Watchman errors
+  watchman: false,
+  // Use local cache directory to avoid permission issues
+  cacheDirectory: '<rootDir>/tmp_tests/jest_cache',
   // Suppress console output from tested modules
   silent: false, // Временно выключим silent, чтобы видеть лог из setup файла
   preset: 'ts-jest',
@@ -27,18 +31,8 @@ module.exports = {
       },
     ],
   },
-  testMatch: ['**/__tests__/**/*.test.ts'],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/tests/**/*.test.ts'],
   coveragePathIgnorePatterns: ['/node_modules/'],
-  // Добавляем репортеры: стандартный и HTML
-  reporters: [
-    'default',
-    [
-      'jest-html-reporters',
-      {
-        publicPath: './html-report',
-        filename: 'report.html',
-        expand: true,
-      },
-    ],
-  ],
+  // Use default reporter only
+  reporters: ['default'],
 }
