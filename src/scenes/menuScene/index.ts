@@ -143,7 +143,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     }
   } catch (error) {
     console.error('Error in menu command:', error)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx, isRu, error as Error)
     ctx.scene.leave()
     throw error
   }

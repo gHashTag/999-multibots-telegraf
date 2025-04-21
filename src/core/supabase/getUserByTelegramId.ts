@@ -3,10 +3,16 @@ import { supabase } from '@/core/supabase'
 
 export async function getUserByTelegramId(ctx: MyContext) {
   try {
+    if (!ctx.from?.id) {
+      console.error('❌ Telegram ID не найден')
+      return null
+    }
+
+    const telegramId = ctx.from.id.toString()
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('telegram_id', ctx.from.id.toString())
+      .eq('telegram_id', telegramId)
       .single()
 
     if (error) {
@@ -15,15 +21,16 @@ export async function getUserByTelegramId(ctx: MyContext) {
     }
 
     // Проверяем, отличается ли текущий bot_name от сохраненного
-    if (data.bot_name !== ctx.botInfo.username) {
+    if (data.bot_name !== ctx.botInfo?.username) {
       console.log(
         'BOT_NAME changed, updating... bot_name:',
-        ctx.botInfo.username
+        ctx.botInfo?.username
       )
+
       const { error: updateError } = await supabase
         .from('users')
-        .update({ bot_name: ctx.botInfo.username })
-        .eq('telegram_id', ctx.from.id.toString())
+        .update({ bot_name: ctx.botInfo?.username })
+        .eq('telegram_id', telegramId)
 
       if (updateError) {
         console.error('Error updating token:', updateError)

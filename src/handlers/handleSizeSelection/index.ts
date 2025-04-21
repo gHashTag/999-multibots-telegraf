@@ -7,6 +7,10 @@ import { ModeEnum } from '@/interfaces/modes'
 
 export async function handleSizeSelection(ctx: MyContext, size: string) {
   ctx.session.selectedSize = size
+  if (!ctx.from) {
+    console.error('❌ Telegram ID не найден')
+    return
+  }
   await setAspectRatio(ctx.from.id, size)
   const isRu = isRussian(ctx)
   await ctx.reply(

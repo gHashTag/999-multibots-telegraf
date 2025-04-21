@@ -79,6 +79,10 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
+      if (!ctx.from?.id) {
+        console.error('❌ Telegram ID не найден')
+        return
+      }
       await updateUserModel(ctx.from.id.toString(), model)
 
       await ctx.reply(
@@ -92,7 +96,11 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      const telegram_id = ctx.from.id
+      const telegram_id = ctx.from?.id
+      if (!telegram_id) {
+        console.error('❌ Telegram ID не найден')
+        return
+      }
 
       const userExists = await getUserByTelegramId(ctx)
       if (!userExists.data) {

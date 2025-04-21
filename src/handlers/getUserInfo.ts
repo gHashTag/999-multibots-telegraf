@@ -14,13 +14,33 @@ export function getUserInfo(ctx: MyContext): {
         ? '❌ Ошибка идентификации пользователя'
         : '❌ User identification error'
     )
+    if (!ctx.from) {
+      console.error('❌ Telegram ID не найден')
+      return {
+        userId: 0,
+        telegramId: '',
+      }
+    }
+    if (!telegramId) {
+      console.error('❌ Telegram ID не найден')
+      return {
+        userId: 0,
+        telegramId: '',
+      }
+    }
     ctx.scene.leave()
     return {
-      userId,
-      telegramId,
+      userId: 0,
+      telegramId: '',
     }
   }
-
+  if (!telegramId) {
+    console.error('❌ Telegram ID не найден')
+    return {
+      userId: 0,
+      telegramId: '',
+    }
+  }
   return {
     userId,
     telegramId,

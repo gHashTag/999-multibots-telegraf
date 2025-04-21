@@ -97,6 +97,10 @@ export const levelQuestWizard = new Scenes.BaseScene<MyContext>(
 )
 
 levelQuestWizard.enter(async ctx => {
+  if (!ctx.from?.id) {
+    console.error('❌ Telegram ID не найден')
+    return
+  }
   const telegram_id = ctx.from.id.toString()
   const { count, subscriptionType, level } = await getReferalsCountAndUserData(
     telegram_id

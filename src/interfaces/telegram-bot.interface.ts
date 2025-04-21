@@ -149,6 +149,17 @@ export interface WizardSessionData extends Scenes.WizardSessionData {
   }
 }
 
+export type BotName =
+  | 'neuro_blogger_bot'
+  | 'MetaMuse_Manifest_bot'
+  | 'ZavaraBot'
+  | 'LeeSolarbot'
+  | 'NeuroLenaAssistant_bot'
+  | 'NeurostylistShtogrina_bot'
+  | 'Gaia_Kamskaia_bot'
+  | 'ai_koshey_bot'
+  | 'clip_maker_neuro_bot'
+
 export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   cursor: number
   mode: ModeEnum
@@ -157,7 +168,6 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   selectedSize?: string
   bypass_payment_check?: boolean
   images: BufferType
-
   modelName?: string
   targetUserId: number
   username?: string

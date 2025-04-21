@@ -29,6 +29,18 @@ function generateRobokassaUrl(
   description: string,
   password1: string
 ): string {
+  if (!merchantLogin) {
+    console.error('❌ Merchant login not found')
+    return ''
+  }
+  if (!password1) {
+    console.error('❌ Password not found')
+    return ''
+  }
+  if (!resultUrl2) {
+    console.error('❌ Result URL not found')
+    return ''
+  }
   const signatureValue = md5(
     `${merchantLogin}:${outSum}:${invId}:${encodeURIComponent(
       resultUrl2
@@ -152,7 +164,27 @@ emailWizard.on('text', async ctx => {
       const amount = parseInt(match[2], 10) // Сумма в рублях
 
       try {
+        if (!ctx.from) {
+          console.error('❌ Telegram ID не найден')
+          return
+        }
         const userId = ctx.from?.id
+        if (!userId) {
+          console.error('❌ Telegram ID не найден')
+          return
+        }
+        if (!ctx.from?.language_code) {
+          console.error('❌ Telegram ID не найден')
+          return
+        }
+        if (!merchantLogin) {
+          console.error('❌ Merchant login not found')
+          return
+        }
+        if (!password1) {
+          console.error('❌ Password not found')
+          return
+        }
         const invId = Math.floor(Math.random() * 1000000)
         // Получение invoiceID
         const invoiceURL = await getInvoiceId(
@@ -176,7 +208,7 @@ emailWizard.on('text', async ctx => {
           payment_method: 'Telegram',
           subscription: 'stars',
           bot_name,
-          language: ctx.from?.language_code,
+          language: ctx.from?.language_code || 'ru',
         })
 
         console.log('invoiceURL', invoiceURL)

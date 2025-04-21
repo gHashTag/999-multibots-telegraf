@@ -72,7 +72,7 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
         )
 
         if (ctx.from) {
-          const paymentAmount = ctx.session.paymentAmount
+          const paymentAmount = ctx.session.paymentAmount || 0
           console.log('paymentAmount', paymentAmount)
           await refundUser(ctx, paymentAmount)
         }
@@ -81,7 +81,7 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
     } catch (error) {
       console.error('Error cancelling predictions:', error)
       const isRu = isRussian(ctx)
-      await sendGenericErrorMessage(ctx, isRu, error)
+      await sendGenericErrorMessage(ctx, isRu, error as Error)
       return ctx.scene.leave()
     }
   }

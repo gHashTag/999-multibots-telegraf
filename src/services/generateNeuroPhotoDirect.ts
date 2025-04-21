@@ -18,6 +18,7 @@ import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import { v4 as uuidv4 } from 'uuid'
 import { ApiResponse } from '@/interfaces/api.interface'
+import { BotName } from '@/interfaces/telegram-bot.interface'
 /**
  * Прямая генерация нейрофото V1 без использования Inngest.
  * Используется как резервный вариант при отсутствии доступа к Inngest.
@@ -86,7 +87,7 @@ export async function generateNeuroPhotoDirect(
       botName,
     })
 
-    const botResult = getBotByName(botName)
+    const botResult = getBotByName(botName as BotName)
     if (!botResult.bot) {
       logger.error({
         message: '❌ [DIRECT] Бот не найден',

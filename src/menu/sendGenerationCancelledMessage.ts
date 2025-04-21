@@ -7,6 +7,10 @@ export async function sendGenerationCancelledMessage(
   ctx: MyContext,
   reason: string
 ) {
+  if (!ctx.from) {
+    console.error('❌ Telegram ID не найден')
+    return
+  }
   const telegram_id = ctx.from.id.toString()
   const { count, subscriptionType, level } = await getReferalsCountAndUserData(
     telegram_id

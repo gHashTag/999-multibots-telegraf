@@ -12,7 +12,7 @@ import { Update } from 'telegraf/typings/core/types/typegram'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
 import { setupWebhookHandlers } from './webhookHandler'
-import express from 'express'
+import express, { Application } from 'express'
 import fileUpload from 'express-fileupload'
 import { handleRobokassaResult } from './webhooks/robokassa/robokassa.handler'
 import * as http from 'http'
@@ -24,7 +24,7 @@ const botInstances: Telegraf<MyContext>[] = []
 let robokassaServer: http.Server | null = null
 let server: http.Server | null = null
 
-const app = express()
+const app: Application = express()
 const PORT = process.env.PORT || 3000
 
 // Функция для проверки валидности токена
@@ -67,13 +67,13 @@ export async function startRobokassaWebhookServer(): Promise<http.Server | null>
   const app = express()
 
   // Middleware для разбора URL-encoded формы
-  app.use(express.urlencoded({ extended: true }))
+  app.use('/', express.urlencoded({ extended: true }))
 
   // Middleware для разбора JSON данных
-  app.use(express.json())
+  app.use('/', express.json())
 
   // Middleware для обработки multipart/form-data
-  app.use(fileUpload())
+  app.use('/', fileUpload())
 
   // POST маршрут для обработки успешных платежей от Robokassa
   app.post('/payment-success', handleRobokassaResult)

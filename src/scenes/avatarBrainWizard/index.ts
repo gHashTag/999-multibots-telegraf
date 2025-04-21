@@ -78,6 +78,11 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
       }
     }
 
+    if (!ctx.from) {
+      console.error('❌ Telegram ID не найден')
+      return ctx.scene.leave()
+    }
+
     const telegram_id = ctx.from.id
 
     const userExists = await getUserByTelegramId(ctx)

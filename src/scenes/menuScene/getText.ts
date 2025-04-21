@@ -19,6 +19,15 @@ const texts = {
 
 export const getText = (isRu: boolean, key: string, ...args: any[]) => {
   const lang = isRu ? 'ru' : 'en'
+
   const text = texts[lang][key]
+  if (!text) {
+    console.error('❌ Текст не найден:', {
+      description: 'Text not found',
+      key,
+      lang,
+    })
+    return ''
+  }
   return typeof text === 'function' ? text(...args) : text
 }

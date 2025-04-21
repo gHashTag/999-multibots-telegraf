@@ -30,6 +30,11 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
 
     await sendPromptImprovementMessage(ctx, isRu)
 
+    if (!prompt) {
+      await sendPromptImprovementFailureMessage(ctx, isRu)
+      return ctx.scene.leave()
+    }
+
     const improvedPrompt = await upgradePrompt(prompt)
     if (!improvedPrompt) {
       await sendPromptImprovementFailureMessage(ctx, isRu)
@@ -79,6 +84,14 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
+      if (!ctx.session.prompt) {
+        await sendPromptImprovementFailureMessage(ctx, isRu)
+        return ctx.scene.leave()
+      }
+      if (!ctx.session.mode) {
+        await sendPromptImprovementFailureMessage(ctx, isRu)
+        return ctx.scene.leave()
+      }
       switch (text) {
         case isRu ? '✅ Да. Cгенерировать?' : '✅ Yes. Generate?': {
           const mode = ctx.session.mode
@@ -143,7 +156,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             case 'text_to_image':
               await generateTextToImage(
                 ctx.session.prompt,
-                ctx.session.selectedModel,
+                ctx.session.selectedModel || '',
                 1,
                 ctx.from.id.toString(),
                 isRu,
@@ -178,6 +191,10 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
               ? '⏳ Повторное улучшение промпта...'
               : '⏳ Re-improving prompt...'
           )
+          if (!ctx.session.prompt) {
+            await sendPromptImprovementFailureMessage(ctx, isRu)
+            return ctx.scene.leave()
+          }
           const improvedPrompt = await upgradePrompt(ctx.session.prompt)
           if (!improvedPrompt) {
             await sendPromptImprovementFailureMessage(ctx, isRu)

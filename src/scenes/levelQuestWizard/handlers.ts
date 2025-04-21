@@ -223,7 +223,7 @@ Once you provide all the necessary information, our bot will process the data an
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel0:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -248,7 +248,7 @@ We are proud to offer you such an innovative tool and hope it becomes an indispe
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel8:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -291,7 +291,7 @@ The "Select AI Model" function opens up the possibility of more flexible and eff
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel7:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -350,7 +350,7 @@ The "Voice for Avatar" function allows you to personalize your digital image, ma
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel7:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -393,7 +393,7 @@ The "Text to Voice" function makes your digital content more lively and expressi
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel6:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -432,7 +432,7 @@ The "Image to Video" function allows you to bring your ideas to life in dynamic 
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel9:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -503,7 +503,7 @@ But this is just the beginning. You can experiment with different descriptions t
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel10:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -550,7 +550,7 @@ After selecting a model, the next step is to create a text description or prompt
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel11:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -587,7 +587,7 @@ Using the "Change Size" function allows you to easily adapt your avatar images t
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
     console.error('Error in handleLevel4:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }
@@ -636,8 +636,8 @@ Expand the user community and open new horizons together!`
     await ctx.reply(message)
     return
   } catch (error) {
-    console.error('Error in handleLevel11:', error)
-    errorMessage(ctx, error, ctx.from?.language_code === 'ru')
+    console.error('Error in handleLevel13:', error)
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
 }

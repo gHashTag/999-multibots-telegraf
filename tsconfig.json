@@ -1,7 +1,7 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "target": "es6",
+    "target": "es2022",
     "lib": ["esnext", "dom"],
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
@@ -18,6 +18,8 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "importHelpers": true,
+    "strict": false,
+    "skipLibCheck": true,
     "baseUrl": "src",
     "paths": {
       "@/*": ["./*"],

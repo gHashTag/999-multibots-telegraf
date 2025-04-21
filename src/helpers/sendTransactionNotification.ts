@@ -1,6 +1,6 @@
 import { logger } from '@/utils/logger'
 import { createBotByName } from '@/core/bot'
-
+import { BotName } from '@/interfaces/telegram-bot.interface'
 interface TransactionNotificationParams {
   telegram_id: number
   operationId: string
@@ -42,7 +42,7 @@ export const sendTransactionNotification = async ({
       newBalance,
     })
 
-    const botData = await createBotByName(bot_name)
+    const botData = await createBotByName(bot_name as BotName)
 
     if (!botData) {
       throw new Error(`Bot ${bot_name} not found`)

@@ -429,7 +429,14 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
       // Останавливаем интервал
       clearInterval(progressInterval)
-
+      if (!ctx.chat?.id) {
+        console.error('❌ Chat ID не найден')
+        return
+      }
+      if (!processingMessage.message_id) {
+        console.error('❌ Processing message ID не найден')
+        return
+      }
       // Удаляем сообщение о прогрессе
       try {
         await ctx.telegram.deleteMessage(
@@ -455,7 +462,14 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     } catch (generateError) {
       // Останавливаем интервал в случае ошибки
       clearInterval(progressInterval)
-
+      if (!ctx.chat?.id) {
+        console.error('❌ Chat ID не найден')
+        return
+      }
+      if (!processingMessage.message_id) {
+        console.error('❌ Processing message ID не найден')
+        return
+      }
       // Удаляем сообщение о прогрессе
       try {
         await ctx.telegram.deleteMessage(
@@ -596,7 +610,27 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
             ? `⏳ Начинаю генерацию ${num} изображений. Это может занять некоторое время...`
             : `⏳ Starting generation of ${num} images. This may take some time...`
         )
+        if (!ctx.chat?.id) {
+          console.error('❌ Chat ID не найден')
+          return
+        }
+        if (!ctx.session.userModel.model_url) {
+          console.error('❌ Model URL не найден')
+          return
+        }
+        if (!userId) {
+          console.error('❌ User ID не найден')
+          return
+        }
 
+        if (!ctx.botInfo?.username) {
+          console.error('❌ Bot username не найден')
+          return
+        }
+        if (!prompt) {
+          console.error('❌ Prompt не найден')
+          return
+        }
         // Генерируем изображения
         await generateNeuroImage(
           prompt,

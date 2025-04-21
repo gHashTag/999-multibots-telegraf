@@ -42,6 +42,10 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
       return
     } else {
       try {
+        if (!ctx.from?.id) {
+          console.error('❌ Telegram ID не найден')
+          return
+        }
         const voice_id = await getVoiceId(ctx.from.id.toString())
 
         if (!voice_id) {
@@ -53,7 +57,14 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
           ctx.scene.leave()
           return
         }
-
+        if (!ctx.from?.id) {
+          console.error('❌ Telegram ID не найден')
+          return
+        }
+        if (!ctx.from?.username) {
+          console.error('❌ Username не найден')
+          return
+        }
         await generateTextToSpeech(
           message.text,
           voice_id,

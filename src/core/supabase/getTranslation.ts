@@ -68,6 +68,14 @@ export async function getTranslation({
 }> {
   // Добавляем buttons
   console.log('CASE: getTranslation:', key)
+  if (!ctx.from) {
+    console.error('❌ Telegram ID не найден')
+    return {
+      translation: '',
+      url: '',
+      buttons: [],
+    }
+  }
   const { language_code } = ctx.from
   const token = ctx.telegram.token
 

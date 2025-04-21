@@ -66,7 +66,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     return ctx.wizard.next()
   } catch (error) {
     console.error('Error in neuroPhotoConversationStep:', error)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx, isRu, error as Error)
     throw error
   }
 }
@@ -90,7 +90,10 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       const trigger_word = ctx.session.userModel.trigger_word as string
 
       const userId = ctx.from?.id
-
+      if (!userId) {
+        console.error('❌ User ID не найден')
+        return
+      }
       if (trigger_word) {
         const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
         await generateNeuroImageV2(
@@ -145,6 +148,14 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     const userId = ctx.from?.id
     const trigger_word = ctx.session.userModel.trigger_word as string
     const fullPrompt = `Fashionable ${trigger_word}, ${prompt}`
+    if (!userId) {
+      console.error('❌ User ID не найден')
+      return
+    }
+    if (!ctx.botInfo?.username) {
+      console.error('❌ Bot username не найден')
+      return
+    }
     const generate = async (num: number) => {
       await generateNeuroImageV2(
         fullPrompt,

@@ -156,6 +156,9 @@ export const getUserDetails = async (
           | 'neurobase'
         startDateDb = paymentData.payment_date
         try {
+          if (!startDateDb) {
+            throw new Error('Payment date is null')
+          }
           const paymentDate = new Date(startDateDb)
           const now = new Date()
           const expirationDate = new Date(paymentDate)

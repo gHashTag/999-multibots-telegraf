@@ -8,9 +8,22 @@ import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 
 import { getBotGroupFromAvatars } from '@/core/supabase'
+
+// Определяем типы для имен ботов
+type BotName =
+  | 'neuro_blogger_bot'
+  | 'MetaMuse_Manifest_bot'
+  | 'ZavaraBot'
+  | 'LeeSolarbot'
+  | 'NeuroLenaAssistant_bot'
+  | 'NeurostylistShtogrina_bot'
+  | 'Gaia_Kamskaia_bot'
+  | 'ai_koshey_bot'
+  | 'clip_maker_neuro_bot'
+
+// Проверяем наличие токенов
 if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
 if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
-// Токен BOT_TOKEN_3 был обновлен и теперь действителен
 if (!process.env.BOT_TOKEN_3) throw new Error('BOT_TOKEN_3 is not set')
 if (!process.env.BOT_TOKEN_4) throw new Error('BOT_TOKEN_4 is not set')
 if (!process.env.BOT_TOKEN_5) throw new Error('BOT_TOKEN_5 is not set')
@@ -22,25 +35,24 @@ if (!process.env.BOT_TOKEN_TEST_1)
 if (!process.env.BOT_TOKEN_TEST_2)
   throw new Error('BOT_TOKEN_TEST_2 is not set')
 
-const BOT_TOKENS_PROD = [
+const BOT_TOKENS_PROD: string[] = [
   process.env.BOT_TOKEN_1,
   process.env.BOT_TOKEN_2,
-  // Токен BOT_TOKEN_3 был обновлен и теперь действителен
   process.env.BOT_TOKEN_3,
   process.env.BOT_TOKEN_4,
   process.env.BOT_TOKEN_5,
   process.env.BOT_TOKEN_6,
   process.env.BOT_TOKEN_7,
 ]
-const BOT_TOKENS_TEST = [
+
+const BOT_TOKENS_TEST: string[] = [
   process.env.BOT_TOKEN_TEST_1,
   process.env.BOT_TOKEN_TEST_2,
 ]
 
-export const BOT_NAMES = {
+export const BOT_NAMES: Record<BotName, string> = {
   ['neuro_blogger_bot']: process.env.BOT_TOKEN_1,
   ['MetaMuse_Manifest_bot']: process.env.BOT_TOKEN_2,
-  // ZavaraBot восстановлен после обновления токена
   ['ZavaraBot']: process.env.BOT_TOKEN_3,
   ['LeeSolarbot']: process.env.BOT_TOKEN_4,
   ['NeuroLenaAssistant_bot']: process.env.BOT_TOKEN_5,
@@ -48,10 +60,10 @@ export const BOT_NAMES = {
   ['Gaia_Kamskaia_bot']: process.env.BOT_TOKEN_7,
   ['ai_koshey_bot']: process.env.BOT_TOKEN_TEST_1,
   ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_TEST_2,
-}
+} as const
 
 // Tutorial URLs
-export const BOT_URLS = {
+export const BOT_URLS: Partial<Record<BotName, string>> = {
   MetaMuse_Manifest_bot: 'https://t.me/MetaMuse_manifestation/16',
   neuro_blogger_bot: 'https://t.me/neuro_coder_ai/1212',
   ai_koshey_bot: 'https://t.me/neuro_coder_ai/1212',
@@ -116,22 +128,20 @@ logger.info('🤖 Инициализация pulseBot:', {
   tokenLength: PULSE_BOT_TOKEN.length,
 })
 
-export function getBotNameByToken(token: string): { bot_name: string } {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function getBotNameByToken(token: string): { bot_name: BotName } {
   const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)
   if (!entry) {
-    return { bot_name: DEFAULT_BOT_NAME }
+    return { bot_name: 'neuro_blogger_bot' }
   }
 
   const [bot_name] = entry
-  return { bot_name }
+  return { bot_name: bot_name as BotName }
 }
 
-export function getTokenByBotName(botName: string): string | undefined {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function getTokenByBotName(botName: BotName): string | undefined {
   const entry = Object.entries(BOT_NAMES).find(([name, _]) => name === botName)
   if (!entry) {
-    console.warn(`Bot name ${botName} not found.`)
+    logger.warn(`Bot name ${botName} not found.`)
     return undefined
   }
 
@@ -139,10 +149,13 @@ export function getTokenByBotName(botName: string): string | undefined {
   return token
 }
 
-export async function createBotByName(
-  botName: string
-): Promise<
-  { token: string; groupId: string; bot: Telegraf<MyContext> } | undefined
+export async function createBotByName(botName: BotName): Promise<
+  | {
+      token: string
+      groupId: string | null
+      bot: Telegraf<MyContext>
+    }
+  | undefined
 > {
   const token = getTokenByBotName(botName)
   if (!token) {
@@ -155,7 +168,6 @@ export async function createBotByName(
 
   const groupId = await getBotGroupFromAvatars(botName)
 
-  // Ищем бота в массиве bots
   const botIndex = Object.keys(BOT_NAMES).indexOf(botName)
   const bot = bots[botIndex]
 
@@ -169,6 +181,14 @@ export async function createBotByName(
     return undefined
   }
 
+  if (!groupId) {
+    logger.error('❌ Группа для бота не найдена:', {
+      description: 'Group not found for bot',
+      botName,
+    })
+    return undefined
+  }
+
   return {
     token,
     groupId,
@@ -176,7 +196,7 @@ export async function createBotByName(
   }
 }
 
-export function getBotByName(bot_name: string): {
+export function getBotByName(bot_name: BotName): {
   bot?: Telegraf<MyContext>
   error?: string | null
 } {
@@ -186,7 +206,6 @@ export function getBotByName(bot_name: string): {
     bot_name,
   })
 
-  // Проверяем наличие бота в конфигурации
   const token = BOT_NAMES[bot_name]
   if (!token) {
     logger.error({
@@ -205,11 +224,9 @@ export function getBotByName(bot_name: string): {
     tokenLength: token.length,
   })
 
-  // Ищем бота в массиве bots
   const botIndex = Object.keys(BOT_NAMES).indexOf(bot_name)
   let bot = bots[botIndex]
 
-  // Если бот не найден в массиве или не имеет необходимых методов, создаем новый экземпляр
   if (!bot || !bot.telegram?.sendMessage) {
     logger.info({
       message: '🔄 Создание нового экземпляра бота',
@@ -217,7 +234,6 @@ export function getBotByName(bot_name: string): {
       bot_name,
     })
     bot = new Telegraf<MyContext>(token)
-    // Проверяем, что бот создан корректно
     if (!bot.telegram?.sendMessage) {
       logger.error({
         message: '❌ Ошибка инициализации бота',
@@ -228,7 +244,6 @@ export function getBotByName(bot_name: string): {
       })
       return { error: 'Bot initialization failed' }
     }
-    // Заменяем бота в массиве
     bots[botIndex] = bot
   }
 
@@ -245,7 +260,7 @@ export function getBotByName(bot_name: string): {
 export const supportRequest = async (title: string, data: any) => {
   try {
     await pulseBot.telegram.sendMessage(
-      process.env.SUPPORT_CHAT_ID,
+      process.env.SUPPORT_CHAT_ID!,
       `🚀 ${title}\n\n${JSON.stringify(data)}`
     )
   } catch (error) {

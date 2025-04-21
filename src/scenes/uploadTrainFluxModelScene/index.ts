@@ -23,7 +23,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
 
     await ctx.reply(isRu ? '⏳ Загружаю архив...' : '⏳ Uploading archive...')
 
-    const triggerWord = `${ctx.session.username.toLocaleUpperCase()}`
+    const triggerWord = `${ctx.session.username?.toLocaleUpperCase()}`
     if (!triggerWord) {
       await ctx.reply(
         isRu ? '❌ Некорректный trigger word' : '❌ Invalid trigger word'
@@ -41,11 +41,11 @@ uploadTrainFluxModelScene.enter(async ctx => {
       {
         filePath: zipPath,
         triggerWord,
-        modelName: ctx.session.modelName,
-        steps: ctx.session.steps,
+        modelName: ctx.session.modelName || '',
+        steps: ctx.session.steps || 100,
         telegram_id: ctx.session.targetUserId.toString(),
         is_ru: isRu,
-        botName: ctx.botInfo?.username,
+        botName: ctx.botInfo?.username || '',
       },
       ctx
     )

@@ -44,6 +44,10 @@ export async function handleTextMessage(ctx: MyContext) {
         )
         return
       }
+      if (!ctx.chat) {
+        console.error('❌ Chat ID не найден')
+        return
+      }
       await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
       const systemPrompt = `

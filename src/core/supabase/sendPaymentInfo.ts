@@ -1,7 +1,8 @@
 import { Payment } from '@/interfaces/payments.interface'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
-import { createBotByName } from '../bot'
+import { createBotByName, BOT_NAMES } from '../bot'
+import type { BotName } from '@/interfaces'
 
 export const sendPaymentInfo = async (invId: string): Promise<boolean> => {
   try {
@@ -28,7 +29,7 @@ export const sendPaymentInfo = async (invId: string): Promise<boolean> => {
     })
 
     const { bot_name, amount, telegram_id, currency } = paymentData
-    const botData = await createBotByName(bot_name)
+    const botData = await createBotByName(bot_name as BotName)
 
     if (!botData) {
       logger.error(
@@ -52,6 +53,14 @@ export const sendPaymentInfo = async (invId: string): Promise<boolean> => {
 Звезд начислено: ${stars}
 InvId: ${invId}
 Бот: ${bot_name}`
+
+    if (!groupId) {
+      logger.error('❌ Группа не найдена:', {
+        description: 'Group not found',
+        invId,
+      })
+      return false
+    }
 
     await bot.telegram.sendMessage(groupId, message)
     logger.info('✅ Уведомление об оплате отправлено в группу:', {

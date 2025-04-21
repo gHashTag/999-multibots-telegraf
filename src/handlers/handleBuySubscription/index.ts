@@ -40,11 +40,26 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
     }
 
     const subscriptionType = ctx.session.subscription?.toLowerCase()
-    const amount = subscriptionStarAmounts[subscriptionType]
+    if (!subscriptionType) {
+      console.error('❌ Subscription type not found')
+      return
+    }
+    const amount =
+      subscriptionStarAmounts[
+        subscriptionType as keyof typeof subscriptionStarAmounts
+      ]
+    if (!amount) {
+      console.error('❌ Amount not found')
+      return
+    }
 
-    const title = subscriptionTitles[subscriptionType] || `${amount} ⭐️`
+    const title =
+      subscriptionTitles[subscriptionType as keyof typeof subscriptionTitles] ||
+      `${amount} ⭐️`
     const description =
-      subscriptionDescriptions[subscriptionType] ||
+      subscriptionDescriptions[
+        subscriptionType as keyof typeof subscriptionDescriptions
+      ] ||
       (isRu
         ? `💬 Получите ${amount} звезд.\nИспользуйте звезды для различных функций нашего бота и наслаждайтесь новыми возможностями!`
         : `💬 Get ${amount} stars.\nUse stars for various functions of our bot and enjoy new opportunities!`)

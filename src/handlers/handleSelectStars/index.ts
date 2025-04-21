@@ -47,7 +47,7 @@ export async function handleSelectStars({
     console.error('Error in handleSelectStars:', error)
     logger.error('❌ [handleSelectStars] Ошибка при отображении выбора звезд', {
       telegram_id: ctx.from?.id,
-      error: error.message,
+      error: error instanceof Error ? error.message : String(error),
     })
     await ctx.reply(
       isRu ? 'Ошибка при выборе звезд.' : 'Error selecting stars.'

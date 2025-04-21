@@ -1,9 +1,11 @@
-import express, { Express } from 'express'
+import express from 'express'
 import { Telegraf } from 'telegraf'
 import { MyContext } from './interfaces'
 
 // Инициализация Express приложения
 const app = express()
+
+// Middleware для разбора JSON данных
 app.use(express.json())
 
 /**
@@ -14,7 +16,7 @@ app.use(express.json())
 export function setupWebhookHandlers(
   botInstances: Telegraf<MyContext>[],
   shouldStartServer = true
-): Express {
+): express.Express {
   // Логирование всех входящих запросов
   app.use((req, res, next) => {
     console.log(`📥 Входящий запрос: ${req.method} ${req.path}`)

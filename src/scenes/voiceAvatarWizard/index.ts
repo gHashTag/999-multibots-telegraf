@@ -92,7 +92,10 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         // Получаем текст сообщения безопасно
         const messageText =
           'text' in ctx.message ? ctx.message.text : 'No text provided'
-
+        if (!ctx.from?.id) {
+          console.error('❌ Telegram ID не найден')
+          return
+        }
         await generateVoiceAvatar(
           fileUrl,
           messageText,
