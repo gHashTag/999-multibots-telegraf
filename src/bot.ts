@@ -175,11 +175,14 @@ async function initializeBots() {
           throw new Error('WEBHOOK_DOMAIN не установлен в переменных окружения')
         }
 
+        // Формируем правильный путь для вебхука, используя имя бота
+        const webhookPath = `/${botInfo.username}` // Используем имя бота как путь
+
         bot.launch({
           webhook: {
             domain: webhookDomain,
             port: currentPort,
-            path: `/telegraf/${bot.secretPathComponent()}`,
+            hookPath: webhookPath, // Новый путь с именем бота
           },
           allowedUpdates: ['message', 'callback_query'],
         })
