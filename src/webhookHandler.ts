@@ -1,8 +1,8 @@
 import express from 'express'
 import { Telegraf } from 'telegraf'
 import { MyContext } from './interfaces'
-import fileUpload from 'express-fileupload'
-import { handleRobokassaResult } from './webhooks/robokassa/robokassa.handler'
+// import fileUpload from 'express-fileupload' // Закомментируем
+// import { handleRobokassaResult } from './webhooks/robokassa/robokassa.handler' // Закомментируем
 
 // Инициализация Express приложения
 const app = express()
@@ -10,9 +10,9 @@ const app = express()
 // Middleware для разбора JSON данных
 app.use('/', express.json())
 
-// Добавляем middleware для Robokassa
-app.use('/', express.urlencoded({ extended: true }))
-app.use('/', fileUpload())
+// Закомментируем middleware для Robokassa
+// app.use('/', express.urlencoded({ extended: true }))
+// app.use('/', fileUpload())
 
 /**
  * Настраивает обработку вебхуков для ботов на основном порту
@@ -34,13 +34,13 @@ export function setupWebhookHandlers(
     res.send('Telegram Bot API вебхук сервер работает!')
   })
 
-  // Добавляем маршрут для Robokassa Result URL
-  app.post('/payment-success', handleRobokassaResult)
+  // Закомментируем маршрут для Robokassa Result URL
+  // app.post('/payment-success', handleRobokassaResult)
 
-  // Добавляем маршрут для проверки работоспособности Robokassa сервера (опционально)
-  app.get('/health', (req, res) => {
-    res.status(200).send('OK')
-  })
+  // Закомментируем маршрут для проверки работоспособности Robokassa
+  // app.get('/health', (req, res) => {
+  //   res.status(200).send('OK')
+  // })
 
   // Создаем карту маршрутов для каждого бота
   const botTokens = new Map<string, Telegraf<MyContext>>()
