@@ -67,10 +67,10 @@ export async function startRobokassaWebhookServer(): Promise<http.Server | null>
   const app = express()
 
   // Middleware для разбора URL-encoded формы
-  app.use('/', express.urlencoded({ extended: true }))
+  app.use(express.urlencoded({ extended: true }) as express.RequestHandler)
 
   // Middleware для разбора JSON данных
-  app.use('/', express.json())
+  app.use(express.json() as express.RequestHandler)
 
   // Middleware для обработки multipart/form-data
   app.use('/', fileUpload())
