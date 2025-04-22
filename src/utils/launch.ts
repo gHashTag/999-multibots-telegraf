@@ -67,17 +67,22 @@ export async function production(
 
     // app.use('/', express.json() as express.RequestHandler)
 
-    // ДОБАВЛЯЕМ стандартный middleware Telegraf:
+    // ---- НАЧАЛО ИЗМЕНЕНИЙ ----
+    // Используем middleware Telegraf С УКАЗАНИЕМ ПУТИ:
     app.use(
+      path,
       bot.webhookCallback(path, {
         secretToken: process.env.TELEGRAM_SECRET_TOKEN,
       })
-    )
+    ) // <-- ИСПРАВЛЕНО: добавлен 'path'
     // ---- КОНЕЦ ИЗМЕНЕНИЙ ----
 
     // Опционально: GET для проверки работоспособности
     app.get('/', (req: Request, res: Response) => {
-      res.send(`Webhook server for ${bot.botInfo?.username} is running!`)
+      // Используем утверждение типа для res.send:
+      ;(res as express.Response).send(
+        `Webhook server for ${bot.botInfo?.username} is running!`
+      ) // <-- ИСПРАВЛЕНО: добавлено (res as express.Response)
     })
     // Запускаем сервер
     app.listen(port, () => {
