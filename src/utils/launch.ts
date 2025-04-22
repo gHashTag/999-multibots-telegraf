@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf'
-import express from 'express'
+import express, { Request, Response, NextFunction } from 'express'
 import { MyContext } from '@/interfaces'
 import { removeWebhooks } from './removeWebhooks'
 import { logger } from './logger'
