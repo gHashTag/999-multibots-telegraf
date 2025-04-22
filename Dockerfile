@@ -23,27 +23,33 @@
 # LAST WORKING UPDATE: 21.04.2025
 # TESTED BY: @playra
 # Этап сборки
-FROM node:20-alpine as builder
+FROM node:20-alpine AS builder
 
 RUN echo "---> Starting Builder Stage..."
 
+# Устанавливаем pnpm
+RUN npm install -g pnpm
+
 WORKDIR /app
 
-COPY package*.json ./
-RUN echo "---> Running npm install (builder dependencies)..."
-RUN npm install
+# Копируем package.json и pnpm-lock.yaml (если есть)
+COPY package*.json pnpm-lock.yaml* ./
 
+# Устанавливаем все зависимости (включая dev) с помощью pnpm
+RUN echo "---> Running pnpm install (builder dependencies)..."
+RUN pnpm install
+
+# Копируем остальной исходный код
 RUN echo "---> Copying source code..."
 COPY . .
 RUN echo "---> Checking Git commit hash inside builder stage:" && (git log -1 --pretty=%H || echo "Git not available or repo not fully copied yet")
 
-# Выполняем сборку TypeScript с пропуском проверки типов для решения проблем совместимости
-# и обрабатываем алиасы путей с помощью tsc-alias (включено в скрипт build:nocheck)
-RUN echo "---> Running build script (npm run build)..."
-RUN npm run build
+# Запускаем сборку с помощью pnpm
+RUN echo "---> Running build script (pnpm build)..."
+RUN pnpm build
 
 # Финальный этап
-FROM node:20-alpine
+FROM node:20-alpine AS final
 
 RUN echo "---> Starting Final Stage..."
 
@@ -65,11 +71,14 @@ RUN apk add --no-cache openssh-client sshpass nginx
 # Оставляем создание .ssh, если оно нужно для других целей
 RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
 
-COPY package*.json ./
-RUN echo "---> Running npm install (production dependencies)..."
-RUN npm install --omit=dev --ignore-scripts
+# Копируем package.json и pnpm-lock.yaml (если есть)
+COPY package*.json pnpm-lock.yaml* ./
 
-# Копируем только необходимые файлы из этапа сборки
+# Устанавливаем только production зависимости с помощью pnpm
+RUN echo "---> Running pnpm install (production dependencies)..."
+RUN pnpm install --prod --ignore-scripts
+
+# Копируем собранные артефакты из builder stage
 RUN echo "---> Copying built artifacts from builder stage..."
 COPY --from=builder /app/dist ./dist
 
