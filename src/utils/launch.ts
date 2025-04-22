@@ -1,5 +1,6 @@
 import { Telegraf } from 'telegraf'
-import express, { Request, Response, NextFunction } from 'express'
+import express from 'express'
+import { Request, Response } from 'express'
 import { MyContext } from '@/interfaces'
 import { removeWebhooks } from './removeWebhooks'
 import { logger } from './logger'
@@ -67,16 +68,15 @@ export async function production(
 
     // app.use('/', express.json() as express.RequestHandler)
 
-    app.use(
-      path,
+    // Используем middleware для вебхуков
+    app.use(path, express.json(), (req, res, next) => {
       bot.webhookCallback(path, {
         secretToken: process.env.TELEGRAM_SECRET_TOKEN,
-      })
-    )
+      })(req, res, next)
+    })
 
     app.get('/', (req: Request, res: Response) => {
-      // Утверждение типа больше не нужно с Express 4
-      res.send(`Webhook server for ${bot.botInfo?.username} is running!`) // <-- ИСПРАВЛЕНО
+      res.send(`Webhook server for ${bot.botInfo?.username} is running!`)
     })
 
     // Запускаем сервер
