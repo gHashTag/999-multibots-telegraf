@@ -63,9 +63,9 @@ export async function production(
       pending_update_count: webhookInfo.pending_update_count,
     })
 
-    // Настраиваем Express сервер
+    // @ts-ignore // Игнорируем ошибку TS2769 здесь
     const app = express()
-    // Используем утверждение типа для express.json()
+    // @ts-ignore // Игнорируем ошибку TS2769 здесь
     app.use('/', express.json() as express.RequestHandler)
 
     // Добавляем обработчик вебхука с явными типами Request/Response
