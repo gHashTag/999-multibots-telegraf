@@ -63,25 +63,22 @@ export async function production(
       pending_update_count: webhookInfo.pending_update_count,
     })
 
-    // @ts-ignore // Игнорируем ошибку TS2769 здесь
     const app = express()
-    // @ts-ignore // Игнорируем ошибку TS2769 здесь
-    app.use('/', express.json() as express.RequestHandler)
 
-    // Добавляем обработчик вебхука с явными типами Request/Response
-    app.use(path, async (req: Request, res: Response) => {
-      try {
-        await bot.handleUpdate(req.body, res)
-      } catch (error) {
-        logger.error('❌ Ошибка обработки вебхука:', {
-          description: 'Webhook handling error',
-          bot_name: bot.botInfo?.username,
-          error: error instanceof Error ? error.message : String(error),
-        })
-        res.status(500).send('Webhook handling error')
-      }
+    // app.use('/', express.json() as express.RequestHandler)
+
+    // ДОБАВЛЯЕМ стандартный middleware Telegraf:
+    app.use(
+      bot.webhookCallback(path, {
+        secretToken: process.env.TELEGRAM_SECRET_TOKEN,
+      })
+    )
+    // ---- КОНЕЦ ИЗМЕНЕНИЙ ----
+
+    // Опционально: GET для проверки работоспособности
+    app.get('/', (req: Request, res: Response) => {
+      res.send(`Webhook server for ${bot.botInfo?.username} is running!`)
     })
-
     // Запускаем сервер
     app.listen(port, () => {
       logger.info('✅ Бот слушает вебхуки:', {
