@@ -367,7 +367,7 @@ checkBalanceScene.enter(async ctx => {
     // --- ВЫЗОВ ФУНКЦИИ ДЛЯ ВХОДА В ЦЕЛЕВУЮ СЦЕНУ ---
     // Передаем необходимые параметры: контекст, пустую функцию next, режим, стоимость
     // @ts-ignore // Временно игнорируем ошибку компилятора, т.к. типы по факту совпадают
-    await enterTargetScene(ctx, async () => {}, mode, costValue) // <--- Оставляем этот вызов
+    await enterTargetScene(ctx, async () => {}, mode, costValue) // <--- Исправленный вызов
   } catch (error) {
     console.error('[DEBUG CheckBalanceScene Enter] Error caught:', error) // Добавлено
     logger.error({
