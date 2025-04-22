@@ -11,17 +11,11 @@ import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update } from 'telegraf/typings/core/types/typegram'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
-import { setupWebhookHandlers } from './webhookHandler'
-import express, { Application } from 'express'
+
 import * as http from 'http'
-import util from 'util'
-import { Server } from 'http'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
-const server: http.Server | null = null
-
-const PORT = process.env.PORT || 3000
 
 // Функция для проверки валидности токена
 export async function validateBotToken(token: string): Promise<boolean> {
@@ -197,9 +191,6 @@ async function initializeBots() {
         currentPort++
       }
     }
-
-    // Запускаем обработчик вебхуков на основном порту приложения
-    setupWebhookHandlers(botInstances as Telegraf<MyContext>[])
   }
 
   console.log('🔍 Инициализация сцен...')
