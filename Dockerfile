@@ -27,18 +27,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Устанавливаем зависимости для Ansible
+# Устанавливаем только необходимые системные зависимости
 RUN apk add --no-cache \
-    python3 \
-    py3-pip \
     openssh-client \
-    sshpass \
-    nginx
-
-# Создаем виртуальное окружение и устанавливаем Ansible
-RUN python3 -m venv /app/ansible-venv \
-    && . /app/ansible-venv/bin/activate \
-    && pip install --no-cache-dir ansible
+    sshpass
 
 # Создаем нужные каталоги внутри рабочей директории и устанавливаем права
 RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
@@ -50,16 +42,17 @@ COPY package*.json ./
 RUN npm install --omit=dev --ignore-scripts
 
 # Копируем только собранные файлы из этапа сборки
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/dist ./dist/
 
 # Проверяем, что файлы сборки скопированы
 RUN ls -la dist/ || echo "Директория dist не существует или пуста"
 
 # Пытаемся скопировать .env файл если он существует
 COPY .env ./
-COPY .env.* ./ || true
+# Копируем остальные .env.* файлы, если они есть
+COPY .env.* ./
 
-# Создаем пустой .env файл на всякий случай
+# Создаем пустой .env файл на всякий случай (entrypoint его наполнит, если нужно)
 RUN touch .env
 
 # Копируем entrypoint скрипт
