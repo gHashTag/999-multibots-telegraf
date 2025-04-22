@@ -11,9 +11,13 @@ RUN npm install -g tsc-alias
 
 COPY . .
 
+# Создаем временную конфигурацию TypeScript, которая исключает тестовые файлы
+RUN cp tsconfig.json tsconfig.build.json && \
+    sed -i 's/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json", "__tests__\/\*\*\/\*\.ts"\]/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json"\]/' tsconfig.build.json
+
 # Выполняем сборку TypeScript с пропуском проверки типов для решения проблем совместимости
 # и обрабатываем алиасы путей с помощью tsc-alias (включено в скрипт build:nocheck)
-RUN npm run build:nocheck
+RUN npx tsc --skipLibCheck --skipDefaultLibCheck --project tsconfig.build.json && npx tsc-alias --project tsconfig.build.json
 
 # Проверяем, что файлы сборки созданы
 RUN ls -la dist/ || echo "Директория dist не существует или пуста"
@@ -45,13 +49,10 @@ COPY package*.json ./
 # При установке пропускаем скрипт prepare, который запускает husky install
 RUN npm install --omit=dev --ignore-scripts
 
-# Копируем весь исходный код для выполнения сборки непосредственно в контейнере
-COPY . .
+# Копируем только собранные файлы из этапа сборки
+COPY --from=builder /app/dist ./dist
 
-# Выполняем сборку TypeScript в финальном контейнере
-RUN npm run build:nocheck
-
-# Проверяем, что файлы сборки созданы
+# Проверяем, что файлы сборки скопированы
 RUN ls -la dist/ || echo "Директория dist не существует или пуста"
 
 # Экспортируем порт для API и боты
