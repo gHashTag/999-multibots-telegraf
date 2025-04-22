@@ -15,6 +15,9 @@ COPY . .
 # и обрабатываем алиасы путей с помощью tsc-alias (включено в скрипт build:nocheck)
 RUN npm run build:nocheck
 
+# Проверяем, что файлы сборки созданы
+RUN ls -la dist/ || echo "Директория dist не существует или пуста"
+
 # Финальный этап
 FROM node:20-alpine
 
@@ -36,12 +39,20 @@ RUN python3 -m venv /app/ansible-venv \
 # Создаем нужные каталоги внутри рабочей директории и устанавливаем права
 RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
 
+# Копируем файлы package.json и package-lock.json
 COPY package*.json ./
+
 # При установке пропускаем скрипт prepare, который запускает husky install
 RUN npm install --omit=dev --ignore-scripts
 
-# Копируем только необходимые файлы из этапа сборки
-COPY --from=builder /app/dist ./dist
+# Копируем весь исходный код для выполнения сборки непосредственно в контейнере
+COPY . .
+
+# Выполняем сборку TypeScript в финальном контейнере
+RUN npm run build:nocheck
+
+# Проверяем, что файлы сборки созданы
+RUN ls -la dist/ || echo "Директория dist не существует или пуста"
 
 # Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
