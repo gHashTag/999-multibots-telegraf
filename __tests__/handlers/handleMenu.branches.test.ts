@@ -2,18 +2,15 @@ import makeMockContext from '../utils/mockTelegrafContext'
 import handleMenu from '@/handlers/handleMenu'
 import { levels } from '@/menu/mainMenu'
 import { priceCommand } from '@/commands/priceCommand'
+import { MyContext } from '@/interfaces'
+import { Message } from 'telegraf/types'
 
 // Mock priceCommand to avoid real logic
 jest.mock('@/commands/priceCommand', () => ({ priceCommand: jest.fn() }))
 
 describe('handleMenu all English branches', () => {
-  let ctx: ReturnType<typeof makeMockContext>
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = makeMockContext()
-    ctx.from.language_code = 'en'
-    ctx.session = {} as any
-    ctx.scene.enter = jest.fn()
   })
 
   const cases = [
@@ -99,8 +96,24 @@ describe('handleMenu all English branches', () => {
 
   for (const c of cases) {
     it(`handles '${c.text}'`, async () => {
-      ctx.message = { text: c.text }
+      const ctx = makeMockContext({
+        message: {
+          text: c.text,
+          message_id: 1,
+          date: 0,
+          chat: { id: 1, type: 'private', first_name: 'Test' },
+          from: {
+            id: 1,
+            is_bot: false,
+            first_name: 'TestUser',
+            language_code: 'en',
+          },
+        },
+      }) as MyContext
+      ctx.scene.enter = jest.fn()
+
       await handleMenu(ctx as any)
+
       if (c.mode) expect(ctx.session.mode).toBe(c.mode)
       if (c.enter) expect(ctx.scene.enter).toHaveBeenCalledWith(c.enter)
       if (c.command) expect(priceCommand).toHaveBeenCalledWith(ctx)
@@ -108,8 +121,24 @@ describe('handleMenu all English branches', () => {
   }
 
   it('ignores unknown text', async () => {
-    ctx.message = { text: 'unknown' }
+    const ctx = makeMockContext({
+      message: {
+        text: 'unknown',
+        message_id: 1,
+        date: 0,
+        chat: { id: 1, type: 'private', first_name: 'Test' },
+        from: {
+          id: 1,
+          is_bot: false,
+          first_name: 'TestUser',
+          language_code: 'en',
+        },
+      },
+    }) as MyContext
+    ctx.scene.enter = jest.fn()
+
     await handleMenu(ctx as any)
+
     expect(ctx.scene.enter).not.toHaveBeenCalled()
     expect(priceCommand).not.toHaveBeenCalled()
   })

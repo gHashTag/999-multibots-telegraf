@@ -93,7 +93,9 @@ describe('getUserByTelegramId', () => {
     // Mock Supabase calls
     const selectMock = jest.fn().mockReturnThis()
     const eqMock = jest.fn().mockReturnThis()
-    const singleMock = jest.fn().mockResolvedValue({ data: null, error: mockError })
+    const singleMock = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: mockError })
 
     mockSupabase.from = jest.fn().mockReturnValue({
       select: selectMock,

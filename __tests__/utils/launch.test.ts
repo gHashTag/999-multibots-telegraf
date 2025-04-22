@@ -74,7 +74,12 @@ describe('Launch Utilities', () => {
       )
       // Check if express app is configured and listened on PORT
       expect(express).toHaveBeenCalledTimes(1)
-      expect(mockApp.use).toHaveBeenCalledWith(await bot.createWebhook({ domain: 'https://example.com', path: '/supersecret' }))
+      expect(mockApp.use).toHaveBeenCalledWith(
+        await bot.createWebhook({
+          domain: 'https://example.com',
+          path: '/supersecret',
+        })
+      )
       expect(mockApp.listen).toHaveBeenCalledWith(
         process.env.PORT || 3000,
         expect.any(Function)

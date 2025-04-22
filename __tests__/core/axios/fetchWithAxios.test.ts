@@ -76,7 +76,11 @@ describe('fetchWithAxios', () => {
   })
 
   it('should handle Axios error with no response after retries', async () => {
-    const axiosError = { isAxiosError: true, message: 'Axios Error', config: {} }
+    const axiosError = {
+      isAxiosError: true,
+      message: 'Axios Error',
+      config: {},
+    }
     mockAxiosInstance.mockRejectedValue(axiosError)
     mockedIsAxiosError.mockReturnValue(true)
 

@@ -50,7 +50,9 @@ describe('getReferalsCountAndUserData', () => {
     const singleMock = jest
       .fn()
       .mockResolvedValue({ data: mockUserData, error: null })
-    const countMock = jest.fn().mockResolvedValue({ count: mockReferralsCount, error: null })
+    const countMock = jest
+      .fn()
+      .mockResolvedValue({ count: mockReferralsCount, error: null })
 
     mockSupabase.from = jest.fn(tableName => {
       if (tableName === 'users') {
@@ -129,7 +131,9 @@ describe('getReferalsCountAndUserData', () => {
     // Mock Supabase calls
     const selectMock = jest.fn().mockReturnThis()
     const eqMock = jest.fn().mockReturnThis()
-    const singleMock = jest.fn().mockResolvedValue({ data: null, error: mockError })
+    const singleMock = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: mockError })
     const countMock = jest.fn().mockResolvedValue({ count: 0, error: null })
 
     mockSupabase.from = jest.fn(tableName => {
@@ -167,7 +171,9 @@ describe('getReferalsCountAndUserData', () => {
     const singleMock = jest
       .fn()
       .mockResolvedValue({ data: mockUserData, error: null })
-    const countMock = jest.fn().mockResolvedValue({ count: null, error: mockError })
+    const countMock = jest
+      .fn()
+      .mockResolvedValue({ count: null, error: mockError })
 
     mockSupabase.from = jest.fn(tableName => {
       if (tableName === 'users') {

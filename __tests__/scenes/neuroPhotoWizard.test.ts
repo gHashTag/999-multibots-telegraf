@@ -3,11 +3,23 @@
  */
 import { neuroPhotoWizard } from '../../src/scenes/neuroPhotoWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
-import { Composer } from 'telegraf'
+import { Scenes } from 'telegraf'
 import { jest, describe, it, expect, beforeEach } from '@jest/globals'
-import { MySession } from '@/interfaces' // Убираем User
-import { User } from 'telegraf/typings/core/types/typegram' // Импортируем User отсюда
-import { Markup } from 'telegraf' // Импортируем Markup
+import {
+  MyContext,
+  MySession,
+  UserModel,
+  ModeEnum,
+  SubscriptionType,
+} from '@/interfaces'
+import {
+  User,
+  Message,
+  Chat,
+  Update,
+} from 'telegraf/typings/core/types/typegram'
+import { Markup } from 'telegraf'
+import { WizardContextWizard } from 'telegraf/typings/scenes'
 
 // Мокаем зависимости
 jest.mock('@/handlers/getUserInfo')
@@ -33,111 +45,241 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { handleMenu } from '@/handlers'
 
 // Типизируем моки (теперь можно использовать импорты)
-const mockedGetUserInfo = getUserInfo as jest.Mock
-const mockedGetLatestModel = getLatestUserModel as jest.Mock
-const mockedGetReferals = getReferalsCountAndUserData as jest.Mock
-const mockedGenerateImage = generateNeuroImage as jest.Mock
-const mockedMainMenu = mainMenu as jest.Mock<
-  () => Promise<{ text: string; keyboard: Markup.Markup<any> }>
-> // Типизируем mainMenu
-const mockedSendDescRequest = sendPhotoDescriptionRequest as jest.Mock
-const mockedSendGenericError = sendGenericErrorMessage as jest.Mock
-const mockedHandleHelpCancel = handleHelpCancel as jest.Mock<
+const typedMockedGetUserInfo = getUserInfo as jest.Mock
+const typedMockedGetLatestModel = getLatestUserModel as jest.Mock<
+  () => Promise<UserModel | null>
+>
+const typedMockedGetReferals = getReferalsCountAndUserData as jest.Mock<
+  () => Promise<{
+    count: number
+    level: number
+    subscriptionType: SubscriptionType
+    userData: any | null
+    isExist: boolean
+  }>
+>
+const typedMockedGenerateImage = generateNeuroImage as jest.Mock
+const typedMockedMainMenu = mainMenu as jest.Mock
+const typedMockedSendDescRequest = sendPhotoDescriptionRequest as jest.Mock
+const typedMockedSendGenericError = sendGenericErrorMessage as jest.Mock
+const typedMockedHandleHelpCancel = handleHelpCancel as jest.Mock<
   (...args: any[]) => Promise<boolean>
 >
-const mockedHandleMenu = handleMenu as jest.Mock
+const typedMockedHandleMenu = handleMenu as jest.Mock
+
+// Получаем middleware напрямую
+const wizardMiddleware = neuroPhotoWizard.middleware()
 
 describe('neuroPhotoWizard', () => {
+  let ctx: MyContext
+  const mockNext = jest.fn<() => Promise<void>>()
+  const mockUserModel: UserModel = {
+    model_name: 'test-model',
+    model_url: 'placeholder/placeholder:placeholder',
+    trigger_word: 'tw',
+  }
+
   beforeEach(() => {
     jest.clearAllMocks()
-    // Настраиваем мок mainMenu (если он используется в этой сцене)
-    mockedMainMenu.mockResolvedValue({
+    mockNext.mockClear()
+    typedMockedMainMenu.mockResolvedValue({
       text: 'Menu',
-      keyboard: Markup.keyboard([['Btn']]).reply_markup,
+      reply_markup: Markup.keyboard([]),
     })
-  })
 
-  it('должна выйти, если нет обученной модели', async () => {
-    const ctx = makeMockContext()
-    // Настраиваем моки
-    mockedGetUserInfo.mockReturnValue({ userId: 'u1', telegramId: 't1' })
-    mockedGetLatestModel.mockResolvedValueOnce(null)
-    mockedGetReferals.mockResolvedValueOnce({
-      count: 0,
-      subscription: 'stars',
-      level: 1,
-    })
-    // Вызываем первый шаг
-    // @ts-ignore
-    const step = neuroPhotoWizard.steps[0]
-    await step(ctx)
-    // Должна быть попытка уйти из сцены
-    expect(ctx.scene.leave).toHaveBeenCalled()
-  })
-
-  it('должна запросить описание и перейти к следующему шагу, если модель есть и не отмена', async () => {
-    const ctx = makeMockContext()
-    mockedGetUserInfo.mockReturnValue({ userId: 'u2', telegramId: 't2' })
-    mockedGetLatestModel.mockResolvedValueOnce({
-      model_url: 'url1',
-      trigger_word: 'tw',
-    })
-    mockedGetReferals.mockResolvedValueOnce({
-      count: 5,
-      subscription: 'premium',
-      level: 2,
-    })
-    mockedHandleHelpCancel.mockResolvedValueOnce(false)
-    // @ts-ignore
-    const step = neuroPhotoWizard.steps[0]
-    await step(ctx)
-    expect(mockedSendDescRequest).toHaveBeenCalledWith(ctx, true, 'neuro_photo')
-    expect(ctx.wizard.next).toHaveBeenCalled()
-  })
-
-  it('должна выйти из сцены, если отмена при запросе описания', async () => {
-    const ctx = makeMockContext()
-    mockedGetUserInfo.mockReturnValue({ userId: 'u3', telegramId: 't3' })
-    mockedGetLatestModel.mockResolvedValueOnce({
-      model_url: 'url2',
-      trigger_word: 'x',
-    })
-    mockedGetReferals.mockResolvedValueOnce({
-      count: 1,
-      subscription: 'basic',
-      level: 1,
-    })
-    mockedHandleHelpCancel.mockResolvedValueOnce(true)
-    // @ts-ignore
-    const step = neuroPhotoWizard.steps[0]
-    await step(ctx)
-    expect(ctx.scene.leave).toHaveBeenCalled()
-  })
-
-  it('в шаге промпта генерит изображение и next', async () => {
-    const userModel = { model_url: 'url3', trigger_word: 'tg' }
-    // @ts-ignore: override readonly properties for test
-    // @ts-ignore: override readonly properties for test
-    const ctx = makeMockContext(
-      {},
-      { session: { userModel }, message: { text: 'hello' } }
+    ctx = makeMockContext(
+      { update_id: 1 },
+      { userModel: mockUserModel, targetUserId: 't1' }
     )
-    mockedHandleHelpCancel.mockResolvedValueOnce(false)
-    // @ts-ignore
-    const step = neuroPhotoWizard.steps[1]
-    await step(ctx)
-    expect(ctx.session.prompt).toBe('hello')
-    expect(mockedGenerateImage).toHaveBeenCalled()
+    const mockTextMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 0,
+      chat: { id: 1, type: 'private', first_name: 'mock' },
+      text: 'mock',
+    }
+    ctx.reply = jest
+      .fn<(...args: any[]) => Promise<Message.TextMessage>>()
+      .mockResolvedValue(mockTextMessage)
+    ctx.scene.enter = jest
+      .fn<(...args: any[]) => Promise<unknown>>()
+      .mockResolvedValue(true)
+    ctx.scene.leave = jest
+      .fn<() => Promise<void>>()
+      .mockResolvedValue(undefined)
+    ctx.wizard.next = jest
+      .fn<() => WizardContextWizard<MyContext>>()
+      .mockReturnValue({ cursor: 1 } as any)
+    ctx.wizard.back = jest
+      .fn<() => WizardContextWizard<MyContext>>()
+      .mockReturnValue({ cursor: -1 } as any)
+    ctx.wizard.cursor = 0
+  })
+
+  it('Шаг 0: должна выйти, если нет обученной модели', async () => {
+    typedMockedGetUserInfo.mockReturnValue({ userId: 'u1', telegramId: 't1' })
+    typedMockedGetLatestModel.mockResolvedValueOnce(null)
+    typedMockedGetReferals.mockResolvedValueOnce({
+      count: 0,
+      level: 1,
+      subscriptionType: SubscriptionType.STARS,
+      userData: null,
+      isExist: true,
+    })
+
+    ctx.wizard.cursor = 0
+    await wizardMiddleware(ctx, mockNext)
+
+    expect(typedMockedGetLatestModel).toHaveBeenCalledWith('t1')
+    expect(ctx.scene.leave).toHaveBeenCalled()
+    expect(mockNext).not.toHaveBeenCalled()
+  })
+
+  it('Шаг 0: должна запросить описание и перейти к следующему шагу', async () => {
+    typedMockedGetUserInfo.mockReturnValue({ userId: 'u2', telegramId: 't2' })
+    typedMockedGetLatestModel.mockResolvedValueOnce(mockUserModel)
+    typedMockedGetReferals.mockResolvedValueOnce({
+      count: 5,
+      level: 2,
+      subscriptionType: SubscriptionType.NEUROBASE,
+      userData: null,
+      isExist: true,
+    })
+    typedMockedHandleHelpCancel.mockResolvedValueOnce(false)
+    ctx = makeMockContext(
+      { update_id: 2 },
+      { userModel: mockUserModel, targetUserId: 't2' }
+    )
+    const mockTextMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 0,
+      chat: { id: 1, type: 'private', first_name: 'mock' },
+      text: 'mock',
+    }
+    ctx.reply = jest
+      .fn<(...args: any[]) => Promise<Message.TextMessage>>()
+      .mockResolvedValue(mockTextMessage)
+    ctx.scene.enter = jest
+      .fn<(...args: any[]) => Promise<unknown>>()
+      .mockResolvedValue(true)
+    ctx.scene.leave = jest
+      .fn<() => Promise<void>>()
+      .mockResolvedValue(undefined)
+    ctx.wizard.next = jest
+      .fn<() => WizardContextWizard<MyContext>>()
+      .mockReturnValue({ cursor: 1 } as any)
+    ctx.wizard.back = jest
+      .fn<() => WizardContextWizard<MyContext>>()
+      .mockReturnValue({ cursor: -1 } as any)
+    ctx.wizard.cursor = 0
+
+    await wizardMiddleware(ctx, mockNext)
+
+    expect(typedMockedGetLatestModel).toHaveBeenCalledWith('t2')
+    expect(typedMockedSendDescRequest).toHaveBeenCalledWith(
+      ctx,
+      true,
+      ModeEnum.NeuroPhoto
+    )
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
-  it('в кнопочном шаге переходит в improvePromptWizard на кнопку улучшить', async () => {
-    // @ts-ignore: override readonly properties for test
-    // @ts-ignore: override readonly properties for test
-    const ctx = makeMockContext({}, { message: { text: '⬆️ Улучшить промпт' } })
-    // @ts-ignore
-    const step = neuroPhotoWizard.steps[2]
-    await step(ctx)
+  // --- Тест Шага 1 --- (Примерно)
+  it('Шаг 1: генерит изображение и переходит к следующему шагу', async () => {
+    const mockUserFrom = {
+      id: 1,
+      is_bot: false,
+      first_name: 'TestUser',
+      language_code: 'ru',
+    }
+    ctx = makeMockContext(
+      {
+        update_id: 4,
+        message: {
+          text: 'hello',
+          from: mockUserFrom,
+          chat: { id: 1, type: 'private', first_name: 'User' },
+          date: 0,
+          message_id: 1,
+        },
+      },
+      { userModel: mockUserModel, targetUserId: 't4', prompt: 'hello' }
+    )
+    const mockTextMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 0,
+      chat: { id: 1, type: 'private', first_name: 'mock' },
+      text: 'mock',
+    }
+    ctx.reply = jest
+      .fn<(...args: any[]) => Promise<Message.TextMessage>>()
+      .mockResolvedValue(mockTextMessage)
+    ctx.scene.enter = jest
+      .fn<(...args: any[]) => Promise<unknown>>()
+      .mockResolvedValue(true)
+    ctx.scene.leave = jest
+      .fn<() => Promise<void>>()
+      .mockResolvedValue(undefined)
+    ctx.wizard.next = jest
+      .fn<() => WizardContextWizard<MyContext>>()
+      .mockReturnValue({ cursor: 1 } as any)
+    ctx.wizard.back = jest
+      .fn<() => WizardContextWizard<MyContext>>()
+      .mockReturnValue({ cursor: -1 } as any)
+    ctx.wizard.cursor = 1
+
+    typedMockedHandleHelpCancel.mockResolvedValueOnce(false)
+    await wizardMiddleware(ctx, mockNext)
+
+    expect(typedMockedGenerateImage).toHaveBeenCalled()
+    expect(ctx.wizard.next).toHaveBeenCalled()
+  })
+
+  // --- Тест Шага 2 --- (Примерно)
+  it('Шаг 2: переходит в improvePromptWizard на кнопку улучшить', async () => {
+    const improvePromptText = '⬆️ Улучшить промпт'
+    const mockUserFrom2 = {
+      id: 1,
+      is_bot: false,
+      first_name: 'TestUser',
+      language_code: 'ru',
+    }
+    ctx = makeMockContext(
+      {
+        update_id: 5,
+        message: {
+          text: improvePromptText,
+          from: mockUserFrom2,
+          chat: { id: 1, type: 'private', first_name: 'User' },
+          date: 0,
+          message_id: 2,
+        },
+      },
+      { userModel: mockUserModel, targetUserId: 't5' }
+    )
+    const mockTextMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 0,
+      chat: { id: 1, type: 'private', first_name: 'mock' },
+      text: 'mock',
+    }
+    ctx.reply = jest
+      .fn<(...args: any[]) => Promise<Message.TextMessage>>()
+      .mockResolvedValue(mockTextMessage)
+    ctx.scene.enter = jest
+      .fn<(...args: any[]) => Promise<unknown>>()
+      .mockResolvedValue(true)
+    ctx.scene.leave = jest
+      .fn<() => Promise<void>>()
+      .mockResolvedValue(undefined)
+    ctx.wizard.next = jest
+      .fn<() => WizardContextWizard<MyContext>>()
+      .mockReturnValue({ cursor: 1 } as any)
+    ctx.wizard.back = jest
+      .fn<() => WizardContextWizard<MyContext>>()
+      .mockReturnValue({ cursor: -1 } as any)
+    ctx.wizard.cursor = 2
+
+    await wizardMiddleware(ctx, mockNext)
     expect(ctx.scene.enter).toHaveBeenCalledWith('improvePromptWizard')
   })
 })

@@ -4,10 +4,7 @@ import { logger } from '@/utils/logger'
 
 const SUBSCRIBE_CHANNEL_ID = '@neuro_blogger_pulse'
 
-export const createUser = async (
-  userData: CreateUserData,
-  ctx: MyContext
-) => {
+export const createUser = async (userData: CreateUserData, ctx: MyContext) => {
   const { telegram_id, username, inviter } = userData
   const finalUsername = username || telegram_id.toString()
 
@@ -21,8 +18,7 @@ export const createUser = async (
 
   const { data, error } = await supabase
     .from('users')
-    .upsert(userData, {
-    })
+    .upsert(userData, {})
     .select()
 
   if (error) {
@@ -40,7 +36,8 @@ export const createUser = async (
       throw error
     }
     logger.info({
-      message: 'Пользователь уже существует, upsert вызвал ошибку конфликта (23505)',
+      message:
+        'Пользователь уже существует, upsert вызвал ошибку конфликта (23505)',
       telegramId: telegram_id,
       username: finalUsername,
       function: 'createUser',
@@ -53,7 +50,8 @@ export const createUser = async (
         .single()
       if (fetchError) {
         logger.error({
-          message: 'Ошибка при получении данных существующего пользователя после конфликта upsert',
+          message:
+            'Ошибка при получении данных существующего пользователя после конфликта upsert',
           telegramId: telegram_id,
           error: fetchError.message,
           function: 'createUser',
@@ -62,7 +60,6 @@ export const createUser = async (
       }
       return existingUserData
     }
-
   } else if (data && data.length > 0) {
     logger.info({
       message: 'Пользователь успешно создан/обновлен (upsert)',
@@ -71,7 +68,6 @@ export const createUser = async (
       returnedData: data[0],
       function: 'createUser',
     })
-
   } else {
     logger.warn({
       message: 'Upsert пользователя прошел без ошибки, но не вернул данные',

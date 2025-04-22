@@ -52,7 +52,9 @@ describe('sendPaymentInfo', () => {
     }
 
     const mockInsert = jest.fn().mockReturnThis()
-    const mockSelect = jest.fn().mockResolvedValue({ data: [{ id: 1 }], error: null })
+    const mockSelect = jest
+      .fn()
+      .mockResolvedValue({ data: [{ id: 1 }], error: null })
 
     mockSupabase.from = jest.fn().mockReturnValue({
       insert: mockInsert,
@@ -85,7 +87,9 @@ describe('sendPaymentInfo', () => {
     }
     const mockError = new Error('Insert failed')
 
-    const mockInsert = jest.fn().mockResolvedValue({ error: mockError, data: null })
+    const mockInsert = jest
+      .fn()
+      .mockResolvedValue({ error: mockError, data: null })
 
     mockSupabase.from = jest.fn().mockReturnValue({
       insert: mockInsert,
@@ -96,7 +100,9 @@ describe('sendPaymentInfo', () => {
     expect(mockSupabase.from).toHaveBeenCalledWith('payments')
     expect(mockInsert).toHaveBeenCalledWith([paymentInfo])
     expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining('❌ Ошибка при отправке информации о платеже в Supabase'),
+      expect.stringContaining(
+        '❌ Ошибка при отправке информации о платеже в Supabase'
+      ),
       expect.objectContaining({ error: mockError })
     )
   })

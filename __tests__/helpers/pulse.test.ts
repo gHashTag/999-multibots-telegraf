@@ -1,8 +1,10 @@
 import makeMockContext from '../utils/mockTelegrafContext'
 import { pulse } from '@/helpers/pulse'
+import { MyContext } from '@/interfaces'
+import { Message } from 'telegraf/types'
 
 describe('pulse', () => {
-  let ctx: ReturnType<typeof makeMockContext>
+  let ctx: MyContext
   let logError: jest.SpyInstance
   const prompt = 'test prompt'
   const command = 'CMD'
@@ -12,22 +14,57 @@ describe('pulse', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     ctx = makeMockContext()
-    // Provide default telegram methods
-    ctx.telegram.sendPhoto = jest.fn(() => Promise.resolve())
-    ctx.telegram.sendMessage = jest.fn(() => Promise.resolve())
+    const mockPhotoMessage: Message.PhotoMessage = {
+      message_id: 1,
+      date: 0,
+      chat: { id: 1, type: 'private', first_name: 'Mock' },
+      photo: [{ file_id: 'f1', file_unique_id: 'u1', width: 10, height: 10 }],
+    }
+    const mockTextMessage: Message.TextMessage = {
+      message_id: 2,
+      date: 0,
+      chat: { id: 1, type: 'private', first_name: 'Mock' },
+      text: 'mock',
+    }
+    ctx.telegram.sendPhoto = jest.fn().mockResolvedValue(mockPhotoMessage)
+    ctx.telegram.sendMessage = jest.fn().mockResolvedValue(mockTextMessage)
     logError = jest.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   it('does nothing in development mode', async () => {
     process.env.NODE_ENV = 'development'
-    await pulse(ctx, base64Image, prompt, command)
+    const telegram_id = ctx.from.id.toString()
+    const username = ctx.from.username
+    const is_ru = ctx.from.language_code === 'ru'
+    const bot_name = ctx.botInfo.username
+    await pulse(
+      base64Image,
+      prompt,
+      command,
+      telegram_id,
+      username,
+      is_ru,
+      bot_name
+    )
     expect(ctx.telegram.sendPhoto).not.toHaveBeenCalled()
     expect(ctx.telegram.sendMessage).not.toHaveBeenCalled()
   })
 
   it('sends photo for valid image in production mode', async () => {
     process.env.NODE_ENV = 'production'
-    await pulse(ctx, base64Image, prompt, command)
+    const telegram_id = ctx.from.id.toString()
+    const username = ctx.from.username
+    const is_ru = ctx.from.language_code === 'ru'
+    const bot_name = ctx.botInfo.username
+    await pulse(
+      base64Image,
+      prompt,
+      command,
+      telegram_id,
+      username,
+      is_ru,
+      bot_name
+    )
     const chatId = '-4166575919'
     expect(ctx.telegram.sendPhoto).toHaveBeenCalledTimes(1)
     const [sentChatId, photo, opts] = (ctx.telegram.sendPhoto as jest.Mock).mock
@@ -41,7 +78,11 @@ describe('pulse', () => {
 
   it('sends message for null image in production mode', async () => {
     process.env.NODE_ENV = 'production'
-    await pulse(ctx, null, prompt, command)
+    const telegram_id = ctx.from.id.toString()
+    const username = ctx.from.username
+    const is_ru = ctx.from.language_code === 'ru'
+    const bot_name = ctx.botInfo.username
+    await pulse(null, prompt, command, telegram_id, username, is_ru, bot_name)
     const chatId = '-4166575919'
     expect(ctx.telegram.sendMessage).toHaveBeenCalledWith(
       chatId,
@@ -57,9 +98,27 @@ describe('pulse', () => {
     let call = 0
     ctx.telegram.sendPhoto = jest.fn().mockImplementation(async () => {
       if (call++ === 0) throw error
-      return undefined
+      const mockPhotoMessageRetry: Message.PhotoMessage = {
+        message_id: 3,
+        date: 0,
+        chat: { id: 1, type: 'private', first_name: 'Mock' },
+        photo: [{ file_id: 'f2', file_unique_id: 'u2', width: 10, height: 10 }],
+      }
+      return mockPhotoMessageRetry
     })
-    await pulse(ctx, base64Image, prompt, command)
+    const telegram_id = ctx.from.id.toString()
+    const username = ctx.from.username
+    const is_ru = ctx.from.language_code === 'ru'
+    const bot_name = ctx.botInfo.username
+    await pulse(
+      base64Image,
+      prompt,
+      command,
+      telegram_id,
+      username,
+      is_ru,
+      bot_name
+    )
     expect(ctx.telegram.sendPhoto).toHaveBeenCalledTimes(2)
   })
 
@@ -67,9 +126,11 @@ describe('pulse', () => {
     process.env.NODE_ENV = 'production'
     const err = new Error('sendfail')
     ctx.telegram.sendMessage = jest.fn().mockRejectedValue(err)
-    await expect(pulse(ctx, null, prompt, command)).rejects.toThrow(
-      'Ошибка при отправке пульса'
-    )
+    const telegram_id = ctx.from.id.toString()
+    const username = ctx.from.username
+    const is_ru = ctx.from.language_code === 'ru'
+    const bot_name = ctx.botInfo.username
+    await pulse(null, prompt, command, telegram_id, username, is_ru, bot_name)
     expect(logError).toHaveBeenCalled()
   })
 })

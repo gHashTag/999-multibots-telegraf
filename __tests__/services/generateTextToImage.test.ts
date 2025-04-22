@@ -1,17 +1,20 @@
 import { generateTextToImage } from '@/services/generateTextToImage'
 import { logger } from '@/utils/logger'
+import { MyContext } from '@/interfaces'
+import makeMockContext from '../utils/mockTelegrafContext'
 
 describe('generateTextToImage', () => {
-  let ctx: any
+  let ctx: MyContext
   let infoSpy: jest.SpyInstance
-  let replySpy: jest.SpyInstance
 
   beforeEach(() => {
     jest.resetModules()
-    // Spy on logger.info
-    infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => {})
-    // Mock ctx.reply
-    ctx = { reply: jest.fn() }
+    // Spy on logger.info и возвращаем logger для корректной типизации
+    infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => logger)
+    // Используем makeMockContext
+    ctx = makeMockContext()
+    // ctx.reply уже мокается в makeMockContext
+    // ctx = { reply: jest.fn() }
   })
 
   afterEach(() => {

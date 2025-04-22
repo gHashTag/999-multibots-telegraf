@@ -33,7 +33,9 @@ describe('getLatestUserModel', () => {
     // Mock the chain of Supabase calls
     const selectMock = jest.fn().mockReturnThis()
     const eqMock = jest.fn().mockReturnThis()
-    const orderMock = jest.fn().mockResolvedValue({ data: mockModels, error: null })
+    const orderMock = jest
+      .fn()
+      .mockResolvedValue({ data: mockModels, error: null })
 
     mockSupabase.from = jest.fn().mockReturnValue({
       select: selectMock,
@@ -80,7 +82,9 @@ describe('getLatestUserModel', () => {
     // Mock the chain of Supabase calls to return an error
     const selectMock = jest.fn().mockReturnThis()
     const eqMock = jest.fn().mockReturnThis()
-    const orderMock = jest.fn().mockResolvedValue({ data: null, error: mockError })
+    const orderMock = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: mockError })
 
     mockSupabase.from = jest.fn().mockReturnValue({
       select: selectMock,

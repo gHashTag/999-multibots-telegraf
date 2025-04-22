@@ -6,7 +6,7 @@ import { generateImageToPrompt } from '@/services/generateImageToPrompt'
 import { getBotToken } from '@/handlers'
 import { Composer } from 'telegraf'
 import { jest, describe, it, expect, beforeEach } from '@jest/globals'
-import { MySession } from '@/interfaces'
+import { MyContext, MySession } from '@/interfaces'
 import { User } from 'telegraf/typings/core/types/typegram'
 import { URL } from 'url'
 
@@ -30,61 +30,38 @@ const mockedGetToken = getBotToken as jest.Mock<() => [string, string] | null>
 const mockedIsRussian = isRussian as jest.Mock<() => boolean>
 
 describe('imageToPromptWizard steps', () => {
-  let ctx: ReturnType<typeof makeMockContext>
+  let ctx: MyContext
   const steps = Composer.unwrap(imageToPromptWizard.middleware())
   const step0 = steps[0]
   const step1 = steps[1]
-  const mockNext = (): Promise<void> => Promise.resolve()
+  const mockNext = jest.fn()
   const mockFrom: User = {
     id: 12345,
     is_bot: false,
     first_name: 'Test',
     language_code: 'en',
   }
-  const createMockSession = (
-    overrides: Partial<MySession> = {}
-  ): MySession => ({
-    selectedPayment: null,
-    cursor: 0,
-    images: [],
-    targetUserId: '',
-    userModel: null,
-    email: null,
-    mode: null,
-    prompt: null,
-    imageUrl: null,
-    videoModel: null,
-    paymentAmount: null,
-    subscription: null,
-    neuroPhotoInitialized: false,
-    bypass_payment_check: false,
-    videoUrl: undefined,
-    audioUrl: undefined,
-    inviteCode: undefined,
-    inviter: undefined,
-    subscriptionStep: undefined,
-    memory: undefined,
-    attempts: undefined,
-    amount: undefined,
-    selectedModel: undefined,
-    modelName: undefined,
-    username: undefined,
-    triggerWord: undefined,
-    steps: undefined,
-    translations: undefined,
-    buttons: undefined,
-    selectedSize: undefined,
-    ...overrides,
-  })
 
   beforeEach(() => {
     jest.clearAllMocks()
     mockedIsRussian.mockReturnValue(false)
+    mockNext.mockClear()
   })
 
   it('step0: leaves scene if cancelled', async () => {
-    const sessionData = createMockSession()
-    ctx = makeMockContext({ message: { from: mockFrom } }, sessionData)
+    ctx = makeMockContext({
+      update_id: 1,
+      message: {
+        from: mockFrom,
+        message_id: 1,
+        date: Date.now(),
+        chat: {
+          id: mockFrom.id,
+          type: 'private',
+          first_name: mockFrom.first_name,
+        },
+      },
+    })
     mockedHandleCancel.mockResolvedValueOnce(true)
 
     await step0(ctx, mockNext)
@@ -93,8 +70,19 @@ describe('imageToPromptWizard steps', () => {
   })
 
   it('step0: prompts and advances wizard', async () => {
-    const sessionData = createMockSession()
-    ctx = makeMockContext({ message: { from: mockFrom } }, sessionData)
+    ctx = makeMockContext({
+      update_id: 2,
+      message: {
+        from: mockFrom,
+        message_id: 2,
+        date: Date.now(),
+        chat: {
+          id: mockFrom.id,
+          type: 'private',
+          first_name: mockFrom.first_name,
+        },
+      },
+    })
     mockedHandleCancel.mockResolvedValueOnce(false)
     const keyboard = { reply_markup: { foo: 'bar' } }
     mockedCreateKb.mockReturnValueOnce(keyboard)
@@ -109,8 +97,19 @@ describe('imageToPromptWizard steps', () => {
   })
 
   it('step1: no message replies error help', async () => {
-    const sessionData = createMockSession()
-    ctx = makeMockContext({ message: { from: mockFrom } }, sessionData)
+    ctx = makeMockContext({
+      update_id: 3,
+      message: {
+        from: mockFrom,
+        message_id: 3,
+        date: Date.now(),
+        chat: {
+          id: mockFrom.id,
+          type: 'private',
+          first_name: mockFrom.first_name,
+        },
+      },
+    })
     mockedHandleCancel.mockResolvedValueOnce(false)
     const keyboard = { reply_markup: { foo: 'bar' } }
     mockedCreateKb.mockReturnValueOnce(keyboard)
@@ -123,37 +122,58 @@ describe('imageToPromptWizard steps', () => {
   })
 
   it('step1: leaves if cancelled', async () => {
-    const msgCtx = makeMockContext({}, { message: { text: 'foo' } })
-    ;(handleHelpCancel as jest.Mock).mockResolvedValueOnce(true)
-    // @ts-ignore
-    const step1 = imageToPromptWizard.steps[1]
-    await step1(msgCtx)
-    expect(msgCtx.scene.leave).toHaveBeenCalled()
+    ctx = makeMockContext({
+      update_id: 4,
+      message: {
+        text: 'cancel',
+        from: mockFrom,
+        message_id: 4,
+        date: Date.now(),
+        chat: {
+          id: mockFrom.id,
+          type: 'private',
+          first_name: mockFrom.first_name,
+        },
+      },
+    })
+    mockedHandleCancel.mockResolvedValueOnce(true)
+    await step1(ctx, mockNext)
+    expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
   it('step1: processes photo and generates prompt', async () => {
-    ;(handleHelpCancel as jest.Mock).mockResolvedValue(false)
-    ;(getBotToken as jest.Mock).mockResolvedValueOnce(['tok', 'botName'])
-    ;(getBotToken as jest.Mock).mockResolvedValueOnce(['tok', 'botName'])
-    const ctx = makeMockContext(
-      {},
-      {
-        message: { photo: [{ file_id: 'fid1' }, { file_id: 'fid2' }] },
-      }
-    )
-    // mock getFileLink
+    mockedHandleCancel.mockResolvedValue(false)
+    const botName = 'testBotName'
+    mockedGetToken.mockReturnValueOnce(['tok', botName])
+    ctx = makeMockContext({
+      update_id: 1002,
+      message: {
+        photo: [
+          { file_id: 'fid1', file_unique_id: 'uid1', width: 100, height: 100 },
+          { file_id: 'fid2', file_unique_id: 'uid2', width: 200, height: 200 },
+        ],
+        from: mockFrom,
+        date: Date.now(),
+        message_id: 125,
+        chat: {
+          id: mockFrom.id,
+          type: 'private',
+          first_name: mockFrom.first_name,
+        },
+      },
+    })
     ctx.telegram.getFileLink = jest
-      .fn()
+      .fn<(fileId: string) => Promise<{ href: string }>>()
       .mockResolvedValue({ href: 'http://file.jpg' })
-    // @ts-ignore
-    const step1 = imageToPromptWizard.steps[1]
-    await step1(ctx)
+
+    await step1(ctx, mockNext)
+
     expect(generateImageToPrompt).toHaveBeenCalledWith(
       'http://file.jpg',
-      '12345',
+      String(mockFrom.id),
       ctx,
-      true,
-      'botName'
+      false,
+      botName
     )
     expect(ctx.scene.leave).toHaveBeenCalled()
   })

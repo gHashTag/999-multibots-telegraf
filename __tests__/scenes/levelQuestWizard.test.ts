@@ -6,6 +6,8 @@ import {
   step0Scene,
   completeScene,
 } from '../../src/scenes/levelQuestWizard/index'
+import { MyContext } from '@/interfaces'
+import { Composer } from 'telegraf'
 
 // Mock dependencies
 jest.mock('../../src/scenes/levelQuestWizard/handlers', () => ({
@@ -21,17 +23,27 @@ import {
 import { isRussian } from '@/helpers'
 
 describe('levelQuestWizard - step0Scene', () => {
-  let ctx: ReturnType<typeof makeMockContext>
+  let ctx: MyContext
+  const step0Middleware = step0Scene.middleware()
+  const next = jest.fn()
+
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = makeMockContext()
-    ctx.from.language_code = 'ru'
+    next.mockClear()
   })
 
   it('enter: calls handler and replies with continue prompt', async () => {
+    ctx = makeMockContext({
+      update_id: 1,
+      message: {
+        from: { id: 1, language_code: 'ru', is_bot: false, first_name: 'Test' },
+        chat: { id: 1, type: 'private', first_name: 'Test' },
+        date: 0,
+        message_id: 1,
+      },
+    })
     ;(isRussian as jest.Mock).mockReturnValueOnce(true)
-    // @ts-ignore
-    await step0Scene.enterHandler(ctx)
+    await step0Middleware(ctx, next)
     expect(handleQuestRules).toHaveBeenCalledWith(ctx)
     expect(ctx.reply).toHaveBeenCalledWith(
       'Нажмите "➡️ Далее шаг 1", чтобы продолжить.',
@@ -40,26 +52,35 @@ describe('levelQuestWizard - step0Scene', () => {
   })
 
   it('hears nextStep navigates to step1', async () => {
-    // @ts-ignore
-    const hear = step0Scene.middleware()
-    await ctx.match('➡️ Далее шаг 1')
-    // simulate hears
-    // @ts-ignore
-    await step0Scene.hearsHandlers[0][1](ctx)
+    const messageText = '➡️ Далее шаг 1'
+    ctx = makeMockContext({
+      update_id: 2,
+      message: {
+        text: messageText,
+        from: { id: 1, language_code: 'ru', is_bot: false, first_name: 'Test' },
+        chat: { id: 1, type: 'private', first_name: 'Test' },
+        date: 0,
+        message_id: 2,
+      },
+    })
+    await step0Middleware(ctx, next)
     expect(ctx.scene.enter).toHaveBeenCalledWith('step1')
   })
 })
 
 describe('levelQuestWizard - completeScene', () => {
-  let ctx: ReturnType<typeof makeMockContext>
+  let ctx: MyContext
+  const completeMiddleware = completeScene.middleware()
+  const next = jest.fn()
+
   beforeEach(() => {
     jest.clearAllMocks()
+    next.mockClear()
     ctx = makeMockContext()
   })
 
   it('enter: calls complete handler and enters menuScene', async () => {
-    // @ts-ignore
-    await completeScene.enterHandler(ctx)
+    await completeMiddleware(ctx, next)
     expect(handleQuestComplete).toHaveBeenCalledWith(ctx)
     expect(ctx.scene.enter).toHaveBeenCalledWith('menuScene')
   })

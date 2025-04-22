@@ -35,30 +35,23 @@ export const processBalanceOperation = async ({
       }
     }
 
-    // Рассчитываем новый баланс
-    const newBalance = Number(currentBalance) - Number(paymentAmount)
+    // Рассчитываем сумму для списания (отрицательное значение)
+    const amountToUpdate = -paymentAmount
 
-    // Обновляем баланс в БД, передавая все необходимые аргументы
-    const updateSuccess = await updateUserBalance(
+    // Обновляем баланс в БД, передавая только telegramId и сумму изменения
+    const newBalance = await updateUserBalance(
       telegram_id.toString(),
-      paymentAmount,
-      'money_outcome',
-      'Payment operation',
-      {
-        bot_name: ctx.botInfo?.username,
-        service_type: ctx.session.mode,
-        modePrice: paymentAmount,
-        currentBalance: currentBalance,
-      }
+      amountToUpdate // Передаем отрицательное значение для списания
     )
 
-    if (!updateSuccess) {
+    // Проверяем результат updateUserBalance (возвращает null при ошибке)
+    if (newBalance === null) {
       // Обработка ошибки обновления баланса
       const message = is_ru
         ? 'Ошибка обновления баланса.'
         : 'Error updating balance.'
       return {
-        newBalance: currentBalance,
+        newBalance: currentBalance, // Возвращаем старый баланс
         success: false,
         error: message,
         modePrice: paymentAmount,
@@ -67,12 +60,13 @@ export const processBalanceOperation = async ({
       }
     }
 
+    // Если newBalance не null, значит обновление прошло успешно
     return {
-      newBalance,
+      newBalance, // Возвращаем новый баланс из updateUserBalance
       success: true,
       modePrice: paymentAmount,
       paymentAmount: paymentAmount,
-      currentBalance,
+      currentBalance, // Старый баланс до операции
     }
   } catch (error) {
     console.error('Error in processBalanceOperation:', error)

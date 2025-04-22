@@ -1,4 +1,6 @@
 import makeMockContext from '../utils/mockTelegrafContext'
+import { Scenes } from 'telegraf'
+import { MyContext } from '@/interfaces'
 
 // Mock axios and dependencies
 const fakeGet = jest.fn()
@@ -11,15 +13,36 @@ import { refundUser } from '@/price/helpers'
 import { sendGenericErrorMessage } from '@/menu'
 
 import { cancelPredictionsWizard } from '@/scenes/cancelPredictionsWizard'
-const step = cancelPredictionsWizard.steps[0]
+// Убираем Composer.unwrap и steps
+// const steps = Composer.unwrap(cancelPredictionsWizard.middleware())
+// const step0 = steps[0]
+
+// Получаем middleware напрямую
+const wizardMiddleware = cancelPredictionsWizard.middleware()
 
 describe('cancelPredictionsWizard', () => {
-  let ctx: any
+  let ctx: MyContext
+  const mockNext = jest.fn()
+
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = makeMockContext()
-    ctx.session.prompt = 'match'
-    ctx.session.paymentAmount = 50
+    mockNext.mockClear()
+    ctx = makeMockContext(
+      { update_id: 1 },
+      {
+        prompt: 'match',
+        paymentAmount: 50,
+        userModel: {
+          model_name: '',
+          trigger_word: '',
+          model_url: 'placeholder/placeholder:placeholder',
+        },
+        targetUserId: '123',
+      }
+    )
+    ctx.scene.leave = jest.fn()
+    // Добавим reply, так как он используется
+    ctx.reply = jest.fn()
   })
 
   test('cancels matching predictions and refunds', async () => {
@@ -45,17 +68,18 @@ describe('cancelPredictionsWizard', () => {
     ]
     fakeGet.mockResolvedValue({ data: { results: preds } })
     fakePost.mockResolvedValue({})
-    await step(ctx)
-    // Should cancel only id '1'
+    // Вызываем middleware
+    await wizardMiddleware(ctx, mockNext)
     expect(fakePost).toHaveBeenCalledWith('url1', {}, expect.any(Object))
     expect(ctx.reply).toHaveBeenCalledWith('Запрос с ID: 1 успешно отменен.')
-    expect(refundUser).toHaveBeenCalledWith(ctx, 50)
+    expect(refundUser).toHaveBeenCalledWith(ctx, 50) // refundUser теперь принимает ctx и amount
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
   test('handles error and sends generic error message', async () => {
     fakeGet.mockRejectedValue(new Error('fail'))
-    await step(ctx)
+    // Вызываем middleware
+    await wizardMiddleware(ctx, mockNext)
     expect(sendGenericErrorMessage).toHaveBeenCalledWith(
       ctx,
       true,

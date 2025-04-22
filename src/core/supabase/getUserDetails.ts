@@ -21,7 +21,8 @@ import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { getUserBalance } from './getUserBalance'
 // Импорт интерфейса (убедись, что он не содержит level)
 
-interface UserDetailsResult {
+// Export the interface
+export interface UserDetailsResult {
   stars: number
   subscriptionType: SubscriptionType | null
   isSubscriptionActive: boolean

@@ -71,10 +71,26 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
             : `Request with ID: ${prediction.id} successfully cancelled.`
         )
 
-        if (ctx.from) {
-          const paymentAmount = ctx.session.paymentAmount
-          console.log('paymentAmount', paymentAmount)
-          await refundUser(ctx, paymentAmount)
+        if (ctx.from && ctx.session.paymentAmount && ctx.botInfo) {
+          const refundAmount = ctx.session.paymentAmount
+          const telegramId = ctx.from.id
+          const botName = ctx.botInfo.username
+          console.log(
+            'Refunding amount:',
+            refundAmount,
+            'for user:',
+            telegramId
+          )
+          await refundUser(ctx, telegramId, refundAmount, botName)
+        } else {
+          console.warn(
+            'Could not refund: missing ctx.from, paymentAmount or botInfo',
+            {
+              hasFrom: !!ctx.from,
+              hasPaymentAmount: !!ctx.session.paymentAmount,
+              hasBotInfo: !!ctx.botInfo,
+            }
+          )
         }
       }
       return ctx.scene.leave()

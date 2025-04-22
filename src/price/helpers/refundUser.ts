@@ -1,84 +1,81 @@
-import { MyContext } from '@/interfaces'
-import { getUserBalance, getReferalsCountAndUserData } from '@/core/supabase'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { mainMenu } from '@/menu'
+import { BalanceOperationResult } from '@/interfaces'
+import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/logger'
 
-export async function refundUser(ctx: MyContext, paymentAmount: number) {
-  if (!ctx.from) {
-    console.error('refundUser: ctx.from is undefined')
-    return
-  }
-  const telegramIdStr = ctx.from.id.toString()
-  const amountToRefund = Number(paymentAmount)
-
-  const initialBalance = await getUserBalance(telegramIdStr)
-
-  if (initialBalance === null) {
-    console.error(
-      `refundUser: Failed to get initial balance for ${telegramIdStr}`
-    )
-    return
-  }
-
-  // Добавляем bot_name
-  const bot_name = ctx.botInfo?.username || 'unknown_bot'
-
-  const transactionResult = await updateUserBalance(
-    telegramIdStr,
-    amountToRefund,
-    'money_income',
-    'Refund for cancelled generation',
-    { bot_name: bot_name }
-  )
-
-  // Проверяем булевый результат напрямую
-  if (!transactionResult) {
-    console.error(
-      `refundUser: Failed to update balance for ${telegramIdStr}. Update function returned false.`
-    )
-    await ctx.reply(
-      ctx.from.language_code === 'ru'
-        ? 'Не удалось вернуть средства. Обратитесь в поддержку.'
-        : 'Failed to refund. Please contact support.'
-    )
-    return
-  }
-
-  const newBalance = await getUserBalance(telegramIdStr)
-
-  if (newBalance === null) {
-    console.error(
-      `refundUser: Failed to get new balance for ${telegramIdStr} after refund`
-    )
-  }
-
-  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
-    telegramIdStr
-  )
-
-  const isRu = ctx.from.language_code === 'ru'
-
-  const displayBalance =
-    newBalance !== null ? newBalance : initialBalance + amountToRefund
-
-  await ctx.reply(
-    `${
-      isRu
-        ? 'Возвращено звезд за отмененную генерацию'
-        : 'Stars refunded for cancelled generation'
-    }: ${amountToRefund.toFixed(2)} ⭐️\n${
-      isRu ? 'Текущий баланс' : 'Current balance'
-    }: ${displayBalance.toFixed(2)} ⭐️`,
-    {
-      reply_markup: (
-        await mainMenu({
-          isRu,
-          inviteCount: count,
-          subscription: subscriptionType,
-          level,
-          ctx,
-        })
-      ).reply_markup,
+/**
+ * Processes a refund operation for a user.
+ * @param ctx The context object.
+ * @param telegram_id The user's Telegram ID.
+ * @param refundAmount The amount to refund (should be positive).
+ * @param bot_name The name of the bot initiating the refund.
+ * @returns Promise<BalanceOperationResult>
+ */
+export const refundUser = async (
+  ctx: MyContext,
+  telegram_id: number,
+  refundAmount: number,
+  bot_name: string
+): Promise<BalanceOperationResult> => {
+  try {
+    // Validate refund amount
+    if (refundAmount <= 0) {
+      logger.warn('Attempted to refund non-positive amount:', { refundAmount })
+      return {
+        success: false,
+        error: 'Refund amount must be positive',
+        newBalance: await getUserBalance(telegram_id.toString()),
+        paymentAmount: 0,
+        modePrice: 0,
+      }
     }
-  )
+
+    const currentBalance = await getUserBalance(telegram_id.toString())
+
+    // Update user balance by adding the refund amount
+    const newBalance = await updateUserBalance(
+      telegram_id.toString(),
+      refundAmount // Передаем положительную сумму для возврата
+    )
+
+    // Проверяем результат updateUserBalance
+    if (newBalance === null) {
+      logger.error('Failed to update balance during refund for user:', {
+        telegram_id,
+      })
+      return {
+        success: false,
+        error: 'Failed to update balance',
+        newBalance: currentBalance,
+        paymentAmount: refundAmount,
+        modePrice: refundAmount,
+      }
+    }
+
+    logger.info('Refund processed successfully:', {
+      telegram_id,
+      refundAmount,
+      newBalance,
+    })
+
+    return {
+      success: true,
+      newBalance,
+      paymentAmount: refundAmount,
+      modePrice: refundAmount,
+    }
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown refund error'
+    logger.error('Error processing refund:', { error: errorMessage })
+    const currentBalance = await getUserBalance(telegram_id.toString())
+    return {
+      success: false,
+      error: errorMessage,
+      newBalance: currentBalance,
+      paymentAmount: refundAmount,
+      modePrice: refundAmount,
+    }
+  }
 }

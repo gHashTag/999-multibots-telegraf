@@ -1,7 +1,10 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals'
+import 'jest-extended'
+import 'jest-fail-on-console'
 
 // Импортируем типы для реального модуля
 import type * as LoggerTypes from '../../src/utils/logger'
+import { MyContext } from '@/interfaces'
 
 // Полностью мокаем модуль логгера
 jest.mock('@/utils/logger', () => ({
@@ -44,7 +47,10 @@ const mockedSecurityLogger = securityLogger as jest.Mocked<
   typeof securityLogger
 >
 
-describe.skip('botLogger', () => {
+describe('botLogger', () => {
+  let mockCtx: Partial<MyContext>
+  const originalConsoleLog = console.log // Сохраняем оригинальный console.log
+
   beforeEach(() => {
     // Очищаем вызовы моков перед каждым тестом
     jest.clearAllMocks()

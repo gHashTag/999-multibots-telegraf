@@ -150,17 +150,41 @@ export async function handleRobokassaResult(
     let notificationMessage = 'Платеж успешно обработан!' // Базовое сообщение
     try {
       if (payment.type === 'BALANCE_TOPUP') {
-        await updateUserBalance(
+        // Correct call to updateUserBalance with only 2 arguments
+        const newBalance = await updateUserBalance(
           telegramId,
-          payment.stars || payment.amount,
-          'money_income',
-          `Пополнение баланса через Robokassa (ID: ${payment.id})`,
-          { payment_id: payment.id }
+          payment.stars || payment.amount // Use stars if available, otherwise amount
         )
-        notificationMessage = `✅ Баланс пополнен на ${
-          payment.stars || payment.amount
-        } звезд.
-Спасибо за покупку!`
+
+        if (newBalance !== null) {
+          // Log transaction details separately if needed
+          logger.info(
+            `[Robokassa Result] Balance top-up processed successfully`,
+            {
+              invId,
+              telegramId,
+              amount: payment.stars || payment.amount,
+              newBalance,
+              payment_id: payment.id,
+              transactionType: 'money_income',
+              description: `Пополнение баланса через Robokassa (ID: ${payment.id})`,
+            }
+          )
+          notificationMessage = `✅ Баланс пополнен на ${
+            payment.stars || payment.amount
+          } звезд.\nТекущий баланс: ${newBalance} ⭐️\nСпасибо за покупку!`
+        } else {
+          logger.error(
+            `[Robokassa Result] Failed to update balance after successful payment`,
+            {
+              invId,
+              telegramId,
+              amount: payment.stars || payment.amount,
+              payment_id: payment.id,
+            }
+          )
+          notificationMessage = `⚠️ Произошла ошибка при обновлении вашего баланса после успешной оплаты. Пожалуйста, обратитесь в поддержку, указав ID платежа: ${invId}.`
+        }
       } else if (payment.type === 'SUBSCRIPTION_PURCHASE') {
         // Логика обновления подписки
         // await updateUserSubscription(telegramId, payment.subscription_details)

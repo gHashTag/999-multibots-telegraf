@@ -154,6 +154,7 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   mode?: ModeEnum
   neuroPhotoInitialized?: boolean
   subscription?: SubscriptionType
+  subscriptionData?: { type: SubscriptionType; status: string }
   selectedSize?: string
   bypass_payment_check?: boolean
   images: BufferType
@@ -196,6 +197,7 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   memory?: Memory
   attempts?: number
   amount?: number
+  balance?: number
 }
 
 export interface MyContext extends Context {

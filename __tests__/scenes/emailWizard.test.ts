@@ -53,19 +53,28 @@ describe('emailWizard', () => {
     it('should save email and show payment options (RU)', async () => {
       mockedIsRussian.mockReturnValueOnce(true)
       mockedSaveUserEmail.mockResolvedValueOnce(undefined)
-      const ctx = makeMockContext()
-      ctx.message = { text: 'user@example.com', date: Date.now(), message_id: 123, chat: { id: 1, type: 'private' } }
-      ctx.updateType = 'message'
+      const ctx = makeMockContext({
+        update_id: 1000,
+        message: {
+          from: { id: 1, is_bot: false, first_name: 'Test' },
+          text: 'user@example.com',
+          date: Date.now(),
+          message_id: 123,
+          chat: { id: 1, type: 'private', first_name: 'Test' },
+        },
+      })
 
       const middleware = emailWizard.middleware()
       await middleware(ctx, jest.fn())
 
-      expect(mockedSaveUserEmail).toHaveBeenCalledWith(ctx.from?.id.toString(), 'user@example.com')
+      expect(mockedSaveUserEmail).toHaveBeenCalledWith('1', 'user@example.com')
       expect(ctx.session.email).toBe('user@example.com')
       expect(ctx.reply).toHaveBeenCalledTimes(2)
       expect(ctx.reply).toHaveBeenCalledWith(
         expect.stringContaining('Ваш e-mail успешно сохранен'),
-        expect.objectContaining({ reply_markup: expect.objectContaining({ remove_keyboard: true }) })
+        expect.objectContaining({
+          reply_markup: expect.objectContaining({ remove_keyboard: true }),
+        })
       )
       expect(ctx.reply).toHaveBeenCalledWith(
         expect.stringContaining('Выберите сумму'),
@@ -76,18 +85,26 @@ describe('emailWizard', () => {
     it('should handle save error (EN)', async () => {
       mockedIsRussian.mockReturnValueOnce(false)
       mockedSaveUserEmail.mockRejectedValueOnce(new Error('DB fail'))
-      const ctx = makeMockContext()
-      ctx.message = { text: 'a@b.com', date: Date.now(), message_id: 124, chat: { id: 1, type: 'private' } }
-      ctx.updateType = 'message'
+      const ctx = makeMockContext({
+        update_id: 1001,
+        message: {
+          from: { id: 1, is_bot: false, first_name: 'Test' },
+          text: 'a@b.com',
+          date: Date.now(),
+          message_id: 124,
+          chat: { id: 1, type: 'private', first_name: 'Test' },
+        },
+      })
 
       const middleware = emailWizard.middleware()
       await middleware(ctx, jest.fn())
 
-      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('Error saving e-mail'))
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('Error saving e-mail')
+      )
     })
   })
 
   // TODO: Добавить тесты для .on('text', ...) - обработки выбора суммы
   // describe('.on('text') - Amount Selection', () => { ... })
-
 })

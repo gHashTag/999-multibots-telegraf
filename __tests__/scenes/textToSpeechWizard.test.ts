@@ -38,7 +38,8 @@ describe('textToSpeechWizard', () => {
 
   // Step 1: Enter handler
   it('step 1: should prompt for text', async () => {
-    const step1Handler = textToSpeechWizard.steps[0] as MiddlewareFn<MyWizardContext>
+    const step1Handler = textToSpeechWizard
+      .steps[0] as MiddlewareFn<MyWizardContext>
     await step1Handler(mockCtx, next)
 
     expect(mockCtx.reply).toHaveBeenCalledWith(
@@ -57,7 +58,8 @@ describe('textToSpeechWizard', () => {
     mockedGenerateTextToSpeech.mockResolvedValue('http://audio.url/result.mp3')
     mockedProcessServiceBalanceOperation.mockResolvedValue(true)
 
-    const step2Handler = textToSpeechWizard.steps[1] as MiddlewareFn<MyWizardContext>
+    const step2Handler = textToSpeechWizard
+      .steps[1] as MiddlewareFn<MyWizardContext>
     await step2Handler(mockCtx, next)
 
     // Check balance operation
@@ -89,7 +91,8 @@ describe('textToSpeechWizard', () => {
     // Mock balance failure
     mockedProcessServiceBalanceOperation.mockResolvedValue(false)
 
-    const step2Handler = textToSpeechWizard.steps[1] as MiddlewareFn<MyWizardContext>
+    const step2Handler = textToSpeechWizard
+      .steps[1] as MiddlewareFn<MyWizardContext>
     await step2Handler(mockCtx, next)
 
     expect(mockedProcessServiceBalanceOperation).toHaveBeenCalledTimes(1)
@@ -105,10 +108,13 @@ describe('textToSpeechWizard', () => {
 
     // Mock successful balance, failed generation
     mockedProcessServiceBalanceOperation.mockResolvedValue(true)
-    mockedGenerateTextToSpeech.mockRejectedValue(new Error('Generation API failed'))
+    mockedGenerateTextToSpeech.mockRejectedValue(
+      new Error('Generation API failed')
+    )
     const loggerSpy = jest.spyOn(logger, 'error').mockImplementation(() => {})
 
-    const step2Handler = textToSpeechWizard.steps[1] as MiddlewareFn<MyWizardContext>
+    const step2Handler = textToSpeechWizard
+      .steps[1] as MiddlewareFn<MyWizardContext>
     await step2Handler(mockCtx, next)
 
     expect(mockedProcessServiceBalanceOperation).toHaveBeenCalledTimes(1)
@@ -129,7 +135,8 @@ describe('textToSpeechWizard', () => {
     mockCtx.message = { ...mockCtx.message, photo: [{ file_id: 'photo_id' }] }
     mockCtx.updateType = 'message'
 
-    const step2Handler = textToSpeechWizard.steps[1] as MiddlewareFn<MyWizardContext>
+    const step2Handler = textToSpeechWizard
+      .steps[1] as MiddlewareFn<MyWizardContext>
     await step2Handler(mockCtx, next)
 
     expect(mockCtx.reply).toHaveBeenCalledWith(

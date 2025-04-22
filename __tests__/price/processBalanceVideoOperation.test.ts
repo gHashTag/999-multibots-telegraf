@@ -1,18 +1,20 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import {
   processBalanceVideoOperation,
-  ProcessBalanceResult,
   VIDEO_MODELS,
 } from '@/price/helpers/processBalanceVideoOperation'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { reduceBalance } from '@/core/supabase/reduceBalance'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
-import { VideoModel, BalanceOperationResult, User } from '@/interfaces'
-import { MyContext } from '@/interfaces'
+import {
+  VideoModel,
+  BalanceOperationResult,
+  UserType,
+  MyContext,
+} from '@/interfaces'
 import { makeMockContext } from '../utils/makeMockContext'
 import { logger } from '@/utils/logger'
 import { sendBalanceMessage } from '@/price/helpers/sendBalanceMessage'
-import { mockBotInfo } from '../fixtures/botInfo'
 
 // Mock dependencies
 jest.mock('@/utils/logger', () => ({
@@ -24,163 +26,180 @@ jest.mock('@/utils/logger', () => ({
 }))
 
 jest.mock('@/core/supabase/getUserBalance')
-jest.mock('@/core/supabase/reduceBalance')
+jest.mock('@/core/supabase/updateUserBalance')
 jest.mock('@/price/helpers/sendBalanceMessage')
 
 // Type the mocks correctly
 const mockedGetUserBalance = getUserBalance as jest.MockedFunction<
   typeof getUserBalance
 >
-const mockedReduceBalance = reduceBalance as jest.MockedFunction<
-  typeof reduceBalance
+const mockedUpdateUserBalance = updateUserBalance as jest.MockedFunction<
+  typeof updateUserBalance
 >
 const mockedLogger = logger as jest.Mocked<typeof logger>
 
-// Mock User object
-const mockUser: User = {
-  id: 12345,
+// Mock UserType object
+const mockUser: UserType = {
+  id: BigInt(12345),
+  telegram_id: BigInt(12345), // Используем BigInt как в UserType
   first_name: 'Test',
   is_bot: false,
   username: 'testuser',
   language_code: 'ru',
+  created_at: new Date(),
+  user_id: 'uuid-123',
+  // Добавляем другие поля UserType по необходимости
 }
 
 describe('processBalanceVideoOperation', () => {
-  const userId = mockUser.id
+  const userIdString = mockUser.telegram_id.toString() // Преобразуем BigInt в строку
   const videoModelName: VideoModel = 'i2vgen-xl'
-  const ctx = makeMockContext({ user: mockUser, botInfo: mockBotInfo })
+  let ctx: MyContext
 
   beforeEach(() => {
     jest.clearAllMocks()
+    ctx = makeMockContext()
+    ctx.update = {
+      update_id: 1,
+      message: {
+        message_id: 1,
+        from: mockUser as any,
+        chat: {
+          id: Number(mockUser.telegram_id),
+          type: 'private',
+          first_name: mockUser.first_name,
+        },
+        date: Date.now(),
+        text: 'test',
+      },
+    }
+
     mockedGetUserBalance.mockClear()
-    mockedReduceBalance.mockClear()
+    mockedUpdateUserBalance.mockClear()
     mockedLogger.info.mockClear()
     mockedLogger.error.mockClear()
   })
 
   it('should return INSUFFICIENT_FUNDS if user balance is lower than required', async () => {
-    mockedGetUserBalance.mockResolvedValue({ balance: 5, error: null })
-
-    const result = await processBalanceVideoOperation(
-      ctx,
-      userId,
-      videoModelName
-    )
-
-    expect(mockedGetUserBalance).toHaveBeenCalledWith(userId)
-    expect(mockedReduceBalance).not.toHaveBeenCalled()
+    mockedGetUserBalance.mockResolvedValue(5)
+    const result = await processBalanceVideoOperation(ctx, videoModelName, true) // Передаем isRu
+    expect(mockedGetUserBalance).toHaveBeenCalledWith(userIdString)
+    expect(mockedUpdateUserBalance).not.toHaveBeenCalled()
     expect(mockedLogger.info).toHaveBeenCalledWith(
       expect.stringContaining('Insufficient funds'),
-      expect.objectContaining({ userId, required: 10, balance: 5 })
+      expect.objectContaining({
+        telegram_id: userIdString,
+        requiredCost: 10,
+        currentBalance: 5,
+      })
     )
-    expect(result).toBe(ProcessBalanceResult.INSUFFICIENT_FUNDS)
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('Insufficient funds'),
+      })
+    )
   })
 
   it('should return ERROR if getUserBalance fails', async () => {
-    const error = new Error('Supabase error')
-    mockedGetUserBalance.mockResolvedValue({ balance: null, error })
-
-    const result = await processBalanceVideoOperation(
-      ctx,
-      userId,
-      videoModelName
-    )
-
-    expect(mockedGetUserBalance).toHaveBeenCalledWith(userId)
-    expect(mockedReduceBalance).not.toHaveBeenCalled()
+    mockedGetUserBalance.mockRejectedValue(new Error('Supabase error'))
+    const result = await processBalanceVideoOperation(ctx, videoModelName, true) // Передаем isRu
+    expect(mockedGetUserBalance).toHaveBeenCalledWith(userIdString)
+    expect(mockedUpdateUserBalance).not.toHaveBeenCalled()
     expect(mockedLogger.error).toHaveBeenCalledWith(
-      'Error getting user balance:',
-      error
+      'Error processing video balance operation:',
+      expect.objectContaining({ telegram_id: userIdString })
     )
-    expect(result).toBe(ProcessBalanceResult.ERROR)
+    expect(result).toEqual(
+      expect.objectContaining({ success: false, error: expect.any(String) })
+    )
   })
 
-  it('should return SUCCESS and reduce balance if balance is sufficient', async () => {
-    mockedGetUserBalance.mockResolvedValue({ balance: 20, error: null })
-    mockedReduceBalance.mockResolvedValue(BalanceOperationResult.SUCCESS)
-
-    const result = await processBalanceVideoOperation(
-      ctx,
-      userId,
-      videoModelName
-    )
-
-    expect(mockedGetUserBalance).toHaveBeenCalledWith(userId)
-    expect(mockedReduceBalance).toHaveBeenCalledWith(
-      userId,
-      10,
-      'video',
-      videoModelName
-    )
+  it('should return SUCCESS and call updateUserBalance if balance is sufficient', async () => {
+    mockedGetUserBalance.mockResolvedValue(20)
+    mockedUpdateUserBalance.mockResolvedValue(10)
+    const result = await processBalanceVideoOperation(ctx, videoModelName, true) // Передаем isRu
+    expect(mockedGetUserBalance).toHaveBeenCalledWith(userIdString)
+    expect(mockedUpdateUserBalance).toHaveBeenCalledWith(userIdString, -10)
     expect(mockedLogger.info).toHaveBeenCalledWith(
       expect.stringContaining('Sufficient funds'),
-      expect.objectContaining({ userId, required: 10, balance: 20 })
+      expect.objectContaining({
+        telegram_id: userIdString,
+        requiredCost: 10,
+        currentBalance: 20,
+      })
     )
     expect(mockedLogger.info).toHaveBeenCalledWith(
-      expect.stringContaining('Balance reduced successfully'),
-      expect.objectContaining({ userId, amount: 10 })
+      expect.stringContaining('Balance updated successfully')
     )
-    expect(result).toBe(ProcessBalanceResult.SUCCESS)
+    expect(result).toEqual(
+      expect.objectContaining({ success: true, newBalance: 10 })
+    )
   })
 
-  it('should return ERROR if reduceBalance fails', async () => {
-    mockedGetUserBalance.mockResolvedValue({ balance: 20, error: null })
-    mockedReduceBalance.mockResolvedValue(BalanceOperationResult.ERROR)
-
-    const result = await processBalanceVideoOperation(
-      ctx,
-      userId,
-      videoModelName
+  it('should return ERROR if updateUserBalance returns null', async () => {
+    mockedGetUserBalance.mockResolvedValue(20)
+    mockedUpdateUserBalance.mockResolvedValue(null)
+    const result = await processBalanceVideoOperation(ctx, videoModelName, true) // Передаем isRu
+    expect(mockedGetUserBalance).toHaveBeenCalledWith(userIdString)
+    expect(mockedUpdateUserBalance).toHaveBeenCalledWith(userIdString, -10)
+    expect(mockedLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Error updating user balance')
     )
-
-    expect(mockedGetUserBalance).toHaveBeenCalledWith(userId)
-    expect(mockedReduceBalance).toHaveBeenCalledWith(
-      userId,
-      10,
-      'video',
-      videoModelName
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('Failed to update balance'),
+      })
     )
-    expect(mockedLogger.error).toHaveBeenCalledWith('Error reducing balance:', {
-      userId,
-      amount: 10,
-    })
-    expect(result).toBe(ProcessBalanceResult.ERROR)
   })
 
   it('should return ERROR for invalid video model', async () => {
     const invalidModelName = 'invalid_model' as VideoModel
     const result = await processBalanceVideoOperation(
       ctx,
-      userId,
-      invalidModelName
-    )
-
+      invalidModelName,
+      true
+    ) // Передаем isRu
     expect(mockedGetUserBalance).not.toHaveBeenCalled()
-    expect(mockedReduceBalance).not.toHaveBeenCalled()
+    expect(mockedUpdateUserBalance).not.toHaveBeenCalled()
     expect(mockedLogger.error).toHaveBeenCalledWith(
       expect.stringContaining('Invalid video model selected'),
-      expect.objectContaining({ userId, model: invalidModelName })
+      expect.objectContaining({
+        telegram_id: userIdString,
+        videoModelName: invalidModelName,
+      })
     )
-    expect(result).toBe(ProcessBalanceResult.ERROR)
+    expect(result).toEqual(
+      expect.objectContaining({ success: false, error: 'Invalid model' })
+    )
   })
 
   it('should return ERROR if userId is not found in context', async () => {
-    const ctxWithoutUser = makeMockContext({
-      user: undefined,
-      botInfo: mockBotInfo,
-    })
+    const ctxWithoutUser = makeMockContext()
+    ctxWithoutUser.update = {
+      update_id: 2,
+      message: {
+        message_id: 2,
+        from: undefined,
+        chat: { id: 999, type: 'private', first_name: 'NoUser' },
+        date: Date.now(),
+        text: 'test',
+      },
+    }
 
     const result = await processBalanceVideoOperation(
       ctxWithoutUser,
-      0,
-      videoModelName
+      videoModelName,
+      false
     )
-
-    expect(result).toBe(ProcessBalanceResult.ERROR)
+    expect(result).toEqual(
+      expect.objectContaining({ success: false, error: 'User ID not found' })
+    )
     expect(mockedLogger.error).toHaveBeenCalledWith(
-      expect.stringContaining('User ID not found in context')
+      expect.stringContaining('User ID not found')
     )
     expect(mockedGetUserBalance).not.toHaveBeenCalled()
-    expect(mockedReduceBalance).not.toHaveBeenCalled()
+    expect(mockedUpdateUserBalance).not.toHaveBeenCalled()
   })
 })

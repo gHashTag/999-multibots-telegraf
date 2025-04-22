@@ -35,17 +35,22 @@ describe('generateInvoiceStep', () => {
   const createMockSession = (
     overrides: Partial<MySession> = {}
   ): MySession => ({
-    activeWizard: false,
-    wizards: {},
-    scene: { current: '', state: {} },
     selectedPayment: null,
-    userProfile: null,
-    // Добавляем недостающие поля
     cursor: 0,
     images: [],
-    targetUserId: 0,
-    userModel: null,
+    targetUserId: '',
+    userModel: {
+      model_name: '',
+      trigger_word: '',
+      model_url: 'placeholder/placeholder:placeholder',
+    },
     email: null,
+    subscription: null,
+    __scenes: {
+      current: '',
+      state: { step: 0 },
+      cursor: 0,
+    },
     ...overrides,
   })
 
@@ -88,8 +93,8 @@ describe('generateInvoiceStep', () => {
         currency: 'RUB',
         stars: 476,
         status: 'PENDING',
-        payment_method: 'Telegram',
-        subscription: SubscriptionType.NEUROPHOTO,
+        payment_method: 'Robokassa',
+        subscription: SubscriptionType.NEUROPHOTO.toString(),
         bot_name: 'bot1',
         language: 'ru',
       })

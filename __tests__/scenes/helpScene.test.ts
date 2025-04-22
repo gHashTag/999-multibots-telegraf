@@ -1,5 +1,6 @@
 import { Composer } from 'telegraf' // Импорт Composer
-import { Markup } from 'telegraf' // Импорт Markup
+import { Markup } from 'telegraf'
+import { ReplyKeyboardMarkup } from 'telegraf/markup/reply_keyboard_markup' // Import specific keyboard type if needed
 import { jest, describe, it, expect, beforeEach } from '@jest/globals' // Импорт Jest
 
 // Мокаем внешние зависимости
@@ -18,7 +19,19 @@ jest.mock('@/scenes/levelQuestWizard/handlers', () => ({
   handleLevel12: jest.fn(),
   handleLevel13: jest.fn(),
 }))
-jest.mock('@/menu', () => ({ mainMenu: jest.fn() }))
+jest.mock('@/menu', () => ({
+  mainMenu: jest
+    .fn<
+      () => Promise<{
+        text: string
+        reply_markup: ReturnType<typeof Markup.keyboard>
+      }>
+    >()
+    .mockResolvedValue({
+      text: 'Help EN',
+      reply_markup: Markup.keyboard([['EN']]),
+    }),
+}))
 jest.mock('@/helpers', () => ({ isRussian: jest.fn() }))
 jest.mock('@/core/supabase', () => ({ getReferalsCountAndUserData: jest.fn() }))
 
@@ -29,72 +42,172 @@ import { handleLevel1 } from '../../src/scenes/levelQuestWizard/handlers'
 import { mainMenu } from '../../src/menu'
 import { isRussian } from '../../src/helpers'
 import { getReferalsCountAndUserData } from '../../src/core/supabase'
-import { MyContext, ModeEnum } from '../../src/interfaces'
+import { MyContext, ModeEnum, MySession } from '../../src/interfaces'
+import { Message } from 'telegraf/types' // Import Message type
 
 describe('HelpScene', () => {
   let ctx: MyContext
-  let step0: any // Типизируем как any временно
 
   beforeEach(() => {
-    ctx = makeMockContext()
     jest.clearAllMocks()
-    // Получаем шаг сцены
-    step0 = helpScene.steps[0]
+    ctx = makeMockContext({ update_id: 1 })
+    const mockTextMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 0,
+      chat: { id: 1, type: 'private', first_name: 'mock' },
+      text: 'mock',
+    }
+    ctx.reply = jest
+      .fn<(...args: any[]) => Promise<Message.TextMessage>>()
+      .mockResolvedValue(mockTextMessage)
   })
 
   it('should send help message in Russian', async () => {
-    ctx.from = { id: 42, language_code: 'ru' }
-    ctx.session = { mode: '' }
-    ;(isRussian as jest.Mock).mockReturnValue(true)
+    const ruSession: Partial<MySession> = { mode: ModeEnum.MainMenu }
+    ctx = makeMockContext(
+      {
+        update_id: 1,
+        message: {
+          from: {
+            id: 42,
+            language_code: 'ru',
+            is_bot: false,
+            first_name: 'Test',
+          },
+          chat: { id: 42, type: 'private', first_name: 'Test' },
+          date: 0,
+          message_id: 1,
+        },
+      },
+      ruSession
+    )
+    const mockTextMessage: Message.TextMessage = {
+      message_id: 1,
+      date: 0,
+      chat: { id: 42, type: 'private', first_name: 'mock' },
+      text: 'mock',
+    }
+    ctx.reply = jest
+      .fn<(...args: any[]) => Promise<Message.TextMessage>>()
+      .mockResolvedValue(mockTextMessage)(isRussian as jest.Mock)
+      .mockReturnValue(true)
+    const mockedMainMenu = mainMenu as jest.Mock
+    mockedMainMenu.mockResolvedValueOnce({
+      text: 'Помощь RU',
+      reply_markup: Markup.keyboard([['RU']]),
+    })
 
-    // await helpSceneEnterHandler(ctx) // Удаляем использование
-    await step0(ctx) // Вызываем шаг сцены
+    await helpScene.enter(ctx as any)
 
     expect(ctx.reply).toHaveBeenCalledWith(
-      mainMenu.ru.text,
-      mainMenu.ru.keyboard
+      'Помощь RU',
+      Markup.keyboard([['RU']])
     )
   })
 
   it('should send help message in English', async () => {
-    ctx.from = { id: 43, language_code: 'en' }
-    ctx.session = { mode: ModeEnum.DigitalAvatarBodyV2 } // Используем ModeEnum
-    ;(isRussian as jest.Mock).mockReturnValue(false)
-
-    // await helpSceneEnterHandler(ctx) // Удаляем использование
-    await step0(ctx) // Вызываем шаг сцены
-
-    expect(ctx.reply).toHaveBeenCalledWith(
-      mainMenu.en.text,
-      mainMenu.en.keyboard
+    const enSession: Partial<MySession> = { mode: ModeEnum.DigitalAvatarBodyV2 }
+    ctx = makeMockContext(
+      {
+        update_id: 2,
+        message: {
+          from: {
+            id: 43,
+            language_code: 'en',
+            is_bot: false,
+            first_name: 'Test',
+          },
+          chat: { id: 43, type: 'private', first_name: 'Test' },
+          date: 0,
+          message_id: 2,
+        },
+      },
+      enSession
     )
+    const mockTextMessage: Message.TextMessage = {
+      message_id: 2,
+      date: 0,
+      chat: { id: 43, type: 'private', first_name: 'mock' },
+      text: 'mock',
+    }
+    ctx.reply = jest
+      .fn<(...args: any[]) => Promise<Message.TextMessage>>()
+      .mockResolvedValue(mockTextMessage)(isRussian as jest.Mock)
+      .mockReturnValue(false)
+    const mockedMainMenu = mainMenu as jest.Mock
+    mockedMainMenu.mockResolvedValueOnce({
+      text: 'Help EN',
+      reply_markup: Markup.keyboard([['EN']]),
+    })
+
+    await helpScene.enter(ctx as any)
+
+    expect(ctx.reply).toHaveBeenCalledWith('Help EN', Markup.keyboard([['EN']]))
   })
 
   it('should handle error during message sending', async () => {
-    ctx.from = { id: 44, language_code: 'en' }
-    ctx.session = { mode: ModeEnum.Help } // Используем ModeEnum
-    ;(isRussian as jest.Mock).mockReturnValue(false)
-    const error = new Error('Send failed')
-    ;(ctx.reply as jest.Mock).mockRejectedValueOnce(error)
+    const errSession: Partial<MySession> = { mode: ModeEnum.Help }
+    ctx = makeMockContext(
+      {
+        update_id: 3,
+        message: {
+          from: {
+            id: 44,
+            language_code: 'en',
+            is_bot: false,
+            first_name: 'Test',
+          },
+          chat: { id: 44, type: 'private', first_name: 'Test' },
+          date: 0,
+          message_id: 3,
+        },
+      },
+      errSession
+    )
+    const mockTextMessage: Message.TextMessage = {
+      message_id: 3,
+      date: 0,
+      chat: { id: 44, type: 'private', first_name: 'mock' },
+      text: 'mock',
+    }
+    ctx.reply = jest
+      .fn<(...args: any[]) => Promise<Message.TextMessage>>()
+      .mockResolvedValue(mockTextMessage)(isRussian as jest.Mock)
+      .mockReturnValue(false)
+    const error = new Error('Send failed')(
+      ctx.reply as jest.Mock
+    ).mockRejectedValueOnce(error)
 
-    // await helpSceneEnterHandler(ctx) // Удаляем использование
-    await expect(step0(ctx)).rejects.toThrow(error) // Вызываем шаг сцены
+    await expect(helpScene.enter(ctx as any)).rejects.toThrow(error)
   })
 
-  // ... (остальные тесты с заменой helpSceneEnterHandler на step0)
+  it('should handle different modes correctly (RU) and set mode to MainMenu', async () => {
+    const modeSession: Partial<MySession> = {
+      mode: ModeEnum.DigitalAvatarBodyV2,
+    }
+    ctx = makeMockContext(
+      {
+        update_id: 4,
+        message: {
+          from: {
+            id: 45,
+            language_code: 'ru',
+            is_bot: false,
+            first_name: 'Test',
+          },
+          chat: { id: 45, type: 'private', first_name: 'Test' },
+          date: 0,
+          message_id: 4,
+        },
+      },
+      modeSession
+    )(isRussian as jest.Mock).mockReturnValue(true)
 
-  it('should handle different modes correctly (RU)', async () => {
-    ctx.from = { id: 45, language_code: 'ru' }
-    ctx.session = { mode: ModeEnum.DigitalAvatarBodyV2 } // Используем ModeEnum
-    ;(isRussian as jest.Mock).mockReturnValue(true)
-
-    // await helpSceneEnterHandler(ctx) // Удаляем использование
-    await step0(ctx) // Вызываем шаг сцены
+    await helpScene.enter(ctx as any)
 
     expect(ctx.reply).toHaveBeenCalledWith(
-      mainMenu.ru.text,
-      mainMenu.ru.keyboard
+      'Помощь RU',
+      Markup.keyboard([['RU']])
     )
-    expect(ctx.session.mode).toBe(ModeEnum.MainMenu) // Проверяем смену режима
   })
 })

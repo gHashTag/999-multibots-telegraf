@@ -10,13 +10,18 @@ import {
 } from '@/menu'
 import {
   processBalanceVideoOperation,
-  ProcessBalanceResult,
+  VIDEO_MODELS,
 } from '@/price/helpers/processBalanceVideoOperation'
 import { sendBalanceMessage } from '@/price/helpers'
 import { generateImageToVideo } from '@/services/generateImageToVideo'
 import { Composer } from 'telegraf'
 import { jest, describe, it, expect, beforeEach } from '@jest/globals'
-import { MySession } from '@/interfaces'
+import {
+  MySession,
+  BalanceOperationResult,
+  MyContext,
+  VideoModel,
+} from '@/interfaces'
 
 // Mock dependencies
 jest.mock('@/helpers/language', () => ({ isRussian: jest.fn() }))
@@ -44,7 +49,7 @@ const mockedHandleHelpCancel = handleHelpCancel as jest.Mock<
   (...args: any[]) => Promise<boolean>
 >
 const mockedProcessBalance = processBalanceVideoOperation as jest.Mock<
-  (...args: any[]) => Promise<ProcessBalanceResult>
+  (...args: any[]) => Promise<BalanceOperationResult>
 >
 const mockedVideoModelKeyboard = videoModelKeyboard as jest.Mock
 const mockedCreateHelpCancelKeyboard = createHelpCancelKeyboard as jest.Mock
@@ -90,9 +95,11 @@ describe('imageToVideoWizard', () => {
 
     mockedHandleHelpCancel.mockResolvedValueOnce(false)
     mockedProcessBalance.mockResolvedValueOnce({
-      newBalance: 10,
+      newBalance: 100,
       success: true,
-      modePrice: 5,
+      modePrice: 10,
+      paymentAmount: 10,
+      currentBalance: 110,
     })
     const keyboard = { reply_markup: {} }
     mockedCreateHelpCancelKeyboard.mockReturnValue(keyboard)
@@ -103,9 +110,9 @@ describe('imageToVideoWizard', () => {
       telegram_id: ctx.from.id,
       is_ru: false,
     })
-    expect(mockedSendBalanceMessage).toHaveBeenCalledWith(ctx, 10, 5, false)
+    expect(mockedSendBalanceMessage).toHaveBeenCalledWith(ctx, 100, 10, false)
     expect(ctx.session.videoModel).toBe('model1')
-    expect(ctx.session.paymentAmount).toBe(5)
+    expect(ctx.session.paymentAmount).toBe(10)
     expect(ctx.reply).toHaveBeenCalledWith(
       expect.stringContaining('You have chosen the generation model: model1'),
       { reply_markup: expect.objectContaining({ remove_keyboard: true }) }

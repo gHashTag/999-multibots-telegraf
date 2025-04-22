@@ -140,20 +140,20 @@ export const handleRobokassaWebhook =
       )
 
       // 4. Обновление баланса пользователя (зачисление звезд)
-      const balanceUpdated = await supabase.updateUserBalance(
+      const operationDetails = {
+        paymentSystem: 'Robokassa',
+        amount: Number(OutSum),
+        inv_id: InvId as string,
+      }
+      const updateResult = await supabase.updateUserBalance(
         payment.telegram_id,
-        payment.stars ?? 0,
-        'money_income',
-        `Пополнение звезд по Robokassa (InvId: ${InvId})`,
-        {
-          payment_method: 'Robokassa',
-          inv_id: InvId as string,
-        }
+        Number(OutSum) // Передаем положительное значение для пополнения
       )
 
-      if (!balanceUpdated) {
+      // Проверяем, что updateUserBalance вернул число (новый баланс), а не null (ошибка)
+      if (updateResult === null) {
         logger.error(
-          `🆘 CRITICAL: Robokassa Webhook: Failed to update user balance for InvId ${InvId} AFTER payment success!`,
+          `🆘 CRITICAL: Robokassa Webhook: Failed to update user balance for InvId ${InvId} AFTER payment success! (updateUserBalance returned null)`,
           {
             telegram_id: payment.telegram_id,
             stars_to_add: payment.stars,
@@ -165,7 +165,7 @@ export const handleRobokassaWebhook =
       }
 
       logger.info(
-        `👤 Robokassa Webhook: User ${payment.telegram_id} balance updated`
+        `👤 Robokassa Webhook: User ${payment.telegram_id} balance updated successfully. New balance: ${updateResult}`
       )
 
       // 5. Отправка уведомления пользователю

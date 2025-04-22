@@ -1,3 +1,4 @@
+import { jest, describe, it, expect, beforeEach } from '@jest/globals'
 import { handleSuccessfulPayment } from '@/handlers/paymentHandlers'
 import { incrementBalance } from '@/core/supabase/incrementBalance'
 import { setPayments } from '@/core/supabase/setPayments'
@@ -5,6 +6,7 @@ import { isRussian } from '@/helpers/language'
 import { makeMockContext } from '@/utils/mockContext'
 import { mockedUpdateUserBalance } from '@/core/supabase/incrementBalance'
 import { logger } from '@/utils/logger'
+import { MyContext } from '@/interfaces'
 
 jest.mock('@/core/supabase/incrementBalance', () => ({
   incrementBalance: jest.fn(),

@@ -100,22 +100,14 @@ export const processBalanceVideoOperation = async (
 
     const newBalance = currentBalanceAtStart - paymentAmount
 
-    const updateSuccess = await updateUserBalance(
+    const amountToUpdate = -paymentAmount
+
+    const newBalanceResult = await updateUserBalance(
       telegram_id.toString(),
-      paymentAmount,
-      'money_outcome',
-      `Video generation (${selectedModel.title})`,
-      {
-        bot_name: ctx.botInfo?.username,
-        service_type: ctx.session.mode,
-        model: videoModelName,
-        modePrice,
-        currentBalance: currentBalanceAtStart,
-        paymentAmount: paymentAmount,
-      }
+      amountToUpdate
     )
 
-    if (!updateSuccess) {
+    if (newBalanceResult === null) {
       const message = isRu
         ? 'Ошибка обновления баланса.'
         : 'Error updating balance.'
@@ -134,11 +126,11 @@ export const processBalanceVideoOperation = async (
 
     logger.info('processBalanceVideoOperation: Balance updated successfully', {
       telegram_id,
-      newBalance,
+      newBalance: newBalanceResult,
     })
     return {
       success: true,
-      newBalance,
+      newBalance: newBalanceResult,
       modePrice,
       paymentAmount: paymentAmount,
       currentBalance: currentBalanceAtStart,

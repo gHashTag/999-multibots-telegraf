@@ -1,6 +1,11 @@
 import { CreateUserData, MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
-import { getTranslation, getUserDetails, createUser, supabase } from '@/core/supabase'
+import {
+  getTranslation,
+  getUserDetails,
+  createUser,
+  supabase,
+} from '@/core/supabase'
 import { BOT_URLS } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { levels } from '@/menu/mainMenu'
@@ -51,7 +56,15 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       const userDetails = await getUserDetails(telegramId)
       const isNewUser = !userDetails.isExist
 
-      logger.info({ message: `🚩 [StartScene] Статус пользователя: ${isNewUser ? 'НОВЫЙ' : 'СУЩЕСТВУЮЩИЙ'}`, telegramId, isNewUser, function: 'startScene', step: 'user_status_determined' })
+      logger.info({
+        message: `🚩 [StartScene] Статус пользователя: ${
+          isNewUser ? 'НОВЫЙ' : 'СУЩЕСТВУЮЩИЙ'
+        }`,
+        telegramId,
+        isNewUser,
+        function: 'startScene',
+        step: 'user_status_determined',
+      })
 
       if (!isNewUser) {
         logger.info({
@@ -72,16 +85,21 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         try {
           await createUser(updateData as CreateUserData, ctx)
           logger.info({
-            message: '🔄 [StartScene] Данные существующего пользователя обновлены',
+            message:
+              '🔄 [StartScene] Данные существующего пользователя обновлены',
             telegramId,
             function: 'startScene',
             step: 'user_data_updated',
           })
         } catch (updateError) {
           logger.error({
-            message: '❌ [StartScene] Ошибка при обновлении данных существующего пользователя',
+            message:
+              '❌ [StartScene] Ошибка при обновлении данных существующего пользователя',
             telegramId,
-            error: updateError instanceof Error ? updateError.message : String(updateError),
+            error:
+              updateError instanceof Error
+                ? updateError.message
+                : String(updateError),
             function: 'startScene',
             step: 'user_data_update_error',
           })
@@ -90,7 +108,8 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         const isRu = isRussian(ctx)
 
         logger.info({
-          message: '📡 [StartScene] Получение перевода для стартового сообщения (существующий пользователь)',
+          message:
+            '📡 [StartScene] Получение перевода для стартового сообщения (существующий пользователь)',
           telegramId,
           function: 'startScene',
           bot_name: botName,
@@ -155,8 +174,12 @@ export const startScene = new Scenes.WizardScene<MyContext>(
             : `🎬 Watch this [tutorial video](${tutorialUrl}) on how to create neurophotos in this bot.\n\nIn this video, you will learn how to train your model (Digital avatar body), create photos, and get a prompt from any photo that inspires you.`
 
           replyKeyboard = Markup.keyboard([
-            Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en),
-            Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en),
+            Markup.button.text(
+              isRu ? levels[105].title_ru : levels[105].title_en
+            ),
+            Markup.button.text(
+              isRu ? levels[103].title_ru : levels[103].title_en
+            ),
           ]).resize()
 
           logger.info({
@@ -183,8 +206,12 @@ export const startScene = new Scenes.WizardScene<MyContext>(
           })
 
           replyKeyboard = Markup.keyboard([
-            Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en),
-            Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en),
+            Markup.button.text(
+              isRu ? levels[105].title_ru : levels[105].title_en
+            ),
+            Markup.button.text(
+              isRu ? levels[103].title_ru : levels[103].title_en
+            ),
           ]).resize()
 
           logger.info({
@@ -204,13 +231,13 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         }
 
         logger.info({
-          message: '🚪 [StartScene] Вход в главное меню для существующего пользователя',
+          message:
+            '🚪 [StartScene] Вход в главное меню для существующего пользователя',
           telegramId,
           function: 'startScene',
           step: 'enter_main_menu',
         })
         return ctx.scene.enter(ModeEnum.MainMenu)
-
       } else {
         logger.info({
           message: '✨ [StartScene] Обнаружен новый пользователь! Создание...',
@@ -234,12 +261,17 @@ export const startScene = new Scenes.WizardScene<MyContext>(
             step: 'invite_code_found',
           })
           try {
-            const { data: inviterData, error: inviterError } = await supabase.from('users').select('username').eq('id', inviterId).single()
+            const { data: inviterData, error: inviterError } = await supabase
+              .from('users')
+              .select('username')
+              .eq('id', inviterId)
+              .single()
             if (inviterError) throw inviterError
             if (inviterData) inviterUsername = inviterData.username
           } catch (error) {
             logger.error({
-              message: '❌ [StartScene] Ошибка при получении username пригласившего',
+              message:
+                '❌ [StartScene] Ошибка при получении username пригласившего',
               telegramId,
               inviterId,
               error: error instanceof Error ? error.message : String(error),
@@ -269,7 +301,9 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         try {
           const newUser = await createUser(createData, ctx)
           if (!newUser) {
-            throw new Error('Функция createUser не вернула данные пользователя после создания')
+            throw new Error(
+              'Функция createUser не вернула данные пользователя после создания'
+            )
           }
           logger.info({
             message: '✅ [StartScene] Новый пользователь успешно создан',
@@ -278,90 +312,126 @@ export const startScene = new Scenes.WizardScene<MyContext>(
             userId: newUser.id,
             step: 'new_user_created',
           })
-          
+
           try {
             let notificationMessage = `🔗 Новый пользователь зарегистрировался: @${finalUsername}`
             if (inviterId) {
-              notificationMessage += `\nПо реф. ссылке от: ${inviterUsername ? `@${inviterUsername}` : `ID ${inviterId}`}`
+              notificationMessage += `\nПо реф. ссылке от: ${
+                inviterUsername ? `@${inviterUsername}` : `ID ${inviterId}`
+              }`
             }
-            await ctx.telegram.sendMessage(SUBSCRIBE_CHANNEL_ID, notificationMessage)
+            await ctx.telegram.sendMessage(
+              SUBSCRIBE_CHANNEL_ID,
+              notificationMessage
+            )
             logger.info({
-              message: '📢 [StartScene] Уведомление о новом пользователе отправлено в канал',
+              message:
+                '📢 [StartScene] Уведомление о новом пользователе отправлено в канал',
               telegramId,
               channel: SUBSCRIBE_CHANNEL_ID,
               step: 'admin_notification_sent',
             })
           } catch (notifyError) {
-            if (notifyError instanceof Error && 'code' in notifyError && notifyError.code === 403) {
-                logger.warn({
-                    message: '⚠️ [StartScene] Не удалось отправить уведомление в канал админов (возможно, бот не участник или нет прав)',
-                    telegramId,
-                    channel: SUBSCRIBE_CHANNEL_ID,
-                    botName: ctx.botInfo.username,
-                    error: notifyError.message,
-                    step: 'admin_notification_failed_403',
-                })
+            if (
+              notifyError instanceof Error &&
+              'code' in notifyError &&
+              notifyError.code === 403
+            ) {
+              logger.warn({
+                message:
+                  '⚠️ [StartScene] Не удалось отправить уведомление в канал админов (возможно, бот не участник или нет прав)',
+                telegramId,
+                channel: SUBSCRIBE_CHANNEL_ID,
+                botName: ctx.botInfo.username,
+                error: notifyError.message,
+                step: 'admin_notification_failed_403',
+              })
             } else {
-                logger.error({
-                  message: '❌ [StartScene] Ошибка при отправке уведомления в канал админов',
-                  telegramId,
-                  error: notifyError instanceof Error ? notifyError.message : String(notifyError),
-                  step: 'admin_notification_error',
-                })
+              logger.error({
+                message:
+                  '❌ [StartScene] Ошибка при отправке уведомления в канал админов',
+                telegramId,
+                error:
+                  notifyError instanceof Error
+                    ? notifyError.message
+                    : String(notifyError),
+                step: 'admin_notification_error',
+              })
             }
           }
 
           if (inviterId) {
-             try {
-                const inviteReply = isRussian(ctx) ? `🔗 Новый пользователь @${finalUsername} зарегистрировался по вашей ссылке!` : `🔗 New user @${finalUsername} registered using your link!`
-                await ctx.telegram.sendMessage(inviterId, inviteReply)
-                logger.info({
-                  message: '✉️ [StartScene] Уведомление пригласившему отправлено',
+            try {
+              const inviteReply = isRussian(ctx)
+                ? `🔗 Новый пользователь @${finalUsername} зарегистрировался по вашей ссылке!`
+                : `🔗 New user @${finalUsername} registered using your link!`
+              await ctx.telegram.sendMessage(inviterId, inviteReply)
+              logger.info({
+                message: '✉️ [StartScene] Уведомление пригласившему отправлено',
+                telegramId,
+                inviterId,
+                step: 'inviter_notification_sent',
+              })
+            } catch (inviterNotifyError) {
+              if (
+                inviterNotifyError instanceof Error &&
+                'code' in inviterNotifyError &&
+                inviterNotifyError.code === 403
+              ) {
+                logger.warn({
+                  message:
+                    '⚠️ [StartScene] Не удалось отправить уведомление пригласившему (возможно, бот заблокирован им)',
                   telegramId,
                   inviterId,
-                  step: 'inviter_notification_sent',
+                  botName: ctx.botInfo.username,
+                  error: inviterNotifyError.message,
+                  step: 'inviter_notification_failed_403',
                 })
-             } catch (inviterNotifyError) {
-                 if (inviterNotifyError instanceof Error && 'code' in inviterNotifyError && inviterNotifyError.code === 403) {
-                     logger.warn({
-                         message: '⚠️ [StartScene] Не удалось отправить уведомление пригласившему (возможно, бот заблокирован им)',
-                         telegramId,
-                         inviterId,
-                         botName: ctx.botInfo.username,
-                         error: inviterNotifyError.message,
-                         step: 'inviter_notification_failed_403',
-                     })
-                 } else {
-                     logger.error({
-                         message: '❌ [StartScene] Ошибка при отправке уведомления пригласившему',
-                         telegramId,
-                         inviterId,
-                         error: inviterNotifyError instanceof Error ? inviterNotifyError.message : String(inviterNotifyError),
-                         step: 'inviter_notification_error',
-                     })
-                 }
-             }
+              } else {
+                logger.error({
+                  message:
+                    '❌ [StartScene] Ошибка при отправке уведомления пригласившему',
+                  telegramId,
+                  inviterId,
+                  error:
+                    inviterNotifyError instanceof Error
+                      ? inviterNotifyError.message
+                      : String(inviterNotifyError),
+                  step: 'inviter_notification_error',
+                })
+              }
+            }
           }
 
-          await ctx.reply(isRussian(ctx) ? '✅ Вы успешно зарегистрированы!' : '✅ You have successfully registered!')
+          await ctx.reply(
+            isRussian(ctx)
+              ? '✅ Вы успешно зарегистрированы!'
+              : '✅ You have successfully registered!'
+          )
 
           logger.info({
-            message: '🚪 [StartScene] Вход в главное меню для нового пользователя',
+            message:
+              '🚪 [StartScene] Вход в главное меню для нового пользователя',
             telegramId,
             function: 'startScene',
             step: 'enter_main_menu_new',
           })
           return ctx.scene.enter(ModeEnum.MainMenu)
-
         } catch (creationError) {
           logger.error({
-            message: '❌ [StartScene] Критическая ошибка при создании нового пользователя',
+            message:
+              '❌ [StartScene] Критическая ошибка при создании нового пользователя',
             telegramId,
-            error: creationError instanceof Error ? creationError.message : String(creationError),
+            error:
+              creationError instanceof Error
+                ? creationError.message
+                : String(creationError),
             function: 'startScene',
             step: 'new_user_creation_critical_error',
           })
-          await ctx.reply('Произошла критическая ошибка при регистрации. Попробуйте /start еще раз или обратитесь в поддержку.')
+          await ctx.reply(
+            'Произошла критическая ошибка при регистрации. Попробуйте /start еще раз или обратитесь в поддержку.'
+          )
           return ctx.scene.leave()
         }
       }
@@ -373,7 +443,9 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       })
-      await ctx.reply('Произошла ошибка при запуске бота. Попробуйте /start еще раз.')
+      await ctx.reply(
+        'Произошла ошибка при запуске бота. Попробуйте /start еще раз.'
+      )
       return ctx.scene.leave()
     }
   }

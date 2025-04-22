@@ -6,7 +6,10 @@ import { get100Command } from '../src/commands/get100Command' // Использ�
 import { getUserDetails } from '../src/core/supabase' // Используем относительный путь
 import { ModeEnum } from '../src/interfaces/modes' // Используем относительный путь
 import { SubscriptionType } from '../src/interfaces/subscription.interface' // Используем относительный путь
-import { levels } from '../src/menu' // Используем относительный путь
+import { levels } from '../src/menu/mainMenu' // Используем реальный levels
+import { defaultSession } from '../src/store' // Используем defaultSession
+import { WizardScene } from 'telegraf/scenes'
+import { makeMockContext } from './utils/makeMockContext' // Исправлен путь
 
 // Mocking dependencies
 jest.mock('../src/handlers/setupLevelHandlers') // Используем относительный путь
@@ -16,16 +19,8 @@ jest.mock('../src/core/supabase', () => ({
   getUserDetails: jest.fn(),
   // Добавьте другие моки, если нужны
 })) // Используем относительный путь
-jest.mock('../src/menu', () => ({
-  levels: new Proxy([], {
-    get: (_target, prop) => {
-      if (typeof prop === 'string' && !isNaN(parseInt(prop))) {
-        return { title_ru: `level_${prop}_ru`, title_en: `level_${prop}_en` }
-      }
-      return undefined
-    },
-  }),
-})) // Используем относительный путь
+// Убираем мок для ../src/menu, чтобы использовать реальные levels
+// jest.mock('../src/menu', () => ({ ... }))
 
 // Mock stage middleware directly
 jest.mock('telegraf', () => {
@@ -60,17 +55,9 @@ describe('registerCommands', () => {
     bot = {
       use: jest.fn(),
       command: jest.fn(),
-      hears: jest.fn(),
-      action: jest.fn(), // Добавляем мок для action
-      // Мокируем контекст, если он используется в registerCommands
-      context: {
-        session: {},
-        scene: { enter: jest.fn() },
-        reply: jest.fn(),
-        from: { id: 123 },
-        callbackQuery: undefined, // Инициализируем callbackQuery
-        answerCbQuery: jest.fn(), // Добавляем мок для answerCbQuery
-      },
+      hears: jest.fn(), // Добавляем мок
+      action: jest.fn(), // Добавляем мок
+      context: {}, // Убираем избыточный мок контекста здесь
     } as unknown as Telegraf<MyContext>
 
     // Убираем composer из вызова registerCommands
@@ -103,12 +90,18 @@ describe('registerCommands', () => {
   })
 
   it('should register hears handlers for menu items', () => {
+    // Используем реальные levels
     expect(bot.hears).toHaveBeenCalledWith(
       [levels[103].title_ru, levels[103].title_en],
       expect.any(Function)
     )
     expect(bot.hears).toHaveBeenCalledWith(
       [levels[105].title_ru, levels[105].title_en],
+      expect.any(Function)
+    )
+    // Добавим проверку для 100 уровня
+    expect(bot.hears).toHaveBeenCalledWith(
+      [levels[100].title_ru, levels[100].title_en],
       expect.any(Function)
     )
   })
@@ -123,73 +116,105 @@ describe('registerCommands', () => {
   // --- Тесты для логики колбэков ---
 
   describe('command callbacks', () => {
-    it('/start should reset session and enter startScene', async () => {
+    it('/start should reset session and enter CreateUserScene', async () => {
       const startCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'start'
       )[1]
-      const mockCtx = {
-        session: { someData: 'test' },
-        scene: { enter: jest.fn() },
-      }
+      const mockCtx = makeMockContext(
+        {
+          update_id: 1,
+          message: {
+            from: { id: 123, first_name: 'Start', is_bot: false },
+            chat: { id: 123, type: 'private', first_name: 'Start' },
+            date: 0,
+            message_id: 1,
+            text: '/start',
+          },
+        },
+        { email: 'initial@test.com' }
+      )
+
       await startCallback(mockCtx)
-      expect(mockCtx.session).toEqual({}) // Session should be reset
-      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.StartScene)
+      expect(mockCtx.session).toEqual(expect.objectContaining(defaultSession))
+      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.CreateUserScene)
     })
 
     it('/support should call handleTechSupport', async () => {
       const supportCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'support'
       )[1]
-      const mockCtx = {}
+      const mockCtx = makeMockContext({ update_id: 2 })
       await supportCallback(mockCtx)
       expect(handleTechSupport).toHaveBeenCalledWith(mockCtx)
     })
 
     it('/menu should check subscription and enter correct scene (active)', async () => {
-      ;(getUserDetails as jest.Mock).mockResolvedValue({
+      ;(getUserDetails as jest.Mock).mockResolvedValueOnce({
         isSubscriptionActive: true,
       })
       const menuCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'menu'
       )[1]
-      const mockCtx = {
-        session: {},
-        scene: { enter: jest.fn() },
-        from: { id: 456 },
-      }
+      const userId = '456'
+      const mockCtx = makeMockContext({
+        update_id: 3,
+        message: {
+          from: { id: Number(userId), first_name: 'MenuUser', is_bot: false },
+          chat: { id: Number(userId), type: 'private', first_name: 'MenuUser' },
+          date: 0,
+          message_id: 2,
+          text: '/menu',
+        },
+      })
       await menuCallback(mockCtx)
-      expect(getUserDetails).toHaveBeenCalledWith(456)
-      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.MainMenu) // Должен войти в главное меню
+      expect(getUserDetails).toHaveBeenCalledWith(userId)
+      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.MainMenu)
     })
 
     it('/menu should check subscription and enter correct scene (inactive)', async () => {
-      ;(getUserDetails as jest.Mock).mockResolvedValue({
+      ;(getUserDetails as jest.Mock).mockResolvedValueOnce({
         isSubscriptionActive: false,
       })
       const menuCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'menu'
       )[1]
-      const mockCtx = {
-        session: {},
-        scene: { enter: jest.fn() },
-        from: { id: 789 },
-      }
+      const userId = '789'
+      const mockCtx = makeMockContext({
+        update_id: 4,
+        message: {
+          from: { id: Number(userId), first_name: 'MenuUser2', is_bot: false },
+          chat: {
+            id: Number(userId),
+            type: 'private',
+            first_name: 'MenuUser2',
+          },
+          date: 0,
+          message_id: 3,
+          text: '/menu',
+        },
+      })
       await menuCallback(mockCtx)
-      expect(getUserDetails).toHaveBeenCalledWith(789)
+      expect(getUserDetails).toHaveBeenCalledWith(userId)
       expect(mockCtx.scene.enter).toHaveBeenCalledWith(
         ModeEnum.SubscriptionScene
-      ) // Должен войти в сцену подписки
+      )
     })
 
     it('/buy should set session and enter payment scene', async () => {
       const buyCallback = bot.command.mock.calls.find(
         (call: any) => call[0] === 'buy'
       )[1]
-      const mockCtx = {
-        session: {},
-        scene: { enter: jest.fn() },
-        from: { id: 111 },
-      }
+      const userId = '111'
+      const mockCtx = makeMockContext({
+        update_id: 5,
+        message: {
+          from: { id: Number(userId), first_name: 'BuyUser', is_bot: false },
+          chat: { id: Number(userId), type: 'private', first_name: 'BuyUser' },
+          date: 0,
+          message_id: 4,
+          text: '/buy',
+        },
+      })
       await buyCallback(mockCtx)
       expect((mockCtx.session as MyContext['session']).subscription).toBe(
         SubscriptionType.STARS
@@ -242,6 +267,16 @@ describe('registerCommands', () => {
         expect.stringContaining('НейроКодер')
       ) // Проверяем, что сообщение содержит "НейроКодер"
     })
+
+    it('/get100 should call get100Command', async () => {
+      const get100Callback = bot.command.mock.calls.find(
+        (call: any) => call[0] === 'get100'
+      )[1]
+      // Создаем mockCtx
+      const mockCtx = makeMockContext({ update_id: 6 })
+      await get100Callback(mockCtx)
+      expect(get100Command).toHaveBeenCalledWith(mockCtx)
+    })
   })
 
   describe('hears callbacks', () => {
@@ -266,35 +301,51 @@ describe('registerCommands', () => {
     })
   })
 
+  // --- Тесты для логики action ---
   describe('action callbacks', () => {
-    it('top_up action should enter PaymentScene with correct subscription type', async () => {
+    it('top_up action should set session and enter payment scene', async () => {
       const topUpActionCallback = bot.action.mock.calls.find(
-        (call: any) => call[0] instanceof RegExp && call[0].test('top_up_123')
+        (call: any) => call[0] instanceof RegExp && call[0].test('top_up_500')
       )[1]
-
-      const mockCtx = {
-        scene: { enter: jest.fn() },
-        callbackQuery: { data: 'top_up_stars' }, // Симулируем callbackQuery.data
-        answerCbQuery: jest.fn(),
-      } as any // Приводим к any, чтобы не было ошибок типов
+      const userId = '222'
+      const amount = 500
+      const mockCtx = makeMockContext(
+        {
+          update_id: 7,
+          callback_query: {
+            id: 'cb1',
+            from: {
+              id: Number(userId),
+              first_name: 'ActionUser',
+              is_bot: false,
+            },
+            chat_instance: 'inst1',
+            data: `top_up_${amount}`,
+          },
+        },
+        {
+          userModel: {
+            model_name: '',
+            trigger_word: '',
+            model_url: 'placeholder/placeholder:placeholder',
+          },
+          targetUserId: userId,
+        } // Исправлен model_url
+      )
+      // Добавляем match и answerCbQuery вручную
+      ;(mockCtx as any).match = [`top_up_${amount}`, amount.toString()]
+      mockCtx.answerCbQuery = jest.fn()
 
       await topUpActionCallback(mockCtx)
 
-      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.PaymentScene, {
-        subscriptionType: 'stars', // Проверяем, что передается правильный тип подписки
-      })
-      expect(mockCtx.answerCbQuery).toHaveBeenCalled() // Проверяем, что answerCbQuery был вызван
-    })
-  })
-
-  describe('command callbacks for /get100', () => {
-    it('/get100 command should send "get100"', async () => {
-      const get100CommandCallback = bot.command.mock.calls.find(
-        (call: any) => call[0] === 'get100'
-      )[1]
-      const mockCtx = { reply: jest.fn() }
-      await get100CommandCallback(mockCtx)
-      expect(mockCtx.reply).toHaveBeenCalledWith('get100')
+      expect(mockCtx.answerCbQuery).toHaveBeenCalled()
+      expect((mockCtx.session as MyContext['session']).subscription).toBe(
+        SubscriptionType.STARS
+      )
+      expect((mockCtx.session as MyContext['session']).paymentAmount).toBe(
+        amount
+      )
+      expect(mockCtx.scene.enter).toHaveBeenCalledWith(ModeEnum.PaymentScene)
     })
   })
 })

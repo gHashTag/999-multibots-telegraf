@@ -15,6 +15,8 @@ import fs from 'fs'
 import axios from 'axios'
 import FormData from 'form-data'
 import { createModelTraining } from '@/services/createModelTraining'
+import { MyContext, ModeEnum } from '@/interfaces'
+import makeMockContext from '../utils/mockTelegrafContext'
 
 describe('createModelTraining', () => {
   const dummyPath = '/tmp/file.zip'
@@ -27,9 +29,10 @@ describe('createModelTraining', () => {
     steps: 5,
     botName: 'botA',
   }
-  const ctx: any = { session: { mode: 'digital_avatar_body' } }
+  let ctx: MyContext
   beforeEach(() => {
     jest.resetAllMocks()
+    ctx = makeMockContext({}, { mode: ModeEnum.DigitalAvatarBody })
   })
 
   it('throws if file does not exist', async () => {
@@ -60,10 +63,9 @@ describe('createModelTraining', () => {
   it('uses v2 URL when mode is not digital_avatar_body', async () => {
     ;(fs.existsSync as jest.Mock).mockReturnValue(true)
     const postMock = jest.fn().mockResolvedValue({ data: { message: 'done' } })
-    ;(axios.post as jest.Mock) = postMock(
-      fs.promises.unlink as jest.Mock
-    ).mockResolvedValue(undefined)
-    const ctx2: any = { session: { mode: 'other' } }
+    ;(axios.post as jest.Mock) = postMock
+    ;(fs.promises.unlink as jest.Mock).mockResolvedValue(undefined)
+    const ctx2 = makeMockContext({}, { mode: ModeEnum.NeuroPhoto })
     await createModelTraining(reqData, ctx2)
     // Check URL includes create-model-training-v2
     const calledUrl = postMock.mock.calls[0][0]
@@ -72,7 +74,8 @@ describe('createModelTraining', () => {
 
   it('propagates unexpected errors', async () => {
     ;(fs.existsSync as jest.Mock).mockReturnValue(true)
-    const err = new Error('xyz')(axios.post as jest.Mock).mockRejectedValue(err)
+    const err = new Error('xyz')
+    ;(axios.post as jest.Mock).mockRejectedValue(err)
     await expect(createModelTraining(reqData, ctx)).rejects.toBe(err)
   })
 })

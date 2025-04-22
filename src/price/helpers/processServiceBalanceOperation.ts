@@ -20,10 +20,10 @@ interface ServiceBalanceOperationProps {
   paymentAmount: number
   is_ru: boolean
   bot: Telegraf<MyContext> // Нужен для отправки сообщения об ошибке
-  bot_name: string
-  description: string
-  type: TransactionType
-  service_type?: string // Доп. информация для updateUserBalanceV2
+  // bot_name: string
+  // description: string
+  // type: TransactionType
+  // service_type?: string // Доп. информация для updateUserBalanceV2
 }
 
 export const processServiceBalanceOperation = async ({
@@ -31,14 +31,14 @@ export const processServiceBalanceOperation = async ({
   paymentAmount,
   is_ru,
   bot,
-  bot_name,
-  description,
-  type,
-  service_type, // Используем доп. информацию
-}: ServiceBalanceOperationProps): Promise<ServiceBalanceOperationResult> => {
+}: // bot_name, // Больше не нужны здесь, если не передаются в updateUserBalance
+// description,
+// type,
+// service_type,
+ServiceBalanceOperationProps): Promise<ServiceBalanceOperationResult> => {
   let currentBalance = 0
   try {
-    // Получаем текущий баланс (getUserBalance принимает string)
+    // Получаем текущий баланс
     currentBalance = await getUserBalance(telegram_id)
 
     // Проверяем достаточно ли средств
@@ -64,30 +64,17 @@ export const processServiceBalanceOperation = async ({
       }
     }
 
-    // Рассчитываем новый баланс
-    const newBalance = currentBalance - paymentAmount
+    // Рассчитываем сумму для списания (отрицательное значение)
+    const amountToUpdate = -paymentAmount
 
-    // Преобразуем TransactionType enum в строковый литерал для updateUserBalance
-    const balanceUpdateType: 'money_income' | 'money_outcome' =
-      type === TransactionType.MONEY_INCOME ? 'money_income' : 'money_outcome'
-
-    // Используем существующую updateUserBalance
-    const updateSuccess = await updateUserBalance(
+    // Вызываем updateUserBalance только с ID и суммой списания
+    const newBalanceResult = await updateUserBalance(
       telegram_id,
-      paymentAmount, // Передаем сумму операции
-      balanceUpdateType, // Передаем преобразованный тип
-      description, // Передаем описание
-      {
-        // Передаем остальные данные в metadata
-        bot_name,
-        service_type,
-        paymentAmount: paymentAmount, // Дублируем для логики внутри updateUserBalance
-        currentBalance: currentBalance, // Передаем текущий баланс для логов
-        operation: 'service_payment', // Добавляем маркер операции
-      }
+      amountToUpdate // Передаем отрицательное значение для списания
     )
 
-    if (!updateSuccess) {
+    // Проверяем результат updateUserBalance (возвращает null при ошибке)
+    if (newBalanceResult === null) {
       const message = is_ru
         ? '❌ Ошибка обновления баланса.'
         : '❌ Error updating balance.'
@@ -114,7 +101,7 @@ export const processServiceBalanceOperation = async ({
 
     // Успешное списание
     return {
-      newBalance, // Новый баланс после списания
+      newBalance: newBalanceResult, // Используем результат updateUserBalance
       success: true,
       paymentAmount,
       currentBalance, // Баланс до списания
