@@ -103,25 +103,33 @@ export const generateTextToVideo = async (
       }
     )
 
-    const output = await processVideoGeneration(
-      videoModel,
-      userExists.aspectRatio || '16:9',
-      prompt
+    const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
+    if (!modelConfig) {
+      throw new Error(`Invalid video model configuration for: ${videoModel}`)
+    }
+
+    const videoBuffer = await generateVideo(
+      prompt,
+      modelConfig.api.model,
+      modelConfig.api.input.negative_prompt || ''
     )
+
     let videoUrl: string
-    if (Array.isArray(output)) {
-      if (!output[0]) {
+    if (Array.isArray(videoBuffer)) {
+      if (!videoBuffer[0]) {
         throw new Error('Empty array or first element is undefined')
       }
-      videoUrl = output[0]
-    } else if (typeof output === 'string') {
-      videoUrl = output
+      videoUrl = videoBuffer[0]
+    } else if (typeof videoBuffer === 'string') {
+      videoUrl = videoBuffer
     } else {
       console.error(
         'Unexpected output format:',
-        JSON.stringify(output, null, 2)
+        JSON.stringify(videoBuffer, null, 2)
       )
-      throw new Error(`Unexpected output format from API: ${typeof output}`)
+      throw new Error(
+        `Unexpected output format from API: ${typeof videoBuffer}`
+      )
     }
     const videoLocalPath = path.join(
       __dirname,
@@ -133,7 +141,6 @@ export const generateTextToVideo = async (
     console.log(videoLocalPath, 'videoLocalPath')
     await mkdir(path.dirname(videoLocalPath), { recursive: true })
 
-    const videoBuffer = await downloadFile(videoUrl as string)
     await writeFile(videoLocalPath, videoBuffer)
 
     await saveVideoUrlToSupabase(
@@ -143,8 +150,9 @@ export const generateTextToVideo = async (
       videoModel
     )
 
-    const video = { source: videoLocalPath }
-    await bot.telegram.sendVideo(telegram_id.toString(), video as InputFile)
+    await bot.telegram.sendVideo(telegram_id.toString(), {
+      source: videoLocalPath,
+    })
 
     await bot.telegram.sendMessage(
       telegram_id,
@@ -193,76 +201,5 @@ export const generateTextToVideo = async (
       console.error('Error stack:', error.stack)
     }
     throw error
-  }
-}
-
-export async function generateTextToVideo(
-  bot_name: string,
-  text: string
-): Promise<void> {
-  try {
-    const validBotName = toBotName(bot_name)
-    const botData = await getBotByName(validBotName)
-
-    if (!botData || !botData.bot) {
-      logger.error('❌ Не удалось получить бота для генерации видео:', {
-        description: 'Failed to get bot for video generation',
-        bot_name: validBotName,
-      })
-      return
-    }
-
-    // Генерация видео
-    const videoBuffer = await generateVideo(text)
-
-    // Отправка видео
-    const { data: subscribers, error } = await supabase
-      .from('avatars')
-      .select('telegram_id, username')
-      .eq('bot_name', validBotName)
-
-    if (error) {
-      logger.error('❌ Ошибка при получении подписчиков из базы данных:', {
-        description: 'Error getting subscribers from database',
-        error,
-      })
-      return
-    }
-
-    if (!subscribers || subscribers.length === 0) {
-      logger.warn('⚠️ Подписчики не найдены для бота:', {
-        description: 'No subscribers found for bot',
-        bot_name: validBotName,
-      })
-      return
-    }
-
-    for (const subscriber of subscribers) {
-      try {
-        await botData.bot.telegram.sendVideo(
-          subscriber.telegram_id,
-          videoBuffer,
-          {
-            caption: text,
-          }
-        )
-        logger.info('✅ Видео успешно отправлено:', {
-          description: 'Video sent successfully',
-          username: subscriber.username,
-          bot_name: validBotName,
-        })
-      } catch (sendError) {
-        logger.error('❌ Ошибка при отправке видео:', {
-          description: 'Error sending video',
-          username: subscriber.username,
-          error: sendError,
-        })
-      }
-    }
-  } catch (error) {
-    logger.error('❌ Ошибка в generateTextToVideo:', {
-      description: 'Error in generateTextToVideo function',
-      error,
-    })
   }
 }

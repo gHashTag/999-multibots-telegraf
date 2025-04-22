@@ -1,4 +1,4 @@
-import { Request, Response } from 'express'
+import { Request as ExpressRequest, Response as ExpressResponse } from 'express'
 import * as supabase from '@/core/supabase'
 import { PASSWORD2 } from '@/config'
 import { validateRobokassaSignature } from '@/core/robokassa'
@@ -15,8 +15,9 @@ import { PaymentStatus } from '@/interfaces'
  * @param bot - Инстанс Telegraf бота для отправки уведомлений
  */
 export const handleRobokassaWebhook =
-  (bot: Telegraf<MyContext>) => async (req: Request, res: Response) => {
-    const { OutSum, InvId, SignatureValue, ...otherParams } = req.query
+  (bot: Telegraf<MyContext>) =>
+  async (req: ExpressRequest, res: ExpressResponse) => {
+    const { OutSum, InvId, SignatureValue, ...otherParams } = req.query as any
 
     logger.info('🤖 Robokassa Webhook Received', {
       InvId,
@@ -29,9 +30,11 @@ export const handleRobokassaWebhook =
     // Проверка стандартных параметров
     if (!OutSum || !InvId || !SignatureValue) {
       logger.warn('⚠️ Robokassa Webhook: Missing required parameters', {
-        query: req.query,
+        query: req.query as any,
       })
-      return res.status(400).send('Bad Request: Missing parameters')
+      return (res as ExpressResponse)
+        .status(400)
+        .send('Bad Request: Missing parameters')
     }
 
     // Добавляем проверку shp_ параметров
@@ -41,11 +44,13 @@ export const handleRobokassaWebhook =
     } // Явное указание типов
     if (!shp_user_id || !shp_payment_uuid) {
       logger.warn('⚠️ Robokassa Webhook: Missing required shp_ parameters', {
-        query: req.query, // Логируем все query для отладки
+        query: req.query as any,
         shp_user_id,
         shp_payment_uuid,
       })
-      return res.status(400).send('Bad Request: Missing shp_ parameters')
+      return (res as ExpressResponse)
+        .status(400)
+        .send('Bad Request: Missing shp_ parameters')
     }
     // Конец проверки shp_
 
@@ -59,7 +64,9 @@ export const handleRobokassaWebhook =
 
     if (!isValidSignature) {
       logger.error('❌ Robokassa Webhook: Invalid signature', { InvId })
-      return res.status(400).send('Bad Request: Invalid signature')
+      return (res as ExpressResponse)
+        .status(400)
+        .send('Bad Request: Invalid signature')
     }
     logger.info(`✅ Robokassa Webhook: Signature valid for InvId ${InvId}`)
 
@@ -75,7 +82,9 @@ export const handleRobokassaWebhook =
             error: paymentError.message,
           }
         )
-        return res.status(500).send('Internal Server Error')
+        return (res as ExpressResponse)
+          .status(500)
+          .send('Internal Server Error')
       }
 
       if (!payment) {
@@ -91,13 +100,13 @@ export const handleRobokassaWebhook =
             `⚠️ Robokassa Webhook: Payment ${InvId} already processed (COMPLETED). Ignoring.`,
             { InvId }
           )
-          return res.status(200).send(`OK${InvId}`)
+          return (res as ExpressResponse).status(200).send(`OK${InvId}`)
         } else {
           logger.warn(
             `⚠️ Robokassa Webhook: PENDING payment not found for InvId ${InvId}. It might be FAILED or non-existent.`,
             { InvId }
           )
-          return res.status(200).send(`OK${InvId}`)
+          return (res as ExpressResponse).status(200).send(`OK${InvId}`)
         }
       }
 
@@ -110,7 +119,9 @@ export const handleRobokassaWebhook =
             telegram_id: payment.telegram_id,
           }
         )
-        return res.status(400).send('Bad Request: Amount mismatch')
+        return (res as ExpressResponse)
+          .status(400)
+          .send('Bad Request: Amount mismatch')
       }
 
       logger.info(`🅿️ Robokassa Webhook: Found PENDING payment ${InvId}`, {
@@ -132,7 +143,9 @@ export const handleRobokassaWebhook =
             telegram_id: payment.telegram_id,
           }
         )
-        return res.status(500).send('Internal Server Error')
+        return (res as ExpressResponse)
+          .status(500)
+          .send('Internal Server Error')
       }
 
       logger.info(
@@ -161,7 +174,7 @@ export const handleRobokassaWebhook =
           }
         )
         // Отвечаем OK, т.к. деньги получены, статус обновлен.
-        return res.status(200).send(`OK${InvId}`)
+        return (res as ExpressResponse).status(200).send(`OK${InvId}`)
       }
 
       logger.info(
@@ -183,7 +196,7 @@ export const handleRobokassaWebhook =
 
       // 6. Ответ Robokassa об успехе
       logger.info(`👍 Robokassa Webhook: Successfully processed InvId ${InvId}`)
-      return res.status(200).send(`OK${InvId}`)
+      return (res as ExpressResponse).status(200).send(`OK${InvId}`)
     } catch (error: any) {
       logger.error(
         `💥 Robokassa Webhook: Uncaught error processing InvId ${InvId}`,
@@ -192,6 +205,6 @@ export const handleRobokassaWebhook =
           stack: error.stack,
         }
       )
-      return res.status(500).send('Internal Server Error')
+      return (res as ExpressResponse).status(500).send('Internal Server Error')
     }
   }

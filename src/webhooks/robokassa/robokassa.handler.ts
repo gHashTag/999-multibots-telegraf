@@ -1,4 +1,4 @@
-import { Request, Response } from 'express'
+import { Request as ExpressRequest, Response as ExpressResponse } from 'express'
 
 import { logger } from '@/utils/logger'
 import { supabase, updateUserBalance } from '@/core/supabase'
@@ -16,8 +16,8 @@ interface RobokassaRequestBody {
  * Обрабатывает уведомления об успешном платеже от Robokassa (Result URL).
  */
 export const handleRobokassaResult = async (
-  req: Request,
-  res: Response
+  req: ExpressRequest,
+  res: ExpressResponse
 ): Promise<void> => {
   try {
     logger.info('[Robokassa Result] Received request:', req.body)
@@ -36,7 +36,9 @@ export const handleRobokassaResult = async (
         OutSum,
         SignatureValue,
       })
-      res.status(400).send('Bad Request: Missing parameters')
+      ;(res as ExpressResponse)
+        .status(400)
+        .send('Bad Request: Missing parameters')
       return
     }
 
@@ -55,7 +57,9 @@ export const handleRobokassaResult = async (
       logger.error(
         '[Robokassa Result] Robokassa Password #2 is not configured!'
       )
-      res.status(500).send('Internal Server Error: Configuration missing')
+      ;(res as ExpressResponse)
+        .status(500)
+        .send('Internal Server Error: Configuration missing')
       return
     }
 
@@ -64,9 +68,10 @@ export const handleRobokassaResult = async (
       logger.warn('[Robokassa Result] Invalid signature received', {
         InvId,
         SignatureValue,
-        calculatedSignature: req.body, // Передаем все параметры для расчета
       })
-      res.status(400).send('Bad Request: Invalid signature')
+      ;(res as ExpressResponse)
+        .status(400)
+        .send('Bad Request: Invalid signature')
       return
     }
 
@@ -87,14 +92,14 @@ export const handleRobokassaResult = async (
         paymentError
       )
       // Отвечаем OK, чтобы Robokassa не повторяла запрос
-      res.status(200).send(`OK${invId}`)
+      ;(res as ExpressResponse).status(200).send(`OK${invId}`)
       return
     }
 
     if (!payment) {
       logger.warn(`[Robokassa Result] Payment not found for InvId: ${invId}`)
       // Отвечаем OK, чтобы Robokassa не повторяла запрос
-      res.status(200).send(`OK${invId}`)
+      ;(res as ExpressResponse).status(200).send(`OK${invId}`)
       return
     }
 
@@ -110,7 +115,7 @@ export const handleRobokassaResult = async (
         { telegramId, botName }
       )
       // Отвечаем OK, чтобы Robokassa не повторяла запрос
-      res.status(200).send(`OK${invId}`)
+      ;(res as ExpressResponse).status(200).send(`OK${invId}`)
       return
     }
 
@@ -121,7 +126,7 @@ export const handleRobokassaResult = async (
       logger.warn(
         `[Robokassa Result] Payment InvId: ${invId} already processed.`
       )
-      res.status(200).send(`OK${invId}`)
+      ;(res as ExpressResponse).status(200).send(`OK${invId}`)
       return
     }
 
@@ -131,13 +136,13 @@ export const handleRobokassaResult = async (
       logger.warn(
         `[Robokassa Result] Amount mismatch for InvId: ${invId}. Expected: ${payment.amount}, Received: ${outSum}`
       )
-      res.status(200).send(`OK${invId}`)
+      ;(res as ExpressResponse).status(200).send(`OK${invId}`)
       return
     }
 
     // ... остальная часть функции ...
   } catch (error) {
     logger.error('[Robokassa Result] Error:', error)
-    res.status(500).send('Internal Server Error')
+    ;(res as ExpressResponse).status(500).send('Internal Server Error')
   }
 }

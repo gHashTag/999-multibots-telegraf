@@ -6,7 +6,7 @@ import { MyContext } from './interfaces'
 const app = express()
 
 // Middleware для разбора JSON данных
-app.use(express.json())
+app.use(express.json() as express.RequestHandler)
 
 /**
  * Настраивает обработку вебхуков для ботов на основном порту
