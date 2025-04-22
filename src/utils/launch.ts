@@ -66,15 +66,15 @@ export async function production(
     const app = express()
 
     // Используем json middleware глобально
-    app.use(express.json())
+    app.use('/', express.json())
 
     // Настраиваем вебхук без дополнительного middleware
-    app.use(
-      path,
-      bot.webhookCallback(path, {
+    app.use(path, (req, res, next) => {
+      const webhookHandler = bot.webhookCallback(path, {
         secretToken: process.env.TELEGRAM_SECRET_TOKEN,
-      }) as express.RequestHandler
-    )
+      })
+      return webhookHandler(req, res, next)
+    })
 
     app.get('/', (req, res) => {
       res.send(`Webhook server for ${bot.botInfo?.username} is running!`)
