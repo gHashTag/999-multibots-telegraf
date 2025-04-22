@@ -6,6 +6,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
+# Убедимся, что tsc-alias установлен глобально для сборки
+RUN npm install -g tsc-alias
+
 COPY . .
 
 # Выполняем сборку TypeScript с пропуском проверки типов для решения проблем совместимости
