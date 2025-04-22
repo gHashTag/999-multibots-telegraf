@@ -55,7 +55,22 @@ COPY --from=builder /app/dist ./dist
 # Проверяем, что файлы сборки скопированы
 RUN ls -la dist/ || echo "Директория dist не существует или пуста"
 
+# Пытаемся скопировать .env файл если он существует
+COPY .env ./
+COPY .env.* ./ || true
+
+# Создаем пустой .env файл на всякий случай
+RUN touch .env
+
+# Копируем entrypoint скрипт
+COPY docker-entrypoint.sh ./
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 
+# Используем наш entrypoint скрипт для подготовки окружения
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+
+# Запускаем приложение
 CMD ["node", "dist/bot.js"]
