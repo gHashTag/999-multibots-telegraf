@@ -152,7 +152,7 @@ export function getTokenByBotName(botName: BotName): string | undefined {
 export async function createBotByName(botName: BotName): Promise<
   | {
       token: string
-      groupId: string | null
+      groupId: string
       bot: Telegraf<MyContext>
     }
   | undefined
@@ -166,7 +166,14 @@ export async function createBotByName(botName: BotName): Promise<
     return undefined
   }
 
-  const groupId = await getBotGroupFromAvatars(botName)
+  const groupIdResult = await getBotGroupFromAvatars(botName)
+  if (!groupIdResult) {
+    logger.error('❌ Группа для бота не найдена:', {
+      description: 'Group not found for bot',
+      botName,
+    })
+    return undefined
+  }
 
   const botIndex = Object.keys(BOT_NAMES).indexOf(botName)
   const bot = bots[botIndex]
@@ -181,17 +188,9 @@ export async function createBotByName(botName: BotName): Promise<
     return undefined
   }
 
-  if (!groupId) {
-    logger.error('❌ Группа для бота не найдена:', {
-      description: 'Group not found for bot',
-      botName,
-    })
-    return undefined
-  }
-
   return {
     token,
-    groupId,
+    groupId: groupIdResult,
     bot,
   }
 }
@@ -266,4 +265,14 @@ export const supportRequest = async (title: string, data: any) => {
   } catch (error) {
     throw new Error(`Error supportRequest: ${JSON.stringify(error)}`)
   }
+}
+
+const groupId = process.env.GROUP_ID || ''
+
+export const initializeBot = async (
+  botName: string,
+  token: string,
+  groupId: string
+) => {
+  // ... existing code ...
 }

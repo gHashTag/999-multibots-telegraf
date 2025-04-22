@@ -1,47 +1,61 @@
-import { MyContext } from '@/interfaces'
-import { supabase } from '@/core/supabase'
+import { Context } from 'telegraf'
+import { supabase } from './client'
 
-export async function getUserByTelegramId(ctx: MyContext) {
+export const getUserByTelegramId = async (ctx: Context) => {
   try {
-    if (!ctx.from?.id) {
-      console.error('❌ Telegram ID не найден')
-      return null
+    if (!ctx.from) {
+      throw new Error('User not found in context')
     }
 
     const telegramId = ctx.from.id.toString()
-    const { data, error } = await supabase
+
+    const { data: user } = await supabase
       .from('users')
       .select('*')
       .eq('telegram_id', telegramId)
       .single()
 
-    if (error) {
-      console.error('User not registered')
-      return null
-    }
-
-    // Проверяем, отличается ли текущий bot_name от сохраненного
-    if (data.bot_name !== ctx.botInfo?.username) {
-      console.log(
-        'BOT_NAME changed, updating... bot_name:',
-        ctx.botInfo?.username
-      )
-
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ bot_name: ctx.botInfo?.username })
-        .eq('telegram_id', telegramId)
-
-      if (updateError) {
-        console.error('Error updating token:', updateError)
-      } else {
-        console.log('Token updated successfully')
-      }
-    }
-
-    return data
+    return user
   } catch (error) {
-    console.error('Unexpected error fetching user by Telegram ID:', error)
+    console.error('Error getting user by telegram id:', error)
+    return null
+  }
+}
+
+export const createUserByTelegramId = async (ctx: Context) => {
+  try {
+    if (!ctx.from) {
+      throw new Error('User not found in context')
+    }
+
+    const telegramId = ctx.from.id.toString()
+
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('telegram_id', telegramId)
+      .single()
+
+    if (existingUser) {
+      return existingUser
+    }
+
+    const { data: newUser } = await supabase
+      .from('users')
+      .insert([
+        {
+          telegram_id: telegramId,
+          first_name: ctx.from.first_name,
+          last_name: ctx.from.last_name,
+          username: ctx.from.username,
+        },
+      ])
+      .select()
+      .single()
+
+    return newUser
+  } catch (error) {
+    console.error('Error creating user:', error)
     return null
   }
 }

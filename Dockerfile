@@ -32,6 +32,9 @@ WORKDIR /app
 
 # Копируем файлы для установки зависимостей
 COPY package.json pnpm-lock.yaml ./
+
+# Отключаем husky при установке
+ENV HUSKY=0
 RUN pnpm install
 
 # Копируем исходный код
@@ -44,14 +47,9 @@ RUN pnpm run build:prod
 RUN ls -la dist/
 
 # Финальный этап
-FROM node:20-alpine
+FROM node:20-alpine as stage-1
 
-# Устанавливаем pnpm
-RUN npm install -g pnpm
-
-WORKDIR /app
-
-# Устанавливаем зависимости для Ansible
+# Устанавливаем необходимые пакеты
 RUN apk add --no-cache \
     python3 \
     py3-pip \
@@ -59,21 +57,24 @@ RUN apk add --no-cache \
     sshpass \
     nginx
 
-
-# Создаем нужные каталоги и устанавливаем права
+# Создаем необходимые директории
 RUN mkdir -p /app/.ssh /app/logs /app/uploads /app/tmp \
     && chmod 700 /app/.ssh \
     && chown -R node:node /app
 
-# Копируем файлы для установки зависимостей
-COPY package.json pnpm-lock.yaml ./
+WORKDIR /app
+
+COPY package.prod.json ./package.json
+COPY pnpm-lock.yaml ./
+
+# Отключаем husky при установке
+ENV HUSKY=0
 RUN pnpm install --prod
 
-# Копируем собранные файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/views ./src/views
 
-# Проверяем, что файлы скопировались
-RUN ls -la dist/
+USER node
 
 # Экспортируем порты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
