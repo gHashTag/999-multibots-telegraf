@@ -65,7 +65,8 @@ export async function production(
 
     // Настраиваем Express сервер
     const app = express()
-    app.use(express.json())
+    // Используем утверждение типа для express.json()
+    app.use('/', express.json() as express.RequestHandler)
 
     // Добавляем обработчик вебхука с явными типами Request/Response
     app.use(path, async (req: Request, res: Response) => {
