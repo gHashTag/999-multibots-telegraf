@@ -1,6 +1,5 @@
 import { Telegraf } from 'telegraf'
 import express from 'express'
-import { Request, Response } from 'express'
 import { MyContext } from '@/interfaces'
 import { removeWebhooks } from './removeWebhooks'
 import { logger } from './logger'
@@ -66,16 +65,18 @@ export async function production(
 
     const app = express()
 
-    // app.use('/', express.json() as express.RequestHandler)
+    // Используем json middleware глобально
+    app.use(express.json())
 
-    // Используем middleware для вебхуков
-    app.use(path, express.json(), (req, res, next) => {
+    // Настраиваем вебхук без дополнительного middleware
+    app.use(
+      path,
       bot.webhookCallback(path, {
         secretToken: process.env.TELEGRAM_SECRET_TOKEN,
-      })(req, res, next)
-    })
+      }) as express.RequestHandler
+    )
 
-    app.get('/', (req: Request, res: Response) => {
+    app.get('/', (req, res) => {
       res.send(`Webhook server for ${bot.botInfo?.username} is running!`)
     })
 
