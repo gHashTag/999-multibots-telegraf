@@ -37,7 +37,8 @@ RUN python3 -m venv /app/ansible-venv \
 RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
 
 COPY package*.json ./
-RUN npm install --omit=dev
+# При установке пропускаем скрипт prepare, который запускает husky install
+RUN npm install --omit=dev --ignore-scripts
 
 # Копируем только необходимые файлы из этапа сборки
 COPY --from=builder /app/dist ./dist
