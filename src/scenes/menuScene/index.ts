@@ -75,8 +75,8 @@ const menuCommandStep = async (ctx: MyContext) => {
         ? nextLevel.title_ru
         : nextLevel.title_en
       : isRu
-      ? 'Неизвестный уровень'
-      : 'Unknown level'
+        ? 'Неизвестный уровень'
+        : 'Unknown level'
 
     const inlineKeyboard = [
       ...(newCount >= 1

@@ -12,9 +12,8 @@ export async function sendGenerationCancelledMessage(
     return
   }
   const telegram_id = ctx.from.id.toString()
-  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
-    telegram_id
-  )
+  const { count, subscriptionType, level } =
+    await getReferalsCountAndUserData(telegram_id)
   const isRu = ctx.from?.language_code === 'ru'
   const message = isRu
     ? `Генерация отменена по причине: ${reason}`

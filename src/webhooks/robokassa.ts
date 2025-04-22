@@ -1,5 +1,10 @@
-import { Request as ExpressRequest, Response as ExpressResponse } from 'express'
-import * as supabase from '@/core/supabase'
+import { Request, Response } from 'express'
+import {
+  getPendingPayment,
+  getPaymentByInvId,
+  updatePaymentStatus,
+  updateUserBalance,
+} from '@/core/supabase'
 import { PASSWORD2 } from '@/config'
 import { validateRobokassaSignature } from '@/core/robokassa'
 import { sendPaymentSuccessMessage } from '@/helpers/notifications'
@@ -8,6 +13,17 @@ import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { PaymentStatus } from '@/interfaces'
+import { ParsedQs } from 'qs'
+
+// Интерфейс для параметров запроса Robokassa
+interface RobokassaQuery extends ParsedQs {
+  OutSum?: string
+  InvId?: string
+  SignatureValue?: string
+  shp_user_id?: string
+  shp_payment_uuid?: string
+  [key: string]: string | string[] | ParsedQs | ParsedQs[] | undefined
+}
 
 /**
  * Обработчик вебхуков Robokassa
@@ -16,8 +32,10 @@ import { PaymentStatus } from '@/interfaces'
  */
 export const handleRobokassaWebhook =
   (bot: Telegraf<MyContext>) =>
-  async (req: ExpressRequest, res: ExpressResponse) => {
-    const { OutSum, InvId, SignatureValue, ...otherParams } = req.query as any
+  // Явно типизируем req и res
+  async (req: Request<{}, {}, {}, RobokassaQuery>, res: Response) => {
+    // Тип query теперь известен из дженерика Request
+    const { OutSum, InvId, SignatureValue, ...otherParams } = req.query
 
     logger.info('🤖 Robokassa Webhook Received', {
       InvId,
@@ -30,27 +48,22 @@ export const handleRobokassaWebhook =
     // Проверка стандартных параметров
     if (!OutSum || !InvId || !SignatureValue) {
       logger.warn('⚠️ Robokassa Webhook: Missing required parameters', {
-        query: req.query as any,
+        query: req.query,
       })
-      return (res as ExpressResponse)
-        .status(400)
-        .send('Bad Request: Missing parameters')
+      // Тип res известен
+      return res.status(400).send('Bad Request: Missing parameters')
     }
 
     // Добавляем проверку shp_ параметров
-    const { shp_user_id, shp_payment_uuid } = otherParams as {
-      shp_user_id?: string
-      shp_payment_uuid?: string
-    } // Явное указание типов
+    const { shp_user_id, shp_payment_uuid } = otherParams // Типы уже есть из RobokassaQuery
     if (!shp_user_id || !shp_payment_uuid) {
       logger.warn('⚠️ Robokassa Webhook: Missing required shp_ parameters', {
-        query: req.query as any,
+        query: req.query,
         shp_user_id,
         shp_payment_uuid,
       })
-      return (res as ExpressResponse)
-        .status(400)
-        .send('Bad Request: Missing shp_ parameters')
+      // Тип res известен
+      return res.status(400).send('Bad Request: Missing shp_ parameters')
     }
     // Конец проверки shp_
 
@@ -58,22 +71,22 @@ export const handleRobokassaWebhook =
     const isValidSignature = validateRobokassaSignature(
       OutSum as string,
       InvId as string,
-      PASSWORD2, // Используем второй пароль для вебхуков
+      PASSWORD2,
       SignatureValue as string
     )
 
     if (!isValidSignature) {
       logger.error('❌ Robokassa Webhook: Invalid signature', { InvId })
-      return (res as ExpressResponse)
-        .status(400)
-        .send('Bad Request: Invalid signature')
+      // Тип res известен
+      return res.status(400).send('Bad Request: Invalid signature')
     }
     logger.info(`✅ Robokassa Webhook: Signature valid for InvId ${InvId}`)
 
     try {
       // 2. Поиск PENDING платежа
-      const { data: payment, error: paymentError } =
-        await supabase.getPendingPayment(InvId as string)
+      const { data: payment, error: paymentError } = await getPendingPayment(
+        InvId as string
+      )
 
       if (paymentError) {
         logger.error(
@@ -82,13 +95,12 @@ export const handleRobokassaWebhook =
             error: paymentError.message,
           }
         )
-        return (res as ExpressResponse)
-          .status(500)
-          .send('Internal Server Error')
+        // Тип res известен
+        return res.status(500).send('Internal Server Error')
       }
 
       if (!payment) {
-        const { data: successPayment } = await supabase.getPaymentByInvId(
+        const { data: successPayment } = await getPaymentByInvId(
           InvId as string
         )
 
@@ -100,13 +112,15 @@ export const handleRobokassaWebhook =
             `⚠️ Robokassa Webhook: Payment ${InvId} already processed (COMPLETED). Ignoring.`,
             { InvId }
           )
-          return (res as ExpressResponse).status(200).send(`OK${InvId}`)
+          // Тип res известен
+          return res.status(200).send(`OK${InvId}`)
         } else {
           logger.warn(
             `⚠️ Robokassa Webhook: PENDING payment not found for InvId ${InvId}. It might be FAILED or non-existent.`,
             { InvId }
           )
-          return (res as ExpressResponse).status(200).send(`OK${InvId}`)
+          // Тип res известен
+          return res.status(200).send(`OK${InvId}`)
         }
       }
 
@@ -119,9 +133,8 @@ export const handleRobokassaWebhook =
             telegram_id: payment.telegram_id,
           }
         )
-        return (res as ExpressResponse)
-          .status(400)
-          .send('Bad Request: Amount mismatch')
+        // Тип res известен
+        return res.status(400).send('Bad Request: Amount mismatch')
       }
 
       logger.info(`🅿️ Robokassa Webhook: Found PENDING payment ${InvId}`, {
@@ -131,7 +144,7 @@ export const handleRobokassaWebhook =
       })
 
       // 3. Обновление статуса платежа на SUCCESS
-      const { error: updateError } = await supabase.updatePaymentStatus(
+      const { error: updateError } = await updatePaymentStatus(
         InvId as string,
         PaymentStatus.COMPLETED
       )
@@ -143,9 +156,8 @@ export const handleRobokassaWebhook =
             telegram_id: payment.telegram_id,
           }
         )
-        return (res as ExpressResponse)
-          .status(500)
-          .send('Internal Server Error')
+        // Тип res известен
+        return res.status(500).send('Internal Server Error')
       }
 
       logger.info(
@@ -153,7 +165,7 @@ export const handleRobokassaWebhook =
       )
 
       // 4. Обновление баланса пользователя (зачисление звезд)
-      const balanceUpdated = await supabase.updateUserBalance(
+      const balanceUpdated = await updateUserBalance(
         payment.telegram_id,
         payment.stars ?? 0,
         'money_income',
@@ -173,8 +185,8 @@ export const handleRobokassaWebhook =
             inv_id: InvId as string,
           }
         )
-        // Отвечаем OK, т.к. деньги получены, статус обновлен.
-        return (res as ExpressResponse).status(200).send(`OK${InvId}`)
+        // Тип res известен
+        return res.status(200).send(`OK${InvId}`)
       }
 
       logger.info(
@@ -196,7 +208,8 @@ export const handleRobokassaWebhook =
 
       // 6. Ответ Robokassa об успехе
       logger.info(`👍 Robokassa Webhook: Successfully processed InvId ${InvId}`)
-      return (res as ExpressResponse).status(200).send(`OK${InvId}`)
+      // Тип res известен
+      return res.status(200).send(`OK${InvId}`)
     } catch (error: any) {
       logger.error(
         `💥 Robokassa Webhook: Uncaught error processing InvId ${InvId}`,
@@ -205,6 +218,7 @@ export const handleRobokassaWebhook =
           stack: error.stack,
         }
       )
-      return (res as ExpressResponse).status(500).send('Internal Server Error')
+      // Тип res известен
+      return res.status(500).send('Internal Server Error')
     }
   }

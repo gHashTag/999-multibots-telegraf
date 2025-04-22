@@ -1,12 +1,18 @@
 import express from 'express'
 import { Telegraf } from 'telegraf'
 import { MyContext } from './interfaces'
+import fileUpload from 'express-fileupload'
+import { handleRobokassaResult } from './webhooks/robokassa/robokassa.handler'
 
 // Инициализация Express приложения
 const app = express()
 
 // Middleware для разбора JSON данных
-app.use(express.json())
+app.use('/', express.json())
+
+// Добавляем middleware для Robokassa
+app.use('/', express.urlencoded({ extended: true }))
+app.use('/', fileUpload())
 
 /**
  * Настраивает обработку вебхуков для ботов на основном порту
@@ -28,6 +34,14 @@ export function setupWebhookHandlers(
     res.send('Telegram Bot API вебхук сервер работает!')
   })
 
+  // Добавляем маршрут для Robokassa Result URL
+  app.post('/payment-success', handleRobokassaResult)
+
+  // Добавляем маршрут для проверки работоспособности Robokassa сервера (опционально)
+  app.get('/health', (req, res) => {
+    res.status(200).send('OK')
+  })
+
   // Создаем карту маршрутов для каждого бота
   const botTokens = new Map<string, Telegraf<MyContext>>()
 
@@ -36,10 +50,16 @@ export function setupWebhookHandlers(
     try {
       const botInfo = await bot.telegram.getMe()
       const secretPath = bot.secretPathComponent()
-      botTokens.set(secretPath, bot)
-      console.log(
-        `✅ Зарегистрирован вебхук для бота ${botInfo.username} на пути /telegraf/${secretPath}`
-      )
+      if (secretPath) {
+        botTokens.set(secretPath, bot)
+        console.log(
+          `✅ Зарегистрирован вебхук для бота ${botInfo.username} на пути /telegraf/${secretPath}`
+        )
+      } else {
+        console.error(
+          `❌ Не удалось сгенерировать secretPath для бота ${botInfo.username}`
+        )
+      }
     } catch (error) {
       console.error('❌ Ошибка при регистрации вебхука:', error)
     }
@@ -62,10 +82,17 @@ export function setupWebhookHandlers(
 
   // Запуск сервера (если не отключен)
   if (shouldStartServer) {
-    const PORT = 2999
-    app.listen(PORT, () => {
-      console.log(`🚀 Вебхук сервер запущен на порту ${PORT}`)
-    })
+    const PORT = process.env.APP_WEBHOOK_PORT || 2999
+    app
+      .listen(PORT, () => {
+        console.log(`🚀 Основной вебхук сервер запущен на порту ${PORT}`)
+      })
+      .on('error', (err: NodeJS.ErrnoException) => {
+        console.error(`[Main Webhook] Failed to start server: ${err.message}`)
+        if (err.code === 'EADDRINUSE') {
+          console.error(`[Main Webhook] Port ${PORT} is already in use.`)
+        }
+      })
   }
 
   return app

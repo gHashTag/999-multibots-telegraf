@@ -647,9 +647,8 @@ export async function handleQuestComplete(ctx: MyContext) {
   console.warn('TODO: Implement user level update to 12 in handleQuestComplete')
 
   const isRu = isRussian(ctx)
-  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
-    telegram_id
-  )
+  const { count, subscriptionType, level } =
+    await getReferalsCountAndUserData(telegram_id)
 
   await ctx.reply(
     isRu

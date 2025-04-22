@@ -13,18 +13,14 @@ import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
 import { setupWebhookHandlers } from './webhookHandler'
 import express, { Application } from 'express'
-import fileUpload from 'express-fileupload'
-import { handleRobokassaResult } from './webhooks/robokassa/robokassa.handler'
 import * as http from 'http'
 import util from 'util'
 import { Server } from 'http'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
-let robokassaServer: http.Server | null = null
-let server: http.Server | null = null
+const server: http.Server | null = null
 
-const app: Application = express()
 const PORT = process.env.PORT || 3000
 
 // Функция для проверки валидности токена
@@ -56,56 +52,6 @@ export async function isPortInUse(port: number): Promise<boolean> {
     console.error(`❌ Ошибка проверки порта ${port}:`, error)
     return true
   }
-}
-
-// Функция запуска сервера для обработки Robokassa вебхуков
-export async function startRobokassaWebhookServer(): Promise<http.Server | null> {
-  // Порт для Robokassa webhook
-  const robokassaPort = process.env.ROBOKASSA_WEBHOOK_PORT || 2999
-
-  // Создаем экземпляр express
-  const app = express()
-
-  // Middleware для разбора URL-encoded формы
-  app.use(express.urlencoded({ extended: true }))
-
-  // Middleware для разбора JSON данных
-  app.use(express.json())
-
-  // Middleware для обработки multipart/form-data
-  app.use('/', fileUpload())
-
-  // POST маршрут для обработки успешных платежей от Robokassa
-  app.post('/payment-success', handleRobokassaResult)
-
-  // Проверка работоспособности сервера
-  app.get('/health', (req, res) => {
-    res.status(200).send('OK')
-  })
-
-  // Запуск сервера и сохранение экземпляра
-  const server = await new Promise<http.Server | null>(resolve => {
-    const expressServer = app
-      .listen(robokassaPort, () => {
-        console.log(
-          `[Robokassa] Webhook server running on port ${robokassaPort}`
-        )
-        resolve(expressServer)
-      })
-      .on('error', (err: NodeJS.ErrnoException) => {
-        console.error(
-          `[Robokassa] Failed to start webhook server: ${err.message}`
-        )
-        if (err.code === 'EADDRINUSE') {
-          console.error(
-            `[Robokassa] Port ${robokassaPort} is already in use. Maybe another instance is running?`
-          )
-        }
-        resolve(null)
-      })
-  })
-
-  return server
 }
 
 // Добавляю логи перед инициализацией ботов
@@ -256,9 +202,6 @@ async function initializeBots() {
     setupWebhookHandlers(botInstances as Telegraf<MyContext>[])
   }
 
-  // Запускаем сервер для обработки Robokassa вебхуков
-  robokassaServer = await startRobokassaWebhookServer()
-
   console.log('🔍 Инициализация сцен...')
   // Перед регистрацией каждой сцены добавляю лог
   console.log('📋 Регистрация сцены: payment_scene')
@@ -267,19 +210,6 @@ async function initializeBots() {
   // После регистрации всех сцен добавляю итоговый лог:
   console.log('✅ Все сцены успешно зарегистрированы')
 }
-
-// Промисификация server.close
-const closeServerAsync = robokassaServer
-  ? util.promisify((callback: (err?: Error) => void) => {
-      if (robokassaServer) {
-        robokassaServer.close(callback)
-      } else {
-        callback()
-      }
-    })
-  : async () => {
-      /* No-op if server is null */
-    }
 
 // Асинхронная функция для остановки
 async function gracefulShutdown(signal: string) {
@@ -309,34 +239,12 @@ async function gracefulShutdown(signal: string) {
   // await Promise.all(stopPromises) // Убираем ожидание, если оно не нужно
   console.log(`[${signal}] All bot instances processed for stopping.`)
 
-  // 2. Останавливаем сервер Robokassa, если он был запущен
-  if (robokassaServer) {
-    console.log(`[${signal}] [Robokassa] Stopping webhook server...`)
-    try {
-      // Создаем промисифицированную версию здесь, если server не null
-      await closeServerAsync() // Ожидаем закрытия сервера
-      console.log(
-        `[${signal}] [Robokassa] Webhook server stopped successfully.`
-      )
-      robokassaServer = null // Сбрасываем ссылку на сервер
-    } catch (error) {
-      console.error(
-        `[${signal}] [Robokassa] Error stopping webhook server:`,
-        error
-      )
-    }
-  } else {
-    console.log(
-      `[${signal}] [Robokassa] Webhook server was not running or already stopped.`
-    )
-  }
-
   // 3. Добавляем небольшую задержку перед выходом
   console.log(`[${signal}] Adding a short delay before exiting...`)
-  await new Promise(resolve => setTimeout(resolve, 1500)) // Пауза 1500 мс (было 500)
+  await new Promise(resolve => setTimeout(resolve, 1500))
 
   console.log(`[${signal}] Graceful shutdown completed. Exiting.`)
-  process.exit(0) // Выход с кодом 0 (успех)
+  process.exit(0)
 }
 
 // Обработка завершения работы - используем общую асинхронную функцию
@@ -347,44 +255,3 @@ console.log('🏁 Запуск приложения')
 initializeBots()
   .then(() => console.log('✅ Боты успешно запущены'))
   .catch(error => console.error('❌ Ошибка при запуске ботов:', error))
-
-export const startServer = async (): Promise<http.Server> => {
-  return new Promise((resolve, reject) => {
-    try {
-      const newServer = app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`)
-        server = newServer
-        resolve(newServer)
-      })
-
-      newServer.on('error', error => {
-        console.error('Failed to start server:', error)
-        reject(error)
-      })
-    } catch (error) {
-      console.error('Failed to start server:', error)
-      reject(error)
-    }
-  })
-}
-
-export const stopServer = async (): Promise<void> => {
-  if (!server) {
-    console.log('Server is not running')
-    return
-  }
-
-  return new Promise<void>((resolve, reject) => {
-    const currentServer = server as http.Server
-    currentServer.close(err => {
-      if (err) {
-        console.error('Error closing server:', err)
-        reject(err)
-      } else {
-        console.log('Server closed successfully')
-        server = null
-        resolve()
-      }
-    })
-  })
-}

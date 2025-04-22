@@ -52,9 +52,8 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
     )
   }
 
-  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
-    telegramIdStr
-  )
+  const { count, subscriptionType, level } =
+    await getReferalsCountAndUserData(telegramIdStr)
 
   const isRu = ctx.from.language_code === 'ru'
 

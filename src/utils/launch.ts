@@ -65,7 +65,7 @@ export async function production(
 
     // Настраиваем Express сервер
     const app = express()
-    app.use(express.json())
+    app.use('/', express.json())
 
     // Добавляем обработчик вебхука
     app.use(path, async (req, res) => {

@@ -1,4 +1,4 @@
-import { Request as ExpressRequest, Response as ExpressResponse } from 'express'
+import { Request, Response } from 'express'
 
 import { logger } from '@/utils/logger'
 import {
@@ -24,8 +24,8 @@ interface RobokassaRequestBody {
  * Обрабатывает уведомления об успешном платеже от Robokassa (Result URL).
  */
 export const handleRobokassaResult = async (
-  req: ExpressRequest<{}, {}, RobokassaRequestBody>,
-  res: ExpressResponse
+  req: Request<{}, {}, RobokassaRequestBody>,
+  res: Response
 ): Promise<void> => {
   try {
     logger.info('[Robokassa Result] Received request:', req.body)

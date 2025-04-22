@@ -26,9 +26,8 @@ helpScene.enter(async ctx => {
   const mode = ctx.session.mode
   const isRu = ctx.from?.language_code === 'ru'
   const telegram_id = ctx.from.id.toString()
-  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
-    telegram_id
-  )
+  const { count, subscriptionType, level } =
+    await getReferalsCountAndUserData(telegram_id)
 
   let helpText = isRu ? 'Общая справка...' : 'General help...'
 
