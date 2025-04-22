@@ -1,4 +1,5 @@
 import { Telegraf } from 'telegraf'
+import { IncomingMessage, ServerResponse } from 'http'
 import fastify from 'fastify'
 import fastifyExpress from '@fastify/express'
 import { MyContext } from '@/interfaces'
@@ -72,12 +73,19 @@ export async function production(
     // Регистрируем поддержку Express-middleware для обратной совместимости
     await app.register(fastifyExpress)
 
-    // Используем Express-middleware для обработки вебхуков Telegraf, чтобы обойти проблемы с типами
+    // Создаем функцию обработчика для вебхука
+    const telegrafMiddleware = bot.webhookCallback(path, {
+      secretToken: process.env.TELEGRAM_SECRET_TOKEN,
+    })
+
+    // Используем нативный Express-подобный обработчик вебхука через fastifyExpress
     app.use(path, (req, res, next) => {
-      const webhookHandler = bot.webhookCallback(path, {
-        secretToken: process.env.TELEGRAM_SECRET_TOKEN,
-      })
-      webhookHandler(req, res, next)
+      // Явно приводим типы к тем, которые ожидает Telegraf
+      const incomingMessage = req as unknown as IncomingMessage & { body?: any }
+      const serverResponse = res as unknown as ServerResponse
+
+      // Вызываем обработчик Telegraf с правильными типами
+      return telegrafMiddleware(incomingMessage, serverResponse, next)
     })
 
     // Добавляем маршрут для проверки работоспособности
