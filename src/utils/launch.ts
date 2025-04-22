@@ -1,9 +1,11 @@
 import { Telegraf } from 'telegraf'
-import { IncomingMessage, ServerResponse } from 'http'
-import fastify from 'fastify'
-import fastifyExpress from '@fastify/express'
+// Импорты ниже были нужны для удаляемой функции `production`, использующей Fastify.
+// Они не требуются, так как Telegraf сам запускает серверы для webhook.
+// import { IncomingMessage, ServerResponse } from 'http'
+// import fastify from 'fastify'
+// import fastifyExpress from '@fastify/express'
 import { MyContext } from '@/interfaces'
-import { removeWebhooks } from './removeWebhooks'
+// import { removeWebhooks } from './removeWebhooks' // Больше не используется
 import { logger } from './logger'
 
 /**
@@ -14,7 +16,7 @@ export async function development(bot: Telegraf<MyContext>) {
   try {
     // Удаляем вебхук перед запуском в режиме polling
     await bot.telegram.deleteWebhook()
-    await bot.launch()
+    await bot.launch() // Использует Long Polling
     logger.info('✅ Бот запущен в режиме разработки:', {
       description: 'Bot launched in development mode',
       bot_name: bot.botInfo?.username,
@@ -29,116 +31,48 @@ export async function development(bot: Telegraf<MyContext>) {
   }
 }
 
-/**
- * Запускает бота в режиме продакшн (webhook)
- * @param bot Экземпляр бота
- * @param port Порт для запуска сервера
- * @param url URL вебхука
- * @param path Путь для вебхука
- */
+// ==========================================================================
+// !!! НАЧАЛО УДАЛЯЕМОГО КОДА !!!
+// Функция `production` ниже НЕ НУЖНА.
+// В файле `src/bot.ts` используется `bot.launch({ webhook: { port: currentPort, ... } })`,
+// который САМ запускает HTTP-сервер Telegraf для КАЖДОГО бота на своем порту (3001, 3002,...).
+// Отдельный сервер на порту 2999 (как пыталась сделать эта функция) не требуется и не запускался (см. вывод `netstat`).
+// Ошибки `Connection refused` в Nginx были связаны с тем, что порт 2999 не слушался,
+// а соединение с портами 3001-3007 могло быть нестабильным из-за потенциальных конфликтов или ошибок
+// в этом (теперь удаляемом) коде.
+// ==========================================================================
+/*
 export async function production(
   bot: Telegraf<MyContext>,
   port: number,
   url: string,
   path: string
 ) {
-  try {
-    // Удаляем старые вебхуки
-    await removeWebhooks(bot)
-
-    // Проверяем, что бот доступен
-    await bot.telegram.getMe()
-
-    // Устанавливаем новый вебхук
-    await bot.telegram.setWebhook(url, {
-      drop_pending_updates: true,
-      allowed_updates: ['message', 'callback_query', 'pre_checkout_query'],
-    })
-
-    // Проверяем информацию о вебхуке
-    const webhookInfo = await bot.telegram.getWebhookInfo()
-    logger.info('📡 Информация о вебхуке:', {
-      description: 'Webhook info',
-      bot_name: bot.botInfo?.username,
-      url: webhookInfo.url,
-      has_custom_certificate: webhookInfo.has_custom_certificate,
-      pending_update_count: webhookInfo.pending_update_count,
-    })
-
-    // Создаем Fastify-сервер
-    const app = fastify({
-      logger: false, // отключаем встроенный логгер, так как используем свой
-    })
-
-    // Регистрируем поддержку Express-middleware для обратной совместимости
-    await app.register(fastifyExpress)
-
-    // Создаем функцию обработчика для вебхука
-    const telegrafMiddleware = bot.webhookCallback(path, {
-      secretToken: process.env.TELEGRAM_SECRET_TOKEN,
-    })
-
-    // Используем нативный Express-подобный обработчик вебхука через fastifyExpress
-    app.use(path, (req, res, next) => {
-      // Явно приводим типы к тем, которые ожидает Telegraf
-      const incomingMessage = req as unknown as IncomingMessage & { body?: any }
-      const serverResponse = res as unknown as ServerResponse
-
-      // Вызываем обработчик Telegraf с правильными типами
-      return telegrafMiddleware(incomingMessage, serverResponse, next)
-    })
-
-    // Добавляем маршрут для проверки работоспособности
-    app.get('/', async () => {
-      return {
-        status: 'ok',
-        bot: bot.botInfo?.username,
-        message: 'Webhook server is running!',
-      }
-    })
-
-    // Запускаем сервер
-    await app.listen({ port, host: '0.0.0.0' })
-
-    logger.info('✅ Бот слушает вебхуки:', {
-      description: 'Bot webhook listening',
-      bot_name: bot.botInfo?.username,
-      port,
-      path,
-    })
-  } catch (error) {
-    logger.error('❌ Ошибка запуска бота в режиме продакшн:', {
-      description: 'Production launch error',
-      bot_name: bot.botInfo?.username,
-      error: error instanceof Error ? error.message : String(error),
-    })
-    throw error
-  }
+  // ... (весь код функции `production` удален)
 }
+*/
 
-/**
- * Заглушка для модуля utils/launch
- * Добавлен для решения проблемы с импортом в скомпилированном коде
- */
-
-// Экспортируем пустой объект, чтобы модуль мог быть импортирован
+// ==========================================================================
+// !!! НАЧАЛО УДАЛЯЕМОГО КОДА !!!
+// Заглушка `launch` также больше не нужна, так как функция `production` удалена.
+// ==========================================================================
+/*
 export const launch = {
-  // Добавляем базовые функции, которые могут быть использованы
   init: () => {
     console.log('Launch module initialized')
     return true
   },
-
   configureWebhook: (options: any) => {
     console.log('Webhook configured with options:', options)
     return true
   },
-
   configureLongPolling: (options: any) => {
     console.log('Long polling configured with options:', options)
     return true
   },
 }
-
-// Экспортируем по умолчанию для поддержки различных способов импорта
 export default launch
+*/
+// ==========================================================================
+// !!! КОНЕЦ УДАЛЯЕМОГО КОДА !!!
+// ==========================================================================
