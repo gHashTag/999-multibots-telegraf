@@ -2,6 +2,8 @@ import { supabase } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { avatarService } from './avatar.service'
+import { BotName } from '@/interfaces'
+import { toBotName } from '@/helpers/botName.helper'
 
 export interface BroadcastResult {
   successCount: number
@@ -12,7 +14,7 @@ export interface BroadcastResult {
 }
 
 export interface BroadcastOptions {
-  bot_name?: string // Если указан, рассылка будет только для пользователей этого бота
+  bot_name?: BotName
   sender_telegram_id?: string // Telegram ID отправителя для проверки прав
   test_mode?: boolean // Режим тестирования - отправка только отправителю
   test_telegram_id?: string // ID для тестовой отправки
@@ -23,7 +25,7 @@ export interface BroadcastOptions {
 }
 
 export interface FetchUsersOptions {
-  bot_name?: string
+  bot_name?: BotName
   test_mode?: boolean
   test_telegram_id?: string
   sender_telegram_id?: string
@@ -35,7 +37,7 @@ export const broadcastService = {
    */
   checkOwnerPermissions: async (
     telegram_id: string,
-    bot_name: string
+    bot_name: BotName
   ): Promise<BroadcastResult> => {
     try {
       const isOwner = await avatarService.isAvatarOwner(telegram_id, bot_name)
@@ -125,10 +127,11 @@ export const broadcastService = {
    */
   getBotInstance: async (botName: string) => {
     try {
-      const result = getBotByName(botName)
+      const validBotName = toBotName(botName)
+      const result = await getBotByName(validBotName)
       if (!result || !result.bot) {
-        logger.error(`❌ Бот не найден: ${botName}`, {
-          description: `Bot not found: ${botName}`,
+        logger.error(`❌ Бот не найден: ${validBotName}`, {
+          description: `Bot not found: ${validBotName}`,
         })
         return null
       }
@@ -321,7 +324,7 @@ export const broadcastService = {
           )
 
           try {
-            const botResult = getBotByName(user.bot_name)
+            const botResult = getBotByName(user.bot_name as BotName)
 
             // Детальное логирование результата получения бота
             logger.info('🔍 Результат получения бота:', {
@@ -523,6 +526,109 @@ export const broadcastService = {
     )
 
     return { successCount, errorCount }
+  },
+
+  async broadcastMessage(
+    botName: string,
+    message: string,
+    options: BroadcastOptions = {}
+  ): Promise<BroadcastResult> {
+    try {
+      const validBotName = toBotName(botName)
+      const botData = await getBotByName(validBotName)
+
+      if (!botData || !botData.bot) {
+        logger.error('❌ Не удалось получить бота для рассылки:', {
+          description: 'Failed to get bot for broadcast',
+          bot_name: validBotName,
+        })
+        return {
+          successCount: 0,
+          errorCount: 0,
+          reason: 'bot_not_found',
+          success: false,
+        }
+      }
+
+      const { data: subscribers, error } = await supabase
+        .from('avatars')
+        .select('telegram_id, username')
+        .eq('bot_name', validBotName)
+
+      if (error) {
+        logger.error('❌ Ошибка при получении подписчиков из базы данных:', {
+          description: 'Error getting subscribers from database',
+          error,
+        })
+        return {
+          successCount: 0,
+          errorCount: 0,
+          reason: 'database_error',
+          success: false,
+        }
+      }
+
+      if (!subscribers || subscribers.length === 0) {
+        logger.warn('⚠️ Подписчики не найдены для бота:', {
+          description: 'No subscribers found for bot',
+          bot_name: validBotName,
+        })
+        return {
+          successCount: 0,
+          errorCount: 0,
+          reason: 'no_subscribers',
+          success: false,
+        }
+      }
+
+      let successCount = 0
+      let errorCount = 0
+
+      for (const subscriber of subscribers) {
+        try {
+          await botData.bot.telegram.sendMessage(
+            subscriber.telegram_id,
+            message
+          )
+          successCount++
+          logger.info('✅ Сообщение успешно отправлено:', {
+            description: 'Message sent successfully',
+            username: subscriber.username,
+            bot_name: validBotName,
+          })
+        } catch (sendError) {
+          errorCount++
+          logger.error('❌ Ошибка при отправке сообщения:', {
+            description: 'Error sending message',
+            username: subscriber.username,
+            error: sendError,
+          })
+        }
+      }
+
+      logger.info(
+        `📊 Итоги рассылки: успешно - ${successCount}, ошибок - ${errorCount}`,
+        {
+          description: `Broadcast summary: success - ${successCount}, errors - ${errorCount}`,
+          bot_name: validBotName,
+        }
+      )
+
+      return {
+        successCount,
+        errorCount,
+        reason: error?.message || 'Unknown error',
+        success: successCount > 0,
+      }
+    } catch (error) {
+      logger.error('❌ Ошибка в broadcastMessage:', error)
+      return {
+        successCount: 0,
+        errorCount: 0,
+        reason: error.message,
+        success: false,
+      }
+    }
   },
 }
 // curl -X POST http://localhost:4000/broadcast \

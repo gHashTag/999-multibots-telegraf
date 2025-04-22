@@ -16,6 +16,11 @@ import {
   sendServiceErrorToUser,
   sendServiceErrorToAdmin,
 } from '@/helpers/error'
+import { BotName } from '@/interfaces'
+import { toBotName } from '@/helpers/botName.helper'
+import { logger } from '@/utils/logger'
+import { supabase } from '@/core/supabase'
+import { generateVideo } from '@/core/replicate/generateVideo'
 
 export const processVideoGeneration = async (
   videoModel: string,
@@ -50,14 +55,16 @@ export const generateTextToVideo = async (
   is_ru: boolean,
   bot_name: string
 ): Promise<{ videoLocalPath: string }> => {
-  const { bot } = getBotByName(bot_name)
-  if (!bot) {
-    console.error(`Bot instance not found for name: ${bot_name}`)
+  const validBotName = toBotName(bot_name)
+  const botData = await getBotByName(validBotName)
+  if (!botData || !botData.bot) {
+    logger.error(`Bot instance not found for name: ${validBotName}`)
     throw new Error('Bot instance not found')
   }
+  const { bot } = botData
 
   try {
-    console.log('videoModel', videoModel)
+    logger.info('videoModel', videoModel)
     if (!prompt) throw new Error('Prompt is required')
     if (!videoModel) throw new Error('Video model is required')
     if (!telegram_id) throw new Error('Telegram ID is required')
@@ -75,7 +82,7 @@ export const generateTextToVideo = async (
 
     const tempCtx = {
       from: { id: Number(telegram_id) },
-      botInfo: { username: bot_name },
+      botInfo: { username: validBotName },
       telegram: bot.telegram,
       session: { mode: 'TextToVideo' },
     } as any
@@ -86,7 +93,7 @@ export const generateTextToVideo = async (
       is_ru
     )
 
-    bot.telegram.sendMessage(
+    await bot.telegram.sendMessage(
       telegram_id,
       is_ru ? '⏳ Генерация видео...' : '⏳ Generating video...',
       {
@@ -171,12 +178,12 @@ export const generateTextToVideo = async (
       telegram_id,
       username,
       is_ru,
-      bot_name
+      validBotName
     )
 
     return { videoLocalPath }
   } catch (error) {
-    console.error('Error generating video:', error)
+    logger.error('Error in generateTextToVideo:', error)
     await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
     await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
 
@@ -186,5 +193,76 @@ export const generateTextToVideo = async (
       console.error('Error stack:', error.stack)
     }
     throw error
+  }
+}
+
+export async function generateTextToVideo(
+  bot_name: string,
+  text: string
+): Promise<void> {
+  try {
+    const validBotName = toBotName(bot_name)
+    const botData = await getBotByName(validBotName)
+
+    if (!botData || !botData.bot) {
+      logger.error('❌ Не удалось получить бота для генерации видео:', {
+        description: 'Failed to get bot for video generation',
+        bot_name: validBotName,
+      })
+      return
+    }
+
+    // Генерация видео
+    const videoBuffer = await generateVideo(text)
+
+    // Отправка видео
+    const { data: subscribers, error } = await supabase
+      .from('avatars')
+      .select('telegram_id, username')
+      .eq('bot_name', validBotName)
+
+    if (error) {
+      logger.error('❌ Ошибка при получении подписчиков из базы данных:', {
+        description: 'Error getting subscribers from database',
+        error,
+      })
+      return
+    }
+
+    if (!subscribers || subscribers.length === 0) {
+      logger.warn('⚠️ Подписчики не найдены для бота:', {
+        description: 'No subscribers found for bot',
+        bot_name: validBotName,
+      })
+      return
+    }
+
+    for (const subscriber of subscribers) {
+      try {
+        await botData.bot.telegram.sendVideo(
+          subscriber.telegram_id,
+          videoBuffer,
+          {
+            caption: text,
+          }
+        )
+        logger.info('✅ Видео успешно отправлено:', {
+          description: 'Video sent successfully',
+          username: subscriber.username,
+          bot_name: validBotName,
+        })
+      } catch (sendError) {
+        logger.error('❌ Ошибка при отправке видео:', {
+          description: 'Error sending video',
+          username: subscriber.username,
+          error: sendError,
+        })
+      }
+    }
+  } catch (error) {
+    logger.error('❌ Ошибка в generateTextToVideo:', {
+      description: 'Error in generateTextToVideo function',
+      error,
+    })
   }
 }

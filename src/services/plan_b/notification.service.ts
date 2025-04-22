@@ -1,5 +1,8 @@
 import { getBotByName } from '@/core/bot'
 import type { Telegraf } from 'telegraf'
+import { BotName } from '@/interfaces'
+import { toBotName } from '@/helpers/botName.helper'
+import logger from '@/utils/logger'
 
 interface NotificationOptions {
   truncateError?: boolean
@@ -9,18 +12,24 @@ interface NotificationOptions {
 export class NotificationService {
   private async getBotInstance(botName: string): Promise<Telegraf> {
     try {
-      const { bot } = getBotByName(botName)
-      if (!bot) throw new Error(`Бот ${botName} не найден`)
-      return bot
+      const validBotName = toBotName(botName)
+      const result = await getBotByName(validBotName)
+      if (!result || !result.bot) {
+        logger.error(`❌ Бот не найден: ${validBotName}`, {
+          description: `Bot not found: ${validBotName}`,
+        })
+        throw new Error(`Bot not found: ${validBotName}`)
+      }
+      return result.bot
     } catch (error) {
-      console.error('🤖 Ошибка получения бота:', error)
+      logger.error('Error in getBotInstance:', error)
       throw error
     }
   }
 
   async sendTrainingError(
     telegramId: string | undefined,
-    botName: string,
+    botName: BotName,
     error: string,
     options: NotificationOptions = {}
   ): Promise<void> {
@@ -55,7 +64,7 @@ export class NotificationService {
   // Дополнительные методы сервиса
   async sendSuccessNotification(
     telegramId: string,
-    botName: string,
+    botName: BotName,
     is_ru: boolean
   ): Promise<void> {
     try {

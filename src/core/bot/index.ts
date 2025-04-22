@@ -4,22 +4,11 @@ dotenv.config()
 
 import { NODE_ENV } from '@/config'
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext, BotName } from '@/interfaces'
 import { logger } from '@/utils/logger'
+import { toBotName } from '@/helpers/botName.helper'
 
 import { getBotGroupFromAvatars } from '@/core/supabase'
-
-// Определяем типы для имен ботов
-type BotName =
-  | 'neuro_blogger_bot'
-  | 'MetaMuse_Manifest_bot'
-  | 'ZavaraBot'
-  | 'LeeSolarbot'
-  | 'NeuroLenaAssistant_bot'
-  | 'NeurostylistShtogrina_bot'
-  | 'Gaia_Kamskaia_bot'
-  | 'ai_koshey_bot'
-  | 'clip_maker_neuro_bot'
 
 // Проверяем наличие токенов
 if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
@@ -138,10 +127,13 @@ export function getBotNameByToken(token: string): { bot_name: BotName } {
   return { bot_name: bot_name as BotName }
 }
 
-export function getTokenByBotName(botName: BotName): string | undefined {
-  const entry = Object.entries(BOT_NAMES).find(([name, _]) => name === botName)
+export function getTokenByBotName(botName: string): string | undefined {
+  const validBotName = toBotName(botName)
+  const entry = Object.entries(BOT_NAMES).find(
+    ([name, _]) => name === validBotName
+  )
   if (!entry) {
-    logger.warn(`Bot name ${botName} not found.`)
+    logger.warn(`Bot name ${validBotName} not found.`)
     return undefined
   }
 
@@ -149,7 +141,7 @@ export function getTokenByBotName(botName: BotName): string | undefined {
   return token
 }
 
-export async function createBotByName(botName: BotName): Promise<
+export async function createBotByName(botName: string): Promise<
   | {
       token: string
       groupId: string
@@ -157,31 +149,32 @@ export async function createBotByName(botName: BotName): Promise<
     }
   | undefined
 > {
-  const token = getTokenByBotName(botName)
+  const validBotName = toBotName(botName)
+  const token = getTokenByBotName(validBotName)
   if (!token) {
     logger.error('❌ Токен для бота не найден:', {
       description: 'Token not found for bot',
-      botName,
+      botName: validBotName,
     })
     return undefined
   }
 
-  const groupIdResult = await getBotGroupFromAvatars(botName)
+  const groupIdResult = await getBotGroupFromAvatars(validBotName)
   if (!groupIdResult) {
     logger.error('❌ Группа для бота не найдена:', {
       description: 'Group not found for bot',
-      botName,
+      botName: validBotName,
     })
     return undefined
   }
 
-  const botIndex = Object.keys(BOT_NAMES).indexOf(botName)
+  const botIndex = Object.keys(BOT_NAMES).indexOf(validBotName)
   const bot = bots[botIndex]
 
   if (!bot) {
     logger.error('❌ Экземпляр бота не найден:', {
       description: 'Bot instance not found',
-      botName,
+      botName: validBotName,
       botIndex,
       availableBots: Object.keys(BOT_NAMES),
     })
@@ -195,65 +188,76 @@ export async function createBotByName(botName: BotName): Promise<
   }
 }
 
-export function getBotByName(bot_name: BotName): {
+export function getBotByName(bot_name: string): {
   bot?: Telegraf<MyContext>
   error?: string | null
 } {
-  logger.info({
-    message: '🔎 getBotByName запрошен для',
-    description: 'getBotByName requested for',
-    bot_name,
-  })
-
-  const token = BOT_NAMES[bot_name]
-  if (!token) {
-    logger.error({
-      message: '❌ Токен бота не найден в конфигурации',
-      description: 'Bot token not found in configuration',
-      bot_name,
-      availableBots: Object.keys(BOT_NAMES),
-    })
-    return { error: 'Bot not found in configuration' }
-  }
-
-  logger.info({
-    message: '🔑 Токен бота получен из конфигурации',
-    description: 'Bot token retrieved from configuration',
-    bot_name,
-    tokenLength: token.length,
-  })
-
-  const botIndex = Object.keys(BOT_NAMES).indexOf(bot_name)
-  let bot = bots[botIndex]
-
-  if (!bot || !bot.telegram?.sendMessage) {
+  try {
+    const validBotName = toBotName(bot_name)
     logger.info({
-      message: '🔄 Создание нового экземпляра бота',
-      description: 'Creating new bot instance',
-      bot_name,
+      message: '🔎 getBotByName запрошен для',
+      description: 'getBotByName requested for',
+      bot_name: validBotName,
     })
-    bot = new Telegraf<MyContext>(token)
-    if (!bot.telegram?.sendMessage) {
+
+    const token = BOT_NAMES[validBotName]
+    if (!token) {
       logger.error({
-        message: '❌ Ошибка инициализации бота',
-        description: 'Bot initialization error',
-        bot_name,
-        hasTelegram: !!bot.telegram,
-        methods: bot.telegram ? Object.keys(bot.telegram) : [],
+        message: '❌ Токен бота не найден в конфигурации',
+        description: 'Bot token not found in configuration',
+        bot_name: validBotName,
+        availableBots: Object.keys(BOT_NAMES),
       })
-      return { error: 'Bot initialization failed' }
+      return { error: 'Bot not found in configuration' }
     }
-    bots[botIndex] = bot
+
+    logger.info({
+      message: '🔑 Токен бота получен из конфигурации',
+      description: 'Bot token retrieved from configuration',
+      bot_name: validBotName,
+      tokenLength: token.length,
+    })
+
+    const botIndex = Object.keys(BOT_NAMES).indexOf(validBotName)
+    let bot = bots[botIndex]
+
+    if (!bot || !bot.telegram?.sendMessage) {
+      logger.info({
+        message: '🔄 Создание нового экземпляра бота',
+        description: 'Creating new bot instance',
+        bot_name: validBotName,
+      })
+      bot = new Telegraf<MyContext>(token)
+      if (!bot.telegram?.sendMessage) {
+        logger.error({
+          message: '❌ Ошибка инициализации бота',
+          description: 'Bot initialization error',
+          bot_name: validBotName,
+          hasTelegram: !!bot.telegram,
+          methods: bot.telegram ? Object.keys(bot.telegram) : [],
+        })
+        return { error: 'Bot initialization failed' }
+      }
+      bots[botIndex] = bot
+    }
+
+    logger.info({
+      message: '✅ Бот успешно получен',
+      description: 'Bot successfully retrieved',
+      bot_name: validBotName,
+      hasSendMessage: typeof bot.telegram?.sendMessage === 'function',
+    })
+
+    return { bot }
+  } catch (error) {
+    logger.error({
+      message: '❌ Ошибка при получении бота',
+      description: 'Error getting bot',
+      bot_name,
+      error,
+    })
+    return { error: 'Invalid bot name' }
   }
-
-  logger.info({
-    message: '✅ Бот успешно получен',
-    description: 'Bot successfully retrieved',
-    bot_name,
-    hasSendMessage: typeof bot.telegram?.sendMessage === 'function',
-  })
-
-  return { bot }
 }
 
 export const supportRequest = async (title: string, data: any) => {

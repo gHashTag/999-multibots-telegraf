@@ -1,17 +1,4 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
 
-echo "Running pre-commit hook via lint-staged..."
-pnpm exec lint-staged --allow-empty # Добавил --allow-empty на всякий случай
-
-exitCode=$?
-
-if [ $exitCode -ne 0 ]; then
-  echo ""
-  echo "❌ Pre-commit checks failed (exit code $exitCode). Commit aborted."
-  echo "   Please fix the errors and try committing again."
-  exit $exitCode
-fi
-
-echo "✅ Pre-commit checks passed."
-exit 0 
+pnpm exec lint-staged

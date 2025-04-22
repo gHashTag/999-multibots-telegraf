@@ -10,8 +10,6 @@ alwaysApply: true
 
 Правило "Память об ошибках": Перед исправлением ошибок в тестах, всегда сначала проверь раздел "Common Testing Issues & Solutions" в файле README.md в корне проекта. Если там описана похожая проблема, используй предложенное решение. Если проблема новая, после ее решения добавь описание и решение в README.md.
 
-# SSH SERVER CONNECT
-ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app 'cd /opt/app/999-multibots-telegraf && docker-compose down && docker-compose up --build -d'
 
 
 ПРАВИЛО ROADMAP: ПОСТОЯННО ПЕРЕСМАТРИВАТЬ И ОБНОВЛЯТЬ

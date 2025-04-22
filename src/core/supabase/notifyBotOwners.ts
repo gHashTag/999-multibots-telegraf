@@ -1,96 +1,83 @@
-// Помести этот код либо в начало src/services/payment.service.ts,
-// либо в новый файл src/helpers/notifyBotOwners.ts (и импортируй)
+// Хелпер для отправки уведомлений владельцам ботов через таблицу avatars
 import { logger } from '@/utils/logger'
 import { createBotByName } from '@/core/bot'
+import { BotName } from '@/interfaces'
 import { supabase } from '@/core/supabase'
+import { toBotName } from '@/helpers/botName.helper'
+import { Telegraf } from 'telegraf'
+import { MyContext } from '@/interfaces'
 
-// Helper функция для отправки уведомления владельцам бота
+// DEBUG MARKER: Version 2024-03-21-001
+logger.info('🔍 Loading notifyBotOwners module v2024-03-21-001')
+
+interface AvatarOwner {
+  telegram_id: string
+  username: string
+  amount: number
+  subscription: string
+}
+
+// Функция для отправки уведомлений владельцам бота
 export async function notifyBotOwners(
   bot_name: string,
-  paymentInfo: {
-    username: string
-    telegram_id: string // ID пользователя, который оплатил
-    amount: number
-    stars: number
-    subscription?: string
-  }
+  message: string
 ): Promise<void> {
-  // Добавил Promise<void> для ясности
   try {
-    logger.info(`[NotifyOwners] Fetching owners for bot: ${bot_name}`)
-    // Запрашиваем telegram_id владельцев из таблицы avatars по bot_name
-    const { data: owners, error: ownersError } = await supabase
-      .from('avatars') // Используем таблицу avatars
-      .select('telegram_id') // Выбираем telegram_id владельцев
-      .eq('bot_name', bot_name) // Фильтруем по имени бота из платежа
+    const validBotName = toBotName(bot_name)
+    const ownerBotData = await createBotByName(validBotName)
 
-    if (ownersError) {
-      logger.error(
-        `[NotifyOwners] Error fetching owners for bot ${bot_name}:`,
-        ownersError
-      )
-      return // Не останавливаем процесс, просто логируем ошибку
+    if (!ownerBotData || !ownerBotData.bot) {
+      logger.error('❌ Не удалось получить бота для отправки уведомлений:', {
+        description: 'Failed to get bot for notifications',
+        bot_name: validBotName,
+      })
+      return
+    }
+
+    const { data: owners, error } = await supabase
+      .from('avatars')
+      .select('telegram_id, username, amount, subscription')
+      .eq('bot_name', validBotName)
+
+    if (error) {
+      logger.error('❌ Ошибка при получении владельцев из базы данных:', {
+        description: 'Error getting owners from database',
+        error,
+      })
+      return
     }
 
     if (!owners || owners.length === 0) {
-      logger.warn(`[NotifyOwners] No owners found for bot ${bot_name}`)
+      logger.warn('⚠️ Владельцы не найдены для бота:', {
+        description: 'No owners found for bot',
+        bot_name: validBotName,
+      })
       return
     }
 
-    // Получаем инстанс бота для отправки сообщений
-    const ownerBotData = createBotByName(bot_name)
-    if (!ownerBotData) {
-      logger.error(
-        `[NotifyOwners] Could not create bot instance for ${bot_name}`
-      )
-      return
-    }
-    const ownerBot = await ownerBotData.then(data => data?.bot)
-
-    // Формируем сообщение для владельца
-    const ownerMessage = `✅ Новый платеж в боте @${bot_name}\nПользователь: @${
-      paymentInfo.username || 'Без username'
-    } (ID: ${paymentInfo.telegram_id})\nСумма: ${
-      paymentInfo.amount
-    } RUB\nЗвезд начислено: ${paymentInfo.stars}\n${
-      paymentInfo.subscription
-        ? `Подписка: ${paymentInfo.subscription}`
-        : 'Пополнение баланса'
-    }`
-
-    logger.info(
-      `[NotifyOwners] Sending notifications to ${owners.length} owners for bot ${bot_name}`
-    )
-
-    // Отправляем сообщение каждому владельцу
     for (const owner of owners) {
-      if (owner.telegram_id) {
-        try {
-          // Отправляем сообщение в ЛС владельцу
-          await ownerBot?.telegram.sendMessage(owner.telegram_id, ownerMessage)
-          logger.info(
-            `[NotifyOwners] Sent notification to owner ${owner.telegram_id} for bot ${bot_name}`
-          )
-        } catch (sendError: any) {
-          // Логируем ошибку, если не удалось отправить (например, бот заблокирован)
-          logger.error(
-            `[NotifyOwners] Failed to send notification to owner ${owner.telegram_id} for bot ${bot_name}:`,
-            sendError.message // Логируем только сообщение об ошибке
-          )
-          // Не прерываем цикл
-        }
-      } else {
-        logger.warn(
-          `[NotifyOwners] Owner found with null telegram_id for bot ${bot_name}`
+      try {
+        await ownerBotData.bot.telegram.sendMessage(
+          owner.telegram_id,
+          `🔔 ${message}\n\nПользователь: ${owner.username}\nСумма: ${owner.amount}\nПодписка: ${owner.subscription}`
         )
+        logger.info('✅ Уведомление успешно отправлено владельцу:', {
+          description: 'Notification sent successfully to owner',
+          owner: owner.username,
+          bot_name: validBotName,
+        })
+      } catch (sendError) {
+        logger.error('❌ Ошибка при отправке уведомления владельцу:', {
+          description: 'Error sending notification to owner',
+          owner: owner.username,
+          error: sendError,
+        })
       }
     }
   } catch (error) {
-    // Логируем общую ошибку при уведомлении владельцев
-    logger.error(
-      `[NotifyOwners] General error notifying owners for bot ${bot_name}:`,
-      error
-    )
-    // Не бросаем ошибку дальше, чтобы не прерывать основной процесс оплаты
+    logger.error('❌ Ошибка в notifyBotOwners:', {
+      description: 'Error in notifyBotOwners',
+      error,
+    })
   }
 }
