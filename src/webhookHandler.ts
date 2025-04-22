@@ -21,7 +21,7 @@ app.use('/', express.json())
  */
 export function setupWebhookHandlers(
   botInstances: Telegraf<MyContext>[],
-  shouldStartServer = true
+  shouldStartServer = false
 ): express.Express {
   // Логирование всех входящих запросов
   app.use((req, res, next) => {

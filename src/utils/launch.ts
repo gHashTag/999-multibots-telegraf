@@ -65,10 +65,10 @@ export async function production(
 
     // Настраиваем Express сервер
     const app = express()
-    app.use('/', express.json())
+    app.use(express.json())
 
-    // Добавляем обработчик вебхука
-    app.use(path, async (req, res) => {
+    // Добавляем обработчик вебхука с явными типами Request/Response
+    app.use(path, async (req: Request, res: Response) => {
       try {
         await bot.handleUpdate(req.body, res)
       } catch (error) {
