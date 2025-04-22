@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node dist/bot.js",
     "dev": "nodemon src/bot.ts",
-    "build": "tsc --skipLibCheck --noEmitOnError false",
+    "build": "tsc && tsc-alias",
+    "build:prod": "tsc -p tsconfig.prod.json && tsc-alias",
+    "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && tsc-alias",
     "predev": "pkill -f 'node.*src/bot.ts' || true && node scripts/kill-port.cjs 2999 3001 8288",
     "test": "jest",
     "lint": "eslint . --ext .ts",
