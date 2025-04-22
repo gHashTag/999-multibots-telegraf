@@ -1,0 +1,92 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# package.json Configuration Guide
+
+**⚠️ ВНИМАНИЕ! НЕ ИЗМЕНЯТЬ БЕЗ ТРОЙНОГО СОГЛАСОВАНИЯ! ⚠️**
+**Каждый параметр критически важен для стабильности!**
+
+Файл `package.json` является сердцем любого Node.js проекта.
+
+## `package.json` (Snapshot от 2025-04-22)
+
+```json
+{
+  "name": "neuro-blogger-telegram-bot",
+  "version": "0.0.1",
+  "description": "Neuro Blogger Telegram Bot",
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "start": "npm run build && cross-env NODE_ENV=production node dist/bot.js",
+    "dev": "cross-env NODE_ENV=development nodemon src/bot.ts",
+    "build": "swc src -d dist --source-maps --copy-files",
+    "build:tsc": "tsc && tsc-alias",
+    "test": "jest --forceExit --detectOpenHandles",
+    "lint": "eslint --ignore-path .gitignore --ext .ts src",
+    "lint:fix": "npm run lint -- --fix"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.10",
+    "archiver": "^7.0.1",
+    "axios": "^1.7.9",
+    "bcrypt": "^5.0.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.1",
+    "elevenlabs": "^0.16.1",
+    "envalid": "^7.3.1",
+    "express": "^4.21.2",
+    "form-data": "^4.0.1",
+    "jest-mock": "^29.7.0",
+    "md5": "^2.3.0",
+    "openai": "^4.77.0",
+    "pinata-web3": "^0.5.4",
+    "replicate": "^0.32.0",
+    "telegraf": "^4.16.3",
+    "tslib": "^2.8.1",
+    "uuid": "^11.0.3"
+  },
+  "devDependencies": {
+    "@swc/cli": "^0.1.57",
+    "@swc/core": "^1.2.220",
+    "@types/bcrypt": "^5.0.0",
+    "@types/compression": "^1.7.2",
+    "@types/cookie-parser": "^1.4.3",
+    "@types/cors": "^2.8.12",
+    "@types/express": "^4.17.13",
+    "@types/hpp": "^0.2.2",
+    "@types/jest": "^28.1.6",
+    "@types/jsonwebtoken": "^8.5.8",
+    "@types/morgan": "^1.9.3",
+    "@types/node": "^17.0.45",
+    "@types/supertest": "^2.0.12",
+    "@types/swagger-jsdoc": "^6.0.1",
+    "@types/swagger-ui-express": "^4.1.3",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.29.0",
+    "cross-env": "^7.0.3",
+    "eslint": "^8.20.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "husky": "^8.0.1",
+    "jest": "^28.1.1",
+    "lint-staged": "^13.0.3",
+    "node-config": "^0.0.2",
+    "node-gyp": "^9.1.0",
+    "nodemon": "^2.0.19",
+    "pm2": "^5.2.0",
+    "prettier": "^2.7.1",
+    "supertest": "^6.2.4",
+    "ts-jest": "^28.0.8",
+    "ts-node": "^10.9.1",
+    "tsc-alias": "^1.7.0",
+    "tsconfig-paths": "^4.0.0",
+    "typescript": "^4.7.4"
+  }
+}
+```
+
+Он управляет зависимостями проекта и определяет основные команды для работы с ним.

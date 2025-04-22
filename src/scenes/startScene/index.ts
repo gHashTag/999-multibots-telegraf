@@ -57,7 +57,9 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       const isNewUser = !userDetails.isExist
 
       logger.info({
-        message: `🚩 [StartScene] Статус пользователя: ${isNewUser ? 'НОВЫЙ' : 'СУЩЕСТВУЮЩИЙ'}`,
+        message: `🚩 [StartScene] Статус пользователя: ${
+          isNewUser ? 'НОВЫЙ' : 'СУЩЕСТВУЮЩИЙ'
+        }`,
         telegramId,
         isNewUser,
         function: 'startScene',
@@ -314,7 +316,9 @@ export const startScene = new Scenes.WizardScene<MyContext>(
           try {
             let notificationMessage = `🔗 Новый пользователь зарегистрировался: @${finalUsername}`
             if (inviterId) {
-              notificationMessage += `\nПо реф. ссылке от: ${inviterUsername ? `@${inviterUsername}` : `ID ${inviterId}`}`
+              notificationMessage += `\nПо реф. ссылке от: ${
+                inviterUsername ? `@${inviterUsername}` : `ID ${inviterId}`
+              }`
             }
             await ctx.telegram.sendMessage(
               SUBSCRIBE_CHANNEL_ID,
