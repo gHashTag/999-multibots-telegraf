@@ -136,3 +136,6 @@ tmp/
 .env.production
 
 .vault_password
+
+# Backup directories
+config_backup/
