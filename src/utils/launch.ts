@@ -1,5 +1,6 @@
 import { Telegraf } from 'telegraf'
-import express from 'express'
+import fastify from 'fastify'
+import fastifyExpress from '@fastify/express'
 import { MyContext } from '@/interfaces'
 import { removeWebhooks } from './removeWebhooks'
 import { logger } from './logger'
@@ -63,31 +64,39 @@ export async function production(
       pending_update_count: webhookInfo.pending_update_count,
     })
 
-    const app = express()
+    // Создаем Fastify-сервер
+    const app = fastify({
+      logger: false, // отключаем встроенный логгер, так как используем свой
+    })
 
-    // Используем json middleware глобально
-    app.use('/', express.json())
+    // Регистрируем поддержку Express-middleware для обратной совместимости
+    await app.register(fastifyExpress)
 
-    // Настраиваем вебхук без дополнительного middleware
+    // Используем Express-middleware для обработки вебхуков Telegraf, чтобы обойти проблемы с типами
     app.use(path, (req, res, next) => {
       const webhookHandler = bot.webhookCallback(path, {
         secretToken: process.env.TELEGRAM_SECRET_TOKEN,
       })
-      return webhookHandler(req, res, next)
+      webhookHandler(req, res, next)
     })
 
-    app.get('/', (req, res) => {
-      res.send(`Webhook server for ${bot.botInfo?.username} is running!`)
+    // Добавляем маршрут для проверки работоспособности
+    app.get('/', async () => {
+      return {
+        status: 'ok',
+        bot: bot.botInfo?.username,
+        message: 'Webhook server is running!',
+      }
     })
 
     // Запускаем сервер
-    app.listen(port, () => {
-      logger.info('✅ Бот слушает вебхуки:', {
-        description: 'Bot webhook listening',
-        bot_name: bot.botInfo?.username,
-        port,
-        path,
-      })
+    await app.listen({ port, host: '0.0.0.0' })
+
+    logger.info('✅ Бот слушает вебхуки:', {
+      description: 'Bot webhook listening',
+      bot_name: bot.botInfo?.username,
+      port,
+      path,
     })
   } catch (error) {
     logger.error('❌ Ошибка запуска бота в режиме продакшн:', {

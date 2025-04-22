@@ -22,6 +22,7 @@
     ]
   },
   "dependencies": {
+    "@fastify/express": "^4.0.2",
     "@supabase/supabase-js": "^2.39.3",
     "archiver": "^7.0.0",
     "axios": "^1.6.5",
@@ -33,6 +34,7 @@
     "express": "^4.17.1",
     "express-fileupload": "^1.4.3",
     "express-serve-static-core": "^0.1.1",
+    "fastify": "^5.3.2",
     "form-data": "^4.0.0",
     "inngest": "^3.11.1",
     "jest-mock": "^29.7.0",
