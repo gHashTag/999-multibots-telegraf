@@ -23,45 +23,54 @@
 # LAST WORKING UPDATE: 21.04.2025
 # TESTED BY: @playra
 # Этап сборки
-# Этап сборки
 FROM node:20-alpine as builder
+
+RUN echo "---> Starting Builder Stage..."
 
 WORKDIR /app
 
 COPY package*.json ./
+RUN echo "---> Running npm install (builder dependencies)..."
 RUN npm install
 
+RUN echo "---> Copying source code..."
 COPY . .
+RUN echo "---> Checking Git commit hash inside builder stage:" && (git log -1 --pretty=%H || echo "Git not available or repo not fully copied yet")
 
 # Выполняем сборку TypeScript с пропуском проверки типов для решения проблем совместимости
 # и обрабатываем алиасы путей с помощью tsc-alias (включено в скрипт build:nocheck)
+RUN echo "---> Running build script (npm run build)..."
 RUN npm run build
 
 # Финальный этап
 FROM node:20-alpine
 
+RUN echo "---> Starting Final Stage..."
+
 WORKDIR /app
 
-# Устанавливаем зависимости для Ansible
-RUN apk add --no-cache \
-    python3 \
-    py3-pip \
-    openssh-client \
-    sshpass \
-    nginx
+# Удаляем зависимости для Ansible
+# RUN apk add --no-cache \
+#     python3 \
+#     py3-pip \
+#     openssh-client \
+#     sshpass \
+#     nginx
 
-# Создаем виртуальное окружение и устанавливаем Ansible
-RUN python3 -m venv /app/ansible-venv \
-    && . /app/ansible-venv/bin/activate \
-    && pip install --no-cache-dir ansible
+# Устанавливаем только nginx, если он нужен отдельно (или другие НЕ Python/Ansible зависимости)
+RUN apk add --no-cache openssh-client sshpass nginx
 
 # Создаем нужные каталоги внутри рабочей директории и устанавливаем права
+# RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
+# Оставляем создание .ssh, если оно нужно для других целей
 RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
 
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN echo "---> Running npm install (production dependencies)..."
+RUN npm install --omit=dev --ignore-scripts
 
 # Копируем только необходимые файлы из этапа сборки
+RUN echo "---> Copying built artifacts from builder stage..."
 COPY --from=builder /app/dist ./dist
 
 # Экспортируем порт для API и боты
