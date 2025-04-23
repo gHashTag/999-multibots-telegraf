@@ -10,6 +10,7 @@ import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { logger } from '@/utils'
 import { Message, SuccessfulPayment, Update } from 'telegraf/types'
 import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
+import { Context, NarrowedContext } from 'telegraf'
 // Локальные определения MyContext и SessionData удалены
 
 async function sendNotification({
@@ -209,8 +210,10 @@ async function processSuccessfulPaymentLogic(
   logger.info('[processSuccessfulPaymentLogic] Finished processing.')
 }
 
-// --- НОВАЯ ФУНКЦИЯ ДЛЯ PRE_CHECKOUT_QUERY ---
-export async function handlePreCheckoutQuery(ctx: MyContext) {
+// --- ИЗМЕНЯЕМ СИГНАТУРУ ФУНКЦИИ ---
+export async function handlePreCheckoutQuery(
+  ctx: NarrowedContext<MyContext, Update.PreCheckoutQueryUpdate>
+) {
   const query = ctx.preCheckoutQuery
   if (!query) {
     logger.error(
@@ -250,26 +253,24 @@ export async function handlePreCheckoutQuery(ctx: MyContext) {
 }
 // --- КОНЕЦ НОВОЙ ФУНКЦИИ ---
 
-// Основной обработчик успешного платежа (остается как есть)
-export async function handleSuccessfulPayment(ctx: MyContext) {
-  // 1. Проверка типа (возвращаем в один if) с использованием 'as'
-  if (
-    ctx.updateType !== 'message' ||
-    !(ctx.update as Update.MessageUpdate).message || // <-- Используем 'as' здесь для проверки message
-    !('successful_payment' in (ctx.update as Update.MessageUpdate).message) // <-- Используем 'as' здесь для проверки successful_payment
-  ) {
+// --- ИЗМЕНЯЕМ СИГНАТУРУ ФУНКЦИИ ---
+export async function handleSuccessfulPayment(
+  ctx: NarrowedContext<
+    MyContext,
+    Update.MessageUpdate<Message.SuccessfulPaymentMessage>
+  >
+) {
+  const successfulPayment = ctx.message?.successful_payment
+  if (!successfulPayment) {
     logger.error(
       '[handleSuccessfulPayment] Update is not a message with successful_payment data'
     )
     return
   }
 
-  // 2. Безопасное извлечение данных с использованием 'as'
-  // Теперь, после проверки, мы можем быть уверены в типе
-  const successfulPayment = (
-    ctx.update as Update.MessageUpdate<Message.SuccessfulPaymentMessage>
-  ).message.successful_payment
-
-  // 3. Вызов основной логики
-  await processSuccessfulPaymentLogic(ctx, successfulPayment)
+  try {
+    await processSuccessfulPaymentLogic(ctx, successfulPayment)
+  } catch (error) {
+    // ... обработка ошибки ...
+  }
 }
