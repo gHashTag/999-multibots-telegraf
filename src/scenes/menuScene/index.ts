@@ -25,7 +25,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     if (isDev) {
       newCount = 0
-      newSubscription = SubscriptionType.NEUROPHOTO
+      newSubscription = SubscriptionType.NEUROBASE
       newLevel = 0
     } else {
       const { count, subscriptionType, level, userData } =
