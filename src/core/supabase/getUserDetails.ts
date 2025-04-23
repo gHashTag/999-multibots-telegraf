@@ -130,7 +130,12 @@ export const getUserDetails = async (
 
     // --- ШАГ 3: Проверяем активную ПОДПИСКУ из 'payments_v2' + 30 дней ---
     let isActive = false
-    let subscriptionTypeDb: 'neurophoto' | 'neurobase' | null = null
+    // Расширяем тип, чтобы включить NEUROTESTER или другие возможные типы из БД
+    let subscriptionTypeDb:
+      | SubscriptionType
+      | SubscriptionType.NEUROPHOTO
+      | SubscriptionType.NEUROBASE
+      | null = null
     let startDateDb: string | null = null
 
     try {
@@ -151,40 +156,59 @@ export const getUserDetails = async (
           { error: paymentError.message, telegramId: telegramIdStr }
         )
       } else if (paymentData?.subscription_type) {
-        // --- Шаг 3a: Платеж найден, ПРОВЕРЯЕМ СРОК ДЕЙСТВИЯ ---
-        subscriptionTypeDb = paymentData.subscription_type as
-          | 'neurophoto'
-          | 'neurobase'
+        // --- Шаг 3a: Платеж найден, ПРОВЕРЯЕМ СРОК ДЕЙСТВИЯ или ТИП NEUROTESTER ---
+        // ПРИМЕЧАНИЕ: Мы проверяем paymentData.subscription_type, а не mappedSubscriptionType,
+        // так как нам нужен сырой тип из БД для проверки NEUROTESTER.
+        const rawSubscriptionType = paymentData.subscription_type as string // Получаем тип как строку
         startDateDb = paymentData.payment_date
-        try {
-          if (!startDateDb) {
-            throw new Error('Payment date is null')
-          }
-          const paymentDate = new Date(startDateDb)
-          const now = new Date()
-          const expirationDate = new Date(paymentDate)
-          expirationDate.setDate(
-            paymentDate.getDate() + SUBSCRIPTION_DURATION_DAYS
-          )
 
-          // Основная проверка срока действия
-          isActive = now < expirationDate
-
+        if (rawSubscriptionType === SubscriptionType.NEUROTESTER) {
+          // Если это NEUROTESTER, подписка активна всегда
+          isActive = true
+          subscriptionTypeDb = SubscriptionType.NEUROTESTER // Сохраняем для Шага 4
           logger.info(
-            `[getUserDetails v3.0 Step 3 OK] Проверка подписки User: ${telegramIdStr}`,
+            `[getUserDetails v3.0 Step 3 OK] NEUROTESTER подписка активна (безлимит) User: ${telegramIdStr}`,
             {
               isActive,
-              type: subscriptionTypeDb,
+              type: rawSubscriptionType,
               paymentDate: startDateDb,
-              expirationDate: expirationDate.toISOString(),
             }
           )
-        } catch (dateError) {
-          logger.error(
-            `[getUserDetails v3.0 Step 3 FAIL] Ошибка обработки дат подписки User: ${telegramIdStr}`,
-            { error: dateError, paymentDate: startDateDb }
-          )
-          // isActive останется false
+        } else {
+          // Для других типов проверяем дату
+          subscriptionTypeDb = rawSubscriptionType as
+            | SubscriptionType.NEUROPHOTO
+            | SubscriptionType.NEUROBASE // Приводим к известным типам
+          try {
+            if (!startDateDb) {
+              throw new Error('Payment date is null')
+            }
+            const paymentDate = new Date(startDateDb)
+            const now = new Date()
+            const expirationDate = new Date(paymentDate)
+            expirationDate.setDate(
+              paymentDate.getDate() + SUBSCRIPTION_DURATION_DAYS
+            )
+
+            // Основная проверка срока действия
+            isActive = now < expirationDate
+
+            logger.info(
+              `[getUserDetails v3.0 Step 3 OK] Проверка подписки User: ${telegramIdStr}`,
+              {
+                isActive,
+                type: subscriptionTypeDb,
+                paymentDate: startDateDb,
+                expirationDate: expirationDate.toISOString(),
+              }
+            )
+          } catch (dateError) {
+            logger.error(
+              `[getUserDetails v3.0 Step 3 FAIL] Ошибка обработки дат подписки User: ${telegramIdStr}`,
+              { error: dateError, paymentDate: startDateDb }
+            )
+            // isActive останется false
+          }
         }
       } else {
         logger.info(
@@ -204,10 +228,12 @@ export const getUserDetails = async (
     let mappedSubscriptionType: SubscriptionType | null = null
     if (isActive) {
       // Присваиваем тип только если подписка действительно активна
-      if (subscriptionTypeDb === 'neurophoto') {
+      if (subscriptionTypeDb === SubscriptionType.NEUROPHOTO) {
         mappedSubscriptionType = SubscriptionType.NEUROPHOTO
-      } else if (subscriptionTypeDb === 'neurobase') {
+      } else if (subscriptionTypeDb === SubscriptionType.NEUROBASE) {
         mappedSubscriptionType = SubscriptionType.NEUROBASE
+      } else if (subscriptionTypeDb === SubscriptionType.NEUROTESTER) {
+        mappedSubscriptionType = SubscriptionType.NEUROTESTER
       }
     }
 

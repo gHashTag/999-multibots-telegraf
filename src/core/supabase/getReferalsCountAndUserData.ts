@@ -17,6 +17,7 @@ export const getReferalsCountAndUserData = async (
     isActive: false,
   }
 
+  //
   try {
     // Сначала получаем UUID пользователя
     const { data: userData, error: userError } = await supabase
