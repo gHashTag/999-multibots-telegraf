@@ -1,7 +1,7 @@
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { supabase } from '@/core/supabase'
 import { UserType } from '@/interfaces/supabase.interface'
-import { getUserDetails } from './getUserDetails'
+import { getUserDetailsSubscription } from './getUserDetailsSubscription'
 
 export const getReferalsCountAndUserData = async (
   telegram_id: string
@@ -43,7 +43,7 @@ export const getReferalsCountAndUserData = async (
     // Получаем актуальную информацию о подписке
     try {
       // Вызываем функцию для получения сырых данных
-      const rawSubscriptionInfo = await getUserDetails(telegram_id)
+      const rawSubscriptionInfo = await getUserDetailsSubscription(telegram_id)
       // Преобразуем строковый тип в Enum
       let mappedType: SubscriptionType = SubscriptionType.STARS // По умолчанию STARS
       if (
@@ -62,7 +62,7 @@ export const getReferalsCountAndUserData = async (
       }
     } catch (subError) {
       console.error(
-        `getReferalsCountAndUserData: Ошибка при вызове getUserDetails для ${telegram_id}:`,
+        `getReferalsCountAndUserData: Ошибка при вызове getUserDetailsSubscription для ${telegram_id}:`,
         subError
       )
       // Продолжаем выполнение, но используем дефолтную подписку STARS

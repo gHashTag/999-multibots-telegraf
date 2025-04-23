@@ -10,14 +10,15 @@
   - ⚠️ **ТРЕБУЕТСЯ ДЕЙСТВИЕ (DB):** Проверить/Исправить функцию `create_system_payment`: должна использовать `type = 'MONEY_INCOME'` (или `SYSTEM` если SQL его обрабатывает как доход) и устанавливать `subscription_type`.
   - ✅ Удалить столбцы `subscription_type`, `is_active`, `subscription_start_date` из таблицы `users` (Предположительно, требуется ручная проверка).
 - **Код:**
-  - ✅ Проверить `getUserDetails`, что чтение идет только из `payments_v2`.
+  - ✅ Проверить `getUserDetailsSubscription`, что чтение идет только из `payments_v2`.
   - ✅ Удалить использование удаленных полей `users` из интерфейсов TypeScript.
   - ✅ Упрощены типы операций в коде: используется только `PaymentType.MONEY_INCOME` для дохода и `PaymentType.MONEY_OUTCOME` для расхода. Остальные типы (SYSTEM, MONEY_OUTCOME) заменены.
   - ✅ Проверить функции списания (установка `service_type`, `subscription_type=null`).
   - ✅ Исправить установку `payment_method` в `updateUserBalanceRobokassa.ts`.
-  - ✅ Реализовать безграничный срок действия для подписки `NEUROTESTER` (в `getUserDetails.ts`).
+  - ✅ Реализовать безграничный срок действия для подписки `NEUROTESTER` (в `getUserDetailsSubscription.ts`).
   - ✅ Исправлена логика вычитания баланса в `processBalanceVideoOperation.ts` (убран минус).
   - ✅ Исправлен тип операции на `MONEY_OUTCOME` в `processBalanceVideoOperation.ts`.
+  - ✅ Исправлен обработчик Telegram Payments (`handleSuccessfulPayment`) для корректной записи `type` и `subscription_type`. ✅
   ✅ **{current_date}:** Завершен рефакторинг типов платежей в коде (используются `PaymentType.MONEY_INCOME`/`PaymentType.MONEY_OUTCOME`).
   ✅ **{current_date}:** Проверена SQL-функция `get_user_balance`, подтверждено использование `MONEY_INCOME`/`MONEY_OUTCOME`.
 
@@ -170,14 +171,14 @@
 **Status:** Mostly Done ✅ (Needs Manual SQL Fix & Testing)
 
 **Key Files:**
-- `src/core/supabase/getUserDetails.ts` ✅
+- `src/core/supabase/getUserDetailsSubscription.ts` ✅
 - `src/core/supabase/getUserBalance.ts` ✅
 - `src/interfaces/payments.interface.ts` ✅
 - `src/interfaces/subscription.interface.ts` ✅
 - `src/scenes/menuScene/index.ts` ✅
 - `src/menu/mainMenu.ts` ✅
 - `src/price/helpers/refundUser.ts` ✅
-- `src/core/supabase/index.ts` (export getUserDetails) ✅
+- `src/core/supabase/index.ts` (export getUserDetailsSubscription) ✅
 - `src/core/supabase/getReferalsCountAndUserData.ts` ✅
 - `src/api-server/routes/robokassa.ts` (Needs review for interface usage)
 - Supabase SQL function `create_system_payment` (Manual fix needed) ⚠️
@@ -186,15 +187,15 @@
 **Tasks:**
 - ✅ **DB:** Remove `subscription_status`, `subscription_type`, `subscription_start_date`, `level`, `neuro_tokens` from `users` table (if not already done - requires manual check/execution).
 - ✅ **Types:** Remove corresponding fields from `UserType`, `User` interfaces (`src/interfaces/`).
-- ✅ **getUserDetails:**
+- ✅ **getUserDetailsSubscription:**
     - Fetch last **completed** payment (`status = 'COMPLETED'`, relevant `payment_method`).
     - Determine `subscriptionType` and `isActive` based ONLY on `payments_v2`.
     - Implement **unlimited duration** for `NEUROTESTER`. ✅
     - Return `isSubscriptionActive`, `subscriptionType`, `subscriptionStartDate`, `stars`, `isExist`. (Do *not* return level/count).
 - ✅ **getUserBalance:** Calculate `stars` balance from `payments_v2`.
 - ✅ **Code Usage:**
-    - Replace all usages of `user.level`, `user.count`, `user.subscription_status` etc. with calls to `getUserDetails`. ✅
-    - Simplify `menuCommandStep` (`src/scenes/menuScene/index.ts`) to rely *only* on `subscriptionType` from `getUserDetails`. **Removed `level` and `count` logic entirely.** ✅
+    - Replace all usages of `user.level`, `user.count`, `user.subscription_status` etc. with calls to `getUserDetailsSubscription`. ✅
+    - Simplify `menuCommandStep` (`src/scenes/menuScene/index.ts`) to rely *only* on `subscriptionType` from `getUserDetailsSubscription`. **Removed `level` and `count` logic entirely.** ✅
     - Update `mainMenu` (`src/menu/mainMenu.ts`) to remove `level` and `inviteCount` parameters and associated logic. ✅
     - Fix calls to `mainMenu` in other files (e.g., `refundUser.ts`). ✅
 - ✅ **Payments Logic:**
@@ -203,7 +204,7 @@
     - Corrected `processBalanceVideoOperation.ts` to use `MONEY_OUTCOME`. ✅
     - ✅ **{current_date}:** Завершен рефакторинг кода для использования `PaymentType.MONEY_INCOME`/`PaymentType.MONEY_OUTCOME`.
 - ⚠️ **System Payments:** Manually fix `create_system_payment` SQL function to insert `subscription_type` (not `service_type`) for grants.
-- ⏳ **Robokassa:** Review `robokassa.ts` route handler - ensure it uses correct interfaces and potentially calls `getUserDetails` if needed after payment confirmation.
+- ⏳ **Robokassa:** Review `robokassa.ts` route handler - ensure it uses correct interfaces and potentially calls `getUserDetailsSubscription` if needed after payment confirmation.
 - ⏳ **Testing:** Thoroughly test all scenarios: new user, STARS user, NEUROPHOTO, NEUROBASE, NEUROTESTER, balance top-up, service usage, refunds.
 - ⏳ **Documentation:** Update `docs/payments_v2_schema.md` and any other relevant docs.
 

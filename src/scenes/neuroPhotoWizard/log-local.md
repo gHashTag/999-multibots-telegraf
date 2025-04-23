@@ -125,13 +125,13 @@ CASE: getTranslation: start
 }
 }
 2025-04-20 11:31:57 [INFO]: [Command /menu START] User: 144022504. Resetting session and checking subscription status... {"telegramId":"144022504"}
-2025-04-20 11:31:57 [INFO]: [getUserDetails v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-04-20 11:31:57 [INFO]: [getUserDetailsSubscription v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
 2025-04-20 11:31:57 [INFO]: 🔍 Получение баланса пользователя из БД: {"description":"Getting user balance from database","telegram_id":"144022504"}
 2025-04-20 11:31:57 [INFO]: ✅ Баланс пользователя получен и кэширован: {"description":"User balance retrieved and cached","telegram_id":"144022504","stars":9887.12}
-2025-04-20 11:31:57 [INFO]: [getUserDetails v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
-2025-04-20 11:31:57 [INFO]: [getUserDetails v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
-2025-04-20 11:31:57 [INFO]: [getUserDetails v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
-2025-04-20 11:31:57 [INFO]: [getUserDetails v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
+2025-04-20 11:31:57 [INFO]: [getUserDetailsSubscription v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
+2025-04-20 11:31:57 [INFO]: [getUserDetailsSubscription v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
+2025-04-20 11:31:57 [INFO]: [getUserDetailsSubscription v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
+2025-04-20 11:31:57 [INFO]: [getUserDetailsSubscription v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
 2025-04-20 11:31:57 [INFO]: [Command /menu DETAILS] User: 144022504. Status received. {"telegramId":"144022504","details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
 2025-04-20 11:31:57 [INFO]: [Command /menu DECISION] User: 144022504. Subscription ACTIVE. Entering 'menuScene'. {"telegramId":"144022504"}
 CASE 📲: menuCommand
@@ -175,12 +175,12 @@ CASE handleMenu: 📸 Нейрофото
 💵 CASE: checkBalanceScene
 2025-04-20 11:32:00 [INFO]: [CheckBalanceScene] Запрошен режим: neuro_photo пользователем: 144022504 {"telegramId":"144022504","mode":"neuro_photo","language":"ru","function":"checkBalanceScene.enter","step":"identifying_user_and_mode"}
 2025-04-20 11:32:00 [INFO]: [CheckBalanceScene] Получение данных пользователя из БД {"telegramId":"144022504","function":"checkBalanceScene.enter","step":"fetching_user_data"}
-2025-04-20 11:32:00 [INFO]: [getUserDetails v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-04-20 11:32:00 [INFO]: [getUserDetailsSubscription v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
 2025-04-20 11:32:00 [INFO]: 💾 Получение баланса из кэша: {"description":"Getting user balance from cache","telegram_id":"144022504","cached_balance":9887.12}
-2025-04-20 11:32:00 [INFO]: [getUserDetails v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
-2025-04-20 11:32:00 [INFO]: [getUserDetails v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
-2025-04-20 11:32:00 [INFO]: [getUserDetails v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
-2025-04-20 11:32:00 [INFO]: [getUserDetails v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
+2025-04-20 11:32:00 [INFO]: [getUserDetailsSubscription v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
+2025-04-20 11:32:00 [INFO]: [getUserDetailsSubscription v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
+2025-04-20 11:32:00 [INFO]: [getUserDetailsSubscription v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
+2025-04-20 11:32:00 [INFO]: [getUserDetailsSubscription v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
 2025-04-20 11:32:00 [INFO]: [CheckBalanceScene] Данные пользователя получены {"telegramId":"144022504","function":"checkBalanceScene.enter","step":"user_data_fetched","userExists":true,"subscriptionActive":true,"subscriptionType":"NEUROBASE","stars":9887.12}
 2025-04-20 11:32:00 [INFO]: [CheckBalanceScene] Подписка активна для пользователя 144022504. Тип: NEUROBASE {"telegramId":"144022504","function":"checkBalanceScene.enter","step":"subscription_check_passed","subscriptionType":"NEUROBASE","mode":"neuro_photo"}
 2025-04-20 11:32:00 [INFO]: [CheckBalanceScene] Проверка баланса для режима: neuro_photo {"telegramId":"144022504","function":"checkBalanceScene.enter","step":"balance_check","mode":"neuro_photo","cost":5,"balance":9887.12,"hasEnoughBalance":true}
@@ -218,12 +218,12 @@ weights: null,
 bot_name: 'neuro_blogger_bot'
 } getLatestUserModel
 2025-04-20 11:32:01 [INFO]: 📋 [NeuroPhoto] Получение данных о рефералах и пользователе {"telegramId":"144022504","hasUserModel":true,"modelUrl":"ghashtag/neuro_sage:65d4aa45988460fc1966dddd91245f7838161a0eec9847ac783fd1918b704033"}
-2025-04-20 11:32:01 [INFO]: [getUserDetails v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-04-20 11:32:01 [INFO]: [getUserDetailsSubscription v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
 2025-04-20 11:32:01 [INFO]: 💾 Получение баланса из кэша: {"description":"Getting user balance from cache","telegram_id":"144022504","cached_balance":9887.12}
-2025-04-20 11:32:01 [INFO]: [getUserDetails v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
-2025-04-20 11:32:01 [INFO]: [getUserDetails v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
-2025-04-20 11:32:02 [INFO]: [getUserDetails v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
-2025-04-20 11:32:02 [INFO]: [getUserDetails v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
+2025-04-20 11:32:01 [INFO]: [getUserDetailsSubscription v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
+2025-04-20 11:32:01 [INFO]: [getUserDetailsSubscription v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
+2025-04-20 11:32:02 [INFO]: [getUserDetailsSubscription v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
+2025-04-20 11:32:02 [INFO]: [getUserDetailsSubscription v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
 2025-04-20 11:32:02 [INFO]: 📊 [NeuroPhoto] Данные пользователя получены {"telegramId":"144022504","referralCount":0,"subscriptionType":"NEUROBASE"}
 2025-04-20 11:32:02 [INFO]: 💾 [NeuroPhoto] Модель пользователя сохранена в сессии {"telegramId":"144022504","modelUrl":"ghashtag/neuro_sage:65d4aa45988460fc1966dddd91245f7838161a0eec9847ac783fd1918b704033","triggerWord":"NEURO_SAGE"}
 2025-04-20 11:32:02 [INFO]: 🔄 [NeuroPhoto] Обработка команды отмены: продолжение {"telegramId":"144022504","isCancel":false}

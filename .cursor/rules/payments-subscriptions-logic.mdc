@@ -33,7 +33,7 @@ MONEY_OUTCOME
 *   **RECOMMENDED ACTION (DB):** Either remove `MONEY_OUTCOME` from the `operation_type` enum in Supabase OR modify SQL functions (`get_user_balance`, `get_user_balance_stats`) to *ignore* `MONEY_OUTCOME` and only use `MONEY_OUTCOME` for subtractions.
 
 Key files for interaction:
-- Core getter: `[src/core/supabase/getUserDetails.ts](mdc:src/core/supabase/getUserDetails.ts)`
+- Core getter: `[src/core/supabase/getUserDetailsSubscription.ts](mdc:src/core/supabase/getUserDetailsSubscription.ts)`
 - Balance calculation: `[src/core/supabase/getUserBalance.ts](mdc:src/core/supabase/getUserBalance.ts)` (Relies on SQL function `get_user_balance`)
 - Core interfaces:
     - `[src/interfaces/payments.interface.ts](mdc:src/interfaces/payments.interface.ts)` (Defines `PaymentType` enum)
@@ -56,9 +56,9 @@ These two fields in `payments_v2` serve distinct purposes:
 
 **Conclusion:** `service_type = NULL` for non-expense operations is **CORRECT**. `subscription_type = NULL` for expense operations (`MONEY_OUTCOME`) is **CORRECT**.
 
-## ✨ `getUserDetails.ts`: The Oracle of User Status
+## ✨ `getUserDetailsSubscription.ts`: The Oracle of User Status
 
-This function ([src/core/supabase/getUserDetails.ts](mdc:src/core/supabase/getUserDetails.ts)) provides the current status:
+This function ([src/core/supabase/getUserDetailsSubscription.ts](mdc:src/core/supabase/getUserDetailsSubscription.ts)) provides the current status:
 - Fetches the last **completed** payment (`status = 'COMPLETED'`, `type` likely `SUBSCRIPTION_PURCHASE` or `SUBSCRIPTION_RENEWAL`) from `payments_v2`.
 - Checks `subscription_type` (which is `text`) from that payment.
 - **Special Logic `NEUROTESTER`**: If `subscription_type` is `NEUROTESTER`, `isSubscriptionActive` is set to `true` **regardless of date**.

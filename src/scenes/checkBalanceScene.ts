@@ -13,7 +13,7 @@ import {
 } from '@/interfaces/modes'
 import { starCost, SYSTEM_CONFIG } from '@/price/constants'
 import { logger } from '@/utils/logger'
-import { getUserDetails } from '@/core/supabase'
+import { getUserDetailsSubscription } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 // Интерфейс для возвращаемого значения
 export interface UserStatus {
@@ -187,7 +187,7 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
 //
 // ЛОГИКА ПРОВЕРКИ ВНУТРИ СЦЕНЫ (Версия "Подписка И Баланс Обязательны"):
 // ШАГ 1: Получить ID пользователя (`telegramId`) и запрошенный режим (`mode`).
-// ШАГ 2: ПОЛУЧЕНИЕ ДАННЫХ ПОЛЬЗОВАТЕЛЯ: Вызвать `getUserDetails(telegramId)`.
+// ШАГ 2: ПОЛУЧЕНИЕ ДАННЫХ ПОЛЬЗОВАТЕЛЯ: Вызвать `getUserDetailsSubscription(telegramId)`.
 // ШАГ 3: ПРОВЕРКА СУЩЕСТВОВАНИЯ: Если пользователь не найден (`!userDetails.isExist`) -> Сообщение, ВЫХОД (переход в `StartScene`).
 // ШАГ 4: ПРОВЕРКА НАЛИЧИЯ ПОДПИСКИ: Если подписка НЕ активна (`!userDetails.isSubscriptionActive`) -> Лог (ВНИМАНИЕ: текущий лог некорректен!), ВЫХОД (переход в `StartScene`).
 // --- Следующие шаги выполняются ТОЛЬКО ЕСЛИ У ПОЛЬЗОВАТЕЛЯ ЕСТЬ АКТИВНАЯ ПОДПИСКА ---
@@ -235,7 +235,7 @@ checkBalanceScene.enter(async ctx => {
       step: 'fetching_user_data',
     })
 
-    const userDetails = await getUserDetails(telegramId)
+    const userDetails = await getUserDetailsSubscription(telegramId)
 
     logger.info({
       message: `[CheckBalanceScene] Данные пользователя получены`,
@@ -409,7 +409,7 @@ export const enterTargetScene = async (
   })
 
   try {
-    const userDetails = await getUserDetails(telegramId)
+    const userDetails = await getUserDetailsSubscription(telegramId)
 
     if (!userDetails.isExist) {
       logger.warn({

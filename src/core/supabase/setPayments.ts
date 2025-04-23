@@ -1,21 +1,26 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
-// import { PaymentStatus } from '@/constants/paymentStatus.enum' // Удаляем неверный импорт
-import { PaymentStatus, Currency } from '@/interfaces/payments.interface' // <-- Импортируем правильный enum с правильным именем
-// import { determineSubscriptionType } from '@/price/constants' // Исправлен путь импорта
-// import { PaymentProcessParams } from '@/interfaces/payments.interface' // Убран импорт, используется локальный тип
+import {
+  PaymentStatus,
+  Currency,
+  PaymentType,
+} from '@/interfaces/payments.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 
 type PaymentParams = {
   telegram_id: string
   OutSum: string
-  InvId: string
+  InvId: string | null
   currency: Currency
   stars: number
-  status: PaymentStatus // <-- Меняем тип на правильный enum
+  status: PaymentStatus
   payment_method: string
   bot_name: string
   language: string
-  subscription: string | null // <-- СНОВА ДОБАВЛЯЕМ ЭТО ПОЛЕ
+  type: PaymentType
+  subscription_type: SubscriptionType | null
+  metadata?: object
 }
 
 /**
@@ -33,36 +38,75 @@ export const setPayments = async ({
   payment_method,
   bot_name,
   language,
-  subscription,
+  type,
+  subscription_type,
+  metadata,
 }: PaymentParams) => {
   try {
     const amount = parseFloat(OutSum)
+    const normalizedId = normalizeTelegramId(telegram_id).toString()
 
-    // Определяем тип подписки с помощью импортированной функции
-    // const subscription_type = determineSubscriptionType(amount, currency) // Пока оставим закомментированным, т.к. передаем явно
+    if (!InvId) {
+      logger.warn(
+        '⚠️ setPayments: InvId is empty or null. Using placeholder logic if necessary or allowing NULL.'
+      )
+    }
 
-    const paymentType = 'money_income'
-
-    const { error } = await supabase.from('payments_v2').insert({
-      telegram_id,
+    logger.info('✍️ Inserting payment record:', {
+      telegram_id: normalizedId,
       amount,
       inv_id: InvId,
       currency,
       status,
       payment_method,
-      description: `Purchase and sale:: ${stars}`,
       stars,
       bot_name,
-      type: paymentType,
+      type: type,
       language,
-      subscription_type: subscription,
+      subscription_type: subscription_type,
+      metadata: metadata || {},
     })
+
+    const { error } = await supabase.from('payments_v2').insert({
+      telegram_id: normalizedId,
+      amount: amount,
+      inv_id: InvId,
+      currency: currency,
+      status,
+      payment_method,
+      description: `Payment via ${payment_method}`,
+      stars: stars,
+      bot_name,
+      type: type,
+      language,
+      subscription_type: subscription_type,
+      metadata: metadata || {},
+    })
+
     if (error) {
-      logger.error({ message: 'Error inserting payment', error })
-      throw error
+      logger.error('❌ Error inserting payment', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        telegram_id: normalizedId,
+        inv_id: InvId,
+      })
+      if (error.code === '23505') {
+        logger.warn(
+          `⚠️ Attempted to insert duplicate payment record for InvId: ${InvId}. Ignoring.`
+        )
+      }
+    } else {
+      logger.info(
+        `✅ Payment record inserted successfully for InvId: ${InvId}, User: ${normalizedId}`
+      )
     }
   } catch (error) {
-    console.error('Ошибка в функции setPayments:', error)
-    logger.error({ message: 'Error in setPayments function', error })
+    logger.error('❌ Error in setPayments function', {
+      error: error instanceof Error ? error.message : String(error),
+      error_details: error,
+      input_params: { telegram_id, InvId },
+    })
   }
 }

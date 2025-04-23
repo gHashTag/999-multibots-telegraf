@@ -50,7 +50,7 @@ export { checkPaymentStatus } from './checkPaymentStatus'
 export { updateUserLevelPlusOne } from './updateUserLevelPlusOne'
 export { savePromptDirect } from './savePromptDirect'
 export { getUserByTelegramIdString } from './getUserByTelegramIdString'
-export { getUserDetails } from './getUserDetails'
+export { getUserDetailsSubscription } from './getUserDetailsSubscription'
 export { createSuccessfulPayment as setSuccessfulPayment } from './createSuccessfulPayment'
 export { getUserById } from './getUserById'
 export {

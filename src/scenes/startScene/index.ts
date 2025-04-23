@@ -2,7 +2,7 @@ import { MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
 import {
   getTranslation,
-  getUserDetails,
+  getUserDetailsSubscription,
   createUser,
   getReferalsCountAndUserData,
   getUserData,
@@ -27,7 +27,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     const subscribeChannelId = process.env.SUBSCRIBE_CHANNEL_ID
 
     try {
-      const userDetails = await getUserDetails(telegramId)
+      const userDetails = await getUserDetailsSubscription(telegramId)
 
       if (!userDetails.isExist) {
         // --- Новый пользователь ---

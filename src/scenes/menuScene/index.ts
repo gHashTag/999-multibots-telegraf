@@ -13,7 +13,7 @@ import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
 import { handleMenu } from '@/handlers/handleMenu'
 import { logger } from '@/utils'
-import { getUserDetails } from '@/core/supabase/getUserDetails'
+import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
@@ -23,7 +23,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     // Fetch only the subscription type
     // NOTE: Assuming getReferalsCountAndUserData can return only subscription or using a different function if needed.
     // For now, we still destructure level/count but won't use them.
-    const userDetails = await getUserDetails(telegram_id)
+    const userDetails = await getUserDetailsSubscription(telegram_id)
 
     const newSubscription = userDetails.subscriptionType
 

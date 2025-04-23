@@ -162,22 +162,22 @@ bot-proxy | 172.27.0.1 - - [20/Apr/2025:04:28:11 +0000] "POST /telegraf/3991e899
 999-multibots | }
 999-multibots | }
 999-multibots | 2025-04-20 04:28:21 [INFO]: [Command /menu START] User: 144022504. Resetting session and checking subscription status... {"telegramId":"144022504"}
-999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetails v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetailsSubscription v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
 999-multibots | 2025-04-20 04:28:21 [INFO]: 🔍 Получение баланса пользователя из БД: {"description":"Getting user balance from database","telegram_id":"144022504"}
 999-multibots | 2025-04-20 04:28:21 [INFO]: ✅ Баланс пользователя получен и кэширован: {"description":"User balance retrieved and cached","telegram_id":"144022504","stars":9887.12}
-999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetails v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
-999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetails v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
-999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetails v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
-999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetails v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
+999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetailsSubscription v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
+999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetailsSubscription v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
+999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetailsSubscription v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
+999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetailsSubscription v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
 999-multibots | 2025-04-20 04:28:21 [INFO]: [Command /menu DETAILS] User: 144022504. Status received. {"telegramId":"144022504","details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
 999-multibots | 2025-04-20 04:28:21 [INFO]: [Command /menu DECISION] User: 144022504. Subscription ACTIVE. Entering 'menuScene'. {"telegramId":"144022504"}
 999-multibots | CASE 📲: menuCommand
-999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetails v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetailsSubscription v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
 999-multibots | 2025-04-20 04:28:21 [INFO]: 💾 Получение баланса из кэша: {"description":"Getting user balance from cache","telegram_id":"144022504","cached_balance":9887.12}
-999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetails v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
-999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetails v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
-999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetails v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
-999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetails v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
+999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetailsSubscription v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
+999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetailsSubscription v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
+999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetailsSubscription v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
+999-multibots | 2025-04-20 04:28:21 [INFO]: [getUserDetailsSubscription v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
 bot-proxy | 172.27.0.1 - - [20/Apr/2025:04:28:22 +0000] "POST /telegraf/3991e899c2388ce7183615a24c6c3b0a9f36f4e54b53578d2a469a047e83074f HTTP/1.1" 200 0 "-" "-" "91.108.5.21"
 999-multibots | 💻 CASE: mainMenu
 999-multibots | nameStep 🤖 Цифровое тело
@@ -226,12 +226,12 @@ bot-proxy | 172.27.0.1 - - [20/Apr/2025:04:28:22 +0000] "POST /telegraf/3991e899
 999-multibots | 2025-04-20 04:28:27 [INFO]: 🏠 [handleMenu] Команда /menu - переход к главному меню {"telegramId":"144022504","function":"handleMenu","action":"menu_command","nextScene":"main_menu"}
 999-multibots | CASE: 🏠 Главное меню
 999-multibots | CASE 📲: menuCommand
-999-multibots | 2025-04-20 04:28:27 [INFO]: [getUserDetails v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+999-multibots | 2025-04-20 04:28:27 [INFO]: [getUserDetailsSubscription v3.0 Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
 999-multibots | 2025-04-20 04:28:27 [INFO]: 💾 Получение баланса из кэша: {"description":"Getting user balance from cache","telegram_id":"144022504","cached_balance":9887.12}
-999-multibots | 2025-04-20 04:28:27 [INFO]: [getUserDetails v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
-999-multibots | 2025-04-20 04:28:27 [INFO]: [getUserDetails v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
-999-multibots | 2025-04-20 04:28:27 [INFO]: [getUserDetails v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
-999-multibots | 2025-04-20 04:28:27 [INFO]: [getUserDetails v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
+999-multibots | 2025-04-20 04:28:27 [INFO]: [getUserDetailsSubscription v3.0 Step 1 OK] Баланс для User: 144022504: 9887.12 {"telegramId":"144022504"}
+999-multibots | 2025-04-20 04:28:27 [INFO]: [getUserDetailsSubscription v3.0 Step 2 OK] Пользователь 144022504 найден в таблице users. {"telegramId":"144022504"}
+999-multibots | 2025-04-20 04:28:27 [INFO]: [getUserDetailsSubscription v3.0 Step 3 OK] Проверка подписки User: 144022504 {"isActive":true,"type":"neurobase","paymentDate":"2025-04-19T13:01:14.437818+00:00","expirationDate":"2025-05-19T13:01:14.437Z"}
+999-multibots | 2025-04-20 04:28:27 [INFO]: [getUserDetailsSubscription v3.0 Finish] Детали пользователя 144022504 успешно собраны. {"details":{"stars":9887.12,"subscriptionType":"NEUROBASE","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-04-19T13:01:14.437818+00:00"}}
 bot-proxy | 172.27.0.1 - - [20/Apr/2025:04:28:27 +0000] "POST /telegraf/3991e899c2388ce7183615a24c6c3b0a9f36f4e54b53578d2a469a047e83074f HTTP/1.1" 200 0 "-" "-" "91.108.5.21"
 999-multibots | 💻 CASE: mainMenu
 999-multibots | nameStep 🤖 Цифровое тело

@@ -3,7 +3,7 @@ import { MyContext } from './interfaces'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { levels } from './menu/mainMenu'
-import { getUserDetails } from '@/core/supabase'
+import { getUserDetailsSubscription } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
 
@@ -148,7 +148,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
     try {
       // Шаг 1: Получаем актуальный статус пользователя
-      const userDetails = await getUserDetails(telegramId)
+      const userDetails = await getUserDetailsSubscription(telegramId)
       logger.info({
         message: `[Command /menu DETAILS] User: ${telegramId}. Status received.`,
         telegramId,

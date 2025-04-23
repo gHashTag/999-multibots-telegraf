@@ -7,7 +7,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { TranslationButton } from '@/interfaces/supabase.interface'
-import { getUserDetails } from '@/core/supabase'
+import { getUserDetailsSubscription } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
 // Проверка валидности типа подписки
@@ -34,7 +34,9 @@ export function isValidPaymentSubscription(value: string): value is string {
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.SubscriptionScene,
   async ctx => {
-    const userDetails = await getUserDetails(ctx.from?.id.toString())
+    const userDetails = await getUserDetailsSubscription(
+      ctx.from?.id.toString()
+    )
     logger.info({
       message: `[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.CheckBalanceScene}`,
       userDetails,

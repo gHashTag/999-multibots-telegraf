@@ -13,7 +13,12 @@ import { setPayments } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
-import { Currency, PaymentStatus } from '@/interfaces/payments.interface'
+import {
+  Currency,
+  PaymentStatus,
+  PaymentType,
+} from '@/interfaces/payments.interface'
+
 export const generateInvoiceStep = async (ctx: MyContext) => {
   logger.info('### getRuBillWizard ENTERED (generateInvoiceStep) ###', {
     scene: 'getRuBillWizard',
@@ -71,22 +76,62 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
       console.log('Invoice URL:', invoiceURL)
       const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
+      let subTypeEnum: SubscriptionType | null = null
+      if (
+        subscription.toLowerCase() === SubscriptionType.NEUROPHOTO.toLowerCase()
+      ) {
+        subTypeEnum = SubscriptionType.NEUROPHOTO
+      } else if (
+        subscription.toLowerCase() === SubscriptionType.NEUROBASE.toLowerCase()
+      ) {
+        subTypeEnum = SubscriptionType.NEUROBASE
+      } else if (
+        subscription.toLowerCase() ===
+        SubscriptionType.NEUROBLOGGER.toLowerCase()
+      ) {
+        subTypeEnum = SubscriptionType.NEUROBLOGGER
+      }
+
+      if (!subTypeEnum) {
+        logger.error(
+          'Could not determine SubscriptionType enum for:',
+          subscription
+        )
+        await ctx.reply(
+          isRu
+            ? 'Ошибка: Не удалось определить тип подписки для записи.'
+            : 'Error: Could not determine subscription type for record.'
+        )
+        return ctx.scene.leave()
+      }
+
       try {
         await setPayments({
           telegram_id: userId.toString(),
           OutSum: amount.toString(),
           InvId: invId.toString(),
           currency: Currency.RUB,
-          stars,
+          stars: stars,
           status: PaymentStatus.PENDING,
           payment_method: 'Robokassa',
-          subscription: subscription,
+          type: PaymentType.SUBSCRIPTION_PURCHASE,
+          subscription_type: subTypeEnum,
           bot_name,
-          language: ctx.from?.language_code,
+          language: ctx.from?.language_code ?? 'en',
         })
         console.log('Payment saved with status PENDING')
+        logger.info('Pending payment record created for Robokassa', {
+          userId,
+          invId,
+          subscription_type: subTypeEnum,
+        })
       } catch (error) {
         console.error('Error in setting payments:', error)
+        logger.error('Error saving pending Robokassa payment', {
+          error,
+          userId,
+          invId,
+        })
         await ctx.reply(
           isRu
             ? `Ошибка при создании платежа в базе данных. Пожалуйста, попробуйте снова. ${

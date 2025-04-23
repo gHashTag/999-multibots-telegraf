@@ -9,8 +9,12 @@ import { setPayments } from '@/core/supabase'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { PaymentStatus, Currency } from '@/interfaces/payments.interface'
+
+import {
+  PaymentStatus,
+  Currency,
+  PaymentType,
+} from '@/interfaces/payments.interface'
 
 export const rublePaymentScene = new Scenes.BaseScene<MyContext>(
   ModeEnum.RublePaymentScene
@@ -110,9 +114,10 @@ rublePaymentScene.enter(async ctx => {
         stars: stars,
         status: PaymentStatus.PENDING,
         payment_method: 'Robokassa',
-        subscription: subscriptionType,
+        type: PaymentType.SUBSCRIPTION_PURCHASE,
+        subscription_type: subscriptionType,
         bot_name,
-        language: ctx.from?.language_code,
+        language: ctx.from?.language_code ?? 'en',
       })
 
       logger.info(
@@ -266,13 +271,14 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       stars: stars,
       status: PaymentStatus.PENDING,
       payment_method: 'Robokassa',
-      subscription: 'stars',
+      type: PaymentType.MONEY_INCOME,
+      subscription_type: null,
       bot_name,
-      language: ctx.from?.language_code,
+      language: ctx.from?.language_code ?? 'en',
     })
 
     logger.info(
-      `[${ModeEnum.RublePaymentScene}] PENDING payment saved for InvId: ${invId}`,
+      `[${ModeEnum.RublePaymentScene}] PENDING BALANCE top-up payment saved for InvId: ${invId}`,
       {
         telegram_id: userId,
         invId: invId,
