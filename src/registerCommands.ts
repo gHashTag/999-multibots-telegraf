@@ -6,6 +6,7 @@ import { levels } from './menu/mainMenu'
 import { getUserDetails } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
+import { setupErrorHandler } from './helpers/error/errorHandler'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -96,6 +97,9 @@ export const stage = new Scenes.Stage<MyContext>([
 ])
 
 export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
+  // Активируем глобальный обработчик ошибок
+  setupErrorHandler(bot)
+
   // Инициализируем сессию только один раз
   bot.use(session({ defaultSession: () => ({ ...defaultSession }) }))
   bot.use(stage.middleware())

@@ -47,11 +47,26 @@ describe('setPayments', () => {
     })
   })
 
-  it('throws error when insert error', async () => {
+  it('logs error when insert fails', async () => {
     const { supabase } = require('@/core/supabase')
+    const { logger } = require('@/utils/logger')
     const builder = supabase.from('payments_v2')
     const err = new Error('db fail')
+
+    // Шпионим за logger.error для проверки вызова
+    const loggerErrorSpy = jest.spyOn(logger, 'error')
+
     builder.insert.mockResolvedValue({ error: err })
-    await expect(setPayments(paymentArgs)).rejects.toBe(err)
+
+    // Функция обрабатывает ошибку внутри, а не пробрасывает наружу
+    await setPayments(paymentArgs)
+
+    // Проверяем, что logger.error был вызван с правильными параметрами
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Error inserting payment',
+        error: err,
+      })
+    )
   })
 })

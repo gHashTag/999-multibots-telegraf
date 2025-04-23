@@ -35,7 +35,7 @@ describe('getUserBalance Unit Tests', () => {
 
   // --- Тесты, адаптированные под rpc ---
 
-  it('should throw error if user not found (simulated via rpc returning null data/error)', async () => {
+  it('should return 0 if user not found (simulated via rpc returning error)', async () => {
     // get_user_balance вернет ошибку или null, если пользователь не найден.
     // Для теста симулируем ошибку, как будто rpc вернул её.
     const rpcError = {
@@ -53,15 +53,14 @@ describe('getUserBalance Unit Tests', () => {
       statusText: 'Internal Server Error',
     })
 
-    await expect(getUserBalance('123')).rejects.toThrow(
-      'Не удалось получить баланс пользователя: User balance function error'
-    )
+    const result = await getUserBalance('123')
+    expect(result).toBe(0)
     expect(mockedRpc).toHaveBeenCalledWith('get_user_balance', {
       user_telegram_id: '123',
     })
   })
 
-  it('should throw generic error for other Supabase RPC errors', async () => {
+  it('should return 0 for other Supabase RPC errors', async () => {
     const error = {
       message: 'Generic DB error',
       code: 'XXXXX',
@@ -78,9 +77,8 @@ describe('getUserBalance Unit Tests', () => {
       statusText: 'Internal Server Error',
     })
 
-    await expect(getUserBalance('456')).rejects.toThrow(
-      'Не удалось получить баланс пользователя: Generic DB error'
-    )
+    const result = await getUserBalance('456')
+    expect(result).toBe(0)
     expect(mockedRpc).toHaveBeenCalledWith('get_user_balance', {
       user_telegram_id: '456',
     })

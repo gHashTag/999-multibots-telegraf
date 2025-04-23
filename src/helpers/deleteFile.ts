@@ -1,11 +1,15 @@
 import * as fs from 'fs'
+import { logger } from '@/utils/logger'
 
 export async function deleteFile(filePath: string) {
   try {
-    console.log('filePath', filePath)
-    await fs.promises.unlink(filePath)
-    console.log(`File ${filePath} deleted successfully`)
+    if (fs.existsSync(filePath)) {
+      await fs.promises.unlink(filePath)
+      logger.info('Successfully deleted file', { filePath })
+    } else {
+      logger.info('File does not exist, nothing to delete', { filePath })
+    }
   } catch (error) {
-    console.error(`Error deleting file ${filePath}:`, error)
+    logger.error('Error deleting file', { filePath, error })
   }
 }

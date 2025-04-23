@@ -1,63 +1,209 @@
+import { sendPaymentInfo } from '@/core/supabase/sendPaymentInfo'
+import * as supabaseModule from '@/core/supabase'
+import { logger } from '@/utils/logger'
+import { createBotByName } from '@/core/bot'
+
+// Мокируем модули
+jest.mock('@/core/supabase', () => {
+  const mockSelectBuilder = {
+    eq: jest.fn().mockReturnThis(),
+    single: jest.fn(),
+  }
+
+  const mockFromBuilder = {
+    select: jest.fn().mockReturnValue(mockSelectBuilder),
+  }
+
+  return {
+    supabase: {
+      from: jest.fn().mockReturnValue(mockFromBuilder),
+    },
+  }
+})
+
+jest.mock('@/core/bot', () => ({
+  createBotByName: jest.fn(),
+}))
+
+jest.mock('@/utils/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    error: jest.fn(),
+  },
+}))
+
 describe('sendPaymentInfo', () => {
-  let builder: any
-  let mockFrom: jest.Mock
-  let sendPaymentInfo: (user_id: string, level: string) => Promise<any>
-  let consoleError: jest.SpyInstance
-  let consoleLog: jest.SpyInstance
+  const mockPaymentData = {
+    inv_id: '123456',
+    bot_name: 'testBot',
+    amount: 100,
+    telegram_id: '123456789',
+    currency: 'RUB',
+    username: 'testuser',
+    stars: 10,
+  }
+
+  const mockBot = {
+    telegram: {
+      sendMessage: jest.fn().mockResolvedValue(true),
+    },
+  }
+
+  // Получаем мокированный объект supabase
+  const mockSupabase = supabaseModule.supabase as jest.Mocked<
+    typeof supabaseModule.supabase
+  > & {
+    from: jest.Mock
+  }
 
   beforeEach(() => {
-    jest.resetModules()
-    // Build supabase.from chain for insert
-    builder = {
-      insert: jest.fn().mockReturnThis(),
-      single: jest.fn(),
+    jest.clearAllMocks()
+
+    // Получаем цепочку моков для установки возвращаемых значений
+    const mockSelectBuilder = mockSupabase.from('').select('') as unknown as {
+      eq: jest.Mock
+      single: jest.Mock
     }
-    mockFrom = jest.fn(() => builder)
-    jest.doMock('@/core/supabase', () => ({ supabase: { from: mockFrom } }))
-    // Spy console
-    consoleError = jest.spyOn(console, 'error').mockImplementation(() => {})
-    consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {})
-    // Import function under test
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    sendPaymentInfo = require('@/core/supabase/sendPaymentInfo').sendPaymentInfo
+
+    // Устанавливаем возвращаемое значение для single()
+    mockSelectBuilder.single.mockResolvedValue({
+      data: mockPaymentData,
+      error: null,
+    })
+
+    // Мокируем createBotByName
+    ;(createBotByName as jest.Mock).mockResolvedValue({
+      bot: mockBot,
+      groupId: '-100123456789',
+    })
   })
 
-  afterEach(() => {
-    jest.restoreAllMocks()
+  it('should send payment info successfully and return true', async () => {
+    const result = await sendPaymentInfo('123456')
+
+    // Проверяем, что функция вернула true
+    expect(result).toBe(true)
+
+    // Проверяем, что supabase был вызван с правильными параметрами
+    expect(mockSupabase.from).toHaveBeenCalledWith('payments_v2')
+    expect(mockSupabase.from('').select).toHaveBeenCalledWith('*')
+    expect(mockSupabase.from('').select('').eq).toHaveBeenCalledWith(
+      'inv_id',
+      '123456'
+    )
+    expect(
+      mockSupabase.from('').select('').eq('', '').single
+    ).toHaveBeenCalled()
+
+    // Проверяем, что createBotByName был вызван с правильным параметром
+    expect(createBotByName).toHaveBeenCalledWith('testBot')
+
+    // Проверяем, что сообщение было отправлено
+    expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+      '-100123456789',
+      expect.stringContaining('Новый платеж!')
+    )
+
+    // Проверяем, что логи успеха были вызваны
+    expect(logger.info).toHaveBeenCalledWith(
+      '✅ Информация о платеже получена:',
+      expect.objectContaining({
+        description: 'Payment info fetched successfully',
+        invId: '123456',
+      })
+    )
+
+    expect(logger.info).toHaveBeenCalledWith(
+      '✅ Уведомление об оплате отправлено в группу:',
+      expect.objectContaining({
+        description: 'Payment notification sent to group',
+      })
+    )
   })
 
-  it('returns data when insert succeeds', async () => {
-    const dataObj = { id: 'p1', user_id: 'u1', level: 'gold' }
-    builder.single.mockResolvedValueOnce({ data: dataObj, error: null })
-    const result = await sendPaymentInfo('u1', 'gold')
-    expect(mockFrom).toHaveBeenCalledWith('payments')
-    expect(builder.insert).toHaveBeenCalledWith([
-      { user_id: 'u1', level: 'gold' },
-    ])
-    expect(builder.single).toHaveBeenCalled()
-    expect(consoleLog).toHaveBeenCalledWith(
-      'Payment info sent successfully:',
-      dataObj
+  it('should return false if payment data is not found', async () => {
+    // Получаем цепочку моков для переопределения возвращаемого значения
+    const mockSelectBuilder = mockSupabase.from('').select('') as unknown as {
+      eq: jest.Mock
+      single: jest.Mock
+    }
+
+    // Устанавливаем мок для случая, когда данные не найдены
+    mockSelectBuilder.single.mockResolvedValue({
+      data: null,
+      error: null,
+    })
+
+    const result = await sendPaymentInfo('123456')
+
+    // Проверяем, что функция вернула false
+    expect(result).toBe(false)
+
+    // Проверяем, что был вызван лог ошибки
+    expect(logger.error).toHaveBeenCalledWith(
+      '❌ Ошибка при получении информации о платеже:',
+      expect.objectContaining({
+        description: 'Error fetching payment info by invId',
+        invId: '123456',
+      })
     )
-    expect(result).toBe(dataObj)
+
+    // Проверяем, что createBotByName не был вызван
+    expect(createBotByName).not.toHaveBeenCalled()
   })
 
-  it('throws error when insert returns error', async () => {
-    const err = new Error('insert fail')
-    builder.single.mockResolvedValueOnce({ data: null, error: err })
-    await expect(sendPaymentInfo('u2', 'silver')).rejects.toThrow(
-      `Failed to send payment info: ${err.message}`
+  it('should return false if there is an error fetching payment data', async () => {
+    // Получаем цепочку моков для переопределения возвращаемого значения
+    const mockSelectBuilder = mockSupabase.from('').select('') as unknown as {
+      eq: jest.Mock
+      single: jest.Mock
+    }
+
+    // Устанавливаем мок для случая ошибки при запросе
+    mockSelectBuilder.single.mockResolvedValue({
+      data: null,
+      error: { message: 'Database error' },
+    })
+
+    const result = await sendPaymentInfo('123456')
+
+    // Проверяем, что функция вернула false
+    expect(result).toBe(false)
+
+    // Проверяем, что был вызван лог ошибки
+    expect(logger.error).toHaveBeenCalledWith(
+      '❌ Ошибка при получении информации о платеже:',
+      expect.objectContaining({
+        description: 'Error fetching payment info by invId',
+        invId: '123456',
+        error: 'Database error',
+      })
     )
-    expect(consoleError).toHaveBeenCalledWith(
-      'Error sending payment info:',
-      err
-    )
+
+    // Проверяем, что createBotByName не был вызван
+    expect(createBotByName).not.toHaveBeenCalled()
   })
 
-  it('throws error when no data returned', async () => {
-    builder.single.mockResolvedValueOnce({ data: null, error: null })
-    await expect(sendPaymentInfo('u3', 'bronze')).rejects.toThrow(
-      'No data returned after inserting payment info.'
+  it('should return false if createBotByName returns null', async () => {
+    // Устанавливаем мок для случая, когда createBotByName возвращает null
+    ;(createBotByName as jest.Mock).mockResolvedValue(null)
+
+    const result = await sendPaymentInfo('123456')
+
+    // Проверяем, что функция вернула false
+    expect(result).toBe(false)
+
+    // Проверяем, что был вызван лог ошибки
+    expect(logger.error).toHaveBeenCalledWith(
+      '❌ Не удалось создать экземпляр бота для отправки уведомления:',
+      expect.objectContaining({
+        description: 'Failed to create bot instance for notification',
+        bot_name: 'testBot',
+        invId: '123456',
+      })
     )
+
+    // Проверяем, что сообщение не было отправлено
+    expect(mockBot.telegram.sendMessage).not.toHaveBeenCalled()
   })
 })

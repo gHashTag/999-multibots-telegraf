@@ -1,7 +1,7 @@
 import { createLogger, format, transports } from 'winston'
 
 import path from 'path'
-import fs from 'fs'
+import * as fs from 'fs'
 
 // Создаем директорию для логов, если её нет
 const logDir = path.join(process.cwd(), 'logs')

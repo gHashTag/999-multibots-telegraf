@@ -1,21 +1,28 @@
-import axios from 'axios'
+import axios, { AxiosRequestConfig, AxiosResponse, isAxiosError } from 'axios'
 import { fetchWithAxios } from '@/core/axios/fetchWithAxios'
 
 // Mock axios to control its behavior
-const mockAxiosInstance = jest.fn()
-jest.mock('axios', () => mockAxiosInstance)
+jest.mock('axios', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  isAxiosError: jest.fn(),
+}))
+
+// Получаем мок после его создания
+const mockAxiosInstance = jest.mocked(axios) as unknown as jest.Mock
+
+// Типизированный мок для isAxiosError
+const mockedIsAxiosError = jest.mocked(isAxiosError)
 
 describe('fetchWithAxios', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    // mockedAxios.get.mockClear();
-    // mockedAxios.post.mockClear();
     mockedIsAxiosError.mockClear()
   })
 
   it('calls axios with provided url and options and returns response', async () => {
     const fakeResponse = { data: { ok: true } }
-    mockAxiosInstance.mockResolvedValueOnce(fakeResponse as any)
+    mockAxiosInstance.mockResolvedValueOnce(fakeResponse as AxiosResponse)
     const result = await fetchWithAxios('http://example.com', {
       method: 'GET',
       headers: { 'X-Test': '1' },
@@ -38,16 +45,15 @@ describe('fetchWithAxios', () => {
 
   it('should fetch data successfully with GET', async () => {
     const mockData = { data: 'success' }
-    mockAxiosInstance.mockResolvedValue({ data: mockData })
+    mockAxiosInstance.mockResolvedValue({ data: mockData } as AxiosResponse)
 
-    const result = await fetchWithAxios({
+    const result = await fetchWithAxios('http://test.com', {
       method: 'GET',
-      url: 'http://test.com',
       retryCount: 0,
       retryDelay: 0,
-    })
+    } as AxiosRequestConfig)
 
-    expect(result).toEqual(mockData)
+    expect(result).toEqual({ data: mockData })
     expect(mockAxiosInstance).toHaveBeenCalledTimes(1)
     expect(mockAxiosInstance).toHaveBeenCalledWith({
       method: 'GET',
@@ -55,6 +61,8 @@ describe('fetchWithAxios', () => {
       headers: undefined,
       params: undefined,
       data: undefined,
+      retryCount: 0,
+      retryDelay: 0,
     })
   })
 
@@ -64,12 +72,11 @@ describe('fetchWithAxios', () => {
     mockedIsAxiosError.mockReturnValue(false) // Simulate non-Axios error
 
     await expect(
-      fetchWithAxios({
+      fetchWithAxios('http://test.com', {
         method: 'GET',
-        url: 'http://test.com',
         retryCount: 2,
         retryDelay: 10,
-      })
+      } as AxiosRequestConfig)
     ).rejects.toThrow('Network Error')
 
     expect(mockAxiosInstance).toHaveBeenCalledTimes(3) // Initial + 2 retries
@@ -85,13 +92,12 @@ describe('fetchWithAxios', () => {
     mockedIsAxiosError.mockReturnValue(true)
 
     await expect(
-      fetchWithAxios({
+      fetchWithAxios('http://test.com/post', {
         method: 'POST',
-        url: 'http://test.com/post',
         data: { key: 'value' },
         retryCount: 1,
         retryDelay: 5,
-      })
+      } as AxiosRequestConfig)
     ).rejects.toMatchObject({ message: 'Axios Error' })
 
     expect(mockAxiosInstance).toHaveBeenCalledTimes(2) // Initial + 1 retry
@@ -108,12 +114,11 @@ describe('fetchWithAxios', () => {
     mockedIsAxiosError.mockReturnValue(true)
 
     await expect(
-      fetchWithAxios({
+      fetchWithAxios('http://test.com', {
         method: 'GET',
-        url: 'http://test.com',
         retryCount: 1,
         retryDelay: 5,
-      })
+      } as AxiosRequestConfig)
     ).rejects.toMatchObject({ message: 'Server Error' })
 
     expect(mockAxiosInstance).toHaveBeenCalledTimes(2) // Initial + 1 retry
@@ -130,12 +135,11 @@ describe('fetchWithAxios', () => {
     mockedIsAxiosError.mockReturnValue(true)
 
     await expect(
-      fetchWithAxios({
+      fetchWithAxios('http://test.com/notfound', {
         method: 'GET',
-        url: 'http://test.com/notfound',
         retryCount: 3, // Should not retry despite this
         retryDelay: 10,
-      })
+      } as AxiosRequestConfig)
     ).rejects.toMatchObject({ message: 'Not Found' })
 
     expect(mockAxiosInstance).toHaveBeenCalledTimes(1) // No retries for 4xx

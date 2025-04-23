@@ -1,103 +1,150 @@
-import {
-  MyContext,
-  MySession,
-  ModeEnum,
-  SubscriptionType,
-  PaymentStatus,
-} from '../../src/interfaces'
-import { isRussian } from '../../src/helpers'
-import * as handlers from '../../src/handlers'
-import * as botCore from '../../src/core/bot'
-import { logger } from '../../src/utils/logger'
-import { starAmounts } from '../../src/price/helpers/starAmounts'
+// Мокирование модулей должно идти до импортов
+import { jest } from '@jest/globals'
 
-// Мокируем необходимые модули
-jest.mock('../../src/helpers')
-jest.mock('../../src/handlers')
-jest.mock('../../src/core/bot')
-jest.mock('../../src/utils/logger')
+// Мокируем logger перед любыми другими импортами
+jest.mock('@/utils/logger', () => ({
+  error: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+}))
 
-// Типизируем моки
-const mockedIsRussian = jest.mocked(isRussian)
-const mockedHandlers = jest.mocked(handlers)
-const mockedBotCore = jest.mocked(botCore)
-const mockedLogger = jest.mocked(logger)
+// Мокируем модули, которые используются в тестах
+jest.mock('@/helpers/language', () => ({ isRussian: () => true }))
 
-// Создаем простую заглушку для starPaymentScene
-const starPaymentScene = {
-  middleware: () => (ctx: any, next: any) => {
-    return handlers.handleSelectStars({
-      ctx,
-      isRu: isRussian(ctx),
-      starAmounts,
-    })
-  },
-}
+// Мок для handleSelectStars - создаем имитацию функции
+const mockHandleSelectStars = jest.fn()
+jest.mock('@/handlers', () => ({
+  handleSelectStars: mockHandleSelectStars,
+}))
 
-// Базовые моки для ответов
-const mockReply = jest.fn().mockResolvedValue(true)
-const mockAnswerCbQuery = jest.fn().mockResolvedValue(true)
+// Импортируем остальное после мокирования
+import { MyContext } from '@/interfaces'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { starAmounts } from '@/price/helpers/starAmounts'
+import { makeMockContext } from '../utils/makeMockContext'
 
-// Упрощенная функция для создания мок-контекста
-const createMockContext = () => {
-  return {
-    from: {
-      id: 1,
-      is_bot: false,
-      first_name: 'Test',
-      username: 'testuser',
-      language_code: 'en',
+// Тесты
+describe('starPaymentScene', () => {
+  // Сцена для теста (упрощенная)
+  const starPaymentScene = {
+    middleware: () => async (ctx: MyContext, next: any) => {
+      await mockHandleSelectStars({ ctx, isRu: true, starAmounts })
+      await next()
     },
-    chat: { id: 1, type: 'private', first_name: 'Test', username: 'testuser' },
-    session: {
-      cursor: 0,
-      images: [],
-      __scenes: {
-        current: 'starPaymentScene',
-        state: { step: 0 },
-        cursor: 0,
-      },
-      balance: 500,
-      targetUserId: '12345',
-      userModel: {},
-    },
-    reply: mockReply,
-    answerCbQuery: mockAnswerCbQuery,
-    telegram: {
-      sendInvoice: jest.fn().mockResolvedValue({ message_id: 1 }),
-    },
-    update: { update_id: 1 },
-  } as unknown as MyContext
-}
+  }
 
-describe('Star Payment Scene - Simplified', () => {
-  let ctx: MyContext
-
+  // Очищаем моки перед каждым тестом
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = createMockContext()
-    mockedIsRussian.mockReturnValue(true)
-    mockedBotCore.getBotNameByToken.mockReturnValue({ bot_name: 'test_bot' })
   })
 
-  it('should call handleSelectStars when entering the scene', async () => {
-    await starPaymentScene.middleware()(ctx, jest.fn())
+  test('вызывает handleSelectStars при входе в сцену', async () => {
+    // Создаем контекст
+    const ctx = makeMockContext({ update_id: 1 }, { balance: 500 })
+    const next = jest.fn()
 
-    expect(mockedHandlers.handleSelectStars).toHaveBeenCalledTimes(1)
-    expect(mockedHandlers.handleSelectStars).toHaveBeenCalledWith(
-      expect.objectContaining({ ctx, isRu: true, starAmounts })
+    // Вызываем middleware
+    await starPaymentScene.middleware()(ctx, next)
+
+    // Проверяем вызов
+    expect(mockHandleSelectStars).toHaveBeenCalledWith({
+      ctx,
+      isRu: true,
+      starAmounts,
+    })
+    expect(next).toHaveBeenCalled()
+  })
+
+  test('работает с контекстом, содержащим подписку', async () => {
+    // Создаем контекст с подпиской
+    const ctx = makeMockContext(
+      { update_id: 2 },
+      {
+        balance: 500,
+        subscription: SubscriptionType.NEUROBLOGGER,
+      }
     )
+    const next = jest.fn()
+
+    // Вызываем middleware
+    await starPaymentScene.middleware()(ctx, next)
+
+    // Проверяем вызов
+    expect(mockHandleSelectStars).toHaveBeenCalledWith({
+      ctx,
+      isRu: true,
+      starAmounts,
+    })
+    expect(next).toHaveBeenCalled()
   })
 
-  it('should handle subscription data if present in session', async () => {
-    const subSessionCtx = createMockContext()
-    subSessionCtx.session.subscriptionData = {
-      type: SubscriptionType.NEUROBLOGGER,
-      status: PaymentStatus.COMPLETED,
-    } as any
+  test('работает с контекстом, содержащим callback_query', async () => {
+    // Создаем контекст с callback_query
+    const ctx = makeMockContext(
+      {
+        update_id: 3,
+        callback_query: {
+          id: '123',
+          data: 'menu',
+          chat_instance: '1',
+          from: {
+            id: 123,
+            first_name: 'Test',
+            is_bot: false,
+          },
+        },
+      },
+      { balance: 500 }
+    )
+    const next = jest.fn()
 
-    await starPaymentScene.middleware()(subSessionCtx, jest.fn())
+    // Вызываем middleware
+    await starPaymentScene.middleware()(ctx, next)
 
-    expect(mockedHandlers.handleSelectStars).toHaveBeenCalledTimes(1)
+    // Проверяем вызов
+    expect(mockHandleSelectStars).toHaveBeenCalledWith({
+      ctx,
+      isRu: true,
+      starAmounts,
+    })
+    expect(next).toHaveBeenCalled()
+  })
+
+  test('работает с контекстом, содержащим message', async () => {
+    // Создаем контекст с сообщением
+    const ctx = makeMockContext(
+      {
+        update_id: 4,
+        message: {
+          message_id: 123,
+          date: 1622222111,
+          text: 'Тестовое сообщение',
+          from: {
+            id: 456,
+            first_name: 'Test User',
+            is_bot: false,
+          },
+          chat: {
+            id: 456,
+            type: 'private',
+            first_name: 'Test User',
+          },
+        },
+      },
+      { balance: 500 }
+    )
+    const next = jest.fn()
+
+    // Вызываем middleware
+    await starPaymentScene.middleware()(ctx, next)
+
+    // Проверяем вызов
+    expect(mockHandleSelectStars).toHaveBeenCalledWith({
+      ctx,
+      isRu: true,
+      starAmounts,
+    })
+    expect(next).toHaveBeenCalled()
   })
 })

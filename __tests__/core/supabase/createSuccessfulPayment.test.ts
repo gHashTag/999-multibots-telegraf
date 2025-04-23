@@ -1,19 +1,19 @@
 import { createSuccessfulPayment } from '@/core/supabase/createSuccessfulPayment'
-import { supabase } from '@/core/supabase'
-import { getUserByTelegramIdString } from '@/core/supabase'
+import * as supabaseModule from '@/core/supabase'
 import { ADMIN_IDS_ARRAY } from '@/config'
 
 jest.mock('@/core/supabase', () => ({
   supabase: { from: jest.fn() },
-}))
-jest.mock('@/core/supabase/getUserByTelegramIdString', () => ({
   getUserByTelegramIdString: jest.fn(),
 }))
+
 // Сохраняем оригинальный ADMIN_IDS_ARRAY и подменяем, если нужно
 jest.mock('@/config', () => ({ ADMIN_IDS_ARRAY: [999] }))
 
 describe('createSuccessfulPayment', () => {
-  const fromMock = supabase.from as jest.Mock
+  const fromMock = supabaseModule.supabase.from as jest.Mock
+  const getUserByTelegramIdStringMock =
+    supabaseModule.getUserByTelegramIdString as jest.Mock
   const dummyParams = {
     telegram_id: '1',
     amount: 10,
@@ -65,7 +65,7 @@ describe('createSuccessfulPayment', () => {
       }),
       insert: jest.fn(),
     })
-    ;(getUserByTelegramIdString as jest.Mock).mockResolvedValue(null)
+    getUserByTelegramIdStringMock.mockResolvedValue(null)
     await expect(createSuccessfulPayment(dummyParams)).rejects.toThrow(
       'User not found for telegram_id: 1'
     )
@@ -74,18 +74,30 @@ describe('createSuccessfulPayment', () => {
   it('inserts new payment and returns data on success', async () => {
     // No duplicate
     const fakeMaybe = jest.fn().mockResolvedValue({ data: null, error: null })
-    const insertMock = jest.fn().mockReturnValue({
-      select: jest.fn().mockReturnValue({
-        single: jest.fn().mockResolvedValue({ data: { id: 99 }, error: null }),
-      }),
+    const fakeSingle = jest
+      .fn()
+      .mockResolvedValue({ data: { id: 99 }, error: null })
+    const fakeSelect = jest.fn().mockReturnValue({
+      single: fakeSingle,
     })
+
+    const insertMock = jest.fn().mockReturnValue({
+      select: fakeSelect,
+    })
+
+    // Первый вызов from для поиска дубликатов
     fromMock.mockReturnValueOnce({
       select: jest.fn().mockReturnValue({
         eq: jest.fn().mockReturnValue({ maybeSingle: fakeMaybe }),
       }),
     })
-    fromMock.mockReturnValueOnce({ from: supabase.from, insert: insertMock }) // ensure chain
-    ;(getUserByTelegramIdString as jest.Mock).mockResolvedValue({ id: 'u1' })
+
+    // Второй вызов from для вставки
+    fromMock.mockReturnValueOnce({
+      insert: insertMock,
+    })
+
+    getUserByTelegramIdStringMock.mockResolvedValue({ id: 'u1' })
     const res = await createSuccessfulPayment(dummyParams)
     expect(insertMock).toHaveBeenCalled()
     expect(res).toEqual({ id: 99 })
@@ -94,21 +106,32 @@ describe('createSuccessfulPayment', () => {
   it('throws on insert error code 23505', async () => {
     // No duplicate
     const fakeMaybe = jest.fn().mockResolvedValue({ data: null, error: null })
-    const insertMock = jest.fn().mockReturnValue({
-      select: jest.fn().mockReturnValue({
-        single: jest.fn().mockResolvedValue({
-          data: null,
-          error: { code: '23505', message: 'dup' },
-        }),
-      }),
+    const fakeSingle = jest.fn().mockResolvedValue({
+      data: null,
+      error: { code: '23505', message: 'dup' },
     })
+
+    const fakeSelect = jest.fn().mockReturnValue({
+      single: fakeSingle,
+    })
+
+    const insertMock = jest.fn().mockReturnValue({
+      select: fakeSelect,
+    })
+
+    // Первый вызов from для поиска дубликатов
     fromMock.mockReturnValueOnce({
       select: jest.fn().mockReturnValue({
         eq: jest.fn().mockReturnValue({ maybeSingle: fakeMaybe }),
       }),
     })
-    fromMock.mockReturnValueOnce({ insert: insertMock })
-    ;(getUserByTelegramIdString as jest.Mock).mockResolvedValue({ id: 'u2' })
+
+    // Второй вызов from для вставки
+    fromMock.mockReturnValueOnce({
+      insert: insertMock,
+    })
+
+    getUserByTelegramIdStringMock.mockResolvedValue({ id: 'u2' })
     await expect(createSuccessfulPayment(dummyParams)).rejects.toMatchObject({
       code: '23505',
     })

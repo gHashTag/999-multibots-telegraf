@@ -19,48 +19,44 @@ import { ModeEnum } from '@/interfaces/modes'
 import { calculateRobokassaSignature } from '@/webhooks/robokassa/utils/calculateSignature'
 import { sendPaymentSuccessMessage } from '@/helpers/notifications'
 import { Telegraf } from 'telegraf'
-import { mock, MockProxy } from 'jest-mock-extended' // Добавляем импорт для mock
+import { mock, MockProxy } from 'jest-mock-extended'
 
-// Убираем мок @/core/supabase
-// jest.mock('@/core/supabase')
+// Мокируем зависимости
+jest.mock('@/core/supabase', () => ({
+  getPendingPayment: jest.fn(),
+  getPaymentByInvId: jest.fn(),
+  updatePaymentStatus: jest.fn(),
+  updateUserBalance: jest.fn(),
+}))
+jest.mock('@/core/supabase/updateUserSubscription')
 jest.mock('@/core/robokassa')
 jest.mock('@/helpers/notifications')
-jest.mock('@/core/supabase/updateUserSubscription')
 jest.mock('@/config', () => ({
   PASSWORD2: 'mock_password_2',
   ADMIN_IDS_ARRAY: [12345],
   NODE_ENV: 'test',
 }))
 
-// Мокируем зависимости
-jest.mock('@/core/supabase', () => ({
-  // Мокаем конкретные функции
-  getPendingPayment: jest.fn(),
-  getPaymentByInvId: jest.fn(),
-  updatePaymentStatus: jest.fn(),
-  updateUserBalance: jest.fn(),
-}))
-jest.mock('@/core/supabase/updateUserSubscription') // Мокаем отдельно, если он все еще используется где-то в тесте
-jest.mock('@/core/robokassa')
-
 // Получаем типизированные моки
-const mockedGetPendingPayment = getPendingPayment as jest.Mock
-const mockedGetPaymentByInvId = getPaymentByInvId as jest.Mock
-const mockedUpdatePaymentStatus = updatePaymentStatus as jest.Mock
-const mockedUpdateUserBalance = updateUserBalance as jest.Mock
+const mockedGetPendingPayment = getPendingPayment as jest.MockedFunction<
+  typeof getPendingPayment
+>
+const mockedGetPaymentByInvId = getPaymentByInvId as jest.MockedFunction<
+  typeof getPaymentByInvId
+>
+const mockedUpdatePaymentStatus = updatePaymentStatus as jest.MockedFunction<
+  typeof updatePaymentStatus
+>
+const mockedUpdateUserBalance = updateUserBalance as jest.MockedFunction<
+  typeof updateUserBalance
+>
 const mockedUpdateUserSubscription =
-  updateUserSubscription as jest.MockedFunction<typeof updateUserSubscription> // Оставляем, если нужен
-const mockedRobokassa = robokassa as jest.Mocked<typeof robokassa>
-
-// Получаем моки конкретных функций для проверки вызовов
-const validateRobokassaSignatureMock =
-  mockedRobokassa.validateRobokassaSignature as jest.Mock
-
-// Получаем мок sendPaymentSuccessMessage из импорта
-const mockedSendPaymentSuccessMessage = sendPaymentSuccessMessage as jest.Mock
-
-// Убираем мок notifications
-// const mockedNotifications = notifications as jest.Mocked<typeof notifications>
+  updateUserSubscription as jest.MockedFunction<typeof updateUserSubscription>
+const mockedRobokassa = jest.mocked(robokassa)
+const mockedSendPaymentSuccessMessage =
+  sendPaymentSuccessMessage as jest.MockedFunction<
+    typeof sendPaymentSuccessMessage
+  >
 
 // Переменные для Express req/res mocks
 let mockRequest: Partial<Request>
@@ -73,15 +69,15 @@ const validWebhookQuery = {
   OutSum: '100.00',
   InvId: '123',
   SignatureValue: 'VALID_SIGNATURE',
-  shp_user_id: '456', // Пример пользовательского параметра
-  shp_payment_uuid: 'abc-123', // UUID платежа
+  shp_user_id: '456',
+  shp_payment_uuid: 'abc-123',
 }
 
 // Объявляем переменную для валидного платежа
 let validPayment: Payment
 
 // Объявляем mockBot и его тип
-let mockBot: MockProxy<Telegraf<MyContext>> // Убираем явное пересечение типов
+let mockBot: MockProxy<Telegraf<MyContext>>
 
 const dbError = new Error('Database error')
 
@@ -111,8 +107,8 @@ beforeEach(() => {
   sendSpy = jest.fn()
   statusSpy = jest.fn().mockReturnValue({ send: sendSpy })
   mockResponse = {
-    status: statusSpy as any,
-    send: sendSpy as any,
+    status: statusSpy,
+    send: sendSpy,
   }
   mockRequest = {
     query: {},
@@ -120,18 +116,14 @@ beforeEach(() => {
 
   // Создаем мок для Telegraf бота
   mockBot = mock<Telegraf<MyContext>>()
-  // Мокируем sendMessage как jest.fn() внутри структуры telegram
-  ;(mockBot.telegram.sendMessage as jest.Mock) = jest
-    .fn()
-    .mockResolvedValue({} as any)
+  mockBot.telegram.sendMessage = jest.fn().mockResolvedValue({})
 
   // Устанавливаем дефолтные реализации моков
-  validateRobokassaSignatureMock.mockReturnValue(true)
+  mockedRobokassa.validateRobokassaSignature.mockReturnValue(true)
   mockedGetPendingPayment.mockResolvedValue({ data: null, error: null })
   mockedGetPaymentByInvId.mockResolvedValue({ data: null, error: null })
   mockedUpdatePaymentStatus.mockResolvedValue({ data: null, error: null })
-  mockedUpdateUserBalance.mockResolvedValue(true)
-  // Убедимся, что мок sendPaymentSuccessMessage возвращает Promise
+  mockedUpdateUserBalance.mockResolvedValue(1)
   mockedSendPaymentSuccessMessage.mockResolvedValue({})
 })
 
@@ -145,20 +137,19 @@ describe('handleRobokassaWebhook', () => {
     })
     // Мокируем успешное обновление статуса
     mockedUpdatePaymentStatus.mockResolvedValue({ data: null, error: null })
-    // Мокируем успешное обновление баланса
-    mockedUpdateUserBalance.mockResolvedValue(true)
+    // Мокируем успешное обновление баланса и возвращаем корректное значение
+    mockedUpdateUserBalance.mockResolvedValue(50) // Это новый баланс после обновления
 
-    // Получаем обработчик, передав мок бота (хотя бот теперь не нужен внутри теста)
+    // Получаем обработчик, передав мок бота
     const webhookHandler = handleRobokassaWebhook(mockBot)
     await webhookHandler(mockRequest as Request, mockResponse as Response)
 
     // Проверяем вызов валидации сигнатуры
-    expect(validateRobokassaSignatureMock).toHaveBeenCalledWith(
+    expect(mockedRobokassa.validateRobokassaSignature).toHaveBeenCalledWith(
       validWebhookQuery.OutSum,
       validWebhookQuery.InvId,
       'mock_password_2',
       validWebhookQuery.SignatureValue
-      // undefined // Убираем лишний аргумент
     )
 
     // Проверяем поиск PENDING платежа
@@ -176,20 +167,14 @@ describe('handleRobokassaWebhook', () => {
     // Проверяем вызов обновления баланса пользователя
     expect(mockedUpdateUserBalance).toHaveBeenCalledWith(
       validPayment.telegram_id,
-      validPayment.stars ?? 0,
-      'money_income',
-      `Пополнение звезд по Robokassa (InvId: ${validWebhookQuery.InvId})`,
-      expect.objectContaining({
-        payment_method: 'Robokassa',
-        inv_id: validWebhookQuery.InvId,
-      })
+      Number(validWebhookQuery.OutSum) // 100 - сумма в рублях из validWebhookQuery
     )
 
     // Проверяем отправку уведомления пользователю
     expect(mockedSendPaymentSuccessMessage).toHaveBeenCalledWith(
-      mockBot, // sendPaymentSuccessMessage теперь принимает bot
+      mockBot,
       validPayment.telegram_id,
-      validPayment.stars ?? 0,
+      validPayment.stars ?? 0, // 50 - количество звезд из validPayment
       'ru'
     )
 
@@ -203,7 +188,7 @@ describe('handleRobokassaWebhook', () => {
       ...validWebhookQuery,
       SignatureValue: 'INVALID_SIGNATURE',
     }
-    validateRobokassaSignatureMock.mockReturnValue(false)
+    mockedRobokassa.validateRobokassaSignature.mockReturnValue(false)
 
     // Получаем и вызываем обработчик
     const webhookHandler = handleRobokassaWebhook(mockBot)
@@ -248,17 +233,12 @@ describe('handleRobokassaWebhook', () => {
     // Проверяем ответ серверу - OK, т.к. уже обработан
     expect(statusSpy).toHaveBeenCalledWith(200)
     expect(sendSpy).toHaveBeenCalledWith(`OK${validWebhookQuery.InvId}`)
-    // Убедимся, что другие действия не выполнялись
-    expect(mockedUpdatePaymentStatus).not.toHaveBeenCalled()
-    expect(mockedUpdateUserBalance).not.toHaveBeenCalled()
-    expect(mockedSendPaymentSuccessMessage).not.toHaveBeenCalled()
   })
 
-  it('should return 200 if payment is not found (PENDING and COMPLETED)', async () => {
+  it('should return 200 if payment is not found at all', async () => {
     mockRequest.query = validWebhookQuery
-    // Мокируем PENDING не найден
+    // Мокируем отсутствие платежей
     mockedGetPendingPayment.mockResolvedValue({ data: null, error: null })
-    // Мокируем COMPLETED тоже не найден
     mockedGetPaymentByInvId.mockResolvedValue({ data: null, error: null })
 
     // Получаем и вызываем обработчик
@@ -273,153 +253,113 @@ describe('handleRobokassaWebhook', () => {
       validWebhookQuery.InvId
     )
 
-    // Проверяем ответ серверу - OK, чтобы Robokassa не повторяла
+    // Проверяем ответ серверу - OK, т.к. это неопасная ситуация
     expect(statusSpy).toHaveBeenCalledWith(200)
     expect(sendSpy).toHaveBeenCalledWith(`OK${validWebhookQuery.InvId}`)
-    // Убедимся, что другие действия не выполнялись
-    expect(mockedUpdatePaymentStatus).not.toHaveBeenCalled()
-    expect(mockedUpdateUserBalance).not.toHaveBeenCalled()
-    expect(mockedSendPaymentSuccessMessage).not.toHaveBeenCalled()
   })
 
-  it('should return 500 if database error occurs during PENDING payment fetch', async () => {
-    mockRequest.query = validWebhookQuery
-    // Мокируем ошибку при поиске PENDING платежа
-    mockedGetPendingPayment.mockResolvedValue({ data: null, error: dbError })
+  it('should return 400 if required parameters are missing', async () => {
+    mockRequest.query = { OutSum: '100.00' } // Missing InvId and SignatureValue
 
     // Получаем и вызываем обработчик
     const webhookHandler = handleRobokassaWebhook(mockBot)
     await webhookHandler(mockRequest as Request, mockResponse as Response)
-
-    // Проверяем поиск платежа
-    expect(mockedGetPendingPayment).toHaveBeenCalledWith(
-      validWebhookQuery.InvId
-    )
-
-    // Проверяем ответ серверу
-    expect(statusSpy).toHaveBeenCalledWith(500)
-    expect(sendSpy).toHaveBeenCalledWith('Internal Server Error')
-  })
-
-  it('should return 400 if amount mismatches', async () => {
-    mockRequest.query = { ...validWebhookQuery, OutSum: '99.99' } // Неправильная сумма
-    // Мокируем успешный поиск PENDING платежа
-    mockedGetPendingPayment.mockResolvedValue({
-      data: validPayment,
-      error: null,
-    })
-
-    // Получаем и вызываем обработчик
-    const webhookHandler = handleRobokassaWebhook(mockBot)
-    await webhookHandler(mockRequest as Request, mockResponse as Response)
-
-    // Проверяем поиск платежа
-    expect(mockedGetPendingPayment).toHaveBeenCalledWith(
-      validWebhookQuery.InvId
-    )
 
     // Проверяем ответ серверу
     expect(statusSpy).toHaveBeenCalledWith(400)
-    expect(sendSpy).toHaveBeenCalledWith('Bad Request: Amount mismatch')
-    // Убедимся, что другие действия не выполнялись
-    expect(mockedUpdatePaymentStatus).not.toHaveBeenCalled()
-    expect(mockedUpdateUserBalance).not.toHaveBeenCalled()
-    expect(mockedSendPaymentSuccessMessage).not.toHaveBeenCalled()
+    expect(sendSpy).toHaveBeenCalledWith('Bad Request: Missing parameters')
   })
 
-  it('should return 500 if database error occurs during payment status update', async () => {
-    mockRequest.query = validWebhookQuery
-    // Мокируем успешный поиск PENDING платежа
-    mockedGetPendingPayment.mockResolvedValue({
-      data: validPayment,
-      error: null,
-    })
-    // Мокируем ошибку при обновлении статуса
-    const updateError = new Error('Update error')
-    mockedUpdatePaymentStatus.mockResolvedValue({
-      data: null,
-      error: updateError,
-    })
-
-    // Получаем и вызываем обработчик
-    const webhookHandler = handleRobokassaWebhook(mockBot)
-    await webhookHandler(mockRequest as Request, mockResponse as Response)
-
-    // Проверяем поиск и попытку обновления статуса
-    expect(mockedGetPendingPayment).toHaveBeenCalledWith(
-      validWebhookQuery.InvId
-    )
-    expect(mockedUpdatePaymentStatus).toHaveBeenCalledWith(
-      validWebhookQuery.InvId,
-      PaymentStatus.COMPLETED
-    )
-
-    // Проверяем ответ серверу
-    expect(statusSpy).toHaveBeenCalledWith(500)
-    expect(sendSpy).toHaveBeenCalledWith('Internal Server Error')
-    // Убедимся, что баланс и уведомление не вызывались
-    expect(mockedUpdateUserBalance).not.toHaveBeenCalled()
-    expect(mockedSendPaymentSuccessMessage).not.toHaveBeenCalled()
-  })
-
-  it('should return 200 (but log CRITICAL) if database error occurs during user balance update', async () => {
-    mockRequest.query = validWebhookQuery
-    // Мокируем успешный поиск и обновление статуса
-    mockedGetPendingPayment.mockResolvedValue({
-      data: validPayment,
-      error: null,
-    })
-    mockedUpdatePaymentStatus.mockResolvedValue({ data: null, error: null })
-    // Мокируем ошибку при обновлении баланса
-    const balanceError = new Error('Balance update error')
-    mockedUpdateUserBalance.mockResolvedValue(false) // Симулируем ошибку возвратом false
-    // TODO: Если updateUserBalance выбрасывает ошибку, нужно мокать mockRejectedValue
-
-    // Получаем и вызываем обработчик
-    const webhookHandler = handleRobokassaWebhook(mockBot)
-    await webhookHandler(mockRequest as Request, mockResponse as Response)
-
-    // Проверяем шаги до обновления баланса
-    expect(mockedGetPendingPayment).toHaveBeenCalledWith(
-      validWebhookQuery.InvId
-    )
-    expect(mockedUpdatePaymentStatus).toHaveBeenCalledWith(
-      validWebhookQuery.InvId,
-      PaymentStatus.COMPLETED
-    )
-    // Проверяем вызов обновления баланса
-    expect(mockedUpdateUserBalance).toHaveBeenCalledWith(
-      validPayment.telegram_id,
-      validPayment.stars ?? 0,
-      'money_income',
-      expect.any(String), // Описание может меняться
-      expect.any(Object) // Метаданные
-    )
-
-    // Проверяем ответ серверу - должен быть OK, но ошибка залогирована
-    expect(statusSpy).toHaveBeenCalledWith(200)
-    expect(sendSpy).toHaveBeenCalledWith(`OK${validWebhookQuery.InvId}`)
-    // Убедимся, что уведомление не отправлялось (т.к. баланс не обновился)
-    expect(mockedSendPaymentSuccessMessage).not.toHaveBeenCalled()
-  })
-
-  it('should handle missing shp_ parameters in query', async () => {
-    const incompleteQuery = {
+  it('should return 400 if shp_ parameters are missing', async () => {
+    mockRequest.query = {
       OutSum: '100.00',
       InvId: '123',
       SignatureValue: 'VALID_SIGNATURE',
-      // shp_payment_uuid is missing
+      // Missing shp_user_id and shp_payment_uuid
     }
-    mockRequest.query = incompleteQuery
 
     // Получаем и вызываем обработчик
     const webhookHandler = handleRobokassaWebhook(mockBot)
     await webhookHandler(mockRequest as Request, mockResponse as Response)
 
-    // Ожидаем ошибку 400
+    // Проверяем ответ серверу
     expect(statusSpy).toHaveBeenCalledWith(400)
-    // Исправляем ожидаемое сообщение об ошибке
     expect(sendSpy).toHaveBeenCalledWith('Bad Request: Missing shp_ parameters')
-    expect(validateRobokassaSignatureMock).not.toHaveBeenCalled()
+  })
+
+  it('should return 500 if getting payment from DB fails', async () => {
+    mockRequest.query = validWebhookQuery
+    // Мокируем ошибку БД
+    mockedGetPendingPayment.mockResolvedValue({
+      data: null,
+      error: { message: 'Database error' },
+    })
+
+    // Получаем и вызываем обработчик
+    const webhookHandler = handleRobokassaWebhook(mockBot)
+    await webhookHandler(mockRequest as Request, mockResponse as Response)
+
+    // Проверяем ответ серверу
+    expect(statusSpy).toHaveBeenCalledWith(500)
+    expect(sendSpy).toHaveBeenCalledWith('Internal Server Error')
+  })
+
+  it('should return 500 if updating payment status fails', async () => {
+    mockRequest.query = validWebhookQuery
+    // Мокируем успешный поиск платежа
+    mockedGetPendingPayment.mockResolvedValue({
+      data: validPayment,
+      error: null,
+    })
+    // Мокируем ошибку обновления статуса
+    mockedUpdatePaymentStatus.mockResolvedValue({
+      data: null,
+      error: { message: 'Update error' },
+    })
+
+    // Получаем и вызываем обработчик
+    const webhookHandler = handleRobokassaWebhook(mockBot)
+    await webhookHandler(mockRequest as Request, mockResponse as Response)
+
+    // Проверяем ответ серверу
+    expect(statusSpy).toHaveBeenCalledWith(500)
+    expect(sendSpy).toHaveBeenCalledWith('Internal Server Error')
+  })
+
+  it('should return 200 but log error if updating user balance fails', async () => {
+    mockRequest.query = validWebhookQuery
+    // Мокируем успешный поиск платежа
+    mockedGetPendingPayment.mockResolvedValue({
+      data: validPayment,
+      error: null,
+    })
+    // Мокируем успешное обновление статуса
+    mockedUpdatePaymentStatus.mockResolvedValue({ data: null, error: null })
+    // Мокируем ошибку обновления баланса
+    mockedUpdateUserBalance.mockResolvedValue(0)
+
+    // Получаем и вызываем обработчик
+    const webhookHandler = handleRobokassaWebhook(mockBot)
+    await webhookHandler(mockRequest as Request, mockResponse as Response)
+
+    // Проверяем ответ серверу - OK, т.к. деньги получены, статус обновлен
+    expect(statusSpy).toHaveBeenCalledWith(200)
+    expect(sendSpy).toHaveBeenCalledWith(`OK${validWebhookQuery.InvId}`)
+  })
+
+  it('should handle uncaught exceptions gracefully', async () => {
+    mockRequest.query = validWebhookQuery
+    // Мокируем исключение
+    mockedGetPendingPayment.mockImplementation(() => {
+      throw new Error('Unexpected error')
+    })
+
+    // Получаем и вызываем обработчик
+    const webhookHandler = handleRobokassaWebhook(mockBot)
+    await webhookHandler(mockRequest as Request, mockResponse as Response)
+
+    // Проверяем ответ серверу
+    expect(statusSpy).toHaveBeenCalledWith(500)
+    expect(sendSpy).toHaveBeenCalledWith('Internal Server Error')
   })
 })

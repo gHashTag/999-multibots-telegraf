@@ -1,5 +1,4 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals'
-import makeMockContext from '../utils/mockTelegrafContext'
+import mockTelegrafContext from '../utils/mockTelegrafContext'
 import { ModeEnum } from '@/interfaces/modes'
 import * as priceHelpers from '@/price/helpers'
 import * as userInfo from '@/handlers/getUserInfo'
@@ -21,7 +20,6 @@ import type { Update, Message } from 'telegraf/typings/core/types/typegram'
 import { WizardContext, WizardScene } from 'telegraf/scenes'
 
 // Мокаем getUserDetails. reduceBalance мокать не нужно, т.к. его нет.
-// Мокаем только getUserDetails
 jest.mock('@/core/supabase/getUserDetails', () => ({
   getUserDetails: jest.fn(),
 }))
@@ -63,11 +61,8 @@ describe('checkBalanceScene.enter', () => {
     targetUserId: '123',
   }
 
-  // Моковая реализация getUserDetails
-  const mockedGetUserDetails = getUserDetails as jest.MockedFunction<
-    typeof getUserDetails
-  >
-  // const mockedReduceBalance = reduceBalance as jest.MockedFunction<typeof reduceBalance> // Комментируем
+  // Моковая реализация getUserDetails с правильной типизацией
+  const mockedGetUserDetails = jest.mocked(getUserDetails)
 
   // Моковые данные для тестов (тип UserDetailsResult импортирован)
   const mockUserDetailsSufficient: UserDetailsResult = {
@@ -89,16 +84,16 @@ describe('checkBalanceScene.enter', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     next.mockClear()
-    ctx = makeMockContext(
+
+    // Используем правильный mockTelegrafContext вместо makeMockContext
+    ctx = mockTelegrafContext(
       { message: { from: mockFrom } },
       mockSession
     ) as MyContext
 
-    // Мокируем методы сцены
-    ctx.scene.enter =
-      jest.fn<Scenes.SceneContext<MyContext>['scene']['enter']>()
-    ctx.scene.leave =
-      jest.fn<Scenes.SceneContext<MyContext>['scene']['leave']>()
+    // Правильная типизация методов сцены
+    ctx.scene.enter = jest.fn().mockResolvedValue(undefined)
+    ctx.scene.leave = jest.fn().mockResolvedValue(undefined)
   })
 
   it('should allow access and enter target scene if user exists, has subscription, and enough balance', async () => {
@@ -122,9 +117,7 @@ describe('checkBalanceScene.enter', () => {
     await checkBalanceScene.enter(ctx as any)
 
     expect(getUserDetails).toHaveBeenCalledWith('123')
-    expect(
-      require('@/price/helpers').sendInsufficientStarsMessage
-    ).toHaveBeenCalled()
+    expect(priceHelpers.sendInsufficientStarsMessage).toHaveBeenCalled()
     expect(ctx.scene.leave).toHaveBeenCalled()
     expect(ctx.scene.enter).not.toHaveBeenCalled()
   })
