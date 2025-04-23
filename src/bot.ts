@@ -195,7 +195,7 @@ async function initializeBots() {
     }
 
     // Запускаем сервер для Robokassa ВСЕГДА
-    startWebhookServer()
+    // startWebhookServer()
   }
 
   console.log('🔍 Инициализация сцен...')
