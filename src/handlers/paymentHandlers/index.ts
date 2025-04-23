@@ -209,6 +209,48 @@ async function processSuccessfulPaymentLogic(
   logger.info('[processSuccessfulPaymentLogic] Finished processing.')
 }
 
+// --- НОВАЯ ФУНКЦИЯ ДЛЯ PRE_CHECKOUT_QUERY ---
+export async function handlePreCheckoutQuery(ctx: MyContext) {
+  const query = ctx.preCheckoutQuery
+  if (!query) {
+    logger.error(
+      '[handlePreCheckoutQuery] Received update without preCheckoutQuery data.'
+    )
+    // Отвечать здесь не нужно, т.к. это не pre_checkout_query по факту
+    return
+  }
+
+  logger.info('[handlePreCheckoutQuery] Received pre_checkout_query:', {
+    query_id: query.id,
+    from: query.from,
+    currency: query.currency,
+    total_amount: query.total_amount,
+    invoice_payload: query.invoice_payload,
+  })
+
+  // --- ЗДЕСЬ МОЖНО ДОБАВИТЬ ПРОВЕРКИ ---
+  // Например, проверить payload, сумму, доступность товара/подписки
+  const payloadIsValid = true // Заглушка - пока считаем любой payload валидным
+  const amountIsValid = true // Заглушка - пока считаем любую сумму валидной
+
+  if (payloadIsValid && amountIsValid) {
+    // Все проверки пройдены, подтверждаем готовность принять платеж
+    logger.info(
+      `[handlePreCheckoutQuery] Answering OK for query_id: ${query.id}`
+    )
+    await ctx.answerPreCheckoutQuery(true)
+  } else {
+    // Какая-то проверка не пройдена, отклоняем платеж
+    const errorMessage = 'Не удалось подтвердить заказ. Попробуйте позже.' // Пример сообщения
+    logger.warn(
+      `[handlePreCheckoutQuery] Answering FAILED for query_id: ${query.id}. Reason: ${errorMessage}`
+    )
+    await ctx.answerPreCheckoutQuery(false, errorMessage)
+  }
+}
+// --- КОНЕЦ НОВОЙ ФУНКЦИИ ---
+
+// Основной обработчик успешного платежа (остается как есть)
 export async function handleSuccessfulPayment(ctx: MyContext) {
   // 1. Проверка типа (возвращаем в один if) с использованием 'as'
   if (

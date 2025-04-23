@@ -1,12 +1,19 @@
 import { handlePaymentPolicyInfo } from './paymentHandlers/handlePaymentPolicyInfo'
-import { handlePreCheckoutQuery } from './paymentHandlers/handlePreCheckoutQuery'
-import { handleSuccessfulPayment } from './paymentHandlers'
+import {
+  handleSuccessfulPayment,
+  handlePreCheckoutQuery,
+  // handleInvoice, // Раскомментируй, если handleInvoice тут нужен
+} from './paymentHandlers'
 import { MyContext } from '@/interfaces'
 import { Telegraf } from 'telegraf'
+import { handleTopUp } from './paymentHandlers/handleTopUp' // ВОССТАНАВЛИВАЕМ ИМПОРТ
+import { message } from 'telegraf/filters' // ДОБАВЛЯЕМ НУЖНЫЙ ИМПОРТ
 
 export function registerPaymentActions(bot: Telegraf<MyContext>) {
   bot.action('payment_policy_info', handlePaymentPolicyInfo)
-  // bot.action(/top_up_\d+/, handleTopUp) // <--- Закомментировано, т.к. обработка перенесена в paymentScene
+  bot.action(/top_up_\d+/, handleTopUp) // ВОССТАНАВЛИВАЕМ ACTION
+  // bot.on('invoice', handleInvoice) // Если invoice не обрабатывается здесь
   bot.on('pre_checkout_query', handlePreCheckoutQuery)
-  bot.on('successful_payment', handleSuccessfulPayment)
+  // ИСПОЛЬЗУЕМ ПРАВИЛЬНЫЙ ФИЛЬТР ДЛЯ successful_payment
+  bot.on('message', message('successful_payment'), handleSuccessfulPayment)
 }
