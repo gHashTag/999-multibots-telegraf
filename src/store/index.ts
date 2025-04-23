@@ -1,7 +1,6 @@
-import { MySession } from '@/interfaces'
+import { MySession, PaymentType } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { SubscriptionType } from '@/interfaces'
-import { PaymentType } from './interfaces'
 
 export const defaultSession: MySession = {
   mode: ModeEnum.TextToImage,

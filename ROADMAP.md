@@ -12,12 +12,14 @@
 - **Код:**
   - ✅ Проверить `getUserDetails`, что чтение идет только из `payments_v2`.
   - ✅ Удалить использование удаленных полей `users` из интерфейсов TypeScript.
-  - ✅ Упрощены типы операций в коде: используется только `PaymentType.MONEY_INCOME` для дохода и `PaymentType.MONEY_OUTCOME` для расхода. Остальные типы (SYSTEM, MONEY_EXPENSE) заменены.
+  - ✅ Упрощены типы операций в коде: используется только `PaymentType.MONEY_INCOME` для дохода и `PaymentType.MONEY_OUTCOME` для расхода. Остальные типы (SYSTEM, MONEY_OUTCOME) заменены.
   - ✅ Проверить функции списания (установка `service_type`, `subscription_type=null`).
   - ✅ Исправить установку `payment_method` в `updateUserBalanceRobokassa.ts`.
   - ✅ Реализовать безграничный срок действия для подписки `NEUROTESTER` (в `getUserDetails.ts`).
   - ✅ Исправлена логика вычитания баланса в `processBalanceVideoOperation.ts` (убран минус).
   - ✅ Исправлен тип операции на `MONEY_OUTCOME` в `processBalanceVideoOperation.ts`.
+  ✅ **{current_date}:** Завершен рефакторинг типов платежей в коде (используются `PaymentType.MONEY_INCOME`/`PaymentType.MONEY_OUTCOME`).
+  ✅ **{current_date}:** Проверена SQL-функция `get_user_balance`, подтверждено использование `MONEY_INCOME`/`MONEY_OUTCOME`.
 
 ### Деплой и Инфраструктура 🏗️ (ПРИОРИТЕТ - ВЫСОКИЙ)
 - ✅ Создан скрипт deploy-prod.sh для автоматического деплоя
@@ -42,7 +44,7 @@
 - ⏳ Проверка валидности всех токенов ботов
 - ⏳ Настройка автоматического логирования
 - ⏳ Мониторинг состояния ботов в production
-- ❗ **ТРЕБУЕТСЯ ДЕЙСТВИЕ (DB):** Привести enum `payment_type` и данные в `payments_v2` к UPPERCASE значениям (`MONEY_INCOME` и т.д.), удалить старые/неиспользуемые значения enum.
+- ⚠️ **ТРЕБУЕТСЯ ДЕЙСТВИЕ (DB):** Привести enum `payment_type` и данные в `payments_v2` к UPPERCASE значениям (`MONEY_INCOME` и т.д.), удалить старые/неиспользуемые значения enum. (Статус: НЕ КРИТИЧНО для расчета баланса, т.к. `get_user_balance` игнорирует `MONEY_EXPENSE`)
 
 ### Типизация и рефакторинг ✍️ (ПРИОРИТЕТ - СРЕДНИЙ)
 - ✅ Исправлены типы в `robokassa.handler.ts`
@@ -158,6 +160,8 @@
 - ✅ {current_date}: Исправлена логика отображения меню в `menuScene` для корректного использования `getTranslation` на основе типа подписки.
 - ✅ {current_date}: Исправлена ошибка зацикливания в `menuScene` при повторном вызове `/menu`.
 - ✅ {current_date}: Исправлена логика списания баланса в `processBalanceVideoOperation.ts` (убран минус, исправлен тип на `MONEY_OUTCOME`).
+- ✅ {current_date}: Устранены ошибки компиляции, связанные с `PaymentType`/`TransactionType` и строковыми литералами.
+- ✅ {current_date}: Проверена и подтверждена корректность логики SQL-функции `get_user_balance`.
 
 ## ⭐ Payments & Subscriptions Refactoring (v2)
 
@@ -197,6 +201,7 @@
     - Verify `updateUserBalanceRobokassa` sets `payment_method = 'Robokassa'` (or 'Telegram'). ✅
     - Verify expense functions (like `updateUserBalance`) log `service_type` (and NOT `subscription_type`). ✅
     - Corrected `processBalanceVideoOperation.ts` to use `MONEY_OUTCOME`. ✅
+    - ✅ **{current_date}:** Завершен рефакторинг кода для использования `PaymentType.MONEY_INCOME`/`PaymentType.MONEY_OUTCOME`.
 - ⚠️ **System Payments:** Manually fix `create_system_payment` SQL function to insert `subscription_type` (not `service_type`) for grants.
 - ⏳ **Robokassa:** Review `robokassa.ts` route handler - ensure it uses correct interfaces and potentially calls `getUserDetails` if needed after payment confirmation.
 - ⏳ **Testing:** Thoroughly test all scenarios: new user, STARS user, NEUROPHOTO, NEUROBASE, NEUROTESTER, balance top-up, service usage, refunds.

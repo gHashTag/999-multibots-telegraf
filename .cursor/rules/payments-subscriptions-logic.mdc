@@ -14,7 +14,7 @@ _Updated: {current_date}_
 **Database Enum (`operation_type`):** The database column `payments_v2.type` uses a PostgreSQL enum named `operation_type` with the following actual values:
 ```
 MONEY_INCOME
-MONEY_EXPENSE
+MONEY_OUTCOME
 SUBSCRIPTION_PURCHASE
 SUBSCRIPTION_RENEWAL
 REFUND
@@ -24,13 +24,13 @@ SYSTEM
 MONEY_OUTCOME
 ```
 
-**Code Enum (`PaymentType`):** The TypeScript enum `PaymentType` located in `[src/interfaces/payments.interface.ts](mdc:src/interfaces/payments.interface.ts)` **correctly mirrors** these database enum values **EXCEPT** that `MONEY_EXPENSE` has been **removed** from the code-level enum.
+**Code Enum (`PaymentType`):** The TypeScript enum `PaymentType` located in `[src/interfaces/payments.interface.ts](mdc:src/interfaces/payments.interface.ts)` **correctly mirrors** these database enum values **EXCEPT** that `MONEY_OUTCOME` has been **removed** from the code-level enum.
 
 **Current Code Logic (IMPORTANT):**
 *   The code **attempts to use specific enum values** where appropriate (e.g., `PaymentType.REFUND` for refunds, `PaymentType.SYSTEM` for system operations, `PaymentType.BONUS` for bonuses).
-*   **All expense/outcome operations** in the code have been **standardized to use ONLY `PaymentType.MONEY_OUTCOME`**. This includes places previously using the older `PaymentType.MONEY_EXPENSE`.
-*   **CRITICAL DEPENDENCY & INCONSISTENCY:** This standardization **ASSUMES** that the SQL functions (`get_user_balance`, `get_user_balance_stats`) correctly interpret **`MONEY_OUTCOME`** as the sole subtraction type for balance calculation. Because `MONEY_EXPENSE` *still exists* in the database enum `operation_type`, there's a risk: **SQL functions might *still* be considering `MONEY_EXPENSE` as a valid subtraction type, potentially leading to incorrect balance if old data exists or if SQL isn't updated.**
-*   **RECOMMENDED ACTION (DB):** Either remove `MONEY_EXPENSE` from the `operation_type` enum in Supabase OR modify SQL functions (`get_user_balance`, `get_user_balance_stats`) to *ignore* `MONEY_EXPENSE` and only use `MONEY_OUTCOME` for subtractions.
+*   **All expense/outcome operations** in the code have been **standardized to use ONLY `PaymentType.MONEY_OUTCOME`**. This includes places previously using the older `PaymentType.MONEY_OUTCOME`.
+*   **CRITICAL DEPENDENCY & INCONSISTENCY:** This standardization **ASSUMES** that the SQL functions (`get_user_balance`, `get_user_balance_stats`) correctly interpret **`MONEY_OUTCOME`** as the sole subtraction type for balance calculation. Because `MONEY_OUTCOME` *still exists* in the database enum `operation_type`, there's a risk: **SQL functions might *still* be considering `MONEY_OUTCOME` as a valid subtraction type, potentially leading to incorrect balance if old data exists or if SQL isn't updated.**
+*   **RECOMMENDED ACTION (DB):** Either remove `MONEY_OUTCOME` from the `operation_type` enum in Supabase OR modify SQL functions (`get_user_balance`, `get_user_balance_stats`) to *ignore* `MONEY_OUTCOME` and only use `MONEY_OUTCOME` for subtractions.
 
 Key files for interaction:
 - Core getter: `[src/core/supabase/getUserDetails.ts](mdc:src/core/supabase/getUserDetails.ts)`
@@ -243,7 +243,7 @@ export const invalidateBalanceCache = (telegram_id: TelegramId): void => {
 
 **Enums:**
 - `payment_status`: `PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`
-- `operation_type` (DB enum for `type` column): `MONEY_INCOME`, `MONEY_EXPENSE`, `SUBSCRIPTION_PURCHASE`, `SUBSCRIPTION_RENEWAL`, `REFUND`, `BONUS`, `REFERRAL`, `SYSTEM`, `MONEY_OUTCOME`
+- `operation_type` (DB enum for `type` column): `MONEY_INCOME`, `MONEY_OUTCOME`, `SUBSCRIPTION_PURCHASE`, `SUBSCRIPTION_RENEWAL`, `REFUND`, `BONUS`, `REFERRAL`, `SYSTEM`, `MONEY_OUTCOME`
 - `subscription_type` (DB type: `text`): Example values: `NEUROPHOTO`, `NEUROBASE`, `NEUROTESTER`
 - `mode_enum` (Used for `service_type`, DB type: `text`): Corresponds to values in `ModeEnum` interface.
 ```

@@ -77,7 +77,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     })
 
     // --- Set message and photo using translation results or fallbacks ---
-    message = translation || getText(isRu, 'menu') // Use fetched translation or fallback to default menu text
+    message = translation || getText(isRu, 'mainMenu') // Use fetched translation or fallback to default menu text
     photo_url = url || null // Use URL from translation if available
     if (!translation) {
       logger.warn(
