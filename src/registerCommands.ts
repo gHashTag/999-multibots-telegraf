@@ -54,6 +54,7 @@ import { get100Command } from './commands/get100Command'
 import { handleTechSupport } from './commands/handleTechSupport'
 import { handleBuy } from './handlers/handleBuy'
 import { isRussian } from '@/helpers'
+import { registerPaymentActions } from './handlers/paymentActions'
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
@@ -221,4 +222,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   bot.command('neuro_coder', async ctx => {
     await ctx.scene.enter('neuroCoderScene')
   })
+
+  // Register payment handlers (pre_checkout_query, successful_payment, etc.)
+  registerPaymentActions(bot)
 }

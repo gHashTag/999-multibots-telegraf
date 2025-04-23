@@ -4,7 +4,7 @@ import { isRussian } from '@/helpers/language'
 import { priceCommand } from '@/commands/priceCommand'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
-
+import { handleTechSupport } from '@/commands/handleTechSupport'
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -347,7 +347,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.HelpScene}`)
-        await ctx.scene.enter(ModeEnum.HelpScene)
+        await handleTechSupport(ctx)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.HelpScene}`
         )

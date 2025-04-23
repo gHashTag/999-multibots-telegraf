@@ -130,7 +130,12 @@ async function initializeBots() {
 
     // В режиме разработки используем polling
     bot.launch({
-      allowedUpdates: ['message', 'callback_query'],
+      allowedUpdates: [
+        'message',
+        'callback_query',
+        'pre_checkout_query' as any,
+        'successful_payment' as any,
+      ],
     })
     console.log(
       `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
@@ -183,7 +188,12 @@ async function initializeBots() {
             port: currentPort,
             hookPath: webhookPath, // Новый путь с именем бота
           },
-          allowedUpdates: ['message', 'callback_query'],
+          allowedUpdates: [
+            'message',
+            'callback_query',
+            'pre_checkout_query' as any,
+            'successful_payment' as any,
+          ],
         })
 
         console.log(
@@ -250,4 +260,7 @@ process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 console.log('🏁 Запуск приложения')
 initializeBots()
   .then(() => console.log('✅ Боты успешно запущены'))
-  .catch(error => console.error('❌ Ошибка при запуске ботов:', error))
+  .catch(error => {
+    console.error('❌ Критическая ошибка при запуске ботов:', error)
+    process.exit(1)
+  })

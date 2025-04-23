@@ -7,6 +7,7 @@ import { setPayments } from '@/core/supabase'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
+import { handleTopUp } from '@/handlers/paymentHandlers/handleTopUp'
 
 export const starPaymentScene = new Scenes.BaseScene<MyContext>(
   ModeEnum.StarPaymentScene
@@ -66,6 +67,9 @@ starPaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async
   )
   await ctx.scene.enter(ModeEnum.MainMenu)
 })
+
+// Action handler for star top-up buttons
+starPaymentScene.action(/top_up_(\d+)/, handleTopUp)
 
 // Обработка любых других сообщений
 starPaymentScene.on('message', async ctx => {

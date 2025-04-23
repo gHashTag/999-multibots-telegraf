@@ -14,6 +14,7 @@ import { getTranslation } from '@/core'
 import { handleMenu } from '@/handlers/handleMenu'
 import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
+
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
@@ -76,19 +77,18 @@ const menuCommandStep = async (ctx: MyContext) => {
     })
 
     // --- Set message and photo using translation results or fallbacks ---
-    message = translation || getText(isRu, 'mainMenu') // Use fetched translation or fallback to default menu text
-    photo_url = url || null // Use URL from translation if available
-    if (!translation) {
+    if (translation) {
+      message = translation
+      photo_url = url || null
+    } else {
+      // Construct the desired fallback message directly, remove unnecessary escapes
+      message = isRu
+        ? '🏠 Главное меню\nВыберите нужный раздел 👇'
+        : '🏠 Main Menu\nSelect the section 👇'
       logger.warn(
-        `[menuCommandStep] Translation not found for key '${translationKey}'. Using fallback text.`
+        `[menuCommandStep] Translation not found for key '${translationKey}'. Using constructed fallback text.`
       )
-    }
-    if (!url && translationKey === 'digitalAvatar') {
-      logger.warn(
-        `[menuCommandStep] URL not found in translation for key '${translationKey}'. Photo might be missing.`
-      )
-      // Optionally, set a default photo URL here if needed for digitalAvatar
-      // photo_url = getPhotoUrl(ctx, 1);
+      photo_url = null // No photo for fallback
     }
 
     // --- Send the message ---
@@ -99,7 +99,19 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (photo_url) {
       await sendReplyWithKeyboard(ctx, message, [], keyboard, photo_url)
     } else {
-      await ctx.reply(message, keyboard)
+      // Send fallback without parse_mode, or send translation WITH parse_mode if it exists
+      if (translation) {
+        await ctx.reply(message, {
+          parse_mode: 'MarkdownV2', // Use parse_mode for DB translations
+          reply_markup: keyboard.reply_markup,
+        })
+      } else {
+        // Send the constructed fallback message as plain text
+        await ctx.reply(message, {
+          // No parse_mode here for the plain fallback text
+          reply_markup: keyboard.reply_markup,
+        })
+      }
     }
 
     // Ensure the wizard progresses to handle button clicks

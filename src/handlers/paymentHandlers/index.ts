@@ -12,6 +12,7 @@ import {
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { starAmounts } from '@/price/helpers'
+import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
 // Локальные определения MyContext и SessionData удалены
 
 const SUBSCRIPTION_PLANS = [
@@ -55,12 +56,14 @@ async function sendNotification(ctx: MyContext, message: string) {
         adminChatId,
       })
     }
+    console.log('🔔 Notification sent to admin')
   } else {
     logger.warn('⚠️ ADMIN_CHAT_ID not set. Notification not sent.')
   }
 }
 
 export async function handleSuccessfulPayment(ctx: MyContext) {
+  console.log('CASE: handleSuccessfulPayment')
   if (!ctx.message || !('successful_payment' in ctx.message)) {
     logger.warn(
       '⚠️ Received update without message or successful_payment in handleSuccessfulPayment'
@@ -115,11 +118,17 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
   })
 
   const subscriptionCallbackData = ctx.session?.subscription
+
   const purchasedPlan = SUBSCRIPTION_PLANS.find(
     plan => plan.callback_data === subscriptionCallbackData
   )
 
   try {
+    logger.info('📈 Balance incremented successfully', {
+      telegram_id: normalizedUserId,
+      stars_added: stars,
+    })
+
     if (purchasedPlan) {
       logger.info('Processing SUBSCRIPTION purchase via Telegram Stars', {
         telegram_id: normalizedUserId,
@@ -155,6 +164,14 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
         ctx,
         `💳 Пользователь @${username} (ID: ${userId}) купил подписку "${purchasedPlan.text}" за ${stars}⭐ через Telegram Stars.`
       )
+      const bot_name = ctx.botInfo?.username ?? 'unknown_bot'
+      await notifyBotOwners(bot_name, {
+        username,
+        telegram_id: userId.toString(),
+        amount: stars,
+        stars,
+        subscription: purchasedPlan.text,
+      })
     } else {
       logger.info('Processing simple STARS top-up via Telegram Stars', {
         telegram_id: normalizedUserId,
@@ -189,6 +206,14 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
         ctx,
         `💰 Пользователь @${username} (ID: ${userId}) пополнил баланс на ${stars}⭐️ через Telegram Stars.`
       )
+      const bot_name = ctx.botInfo?.username ?? 'unknown_bot'
+      await notifyBotOwners(bot_name, {
+        username,
+        telegram_id: userId.toString(),
+        amount: stars,
+        stars,
+        subscription: null,
+      })
     }
 
     logger.info('✅ Telegram Stars payment processed successfully.', {
