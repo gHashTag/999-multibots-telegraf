@@ -23,9 +23,7 @@ export async function sendGenerationCancelledMessage(
     message,
     await mainMenu({
       isRu,
-      inviteCount: count,
       subscription: subscriptionType,
-      level,
       ctx,
     })
   )

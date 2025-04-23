@@ -1,9 +1,13 @@
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { TransactionType } from '@/interfaces/payments.interface'
+import {
+  PaymentType,
+  BalanceOperationResult,
+} from '@/interfaces/payments.interface'
 import { Telegraf } from 'telegraf' // Нужен для отправки сообщения о недостатке средств
 import { MyContext } from '@/interfaces'
 import logger from '@/utils/logger'
+import { ModeEnum } from '@/interfaces'
 
 // Определим тип для результата, аналогичный BalanceOperationResult, но без ctx-зависимых полей
 export interface ServiceBalanceOperationResult {
@@ -22,8 +26,7 @@ interface ServiceBalanceOperationProps {
   bot: Telegraf<MyContext> // Нужен для отправки сообщения об ошибке
   bot_name: string
   description: string
-  type: TransactionType
-  service_type?: string // Доп. информация для updateUserBalanceV2
+  service_type: ModeEnum // Use ModeEnum as specified
 }
 
 export const processServiceBalanceOperation = async ({
@@ -33,8 +36,7 @@ export const processServiceBalanceOperation = async ({
   bot,
   bot_name,
   description,
-  type,
-  service_type, // Используем доп. информацию
+  service_type,
 }: ServiceBalanceOperationProps): Promise<ServiceBalanceOperationResult> => {
   let currentBalance = 0
   try {
@@ -67,16 +69,12 @@ export const processServiceBalanceOperation = async ({
     // Рассчитываем новый баланс
     const newBalance = currentBalance - paymentAmount
 
-    // Преобразуем TransactionType enum в строковый литерал для updateUserBalance
-    const balanceUpdateType: 'money_income' | 'money_outcome' =
-      type === TransactionType.MONEY_INCOME ? 'money_income' : 'money_outcome'
-
     // Используем существующую updateUserBalance
     const updateSuccess = await updateUserBalance(
       telegram_id,
-      paymentAmount, // Передаем сумму операции
-      balanceUpdateType, // Передаем преобразованный тип
-      description, // Передаем описание
+      -paymentAmount, // Pass negative amount for expense
+      PaymentType.MONEY_OUTCOME, // Correctly use the Enum member
+      description,
       {
         // Передаем остальные данные в metadata
         bot_name,

@@ -9,11 +9,15 @@ import {
   invalidateBalanceCache,
 } from '@/core/supabase/getUserBalance'
 import {
-  TransactionType,
   PaymentStatus,
+  PaymentType,
   Currency,
+  PaymentCreateParams,
+  PaymentProcessResult,
 } from '@/interfaces/payments.interface'
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
+import { supabaseAdmin } from '@/core/supabase/'
+import { getUserById } from '@/core/supabase/'
 
 // --- ИСПРАВЛЕННЫЙ ИНТЕРФЕЙС ВХОДНЫХ ПАРАМЕТРОВ ---
 export interface DirectPaymentParams {
@@ -22,7 +26,7 @@ export interface DirectPaymentParams {
   /** Сумма операции (количество звезд) */
   amount: number
   /** Тип транзакции (списание или начисление) */
-  type: TransactionType
+  type: string
   /** Описание операции (отображается пользователю) */
   description: string
   /** Имя бота, в котором происходит операция */
@@ -110,7 +114,7 @@ export async function directPaymentProcessor(
 
     // 3. Проверка баланса для списания
     if (
-      type === TransactionType.MONEY_EXPENSE &&
+      type === PaymentType.MONEY_OUTCOME &&
       !bypass_payment_check &&
       currentBalance < normalizedAmount
     ) {
@@ -122,7 +126,7 @@ export async function directPaymentProcessor(
       })
       // Возвращаем ошибку согласно исправленному интерфейсу DirectPaymentResult
       return { success: false, error: errorMsg, operation_id: operationId }
-    } else if (type === TransactionType.MONEY_EXPENSE && bypass_payment_check) {
+    } else if (type === PaymentType.MONEY_OUTCOME && bypass_payment_check) {
       logger.warn(
         '🔓 [DIRECT_PAYMENT v2.0] Проверка баланса пропущена (bypass)',
         { telegram_id }
@@ -228,7 +232,7 @@ export async function directPaymentProcessor(
     }
 
     logger.info(
-      '🏁 [DIRECT_PAYMENT v2.0] Прямая обработка платежа завершена успешно',
+      '�� [DIRECT_PAYMENT v2.0] Прямая обработка платежа завершена успешно',
       {
         /* ... */
       }
@@ -253,5 +257,193 @@ export async function directPaymentProcessor(
     })
     // Возвращаем ошибку согласно исправленному интерфейсу DirectPaymentResult
     return { success: false, error: errorMessage, operation_id: operationId }
+  }
+}
+
+/**
+ * @deprecated Используйте updateUserBalance или функции модуля ProcessServiceBalance
+ * Прямое внесение платежей
+ */
+export async function directPayment(
+  params: PaymentCreateParams
+): Promise<PaymentProcessResult> {
+  const {
+    telegram_id,
+    amount,
+    stars,
+    type,
+    description,
+    metadata,
+    bot_name,
+    service_type,
+    subscription,
+  } = params
+
+  // 1. Проверка существования пользователя
+  const user = await getUserById(telegram_id)
+  if (!user) {
+    return { success: false, message: 'User not found' }
+  }
+
+  // 2. Формирование данных для вставки
+  const paymentData: Omit<PaymentCreateParams, 'telegram_id'> & {
+    user_id: string
+    status: PaymentStatus
+  } = {
+    user_id: user.id, // Используем UUID пользователя
+    amount,
+    stars: stars ?? 0,
+    type: type as PaymentType, // Use the correct enum type
+    description,
+    metadata,
+    bot_name,
+    service_type: service_type ?? null,
+    payment_method: params.payment_method || 'System', // Прямые платежи считаем системными
+    status: PaymentStatus.COMPLETED, // Прямые платежи сразу завершены
+    subscription: subscription ?? null, // Добавляем тип подписки
+    currency: Currency.RUB, // Default to RUB or determine dynamically
+    inv_id: params.inv_id,
+  }
+
+  // 3. Вставка платежа в базу данных
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('payments_v2')
+      .insert([paymentData])
+      .select()
+
+    if (error) {
+      console.error('Error inserting direct payment:', error)
+      return {
+        success: false,
+        message: 'Error inserting payment',
+        error: error.message,
+      }
+    }
+
+    if (!data || data.length === 0) {
+      return {
+        success: false,
+        message: 'Failed to insert payment, no data returned',
+      }
+    }
+
+    // 4. Логирование транзакции (опционально, если logTransaction существует)
+    // await logTransaction({
+    //   telegram_id,
+    //   amount,
+    //   type,
+    //   description,
+    //   status: PaymentStatus.COMPLETED,
+    //   metadata: { ...metadata, direct_payment: true },
+    //   service_type,
+    //   bot_name,
+    //   payment_id: data[0].id.toString(),
+    //   subscription: subscription
+    // })
+
+    return { success: true, message: 'Payment successful', payment: data[0] }
+  } catch (error) {
+    console.error('Unexpected error during direct payment:', error)
+    return {
+      success: false,
+      message: 'Unexpected system error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
+ * Обновляет баланс пользователя и записывает транзакцию в payments_v2.
+ * @param telegram_id ID пользователя в Telegram.
+ * @param amount Сумма изменения баланса (может быть отрицательной для списания).
+ * @param type Тип транзакции (MONEY_INCOME, MONEY_EXPENSE, STARS_EXPENSE и т.д.).
+ * @param description Описание транзакции.
+ * @param metadata Дополнительные данные (например, ID инвойса).
+ * @param bypass_payment_check Флаг для обхода проверки статуса платежа.
+ * @returns true в случае успеха, false в случае ошибки.
+ */
+export async function updateUserBalance(
+  telegram_id: string,
+  amount: number,
+  type: PaymentType,
+  description: string,
+  metadata: Record<string, any> = {},
+  bypass_payment_check: boolean = false
+): Promise<boolean> {
+  console.log(
+    `updateUserBalance called: telegram_id=${telegram_id}, amount=${amount}, type=${type}`
+  )
+  const user = await getUserById(telegram_id)
+  if (!user) {
+    console.error(`User not found for telegram_id: ${telegram_id}`)
+    return false
+  }
+
+  const isExpense = type === PaymentType.MONEY_OUTCOME // Original check
+  let newBalance = 0
+
+  try {
+    const currentBalance = await getUserBalance(telegram_id)
+    if (currentBalance === null) {
+      console.error(`Failed to get current balance for user ${telegram_id}`)
+      return false
+    }
+
+    newBalance = currentBalance + amount
+
+    // Original balance check logic (before STARS_EXPENSE was incorrectly introduced)
+    if (isExpense && newBalance < 0 && !bypass_payment_check) {
+      console.log(
+        `Insufficient balance for user ${telegram_id}: current=${currentBalance}, amount=${amount}`
+      )
+      // Недостаточно средств
+      return false
+    } else if (type === PaymentType.MONEY_OUTCOME && bypass_payment_check) {
+      // Corrected: Was TransactionType.MONEY_OUTCOME
+      console.log(`Bypassing balance check for user ${telegram_id}`)
+      // Принудительное списание, даже если баланс уходит в минус
+    }
+
+    // Запись транзакции (Original logic)
+    const { data, error } = await supabaseAdmin
+      .from('payments_v2')
+      .insert([
+        {
+          user_id: user.id,
+          telegram_id: telegram_id,
+          amount: Math.abs(amount),
+          stars: 0, // Assuming stars are handled separately or implicitly
+          type: type,
+          status: PaymentStatus.COMPLETED,
+          description: description,
+          metadata: metadata,
+          bot_name: metadata.bot_name || 'unknown',
+          payment_method: metadata.payment_method || 'System',
+          inv_id: metadata.inv_id,
+          service_type: metadata.service_type || null,
+          subscription_type: metadata.subscription_type || null,
+          currency: 'RUB', // Assuming default currency
+        },
+      ])
+      .select()
+
+    if (error) {
+      console.error('Error inserting payment record:', error)
+      return false
+    }
+
+    if (!data || data.length === 0) {
+      console.error('Failed to insert payment record, no data returned.')
+      return false
+    }
+
+    console.log(
+      `Balance updated for user ${telegram_id}. New balance: ${newBalance}`
+    )
+    return true
+  } catch (error) {
+    console.error('Error updating balance:', error)
+    return false
   }
 }

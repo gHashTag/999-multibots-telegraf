@@ -86,6 +86,7 @@ export interface PaymentCreateParams extends Omit<BasePayment, 'status'> {
   operation_id?: string
   inv_id?: string
   metadata?: Record<string, any>
+  currency: Currency
 }
 
 export interface PaymentProcessResult {

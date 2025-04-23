@@ -1,7 +1,7 @@
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { BalanceOperationResult, MyContext } from '@/interfaces'
-
+import { PaymentType } from '@/interfaces/payments.interface'
 type BalanceOperationProps = {
   ctx: MyContext
   model?: string
@@ -42,7 +42,7 @@ export const processBalanceOperation = async ({
     const updateSuccess = await updateUserBalance(
       telegram_id.toString(),
       paymentAmount,
-      'money_outcome',
+      PaymentType.MONEY_OUTCOME,
       'Payment operation',
       {
         bot_name: ctx.botInfo?.username,

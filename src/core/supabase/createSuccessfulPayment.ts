@@ -1,9 +1,5 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
-import {
-  TransactionType,
-  PaymentStatus,
-  Currency,
-} from '@/interfaces/payments.interface'
+import { PaymentStatus, Currency } from '@/interfaces/payments.interface'
 
 import { supabase } from '@/core/supabase'
 import { getUserByTelegramIdString } from '@/core/supabase'
@@ -15,7 +11,7 @@ import { ADMIN_IDS_ARRAY } from '@/config'
 interface CreateSuccessfulPaymentParams {
   telegram_id: TelegramId
   amount: number
-  type: TransactionType | string
+  type: string
   description: string
   bot_name: string
   service_type?: string
@@ -93,7 +89,7 @@ export async function createSuccessfulPayment({
     }
 
     // Нормализуем тип транзакции в нижний регистр для совместимости с БД
-    const normalizedType = normalizeTransactionType(type as TransactionType)
+    const normalizedType = normalizeTransactionType(type)
 
     // Нормализуем telegram_id к строке
     const telegramIdStr = String(telegram_id)

@@ -109,15 +109,11 @@ const adminIds = process.env.ADMIN_IDS?.split(',') || []
 
 export async function mainMenu({
   isRu,
-  inviteCount,
   subscription = SubscriptionType.STARS,
-  level,
   ctx,
 }: {
   isRu: boolean
-  inviteCount: number
   subscription: SubscriptionType
-  level: number
   ctx: MyContext
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   console.log('💻 CASE: mainMenu')
@@ -153,18 +149,13 @@ export async function mainMenu({
     if (subscription === SubscriptionType.NEUROTESTER) {
       availableLevels = Object.values(levels).filter(filterServiceLevels)
     } else {
-      // Для NEUROBASE и NEUROBLOGGER берем из мапы и фильтруем (slice(1) уже применен)
+      // Для NEUROBASE и NEUROBLOGGER берем из мапы и фильтруем
       availableLevels =
         subscriptionLevelsMap[subscription].filter(filterServiceLevels)
     }
   } else if (subscription === SubscriptionType.STARS) {
-    // Для STARS уровни не добавляем, если level = 0
-    if (level > 0) {
-      // Логика добавления уровней по инвайтам/левелу для STARS > 0 (если нужна)
-      availableLevels = Object.values(levels)
-        .filter(filterServiceLevels) // Фильтруем служебные сразу
-        .slice(0, Math.min(inviteCount + 1, level + 1))
-    }
+    // Для STARS уровни не добавляем (availableLevels уже [] из subscriptionLevelsMap)
+    availableLevels = [] // Explicitly empty for STARS
   }
   // Удаляем дубликаты уровней (на всякий случай)
   availableLevels = Array.from(new Set(availableLevels))
@@ -197,14 +188,15 @@ export async function mainMenu({
     isRu ? levels[103].title_ru : levels[103].title_en
   )
 
-  if (subscription === SubscriptionType.STARS && level === 0) {
-    // Случай: Новый пользователь без подписки
+  // --- ADJUSTED LOGIC: Based only on subscription type ---
+  if (subscription === SubscriptionType.STARS) {
+    // Случай: Пользователь без платной подписки (STARS)
     const subscribeButton = Markup.button.text(
       isRu ? levels[105].title_ru : levels[105].title_en
     )
     bottomRowButtons.push([subscribeButton, supportButton])
   } else {
-    // Случай: Подписанный пользователь или STARS > level 0
+    // Случай: Подписанный пользователь (NEUROPHOTO, NEUROBASE, NEUROTESTER)
     const balanceButton = Markup.button.text(
       isRu ? levels[101].title_ru : levels[101].title_en
     )

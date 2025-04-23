@@ -202,7 +202,7 @@ export async function generateNeuroPhotoDirect(
     const paymentResult = await directPaymentProcessor({
       telegram_id,
       amount: totalCost,
-      type: PaymentType.MONEY_EXPENSE,
+      type: PaymentType.MONEY_OUTCOME,
       description: `Payment for generating ${validNumImages} image${
         validNumImages > 1 ? 's' : ''
       } with prompt: ${prompt.slice(0, 50)}...`,

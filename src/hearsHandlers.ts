@@ -232,15 +232,12 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     logger.debug(`Получен hears для Отмена от ${ctx.from?.id}`)
     const isRu = isRussian(ctx)
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, level, subscriptionType } =
-      await getReferalsCountAndUserData(telegram_id)
+    const { subscriptionType } = await getReferalsCountAndUserData(telegram_id)
 
     await mainMenu({
       isRu,
-      inviteCount: count,
       subscription: subscriptionType,
       ctx,
-      level,
     })
     await ctx.scene.leave()
   })

@@ -50,7 +50,7 @@ export async function generateImageToPrompt(
     const paymentResult = await directPaymentProcessor({
       telegram_id,
       amount: costPerImage,
-      type: PaymentType.MONEY_EXPENSE,
+      type: PaymentType.MONEY_OUTCOME,
       description: 'Payment for image to prompt',
       bot_name,
       service_type: ModeEnum.ImageToPrompt,

@@ -1,20 +1,10 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
-import {
-  handleSelectStars,
-  handleBuySubscription,
-  handleSelectRubAmount,
-} from '@/handlers'
-import { starAmounts } from '@/price/helpers/starAmounts'
-import { getInvoiceId } from '@/scenes/getRuBillWizard/helper'
-import { MERCHANT_LOGIN, PASSWORD1 } from '@/config'
-import { setPayments } from '@/core/supabase'
-import { getBotNameByToken } from '@/core'
-import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
+
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
-import { TransactionType } from '@/interfaces/payments.interface'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 /**
  * Старая сцена оплаты, теперь используется как точка входа
@@ -84,7 +74,7 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   const intentType = ctx.session.selectedPayment?.type
   const paymentInfo = ctx.session.selectedPayment
 
-  if (intentType === TransactionType.SUBSCRIPTION_PURCHASE && paymentInfo) {
+  if (intentType === PaymentType.SUBSCRIPTION_PURCHASE && paymentInfo) {
     logger.info(
       `[${ModeEnum.PaymentScene}] Entering Star scene for SUBSCRIPTION: ${paymentInfo.subscription}`,
       {
@@ -118,7 +108,7 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
     }
   )
 
-  if (intentType === TransactionType.SUBSCRIPTION_PURCHASE && paymentInfo) {
+  if (intentType === PaymentType.SUBSCRIPTION_PURCHASE && paymentInfo) {
     logger.info(
       `[${ModeEnum.PaymentScene}] Entering Ruble scene for SUBSCRIPTION: ${paymentInfo.subscription}`,
       {

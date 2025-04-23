@@ -117,9 +117,7 @@ helpScene.enter(async ctx => {
     helpText,
     await mainMenu({
       isRu,
-      inviteCount: count,
       subscription: subscriptionType,
-      level,
       ctx,
     })
   )

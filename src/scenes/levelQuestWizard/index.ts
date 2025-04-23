@@ -29,8 +29,7 @@ const createStepScene = (
   const scene = new Scenes.BaseScene<MyContext>(`step${stepNumber}Scene`)
   scene.enter(async ctx => {
     const telegram_id = ctx.from?.id?.toString() || ''
-    const { count, subscriptionType, level } =
-      await getReferalsCountAndUserData(telegram_id)
+    const { subscriptionType } = await getReferalsCountAndUserData(telegram_id)
     await handler(ctx)
     const isRu = isRussian(ctx)
     await ctx.reply(
@@ -45,9 +44,7 @@ const createStepScene = (
         ? Markup.keyboard([[nextStepText], ['➡️ Завершить']]).resize()
         : await mainMenu({
             isRu,
-            inviteCount: count,
             subscription: subscriptionType,
-            level,
             ctx,
           })
     )
@@ -102,8 +99,7 @@ levelQuestWizard.enter(async ctx => {
     return
   }
   const telegram_id = ctx.from.id.toString()
-  const { count, subscriptionType, level } =
-    await getReferalsCountAndUserData(telegram_id)
+  const { subscriptionType } = await getReferalsCountAndUserData(telegram_id)
   const isRu = isRussian(ctx)
 
   // ... логика сцены ...
@@ -113,9 +109,7 @@ levelQuestWizard.enter(async ctx => {
     isRu ? 'Вы завершили квест!' : 'You completed the quest!',
     await mainMenu({
       isRu,
-      inviteCount: count,
       subscription: subscriptionType,
-      level,
       ctx,
     })
   )

@@ -73,9 +73,7 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
       reply_markup: (
         await mainMenu({
           isRu,
-          inviteCount: count,
           subscription: subscriptionType,
-          level,
           ctx,
         })
       ).reply_markup,

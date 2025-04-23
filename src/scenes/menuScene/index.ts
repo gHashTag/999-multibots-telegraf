@@ -12,6 +12,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
 import { handleMenu } from '@/handlers/handleMenu'
+import { logger } from '@/utils'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -19,127 +20,91 @@ const menuCommandStep = async (ctx: MyContext) => {
   try {
     const telegram_id = ctx.from?.id?.toString() || ''
 
-    let newCount = 0
-    let newSubscription: SubscriptionType = SubscriptionType.STARS
-    let newLevel: number
+    // Fetch only the subscription type
+    // NOTE: Assuming getReferalsCountAndUserData can return only subscription or using a different function if needed.
+    // For now, we still destructure level/count but won't use them.
+    const { subscriptionType: realSubscription } =
+      await getReferalsCountAndUserData(telegram_id)
+
+    let newSubscription = realSubscription
 
     if (isDev) {
-      newCount = 0
-      newSubscription = SubscriptionType.NEUROTESTER
-      newLevel = 0
+      console.log('DEV MODE: Simulating SUBSCRIPTION TYPE only')
+      // --- !!! РЕЖИМ РАЗРАБОТКИ: Имитация ТОЛЬКО ТИПА ПОДПИСКИ !!! ---
+      newSubscription = SubscriptionType.NEUROBASE // ЗАМЕНИ НА НУЖНЫЙ ТИП ДЛЯ ТЕСТА
+      // -------------------------------------------------------------
+      console.log(`DEV SIMULATION: Sub=${newSubscription}`)
     } else {
-      const { count, subscriptionType, level, userData } =
-        await getReferalsCountAndUserData(telegram_id)
-      newCount = count
-      newSubscription = subscriptionType
-      newLevel = level
+      console.log(`Fetched User Data: Sub=${newSubscription}`)
     }
 
-    // Фильтрация уровней для подписки neurophoto
-    if (newSubscription === SubscriptionType.NEUROPHOTO && newLevel > 3) {
-      newLevel = 3
-    }
-
+    // Pass only necessary data to mainMenu (assuming it adapts or uses defaults for level/count)
     const keyboard = await mainMenu({
       isRu,
-      inviteCount: newCount,
-      subscription: newSubscription,
+      subscription: newSubscription, // Pass only subscription
       ctx,
-      level: newLevel,
     })
 
-    // Проверка условий для отправки сообщения
-    if (newLevel === 3 && newSubscription === SubscriptionType.NEUROPHOTO) {
-      const message = getText(isRu, 'mainMenu')
-      console.log('message', message)
-      await ctx.reply(message, keyboard)
-      return
-    }
-
-    // Проверка условий для отправки сообщения
-    if (newSubscription === SubscriptionType.NEUROTESTER) {
-      const message = getText(isRu, 'mainMenu')
-      console.log('message', message)
-      await ctx.reply(message, keyboard)
-      ctx.wizard.next()
-      return
-    }
-
-    const url = `https://neuro-blogger-web-u14194.vm.elestio.app/neuro_sage/1/1/1/1/1/${
-      newCount + 1
-    }`
-
-    const nextLevel = levels[newCount + 1]
-    const nameStep = nextLevel
-      ? isRu
-        ? nextLevel.title_ru
-        : nextLevel.title_en
-      : isRu
-        ? 'Неизвестный уровень'
-        : 'Unknown level'
-
-    const inlineKeyboard = [
-      ...(newCount >= 1
-        ? [
-            [
-              {
-                text: isRu ? '🚀 Открыть нейроквест' : '🚀 Open neuroquest',
-                web_app: { url },
-              },
-            ],
-          ]
-        : []),
-    ]
-
-    console.log('nameStep', nameStep)
-    const hasFullAccess = checkFullAccess(newSubscription.toLowerCase())
     let message = ''
+    let photo_url: string | null = null
+    let translationKey = '' // Initialize key
 
-    if (!hasFullAccess) {
-      console.log('CASE: !hasFullAccess - stars level')
-      message = getText(isRu, 'digitalAvatar')
-      const photo_url = getPhotoUrl(ctx, 1)
-      await sendReplyWithKeyboard(
-        ctx,
-        message,
-        inlineKeyboard,
-        keyboard,
-        photo_url
+    // --- Determine translation key based ONLY on Subscription Type ---
+    if (
+      newSubscription === SubscriptionType.NEUROBASE ||
+      newSubscription === SubscriptionType.NEUROTESTER
+    ) {
+      translationKey = 'menu' // Use 'menu' key for full access users
+      logger.info(
+        `[menuCommandStep] Subscription: ${newSubscription}. Using translation key: '${translationKey}'`
       )
     } else {
-      const levelKeys: { [key: number]: Mode } = {
-        1: 'digital_avatar_body',
-        2: 'neuro_photo',
-        3: 'image_to_prompt',
-        4: 'avatar_brain',
-        5: 'chat_with_avatar',
-        6: 'select_model',
-        7: 'voice',
-        8: 'text_to_speech',
-        9: 'image_to_video',
-        10: 'text_to_video',
-        11: 'text_to_image',
-      }
-
-      const key = levelKeys[newLevel + 1]
-      console.log('key', key)
-      if (key) {
-        console.log(`CASE ${newLevel}: ${key}`)
-        const { translation } = await getTranslation({
-          key,
-          ctx,
-          bot_name: ctx.botInfo?.username,
-        })
-        await sendReplyWithKeyboard(ctx, translation, inlineKeyboard, keyboard)
-      } else {
-        console.log(`CASE: default ${newCount}`)
-        // const message = getText(isRu, 'mainMenu')
-        // console.log('message', message)
-        // await ctx.reply(message, keyboard)
-        ctx.wizard.next()
-        return
-      }
+      // Includes NEUROPHOTO and users without active subscription
+      translationKey = 'digitalAvatar' // Use 'digitalAvatar' for limited access / prompt to subscribe
+      logger.info(
+        `[menuCommandStep] Subscription: ${newSubscription} or None. Using translation key: '${translationKey}'`
+      )
     }
+
+    // --- Get Translation using the determined key ---
+    logger.info(
+      `[menuCommandStep] Getting translation for key: ${translationKey}, Bot: ${ctx.botInfo?.username}`
+    )
+    const { translation, url } = await getTranslation({
+      key: translationKey,
+      ctx,
+      bot_name: ctx.botInfo?.username,
+    })
+
+    // --- Set message and photo using translation results or fallbacks ---
+    message = translation || getText(isRu, 'menu') // Use fetched translation or fallback to default menu text
+    photo_url = url || null // Use URL from translation if available
+    if (!translation) {
+      logger.warn(
+        `[menuCommandStep] Translation not found for key '${translationKey}'. Using fallback text.`
+      )
+    }
+    if (!url && translationKey === 'digitalAvatar') {
+      logger.warn(
+        `[menuCommandStep] URL not found in translation for key '${translationKey}'. Photo might be missing.`
+      )
+      // Optionally, set a default photo URL here if needed for digitalAvatar
+      // photo_url = getPhotoUrl(ctx, 1);
+    }
+
+    // --- Send the message ---
+    logger.info(
+      `[menuCommandStep] Sending message: "${message.substring(0, 50)}...", Photo URL: ${photo_url}`
+    )
+
+    if (photo_url) {
+      await sendReplyWithKeyboard(ctx, message, [], keyboard, photo_url)
+    } else {
+      await ctx.reply(message, keyboard)
+    }
+
+    // Ensure the wizard progresses to handle button clicks
+    ctx.wizard.next()
   } catch (error) {
     console.error('Error in menu command:', error)
     await sendGenericErrorMessage(ctx, isRu, error as Error)
@@ -163,23 +128,46 @@ const menuCommandStep = async (ctx: MyContext) => {
  * когда обработать сообщение другим способом невозможно.
  */
 const menuNextStep = async (ctx: MyContext) => {
-  console.log('CASE 1: menuScene.next')
+  logger.info('CASE 1: menuScene.next')
   if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
     const text = ctx.update.callback_query.data
-    console.log('text 1', text)
+    logger.info(`[menuNextStep] Callback Query Data: ${text}`)
+    // Handle callback query buttons as before
     if (text === 'unlock_features') {
-      console.log('CASE: 🔓 Разблокировать все функции')
+      logger.info('[menuNextStep] Handling callback: unlock_features')
       await ctx.scene.enter('subscriptionScene')
+    } else {
+      // Assuming other callbacks might be handled by handleMenu if they represent scene entries
+      logger.info(`[menuNextStep] Forwarding callback to handleMenu: ${text}`)
+      await handleMenu(ctx)
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
-    console.log('CASE menuNextStep: text 2', text)
+    logger.info(`[menuNextStep] Text Message Received: ${text}`)
+    // Prevent loop if /menu is sent again while already in the menu
+    if (text === '/menu') {
+      logger.warn(
+        '[menuNextStep] Received /menu command while already in menu scene. Ignoring to prevent loop.'
+      )
+      // Optional: Send a message like "You are already in the menu."
+      // await ctx.reply(getText(isRussian(ctx), 'already_in_menu')); // Assuming such a key exists
+      return // Explicitly do nothing further
+    }
+    // Handle other text commands via handleMenu
+    logger.info(`[menuNextStep] Forwarding text to handleMenu: ${text}`)
     await handleMenu(ctx)
   } else {
-    console.log('CASE: menuScene.next.else', ctx)
-    ctx.scene.leave()
+    // Handle other update types or leave if unhandled
+    logger.warn(
+      '[menuNextStep] Unhandled update type or message format. Leaving scene.',
+      ctx.update
+    )
+    // It might be better *not* to leave automatically here unless necessary.
+    // Consider if specific error handling is needed.
+    // ctx.scene.leave(); // Removed for safety, only leave if truly unhandled/error.
   }
 }
+
 export const menuScene = new Scenes.WizardScene(
   ModeEnum.MainMenu,
   menuCommandStep,

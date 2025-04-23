@@ -656,9 +656,7 @@ export async function handleQuestComplete(ctx: MyContext) {
       : '🎉 Congratulations! You have completed the training.',
     await mainMenu({
       isRu,
-      inviteCount: count,
       subscription: subscriptionType,
-      level,
       ctx,
     })
   )

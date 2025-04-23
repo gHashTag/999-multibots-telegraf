@@ -688,10 +688,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         await getReferalsCountAndUserData(ctx.from?.id?.toString() || '')
       await mainMenu({
         isRu,
-        inviteCount: count,
         subscription: subscriptionType,
         ctx,
-        level,
       })
     }
   }

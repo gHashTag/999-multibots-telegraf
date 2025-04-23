@@ -52,6 +52,7 @@ export { savePromptDirect } from './savePromptDirect'
 export { getUserByTelegramIdString } from './getUserByTelegramIdString'
 export { getUserDetails } from './getUserDetails'
 export { createSuccessfulPayment as setSuccessfulPayment } from './createSuccessfulPayment'
+export { getUserById } from './getUserById'
 export {
   getPendingPayment,
   getPaymentByInvId,

@@ -5,6 +5,7 @@
 ### РЕФАКТОРИНГ: Единый Источник Истины для Подписок (ПРИОРИТЕТ - ВЫСОКИЙ)
 - **Цель:** Сделать `payments_v2` единственным источником статуса подписки.
 - **База Данных:**
+  - ✅ Исправлены SQL функции `get_user_balance` и `get_user_balance_stats` для использования корректных Enum (`MONEY_INCOME`, `MONEY_OUTCOME`).
   - ⏳ **(Рекомендация)** Исправить функцию `create_system_payment` в PostgreSQL: должна писать в `payments_v2.subscription_type`, а не `service_type`.
   - ✅ Удалить столбцы `subscription_type`, `is_active`, `subscription_start_date` из таблицы `users`.
 - **Код:**
@@ -13,6 +14,8 @@
   - ✅ Проверить функции списания (установка `service_type`, `subscription_type=null`).
   - ✅ Исправить установку `payment_method` в `updateUserBalanceRobokassa.ts`.
   - ✅ Реализовать безграничный срок действия для подписки `NEUROTESTER` (в `getUserDetails.ts`).
+  - ✅ Исправлена логика вычитания баланса в `processBalanceVideoOperation.ts` (убран минус).
+  - ✅ Исправлен тип операции на `MONEY_OUTCOME` в `processBalanceVideoOperation.ts`.
 
 ### Деплой и Инфраструктура 🏗️ (ПРИОРИТЕТ - ВЫСОКИЙ)
 - ✅ Создан скрипт deploy-prod.sh для автоматического деплоя
@@ -62,6 +65,9 @@
 - ✅ Исправлена навигация кнопки "Главное меню" в сценах оплаты (`paymentScene`, `rublePaymentScene`, `starPaymentScene`) - теперь используется единый ID сцены `ModeEnum.MainMenu`.
 - ✅ Исправлена ошибка, из-за которой кнопка "Главное меню" не работала после отправки инвойса на оплату подписки звездами (удален `ctx.scene.leave()` в `handleBuySubscription`).
 - ✅ Логика запуска webhook-сервера (`startWebhookServer` в `src/bot.ts`) изменена: теперь сервер запускается **всегда**, а не только в production.
+- ✅ Исправлена логика отображения меню в `menuScene` - теперь используется `getTranslation` с ключами `'menu'` или `'digitalAvatar'` в зависимости от подписки (`NEUROBASE`/`NEUROTESTER` или `NEUROPHOTO`/`null`).
+- ✅ Исправлена ошибка зацикливания при повторной отправке `/menu` в `menuScene`.
+- ⏳ Улучшить текст главного меню (ключ 'menu') для большей вовлеченности и соответствия тематике нейроблогера (Требуется обновление в БД Supabase).
 
 ### Тестирование 🧪 (ПРИОРИТЕТ - СРЕДНИЙ)
 - ⏳ Написание unit-тестов для критических компонентов
@@ -96,6 +102,7 @@
 ## 🐛 Известные проблемы
 - ⚠️ **КРИТИЧНО:** Не реализованы глобальные обработчики Telegram Payments (`pre_checkout_query`, `successful_payment`) для завершения оплаты (включая Stars). Без них платежи не будут записываться в БД и баланс не будет обновляться, даже если инвойс отправлен.
 - ⚠️ **КРИТИЧНО:** Логика оплаты Telegram Stars в `starPaymentScene.ts` неверна... (Уточнение: проблема теперь в отсутствии завершающих обработчиков, а не в преждевременной записи)
+- ✅ **(РЕШЕНО)** Ошибка `invalid input value for enum operation_type: "STARS_EXPENSE"` в SQL-функциях.
 - ⚠️ Проблема с SSH ключом для `git push` и `git pull` на сервере (КРИТИЧНО для деплоя)
 - ❗ **Не обновлены URL вебхуков в Telegram** на формат `https://<домен>/<имя_бота>` (БЛОКИРУЕТ РАБОТУ БОТОВ)
 - ⚠️ Необходима проверка валидности всех токенов ботов (КРИТИЧНО)
@@ -143,4 +150,57 @@
 - ✅ 2025-04-22: Восстановлена конфигурация Nginx (bot-proxy) к исходной, использующей `location /<имя_бота>` для маршрутизации. Удалены небезопасные `map` и `location /telegraf/`.
 - ✅ 2025-04-22: Исправлен `src/bot.ts` для использования `hookPath: /<имя_бота>` при установке вебхуков через `bot.launch`, удален скрипт `get-token-hashes.js`.
 - ✅ 2025-04-22: Удалена неиспользуемая функция `production` и заглушка `launch` из `src/utils/launch.ts`.
-- 🔍 Интеграция Fastify с Telegraf: Успешно реализована через @fastify/express адаптер, что позволило использовать преимущества обеих библиотек. 
+- 🔍 Интеграция Fastify с Telegraf: Успешно реализована через @fastify/express адаптер, что позволило использовать преимущества обеих библиотек.
+- ✅ {current_date}: Исправлены SQL функции `get_user_balance` и `get_user_balance_stats` для использования корректных Enum (`MONEY_INCOME`, `MONEY_OUTCOME`) вместо `STARS_EXPENSE`.
+- ✅ {current_date}: Исправлена логика отображения меню в `menuScene` для корректного использования `getTranslation` на основе типа подписки.
+- ✅ {current_date}: Исправлена ошибка зацикливания в `menuScene` при повторном вызове `/menu`.
+- ✅ {current_date}: Исправлена логика списания баланса в `processBalanceVideoOperation.ts` (убран минус, исправлен тип на `MONEY_OUTCOME`).
+
+## ⭐ Payments & Subscriptions Refactoring (v2)
+
+**Goal:** Make `payments_v2` the single source of truth. Remove subscription/level/count logic from `users` table.
+
+**Status:** Mostly Done ✅ (Needs Manual SQL Fix & Testing)
+
+**Key Files:**
+- `src/core/supabase/getUserDetails.ts` ✅
+- `src/core/supabase/getUserBalance.ts` ✅
+- `src/interfaces/payments.interface.ts` ✅
+- `src/interfaces/subscription.interface.ts` ✅
+- `src/scenes/menuScene/index.ts` ✅
+- `src/menu/mainMenu.ts` ✅
+- `src/price/helpers/refundUser.ts` ✅
+- `src/core/supabase/index.ts` (export getUserDetails) ✅
+- `src/core/supabase/getReferalsCountAndUserData.ts` ✅
+- `src/api-server/routes/robokassa.ts` (Needs review for interface usage)
+- Supabase SQL function `create_system_payment` (Manual fix needed) ⚠️
+- `src/price/helpers/processBalanceVideoOperation.ts` ✅
+
+**Tasks:**
+- ✅ **DB:** Remove `subscription_status`, `subscription_type`, `subscription_start_date`, `level`, `neuro_tokens` from `users` table (if not already done - requires manual check/execution).
+- ✅ **Types:** Remove corresponding fields from `UserType`, `User` interfaces (`src/interfaces/`).
+- ✅ **getUserDetails:**
+    - Fetch last **completed** payment (`status = 'COMPLETED'`, relevant `payment_method`).
+    - Determine `subscriptionType` and `isActive` based ONLY on `payments_v2`.
+    - Implement **unlimited duration** for `NEUROTESTER`. ✅
+    - Return `isSubscriptionActive`, `subscriptionType`, `subscriptionStartDate`, `stars`, `isExist`. (Do *not* return level/count).
+- ✅ **getUserBalance:** Calculate `stars` balance from `payments_v2`.
+- ✅ **Code Usage:**
+    - Replace all usages of `user.level`, `user.count`, `user.subscription_status` etc. with calls to `getUserDetails`. ✅
+    - Simplify `menuCommandStep` (`src/scenes/menuScene/index.ts`) to rely *only* on `subscriptionType` from `getUserDetails`. **Removed `level` and `count` logic entirely.** ✅
+    - Update `mainMenu` (`src/menu/mainMenu.ts`) to remove `level` and `inviteCount` parameters and associated logic. ✅
+    - Fix calls to `mainMenu` in other files (e.g., `refundUser.ts`). ✅
+- ✅ **Payments Logic:**
+    - Verify `updateUserBalanceRobokassa` sets `payment_method = 'Robokassa'` (or 'Telegram'). ✅
+    - Verify expense functions (like `updateUserBalance`) log `service_type` (and NOT `subscription_type`). ✅
+    - Corrected `processBalanceVideoOperation.ts` to use `MONEY_OUTCOME`. ✅
+- ⚠️ **System Payments:** Manually fix `create_system_payment` SQL function to insert `subscription_type` (not `service_type`) for grants.
+- ⏳ **Robokassa:** Review `robokassa.ts` route handler - ensure it uses correct interfaces and potentially calls `getUserDetails` if needed after payment confirmation.
+- ⏳ **Testing:** Thoroughly test all scenarios: new user, STARS user, NEUROPHOTO, NEUROBASE, NEUROTESTER, balance top-up, service usage, refunds.
+- ⏳ **Documentation:** Update `docs/payments_v2_schema.md` and any other relevant docs.
+
+**Next Steps:**
+1.  Manually fix `create_system_payment` in Supabase SQL Editor. ⚠️
+2.  Review `robokassa.ts` route.
+3.  Perform thorough testing of all user flows and subscription types.
+4.  Update documentation. 

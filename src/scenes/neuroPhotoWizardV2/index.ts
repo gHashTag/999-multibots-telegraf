@@ -27,8 +27,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     const userModel = await getLatestUserModel(Number(telegramId), 'bfl')
     console.log('userModel', userModel)
 
-    const { count, subscriptionType, level } =
-      await getReferalsCountAndUserData(telegramId)
+    const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
     if (!userModel || !userModel.finetune_id) {
       await ctx.reply(
@@ -40,10 +39,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
             keyboard: (
               await mainMenu({
                 isRu,
-                inviteCount: count,
                 subscription: subscriptionType,
                 ctx,
-                level,
               })
             ).reply_markup.keyboard,
           },
@@ -169,14 +166,13 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     if (numImages >= 1 && numImages <= 4) {
       await generate(numImages)
     } else {
-      const { count, subscriptionType, level } =
-        await getReferalsCountAndUserData(ctx.from?.id?.toString() || '')
+      const { subscriptionType } = await getReferalsCountAndUserData(
+        ctx.from?.id?.toString() || ''
+      )
       await mainMenu({
         isRu,
-        inviteCount: count,
         subscription: subscriptionType,
         ctx,
-        level,
       })
     }
   }
