@@ -61,7 +61,6 @@ export interface UserType {
   aspect_ratio?: string | null
   inviter?: string | null // UUID
   vip?: boolean | null
-  subscription?: SubscriptionType | null
   balance?: number | null
   level?: number
   token?: string | null

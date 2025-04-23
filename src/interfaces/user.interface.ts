@@ -19,9 +19,4 @@ export interface User {
   aspectRatio?: string
   language?: string
   is_ru?: boolean
-  last_payment_date?: string
-  subscription?: SubscriptionType
-  subscription_end_date?: string
-  subscription_start_date?: string
-  subscription_type?: string
 }
