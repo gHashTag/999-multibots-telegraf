@@ -13,7 +13,7 @@ import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
 import { handleMenu } from '@/handlers/handleMenu'
 import { logger } from '@/utils'
-
+import { getUserDetails } from '@/core/supabase/getUserDetails'
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
@@ -23,25 +23,24 @@ const menuCommandStep = async (ctx: MyContext) => {
     // Fetch only the subscription type
     // NOTE: Assuming getReferalsCountAndUserData can return only subscription or using a different function if needed.
     // For now, we still destructure level/count but won't use them.
-    const { subscriptionType: realSubscription } =
-      await getReferalsCountAndUserData(telegram_id)
+    const userDetails = await getUserDetails(telegram_id)
 
-    let newSubscription = realSubscription
+    const newSubscription = userDetails.subscriptionType
 
-    if (isDev) {
-      console.log('DEV MODE: Simulating SUBSCRIPTION TYPE only')
-      // --- !!! РЕЖИМ РАЗРАБОТКИ: Имитация ТОЛЬКО ТИПА ПОДПИСКИ !!! ---
-      newSubscription = SubscriptionType.NEUROBASE // ЗАМЕНИ НА НУЖНЫЙ ТИП ДЛЯ ТЕСТА
-      // -------------------------------------------------------------
-      console.log(`DEV SIMULATION: Sub=${newSubscription}`)
-    } else {
-      console.log(`Fetched User Data: Sub=${newSubscription}`)
-    }
+    // if (isDev) {
+    //   console.log('DEV MODE: Simulating SUBSCRIPTION TYPE only')
+    //   // --- !!! РЕЖИМ РАЗРАБОТКИ: Имитация ТОЛЬКО ТИПА ПОДПИСКИ !!! ---
+    //   newSubscription = SubscriptionType.NEUROBASE // ЗАМЕНИ НА НУЖНЫЙ ТИП ДЛЯ ТЕСТА
+    //   // -------------------------------------------------------------
+    //   console.log(`DEV SIMULATION: Sub=${newSubscription}`)
+    // } else {
+    //   console.log(`Fetched User Data: Sub=${newSubscription}`)
+    // }
 
     // Pass only necessary data to mainMenu (assuming it adapts or uses defaults for level/count)
     const keyboard = await mainMenu({
       isRu,
-      subscription: newSubscription, // Pass only subscription
+      subscription: userDetails.subscriptionType, // Pass only subscription
       ctx,
     })
 
