@@ -113,13 +113,20 @@ export async function mainMenu({
   ctx,
 }: {
   isRu: boolean
-  subscription: SubscriptionType
+  subscription: SubscriptionType | null
   ctx: MyContext
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
-  console.log('💻 CASE: mainMenu')
-  let hasFullAccess = checkFullAccess(subscription)
+  console.log('💻 CASE: mainMenu - Entering function')
 
-  // Определяем доступные уровни в зависимости от подписки
+  const currentSubscription =
+    subscription === null ? SubscriptionType.STARS : subscription
+  console.log(
+    `[mainMenu LOG] Input subscription: ${subscription}, Effective subscription: ${currentSubscription}`
+  )
+
+  let hasFullAccess = checkFullAccess(currentSubscription)
+  console.log(`[mainMenu LOG] hasFullAccess: ${hasFullAccess}`)
+
   const subscriptionLevelsMap: Record<SubscriptionType, Level[]> = {
     [SubscriptionType.STARS]: [],
     [SubscriptionType.NEUROPHOTO]: [levels[1], levels[2], levels[3]],
@@ -128,9 +135,9 @@ export async function mainMenu({
     [SubscriptionType.NEUROTESTER]: Object.values(levels), // Все
   }
 
-  let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []
+  let availableLevels: Level[] =
+    subscriptionLevelsMap[currentSubscription] || []
 
-  // Корректируем доступные уровни для NEUROBASE/NEUROBLOGGER/NEUROTESTER, исключая служебные
   const filterServiceLevels = (lvl: Level) =>
     lvl !== levels[100] &&
     lvl !== levels[101] &&
@@ -140,32 +147,32 @@ export async function mainMenu({
     lvl !== levels[105]
 
   if (
-    subscription === SubscriptionType.NEUROTESTER ||
-    subscription === SubscriptionType.NEUROBASE ||
-    subscription === SubscriptionType.NEUROBLOGGER
+    currentSubscription === SubscriptionType.NEUROTESTER ||
+    currentSubscription === SubscriptionType.NEUROBASE ||
+    currentSubscription === SubscriptionType.NEUROBLOGGER
   ) {
     hasFullAccess = true
-    // Для NEUROTESTER берем все уровни и фильтруем
-    if (subscription === SubscriptionType.NEUROTESTER) {
+    console.log(
+      `[mainMenu LOG] Overriding hasFullAccess to true for ${currentSubscription}`
+    )
+    if (currentSubscription === SubscriptionType.NEUROTESTER) {
       availableLevels = Object.values(levels).filter(filterServiceLevels)
     } else {
-      // Для NEUROBASE и NEUROBLOGGER берем из мапы и фильтруем
       availableLevels =
-        subscriptionLevelsMap[subscription].filter(filterServiceLevels)
+        subscriptionLevelsMap[currentSubscription].filter(filterServiceLevels)
     }
-  } else if (subscription === SubscriptionType.STARS) {
-    // Для STARS уровни не добавляем (availableLevels уже [] из subscriptionLevelsMap)
-    availableLevels = [] // Explicitly empty for STARS
+  } else if (currentSubscription === SubscriptionType.STARS) {
+    availableLevels = []
   }
-  // Удаляем дубликаты уровней (на всякий случай)
   availableLevels = Array.from(new Set(availableLevels))
+  console.log(
+    `[mainMenu LOG] Determined availableLevels count: ${availableLevels.length}`
+  )
 
-  // Формируем кнопки уровней
   const levelButtons = availableLevels.map(lvl =>
     Markup.button.text(isRu ? lvl.title_ru : lvl.title_en)
   )
 
-  // Добавляем кнопки для админа (если применимо)
   const userId = ctx.from?.id?.toString()
   const adminSpecificButtons = []
   if (userId && adminIds.includes(userId)) {
@@ -173,30 +180,30 @@ export async function mainMenu({
       Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
       Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
     )
+    console.log('[mainMenu LOG] Added admin buttons.')
   }
 
-  // Формируем ряды кнопок уровней и админских кнопок
   const allFunctionalButtons = [...levelButtons, ...adminSpecificButtons]
   const buttonRows = []
   for (let i = 0; i < allFunctionalButtons.length; i += 2) {
     buttonRows.push(allFunctionalButtons.slice(i, i + 2))
   }
 
-  // Формируем нижний ряд кнопок в зависимости от статуса пользователя
   const bottomRowButtons = []
   const supportButton = Markup.button.text(
     isRu ? levels[103].title_ru : levels[103].title_en
   )
 
-  // --- ADJUSTED LOGIC: Based only on subscription type ---
-  if (subscription === SubscriptionType.STARS) {
-    // Случай: Пользователь без платной подписки (STARS)
+  if (currentSubscription === SubscriptionType.STARS) {
+    console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
     const subscribeButton = Markup.button.text(
       isRu ? levels[105].title_ru : levels[105].title_en
     )
     bottomRowButtons.push([subscribeButton, supportButton])
   } else {
-    // Случай: Подписанный пользователь (NEUROPHOTO, NEUROBASE, NEUROTESTER)
+    console.log(
+      `[mainMenu LOG] Generating bottom row for ${currentSubscription} subscription`
+    )
     const balanceButton = Markup.button.text(
       isRu ? levels[101].title_ru : levels[101].title_en
     )
@@ -206,13 +213,15 @@ export async function mainMenu({
     const inviteButton = Markup.button.text(
       isRu ? levels[102].title_ru : levels[102].title_en
     )
-    // Можно настроить порядок и количество кнопок здесь
-    buttonRows.push([balanceButton, topUpButton]) // Баланс и Пополнить в отдельный ряд
-    bottomRowButtons.push([inviteButton, supportButton]) // Пригласить и Техподдержка в последний ряд
+    buttonRows.push([balanceButton, topUpButton])
+    bottomRowButtons.push([inviteButton, supportButton])
   }
+  console.log(
+    `[mainMenu LOG] Generated bottomRowButtons: ${JSON.stringify(bottomRowButtons)}`
+  )
 
-  // Объединяем ряды функциональных кнопок и нижний ряд
   const finalKeyboard = [...buttonRows, ...bottomRowButtons]
+  console.log(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)
 
   return Markup.keyboard(finalKeyboard).resize()
 }
