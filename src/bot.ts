@@ -13,8 +13,6 @@ import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
 import { startWebhookServer } from './webhookServer'
 
-import * as http from 'http'
-
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
 

@@ -165,12 +165,7 @@ export async function mainMenu({
         .filter(filterServiceLevels) // Фильтруем служебные сразу
         .slice(0, Math.min(inviteCount + 1, level + 1))
     }
-  } else if (subscription === SubscriptionType.NEUROPHOTO) {
-    // Для NEUROPHOTO берем из мапы (уже содержит только [1, 2, 3])
-    // Дополнительная фильтрация по level, если нужна
-    availableLevels = availableLevels.filter((_, index) => index <= level)
   }
-
   // Удаляем дубликаты уровней (на всякий случай)
   availableLevels = Array.from(new Set(availableLevels))
 

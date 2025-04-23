@@ -25,7 +25,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     if (isDev) {
       newCount = 0
-      newSubscription = SubscriptionType.STARS
+      newSubscription = SubscriptionType.NEUROPHOTO
       newLevel = 0
     } else {
       const { count, subscriptionType, level, userData } =
@@ -92,7 +92,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     ]
 
     console.log('nameStep', nameStep)
-    const hasFullAccess = checkFullAccess(newSubscription)
+    const hasFullAccess = checkFullAccess(newSubscription.toLowerCase())
     let message = ''
 
     if (!hasFullAccess) {
@@ -108,7 +108,6 @@ const menuCommandStep = async (ctx: MyContext) => {
       )
     } else {
       const levelKeys: { [key: number]: Mode } = {
-        0: 'subscribe',
         1: 'digital_avatar_body',
         2: 'neuro_photo',
         3: 'image_to_prompt',

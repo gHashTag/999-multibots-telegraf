@@ -67,6 +67,7 @@ export const stage = new Scenes.Stage<MyContext>([
   subscriptionScene,
   subscriptionCheckScene,
   checkBalanceScene,
+  balanceScene,
   neuroPhotoWizard,
   neuroPhotoWizardV2,
   textToImageWizard,
