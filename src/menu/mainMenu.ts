@@ -82,8 +82,8 @@ export const levels: Record<number, Level> = {
   },
   // balanceCommand
   101: {
-    title_ru: '🤑 Баланс',
-    title_en: '🤑 Balance',
+    title_ru: '💰 Баланс',
+    title_en: '💰 Balance',
   },
   // inviteCommand
   102: {
@@ -127,88 +127,105 @@ export async function mainMenu({
   const subscriptionLevelsMap: Record<SubscriptionType, Level[]> = {
     [SubscriptionType.STARS]: [],
     [SubscriptionType.NEUROPHOTO]: [levels[1], levels[2], levels[3]],
-    [SubscriptionType.NEUROBASE]: Object.values(levels).slice(1),
-    [SubscriptionType.NEUROBLOGGER]: Object.values(levels).slice(1),
-    [SubscriptionType.NEUROTESTER]: Object.values(levels),
+    [SubscriptionType.NEUROBASE]: Object.values(levels).slice(1), // Все кроме 1
+    [SubscriptionType.NEUROBLOGGER]: Object.values(levels).slice(1), // Все кроме 1
+    [SubscriptionType.NEUROTESTER]: Object.values(levels), // Все
   }
 
   let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []
 
-  // Если подписка neurotester или neurobase, предоставляем полный доступ
+  // Корректируем доступные уровни для NEUROBASE/NEUROBLOGGER/NEUROTESTER, исключая служебные
+  const filterServiceLevels = (lvl: Level) =>
+    lvl !== levels[100] &&
+    lvl !== levels[101] &&
+    lvl !== levels[102] &&
+    lvl !== levels[103] &&
+    lvl !== levels[104] &&
+    lvl !== levels[105]
+
   if (
     subscription === SubscriptionType.NEUROTESTER ||
-    subscription === SubscriptionType.NEUROBASE
+    subscription === SubscriptionType.NEUROBASE ||
+    subscription === SubscriptionType.NEUROBLOGGER
   ) {
     hasFullAccess = true
-    availableLevels = Object.values(levels).filter(
-      l =>
-        l !== levels[100] &&
-        l !== levels[101] &&
-        l !== levels[102] &&
-        l !== levels[103] &&
-        l !== levels[104] &&
-        l !== levels[105]
-    ) // Исключаем служебные
-  } else if (subscription === SubscriptionType.STARS) {
-    // Не добавляем уровни, если level = 0, так как пользователь только начал
-    if (level > 0) {
-      availableLevels = availableLevels.concat(
-        Object.values(levels).slice(0, Math.min(inviteCount + 1, level + 1))
-      )
+    // Для NEUROTESTER берем все уровни и фильтруем
+    if (subscription === SubscriptionType.NEUROTESTER) {
+      availableLevels = Object.values(levels).filter(filterServiceLevels)
+    } else {
+      // Для NEUROBASE и NEUROBLOGGER берем из мапы и фильтруем (slice(1) уже применен)
+      availableLevels =
+        subscriptionLevelsMap[subscription].filter(filterServiceLevels)
     }
+  } else if (subscription === SubscriptionType.STARS) {
+    // Для STARS уровни не добавляем, если level = 0
+    if (level > 0) {
+      // Логика добавления уровней по инвайтам/левелу для STARS > 0 (если нужна)
+      availableLevels = Object.values(levels)
+        .filter(filterServiceLevels) // Фильтруем служебные сразу
+        .slice(0, Math.min(inviteCount + 1, level + 1))
+    }
+  } else if (subscription === SubscriptionType.NEUROPHOTO) {
+    // Для NEUROPHOTO берем из мапы (уже содержит только [1, 2, 3])
+    // Дополнительная фильтрация по level, если нужна
+    availableLevels = availableLevels.filter((_, index) => index <= level)
   }
 
-  // Удаляем дубликаты уровней
+  // Удаляем дубликаты уровней (на всякий случай)
   availableLevels = Array.from(new Set(availableLevels))
 
-  // Фильтруем уровни, чтобы показывать только текущий уровень, кроме neurotester и neurobase
-  if (
-    subscription !== SubscriptionType.NEUROTESTER &&
-    subscription !== SubscriptionType.NEUROBASE
-  ) {
-    // Эта фильтрация больше не нужна здесь так строго, так как логика STARS изменена
-    // Оставляем только базовую фильтрацию для других типов подписок, если необходимо
-    if (subscription !== SubscriptionType.STARS) {
-      availableLevels = availableLevels.filter((_, index) => index <= level)
-    }
-  }
-
-  const buttons = availableLevels.map(level =>
-    Markup.button.text(isRu ? level.title_ru : level.title_en)
+  // Формируем кнопки уровней
+  const levelButtons = availableLevels.map(lvl =>
+    Markup.button.text(isRu ? lvl.title_ru : lvl.title_en)
   )
 
+  // Добавляем кнопки для админа (если применимо)
   const userId = ctx.from?.id?.toString()
-
+  const adminSpecificButtons = []
   if (userId && adminIds.includes(userId)) {
-    // Изменяем добавление кнопки для админа
-    buttons.push(
+    adminSpecificButtons.push(
       Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
       Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
     )
   }
 
+  // Формируем ряды кнопок уровней и админских кнопок
+  const allFunctionalButtons = [...levelButtons, ...adminSpecificButtons]
   const buttonRows = []
-  for (let i = 0; i < buttons.length; i += 2) {
-    buttonRows.push(buttons.slice(i, i + 2))
+  for (let i = 0; i < allFunctionalButtons.length; i += 2) {
+    buttonRows.push(allFunctionalButtons.slice(i, i + 2))
   }
 
-  // Всегда добавляем кнопки баланса, пополнения и подписки
-  const balanceButtonText = isRu ? levels[101].title_ru : levels[101].title_en
-  const topUpButtonText = isRu ? levels[100].title_ru : levels[100].title_en
-  const subscriptionButtonText = isRu
-    ? levels[105].title_ru
-    : levels[105].title_en
-  const supportButtonText = isRu ? levels[103].title_ru : levels[103].title_en // Добавили кнопку техподдержки
+  // Формируем нижний ряд кнопок в зависимости от статуса пользователя
+  const bottomRowButtons = []
+  const supportButton = Markup.button.text(
+    isRu ? levels[103].title_ru : levels[103].title_en
+  )
 
-  // Добавляем кнопки управления в последние ряды
-  buttonRows.push([
-    Markup.button.text(balanceButtonText),
-    Markup.button.text(topUpButtonText),
-  ])
-  buttonRows.push([
-    Markup.button.text(subscriptionButtonText),
-    Markup.button.text(supportButtonText), // Добавили кнопку техподдержки
-  ])
+  if (subscription === SubscriptionType.STARS && level === 0) {
+    // Случай: Новый пользователь без подписки
+    const subscribeButton = Markup.button.text(
+      isRu ? levels[105].title_ru : levels[105].title_en
+    )
+    bottomRowButtons.push([subscribeButton, supportButton])
+  } else {
+    // Случай: Подписанный пользователь или STARS > level 0
+    const balanceButton = Markup.button.text(
+      isRu ? levels[101].title_ru : levels[101].title_en
+    )
+    const topUpButton = Markup.button.text(
+      isRu ? levels[100].title_ru : levels[100].title_en
+    )
+    const inviteButton = Markup.button.text(
+      isRu ? levels[102].title_ru : levels[102].title_en
+    )
+    // Можно настроить порядок и количество кнопок здесь
+    buttonRows.push([balanceButton, topUpButton]) // Баланс и Пополнить в отдельный ряд
+    bottomRowButtons.push([inviteButton, supportButton]) // Пригласить и Техподдержка в последний ряд
+  }
 
-  return Markup.keyboard(buttonRows).resize()
+  // Объединяем ряды функциональных кнопок и нижний ряд
+  const finalKeyboard = [...buttonRows, ...bottomRowButtons]
+
+  return Markup.keyboard(finalKeyboard).resize()
 }
