@@ -90,45 +90,6 @@ export async function getTranslation({
       .eq('bot_name', name)
       .single()
   }
-
-  const getFallback = (
-    requestedKey: string
-  ): { translation: string; url: string; buttons: TranslationButton[] } => {
-    const defaultButtons = isRussian(ctx)
-      ? DEFAULT_BUTTONS_RU
-      : DEFAULT_BUTTONS_EN
-
-    const fallbackTranslations: Record<
-      string,
-      { translation: string; url: string; buttons: TranslationButton[] }
-    > = {
-      start: {
-        translation: 'Добро пожаловать! Бот готов помочь.',
-        url: '',
-        buttons: [], // Пустой массив для fallback
-      },
-      menu: {
-        translation: 'Выберите опцию:',
-        url: '',
-        buttons: defaultButtons,
-      },
-      subscriptionScene: {
-        // Добавляем fallback для subscriptionScene
-        translation: isRussian(ctx) ? 'Выберите тариф:' : 'Select a plan:',
-        url: '',
-        buttons: defaultButtons, // По умолчанию кнопки из defaultButtons
-      },
-      // ... другие fallback ...
-    }
-    return (
-      fallbackTranslations[requestedKey] || {
-        translation: `Перевод для "${requestedKey}" не найден.`,
-        url: '',
-        buttons: [],
-      }
-    )
-  }
-
   try {
     let { data, error } = await fetchTranslation(botName)
 
@@ -143,17 +104,6 @@ export async function getTranslation({
 
       const defaultBot = DEFAULT_BOT_NAME
       ;({ data, error } = await fetchTranslation(defaultBot))
-
-      if (error) {
-        logger.error({
-          message: `Ошибка получения перевода/кнопок с дефолтным токеном для ключа "${key}"`,
-          error: error.message,
-          bot_name: defaultBot,
-          language_code,
-          key,
-        })
-        return getFallback(key)
-      }
     }
 
     // Парсим buttons_config, если он есть
@@ -197,7 +147,7 @@ export async function getTranslation({
     }
 
     return {
-      translation: data?.translation || getFallback(key).translation,
+      translation: data?.translation || '',
       url: data?.url || '',
       buttons: buttons, // Возвращаем распарсенные кнопки или пустой массив
     }
@@ -210,6 +160,10 @@ export async function getTranslation({
       language_code,
       key,
     })
-    return getFallback(key)
+    return {
+      translation: '',
+      url: '',
+      buttons: [],
+    }
   }
 }

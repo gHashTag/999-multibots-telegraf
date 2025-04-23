@@ -91,24 +91,43 @@ const menuCommandStep = async (ctx: MyContext) => {
       photo_url = null // No photo for fallback
     }
 
-    // --- Send the message ---
-    logger.info(
-      `[menuCommandStep] Sending message: "${message.substring(0, 50)}...", Photo URL: ${photo_url}`
-    )
+    // Добавляем раздельное логирование
+    // Более строгая проверка: translation существует, это строка, и она не пустая
+    if (
+      translation &&
+      typeof translation === 'string' &&
+      translation.trim() !== ''
+    ) {
+      logger.info(
+        `[menuCommandStep] Sending DB message: "${message.substring(0, 50)}...", Photo URL: ${photo_url}`
+      )
+    } else {
+      logger.info(
+        `[menuCommandStep] Sending FALLBACK message: "${(isRu ? '🏠 Главное меню\\nВыберите нужный раздел 👇' : '🏠 Main Menu\\nSelect the section 👇').substring(0, 50)}...", Photo URL: null`
+      )
+    }
 
     if (photo_url) {
       await sendReplyWithKeyboard(ctx, message, [], keyboard, photo_url)
     } else {
-      // Send fallback without parse_mode, or send translation WITH parse_mode if it exists
-      if (translation) {
+      // Send fallback without parse_mode, or send translation (also without parse_mode FOR MENU KEY)
+      if (translation && translationKey !== 'menu') {
+        // Если есть перевод И это НЕ ключ 'menu'
         await ctx.reply(message, {
-          parse_mode: 'MarkdownV2', // Use parse_mode for DB translations
+          parse_mode: 'MarkdownV2', // Используем MarkdownV2 для других ключей
           reply_markup: keyboard.reply_markup,
         })
       } else {
-        // Send the constructed fallback message as plain text
-        await ctx.reply(message, {
-          // No parse_mode here for the plain fallback text
+        // Во всех остальных случаях (fallback ИЛИ ключ 'menu' из базы)
+        let messageToSend = message // Берем сообщение (fallback или из базы)
+        if (translationKey === 'menu' && typeof messageToSend === 'string') {
+          // ЗАМЕНЯЕМ '\\n' на реальный перенос '\n' ТОЛЬКО для ключа 'menu'
+          messageToSend = messageToSend.replace(/\\n/g, '\n')
+        }
+        // Отправляем как обычный текст (без parse_mode)
+        await ctx.reply(messageToSend, {
+          // Отправляем обработанное сообщение
+          // НЕТ parse_mode здесь
           reply_markup: keyboard.reply_markup,
         })
       }
