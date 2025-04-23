@@ -11,6 +11,7 @@ import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update } from 'telegraf/typings/core/types/typegram'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
+import { startWebhookServer } from './webhookServer'
 
 import * as http from 'http'
 
@@ -194,6 +195,9 @@ async function initializeBots() {
         currentPort++
       }
     }
+
+    // Запускаем сервер для Robokassa ВСЕГДА
+    startWebhookServer()
   }
 
   console.log('🔍 Инициализация сцен...')
