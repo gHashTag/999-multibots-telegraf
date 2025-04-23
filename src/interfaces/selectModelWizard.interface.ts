@@ -1,4 +1,4 @@
-import { TransactionType } from './payments.interface'
+import { PaymentType } from './payments.interface'
 import { ModeEnum } from '@/interfaces/modes'
 
 /**
@@ -55,7 +55,7 @@ export interface SelectModelPaymentParams {
   modelPrice: number
 
   /** Тип транзакции */
-  transactionType: TransactionType
+  transactionType: PaymentType
 
   /** Описание транзакции */
   description: string

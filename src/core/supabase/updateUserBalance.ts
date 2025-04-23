@@ -1,6 +1,10 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
-import { PaymentStatus, Currency } from '@/interfaces/payments.interface'
+import {
+  PaymentStatus,
+  Currency,
+  PaymentType,
+} from '@/interfaces/payments.interface'
 
 type BalanceUpdateMetadata = {
   stars?: number
@@ -22,7 +26,7 @@ type BalanceUpdateMetadata = {
 export const updateUserBalance = async (
   telegram_id: string,
   amount: number,
-  type: 'money_income' | 'money_outcome',
+  type: PaymentType,
   description?: string,
   metadata?: BalanceUpdateMetadata
 ): Promise<boolean> => {
@@ -65,7 +69,7 @@ export const updateUserBalance = async (
     if (
       description &&
       description.includes('Payment for generating') &&
-      type === 'money_outcome'
+      type === PaymentType.MONEY_EXPENSE
     ) {
       // Извлекаем значение modePrice из metadata
       if (metadata?.modePrice && typeof metadata.modePrice === 'number') {
@@ -144,7 +148,7 @@ export const updateUserBalance = async (
       else if (
         metadata?.currentBalance &&
         Math.abs(metadata.currentBalance - safeAmount) < 100 &&
-        type === 'money_outcome'
+        type === PaymentType.MONEY_EXPENSE
       ) {
         // Вероятно передан новый баланс вместо суммы операции
         // Вычисляем разницу между текущим и новым балансом
@@ -161,7 +165,7 @@ export const updateUserBalance = async (
     }
 
     // Проверка на подозрительно большие суммы для outcome операций
-    if (type === 'money_outcome' && safeAmount > 100) {
+    if (type === PaymentType.MONEY_EXPENSE && safeAmount > 100) {
       logger.warn('⚠️ Подозрительно большая сумма списания, возможно ошибка:', {
         description: 'Suspiciously large amount for outcome operation',
         telegram_id,
@@ -204,7 +208,7 @@ export const updateUserBalance = async (
     })
 
     // Проверяем существование пользователя и его баланс для outcome операций
-    if (type === 'money_outcome') {
+    if (type === PaymentType.MONEY_EXPENSE) {
       // Проверка существования пользователя
       const { error: userError } = await supabase
         .from('users')

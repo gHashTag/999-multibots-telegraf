@@ -10,7 +10,7 @@ import {
 } from '@/core/supabase'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { directPaymentProcessor } from '@/core/supabase/directPayment'
-import { TransactionType } from '@/interfaces/payments.interface'
+import { PaymentType } from '@/interfaces/payments.interface'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
 import { processApiResponse } from '@/helpers/error/processApiResponse'
@@ -202,7 +202,7 @@ export async function generateNeuroPhotoDirect(
     const paymentResult = await directPaymentProcessor({
       telegram_id,
       amount: totalCost,
-      type: TransactionType.MONEY_EXPENSE,
+      type: PaymentType.MONEY_EXPENSE,
       description: `Payment for generating ${validNumImages} image${
         validNumImages > 1 ? 's' : ''
       } with prompt: ${prompt.slice(0, 50)}...`,
@@ -539,7 +539,7 @@ export async function generateNeuroPhotoDirect(
           const refundResult = await directPaymentProcessor({
             telegram_id,
             amount: refundAmount,
-            type: TransactionType.MONEY_INCOME,
+            type: PaymentType.MONEY_INCOME,
             description: is_ru
               ? `Возврат за неудачную генерацию изображения с промптом: ${prompt.slice(
                   0,

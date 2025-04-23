@@ -3,7 +3,7 @@ export enum SubscriptionType {
   NEUROBASE = 'NEUROBASE',
   NEUROTESTER = 'NEUROTESTER',
   NEUROBLOGGER = 'NEUROBLOGGER',
-  STARS = 'stars',
+  STARS = 'STARS',
 }
 
 export interface Subscription {

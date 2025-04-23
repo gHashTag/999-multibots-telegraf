@@ -1,7 +1,7 @@
 import { MySession } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { SubscriptionType } from '@/interfaces'
-import { TransactionType } from '@/interfaces/payments.interface'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 export const defaultSession: MySession = {
   mode: ModeEnum.TextToImage,
@@ -21,7 +21,7 @@ export const defaultSession: MySession = {
     amount: 0,
     stars: 0,
     subscription: SubscriptionType.STARS,
-    type: TransactionType.SYSTEM,
+    type: PaymentType.SYSTEM,
   },
   videoUrl: '',
   imageUrl: '',

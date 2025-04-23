@@ -12,7 +12,7 @@ import { MyContext } from '@/interfaces'
 import { modeCosts } from '@/price/helpers/modelsCost'
 import { levels } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'
-import { TransactionType } from '@/interfaces/payments.interface'
+import { PaymentType } from '@/interfaces/payments.interface'
 import { v4 as uuidv4 } from 'uuid'
 
 import { directPaymentProcessor } from '@/core/supabase/directPayment'
@@ -50,7 +50,7 @@ export async function generateImageToPrompt(
     const paymentResult = await directPaymentProcessor({
       telegram_id,
       amount: costPerImage,
-      type: TransactionType.MONEY_EXPENSE,
+      type: PaymentType.MONEY_EXPENSE,
       description: 'Payment for image to prompt',
       bot_name,
       service_type: ModeEnum.ImageToPrompt,
@@ -195,7 +195,7 @@ export async function generateImageToPrompt(
         await directPaymentProcessor({
           telegram_id,
           amount: costPerImage,
-          type: TransactionType.MONEY_INCOME,
+          type: PaymentType.MONEY_INCOME,
           description: 'Refund for failed image-to-prompt',
           bot_name,
           service_type: ModeEnum.ImageToPrompt,

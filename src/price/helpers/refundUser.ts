@@ -2,6 +2,7 @@ import { MyContext } from '@/interfaces'
 import { getUserBalance, getReferalsCountAndUserData } from '@/core/supabase'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { mainMenu } from '@/menu'
+import { PaymentType } from '@/interfaces'
 
 export async function refundUser(ctx: MyContext, paymentAmount: number) {
   if (!ctx.from) {
@@ -26,7 +27,7 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
   const transactionResult = await updateUserBalance(
     telegramIdStr,
     amountToRefund,
-    'money_income',
+    PaymentType.MONEY_INCOME,
     'Refund for cancelled generation',
     { bot_name: bot_name }
   )

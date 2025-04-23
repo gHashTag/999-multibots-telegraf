@@ -6,20 +6,7 @@ export interface SelectedPayment {
   amount: number
   stars: number
   subscription: SubscriptionType | null
-  type?: TransactionType
-}
-
-export enum TransactionType {
-  MONEY_INCOME = 'money_income',
-  MONEY_EXPENSE = 'money_expense',
-  SUBSCRIPTION_PURCHASE = 'subscription_purchase',
-  SUBSCRIPTION_RENEWAL = 'subscription_renewal',
-  REFUND = 'refund',
-  BONUS = 'bonus',
-  REFERRAL = 'referral',
-  SYSTEM = 'system',
-  SUBSCRIPTION_PAYMENT = 'subscription_payment',
-  TRANSFER = 'transfer',
+  type?: PaymentType
 }
 
 /**
@@ -53,14 +40,15 @@ export enum PaymentStatus {
 }
 
 export enum PaymentType {
-  MONEY_INCOME = 'money_income',
-  MONEY_EXPENSE = 'money_expense',
-  SUBSCRIPTION_PURCHASE = 'subscription_purchase',
-  SUBSCRIPTION_RENEWAL = 'subscription_renewal',
-  REFUND = 'refund',
-  BONUS = 'bonus',
-  REFERRAL = 'referral',
-  SYSTEM = 'system',
+  MONEY_INCOME = 'MONEY_INCOME',
+  MONEY_EXPENSE = 'MONEY_EXPENSE',
+  SUBSCRIPTION_PURCHASE = 'SUBSCRIPTION_PURCHASE',
+  SUBSCRIPTION_RENEWAL = 'SUBSCRIPTION_RENEWAL',
+  REFUND = 'REFUND',
+  BONUS = 'BONUS',
+  REFERRAL = 'REFERRAL',
+  SYSTEM = 'SYSTEM',
+  MONEY_OUTCOME = 'MONEY_OUTCOME',
 }
 
 export interface BasePayment {
@@ -130,9 +118,7 @@ export const PAYMENT_SUCCESS_MESSAGES = {
  * ПРИМЕЧАНИЕ: Эта функция остается для обратной совместимости,
  * теперь значения TransactionType уже в нижнем регистре
  */
-export function normalizeTransactionType(
-  type: TransactionType | string
-): string {
+export function normalizeTransactionType(type: PaymentType | string): string {
   // Простое приведение к строке и нижнему регистру
   return (type as string).toLowerCase()
 }
@@ -151,8 +137,8 @@ export interface PaymentProcessParams {
   /** Количество звезд (ВСЕГДА положительное число, если указано) */
   stars?: number
 
-  /** Тип транзакции из TransactionType */
-  type: TransactionType | string
+  /** Тип транзакции из PaymentType */
+  type: PaymentType | string
 
   /** Описание транзакции */
   description: string
@@ -193,7 +179,7 @@ export interface SessionPayment {
   amount: number
   stars: number
   subscription: SubscriptionType | null
-  type?: TransactionType
+  type?: PaymentType
 }
 
 export enum Currency {
