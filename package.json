@@ -45,7 +45,7 @@
     "pinata-web3": "^0.5.4",
     "qs": "^6.11.2",
     "replicate": "^0.25.2",
-    "telegraf": "^4.15.3",
+    "telegraf": "^4.16.3",
     "tsc-alias": "^1.8.8",
     "tslib": "^2.6.2",
     "uuid": "^9.0.1",

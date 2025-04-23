@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { WizardScene } from 'telegraf/scenes'
+import { Scenes } from 'telegraf'
 import { getUserByTelegramIdString } from '@/core/supabase'
 import { verifySubscription } from '@/middlewares/verifySubscription'
 import { isDev } from '@/helpers'
@@ -214,7 +214,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   return ctx.scene.enter(nextScene)
 }
 
-export const subscriptionCheckScene = new WizardScene(
+export const subscriptionCheckScene = new Scenes.WizardScene(
   ModeEnum.SubscriptionCheckScene,
   subscriptionCheckStep
 )

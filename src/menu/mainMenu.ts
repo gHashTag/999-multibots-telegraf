@@ -150,9 +150,12 @@ export async function mainMenu({
         l !== levels[105]
     ) // Исключаем служебные
   } else if (subscription === SubscriptionType.STARS) {
-    availableLevels = availableLevels.concat(
-      Object.values(levels).slice(0, inviteCount + 1)
-    )
+    // Не добавляем уровни, если level = 0, так как пользователь только начал
+    if (level > 0) {
+      availableLevels = availableLevels.concat(
+        Object.values(levels).slice(0, Math.min(inviteCount + 1, level + 1))
+      )
+    }
   }
 
   // Удаляем дубликаты уровней
@@ -163,7 +166,11 @@ export async function mainMenu({
     subscription !== SubscriptionType.NEUROTESTER &&
     subscription !== SubscriptionType.NEUROBASE
   ) {
-    availableLevels = availableLevels.filter((_, index) => index <= level)
+    // Эта фильтрация больше не нужна здесь так строго, так как логика STARS изменена
+    // Оставляем только базовую фильтрацию для других типов подписок, если необходимо
+    if (subscription !== SubscriptionType.STARS) {
+      availableLevels = availableLevels.filter((_, index) => index <= level)
+    }
   }
 
   const buttons = availableLevels.map(level =>

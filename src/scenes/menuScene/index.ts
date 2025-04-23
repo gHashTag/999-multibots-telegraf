@@ -6,7 +6,7 @@ import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { WizardScene } from 'telegraf/scenes'
+import { Scenes } from 'telegraf'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { ModeEnum } from '@/interfaces/modes'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
@@ -25,7 +25,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     if (isDev) {
       newCount = 0
-      newSubscription = SubscriptionType.NEUROTESTER
+      newSubscription = SubscriptionType.STARS
       newLevel = 0
     } else {
       const { count, subscriptionType, level, userData } =
@@ -181,7 +181,7 @@ const menuNextStep = async (ctx: MyContext) => {
     ctx.scene.leave()
   }
 }
-export const menuScene = new WizardScene(
+export const menuScene = new Scenes.WizardScene(
   ModeEnum.MainMenu,
   menuCommandStep,
   menuNextStep
