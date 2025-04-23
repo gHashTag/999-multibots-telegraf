@@ -1,6 +1,6 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
-import { PaymentStatus } from '@/interfaces/payments.interface'
+import { PaymentStatus, Currency } from '@/interfaces/payments.interface'
 
 type BalanceUpdateMetadata = {
   stars?: number
@@ -389,10 +389,10 @@ export const updateUserBalance = async (
           .insert({
             telegram_id,
             inv_id: invId,
-            currency: metadata?.currency || 'STARS',
-            amount: safeRoundedAmount, // Защита от null/undefined
+            currency: metadata?.currency || Currency.XTR,
+            amount: safeRoundedAmount,
             status: PaymentStatus.COMPLETED,
-            stars: safeRoundedAmount, // Защита от null/undefined
+            stars: safeRoundedAmount,
             type,
             description: description || `Balance ${type}`,
             payment_method: metadata?.service_type,

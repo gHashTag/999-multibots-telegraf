@@ -8,7 +8,11 @@ import {
   getUserBalance,
   invalidateBalanceCache,
 } from '@/core/supabase/getUserBalance'
-import { TransactionType, PaymentStatus } from '@/interfaces/payments.interface'
+import {
+  TransactionType,
+  PaymentStatus,
+  Currency,
+} from '@/interfaces/payments.interface'
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 
 // --- ИСПРАВЛЕННЫЙ ИНТЕРФЕЙС ВХОДНЫХ ПАРАМЕТРОВ ---
@@ -146,7 +150,7 @@ export async function directPaymentProcessor(
         direct_payment: true,
         balance_before: currentBalance,
       },
-      currency: 'XTR',
+      currency: Currency.XTR,
     }
     // logger.info('➡️ [DIRECT_PAYMENT v2.0] Данные для вставки:', { insertData: paymentInsertData });
 

@@ -13,7 +13,7 @@ import { setPayments } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
-
+import { Currency, PaymentStatus } from '@/interfaces/payments.interface'
 export const generateInvoiceStep = async (ctx: MyContext) => {
   logger.info('### getRuBillWizard ENTERED (generateInvoiceStep) ###', {
     scene: 'getRuBillWizard',
@@ -76,9 +76,9 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
           telegram_id: userId.toString(),
           OutSum: amount.toString(),
           InvId: invId.toString(),
-          currency: 'RUB',
+          currency: Currency.RUB,
           stars,
-          status: 'PENDING',
+          status: PaymentStatus.PENDING,
           payment_method: 'Robokassa',
           subscription: subscription,
           bot_name,

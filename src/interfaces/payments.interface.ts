@@ -195,3 +195,8 @@ export interface SessionPayment {
   subscription: SubscriptionType | null
   type?: TransactionType
 }
+
+export enum Currency {
+  XTR = 'XTR', // Telegram Stars
+  RUB = 'RUB', // Russian Ruble
+}

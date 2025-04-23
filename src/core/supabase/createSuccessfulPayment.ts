@@ -1,5 +1,9 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
-import { TransactionType, PaymentStatus } from '@/interfaces/payments.interface'
+import {
+  TransactionType,
+  PaymentStatus,
+  Currency,
+} from '@/interfaces/payments.interface'
 
 import { supabase } from '@/core/supabase'
 import { getUserByTelegramIdString } from '@/core/supabase'
@@ -19,8 +23,8 @@ interface CreateSuccessfulPaymentParams {
   metadata?: Record<string, any>
   inv_id: string
   stars?: number
-  status?: string
-  currency?: string
+  status?: PaymentStatus
+  currency?: Currency
   invoice_url?: string
 }
 
@@ -41,7 +45,7 @@ export async function createSuccessfulPayment({
   metadata = {},
   status = PaymentStatus.COMPLETED,
   inv_id,
-  currency = 'XTR',
+  currency = Currency.XTR,
   invoice_url,
 }: CreateSuccessfulPaymentParams) {
   try {
