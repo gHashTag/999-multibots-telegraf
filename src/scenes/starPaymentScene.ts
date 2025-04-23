@@ -145,7 +145,7 @@ starPaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async
       telegram_id: ctx.from?.id,
     }
   )
-  await ctx.scene.enter(ModeEnum.MenuScene)
+  await ctx.scene.enter(ModeEnum.MainMenu)
 })
 
 // Обработка любых других сообщений
