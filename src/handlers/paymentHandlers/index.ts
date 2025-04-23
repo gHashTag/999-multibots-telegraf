@@ -1,6 +1,7 @@
 import { isRussian } from '@/helpers'
 import { setPayments } from '@/core/supabase/setPayments'
 import { incrementBalance } from '@/core/supabase/incrementBalance'
+import { PaymentStatus } from '@/interfaces/payments.interface'
 
 import { MyContext } from '@/interfaces'
 
@@ -51,7 +52,7 @@ async function processPayment(
     InvId: payload || '',
     currency: 'STARS', // Уточнить, всегда ли STARS?
     stars,
-    status: 'COMPLETED',
+    status: PaymentStatus.COMPLETED,
     payment_method: 'Telegram',
     subscription: subscriptionName,
     bot_name: botUsername,
@@ -149,7 +150,7 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
       InvId: successfulPayment.invoice_payload || '',
       currency: 'STARS',
       stars,
-      status: 'COMPLETED',
+      status: PaymentStatus.COMPLETED,
       payment_method: 'Telegram',
       subscription: 'stars',
       bot_name: botUsername,

@@ -1,5 +1,7 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
+// import { PaymentStatus } from '@/constants/paymentStatus.enum' // Удаляем неверный импорт
+import { PaymentStatus } from '@/interfaces/payments.interface' // <-- Импортируем правильный enum с правильным именем
 // import { determineSubscriptionType } from '@/price/constants' // Исправлен путь импорта
 // import { PaymentProcessParams } from '@/interfaces/payments.interface' // Убран импорт, используется локальный тип
 
@@ -9,7 +11,7 @@ type PaymentParams = {
   InvId: string
   currency: string
   stars: number
-  status: string
+  status: PaymentStatus // <-- Меняем тип на правильный enum
   payment_method: string
   bot_name: string
   language: string
