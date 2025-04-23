@@ -7,6 +7,7 @@ import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
 import { handleHelpCancel } from '@/handlers'
 import { getBotNameByToken } from '@/core'
+import { PaymentStatus } from '@/interfaces/payments.interface'
 
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
@@ -202,10 +203,10 @@ emailWizard.on('text', async ctx => {
           telegram_id: userId.toString(),
           OutSum: amount.toString(),
           InvId: invId.toString(),
-          currency: 'STARS',
+          currency: 'RUB',
+          status: PaymentStatus.PENDING,
           stars,
-          status: 'PENDING',
-          payment_method: 'Telegram',
+          payment_method: 'Robokassa',
           subscription: 'stars',
           bot_name,
           language: ctx.from?.language_code || 'ru',

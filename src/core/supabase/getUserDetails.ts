@@ -19,6 +19,7 @@ import {
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 // <<<=== ИМПОРТ ДЛЯ ПОЛУЧЕНИЯ БАЛАНСА ИЗ PAYMENTS_V2 ===>>>
 import { getUserBalance } from './getUserBalance'
+import { PaymentStatus } from '@/interfaces/payments.interface'
 // Импорт интерфейса (убедись, что он не содержит level)
 
 interface UserDetailsResult {
@@ -136,10 +137,10 @@ export const getUserDetails = async (
       // Ищем последний УСПЕШНЫЙ платеж нужного типа
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments_v2')
-        .select('payment_date, subscription_type')
-        .eq('telegram_id', telegramIdStr)
-        .eq('status', 'COMPLETED')
-        .in('subscription_type', ['neurophoto', 'neurobase'])
+        .select('subscription_type, payment_date, amount, currency')
+        .eq('telegram_id', Number(telegramId))
+        .eq('status', PaymentStatus.COMPLETED)
+        .in('payment_method', ['Robokassa', 'Telegram'])
         .order('payment_date', { ascending: false })
         .limit(1)
         .maybeSingle()

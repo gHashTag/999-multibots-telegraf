@@ -15,7 +15,7 @@ export const getPendingPayment = async (
       .from('payments_v2') // Убедитесь, что таблица называется 'payments'
       .select('*')
       .eq('InvId', invId)
-      .eq('status', 'PENDING')
+      .eq('status', PaymentStatus.PENDING)
       .single() // Ожидаем один или ноль результатов
 
     if (error && error.code !== 'PGRST116') {
@@ -60,13 +60,13 @@ export const getPaymentByInvId = async (
 }
 
 /**
- * Обновляет статус платежа по InvId.
- * @param invId ID инвойса
- * @param newStatus Новый статус ('SUCCESS', 'FAILED', etc.)
+ * Обновляет статус платежа по его InvId.
+ * @param invId Идентификатор счета.
+ * @param newStatus Новый статус (PaymentStatus.COMPLETED, PaymentStatus.FAILED, etc.)
  */
 export const updatePaymentStatus = async (
   invId: string,
-  newStatus: 'SUCCESS' | 'FAILED' | string // Типизируем для ясности
+  newStatus: PaymentStatus
 ): Promise<{ data: any; error: any }> => {
   try {
     const { data, error } = await supabaseAdmin

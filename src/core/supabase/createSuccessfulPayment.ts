@@ -1,5 +1,5 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
-import { TransactionType } from '@/interfaces/payments.interface'
+import { TransactionType, PaymentStatus } from '@/interfaces/payments.interface'
 
 import { supabase } from '@/core/supabase'
 import { getUserByTelegramIdString } from '@/core/supabase'
@@ -39,7 +39,7 @@ export async function createSuccessfulPayment({
   payment_method = 'Telegram',
   bot_name,
   metadata = {},
-  status = 'COMPLETED',
+  status = PaymentStatus.COMPLETED,
   inv_id,
   currency = 'XTR',
   invoice_url,
@@ -114,7 +114,7 @@ export async function createSuccessfulPayment({
 
     // Определяем subscription_type с помощью импортированной функции
     const calculatedSubscriptionType =
-      status === 'COMPLETED' && normalizedType === 'money_income'
+      status === PaymentStatus.COMPLETED && normalizedType === 'money_income'
         ? determineSubscriptionType(numericAmount, currency)
         : null
 

@@ -1,14 +1,16 @@
 import { WEBHOOK_URL } from '@/config'
 import { saveVideoUrlToSupabase } from '@/core/supabase'
 import axios, { AxiosResponse } from 'axios'
+import { PaymentStatus } from '@/interfaces/payments.interface'
 
 export type LipSyncStatus =
-  | 'CANCELED'
-  | 'COMPLETED'
-  | 'FAILED'
-  | 'PENDING'
-  | 'PROCESSING'
-  | 'REJECTED'
+  | 'uploading'
+  | 'processing'
+  | 'completed'
+  | PaymentStatus.COMPLETED
+  | PaymentStatus.FAILED
+  | PaymentStatus.PENDING
+  | 'error'
 
 export interface LipSyncResponse {
   id: string

@@ -1,5 +1,6 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
+import { PaymentStatus } from '@/interfaces/payments.interface'
 
 type BalanceUpdateMetadata = {
   stars?: number
@@ -254,7 +255,7 @@ export const updateUserBalance = async (
           .from('payments_v2') // Новая таблица
           .select('stars, type')
           .eq('telegram_id', Number(telegram_id))
-          .eq('status', 'COMPLETED')
+          .eq('status', PaymentStatus.COMPLETED)
 
         if (paymentsError) {
           logger.error('❌ Ошибка при получении истории платежей:', {
@@ -336,7 +337,7 @@ export const updateUserBalance = async (
         // .from('payments') // Старая таблица
         .from('payments_v2') // Новая таблица
         .update({
-          status: 'COMPLETED',
+          status: PaymentStatus.COMPLETED,
         })
         .eq('inv_id', metadata.inv_id)
 
@@ -390,7 +391,7 @@ export const updateUserBalance = async (
             inv_id: invId,
             currency: metadata?.currency || 'STARS',
             amount: safeRoundedAmount, // Защита от null/undefined
-            status: 'COMPLETED',
+            status: PaymentStatus.COMPLETED,
             stars: safeRoundedAmount, // Защита от null/undefined
             type,
             description: description || `Balance ${type}`,

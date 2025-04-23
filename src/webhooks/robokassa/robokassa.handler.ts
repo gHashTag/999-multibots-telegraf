@@ -10,6 +10,7 @@ import {
 import { validateRobokassaSignature } from './utils/validateSignature'
 import { createBotByName } from '@/core/bot' // Adjusted import path
 import { MyContext } from '@/interfaces'
+import { PaymentStatus } from '@/interfaces/payments.interface'
 
 /**
  * Обрабатывает уведомления об успешном платеже от Robokassa (Result URL).
@@ -106,13 +107,11 @@ export async function handleRobokassaResult(
       return
     }
 
-    logger.info(`[Robokassa Result] Found payment for InvId: ${invId}`, payment)
+    logger.info(`Найден платеж: ${payment.inv_id}`)
 
     // 5. Проверяем статус и сумму платежа
-    if (payment.status === 'COMPLETED') {
-      logger.warn(
-        `[Robokassa Result] Payment InvId: ${invId} already processed.`
-      )
+    if (payment.status === PaymentStatus.COMPLETED) {
+      logger.warn(`Платеж ${payment.inv_id} уже обработан.`)
       res.status(200).send(`OK${invId}`)
       return
     }
@@ -131,7 +130,7 @@ export async function handleRobokassaResult(
     // 6. Обновляем статус платежа в БД
     const { error: updatePaymentError } = await supabase
       .from('payments_v2')
-      .update({ status: 'COMPLETED' })
+      .update({ status: PaymentStatus.COMPLETED })
       .eq('inv_id', invId)
 
     if (updatePaymentError) {

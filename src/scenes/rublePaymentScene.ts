@@ -10,6 +10,7 @@ import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { PaymentStatus } from '@/interfaces/payments.interface'
 
 export const rublePaymentScene = new Scenes.BaseScene<MyContext>(
   ModeEnum.RublePaymentScene
@@ -107,7 +108,7 @@ rublePaymentScene.enter(async ctx => {
         InvId: invId.toString(),
         currency: 'RUB',
         stars: stars,
-        status: 'PENDING',
+        status: PaymentStatus.PENDING,
         payment_method: 'Robokassa',
         subscription: subscriptionType,
         bot_name,
@@ -263,7 +264,7 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       InvId: invId.toString(),
       currency: 'RUB',
       stars: stars,
-      status: 'PENDING',
+      status: PaymentStatus.PENDING,
       payment_method: 'Robokassa',
       subscription: 'stars',
       bot_name,

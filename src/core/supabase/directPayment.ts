@@ -8,7 +8,7 @@ import {
   getUserBalance,
   invalidateBalanceCache,
 } from '@/core/supabase/getUserBalance'
-import { TransactionType } from '@/interfaces/payments.interface'
+import { TransactionType, PaymentStatus } from '@/interfaces/payments.interface'
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 
 // --- ИСПРАВЛЕННЫЙ ИНТЕРФЕЙС ВХОДНЫХ ПАРАМЕТРОВ ---
@@ -139,7 +139,7 @@ export async function directPaymentProcessor(
       type: type,
       service_type: String(service_type),
       bot_name: bot_name,
-      status: 'COMPLETED',
+      status: PaymentStatus.COMPLETED,
       inv_id: operationId,
       metadata: {
         ...metadata,
