@@ -1,7 +1,14 @@
 import { ModeEnum } from '@/interfaces/modes'
 import { TelegramId } from './telegram.interface'
 import { SubscriptionType } from './subscription.interface'
-//
+
+export interface SelectedPayment {
+  amount: number
+  stars: number
+  subscription: SubscriptionType | null
+  type?: TransactionType
+}
+
 export enum TransactionType {
   MONEY_INCOME = 'money_income',
   MONEY_EXPENSE = 'money_expense',
