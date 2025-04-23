@@ -139,13 +139,14 @@ export const getUserDetails = async (
     let startDateDb: string | null = null
 
     try {
-      // Ищем последний УСПЕШНЫЙ платеж нужного типа
+      // Ищем последний УСПЕШНЫЙ платеж С УКАЗАННЫМ ТИПОМ ПОДПИСКИ
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments_v2')
         .select('subscription_type, payment_date, amount, currency')
-        .eq('telegram_id', Number(telegramId))
+        .eq('telegram_id', telegramIdStr) // Исправлено: Сравниваем как текст
         .eq('status', PaymentStatus.COMPLETED)
-        .in('payment_method', ['Robokassa', 'Telegram'])
+        .not('subscription_type', 'is', null) // Изменено: Ищем где тип подписки НЕ NULL
+        // Фильтр по payment_method убран для корректного учета 'SYSTEM' и других
         .order('payment_date', { ascending: false })
         .limit(1)
         .maybeSingle()
