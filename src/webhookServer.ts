@@ -1,7 +1,6 @@
-import express from 'express'
+import express, { Request, Response } from 'express'
 import dotenv from 'dotenv'
 import { handleRobokassaResult } from './webhooks/robokassa/robokassa.handler'
-import fileUpload from 'express-fileupload'
 
 dotenv.config() // Загружаем переменные окружения
 
@@ -14,21 +13,16 @@ export function startWebhookServer() {
   const app = express()
 
   // Middleware для разбора URL-encoded формы
-  // Robokassa обычно отправляет данные в этом формате
-  app.use(express.urlencoded({ extended: true }))
+  app.use('/', express.urlencoded({ extended: true }))
 
-  // Middleware для разбора JSON данных (на всякий случай)
-  app.use(express.json())
-
-  // Middleware для обработки multipart/form-data (маловероятно для Robokassa, но оставим)
-  // app.use(fileUpload()) // Можно пока закомментировать, если не нужно
+  // Middleware для разбора JSON данных
+  app.use('/', express.json())
 
   // POST маршрут для обработки результатов от Robokassa
-  // Важно: убедись, что этот путь совпадает с Result URL в настройках Robokassa
   app.post('/robokassa-result', handleRobokassaResult)
 
   // Проверка работоспособности сервера
-  app.get('/health', (req, res) => {
+  app.get('/health', (req: Request, res: Response) => {
     res.status(200).send('Robokassa Webhook Server OK')
   })
 

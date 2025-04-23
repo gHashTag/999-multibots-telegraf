@@ -130,7 +130,7 @@ interface SingleSourceOfTruthRule {
   description: 'MAIN.md ДОЛЖЕН БЫТЬ ТОЛЬКО ОДИН - В MEMORY BANK';
   
   mainFile: {
-    path: '/src/core/mcp/agent/memory-bank/NeuroBlogger/MAIN.md';
+    path: '/Users/playra/999-multibots-telegraf/.cursor/rules/main.mdc';
     purpose: 'Единственный источник истины';
     rules: [
       'MAIN.md может быть только один',
