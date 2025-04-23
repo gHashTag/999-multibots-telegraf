@@ -66,13 +66,23 @@ export interface DirectPaymentResult {
  *              Работает по принципу "расчет по транзакциям":
  *              1. Проверяет текущий баланс (если это списание).
  *              2. **Создает новую запись** о транзакции (доход/расход) в таблице `payments_v2`.
+ *                 Используемые типы: `MONEY_INCOME`, `MONEY_OUTCOME`, `SYSTEM`, `BONUS`, etc.
  *              3. Инвалидирует кэш баланса пользователя.
  *              4. Возвращает результат операции, включая ID созданной записи.
  *              **НЕ вызывает** `createSuccessfulPayment` (т.к. та для вебхуков).
  *              **НЕ вызывает** `updateUserBalance` (т.к. баланс считается динамически).
  *
  * @param {DirectPaymentParams} params - Параметры операции (см. интерфейс DirectPaymentParams).
- * @returns {Promise<DirectPaymentResult>} Результат операции (см. интерфейс DirectPaymentResult).
+ * @param {string} params.telegram_id - Telegram ID пользователя
+ * @param {number} params.amount - Сумма операции (количество звезд)
+ * @param {PaymentType} params.type - Тип транзакции (из `PaymentType` enum, напр. `MONEY_OUTCOME`)
+ * @param {string} params.description - Описание операции
+ * @param {string} params.bot_name - Имя бота
+ * @param {ModeEnum | string} params.service_type - Тип сервиса/режим
+ * @param {string} [params.inv_id] - Опциональный ID операции/инвойса
+ * @param {boolean} [params.bypass_payment_check=false] - Пропустить проверку баланса
+ * @param {Record<string, any>} [params.metadata={}] - Дополнительные метаданные
+ * @returns {Promise<DirectPaymentResult>} Результат операции.
  */
 export async function directPaymentProcessor(
   params: DirectPaymentParams
@@ -232,7 +242,7 @@ export async function directPaymentProcessor(
     }
 
     logger.info(
-      '�� [DIRECT_PAYMENT v2.0] Прямая обработка платежа завершена успешно',
+      '✅ [DIRECT_PAYMENT v2.0] Прямая обработка платежа завершена успешно',
       {
         /* ... */
       }
@@ -400,7 +410,7 @@ export async function updateUserBalance(
       // Недостаточно средств
       return false
     } else if (type === PaymentType.MONEY_OUTCOME && bypass_payment_check) {
-      // Corrected: Was TransactionType.MONEY_OUTCOME
+      // Corrected: Was PaymentType.MONEY_OUTCOME
       console.log(`Bypassing balance check for user ${telegram_id}`)
       // Принудительное списание, даже если баланс уходит в минус
     }

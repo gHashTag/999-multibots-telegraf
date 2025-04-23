@@ -41,14 +41,13 @@ export enum PaymentStatus {
 
 export enum PaymentType {
   MONEY_INCOME = 'MONEY_INCOME',
-  MONEY_EXPENSE = 'MONEY_EXPENSE',
+  MONEY_OUTCOME = 'MONEY_OUTCOME',
   SUBSCRIPTION_PURCHASE = 'SUBSCRIPTION_PURCHASE',
   SUBSCRIPTION_RENEWAL = 'SUBSCRIPTION_RENEWAL',
   REFUND = 'REFUND',
   BONUS = 'BONUS',
   REFERRAL = 'REFERRAL',
   SYSTEM = 'SYSTEM',
-  MONEY_OUTCOME = 'MONEY_OUTCOME',
 }
 
 export interface BasePayment {
@@ -117,7 +116,7 @@ export const PAYMENT_SUCCESS_MESSAGES = {
  * в нижний регистр для совместимости с БД
  *
  * ПРИМЕЧАНИЕ: Эта функция остается для обратной совместимости,
- * теперь значения TransactionType уже в нижнем регистре
+ * теперь значения PaymentType уже в нижнем регистре
  */
 export function normalizeTransactionType(type: PaymentType | string): string {
   // Простое приведение к строке и нижнему регистру

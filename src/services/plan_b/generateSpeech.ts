@@ -17,7 +17,7 @@
 // import { modeCosts } from '@/price/helpers/modelsCost'
 // import { ModeEnum } from '@/interfaces/modes'
 // import { processBalanceOperation, sendBalanceMessage } from '@/price/helpers'
-// import { TransactionType } from '@/interfaces/payments.interface'
+// import { PaymentType } from '@/interfaces/payments.interface'
 
 // export const generateSpeech = async ({
 //   text,
@@ -49,7 +49,7 @@
 //   //   telegram_id: Number(telegram_id),
 //   //   paymentAmount: modeCosts[ModeEnum.TextToSpeech] as number,
 //   //   is_ru,
-//   //   type: TransactionType.MONEY_EXPENSE,
+//   //   type: PaymentType.MONEY_OUTCOME,
 //   // })
 
 //   // if (!balanceCheck.success) {

@@ -539,7 +539,7 @@ export async function generateNeuroPhotoDirect(
           const refundResult = await directPaymentProcessor({
             telegram_id,
             amount: refundAmount,
-            type: PaymentType.MONEY_INCOME,
+            type: PaymentType.REFUND,
             description: is_ru
               ? `Возврат за неудачную генерацию изображения с промптом: ${prompt.slice(
                   0,

@@ -195,7 +195,7 @@ export async function generateImageToPrompt(
         await directPaymentProcessor({
           telegram_id,
           amount: costPerImage,
-          type: PaymentType.MONEY_INCOME,
+          type: PaymentType.REFUND,
           description: 'Refund for failed image-to-prompt',
           bot_name,
           service_type: ModeEnum.ImageToPrompt,

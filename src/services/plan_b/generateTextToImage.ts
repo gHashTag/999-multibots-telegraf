@@ -11,7 +11,7 @@
 // import { IMAGES_MODELS } from '@/price/models'
 // import { ModeEnum } from '@/interfaces/modes'
 // // import { processBalanceOperation } from '@/price/helpers'
-// // import { TransactionType } from '@/interfaces/payments.interface'
+// // import { PaymentType } from '@/interfaces/payments.interface'
 // import { Telegraf } from 'telegraf'
 // import { MyContext } from '@/interfaces'
 // import { saveFileLocally } from '@/helpers/saveFileLocally'

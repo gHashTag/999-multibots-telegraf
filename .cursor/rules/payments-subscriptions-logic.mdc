@@ -7,48 +7,69 @@ alwaysApply: true
 
 ## 🕉️ Single Source of Truth: `payments_v2`
 
-The Supabase table `payments_v2` is the **sole source of truth** for all financial transactions and subscription statuses. Do not rely on the `users` table for subscription details.
+_Updated: {current_date}_
+
+**Core Principle:** The Supabase table `payments_v2` is the **sole source of truth** for all financial transactions and subscription statuses. Do not rely on the `users` table for subscription details.
+
+**Database Enum (`operation_type`):** The database column `payments_v2.type` uses a PostgreSQL enum named `operation_type` with the following actual values:
+```
+MONEY_INCOME
+MONEY_EXPENSE
+SUBSCRIPTION_PURCHASE
+SUBSCRIPTION_RENEWAL
+REFUND
+BONUS
+REFERRAL
+SYSTEM
+MONEY_OUTCOME
+```
+
+**Code Enum (`PaymentType`):** The TypeScript enum `PaymentType` located in `[src/interfaces/payments.interface.ts](mdc:src/interfaces/payments.interface.ts)` **correctly mirrors** these database enum values **EXCEPT** that `MONEY_EXPENSE` has been **removed** from the code-level enum.
+
+**Current Code Logic (IMPORTANT):**
+*   The code **attempts to use specific enum values** where appropriate (e.g., `PaymentType.REFUND` for refunds, `PaymentType.SYSTEM` for system operations, `PaymentType.BONUS` for bonuses).
+*   **All expense/outcome operations** in the code have been **standardized to use ONLY `PaymentType.MONEY_OUTCOME`**. This includes places previously using the older `PaymentType.MONEY_EXPENSE`.
+*   **CRITICAL DEPENDENCY & INCONSISTENCY:** This standardization **ASSUMES** that the SQL functions (`get_user_balance`, `get_user_balance_stats`) correctly interpret **`MONEY_OUTCOME`** as the sole subtraction type for balance calculation. Because `MONEY_EXPENSE` *still exists* in the database enum `operation_type`, there's a risk: **SQL functions might *still* be considering `MONEY_EXPENSE` as a valid subtraction type, potentially leading to incorrect balance if old data exists or if SQL isn't updated.**
+*   **RECOMMENDED ACTION (DB):** Either remove `MONEY_EXPENSE` from the `operation_type` enum in Supabase OR modify SQL functions (`get_user_balance`, `get_user_balance_stats`) to *ignore* `MONEY_EXPENSE` and only use `MONEY_OUTCOME` for subtractions.
 
 Key files for interaction:
 - Core getter: `[src/core/supabase/getUserDetails.ts](mdc:src/core/supabase/getUserDetails.ts)`
-- Balance calculation: `[src/core/supabase/getUserBalance.ts](mdc:src/core/supabase/getUserBalance.ts)`
+- Balance calculation: `[src/core/supabase/getUserBalance.ts](mdc:src/core/supabase/getUserBalance.ts)` (Relies on SQL function `get_user_balance`)
 - Core interfaces:
     - `[src/interfaces/payments.interface.ts](mdc:src/interfaces/payments.interface.ts)` (Defines `PaymentType` enum)
     - `[src/interfaces/subscription.interface.ts](mdc:src/interfaces/subscription.interface.ts)`
-- Robokassa handler (in separate service): `[src/api-server/routes/robokassa.ts](mdc:src/api-server/routes/robokassa.ts)` (Needs interfaces and stubs)
+- Robokassa handler (in separate service): `[src/api-server/routes/robokassa.ts](mdc:src/api-server/routes/robokassa.ts)`
 
 ## 🏺 Duality of Purpose: `subscription_type` vs `service_type`
 
 These two fields in `payments_v2` serve distinct purposes:
 
-1.  **`subscription_type`**:
+1.  **`subscription_type`** (DB type: `text`):
     *   **Purpose**: Records the **type of subscription** being purchased or granted (`NEUROPHOTO`, `NEUROBASE`, `NEUROTESTER`).
-    *   **When Filled**:
-        *   On **income** related to subscriptions: `type = 'MONEY_INCOME'` (via Robokassa/Telegram Pay for a subscription), `type = 'SUBSCRIPTION_PURCHASE'`, `type = 'SUBSCRIPTION_RENEWAL'`.
-        *   On **system grants**: `type = 'SYSTEM'` (e.g., via the `create_system_payment` function, which likely uses `SYSTEM` or `MONEY_INCOME` - **needs verification in the SQL function itself**).
-    *   **When NULL**: For expense operations (`MONEY_OUTCOME`) or income not directly related to a subscription purchase (e.g., `BONUS`, `REFERRAL`).
+    *   **When Filled**: On rows representing a subscription purchase/grant (e.g., `type = 'SUBSCRIPTION_PURCHASE'`, `type = 'SUBSCRIPTION_RENEWAL'`, or `type = 'SYSTEM'` if granting via system).
+    *   **When NULL**: On expense operations (`type = 'MONEY_OUTCOME'`) or other income types not related to a subscription grant (`BONUS`, `REFERRAL`).
 
-2.  **`service_type`**:
+2.  **`service_type`** (DB type: `text`):
     *   **Purpose**: Records the **specific service** for which stars/money were **spent** (`IMAGE_GENERATION`, `TEXT_TO_SPEECH`, etc., corresponds to `ModeEnum`).
-    *   **When Filled**: On **expense**: `type = 'MONEY_OUTCOME'`.
-    *   **When NULL**: For income operations (`MONEY_INCOME`, `SYSTEM`, `BONUS`, `REFERRAL`, `SUBSCRIPTION_PURCHASE`, `SUBSCRIPTION_RENEWAL`), where no specific *service* is being consumed at that moment.
+    *   **When Filled**: Only on rows where `type = 'MONEY_OUTCOME'`.
+    *   **When NULL**: On all income/system/subscription rows (`MONEY_INCOME`, `BONUS`, `REFUND`, `SYSTEM`, `SUBSCRIPTION_PURCHASE`, etc.).
 
-**Conclusion:** `service_type = NULL` for `MONEY_INCOME` or `SUBSCRIPTION_PURCHASE`/`RENEWAL` related to subscription purchase is **CORRECT** and expected behavior. Check `subscription_type` in the same row to see what was purchased.
+**Conclusion:** `service_type = NULL` for non-expense operations is **CORRECT**. `subscription_type = NULL` for expense operations (`MONEY_OUTCOME`) is **CORRECT**.
 
 ## ✨ `getUserDetails.ts`: The Oracle of User Status
 
 This function ([src/core/supabase/getUserDetails.ts](mdc:src/core/supabase/getUserDetails.ts)) provides the current status:
-- Fetches the last **completed** payment (`status = 'COMPLETED'`, relevant `payment_method`, likely `type = 'SUBSCRIPTION_PURCHASE'` or `'SUBSCRIPTION_RENEWAL'`) from `payments_v2`.
-- Checks `subscription_type` from that payment.
+- Fetches the last **completed** payment (`status = 'COMPLETED'`, `type` likely `SUBSCRIPTION_PURCHASE` or `SUBSCRIPTION_RENEWAL`) from `payments_v2`.
+- Checks `subscription_type` (which is `text`) from that payment.
 - **Special Logic `NEUROTESTER`**: If `subscription_type` is `NEUROTESTER`, `isSubscriptionActive` is set to `true` **regardless of date**.
 - **Other Subscriptions**: Checks if the `payment_date` + 30 days is in the future.
-- Returns `isSubscriptionActive`, `subscriptionType` (Enum), `subscriptionStartDate`.
+- Returns `isSubscriptionActive`, `subscriptionType` (Enum derived from text), `subscriptionStartDate`.
 - Also returns `stars` (from `getUserBalance`) and `isExist` (from `users` table check).
 - **Does NOT return user level.**
 
 ## ⚖️ `getUserBalance.ts`: The Keeper of Stars
 
-This function ([src/core/supabase/getUserBalance.ts](mdc:src/core/supabase/getUserBalance.ts)) calculates the current star balance by aggregating `stars` values from relevant `payments_v2` entries for the user via the `get_user_balance` SQL function. It uses caching to reduce database load.
+This function ([src/core/supabase/getUserBalance.ts](mdc:src/core/supabase/getUserBalance.ts)) **calls the SQL function `get_user_balance`**. The accuracy of the returned balance depends entirely on how that SQL function interprets the various `operation_type` enum values in the `payments_v2` table. It uses caching to reduce database load.
 
 ```typescript
 import { TelegramId } from '@/interfaces/telegram.interface'
@@ -125,6 +146,8 @@ export const getUserBalance = async (
         error_details: error,
         telegram_id: normalizedId,
       })
+      // Fallback might be needed here if RPC fails, e.g., manual aggregation?
+      // For now, return 0 on error.
       return 0
     }
 
@@ -175,17 +198,17 @@ export const invalidateBalanceCache = (telegram_id: TelegramId): void => {
 
 ## 🛡️ Preventing Negative Balances and Handling Expenses
 
-- **Operation Type Dictates Sign**: The `type` field in `payments_v2` (e.g., `MONEY_INCOME`, `MONEY_OUTCOME`, `BONUS`) inherently defines whether an operation is an addition or a subtraction to the balance **in the SQL aggregation functions (`get_user_balance`, `get_user_balance_stats`)**.
-- **CRITICAL: No Negative Balances EVER**: The system MUST ensure that a user's final balance (stars or other currency) **NEVER drops below zero** under any circumstances. This is a fundamental rule.
-- **Mandatory Pre-check**: Before performing ANY expense operation (`MONEY_OUTCOME`), the system **MUST always check** if the user has sufficient funds using `getUserBalance` or an equivalent reliable method.
-- **Reject if Insufficient**: If funds are insufficient, the expense operation **MUST be rejected gracefully** (e.g., send an informative message to the user), and **NO balance update** or corresponding `payments_v2` entry for the expense should occur.
-- **Database Integrity**: While application-level checks are primary, database constraints or triggers *could* serve as a final safeguard against negative balances, though they shouldn't be relied upon solely.
+- **Operation Type Dictates Sign**: The `type` field (`MONEY_INCOME`, `BONUS`, `REFUND`, `MONEY_OUTCOME`, etc.) inherently defines the sign **IF AND ONLY IF** the SQL aggregation functions (`get_user_balance`, `get_user_balance_stats`) are correctly programmed to handle all these types. Currently, the code *writes* `MONEY_OUTCOME` for all expenses.
+- **CRITICAL: No Negative Balances EVER**: The system MUST ensure that a user's final balance **NEVER drops below zero**.
+- **Mandatory Pre-check**: Before performing ANY `MONEY_OUTCOME` operation, the system **MUST always check** if the user has sufficient funds using `getUserBalance`.
+- **Reject if Insufficient**: If funds are insufficient, the `MONEY_OUTCOME` operation **MUST be rejected gracefully**, and **NO** `payments_v2` entry for the expense should occur.
+- **Database Integrity**: Constraints/triggers can be a final safeguard but rely on application logic first.
 
 ## 🛠️ PostgreSQL Function: `create_system_payment`
 
 - **Purpose**: Manually grant subscriptions or add funds via a system operation.
 - **Location**: Needs to be created/edited manually in the **Supabase SQL Editor**.
-- **CRITICAL**: Ensure this function correctly inserts into `payments_v2`, setting `subscription_type` when granting a subscription (and leaving `service_type` as `NULL`). Ensure the correct enum value is used for `type` (likely `SYSTEM` or `MONEY_INCOME` based on the function's logic) and that it is UPPERCASE.
+- **CRITICAL**: Ensure this function inserts into `payments_v2` with the correct `type` (`SYSTEM` or maybe `MONEY_INCOME` - check how SQL treats `SYSTEM`), correctly sets `subscription_type` (text) when granting a subscription (leaving `service_type` as `NULL`), and uses UPPERCASE enum values (`SYSTEM`, `NEUROTESTER`, etc.).
 
 ## 📄 Schema Details (from `docs/payments_v2_schema.md`)
 
@@ -220,7 +243,7 @@ export const invalidateBalanceCache = (telegram_id: TelegramId): void => {
 
 **Enums:**
 - `payment_status`: `PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`
-- `payment_type`: `MONEY_INCOME`, `MONEY_EXPENSE`, `SUBSCRIPTION_PURCHASE`, `SUBSCRIPTION_RENEWAL`, `REFUND`, `BONUS`, `REFERRAL`, `SYSTEM`, `MONEY_OUTCOME`
-- `subscription_type`: `NEUROPHOTO`, `NEUROBASE`, `NEUROTESTER`
-- `mode_enum` (used for `service_type`): Corresponds to values in `ModeEnum` interface.
+- `operation_type` (DB enum for `type` column): `MONEY_INCOME`, `MONEY_EXPENSE`, `SUBSCRIPTION_PURCHASE`, `SUBSCRIPTION_RENEWAL`, `REFUND`, `BONUS`, `REFERRAL`, `SYSTEM`, `MONEY_OUTCOME`
+- `subscription_type` (DB type: `text`): Example values: `NEUROPHOTO`, `NEUROBASE`, `NEUROTESTER`
+- `mode_enum` (Used for `service_type`, DB type: `text`): Corresponds to values in `ModeEnum` interface.
 ```

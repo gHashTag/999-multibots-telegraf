@@ -1,11 +1,11 @@
-import { TransactionType } from './payments.interface'
+import { PaymentType } from './payments.interface'
 import { ModeEnum } from './modes'
 
 export interface BalanceOperation {
   telegram_id: string
   amount: number
   stars?: number
-  type: TransactionType
+  type: PaymentType
   description: string
   bot_name: string
   service_type: ModeEnum
@@ -35,7 +35,7 @@ export interface BalanceCheckResult {
 export interface BalanceUpdateParams {
   telegram_id: string
   amount: number
-  type: TransactionType
+  type: PaymentType
   description: string
   service_type: ModeEnum
 }
