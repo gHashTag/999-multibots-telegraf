@@ -9,6 +9,7 @@ export async function handleTopUp(ctx) {
     console.log('Вызываем handleBuy с данными:', { data, isRu })
     await handleBuy({ ctx, data, isRu })
     console.log('CASE: handleTopUp - Успешно завершено')
+    await ctx.scene.leave()
   } catch (error) {
     console.error('CASE: handleTopUp - Ошибка обработки:', error)
     // Отправляем пользователю сообщение об ошибке
