@@ -11,7 +11,6 @@ import { getUserInfo } from './handlers/getUserInfo'
 import {
   avatarBrainWizard,
   textToVideoWizard,
-  emailWizard,
   neuroPhotoWizard,
   neuroPhotoWizardV2,
   imageToPromptWizard,
@@ -222,47 +221,4 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   bot.command('neuro_coder', async ctx => {
     await ctx.scene.enter('neuroCoderScene')
   })
-
-  // --- РЕГИСТРАЦИЯ ГЛОБАЛЬНОГО ОБРАБОТЧИКА ДЛЯ ПОКУПКИ ЗВЕЗД ---
-  bot.action(/top_up_(\d+)$/, async ctx => {
-    // Проверяем, что callbackQuery и data существуют
-    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      const data = ctx.callbackQuery.data
-      const isRu = isRussian(ctx) // Определяем язык
-      console.log(
-        `[Global Action top_up_X] Received callback: ${data}. Calling handleBuy.`
-      )
-      try {
-        await handleBuy({ ctx, data, isRu })
-        // Отвечаем на колбэк только если handleBuy не вызвал ошибку
-        await ctx.answerCbQuery()
-      } catch (error) {
-        console.error(
-          `[Global Action top_up_X] Error calling handleBuy for ${data}:`,
-          error
-        )
-        // Отвечаем на колбэк с сообщением об ошибке
-        try {
-          await ctx.answerCbQuery(
-            isRu ? '⚠️ Ошибка при создании счета' : '⚠️ Error creating invoice'
-          )
-        } catch (e) {
-          console.error('Failed to answer callback query with error')
-        }
-      }
-    } else {
-      console.error('[Global Action top_up_X] Invalid callback query received.')
-      // Все равно пытаемся ответить на колбэк
-      try {
-        await ctx.answerCbQuery()
-      } catch (e) {
-        // Добавляем логирование ошибки
-        console.error(
-          '[Global Action top_up_X] Failed to answer callback query even after invalid query:',
-          e
-        )
-      }
-    }
-  })
-  // --- КОНЕЦ РЕГИСТРАЦИИ ГЛОБАЛЬНОГО ОБРАБОТЧИКА ---
 }

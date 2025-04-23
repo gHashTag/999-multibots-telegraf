@@ -1,13 +1,10 @@
 import { handlePaymentPolicyInfo } from './paymentHandlers/handlePaymentPolicyInfo'
-import {
-  handleSuccessfulPayment,
-  handlePreCheckoutQuery,
-  // handleInvoice, // Раскомментируй, если handleInvoice тут нужен
-} from './paymentHandlers'
+import { handlePreCheckoutQuery } from './paymentHandlers/handlePreCheckoutQuery'
+import { handleSuccessfulPayment } from './paymentHandlers'
 import { MyContext } from '@/interfaces'
 import { Telegraf } from 'telegraf'
-import { handleTopUp } from './paymentHandlers/handleTopUp' // ВОССТАНАВЛИВАЕМ ИМПОРТ
-import { message } from 'telegraf/filters' // ДОБАВЛЯЕМ НУЖНЫЙ ИМПОРТ
+
+import { handleTopUp } from './paymentHandlers/handleTopUp'
 
 export function registerPaymentActions(bot: Telegraf<MyContext>) {
   bot.action('payment_policy_info', handlePaymentPolicyInfo)

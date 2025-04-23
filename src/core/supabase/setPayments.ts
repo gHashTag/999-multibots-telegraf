@@ -7,6 +7,7 @@ import {
 } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
+import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
 
 type PaymentParams = {
   telegram_id: string
@@ -82,6 +83,16 @@ export const setPayments = async ({
       subscription_type: subscription_type,
       metadata: metadata || {},
     })
+
+    if (subscription_type) {
+      await notifyBotOwners(bot_name, {
+        username: normalizedId,
+        telegram_id: telegram_id.toString(),
+        amount: parseFloat(OutSum),
+        stars,
+        subscription: subscription_type,
+      })
+    }
 
     if (error) {
       logger.error('❌ Error inserting payment', {

@@ -22,7 +22,7 @@ export async function notifyBotOwners(
     const { data: owners, error: ownersError } = await supabase
       .from('avatars') // Используем таблицу avatars
       .select('telegram_id') // Выбираем telegram_id владельцев
-      .eq('bot_name', bot_name) // Фильтруем по имени бота из платежа
+      .eq('bot_name', bot_name || 'neuro_blogger_bot') // Фильтруем по имени бота из платежа
 
     if (ownersError) {
       logger.error(
