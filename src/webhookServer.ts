@@ -12,17 +12,18 @@ export function startWebhookServer() {
   // Создаем экземпляр express
   const app = express()
 
-  // Middleware для разбора URL-encoded формы
-  app.use('/', express.urlencoded({ extended: true }))
+  // Middleware для разбора URL-encoded формы (глобально)
+  app.use(express.urlencoded({ extended: true }))
 
-  // Middleware для разбора JSON данных
-  app.use('/', express.json())
+  // Middleware для разбора JSON данных (глобально)
+  app.use(express.json())
 
   // POST маршрут для обработки результатов от Robokassa
   app.post('/robokassa-result', handleRobokassaResult)
 
   // Проверка работоспособности сервера
   app.get('/health', (req: Request, res: Response) => {
+    // Убедимся, что типы импортированы и используются
     res.status(200).send('Robokassa Webhook Server OK')
   })
 
@@ -31,7 +32,8 @@ export function startWebhookServer() {
     .listen(robokassaPort, () => {
       console.log(`[Robokassa] Webhook server running on port ${robokassaPort}`)
     })
-    .on('error', err => {
+    .on('error', (err: Error) => {
+      // Добавим тип для err
       console.error(
         `[Robokassa] Failed to start webhook server: ${err.message}`
       )
