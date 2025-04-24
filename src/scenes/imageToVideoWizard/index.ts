@@ -16,7 +16,6 @@ import { logger } from '@/utils/logger'
 import { calculateFinalPrice } from '@/price/helpers'
 import { getUserBalance } from '@/core/supabase'
 import { SYSTEM_CONFIG } from '@/price/constants/index'
-import { levels } from '@/menu/mainMenu'
 
 // Определяем тип ключей конфига
 type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -41,14 +40,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message as { text?: string }
     const selectedButtonText = message?.text // Получаем текст нажатой кнопки
 
-    // --- НАЧАЛО ИСПРАВЛЕНИЯ ---
-    // Сначала проверяем стандартные команды Помощь/Отмена
-    const isHelpOrCancel = await handleHelpCancel(ctx)
-    if (isHelpOrCancel) {
-      return // handleHelpCancel уже сделал ctx.scene.leave() или ctx.scene.enter()
-    }
-    // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
-
     if (!selectedButtonText) {
       // Это сообщение теперь должно быть правильным
       await ctx.reply(
@@ -58,22 +49,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       )
       return // Остаемся на этом же шаге
     }
-
-    // --- НАЧАЛО ИСПРАВЛЕНИЯ ---
-    // Проверяем, не нажата ли кнопка "Главное меню"
-    if (
-      selectedButtonText === levels[104].title_ru ||
-      selectedButtonText === levels[104].title_en
-    ) {
-      logger.info('Scene Handler: Главное меню / Main Menu')
-      await ctx.reply(
-        isRu ? 'Возвращаемся в главное меню...' : 'Returning to main menu...',
-        Markup.removeKeyboard()
-      )
-      await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
-    }
-    // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
     // Ищем ключ модели по тексту кнопки (формат: "Название (Цена ⭐)")
     let foundModelKey: VideoModelKey | null = null
@@ -86,6 +61,22 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         foundModelKey = key as VideoModelKey
         break
       }
+    }
+
+    // Обрабатываем Помощь и Отмену отдельно (по тексту)
+    if (selectedButtonText === (isRu ? 'Помощь' : 'Help')) {
+      await ctx.reply(
+        isRu
+          ? 'Функция Помощи в разработке.'
+          : 'Help function is under development.'
+      )
+      return // Остаемся на этом шаге
+    }
+
+    if (selectedButtonText === (isRu ? 'Отмена' : 'Cancel')) {
+      // Используем существующую функцию для сообщения об отмене
+      await sendGenerationCancelledMessage(ctx, selectedButtonText)
+      return ctx.scene.leave()
     }
 
     // Если ключ модели не найден по тексту кнопки
