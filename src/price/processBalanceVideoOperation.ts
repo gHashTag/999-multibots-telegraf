@@ -1,46 +1,19 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { getUserBalance } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
-import { VideoModel } from '@/interfaces/models.interface'
 import { BalanceOperationResult } from '@/interfaces/payments.interface'
 
 import { calculateFinalPrice } from '@/price/helpers'
+import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+
+type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
 
 type BalanceOperationProps = {
   ctx: MyContext
-  videoModel: string
+  videoModel: VideoModelConfigKey
   telegram_id: TelegramId
   is_ru: boolean
 }
-
-export interface VideoModelConfig {
-  name: VideoModel
-  title: string
-  description: string
-}
-
-export const VIDEO_MODELS: VideoModelConfig[] = [
-  {
-    name: 'minimax',
-    title: 'Minimax',
-    description: 'Оптимальное качество и скорость',
-  },
-  {
-    name: 'haiper',
-    title: 'Haiper',
-    description: 'Высокое качество, длительность 6 секунд',
-  },
-  {
-    name: 'ray',
-    title: 'Ray',
-    description: 'Реалистичная анимация',
-  },
-  {
-    name: 'i2vgen-xl',
-    title: 'I2VGen-XL',
-    description: 'Продвинутая модель для детальной анимации',
-  },
-]
 
 export const processBalanceVideoOperation = async ({
   ctx,
@@ -58,10 +31,12 @@ export const processBalanceVideoOperation = async ({
       throw new Error('Balance not found')
     }
 
-    const availableModels: VideoModel[] = VIDEO_MODELS.map(model => model.name)
+    const availableModelKeys = Object.keys(
+      VIDEO_MODELS_CONFIG
+    ) as VideoModelConfigKey[]
 
     // Проверка корректности модели
-    if (!videoModel || !availableModels.includes(videoModel as VideoModel)) {
+    if (!videoModel || !availableModelKeys.includes(videoModel)) {
       await ctx.telegram.sendMessage(
         ctx.from?.id?.toString() || '',
         is_ru
@@ -77,8 +52,7 @@ export const processBalanceVideoOperation = async ({
       }
     }
 
-    const model = videoModel as VideoModel
-    const modePrice = calculateFinalPrice(model)
+    const modePrice = calculateFinalPrice(videoModel)
 
     // Проверка достаточности средств
     if (currentBalance < modePrice) {

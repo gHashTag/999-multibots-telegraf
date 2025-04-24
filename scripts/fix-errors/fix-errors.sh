@@ -43,11 +43,11 @@ for file in $ERROR_FILES; do
     ((FIXED_COUNT++))
   fi
   
-  # Исправление 2: Заменяем проверку ELESTIO_URL
-  if grep -q "ELESTIO_URL" "$file"; then
-    sed 's/const API_URL = process.env.ELESTIO_URL.*if (!API_URL) {.*throw new Error.*/const API_URL = process.env.ELESTIO_URL || "https:\/\/example.com";/g' "$file" > "$temp_file"
+  # Исправление 2: Заменяем проверку API_SERVER_URL
+  if grep -q "API_SERVER_URL" "$file"; then
+    sed 's/const API_URL = process.env.API_SERVER_URL.*if (!API_URL) {.*throw new Error.*/const API_URL = process.env.API_SERVER_URL || "https:\/\/example.com";/g' "$file" > "$temp_file"
     mv "$temp_file" "$file"
-    echo -e "${GREEN}✅ Исправлен ELESTIO_URL в файле: $file${NC}"
+    echo -e "${GREEN}✅ Исправлен API_SERVER_URL в файле: $file${NC}"
     ((FIXED_COUNT++))
   fi
   

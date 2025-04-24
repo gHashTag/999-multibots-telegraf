@@ -26,7 +26,7 @@ export async function generateLipSync(
 
   const webhookUrl = isDev
     ? `${process.env.NGROK}/api/synclabs-webhook`
-    : `${process.env.ELESTIO_URL}/api/synclabs-webhook`
+    : `${process.env.API_SERVER_URL}/api/synclabs-webhook`
   console.log(webhookUrl, 'webhookUrl')
 
   try {

@@ -1,7 +1,11 @@
 import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import {
+  isDev,
+  SECRET_API_KEY,
+  API_SERVER_URL,
+  LOCAL_SERVER_URL,
+} from '@/config'
 import { ImageToVideoResponse } from '@/interfaces'
-import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 
 export async function generateImageToVideo(
   imageUrl: string,
@@ -14,7 +18,7 @@ export async function generateImageToVideo(
 ): Promise<ImageToVideoResponse> {
   try {
     const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
+      isDev ? LOCAL_SERVER_URL : API_SERVER_URL
     }/generate/image-to-video`
 
     if (!imageUrl) throw new Error('Image URL is required')

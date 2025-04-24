@@ -31,10 +31,10 @@ try {
       'if (!process.env.$1) { console.warn("[ENV WARNING] $2"); process.env.$1 = "dummy-$1"'
     )
 
-    // Паттерн 2: Обработка ELESTIO_URL и API_URL
+    // Паттерн 2: Обработка API_SERVER_URL и API_URL
     content = content.replace(
-      /const\s+API_URL\s*=\s*process\.env\.ELESTIO_URL.*?if\s*\(\s*!\s*API_URL\s*\)\s*\{\s*throw\s+new\s+Error/gs,
-      'const API_URL = process.env.ELESTIO_URL || "https://example.com";\n// Заглушка вместо ошибки\nif (false) { throw new Error'
+      /const\s+API_URL\s*=\s*process\.env\.API_SERVER_URL.*?if\s*\(\s*!\s*API_URL\s*\)\s*\{\s*throw\s+new\s+Error/gs,
+      'const API_URL = process.env.API_SERVER_URL || "https://example.com";\n// Заглушка вместо ошибки\nif (false) { throw new Error'
     )
 
     // Паттерн 3: Общие ошибки о переменных окружения

@@ -1,6 +1,11 @@
 import axios, { AxiosResponse } from 'axios'
 import FormData from 'form-data'
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import {
+  isDev,
+  SECRET_API_KEY,
+  API_SERVER_URL,
+  LOCAL_SERVER_URL,
+} from '@/config'
 import fs from 'fs'
 import path from 'path'
 import { ensureDirectoryExistence } from '@/helpers'
@@ -54,7 +59,7 @@ export async function generateLipSync(
 
     console.log('LipSync request data:', { videoUrl, audioUrl, telegram_id })
     const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
+      isDev ? LOCAL_SERVER_URL : API_SERVER_URL
     }/generate/create-lip-sync`
 
     // Создаем FormData для передачи URL видео и аудио

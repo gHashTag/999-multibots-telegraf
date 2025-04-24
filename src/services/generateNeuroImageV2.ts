@@ -1,6 +1,11 @@
 import axios, { isAxiosError } from 'axios'
 
-import { isDev, SECRET_API_KEY, ELESTIO_URL, LOCAL_SERVER_URL } from '@/config'
+import {
+  isDev,
+  SECRET_API_KEY,
+  API_SERVER_URL,
+  LOCAL_SERVER_URL,
+} from '@/config'
 import { isRussian } from '@/helpers/language'
 import { MyContext } from '@/interfaces'
 
@@ -32,7 +37,7 @@ export async function generateNeuroImageV2(
 
   try {
     const url = `${
-      isDev ? LOCAL_SERVER_URL : ELESTIO_URL
+      isDev ? LOCAL_SERVER_URL : API_SERVER_URL
     }/generate/neuro-photo-v2`
 
     const response = await axios.post(

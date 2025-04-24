@@ -85,7 +85,7 @@ export const {
   SUPABASE_SERVICE_KEY,
   RUNWAY_API_KEY,
   ELEVENLABS_API_KEY,
-  ELESTIO_URL,
+  API_SERVER_URL,
   NGROK,
   PIXEL_API_KEY,
   HUGGINGFACE_TOKEN,
@@ -103,7 +103,7 @@ export const {
   INNGEST_SIGNING_KEY,
 } = process.env
 
-export const API_URL = isDev ? LOCAL_SERVER_URL : ELESTIO_URL
+export const API_URL = isDev ? LOCAL_SERVER_URL : API_SERVER_URL
 
 // Парсинг ADMIN_IDS в массив чисел
 const adminIdsString = process.env.ADMIN_IDS || ''
