@@ -19,5 +19,3 @@ export interface UserModel {
   model_key?: ModelUrl
   finetune_id?: string
 }
-
-export type VideoModel = 'minimax' | 'haiper' | 'ray' | 'i2vgen-xl'

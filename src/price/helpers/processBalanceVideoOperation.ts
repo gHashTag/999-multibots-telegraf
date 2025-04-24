@@ -1,21 +1,18 @@
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { BalanceOperationResult, MyContext, VideoModel } from '@/interfaces'
-import { calculateModeCost } from './modelsCost'
-import { VIDEO_MODELS } from '@/interfaces/cost.interface'
-import { ModeEnum } from '@/interfaces/modes'
-import { logger } from '@/utils/logger'
+import { BalanceOperationResult, MyContext } from '@/interfaces'
+import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+import { calculateFinalPrice } from './calculateFinalPrice'
 
+import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
-// Экспортируем VIDEO_MODELS, чтобы его можно было импортировать в тестах
-export { VIDEO_MODELS }
 
 /**
  * Обрабатывает операцию с балансом для видео
  */
 export const processBalanceVideoOperation = async (
   ctx: MyContext,
-  videoModelName: VideoModel,
+  configKey: keyof typeof VIDEO_MODELS_CONFIG, // Принимаем НАПРЯМУЮ ключ конфигурации
   isRu: boolean
 ): Promise<BalanceOperationResult> => {
   const telegram_id = ctx.from?.id
@@ -33,16 +30,24 @@ export const processBalanceVideoOperation = async (
     }
   }
 
-  const selectedModel = VIDEO_MODELS.find(m => m.name === videoModelName)
+  logger.info('Processing video balance operation for config key:', {
+    configKey,
+  })
 
-  if (!selectedModel) {
+  // Ищем конфигурацию по ключу
+  const selectedModelConfig = VIDEO_MODELS_CONFIG[configKey]
+
+  if (!selectedModelConfig) {
     logger.error(
-      'processBalanceVideoOperation: Invalid video model selected:',
-      { videoModelName }
+      'processBalanceVideoOperation: Invalid config key received, model not found in VIDEO_MODELS_CONFIG:',
+      { configKey }
     )
+    const errorMsg = isRu
+      ? 'Ошибка конфигурации для выбранной модели.'
+      : 'Configuration error for selected model.'
     return {
       success: false,
-      error: 'Invalid model',
+      error: errorMsg,
       newBalance: 0,
       modePrice: 0,
       paymentAmount: 0,
@@ -53,20 +58,20 @@ export const processBalanceVideoOperation = async (
   let paymentAmount = 0
   let modePrice = 0
   try {
-    const costResult = calculateModeCost({ mode: ModeEnum.ImageToVideo })
-    paymentAmount = costResult.stars
+    // Рассчитываем цену, передавая КЛЮЧ КОНФИГА
+    paymentAmount = calculateFinalPrice(configKey)
     modePrice = paymentAmount
-    if (paymentAmount <= 0) {
-      throw new Error('Calculated payment amount is zero or negative.')
-    }
   } catch (costError) {
     logger.error('processBalanceVideoOperation: Error calculating cost', {
-      videoModelName,
+      configKey,
       error: costError,
     })
+    const errorMsg = isRu
+      ? 'Ошибка расчета стоимости.'
+      : 'Error calculating cost.'
     return {
       success: false,
-      error: 'Error calculating cost',
+      error: errorMsg,
       newBalance: 0,
       modePrice: 0,
       paymentAmount: 0,
@@ -81,11 +86,11 @@ export const processBalanceVideoOperation = async (
       const message = isRu
         ? 'Недостаточно средств на балансе. Пополните баланс командой /buy.'
         : 'Insufficient funds. Top up your balance using the /buy command.'
-      await ctx.reply(message)
       logger.warn('processBalanceVideoOperation: Insufficient funds', {
         telegram_id,
         currentBalance: currentBalanceAtStart,
         paymentAmount,
+        configKey,
       })
       return {
         success: false,
@@ -103,11 +108,11 @@ export const processBalanceVideoOperation = async (
       telegram_id.toString(),
       paymentAmount,
       PaymentType.MONEY_OUTCOME,
-      `Video generation (${selectedModel.title})`,
+      `Video generation (${selectedModelConfig.title})`,
       {
         bot_name: ctx.botInfo?.username,
         service_type: ctx.session.mode,
-        model: videoModelName,
+        model: configKey, // В метаданные записываем КЛЮЧ КОНФИГУРАЦИИ
         modePrice,
         currentBalance: currentBalanceAtStart,
         paymentAmount: paymentAmount,
@@ -120,6 +125,7 @@ export const processBalanceVideoOperation = async (
         : 'Error updating balance.'
       logger.error('processBalanceVideoOperation: Failed to update balance', {
         telegram_id,
+        configKey,
       })
       return {
         success: false,
@@ -134,6 +140,8 @@ export const processBalanceVideoOperation = async (
     logger.info('processBalanceVideoOperation: Balance updated successfully', {
       telegram_id,
       newBalance,
+      paymentAmount,
+      configKey,
     })
     return {
       success: true,
@@ -145,7 +153,7 @@ export const processBalanceVideoOperation = async (
   } catch (error) {
     logger.error(
       'processBalanceVideoOperation: Error processing video balance operation:',
-      { error, telegram_id }
+      { error, telegram_id, configKey }
     )
     let currentBalanceOnError = currentBalanceAtStart
     try {
@@ -157,9 +165,12 @@ export const processBalanceVideoOperation = async (
       })
     }
 
+    const errorMsg = isRu
+      ? 'Внутренняя ошибка обработки операции.'
+      : 'Internal error processing operation.'
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMsg + (error instanceof Error ? `: ${error.message}` : ''),
       newBalance: currentBalanceOnError,
       modePrice,
       paymentAmount: paymentAmount,

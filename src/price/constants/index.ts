@@ -1,20 +1,15 @@
 // Объявления констант без циклических зависимостей
 // Объявляем примитивные значения самыми первыми
 
-// Стоимость звезды и курс обмена
-const _starCost = 0.016
-const _interestRate = 50
-const _currency = 'RUB'
-
 // Экспортируем примитивные значения
-export const starCost = _starCost
-export const interestRate = _interestRate
+export const starCost = 0.016
+export const interestRate = 0.5
 
 // Теперь создаем объект конфигурации на основе этих значений
 export const SYSTEM_CONFIG = {
-  starCost: _starCost,
-  interestRate: _interestRate,
-  currency: _currency,
+  starCost: starCost,
+  interestRate: interestRate,
+  currency: 'RUB',
 }
 
 // Импорт типов после объявления примитивных констант

@@ -1,4 +1,4 @@
-import { starCost } from '@/price'
+import { SYSTEM_CONFIG } from '@/price/constants/index'
 import { MyContext } from '../../interfaces'
 import { minCost, maxCost, modeCosts } from '@/price/helpers/modelsCost'
 import { conversionRates } from '@/price/priceCalculator'
@@ -29,7 +29,7 @@ export async function priceCommand(ctx: MyContext) {
     - 🗣️ Текст в речь: ${getCost(modeCosts.text_to_speech)} ⭐️
     - 📽️ Изображение в видео: ${getCost(modeCosts.image_to_video)} ⭐️
 
-    <b>💵 Стоимость звезды:</b> ${(starCost * 99).toFixed(2)} руб
+    <b>💵 Стоимость звезды:</b> ${(SYSTEM_CONFIG.starCost * 99).toFixed(2)} руб
     💵 Пополнение баланса /buy
     `
     : `
@@ -43,7 +43,7 @@ export async function priceCommand(ctx: MyContext) {
     - 🗣️ Text to speech: ${getCost(modeCosts.text_to_speech)} ⭐️
     - 📽️ Image to video: ${getCost(modeCosts.image_to_video)} ⭐️
 
-    <b>💵 Star cost:</b> ${starCost.toFixed(2)} $
+    <b>💵 Star cost:</b> ${SYSTEM_CONFIG.starCost.toFixed(2)} $
     💵 Top up balance /buy
     `
 

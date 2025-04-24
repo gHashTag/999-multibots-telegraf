@@ -1,40 +1,31 @@
-import { MyContext } from '@/interfaces'
-import { videoModelPrices } from '@/price/models/videoModelPrices'
-import { VideoModel } from '@/interfaces'
-import { calculateFinalPrice } from '@/price/helpers'
+import { logger } from '@/utils/logger'
+import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+import { calculateFinalPrice } from './calculateFinalPrice'
 
-export async function validateAndCalculateVideoModelPrice(
-  videoModel: string,
-  availableModels: string[],
-  currentBalance: number,
-  isRu: boolean,
-  ctx: MyContext
-): Promise<number | null> {
-  if (!videoModel || !availableModels.includes(videoModel as VideoModel)) {
-    await ctx.reply(
-      isRu
-        ? 'Пожалуйста, выберите корректную модель'
-        : 'Please choose a valid model'
-    )
+// Определяем тип ключей конфига
+type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
+
+/**
+ * @deprecated Use processBalanceVideoOperation instead for comprehensive checks.
+ * Validates the video model and calculates its price.
+ */
+export const validateAndCalculateVideoModelPrice = (
+  videoModel: VideoModelKey // Используем ключ конфига
+): number | null => {
+  logger.warn(
+    'Deprecated function called: validateAndCalculateVideoModelPrice. Use processBalanceVideoOperation instead.'
+  )
+  try {
+    // Проверяем, существует ли модель с таким ключом в конфиге
+    if (!(videoModel in VIDEO_MODELS_CONFIG)) {
+      logger.error('Invalid video model key provided:', { videoModel })
+      return null
+    }
+    // Рассчитываем цену, используя ключ конфига
+    const price = calculateFinalPrice(videoModel)
+    return price
+  } catch (error) {
+    logger.error('Error calculating video model price:', { videoModel, error })
     return null
   }
-
-  const model = videoModel as VideoModel
-  if (!(model in videoModelPrices)) {
-    await ctx.reply(
-      isRu ? 'Ошибка: неверная модель видео.' : 'Error: invalid video model.'
-    )
-    return null
-  }
-
-  const price = calculateFinalPrice(model)
-  ctx.session.paymentAmount = price
-  if (currentBalance < price) {
-    await ctx.reply(
-      isRu ? 'Недостаточно средств на балансе' : 'Insufficient balance'
-    )
-    return null
-  }
-
-  return price
 }

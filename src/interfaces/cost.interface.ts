@@ -1,33 +1,28 @@
-import { VideoModel } from '@/interfaces'
+import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+
+// Определяем тип ключей из конфига
+export type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
 
 export interface VideoModelConfig {
-  name: VideoModel
+  id: string
   title: string
   description: string
+  inputType: ('text' | 'image')[]
+  basePrice: number // Base price in dollars
+  api: {
+    model: string
+    input: Record<string, any>
+  }
+  requirements?: {
+    minBalance?: number
+    maxDuration?: number
+  }
+  imageKey?: string
 }
 
-export const VIDEO_MODELS: VideoModelConfig[] = [
-  {
-    name: 'minimax',
-    title: 'Minimax',
-    description: 'Оптимальное качество и скорость',
-  },
-  {
-    name: 'haiper',
-    title: 'Haiper',
-    description: 'Высокое качество, длительность 6 секунд',
-  },
-  {
-    name: 'ray',
-    title: 'Ray',
-    description: 'Реалистичная анимация',
-  },
-  {
-    name: 'i2vgen-xl',
-    title: 'I2VGen-XL',
-    description: 'Продвинутая модель для детальной анимации',
-  },
-]
+// Заменяем использование VideoModel на VideoModelKey
+export const VIDEO_MODELS: Record<VideoModelKey, VideoModelConfig> =
+  VIDEO_MODELS_CONFIG
 
 // Дополнительные режимы, не входящие в ModeEnum
 export type AdditionalMode =

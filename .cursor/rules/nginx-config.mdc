@@ -1,12 +1,14 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
 # Nginx Configuration Guide
 
 **⚠️ ВНИМАНИЕ! НЕ ИЗМЕНЯТЬ БЕЗ ТРОЙНОГО СОГЛАСОВАНИЯ! ⚠️**
 **Каждый параметр критически важен для стабильности!**
+
+/Users/playra/999-multibots-telegraf/nginx-config/default.conf
 
 Nginx используется как обратный прокси-сервер для нашего приложения.
 

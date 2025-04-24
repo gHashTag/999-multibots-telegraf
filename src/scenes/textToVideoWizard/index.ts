@@ -1,15 +1,15 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext, VideoModel } from '@/interfaces'
-import {
-  sendBalanceMessage,
-  validateAndCalculateVideoModelPrice,
-} from '@/price/helpers'
+import { MyContext } from '@/interfaces'
+import { calculateFinalPrice } from '@/price/helpers'
 import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
-import { getUserBalance } from '@/core/supabase'
-import { VIDEO_MODELS } from '@/interfaces'
 import { handleHelpCancel } from '@/handlers'
+import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+import { getUserBalance } from '@/core/supabase'
+
+// Определяем тип ключа конфига локально
+type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
 
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   'text_to_video',
@@ -40,66 +40,119 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussian(ctx)
     const message = ctx.message as { text?: string }
-    if (!message.text)
-      throw new Error(
-        isRu
-          ? 'text_to_video: Не удалось определить модель'
-          : 'text_to_video: Could not identify model'
-      )
+    const selectedButtonText = message?.text // Получаем текст нажатой кнопки
 
-    if (message && 'text' in message) {
-      if (!ctx.from)
-        throw new Error(
-          isRu
-            ? 'text_to_video: Не удалось определить пользователя'
-            : 'text_to_video: Could not identify user'
-        )
-      const videoModel = message.text?.toLowerCase()
-      console.log('videoModel', videoModel)
-      const availableModels = VIDEO_MODELS.map(model => model.name)
-      const currentBalance = await getUserBalance(ctx.from.id.toString())
-      console.log('currentBalance', currentBalance)
-      const isCancel = await handleHelpCancel(ctx)
-      if (isCancel) {
-        return ctx.scene.leave()
-      } else {
-        // Используем await для получения результата
-        const price = await validateAndCalculateVideoModelPrice(
-          videoModel as VideoModel,
-          availableModels,
-          currentBalance,
-          isRu,
-          ctx
-        )
-        console.log('price', price)
-        if (price === null) {
-          return ctx.scene.leave()
-        }
-
-        // Устанавливаем videoModel в сессии
-        ctx.session.videoModel = videoModel as VideoModel
-
-        await sendBalanceMessage(
-          ctx,
-          currentBalance,
-          price,
-          isRu,
-          ctx.botInfo.username
-        )
-
-        await ctx.reply(
-          isRu
-            ? 'Пожалуйста, отправьте текстовое описание'
-            : 'Please send a text description',
-          Markup.removeKeyboard()
-        )
-        return ctx.wizard.next()
-      }
-    } else {
-      console.log('text_to_video: else')
+    if (!selectedButtonText) {
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
+
+    // Ищем ключ модели по тексту кнопки (формат: "Название (Цена ⭐)")
+    let foundModelKey: VideoModelConfigKey | null = null
+
+    for (const [key, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
+      // Рассчитываем ожидаемый текст кнопки с финальной ценой в звездах и эмодзи ⭐
+      const finalPriceInStars = calculateFinalPrice(key)
+      const expectedButtonText = `${config.title} (${finalPriceInStars} ⭐)` // Используем ⭐
+      if (expectedButtonText === selectedButtonText) {
+        foundModelKey = key as VideoModelConfigKey
+        break
+      }
+    }
+
+    // Обрабатываем Помощь и Отмену отдельно, если они были нажаты
+    if (selectedButtonText === (isRu ? 'Помощь' : 'Help')) {
+      // Логика для Помощи (если нужна)
+      await ctx.reply(
+        isRu
+          ? 'Функция Помощи в разработке.'
+          : 'Help function is under development.'
+      )
+      // Можно остаться в сцене или выйти
+      // return ctx.wizard.selectStep(ctx.wizard.cursor) // Остаться на текущем шаге
+      return ctx.scene.leave()
+    }
+
+    if (selectedButtonText === (isRu ? 'Отмена' : 'Cancel')) {
+      await ctx.reply(
+        isRu ? 'Отменено.' : 'Cancelled.',
+        Markup.removeKeyboard()
+      )
+      return ctx.scene.leave()
+    }
+
+    // Если ключ модели не найден по тексту кнопки
+    if (!foundModelKey) {
+      console.error(
+        'Could not map button text to model key:',
+        selectedButtonText
+      )
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, выберите модель из предложенных кнопок.'
+          : 'Please select a model using the provided buttons.'
+      )
+      // Остаемся на этом же шаге, чтобы пользователь выбрал снова
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    }
+
+    // --- Остальная логика остается похожей, но используем foundModelKey ---
+
+    if (!ctx.from) {
+      console.error('text_to_video: Could not identify user')
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave()
+    }
+
+    const telegram_id = ctx.from.id.toString()
+    const bot_name = ctx.botInfo.username
+
+    // 1. Вычисляем стоимость
+    const cost = calculateFinalPrice(foundModelKey)
+    if (cost === null) {
+      // calculateFinalPrice может вернуть null, если модель не найдена
+      console.error('Could not calculate price for model key:', foundModelKey)
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.wizard.selectStep(ctx.wizard.cursor) // Даем выбрать снова
+    }
+
+    // 2. Получаем текущий баланс
+    const currentBalance = await getUserBalance(telegram_id, bot_name)
+
+    // 3. Проверяем, достаточно ли средств
+    if (currentBalance < cost) {
+      console.log(
+        `Insufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs: ${cost}`
+      )
+      await ctx.reply(
+        isRu
+          ? `😕 Недостаточно звезд для генерации (${cost}). Ваш баланс: ${currentBalance} ★. Пожалуйста, выберите другую модель или пополните баланс.`
+          : `😕 Insufficient stars for generation (${cost}). Your balance: ${currentBalance} ★. Please select another model or top up your balance.`,
+        // Оставляем клавиатуру для выбора
+        {
+          reply_markup: videoModelKeyboard(isRu).reply_markup,
+        }
+      )
+      // Остаемся на этом же шаге
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    }
+
+    // Если баланс достаточен:
+    console.log(
+      `Sufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs: ${cost}. Proceeding.`
+    )
+
+    // Сохраняем НАЙДЕННЫЙ ключ модели в сессии
+    ctx.session.videoModel = foundModelKey
+
+    await ctx.reply(
+      isRu
+        ? 'Пожалуйста, отправьте текстовое описание'
+        : 'Please send a text description',
+      // Важно убрать клавиатуру после успешного выбора модели
+      Markup.removeKeyboard()
+    )
+    return ctx.wizard.next()
   },
   async ctx => {
     const isRu = isRussian(ctx)
@@ -108,25 +161,36 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     if (message && 'text' in message) {
       const prompt = message.text
 
-      console.log('prompt', prompt)
+      if (!prompt) {
+        await sendGenericErrorMessage(ctx, isRu)
+        return ctx.scene.leave()
+      }
 
-      if (!prompt)
-        throw new Error(
-          isRu ? 'Не удалось определить текст' : 'Could not identify text'
-        )
+      // Получаем ключ модели из существующего поля сессии
+      const videoModelKey = ctx.session.videoModel as
+        | VideoModelConfigKey
+        | undefined
+      console.log('Selected video model key:', videoModelKey)
 
-      const videoModel = ctx.session.videoModel
-      console.log('videoModel', videoModel)
-      if (prompt && videoModel && ctx.from && ctx.from.username) {
+      if (!videoModelKey) {
+        console.error('Video model key not found in session')
+        await sendGenericErrorMessage(ctx, isRu)
+        return ctx.scene.leave()
+      }
+
+      if (ctx.from && ctx.from.username) {
         await generateTextToVideo(
           prompt,
-          videoModel,
+          videoModelKey,
           ctx.from.id.toString(),
           ctx.from.username,
           isRu
         )
 
         ctx.session.prompt = prompt
+      } else {
+        console.error('User information missing for video generation')
+        await sendGenericErrorMessage(ctx, isRu)
       }
 
       await ctx.scene.leave()

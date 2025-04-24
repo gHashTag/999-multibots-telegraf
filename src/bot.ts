@@ -11,7 +11,6 @@ import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update } from 'telegraf/typings/core/types/typegram'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
-//import { startWebhookServer } from './webhookServer'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -49,6 +48,7 @@ export async function isPortInUse(port: number): Promise<boolean> {
 
 // Добавляю логи перед инициализацией ботов
 async function initializeBots() {
+  // Запускаем Hello World сервер в самом начале
   console.log('🔧 Режим работы:', isDev ? 'development' : 'production')
   console.log('📝 Загружен файл окружения:', process.env.NODE_ENV)
 
@@ -203,9 +203,6 @@ async function initializeBots() {
         currentPort++
       }
     }
-
-    // Запускаем сервер для Robokassa ВСЕГДА
-    //  startWebhookServer()
   }
 
   console.log('🔍 Инициализация сцен...')

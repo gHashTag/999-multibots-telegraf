@@ -1,7 +1,6 @@
 import { Scenes, Markup } from 'telegraf'
-import { sendBalanceMessage } from '@/price/helpers'
 import { generateImageToVideo } from '@/services/generateImageToVideo'
-import { MyContext, VideoModel } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import {
   cancelMenu,
   createHelpCancelKeyboard,
@@ -12,100 +11,156 @@ import {
 import { isRussian } from '@/helpers/language'
 import { ModeEnum } from '@/interfaces/modes'
 import { getBotToken, handleHelpCancel } from '@/handlers'
-import { processBalanceVideoOperation } from '@/price/helpers/processBalanceVideoOperation'
+import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+import { logger } from '@/utils/logger'
+import { calculateFinalPrice } from '@/price/helpers'
+import { getUserBalance } from '@/core/supabase'
+import { SYSTEM_CONFIG } from '@/price/constants/index'
+
+// Определяем тип ключей конфига
+type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   'image_to_video',
   async ctx => {
     const isRu = isRussian(ctx)
-    // Запрашиваем модель
+    const keyboardMarkup = videoModelKeyboard(isRu)
     await ctx.reply(
       isRu ? 'Выберите модель для генерации:' : 'Choose generation model:',
       {
-        reply_markup: videoModelKeyboard(isRu).reply_markup,
+        reply_markup: keyboardMarkup.reply_markup,
       }
     )
     return ctx.wizard.next()
   },
   async ctx => {
     const isRu = isRussian(ctx)
+    // --- НАЧАЛО ИСПРАВЛЕНИЙ ---
+    // Ожидаем текстовое сообщение, а не callback_query
+    const message = ctx.message as { text?: string }
+    const selectedButtonText = message?.text // Получаем текст нажатой кнопки
 
-    if (!ctx.from) {
-      await ctx.reply(isRu ? 'Пользователь не найден' : 'User not found')
+    if (!selectedButtonText) {
+      // Это сообщение теперь должно быть правильным
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, выберите модель, нажав одну из кнопок внизу.'
+          : 'Please select a model by pressing one of the buttons below.'
+      )
+      return // Остаемся на этом же шаге
+    }
+
+    // Ищем ключ модели по тексту кнопки (формат: "Название (Цена ⭐)")
+    let foundModelKey: VideoModelKey | null = null
+
+    for (const [key, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
+      // Рассчитываем ожидаемый текст кнопки с финальной ценой в звездах и эмодзи ⭐
+      const finalPriceInStars = calculateFinalPrice(key)
+      const expectedButtonText = `${config.title} (${finalPriceInStars} ⭐)` // Используем ⭐
+      if (expectedButtonText === selectedButtonText) {
+        foundModelKey = key as VideoModelKey
+        break
+      }
+    }
+
+    // Обрабатываем Помощь и Отмену отдельно (по тексту)
+    if (selectedButtonText === (isRu ? 'Помощь' : 'Help')) {
+      await ctx.reply(
+        isRu
+          ? 'Функция Помощи в разработке.'
+          : 'Help function is under development.'
+      )
+      return // Остаемся на этом шаге
+    }
+
+    if (selectedButtonText === (isRu ? 'Отмена' : 'Cancel')) {
+      // Используем существующую функцию для сообщения об отмене
+      await sendGenerationCancelledMessage(ctx, selectedButtonText)
       return ctx.scene.leave()
     }
 
-    const message = ctx.message as { text?: string }
-
-    if (message && 'text' in message) {
-      const messageText = message.text?.toLowerCase()
-      console.log('messageText', messageText)
-
-      if (messageText === (isRu ? 'отмена' : 'cancel')) {
-        await sendGenerationCancelledMessage(ctx, isRu ? 'отмена' : 'cancel')
-        return ctx.scene.leave()
-      }
-
-      const videoModel = messageText
-      console.log('videoModel', videoModel)
-
-      const { newBalance, success, modePrice } =
-        await processBalanceVideoOperation(ctx, videoModel as VideoModel, isRu)
-      if (!success) {
-        console.log('price is null')
-        return ctx.scene.leave()
-      }
-      ctx.session.paymentAmount = modePrice
-
-      // Устанавливаем videoModel в сессии
-      ctx.session.videoModel = videoModel as VideoModel
-      console.log('ctx.session.videoModel', ctx.session.videoModel)
-
-      await sendBalanceMessage(
-        ctx,
-        newBalance,
-        modePrice,
-        isRu,
-        ctx.botInfo.username
-      )
-
-      const info =
-        videoModel === 'i2vgen-xl'
-          ? isRu
-            ? 'Используйте горизонтальное изображение для генерации видео с этой моделью. Так как вертикальные изображения не поддерживаются.'
-            : 'Use a horizontal image for video generation with this model. Vertical images are not supported.'
-          : ''
-
+    // Если ключ модели не найден по тексту кнопки
+    if (!foundModelKey) {
+      logger.warn('Could not map button text to model key:', {
+        selectedButtonText,
+      })
       await ctx.reply(
         isRu
-          ? `Вы выбрали модель для генерации: ${videoModel}. ${info}`
-          : `You have chosen the generation model: ${videoModel}. ${info}`,
-        {
-          reply_markup: { remove_keyboard: true },
-        }
+          ? 'Пожалуйста, выберите модель из предложенных кнопок ВНИЗУ.'
+          : 'Please select a model using the provided buttons BELOW.'
       )
-      const isCancel = await handleHelpCancel(ctx)
-      if (isCancel) {
-        return ctx.scene.leave()
-      }
+      return // Остаемся на этом шаге
+    }
 
-      await ctx.reply(
-        isRu
-          ? 'Пожалуйста, отправьте изображение для генерации видео'
-          : 'Please send an image for video generation',
-        {
-          reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-        }
-      )
-      return ctx.wizard.next()
-    } else {
+    // --- Логика проверки баланса с использованием calculateFinalPrice ---
+    if (!ctx.from) {
+      logger.error('imageToVideoWizard: Could not identify user')
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
+
+    const telegram_id = ctx.from.id.toString()
+    const bot_name = ctx.botInfo.username
+
+    // 1. Вычисляем ФИНАЛЬНУЮ СТОИМОСТЬ в звездах (с интересом)
+    const finalPriceInStars = calculateFinalPrice(foundModelKey)
+
+    // 2. Получаем текущий баланс
+    const currentBalance = await getUserBalance(telegram_id, bot_name)
+
+    // 3. Проверяем, достаточно ли средств (используя финальную цену)
+    if (currentBalance < finalPriceInStars) {
+      logger.info(
+        `Insufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
+      )
+      await ctx.reply(
+        isRu
+          ? `Недостаточно звезд для генерации (${finalPriceInStars} ★). Ваш баланс: ${currentBalance} ★. Пожалуйста, выберите другую модель или пополните баланс.`
+          : `😕 Insufficient stars for generation (${finalPriceInStars} ★). Your balance: ${currentBalance} ★. Please select another model or top up your balance.`,
+        {
+          reply_markup: videoModelKeyboard(isRu).reply_markup,
+        }
+      )
+      return // Остаемся на этом же шаге
+    }
+
+    // Если баланс достаточен:
+    logger.info(
+      `Sufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}. Proceeding to image request.`
+    )
+    ctx.session.videoModel = foundModelKey
+    // Сохраняем ФИНАЛЬНУЮ стоимость в звездах
+    ctx.session.paymentAmount = finalPriceInStars
+    console.log('ctx.session.videoModel (config key):', ctx.session.videoModel)
+    console.log(
+      'ctx.session.paymentAmount (final stars):',
+      ctx.session.paymentAmount
+    )
+
+    const selectedModelTitle =
+      VIDEO_MODELS_CONFIG[foundModelKey]?.title || foundModelKey
+
+    // Сообщаем о выбранной модели и убираем ReplyKeyboard
+    await ctx.reply(
+      isRu
+        ? `Вы выбрали модель: ${selectedModelTitle}.`
+        : `You have chosen the model: ${selectedModelTitle}.`,
+      Markup.removeKeyboard() // Убираем клавиатуру
+    )
+
+    await ctx.reply(
+      isRu
+        ? 'Теперь отправьте изображение для генерации видео'
+        : 'Now send an image for video generation',
+      {
+        reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+      }
+    )
+    return ctx.wizard.next()
   },
   async ctx => {
     const message = ctx.message
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussian(ctx)
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
       return ctx.scene.leave()
@@ -126,24 +181,26 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         ctx.session.imageUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`
         await ctx.reply(
           isRu
-            ? 'Теперь опишите желаемое движение в видео'
-            : 'Now describe the desired movement in the video',
+            ? 'Отлично! Теперь опишите желаемое движение в видео'
+            : 'Great! Now describe the desired movement in the video',
           {
             reply_markup: cancelMenu(isRu).reply_markup,
           }
         )
         return ctx.wizard.next()
       }
-
       await ctx.reply(
-        isRu ? 'Пожалуйста, отправьте изображение' : 'Please send an image'
+        isRu ? 'Пожалуйста, отправьте изображение.' : 'Please send an image.',
+        {
+          reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+        }
       )
-      return undefined
+      return
     }
   },
   async ctx => {
     const message = ctx.message
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussian(ctx)
 
     if (message && 'text' in message) {
       const isCancel = await handleHelpCancel(ctx)
@@ -151,19 +208,50 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       } else {
         const prompt = message.text
-        const videoModel = ctx.session.videoModel as VideoModel
+        const configKey = ctx.session.videoModel as VideoModelKey
         const imageUrl = ctx.session.imageUrl
-        if (!prompt) throw new Error('Prompt is required')
-        if (!videoModel) throw new Error('Video model is required')
-        if (!imageUrl) throw new Error('Image URL is required')
-        if (!ctx.from?.username) throw new Error('Username is required')
-        if (!isRu) throw new Error('Language is required')
+
+        if (!prompt) {
+          await ctx.reply(
+            isRu
+              ? 'Требуется описание движения.'
+              : 'Movement description is required.'
+          )
+          return
+        }
+        if (!configKey || !(configKey in VIDEO_MODELS_CONFIG)) {
+          logger.error('Invalid configKey in session', { configKey })
+          await ctx.reply(
+            isRu
+              ? 'Ошибка сессии (модель). Начните заново.'
+              : 'Session error (model). Please start over.'
+          )
+          return ctx.scene.leave()
+        }
+        if (!imageUrl) {
+          logger.error('Missing imageUrl in session', { configKey })
+          await ctx.reply(
+            isRu
+              ? 'Ошибка сессии (URL изображения). Начните заново.'
+              : 'Session error (image URL). Please start over.'
+          )
+          return ctx.scene.leave()
+        }
+        if (!ctx.from?.username) {
+          logger.error('Missing username in context')
+          await ctx.reply(
+            isRu
+              ? 'Ошибка пользователя. Начните заново.'
+              : 'User error. Please start over.'
+          )
+          return ctx.scene.leave()
+        }
 
         try {
-          console.log('Calling generateImageToVideo with:', {
+          logger.info('Calling generateImageToVideo with:', {
             imageUrl,
             prompt,
-            videoModel,
+            configKey,
             telegram_id: ctx.from.id,
             username: ctx.from.username,
             isRu,
@@ -172,7 +260,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
           await generateImageToVideo(
             imageUrl,
             prompt,
-            videoModel,
+            configKey,
             ctx.from.id.toString(),
             ctx.from.username,
             isRu,
@@ -180,25 +268,35 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
           )
           ctx.session.prompt = prompt
           ctx.session.mode = ModeEnum.ImageToVideo
-        } catch (error) {
-          console.error('Ошибка при создании видео:', error)
+
+          const modelTitle = VIDEO_MODELS_CONFIG[configKey]?.title || configKey
           await ctx.reply(
             isRu
-              ? 'Произошла ошибка при создании видео. Пожалуйста, попробуйте позже.'
-              : 'An error occurred while creating the video. Please try again later.'
+              ? `✅ Запрос на генерацию видео (${modelTitle}) отправлен! Ожидайте результат.`
+              : `✅ Video generation request (${modelTitle}) sent! Please wait for the result.`
+          )
+        } catch (error) {
+          logger.error('Ошибка при вызове generateImageToVideo:', {
+            error,
+            configKey,
+            telegram_id: ctx.from.id,
+          })
+          await ctx.reply(
+            isRu
+              ? '❌ Произошла ошибка при запуске генерации видео. Пожалуйста, попробуйте позже или обратитесь в поддержку.'
+              : '❌ An error occurred starting video generation. Please try again later or contact support.'
           )
         }
         return ctx.scene.leave()
       }
     }
-
     await ctx.reply(
       isRu
-        ? 'Пожалуйста, отправьте текстовое описание'
-        : 'Please send a text description',
+        ? 'Пожалуйста, отправьте текстовое описание движения.'
+        : 'Please send a text description of the movement.',
       Markup.removeKeyboard()
     )
-    return undefined
+    return
   }
 )
 

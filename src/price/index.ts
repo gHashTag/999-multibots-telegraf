@@ -1,15 +1,5 @@
 export * from './models/imageModelPrices'
 export * from './models/videoModelPrices'
-export * from './starCost'
-export * from './interestRate'
-/**
- * Процентная ставка для расчета стоимости
- */
-export const interestRate = 0.1 // 10%
-
-/**
- * Базовая стоимость услуги
- */
 export const basePrice = 100
 
 /**

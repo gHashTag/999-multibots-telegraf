@@ -103,6 +103,8 @@ export const {
   INNGEST_SIGNING_KEY,
 } = process.env
 
+export const API_URL = isDev ? LOCAL_SERVER_URL : ELESTIO_URL
+
 // Парсинг ADMIN_IDS в массив чисел
 const adminIdsString = process.env.ADMIN_IDS || ''
 export const ADMIN_IDS_ARRAY: number[] = adminIdsString
