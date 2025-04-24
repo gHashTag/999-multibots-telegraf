@@ -10,8 +10,7 @@ import {
 import path from 'path'
 import { getBotByName } from '@/core/bot'
 import { updateUserLevelPlusOne } from '@/core/supabase'
-import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
-import { VideoModel } from '@/interfaces'
+import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import {
   sendServiceErrorToUser,
   sendServiceErrorToAdmin,
@@ -22,8 +21,11 @@ import { logger } from '@/utils/logger'
 import { supabase } from '@/core/supabase'
 import { generateVideo } from '@/core/replicate/generateVideo'
 
+// Определяем тип локально
+type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
+
 export const processVideoGeneration = async (
-  videoModel: string,
+  videoModel: VideoModelConfigKey,
   aspect_ratio: string,
   prompt: string
 ) => {
@@ -49,7 +51,7 @@ export const processVideoGeneration = async (
 
 export const generateTextToVideo = async (
   prompt: string,
-  videoModel: VideoModel,
+  videoModel: VideoModelConfigKey,
   telegram_id: string,
   username: string,
   is_ru: boolean,
@@ -87,11 +89,17 @@ export const generateTextToVideo = async (
       session: { mode: 'TextToVideo' },
     } as any
 
-    const { newBalance, paymentAmount } = await processBalanceVideoOperation(
-      tempCtx,
-      videoModel,
-      is_ru
-    )
+    const { newBalance, paymentAmount, success, error } =
+      await processBalanceVideoOperation(tempCtx, videoModel, is_ru)
+
+    if (!success) {
+      logger.error('Error processing balance for video generation:', {
+        telegram_id,
+        videoModel,
+        error,
+      })
+      throw new Error(error || 'Failed to process balance operation')
+    }
 
     await bot.telegram.sendMessage(
       telegram_id,
