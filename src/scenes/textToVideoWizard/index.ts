@@ -7,6 +7,10 @@ import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { getUserBalance } from '@/core/supabase'
+import { logger } from '@/utils/logger'
+import { ModeEnum } from '@/interfaces/modes'
+import { levels } from '@/menu/mainMenu'
+import { getTranslation } from '@/core'
 
 // Определяем тип ключа конфига локально
 type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -42,9 +46,71 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message as { text?: string }
     const selectedButtonText = message?.text // Получаем текст нажатой кнопки
 
+    // --- НОВАЯ ЛОКАЛЬНАЯ ОБРАБОТКА "Справка по команде" и "Отмена" ---
+    const helpText = isRu ? 'Справка по команде' : 'Help for the command'
+    const cancelText = isRu ? 'Отмена' : 'Cancel'
+
+    if (selectedButtonText === helpText) {
+      logger.info(
+        '[textToVideoWizard] Handling local help for video model selection'
+      )
+      const helpKey = 'help_text_to_video'
+      const botName = ctx.botInfo?.username
+      const { translation: helpTextTranslation } = await getTranslation({
+        key: helpKey,
+        ctx,
+        bot_name: botName,
+      })
+
+      if (helpTextTranslation) {
+        await ctx.reply(helpTextTranslation, { parse_mode: 'MarkdownV2' })
+      } else {
+        const fallbackHelp = isRu
+          ? 'ℹ️ *Справка по моделям Видео из Текста:*\n\nЗдесь будет подробное описание доступных моделей для генерации видео из текста...'
+          : 'ℹ️ *Help on Text-to-Video Models:*\n\nA detailed description of the available models for text-to-video generation will be here...'
+        await ctx.reply(fallbackHelp, { parse_mode: 'Markdown' })
+      }
+
+      // Повторно отправляем приглашение и клавиатуру
+      await ctx.reply(
+        isRu ? 'Выберите модель для генерации:' : 'Choose generation model:',
+        {
+          reply_markup: videoModelKeyboard(isRu).reply_markup,
+        }
+      )
+
+      // Остаемся на текущем шаге
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    }
+
+    if (selectedButtonText === cancelText) {
+      logger.info('[textToVideoWizard] Handling local cancel')
+      await ctx.reply(
+        isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.',
+        Markup.removeKeyboard()
+      )
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+    // --- КОНЕЦ НОВОЙ ЛОКАЛЬНОЙ ОБРАБОТКИ ---
+
     if (!selectedButtonText) {
       await sendGenericErrorMessage(ctx, isRu)
-      return ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    // Проверяем, не нажата ли кнопка "Главное меню"
+    if (
+      selectedButtonText === levels[104].title_ru ||
+      selectedButtonText === levels[104].title_en
+    ) {
+      logger.info('Scene Handler: Главное меню / Main Menu')
+      await ctx.reply(
+        isRu ? 'Возвращаемся в главное меню...' : 'Returning to main menu...',
+        Markup.removeKeyboard()
+      )
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
     }
 
     // Ищем ключ модели по тексту кнопки (формат: "Название (Цена ⭐)")
@@ -58,27 +124,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         foundModelKey = key as VideoModelConfigKey
         break
       }
-    }
-
-    // Обрабатываем Помощь и Отмену отдельно, если они были нажаты
-    if (selectedButtonText === (isRu ? 'Помощь' : 'Help')) {
-      // Логика для Помощи (если нужна)
-      await ctx.reply(
-        isRu
-          ? 'Функция Помощи в разработке.'
-          : 'Help function is under development.'
-      )
-      // Можно остаться в сцене или выйти
-      // return ctx.wizard.selectStep(ctx.wizard.cursor) // Остаться на текущем шаге
-      return ctx.scene.leave()
-    }
-
-    if (selectedButtonText === (isRu ? 'Отмена' : 'Cancel')) {
-      await ctx.reply(
-        isRu ? 'Отменено.' : 'Cancelled.',
-        Markup.removeKeyboard()
-      )
-      return ctx.scene.leave()
     }
 
     // Если ключ модели не найден по тексту кнопки
@@ -186,14 +231,20 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           ctx.from.username,
           isRu
         )
-
         ctx.session.prompt = prompt
+
+        // УСТАНАВЛИВАЕМ ПОЛЕ СЕССИИ ПЕРЕД ВЫХОДОМ
+        ctx.session.lastCompletedVideoScene = ModeEnum.TextToVideo
+        logger.info({
+          message: `[textToVideoWizard] Set lastCompletedVideoScene to ${ModeEnum.TextToVideo}`,
+          telegramId: ctx.from.id.toString(),
+        })
       } else {
         console.error('User information missing for video generation')
         await sendGenericErrorMessage(ctx, isRu)
       }
 
-      await ctx.scene.leave()
+      await ctx.scene.leave() // Выходим из сцены ПОСЛЕ установки поля сессии
     } else {
       await sendGenericErrorMessage(ctx, isRu)
       await ctx.scene.leave()

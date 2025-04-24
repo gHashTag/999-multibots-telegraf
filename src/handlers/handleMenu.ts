@@ -1,10 +1,14 @@
 import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { Markup } from 'telegraf'
 import { levels } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
 import { priceCommand } from '@/commands/priceCommand'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { handleTechSupport } from '@/commands/handleTechSupport'
+// Импортируем функцию перезапуска видео сцены
+import { handleRestartVideoGeneration } from './handleVideoRestart'
+
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -29,7 +33,7 @@ export const handleMenu = async (ctx: MyContext) => {
     console.log('CASE: handleMenuCommand.text', text)
 
     // Создаем объект для сопоставления текста с действиями
-    const actions = {
+    const actions: Record<string, () => Promise<void>> = {
       [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
         logger.info({
           message: '💫 [handleMenu] Оформление подписки',
@@ -348,9 +352,7 @@ export const handleMenu = async (ctx: MyContext) => {
         ctx.session.mode = ModeEnum.Help
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.HelpScene}`)
         await handleTechSupport(ctx)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.HelpScene}`
-        )
+        console.log(`✅ [handleMenu] Завершен вызов handleTechSupport`)
       },
       [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
         logger.info({
@@ -477,9 +479,26 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.StartScene}`
         )
       },
+      Отмена: async () => {
+        // Исправленный обработчик для 'Отмена'
+        logger.info('[handleMenu] Обработка Отмены')
+        await ctx.reply(
+          isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.',
+          Markup.removeKeyboard()
+        )
+        await ctx.scene.leave() // Покидаем текущую сцену (вероятно, menuScene)
+        await ctx.scene.enter(ModeEnum.MainMenu) // Входим в главное меню
+      },
+      Cancel: async () => {
+        // Исправленный обработчик для 'Cancel'
+        logger.info('[handleMenu] Handling Cancel')
+        await ctx.reply('❌ Process cancelled.', Markup.removeKeyboard())
+        await ctx.scene.leave()
+        await ctx.scene.enter(ModeEnum.MainMenu)
+      },
     }
 
-    // Выполняем действие, если оно существует, иначе переходим в главное меню
+    // Выполняем действие, если оно существует
     if (actions[text]) {
       logger.info({
         message: `✅ [handleMenu] Найдено действие для текста: "${text}"`,
@@ -491,6 +510,7 @@ export const handleMenu = async (ctx: MyContext) => {
       console.log('CASE: handleMenuCommand.if', text)
       await actions[text]()
     } else {
+      // Логика для необработанного текста (если нужна)
       logger.warn({
         message: `⚠️ [handleMenu] Не найдено действие для текста: "${text}"`,
         telegramId,
@@ -499,10 +519,10 @@ export const handleMenu = async (ctx: MyContext) => {
         result: 'action_not_found',
       })
       console.log('CASE: handleMenuCommand.else', text)
-      // ctx.session.mode = 'main_menu'
-      // await ctx.scene.enter('menuScene')
+      // Возможно, здесь не нужно ничего делать или отправить сообщение типа "Неизвестная команда"
     }
   } else {
+    // Логика для нетекстовых сообщений
     logger.warn({
       message: '⚠️ [handleMenu] Получено не текстовое сообщение',
       telegramId,

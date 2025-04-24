@@ -14,6 +14,7 @@ import { getTranslation } from '@/core'
 import { handleMenu } from '@/handlers/handleMenu'
 import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
+import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -174,6 +175,22 @@ const menuNextStep = async (ctx: MyContext) => {
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
     logger.info(`[menuNextStep] Text Message Received: ${text}`)
+
+    // *** НАЧАЛО ВСТАВКИ: Обработка кнопки "Сгенерировать новое видео?" ***
+    if (
+      text === '🎥 Сгенерировать новое видео?' ||
+      text === '🎥 Generate new video?'
+    ) {
+      logger.info(
+        `[menuNextStep] Detected 'Generate new video' button. Calling handleRestartVideoGeneration...`
+      )
+      // Вызываем новую функцию перезапуска, которая использует lastCompletedVideoScene
+      await handleRestartVideoGeneration(ctx)
+      // Важно: НЕ передаем управление дальше в handleMenu, так как мы обработали кнопку здесь
+      return
+    }
+    // *** КОНЕЦ ВСТАВКИ ***
+
     // Prevent loop if /menu is sent again while already in the menu
     if (text === '/menu') {
       logger.warn(

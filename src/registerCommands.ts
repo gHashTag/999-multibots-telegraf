@@ -1,4 +1,4 @@
-import { Telegraf, Scenes, session } from 'telegraf'
+import { Telegraf, Scenes, session, Markup } from 'telegraf'
 import { MyContext } from './interfaces'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
@@ -6,6 +6,8 @@ import { levels } from './menu/mainMenu'
 import { getUserDetailsSubscription } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
+// Импортируем новую функцию
+import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -94,6 +96,18 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   bot.use(session({ defaultSession: () => ({ ...defaultSession }) }))
   bot.use(stage.middleware())
 
+  // УДАЛЯЕМ ГЛОБАЛЬНЫЙ ОБРАБОТЧИК, т.к. он не срабатывает из-за контекста сцены
+  /* 
+  bot.hears(
+    ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
+    async ctx => {
+      // Вызываем общую функцию, которая теперь должна использовать другое поле сессии
+      await handleRestartVideoGeneration(ctx)
+    }
+  )
+  */
+  // КОНЕЦ УДАЛЕННОГО ОБРАБОТЧИКА
+
   setupLevelHandlers(bot as Telegraf<MyContext>)
 
   // Регистрация команд
@@ -137,21 +151,6 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     ctx.session.mode = ModeEnum.Balance // Устанавливаем режим
     await ctx.scene.enter(ModeEnum.Balance) // Переходим в сцену баланса
   })
-
-  // НОВЫЙ ОБРАБОТЧИК - Кнопка "Сгенерировать новое видео?"
-  bot.hears(
-    ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
-    async ctx => {
-      logger.info(
-        'CASE bot.hears: 🎥 Сгенерировать новое видео? / Generate new video?'
-      )
-      // Переводим пользователя в начало сценария генерации видео из текста
-      // TODO: В будущем можно определять, из какой сцены (текст->видео или картинка->видео) пользователь пришел
-      // и перезапускать соответствующую сцену.
-      ctx.session.mode = ModeEnum.TextToVideo // Устанавливаем режим на всякий случай
-      await ctx.scene.enter(ModeEnum.TextToVideo)
-    }
-  )
 
   bot.command('menu', async ctx => {
     const { telegramId } = getUserInfo(ctx) // Получаем ID

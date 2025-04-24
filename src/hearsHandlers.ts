@@ -11,7 +11,7 @@ import { levels, mainMenu } from './menu'
 import { getReferalsCountAndUserData } from './core/supabase'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
-
+import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
 
@@ -123,21 +123,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   bot.hears(
     ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
     async (ctx: MyContext) => {
-      logger.debug(
-        `Получен hears для Сгенерировать новое видео от ${ctx.from?.id}`
-      )
-      const mode = ctx.session.mode
-      if (mode === ModeEnum.TextToVideo) {
-        await ctx.scene.enter('textToVideoWizard')
-      } else if (mode === ModeEnum.ImageToVideo) {
-        await ctx.scene.enter('imageToVideoWizard')
-      } else {
-        await ctx.reply(
-          isRussian(ctx)
-            ? 'Вы не можете сгенерировать новое видео в этом режиме'
-            : 'You cannot generate a new video in this mode'
-        )
-      }
+      await handleRestartVideoGeneration(ctx)
     }
   )
 

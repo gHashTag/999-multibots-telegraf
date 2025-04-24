@@ -204,6 +204,7 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   amount?: number
   ru?: string
   en?: string
+  lastCompletedVideoScene?: ModeEnum | null | undefined
 }
 
 export interface MyContext extends Context {

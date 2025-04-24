@@ -1,8 +1,8 @@
 import { replicate } from '@/core/replicate'
-import { downloadFile, pulse } from '@/helpers'
+import { pulse } from '@/helpers'
 import { processBalanceVideoOperation } from '@/price/helpers'
 import { mkdir, writeFile } from 'fs/promises'
-import { InputFile } from 'telegraf/typings/core/types/typegram'
+
 import {
   getUserByTelegramIdString,
   saveVideoUrlToSupabase,
@@ -15,10 +15,9 @@ import {
   sendServiceErrorToUser,
   sendServiceErrorToAdmin,
 } from '@/helpers/error'
-import { BotName } from '@/interfaces'
 import { toBotName } from '@/helpers/botName.helper'
 import { logger } from '@/utils/logger'
-import { supabase } from '@/core/supabase'
+
 import { generateVideo } from '@/core/replicate/generateVideo'
 
 // Определяем тип локально

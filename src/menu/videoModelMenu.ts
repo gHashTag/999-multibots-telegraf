@@ -5,6 +5,7 @@ import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config' // Импортируем конфиг
 // Импортируем функцию расчета финальной цены
 import { calculateFinalPrice } from '@/price/helpers'
+import { levels } from './mainMenu'
 
 export const videoModelKeyboard = (
   isRu: boolean
@@ -24,9 +25,23 @@ export const videoModelKeyboard = (
     rows.push(buttons.slice(i, i + buttonsPerRow))
   }
 
-  // Добавляем кнопки Помощь и Отмена как строки
-  rows.push([isRu ? 'Помощь' : 'Help'])
-  rows.push([isRu ? 'Отмена' : 'Cancel'])
+  // Добавляем кнопки Главное меню, Помощь и Отмена как строки
+  // Используем правильные тексты и levels
+  const helpButtonText = isRu ? 'Справка по команде' : 'Help for the command' // Жестко закодированный текст
+  const cancelButtonText = isRu ? 'Отмена' : 'Cancel' // Жестко закодированный текст
+  // Используем levels[104] для "Главного меню"
+  const mainMenuButtonText = levels[104]
+    ? isRu
+      ? levels[104].title_ru
+      : levels[104].title_en
+    : isRu
+      ? '🏠 Главное меню'
+      : '🏠 Main menu' // Резервный текст
+
+  rows.push(
+    [helpButtonText, cancelButtonText], // Ряд 1: Справка, Отмена
+    [mainMenuButtonText] // Ряд 2: Главное меню
+  )
 
   // Используем Markup.keyboard и добавляем .resize()
   return Markup.keyboard(rows).resize()
