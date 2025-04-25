@@ -5,7 +5,6 @@ import type { Mock } from 'vitest'
 import {
   initializeMocks,
   mockGetUserDetailsSubscription,
-  mockCreateUser,
   mockIsRussian,
   mockSendMessage,
   mockMainMenu,
@@ -108,10 +107,18 @@ export const createMockTelegrafContext = (
 
 // --- Остальные импорты ---
 import { Markup } from 'telegraf'
-import { logger } from '../../src/utils/logger'
+import { logger as actualLogger } from '../../src/utils/logger'
 
 // Мокируем модуль getUserDetailsSubscription
 vi.mock('../../src/core/supabase/getUserDetailsSubscription')
+
+// Локально мокируем createUser
+const mockCreateUser = vi.fn()
+vi.mock('../../src/core/supabase/user', () => ({
+  createUser: mockCreateUser,
+  // Если есть другие экспорты из user.ts, которые не нужно мокать, добавьте их здесь
+  // например: someOtherExport: vi.importActual('../../src/core/supabase/user').someOtherExport
+}))
 
 // Мокируем модули, чьи функции передаются как зависимости
 vi.mock('../../src/core/supabase/referral', () => ({
@@ -119,10 +126,6 @@ vi.mock('../../src/core/supabase/referral', () => ({
 }))
 vi.mock('../../src/utils/localization', () => ({
   getTranslation: vi.fn(),
-}))
-vi.mock('../../src/core/supabase/user', () => ({
-  getUserDetailsSubscription: vi.fn(),
-  createUser: vi.fn(),
 }))
 vi.mock('../../src/handlers/getPhotoUrl', () => ({
   getPhotoUrl: vi.fn(),
@@ -153,7 +156,6 @@ vi.stubGlobal('process', {
 describe('processStartCommand', () => {
   let mockCtx: any
   let mockGetUserDetailsSubscription: Mock
-  let mockCreateUser: Mock
   let mockGetReferalsCountAndUserData: Mock
   let mockGetTranslation: Mock
   let mockMainMenu: Mock
@@ -163,20 +165,12 @@ describe('processStartCommand', () => {
   let mockLoggerWarn: Mock
   let mockLoggerError: Mock
 
-  let userModule: any
-  let getUserDetailsSubscriptionModule: any
-  let referralModule: any
-  let localizationModule: any
-  let mainMenuModule: any
-  let menuIndexModule: any
-  let languageHelperModule: any
-  let loggerModule: any
+  let loggerModule: { logger: typeof actualLogger } | undefined
+
   let mockDependencies: ProcessStartDependencies
-  let getUserDetailsSubscriptionMock: Mock
 
   beforeEach(async () => {
     // Импортируем мокированные функции напрямую
-    const userModuleImport = await import('../../src/core/supabase/user')
     const getUserDetailsSubscriptionImport = await import(
       '../../src/core/supabase/getUserDetailsSubscription'
     )
@@ -196,27 +190,24 @@ describe('processStartCommand', () => {
     // Присваиваем моки переменным
     mockGetUserDetailsSubscription =
       getUserDetailsSubscriptionImport.getUserDetailsSubscription as Mock
-    mockCreateUser = userModuleImport.createUser as Mock
     mockGetReferalsCountAndUserData =
       referralModuleImport.getReferalsCountAndUserData as Mock
     mockGetTranslation = localizationModuleImport.getTranslation as Mock
     mockMainMenu = mainMenuModuleImport.mainMenu as Mock
     mockStartMenu = menuIndexModuleImport.startMenu as Mock
     mockIsRussian = languageHelperModuleImport.isRussian as Mock
-    loggerModule = loggerModuleImport // Сохраняем модуль логгера
+    loggerModule = loggerModuleImport
 
     // Мокируем методы логгера
-    if (loggerModule.logger) {
-      mockLoggerInfo = vi.fn()
-      mockLoggerWarn = vi.fn()
-      mockLoggerError = vi.fn()
+    vi.resetAllMocks()
+    mockLoggerInfo = vi.fn()
+    mockLoggerWarn = vi.fn()
+    mockLoggerError = vi.fn()
+    if (loggerModule?.logger) {
       loggerModule.logger.info = mockLoggerInfo
       loggerModule.logger.warn = mockLoggerWarn
       loggerModule.logger.error = mockLoggerError
     } else {
-      mockLoggerInfo = vi.fn()
-      mockLoggerWarn = vi.fn()
-      mockLoggerError = vi.fn()
       console.warn(
         'Не удалось правильно мокировать logger. Проверьте экспорт в logger.ts'
       )
@@ -236,11 +227,17 @@ describe('processStartCommand', () => {
       getReferalsCountAndUserData: mockGetReferalsCountAndUserData,
       getTranslation: mockGetTranslation,
       isRussian: mockIsRussian,
-      getPhotoUrl: vi.fn(), // Добавляем getPhotoUrl (был пропущен)
-      reply: mockCtx.reply, // Теперь mockCtx определен
-      replyWithPhoto: vi.fn(), // Добавляем мок replyWithPhoto
-      sendMessage: mockCtx.sendMessage, // Используем sendMessage из mockCtx
-      logger: loggerModule.logger, // Используем реальный логгер или мок
+      getPhotoUrl: vi.fn(),
+      reply: mockCtx.reply,
+      replyWithPhoto: vi.fn(),
+      sendMessage: mockCtx.sendMessage,
+      logger:
+        loggerModule?.logger ||
+        ({
+          info: mockLoggerInfo,
+          warn: mockLoggerWarn,
+          error: mockLoggerError,
+        } as any),
     }
 
     mockGetUserDetailsSubscription.mockResolvedValue({
@@ -250,27 +247,6 @@ describe('processStartCommand', () => {
       stars: 0,
       subscriptionStartDate: null,
       user: null,
-    })
-    mockCreateUser.mockResolvedValue({
-      id: 12345,
-      created_at: new Date().toISOString(),
-      telegram_id: '12345',
-      username: 'testuser',
-      first_name: 'Test',
-      last_name: 'User',
-      language_code: 'en',
-      is_bot: false,
-      referred_by: null,
-      referral_code: 'REF123',
-      registration_date: new Date().toISOString(),
-      last_activity_date: new Date().toISOString(),
-      is_blocked_bot: false,
-      is_deactivated: false,
-      user_level: 0,
-    })
-    mockGetReferalsCountAndUserData.mockResolvedValue({
-      count: 0,
-      userData: null,
     })
     mockGetTranslation.mockImplementation((key: string) => key)
     mockIsRussian.mockReturnValue(false)

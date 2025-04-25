@@ -50,9 +50,10 @@ vi.mock('@/core/supabase/getUserDetailsSubscription', () => ({
   getUserDetailsSubscription: (...args: any[]) =>
     mockGetUserDetailsSubscription(...args),
 }))
-vi.mock('@/core/supabase/user', () => ({
-  createUser: (...args: any[]) => mockCreateUser(...args),
-}))
+// Removed global mock for user module
+// vi.mock('@/core/supabase/user', () => ({
+//   createUser: (...args: any[]) => mockCreateUser(...args),
+// }))
 vi.mock('@/core/supabase/referral', () => ({
   getReferalsCountAndUserData: (...args: any[]) =>
     mockGetReferalsCountAndUserData(...args),
@@ -87,30 +88,29 @@ vi.mock('@/handlers/getPhotoUrl', () => ({
   getPhotoUrl: (...args: any[]) => mockGetPhotoUrl(...args),
 }))
 vi.mock('@/utils/logger', () => {
-  // Create mock functions for info and error methods
-  const mockInfo = vi.fn()
-  const mockError = vi.fn()
-  const mockSecurity = vi.fn() // Mock for logSecurityEvent
+  // Мок для логгера
+  const mockLoggerInfo = vi.fn()
+  const mockLoggerWarn = vi.fn()
+  const mockLoggerError = vi.fn()
+  const mockLoggerDebug = vi.fn()
+  const mockLoggerHttp = vi.fn()
 
-  // Explicitly create the default export object
-  const defaultExport = {
-    info: mockInfo,
-    error: mockError,
-  }
-
-  // Explicitly create the named logger export object
-  const namedLoggerExport = {
-    info: mockInfo,
-    error: mockError,
-  }
-
-  // Return the mock object with both default and named exports
   return {
-    default: defaultExport, // Provide the default export
-    logger: namedLoggerExport, // Provide the named export 'logger'
-    botLogger: namedLoggerExport, // Assuming botLogger needs same interface
-    securityLogger: namedLoggerExport, // Assuming securityLogger needs same interface
-    logSecurityEvent: mockSecurity, // Named export for the specific function
+    logger: {
+      info: mockLoggerInfo,
+      warn: mockLoggerWarn,
+      error: mockLoggerError,
+      debug: mockLoggerDebug,
+      http: mockLoggerHttp,
+    },
+    // Экспортируем моки для проверок в тестах
+    __mocks: {
+      mockLoggerInfo,
+      mockLoggerWarn,
+      mockLoggerError,
+      mockLoggerDebug,
+      mockLoggerHttp,
+    },
   }
 })
 
