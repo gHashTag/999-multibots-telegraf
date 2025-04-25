@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MyContext } from '@/interfaces'
 import { handleTechSupport } from '@/commands/handleTechSupport'
 import { Markup } from 'telegraf'
+import { initializeMocks, mockIsRussian } from '../mocks/setup'
 
 // Функция для создания мока контекста
 const createMockContext = (languageCode: 'ru' | 'en' = 'ru'): MyContext => {
@@ -21,12 +22,14 @@ const createMockContext = (languageCode: 'ru' | 'en' = 'ru'): MyContext => {
 
 describe('handleTechSupport', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    initializeMocks()
+    mockIsRussian.mockClear()
   })
 
   it('should send the Russian support message for ru language code', async () => {
     // Arrange
     const ctx = createMockContext('ru')
+    mockIsRussian.mockReturnValue(true)
     const expectedMessage =
       '🛠 Для обращения в техподдержку, напишите @neuro_sage\n\n' +
       'Пожалуйста, опишите вашу проблему максимально подробно.\n\nДля возврата в главное меню, нажмите /menu'
@@ -35,6 +38,7 @@ describe('handleTechSupport', () => {
     await handleTechSupport(ctx)
 
     // Assert
+    expect(mockIsRussian).toHaveBeenCalledWith(ctx)
     expect(ctx.reply).toHaveBeenCalledOnce()
     expect(ctx.reply).toHaveBeenCalledWith(
       expectedMessage,
@@ -45,6 +49,7 @@ describe('handleTechSupport', () => {
   it('should send the English support message for en language code', async () => {
     // Arrange
     const ctx = createMockContext('en')
+    mockIsRussian.mockReturnValue(false)
     const expectedMessage =
       '🛠 To contact tech support, write to @neuro_sage\n\n' +
       'Please describe your problem in as much detail as possible.\n\nTo return to the main menu, click /menu'
@@ -53,6 +58,7 @@ describe('handleTechSupport', () => {
     await handleTechSupport(ctx)
 
     // Assert
+    expect(mockIsRussian).toHaveBeenCalledWith(ctx)
     expect(ctx.reply).toHaveBeenCalledOnce()
     expect(ctx.reply).toHaveBeenCalledWith(
       expectedMessage,
@@ -63,6 +69,7 @@ describe('handleTechSupport', () => {
   it('should send the **Russian** support message if language code is undefined', async () => {
     // Arrange
     const ctx = createMockContext(undefined as any) // Симулируем отсутствие language_code
+    mockIsRussian.mockReturnValue(true)
     // Ожидаем РУССКИЙ текст как fallback
     const expectedMessage =
       '🛠 Для обращения в техподдержку, напишите @neuro_sage\n\n' +
@@ -72,6 +79,7 @@ describe('handleTechSupport', () => {
     await handleTechSupport(ctx)
 
     // Assert
+    expect(mockIsRussian).toHaveBeenCalledWith(ctx)
     expect(ctx.reply).toHaveBeenCalledOnce()
     expect(ctx.reply).toHaveBeenCalledWith(
       expectedMessage,

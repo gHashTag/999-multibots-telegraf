@@ -93,6 +93,9 @@ importers:
         specifier: ^3.11.0
         version: 3.17.0
     devDependencies:
+      '@telegraf/types':
+        specifier: ^8.3.1
+        version: 8.3.1
       '@types/bcrypt':
         specifier: ^5.0.2
         version: 5.0.2
@@ -633,6 +636,9 @@ packages:
 
   '@telegraf/types@7.1.0':
     resolution: {integrity: sha512-kGevOIbpMcIlCDeorKGpwZmdH7kHbqlk/Yj6dEpJMKEQw5lk0KVQY0OLXaCswy8GqlIVLd5625OB+rAntP9xVw==}
+
+  '@telegraf/types@8.3.1':
+    resolution: {integrity: sha512-17RBlU04nwiERnrm6X32C/tr0/bYjXWAujS+zeK1C94pcnqetCk2IdqvfXLK9GluSMcyY6iMV5Kt0oAEZ7NF8w==}
 
   '@tsconfig/node10@1.0.11':
     resolution: {integrity: sha512-DcRjDCujK/kCk/cUe8Xz8ZSpm8mS3mNNpta+jGCA6USEDfktlNvm1+IuZ9eTcDbNk41BHwpHHeW+N1lKCz4zOw==}
@@ -3471,6 +3477,8 @@ snapshots:
       - utf-8-validate
 
   '@telegraf/types@7.1.0': {}
+
+  '@telegraf/types@8.3.1': {}
 
   '@tsconfig/node10@1.0.11': {}
 

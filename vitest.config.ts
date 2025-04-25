@@ -18,6 +18,7 @@ export default defineConfig({
   test: {
     globals: true, // Enable Jest-like globals (describe, it, expect)
     environment: 'node', // Set the test environment to Node.js
+    setupFiles: ['./__tests__/mocks/setup.ts'],
     coverage: {
       provider: 'v8', // Specify the coverage provider
       reporter: ['text', 'json', 'html'], // Coverage report formats
