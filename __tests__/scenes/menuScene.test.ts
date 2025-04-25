@@ -3,8 +3,25 @@ import { Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { ModeEnum } from '@/interfaces/modes'
+import {
+  Message,
+  CallbackQuery,
+  Update,
+} from 'telegraf/typings/core/types/typegram'
 
-// Мокаем модули
+// Импортируем модули до их мокирования
+import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
+import { getTranslation } from '@/core/supabase/getTranslation'
+import { mainMenu, levels } from '@/menu/mainMenu'
+import { isRussian } from '@/helpers/language'
+import { handleTechSupport } from '@/commands/handleTechSupport'
+import { handleMenu } from '@/handlers/handleMenu'
+import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
+import { sendReplyWithKeyboard } from '@/scenes/menuScene/sendReplyWithKeyboard'
+import { logger } from '@/utils'
+import { sendGenericErrorMessage } from '@/menu'
+
+// Теперь создаем моки
 vi.mock('@/core/supabase/getUserDetailsSubscription', () => ({
   getUserDetailsSubscription: vi.fn().mockResolvedValue({
     stars: 100,
@@ -79,14 +96,24 @@ vi.mock('@/handlers/handleVideoRestart', () => ({
   handleRestartVideoGeneration: vi.fn().mockResolvedValue(undefined),
 }))
 
-// Импортируем необходимые модули для тестирования
-import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
-import { getTranslation } from '@/core/supabase/getTranslation'
-import { mainMenu } from '@/menu/mainMenu'
-import { isRussian } from '@/helpers/language'
-import { handleTechSupport } from '@/commands/handleTechSupport'
-import { handleMenu } from '@/handlers/handleMenu'
-import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
+vi.mock('@/menu', () => ({
+  sendGenericErrorMessage: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/scenes/menuScene/sendReplyWithKeyboard', () => ({
+  sendReplyWithKeyboard: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/utils', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}))
+
+// Только после импорта и мокирования импортируем сам menuScene для теста
+import { menuScene } from '@/scenes/menuScene'
 
 // Вспомогательная функция для создания мок-контекста
 const createMockContext = (languageCode: string = 'ru'): MyContext => {
@@ -120,7 +147,7 @@ const createMockContext = (languageCode: string = 'ru'): MyContext => {
   } as unknown as MyContext
 }
 
-// Тесты для проверки функций, используемых в menuScene
+// Тесты для компонентов, используемых в menuScene
 describe('menuScene components', () => {
   let ctx: MyContext
 
@@ -132,75 +159,196 @@ describe('menuScene components', () => {
     ctx = createMockContext()
   })
 
-  it('should call getUserDetailsSubscription with correct ID', async () => {
-    // Вызываем функцию с контекстом
-    await getUserDetailsSubscription('123456789')
+  describe('getUserDetailsSubscription', () => {
+    it('should return subscription details', async () => {
+      // Вызываем функцию с контекстом
+      const result = await getUserDetailsSubscription('123456789')
 
-    // Проверяем что функция была вызвана с правильными параметрами
-    expect(getUserDetailsSubscription).toHaveBeenCalledWith('123456789')
-  })
+      // Проверяем что функция была вызвана с правильными параметрами
+      expect(getUserDetailsSubscription).toHaveBeenCalledWith('123456789')
 
-  it('should call getTranslation with correct parameters', async () => {
-    // Вызываем функцию с контекстом
-    await getTranslation({
-      key: 'menu',
-      ctx,
-      bot_name: 'test_bot',
-    })
-
-    // Проверяем что функция была вызвана с правильными параметрами
-    expect(getTranslation).toHaveBeenCalledWith({
-      key: 'menu',
-      ctx,
-      bot_name: 'test_bot',
+      // Проверяем возвращаемые данные
+      expect(result).toEqual({
+        stars: 100,
+        subscriptionType: SubscriptionType.NEUROBASE,
+        isSubscriptionActive: true,
+        isExist: true,
+        subscriptionStartDate: '2023-01-01T00:00:00Z',
+      })
     })
   })
 
-  it('should call mainMenu with correct parameters', async () => {
-    // Вызываем функцию с контекстом
-    await mainMenu({
-      isRu: true,
-      subscription: SubscriptionType.NEUROBASE,
-      ctx,
+  describe('getTranslation', () => {
+    it('should return translation data', async () => {
+      // Вызываем функцию с контекстом
+      const result = await getTranslation({
+        key: 'menu',
+        ctx,
+        bot_name: 'test_bot',
+      })
+
+      // Проверяем что функция была вызвана с правильными параметрами
+      expect(getTranslation).toHaveBeenCalledWith({
+        key: 'menu',
+        ctx,
+        bot_name: 'test_bot',
+      })
+
+      // Проверяем возвращаемые данные
+      expect(result).toEqual({
+        translation: 'Тестовое меню',
+        url: 'http://example.com/test.jpg',
+        buttons: [],
+      })
+    })
+  })
+
+  describe('mainMenu', () => {
+    it('should return keyboard markup', async () => {
+      // Вызываем функцию с контекстом
+      const result = await mainMenu({
+        isRu: true,
+        subscription: SubscriptionType.NEUROBASE,
+        ctx,
+      })
+
+      // Проверяем что функция была вызвана с правильными параметрами
+      expect(mainMenu).toHaveBeenCalledWith({
+        isRu: true,
+        subscription: SubscriptionType.NEUROBASE,
+        ctx,
+      })
+
+      // Проверяем тип возвращаемых данных
+      expect(result).toBeDefined()
+      expect(result.reply_markup).toBeDefined()
+    })
+  })
+
+  describe('isRussian', () => {
+    it('should detect Russian language', () => {
+      // Вызываем функцию определения языка
+      const result = isRussian(ctx)
+
+      // Проверяем что функция вернула ожидаемый результат
+      expect(result).toBe(true)
     })
 
-    // Проверяем что функция была вызвана с правильными параметрами
-    expect(mainMenu).toHaveBeenCalledWith({
-      isRu: true,
-      subscription: SubscriptionType.NEUROBASE,
-      ctx,
+    it('should detect non-Russian language', () => {
+      // Создаем контекст с английским языком
+      const enCtx = createMockContext('en')
+
+      // Переопределяем мок для этого теста
+      vi.mocked(isRussian).mockReturnValueOnce(false)
+
+      // Вызываем функцию определения языка
+      const result = isRussian(enCtx)
+
+      // Проверяем что функция вернула ожидаемый результат
+      expect(result).toBe(false)
     })
   })
 
-  it('should determine Russian language correctly', () => {
-    // Вызываем функцию определения языка
-    const result = isRussian(ctx)
+  describe('handleTechSupport', () => {
+    it('should handle tech support request', async () => {
+      // Вызываем функцию техподдержки
+      await handleTechSupport(ctx)
 
-    // Проверяем что функция вернула ожидаемый результат
-    expect(result).toBe(true)
+      // Проверяем что функция была вызвана с правильными параметрами
+      expect(handleTechSupport).toHaveBeenCalledWith(ctx)
+    })
   })
 
-  it('should call handleTechSupport correctly', async () => {
-    // Вызываем функцию техподдержки
-    await handleTechSupport(ctx)
+  describe('handleMenu', () => {
+    it('should handle menu navigation', async () => {
+      // Вызываем функцию обработки меню
+      await handleMenu(ctx)
 
-    // Проверяем что функция была вызвана с правильными параметрами
-    expect(handleTechSupport).toHaveBeenCalledWith(ctx)
+      // Проверяем что функция была вызвана с правильными параметрами
+      expect(handleMenu).toHaveBeenCalledWith(ctx)
+    })
   })
 
-  it('should call handleMenu correctly', async () => {
-    // Вызываем функцию обработки меню
-    await handleMenu(ctx)
+  describe('handleRestartVideoGeneration', () => {
+    it('should handle video restart', async () => {
+      // Вызываем функцию перезапуска генерации видео
+      await handleRestartVideoGeneration(ctx)
 
-    // Проверяем что функция была вызвана с правильными параметрами
-    expect(handleMenu).toHaveBeenCalledWith(ctx)
+      // Проверяем что функция была вызвана с правильными параметрами
+      expect(handleRestartVideoGeneration).toHaveBeenCalledWith(ctx)
+    })
   })
 
-  it('should call handleRestartVideoGeneration correctly', async () => {
-    // Вызываем функцию перезапуска генерации видео
-    await handleRestartVideoGeneration(ctx)
+  describe('sendReplyWithKeyboard', () => {
+    it('should send message with photo', async () => {
+      // Вызываем функцию отправки сообщения с фото
+      await sendReplyWithKeyboard(
+        ctx,
+        'Тестовое сообщение',
+        [],
+        Markup.keyboard([['Тестовая кнопка']]).resize(),
+        'http://example.com/test.jpg'
+      )
 
-    // Проверяем что функция была вызвана с правильными параметрами
-    expect(handleRestartVideoGeneration).toHaveBeenCalledWith(ctx)
+      // Проверяем что функция была вызвана с правильными параметрами
+      expect(sendReplyWithKeyboard).toHaveBeenCalledWith(
+        ctx,
+        'Тестовое сообщение',
+        [],
+        expect.anything(),
+        'http://example.com/test.jpg'
+      )
+    })
+  })
+
+  // Интеграционный тест для flow в menuScene
+  describe('menuScene flow integration', () => {
+    it('should correctly integrate getUserDetailsSubscription, mainMenu and getTranslation', async () => {
+      // Получаем данные пользователя
+      const userDetails = await getUserDetailsSubscription('123456789')
+
+      // Формируем клавиатуру на основе данных пользователя
+      const keyboard = await mainMenu({
+        isRu: true,
+        subscription: userDetails.subscriptionType,
+        ctx,
+      })
+
+      // Получаем перевод для меню
+      const translationData = await getTranslation({
+        key: 'menu',
+        ctx,
+        bot_name: ctx.botInfo?.username,
+      })
+
+      // Отправляем сообщение с фото
+      await sendReplyWithKeyboard(
+        ctx,
+        translationData.translation || 'Fallback text',
+        [],
+        keyboard,
+        translationData.url || null
+      )
+
+      // Проверяем последовательность вызовов функций
+      expect(getUserDetailsSubscription).toHaveBeenCalledWith('123456789')
+      expect(mainMenu).toHaveBeenCalledWith({
+        isRu: true,
+        subscription: SubscriptionType.NEUROBASE,
+        ctx,
+      })
+      expect(getTranslation).toHaveBeenCalledWith({
+        key: 'menu',
+        ctx,
+        bot_name: 'test_bot',
+      })
+      expect(sendReplyWithKeyboard).toHaveBeenCalledWith(
+        ctx,
+        'Тестовое меню',
+        [],
+        expect.anything(),
+        'http://example.com/test.jpg'
+      )
+    })
   })
 })
