@@ -1,0 +1,21 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Test-Driven Development (TDD) Guidelines
+
+To ensure code quality, maintainability, and reduce regressions, we strive to follow Test-Driven Development principles:
+
+1.  **Write a Failing Test First:** Before writing any implementation code for a new feature or bug fix, write an automated test that describes the desired functionality and **fails** because the functionality doesn't exist yet. 🔴
+2.  **Write Minimal Code to Pass:** Write the simplest possible implementation code required to make the failing test pass. Do not add extra functionality beyond what the test requires. ✅
+3.  **Refactor:** Once the test passes, refactor the implementation code (and potentially the test code) to improve clarity, remove duplication, and ensure adherence to design principles, while ensuring all tests still pass. ♻️
+
+**Key Benefits:**
+
+*   **Confidence:** Tests act as a safety net, giving confidence when refactoring or adding new features.
+*   **Design:** Writing tests first encourages better, more testable code design.
+*   **Documentation:** Tests serve as executable documentation for how the code is intended to work.
+*   **Reduced Debugging:** Catches errors early in the development cycle.
+
+Adhering to TDD leads to a more robust and reliable codebase. 🙏
