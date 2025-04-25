@@ -1,3 +1,27 @@
+import { Context, Scenes } from 'telegraf'
+
+// Расширенный контекст для работы с Telegraf
+export interface MyContext extends Context {
+  session: {
+    cursor: number
+    images: string[]
+    __scenes: {
+      current?: string
+      state?: {
+        step: number
+        [key: string]: any
+      }
+      cursor: number
+    }
+    balance?: number
+    targetUserId?: string
+    [key: string]: any
+  }
+  scene: Scenes.SceneContext['scene']
+  [key: string]: any
+}
+
+// Другие общие интерфейсы проекта
 export * from './telegram-bot.interface'
 export * from './models.interface'
 export * from './payments.interface'

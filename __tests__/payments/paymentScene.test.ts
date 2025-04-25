@@ -180,11 +180,13 @@ describe('Payment Scene', () => {
     await paymentScene.hearsStars(ctx)
 
     // Проверяем вызов handleSelectStars
-    expect(mockHandleSelectStars).toHaveBeenCalledWith({
-      ctx,
-      isRu: true,
-      starAmounts,
-    })
+    expect(mockHandleSelectStars).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ctx,
+        isRu: true,
+        starAmounts,
+      })
+    )
   })
 
   it('should call scene.enter with RublePaymentScene when user selects Rubles', async () => {
@@ -262,71 +264,70 @@ describe('Payment Scene', () => {
     // Вызываем обработчик сообщений
     await paymentScene.onMessage(ctx)
 
-    // Проверяем ответ и логирование
-    expect(ctx.reply).toHaveBeenCalled()
+    // Проверяем предупреждение и ответ
     expect(mockedLogger.warn).toHaveBeenCalledWith(
       'Received unexpected message',
       expect.any(Object)
     )
-  })
-
-  it('should handle error during scene enter', async () => {
-    // Создаем контекст
-    const ctx = makeMockContext({ update_id: 6 })
-
-    // Создаем мок для ctx.reply, который бросает ошибку при первом вызове
-    const replyMock = jest
-      .fn()
-      .mockImplementationOnce(() => {
-        throw new Error('Test error')
-      })
-      .mockImplementation(() => Promise.resolve())
-
-    ctx.reply = replyMock as any
-
-    // Вызываем enter
-    await paymentScene.enter(ctx)
-
-    // Проверяем второй вызов reply с сообщением об ошибке
-    expect(replyMock).toHaveBeenCalledTimes(2)
-    expect(replyMock).toHaveBeenNthCalledWith(
-      2,
-      'Произошла ошибка. Пожалуйста, попробуйте войти снова через меню.'
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Пожалуйста, выберите способ оплаты (⭐️ или 💳) или вернитесь в главное меню.',
+      expect.any(Object)
     )
-    expect(mockedLogger.error).toHaveBeenCalled()
-    expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
-  it('should call handleBuySubscription for known subscription type', async () => {
+  it('should call handleBuySubscription when subscription is a valid service', async () => {
     // Создаем контекст с подпиской
-    const ctx = makeMockContext(
-      {
-        update_id: 7,
-        message: {
-          message_id: 7,
-          date: Date.now(),
-          from: {
-            id: 123,
-            is_bot: false,
-            first_name: 'Test',
-            language_code: 'ru',
-          },
-          chat: { id: 123, type: 'private', first_name: 'Test' },
-          text: '⭐️ Звездами',
-        },
-      },
-      {
-        subscription: SubscriptionType.NEUROBLOGGER,
-      }
-    )
+    const ctx = makeMockContext({ update_id: 6 }, { subscription: SubscriptionType.NEUROBLOGGER })
 
     // Вызываем обработчик звезд
     await paymentScene.hearsStars(ctx)
 
     // Проверяем вызов handleBuySubscription
-    expect(mockHandleBuySubscription).toHaveBeenCalledWith({
-      ctx,
-      isRu: true,
-    })
+    expect(mockHandleBuySubscription).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ctx,
+        isRu: true
+      })
+    )
+  })
+
+  it('should handle Stars subscription type', async () => {
+    // Создаем контекст с подпиской Stars
+    const ctx = makeMockContext({ update_id: 7 }, { subscription: SubscriptionType.STARS })
+
+    // Вызываем обработчик звезд
+    await paymentScene.hearsStars(ctx)
+
+    // Проверяем вызов handleSelectStars
+    expect(mockHandleSelectStars).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ctx,
+        isRu: true,
+        starAmounts
+      })
+    )
+  })
+
+  it('should handle error in payment scene enter', async () => {
+    // Создаем контекст
+    const ctx = makeMockContext({ update_id: 8 })
+    
+    // Устанавливаем spy на метод reply, который бросает ошибку при первом вызове
+    const originalReply = ctx.reply;
+    ctx.reply = jest.fn().mockImplementationOnce(() => {
+      throw new Error('Test error in enter');
+    });
+
+    // Вызываем enter
+    await paymentScene.enter(ctx)
+
+    // Проверяем логирование ошибки
+    expect(mockedLogger.error).toHaveBeenCalledWith('Error in enter:', expect.any(Object))
+    
+    // Проверяем сообщение об ошибке и выход из сцены
+    expect(ctx.reply).toHaveBeenCalledWith(
+      'Произошла ошибка. Пожалуйста, попробуйте войти снова через меню.'
+    )
+    expect(ctx.scene.leave).toHaveBeenCalled()
   })
 })

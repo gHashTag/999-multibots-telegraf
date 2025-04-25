@@ -15,37 +15,58 @@ describe('getUserLevel', () => {
       .fn()
       .mockResolvedValue({ data: null, error: { message: 'err' } })
     const selectMock = jest.fn().mockReturnValue({ single: mockSingle })
-    ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
+    const eqMock = jest.fn().mockReturnValue({ single: mockSingle })
+    const selectEqChain = { select: selectMock, eq: eqMock }
+    
+    ;(supabase.from as jest.Mock).mockReturnValue(selectEqChain)
+    selectMock.mockReturnValue({ eq: eqMock })
+    
     const consoleErrorSpy = jest
       .spyOn(console, 'error')
       .mockImplementation(() => {})
+    
     const result = await getUserLevel(telegram_id)
+    
     expect(result).toBeNull()
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       'Ошибка при получении уровня пользователя:',
       { message: 'err' }
     )
+    
     consoleErrorSpy.mockRestore()
   })
 
   it('returns level when data present', async () => {
-    const data = { level: 7 }
-    const mockSingle = jest.fn().mockResolvedValue({ data, error: null })
-    const selectMock = jest.fn().mockReturnValue({ single: mockSingle })
+    const mockData = { level: 7 }
+    const mockSingle = jest.fn().mockResolvedValue({ data: mockData, error: null })
+    const eqMock = jest.fn().mockReturnValue({ single: mockSingle })
+    const selectMock = jest.fn().mockReturnValue({ eq: eqMock })
+    
     ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
+    
     const result = await getUserLevel(telegram_id)
+    
+    expect(supabase.from).toHaveBeenCalledWith('users')
+    expect(selectMock).toHaveBeenCalledWith('level')
+    expect(eqMock).toHaveBeenCalledWith('telegram_id', telegram_id)
     expect(result).toBe(7)
   })
 
   it('returns null when data is null', async () => {
     const mockSingle = jest.fn().mockResolvedValue({ data: null, error: null })
-    const selectMock = jest.fn().mockReturnValue({ single: mockSingle })
+    const eqMock = jest.fn().mockReturnValue({ single: mockSingle })
+    const selectMock = jest.fn().mockReturnValue({ eq: eqMock })
+    
     ;(supabase.from as jest.Mock).mockReturnValue({ select: selectMock })
+    
     const consoleErrorSpy = jest
       .spyOn(console, 'error')
       .mockImplementation(() => {})
+    
     const result = await getUserLevel(telegram_id)
+    
     expect(result).toBeNull()
+    
     consoleErrorSpy.mockRestore()
   })
 
@@ -53,15 +74,19 @@ describe('getUserLevel', () => {
     ;(supabase.from as jest.Mock).mockImplementation(() => {
       throw new Error('boom')
     })
+    
     const consoleErrorSpy = jest
       .spyOn(console, 'error')
       .mockImplementation(() => {})
+    
     const result = await getUserLevel(telegram_id)
+    
     expect(result).toBeNull()
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       'Ошибка в функции getUserLevel:',
       expect.any(Error)
     )
+    
     consoleErrorSpy.mockRestore()
   })
 })

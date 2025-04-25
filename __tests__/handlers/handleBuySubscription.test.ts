@@ -1,20 +1,41 @@
 import makeMockContext from '../utils/mockTelegrafContext'
-
-import { handleBuySubscription } from '../../src/handlers/handleBuySubscription'
+import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { levels } from '@/menu/mainMenu'
+import { MyContext } from '@/interfaces'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 describe('handleBuySubscription', () => {
-  let ctx
+  let ctx: ReturnType<typeof makeMockContext>
+  
   beforeEach(() => {
     jest.clearAllMocks()
     ctx = makeMockContext()
-    ctx.session = { subscription: 'neurophoto' }
-    ctx.replyWithInvoice = jest.fn()
-    ctx.scene.leave = jest.fn()
+    
+    // Переопределяем методы для тестирования
+    ctx.replyWithInvoice = jest.fn(() => Promise.resolve()) as any
+    ctx.scene.leave = jest.fn(() => Promise.resolve()) as any
+    
+    // Устанавливаем минимальную сессию
+    ctx.session = { 
+      subscription: SubscriptionType.NEUROPHOTO,
+      cursor: 0,
+      images: [],
+      targetUserId: '12345',
+      userModel: {
+        name: 'Test Model',
+        url: 'test-url',
+        description: 'Test Description',
+        imageUrl: 'test-image-url'
+      }
+    } as any;
   })
 
   it('should send invoice for neurophoto subscription and leave scene', async () => {
-    await handleBuySubscription({ ctx, isRu: false })
+    await handleBuySubscription({ 
+      ctx: ctx as unknown as MyContext, 
+      isRu: false 
+    })
+    
     const amount = 476
     expect(ctx.replyWithInvoice).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -28,8 +49,14 @@ describe('handleBuySubscription', () => {
   })
 
   it('should default title and description when subscription type unknown', async () => {
-    ctx.session.subscription = 'unknown'
-    await handleBuySubscription({ ctx, isRu: true })
+    // Используем неизвестный тип
+    ctx.session.subscription = 'unknown' as any;
+    
+    await handleBuySubscription({ 
+      ctx: ctx as unknown as MyContext, 
+      isRu: true 
+    })
+    
     // amount undefined => payload amount_NaN, but title fallback is `${amount} ⭐️`, so title contains 'NaN ⭐️'
     expect(ctx.replyWithInvoice).toHaveBeenCalledWith(
       expect.objectContaining({

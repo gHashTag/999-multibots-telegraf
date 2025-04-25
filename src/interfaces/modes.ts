@@ -1,3 +1,6 @@
+/**
+ * Режимы работы бота
+ */
 export enum ModeEnum {
   Subscribe = 'subscribe',
   DigitalAvatarBody = 'digital_avatar_body',
@@ -50,6 +53,12 @@ export enum ModeEnum {
   RublePaymentScene = 'rublePaymentScene',
   StarPaymentScene = 'starPaymentScene',
   MenuScene = 'menuScene',
+  
+  /** Режим длительного опроса - боты регулярно проверяют наличие новых сообщений */
+  POLLING = 'polling',
+  
+  /** Режим веб-хуков - Telegram сервер отправляет обновления на указанный URL */
+  WEBHOOK = 'webhook',
 }
 
 // Определяем интерфейсы прямо здесь для предотвращения циклических зависимостей

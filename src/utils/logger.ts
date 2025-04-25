@@ -49,9 +49,36 @@ if (process.env.NODE_ENV !== 'test') {
 // Основной логгер приложения
 export const logger = createLogger({
   level: process.env.LOG_LEVEL || 'info',
-  format: commonFormat,
-  transports: baseTransports, // Используем сформированный массив транспортов
+  format: format.combine(
+    format.timestamp({
+      format: 'YYYY-MM-DD HH:mm:ss',
+    }),
+    format.errors({ stack: true }),
+    format.splat(),
+    format.json()
+  ),
+  defaultMeta: { service: 'neuroblogger-bot' },
+  transports: [
+    // Логи уровня 'error' и ниже отправляются в 'error.log'
+    new transports.File({ filename: path.join(logDir, 'error.log'), level: 'error' }),
+    // Все логи отправляются в 'combined.log'
+    new transports.File({ filename: path.join(logDir, 'combined.log') }),
+  ],
 })
+
+// Если мы не в production, то также выводим логи в консоль с форматированием
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(
+    new transports.Console({
+      format: format.combine(
+        format.colorize(),
+        format.printf(
+          (info) => `${info.timestamp} ${info.level}: ${info.message}`
+        )
+      ),
+    })
+  )
+}
 
 // Логгер для ботов с дополнительным контекстом имени бота
 export const botLogger = {

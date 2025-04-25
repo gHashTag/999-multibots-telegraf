@@ -84,14 +84,14 @@ describe('starPaymentScene', () => {
     const ctx = makeMockContext(
       {
         update_id: 3,
-        callback_query: {
+      callback_query: {
           id: '123',
           data: 'menu',
           chat_instance: '1',
-          from: {
+        from: {
             id: 123,
             first_name: 'Test',
-            is_bot: false,
+          is_bot: false,
           },
         },
       },

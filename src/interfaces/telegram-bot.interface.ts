@@ -13,8 +13,8 @@ import { Translation } from './translations.interface'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {
-  title_ru: string
-  title_en: string
+  ru: string;
+  en: string;
 }
 
 export interface SubscriptionButton {

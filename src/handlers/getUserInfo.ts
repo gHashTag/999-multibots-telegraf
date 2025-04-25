@@ -1,28 +1,28 @@
 import { MyContext } from '@/interfaces'
 
-export function getUserInfo(ctx: MyContext): {
-  userId: number
-  telegramId: string
-} {
-  const isRu = ctx.from?.language_code === 'ru'
-  const userId = ctx.from?.id
-  const telegramId = ctx.from?.id?.toString()
-
-  if (!userId) {
-    ctx.reply(
-      isRu
-        ? '❌ Ошибка идентификации пользователя'
-        : '❌ User identification error'
-    )
-    ctx.scene.leave()
-    return {
-      userId,
-      telegramId,
-    }
+/**
+ * Получение основной информации о пользователе из контекста
+ * @param ctx Контекст сообщения Telegram
+ * @returns Информация о пользователе (telegramId, chatId, username)
+ */
+export const getUserInfo = (ctx: MyContext) => {
+  if (!ctx.from) {
+    throw new Error('Cannot get user info: ctx.from is undefined')
   }
 
+  const telegramId = ctx.from.id
+  const chatId = ctx.chat?.id || telegramId
+  const username = ctx.from.username || 'unknown'
+  const firstName = ctx.from.first_name || ''
+  const lastName = ctx.from.last_name || ''
+  const fullName = [firstName, lastName].filter(Boolean).join(' ') || username
+
   return {
-    userId,
     telegramId,
+    chatId,
+    username,
+    firstName,
+    lastName,
+    fullName,
   }
 }

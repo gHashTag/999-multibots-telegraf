@@ -1,0 +1,61 @@
+
+> neuro-blogger-telegram-bot@0.0.1 predev /Users/playom/999-multibots-telegraf
+> pkill -f 'node.*src/bot.ts' || true && node scripts/kill-port.cjs 2999 3001 8288
+
+Checking port 2999...
+Successfully killed process on port 2999
+Checking port 3001...
+Successfully killed process on port 3001
+Checking port 8288...
+Successfully killed process on port 8288
+All ports checked
+
+> neuro-blogger-telegram-bot@0.0.1 dev /Users/playom/999-multibots-telegraf
+> nodemon src/bot.ts
+
+[33m[nodemon] 2.0.22[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): src/**/*[39m
+[33m[nodemon] watching extensions: ts,json[39m
+[32m[nodemon] starting `npx ts-node -r tsconfig-paths/register src/bot.ts src/bot.ts`[39m
+--- Debugging .env loading --- 
+[CONFIG] Current Working Directory: /Users/playom/999-multibots-telegraf
+[CONFIG] Attempting to load primary env file from: /Users/playom/999-multibots-telegraf/.env
+[CONFIG] Successfully loaded and parsed primary .env file from /Users/playom/999-multibots-telegraf/.env
+[CONFIG] isDev flag set to: true
+[CONFIG] NODE_ENV is set to: development
+--- End Debugging .env loading --- 
+[CONFIG] Parsed ADMIN_IDS_ARRAY: [ 144022504, 1254048880, 352374518, 1852726961 ]
+--- Bot Logic ---
+[BOT] Detected mode (via isDev): development
+[BOT] process.env.NODE_ENV: development
+--- End Bot Logic Check ---
+2025-04-23 16:01:24 [INFO]: 🤖 Инициализация defaultBot: {"description":"DefaultBot initialization","tokenLength":46}
+2025-04-23 16:01:24 [INFO]: 🤖 Инициализация бота: {"description":"Bot initialization","bot_name":"ai_koshey_bot","tokenLength":46}
+2025-04-23 16:01:24 [INFO]: 🤖 Инициализация бота: {"description":"Bot initialization","bot_name":"clip_maker_neuro_bot","tokenLength":46}
+2025-04-23 16:01:24 [INFO]: 🌟 Инициализировано ботов: {"description":"Bots initialized","count":2,"bot_names":["neuro_blogger_bot","MetaMuse_Manifest_bot","ZavaraBot","LeeSolarbot","NeuroLenaAssistant_bot","NeurostylistShtogrina_bot","Gaia_Kamskaia_bot","ai_koshey_bot","clip_maker_neuro_bot"]}
+2025-04-23 16:01:24 [INFO]: 🤖 Инициализация pulseBot: {"description":"PulseBot initialization","tokenLength":46}
+2025-04-23 16:01:26 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_2","normalizedMode":"neuro_photo_v2"}
+Environment check: { nodeEnv: 'development' }
+Payment variables check:
+MERCHANT_LOGIN: neuroblogger
+PASSWORD1: [PROTECTED]
+RESULT_URL2: https://999-multibots-telegraf-u14194.vm.elestio.app/payment-success
+2025-04-23 16:01:30 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_2","normalizedMode":"neuro_photo_v2"}
+🏁 Запуск приложения
+🔧 Режим работы: development
+📝 Загружен файл окружения: development
+🔄 [SCENE_DEBUG] Проверка импорта stage из registerCommands...
+✅ [SCENE_DEBUG] Stage импортирован успешно
+📊 [SCENE_DEBUG] Количество обработчиков сцен: 0
+🔧 Ищем тестового бота с username: clip_maker_neuro_bot
+✅ Найден бот clip_maker_neuro_bot
+🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...
+✅ [SCENE_DEBUG] Команды и middleware зарегистрированы
+🤖 Тестовый бот clip_maker_neuro_bot инициализирован
+🚀 Тестовый бот clip_maker_neuro_bot запущен в режиме разработки
+[Robokassa] Webhook server running on port 2999
+🔍 Инициализация сцен...
+📋 Регистрация сцены: payment_scene
+✅ Все сцены успешно зарегистрированы
+✅ Боты успешно запущены

@@ -7,6 +7,7 @@ import { getUserDetails } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
 import { setupErrorHandler } from './helpers/error/errorHandler'
+import { handlePriceCommand } from './handlers/handlePriceCommand'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -119,6 +120,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     await handleTechSupport(ctx)
   })
 
+  // Добавляем команду price
+  bot.command('price', handlePriceCommand)
+
   // Обработчики для текстовых кнопок главного меню
   bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
     console.log('CASE bot.hears: 💬 Техподдержка / Support')
@@ -146,6 +150,12 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     console.log('CASE bot.hears: 🤑 Баланс / Balance')
     ctx.session.mode = ModeEnum.Balance // Устанавливаем режим
     await ctx.scene.enter(ModeEnum.Balance) // Переходим в сцену баланса
+  })
+
+  // Добавляем обработчик для текстовых кнопок с ценами
+  bot.hears(['💰 Цены / Prices'], async ctx => {
+    console.log('CASE bot.hears: 💰 Цены / Prices')
+    await handlePriceCommand(ctx)
   })
 
   bot.command('menu', async ctx => {

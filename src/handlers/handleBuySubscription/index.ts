@@ -9,7 +9,7 @@ interface BuyParams {
 export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
   try {
     const subscriptionTitles = {
-      neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
+      neurophoto: isRu ? levels[2].ru : levels[2].en,
       neurobase: isRu ? '📚 НейроБаза' : '📚 NeuroBase',
       neuromeeting: isRu ? '🧠 НейроВстреча' : '🧠 NeuroMeeting',
       neuroblogger: isRu ? '🤖 НейроБлогер' : '🤖 NeuroBlogger',
@@ -53,7 +53,7 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
       title,
       description,
       payload: `${amount}_${Date.now()}`,
-      currency: 'XTR', // Pass “XTR” for payments in Telegram Stars.
+      currency: 'XTR', // Pass "XTR" for payments in Telegram Stars.
       prices: [
         {
           label: isRu ? 'Цена' : 'Price',

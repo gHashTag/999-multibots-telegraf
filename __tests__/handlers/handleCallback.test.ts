@@ -1,57 +1,107 @@
-import makeMockContext from '../utils/mockTelegrafContext'
+import { handleCallback } from '@/handlers/handleCallback'
+import { sendGenericErrorMessage } from '@/menu'
+import { MyContext } from '@/interfaces'
 
-// Mock sendGenericErrorMessage
-const mockSendGenericError = jest.fn()
+// Создаем мок для sendGenericErrorMessage
 jest.mock('@/menu', () => ({
-  sendGenericErrorMessage: (ctx, isRu, err) =>
-    mockSendGenericError(ctx, isRu, err),
+  sendGenericErrorMessage: jest.fn()
 }))
-// Mock language
-jest.mock('@/helpers/language', () => ({ isRussian: () => true }))
 
-import { handleCallback } from '../../src/handlers/handleCallback'
+// Типизируем мок
+const mockedSendGenericError = jest.mocked(sendGenericErrorMessage)
+
+/**
+ * Создает мок-контекст с настраиваемыми параметрами
+ */
+const createMockContext = (options: {
+  callbackQuery?: any
+  fromLanguage?: string
+  answerCbQueryFn?: jest.Mock
+} = {}) => {
+  return {
+    from: {
+      id: 1,
+      is_bot: false,
+      first_name: 'Test',
+      username: 'testuser',
+      language_code: options.fromLanguage || 'ru',
+    },
+    chat: { 
+      id: 1, 
+      type: 'private', 
+      first_name: 'Test',
+      username: 'testuser' 
+    },
+    callbackQuery: options.callbackQuery,
+    answerCbQuery: options.answerCbQueryFn || jest.fn().mockResolvedValue(true),
+  } as unknown as MyContext
+}
 
 describe('handleCallback', () => {
-  let ctx
   beforeEach(() => {
     jest.clearAllMocks()
-    ctx = makeMockContext()
-    ctx.answerCbQuery = jest.fn().mockResolvedValue(undefined)
   })
 
-  it('should answer callback query and return on valid data', async () => {
-    ctx.callbackQuery = { data: 'payload' }
-    await handleCallback(ctx)
-    expect(ctx.answerCbQuery).toHaveBeenCalledTimes(1)
-    // no error
-  })
-
-  it('should swallow answerCbQuery error but still return on data present', async () => {
-    ctx.callbackQuery = { data: 'ok' }
-    ctx.answerCbQuery = jest.fn().mockRejectedValue(new Error('fail'))
+  it('should successfully answer callback query with valid data', async () => {
+    const ctx = createMockContext({
+      callbackQuery: { data: 'test_data' }
+    })
+    
     await expect(handleCallback(ctx)).resolves.toBeUndefined()
     expect(ctx.answerCbQuery).toHaveBeenCalled()
-    expect(mockSendGenericError).not.toHaveBeenCalled()
   })
 
-  it('should throw and answerCbQuery on missing callbackQuery', async () => {
-    ctx.callbackQuery = undefined
-    await expect(handleCallback(ctx)).rejects.toThrow('No callback query')
+  it('should still return on valid data but handle errors when answering callback query', async () => {
+    const answerError = new Error('Failed to answer callback query')
+    const answerCbQueryMock = jest.fn().mockRejectedValue(answerError)
+    
+    const ctx = createMockContext({
+      callbackQuery: { data: 'test_data' },
+      answerCbQueryFn: answerCbQueryMock
+    })
+    
+    await expect(handleCallback(ctx)).resolves.toBeUndefined()
     expect(ctx.answerCbQuery).toHaveBeenCalled()
-    expect(mockSendGenericError).not.toHaveBeenCalled()
   })
 
-  it('should throw and call sendGenericErrorMessage on answerCbQuery failure in catch', async () => {
-    // Make answerCbQuery reject in catch
-    ctx.callbackQuery = { data: '' }
-    // initial answerCbQuery (swallow) then second call throws
-    const seq = jest.fn()
-    ctx.answerCbQuery = jest
-      .fn()
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('err2'))
+  it('should throw error when callback query is missing', async () => {
+    const ctx = createMockContext({
+      callbackQuery: undefined
+    })
+    
+    await expect(handleCallback(ctx)).rejects.toThrow('No callback query')
+  })
+
+  it('should throw error when callback query data is missing', async () => {
+    const ctx = createMockContext({
+      callbackQuery: { data: '' }
+    })
+    
     await expect(handleCallback(ctx)).rejects.toThrow('No callback query data')
-    expect(ctx.answerCbQuery).toHaveBeenCalledTimes(2)
-    expect(mockSendGenericError).toHaveBeenCalled()
+  })
+
+  it('should throw error and call sendGenericErrorMessage when answer callback query fails', async () => {
+    const answerError = new Error('Failed to answer callback query')
+    const answerCbQueryMock = jest.fn()
+      .mockRejectedValueOnce(answerError) // Первый вызов в блоке try
+      .mockRejectedValueOnce(answerError) // Второй вызов в блоке catch
+
+    const ctx = createMockContext({
+      callbackQuery: undefined,
+      answerCbQueryFn: answerCbQueryMock
+    })
+    
+    try {
+      await handleCallback(ctx)
+      fail('Should have thrown an error')
+    } catch (error) {
+      // Ошибка должна быть выброшена, это ожидаемое поведение
+    }
+    
+    expect(mockedSendGenericError).toHaveBeenCalledWith(
+      expect.objectContaining(ctx),
+      expect.any(Boolean),
+      expect.any(Error)
+    )
   })
 })

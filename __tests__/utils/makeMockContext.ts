@@ -1,153 +1,218 @@
-import { Context, Scenes } from 'telegraf'
-import { Update } from 'telegraf/types'
-import { MyContext, MySession } from '@/interfaces' // Предполагаем интерфейсы
-import { defaultSession } from '@/store' // Импортируем defaultSession
+/**
+ * Утилита для создания моков контекста Telegraf
+ * для тестирования сцен и обработчиков
+ */
+
+import { Context } from 'telegraf'
+import {
+  Update,
+  Message,
+  User,
+  Chat,
+  CallbackQuery,
+  PreCheckoutQuery,
+  InlineQuery,
+} from 'telegraf/types'
+import { MyContext, MySession } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
+
+// Тип для дебаг-ответов
+type DebugReply = {
+  message?: any
+  type?: string
+  url?: any
+  caption?: string
+  extra?: any
+}
+
+// Добавляем расширение интерфейса для дебага
+export interface DebugExtension {
+  debug: {
+    currentScene: string
+    replies: DebugReply[]
+    replyMessages: () => Array<any>
+  }
+}
 
 /**
- * Создает мок-объект контекста Telegraf для тестов.
- * @param update Частичный объект Update для имитации входящего сообщения/коллбека
- * @param sessionData Начальные данные сессии
- * @param sceneState Начальное состояние сцены
+ * Создает базовый мок-контекст Telegraf для тестирования
  */
-export const makeMockContext = (
-  update: Partial<Update> = { update_id: 1 },
-  sessionData: Partial<MySession> = {},
-  sceneState: { step: number } & Record<string, any> = { step: 0 } // Keep for WizardScenes if needed
-): MyContext => {
-  const baseSession: MySession & { __scenes?: Scenes.WizardSessionData } = {
-    ...defaultSession,
+export function makeMockContext(
+  update: Partial<Update> & {
+    message?: Partial<Message.TextMessage>
+    callback_query?: Partial<CallbackQuery>
+    inline_query?: Partial<InlineQuery>
+    pre_checkout_query?: Partial<PreCheckoutQuery>
+  } = {},
+  sessionData: Partial<MySession> = {}
+): MyContext & DebugExtension {
+  const mockTelegram = {
+    token: 'mock_token',
+    callApi: jest.fn().mockResolvedValue({ ok: true }),
+    sendMessage: jest.fn().mockResolvedValue({}),
+    sendChatAction: jest.fn().mockResolvedValue({}),
+    getFileLink: jest.fn().mockResolvedValue({ href: 'http://example.com/file' }),
+    getFile: jest.fn().mockResolvedValue({ file_id: 'test-file-id', file_path: 'path/to/file', file_size: 1000 }),
+  }
+
+  const debug = {
+    currentScene: '',
+    replies: [] as DebugReply[],
+    replyMessages: () =>
+      debug.replies.map(reply => reply.message).filter(Boolean),
+  }
+
+  const defaultFrom: User = {
+    id: 1,
+    is_bot: false,
+    first_name: 'Test',
+    username: 'testuser',
+    language_code: 'ru',
+  }
+  const defaultChat: Chat.PrivateChat = {
+    id: 1,
+    type: 'private',
+    first_name: 'Test',
+    username: 'testuser',
+  }
+
+  const messageUpdate =
+    'message' in update && update.message
+      ? ({
+          message_id: 1,
+          date: Date.now() / 1000,
+          chat: update.message.chat ?? defaultChat,
+          from: update.message.from ?? defaultFrom,
+          text: 'test message',
+          ...update.message,
+        } as Message.TextMessage)
+      : undefined
+
+  const fullUpdate: Update = {
+    update_id: update.update_id ?? 1,
+    ...(messageUpdate && { message: messageUpdate }),
+    ...('callback_query' in update &&
+      update.callback_query && {
+        callback_query: update.callback_query as CallbackQuery,
+      }),
+    ...('inline_query' in update &&
+      update.inline_query && {
+        inline_query: update.inline_query as InlineQuery,
+      }),
+    ...('pre_checkout_query' in update &&
+      update.pre_checkout_query && {
+        pre_checkout_query: update.pre_checkout_query as PreCheckoutQuery,
+      }),
+  }
+
+  let from: User | undefined = undefined
+  let chat: Chat | undefined = undefined
+  let message: Message.TextMessage | undefined = undefined
+  let callbackQuery: CallbackQuery | undefined = undefined
+
+  if ('message' in fullUpdate && fullUpdate.message) {
+    message = fullUpdate.message as Message.TextMessage
+    from = message.from
+    chat = message.chat
+  } else if ('callback_query' in fullUpdate && fullUpdate.callback_query) {
+    callbackQuery = fullUpdate.callback_query
+    from = callbackQuery.from
+    if (callbackQuery.message) {
+      chat = callbackQuery.message.chat
+    }
+  }
+
+  from = from ?? defaultFrom
+  chat = chat ?? defaultChat
+
+  // Базовая сессия, необходимая для большинства тестов
+  const defaultSession: Partial<MySession> = {
+    cursor: 0,
+    images: [],
     __scenes: {
-      // Include scene session structure for compatibility, even for BaseScene
-      current: '', // BaseScene might still use this?
-      state: sceneState, // Keep state, might be used generically
-      cursor: 0, // Keep cursor
+      current: '',
+      state: { step: 0 },
+      cursor: 0
     },
-    ...sessionData,
+    balance: 500,
+    targetUserId: '1',
+    subscription: null,
+    mode: ModeEnum.MainMenu,
   }
 
-  const mockScene: Partial<
-    Scenes.SceneContextScene<MyContext, Scenes.WizardSessionData>
-  > = {
-    enter: jest.fn(),
-    leave: jest.fn(),
-    reenter: jest.fn(),
-    session: baseSession.__scenes, // Use the scenes part of the session
-    state: sceneState,
+  // Объединяем базовую сессию с переданными данными сессии
+  const session = {
+    ...defaultSession,
+    ...sessionData
   }
 
-  const partialCtx: Partial<MyContext> = {}
+  // Создаем mocked context объект
+  const ctx = {
+    update: fullUpdate,
+    from: from,
+    chat: chat,
+    session: session,
+    telegram: mockTelegram,
+    scene: {
+      enter: jest.fn().mockResolvedValue({}),
+      leave: jest.fn().mockResolvedValue({}),
+      reenter: jest.fn().mockResolvedValue({}),
+      session: { state: { step: 0 } }
+    },
+    debug,
+    reply: jest.fn().mockResolvedValue({}),
+    replyWithPhoto: jest.fn().mockResolvedValue({}),
+    replyWithInvoice: jest.fn().mockResolvedValue({}),
+    answerCbQuery: jest.fn().mockResolvedValue({}),
+    answerPreCheckoutQuery: jest.fn().mockResolvedValue({}),
+    match: jest.fn(),
+    message: message,
+    callback_query: callbackQuery,
+  } as unknown as MyContext & DebugExtension
 
-  const mockWizard: Partial<Scenes.WizardContextWizard<MyContext>> = {
+  // Добавляем wizard с self-reference на ctx
+  const wizardState = { step: 0 };
+  const wizard = {
     next: jest.fn(),
     back: jest.fn(),
-    state: sceneState, // Use sceneState here too for consistency
     cursor: 0,
-    step: jest.fn(), // Correct mock: should be a simple jest.fn(), not returning number
+    steps: [],
+    step: jest.fn(),
     selectStep: jest.fn(),
-  }
+  };
+  
+  // Создаем свойства через Object.defineProperty для wizard
+  Object.defineProperty(wizard, 'ctx', {
+    get: () => ctx,
+    configurable: true
+  });
+  
+  Object.defineProperty(wizard, 'state', {
+    get: () => wizardState,
+    set: (val) => Object.assign(wizardState, val),
+    configurable: true
+  });
+  
+  // Присваиваем wizard к контексту
+  ctx.wizard = wizard as any;
 
-  // @ts-ignore - Assign scene first
-  mockScene.ctx = partialCtx as MyContext
-  // @ts-ignore - Assign wizard
-  mockWizard.ctx = partialCtx as MyContext
+  return ctx
+}
 
-  // --- Try to make the context more complete for Telegraf ---
-  const fromUser = (update as any).message?.from ||
-    (update as any).callback_query?.from || {
-      id: 123,
-      is_bot: false,
-      first_name: 'MockUser',
-    }
-  const chat = (update as any).message?.chat ||
-    (update as any).callback_query?.message?.chat || {
-      id: 456,
-      type: 'private',
-      first_name: 'MockChat',
-    }
-  const message =
-    (update as any).message || (update as any).callback_query?.message
-
-  Object.assign(partialCtx, {
-    update: update as Update,
-    // Basic Telegraf context properties
-    message: message,
-    callback_query: (update as any).callback_query,
-    from: fromUser,
-    chat: chat,
-    // Common methods
-    reply: jest.fn(),
-    replyWithPhoto: jest.fn(),
-    replyWithDocument: jest.fn(),
-    replyWithMarkdown: jest.fn(),
-    replyWithHTML: jest.fn(),
-    editMessageText: jest.fn(),
-    editMessageReplyMarkup: jest.fn(),
-    deleteMessage: jest.fn(),
-    answerCbQuery: jest.fn(),
-    answerPreCheckoutQuery: jest.fn(), // For payments
-    // Scene and session
-    scene: mockScene as Scenes.SceneContextScene<
-      MyContext,
-      Scenes.WizardSessionData
-    >,
-    session: baseSession,
-    // Wizard context (might not be needed for BaseScene, but keep for compatibility)
-    wizard: mockWizard as Scenes.WizardContextWizard<MyContext>,
-    // Other potentially useful properties
-    match: null, // Initialize match
-    state: {}, // General purpose state
-    botInfo: {
-      id: 42,
-      is_bot: true,
-      first_name: 'Test Bot',
-      username: 'TestBot',
-    },
-    // i18n
-    i18n: {
-      t: (key: string) => key, // Simple mock
-      locale: (lang?: string) => fromUser?.language_code || 'ru',
-    },
-    // Ensure tg and telegram objects exist with common methods
-    tg: {
-      sendMessage: jest.fn(),
-      answerCbQuery: jest.fn(),
-      editMessageText: jest.fn(),
-      deleteMessage: jest.fn(),
-      sendPhoto: jest.fn(),
-      sendDocument: jest.fn(),
-      sendInvoice: jest.fn(),
-      answerPreCheckoutQuery: jest.fn(),
-      getMe: jest.fn().mockResolvedValue({
-        id: 42,
-        is_bot: true,
-        first_name: 'Test Bot',
-        username: 'TestBot',
-      }),
-      getFile: jest.fn(),
-      getFileLink: jest.fn(),
-    },
-    telegram: {
-      // Duplicate for compatibility if needed
-      sendMessage: jest.fn(),
-      answerCbQuery: jest.fn(),
-      editMessageText: jest.fn(),
-      deleteMessage: jest.fn(),
-      sendPhoto: jest.fn(),
-      sendDocument: jest.fn(),
-      sendInvoice: jest.fn(),
-      answerPreCheckoutQuery: jest.fn(),
-      getMe: jest.fn().mockResolvedValue({
-        id: 42,
-        is_bot: true,
-        first_name: 'Test Bot',
-        username: 'TestBot',
-      }),
-      getFile: jest.fn(),
-      getFileLink: jest.fn(),
-    },
-  })
-
-  return partialCtx as MyContext
+/**
+ * Создает мок-контекст специально для wizard-сцен
+ */
+export function makeWizardMockContext(
+  update: Partial<Update> = {},
+  sessionData: Partial<MySession> = {},
+  wizardState: Record<string, any> = { step: 0 }
+): MyContext & DebugExtension {
+  const ctx = makeMockContext(update, sessionData)
+  
+  // Обновляем state в wizard через setter
+  Object.assign(ctx.wizard.state, wizardState)
+  
+  return ctx
 }
 
 export default makeMockContext

@@ -1,216 +1,170 @@
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 import { checkFullAccess } from '../handlers/checkFullAccess'
 import { Markup } from 'telegraf'
-import { MyContext } from '../interfaces/telegram-bot.interface'
-import { SubscriptionType } from '../interfaces/subscription.interface'
+import { MyContext, SubscriptionType } from '@/interfaces'
 
 interface Level {
-  title_ru: string
-  title_en: string
+  ru: string
+  en: string
 }
 
-export const levels: Record<number, Level> = {
-  // digital_avatar_body
+// Уровни доступные пользователям
+export const LEVELS: Record<number, Level> = {
   1: {
-    title_ru: '🤖 Цифровое тело',
-    title_en: '🤖 Digital Body',
+    ru: '1️⃣ Первый уровень - Фотогенерация',
+    en: '1️⃣ Level 1 - Photo Generation',
   },
-  // neuro_photo
   2: {
-    title_ru: '📸 Нейрофото',
-    title_en: '📸 NeuroPhoto',
+    ru: '2️⃣ Второй уровень - Нейростили',
+    en: '2️⃣ Level 2 - Neurostyles',
   },
-  // image_to_prompt
   3: {
-    title_ru: '🔍 Промпт из фото',
-    title_en: '🔍 Prompt from Photo',
+    ru: '3️⃣ Третий уровень - Художественная галерея',
+    en: '3️⃣ Level 3 - Art Gallery',
   },
-  // avatar
   4: {
-    title_ru: '🧠 Мозг аватара',
-    title_en: '🧠 Avatar Brain',
+    ru: '4️⃣ Четвертый уровень - Видеогенерация',
+    en: '4️⃣ Level 4 - Video Generation',
   },
-  // chat_with_avatar
   5: {
-    title_ru: '💭 Чат с аватаром',
-    title_en: '💭 Chat with avatar',
+    ru: '5️⃣ Пятый уровень - NeuroBlogger',
+    en: '5️⃣ Level 5 - NeuroBlogger',
   },
-  // select_model
   6: {
-    title_ru: '🤖 Выбор модели ИИ',
-    title_en: '🤖 Choose AI Model',
+    ru: '6️⃣ Шестой уровень - Аватар',
+    en: '6️⃣ Level 6 - Avatar',
   },
-  // voice
   7: {
-    title_ru: '🎤 Голос аватара',
-    title_en: '🎤 Avatar Voice',
+    ru: '7️⃣ Седьмой уровень - ChatGPT 4o',
+    en: '7️⃣ Level 7 - ChatGPT 4o',
   },
-  // text_to_speech
   8: {
-    title_ru: '🎙️ Текст в голос',
-    title_en: '🎙️ Text to Voice',
+    ru: '8️⃣ Восьмой уровень - Claude 3',
+    en: '8️⃣ Level 8 - Claude 3',
   },
-  // image_to_video
   9: {
-    title_ru: '🎥 Фото в видео',
-    title_en: '🎥 Photo to Video',
+    ru: '9️⃣ Девятый уровень - LLM-микс',
+    en: '9️⃣ Level 9 - LLM-mix',
   },
-  // text_to_video
   10: {
-    title_ru: '🎥 Видео из текста',
-    title_en: '🎥 Text to Video',
+    ru: '🔟 Десятый уровень - Личные ассистенты',
+    en: '🔟 Level 10 - Personal assistants',
   },
-  // text_to_image
-  11: {
-    title_ru: '🖼️ Текст в фото',
-    title_en: '🖼️ Text to Image',
-  },
-  // lip_sync
-  // 12: {
-  //   title_ru: '🎤 Синхронизация губ',
-  //   title_en: '🎤 Lip Sync',
-  // },
-  // 13: {
-  //   title_ru: '🎥 Видео в URL',
-  //   title_en: '🎥 Video in URL',
-  // },
-  // step0
-  // paymentScene
+}
+
+// Текстовые кнопки меню с переводами
+export const levels = {
+  ...LEVELS,
+  // Существующие специальные кнопки
   100: {
     title_ru: '💎 Пополнить баланс',
     title_en: '💎 Top up balance',
   },
-  // balanceCommand
   101: {
     title_ru: '🤑 Баланс',
     title_en: '🤑 Balance',
   },
-  // inviteCommand
-  102: {
-    title_ru: '👥 Пригласить друга',
-    title_en: '👥 Invite a friend',
-  },
-  // helpCommand
   103: {
     title_ru: '💬 Техподдержка',
     title_en: '💬 Support',
-  },
-  104: {
-    title_ru: '🏠 Главное меню',
-    title_en: '🏠 Main menu',
   },
   105: {
     title_ru: '💫 Оформить подписку',
     title_en: '💫 Subscribe',
   },
+  // Новая кнопка для цен
+  106: {
+    title_ru: '💰 Цены',
+    title_en: '💰 Prices',
+  },
 }
 
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
 
-export async function mainMenu({
-  isRu,
-  inviteCount,
-  subscription = SubscriptionType.STARS,
-  level,
-  ctx,
-}: {
+// Определение типа для параметров
+interface MainMenuParams {
   isRu: boolean
   inviteCount: number
-  subscription: SubscriptionType
+  subscription: SubscriptionType | null
   level: number
   ctx: MyContext
-}): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
+}
+
+/**
+ * Создает клавиатуру главного меню в зависимости от параметров пользователя
+ */
+export const mainMenu = async ({
+  isRu,
+  inviteCount,
+  subscription,
+  level,
+  ctx,
+}: MainMenuParams): Promise<Markup.Markup<ReplyKeyboardMarkup>> => {
   console.log('💻 CASE: mainMenu')
   let hasFullAccess = checkFullAccess(subscription)
 
-  // Определяем доступные уровни в зависимости от подписки
-  const subscriptionLevelsMap = {
-    stars: [],
-    neurophoto: [
-      levels[1],
-      levels[2],
-      levels[3],
-      // Убираем добавление кнопок баланса/пополнения/приглашения отсюда
-      // levels[100],
-      // levels[101],
-      // levels[102],
-    ],
-    neurobase: Object.values(levels).slice(1),
-    neuromeeting: Object.values(levels).slice(1),
-    neuroblogger: Object.values(levels).slice(1),
-    neurotester: Object.values(levels),
+  // Доступные уровни в зависимости от подписки
+  const availableLevels: Record<string, number[]> = {
+    [SubscriptionType.NEUROPHOTO]: [1, 2, 3],
+    [SubscriptionType.NEUROBASE]: [1, 2, 3, 4],
+    [SubscriptionType.NEUROTESTER]: [1, 2, 3, 4, 5],
+    [SubscriptionType.NEUROBLOGGER]: [1, 2, 3, 4, 5],
+    [SubscriptionType.STARS]: [1]
   }
 
-  let availableLevels: Level[] = subscriptionLevelsMap[subscription] || []
+  // Получаем доступные уровни
+  const levelsArray =
+    subscription && subscription in availableLevels
+      ? availableLevels[subscription]
+      : [1]
 
-  // Если подписка neurotester или neurobase, предоставляем полный доступ
-  if (
-    subscription === SubscriptionType.NEUROTESTER ||
-    subscription === SubscriptionType.NEUROBASE
-  ) {
-    hasFullAccess = true
-    availableLevels = Object.values(levels).filter(
-      l =>
-        l !== levels[100] &&
-        l !== levels[101] &&
-        l !== levels[102] &&
-        l !== levels[103] &&
-        l !== levels[104] &&
-        l !== levels[105]
-    ) // Исключаем служебные
-  } else if (subscription === SubscriptionType.STARS) {
-    availableLevels = availableLevels.concat(
-      Object.values(levels).slice(0, inviteCount + 1)
-    )
+  // Фильтруем отключенные уровни если они есть
+  const buttonsText = Object.entries(LEVELS)
+    .filter(([key]) => levelsArray.includes(parseInt(key)))
+    .map(([, value]) => (isRu ? value.ru : value.en))
+
+  // Добавляем кнопки в зависимости от языка
+  const profileText = isRu ? '👤 Профиль' : '👤 Profile'
+  const balanceText = isRu ? levels[101].title_ru : levels[101].title_en
+  const supportText = isRu ? levels[103].title_ru : levels[103].title_en
+  const questText = isRu ? '🎮 Квест' : '🎮 Quest'
+  const subscribeText = isRu ? levels[105].title_ru : levels[105].title_en
+  const chatText = isRu ? '🗣 Общение с аватаром' : '🗣 Chat with Avatar'
+  const pricesText = isRu ? levels[106].title_ru : levels[106].title_en
+
+  // Формируем строки клавиатуры (по 2 кнопки в ряд, кроме последней строки)
+  const keyboard: string[][] = []
+  
+  // Если есть права на создание аватара то добавляем кнопку для него
+  if (subscription && 
+    [SubscriptionType.NEUROBASE, SubscriptionType.NEUROTESTER, SubscriptionType.NEUROBLOGGER].includes(subscription)) {
+    keyboard.push([chatText])
   }
 
-  // Удаляем дубликаты уровней
-  availableLevels = Array.from(new Set(availableLevels))
-
-  // Фильтруем уровни, чтобы показывать только текущий уровень, кроме neurotester и neurobase
-  if (
-    subscription !== SubscriptionType.NEUROTESTER &&
-    subscription !== SubscriptionType.NEUROBASE
-  ) {
-    availableLevels = availableLevels.filter((_, index) => index <= level)
+  // Добавляем уровни по два в ряд
+  for (let i = 0; i < buttonsText.length; i += 2) {
+    const row = []
+    row.push(buttonsText[i])
+    if (i + 1 < buttonsText.length) {
+      row.push(buttonsText[i + 1])
+    }
+    keyboard.push(row)
   }
 
-  const buttons = availableLevels.map(level =>
-    Markup.button.text(isRu ? level.title_ru : level.title_en)
-  )
+  // Добавляем дополнительные кнопки в меню
+  keyboard.push([profileText, balanceText])
+  keyboard.push([questText, supportText])
+  keyboard.push([subscribeText, pricesText]) // Добавляем кнопку цен рядом с подпиской
 
   const userId = ctx.from?.id?.toString()
 
   if (userId && adminIds.includes(userId)) {
     // Изменяем добавление кнопки для админа
-    buttons.push(
-      Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
-      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
-    )
+    keyboard.push([
+      isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2',
+      isRu ? '📸 Нейрофото 2' : '📸 NeuroPhoto 2'
+    ])
   }
 
-  const buttonRows = []
-  for (let i = 0; i < buttons.length; i += 2) {
-    buttonRows.push(buttons.slice(i, i + 2))
-  }
-
-  // Всегда добавляем кнопки баланса, пополнения и подписки
-  const balanceButtonText = isRu ? levels[101].title_ru : levels[101].title_en
-  const topUpButtonText = isRu ? levels[100].title_ru : levels[100].title_en
-  const subscriptionButtonText = isRu
-    ? levels[105].title_ru
-    : levels[105].title_en
-  const supportButtonText = isRu ? levels[103].title_ru : levels[103].title_en // Добавили кнопку техподдержки
-
-  // Добавляем кнопки управления в последние ряды
-  buttonRows.push([
-    Markup.button.text(balanceButtonText),
-    Markup.button.text(topUpButtonText),
-  ])
-  buttonRows.push([
-    Markup.button.text(subscriptionButtonText),
-    Markup.button.text(supportButtonText), // Добавили кнопку техподдержки
-  ])
-
-  return Markup.keyboard(buttonRows).resize()
+  return Markup.keyboard(keyboard).resize()
 }

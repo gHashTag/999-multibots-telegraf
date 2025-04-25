@@ -1,38 +1,48 @@
 /**
  * Tests for chatWithAvatarWizard
  */
-import { chatWithAvatarWizard } from '../../src/scenes/chatWithAvatarWizard'
+import { chatWithAvatarWizard } from '@/scenes/chatWithAvatarWizard'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { MyContext } from '@/interfaces'
-import { Composer } from 'telegraf'
 
 // Mock dependencies
-jest.mock('../../src/helpers/language', () => ({ isRussian: jest.fn() }))
-// jest.mock('../../src/menu/createHelpCancelKeyboard', () => ({ createHelpCancelKeyboard: jest.fn() }))
-jest.mock('../../src/handlers/handleHelpCancel', () => ({
+jest.mock('@/helpers/language', () => ({ isRussian: jest.fn() }))
+jest.mock('@/menu', () => ({
+  createHelpCancelKeyboard: jest.fn(() => ({ reply_markup: { foo: 'bar' } }))
+}))
+jest.mock('@/handlers', () => ({
   handleHelpCancel: jest.fn(),
 }))
-jest.mock('../../src/handlers/handleTextMessage', () => ({
+jest.mock('@/handlers/handleTextMessage', () => ({
   handleTextMessage: jest.fn(),
 }))
-jest.mock('../../src/core/supabase', () => ({
+jest.mock('@/core/supabase', () => ({
   getUserByTelegramId: jest.fn(),
   updateUserLevelPlusOne: jest.fn(),
 }))
 
-import { isRussian } from '../../src/helpers/language'
-// import { createHelpCancelKeyboard } from '../../src/menu/createHelpCancelKeyboard'
-import { handleHelpCancel } from '../../src/handlers/handleHelpCancel'
-import { handleTextMessage } from '../../src/handlers/handleTextMessage'
+// Import mocked modules after mocking
+import { isRussian } from '@/helpers/language'
+import { createHelpCancelKeyboard } from '@/menu'
+import { handleHelpCancel } from '@/handlers'
+import { handleTextMessage } from '@/handlers/handleTextMessage'
 import {
   getUserByTelegramId,
   updateUserLevelPlusOne,
-} from '../../src/core/supabase'
+} from '@/core/supabase'
 
 describe('chatWithAvatarWizard', () => {
   let ctx: MyContext
   let next: jest.Mock
-  const wizardMiddleware = chatWithAvatarWizard.middleware()
+  
+  // Мы должны получить шаги как функции из массива steps Scene
+  const wizardSteps = chatWithAvatarWizard.steps
+  const step0Handler = typeof wizardSteps[0] === 'function' 
+    ? wizardSteps[0] 
+    : jest.fn()
+  const step1Handler = typeof wizardSteps[1] === 'function' 
+    ? wizardSteps[1] 
+    : jest.fn()
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -41,25 +51,24 @@ describe('chatWithAvatarWizard', () => {
 
   it('step0: sends prompt and calls next()', async () => {
     ctx = makeMockContext({ update_id: 1 })
-    ;(isRussian as jest.Mock).mockReturnValue(true)
-    // Mock keyboard
-    // (createHelpCancelKeyboard as jest.Mock).mockReturnValue({ reply_markup: { foo: 'bar' } })
-
-    ctx.wizard.cursor = 0
-    await wizardMiddleware(ctx, next)
+    jest.mocked(isRussian).mockReturnValue(true)
+    
+    // Вызываем функцию шага напрямую
+    await step0Handler(ctx, next)
 
     expect(isRussian).toHaveBeenCalledWith(ctx)
     expect(ctx.reply).toHaveBeenCalledWith(
-      'Напиши мне сообщение 💭 и я отвечу на него'
-      // expect.objectContaining({ reply_markup: { foo: 'bar' } })
+      'Напиши мне сообщение 💭 и я отвечу на него',
+      expect.objectContaining({ reply_markup: { foo: 'bar' } })
     )
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
   it('step1: no message leaves scene', async () => {
     ctx = makeMockContext({ update_id: 2 })
-    ctx.wizard.cursor = 1
-    await wizardMiddleware(ctx, next)
+    // Не добавляем сообщение в контекст
+    
+    await step1Handler(ctx, next)
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 
@@ -74,9 +83,10 @@ describe('chatWithAvatarWizard', () => {
         message_id: 1,
       },
     })
-    ;(handleHelpCancel as jest.Mock).mockResolvedValue(true)
-    ctx.wizard.cursor = 1
-    await wizardMiddleware(ctx, next)
+    jest.mocked(handleHelpCancel).mockResolvedValue(true)
+    
+    await step1Handler(ctx, next)
+    
     expect(handleHelpCancel).toHaveBeenCalledWith(ctx)
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
@@ -92,13 +102,12 @@ describe('chatWithAvatarWizard', () => {
         message_id: 2,
       },
     })
-    ;(handleHelpCancel as jest.Mock).mockResolvedValue(false)
-    ;(getUserByTelegramId as jest.Mock).mockResolvedValue({
+    jest.mocked(handleHelpCancel).mockResolvedValue(false)
+    jest.mocked(getUserByTelegramId).mockResolvedValue({
       data: { level: 3 },
     })
 
-    ctx.wizard.cursor = 1
-    await wizardMiddleware(ctx, next)
+    await step1Handler(ctx, next)
 
     expect(handleTextMessage).toHaveBeenCalledWith(ctx)
     expect(updateUserLevelPlusOne).not.toHaveBeenCalled()
@@ -116,13 +125,12 @@ describe('chatWithAvatarWizard', () => {
         message_id: 3,
       },
     })
-    ;(handleHelpCancel as jest.Mock).mockResolvedValue(false)
-    ;(getUserByTelegramId as jest.Mock).mockResolvedValue({
+    jest.mocked(handleHelpCancel).mockResolvedValue(false)
+    jest.mocked(getUserByTelegramId).mockResolvedValue({
       data: { level: 4 },
     })
 
-    ctx.wizard.cursor = 1
-    await wizardMiddleware(ctx, next)
+    await step1Handler(ctx, next)
 
     expect(handleTextMessage).toHaveBeenCalledWith(ctx)
     expect(updateUserLevelPlusOne).toHaveBeenCalledWith(userId.toString(), 4)
@@ -140,11 +148,10 @@ describe('chatWithAvatarWizard', () => {
         message_id: 4,
       },
     })
-    ;(handleHelpCancel as jest.Mock).mockResolvedValue(false)
-    ;(getUserByTelegramId as jest.Mock).mockResolvedValue({ data: null })
+    jest.mocked(handleHelpCancel).mockResolvedValue(false)
+    jest.mocked(getUserByTelegramId).mockResolvedValue({ data: null })
 
-    ctx.wizard.cursor = 1
-    await expect(wizardMiddleware(ctx, next)).rejects.toThrow(
+    await expect(step1Handler(ctx, next)).rejects.toThrow(
       `User with ID ${userId} does not exist.`
     )
   })
