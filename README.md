@@ -135,7 +135,7 @@ SUPABASE_SERVICE_KEY=your-supabase-key
 
 ```bash
 # Запуск тестов
-npm test
+pnpm vitest run --coverage
 
 # Запуск тестов через Docker
 docker-compose -f docker-compose.test.yml up
@@ -225,16 +225,16 @@ docker-compose -f docker-compose.test.yml up
 - **Причина:** Функция `getUserBalance` на самом деле использует `supabase.rpc('get_user_balance', ...)` для получения данных, а не цепочку `from/select`.
 - **Решение:** Мокать нужно именно тот метод, который используется в тестируемом коде. В данном случае, мокать `supabase.rpc()`:
   ```typescript
-  jest.mock('@/core/supabase/client', () => ({
+  vi.mock('@/core/supabase/client', () => ({
     supabase: {
-      rpc: jest.fn<
+      rpc: vi.fn<
         (funcName: string, args: any) => Promise<{ data: any; error: any }>
       >(),
       // ... другие моки, если нужны ...
     },
   }))
   // ...
-  const mockedRpc = supabase.rpc as jest.MockedFunction<typeof supabase.rpc>
+  const mockedRpc = supabase.rpc as vi.MockedFunction<typeof supabase.rpc>
   // ...
   // В тесте:
   mockedRpc.mockResolvedValue({
@@ -246,7 +246,7 @@ docker-compose -f docker-compose.test.yml up
   })
   ```
 
-**3. Ошибка: `TS2352: Conversion of type '...' to type 'Mock<...>' may be a mistake...`**
+**3. Ошибка: `TS2352: Conversion of type '...' to type 'Mock<...>' may be a mistake...` (Vitest)**
 
 - **Проблема:** TypeScript не может сопоставить тип реальной функции с типом мока (`jest.Mock<...>`), особенно если возвращаемый тип сложный.
 - **Причина:** Неточное указание типа в `as jest.Mock<...>` или несоответствие сигнатуры мока и реальной функции.

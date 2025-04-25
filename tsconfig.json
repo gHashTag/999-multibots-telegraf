@@ -41,6 +41,7 @@
       "@/helpers/*": ["helpers/*"],
       "@/scripts/*": ["scripts/*"]
     },
+    "types": ["vitest/globals", "node"],
     "noImplicitAny": false,
     "noEmitOnError": false,
     "checkJs": false,
