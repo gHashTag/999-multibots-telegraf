@@ -50,8 +50,8 @@ export const BASE_COSTS: BaseCosts = {
   [ModeEnum.TextToImage]: 0.08,
   [ModeEnum.LipSync]: 0.9,
   [ModeEnum.VoiceToText]: 0.08,
-  [ModeEnum.DigitalAvatarBody]: 0.5,
-  [ModeEnum.DigitalAvatarBodyV2]: 0.7,
+  [ModeEnum.DigitalAvatarBody]: 0,
+  [ModeEnum.DigitalAvatarBodyV2]: 0,
 }
 
 export type CostValue = number | ((steps: number) => number)

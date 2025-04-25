@@ -15,6 +15,7 @@ import { handleMenu } from '@/handlers/handleMenu'
 import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
+import { handleTechSupport } from '@/commands/handleTechSupport'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -174,9 +175,54 @@ const menuNextStep = async (ctx: MyContext) => {
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
+    const isRu = isRussian(ctx)
     logger.info(`[menuNextStep] Text Message Received: ${text}`)
 
-    // *** НАЧАЛО ВСТАВКИ: Обработка кнопки "Сгенерировать новое видео?" ***
+    // --- НАЧАЛО: ОБРАБОТКА НАВИГАЦИОННЫХ КНОПОК ПЕРЕД handleMenu ---
+    if (text === (isRu ? levels[104].title_ru : levels[104].title_en)) {
+      logger.info(
+        `[menuNextStep] Handling 'Главное меню' button. Re-entering menuScene.`
+      )
+      // Перезапускаем текущую сцену (menuScene) для обновления
+      return ctx.scene.reenter()
+    } else if (text === (isRu ? levels[106].title_ru : levels[106].title_en)) {
+      logger.info(
+        `[menuNextStep] Handling 'Справка' button. Entering helpScene.`
+      )
+      ctx.session.mode = ModeEnum.MainMenu // Устанавливаем режим для контекста справки
+      return ctx.scene.enter(ModeEnum.Help)
+    } else if (text === (isRu ? levels[103].title_ru : levels[103].title_en)) {
+      logger.info(`[menuNextStep] Handling 'Техподдержка' button.`)
+      return handleTechSupport(ctx) // Вызываем обработчик техподдержки
+    } else if (text === (isRu ? levels[102].title_ru : levels[102].title_en)) {
+      logger.info(
+        `[menuNextStep] Handling 'Пригласить друга' button. Entering inviteScene.`
+      )
+      ctx.session.mode = ModeEnum.Invite
+      return ctx.scene.enter(ModeEnum.Invite)
+    } else if (text === (isRu ? levels[101].title_ru : levels[101].title_en)) {
+      logger.info(
+        `[menuNextStep] Handling 'Баланс' button. Entering balanceScene.`
+      )
+      ctx.session.mode = ModeEnum.Balance
+      return ctx.scene.enter(ModeEnum.Balance)
+    } else if (text === (isRu ? levels[100].title_ru : levels[100].title_en)) {
+      logger.info(
+        `[menuNextStep] Handling 'Пополнить баланс' button. Entering paymentScene.`
+      )
+      ctx.session.mode = ModeEnum.PaymentScene
+      ctx.session.subscription = SubscriptionType.STARS // Маркер пополнения
+      return ctx.scene.enter(ModeEnum.PaymentScene)
+    } else if (text === (isRu ? levels[105].title_ru : levels[105].title_en)) {
+      logger.info(
+        `[menuNextStep] Handling 'Оформить подписку' button. Entering subscriptionScene.`
+      )
+      ctx.session.mode = ModeEnum.SubscriptionScene
+      return ctx.scene.enter(ModeEnum.SubscriptionScene)
+    }
+    // --- КОНЕЦ ОБРАБОТКИ НАВИГАЦИОННЫХ КНОПОК ---
+
+    // *** Обработка кнопки "Сгенерировать новое видео?" (оставляем здесь) ***
     if (
       text === '🎥 Сгенерировать новое видео?' ||
       text === '🎥 Generate new video?'
@@ -184,23 +230,19 @@ const menuNextStep = async (ctx: MyContext) => {
       logger.info(
         `[menuNextStep] Detected 'Generate new video' button. Calling handleRestartVideoGeneration...`
       )
-      // Вызываем новую функцию перезапуска, которая использует lastCompletedVideoScene
       await handleRestartVideoGeneration(ctx)
-      // Важно: НЕ передаем управление дальше в handleMenu, так как мы обработали кнопку здесь
       return
     }
-    // *** КОНЕЦ ВСТАВКИ ***
 
-    // Prevent loop if /menu is sent again while already in the menu
+    // Prevent loop if /menu is sent again
     if (text === '/menu') {
       logger.warn(
         '[menuNextStep] Received /menu command while already in menu scene. Ignoring to prevent loop.'
       )
-      // Optional: Send a message like "You are already in the menu."
-      // await ctx.reply(getText(isRussian(ctx), 'already_in_menu')); // Assuming such a key exists
-      return // Explicitly do nothing further
+      return
     }
-    // Handle other text commands via handleMenu
+
+    // Если текст не был обработан выше, передаем в handleMenu для обработки кнопок функций
     logger.info(`[menuNextStep] Forwarding text to handleMenu: ${text}`)
     await handleMenu(ctx)
   } else {

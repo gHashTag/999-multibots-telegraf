@@ -1,9 +1,8 @@
-import { Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { Scenes, Markup, Telegraf } from 'telegraf'
+import { MyContext } from '@/interfaces'
 
 import { isValidImage } from '../../helpers/images'
-import { isRussian } from '@/helpers/language'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { isRussian } from '@/helpers'
 import { getBotToken } from '@/handlers'
 
 export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
@@ -103,10 +102,6 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
     const message = ctx.message
     console.log('message', message)
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
 
     if (message && 'text' in message && message.text === '/done') {
       console.log('Received /done command')

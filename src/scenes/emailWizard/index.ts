@@ -5,7 +5,6 @@ import { isRussian } from '@/helpers'
 
 import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
-import { handleHelpCancel } from '@/handlers'
 import { getBotNameByToken } from '@/core'
 import {
   PaymentStatus,
@@ -154,11 +153,6 @@ emailWizard.on('text', async ctx => {
 
   if (msg && 'text' in msg) {
     const selectedOption = msg.text
-
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
 
     const match = isRu
       ? selectedOption.match(/Купить (\d+)⭐️ за (\d+) р/)

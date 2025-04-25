@@ -1,12 +1,15 @@
 import { Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { imageModelPrices } from '@/price/models'
+import { imageModelPrices } from '@/price/models/imageModelPrices'
+import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import { levels } from './mainMenu'
 
-export async function imageModelMenu(ctx: MyContext) {
+export async function imageModelMenu(
+  ctx: MyContext
+): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   const isRu = ctx.from?.language_code === 'ru'
 
-  // Фильтруем модели, исключая те, у которых есть 'dev' в inputType
-  // и оставляем только те, у которых есть 'text' или 'text' и 'image'
+  // Фильтруем модели
   const filteredModels = Object.values(imageModelPrices).filter(
     model =>
       !model.inputType.includes('dev') &&
@@ -14,34 +17,24 @@ export async function imageModelMenu(ctx: MyContext) {
         (model.inputType.includes('text') && model.inputType.includes('image')))
   )
 
-  // Создаем массив кнопок на основе shortName отфильтрованных моделей
+  // Создаем массив кнопок
   const modelButtons = filteredModels.map(model =>
     Markup.button.text(model.shortName)
   )
 
-  // Разбиваем кнопки на строки по 2 кнопки в каждой
+  // Разбиваем кнопки на строки
   const keyboardButtons = []
   for (let i = 0; i < modelButtons.length; i += 2) {
     keyboardButtons.push(modelButtons.slice(i, i + 2))
   }
 
-  // Добавляем кнопки "Отмена" и "Главное меню"
-  keyboardButtons.push(
-    [
-      Markup.button.text(isRu ? 'Отмена' : 'Cancel'),
-      Markup.button.text(isRu ? 'Справка по команде' : 'Help for the command'),
-    ],
-    [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')]
-  )
+  // Добавляем кнопки "Справка" и "Главное меню" используя levels
+  keyboardButtons.push([
+    Markup.button.text(isRu ? levels[106].title_ru : levels[106].title_en),
+    Markup.button.text(isRu ? levels[104].title_ru : levels[104].title_en),
+  ])
 
+  // Клавиатура с моделями и навигацией
   const keyboard = Markup.keyboard(keyboardButtons).resize().oneTime()
-
-  await ctx.reply(
-    isRu
-      ? '🎨 Выберите модель для генерации:'
-      : '🎨 Choose a model for generation:',
-    {
-      reply_markup: keyboard.reply_markup,
-    }
-  )
+  return keyboard
 }

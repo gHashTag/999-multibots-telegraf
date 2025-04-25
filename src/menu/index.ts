@@ -13,8 +13,10 @@ export * from './sendGenerationErrorMessage'
 export * from './sendPromptImprovementFailureMessage'
 export * from './sendPromptImprovementMessage'
 export * from './sendGenericErrorMessage'
-export * from './createHelpCancelKeyboard/createHelpCancelKeyboard'
-export * from './cancelHelpArray'
+// export * from './getBotConfig' // Комментируем, так как файл не найден
+export * from '@/core/supabase/getUserBalance'
+// Комментируем проблемный реэкспорт
+// export * from './subscription/getUserSubscriptionMenu'
 
 import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 

@@ -57,17 +57,6 @@ starPaymentScene.enter(async ctx => {
   }
 })
 
-// Выход из сцены
-starPaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
-  logger.info(
-    `[${ModeEnum.StarPaymentScene}] Leaving scene via Main Menu button`,
-    {
-      telegram_id: ctx.from?.id,
-    }
-  )
-  await ctx.scene.enter(ModeEnum.MainMenu)
-})
-
 // Action handler for star top-up buttons
 starPaymentScene.action(/top_up_(\d+)/, handleTopUp)
 
@@ -81,8 +70,8 @@ starPaymentScene.on('message', async ctx => {
   })
   await ctx.reply(
     isRu
-      ? 'Пожалуйста, выберите пакет звезд или вернитесь в главное меню.'
-      : 'Please select a star package or return to the main menu.'
+      ? 'Пожалуйста, используйте кнопки для выбора.'
+      : 'Please use the buttons to make a selection.'
   )
-  // Не выходим из сцены
+  // Не выходим из сцены и не отправляем клавиатуру
 })

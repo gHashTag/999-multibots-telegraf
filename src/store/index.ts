@@ -18,9 +18,9 @@ export const defaultSession: MySession = {
   subscription: SubscriptionType.STARS,
   selectedPayment: {
     amount: 0,
-    stars: 0,
+    stars: 10,
     subscription: SubscriptionType.STARS,
-    type: PaymentType.SYSTEM,
+    type: PaymentType.BONUS,
   },
   videoUrl: '',
   imageUrl: '',

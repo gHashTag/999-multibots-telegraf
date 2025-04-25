@@ -1,6 +1,5 @@
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
-import { handleHelpCancel } from '@/handlers'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import {
   getInvoiceId,
@@ -18,6 +17,7 @@ import {
   PaymentStatus,
   PaymentType,
 } from '@/interfaces/payments.interface'
+import { Markup, Scenes } from 'telegraf'
 
 export const generateInvoiceStep = async (ctx: MyContext) => {
   logger.info('### getRuBillWizard ENTERED (generateInvoiceStep) ###', {
@@ -114,7 +114,7 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
           stars: stars,
           status: PaymentStatus.PENDING,
           payment_method: 'Robokassa',
-          type: PaymentType.SUBSCRIPTION_PURCHASE,
+          type: PaymentType.MONEY_INCOME,
           subscription_type: subTypeEnum,
           bot_name,
           language: ctx.from?.language_code ?? 'en',
@@ -194,6 +194,3 @@ export const getRuBillWizard = new WizardScene(
   'getRuBillWizard',
   generateInvoiceStep
 )
-
-getRuBillWizard.help(handleHelpCancel)
-getRuBillWizard.command('cancel', handleHelpCancel)

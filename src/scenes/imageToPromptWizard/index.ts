@@ -1,11 +1,10 @@
-import { Scenes } from 'telegraf'
+import { Scenes, Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 
-import { generateImageToPrompt } from '@/services/generateImageToPrompt'
+import { generateImageToPrompt } from '@/services'
+import { isRussian } from '@/helpers'
 
-import { createHelpCancelKeyboard } from '@/menu'
-
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+// import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 import { getBotNameByToken } from '@/core/bot'
@@ -16,13 +15,9 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToPrompt,
   async ctx => {
     console.log('CASE 0: image_to_prompt')
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussian(ctx)
     console.log('CASE: imageToPromptCommand')
 
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
     await ctx.reply(
       isRu
         ? '🖼️ Отправьте изображение для распознавания промпта'
@@ -33,19 +28,11 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     console.log('CASE 1: image_to_prompt')
-    const isRu = ctx.from?.language_code === 'ru'
-
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
+    const isRu = isRussian(ctx)
 
     if (!ctx.message) {
       await ctx.reply(
-        isRu ? 'Пожалуйста, отправьте изображение' : 'Please send an image',
-        {
-          reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-        }
+        isRu ? 'Пожалуйста, отправьте изображение' : 'Please send an image'
       )
       return
     }
@@ -91,10 +78,7 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
     } else {
       // Если отправлено не фото, просим отправить фото
       await ctx.reply(
-        isRu ? 'Пожалуйста, отправьте изображение' : 'Please send an image',
-        {
-          reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-        }
+        isRu ? 'Пожалуйста, отправьте изображение' : 'Please send an image'
       )
       return
     }

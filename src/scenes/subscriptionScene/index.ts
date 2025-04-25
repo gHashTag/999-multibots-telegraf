@@ -143,7 +143,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
             amount: selectedPayment.amount,
             stars: Number(selectedPayment.stars),
             subscription: subscription as SubscriptionType,
-            type: PaymentType.SUBSCRIPTION_PURCHASE,
+            type: PaymentType.MONEY_INCOME,
           }
           return ctx.scene.enter(ModeEnum.PaymentScene)
         } else {

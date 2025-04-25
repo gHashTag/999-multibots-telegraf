@@ -163,6 +163,7 @@ export type BotName =
 export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   cursor: number
   mode: ModeEnum
+  currentScene?: string | null
   neuroPhotoInitialized?: boolean
   subscription?: SubscriptionType
   selectedSize?: string
@@ -179,6 +180,7 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   inviteCode?: string
   inviter?: string
   paymentAmount?: number
+  voiceDescription?: string
   subscriptionStep?:
     | 'LOADING_TRANSLATIONS'
     | 'LOADING_MODELS'
@@ -212,6 +214,7 @@ export interface MyContext extends Context {
   scene: SceneContextScene<MyContext, WizardSessionData>
   wizard: WizardContextWizard<MyContext>
   update: Update.MessageUpdate | Update.CallbackQueryUpdate
+  match?: RegExpExecArray
 }
 
 // Создайте новый тип, объединяющий MyContext и WizardContext

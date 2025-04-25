@@ -4,7 +4,6 @@ import { getAvailableModels } from '../../commands/selectModelCommand/getAvailab
 import { sendGenericErrorMessage } from '@/menu'
 import { isRussian } from '@/helpers/language'
 import { updateUserModel } from '@/core/supabase'
-import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(
@@ -65,54 +64,47 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    const isCancel = await handleHelpCancel(ctx)
-    console.log('CASE: select_model', isCancel)
-    if (isCancel) {
-      console.log('CASE: select_model', isCancel)
-      return ctx.scene.leave()
-    } else {
-      const model = message.text
-      console.log('CASE: select_model', model)
-      const models = await getAvailableModels()
-      if (!models.includes(model)) {
-        await ctx.reply(isRu ? '❌ Модель не найдена' : '❌ Model not found')
-        return ctx.scene.leave()
-      }
-
-      if (!ctx.from?.id) {
-        console.error('❌ Telegram ID не найден')
-        return
-      }
-      await updateUserModel(ctx.from.id.toString(), model)
-
-      await ctx.reply(
-        isRu
-          ? `✅ Модель успешно изменена на ${model}`
-          : `✅ Model successfully changed to ${model}`,
-        {
-          reply_markup: {
-            remove_keyboard: true,
-          },
-        }
-      )
-
-      const telegram_id = ctx.from?.id
-      if (!telegram_id) {
-        console.error('❌ Telegram ID не найден')
-        return
-      }
-
-      const userExists = await getUserByTelegramId(ctx)
-      if (!userExists.data) {
-        throw new Error(`User with ID ${telegram_id} does not exist.`)
-      }
-      const level = userExists.data.level
-      if (level === 5) {
-        await updateUserLevelPlusOne(telegram_id.toString(), level)
-      }
-
+    const model = message.text
+    console.log('CASE: select_model', model)
+    const models = await getAvailableModels()
+    if (!models.includes(model)) {
+      await ctx.reply(isRu ? '❌ Модель не найдена' : '❌ Model not found')
       return ctx.scene.leave()
     }
+
+    if (!ctx.from?.id) {
+      console.error('❌ Telegram ID не найден')
+      return
+    }
+    await updateUserModel(ctx.from.id.toString(), model)
+
+    await ctx.reply(
+      isRu
+        ? `✅ Модель успешно изменена на ${model}`
+        : `✅ Model successfully changed to ${model}`,
+      {
+        reply_markup: {
+          remove_keyboard: true,
+        },
+      }
+    )
+
+    const telegram_id = ctx.from?.id
+    if (!telegram_id) {
+      console.error('❌ Telegram ID не найден')
+      return
+    }
+
+    const userExists = await getUserByTelegramId(ctx)
+    if (!userExists.data) {
+      throw new Error(`User with ID ${telegram_id} does not exist.`)
+    }
+    const level = userExists.data.level
+    if (level === 5) {
+      await updateUserLevelPlusOne(telegram_id.toString(), level)
+    }
+
+    return ctx.scene.leave()
   }
 )
 

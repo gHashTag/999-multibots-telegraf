@@ -1,15 +1,13 @@
-import { Scenes } from 'telegraf'
+import { Scenes, Markup, Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { generateVoiceAvatar } from '@/services/generateVoiceAvatar'
-import { isRussian } from '@/helpers/language'
-import { getUserBalance } from '@/core/supabase'
+import { isRussian } from '@/helpers'
+import { getUserBalance, getVoiceId } from '@/core/supabase'
 import {
   sendInsufficientStarsMessage,
   sendBalanceMessage,
   voiceConversationCost,
 } from '@/price/helpers'
-import { createHelpCancelKeyboard } from '@/menu'
-import { handleHelpCancel } from '@/handlers'
 
 export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
   'voice',
@@ -39,9 +37,8 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(
       isRu
-        ? '🎙️ Пожалуйста, отправьте голосовое сообщение для создания голосового аватара'
-        : '🎙️ Please send a voice message to create your voice avatar',
-      createHelpCancelKeyboard(isRu)
+        ? 'Отправьте описание голоса для аватара'
+        : 'Send a voice description for the avatar'
     )
 
     return ctx.wizard.next()
@@ -50,70 +47,61 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
     const message = ctx.message
 
-    if (
-      !message ||
-      !('voice' in message || 'audio' in message || 'text' in message)
-    ) {
-      await ctx.reply(
-        isRu
-          ? '🎙️ Пожалуйста, отправьте голосовое сообщение'
-          : '🎙️ Please send a voice message'
-      )
-      return
+    let fileId: string | undefined
+    if (message && 'voice' in message && message.voice) {
+      fileId = message.voice.file_id
+    } else if (message && 'audio' in message && message.audio) {
+      fileId = message.audio.file_id
     }
 
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
+    if (!fileId) {
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: не удалось получить идентификатор файла из голосового сообщения или аудио.'
+          : 'Error: could not retrieve file ID from voice message or audio.'
+      )
       return ctx.scene.leave()
-    } else {
-      const fileId =
-        'voice' in message
-          ? message.voice.file_id
-          : 'audio' in message
-            ? message.audio.file_id
-            : undefined
-      if (!fileId) {
+    }
+
+    try {
+      const file = await ctx.telegram.getFile(fileId)
+      if (!file.file_path) {
+        throw new Error('File path not found')
+      }
+
+      const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+
+      const description = ctx.session.voiceDescription
+      if (!description) {
         await ctx.reply(
           isRu
-            ? 'Ошибка: не удалось получить идентификатор файла'
-            : 'Error: could not retrieve file ID'
+            ? 'Ошибка: описание голоса не найдено в сессии.'
+            : 'Error: Voice description not found in session.'
         )
         return ctx.scene.leave()
       }
 
-      try {
-        const file = await ctx.telegram.getFile(fileId)
-        if (!file.file_path) {
-          throw new Error('File path not found')
-        }
-
-        const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
-
-        // Получаем текст сообщения безопасно
-        const messageText =
-          'text' in ctx.message ? ctx.message.text : 'No text provided'
-        if (!ctx.from?.id) {
-          console.error('❌ Telegram ID не найден')
-          return
-        }
-        await generateVoiceAvatar(
-          fileUrl,
-          messageText,
-          ctx.from.id.toString(),
-          ctx,
-          isRu,
-          ctx.botInfo?.username || 'unknown_bot'
-        )
-      } catch (error) {
-        console.error('Error in handleVoiceMessage:', error)
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'
-            : '❌ An error occurred while creating the voice avatar. Please try again later.'
-        )
+      if (!ctx.from?.id) {
+        console.error('❌ Telegram ID не найден')
+        return
       }
-
-      return ctx.scene.leave()
+      await generateVoiceAvatar(
+        fileUrl,
+        description,
+        ctx.from.id.toString(),
+        ctx,
+        isRu,
+        ctx.botInfo?.username || 'unknown_bot'
+      )
+    } catch (error) {
+      console.error('Error in handleVoiceMessage:', error)
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'
+          : '❌ An error occurred while creating the voice avatar. Please try again later.'
+      )
     }
+
+    return ctx.scene.leave()
   }
 )

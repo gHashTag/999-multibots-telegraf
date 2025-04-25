@@ -1,11 +1,10 @@
-import { Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
+import { isRussian } from '@/helpers/language'
 
 import { generateImageFromPrompt } from '@/services/generateImageFromPrompt'
 
 import { createGenerateImageKeyboard } from '@/menu'
-
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
 const PROMPT_MAX_LENGTH = 1000
 
@@ -19,13 +18,9 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
   'generate_image',
   async ctx => {
     console.log('CASE 0: generate_image')
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussian(ctx)
     console.log('CASE: generateImageCommand')
 
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
     await ctx.reply(
       isRu
         ? 'Введите промпт для генерации изображения (максимум 1000 символов):'
@@ -40,12 +35,7 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     console.log('CASE 1: generate_image')
-    const isRu = ctx.from?.language_code === 'ru'
-
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
+    const isRu = isRussian(ctx)
 
     // Обработка текстового ввода
     if (!ctx.message || !('text' in ctx.message) || !ctx.message.text) {
@@ -99,7 +89,7 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     console.log('CASE 2: generate_image - выбор размера')
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussian(ctx)
 
     // Обработка кнопки отмены
     if (

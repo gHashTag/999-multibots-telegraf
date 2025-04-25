@@ -1,18 +1,28 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '../../interfaces'
-import { imageModelPrices } from '@/price/models'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { MyContext } from '@/interfaces'
+import { imageModelPrices } from '@/price/models/imageModelPrices'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImage } from '@/services/generateTextToImage'
-import { getUserBalance } from '@/core/supabase'
+import {
+  getUserBalance,
+  setPayments,
+  invalidateBalanceCache,
+} from '@/core/supabase'
+import {
+  validateAndCalculateImageModelPrice,
+  sendBalanceMessage,
+} from '@/price/helpers'
+import { createHelpButton } from '@/menu/buttons'
 import { isRussian } from '@/helpers/language'
 import {
-  sendBalanceMessage,
-  validateAndCalculateImageModelPrice,
-} from '@/price/helpers'
+  PaymentType,
+  PaymentStatus,
+  Currency,
+} from '@/interfaces/payments.interface'
+import { ModeEnum } from '@/interfaces/modes'
+// import { IMAGE_MODELS_CONFIG } from '@/config/models.config' // Неправильный конфиг
 
-import { createHelpCancelKeyboard } from '@/menu'
-
+// Возвращаем экспорт
 export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   'text_to_image',
   async ctx => {
@@ -81,11 +91,6 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
-
     const modelShortName = message.text
     const selectedModelEntry = Object.entries(imageModelPrices).find(
       ([, modelInfo]) => modelInfo.shortName === modelShortName
@@ -148,7 +153,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         isRu
           ? 'Пожалуйста, введите текст для генерации изображения.'
           : 'Please enter text to generate an image.',
-        createHelpCancelKeyboard(isRu)
+        Markup.inlineKeyboard([[createHelpButton()]])
       )
 
       return ctx.wizard.next()
@@ -185,24 +190,168 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
-
     const text = message.text
     ctx.session.prompt = text
 
-    await generateTextToImage(
-      text,
+    const userId = ctx.from.id.toString()
+    const botName = ctx.botInfo.username || 'unknown_bot'
+
+    const currentBalance = await getUserBalance(userId, botName)
+
+    const price = await validateAndCalculateImageModelPrice(
       ctx.session.selectedModel,
-      1,
-      ctx.from.id.toString(),
+      Object.keys(imageModelPrices),
+      currentBalance,
       isRu,
-      ctx,
-      ctx.botInfo.username
+      ctx
     )
 
-    return ctx.scene.leave()
+    if (price === null) {
+      return ctx.scene.leave()
+    }
+
+    try {
+      await setPayments({
+        telegram_id: userId,
+        OutSum: '0',
+        InvId: null,
+        stars: price,
+        currency: Currency.XTR,
+        status: PaymentStatus.COMPLETED,
+        type: PaymentType.MONEY_OUTCOME,
+        payment_method: 'Internal',
+        metadata: { prompt: text, model: ctx.session.selectedModel },
+        bot_name: botName,
+        language: isRu ? 'ru' : 'en',
+        subscription_type: null,
+      })
+
+      await invalidateBalanceCache(userId)
+
+      await generateTextToImage(
+        text,
+        ctx.session.selectedModel,
+        1,
+        userId,
+        isRu,
+        ctx,
+        botName
+      )
+
+      return ctx.scene.leave()
+    } catch (error) {
+      console.error('Error generating image:', error)
+      await sendGenericErrorMessage(ctx, isRu, error as Error)
+      return ctx.scene.leave()
+    }
   }
 )
+
+textToImageWizard.action(/select_image_model:(.+)/, async ctx => {
+  const model_id = ctx.match[1] // model_id это ключ из imageModelPrices
+  const model = imageModelPrices[model_id] // Получаем модель по ключу
+  if (!model) {
+    await ctx.answerCbQuery('Model not found!')
+    return
+  }
+  ctx.session.selectedModel = model_id // Сохраняем ключ модели
+  await ctx.answerCbQuery(`Selected model: ${model.shortName}`) // Используем shortName
+
+  const isRu = isRussian(ctx)
+  await ctx.reply(
+    isRu
+      ? '✏️ Введите промпт для генерации изображения:'
+      : '✏️ Enter the prompt for image generation:',
+    Markup.inlineKeyboard([[createHelpButton()]])
+  )
+
+  ctx.wizard.selectStep(ctx.wizard.cursor + 1)
+})
+
+textToImageWizard.on('text', async ctx => {
+  if (ctx.wizard.cursor === 2) {
+    if (ctx.message && 'text' in ctx.message && ctx.from) {
+      const promptText = ctx.message.text
+      ctx.session.prompt = promptText
+      const isRu = isRussian(ctx)
+      const userId = ctx.from.id.toString()
+      const botName = ctx.botInfo?.username || 'unknown_bot'
+
+      if (!ctx.session.selectedModel) {
+        await ctx.reply(
+          isRu ? 'Ошибка: Модель не выбрана.' : 'Error: Model not selected.'
+        )
+        return ctx.scene.reenter()
+      }
+
+      const modelId = ctx.session.selectedModel
+      const model = imageModelPrices[modelId]
+
+      if (!model) {
+        await ctx.reply(
+          isRu
+            ? 'Ошибка: Конфигурация модели не найдена.'
+            : 'Error: Model configuration not found.'
+        )
+        return ctx.scene.reenter()
+      }
+
+      const currentBalance = await getUserBalance(userId, botName)
+
+      const price = await validateAndCalculateImageModelPrice(
+        modelId,
+        Object.keys(imageModelPrices),
+        currentBalance,
+        isRu,
+        ctx
+      )
+
+      if (price === null) {
+        return ctx.scene.leave()
+      }
+
+      try {
+        await setPayments({
+          telegram_id: userId,
+          OutSum: '0',
+          InvId: null,
+          stars: price,
+          currency: Currency.XTR,
+          status: PaymentStatus.COMPLETED,
+          type: PaymentType.MONEY_OUTCOME,
+          payment_method: 'Internal',
+          metadata: { prompt: promptText, model: modelId },
+          bot_name: botName,
+          language: isRu ? 'ru' : 'en',
+          subscription_type: null,
+        })
+
+        await invalidateBalanceCache(userId)
+
+        await generateTextToImage(
+          promptText,
+          modelId,
+          1,
+          userId,
+          isRu,
+          ctx,
+          botName
+        )
+      } catch (error) {
+        console.error('Error generating image:', error)
+        await sendGenericErrorMessage(ctx, isRu, error as Error)
+      }
+
+      return ctx.scene.leave()
+    } else {
+      const isRu = isRussian(ctx)
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, введите текстовый промпт.'
+          : 'Please enter a text prompt.'
+      )
+    }
+  } else {
+    console.log('Ignoring text input on step:', ctx.wizard.cursor)
+  }
+})

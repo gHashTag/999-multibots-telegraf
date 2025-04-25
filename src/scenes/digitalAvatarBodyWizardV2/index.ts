@@ -3,7 +3,6 @@ import { MyContext } from '../../interfaces'
 
 import { isRussian } from '@/helpers/language'
 import { handleTrainingCost } from '@/price/helpers'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import {
   generateCostMessage,
   stepOptions,
@@ -48,16 +47,10 @@ export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
       console.error('Callback query does not contain data')
     }
 
-    const isCancel = await handleHelpCancel(ctx)
-
-    if (isCancel) {
-      return ctx.scene.leave()
-    } else {
-      await ctx.reply(
-        isRu
-          ? '🔢 Пожалуйста, выберите количество шагов для продолжения обучения модели.'
-          : '🔢 Please select the number of steps to proceed with model training.'
-      )
-    }
+    await ctx.reply(
+      isRu
+        ? '🔢 Пожалуйста, выберите количество шагов для продолжения обучения модели.'
+        : '🔢 Please select the number of steps to proceed with model training.'
+    )
   }
 )

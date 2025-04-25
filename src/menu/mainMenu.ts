@@ -95,6 +95,7 @@ export const levels: Record<number, Level> = {
     title_ru: '💬 Техподдержка',
     title_en: '💬 Support',
   },
+  // Возвращаем Главное меню
   104: {
     title_ru: '🏠 Главное меню',
     title_en: '🏠 Main menu',
@@ -102,6 +103,11 @@ export const levels: Record<number, Level> = {
   105: {
     title_ru: '💫 Оформить подписку',
     title_en: '💫 Subscribe',
+  },
+  // Возвращаем Справку
+  106: {
+    title_ru: '❓ Справка',
+    title_en: '❓ Help',
   },
 }
 
@@ -138,13 +144,15 @@ export async function mainMenu({
   let availableLevels: Level[] =
     subscriptionLevelsMap[currentSubscription] || []
 
+  // Фильтруем ВСЕ сервисные кнопки
   const filterServiceLevels = (lvl: Level) =>
-    lvl !== levels[100] &&
-    lvl !== levels[101] &&
-    lvl !== levels[102] &&
-    lvl !== levels[103] &&
-    lvl !== levels[104] &&
-    lvl !== levels[105]
+    lvl !== levels[100] && // Пополнить баланс
+    lvl !== levels[101] && // Баланс
+    lvl !== levels[102] && // Пригласить друга
+    lvl !== levels[103] && // Техподдержка
+    lvl !== levels[104] && // Главное меню (не показываем кнопку саму на себя)
+    lvl !== levels[105] && // Оформить подписку
+    lvl !== levels[106] // Справка
 
   if (
     currentSubscription === SubscriptionType.NEUROTESTER ||
@@ -189,21 +197,24 @@ export async function mainMenu({
     buttonRows.push(allFunctionalButtons.slice(i, i + 2))
   }
 
+  // --- ВОЗВРАЩАЕМ ЛОГИКУ ДЛЯ НИЖНЕГО РЯДА ---
   const bottomRowButtons = []
-  const supportButton = Markup.button.text(
-    isRu ? levels[103].title_ru : levels[103].title_en
+  const helpButton = Markup.button.text(
+    isRu ? levels[106].title_ru : levels[106].title_en // Кнопка Справка
   )
+  const supportButton = Markup.button.text(
+    isRu ? levels[103].title_ru : levels[103].title_en // Кнопка Техподдержка
+  )
+  // Кнопка Назад (go_back) здесь не нужна, так как это главное меню.
+  // Кнопка Главное меню (levels[104]) здесь тоже не нужна.
 
   if (currentSubscription === SubscriptionType.STARS) {
-    console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
     const subscribeButton = Markup.button.text(
       isRu ? levels[105].title_ru : levels[105].title_en
     )
-    bottomRowButtons.push([subscribeButton, supportButton])
+    // Для STARS: Подписка | Справка | Техподдержка
+    bottomRowButtons.push([subscribeButton, helpButton, supportButton])
   } else {
-    console.log(
-      `[mainMenu LOG] Generating bottom row for ${currentSubscription} subscription`
-    )
     const balanceButton = Markup.button.text(
       isRu ? levels[101].title_ru : levels[101].title_en
     )
@@ -213,12 +224,11 @@ export async function mainMenu({
     const inviteButton = Markup.button.text(
       isRu ? levels[102].title_ru : levels[102].title_en
     )
-    buttonRows.push([balanceButton, topUpButton])
-    bottomRowButtons.push([inviteButton, supportButton])
+    buttonRows.push([balanceButton, topUpButton]) // Баланс | Пополнить
+    // Для остальных: Пригласить | Справка | Техподдержка
+    bottomRowButtons.push([inviteButton, helpButton, supportButton])
   }
-  console.log(
-    `[mainMenu LOG] Generated bottomRowButtons: ${JSON.stringify(bottomRowButtons)}`
-  )
+  // --- КОНЕЦ ВОЗВРАТА НИЖНЕГО РЯДА ---
 
   const finalKeyboard = [...buttonRows, ...bottomRowButtons]
   console.log(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)

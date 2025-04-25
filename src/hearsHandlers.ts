@@ -214,7 +214,18 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
+  bot.hears(
+    ['❓ Справка по команде', '❓ Help for the command'],
+    async (ctx: MyContext) => {
+      logger.info('Entering help scene via text command', {
+        telegram_id: ctx.from?.id,
+      })
+      await ctx.scene.enter('helpScene')
+    }
+  )
+
   bot.hears(/^(Отмена|отмена|Cancel|cancel)$/i, async (ctx: MyContext) => {
+    logger.info('Handling cancel command', { telegram_id: ctx.from?.id })
     logger.debug(`Получен hears для Отмена от ${ctx.from?.id}`)
     const isRu = isRussian(ctx)
     const telegram_id = ctx.from?.id?.toString() || ''

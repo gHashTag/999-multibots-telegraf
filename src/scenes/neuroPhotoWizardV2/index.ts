@@ -12,12 +12,12 @@ import {
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
 } from '@/menu'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { WizardScene } from 'telegraf/scenes'
 
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
+
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const isRu = ctx.from?.language_code === 'ru'
   try {
@@ -53,11 +53,6 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     ctx.session.userModel = userModel as UserModel
 
     await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
-    const isCancel = await handleHelpCancel(ctx)
-    console.log('isCancel', isCancel)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
     console.log('CASE: neuroPhotoConversation next')
 
     return ctx.wizard.next()
@@ -77,36 +72,27 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
   if (promptMsg && 'text' in promptMsg) {
     const promptText = promptMsg.text
 
-    const isCancel = await handleHelpCancel(ctx)
-
-    if (isCancel) {
-      return ctx.scene.leave()
-    } else {
-      ctx.session.prompt = promptText
-
+    const userId = ctx.from?.id
+    if (!userId) {
+      console.error('❌ User ID не найден')
+      return
+    }
+    if (promptText) {
       const trigger_word = ctx.session.userModel.trigger_word as string
-
-      const userId = ctx.from?.id
-      if (!userId) {
-        console.error('❌ User ID не найден')
-        return
-      }
-      if (trigger_word) {
-        const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
-        await generateNeuroImageV2(
-          fullPrompt,
-          1,
-          userId.toString(),
-          ctx,
-          ctx.botInfo?.username
-        )
-        ctx.wizard.next()
-        return
-      } else {
-        await ctx.reply(isRu ? '❌ Некорректный промпт' : '❌ Invalid prompt')
-        ctx.scene.leave()
-        return
-      }
+      const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
+      await generateNeuroImageV2(
+        fullPrompt,
+        1,
+        userId.toString(),
+        ctx,
+        ctx.botInfo?.username
+      )
+      ctx.wizard.next()
+      return
+    } else {
+      await ctx.reply(isRu ? '❌ Некорректный промпт' : '❌ Invalid prompt')
+      ctx.scene.leave()
+      return
     }
   }
 }

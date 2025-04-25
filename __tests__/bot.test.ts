@@ -8,10 +8,6 @@ describe('Bot functionality', () => {
     testBot = new Telegraf('test-token')
   })
 
-  afterEach(() => {
-    testBot.stop()
-  })
-
   test('bot instance should be defined', () => {
     expect(testBot).toBeDefined()
   })

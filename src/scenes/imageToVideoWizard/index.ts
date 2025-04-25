@@ -1,23 +1,22 @@
-import { Scenes, Markup } from 'telegraf'
+import { Scenes, Telegraf, Markup } from 'telegraf'
 import { generateImageToVideo } from '@/services/generateImageToVideo'
 import { MyContext } from '@/interfaces'
 import {
   cancelMenu,
-  createHelpCancelKeyboard,
   sendGenerationCancelledMessage,
   sendGenericErrorMessage,
   videoModelKeyboard,
 } from '@/menu'
 import { isRussian } from '@/helpers/language'
 import { ModeEnum } from '@/interfaces/modes'
-import { getBotToken, handleHelpCancel } from '@/handlers'
+import { getBotToken } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { logger } from '@/utils/logger'
 import { calculateFinalPrice } from '@/price/helpers'
 import { getUserBalance } from '@/core/supabase'
 import { SYSTEM_CONFIG } from '@/price/constants/index'
 
-// Определяем тип ключей конфига
+// Определяем тип ключей конфига локально
 type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
@@ -35,10 +34,25 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     const isRu = isRussian(ctx)
+    const message = ctx.message as { text?: string }
+    const selectedButtonText = message?.text
+
+    // --- ПРОВЕРКА НА КОМАНДУ СПРАВКИ ---
+    if (
+      selectedButtonText ===
+      (isRu ? '❓ Справка по команде' : '❓ Help for the command')
+    ) {
+      logger.info(
+        'Entering help scene from imageToVideoWizard via text command'
+      )
+      // Возвращаем вход в helpScene
+      await ctx.scene.enter('helpScene')
+      return // Выходим из текущего обработчика, так как перешли в другую сцену
+    }
+    // --- КОНЕЦ ПРОВЕРКИ ---
+
     // --- НАЧАЛО ИСПРАВЛЕНИЙ ---
     // Ожидаем текстовое сообщение, а не callback_query
-    const message = ctx.message as { text?: string }
-    const selectedButtonText = message?.text // Получаем текст нажатой кнопки
 
     if (!selectedButtonText) {
       // Это сообщение теперь должно быть правильным
@@ -153,7 +167,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         ? 'Теперь отправьте изображение для генерации видео'
         : 'Now send an image for video generation',
       {
-        reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+        reply_markup: cancelMenu(isRu).reply_markup,
       }
     )
     return ctx.wizard.next()
@@ -161,134 +175,121 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const message = ctx.message
     const isRu = isRussian(ctx)
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    } else {
-      if (message && 'photo' in message) {
-        const photo = message.photo[message.photo.length - 1]
-        const file = await ctx.telegram.getFile(photo.file_id)
-        const filePath = file.file_path
+    if (message && 'photo' in message) {
+      const photo = message.photo[message.photo.length - 1]
+      const file = await ctx.telegram.getFile(photo.file_id)
+      const filePath = file.file_path
 
-        if (!filePath) {
-          await ctx.reply(
-            isRu ? 'Не удалось получить изображение' : 'Failed to get image'
-          )
-          return ctx.scene.leave()
-        }
-
-        const botToken = getBotToken(ctx)
-        ctx.session.imageUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`
+      if (!filePath) {
         await ctx.reply(
-          isRu
-            ? 'Отлично! Теперь опишите желаемое движение в видео'
-            : 'Great! Now describe the desired movement in the video',
-          {
-            reply_markup: cancelMenu(isRu).reply_markup,
-          }
+          isRu ? 'Не удалось получить изображение' : 'Failed to get image'
         )
-        return ctx.wizard.next()
+        return ctx.scene.leave()
       }
+
+      const botToken = getBotToken(ctx)
+      ctx.session.imageUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`
       await ctx.reply(
-        isRu ? 'Пожалуйста, отправьте изображение.' : 'Please send an image.',
+        isRu
+          ? 'Отлично! Теперь опишите желаемое движение в видео'
+          : 'Great! Now describe the desired movement in the video',
         {
-          reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+          reply_markup: cancelMenu(isRu).reply_markup,
         }
       )
-      return
+      return ctx.wizard.next()
     }
+    await ctx.reply(
+      isRu ? 'Пожалуйста, отправьте изображение.' : 'Please send an image.'
+    )
+    return
   },
   async ctx => {
     const message = ctx.message
     const isRu = isRussian(ctx)
 
     if (message && 'text' in message) {
-      const isCancel = await handleHelpCancel(ctx)
-      if (isCancel) {
-        return ctx.scene.leave()
-      } else {
-        const prompt = message.text
-        const configKey = ctx.session.videoModel as VideoModelKey
-        const imageUrl = ctx.session.imageUrl
+      const prompt = message.text
+      const configKey = ctx.session.videoModel as VideoModelKey
+      const imageUrl = ctx.session.imageUrl
 
-        if (!prompt) {
-          await ctx.reply(
-            isRu
-              ? 'Требуется описание движения.'
-              : 'Movement description is required.'
-          )
-          return
-        }
-        if (!configKey || !(configKey in VIDEO_MODELS_CONFIG)) {
-          logger.error('Invalid configKey in session', { configKey })
-          await ctx.reply(
-            isRu
-              ? 'Ошибка сессии (модель). Начните заново.'
-              : 'Session error (model). Please start over.'
-          )
-          return ctx.scene.leave()
-        }
-        if (!imageUrl) {
-          logger.error('Missing imageUrl in session', { configKey })
-          await ctx.reply(
-            isRu
-              ? 'Ошибка сессии (URL изображения). Начните заново.'
-              : 'Session error (image URL). Please start over.'
-          )
-          return ctx.scene.leave()
-        }
-        if (!ctx.from?.username) {
-          logger.error('Missing username in context')
-          await ctx.reply(
-            isRu
-              ? 'Ошибка пользователя. Начните заново.'
-              : 'User error. Please start over.'
-          )
-          return ctx.scene.leave()
-        }
-
-        try {
-          logger.info('Calling generateImageToVideo with:', {
-            imageUrl,
-            prompt,
-            configKey,
-            telegram_id: ctx.from.id,
-            username: ctx.from.username,
-            isRu,
-          })
-
-          await generateImageToVideo(
-            imageUrl,
-            prompt,
-            configKey,
-            ctx.from.id.toString(),
-            ctx.from.username,
-            isRu,
-            ctx.botInfo?.username
-          )
-          ctx.session.prompt = prompt
-          ctx.session.mode = ModeEnum.ImageToVideo
-
-          const modelTitle = VIDEO_MODELS_CONFIG[configKey]?.title || configKey
-          await ctx.reply(
-            isRu
-              ? `✅ Запрос на генерацию видео (${modelTitle}) отправлен! Ожидайте результат.`
-              : `✅ Video generation request (${modelTitle}) sent! Please wait for the result.`
-          )
-        } catch (error) {
-          logger.error('Ошибка при вызове generateImageToVideo:', {
-            error,
-            configKey,
-            telegram_id: ctx.from.id,
-          })
-          await ctx.reply(
-            isRu
-              ? '❌ Произошла ошибка при запуске генерации видео. Пожалуйста, попробуйте позже или обратитесь в поддержку.'
-              : '❌ An error occurred starting video generation. Please try again later or contact support.'
-          )
-        }
+      if (!prompt) {
+        await ctx.reply(
+          isRu
+            ? 'Требуется описание движения.'
+            : 'Movement description is required.'
+        )
+        return
+      }
+      if (!configKey || !(configKey in VIDEO_MODELS_CONFIG)) {
+        logger.error('Invalid configKey in session', { configKey })
+        await ctx.reply(
+          isRu
+            ? 'Ошибка сессии (модель). Начните заново.'
+            : 'Session error (model). Please start over.'
+        )
         return ctx.scene.leave()
       }
+      if (!imageUrl) {
+        logger.error('Missing imageUrl in session', { configKey })
+        await ctx.reply(
+          isRu
+            ? 'Ошибка сессии (URL изображения). Начните заново.'
+            : 'Session error (image URL). Please start over.'
+        )
+        return ctx.scene.leave()
+      }
+      if (!ctx.from?.username) {
+        logger.error('Missing username in context')
+        await ctx.reply(
+          isRu
+            ? 'Ошибка пользователя. Начните заново.'
+            : 'User error. Please start over.'
+        )
+        return ctx.scene.leave()
+      }
+
+      try {
+        logger.info('Calling generateImageToVideo with:', {
+          imageUrl,
+          prompt,
+          configKey,
+          telegram_id: ctx.from.id,
+          username: ctx.from.username,
+          isRu,
+        })
+
+        await generateImageToVideo(
+          imageUrl,
+          prompt,
+          configKey,
+          ctx.from.id.toString(),
+          ctx.from.username,
+          isRu,
+          ctx.botInfo?.username
+        )
+        ctx.session.prompt = prompt
+        ctx.session.mode = ModeEnum.ImageToVideo
+
+        const modelTitle = VIDEO_MODELS_CONFIG[configKey]?.title || configKey
+        await ctx.reply(
+          isRu
+            ? `✅ Запрос на генерацию видео (${modelTitle}) отправлен! Ожидайте результат.`
+            : `✅ Video generation request (${modelTitle}) sent! Please wait for the result.`
+        )
+      } catch (error) {
+        logger.error('Ошибка при вызове generateImageToVideo:', {
+          error,
+          configKey,
+          telegram_id: ctx.from.id,
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при запуске генерации видео. Пожалуйста, попробуйте позже или обратитесь в поддержку.'
+            : '❌ An error occurred starting video generation. Please try again later or contact support.'
+        )
+      }
+      return ctx.scene.leave()
     }
     await ctx.reply(
       isRu
