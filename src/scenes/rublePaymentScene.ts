@@ -4,7 +4,7 @@ import { isRussian } from '@/helpers'
 import { handleSelectRubAmount } from '@/handlers'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
 import { getInvoiceId } from '@/scenes/getRuBillWizard/helper'
-import { MERCHANT_LOGIN, PASSWORD1 } from '@/config'
+import { MERCHANT_LOGIN, ROBOKASSA_PASSWORD_1 } from '@/config'
 import { setPayments } from '@/core/supabase'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
@@ -101,7 +101,7 @@ rublePaymentScene.enter(async ctx => {
         amountRub,
         invId,
         description,
-        PASSWORD1
+        ROBOKASSA_PASSWORD_1
       )
 
       const { bot_name } = getBotNameByToken(ctx.telegram.token)
@@ -258,7 +258,7 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       amountRub,
       invId,
       description,
-      PASSWORD1
+      ROBOKASSA_PASSWORD_1
     )
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
