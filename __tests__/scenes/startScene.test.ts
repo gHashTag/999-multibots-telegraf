@@ -27,21 +27,22 @@ import type {
   ProcessStartDependencies,
 } from '../../src/scenes/startScene/index'
 
-import { Context as TelegrafContext } from 'telegraf'
-import { Message, User, Update, UserFromGetMe } from '@telegraf/types'
+import { Context as TelegrafContext, Scenes } from 'telegraf'
+import { Message, User, Update, UserFromGetMe, Chat } from '@telegraf/types'
+import { MyContext } from '../../src/interfaces'
 
 // Функция для создания mock-контекста Telegraf
 export const createMockTelegrafContext = (
   overrides: Partial<{
     message: Partial<Message.TextMessage>
     from: Partial<User>
-    // Добавьте другие части контекста, которые вам могут понадобиться
+    chat: Partial<Chat>
+    scene: Partial<Scenes.SceneContext<MyContext>>
+    wizard: Partial<Scenes.WizardContextWizard<MyContext>>
+    session: Partial<Scenes.WizardSession<Scenes.WizardSessionData>>
+    botInfo: Partial<UserFromGetMe>
   }> = {}
-): TelegrafContext & {
-  message: Message.TextMessage
-  from: User
-  // Определите другие ожидаемые свойства контекста
-} => {
+): MyContext => {
   const defaultUser: User = {
     id: 12345,
     is_bot: false,
@@ -51,16 +52,55 @@ export const createMockTelegrafContext = (
     ...overrides.from,
   }
 
+  const defaultChat: Chat.PrivateChat = {
+    id: 12345,
+    type: 'private',
+    first_name: 'Test',
+  }
+
   const defaultMessage: Message.TextMessage = {
     message_id: 1,
     date: Math.floor(Date.now() / 1000),
-    chat: { id: 12345, type: 'private' },
+    chat: defaultChat,
     from: defaultUser,
     text: '/start',
     ...overrides.message,
   }
 
-  const mockContext: Partial<TelegrafContext> = {
+  const defaultScene: Scenes.SceneContext = {
+    scene: {
+      enter: vi.fn(),
+      leave: vi.fn(),
+      reenter: vi.fn(),
+      state: {},
+      ctx: {} as any,
+      scenes: new Map(),
+      options: {},
+      session: {} as any,
+      steps: [],
+      current: undefined,
+      enterOpts: undefined,
+    },
+    ...overrides.scene,
+  }
+
+  const defaultWizard: Scenes.WizardContextWizard<MyContext> = {
+    next: vi.fn(),
+    back: vi.fn(),
+    state: overrides.wizard?.state ?? {},
+    step: undefined,
+    cursor: 0,
+    selectStep: vi.fn(),
+    steps: [],
+    ...overrides.wizard,
+  }
+
+  const defaultSession: Scenes.WizardSession<Scenes.WizardSessionData> = {
+    __scenes: { cursor: 0 },
+    ...overrides.session,
+  }
+
+  const mockContext: Partial<MyContext> = {
     botInfo: {
       id: 54321,
       is_bot: true,
@@ -69,42 +109,43 @@ export const createMockTelegrafContext = (
       can_join_groups: true,
       can_read_all_group_messages: false,
       supports_inline_queries: false,
+      ...overrides.botInfo,
     } as UserFromGetMe,
-    message: defaultMessage,
+    message: defaultMessage as any,
     from: defaultUser,
-    chat: defaultMessage.chat,
+    chat: defaultChat,
     reply: vi.fn((text, extra) => {
       console.log(`Mock reply: "${text}"`, extra || '')
-      return Promise.resolve({} as any) // Возвращаем пустой промис
+      return Promise.resolve({} as any)
+    }),
+    replyWithPhoto: vi.fn((photo, extra) => {
+      console.log(
+        `Mock replyWithPhoto: "${extra?.caption}"`,
+        photo,
+        extra || ''
+      )
+      return Promise.resolve({} as any)
     }),
     sendMessage: vi
       .fn()
       .mockImplementation(
         async (chatId: string | number, text: string, extra?: any) => {
           console.log(`Mock sendMessage to ${chatId}: "${text}"`, extra || '')
-          // Возвращаем объект, соответствующий Message.TextMessage
           return Promise.resolve({
             message_id: 1,
             date: Date.now(),
             chat: { id: Number(chatId), type: 'private' },
             text: text,
-            from: defaultUser, // Используем defaultUser или другой подходящий мок
-          } as Message.TextMessage)
+            from: defaultUser,
+          } as any)
         }
       ),
-    // Добавьте другие необходимые методы и свойства контекста
-    // Например:
-    // session: {},
-    // scene: { enter: vi.fn(), leave: vi.fn() },
-    // state: {},
-    // ...
+    ...defaultScene,
+    ...(defaultWizard as any),
+    session: defaultSession as any,
   }
 
-  // Типизируем контекст, чтобы он соответствовал ожиданиям
-  return mockContext as TelegrafContext & {
-    message: Message.TextMessage
-    from: User
-  }
+  return mockContext as MyContext
 }
 
 // --- Остальные импорты ---
@@ -217,7 +258,15 @@ describe('processStartCommand', () => {
 
     // Сначала создаем mockCtx
     mockCtx = createMockTelegrafContext({
-      message: { text: '/start', from: { id: 12345, language_code: 'en' } },
+      message: {
+        text: '/start',
+        from: {
+          id: 12345,
+          language_code: 'en',
+          is_bot: false,
+          first_name: 'Test',
+        },
+      },
     })
 
     // Затем инициализируем mockDependencies, используя mockCtx
@@ -229,7 +278,7 @@ describe('processStartCommand', () => {
       isRussian: mockIsRussian,
       getPhotoUrl: vi.fn(),
       reply: mockCtx.reply,
-      replyWithPhoto: vi.fn(),
+      replyWithPhoto: mockCtx.replyWithPhoto,
       sendMessage: mockCtx.sendMessage,
       logger:
         loggerModule?.logger ||
@@ -544,7 +593,7 @@ describe('processStartCommand', () => {
       firstName: 'Ref',
       lastName: 'Error',
       isBot: false,
-      language_code: 'ru',
+      languageCode: 'ru',
       chatId: 11111,
       inviteCode: 'REF_ERR_CODE',
       botName: 'test_bot_username',

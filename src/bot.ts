@@ -2,7 +2,6 @@ import { isDev } from './config'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { checkAndCreateLockFile } from './utils/checkAndCreateLockFile'
 
 console.log(`--- Bot Logic ---`)
 console.log(
@@ -291,18 +290,19 @@ process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 export async function startBot(): Promise<void> {
   try {
     // Проверяем, возможно ли запустить экземпляр бота
-    if (!checkAndCreateLockFile()) {
-      console.error(
-        '❌ Запуск отменен из-за обнаружения другого запущенного экземпляра бота',
-        {
-          description: 'Bot startup cancelled due to another instance running',
-          suggestion:
-            'Используйте FORCE_START=true для принудительного запуска',
-          example: 'FORCE_START=true pnpm dev',
-        }
-      )
-      return // Выходим без запуска, если уже работает экземпляр
-    }
+    // ВРЕМЕННО ЗАКОММЕНТИРОВАНО ИЗ-ЗА ОТСУТСТВИЯ ФАЙЛА
+    // if (!checkAndCreateLockFile()) {
+    //   console.error(
+    //     '❌ Запуск отменен из-за обнаружения другого запущенного экземпляра бота',
+    //     {
+    //       description: 'Bot startup cancelled due to another instance running',
+    //       suggestion:
+    //         'Используйте FORCE_START=true для принудительного запуска',
+    //       example: 'FORCE_START=true pnpm dev',
+    //     }
+    //   )
+    //   return // Выходим без запуска, если уже работает экземпляр
+    // }
 
     // Проверяем и освобождаем порты
     await checkAndKillPort(2999) // Порт API-сервера
