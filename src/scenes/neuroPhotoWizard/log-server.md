@@ -39,7 +39,7 @@
 999-multibots | Environment check: { nodeEnv: 'production' }
 999-multibots | Payment variables check:
 999-multibots | MERCHANT_LOGIN: neuroblogger
-999-multibots | PASSWORD1: [PROTECTED]
+999-multibots | ROBOKASSA_PASSWORD_1_TEST: [PROTECTED]
 999-multibots | RESULT_URL2: https://999-multibots-telegraf-u14194.vm.elestio.app/payment-success
 999-multibots | 2025-04-20 04:27:36 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_2","normalizedMode":"neuro_photo_v2"}
 999-multibots | 🏁 Запуск приложения

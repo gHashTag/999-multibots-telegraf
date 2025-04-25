@@ -4,7 +4,7 @@ import { saveUserEmail, setPayments } from '../../core/supabase'
 import { isRussian } from '@/helpers'
 
 import md5 from 'md5'
-import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
+import { MERCHANT_LOGIN, RESULT_URL2, ROBOKASSA_PASSWORD_1 } from '@/config'
 import { handleHelpCancel } from '@/handlers'
 import { getBotNameByToken } from '@/core'
 import {
@@ -14,7 +14,6 @@ import {
 } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 const merchantLogin = MERCHANT_LOGIN
-const password1 = PASSWORD1
 
 const description = 'Покупка звезд'
 
@@ -186,7 +185,7 @@ emailWizard.on('text', async ctx => {
           console.error('❌ Merchant login not found')
           return
         }
-        if (!password1) {
+        if (!ROBOKASSA_PASSWORD_1) {
           console.error('❌ Password not found')
           return
         }
@@ -197,7 +196,7 @@ emailWizard.on('text', async ctx => {
           amount,
           invId,
           description,
-          password1
+          ROBOKASSA_PASSWORD_1
         )
 
         const { bot_name } = getBotNameByToken(ctx.telegram.token)

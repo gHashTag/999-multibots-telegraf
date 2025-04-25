@@ -43,7 +43,7 @@ All ports checked
 Environment check: { nodeEnv: 'development' }
 Payment variables check:
 MERCHANT_LOGIN: neuroblogger
-PASSWORD1: [PROTECTED]
+ROBOKASSA_PASSWORD_1_TEST: [PROTECTED]
 RESULT_URL2: https://999-multibots-telegraf-u14194.vm.elestio.app/payment-success
 2025-04-20 11:31:50 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_2","normalizedMode":"neuro_photo_v2"}
 🏁 Запуск приложения
