@@ -1,4 +1,4 @@
-import { Scenes, Telegraf } from 'telegraf'
+import { Scenes, Telegraf, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 
 import { generateImageToPrompt } from '@/services'
@@ -8,6 +8,7 @@ import { isRussian } from '@/helpers'
 import { getBotToken } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 import { getBotNameByToken } from '@/core/bot'
+import { createHelpButton } from '@/menu/buttons'
 // Используем заглушку для HUGGINGFACE_TOKEN
 process.env.HUGGINGFACE_TOKEN = process.env.HUGGINGFACE_TOKEN || 'dummy-token'
 
@@ -20,8 +21,9 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(
       isRu
-        ? '🖼️ Отправьте изображение для распознавания промпта'
-        : '🖼️ Send an image to recognize the prompt'
+        ? '👋 Привет! Загрузи картинку, и я сделаю для нее промпт.'
+        : '👋 Hello! Upload an image, and I will create a prompt for it.',
+      Markup.inlineKeyboard([[createHelpButton()]])
     )
     ctx.scene.session.state = { step: 0 }
     return ctx.wizard.next()
@@ -65,6 +67,12 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
           botName
         )
 
+        await ctx.reply(
+          isRu
+            ? '✅ Промпт для твоей картинки готов! (Заглушка)'
+            : '✅ Prompt for your image is ready! (Placeholder)',
+          Markup.inlineKeyboard([[createHelpButton()]])
+        )
         return ctx.scene.leave()
       } catch (error) {
         console.error('Error in imageToPromptWizard:', error)

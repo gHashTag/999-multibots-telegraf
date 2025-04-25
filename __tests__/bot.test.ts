@@ -1,10 +1,12 @@
 import { Telegraf } from 'telegraf'
 import { validateBotToken, isPortInUse } from '../src/bot'
+import { initializeMocks } from './mocks/setup'
 
 describe('Bot functionality', () => {
   let testBot: Telegraf
 
   beforeEach(() => {
+    initializeMocks()
     testBot = new Telegraf('test-token')
   })
 
