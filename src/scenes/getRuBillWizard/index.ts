@@ -114,7 +114,7 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
           stars: stars,
           status: PaymentStatus.PENDING,
           payment_method: 'Robokassa',
-          type: PaymentType.SUBSCRIPTION_PURCHASE,
+          type: PaymentType.MONEY_INCOME,
           subscription_type: subTypeEnum,
           bot_name,
           language: ctx.from?.language_code ?? 'en',

@@ -11,8 +11,9 @@ _Updated: {current_date}_
 
 **Core Principle:** The Supabase table `payments_v2` is the **sole source of truth** for all financial transactions and subscription statuses. Do not rely on the `users` table for subscription details.
 
-**Database Enum (`operation_type`):** The database column `payments_v2.type` uses a PostgreSQL enum named `operation_type` with the following actual values:
-```
+**Database Enum (`operation_type`):** The database column `payments_v2.type` uses a PostgreSQL enum named `operation_type`. **As of 2025-04-26, its defined values are:**
+```sql
+-- Result of: SELECT unnest(enum_range(NULL::operation_type))::text AS enum_value;
 MONEY_INCOME
 MONEY_OUTCOME
 SUBSCRIPTION_PURCHASE
@@ -21,16 +22,15 @@ REFUND
 BONUS
 REFERRAL
 SYSTEM
-MONEY_OUTCOME
 ```
+*Note: The duplicate `MONEY_OUTCOME` in the previous version of this doc was likely a typo. The actual enum contains `MONEY_OUTCOME` once.* 
 
-**Code Enum (`PaymentType`):** The TypeScript enum `PaymentType` located in `[src/interfaces/payments.interface.ts](mdc:src/interfaces/payments.interface.ts)` **correctly mirrors** these database enum values **EXCEPT** that `MONEY_OUTCOME` has been **removed** from the code-level enum.
+**Code Enum (`PaymentType`):** The TypeScript enum `PaymentType` located in `[src/interfaces/payments.interface.ts](mdc:src/interfaces/payments.interface.ts)` **MUST mirror** these database enum values EXACTLY.
 
-**Current Code Logic (IMPORTANT):**
-*   The code **attempts to use specific enum values** where appropriate (e.g., `PaymentType.REFUND` for refunds, `PaymentType.SYSTEM` for system operations, `PaymentType.BONUS` for bonuses).
-*   **All expense/outcome operations** in the code have been **standardized to use ONLY `PaymentType.MONEY_OUTCOME`**. This includes places previously using the older `PaymentType.MONEY_OUTCOME`.
-*   **CRITICAL DEPENDENCY & INCONSISTENCY:** This standardization **ASSUMES** that the SQL functions (`get_user_balance`, `get_user_balance_stats`) correctly interpret **`MONEY_OUTCOME`** as the sole subtraction type for balance calculation. Because `MONEY_OUTCOME` *still exists* in the database enum `operation_type`, there's a risk: **SQL functions might *still* be considering `MONEY_OUTCOME` as a valid subtraction type, potentially leading to incorrect balance if old data exists or if SQL isn't updated.**
-*   **RECOMMENDED ACTION (DB):** Either remove `MONEY_OUTCOME` from the `operation_type` enum in Supabase OR modify SQL functions (`get_user_balance`, `get_user_balance_stats`) to *ignore* `MONEY_OUTCOME` and only use `MONEY_OUTCOME` for subtractions.
+**Code Logic:**
+*   Code **MUST** use the correct `PaymentType` enum value when inserting records into `payments_v2`. For example, use `PaymentType.MONEY_INCOME` when recording the start of a subscription payment attempt.
+*   The SQL functions (`get_user_balance`, `get_user_balance_stats`) are responsible for interpreting these types to calculate the balance (e.g., summing `MONEY_INCOME`, `BONUS`, `REFUND` and subtracting `MONEY_OUTCOME`).
+*   The type `SYSTEM` might be used for manual adjustments or grants - its effect on balance depends on the SQL function implementation.
 
 Key files for interaction:
 - Core getter: `[src/core/supabase/getUserDetailsSubscription.ts](mdc:src/core/supabase/getUserDetailsSubscription.ts)`

@@ -187,44 +187,55 @@ export async function mainMenu({
     console.log('[mainMenu LOG] Added admin buttons.')
   }
 
+  // --- Создаем кнопки, которые нужны почти всегда ---
+  const supportButton = Markup.button.text(
+    isRu ? levels[103].title_ru : levels[103].title_en // "💬 Техподдержка"
+  )
+  const subscribeButton = Markup.button.text(
+    isRu ? levels[105].title_ru : levels[105].title_en // "💫 Оформить подписку"
+  )
+  // --- ---
+
   const allFunctionalButtons = [...levelButtons, ...adminSpecificButtons]
   const buttonRows = []
   for (let i = 0; i < allFunctionalButtons.length; i += 2) {
     buttonRows.push(allFunctionalButtons.slice(i, i + 2))
   }
 
-  const bottomRowButtons = []
-  const supportButton = Markup.button.text(
-    isRu ? levels[103].title_ru : levels[103].title_en
-  )
+  const bottomRowButtons = [] // Кнопки ПЕРЕД последним рядом (Подписка)
 
   if (currentSubscription === SubscriptionType.STARS) {
     console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
-    const subscribeButton = Markup.button.text(
-      isRu ? levels[105].title_ru : levels[105].title_en
-    )
-    bottomRowButtons.push([subscribeButton, supportButton])
+    // Для STARS только поддержка (Подписка будет ниже)
+    bottomRowButtons.push([supportButton])
   } else {
     console.log(
       `[mainMenu LOG] Generating bottom row for ${currentSubscription} subscription`
     )
     const balanceButton = Markup.button.text(
-      isRu ? levels[101].title_ru : levels[101].title_en
+      isRu ? levels[101].title_ru : levels[101].title_en // "💰 Баланс"
     )
     const topUpButton = Markup.button.text(
-      isRu ? levels[100].title_ru : levels[100].title_en
+      isRu ? levels[100].title_ru : levels[100].title_en // "💎 Пополнить баланс"
     )
     const inviteButton = Markup.button.text(
-      isRu ? levels[102].title_ru : levels[102].title_en
+      isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
     )
+    // Баланс и Пополнить идут в основные ряды
     buttonRows.push([balanceButton, topUpButton])
+    // Пригласить и Поддержка идут в предпоследний ряд
     bottomRowButtons.push([inviteButton, supportButton])
   }
   console.log(
-    `[mainMenu LOG] Generated bottomRowButtons: ${JSON.stringify(bottomRowButtons)}`
+    `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
   )
 
+  // Собираем все ряды, КРОМЕ последнего (Подписка)
   const finalKeyboard = [...buttonRows, ...bottomRowButtons]
+
+  // Добавляем кнопку "Оформить подписку" ВСЕГДА в самый низ
+  finalKeyboard.push([subscribeButton])
+
   console.log(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)
 
   return Markup.keyboard(finalKeyboard).resize()

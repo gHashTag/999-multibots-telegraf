@@ -39,15 +39,14 @@ export enum PaymentStatus {
   CANCELLED = 'CANCELLED',
 }
 
+/**
+ * Типы платежных операций.
+ * ВАЖНО: Значения должны соответствовать enum `operation_type` в базе данных Supabase.
+ */
 export enum PaymentType {
   MONEY_INCOME = 'MONEY_INCOME',
   MONEY_OUTCOME = 'MONEY_OUTCOME',
-  SUBSCRIPTION_PURCHASE = 'SUBSCRIPTION_PURCHASE',
-  SUBSCRIPTION_RENEWAL = 'SUBSCRIPTION_RENEWAL',
   REFUND = 'REFUND',
-  BONUS = 'BONUS',
-  REFERRAL = 'REFERRAL',
-  SYSTEM = 'SYSTEM',
 }
 
 export interface BasePayment {

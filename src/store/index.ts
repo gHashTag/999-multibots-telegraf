@@ -20,7 +20,7 @@ export const defaultSession: MySession = {
     amount: 0,
     stars: 0,
     subscription: SubscriptionType.STARS,
-    type: PaymentType.SYSTEM,
+    type: PaymentType.MONEY_OUTCOME,
   },
   videoUrl: '',
   imageUrl: '',

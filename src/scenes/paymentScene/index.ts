@@ -74,7 +74,7 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   const intentType = ctx.session.selectedPayment?.type
   const paymentInfo = ctx.session.selectedPayment
 
-  if (intentType === PaymentType.SUBSCRIPTION_PURCHASE && paymentInfo) {
+  if (intentType === PaymentType.MONEY_INCOME && paymentInfo) {
     logger.info(
       `[${ModeEnum.PaymentScene}] Entering Star scene for SUBSCRIPTION: ${paymentInfo.subscription}`,
       {
@@ -108,7 +108,7 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
     }
   )
 
-  if (intentType === PaymentType.SUBSCRIPTION_PURCHASE && paymentInfo) {
+  if (intentType === PaymentType.MONEY_INCOME && paymentInfo) {
     logger.info(
       `[${ModeEnum.PaymentScene}] Entering Ruble scene for SUBSCRIPTION: ${paymentInfo.subscription}`,
       {
