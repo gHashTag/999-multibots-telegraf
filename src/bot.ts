@@ -1,4 +1,8 @@
 import { isDev } from './config'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
+import { checkAndCreateLockFile } from './utils/checkAndCreateLockFile'
 
 console.log(`--- Bot Logic ---`)
 console.log(
@@ -44,6 +48,35 @@ export async function isPortInUse(port: number): Promise<boolean> {
     console.error(`❌ Ошибка проверки порта ${port}:`, error)
     return true
   }
+}
+
+// Функция для порта API сервера
+function checkAndKillPort(port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    console.log(`Checking port ${port}...`)
+    // Находим процессы, использующие порт
+    const exec = require('child_process').exec
+    exec(
+      `lsof -i :${port} -t`,
+      (error: any, stdout: string, stderr: string) => {
+        if (stdout) {
+          const pids = stdout.trim().split('\n')
+          pids.forEach(pid => {
+            try {
+              // Завершаем процесс
+              process.kill(parseInt(pid), 'SIGKILL')
+              console.log(`Successfully killed process on port ${port}`)
+            } catch (e) {
+              console.error(`Failed to kill process ${pid}: ${e}`)
+            }
+          })
+        } else {
+          console.log(`No process found using port ${port}`)
+        }
+        resolve()
+      }
+    )
+  })
 }
 
 // Добавляю логи перед инициализацией ботов
@@ -254,10 +287,90 @@ async function gracefulShutdown(signal: string) {
 process.once('SIGINT', () => gracefulShutdown('SIGINT'))
 process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
-console.log('🏁 Запуск приложения')
-initializeBots()
-  .then(() => console.log('✅ Боты успешно запущены'))
-  .catch(error => {
-    console.error('❌ Критическая ошибка при запуске ботов:', error)
-    process.exit(1)
-  })
+// Функция запуска бота
+export async function startBot(): Promise<void> {
+  try {
+    // Проверяем, возможно ли запустить экземпляр бота
+    if (!checkAndCreateLockFile()) {
+      console.error(
+        '❌ Запуск отменен из-за обнаружения другого запущенного экземпляра бота',
+        {
+          description: 'Bot startup cancelled due to another instance running',
+          suggestion:
+            'Используйте FORCE_START=true для принудительного запуска',
+          example: 'FORCE_START=true pnpm dev',
+        }
+      )
+      return // Выходим без запуска, если уже работает экземпляр
+    }
+
+    // Проверяем и освобождаем порты
+    await checkAndKillPort(2999) // Порт API-сервера
+    await checkAndKillPort(3001) // Дополнительный порт
+    console.log('All ports checked')
+
+    console.log('🏁 Запуск приложения')
+    await initializeBots()
+    console.log('✅ Боты успешно запущены')
+  } catch (error) {
+    // Специальная обработка ошибки конфликта от Telegram API
+    if (
+      error instanceof Error &&
+      error.message.includes(
+        '409: Conflict: terminated by other getUpdates request'
+      )
+    ) {
+      const forceStartActive = process.env.FORCE_START === 'true'
+
+      console.error('❌ Ошибка запуска бота: Конфликт с другим экземпляром', {
+        description: 'Telegram API 409 Conflict Error',
+        error_message: error.message,
+        solution:
+          'Другой экземпляр бота с тем же токеном уже запущен в другом месте',
+        suggestion:
+          'Остановите другие экземпляры бота или используйте FORCE_START=true',
+        force_start_active: forceStartActive,
+      })
+
+      if (forceStartActive) {
+        console.warn(
+          '⚠️ ВНИМАНИЕ: Конфликт обнаружен, несмотря на активный FORCE_START',
+          {
+            description: 'Conflict detected with active FORCE_START flag',
+            note: 'Это означает, что другой экземпляр бота запущен на другом компьютере или сервере',
+            warning:
+              'Одновременная работа нескольких экземпляров может привести к непредсказуемому поведению',
+          }
+        )
+
+        // Предоставляем дополнительные рекомендации для устранения проблемы
+        console.info('💡 Рекомендации для устранения 409 конфликта:', {
+          description: 'Tips for resolving 409 conflict',
+          steps: [
+            'Проверьте другие компьютеры или серверы, где может быть запущен бот',
+            'Убедитесь, что на сервере нет запущенных процессов бота (используйте `ps aux | grep node`)',
+            'Если бот запущен в webhook режиме на сервере, вы не сможете запустить его в polling режиме локально',
+            'Подождите 1-2 минуты, Telegram может очистить сессию самостоятельно',
+            'В крайнем случае, используйте другой токен бота для разработки',
+          ],
+          webhook_note:
+            'Если бот настроен на работу через webhook, он не может одновременно работать в режиме polling',
+        })
+      }
+
+      return // Выходим, чтобы предотвратить повторные попытки, которые будут приводить к тем же ошибкам
+    }
+
+    // Стандартная обработка других ошибок
+    console.error('❌ Ошибка запуска бота', {
+      description: 'Error starting bot',
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+  }
+}
+
+// Начинаем выполнение, если файл запущен напрямую
+if (require.main === module) {
+  startBot()
+}
