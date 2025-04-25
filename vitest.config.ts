@@ -1,18 +1,14 @@
 import { defineConfig } from 'vitest/config'
-import tsconfigPaths from 'vite-tsconfig-paths' // For resolving tsconfig paths
-import path from 'path' // Import path module for resolving
+import { resolve } from 'path'
 
 export default defineConfig({
-  plugins: [
-    tsconfigPaths({
-      root: '.', // Explicitly set the root directory
-      projects: ['./tsconfig.json'], // Explicitly point to the tsconfig file
-    }),
-  ],
-  // Add explicit alias resolution for Vitest at the top level
+  test: {
+    globals: true,
+    environment: 'node',
+  },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': resolve(__dirname, 'src'),
     },
   },
   test: {
