@@ -7,8 +7,8 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
-    "module": "commonjs",
+    "moduleResolution": "bundler",
+    "module": "esnext",
     "pretty": true,
     "sourceMap": true,
     "declaration": true,
@@ -45,10 +45,15 @@
     "noImplicitAny": false,
     "noEmitOnError": false,
     "checkJs": false,
-    "skipDefaultLibCheck": true
+    "skipDefaultLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "moduleDetection": "force"
   },
   "ts-node": {
-    "require": ["tsconfig-paths/register"]
+    "require": ["tsconfig-paths/register"],
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
   },
   "include": ["src/**/*.ts", "src/**/*.json", "__tests__/**/*.ts"],
   "exclude": ["node_modules", "src/node_modules", "dist"]

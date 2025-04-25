@@ -1,35 +1,41 @@
 import { defineConfig } from 'vitest/config'
-import { resolve } from 'path'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import path from 'node:path'
 
 export default defineConfig({
   test: {
-    globals: true,
-    environment: 'node',
+    globals: true, // Enable Jest-like globals (describe, it, expect)
+    environment: 'node', // Set the test environment to Node.js
+    setupFiles: ['__tests__/setup.ts'],
+    exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
+    include: ['__tests__/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    coverage: {
+      reporter: ['text', 'json', 'html'],
+    },
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
+      '@': path.resolve(__dirname, './src'),
+      // Настраиваем алиасы для проблемных путей импорта Telegraf
+      'telegraf/typings/core/types/typegram': 'telegraf/types',
+      'telegraf/typings/scenes': 'telegraf/scenes',
+      'telegraf/typings/session': 'telegraf/session',
     },
   },
-  test: {
-    globals: true, // Enable Jest-like globals (describe, it, expect)
-    environment: 'node', // Set the test environment to Node.js
-    setupFiles: ['./__tests__/mocks/setup.ts'],
-    coverage: {
-      provider: 'v8', // Specify the coverage provider
-      reporter: ['text', 'json', 'html'], // Coverage report formats
-      reportsDirectory: './coverage', // Directory for coverage reports
-      include: ['src/**/*.ts'], // Files to include in coverage
-      exclude: [
-        'src/interfaces/**/*.ts',
-        'src/types/**/*.ts',
-        'src/bot.ts', // Exclude main bot entry point
-        'src/registerCommands.ts', // Exclude command registration
-        'src/webhookServer.ts',
-        'src/api-server', // Exclude the separate API server
-        'src/**/*.test.ts',
-        'src/**/*.spec.ts',
-      ], // Files/dirs to exclude
-    },
-  },
+  plugins: [
+    // Полифиллы для Node.js модулей
+    nodePolyfills({
+      globals: {
+        Buffer: true,
+        global: true,
+        process: true,
+      },
+      include: ['fs', 'path', 'buffer', 'events', 'util', 'stream'],
+      overrides: {
+        fs: 'node:fs',
+        path: 'node:path',
+      },
+    }),
+  ],
 })
+

@@ -1,15 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { Markup } from 'telegraf'
-import { MyContext } from '@/interfaces'
+// Импортируем типы из telegraf напрямую
+import type { Message, CallbackQuery, Update } from 'telegraf/types'
+import type { MyContext } from '@/interfaces'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { ModeEnum } from '@/interfaces/modes'
-import {
-  Message,
-  CallbackQuery,
-  Update,
-} from 'telegraf/typings/core/types/typegram'
+import type { ModeEnum } from '@/interfaces/modes'
 
-// Импортируем модули до их мокирования
+// Мок для path (обычный импорт)
+vi.mock('path', () => {
+  return {
+    join: vi.fn().mockImplementation((...args) => args.join('/')),
+    resolve: vi.fn().mockImplementation((...args) => args.join('/')),
+    dirname: vi.fn().mockImplementation((path) => path.split('/').slice(0, -1).join('/')),
+    basename: vi.fn().mockImplementation((path) => path.split('/').pop()),
+    default: {
+      join: vi.fn().mockImplementation((...args) => args.join('/')),
+      resolve: vi.fn().mockImplementation((...args) => args.join('/')),
+      dirname: vi.fn().mockImplementation((path) => path.split('/').slice(0, -1).join('/')),
+      basename: vi.fn().mockImplementation((path) => path.split('/').pop()),
+    }
+  }
+})
+
+// Сначала импортируем все необходимые модули
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 import { getTranslation } from '@/core/supabase/getTranslation'
 import { mainMenu, levels } from '@/menu/mainMenu'
@@ -21,7 +33,52 @@ import { sendReplyWithKeyboard } from '@/scenes/menuScene/sendReplyWithKeyboard'
 import { logger } from '@/utils'
 import { sendGenericErrorMessage } from '@/menu'
 
-// Теперь создаем моки
+// Моки необходимо объявить до импорта тестируемых модулей
+vi.mock('telegraf', () => {
+  // Создаем мок класса Telegraf
+  class TelegrafMock {
+    use = vi.fn().mockReturnThis();
+    launch = vi.fn().mockResolvedValue(undefined);
+    telegram = {
+      sendMessage: vi.fn().mockResolvedValue({}),
+      sendPhoto: vi.fn().mockResolvedValue({}),
+      sendDocument: vi.fn().mockResolvedValue({}),
+      sendMediaGroup: vi.fn().mockResolvedValue({}),
+      setChatMenuButton: vi.fn().mockResolvedValue({}),
+      setMyCommands: vi.fn().mockResolvedValue({}),
+    };
+    start = vi.fn().mockReturnThis();
+    command = vi.fn().mockReturnThis();
+    action = vi.fn().mockReturnThis();
+    hears = vi.fn().mockReturnThis();
+    on = vi.fn().mockReturnThis();
+    stop = vi.fn().mockResolvedValue(undefined);
+  }
+
+  return {
+    Telegraf: TelegrafMock,
+    Markup: {
+      keyboard: vi.fn().mockImplementation((buttons) => ({
+        resize: vi.fn().mockReturnThis(),
+        oneTime: vi.fn().mockReturnThis(),
+        reply_markup: { 
+          keyboard: buttons || [],
+          resize_keyboard: true
+        }
+      })),
+      inlineKeyboard: vi.fn().mockImplementation((buttons) => ({
+        reply_markup: { 
+          inline_keyboard: buttons || []
+        }
+      })),
+    },
+    Scenes: {
+      WizardScene: vi.fn(),
+      Stage: vi.fn(),
+    },
+  }
+})
+
 vi.mock('@/core/supabase/getUserDetailsSubscription', () => ({
   getUserDetailsSubscription: vi.fn().mockResolvedValue({
     stars: 100,
@@ -41,13 +98,16 @@ vi.mock('@/core/supabase/getTranslation', () => ({
 }))
 
 vi.mock('@/menu/mainMenu', () => ({
-  mainMenu: vi.fn().mockResolvedValue(
-    Markup.keyboard([
-      ['🤖 Цифровое тело', '📸 Нейрофото'],
-      ['💰 Баланс', '💎 Пополнить баланс'],
-      ['👥 Пригласить друга', '❓ Справка', '💬 Техподдержка'],
-    ]).resize()
-  ),
+  mainMenu: vi.fn().mockResolvedValue({
+    reply_markup: { 
+      keyboard: [
+        ['🤖 Цифровое тело', '📸 Нейрофото'],
+        ['💰 Баланс', '💎 Пополнить баланс'],
+        ['👥 Пригласить друга', '❓ Справка', '💬 Техподдержка'],
+      ],
+      resize_keyboard: true
+    }
+  }),
   levels: {
     104: {
       title_ru: '🏠 Главное меню',
@@ -112,7 +172,7 @@ vi.mock('@/utils', () => ({
   },
 }))
 
-// Только после импорта и мокирования импортируем сам menuScene для теста
+// Только после импорта всех модулей и создания моков импортируем сам menuScene для теста
 import { menuScene } from '@/scenes/menuScene'
 
 // Вспомогательная функция для создания мок-контекста
@@ -219,9 +279,11 @@ describe('menuScene components', () => {
         ctx,
       })
 
-      // Проверяем тип возвращаемых данных
+      // Проверяем структуру возвращаемых данных
       expect(result).toBeDefined()
       expect(result.reply_markup).toBeDefined()
+      expect(result.reply_markup.keyboard).toBeDefined()
+      expect(result.reply_markup.resize_keyboard).toBe(true)
     })
   })
 
@@ -281,12 +343,20 @@ describe('menuScene components', () => {
 
   describe('sendReplyWithKeyboard', () => {
     it('should send message with photo', async () => {
+      // Создаем мок-клавиатуру для теста
+      const mockKeyboard = {
+        reply_markup: {
+          keyboard: [['Тестовая кнопка']],
+          resize_keyboard: true
+        }
+      };
+      
       // Вызываем функцию отправки сообщения с фото
       await sendReplyWithKeyboard(
         ctx,
         'Тестовое сообщение',
         [],
-        Markup.keyboard([['Тестовая кнопка']]).resize(),
+        mockKeyboard,
         'http://example.com/test.jpg'
       )
 
@@ -295,7 +365,7 @@ describe('menuScene components', () => {
         ctx,
         'Тестовое сообщение',
         [],
-        expect.anything(),
+        mockKeyboard,
         'http://example.com/test.jpg'
       )
     })

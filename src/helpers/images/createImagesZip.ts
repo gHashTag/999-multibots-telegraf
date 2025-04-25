@@ -1,55 +1,49 @@
-import { createWriteStream } from 'fs'
-import path from 'path'
-import archiver from 'archiver'
-import * as fs from 'fs/promises'
-import { BufferType } from '../../interfaces'
+import AdmZip from 'adm-zip'
+import { logger } from '@/utils/logger'
+import { v4 as uuidv4 } from 'uuid'
+import { BufferType } from '@/interfaces/telegram-bot.interface'
 
-export async function createImagesZip(images: BufferType): Promise<string> {
-  const tmpDir = path.join(process.cwd(), 'tmp')
-  const timestamp = Date.now()
-  const zipPath = path.join(tmpDir, `training_images_${timestamp}.zip`)
-
+/**
+ * Создает ZIP-архив из буферов изображений
+ *
+ * @param {BufferType} images - Массив объектов с буферами изображений и именами файлов
+ * @returns {Buffer} - Буфер с данными ZIP-архива
+ */
+export const createImagesZip = (images: BufferType): Buffer => {
   try {
-    await fs.mkdir(tmpDir, { recursive: true })
+    // Создаем новый ZIP-архив
+    const zip = new AdmZip()
 
-    console.log(`Количество изображений для архивации: ${images.length}`)
-
-    const output = createWriteStream(zipPath)
-    const archive = archiver('zip', { zlib: { level: 9 } })
-
-    archive.pipe(output)
-
-    for (const image of images) {
-      console.log(`Добавление изображения: ${image.filename}`)
-      archive.append(image.buffer, { name: image.filename })
+    // Добавляем каждое изображение в архив
+    for (const item of images) {
+      zip.addFile(item.filename, item.buffer)
     }
 
-    await archive.finalize()
+    // Генерируем уникальное имя для метаданных
+    const metadataId = uuidv4()
 
-    return new Promise((resolve, reject) => {
-      output.on('close', async () => {
-        try {
-          const stats = await fs.stat(zipPath)
-          if (stats.size === 0) {
-            console.error('Архив пустой!')
-            reject(new Error('Архив пустой'))
-          } else {
-            console.log(`Архив создан успешно, размер: ${stats.size} байт`)
-            resolve(zipPath)
-          }
-        } catch (error) {
-          console.error('Ошибка при проверке архива:', error)
-          reject(error)
-        }
-      })
+    // Создаем метаданные (можно расширить при необходимости)
+    const metadata = {
+      id: metadataId,
+      createdAt: new Date().toISOString(),
+      imageCount: images.length,
+      filenames: images.map((img) => img.filename),
+    }
 
-      output.on('error', error => {
-        console.error('Ошибка при создании ZIP архива:', error)
-        reject(error)
-      })
-    })
+    // Добавляем метаданные в архив
+    zip.addFile(
+      'metadata.json',
+      Buffer.from(JSON.stringify(metadata, null, 2))
+    )
+
+    // Возвращаем буфер с ZIP-архивом
+    return zip.toBuffer()
   } catch (error) {
-    console.error('Ошибка при создании ZIP архива:', error)
-    throw error
+    logger.error('❌ Ошибка при создании ZIP-архива:', {
+      description: 'Error creating ZIP archive',
+      error: error instanceof Error ? error.message : String(error),
+      error_details: error,
+    })
+    throw new Error('Failed to create images ZIP archive')
   }
 }

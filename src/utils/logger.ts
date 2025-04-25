@@ -1,6 +1,7 @@
 import { createLogger, format, transports } from 'winston'
 
 import path from 'path'
+// Используем стандартный модуль fs
 import fs from 'fs'
 
 // Создаем директорию для логов, если её нет
@@ -15,17 +16,74 @@ if (!fs.existsSync(securityLogsDir)) {
   fs.mkdirSync(securityLogsDir, { recursive: true })
 }
 
+// Улучшенный формат для вывода метаданных и объектов
+const prettyJson = format((info) => {
+  const { timestamp, level, message, ...rest } = info
+  
+  // Форматируем дополнительные метаданные
+  const formatMetadata = (obj: Record<string, any>, indent = 2): string => {
+    if (!obj || Object.keys(obj).length === 0) return ''
+    
+    let result = ''
+    for (const [key, value] of Object.entries(obj)) {
+      // Пропускаем stack, так как он будет обработан отдельно
+      if (key === 'stack') continue
+      
+      // Форматируем ключ
+      result += ' '.repeat(indent) + `${key}: `
+      
+      // Обрабатываем разные типы значений
+      if (value === null) {
+        result += 'null\n'
+      } else if (value === undefined) {
+        result += 'undefined\n'
+      } else if (typeof value === 'object' && !Array.isArray(value)) {
+        // Рекурсивно форматируем вложенные объекты
+        result += '\n' + formatMetadata(value, indent + 2)
+      } else if (Array.isArray(value)) {
+        if (value.length === 0) {
+          result += '[]\n'
+        } else {
+          result += '[\n'
+          value.forEach((item, index) => {
+            if (typeof item === 'object' && item !== null) {
+              result += ' '.repeat(indent + 2) + `${index}: \n` + formatMetadata(item, indent + 4)
+            } else {
+              result += ' '.repeat(indent + 2) + `${index}: ${String(item)}\n`
+            }
+          })
+          result += ' '.repeat(indent) + ']\n'
+        }
+      } else {
+        // Простые типы данных
+        result += `${String(value)}\n`
+      }
+    }
+    return result
+  }
+
+  return { ...info, formattedMetadata: formatMetadata(rest) }
+})
+
 // Общий формат для всех логгеров
 const commonFormat = format.combine(
   format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   format.errors({ stack: true }),
-  format.printf(({ level, message, timestamp, stack, ...rest }) => {
-    const restString = Object.keys(rest).length
-      ? ` ${JSON.stringify(rest)}`
-      : ''
-    return `${timestamp} [${level.toUpperCase()}]: ${message}${
-      stack ? `\n${stack}` : ''
-    }${restString}`
+  prettyJson(),
+  format.printf(({ level, message, timestamp, stack, formattedMetadata }) => {
+    // Эмодзи для разных уровней логов
+    const levelEmoji = {
+      'error': '❌',
+      'warn': '⚠️',
+      'info': 'ℹ️',
+      'debug': '🔍',
+      'verbose': '📝',
+      'silly': '🤪'
+    }[level] || ''
+    
+    return `${timestamp} ${levelEmoji} [${level.toUpperCase()}]: ${message}${
+      stack ? `\n${'='.repeat(80)}\n${stack}\n${'='.repeat(80)}` : ''
+    }${formattedMetadata ? `\n${formattedMetadata}` : ''}`
   })
 )
 

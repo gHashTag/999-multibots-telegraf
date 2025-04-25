@@ -3,6 +3,59 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { checkAndCreateLockFile } from './utils/checkAndCreateLockFile'
+import { logger } from './utils/logger'
+
+// Путь к файлу конфликта
+const CONFLICT_LOG_PATH = path.join(process.cwd(), 'logs', 'telegram_conflicts')
+
+// Создаем директорию для логов конфликтов, если её нет
+if (!fs.existsSync(CONFLICT_LOG_PATH)) {
+  fs.mkdirSync(CONFLICT_LOG_PATH, { recursive: true })
+}
+
+/**
+ * Сохраняет информацию о конфликте 409 в отдельный файл для последующего анализа
+ * @param errorMessage Сообщение об ошибке
+ * @param forceStartActive Был ли активирован режим принудительного запуска
+ * @param additionalInfo Дополнительная информация о конфликте
+ */
+function recordTelegramConflict(
+  errorMessage: string, 
+  forceStartActive: boolean,
+  additionalInfo: Record<string, any> = {}
+): void {
+  try {
+    const timestamp = new Date().toISOString()
+    const fileName = path.join(
+      CONFLICT_LOG_PATH, 
+      `conflict_${timestamp.replace(/[:.]/g, '_')}.json`
+    )
+    
+    const conflictData = {
+      timestamp,
+      error_message: errorMessage,
+      force_start_active: forceStartActive,
+      computer_name: os.hostname(),
+      username: os.userInfo().username,
+      platform: process.platform,
+      node_version: process.version,
+      environment: process.env.NODE_ENV,
+      pid: process.pid,
+      ...additionalInfo
+    }
+    
+    fs.writeFileSync(fileName, JSON.stringify(conflictData, null, 2))
+    logger.info(`✅ Информация о конфликте 409 сохранена в файл: ${fileName}`, {
+      description: 'Telegram 409 conflict recorded to file',
+      file_path: fileName
+    })
+  } catch (error) {
+    logger.error('❌ Ошибка при сохранении информации о конфликте', {
+      description: 'Failed to save conflict information',
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+}
 
 console.log(`--- Bot Logic ---`)
 console.log(
@@ -26,7 +79,7 @@ export async function validateBotToken(token: string): Promise<boolean> {
     await bot.telegram.getMe()
     return true
   } catch (error) {
-    console.error(`❌ Ошибка валидации токена: ${(error as Error).message}`)
+    logger.error(`❌ Ошибка валидации токена: ${(error as Error).message}`)
     return false
   }
 }
@@ -45,7 +98,7 @@ export async function isPortInUse(port: number): Promise<boolean> {
       server.listen(port)
     })
   } catch (error) {
-    console.error(`❌ Ошибка проверки порта ${port}:`, error)
+    logger.error(`❌ Ошибка проверки порта ${port}:`, error)
     return true
   }
 }
@@ -53,7 +106,7 @@ export async function isPortInUse(port: number): Promise<boolean> {
 // Функция для порта API сервера
 function checkAndKillPort(port: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    console.log(`Checking port ${port}...`)
+    logger.info(`Checking port ${port}...`)
     // Находим процессы, использующие порт
     const exec = require('child_process').exec
     exec(
@@ -65,13 +118,13 @@ function checkAndKillPort(port: number): Promise<void> {
             try {
               // Завершаем процесс
               process.kill(parseInt(pid), 'SIGKILL')
-              console.log(`Successfully killed process on port ${port}`)
+              logger.info(`Successfully killed process on port ${port}`)
             } catch (e) {
-              console.error(`Failed to kill process ${pid}: ${e}`)
+              logger.error(`Failed to kill process ${pid}: ${e}`)
             }
           })
         } else {
-          console.log(`No process found using port ${port}`)
+          logger.info(`No process found using port ${port}`)
         }
         resolve()
       }
@@ -82,21 +135,21 @@ function checkAndKillPort(port: number): Promise<void> {
 // Добавляю логи перед инициализацией ботов
 async function initializeBots() {
   // Запускаем Hello World сервер в самом начале
-  console.log('🔧 Режим работы:', isDev ? 'development' : 'production')
-  console.log('📝 Загружен файл окружения:', process.env.NODE_ENV)
+  logger.info('🔧 Режим работы:', isDev ? 'development' : 'production')
+  logger.info('📝 Загружен файл окружения:', process.env.NODE_ENV)
 
-  console.log('🔄 [SCENE_DEBUG] Проверка импорта stage из registerCommands...')
+  logger.info('🔄 [SCENE_DEBUG] Проверка импорта stage из registerCommands...')
   const { stage } = await import('./registerCommands')
-  console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')
+  logger.info('✅ [SCENE_DEBUG] Stage импортирован успешно')
   // Проверим сцены другим способом
   try {
     const stageInfo = (stage as any)._handlers || []
-    console.log(
+    logger.info(
       '📊 [SCENE_DEBUG] Количество обработчиков сцен:',
       stageInfo.length
     )
   } catch (error) {
-    console.log(
+    logger.info(
       '⚠️ [SCENE_DEBUG] Не удалось получить информацию о количестве сцен:',
       (error as Error).message
     )
@@ -111,7 +164,7 @@ async function initializeBots() {
       )
     }
 
-    console.log(`🔧 Ищем тестового бота с username: ${targetBotUsername}`)
+    logger.info(`🔧 Ищем тестового бота с username: ${targetBotUsername}`)
 
     // Собираем все потенциальные токены из env
     const potentialTokens = Object.entries(process.env)
@@ -129,7 +182,7 @@ async function initializeBots() {
         const tempBot = new Telegraf<MyContext>(token)
         const botInfo = await tempBot.telegram.getMe()
         if (botInfo.username === targetBotUsername) {
-          console.log(`✅ Найден бот ${botInfo.username}`)
+          logger.info(`✅ Найден бот ${botInfo.username}`)
           bot = tempBot // Используем этого бота
           foundBotInfo = botInfo
           break // Прерываем цикл, бот найден
@@ -147,7 +200,7 @@ async function initializeBots() {
     }
 
     // Добавляем логи перед регистрацией команд
-    console.log(
+    logger.info(
       '🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...'
     )
 
@@ -155,11 +208,11 @@ async function initializeBots() {
     // Передаем только bot
     registerCommands({ bot })
 
-    console.log('✅ [SCENE_DEBUG] Команды и middleware зарегистрированы')
+    logger.info('✅ [SCENE_DEBUG] Команды и middleware зарегистрированы')
 
     botInstances.push(bot)
     // Используем уже полученную информацию о боте
-    console.log(`🤖 Тестовый бот ${foundBotInfo.username} инициализирован`)
+    logger.info(`🤖 Тестовый бот ${foundBotInfo.username} инициализирован`)
 
     // В режиме разработки используем polling
     bot.launch({
@@ -170,7 +223,7 @@ async function initializeBots() {
         'successful_payment' as any,
       ],
     })
-    console.log(
+    logger.info(
       `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
     )
   } else {
@@ -196,15 +249,15 @@ async function initializeBots() {
 
         botInstances.push(bot)
         const botInfo = await bot.telegram.getMe()
-        console.log(`🤖 Бот ${botInfo.username} инициализирован`)
+        logger.info(`🤖 Бот ${botInfo.username} инициализирован`)
 
         while (await isPortInUse(currentPort)) {
-          console.log(`⚠️ Порт ${currentPort} занят, пробуем следующий...`)
+          logger.warn(`⚠️ Порт ${currentPort} занят, пробуем следующий...`)
           currentPort++
         }
 
-        console.log(
-          `🔌 Используем порт ${currentPort} для бота ${botInfo.username}`
+        logger.info(
+          `🚀 Используем порт ${currentPort} для бота ${botInfo.username}`
         )
 
         const webhookDomain = process.env.WEBHOOK_DOMAIN
@@ -229,7 +282,7 @@ async function initializeBots() {
           ],
         })
 
-        console.log(
+        logger.info(
           `🚀 Бот ${botInfo.username} запущен в продакшен режиме на порту ${currentPort}`
         )
         await new Promise(resolve => setTimeout(resolve, 2000))
@@ -238,34 +291,34 @@ async function initializeBots() {
     }
   }
 
-  console.log('🔍 Инициализация сцен...')
+  logger.info('🔍 Инициализация сцен...')
   // Перед регистрацией каждой сцены добавляю лог
-  console.log('📋 Регистрация сцены: payment_scene')
+  logger.info('📋 Регистрация сцены: payment_scene')
   // ... существующий код регистрации сцен ...
 
   // После регистрации всех сцен добавляю итоговый лог:
-  console.log('✅ Все сцены успешно зарегистрированы')
+  logger.info('✅ Все сцены успешно зарегистрированы')
 }
 
 // Асинхронная функция для остановки
 async function gracefulShutdown(signal: string) {
-  console.log(`🛑 Получен сигнал ${signal}, начинаем graceful shutdown...`)
+  logger.info(`🛑 Получен сигнал ${signal}, начинаем graceful shutdown...`)
 
   // 1. Останавливаем ботов
-  console.log(`[${signal}] Stopping ${botInstances.length} bot instance(s)...`)
+  logger.info(`[${signal}] Stopping ${botInstances.length} bot instance(s)...`)
   const stopPromises = botInstances.map(async (bot, index) => {
     try {
-      console.log(
+      logger.info(
         `[${signal}] Initiating stop for bot instance index ${index}...`
       )
       // bot.stop() для long polling обычно синхронный, но для надежности можно обернуть
       // Хотя Telegraf 4.x stop() возвращает void для polling
       bot.stop(signal)
-      console.log(
+      logger.info(
         `[${signal}] Successfully stopped bot instance index ${index}.`
       )
     } catch (error) {
-      console.error(
+      logger.error(
         `[${signal}] Error stopping bot instance index ${index}:`,
         error // Логируем полную ошибку
       )
@@ -273,13 +326,13 @@ async function gracefulShutdown(signal: string) {
   })
   // Не нужно Promise.all, так как bot.stop() синхронный для polling
   // await Promise.all(stopPromises) // Убираем ожидание, если оно не нужно
-  console.log(`[${signal}] All bot instances processed for stopping.`)
+  logger.info(`[${signal}] All bot instances processed for stopping.`)
 
   // 3. Добавляем небольшую задержку перед выходом
-  console.log(`[${signal}] Adding a short delay before exiting...`)
+  logger.info(`[${signal}] Adding a short delay before exiting...`)
   await new Promise(resolve => setTimeout(resolve, 1500))
 
-  console.log(`[${signal}] Graceful shutdown completed. Exiting.`)
+  logger.info(`[${signal}] Graceful shutdown completed. Exiting.`)
   process.exit(0)
 }
 
@@ -292,7 +345,7 @@ export async function startBot(): Promise<void> {
   try {
     // Проверяем, возможно ли запустить экземпляр бота
     if (!checkAndCreateLockFile()) {
-      console.error(
+      logger.error(
         '❌ Запуск отменен из-за обнаружения другого запущенного экземпляра бота',
         {
           description: 'Bot startup cancelled due to another instance running',
@@ -307,11 +360,11 @@ export async function startBot(): Promise<void> {
     // Проверяем и освобождаем порты
     await checkAndKillPort(2999) // Порт API-сервера
     await checkAndKillPort(3001) // Дополнительный порт
-    console.log('All ports checked')
+    logger.info('✅ All ports checked')
 
-    console.log('🏁 Запуск приложения')
+    logger.info('🏁 Запуск приложения')
     await initializeBots()
-    console.log('✅ Боты успешно запущены')
+    logger.info('✅ Боты успешно запущены')
   } catch (error) {
     // Специальная обработка ошибки конфликта от Telegram API
     if (
@@ -321,19 +374,37 @@ export async function startBot(): Promise<void> {
       )
     ) {
       const forceStartActive = process.env.FORCE_START === 'true'
+      const lockFileExists = fs.existsSync(path.join(process.cwd(), '.bot.lock'));
 
-      console.error('❌ Ошибка запуска бота: Конфликт с другим экземпляром', {
+      // Записываем информацию о конфликте для дальнейшего анализа
+      recordTelegramConflict(error.message, forceStartActive, {
+        lock_file_exists: lockFileExists,
+        time_of_day: new Date().toLocaleTimeString(),
+        env_variables: {
+          isDev,
+          test_bot_name: process.env.TEST_BOT_NAME,
+          webhook_domain: process.env.WEBHOOK_DOMAIN,
+          // Не логируем токены и другие чувствительные данные!
+        }
+      });
+
+      // Улучшаем сообщение об ошибке
+      logger.error('❌ Ошибка запуска бота: Конфликт с другим экземпляром', {
         description: 'Telegram API 409 Conflict Error',
         error_message: error.message,
-        solution:
-          'Другой экземпляр бота с тем же токеном уже запущен в другом месте',
-        suggestion:
-          'Остановите другие экземпляры бота или используйте FORCE_START=true',
+        solution: lockFileExists 
+          ? 'Обнаружен файл блокировки (.bot.lock). Другой экземпляр бота активен.'
+          : 'Другой экземпляр бота с тем же токеном уже запущен в другом месте',
+        suggestion: lockFileExists
+          ? 'Проверьте запущенные процессы или удалите файл .bot.lock вручную'
+          : 'Остановите другие экземпляры бота или используйте FORCE_START=true',
         force_start_active: forceStartActive,
+        lock_file_exists: lockFileExists,
+        conflict_logs_path: CONFLICT_LOG_PATH
       })
 
       if (forceStartActive) {
-        console.warn(
+        logger.warn(
           '⚠️ ВНИМАНИЕ: Конфликт обнаружен, несмотря на активный FORCE_START',
           {
             description: 'Conflict detected with active FORCE_START flag',
@@ -344,7 +415,7 @@ export async function startBot(): Promise<void> {
         )
 
         // Предоставляем дополнительные рекомендации для устранения проблемы
-        console.info('💡 Рекомендации для устранения 409 конфликта:', {
+        logger.info('💡 Рекомендации для устранения 409 конфликта:', {
           description: 'Tips for resolving 409 conflict',
           steps: [
             'Проверьте другие компьютеры или серверы, где может быть запущен бот',
@@ -355,6 +426,7 @@ export async function startBot(): Promise<void> {
           ],
           webhook_note:
             'Если бот настроен на работу через webhook, он не может одновременно работать в режиме polling',
+          additional_tip: 'Добавьте ?new_session=true к URL вашего бота в BotFather для сброса сессии'
         })
       }
 
@@ -362,7 +434,7 @@ export async function startBot(): Promise<void> {
     }
 
     // Стандартная обработка других ошибок
-    console.error('❌ Ошибка запуска бота', {
+    logger.error('❌ Ошибка запуска бота', {
       description: 'Error starting bot',
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
