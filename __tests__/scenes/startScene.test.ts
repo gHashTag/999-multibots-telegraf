@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, Mocked } from 'vitest'
 import type { Mock } from 'vitest'
+import { startMenu } from '../../src/menu'
+import { levels } from '../../src/menu/mainMenu'
 
 // Импортируем ЧАСТЬ необходимых моков ИЗ SETUP
 import {
   initializeMocks,
   mockGetUserDetailsSubscription,
-  mockCreateUser,
   mockIsRussian,
   mockSendMessage,
   mockMainMenu,
@@ -26,21 +27,22 @@ import type {
   ProcessStartDependencies,
 } from '../../src/scenes/startScene/index'
 
-import { Context as TelegrafContext } from 'telegraf'
-import { Message, User, Update, UserFromGetMe } from '@telegraf/types'
+import { Context as TelegrafContext, Scenes } from 'telegraf'
+import { Message, User, Update, UserFromGetMe, Chat } from '@telegraf/types'
+import { MyContext } from '../../src/interfaces'
 
 // Функция для создания mock-контекста Telegraf
 export const createMockTelegrafContext = (
   overrides: Partial<{
     message: Partial<Message.TextMessage>
     from: Partial<User>
-    // Добавьте другие части контекста, которые вам могут понадобиться
+    chat: Partial<Chat>
+    scene: Partial<Scenes.SceneContext<MyContext>>
+    wizard: Partial<Scenes.WizardContextWizard<MyContext>>
+    session: Partial<Scenes.WizardSession<Scenes.WizardSessionData>>
+    botInfo: Partial<UserFromGetMe>
   }> = {}
-): TelegrafContext & {
-  message: Message.TextMessage
-  from: User
-  // Определите другие ожидаемые свойства контекста
-} => {
+): MyContext => {
   const defaultUser: User = {
     id: 12345,
     is_bot: false,
@@ -50,16 +52,55 @@ export const createMockTelegrafContext = (
     ...overrides.from,
   }
 
+  const defaultChat: Chat.PrivateChat = {
+    id: 12345,
+    type: 'private',
+    first_name: 'Test',
+  }
+
   const defaultMessage: Message.TextMessage = {
     message_id: 1,
     date: Math.floor(Date.now() / 1000),
-    chat: { id: 12345, type: 'private' },
+    chat: defaultChat,
     from: defaultUser,
     text: '/start',
     ...overrides.message,
   }
 
-  const mockContext: Partial<TelegrafContext> = {
+  const defaultScene: Scenes.SceneContext = {
+    scene: {
+      enter: vi.fn(),
+      leave: vi.fn(),
+      reenter: vi.fn(),
+      state: {},
+      ctx: {} as any,
+      scenes: new Map(),
+      options: {},
+      session: {} as any,
+      steps: [],
+      current: undefined,
+      enterOpts: undefined,
+    },
+    ...overrides.scene,
+  }
+
+  const defaultWizard: Scenes.WizardContextWizard<MyContext> = {
+    next: vi.fn(),
+    back: vi.fn(),
+    state: overrides.wizard?.state ?? {},
+    step: undefined,
+    cursor: 0,
+    selectStep: vi.fn(),
+    steps: [],
+    ...overrides.wizard,
+  }
+
+  const defaultSession: Scenes.WizardSession<Scenes.WizardSessionData> = {
+    __scenes: { cursor: 0 },
+    ...overrides.session,
+  }
+
+  const mockContext: Partial<MyContext> = {
     botInfo: {
       id: 54321,
       is_bot: true,
@@ -68,50 +109,59 @@ export const createMockTelegrafContext = (
       can_join_groups: true,
       can_read_all_group_messages: false,
       supports_inline_queries: false,
+      ...overrides.botInfo,
     } as UserFromGetMe,
-    message: defaultMessage,
+    message: defaultMessage as any,
     from: defaultUser,
-    chat: defaultMessage.chat,
+    chat: defaultChat,
     reply: vi.fn((text, extra) => {
       console.log(`Mock reply: "${text}"`, extra || '')
-      return Promise.resolve({} as any) // Возвращаем пустой промис
+      return Promise.resolve({} as any)
+    }),
+    replyWithPhoto: vi.fn((photo, extra) => {
+      console.log(
+        `Mock replyWithPhoto: "${extra?.caption}"`,
+        photo,
+        extra || ''
+      )
+      return Promise.resolve({} as any)
     }),
     sendMessage: vi
       .fn()
       .mockImplementation(
         async (chatId: string | number, text: string, extra?: any) => {
           console.log(`Mock sendMessage to ${chatId}: "${text}"`, extra || '')
-          // Возвращаем объект, соответствующий Message.TextMessage
           return Promise.resolve({
             message_id: 1,
             date: Date.now(),
             chat: { id: Number(chatId), type: 'private' },
             text: text,
-            from: defaultUser, // Используем defaultUser или другой подходящий мок
-          } as Message.TextMessage)
+            from: defaultUser,
+          } as any)
         }
       ),
-    // Добавьте другие необходимые методы и свойства контекста
-    // Например:
-    // session: {},
-    // scene: { enter: vi.fn(), leave: vi.fn() },
-    // state: {},
-    // ...
+    ...defaultScene,
+    ...(defaultWizard as any),
+    session: defaultSession as any,
   }
 
-  // Типизируем контекст, чтобы он соответствовал ожиданиям
-  return mockContext as TelegrafContext & {
-    message: Message.TextMessage
-    from: User
-  }
+  return mockContext as MyContext
 }
 
 // --- Остальные импорты ---
 import { Markup } from 'telegraf'
-import { logger } from '../../src/utils/logger'
+import { logger as actualLogger } from '../../src/utils/logger'
 
 // Мокируем модуль getUserDetailsSubscription
 vi.mock('../../src/core/supabase/getUserDetailsSubscription')
+
+// Локально мокируем createUser
+const mockCreateUser = vi.fn()
+vi.mock('../../src/core/supabase/user', () => ({
+  createUser: mockCreateUser,
+  // Если есть другие экспорты из user.ts, которые не нужно мокать, добавьте их здесь
+  // например: someOtherExport: vi.importActual('../../src/core/supabase/user').someOtherExport
+}))
 
 // Мокируем модули, чьи функции передаются как зависимости
 vi.mock('../../src/core/supabase/referral', () => ({
@@ -119,10 +169,6 @@ vi.mock('../../src/core/supabase/referral', () => ({
 }))
 vi.mock('../../src/utils/localization', () => ({
   getTranslation: vi.fn(),
-}))
-vi.mock('../../src/core/supabase/user', () => ({
-  getUserDetailsSubscription: vi.fn(),
-  createUser: vi.fn(),
 }))
 vi.mock('../../src/handlers/getPhotoUrl', () => ({
   getPhotoUrl: vi.fn(),
@@ -139,7 +185,7 @@ vi.mock('../../src/core/bot', () => ({
 vi.mock('../../src/menu/mainMenu')
 
 // Мокируем index (для startMenu)
-vi.mock('../../src/menu/index')
+// vi.mock('../../src/menu/index')
 
 // Глобальный мок для process.env (если используется SUBSCRIBE_CHANNEL_ID)
 vi.stubGlobal('process', {
@@ -153,30 +199,20 @@ vi.stubGlobal('process', {
 describe('processStartCommand', () => {
   let mockCtx: any
   let mockGetUserDetailsSubscription: Mock
-  let mockCreateUser: Mock
   let mockGetReferalsCountAndUserData: Mock
   let mockGetTranslation: Mock
   let mockMainMenu: Mock
-  let mockStartMenu: Mock
   let mockIsRussian: Mock
   let mockLoggerInfo: Mock
   let mockLoggerWarn: Mock
   let mockLoggerError: Mock
 
-  let userModule: any
-  let getUserDetailsSubscriptionModule: any
-  let referralModule: any
-  let localizationModule: any
-  let mainMenuModule: any
-  let menuIndexModule: any
-  let languageHelperModule: any
-  let loggerModule: any
+  let loggerModule: { logger: typeof actualLogger } | undefined
+
   let mockDependencies: ProcessStartDependencies
-  let getUserDetailsSubscriptionMock: Mock
 
   beforeEach(async () => {
     // Импортируем мокированные функции напрямую
-    const userModuleImport = await import('../../src/core/supabase/user')
     const getUserDetailsSubscriptionImport = await import(
       '../../src/core/supabase/getUserDetailsSubscription'
     )
@@ -196,27 +232,23 @@ describe('processStartCommand', () => {
     // Присваиваем моки переменным
     mockGetUserDetailsSubscription =
       getUserDetailsSubscriptionImport.getUserDetailsSubscription as Mock
-    mockCreateUser = userModuleImport.createUser as Mock
     mockGetReferalsCountAndUserData =
       referralModuleImport.getReferalsCountAndUserData as Mock
     mockGetTranslation = localizationModuleImport.getTranslation as Mock
     mockMainMenu = mainMenuModuleImport.mainMenu as Mock
-    mockStartMenu = menuIndexModuleImport.startMenu as Mock
     mockIsRussian = languageHelperModuleImport.isRussian as Mock
-    loggerModule = loggerModuleImport // Сохраняем модуль логгера
+    loggerModule = loggerModuleImport
 
     // Мокируем методы логгера
-    if (loggerModule.logger) {
-      mockLoggerInfo = vi.fn()
-      mockLoggerWarn = vi.fn()
-      mockLoggerError = vi.fn()
+    vi.resetAllMocks()
+    mockLoggerInfo = vi.fn()
+    mockLoggerWarn = vi.fn()
+    mockLoggerError = vi.fn()
+    if (loggerModule?.logger) {
       loggerModule.logger.info = mockLoggerInfo
       loggerModule.logger.warn = mockLoggerWarn
       loggerModule.logger.error = mockLoggerError
     } else {
-      mockLoggerInfo = vi.fn()
-      mockLoggerWarn = vi.fn()
-      mockLoggerError = vi.fn()
       console.warn(
         'Не удалось правильно мокировать logger. Проверьте экспорт в logger.ts'
       )
@@ -226,7 +258,15 @@ describe('processStartCommand', () => {
 
     // Сначала создаем mockCtx
     mockCtx = createMockTelegrafContext({
-      message: { text: '/start', from: { id: 12345, language_code: 'en' } },
+      message: {
+        text: '/start',
+        from: {
+          id: 12345,
+          language_code: 'en',
+          is_bot: false,
+          first_name: 'Test',
+        },
+      },
     })
 
     // Затем инициализируем mockDependencies, используя mockCtx
@@ -236,11 +276,17 @@ describe('processStartCommand', () => {
       getReferalsCountAndUserData: mockGetReferalsCountAndUserData,
       getTranslation: mockGetTranslation,
       isRussian: mockIsRussian,
-      getPhotoUrl: vi.fn(), // Добавляем getPhotoUrl (был пропущен)
-      reply: mockCtx.reply, // Теперь mockCtx определен
-      replyWithPhoto: vi.fn(), // Добавляем мок replyWithPhoto
-      sendMessage: mockCtx.sendMessage, // Используем sendMessage из mockCtx
-      logger: loggerModule.logger, // Используем реальный логгер или мок
+      getPhotoUrl: vi.fn(),
+      reply: mockCtx.reply,
+      replyWithPhoto: mockCtx.replyWithPhoto,
+      sendMessage: mockCtx.sendMessage,
+      logger:
+        loggerModule?.logger ||
+        ({
+          info: mockLoggerInfo,
+          warn: mockLoggerWarn,
+          error: mockLoggerError,
+        } as any),
     }
 
     mockGetUserDetailsSubscription.mockResolvedValue({
@@ -251,36 +297,11 @@ describe('processStartCommand', () => {
       subscriptionStartDate: null,
       user: null,
     })
-    mockCreateUser.mockResolvedValue({
-      id: 12345,
-      created_at: new Date().toISOString(),
-      telegram_id: '12345',
-      username: 'testuser',
-      first_name: 'Test',
-      last_name: 'User',
-      language_code: 'en',
-      is_bot: false,
-      referred_by: null,
-      referral_code: 'REF123',
-      registration_date: new Date().toISOString(),
-      last_activity_date: new Date().toISOString(),
-      is_blocked_bot: false,
-      is_deactivated: false,
-      user_level: 0,
-    })
-    mockGetReferalsCountAndUserData.mockResolvedValue({
-      count: 0,
-      userData: null,
-    })
     mockGetTranslation.mockImplementation((key: string) => key)
     mockIsRussian.mockReturnValue(false)
     mockMainMenu.mockReturnValue({
       text: 'main-menu',
       reply_markup: { keyboard: [] },
-    })
-    mockStartMenu.mockReturnValue({
-      text: 'start-menu',
-      reply_markup: { inline_keyboard: [] },
     })
   })
 
@@ -498,29 +519,37 @@ describe('processStartCommand', () => {
   })
 
   it('should return false and reply on user check error', async () => {
-    // 1. Arrange
-    const inputData: ProcessStartData = {
+    // Arrange: User check fails
+    const checkError = new Error('DB connection failed')
+    const mockData: ProcessStartData = {
       telegramId: 'err1',
-      botName: 'b',
-      languageCode: 'en',
+      botName: 'test_bot_username',
     }
-    const testError = new Error('DB Check Failed')
-    mockGetUserDetailsSubscription.mockRejectedValue(testError)
+    // Mock getUserDetailsSubscription to throw an error
+    // NOTE: The function catches the error and logs it, then returns false
+    // So we expect the outer catch block in processStartCommand to trigger
+    mockGetUserDetailsSubscription.mockRejectedValueOnce(checkError)
+    mockIsRussian.mockReturnValue(false) // Use English for error message
 
-    // 2. Act
-    const result = await processStartCommand(inputData, mockDependencies)
+    // Act
+    const result = await processStartCommand(mockData, mockDependencies)
+    await Promise.resolve()
 
-    // 3. Assert
-    expect(result).toBe(false)
+    // Assert
+    expect(result).toBe(false) // Should fail
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      '[ProcessStart] Critical error in start scene', // Expecting the outer catch
+      expect.objectContaining({
+        error: checkError.message,
+      })
+    )
     expect(mockGetUserDetailsSubscription).toHaveBeenCalledWith('err1')
     expect(mockCreateUser).not.toHaveBeenCalled()
+    // Check the critical error fallback message
     expect(mockDependencies.reply).toHaveBeenCalledWith(
-      '❌ An error occurred while loading data. Please try again later.'
+      '❌ An internal error occurred. Please try again later or contact support.'
     )
-    expect(mockLoggerError).toHaveBeenCalledWith(
-      expect.stringContaining('Error checking user details'),
-      expect.objectContaining({ error: testError })
-    )
+    expect(mockDependencies.reply).toHaveBeenCalledTimes(1) // Only one reply expected
   })
 
   it('should return false and reply on user creation error', async () => {
@@ -553,5 +582,77 @@ describe('processStartCommand', () => {
       expect.stringContaining('Error creating user'),
       expect.objectContaining({ error: testError })
     )
+  })
+
+  it('should handle error during referral processing', async () => {
+    // Arrange: New user with invite code, but referral check fails
+    const referralError = new Error('Failed to get referral data')
+    const mockData: ProcessStartData = {
+      telegramId: 'newref-err',
+      username: 'refErrUser',
+      firstName: 'Ref',
+      lastName: 'Error',
+      isBot: false,
+      languageCode: 'ru',
+      chatId: 11111,
+      inviteCode: 'REF_ERR_CODE',
+      botName: 'test_bot_username',
+    }
+    mockGetUserDetailsSubscription.mockResolvedValueOnce({
+      isExist: false,
+      user: null,
+    })
+    const referralModule = await import('../../src/core/supabase/referral')
+    ;(referralModule.getReferalsCountAndUserData as Mock).mockRejectedValueOnce(
+      referralError
+    )
+    mockCreateUser.mockResolvedValueOnce([
+      true,
+      { id: 'user-uuid', telegram_id: 'newref-err' },
+    ])
+    mockIsRussian.mockReturnValue(true)
+    // Mock only the tutorial translation
+    const tutorialTextMock = '🎬 Туториал {{videoUrl}}'
+    const tutorialUrlMock = 'http://tutorial.url'
+    mockGetTranslation.mockResolvedValueOnce({
+      translation: tutorialTextMock,
+      url: tutorialUrlMock,
+    })
+
+    // Act
+    const result = await processStartCommand(mockData, mockDependencies)
+    await Promise.resolve()
+
+    // Assert
+    expect(result).toBe(true)
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      '[ProcessStart] Error processing referral logic',
+      expect.objectContaining({ error: referralError })
+    )
+    expect(mockDependencies.sendMessage).not.toHaveBeenCalledWith(
+      '-100987654321',
+      expect.any(String)
+    )
+    expect(mockCreateUser).toHaveBeenCalledTimes(1)
+    // Check for the correct welcome message
+    expect(mockDependencies.reply).toHaveBeenCalledWith(
+      '✅ Аватар успешно создан! Добро пожаловать!'
+    )
+    // Check for the tutorial message text and extra options
+    const expectedTutorialMsg = `🎬 Посмотрите [видео-инструкцию](${tutorialUrlMock}), как создавать нейрофото в этом боте.\n\nВ этом видео вы научитесь тренировать свою модель (Цифровое тело аватара), создавать фотографии и получать prompt из любого фото, которым вы вдохновились.`
+
+    expect(mockDependencies.reply).toHaveBeenNthCalledWith(
+      2,
+      expectedTutorialMsg,
+      expect.objectContaining({
+        parse_mode: 'Markdown',
+        reply_markup: Markup.keyboard([
+          [Markup.button.text(levels[105].title_ru)], // Subscribe
+          [Markup.button.text(levels[103].title_ru)], // Support
+        ]).resize().reply_markup,
+      })
+    )
+    // Ensure reply was called exactly twice
+    expect(mockDependencies.reply).toHaveBeenCalledTimes(2)
   })
 })

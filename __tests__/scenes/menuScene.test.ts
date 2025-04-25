@@ -1,170 +1,77 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-// Импортируем типы из telegraf напрямую
-import type { Message, CallbackQuery, Update } from 'telegraf/types'
-import type { MyContext } from '@/interfaces'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
-import type { ModeEnum } from '@/interfaces/modes'
-
-// Мок для path (обычный импорт)
-vi.mock('path', () => {
-  return {
-    join: vi.fn().mockImplementation((...args) => args.join('/')),
-    resolve: vi.fn().mockImplementation((...args) => args.join('/')),
-    dirname: vi.fn().mockImplementation((path) => path.split('/').slice(0, -1).join('/')),
-    basename: vi.fn().mockImplementation((path) => path.split('/').pop()),
-    default: {
-      join: vi.fn().mockImplementation((...args) => args.join('/')),
-      resolve: vi.fn().mockImplementation((...args) => args.join('/')),
-      dirname: vi.fn().mockImplementation((path) => path.split('/').slice(0, -1).join('/')),
-      basename: vi.fn().mockImplementation((path) => path.split('/').pop()),
-    }
-  }
-})
-
-// Сначала импортируем все необходимые модули
-import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
-import { getTranslation } from '@/core/supabase/getTranslation'
-import { mainMenu, levels } from '@/menu/mainMenu'
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
+import { Context as TelegrafContext, Scenes } from 'telegraf'
+import { Message, User, Update } from '@telegraf/types'
+import { MyContext } from '../../src/interfaces'
+import { ModeEnum } from '../../src/interfaces/modes'
+import { SubscriptionType } from '../../src/interfaces/subscription.interface'
+import { mainMenu } from '@/menu/mainMenu'
+import { getTranslation } from '@/core'
 import { isRussian } from '@/helpers/language'
-import { handleTechSupport } from '@/commands/handleTechSupport'
-import { handleMenu } from '@/handlers/handleMenu'
-import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
-import { sendReplyWithKeyboard } from '@/scenes/menuScene/sendReplyWithKeyboard'
-import { logger } from '@/utils'
-import { sendGenericErrorMessage } from '@/menu'
 
-// Моки необходимо объявить до импорта тестируемых модулей
-vi.mock('telegraf', () => {
-  // Создаем мок класса Telegraf
-  class TelegrafMock {
-    use = vi.fn().mockReturnThis();
-    launch = vi.fn().mockResolvedValue(undefined);
-    telegram = {
-      sendMessage: vi.fn().mockResolvedValue({}),
-      sendPhoto: vi.fn().mockResolvedValue({}),
-      sendDocument: vi.fn().mockResolvedValue({}),
-      sendMediaGroup: vi.fn().mockResolvedValue({}),
-      setChatMenuButton: vi.fn().mockResolvedValue({}),
-      setMyCommands: vi.fn().mockResolvedValue({}),
-    };
-    start = vi.fn().mockReturnThis();
-    command = vi.fn().mockReturnThis();
-    action = vi.fn().mockReturnThis();
-    hears = vi.fn().mockReturnThis();
-    on = vi.fn().mockReturnThis();
-    stop = vi.fn().mockResolvedValue(undefined);
-  }
+// Import the scene and its steps (assuming they are exported like this)
+import { menuScene } from '../../src/scenes/menuScene'
+// We might need to manually extract or export menuCommandStep and menuNextStep if they aren't exported by default
+// For now, let's assume menuScene.enterHandler and menuScene.actionHandler/messageHandler map to these
 
-  return {
-    Telegraf: TelegrafMock,
-    Markup: {
-      keyboard: vi.fn().mockImplementation((buttons) => ({
-        resize: vi.fn().mockReturnThis(),
-        oneTime: vi.fn().mockReturnThis(),
-        reply_markup: { 
-          keyboard: buttons || [],
-          resize_keyboard: true
-        }
-      })),
-      inlineKeyboard: vi.fn().mockImplementation((buttons) => ({
-        reply_markup: { 
-          inline_keyboard: buttons || []
-        }
-      })),
-    },
-    Scenes: {
-      WizardScene: vi.fn(),
-      Stage: vi.fn(),
-    },
-  }
-})
+// --- Import the actual step function ---
+import { menuCommandStep, menuNextStep } from '../../src/scenes/menuScene'
 
+// --- Import the actual step functions and levels ---
+import { levels as actualLevels } from '../../src/menu/mainMenu'
+
+// Mock dependencies
+// Moved variable declaration after potential vi.mock usage if needed by factories
+let mockGetUserDetailsSubscription: Mock
+let mockMainMenu: Mock
+let mockGetTranslation: Mock
+let mockIsRussian: Mock
+let mockHandleMenu: Mock
+let mockHandleTechSupport: Mock
+let mockHandleRestartVideoGeneration: Mock
+let mockLoggerInfo: Mock
+let mockLoggerWarn: Mock
+let mockLoggerError: Mock
+
+// Mocks - Factories must return vi.fn() directly to avoid hoisting issues
 vi.mock('@/core/supabase/getUserDetailsSubscription', () => ({
-  getUserDetailsSubscription: vi.fn().mockResolvedValue({
-    stars: 100,
-    subscriptionType: SubscriptionType.NEUROBASE,
-    isSubscriptionActive: true,
-    isExist: true,
-    subscriptionStartDate: '2023-01-01T00:00:00Z',
-  }),
+  getUserDetailsSubscription: vi.fn(), // Fix: Return vi.fn() directly
 }))
 
-vi.mock('@/core/supabase/getTranslation', () => ({
-  getTranslation: vi.fn().mockResolvedValue({
-    translation: 'Тестовое меню',
-    url: 'http://example.com/test.jpg',
-    buttons: [],
-  }),
+// --- Mock @/menu/index, including sendGenericErrorMessage ---
+vi.mock('@/menu/index', () => ({
+  sendGenericErrorMessage: vi.fn(),
 }))
 
 vi.mock('@/menu/mainMenu', () => ({
-  mainMenu: vi.fn().mockResolvedValue({
-    reply_markup: { 
-      keyboard: [
-        ['🤖 Цифровое тело', '📸 Нейрофото'],
-        ['💰 Баланс', '💎 Пополнить баланс'],
-        ['👥 Пригласить друга', '❓ Справка', '💬 Техподдержка'],
-      ],
-      resize_keyboard: true
-    }
-  }),
+  mainMenu: vi.fn(),
   levels: {
-    104: {
-      title_ru: '🏠 Главное меню',
-      title_en: '🏠 Main menu',
-    },
-    106: {
-      title_ru: '❓ Справка',
-      title_en: '❓ Help',
-    },
-    103: {
-      title_ru: '💬 Техподдержка',
-      title_en: '💬 Support',
-    },
-    102: {
-      title_ru: '👥 Пригласить друга',
-      title_en: '👥 Invite a friend',
-    },
-    101: {
-      title_ru: '💰 Баланс',
-      title_en: '💰 Balance',
-    },
-    100: {
-      title_ru: '💎 Пополнить баланс',
-      title_en: '💎 Top up balance',
-    },
-    105: {
-      title_ru: '💫 Оформить подписку',
-      title_en: '💫 Subscribe',
-    },
+    // Need to mock levels if used directly by scene or handlers
+    100: { title_ru: 'Пополнить баланс', title_en: 'Top Up Balance' },
+    101: { title_ru: 'Баланс', title_en: 'Balance' },
+    102: { title_ru: 'Пригласить друга', title_en: 'Invite Friend' },
+    103: { title_ru: 'Техподдержка', title_en: 'Support' },
+    104: { title_ru: 'Главное меню', title_en: 'Main Menu' },
+    105: { title_ru: 'Оформить подписку', title_en: 'Subscribe' },
+    106: { title_ru: 'Справка', title_en: 'Help' },
+    // Add other levels if needed by tests
   },
 }))
-
+vi.mock('@/core/supabase/getTranslation', () => ({
+  getTranslation: vi.fn(),
+}))
 vi.mock('@/helpers/language', () => ({
-  isRussian: vi.fn().mockReturnValue(true),
+  isRussian: vi.fn(),
 }))
-
-vi.mock('@/commands/handleTechSupport', () => ({
-  handleTechSupport: vi.fn().mockResolvedValue(undefined),
-}))
-
 vi.mock('@/handlers/handleMenu', () => ({
-  handleMenu: vi.fn().mockResolvedValue(undefined),
+  handleMenu: vi.fn(),
 }))
-
+vi.mock('@/commands/handleTechSupport', () => ({
+  handleTechSupport: vi.fn(),
+}))
 vi.mock('@/handlers/handleVideoRestart', () => ({
-  handleRestartVideoGeneration: vi.fn().mockResolvedValue(undefined),
+  handleRestartVideoGeneration: vi.fn(),
 }))
-
-vi.mock('@/menu', () => ({
-  sendGenericErrorMessage: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('@/scenes/menuScene/sendReplyWithKeyboard', () => ({
-  sendReplyWithKeyboard: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('@/utils', () => ({
+vi.mock('@/utils/logger', () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -172,253 +79,224 @@ vi.mock('@/utils', () => ({
   },
 }))
 
-// Только после импорта всех модулей и создания моков импортируем сам menuScene для теста
-import { menuScene } from '@/scenes/menuScene'
+// Helper to create mock context (can be imported from startScene.test or defined here)
+// Assuming createMockTelegrafContext is available or defined similarly
+import { createMockTelegrafContext } from './startScene.test'
 
-// Вспомогательная функция для создания мок-контекста
-const createMockContext = (languageCode: string = 'ru'): MyContext => {
-  return {
-    from: {
-      id: 123456789,
-      is_bot: false,
-      first_name: 'Test User',
-      language_code: languageCode,
-    },
-    botInfo: {
-      username: 'test_bot',
-    },
-    scene: {
-      enter: vi.fn(),
-      reenter: vi.fn(),
-      leave: vi.fn(),
-    },
-    wizard: {
-      next: vi.fn(),
-      cursor: 0,
-      state: {},
-    },
-    reply: vi.fn().mockResolvedValue({}),
-    update: {},
-    telegram: {
-      token: 'test_token',
-    },
-    session: {},
-    answerCbQuery: vi.fn().mockResolvedValue(true),
-  } as unknown as MyContext
-}
+// --- Added logger import for vi.mocked ---
+import { logger } from '@/utils/logger'
 
-// Тесты для компонентов, используемых в menuScene
-describe('menuScene components', () => {
-  let ctx: MyContext
+describe('menuScene', () => {
+  let mockCtx: MyContext
+  // Remove scene variable if not used directly
+  // let scene: Scenes.WizardScene<MyContext>
 
-  beforeEach(() => {
-    // Сбрасываем все моки перед каждым тестом
+  beforeEach(async () => {
+    // Make beforeEach async if imports are awaited
     vi.clearAllMocks()
 
-    // Создаем новый контекст для каждого теста
-    ctx = createMockContext()
-  })
+    // Import necessary modules AFTER mocks are set up
+    const userDetailsModule = await import(
+      '@/core/supabase/getUserDetailsSubscription'
+    )
+    const mainMenuModule = await import('@/menu/mainMenu')
+    const translationModule = await import('@/core/supabase/getTranslation')
+    const languageModule = await import('@/helpers/language')
+    const loggerModule = await import('@/utils/logger') // Logger module imported here
+    const handleMenuModule = await import('@/handlers/handleMenu')
+    const techSupportModule = await import('@/commands/handleTechSupport')
+    const videoRestartModule = await import('@/handlers/handleVideoRestart')
 
-  describe('getUserDetailsSubscription', () => {
-    it('should return subscription details', async () => {
-      // Вызываем функцию с контекстом
-      const result = await getUserDetailsSubscription('123456789')
+    // Assign mocked functions to variables
+    mockGetUserDetailsSubscription =
+      userDetailsModule.getUserDetailsSubscription as Mock
+    mockMainMenu = mainMenuModule.mainMenu as Mock
+    mockGetTranslation = translationModule.getTranslation as Mock
+    mockIsRussian = languageModule.isRussian as Mock
+    mockHandleMenu = handleMenuModule.handleMenu as Mock
+    mockHandleTechSupport = techSupportModule.handleTechSupport as Mock
+    mockHandleRestartVideoGeneration =
+      videoRestartModule.handleRestartVideoGeneration as Mock
+    mockLoggerInfo = loggerModule.logger.info as Mock // Assign directly from imported module
+    mockLoggerWarn = loggerModule.logger.warn as Mock // Assign directly from imported module
+    mockLoggerError = loggerModule.logger.error as Mock // Assign directly from imported module
 
-      // Проверяем что функция была вызвана с правильными параметрами
-      expect(getUserDetailsSubscription).toHaveBeenCalledWith('123456789')
+    // Setup default mock implementations AFTER assigning variables
+    mockGetUserDetailsSubscription.mockResolvedValue({
+      isExist: true,
+      subscriptionType: SubscriptionType.NEUROPHOTO, // Default for tests
+      stars: 100,
+    })
+    mockIsRussian.mockReturnValue(false) // Default to English
+    mockGetTranslation.mockResolvedValue({
+      translation: 'Default Menu Text',
+      url: null,
+    })
+    mockMainMenu.mockResolvedValue({
+      // mainMenu is already assigned the mock fn
+      reply_markup: { keyboard: [[{ text: 'DefaultButton' }]] },
+    })
 
-      // Проверяем возвращаемые данные
-      expect(result).toEqual({
-        stars: 100,
-        subscriptionType: SubscriptionType.NEUROBASE,
-        isSubscriptionActive: true,
-        isExist: true,
-        subscriptionStartDate: '2023-01-01T00:00:00Z',
-      })
+    // --- Removed redundant vi.mocked and Object.assign calls ---
+    // const loggerMock = vi.mocked(loggerModule.logger) // Corrected, but assignment already done
+    // Object.assign(mockLoggerInfo, loggerMock.info) // Redundant
+    // Object.assign(mockLoggerWarn, loggerMock.warn) // Redundant
+    // Object.assign(mockLoggerError, loggerMock.error) // Redundant
+
+    // const mainMenuMock = vi.mocked(mainMenuModule.mainMenu) // Corrected, but assignment already done
+    // Object.assign(mockMainMenu, mainMenuMock.mainMenu) // Redundant
+
+    mockCtx = createMockTelegrafContext({
+      // Correct: Nest the scene methods within the scene object
+      scene: {
+        scene: {
+          enter: vi.fn(),
+        },
+      },
+      from: { id: 123, username: 'testuser', language_code: 'ru' },
+      message: { text: 'MenuButton' },
+      // Overrides for the specific test can be set here, but usually done in the 'it' block
+      // but it's better to set them per test case for clarity
     })
   })
 
-  describe('getTranslation', () => {
-    it('should return translation data', async () => {
-      // Вызываем функцию с контекстом
-      const result = await getTranslation({
-        key: 'menu',
-        ctx,
-        bot_name: 'test_bot',
-      })
-
-      // Проверяем что функция была вызвана с правильными параметрами
-      expect(getTranslation).toHaveBeenCalledWith({
-        key: 'menu',
-        ctx,
-        bot_name: 'test_bot',
-      })
-
-      // Проверяем возвращаемые данные
-      expect(result).toEqual({
-        translation: 'Тестовое меню',
-        url: 'http://example.com/test.jpg',
-        buttons: [],
-      })
-    })
+  it('should setup basic mocks', () => {
+    expect(mockCtx).toBeDefined()
+    expect(mockGetUserDetailsSubscription).toBeDefined()
   })
 
-  describe('mainMenu', () => {
-    it('should return keyboard markup', async () => {
-      // Вызываем функцию с контекстом
-      const result = await mainMenu({
-        isRu: true,
-        subscription: SubscriptionType.NEUROBASE,
-        ctx,
-      })
-
-      // Проверяем что функция была вызвана с правильными параметрами
-      expect(mainMenu).toHaveBeenCalledWith({
-        isRu: true,
-        subscription: SubscriptionType.NEUROBASE,
-        ctx,
-      })
-
-      // Проверяем структуру возвращаемых данных
-      expect(result).toBeDefined()
-      expect(result.reply_markup).toBeDefined()
-      expect(result.reply_markup.keyboard).toBeDefined()
-      expect(result.reply_markup.resize_keyboard).toBe(true)
-    })
-  })
-
-  describe('isRussian', () => {
-    it('should detect Russian language', () => {
-      // Вызываем функцию определения языка
-      const result = isRussian(ctx)
-
-      // Проверяем что функция вернула ожидаемый результат
-      expect(result).toBe(true)
+  // Тест 1: Вход в меню (Подписка NEUROBASE/RU)
+  it('should handle entering the menu for a user with NEUROBASE subscription (RU)', async () => {
+    // Arrange
+    const mockTelegramId = '12345RU'
+    // --- Pass from and chat data during context creation ---
+    mockCtx = createMockTelegrafContext({
+      from: { id: 12345, language_code: 'ru' },
+      chat: { id: 12345, type: 'private' },
+      // Include scene/wizard/session defaults again or ensure they are correctly passed
+      scene: {
+        enter: vi.fn(),
+        leave: vi.fn(),
+        reenter: vi.fn(),
+        state: {},
+      },
+      wizard: {
+        next: vi.fn(),
+        back: vi.fn(),
+        state: {},
+        step: undefined,
+        cursor: 0,
+        selectStep: vi.fn(),
+      },
+      session: { __scenes: { cursor: 0 } }, // Added cursor: 0
+      botInfo: { username: 'test_menu_bot' } as any,
     })
 
-    it('should detect non-Russian language', () => {
-      // Создаем контекст с английским языком
-      const enCtx = createMockContext('en')
+    // --- Remove direct assignment to readonly properties ---
+    // mockCtx.from = { ...mockCtx.from, id: 12345, language_code: 'ru' }
+    // mockCtx.chat = { id: 12345, type: 'private' }
 
-      // Переопределяем мок для этого теста
-      vi.mocked(isRussian).mockReturnValueOnce(false)
-
-      // Вызываем функцию определения языка
-      const result = isRussian(enCtx)
-
-      // Проверяем что функция вернула ожидаемый результат
-      expect(result).toBe(false)
-    })
-  })
-
-  describe('handleTechSupport', () => {
-    it('should handle tech support request', async () => {
-      // Вызываем функцию техподдержки
-      await handleTechSupport(ctx)
-
-      // Проверяем что функция была вызвана с правильными параметрами
-      expect(handleTechSupport).toHaveBeenCalledWith(ctx)
-    })
-  })
-
-  describe('handleMenu', () => {
-    it('should handle menu navigation', async () => {
-      // Вызываем функцию обработки меню
-      await handleMenu(ctx)
-
-      // Проверяем что функция была вызвана с правильными параметрами
-      expect(handleMenu).toHaveBeenCalledWith(ctx)
-    })
-  })
-
-  describe('handleRestartVideoGeneration', () => {
-    it('should handle video restart', async () => {
-      // Вызываем функцию перезапуска генерации видео
-      await handleRestartVideoGeneration(ctx)
-
-      // Проверяем что функция была вызвана с правильными параметрами
-      expect(handleRestartVideoGeneration).toHaveBeenCalledWith(ctx)
-    })
-  })
-
-  describe('sendReplyWithKeyboard', () => {
-    it('should send message with photo', async () => {
-      // Создаем мок-клавиатуру для теста
-      const mockKeyboard = {
-        reply_markup: {
-          keyboard: [['Тестовая кнопка']],
-          resize_keyboard: true
-        }
-      };
-      
-      // Вызываем функцию отправки сообщения с фото
-      await sendReplyWithKeyboard(
-        ctx,
-        'Тестовое сообщение',
-        [],
-        mockKeyboard,
-        'http://example.com/test.jpg'
+    const userDetails = {
+      isExist: true,
+      subscriptionType: SubscriptionType.NEUROBASE,
+      stars: 500,
+    }
+    // --- Change mock implementation for clarity ---
+    // mockGetUserDetailsSubscription.mockResolvedValue(userDetails)
+    mockGetUserDetailsSubscription.mockImplementation(async (id: string) => {
+      console.log(
+        `[TEST MOCK] getUserDetailsSubscription called with ID: ${id}`
       )
-
-      // Проверяем что функция была вызвана с правильными параметрами
-      expect(sendReplyWithKeyboard).toHaveBeenCalledWith(
-        ctx,
-        'Тестовое сообщение',
-        [],
-        mockKeyboard,
-        'http://example.com/test.jpg'
-      )
+      return Promise.resolve(userDetails) // Return the predefined userDetails object
     })
+
+    mockIsRussian.mockReturnValue(true)
+
+    const translationResult = {
+      translation: 'Русский текст меню с URL',
+      url: 'http://example.com/photo.jpg',
+    }
+    mockGetTranslation.mockResolvedValue(translationResult)
+
+    const generatedKeyboard = {
+      reply_markup: { keyboard: [[{ text: 'Клавиатура NEUROBASE' }]] },
+    }
+    mockMainMenu.mockResolvedValue(generatedKeyboard) // mainMenu теперь async
+
+    // --- Add a microtask delay to potentially resolve async mock timing issues ---
+    await Promise.resolve()
+
+    // Act
+    // --- Correctly call the imported step function ---
+    await menuCommandStep(mockCtx) // Corrected: Pass only mockCtx
+
+    // Assert
+    expect(mockGetUserDetailsSubscription).toHaveBeenCalledWith(
+      mockCtx.from.id.toString()
+    )
+    expect(mockIsRussian).toHaveBeenCalledWith(mockCtx)
+    expect(mockGetTranslation).toHaveBeenCalledWith({
+      key: 'menu', // Ожидаем ключ 'menu' для NEUROBASE
+      ctx: mockCtx,
+      bot_name: 'test_menu_bot',
+    })
+    expect(mockMainMenu).toHaveBeenCalledWith({
+      isRu: true,
+      subscription: SubscriptionType.NEUROBASE,
+      ctx: mockCtx,
+    })
+    // Ожидаем вызов replyWithPhoto, так как URL есть
+    expect(mockCtx.replyWithPhoto).toHaveBeenCalledWith(translationResult.url, {
+      caption: translationResult.translation,
+      reply_markup: generatedKeyboard.reply_markup,
+    })
+    expect(mockCtx.reply).not.toHaveBeenCalled() // Обычный reply не должен вызываться
+    expect(mockCtx.wizard.next).toHaveBeenCalled()
   })
 
-  // Интеграционный тест для flow в menuScene
-  describe('menuScene flow integration', () => {
-    it('should correctly integrate getUserDetailsSubscription, mainMenu and getTranslation', async () => {
-      // Получаем данные пользователя
-      const userDetails = await getUserDetailsSubscription('123456789')
+  // TODO: Add Test 2: Вход в меню (Подписка NEUROPHOTO/EN)
+  // TODO: Add Test 3: Обработка кнопки "Справка"
+  // TODO: Add Test 4: Обработка функциональной кнопки (передача в handleMenu)
 
-      // Формируем клавиатуру на основе данных пользователя
-      const keyboard = await mainMenu({
-        isRu: true,
-        subscription: userDetails.subscriptionType,
-        ctx,
-      })
+  it('should enter help_scene when Help button is pressed', async () => {
+    // Arrange
+    const mockSceneEnter = vi.fn()
+    const mockIsRussianFn = vi.fn().mockReturnValue(false) // Mock isRussian specifically for this test
 
-      // Получаем перевод для меню
-      const translationData = await getTranslation({
-        key: 'menu',
-        ctx,
-        bot_name: ctx.botInfo?.username,
-      })
-
-      // Отправляем сообщение с фото
-      await sendReplyWithKeyboard(
-        ctx,
-        translationData.translation || 'Fallback text',
-        [],
-        keyboard,
-        translationData.url || null
-      )
-
-      // Проверяем последовательность вызовов функций
-      expect(getUserDetailsSubscription).toHaveBeenCalledWith('123456789')
-      expect(mainMenu).toHaveBeenCalledWith({
-        isRu: true,
-        subscription: SubscriptionType.NEUROBASE,
-        ctx,
-      })
-      expect(getTranslation).toHaveBeenCalledWith({
-        key: 'menu',
-        ctx,
-        bot_name: 'test_bot',
-      })
-      expect(sendReplyWithKeyboard).toHaveBeenCalledWith(
-        ctx,
-        'Тестовое меню',
-        [],
-        expect.anything(),
-        'http://example.com/test.jpg'
-      )
+    mockCtx = createMockTelegrafContext({
+      // Pass required scene, wizard, session structure
+      scene: {
+        scene: {
+          enter: mockSceneEnter, // Use the specific mock
+          leave: vi.fn(),
+          reenter: vi.fn(),
+          state: {},
+        },
+      },
+      wizard: {
+        next: vi.fn(),
+        back: vi.fn(),
+        state: {},
+        step: undefined,
+        cursor: 0,
+        selectStep: vi.fn(),
+      },
+      session: { __scenes: { cursor: 0 } },
+      // Set user/message for the test case
+      from: { id: 123, username: 'testuser', language_code: 'en' }, // English user
+      // Use actual button text from mocked levels
+      message: { text: actualLevels[106].title_en },
+      botInfo: { username: 'test_menu_bot' } as any,
     })
+
+    // Override the specific mock for isRussian used within this test scope
+    mockIsRussian.mockImplementation(mockIsRussianFn)
+
+    // Act: Call the handler for the next step
+    await menuNextStep(mockCtx)
+
+    // Assert
+    expect(mockIsRussianFn).toHaveBeenCalledWith(mockCtx) // Check if isRussian was called
+    expect(mockSceneEnter).toHaveBeenCalledWith(ModeEnum.Help) // Check if scene.enter was called with Help mode
   })
 })

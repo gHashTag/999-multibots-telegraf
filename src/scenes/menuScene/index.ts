@@ -17,7 +17,8 @@ import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscr
 import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 import { handleTechSupport } from '@/commands/handleTechSupport'
 
-const menuCommandStep = async (ctx: MyContext) => {
+// --- Export the step function for testing ---
+export const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
   try {

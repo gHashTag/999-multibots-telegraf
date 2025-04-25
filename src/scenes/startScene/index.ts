@@ -197,6 +197,7 @@ export async function processStartCommand(
             `[ProcessStart] User ${telegramId} created successfully`,
             { function: 'processStartCommand' }
           )
+          console.log('[DEBUG] Before Reply 1 (New User Welcome)')
           await dependencies.reply(
             isRu
               ? '✅ Аватар успешно создан! Добро пожаловать!'
@@ -213,6 +214,7 @@ export async function processStartCommand(
           error,
           function: 'processStartCommand',
         })
+        console.log('[DEBUG] Before Reply 2 (New User Creation Error)')
         await dependencies.reply(
           isRu
             ? '❌ Произошла ошибка при регистрации. Попробуйте позже.'
@@ -250,96 +252,112 @@ export async function processStartCommand(
         )
       }
     }
-  } catch (error) {
-    logger.error('[ProcessStart] Error checking user details', {
-      error,
+
+    // --- Welcome Message & Tutorial (Common for New and Existing) ---
+    try {
+      logger.info(
+        `[ProcessStart] Getting translation for 'start' for ${telegramId}`,
+        { function: 'processStartCommand' }
+      )
+      const { translation, url } = await dependencies.getTranslation({
+        key: 'start',
+        bot_name: botName,
+        language_code: languageCode,
+      })
+      logger.info(
+        `[ProcessStart] Translation received: ${translation ? 'Yes' : 'No'}, Url: ${url ? 'Yes' : 'No'}`,
+        { function: 'processStartCommand' }
+      )
+
+      if (url && url.trim() !== '') {
+        logger.info(`[ProcessStart] Sending welcome photo to ${telegramId}`, {
+          function: 'processStartCommand',
+        })
+        await dependencies.replyWithPhoto(url, { caption: translation })
+      } else {
+        logger.info(`[ProcessStart] Sending welcome text to ${telegramId}`, {
+          function: 'processStartCommand',
+        })
+        await dependencies.reply(
+          translation || (isRu ? 'Добро пожаловать!' : 'Welcome!'),
+          { parse_mode: 'Markdown' }
+        )
+      }
+
+      const tutorialUrl = BOT_URLS[botName]
+      let replyKeyboard
+
+      if (tutorialUrl) {
+        logger.info(`[ProcessStart] Sending tutorial link to ${telegramId}`, {
+          function: 'processStartCommand',
+        })
+        const tutorialText = isRu
+          ? `🎬 Посмотрите [видео-инструкцию](${tutorialUrl}), как создавать нейрофото в этом боте.\n\nВ этом видео вы научитесь тренировать свою модель (Цифровое тело аватара), создавать фотографии и получать prompt из любого фото, которым вы вдохновились.`
+          : `🎬 Watch this [tutorial video](${tutorialUrl}) on how to create neurophotos in this bot.\n\nIn this video, you will learn how to train your model (Digital avatar body), create photos, and get a prompt from any photo that inspires you.`
+
+        replyKeyboard = Markup.keyboard([
+          Markup.button.text(
+            isRu ? levels[105].title_ru : levels[105].title_en
+          ),
+          Markup.button.text(
+            isRu ? levels[103].title_ru : levels[103].title_en
+          ),
+        ]).resize()
+
+        await dependencies.reply(tutorialText, {
+          parse_mode: 'Markdown',
+          reply_markup: replyKeyboard.reply_markup,
+        })
+      } else {
+        logger.info(`[ProcessStart] Tutorial URL not found for ${botName}`, {
+          function: 'processStartCommand',
+        })
+        replyKeyboard = Markup.keyboard([
+          Markup.button.text(
+            isRu ? levels[105].title_ru : levels[105].title_en
+          ),
+          Markup.button.text(
+            isRu ? levels[103].title_ru : levels[103].title_en
+          ),
+        ]).resize()
+        await dependencies.reply(
+          isRu ? 'Выберите действие:' : 'Choose an action:',
+          {
+            reply_markup: replyKeyboard.reply_markup,
+          }
+        )
+      }
+    } catch (error) {
+      logger.error('[ProcessStart] Error sending welcome/tutorial message', {
+        error,
+        function: 'processStartCommand',
+      })
+    }
+
+    logger.info(`[ProcessStart] Completed successfully for ${telegramId}`, {
       function: 'processStartCommand',
     })
-    await dependencies.reply(
-      isRu
-        ? '❌ Произошла ошибка при загрузке данных. Попробуйте позже.'
-        : '❌ An error occurred while loading data. Please try again later.'
-    )
+    return true
+  } catch (error) {
+    logger.error('[ProcessStart] Critical error in start scene', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      function: 'processStartCommand',
+    })
+    try {
+      console.log('[DEBUG] Before Reply 5 (Critical Error Fallback)')
+      await dependencies.reply(
+        isRu
+          ? '❌ Произошла внутренняя ошибка. Попробуйте позже или свяжитесь с поддержкой.'
+          : '❌ An internal error occurred. Please try again later or contact support.'
+      )
+    } catch (replyError) {
+      logger.error('[ProcessStart] Failed to send critical error message', {
+        replyError,
+      })
+    }
     return false
   }
-
-  // --- Welcome Message & Tutorial (Common for New and Existing) ---
-  try {
-    logger.info(
-      `[ProcessStart] Getting translation for 'start' for ${telegramId}`,
-      { function: 'processStartCommand' }
-    )
-    const { translation, url } = await dependencies.getTranslation({
-      key: 'start',
-      bot_name: botName,
-      language_code: languageCode,
-    })
-    logger.info(
-      `[ProcessStart] Translation received: ${translation ? 'Yes' : 'No'}, Url: ${url ? 'Yes' : 'No'}`,
-      { function: 'processStartCommand' }
-    )
-
-    if (url && url.trim() !== '') {
-      logger.info(`[ProcessStart] Sending welcome photo to ${telegramId}`, {
-        function: 'processStartCommand',
-      })
-      await dependencies.replyWithPhoto(url, { caption: translation })
-    } else {
-      logger.info(`[ProcessStart] Sending welcome text to ${telegramId}`, {
-        function: 'processStartCommand',
-      })
-      await dependencies.reply(
-        translation || (isRu ? 'Добро пожаловать!' : 'Welcome!'),
-        { parse_mode: 'Markdown' }
-      )
-    }
-
-    const tutorialUrl = BOT_URLS[botName]
-    let replyKeyboard
-
-    if (tutorialUrl) {
-      logger.info(`[ProcessStart] Sending tutorial link to ${telegramId}`, {
-        function: 'processStartCommand',
-      })
-      const tutorialText = isRu
-        ? `🎬 Посмотрите [видео-инструкцию](${tutorialUrl}), как создавать нейрофото в этом боте.\n\nВ этом видео вы научитесь тренировать свою модель (Цифровое тело аватара), создавать фотографии и получать prompt из любого фото, которым вы вдохновились.`
-        : `🎬 Watch this [tutorial video](${tutorialUrl}) on how to create neurophotos in this bot.\n\nIn this video, you will learn how to train your model (Digital avatar body), create photos, and get a prompt from any photo that inspires you.`
-
-      replyKeyboard = Markup.keyboard([
-        Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en),
-        Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en),
-      ]).resize()
-
-      await dependencies.reply(tutorialText, {
-        parse_mode: 'Markdown',
-        reply_markup: replyKeyboard.reply_markup,
-      })
-    } else {
-      logger.info(`[ProcessStart] Tutorial URL not found for ${botName}`, {
-        function: 'processStartCommand',
-      })
-      replyKeyboard = Markup.keyboard([
-        Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en),
-        Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en),
-      ]).resize()
-      await dependencies.reply(
-        isRu ? 'Выберите действие:' : 'Choose an action:',
-        {
-          reply_markup: replyKeyboard.reply_markup,
-        }
-      )
-    }
-  } catch (error) {
-    logger.error('[ProcessStart] Error sending welcome/tutorial message', {
-      error,
-      function: 'processStartCommand',
-    })
-  }
-
-  logger.info(`[ProcessStart] Completed successfully for ${telegramId}`, {
-    function: 'processStartCommand',
-  })
-  return true
 }
 
 // --- Wizard Scene Middleware (Wrapper) ---
