@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, Mocked } from 'vitest'
 import type { Mock } from 'vitest'
+import { startMenu } from '../../src/menu'
+import { levels } from '../../src/menu/mainMenu'
 
 // Импортируем ЧАСТЬ необходимых моков ИЗ SETUP
 import {
@@ -142,7 +144,7 @@ vi.mock('../../src/core/bot', () => ({
 vi.mock('../../src/menu/mainMenu')
 
 // Мокируем index (для startMenu)
-vi.mock('../../src/menu/index')
+// vi.mock('../../src/menu/index')
 
 // Глобальный мок для process.env (если используется SUBSCRIBE_CHANNEL_ID)
 vi.stubGlobal('process', {
@@ -159,7 +161,6 @@ describe('processStartCommand', () => {
   let mockGetReferalsCountAndUserData: Mock
   let mockGetTranslation: Mock
   let mockMainMenu: Mock
-  let mockStartMenu: Mock
   let mockIsRussian: Mock
   let mockLoggerInfo: Mock
   let mockLoggerWarn: Mock
@@ -194,7 +195,6 @@ describe('processStartCommand', () => {
       referralModuleImport.getReferalsCountAndUserData as Mock
     mockGetTranslation = localizationModuleImport.getTranslation as Mock
     mockMainMenu = mainMenuModuleImport.mainMenu as Mock
-    mockStartMenu = menuIndexModuleImport.startMenu as Mock
     mockIsRussian = languageHelperModuleImport.isRussian as Mock
     loggerModule = loggerModuleImport
 
@@ -253,10 +253,6 @@ describe('processStartCommand', () => {
     mockMainMenu.mockReturnValue({
       text: 'main-menu',
       reply_markup: { keyboard: [] },
-    })
-    mockStartMenu.mockReturnValue({
-      text: 'start-menu',
-      reply_markup: { inline_keyboard: [] },
     })
   })
 
@@ -474,29 +470,37 @@ describe('processStartCommand', () => {
   })
 
   it('should return false and reply on user check error', async () => {
-    // 1. Arrange
-    const inputData: ProcessStartData = {
+    // Arrange: User check fails
+    const checkError = new Error('DB connection failed')
+    const mockData: ProcessStartData = {
       telegramId: 'err1',
-      botName: 'b',
-      languageCode: 'en',
+      botName: 'test_bot_username',
     }
-    const testError = new Error('DB Check Failed')
-    mockGetUserDetailsSubscription.mockRejectedValue(testError)
+    // Mock getUserDetailsSubscription to throw an error
+    // NOTE: The function catches the error and logs it, then returns false
+    // So we expect the outer catch block in processStartCommand to trigger
+    mockGetUserDetailsSubscription.mockRejectedValueOnce(checkError)
+    mockIsRussian.mockReturnValue(false) // Use English for error message
 
-    // 2. Act
-    const result = await processStartCommand(inputData, mockDependencies)
+    // Act
+    const result = await processStartCommand(mockData, mockDependencies)
+    await Promise.resolve()
 
-    // 3. Assert
-    expect(result).toBe(false)
+    // Assert
+    expect(result).toBe(false) // Should fail
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      '[ProcessStart] Critical error in start scene', // Expecting the outer catch
+      expect.objectContaining({
+        error: checkError.message,
+      })
+    )
     expect(mockGetUserDetailsSubscription).toHaveBeenCalledWith('err1')
     expect(mockCreateUser).not.toHaveBeenCalled()
+    // Check the critical error fallback message
     expect(mockDependencies.reply).toHaveBeenCalledWith(
-      '❌ An error occurred while loading data. Please try again later.'
+      '❌ An internal error occurred. Please try again later or contact support.'
     )
-    expect(mockLoggerError).toHaveBeenCalledWith(
-      expect.stringContaining('Error checking user details'),
-      expect.objectContaining({ error: testError })
-    )
+    expect(mockDependencies.reply).toHaveBeenCalledTimes(1) // Only one reply expected
   })
 
   it('should return false and reply on user creation error', async () => {
@@ -529,5 +533,77 @@ describe('processStartCommand', () => {
       expect.stringContaining('Error creating user'),
       expect.objectContaining({ error: testError })
     )
+  })
+
+  it('should handle error during referral processing', async () => {
+    // Arrange: New user with invite code, but referral check fails
+    const referralError = new Error('Failed to get referral data')
+    const mockData: ProcessStartData = {
+      telegramId: 'newref-err',
+      username: 'refErrUser',
+      firstName: 'Ref',
+      lastName: 'Error',
+      isBot: false,
+      language_code: 'ru',
+      chatId: 11111,
+      inviteCode: 'REF_ERR_CODE',
+      botName: 'test_bot_username',
+    }
+    mockGetUserDetailsSubscription.mockResolvedValueOnce({
+      isExist: false,
+      user: null,
+    })
+    const referralModule = await import('../../src/core/supabase/referral')
+    ;(referralModule.getReferalsCountAndUserData as Mock).mockRejectedValueOnce(
+      referralError
+    )
+    mockCreateUser.mockResolvedValueOnce([
+      true,
+      { id: 'user-uuid', telegram_id: 'newref-err' },
+    ])
+    mockIsRussian.mockReturnValue(true)
+    // Mock only the tutorial translation
+    const tutorialTextMock = '🎬 Туториал {{videoUrl}}'
+    const tutorialUrlMock = 'http://tutorial.url'
+    mockGetTranslation.mockResolvedValueOnce({
+      translation: tutorialTextMock,
+      url: tutorialUrlMock,
+    })
+
+    // Act
+    const result = await processStartCommand(mockData, mockDependencies)
+    await Promise.resolve()
+
+    // Assert
+    expect(result).toBe(true)
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      '[ProcessStart] Error processing referral logic',
+      expect.objectContaining({ error: referralError })
+    )
+    expect(mockDependencies.sendMessage).not.toHaveBeenCalledWith(
+      '-100987654321',
+      expect.any(String)
+    )
+    expect(mockCreateUser).toHaveBeenCalledTimes(1)
+    // Check for the correct welcome message
+    expect(mockDependencies.reply).toHaveBeenCalledWith(
+      '✅ Аватар успешно создан! Добро пожаловать!'
+    )
+    // Check for the tutorial message text and extra options
+    const expectedTutorialMsg = `🎬 Посмотрите [видео-инструкцию](${tutorialUrlMock}), как создавать нейрофото в этом боте.\n\nВ этом видео вы научитесь тренировать свою модель (Цифровое тело аватара), создавать фотографии и получать prompt из любого фото, которым вы вдохновились.`
+
+    expect(mockDependencies.reply).toHaveBeenNthCalledWith(
+      2,
+      expectedTutorialMsg,
+      expect.objectContaining({
+        parse_mode: 'Markdown',
+        reply_markup: Markup.keyboard([
+          [Markup.button.text(levels[105].title_ru)], // Subscribe
+          [Markup.button.text(levels[103].title_ru)], // Support
+        ]).resize().reply_markup,
+      })
+    )
+    // Ensure reply was called exactly twice
+    expect(mockDependencies.reply).toHaveBeenCalledTimes(2)
   })
 })
