@@ -319,7 +319,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   // <<< НАЧАЛО: ДОБАВЛЕННЫЕ ОБРАБОТЧИКИ HEARS >>>
   bot.hears([levels[106].title_ru, levels[106].title_en], async ctx => {
     console.log('CASE bot.hears: ❓ Справка / Help')
-    if (!ctx.session?.currentScene) {
+    if (!ctx.scene.current) {
       ctx.session.mode = ModeEnum.Help // Общий режим справки
     } // Если currentScene установлен, helpScene использует его
     await ctx.scene.enter(ModeEnum.Help) // HelpScene ID = 'helpScene'

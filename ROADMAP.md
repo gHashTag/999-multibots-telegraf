@@ -76,6 +76,7 @@
 - ✅ {current_date}: Рефакторинг кода (`processBalanceVideoOperation`, `imageToVideoWizard`, `videoModelMenu`, `generateImageToVideo`, `videoModelPrices`, `validateAndCalculateVideoModelPrice`) для использования `keyof typeof VIDEO_MODELS_CONFIG` вместо `VideoModel`.
 - ✅ {current_date}: Заменен тип `string` на `VideoModelConfigKey` в `BalanceOperationProps` в `processBalanceVideoOperation.ts`.
 - ✅ {current_date}: Исправлена ошибка импорта `VideoModel` и вызова `processBalanceVideoOperation` в `src/services/plan_b/generateTextToVideo.ts` после рефакторинга.
+- ✅ {current_date}: Исправлены ошибки компиляции TypeScript в `src/registerCommands.ts` и `src/handlers/handleBuy/index.ts` (ошибки TS2339 и TS2345).
 
 ### Правила и Консистентность 📜 (НОВЫЙ РАЗДЕЛ)
 - ✅ {current_date}: Создано правило Cursor `price-calculation-consistency.mdc` для обеспечения единообразия расчета и отображения цен.
@@ -227,6 +228,7 @@
 - ✅ {current_date}: Восстановлен обработчик `action(/top_up_(\d+)/)` в `starPaymentScene.ts` для обработки нажатий кнопок покупки звезд.
 - ✅ {current_date}: Исправлена ошибка `price is null` при расчете стоимости видеогенерации, уточнена логика маппинга моделей.
 - ✅ {current_date}: Удален тип `VideoModel`, рефакторинг ВСЕХ связанных файлов для использования `keyof typeof VIDEO_MODELS_CONFIG`.
+- ✅ {current_date}: Исправлены ошибки компиляции TypeScript (TS2339, TS2345) в `src/registerCommands.ts` и `src/handlers/handleBuy/index.ts`.
 
 ## ⭐ Payments & Subscriptions Refactoring (v2)
 

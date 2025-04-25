@@ -1,19 +1,25 @@
 import { Context } from 'telegraf'
 import { starAmounts } from '@/price/helpers'
-interface BuyParams {
-  ctx: Context
-  data: string
-  isRu: boolean
-}
+import { MyContext } from '@/interfaces'
+import { isRussian } from '@/helpers'
 
-export async function handleBuy({ ctx, data, isRu }: BuyParams) {
+export async function handleBuy(ctx: MyContext) {
+  const callbackData = (ctx.callbackQuery as any)?.data
+  const isRu = isRussian(ctx)
+
+  if (!callbackData) {
+    console.error('CASE: handleBuy - Ошибка: callbackData не определен')
+    await ctx.answerCbQuery('Произошла ошибка')
+    return
+  }
+
   try {
-    console.log('CASE: handleBuy - Начало обработки', { data })
+    console.log('CASE: handleBuy - Начало обработки', { callbackData })
 
     let matchFound = false
 
     for (const amount of starAmounts) {
-      if (data.endsWith(`top_up_${amount}`)) {
+      if (callbackData.endsWith(`top_up_${amount}`)) {
         console.log(`CASE: handleBuy - Найдено совпадение для amount=${amount}`)
         matchFound = true
 
@@ -35,27 +41,38 @@ export async function handleBuy({ ctx, data, isRu }: BuyParams) {
             provider_token: '',
           })
           console.log('CASE: handleBuy - Invoice успешно отправлен')
+          await ctx.answerCbQuery()
         } catch (invoiceError) {
           console.error(
             'CASE: handleBuy - Ошибка при отправке invoice:',
             invoiceError
           )
-          throw invoiceError
+          await ctx.answerCbQuery('Ошибка при создании счета')
         }
-
         return
       }
     }
     //
     if (!matchFound) {
-      console.warn('CASE: handleBuy - Не найдено совпадений для data:', data)
+      console.warn(
+        'CASE: handleBuy - Не найдено совпадений для callbackData:',
+        callbackData
+      )
       console.warn(
         'CASE: handleBuy - Доступные значения starAmounts:',
         starAmounts
       )
+      await ctx.answerCbQuery('Неизвестное действие')
     }
   } catch (error) {
     console.error('CASE: handleBuy - Общая ошибка:', error)
-    throw error
+    try {
+      await ctx.answerCbQuery('Произошла внутренняя ошибка')
+    } catch (cbError) {
+      console.error(
+        'CASE: handleBuy - Ошибка при ответе на callbackQuery в catch блоке',
+        cbError
+      )
+    }
   }
 }

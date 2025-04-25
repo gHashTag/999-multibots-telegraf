@@ -7,7 +7,7 @@ export async function handleTopUp(ctx) {
     console.log('Полученные данные колбэка:', data)
     const isRu = ctx.from?.language_code === 'ru'
     console.log('Вызываем handleBuy с данными:', { data, isRu })
-    await handleBuy({ ctx, data, isRu })
+    await handleBuy(ctx)
     console.log('CASE: handleTopUp - Успешно завершено')
     await ctx.scene.leave()
   } catch (error) {
