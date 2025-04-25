@@ -7,8 +7,8 @@ remote_branch=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null
 
 # Проверяем, является ли целевая ветка 'main'
 if [ "$remote_branch" = "main" ]; then
-  echo "🧘‍♂️ Обнаружена попытка push в 'main'. Запуск проверки типов TypeScript..."
-  pnpm typecheck
+  echo "🧘‍♂️ Обнаружена попытка push в 'main'. Запуск проверки типов TypeScript (tsc --noEmit)..."
+  pnpm exec tsc --noEmit
   exit_code=$?
 
   if [ $exit_code -ne 0 ]; then
