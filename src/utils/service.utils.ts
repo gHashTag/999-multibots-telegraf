@@ -1,11 +1,11 @@
-import {
+import type {
   ServiceType,
   ServiceConfig,
   ServiceUsageStats,
   ServiceValidationResult,
   ServiceAccessResult,
-  ServiceMetadata,
 } from '../interfaces/service.interface'
+import type { ServiceMetadata } from '../interfaces/service.interface'
 import { supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 // Normalize transaction type to lowercase
