@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { SECRET_API_KEY, API_URL } from '@/config'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { sendGenericErrorMessage } from '@/menu'
 
 interface VoiceAvatarResponse {

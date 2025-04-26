@@ -13,18 +13,23 @@
     "build:prod": "vite build --config vite.config.ts --mode production",
     "preview": "vite preview",
     "predev": "node scripts/kill-port.cjs 2999 3000 3001 8288",
-    "test": "NODE_OPTIONS=\"--experimental-specifier-resolution=node --no-warnings\" vitest run",
+    "test": "vitest",
     "test:watch": "NODE_OPTIONS=\"--experimental-specifier-resolution=node --no-warnings\" vitest",
     "test:menu": "NODE_OPTIONS=\"--experimental-specifier-resolution=node --no-warnings\" vitest run __tests__/scenes/menuScene.test.ts",
     "test:menu:watch": "NODE_OPTIONS=\"--experimental-specifier-resolution=node --no-warnings\" vitest __tests__/scenes/menuScene.test.ts",
+    "test:coverage": "NODE_OPTIONS=\"--experimental-specifier-resolution=node --no-warnings\" vitest run --coverage",
     "test:coverage:open": "NODE_OPTIONS=\"--experimental-specifier-resolution=node --no-warnings\" vitest run --coverage && open ./coverage/index.html",
-    "test:ui": "NODE_OPTIONS=\"--experimental-specifier-resolution=node --no-warnings\" vitest --ui",
+    "test:ui": "vitest --ui",
+    "test:e2e": "NODE_OPTIONS=\"--experimental-specifier-resolution=node --no-warnings\" vitest run --config vitest.config.e2e.ts",
+    "test:e2e:watch": "NODE_OPTIONS=\"--experimental-specifier-resolution=node --no-warnings\" vitest --config vitest.config.e2e.ts",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint \"./**/*.ts\"",
     "lint:fix": "eslint --fix \"./**/*.ts\"",
     "format": "prettier --write \"./**/*.ts\"",
     "prepare": "husky install",
     "clean": "rimraf dist coverage .vite",
-    "reset": "pnpm clean && rimraf node_modules .pnpm-store && pnpm install"
+    "reset": "pnpm clean && rimraf node_modules .pnpm-store && pnpm install",
+    "test:run": "vitest run"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -49,7 +54,6 @@
     "fastify": "^5.3.2",
     "form-data": "^4.0.0",
     "inngest": "^3.11.1",
-    "jest-mock": "^29.7.0",
     "md5": "^2.3.0",
     "multer": "^1.4.5-lts.1",
     "node-fetch": "^2.7.0",
@@ -78,8 +82,8 @@
     "@types/uuid": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
-    "@vitest/coverage-v8": "^3.1.2",
-    "@vitest/ui": "^3.1.2",
+    "@vitest/coverage-v8": "^1.0.4",
+    "@vitest/ui": "^1.0.4",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.3",
@@ -93,12 +97,13 @@
     "tsconfig-paths": "^4.2.0",
     "tslib": "^2.8.1",
     "typescript": "^5.3.3",
-    "vite": "^6.3.3",
+    "vite": "^5.2.10",
     "vite-node": "^3.1.2",
     "vite-plugin-checker": "^0.9.1",
     "vite-plugin-node": "^5.0.1",
     "vite-plugin-node-polyfills": "^0.23.0",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.1.2"
+    "vitest": "^1.4.0",
+    "vitest-mock-extended": "^3.1.0"
   }
 }

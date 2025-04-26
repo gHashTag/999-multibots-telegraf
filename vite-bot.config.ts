@@ -4,10 +4,7 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import path from 'path'
 
 export default defineConfig({
-  plugins: [
-    tsconfigPaths(),
-    nodePolyfills() 
-  ],
+  plugins: [tsconfigPaths(), nodePolyfills()],
   build: {
     target: 'node18', // Целевая версия Node.js
     outDir: 'dist',
@@ -16,7 +13,7 @@ export default defineConfig({
     lib: {
       entry: path.resolve(__dirname, 'src/bot.ts'),
       formats: ['cjs'],
-      fileName: () => 'bot.js' 
+      fileName: () => 'bot.js',
     },
     rollupOptions: {
       external: [
@@ -30,17 +27,23 @@ export default defineConfig({
         'node:path',
         'node:os',
         'node:net',
-        'node:child_process'
-      ]
-    }
+        'node:child_process',
+      ],
+    },
   },
   optimizeDeps: {
-    exclude: ['@/core/*', '@/utils/*', '@/interfaces/*', '@/scenes/*', 'winston']
+    exclude: [
+      '@/core/*',
+      '@/utils/*',
+      '@/interfaces/*',
+      '@/scenes/*',
+      'winston',
+    ],
   },
   server: {
     port: 3000,
     hmr: {
-      port: 3001
-    }
-  }
-}) 
+      port: 3001,
+    },
+  },
+})

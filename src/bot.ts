@@ -20,17 +20,17 @@ if (!fs.existsSync(CONFLICT_LOG_PATH)) {
  * @param additionalInfo Дополнительная информация о конфликте
  */
 function recordTelegramConflict(
-  errorMessage: string, 
+  errorMessage: string,
   forceStartActive: boolean,
   additionalInfo: Record<string, any> = {}
 ): void {
   try {
     const timestamp = new Date().toISOString()
     const fileName = path.join(
-      CONFLICT_LOG_PATH, 
+      CONFLICT_LOG_PATH,
       `conflict_${timestamp.replace(/[:.]/g, '_')}.json`
     )
-    
+
     const conflictData = {
       timestamp,
       error_message: errorMessage,
@@ -41,18 +41,18 @@ function recordTelegramConflict(
       node_version: process.version,
       environment: process.env.NODE_ENV,
       pid: process.pid,
-      ...additionalInfo
+      ...additionalInfo,
     }
-    
+
     fs.writeFileSync(fileName, JSON.stringify(conflictData, null, 2))
     logger.info(`✅ Информация о конфликте 409 сохранена в файл: ${fileName}`, {
       description: 'Telegram 409 conflict recorded to file',
-      file_path: fileName
+      file_path: fileName,
     })
   } catch (error) {
     logger.error('❌ Ошибка при сохранении информации о конфликте', {
       description: 'Failed to save conflict information',
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
   }
 }
@@ -374,7 +374,9 @@ export async function startBot(): Promise<void> {
       )
     ) {
       const forceStartActive = process.env.FORCE_START === 'true'
-      const lockFileExists = fs.existsSync(path.join(process.cwd(), '.bot.lock'));
+      const lockFileExists = fs.existsSync(
+        path.join(process.cwd(), '.bot.lock')
+      )
 
       // Записываем информацию о конфликте для дальнейшего анализа
       recordTelegramConflict(error.message, forceStartActive, {
@@ -385,14 +387,14 @@ export async function startBot(): Promise<void> {
           test_bot_name: process.env.TEST_BOT_NAME,
           webhook_domain: process.env.WEBHOOK_DOMAIN,
           // Не логируем токены и другие чувствительные данные!
-        }
-      });
+        },
+      })
 
       // Улучшаем сообщение об ошибке
       logger.error('❌ Ошибка запуска бота: Конфликт с другим экземпляром', {
         description: 'Telegram API 409 Conflict Error',
         error_message: error.message,
-        solution: lockFileExists 
+        solution: lockFileExists
           ? 'Обнаружен файл блокировки (.bot.lock). Другой экземпляр бота активен.'
           : 'Другой экземпляр бота с тем же токеном уже запущен в другом месте',
         suggestion: lockFileExists
@@ -400,7 +402,7 @@ export async function startBot(): Promise<void> {
           : 'Остановите другие экземпляры бота или используйте FORCE_START=true',
         force_start_active: forceStartActive,
         lock_file_exists: lockFileExists,
-        conflict_logs_path: CONFLICT_LOG_PATH
+        conflict_logs_path: CONFLICT_LOG_PATH,
       })
 
       if (forceStartActive) {
@@ -426,7 +428,8 @@ export async function startBot(): Promise<void> {
           ],
           webhook_note:
             'Если бот настроен на работу через webhook, он не может одновременно работать в режиме polling',
-          additional_tip: 'Добавьте ?new_session=true к URL вашего бота в BotFather для сброса сессии'
+          additional_tip:
+            'Добавьте ?new_session=true к URL вашего бота в BotFather для сброса сессии',
         })
       }
 
