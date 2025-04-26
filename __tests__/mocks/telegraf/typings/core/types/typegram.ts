@@ -9,6 +9,7 @@ export interface User {
   is_bot: boolean
   username?: string
   last_name?: string
+  [key: string]: any
 }
 
 export interface Chat {
@@ -17,6 +18,8 @@ export interface Chat {
   first_name?: string
   username?: string
   title?: string
+  last_name?: string
+  [key: string]: any
 }
 
 // Типы сообщений
@@ -26,6 +29,8 @@ export interface Message {
   chat: Chat
   from?: User
   text?: string
+  photo?: Array<PhotoSize>
+  [key: string]: any
 }
 
 // Типы для клавиатур
@@ -74,6 +79,14 @@ export interface CallbackQuery {
   from: User
   message?: Message
   data?: string
+}
+
+export interface PhotoSize {
+  file_id: string
+  file_unique_id: string
+  width: number
+  height: number
+  file_size?: number
 }
 
 // Экспортируем все типы для совместимости с импортами в проекте

@@ -1,5 +1,10 @@
 import { beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
 import { supabase } from '../core/supabase'
+import 'vitest-mock-extended'
+// Импортируем тип напрямую
+import type { MyContext } from '../interfaces/telegram-bot.interface'
+// import type { Middleware } from 'telegraf/typings/composer'
+import type { MySession } from '../interfaces/telegram-bot.interface'
 
 // Мок для fetch
 global.fetch = vi.fn()
@@ -33,6 +38,222 @@ vi.mock('../core/supabase', () => ({
       data: null,
       error: null,
     })),
+  },
+}))
+
+const defaultBotName = 'neuroblogger_bot'
+
+vi.mock('node:fs/promises', () => ({
+  default: {
+    readFile: vi.fn().mockResolvedValue('mocked file content'),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+    access: vi.fn().mockResolvedValue(undefined),
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    rm: vi.fn().mockResolvedValue(undefined),
+  },
+}))
+
+// Mocking telegraf
+vi.mock('telegraf', async () => {
+  // Используем контекст и другие нужные части из оригинального модуля
+  const originalModule = await vi.importActual('telegraf')
+  
+  return {
+    ...(originalModule as any),
+    // Переопределяем только то, что нам нужно мокнуть
+    Markup: {
+      keyboard: vi.fn((buttons) => ({
+        keyboard: buttons,
+        resize_keyboard: true,
+        one_time_keyboard: false,
+      })),
+      inlineKeyboard: vi.fn(rows => ({ inline_keyboard: rows })),
+      button: vi.fn((text, data) => ({ text, callback_data: data })),
+      callbackButton: vi.fn((text, data) => ({ text, callback_data: data })),
+      urlButton: vi.fn((text, url) => ({ text, url })),
+      removeKeyboard: vi.fn(() => ({ remove_keyboard: true })),
+      resize: vi.fn(obj => {
+        if (obj && typeof obj === 'object') {
+          return { ...obj, resize_keyboard: true }
+        }
+        return { resize_keyboard: true }
+      }),
+      extra: vi.fn(),
+      oneTime: vi.fn(obj => {
+        if (obj && typeof obj === 'object') {
+          return { ...obj, one_time_keyboard: true }
+        }
+        return { one_time_keyboard: true }
+      }),
+      selective: vi.fn(obj => {
+        if (obj && typeof obj === 'object') {
+          return { ...obj, selective: true }
+        }
+        return { selective: true }
+      }),
+    },
+    Scenes: {
+      BaseScene: vi.fn().mockImplementation(function (sceneId: string) {
+        this.id = sceneId
+        this.enter = vi.fn().mockReturnThis()
+        this.leave = vi.fn().mockReturnThis()
+        this.use = vi.fn().mockReturnThis()
+        this.action = vi.fn().mockReturnThis()
+        this.command = vi.fn().mockReturnThis()
+        this.hears = vi.fn().mockReturnThis()
+        return this
+      }),
+      Stage: vi.fn().mockImplementation(function (scenes: any[], options: any) {
+        this.scenes = scenes
+        this.options = options
+        this.register = vi.fn().mockReturnThis()
+        this.middleware = vi.fn().mockReturnThis()
+        this.enter = vi.fn().mockReturnThis()
+        this.leave = vi.fn().mockReturnThis()
+        return this
+      }),
+      WizardScene: vi.fn().mockImplementation(function (sceneId: string, ...steps: any[]) {
+        this.id = sceneId
+        this.steps = steps
+        this.enter = vi.fn().mockReturnThis()
+        this.leave = vi.fn().mockReturnThis()
+        this.use = vi.fn().mockReturnThis()
+        this.action = vi.fn().mockReturnThis()
+        this.command = vi.fn().mockReturnThis()
+        this.hears = vi.fn().mockReturnThis()
+        return this
+      }),
+      session: {
+        SceneSession: vi.fn(),
+        SceneContext: vi.fn(),
+      },
+    },
+    Context: vi.fn().mockImplementation(function (update: any, telegram: any, options: any) {
+      this.update = update
+      this.telegram = telegram
+      this.options = options
+      this.telegram_id = update?.message?.from?.id || update?.callback_query?.from?.id
+      this.from = update?.message?.from || update?.callback_query?.from
+      this.chat = update?.message?.chat || update?.callback_query?.message?.chat
+      this.message = update?.message || update?.callback_query?.message
+      
+      this.reply = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.replyWithHTML = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.replyWithPhoto = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.replyWithVideo = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.replyWithAudio = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.replyWithDocument = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.replyWithMarkdownV2 = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.replyWithSticker = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.replyWithVoice = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.answerCbQuery = vi.fn().mockResolvedValue(true)
+      this.editMessageText = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.editMessageCaption = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.editMessageReplyMarkup = vi.fn().mockResolvedValue({ message_id: 123 })
+      this.scene = {
+        enter: vi.fn().mockResolvedValue(true),
+        leave: vi.fn().mockResolvedValue(true),
+        reenter: vi.fn().mockResolvedValue(true),
+      }
+      return this
+    }),
+    session: vi.fn().mockReturnValue((ctx: any, next: Function) => next()),
+    Telegraf: vi.fn().mockImplementation(function (token: string) {
+      this.token = token
+      this.use = vi.fn().mockReturnThis()
+      this.start = vi.fn().mockReturnThis()
+      this.help = vi.fn().mockReturnThis()
+      this.settings = vi.fn().mockReturnThis()
+      this.command = vi.fn().mockReturnThis()
+      this.hears = vi.fn().mockReturnThis()
+      this.action = vi.fn().mockReturnThis()
+      this.launch = vi.fn().mockResolvedValue(true)
+      this.stop = vi.fn().mockResolvedValue(true)
+      this.telegram = {
+        setMyCommands: vi.fn().mockResolvedValue(true),
+      }
+      return this
+    }),
+  }
+})
+
+// Создаем мок для нашего логгера
+vi.mock('../utils/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  },
+}))
+
+// Мок для getUserDetailsSubscription
+vi.mock('../core/supabase/getUserDetailsSubscription', () => ({
+  getUserDetailsSubscription: vi.fn().mockResolvedValue({
+    isSubscriptionActive: false,
+    subscriptionType: null,
+    stars: 0,
+    isExist: true,
+  }),
+}))
+
+// Мок для getUserBalance
+vi.mock('../core/supabase/getUserBalance', () => ({
+  getUserBalance: vi.fn().mockResolvedValue(0),
+  invalidateBalanceCache: vi.fn(),
+}))
+
+// Мок для работы с суапейбейс
+vi.mock('../core/supabase', () => ({
+  supabase: {
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      upsert: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
+      match: vi.fn().mockReturnThis(),
+      gte: vi.fn().mockReturnThis(),
+      lte: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      single: vi.fn().mockReturnThis(),
+      then: vi.fn(),
+      data: [],
+      error: null,
+      count: vi.fn().mockReturnThis(),
+    }),
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+  },
+}))
+
+// Мок для getBotNameFromContext
+vi.mock('../utils/getBotNameFromContext', () => ({
+  getBotNameFromContext: vi.fn().mockReturnValue(defaultBotName),
+}))
+
+// Мок для работы с переводами
+vi.mock('../locales', () => ({
+  t: vi.fn((key: string) => {
+    // Простая имитация системы переводов, возвращает ключ, если нет заданного перевода
+    const translations: Record<string, string> = {
+      'menu.welcome': 'Добро пожаловать в меню',
+      'menu.buttons.images': 'Изображения',
+      'menu.buttons.videos': 'Видео',
+      'menu.buttons.voice': 'Голос',
+      'menu.buttons.settings': 'Настройки',
+      'menu.buttons.help': 'Помощь',
+      'menu.buttons.balance': 'Баланс',
+      'start.welcome': 'Добро пожаловать!',
+      'help.text': 'Справка по боту',
+    }
+    return translations[key] || key
+  }),
+  localeMap: {
+    ru: 'ru-RU',
+    en: 'en-US',
   },
 }))
 
@@ -104,59 +325,41 @@ globalThis.Buffer = globalThis.Buffer || Buffer
 
 // ВАЖНО: Сначала мокаем все модули Telegraf перед импортами
 // Специальный мок для решения проблемы с импортом './scenes/index.js'
-vi.mock(
-  './scenes/index.js',
-  () => ({
-    default: {},
-  }),
-  { virtual: true }
-)
+vi.mock('./scenes/index.js', () => ({
+  default: {},
+}))
+
+// Мок для telegraf/typings/core/types/typegram
+vi.mock('telegraf/typings/core/types/typegram', () => ({
+  default: {},
+}))
 
 // Mock for missing telegraf files
 vi.mock('telegraf/typings/scenes', () => ({
   default: {},
 }))
 
-vi.mock(
-  'telegraf/typings/scenes/index.js',
-  () => ({
-    default: {},
-  }),
-  { virtual: true }
-)
+// Мок для telegraf/typings/scenes/index.js
+vi.mock('telegraf/typings/scenes/index.js', () => ({
+  default: {},
+}))
 
 // Добавляем дополнительные мокинги проблемных модулей для telegraf
-vi.mock(
-  'telegraf/scenes',
-  () => ({
-    default: {},
-  }),
-  { virtual: true }
-)
+vi.mock('telegraf/scenes', () => ({
+  default: {},
+}))
 
-vi.mock(
-  'telegraf/scenes/index.js',
-  () => ({
-    default: {},
-  }),
-  { virtual: true }
-)
+vi.mock('telegraf/scenes/index.js', () => ({
+  default: {},
+}))
 
-vi.mock(
-  'telegraf/lib/scenes.js',
-  () => ({
-    default: {},
-  }),
-  { virtual: true }
-)
+vi.mock('telegraf/lib/scenes.js', () => ({
+  default: {},
+}))
 
-vi.mock(
-  'telegraf/lib/scenes/index.js',
-  () => ({
-    default: {},
-  }),
-  { virtual: true }
-)
+vi.mock('telegraf/lib/scenes/index.js', () => ({
+  default: {},
+}))
 
 // Global mock for Telegraf
 vi.mock('telegraf/typings/scenes/context', () => ({}))
@@ -186,184 +389,9 @@ vi.mock('@/constants/scenes', () => ({
   },
 }))
 
-// Mock for telegraf
-vi.mock('telegraf', () => {
-  const TelegrafMock = vi.fn().mockImplementation(function (token) {
-    this.token = token
-    this.use = vi.fn()
-    this.start = vi.fn()
-    this.help = vi.fn()
-    this.on = vi.fn()
-    this.hears = vi.fn()
-    this.command = vi.fn()
-    this.action = vi.fn()
-    this.launch = vi.fn()
-    this.telegram = {
-      sendMessage: vi.fn(),
-      sendPhoto: vi.fn(),
-      sendVideo: vi.fn(),
-      sendAudio: vi.fn(),
-      sendDocument: vi.fn(),
-      sendAnimation: vi.fn(),
-      sendSticker: vi.fn(),
-      sendVoice: vi.fn(),
-      sendVideoNote: vi.fn(),
-      sendMediaGroup: vi.fn(),
-      sendLocation: vi.fn(),
-      sendVenue: vi.fn(),
-      sendContact: vi.fn(),
-      sendPoll: vi.fn(),
-      sendDice: vi.fn(),
-      sendChatAction: vi.fn(),
-      getUserProfilePhotos: vi.fn(),
-      getFile: vi.fn(),
-      kickChatMember: vi.fn(),
-      unbanChatMember: vi.fn(),
-      restrictChatMember: vi.fn(),
-      promoteChatMember: vi.fn(),
-      setChatAdministratorCustomTitle: vi.fn(),
-      setChatPermissions: vi.fn(),
-      exportChatInviteLink: vi.fn(),
-      setChatPhoto: vi.fn(),
-      deleteChatPhoto: vi.fn(),
-      setChatTitle: vi.fn(),
-      setChatDescription: vi.fn(),
-      pinChatMessage: vi.fn(),
-      unpinChatMessage: vi.fn(),
-      unpinAllChatMessages: vi.fn(),
-      leaveChat: vi.fn(),
-      getChat: vi.fn(),
-      getChatAdministrators: vi.fn(),
-      getChatMembersCount: vi.fn(),
-      getChatMember: vi.fn(),
-      setChatStickerSet: vi.fn(),
-      deleteChatStickerSet: vi.fn(),
-      answerCallbackQuery: vi.fn(),
-      editMessageText: vi.fn(),
-      editMessageCaption: vi.fn(),
-      editMessageMedia: vi.fn(),
-      editMessageReplyMarkup: vi.fn(),
-      stopPoll: vi.fn(),
-      deleteMessage: vi.fn(),
-      sendInvoice: vi.fn(),
-      answerShippingQuery: vi.fn(),
-      answerPreCheckoutQuery: vi.fn(),
-      setPassportDataErrors: vi.fn(),
-      sendGame: vi.fn(),
-      setGameScore: vi.fn(),
-      getGameHighScores: vi.fn(),
-    }
-    return this
-  })
-
-  return {
-    Telegraf: TelegrafMock,
-    Markup: {
-      keyboard: vi.fn().mockReturnThis(),
-      inlineKeyboard: vi.fn().mockReturnThis(),
-      button: vi.fn().mockReturnThis(),
-      callbackButton: vi.fn().mockReturnThis(),
-      urlButton: vi.fn().mockReturnThis(),
-      removeKeyboard: vi.fn().mockReturnThis(),
-      resize: vi.fn().mockReturnThis(),
-      extra: vi.fn().mockReturnThis(),
-      oneTime: vi.fn().mockReturnThis(),
-      selective: vi.fn().mockReturnThis(),
-    },
-    Scenes: {
-      BaseScene: vi.fn(function (sceneId) {
-        this.id = sceneId
-        this.enter = vi.fn()
-        this.leave = vi.fn()
-        this.use = vi.fn()
-        this.start = vi.fn()
-        this.help = vi.fn()
-        this.on = vi.fn()
-        this.hears = vi.fn()
-        this.command = vi.fn()
-        this.action = vi.fn()
-        return this
-      }),
-      Stage: vi.fn(function (scenes, options) {
-        this.scenes = scenes
-        this.options = options
-        this.register = vi.fn()
-        this.middleware = vi.fn()
-        return this
-      }),
-    },
-    Composer: vi.fn(function () {
-      this.use = vi.fn()
-      this.start = vi.fn()
-      this.help = vi.fn()
-      this.on = vi.fn()
-      this.hears = vi.fn()
-      this.command = vi.fn()
-      this.action = vi.fn()
-      return this
-    }),
-    Context: vi.fn(function () {
-      this.reply = vi.fn()
-      this.replyWithHTML = vi.fn()
-      this.replyWithMarkdown = vi.fn()
-      this.replyWithPhoto = vi.fn()
-      this.replyWithVideo = vi.fn()
-      this.replyWithAudio = vi.fn()
-      this.replyWithDocument = vi.fn()
-      this.replyWithAnimation = vi.fn()
-      this.replyWithSticker = vi.fn()
-      this.replyWithVoice = vi.fn()
-      this.replyWithVideoNote = vi.fn()
-      this.replyWithMediaGroup = vi.fn()
-      this.replyWithLocation = vi.fn()
-      this.replyWithVenue = vi.fn()
-      this.replyWithContact = vi.fn()
-      this.replyWithPoll = vi.fn()
-      this.replyWithDice = vi.fn()
-      this.replyWithChatAction = vi.fn()
-      this.editMessageText = vi.fn()
-      this.editMessageCaption = vi.fn()
-      this.editMessageMedia = vi.fn()
-      this.editMessageReplyMarkup = vi.fn()
-      this.deleteMessage = vi.fn()
-      this.pinChatMessage = vi.fn()
-      this.unpinChatMessage = vi.fn()
-      this.leaveChat = vi.fn()
-      this.getChat = vi.fn()
-      this.getChatAdministrators = vi.fn()
-      this.getChatMembersCount = vi.fn()
-      this.getChatMember = vi.fn()
-      this.setChatStickerSet = vi.fn()
-      this.deleteChatStickerSet = vi.fn()
-      this.answerCallbackQuery = vi.fn()
-      this.answerInlineQuery = vi.fn()
-      this.scene = {
-        enter: vi.fn(),
-        leave: vi.fn(),
-        reenter: vi.fn(),
-      }
-      this.wizard = {
-        next: vi.fn(),
-        back: vi.fn(),
-        selectStep: vi.fn(),
-      }
-      return this
-    }),
-  }
-})
-
 // Mock for node-telegram-bot-api which might be used internally by telegraf
 vi.mock('node-telegram-bot-api', () => ({
   default: class {},
-}))
-
-// Mock for core modules that might be imported but missing
-vi.mock('@/core/supabase/getUserDetailsSubscription', () => ({
-  getUserDetailsSubscription: vi.fn(),
-}))
-
-vi.mock('@/core/supabase/getUserBalance', () => ({
-  getUserBalance: vi.fn(),
 }))
 
 // Suppress console warnings during tests
@@ -381,3 +409,114 @@ console.info = vi.fn()
 
 // Мокаем переменные окружения для тестов
 process.env.VITEST = 'true'
+
+// Настройка глобальных моков и утилит для тестов
+// global.vi = vi;
+
+// Настраиваем автоматический сброс моков после каждого теста
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.clearAllMocks();
+});
+
+// Отключаем логирование во время тестов для более чистого вывода
+vi.mock('@/utils/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
+// Мок для axios
+vi.mock('axios', () => {
+  return {
+    default: {
+      post: vi.fn().mockResolvedValue({ data: {} }),
+      get: vi.fn().mockResolvedValue({ data: {} }),
+    },
+  }
+})
+
+// Мок для логгера
+vi.mock('@/utils/logger', () => {
+  return {
+    logger: {
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+    },
+  }
+})
+
+// Экспортируем вспомогательные функции для тестов
+
+/**
+ * Создает базовый мок контекста для тестов сцен Telegram
+ */
+export function createMockContext(overrides: Partial<MyContext> = {}): MyContext {
+  const defaultSession: MySession = {
+    index: 0,
+    step: 0,
+    status: '',
+    data: {},
+    params: {},
+    lastCommand: '',
+    __scenes: {
+      current: '',
+      state: {},
+    },
+  }
+
+  const defaultContext: MyContext = {
+    telegram_id: '123456789',
+    from: { id: 123456789, is_bot: false, first_name: 'Test', language_code: 'ru' },
+    chat: { id: 123456789, type: 'private', first_name: 'Test' },
+    message: {
+      message_id: 1,
+      date: 1672531200, // 2023-01-01
+      chat: { id: 123456789, type: 'private', first_name: 'Test' },
+      from: { id: 123456789, is_bot: false, first_name: 'Test', language_code: 'ru' },
+      text: 'Test message',
+    },
+    scene: {
+      enter: vi.fn().mockResolvedValue(true),
+      leave: vi.fn().mockResolvedValue(true),
+      reenter: vi.fn().mockResolvedValue(true),
+    },
+    session: defaultSession,
+    reply: vi.fn().mockResolvedValue({ message_id: 123 }),
+    replyWithHTML: vi.fn().mockResolvedValue({ message_id: 123 }),
+    replyWithPhoto: vi.fn().mockResolvedValue({ message_id: 123 }),
+    replyWithVideo: vi.fn().mockResolvedValue({ message_id: 123 }),
+    replyWithAudio: vi.fn().mockResolvedValue({ message_id: 123 }),
+    replyWithDocument: vi.fn().mockResolvedValue({ message_id: 123 }),
+    replyWithMarkdownV2: vi.fn().mockResolvedValue({ message_id: 123 }),
+    replyWithSticker: vi.fn().mockResolvedValue({ message_id: 123 }),
+    replyWithVoice: vi.fn().mockResolvedValue({ message_id: 123 }),
+    answerCbQuery: vi.fn().mockResolvedValue(true),
+    editMessageText: vi.fn().mockResolvedValue({ message_id: 123 }),
+    editMessageCaption: vi.fn().mockResolvedValue({ message_id: 123 }),
+    editMessageReplyMarkup: vi.fn().mockResolvedValue({ message_id: 123 }),
+    ...overrides,
+  }
+
+  return defaultContext as MyContext
+}
+
+// Определяем тип Middleware для тестов, так как не можем импортировать его из telegraf
+type Middleware<T> = (ctx: T, next: () => Promise<void>) => Promise<void>;
+
+/**
+ * Создает мок middleware для тестов
+ */
+export const createMockMiddleware = (): Middleware<MyContext> => {
+  return async (ctx, next) => {
+    await next()
+    return
+  }
+}
+
+export {}

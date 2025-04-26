@@ -723,3 +723,6 @@ export const Scenes = {
 
 // Export default
 export default Telegraf
+
+// Перенаправление всех импортов на новую структуру моков
+export * from './telegraf'

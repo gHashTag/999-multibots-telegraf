@@ -1,4 +1,4 @@
-import { MySession, PaymentType } from '@/interfaces'
+import type { MySession } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { SubscriptionType } from '@/interfaces'
 
@@ -20,7 +20,7 @@ export const defaultSession: MySession = {
     amount: 0,
     stars: 10,
     subscription: SubscriptionType.STARS,
-    type: PaymentType.BONUS,
+    type: 'BONUS',
   },
   videoUrl: '',
   imageUrl: '',
