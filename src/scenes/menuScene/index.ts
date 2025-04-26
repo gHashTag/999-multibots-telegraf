@@ -1,4 +1,4 @@
-import { Mode, MyContext, Subscription } from '../../interfaces'
+import type { Mode, MyContext, Subscription } from '../../interfaces'
 import { sendGenericErrorMessage } from '@/menu'
 import { levels, mainMenu } from '../../menu/mainMenu'
 import { getReferalsCountAndUserData } from '@/core/supabase'

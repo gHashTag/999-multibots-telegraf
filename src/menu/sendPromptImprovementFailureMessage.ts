@@ -1,4 +1,5 @@
-import { MyContext } from '../interfaces'
+import { type MyContext } from '../interfaces'
+import { getTranslation } from '@/core'
 
 export async function sendPromptImprovementFailureMessage(
   ctx: MyContext,

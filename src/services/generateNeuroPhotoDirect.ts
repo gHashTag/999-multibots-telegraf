@@ -1,6 +1,6 @@
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussian } from '@/helpers/language'
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
 import {

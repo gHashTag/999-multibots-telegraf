@@ -1,5 +1,5 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { handleSelectStars, handleBuySubscription } from '@/handlers'
 import { starAmounts } from '@/price/helpers/starAmounts' // Предполагаем, что существует

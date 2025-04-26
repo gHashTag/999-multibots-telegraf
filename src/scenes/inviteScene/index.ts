@@ -1,6 +1,6 @@
 import { Scenes } from 'telegraf'
 import { getReferalsCountAndUserData } from '../../core/supabase'
-import { MyContext } from '../../interfaces'
+import { type MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 
 export const inviteScene = new Scenes.BaseScene<MyContext>('inviteScene')

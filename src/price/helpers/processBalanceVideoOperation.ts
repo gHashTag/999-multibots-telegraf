@@ -1,11 +1,18 @@
+import type { MyContext } from '@/interfaces/context.interface'
+// import type { TelegramId } from '@/interfaces' // Проверим прямой импорт
+import type { TelegramId } from '@/interfaces/telegram.interface'
+import type {
+  PaymentStatus,
+  PaymentType,
+  ServiceType,
+} from '@/interfaces/payments.interface'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { BalanceOperationResult, MyContext } from '@/interfaces'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
-import { calculateFinalPrice } from './calculateFinalPrice'
+import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
 
 import { logger } from '@/utils/logger'
-import { PaymentType } from '@/interfaces/payments.interface'
+import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 
 /**
  * Обрабатывает операцию с балансом для видео
@@ -104,7 +111,7 @@ export const processBalanceVideoOperation = async (
 
     const newBalance = currentBalanceAtStart - paymentAmount
 
-    const updateSuccess = await updateUserBalance(
+    const paymentCreated = await updateUserBalance(
       telegram_id.toString(),
       paymentAmount,
       PaymentType.MONEY_OUTCOME,
@@ -119,7 +126,7 @@ export const processBalanceVideoOperation = async (
       }
     )
 
-    if (!updateSuccess) {
+    if (!paymentCreated) {
       const message = isRu
         ? 'Ошибка обновления баланса.'
         : 'Error updating balance.'

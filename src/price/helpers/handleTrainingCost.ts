@@ -1,11 +1,14 @@
 import { Markup } from 'telegraf'
 
-import { MyContext, Subscription } from '@/interfaces'
-import { getUserBalance } from '@/core/supabase'
+import { type MyContext, type Subscription } from '@/interfaces'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 import { calculateCostInStars } from './calculateTrainingCost'
 import { conversionRates } from '@/price/priceCalculator'
 import { logger } from '@/utils/logger'
 import { calculateCost } from '@/price/priceCalculator'
+import { ModelsConfig } from '@/interfaces/models.interface'
+import { calculateFinalPrice } from './calculateFinalPrice'
 
 type TrainingCostProps = {
   ctx: MyContext

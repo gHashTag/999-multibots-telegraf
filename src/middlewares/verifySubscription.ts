@@ -1,6 +1,8 @@
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { checkSubscription } from './checkSubscription'
 import { handleSubscriptionMessage } from './handleSubscriptionMessage'
+import { getUserDetailsSubscription } from '@/core'
+import { sendSubscriptionRequiredMessage } from '@/utils/messageBuilder'
 
 export async function verifySubscription(
   ctx: MyContext,

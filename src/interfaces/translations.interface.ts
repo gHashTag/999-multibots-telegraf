@@ -1,4 +1,4 @@
-import { TranslationButton } from './supabase.interface'
+import { type TranslationButton } from './supabase.interface'
 
 export const TranslationCategory = {
   SPECIFIC: 'specific',

@@ -1,0 +1,3 @@
+import { type MyContext } from '@/interfaces'
+import { NextFunction } from '@/interfaces/telegram.interface'
+// ... existing code ...

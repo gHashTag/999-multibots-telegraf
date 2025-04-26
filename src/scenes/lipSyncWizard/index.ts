@@ -1,5 +1,5 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { type MyContext } from '../../interfaces'
 import { generateLipSync } from '../../services/generateLipSync'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB, пример ограничения

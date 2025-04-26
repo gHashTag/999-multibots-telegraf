@@ -4,8 +4,11 @@ import { ModeEnum } from '../../interfaces/modes'
 import {
   conversionRates,
   conversionRatesV2,
-  CostDetails,
+  type CostCalculationParams,
+  type CostCalculationResult,
+  type CostDetails,
 } from '@/price/priceCalculator'
+import { calculateModelsCost } from './modelsCost'
 
 export function calculateCostInStars(
   steps: number,

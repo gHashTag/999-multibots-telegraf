@@ -1,6 +1,7 @@
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers/language'
 import { Markup } from 'telegraf'
+import { sendToSupportChat } from '@/core/telegram/sendToSupportChat'
 
 export const handleTechSupport = async (ctx: MyContext) => {
   const isRu = isRussian(ctx)

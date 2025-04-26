@@ -1,6 +1,6 @@
 import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { isRussian } from '@/helpers/language'
-import { MyContext, ModelUrl } from '@/interfaces'
+import { type MyContext, type ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { InputMediaPhoto } from 'telegraf/types'
 

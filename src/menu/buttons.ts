@@ -1,5 +1,5 @@
 import { Markup } from 'telegraf'
-import { InlineKeyboardButton } from 'telegraf/types'
+import type { InlineKeyboardButton } from 'telegraf/types'
 
 /**
  * Создает стандартизированную inline-кнопку "❓ Справка".

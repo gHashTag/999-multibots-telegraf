@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { updateUserSoul, updateUserLevelPlusOne } from '../../core/supabase'
 import { isRussian } from '@/helpers'
 import { createHelpButton } from '@/menu/buttons'

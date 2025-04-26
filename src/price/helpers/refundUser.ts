@@ -1,8 +1,10 @@
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { getUserBalance, getReferalsCountAndUserData } from '@/core/supabase'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { mainMenu } from '@/menu'
-import { PaymentType } from '@/interfaces'
+import { PaymentType } from '@/interfaces/payments.interface'
+import { logger } from '@/utils/logger'
+import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 
 export async function refundUser(ctx: MyContext, paymentAmount: number) {
   if (!ctx.from) {

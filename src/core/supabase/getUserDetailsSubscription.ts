@@ -14,7 +14,7 @@ import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import {
   normalizeTelegramId,
-  TelegramId,
+  type TelegramId,
 } from '@/interfaces/telegram.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 // <<<=== ИМПОРТ ДЛЯ ПОЛУЧЕНИЯ БАЛАНСА ИЗ PAYMENTS_V2 ===>>>

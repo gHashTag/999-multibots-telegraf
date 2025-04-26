@@ -2,10 +2,13 @@ import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import {
   PaymentType,
-  BalanceOperationResult,
+  type BalanceOperationResult,
 } from '@/interfaces/payments.interface'
 import { Telegraf } from 'telegraf' // Нужен для отправки сообщения о недостатке средств
-import { MyContext } from '@/interfaces'
+import {
+  type MyContext,
+  type BotName,
+} from '@/interfaces/telegram-bot.interface'
 import logger from '@/utils/logger'
 import { ModeEnum } from '@/interfaces'
 

@@ -1,6 +1,7 @@
-import { MyContext } from '../interfaces'
-import { Markup } from 'telegraf'
+import { type MyContext } from '../interfaces'
+import { isRussian } from '@/helpers'
 import { levels } from './mainMenu'
+import { Markup } from 'telegraf'
 
 export async function startMenu(ctx: MyContext, isRu: boolean) {
   await ctx.reply(

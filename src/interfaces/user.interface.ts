@@ -1,4 +1,4 @@
-import { TelegramId } from './telegram.interface'
+import { type TelegramId } from './telegram.interface'
 import { SubscriptionType } from './subscription.interface'
 
 /**

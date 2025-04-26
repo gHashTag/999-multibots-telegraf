@@ -1,6 +1,8 @@
 import { Markup, Telegraf } from 'telegraf'
-import { MyContext } from '../interfaces'
+import { cancelMenu } from './cancelMenu'
+import { type MyContext } from '../interfaces'
 import { isRussian } from '@/helpers'
+import { getTranslation } from '@/core'
 
 export const sendPhotoDescriptionRequest = async (
   ctx: MyContext,

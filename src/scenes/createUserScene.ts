@@ -70,6 +70,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     balance: 0,
     inviter: ctx.session.inviter || null,
     bot_name: botName,
+    finetune_id: '',
   }
 
   const [wasCreated] = await createUser(userData, ctx)

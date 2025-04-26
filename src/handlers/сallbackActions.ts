@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { handleCallback } from './handleCallback'
 import { handleModelCallback } from './handleModelCallback'
 

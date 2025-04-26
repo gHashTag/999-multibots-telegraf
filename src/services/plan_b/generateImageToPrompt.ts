@@ -8,7 +8,7 @@ import {
   sendServiceErrorToAdmin,
 } from '@/helpers/error'
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { modeCosts } from '@/price/helpers/modelsCost'
 import { levels } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'

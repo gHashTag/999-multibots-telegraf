@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { isDev } from '@/config'
 import logger from '@/utils/logger'
 

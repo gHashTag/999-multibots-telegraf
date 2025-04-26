@@ -1,4 +1,4 @@
-import { vi, Mock } from 'vitest'
+import { vi, type Mock } from 'vitest'
 import { Markup } from 'telegraf'
 import { MemorySessionStore } from '../helpers/MemorySessionStore'
 import { logger } from '@/utils/logger'

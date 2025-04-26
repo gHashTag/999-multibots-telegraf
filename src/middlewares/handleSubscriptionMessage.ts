@@ -1,5 +1,7 @@
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { Markup } from 'telegraf'
+import { sendSubscriptionRequiredMessage } from '@/utils/messageBuilder'
+import { SubscriptionType } from '@/interfaces'
 
 export async function handleSubscriptionMessage(
   ctx: MyContext,

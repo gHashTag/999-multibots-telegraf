@@ -1,5 +1,5 @@
 import { handleBuy } from '@/handlers'
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 
 export async function handleTopUp(ctx: MyContext) {
   try {

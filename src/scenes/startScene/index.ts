@@ -1,5 +1,9 @@
-import { MyContext } from '@/interfaces'
-import { Markup, Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
+import {
+  normalizeTelegramId,
+  type TelegramId,
+} from '@/interfaces/telegram.interface'
+import { type MyContext } from '@/interfaces'
 import {
   getTranslation as getDbTranslation,
   getUserDetailsSubscription,
@@ -13,7 +17,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { isRussian } from '@/helpers/language'
 import { TelegramError } from 'telegraf'
-import { Message } from 'telegraf/typings/core/types/typegram'
+import type { Message } from 'telegraf/types'
 
 // --- Dependencies Interface for the Core Logic Function ---
 export interface ProcessStartDependencies {
@@ -183,6 +187,7 @@ export async function processStartCommand(
         balance: 0,
         inviter: inviterId,
         bot_name: botName,
+        finetune_id: '',
       }
       try {
         logger.info(`[ProcessStart] Creating user ${telegramId}`, {

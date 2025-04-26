@@ -1,6 +1,6 @@
 import { Telegraf } from 'telegraf'
 import { logger } from '@/utils/logger'
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 
 /**
  * Отправляет пользователю уведомление об успешном пополнении баланса.

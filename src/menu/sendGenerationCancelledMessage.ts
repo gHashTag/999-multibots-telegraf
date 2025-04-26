@@ -1,7 +1,10 @@
 import { getReferalsCountAndUserData } from '@/core/supabase'
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { mainMenu } from '../menu'
 import { logger } from '@/utils/logger'
+import { cancelMenu } from './cancelMenu'
+import { isRussian } from '@/helpers'
+import { getTranslation } from '@/core'
 
 export async function sendGenerationCancelledMessage(
   ctx: MyContext,

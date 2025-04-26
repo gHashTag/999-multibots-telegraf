@@ -1,7 +1,13 @@
+import {
+  type BalanceOperationResult,
+  type MyContext,
+} from '@/interfaces'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { BalanceOperationResult, MyContext } from '@/interfaces'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { logger } from '@/utils/logger'
+import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
+
 type BalanceOperationProps = {
   ctx: MyContext
   model?: string

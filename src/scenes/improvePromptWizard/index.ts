@@ -1,6 +1,6 @@
 import { Scenes, Markup } from 'telegraf'
 import { upgradePrompt } from '@/core/openai/upgradePrompt'
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { generateTextToImage } from '@/services/generateTextToImage'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
 import { generateTextToVideo } from '@/services/generateTextToVideo'

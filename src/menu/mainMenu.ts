@@ -1,8 +1,11 @@
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import type { ReplyKeyboardMarkup } from 'telegraf/types'
 import { checkFullAccess } from '../handlers/checkFullAccess'
 import { Markup } from 'telegraf'
-import { MyContext } from '../interfaces/telegram-bot.interface'
-import { SubscriptionType } from '../interfaces/subscription.interface'
+import { isRussian } from '@/helpers/language'
+import { type MyContext } from '../interfaces/telegram-bot.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { type TranslationButton } from '@/interfaces/supabase.interface'
+import { logger } from '@/utils/logger'
 
 interface Level {
   title_ru: string

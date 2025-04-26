@@ -1,4 +1,6 @@
-import { MyContext } from '../interfaces'
+import { type MyContext } from '../interfaces'
+import { isRussian } from '@/helpers'
+import { getTranslation } from '@/core'
 
 export async function sendGenerationErrorMessage(
   ctx: MyContext,

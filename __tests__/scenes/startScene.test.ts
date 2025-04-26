@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, Mocked } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mocked } from 'vitest'
 import type { Mock } from 'vitest'
 import { startMenu } from '../../src/menu'
 import { levels } from '../../src/menu/mainMenu'
@@ -28,8 +28,8 @@ import type {
 } from '../../src/scenes/startScene/index'
 
 import { Context as TelegrafContext, Scenes } from 'telegraf'
-import { Message, User, Update, UserFromGetMe, Chat } from '@telegraf/types'
-import { MyContext } from '../../src/interfaces'
+import type { Message, User, Update, UserFromGetMe, Chat } from '@telegraf/types'
+import type { MyContext } from '../../src/interfaces'
 
 // Функция для создания mock-контекста Telegraf
 export const createMockTelegrafContext = (

@@ -1,4 +1,5 @@
-import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
+import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios'
+import { logger } from '@/utils/logger'
 
 export async function fetchWithAxios(
   url: string,

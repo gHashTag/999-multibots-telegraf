@@ -1,6 +1,6 @@
 import { answerAi } from '../../core/openai/requests'
 import { getUserModel, getUserData } from '../../core/supabase'
-import { MyContext } from '../../interfaces'
+import { type MyContext } from '../../interfaces'
 
 export async function handleTextMessage(ctx: MyContext) {
   console.log('CASE: handleTextMessage')

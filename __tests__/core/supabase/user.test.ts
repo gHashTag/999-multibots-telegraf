@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createUser } from '@/core/supabase/createUser' // Use alias, corrected path
 import { supabase } from '@/core/supabase' // Use alias for dependency
-import { User } from '@/interfaces/user.interface' // Corrected path for User type
-import { CreateUserData } from '@/interfaces/supabase.interface' // Import CreateUserData
+import type { User } from '@/interfaces/user.interface' // Corrected path for User type
+import type { CreateUserData } from '@/interfaces/supabase.interface' // Import CreateUserData
 
 // Define a type for the returned mocks for easier access
 type SupabaseMocks = {

@@ -1,7 +1,8 @@
-import { CreateUserData, MyContext } from '@/interfaces'
-import { User } from '@/interfaces/user.interface'
+import { type CreateUserData, type MyContext } from '@/interfaces'
+import type { User } from '@/interfaces/user.interface'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
+import { getUserData } from './getUserData'
 
 /**
  * Находит или создает пользователя.

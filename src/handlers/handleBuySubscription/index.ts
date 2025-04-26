@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { levels } from '@/menu/mainMenu'
 
 interface BuyParams {
@@ -68,7 +68,7 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
       title,
       description,
       payload: `${amount}_${Date.now()}`,
-      currency: 'XTR', // Pass “XTR” for payments in Telegram Stars.
+      currency: 'XTR', // Pass "XTR" for payments in Telegram Stars.
       prices: [
         {
           label: isRu ? 'Цена' : 'Price',

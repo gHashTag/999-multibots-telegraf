@@ -1,15 +1,20 @@
-import { Context, NarrowedContext, Scenes } from 'telegraf'
-import { ModelUrl, UserModel } from './index'
-import type { Update, Message } from 'telegraf/typings/core/types/typegram'
+import { Context, type NarrowedContext, Scenes } from 'telegraf'
+import { type ModelUrl, type UserModel } from './index'
+import type { Update, Message } from 'telegraf/types'
 import { Buffer } from 'buffer'
+import { Markup } from 'telegraf'
+import { type Chat } from 'telegraf/types'
 
 import { BroadcastContentType } from './broadcast.interface'
-import { SubscriptionType } from './subscription.interface'
-import { TranslationButton } from './supabase.interface'
-import { SessionPayment } from './payments.interface'
-import { SceneContextScene, WizardContextWizard } from 'telegraf/typings/scenes'
-import { ModeEnum, Mode } from './modes'
-import { Translation } from './translations.interface'
+import { type SubscriptionType } from './subscription.interface'
+import { type TranslationButton } from './supabase.interface'
+import { type SessionPayment } from './payments.interface'
+import {
+  type SceneContextScene,
+  type WizardContextWizard,
+} from 'telegraf/scenes'
+import { ModeEnum, type Mode } from './modes'
+import { type Translation } from './translations.interface'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {

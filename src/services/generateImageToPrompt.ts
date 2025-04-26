@@ -1,5 +1,5 @@
 import { generateImageToPrompt as planBGenerateImageToPrompt } from './plan_b/generateImageToPrompt'
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { getBotByName } from '@/core/bot'
 import logger from '@/utils/logger'
 import { BotName } from '@/interfaces/telegram-bot.interface'

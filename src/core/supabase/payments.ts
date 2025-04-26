@@ -1,7 +1,8 @@
 import { supabase, supabaseAdmin } from './client'
 import { logger } from '@/utils/logger'
-import { Payment, PaymentStatus } from '@/interfaces' // Предполагаем, что есть интерфейс Payment
+import type { Payment, PaymentStatus } from '@/interfaces' // Предполагаем, что есть интерфейс Payment
 import { PostgrestError } from '@supabase/supabase-js'
+import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 
 /**
  * Находит платеж по InvId со статусом PENDING.

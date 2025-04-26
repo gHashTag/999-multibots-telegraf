@@ -1,6 +1,7 @@
+import { describe, it, expect } from 'vitest'
 import {
-  TelegramId,
-  TelegramUser,
+  type TelegramId,
+  type TelegramUser,
   normalizeTelegramId,
   isValidTelegramId,
 } from './telegram.interface'

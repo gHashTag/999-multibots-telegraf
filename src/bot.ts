@@ -4,6 +4,7 @@ import path from 'path'
 import os from 'os'
 import { checkAndCreateLockFile } from './utils/checkAndCreateLockFile'
 import { logger } from './utils/logger'
+import { type MyContext } from './interfaces'
 
 // Путь к файлу конфликта
 const CONFLICT_LOG_PATH = path.join(process.cwd(), 'logs', 'telegram_conflicts')
@@ -67,7 +68,6 @@ console.log(`--- End Bot Logic Check ---`)
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update } from 'telegraf/typings/core/types/typegram'
 import { registerCommands } from './registerCommands'
-import { MyContext } from './interfaces'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []

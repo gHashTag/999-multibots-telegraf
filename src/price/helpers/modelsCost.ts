@@ -4,9 +4,10 @@ import { logger } from '@/utils/logger'
 import { starCost, SYSTEM_CONFIG } from '@/price/constants'
 import {
   ModeEnum,
-  CostCalculationParams,
-  CostCalculationResult,
-} from '@/interfaces/modes'
+  type CostCalculationParams,
+  type CostCalculationResult,
+} from '@/interfaces'
+import { VIDEO_MODELS_CONFIG, IMAGE_MODELS_CONFIG } from '@/config/models.config'
 
 export function calculateCostInStars(costInDollars: number): number {
   return costInDollars / starCost

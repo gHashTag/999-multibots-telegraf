@@ -1,5 +1,8 @@
+import { getTranslation } from '@/core'
+// import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram' // Удаляем старый путь
+import type { ReplyKeyboardMarkup } from 'telegraf/types' // Используем правильный путь
 import { Markup } from 'telegraf'
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import { type MyContext } from '@/interfaces'
 import { levels } from './mainMenu' // Импортируем levels
 // import { isRussian } from '@/helpers'
 // import { createHelpButton } from './buttons'

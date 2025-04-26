@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { handleTechSupport } from '@/commands/handleTechSupport'
 import { Markup } from 'telegraf'
 import { initializeMocks, mockIsRussian } from '../mocks/setup'

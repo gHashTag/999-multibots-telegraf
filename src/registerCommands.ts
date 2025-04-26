@@ -1,5 +1,5 @@
 import { Telegraf, Scenes, session, Markup } from 'telegraf'
-import { MyContext } from './interfaces'
+import { type MyContext } from './interfaces'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { levels } from './menu/mainMenu'

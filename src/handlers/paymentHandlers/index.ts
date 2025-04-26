@@ -3,7 +3,7 @@ import { setPayments } from '@/core/supabase/setPayments'
 
 import { logger } from '@/utils/logger'
 
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import {
   Currency,
   PaymentStatus,

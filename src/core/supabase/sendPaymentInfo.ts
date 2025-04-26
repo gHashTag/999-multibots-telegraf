@@ -1,4 +1,4 @@
-import { Payment } from '@/interfaces/payments.interface'
+import type { Payment } from '@/interfaces/payments.interface'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { createBotByName, BOT_NAMES } from '../bot'

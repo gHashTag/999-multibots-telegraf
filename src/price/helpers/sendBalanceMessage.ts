@@ -1,6 +1,7 @@
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { getBotByName } from '@/core/bot'
-import { BotName } from '@/interfaces/telegram-bot.interface'
+import { type BotName } from '@/interfaces/telegram-bot.interface'
+
 export const sendBalanceMessage = async (
   ctx: MyContext,
   newBalance: number,

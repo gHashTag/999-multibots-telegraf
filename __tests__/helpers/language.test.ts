@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { isRussian } from '../../src/helpers/language'
-import { MyContext } from '@/interfaces' // Import MyContext type
+import { isRussian } from '@/helpers/language'
+import type { MyContext } from '@/interfaces' // Import MyContext type
 
 // Explicitly unmock the module to ensure we test the real implementation
 vi.unmock('../../src/helpers/language')

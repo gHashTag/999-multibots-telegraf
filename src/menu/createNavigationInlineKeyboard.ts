@@ -1,5 +1,6 @@
+import { getTranslation } from '@/core'
+import type { InlineKeyboardMarkup } from 'telegraf/types'
 import { Markup } from 'telegraf'
-import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 
 /**
  * Создает стандартную Inline клавиатуру для навигации.

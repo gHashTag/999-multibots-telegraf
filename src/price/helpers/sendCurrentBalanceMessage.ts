@@ -1,4 +1,5 @@
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
 
 export const sendCurrentBalanceMessage = async (
   ctx: MyContext,

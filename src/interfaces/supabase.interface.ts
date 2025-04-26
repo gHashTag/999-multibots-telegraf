@@ -1,8 +1,9 @@
-import { TelegramId } from './telegram.interface'
+import { type TelegramId } from './telegram.interface'
 import {
-  SubscriptionType,
-  Subscription as SubscriptionInterface,
+  type Subscription as SubscriptionInterface,
+  type SubscriptionType,
 } from './subscription.interface'
+import { type BotName } from './telegram-bot.interface'
 
 export interface CreateUserData {
   username: string
@@ -19,6 +20,7 @@ export interface CreateUserData {
   aspect_ratio: string
   inviter: string | null
   bot_name: string
+  finetune_id: string
 }
 
 export interface ModelTraining {
@@ -27,8 +29,6 @@ export interface ModelTraining {
   model_url: string
   finetune_id: string
 }
-
-export type Subscription = SubscriptionInterface
 
 export interface UserType {
   id: bigint

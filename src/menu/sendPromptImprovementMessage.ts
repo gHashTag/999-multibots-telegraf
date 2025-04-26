@@ -1,4 +1,7 @@
-import { MyContext } from '../interfaces'
+import { type MyContext } from '../interfaces'
+import { Markup } from 'telegraf'
+import { isRussian } from '@/helpers'
+import { getTranslation } from '@/core'
 
 export async function sendPromptImprovementMessage(
   ctx: MyContext,

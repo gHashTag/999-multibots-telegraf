@@ -2,7 +2,7 @@ import { imageModelMenu } from './menu/imageModelMenu'
 import { logger } from './utils/logger'
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
-import { MyContext } from './interfaces/'
+import { type MyContext } from './interfaces/'
 import { Telegraf, Context } from 'telegraf'
 
 import { generateNeuroImage } from './services/generateNeuroImage'

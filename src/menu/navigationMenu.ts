@@ -1,5 +1,5 @@
 import { Markup } from 'telegraf'
-import { MyContext } from '@/interfaces' // Assuming MyContext is needed, adjust if not
+import { type MyContext } from '@/interfaces' // Assuming MyContext is needed, adjust if not
 
 /**
  * Creates a simple ReplyKeyboard with only navigation buttons.

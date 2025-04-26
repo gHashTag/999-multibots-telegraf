@@ -1,9 +1,10 @@
 import { Markup } from 'telegraf'
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import type { ReplyKeyboardMarkup } from 'telegraf/types'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { calculateFinalPrice } from '@/price/helpers'
 import { levels } from './mainMenu' // levels нужны
 // import { createHelpButton } from './buttons' // Убираем
+import { ModelsConfig } from '@/interfaces'
 
 /**
  * Генерирует Reply клавиатуру с выбором видеомоделей.

@@ -1,8 +1,9 @@
 import { Markup } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { type MyContext, type ModelsConfig } from '@/interfaces'
 import { imageModelPrices } from '@/price/models/imageModelPrices'
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import type { ReplyKeyboardMarkup } from 'telegraf/types'
 import { levels } from './mainMenu'
+import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
 
 export async function imageModelMenu(
   ctx: MyContext

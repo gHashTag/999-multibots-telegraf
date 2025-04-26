@@ -1,7 +1,16 @@
-import { MyContext } from '@/interfaces'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
+import {
+  type MyContext,
+  type SubscriptionType,
+  type TelegramId,
+} from '@/interfaces'
+import { BaseScene } from 'telegraf/scenes'
+import { normalizeTelegramId } from '@/interfaces/telegram.interface'
+import { getTranslation } from '@/utils/localization'
 import { Scenes } from 'telegraf'
-import { getUserBalance } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
+
 export const balanceScene = new Scenes.WizardScene<MyContext>(
   'balanceScene',
   async (ctx: MyContext) => {

@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import { type MyContext } from '@/interfaces'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { setAspectRatio } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
