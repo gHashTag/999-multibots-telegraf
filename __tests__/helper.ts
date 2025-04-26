@@ -20,7 +20,7 @@ export interface SessionStore<T> {
 // Объединяем указатели для импортов с корректным типом
 export const typingsSession = {
   // Используем интерфейс для определения типа
-  SessionStore: {} as unknown as { new<T>(): SessionStore<T> }
+  SessionStore: {} as unknown as { new <T>(): SessionStore<T> },
 }
 
 // Объединяем указатели для импортов
@@ -46,4 +46,4 @@ if (typeof window === 'undefined' && typeof global !== 'undefined') {
     typingsScenes,
     typingsCore,
   }
-} 
+}

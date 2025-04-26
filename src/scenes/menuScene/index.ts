@@ -160,7 +160,8 @@ export const menuCommandStep = async (ctx: MyContext) => {
  * Безусловный вызов ctx.scene.leave() здесь уместен ТОЛЬКО в блоке else,
  * когда обработать сообщение другим способом невозможно.
  */
-const menuNextStep = async (ctx: MyContext) => {
+// --- Экспортируем функцию menuNextStep для тестирования ---
+export const menuNextStep = async (ctx: MyContext) => {
   logger.info('CASE 1: menuScene.next')
   if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
     const text = ctx.update.callback_query.data

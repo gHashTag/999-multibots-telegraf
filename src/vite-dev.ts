@@ -9,7 +9,7 @@ import nodeResolve from '@rollup/plugin-node-resolve'
 async function startDevServer() {
   try {
     console.log('🚀 Запуск сервера разработки Vite...')
-    
+
     // Создаем сервер Vite
     const server = await createServer({
       // Настраиваем оптимизированную сборку для серверных приложений
@@ -22,7 +22,7 @@ async function startDevServer() {
         // Включаем важные Node.js модули
         include: ['fs', 'path', 'buffer', 'events', 'util', 'stream'],
         exclude: ['winston', 'telegraf'],
-        force: true
+        force: true,
       },
       clearScreen: false, // Не очищаем консоль при перезагрузке
       resolve: {
@@ -31,7 +31,7 @@ async function startDevServer() {
           fs: 'node:fs',
           'fs/promises': 'node:fs/promises',
           path: 'node:path',
-        }
+        },
       },
       // Определяем тип приложения для лучшей совместимости
       appType: 'custom',
@@ -41,30 +41,29 @@ async function startDevServer() {
           preferBuiltins: true,
           browser: false,
         }),
-      ]
+      ],
     })
 
     // Запускаем сервер Vite
     await server.listen()
     server.printUrls()
-    
+
     console.log('✅ Vite-сервер успешно запущен')
-    
+
     // Запускаем основной бот
     await startBot()
-    
+
     console.log('🤖 Бот запущен в режиме разработки через Vite')
-    
+
     // Регистрируем обработчик для graceful shutdown
     const shutdown = async () => {
       console.log('👋 Завершение работы...')
       await server.close()
       process.exit(0)
     }
-    
+
     process.on('SIGINT', shutdown)
     process.on('SIGTERM', shutdown)
-    
   } catch (error) {
     console.error('❌ Ошибка запуска Vite-сервера:', error)
     process.exit(1)
@@ -72,11 +71,10 @@ async function startDevServer() {
 }
 
 // Запускаем сервер разработки
-startDevServer()
-  .catch((error) => {
-    console.error('❌ Критическая ошибка:', error)
-    process.exit(1)
-  })
+startDevServer().catch(error => {
+  console.error('❌ Критическая ошибка:', error)
+  process.exit(1)
+})
 
 // Экспортируем startBot как точку входа для Vite plugin Node
 export { startBot }
@@ -88,4 +86,4 @@ if (require.main === module) {
     console.error('❌ Ошибка запуска бота:', error)
     process.exit(1)
   })
-} 
+}

@@ -9,13 +9,13 @@ import type { BufferType } from '@/interfaces/telegram-bot.interface'
  */
 export const createImagesZip = (images: BufferType): Buffer => {
   const zip = new AdmZip()
-  
+
   // Add each image to the ZIP archive with its filename
   images.forEach((image, index) => {
     const filename = image.filename || `image_${index}.jpg`
     zip.addFile(filename, image.buffer)
   })
-  
+
   // Return the ZIP archive as a buffer
   return zip.toBuffer()
-} 
+}

@@ -8,8 +8,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['**/*.{test,spec}.{js,ts}'],
-    setupFiles: ['src/test/setup.ts'],
+    setupFiles: ['__tests__/setup.ts'],
+    include: ['__tests__/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -18,10 +18,10 @@ export default defineConfig({
     deps: {
       optimizer: {
         web: {
-          include: ['telegraf'],
+          include: ['telegraf', '@telegraf/types', 'telegraf/scenes'],
         },
         ssr: {
-          include: ['telegraf'],
+          include: ['telegraf', '@telegraf/types', 'telegraf/scenes'],
         },
       },
     },
@@ -34,39 +34,31 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'src'),
       },
       {
-        find: 'telegraf',
-        replacement: path.resolve(__dirname, 'src/test/mocks/telegraf.mock.ts'),
-      },
-      {
         find: 'telegraf/typings/scenes',
         replacement: path.resolve(
           __dirname,
-          'src/test/mocks/telegraf-scenes.mock.ts'
+          '__tests__/mocks/telegraf-scenes.mock.ts'
+        ),
+      },
+      {
+        find: 'telegraf/scenes',
+        replacement: path.resolve(
+          __dirname,
+          '__tests__/mocks/telegraf-scenes.mock.ts'
         ),
       },
       {
         find: 'telegraf/typings/core/types/typegram',
-        replacement: path.resolve(__dirname, 'src/test/mocks/typegram.mock.ts'),
-      },
-      {
-        find: '@/menu',
         replacement: path.resolve(
           __dirname,
-          'src/test/mocks/menu-index.mock.ts'
+          '__tests__/mocks/typegram.mock.ts'
         ),
       },
       {
-        find: '@/menu/index',
+        find: '@telegraf/types',
         replacement: path.resolve(
           __dirname,
-          'src/test/mocks/menu-index.mock.ts'
-        ),
-      },
-      {
-        find: /^src\/menu\/index\.ts$/,
-        replacement: path.resolve(
-          __dirname,
-          'src/test/mocks/menu-index.mock.ts'
+          '__tests__/mocks/typegram.mock.ts'
         ),
       },
     ],

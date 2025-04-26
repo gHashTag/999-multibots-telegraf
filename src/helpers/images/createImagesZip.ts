@@ -27,14 +27,11 @@ export const createImagesZip = (images: BufferType): Buffer => {
       id: metadataId,
       createdAt: new Date().toISOString(),
       imageCount: images.length,
-      filenames: images.map((img) => img.filename),
+      filenames: images.map(img => img.filename),
     }
 
     // Добавляем метаданные в архив
-    zip.addFile(
-      'metadata.json',
-      Buffer.from(JSON.stringify(metadata, null, 2))
-    )
+    zip.addFile('metadata.json', Buffer.from(JSON.stringify(metadata, null, 2)))
 
     // Возвращаем буфер с ZIP-архивом
     return zip.toBuffer()

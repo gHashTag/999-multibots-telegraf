@@ -17,21 +17,21 @@ if (!fs.existsSync(securityLogsDir)) {
 }
 
 // Улучшенный формат для вывода метаданных и объектов
-const prettyJson = format((info) => {
+const prettyJson = format(info => {
   const { timestamp, level, message, ...rest } = info
-  
+
   // Форматируем дополнительные метаданные
   const formatMetadata = (obj: Record<string, any>, indent = 2): string => {
     if (!obj || Object.keys(obj).length === 0) return ''
-    
+
     let result = ''
     for (const [key, value] of Object.entries(obj)) {
       // Пропускаем stack, так как он будет обработан отдельно
       if (key === 'stack') continue
-      
+
       // Форматируем ключ
       result += ' '.repeat(indent) + `${key}: `
-      
+
       // Обрабатываем разные типы значений
       if (value === null) {
         result += 'null\n'
@@ -47,7 +47,10 @@ const prettyJson = format((info) => {
           result += '[\n'
           value.forEach((item, index) => {
             if (typeof item === 'object' && item !== null) {
-              result += ' '.repeat(indent + 2) + `${index}: \n` + formatMetadata(item, indent + 4)
+              result +=
+                ' '.repeat(indent + 2) +
+                `${index}: \n` +
+                formatMetadata(item, indent + 4)
             } else {
               result += ' '.repeat(indent + 2) + `${index}: ${String(item)}\n`
             }
@@ -72,15 +75,16 @@ const commonFormat = format.combine(
   prettyJson(),
   format.printf(({ level, message, timestamp, stack, formattedMetadata }) => {
     // Эмодзи для разных уровней логов
-    const levelEmoji = {
-      'error': '❌',
-      'warn': '⚠️',
-      'info': 'ℹ️',
-      'debug': '🔍',
-      'verbose': '📝',
-      'silly': '🤪'
-    }[level] || ''
-    
+    const levelEmoji =
+      {
+        error: '❌',
+        warn: '⚠️',
+        info: 'ℹ️',
+        debug: '🔍',
+        verbose: '📝',
+        silly: '🤪',
+      }[level] || ''
+
     return `${timestamp} ${levelEmoji} [${level.toUpperCase()}]: ${message}${
       stack ? `\n${'='.repeat(80)}\n${stack}\n${'='.repeat(80)}` : ''
     }${formattedMetadata ? `\n${formattedMetadata}` : ''}`

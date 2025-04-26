@@ -10,9 +10,15 @@ try {
   dotenv.config({ path: nodePath.join(process.cwd(), '.env') })
   console.log('--- Debugging .env loading --- ')
   console.log('[CONFIG] Current Working Directory:', process.cwd())
-  console.log('[CONFIG] Attempting to load primary env file from:', nodePath.join(process.cwd(), '.env'))
+  console.log(
+    '[CONFIG] Attempting to load primary env file from:',
+    nodePath.join(process.cwd(), '.env')
+  )
   console.log('[CONFIG] .env file found and loaded successfully.')
-  console.log('[CONFIG] isDev flag set to:', process.env.NODE_ENV === 'development')
+  console.log(
+    '[CONFIG] isDev flag set to:',
+    process.env.NODE_ENV === 'development'
+  )
   console.log('[CONFIG] NODE_ENV is set to:', process.env.NODE_ENV)
   console.log('--- End Debugging .env loading --- ')
 } catch (error) {
@@ -23,7 +29,10 @@ try {
 if (!process.env.ADMIN_IDS) {
   process.env.ADMIN_IDS = '144022504,1254048880,352374518,1852726961'
 }
-console.log('[CONFIG] Parsed ADMIN_IDS_ARRAY:', process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())))
+console.log(
+  '[CONFIG] Parsed ADMIN_IDS_ARRAY:',
+  process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim()))
+)
 
 // Мокаем внешние модули
 vi.mock('node:fs', () => ({
@@ -44,15 +53,15 @@ vi.mock('node:path', () => ({
 vi.mock('telegraf', () => {
   // Создаем мок класса Telegraf
   class TelegrafMock {
-    use: any;
-    launch: any;
-    telegram: any;
-    start: any;
-    command: any;
-    action: any;
-    hears: any;
-    on: any;
-    stop: any;
+    use: any
+    launch: any
+    telegram: any
+    start: any
+    command: any
+    action: any
+    hears: any
+    on: any
+    stop: any
 
     constructor() {
       this.use = vi.fn().mockReturnThis()
@@ -73,21 +82,21 @@ vi.mock('telegraf', () => {
       this.stop = vi.fn().mockResolvedValue(undefined)
     }
   }
-  
+
   // Мок для класса Context
   class ContextMock {
-    session: any;
-    scene: any;
-    reply: any;
-    replyWithHTML: any;
-    replyWithPhoto: any;
-    replyWithMediaGroup: any;
-    deleteMessage: any;
-    editMessageText: any;
-    editMessageReplyMarkup: any;
-    from: any;
-    chat: any;
-    callbackQuery: any;
+    session: any
+    scene: any
+    reply: any
+    replyWithHTML: any
+    replyWithPhoto: any
+    replyWithMediaGroup: any
+    deleteMessage: any
+    editMessageText: any
+    editMessageReplyMarkup: any
+    from: any
+    chat: any
+    callbackQuery: any
 
     constructor() {
       this.session = {}
@@ -113,16 +122,20 @@ vi.mock('telegraf', () => {
     Telegraf: TelegrafMock,
     Context: ContextMock,
     Markup: {
-      inlineKeyboard: vi.fn().mockReturnValue({ reply_markup: { inline_keyboard: [] } }),
+      inlineKeyboard: vi
+        .fn()
+        .mockReturnValue({ reply_markup: { inline_keyboard: [] } }),
       keyboard: vi.fn().mockReturnValue({ reply_markup: { keyboard: [] } }),
-      removeKeyboard: vi.fn().mockReturnValue({ reply_markup: { remove_keyboard: true } }),
+      removeKeyboard: vi
+        .fn()
+        .mockReturnValue({ reply_markup: { remove_keyboard: true } }),
     },
     Scenes: {
       Stage: vi.fn().mockImplementation(() => ({
         register: vi.fn().mockReturnThis(),
         middleware: vi.fn().mockReturnValue(() => {}),
       })),
-      BaseScene: vi.fn().mockImplementation((name) => ({
+      BaseScene: vi.fn().mockImplementation(name => ({
         name,
         enter: vi.fn().mockReturnThis(),
         leave: vi.fn().mockReturnThis(),
@@ -160,4 +173,4 @@ vi.mock('@/utils/logger', () => {
     },
     logSecurityEvent: vi.fn(),
   }
-}) 
+})
