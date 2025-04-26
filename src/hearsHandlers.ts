@@ -2,15 +2,15 @@ import { imageModelMenu } from './menu/imageModelMenu'
 import { logger } from './utils/logger'
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
-import { MyContext } from './interfaces/'
+import type { MyContext } from './interfaces/'
 import { Telegraf, Context } from 'telegraf'
 
 import { generateNeuroImage } from './services/generateNeuroImage'
 import { handleSizeSelection } from './handlers'
 import { levels, mainMenu } from './menu'
 import { getReferalsCountAndUserData } from './core/supabase'
-import { ModeEnum } from './interfaces/modes'
-import { SubscriptionType } from './interfaces/subscription.interface'
+import type { ModeEnum } from './interfaces/modes'
+import type { SubscriptionType } from './interfaces/subscription.interface'
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')

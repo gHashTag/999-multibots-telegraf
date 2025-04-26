@@ -1,6 +1,6 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import type { TelegramId } from '@/interfaces/telegram.interface'
 import { Telegraf } from 'telegraf'
-import { MyContext } from './interfaces'
+import type { MyContext } from './interfaces'
 import { supabase } from './core/supabase'
 
 // Резервный ID для тестирования, если владелец не найден в базе

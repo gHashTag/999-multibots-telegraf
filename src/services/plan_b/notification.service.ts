@@ -1,7 +1,7 @@
 import { getBotByName } from '@/core/bot'
 import type { Telegraf } from 'telegraf'
-import { BotName } from '@/interfaces'
-import { toBotName } from '@/helpers/botName.helper'
+import type { BotName } from '@/interfaces'
+import type { toBotName } from '@/helpers/botName.helper'
 import logger from '@/utils/logger'
 
 interface NotificationOptions {

@@ -1,5 +1,5 @@
 import { Markup, Telegraf } from 'telegraf'
-import { MyContext } from '../interfaces'
+import type { MyContext } from '../interfaces'
 import { isRussian } from '@/helpers'
 
 export const sendPhotoDescriptionRequest = async (

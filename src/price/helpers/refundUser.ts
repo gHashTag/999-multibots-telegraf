@@ -1,8 +1,8 @@
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { getUserBalance, getReferalsCountAndUserData } from '@/core/supabase'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { mainMenu } from '@/menu'
-import { PaymentType } from '@/interfaces'
+import type { PaymentType } from '@/interfaces'
 
 export async function refundUser(ctx: MyContext, paymentAmount: number) {
   if (!ctx.from) {

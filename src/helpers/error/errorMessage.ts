@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 
 export const errorMessage = (ctx: MyContext, error: Error, isRu: boolean) => {
   ctx.telegram.sendMessage(

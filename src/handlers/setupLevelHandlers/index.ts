@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import type { MyContext } from '../../interfaces'
 import {
   handleLevel1,
   handleLevel2,
@@ -14,7 +14,7 @@ import {
   handleLevel11,
   handleQuestComplete,
 } from '../../scenes/levelQuestWizard/handlers'
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 
 export function setupLevelHandlers(bot: Telegraf<MyContext>) {
   bot.action('level_1', handleLevel1)

@@ -67,7 +67,7 @@ console.log(`--- End Bot Logic Check ---`)
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update } from 'telegraf/typings/core/types/typegram'
 import { registerCommands } from './registerCommands'
-import { MyContext } from './interfaces'
+import type { MyContext } from './interfaces'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []

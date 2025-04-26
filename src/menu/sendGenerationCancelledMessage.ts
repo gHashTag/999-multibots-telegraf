@@ -1,5 +1,5 @@
 import { getReferalsCountAndUserData } from '@/core/supabase'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { mainMenu } from '../menu'
 import { logger } from '@/utils/logger'
 

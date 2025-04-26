@@ -2,8 +2,8 @@ import { supabase } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { avatarService } from './avatar.service'
-import { BotName } from '@/interfaces'
-import { toBotName } from '@/helpers/botName.helper'
+import type { BotName } from '@/interfaces'
+import type { toBotName } from '@/helpers/botName.helper'
 
 export interface BroadcastResult {
   successCount: number

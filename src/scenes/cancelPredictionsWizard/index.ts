@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { refundUser } from '@/price/helpers'
 import { Scenes } from 'telegraf'
 import { isRussian } from '@/helpers/language'

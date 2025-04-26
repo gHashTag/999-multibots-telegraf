@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 import {
   handleLevel1,
   handleLevel10,
@@ -15,7 +15,7 @@ import {
   handleQuestComplete,
   handleQuestRules,
 } from './handlers'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { mainMenu } from '@/menu'
 import { getReferalsCountAndUserData } from '@/core/supabase'

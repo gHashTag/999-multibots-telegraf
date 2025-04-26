@@ -1,4 +1,4 @@
-import { MyContext } from '../telegram-bot.interface'
+import type { MyContext } from '../telegram-bot.interface'
 
 export interface ModelTrainingConfig {
   modelName: string

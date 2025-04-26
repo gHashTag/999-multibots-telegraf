@@ -1,7 +1,7 @@
 import AdmZip from 'adm-zip'
 import { logger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { BufferType } from '@/interfaces/telegram-bot.interface'
+import type { BufferType } from '@/interfaces/telegram-bot.interface'
 
 /**
  * Создает ZIP-архив из буферов изображений

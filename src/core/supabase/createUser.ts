@@ -1,4 +1,4 @@
-import { CreateUserData, MyContext } from '@/interfaces'
+import type { CreateUserData, MyContext } from '@/interfaces'
 import { User } from '@/interfaces/user.interface'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'

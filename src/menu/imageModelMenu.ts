@@ -1,5 +1,5 @@
 import { Markup } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { imageModelPrices } from '@/price/models/imageModelPrices'
 import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 import { levels } from './mainMenu'

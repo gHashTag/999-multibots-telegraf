@@ -1,5 +1,5 @@
 // Меняем импорт ModeEnum, чтобы избежать циклической зависимости
-import { ModeEnum } from '../../interfaces/modes'
+import type { ModeEnum } from '../../interfaces/modes'
 
 import {
   conversionRates,

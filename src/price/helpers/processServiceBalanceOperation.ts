@@ -5,9 +5,9 @@ import {
   BalanceOperationResult,
 } from '@/interfaces/payments.interface'
 import { Telegraf } from 'telegraf' // Нужен для отправки сообщения о недостатке средств
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import logger from '@/utils/logger'
-import { ModeEnum } from '@/interfaces'
+import type { ModeEnum } from '@/interfaces'
 
 // Определим тип для результата, аналогичный BalanceOperationResult, но без ctx-зависимых полей
 export interface ServiceBalanceOperationResult {

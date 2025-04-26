@@ -1,7 +1,7 @@
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
 import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
+import type { SubscriptionType } from '@/interfaces/subscription.interface'
 
 console.log('Payment variables check:')
 console.log('MERCHANT_LOGIN:', MERCHANT_LOGIN)

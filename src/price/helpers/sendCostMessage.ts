@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 
 export const sendCostMessage = async (
   ctx: MyContext,

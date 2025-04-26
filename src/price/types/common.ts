@@ -1,4 +1,4 @@
-import { ModeEnum } from '../../interfaces/modes'
+import type { ModeEnum } from '../../interfaces/modes'
 
 /**
  * Результат расчета стоимости

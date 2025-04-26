@@ -1,5 +1,5 @@
 import { Scenes, Markup, Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 
 import { isValidImage } from '../../helpers/images'
 import { isRussian } from '@/helpers'

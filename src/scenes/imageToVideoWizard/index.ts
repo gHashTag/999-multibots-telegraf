@@ -1,6 +1,6 @@
 import { Scenes, Telegraf, Markup } from 'telegraf'
 import { generateImageToVideo } from '@/services/generateImageToVideo'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import {
   cancelMenu,
   sendGenerationCancelledMessage,
@@ -8,7 +8,7 @@ import {
   videoModelKeyboard,
 } from '@/menu'
 import { isRussian } from '@/helpers/language'
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 import { getBotToken } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { logger } from '@/utils/logger'

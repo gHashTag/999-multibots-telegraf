@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { checkSubscription } from './checkSubscription'
 import { handleSubscriptionMessage } from './handleSubscriptionMessage'
 

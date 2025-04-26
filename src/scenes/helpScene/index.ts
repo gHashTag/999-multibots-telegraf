@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import type { MyContext } from '../../interfaces'
 import {
   handleLevel1,
   handleLevel2,
@@ -18,7 +18,7 @@ import {
 import { mainMenu } from '@/menu'
 
 import { getReferalsCountAndUserData } from '@/core/supabase'
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 
 export const helpScene = new Scenes.BaseScene<MyContext>('help')
 

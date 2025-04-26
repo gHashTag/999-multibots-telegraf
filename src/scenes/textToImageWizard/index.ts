@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { imageModelPrices } from '@/price/models/imageModelPrices'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImage } from '@/services/generateTextToImage'
@@ -19,7 +19,7 @@ import {
   PaymentStatus,
   Currency,
 } from '@/interfaces/payments.interface'
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 // import { IMAGE_MODELS_CONFIG } from '@/config/models.config' // Неправильный конфиг
 
 // Возвращаем экспорт

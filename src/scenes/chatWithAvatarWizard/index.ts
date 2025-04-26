@@ -1,8 +1,8 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import type { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
 import { handleTextMessage } from '../../handlers/handleTextMessage'
-import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+import type { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   'chat_with_avatar',

@@ -16,7 +16,7 @@ import {
   normalizeTelegramId,
   TelegramId,
 } from '@/interfaces/telegram.interface'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
+import type { SubscriptionType } from '@/interfaces/subscription.interface'
 // <<<=== ИМПОРТ ДЛЯ ПОЛУЧЕНИЯ БАЛАНСА ИЗ PAYMENTS_V2 ===>>>
 import { getUserBalance } from './getUserBalance'
 import { PaymentStatus } from '@/interfaces/payments.interface'

@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
 import {
   getTranslation as getDbTranslation,
@@ -9,7 +9,7 @@ import {
 import { BOT_URLS } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { levels } from '@/menu/mainMenu'
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { isRussian } from '@/helpers/language'
 import { TelegramError } from 'telegraf'

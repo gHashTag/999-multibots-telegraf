@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { generateNeuroImage } from '../../services/generateNeuroImage'
 import { isRussian } from '@/helpers'
 import { promptNeuroCoder } from './promts'

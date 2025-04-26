@@ -1,4 +1,4 @@
-import { BotName } from '@/interfaces/telegram-bot.interface'
+import type { BotName } from '@/interfaces/telegram-bot.interface'
 
 const validBotNames = [
   'neuro_blogger_bot',

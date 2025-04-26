@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { UserModel } from '../../interfaces'
 
 import { generateNeuroImageV2 } from '@/services/generateNeuroImageV2'
@@ -16,7 +16,7 @@ import { WizardScene } from 'telegraf/scenes'
 
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const isRu = ctx.from?.language_code === 'ru'

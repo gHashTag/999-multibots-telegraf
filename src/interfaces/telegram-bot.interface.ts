@@ -4,12 +4,12 @@ import type { Update, Message } from 'telegraf/typings/core/types/typegram'
 import { Buffer } from 'buffer'
 
 import { BroadcastContentType } from './broadcast.interface'
-import { SubscriptionType } from './subscription.interface'
-import { TranslationButton } from './supabase.interface'
-import { SessionPayment } from './payments.interface'
+import type { SubscriptionType } from './subscription.interface'
+import type { TranslationButton } from './supabase.interface'
+import type { SessionPayment } from './payments.interface'
 import { SceneContextScene, WizardContextWizard } from 'telegraf/typings/scenes'
-import { ModeEnum, Mode } from './modes'
-import { Translation } from './translations.interface'
+import type { ModeEnum, Mode } from './modes'
+import type { Translation } from './translations.interface'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {

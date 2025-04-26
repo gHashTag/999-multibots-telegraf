@@ -4,9 +4,9 @@ dotenv.config()
 
 import { NODE_ENV } from '@/config'
 import { Telegraf } from 'telegraf'
-import { MyContext, BotName } from '@/interfaces'
+import type { MyContext, BotName } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import { toBotName } from '@/helpers/botName.helper'
+import type { toBotName } from '@/helpers/botName.helper'
 
 import { getBotGroupFromAvatars } from '@/core/supabase'
 

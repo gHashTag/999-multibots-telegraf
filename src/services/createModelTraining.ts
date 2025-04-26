@@ -7,7 +7,7 @@ import {
   API_SERVER_URL,
   LOCAL_SERVER_URL,
 } from '@/config'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 interface ModelTrainingRequest {
   filePath: string
   triggerWord: string

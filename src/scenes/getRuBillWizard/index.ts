@@ -1,6 +1,6 @@
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
+import type { SubscriptionType } from '@/interfaces/subscription.interface'
 import {
   getInvoiceId,
   merchantLogin,
@@ -10,7 +10,7 @@ import {
 } from './helper'
 import { setPayments } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
-import { getBotNameByToken } from '@/core'
+import type { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 import {
   Currency,

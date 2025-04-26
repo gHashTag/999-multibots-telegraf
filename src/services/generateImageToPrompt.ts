@@ -1,8 +1,8 @@
 import { generateImageToPrompt as planBGenerateImageToPrompt } from './plan_b/generateImageToPrompt'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { getBotByName } from '@/core/bot'
 import logger from '@/utils/logger'
-import { BotName } from '@/interfaces/telegram-bot.interface'
+import type { BotName } from '@/interfaces/telegram-bot.interface'
 /**
  * Обертка для вызова функции generateImageToPrompt из plan_b.
  * Получает bot instance по имени.

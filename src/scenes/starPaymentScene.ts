@@ -1,12 +1,12 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { handleSelectStars, handleBuySubscription } from '@/handlers'
 import { starAmounts } from '@/price/helpers/starAmounts' // Предполагаем, что существует
 import { setPayments } from '@/core/supabase'
-import { getBotNameByToken } from '@/core'
+import type { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 import { handleTopUp } from '@/handlers/paymentHandlers/handleTopUp'
 
 export const starPaymentScene = new Scenes.BaseScene<MyContext>(

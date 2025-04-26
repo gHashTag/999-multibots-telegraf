@@ -1,5 +1,5 @@
 import { Scenes, Markup, Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { generateVoiceAvatar } from '@/services/generateVoiceAvatar'
 import { isRussian } from '@/helpers'
 import { getUserBalance, getVoiceId } from '@/core/supabase'

@@ -6,8 +6,8 @@ import { createUser, getReferalsCountAndUserData } from '@/core/supabase'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 
 import { isRussian } from '@/helpers/language'
-import { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/interfaces/modes'
+import type { MyContext } from '@/interfaces'
+import type { ModeEnum } from '@/interfaces/modes'
 
 const SUBSCRIBE_CHANNEL_ID = '@neuro_blogger_pulse'
 

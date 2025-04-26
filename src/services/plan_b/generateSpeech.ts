@@ -13,11 +13,11 @@
 //   sendServiceErrorToAdmin,
 // } from '@/helpers/error'
 // import { Telegraf } from 'telegraf'
-// import { MyContext } from '@/interfaces'
+// import type { MyContext } from '@/interfaces'
 // import { modeCosts } from '@/price/helpers/modelsCost'
-// import { ModeEnum } from '@/interfaces/modes'
+// import type { ModeEnum } from '@/interfaces/modes'
 // import { processBalanceOperation, sendBalanceMessage } from '@/price/helpers'
-// import { PaymentType } from '@/interfaces/payments.interface'
+// import type { PaymentType } from '@/interfaces/payments.interface'
 
 // export const generateSpeech = async ({
 //   text,

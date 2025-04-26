@@ -1,12 +1,12 @@
-import { TelegramId } from '@/interfaces/telegram.interface'
+import type { TelegramId } from '@/interfaces/telegram.interface'
 import { PaymentStatus, Currency } from '@/interfaces/payments.interface'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
+import type { SubscriptionType } from '@/interfaces/subscription.interface'
 import { logger } from '@/utils/logger'
-import { determineSubscriptionType } from '@/price/constants/index'
+import type { determineSubscriptionType } from '@/price/constants/index'
 import { ADMIN_IDS_ARRAY } from '@/config'
 
 import { supabase } from '@/core/supabase'
-import { getUserByTelegramIdString } from '@/core/supabase'
+import type { getUserByTelegramIdString } from '@/core/supabase'
 import { normalizeTransactionType } from '@/utils/service.utils'
 import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 

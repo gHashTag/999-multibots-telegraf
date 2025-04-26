@@ -1,4 +1,4 @@
-import { MyContext } from '../../interfaces'
+import type { MyContext } from '../../interfaces'
 import { errorMessage } from '@/helpers/error'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { getSubScribeChannel } from '@/handlers'

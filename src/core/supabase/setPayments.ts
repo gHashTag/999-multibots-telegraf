@@ -5,8 +5,8 @@ import {
   Currency,
   PaymentType,
 } from '@/interfaces/payments.interface'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { normalizeTelegramId } from '@/interfaces/telegram.interface'
+import type { SubscriptionType } from '@/interfaces/subscription.interface'
+import type { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
 
 type PaymentParams = {

@@ -1,11 +1,11 @@
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { BalanceOperationResult, MyContext } from '@/interfaces'
+import type { BalanceOperationResult, MyContext } from '@/interfaces'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { calculateFinalPrice } from './calculateFinalPrice'
 
 import { logger } from '@/utils/logger'
-import { PaymentType } from '@/interfaces/payments.interface'
+import type { PaymentType } from '@/interfaces/payments.interface'
 
 /**
  * Обрабатывает операцию с балансом для видео

@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { ModelUrl } from '@/interfaces'
 import { Markup } from 'telegraf'
 
@@ -14,7 +14,7 @@ import {
   sendPhotoDescriptionRequest,
 } from '@/menu'
 import { handleMenu } from '@/handlers'
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { WizardScene } from 'telegraf/scenes'
 import { navigationMenu } from '@/menu/navigationMenu'

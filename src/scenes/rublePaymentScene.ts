@@ -1,14 +1,14 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext, SessionData, SelectedPayment } from '@/interfaces'
+import type { MyContext, SessionData, SelectedPayment } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { handleSelectRubAmount } from '@/handlers'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
 import { getInvoiceId } from '@/scenes/getRuBillWizard/helper'
 import { MERCHANT_LOGIN, PASSWORD1 } from '@/config'
 import { setPayments } from '@/core/supabase'
-import { getBotNameByToken } from '@/core'
+import type { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 
 import {
   PaymentStatus,

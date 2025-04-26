@@ -5,7 +5,7 @@ import {
   sendServiceErrorToAdmin,
 } from '@/helpers/error'
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,

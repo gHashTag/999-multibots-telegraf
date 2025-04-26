@@ -1,5 +1,5 @@
 import { Markup } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { starAmounts } from '@/price/helpers/starAmounts'
 // import { BuyParams } from '../handleBuy/index' // Убираем старый импорт
 import { logger } from '@/utils/logger'

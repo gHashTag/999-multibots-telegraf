@@ -1,17 +1,17 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import type { MyContext } from '../../interfaces'
 import { saveUserEmail, setPayments } from '../../core/supabase'
 import { isRussian } from '@/helpers'
 
 import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
-import { getBotNameByToken } from '@/core'
+import type { getBotNameByToken } from '@/core'
 import {
   PaymentStatus,
   Currency,
   PaymentType,
 } from '@/interfaces/payments.interface'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
+import type { SubscriptionType } from '@/interfaces/subscription.interface'
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
 

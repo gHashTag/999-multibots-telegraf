@@ -1,5 +1,5 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '@/core/supabase'
 import { createModelTraining } from '@/services/createModelTraining'

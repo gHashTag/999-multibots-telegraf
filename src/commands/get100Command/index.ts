@@ -1,4 +1,4 @@
-import { MyContext } from '../../interfaces'
+import type { MyContext } from '../../interfaces'
 
 import { generateNeuroImage } from '../../services/generateNeuroImage'
 import { models } from '../../core/replicate'

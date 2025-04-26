@@ -1,13 +1,13 @@
 import { Scenes, Telegraf, Markup } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 
 import { generateImageToPrompt } from '@/services'
 import { isRussian } from '@/helpers'
 
 // import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
-import { ModeEnum } from '@/interfaces/modes'
-import { getBotNameByToken } from '@/core/bot'
+import type { ModeEnum } from '@/interfaces/modes'
+import type { getBotNameByToken } from '@/core/bot'
 import { createHelpButton } from '@/menu/buttons'
 // Используем заглушку для HUGGINGFACE_TOKEN
 process.env.HUGGINGFACE_TOKEN = process.env.HUGGINGFACE_TOKEN || 'dummy-token'

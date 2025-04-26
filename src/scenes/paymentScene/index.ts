@@ -1,10 +1,10 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/interfaces/modes'
-import { PaymentType } from '@/interfaces/payments.interface'
+import type { ModeEnum } from '@/interfaces/modes'
+import type { PaymentType } from '@/interfaces/payments.interface'
 
 /**
  * Старая сцена оплаты, теперь используется как точка входа
