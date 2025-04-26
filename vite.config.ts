@@ -1,17 +1,29 @@
-import { defineConfig, loadEnv } from 'vite'
-import { VitePluginNode } from 'vite-plugin-node'
-import { nodePolyfills } from 'vite-plugin-node-polyfills'
-import path from 'node:path'
-import nodeResolve from '@rollup/plugin-node-resolve'
-import checker from 'vite-plugin-checker'
+import { defineConfig } from 'vite'
 import { resolve } from 'path'
+import checker from 'vite-plugin-checker'
+import tsconfigPaths from 'vite-tsconfig-paths'
+import dts from 'vite-plugin-dts'
+import { visualizer } from 'rollup-plugin-visualizer'
+import compression from 'vite-plugin-compression'
+import banner from 'vite-plugin-banner'
+import inspect from 'vite-plugin-inspect'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import { VitePluginNode } from 'vite-plugin-node'
+
+// Доступ к package.json
+import { readFileSync } from 'fs'
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
+
+// Определение баннера для выходных файлов
+const bannerContent = `/**
+ * ${pkg.name} v${pkg.version}
+ * ${pkg.description}
+ * (c) ${new Date().getFullYear()}
+ * ${pkg.license ? `Released under the ${pkg.license} License.` : ''}
+ */`
 
 // https://vitejs.dev/config/
-export default defineConfig(({ command, mode, isSsrBuild }) => {
-  // Загружаем переменные окружения в зависимости от режима
-  const env = loadEnv(mode, process.cwd(), '')
-  const isProduction = mode === 'production'
-
+export default defineConfig(({ command, mode }) => {
   console.log(`🌍 [Vite] Запуск в режиме: ${mode}`)
   console.log(`🔧 [Vite] Команда: ${command}`)
 
@@ -44,10 +56,10 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
     'timers',
     'tty',
     'perf_hooks',
-    'fs/promises',
   ]
 
   return {
+    root: process.cwd(),
     plugins: [
       nodePolyfills({
         protocolImports: true,
@@ -56,6 +68,8 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
           global: true,
           process: true,
         },
+        // Только стандартные модули
+        include: ['buffer', 'process', 'util'],
       }),
       ...VitePluginNode({
         adapter: 'express',
@@ -64,12 +78,26 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
         tsCompiler: 'esbuild',
       }),
       checker({
-        typescript: {
-          tsconfigPath: './tsconfig.json',
-        },
-        eslint: {
-          lintCommand: 'eslint "./src/**/*.ts"',
-        },
+        typescript: true,
+      }),
+      tsconfigPaths(),
+      dts({
+        outDir: 'dist/types',
+        exclude: [
+          '**/__tests__/**',
+          '**/*.test.ts',
+          '**/*.spec.ts',
+          '**/__mocks__/**',
+        ],
+      }),
+      compression(),
+      banner(bannerContent),
+      inspect(),
+      visualizer({
+        open: false,
+        gzipSize: true,
+        brotliSize: true,
+        filename: 'dist/stats.html',
       }),
     ],
 
@@ -78,7 +106,6 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
       alias: {
         '@': resolve(__dirname, './src'),
         telegraf: resolve(__dirname, 'node_modules/telegraf/lib'),
-        // Стратегические алиасы для проблемных модулей
         'node-fetch': resolve(
           __dirname,
           'node_modules/node-fetch/lib/index.js'
@@ -88,8 +115,12 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
           'node_modules/form-data/lib/form_data.js'
         ),
         winston: resolve(__dirname, 'node_modules/winston/lib/winston.js'),
+        // Заглушка для fs/promises
+        'fs/promises': resolve(
+          __dirname,
+          'node_modules/node-stdlib-browser/mock/empty.js'
+        ),
       },
-      // Расширенные настройки разрешения для ESM/CommonJS
       conditions: ['node', 'import', 'default'],
       mainFields: ['module', 'jsnext:main', 'jsnext', 'main'],
       extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
@@ -108,7 +139,7 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
         fileName: 'bot',
       },
       rollupOptions: {
-        external: ['fsevents'],
+        external: ['fsevents', ...nodeBuiltins, 'fs/promises'],
         output: {
           format: 'es',
           esModule: true,
@@ -119,7 +150,6 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
 
     // Оптимизация зависимостей
     optimizeDeps: {
-      // Предварительный бандлинг проблемных зависимостей
       include: [
         'telegraf',
         'winston',
@@ -128,12 +158,11 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
         '@supabase/supabase-js',
         'replicate',
       ],
-      exclude: ['fsevents'],
+      exclude: ['fsevents', ...nodeBuiltins, 'fs/promises'],
       esbuildOptions: {
         platform: 'node',
         target: 'node18',
         format: 'esm',
-        // Улучшенные настройки для работы с CJS/ESM
         define: {
           'process.env.NODE_ENV': JSON.stringify(
             process.env.NODE_ENV || 'development'
@@ -193,23 +222,19 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
         'replicate',
         'winston',
       ],
+      external: [...nodeBuiltins, 'fs/promises'],
     },
 
-    // Base directory for resolving modules
-    root: './',
-
-    // Определение глобальных переменных, доступных в коде
     define: {
-      __APP_ENV__: JSON.stringify(env.APP_ENV || mode),
+      __APP_ENV__: JSON.stringify(process.env.APP_ENV || mode),
       __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
-      __IS_DEV__: JSON.stringify(!isProduction),
+      __IS_DEV__: JSON.stringify(mode !== 'production'),
       'process.env.NODE_ENV': JSON.stringify(mode),
     },
 
-    // Улучшенный режим совместимости
     appType: 'custom',
 
-    // Test configuration (integrated from vitest.config.ts)
+    // Конфигурация тестирования (интегрированная из vitest.config.ts)
     test: {
       globals: true,
       environment: 'node',
