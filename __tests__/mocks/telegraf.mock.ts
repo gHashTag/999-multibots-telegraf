@@ -5,6 +5,43 @@
 
 import { vi } from 'vitest'
 
+// Определяем интерфейсы для типизации моков
+interface IContext {
+  update: any
+  telegram: any
+  session: any
+  scene: any
+  callbackQuery: any
+  message: any
+  from: any
+  chat: any
+  reply(text: string, extra?: any): Promise<any>
+  replyWithPhoto(photo: any, extra?: any): Promise<any>
+  replyWithDocument(document: any, extra?: any): Promise<any>
+  replyWithVideo(video: any, extra?: any): Promise<any>
+  replyWithAnimation(animation: any, extra?: any): Promise<any>
+  replyWithAudio(audio: any, extra?: any): Promise<any>
+  replyWithVoice(voice: any, extra?: any): Promise<any>
+  replyWithMediaGroup(media: any, extra?: any): Promise<any>
+  deleteMessage(messageId: any): Promise<boolean>
+  editMessageText(text: string, extra?: any): Promise<any>
+  editMessageReplyMarkup(markup: any): Promise<any>
+  answerCbQuery(text: string, extra?: any): Promise<boolean>
+}
+
+interface IBaseScene {
+  id: string
+  enterHandler: any
+  leaveHandler: any
+  enter(handler: any): any
+  leave(handler: any): any
+  command(command: string, handler: any): any
+  on(event: string, handler: any): any
+  action(action: string | RegExp, handler: any): any
+  use(middleware: any): any
+  hears(trigger: string | RegExp | Array<string | RegExp>, handler: any): any
+}
+
 /**
  * Мок для класса Markup из Telegraf
  */
@@ -450,3 +487,239 @@ export class MockBaseScene {
     return this
   }
 }
+
+// Mock для Markup
+export const Markup = {
+  inlineKeyboard: vi.fn().mockImplementation(keyboard => ({
+    reply_markup: { inline_keyboard: keyboard },
+  })),
+  removeKeyboard: vi.fn().mockImplementation(() => ({
+    reply_markup: { remove_keyboard: true },
+  })),
+}
+
+// Mock для Telegram
+const telegram = {
+  sendMessage: vi.fn().mockResolvedValue({}),
+  sendPhoto: vi.fn().mockResolvedValue({}),
+  sendDocument: vi.fn().mockResolvedValue({}),
+  sendVideo: vi.fn().mockResolvedValue({}),
+  sendAnimation: vi.fn().mockResolvedValue({}),
+  sendAudio: vi.fn().mockResolvedValue({}),
+  sendVoice: vi.fn().mockResolvedValue({}),
+  sendMediaGroup: vi.fn().mockResolvedValue({}),
+  deleteMessage: vi.fn().mockResolvedValue({}),
+  editMessageText: vi.fn().mockResolvedValue({}),
+  editMessageReplyMarkup: vi.fn().mockResolvedValue({}),
+  getMe: vi.fn().mockResolvedValue({
+    id: 123456789,
+    is_bot: true,
+    first_name: 'Test Bot',
+    username: 'test_bot',
+  }),
+  getChat: vi.fn().mockResolvedValue({}),
+  getChatAdministrators: vi.fn().mockResolvedValue([]),
+  getChatMember: vi.fn().mockResolvedValue({}),
+  leaveChat: vi.fn().mockResolvedValue({}),
+  getFile: vi.fn().mockResolvedValue({
+    file_id: 'test-file-id',
+    file_unique_id: 'test-file-unique-id',
+    file_size: 100,
+    file_path: 'test-file-path',
+  }),
+}
+
+// Mock для Context
+export class Context implements IContext {
+  update: any
+  telegram: any
+  session: any
+  scene: any
+  callbackQuery: any
+  message: any
+  from: any
+  chat: any
+
+  constructor(update: any = {}) {
+    this.update = update
+    this.telegram = telegram
+    this.session = {}
+    this.scene = {
+      enter: vi.fn().mockResolvedValue(true),
+      leave: vi.fn().mockResolvedValue(true),
+      current: { id: null },
+    }
+    this.callbackQuery = update.callback_query || null
+    this.message = update.message || null
+    this.from =
+      (update.message && update.message.from) ||
+      (update.callback_query && update.callback_query.from) ||
+      null
+    this.chat = (update.message && update.message.chat) || null
+  }
+
+  reply(text: string, extra: any = {}) {
+    return Promise.resolve({ message_id: 12345 })
+  }
+
+  replyWithPhoto(photo: any, extra: any = {}) {
+    return Promise.resolve({ message_id: 12345 })
+  }
+
+  replyWithDocument(document: any, extra: any = {}) {
+    return Promise.resolve({ message_id: 12345 })
+  }
+
+  replyWithVideo(video: any, extra: any = {}) {
+    return Promise.resolve({ message_id: 12345 })
+  }
+
+  replyWithAnimation(animation: any, extra: any = {}) {
+    return Promise.resolve({ message_id: 12345 })
+  }
+
+  replyWithAudio(audio: any, extra: any = {}) {
+    return Promise.resolve({ message_id: 12345 })
+  }
+
+  replyWithVoice(voice: any, extra: any = {}) {
+    return Promise.resolve({ message_id: 12345 })
+  }
+
+  replyWithMediaGroup(media: any, extra: any = {}) {
+    return Promise.resolve([{ message_id: 12345 }])
+  }
+
+  deleteMessage(messageId: any) {
+    return Promise.resolve(true)
+  }
+
+  editMessageText(text: string, extra: any = {}) {
+    return Promise.resolve({ message_id: 12345 })
+  }
+
+  editMessageReplyMarkup(markup: any) {
+    return Promise.resolve({ message_id: 12345 })
+  }
+
+  answerCbQuery(text: string, extra: any = {}) {
+    return Promise.resolve(true)
+  }
+}
+
+// Mock для Telegraf
+export class Telegraf {
+  token: string
+  telegram: any
+  middleware: any[]
+  contextType: any
+
+  constructor(token: string) {
+    this.token = token
+    this.telegram = telegram
+    this.middleware = []
+    this.contextType = Context
+  }
+
+  use(middleware: any) {
+    this.middleware.push(middleware)
+    return this
+  }
+
+  start(handler: any) {
+    return this
+  }
+
+  command(command: string, handler: any) {
+    return this
+  }
+
+  on(event: string, handler: any) {
+    return this
+  }
+
+  action(action: string | RegExp, handler: any) {
+    return this
+  }
+
+  hears(trigger: string | RegExp | Array<string | RegExp>, handler: any) {
+    return this
+  }
+
+  catch(handler: any) {
+    return this
+  }
+
+  launch() {
+    return Promise.resolve(true)
+  }
+
+  stop() {
+    return Promise.resolve(true)
+  }
+
+  webhookCallback() {
+    return vi.fn()
+  }
+}
+
+// Заменяем namespace Scenes на обычные экспорты
+export class Stage {
+  middleware() {
+    return vi.fn()
+  }
+  register() {
+    return this
+  }
+}
+
+export class BaseScene implements IBaseScene {
+  id: string
+  enterHandler: any
+  leaveHandler: any
+
+  constructor(id: string) {
+    this.id = id
+    this.enterHandler = vi.fn()
+    this.leaveHandler = vi.fn()
+  }
+
+  enter(handler: any) {
+    this.enterHandler = handler
+    return this
+  }
+
+  leave(handler: any) {
+    this.leaveHandler = handler
+    return this
+  }
+
+  command(command: string, handler: any) {
+    return this
+  }
+
+  on(event: string, handler: any) {
+    return this
+  }
+
+  action(action: string | RegExp, handler: any) {
+    return this
+  }
+
+  use(middleware: any) {
+    return this
+  }
+
+  hears(trigger: string | RegExp | Array<string | RegExp>, handler: any) {
+    return this
+  }
+}
+
+// Экспортируем объект Scenes для обеспечения обратной совместимости
+export const Scenes = {
+  Stage,
+  BaseScene,
+}
+
+// Export default
+export default Telegraf

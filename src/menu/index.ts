@@ -1,7 +1,5 @@
 export * from './mainMenu'
 export * from './imageModelMenu'
-export * from './mainMenu'
-export * from './imageModelMenu'
 export * from './startMenu'
 export * from './videoModelMenu'
 export * from './cancelMenu'
@@ -18,7 +16,7 @@ export * from '@/core/supabase/getUserBalance'
 // Комментируем проблемный реэкспорт
 // export * from './subscription/getUserSubscriptionMenu'
 
-import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import type { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 
 /**
  * Создает клавиатуру для генерации изображений

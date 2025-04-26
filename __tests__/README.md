@@ -153,6 +153,57 @@
             });
             ```
 
+5.  **Проблема:** Ошибка "Cannot access variable 'MockMarkup' before initialization" при использовании моков в vi.mock.
+    *   **Контекст:** Эта ошибка возникает из-за "hoisting" (поднятия) вызовов `vi.mock()` в начало файла, что приводит к тому, что переменные, определенные после импортов, но до `vi.mock()`, не видны внутри фабрики мока.
+    *   **Решение:**
+        *   **Переопределение порядка**: Убедитесь, что все моки объявлены до импортов.
+        *   **Использование прямых литералов**: Вместо ссылки на переменные, объявляйте необходимые объекты прямо внутри фабрики мока:
+            ```typescript
+            // ❌ Неправильно:
+            const MockMarkup = { /* ... */ };
+            vi.mock('telegraf', () => {
+              return {
+                Markup: MockMarkup, // Error: Cannot access 'MockMarkup' before initialization
+              };
+            });
+            
+            // ✅ Правильно:
+            vi.mock('telegraf', () => {
+              return {
+                Markup: {
+                  keyboard: vi.fn().mockReturnThis(),
+                  inlineKeyboard: vi.fn((rows) => rows),
+                  // ... другие методы
+                },
+              };
+            });
+            ```
+        *   **Создание хелперов для тестов**: Переместите логику создания моков в отдельные файлы хелперов:
+            ```typescript
+            // __tests__/helpers/menuSceneTestHelpers.ts
+            export const createMockMarkup = () => ({
+              keyboard: vi.fn().mockReturnThis(),
+              inlineKeyboard: vi.fn(),
+              // ... другие методы
+            });
+            ```
+        *   **Централизация моков**: Используйте общие моки в `__tests__/mocks/setup.ts`, которые будут автоматически загружены для всех тестов:
+            ```typescript
+            // __tests__/mocks/setup.ts
+            export const mockGetUserDetailsSubscription = vi.fn();
+            export const mockGetTranslation = vi.fn();
+            export const mockIsRussian = vi.fn();
+            
+            // В вашем тесте:
+            import { mockGetUserDetailsSubscription } from '../mocks/setup';
+            
+            // Только настраиваем уже созданные моки, не создаем новые
+            mockGetUserDetailsSubscription.mockResolvedValue({ 
+              isSubscriptionActive: true,
+              // ... остальные данные
+            });
+            ```
+
 ---
 *Ом Шанти. Пусть этот документ освещает путь к чистому и проверенному коду.*
 

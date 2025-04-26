@@ -1,6 +1,7 @@
 // Мок для Telegraf API
 import { EventEmitter } from 'events'
 import { Scenes } from './telegraf-scenes.mock'
+import { vi } from 'vitest'
 
 // Базовый класс Context
 export class Context {
@@ -295,6 +296,26 @@ export class Markup {
   }
 }
 
+// Mock для Markup
+export const MockMarkup = {
+  keyboard: vi.fn().mockReturnThis(),
+  resize: vi.fn().mockReturnThis(),
+  oneTime: vi.fn().mockReturnThis(),
+  inlineKeyboard: vi.fn().mockReturnThis(),
+  removeKeyboard: vi.fn().mockReturnThis(),
+  selective: vi.fn().mockReturnThis(),
+  placeholder: vi.fn().mockReturnThis(),
+  webApp: vi.fn().mockReturnThis(),
+  forceReply: vi.fn().mockReturnThis(),
+  extra: vi.fn().mockReturnThis(),
+}
+
+// Mock для дополнительных функций, которые могут потребоваться
+export const teleprafMocks = {
+  Markup: MockMarkup,
+  // Добавьте здесь другие моки, если они понадобятся
+}
+
 // Экспорт модуля
 export { Scenes }
 export default {
@@ -303,4 +324,5 @@ export default {
   Markup,
   Scenes,
   fmt,
+  ...teleprafMocks,
 }

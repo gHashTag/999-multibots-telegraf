@@ -47,9 +47,6 @@ importers:
       express-serve-static-core:
         specifier: ^0.1.1
         version: 0.1.1
-      fastify:
-        specifier: ^5.3.2
-        version: 5.3.2
       form-data:
         specifier: ^4.0.0
         version: 4.0.2
@@ -150,6 +147,12 @@ importers:
       eslint-plugin-prettier:
         specifier: ^5.1.3
         version: 5.2.6(eslint-config-prettier@9.1.0(eslint@8.57.1))(eslint@8.57.1)(prettier@3.5.3)
+      fastify:
+        specifier: ^5.3.2
+        version: 5.3.2
+      fastify-plugin:
+        specifier: ^5.0.1
+        version: 5.0.1
       husky:
         specifier: ^8.0.3
         version: 8.0.3
@@ -181,26 +184,32 @@ importers:
         specifier: ^5.3.3
         version: 5.8.3
       vite:
-        specifier: ^5.2.10
-        version: 5.2.10(@types/node@20.17.31)
+        specifier: 6.2.2
+        version: 6.2.2(@types/node@20.17.31)(yaml@2.7.1)
       vite-node:
         specifier: ^3.1.2
-        version: 3.1.2(@types/node@20.17.31)(yaml@2.7.1)
+        version: 3.1.2(@types/node@20.17.31)
       vite-plugin-checker:
         specifier: ^0.9.1
-        version: 0.9.1(eslint@8.57.1)(optionator@0.9.4)(typescript@5.8.3)(vite@5.2.10(@types/node@20.17.31))
+        version: 0.9.1(eslint@8.57.1)(optionator@0.9.4)(typescript@5.8.3)(vite@6.2.2(@types/node@20.17.31)(yaml@2.7.1))
+      vite-plugin-cjs-interop:
+        specifier: ^2.2.0
+        version: 2.2.0(vite@6.2.2(@types/node@20.17.31)(yaml@2.7.1))
+      vite-plugin-html-env:
+        specifier: ^1.2.8
+        version: 1.2.8(vite@6.2.2(@types/node@20.17.31)(yaml@2.7.1))
       vite-plugin-node:
         specifier: ^5.0.1
-        version: 5.0.1(vite@5.2.10(@types/node@20.17.31))
+        version: 5.0.1(vite@6.2.2(@types/node@20.17.31)(yaml@2.7.1))
       vite-plugin-node-polyfills:
         specifier: ^0.23.0
-        version: 0.23.0(rollup@4.40.0)(vite@5.2.10(@types/node@20.17.31))
-      vite-tsconfig-paths:
-        specifier: ^5.1.4
-        version: 5.1.4(typescript@5.8.3)(vite@5.2.10(@types/node@20.17.31))
+        version: 0.23.0(rollup@4.40.0)(vite@6.2.2(@types/node@20.17.31)(yaml@2.7.1))
       vitest:
         specifier: ^1.4.0
         version: 1.4.0(@types/node@20.17.31)(@vitest/ui@1.0.4)
+      vitest-fetch-mock:
+        specifier: ^0.2.0
+        version: 0.2.0(vitest@1.4.0)
       vitest-mock-extended:
         specifier: ^3.1.0
         version: 3.1.0(typescript@5.8.3)(vitest@1.4.0)
@@ -661,6 +670,49 @@ packages:
   '@nodelib/fs.walk@1.2.8':
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
+
+  '@oxc-parser/binding-darwin-arm64@0.36.0':
+    resolution: {integrity: sha512-i49m1L++ZAeAjNob5qho2ir3nflhIzgQl9hsFvmMBzG+we4OKseGlUAd/nEXJ2XnNvu1TEi/EocsE9XgWM5xlg==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@oxc-parser/binding-darwin-x64@0.36.0':
+    resolution: {integrity: sha512-+UYnDyItrh76gp7JNiTwCYyipwD1f1GkXlVkFt7L4y8GI2nMkTsvS1kUrYVsZTi33GHq4d7janrEN9HUTHqfGg==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@oxc-parser/binding-linux-arm64-gnu@0.36.0':
+    resolution: {integrity: sha512-ZZXcl9FD77EbAENTpYXCYr/zZS1Ab+qomiKIhXVRC1PXIP8qqcYpFl2NtrJHKy0ScIqNHYjzB2F9pj84howN3w==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@oxc-parser/binding-linux-arm64-musl@0.36.0':
+    resolution: {integrity: sha512-2PqTw3uiazv4vp8pGSNWDAp8DSHAxFPh3rIub5colRlu4lLGZJNXm9fgFIp0fS5Z6BFYyhnYzWNZm8bc0q2tYA==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@oxc-parser/binding-linux-x64-gnu@0.36.0':
+    resolution: {integrity: sha512-kmRgQj/48VaBf4R9P0ccZdpgepz4F2k7nJgg5L+oPenrJhnZeD9eUzImBlN27XcpBZhDxsvj7jOTp5xSVZ7E/Q==}
+    cpu: [x64]
+    os: [linux]
+
+  '@oxc-parser/binding-linux-x64-musl@0.36.0':
+    resolution: {integrity: sha512-hxpR0DdK2Zm6Gt3m/bqVLw4nZJdzkr5SsPc6sv0rPtsABx8Q6zxAf300+9mWxUm/Bf4hGHoWsCWFgWN0n87dBA==}
+    cpu: [x64]
+    os: [linux]
+
+  '@oxc-parser/binding-win32-arm64-msvc@0.36.0':
+    resolution: {integrity: sha512-IsarNWJhsbtARGa/7L2X2FfJt3mdQVH/CASWv99SowVaO62kLZ1lYHtU2Ps0F8dzfCwQUsWo5XnDtmfhd5nAkw==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@oxc-parser/binding-win32-x64-msvc@0.36.0':
+    resolution: {integrity: sha512-NSlWyqWtmWA78nPWRWWzc4W6A8zY0YdX2yjbGg5PnEMiTXrW7NdVTyXdffX59ERDxtC3BT6E78e/sKS9u983pQ==}
+    cpu: [x64]
+    os: [win32]
+
+  '@oxc-project/types@0.36.0':
+    resolution: {integrity: sha512-VAv7ANBGE6glvOX5PEhGcca8hqBeGGDXt3xfPApZg7GhkrvbI8YCf01HojlpdIewixN2rnNpfO6cFgHS6Ixe5A==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -1466,6 +1518,9 @@ packages:
   create-require@1.1.1:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
 
+  cross-fetch@3.2.0:
+    resolution: {integrity: sha512-Q+xVJLoGOeIMXZmbUK4HYk+69cQH6LudR0Vu/pRm2YlU/hDV9CiS0gKUMaWY5f2NeUH9C1nV3bsTlCo0FsTV1Q==}
+
   cross-fetch@4.1.0:
     resolution: {integrity: sha512-uKm5PU+MHTootlWEY+mZ4vvXoCn4fLQxT9dSc1sXVMSFkINTJVN8cAQROpwcKm8bJ/c7rgZVIBWzH5T78sNZZw==}
 
@@ -1976,9 +2031,6 @@ packages:
   globby@11.1.0:
     resolution: {integrity: sha512-jhIXaOzy1sb8IyocaruWSn1TjmnBVs8Ayhcy83rmxNJ8q2uWKCAj3CnJY+KpGSXCueAPc0i05kVvVKtP1t9S3g==}
     engines: {node: '>=10'}
-
-  globrex@0.1.2:
-    resolution: {integrity: sha512-uHJgbwAMwNFf5mLst7IWLNg14x1CkeqglJb/K3doi4dw6q2IvAAmM/Y81kevy83wP+Sst+nutFTYOGg3d1lsxg==}
 
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
@@ -2635,6 +2687,9 @@ packages:
 
   os-browserify@0.3.0:
     resolution: {integrity: sha512-gjcpUc3clBf9+210TRaDWbf+rZZZEshZ+DlXMRCeAjp0xhTrnQsKHypIy1J3d5hKdUzj69t708EHtU8P6bUn0A==}
+
+  oxc-parser@0.36.0:
+    resolution: {integrity: sha512-dcjn+8WvWVbIO0Bb0qAJcfq8JwdkbPflYyFBg3rcDb83awlXAQLnhZuheGUxuWEh18oQFAcxkgdUdObS6DvA7A==}
 
   p-limit@3.1.0:
     resolution: {integrity: sha512-TYOanM3wGwNGsZN2cVTYPArw454xnXj5qmWF1bEoAc4+cU/ol7GVh7odevjp1FNHduHc3KZMcFduxU5Xc6uJRQ==}
@@ -3317,16 +3372,6 @@ packages:
     engines: {node: '>=16.20.2'}
     hasBin: true
 
-  tsconfck@3.1.5:
-    resolution: {integrity: sha512-CLDfGgUp7XPswWnezWwsCRxNmgQjhYq3VXHM0/XIRxhVrKw0M1if9agzryh1QS3nxjCROvV+xWxoJO1YctzzWg==}
-    engines: {node: ^18 || >=20}
-    hasBin: true
-    peerDependencies:
-      typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   tsconfig-paths@4.2.0:
     resolution: {integrity: sha512-NoZ4roiN7LnbKn9QqE1amc9DJfzvZXxF4xDavcOWt1BPkdx+m+0gJuPM+S0vCe7zTJMYUP0R8pO2XMr+Y8oLIg==}
     engines: {node: '>=6'}
@@ -3475,6 +3520,17 @@ packages:
       vue-tsc:
         optional: true
 
+  vite-plugin-cjs-interop@2.2.0:
+    resolution: {integrity: sha512-6r7AZMpz2kstspRiK78+4xPvK9GyiGau1uT4GOgxrdzmFFgwLTj/sF9tZiB1VyN24nHGO96wicsRoROEfPGOQg==}
+    peerDependencies:
+      vite: 4 || 5 || 6
+
+  vite-plugin-html-env@1.2.8:
+    resolution: {integrity: sha512-Uqo2NqcmhVjuXv83oyRC80mZF+B2J3pcon8Bnm9F3T67EvkPYf64Gk0NReAE4MRGElt8pCGpCMQDIzs12NWUAA==}
+    engines: {node: '>=12.0.0'}
+    peerDependencies:
+      vite: '*'
+
   vite-plugin-node-polyfills@0.23.0:
     resolution: {integrity: sha512-4n+Ys+2bKHQohPBKigFlndwWQ5fFKwaGY6muNDMTb0fSQLyBzS+jjUNRZG9sKF0S/Go4ApG6LFnUGopjkILg3w==}
     peerDependencies:
@@ -3487,14 +3543,6 @@ packages:
       vite: ^6.2.2
     peerDependenciesMeta:
       '@swc/core':
-        optional: true
-
-  vite-tsconfig-paths@5.1.4:
-    resolution: {integrity: sha512-cYj0LRuLV2c2sMqhqhGpaO3LretdtMn/BVX4cPLanIZuwwrkVl+lK84E/miEXkCHWXuq65rhNN4rXsBcOB3S4w==}
-    peerDependencies:
-      vite: '*'
-    peerDependenciesMeta:
-      vite:
         optional: true
 
   vite@5.2.10:
@@ -3525,8 +3573,8 @@ packages:
       terser:
         optional: true
 
-  vite@6.3.3:
-    resolution: {integrity: sha512-5nXH+QsELbFKhsEfWLkHrvgRpTdGJzqOZ+utSdmPTvwHmvU6ITTm3xx+mRusihkcI8GeC7lCDyn3kDtiki9scw==}
+  vite@6.2.2:
+    resolution: {integrity: sha512-yW7PeMM+LkDzc7CgJuRLMW2Jz0FxMOsVJ8Lv3gpgW9WLcb9cTW+121UEr1hvmfR7w3SegR5ItvYyzVz1vxNJgQ==}
     engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
     hasBin: true
     peerDependencies:
@@ -3564,6 +3612,12 @@ packages:
         optional: true
       yaml:
         optional: true
+
+  vitest-fetch-mock@0.2.0:
+    resolution: {integrity: sha512-ebd80Gx4mz7CbHs71PA8M3WQIcfL7pjoA50316Ld0na4dniKKUbnQorDr9XYgcnLHL1vUO459HJm05x3TXX/lA==}
+    engines: {node: '>=14.14.0'}
+    peerDependencies:
+      vitest: ^0.16.0
 
   vitest-mock-extended@3.1.0:
     resolution: {integrity: sha512-vCM0VkuocOUBwwqwV7JB7YStw07pqeKvEIrZnR8l3PtwYi6rAAJAyJACeC1UYNfbQWi85nz7EdiXWBFI5hll2g==}
@@ -4055,6 +4109,32 @@ snapshots:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.19.1
+
+  '@oxc-parser/binding-darwin-arm64@0.36.0':
+    optional: true
+
+  '@oxc-parser/binding-darwin-x64@0.36.0':
+    optional: true
+
+  '@oxc-parser/binding-linux-arm64-gnu@0.36.0':
+    optional: true
+
+  '@oxc-parser/binding-linux-arm64-musl@0.36.0':
+    optional: true
+
+  '@oxc-parser/binding-linux-x64-gnu@0.36.0':
+    optional: true
+
+  '@oxc-parser/binding-linux-x64-musl@0.36.0':
+    optional: true
+
+  '@oxc-parser/binding-win32-arm64-msvc@0.36.0':
+    optional: true
+
+  '@oxc-parser/binding-win32-x64-msvc@0.36.0':
+    optional: true
+
+  '@oxc-project/types@0.36.0': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -4964,6 +5044,12 @@ snapshots:
 
   create-require@1.1.1: {}
 
+  cross-fetch@3.2.0:
+    dependencies:
+      node-fetch: 2.7.0
+    transitivePeerDependencies:
+      - encoding
+
   cross-fetch@4.1.0:
     dependencies:
       node-fetch: 2.7.0
@@ -5618,8 +5704,6 @@ snapshots:
       merge2: 1.4.1
       slash: 3.0.0
 
-  globrex@0.1.2: {}
-
   gopd@1.2.0: {}
 
   graceful-fs@4.2.11: {}
@@ -6269,6 +6353,19 @@ snapshots:
       word-wrap: 1.2.5
 
   os-browserify@0.3.0: {}
+
+  oxc-parser@0.36.0:
+    dependencies:
+      '@oxc-project/types': 0.36.0
+    optionalDependencies:
+      '@oxc-parser/binding-darwin-arm64': 0.36.0
+      '@oxc-parser/binding-darwin-x64': 0.36.0
+      '@oxc-parser/binding-linux-arm64-gnu': 0.36.0
+      '@oxc-parser/binding-linux-arm64-musl': 0.36.0
+      '@oxc-parser/binding-linux-x64-gnu': 0.36.0
+      '@oxc-parser/binding-linux-x64-musl': 0.36.0
+      '@oxc-parser/binding-win32-arm64-msvc': 0.36.0
+      '@oxc-parser/binding-win32-x64-msvc': 0.36.0
 
   p-limit@3.1.0:
     dependencies:
@@ -6981,10 +7078,6 @@ snapshots:
       normalize-path: 3.0.0
       plimit-lit: 1.6.1
 
-  tsconfck@3.1.5(typescript@5.8.3):
-    optionalDependencies:
-      typescript: 5.8.3
-
   tsconfig-paths@4.2.0:
     dependencies:
       json5: 2.2.3
@@ -7093,28 +7186,24 @@ snapshots:
       - supports-color
       - terser
 
-  vite-node@3.1.2(@types/node@20.17.31)(yaml@2.7.1):
+  vite-node@3.1.2(@types/node@20.17.31):
     dependencies:
       cac: 6.7.14
       debug: 4.4.0
       es-module-lexer: 1.7.0
       pathe: 2.0.3
-      vite: 6.3.3(@types/node@20.17.31)(yaml@2.7.1)
+      vite: 5.2.10(@types/node@20.17.31)
     transitivePeerDependencies:
       - '@types/node'
-      - jiti
       - less
       - lightningcss
       - sass
-      - sass-embedded
       - stylus
       - sugarss
       - supports-color
       - terser
-      - tsx
-      - yaml
 
-  vite-plugin-checker@0.9.1(eslint@8.57.1)(optionator@0.9.4)(typescript@5.8.3)(vite@5.2.10(@types/node@20.17.31)):
+  vite-plugin-checker@0.9.1(eslint@8.57.1)(optionator@0.9.4)(typescript@5.8.3)(vite@6.2.2(@types/node@20.17.31)(yaml@2.7.1)):
     dependencies:
       '@babel/code-frame': 7.26.2
       chokidar: 4.0.3
@@ -7124,40 +7213,41 @@ snapshots:
       strip-ansi: 7.1.0
       tiny-invariant: 1.3.3
       tinyglobby: 0.2.13
-      vite: 5.2.10(@types/node@20.17.31)
+      vite: 6.2.2(@types/node@20.17.31)(yaml@2.7.1)
       vscode-uri: 3.1.0
     optionalDependencies:
       eslint: 8.57.1
       optionator: 0.9.4
       typescript: 5.8.3
 
-  vite-plugin-node-polyfills@0.23.0(rollup@4.40.0)(vite@5.2.10(@types/node@20.17.31)):
+  vite-plugin-cjs-interop@2.2.0(vite@6.2.2(@types/node@20.17.31)(yaml@2.7.1)):
+    dependencies:
+      estree-walker: 3.0.3
+      magic-string: 0.30.17
+      minimatch: 10.0.1
+      oxc-parser: 0.36.0
+      vite: 6.2.2(@types/node@20.17.31)(yaml@2.7.1)
+
+  vite-plugin-html-env@1.2.8(vite@6.2.2(@types/node@20.17.31)(yaml@2.7.1)):
+    dependencies:
+      vite: 6.2.2(@types/node@20.17.31)(yaml@2.7.1)
+
+  vite-plugin-node-polyfills@0.23.0(rollup@4.40.0)(vite@6.2.2(@types/node@20.17.31)(yaml@2.7.1)):
     dependencies:
       '@rollup/plugin-inject': 5.0.5(rollup@4.40.0)
       node-stdlib-browser: 1.3.1
-      vite: 5.2.10(@types/node@20.17.31)
+      vite: 6.2.2(@types/node@20.17.31)(yaml@2.7.1)
     transitivePeerDependencies:
       - rollup
 
-  vite-plugin-node@5.0.1(vite@5.2.10(@types/node@20.17.31)):
+  vite-plugin-node@5.0.1(vite@6.2.2(@types/node@20.17.31)(yaml@2.7.1)):
     dependencies:
       '@rollup/pluginutils': 4.2.1
       chalk: 4.1.2
       debug: 4.4.0
-      vite: 5.2.10(@types/node@20.17.31)
+      vite: 6.2.2(@types/node@20.17.31)(yaml@2.7.1)
     transitivePeerDependencies:
       - supports-color
-
-  vite-tsconfig-paths@5.1.4(typescript@5.8.3)(vite@5.2.10(@types/node@20.17.31)):
-    dependencies:
-      debug: 4.4.0
-      globrex: 0.1.2
-      tsconfck: 3.1.5(typescript@5.8.3)
-    optionalDependencies:
-      vite: 5.2.10(@types/node@20.17.31)
-    transitivePeerDependencies:
-      - supports-color
-      - typescript
 
   vite@5.2.10(@types/node@20.17.31):
     dependencies:
@@ -7168,18 +7258,22 @@ snapshots:
       '@types/node': 20.17.31
       fsevents: 2.3.3
 
-  vite@6.3.3(@types/node@20.17.31)(yaml@2.7.1):
+  vite@6.2.2(@types/node@20.17.31)(yaml@2.7.1):
     dependencies:
       esbuild: 0.25.3
-      fdir: 6.4.4(picomatch@4.0.2)
-      picomatch: 4.0.2
       postcss: 8.5.3
       rollup: 4.40.0
-      tinyglobby: 0.2.13
     optionalDependencies:
       '@types/node': 20.17.31
       fsevents: 2.3.3
       yaml: 2.7.1
+
+  vitest-fetch-mock@0.2.0(vitest@1.4.0):
+    dependencies:
+      cross-fetch: 3.2.0
+      vitest: 1.4.0(@types/node@20.17.31)(@vitest/ui@1.0.4)
+    transitivePeerDependencies:
+      - encoding
 
   vitest-mock-extended@3.1.0(typescript@5.8.3)(vitest@1.4.0):
     dependencies:

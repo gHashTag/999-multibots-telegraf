@@ -1,183 +1,68 @@
-// Мок для Telegraf Scenes
-import { Context } from 'telegraf'
+/**
+ * Мок для модуля telegraf/scenes
+ *
+ * Предоставляет заглушки для Scenes и BaseScene
+ */
+class MockBaseScene {
+  id: string
+  enterHandler: Function | null = null
+  constructor(id: string) {
+    this.id = id
+  }
 
-// Определяем основные интерфейсы/типы
-export interface SceneSessionData {
-  current?: string
-  expires?: number
-  state?: object
-}
-
-export interface SceneSession {
-  state: object
-}
-
-export interface WizardSessionData {
-  cursor: number
-  state: object
-}
-
-export interface WizardSession extends SceneSession {
-  cursor: number
-}
-
-// Классы и их реализации
-export class BaseScene<T extends Context> {
-  constructor(
-    public id: string,
-    public options: any = {}
-  ) {}
-
-  enter(middleware?: any) {
+  enter(...fns: Function[]) {
+    this.enterHandler = fns[0]
     return this
   }
 
-  leave(middleware?: any) {
+  leave(...fns: Function[]) {
     return this
   }
 
-  hears(trigger: any, middleware: any) {
+  action(...args: any[]) {
     return this
   }
 
-  action(trigger: any, middleware: any) {
+  command(...args: any[]) {
     return this
   }
 
-  on(event: string, middleware: any) {
+  on(...args: any[]) {
     return this
   }
 
-  command(command: string, middleware: any) {
-    return this
-  }
-
-  use(middleware: any) {
+  hears(...args: any[]) {
     return this
   }
 }
 
-export class WizardScene<T extends Context> extends BaseScene<T> {
-  steps: Array<(ctx: T, next: () => Promise<void>) => Promise<any>>
+class MockScenes {
+  BaseScene: typeof MockBaseScene
+  Stage: any
+  WizardScene: any
 
-  constructor(
-    id: string,
-    ...steps: Array<(ctx: T, next: () => Promise<void>) => Promise<any>>
-  ) {
-    super(id)
-    this.steps = steps
-  }
+  constructor() {
+    this.BaseScene = MockBaseScene
 
-  middleware() {
-    return this.steps
-  }
-}
-
-export class Stage<T extends Context> {
-  constructor(
-    public scenes: BaseScene<T>[] = [],
-    public options: any = {}
-  ) {}
-
-  register(...scenes: BaseScene<T>[]) {
-    return this
-  }
-
-  middleware() {
-    return (ctx: any, next: any) => next()
-  }
-
-  static enter(sceneId: string) {
-    return (ctx: any) => {
-      if (ctx.scene) {
-        ctx.scene.enter(sceneId)
+    this.Stage = class MockStage {
+      constructor() {}
+      register(...args: any[]) {
+        return this
+      }
+      middleware() {
+        return () => {}
       }
     }
-  }
 
-  static leave() {
-    return (ctx: any) => {
-      if (ctx.scene) {
-        ctx.scene.leave()
+    this.WizardScene = class MockWizardScene extends MockBaseScene {
+      steps: Function[] = []
+      constructor(id: string, ...steps: Function[]) {
+        super(id)
+        this.steps = steps
       }
     }
   }
 }
 
-export class SceneContextScene<T extends Context> {
-  constructor(public ctx: T) {}
-
-  enter(sceneId: string, defaultState?: any, silent?: boolean) {
-    return Promise.resolve(this.ctx)
-  }
-
-  reenter() {
-    return Promise.resolve(this.ctx)
-  }
-
-  leave() {
-    return Promise.resolve(this.ctx)
-  }
-
-  current() {
-    return null
-  }
-
-  state = {}
-}
-
-export class SceneContext<T extends Context> extends Context {
-  constructor(update: any, telegram: any, options: any) {
-    super(update, telegram, options)
-    this.scene = new SceneContextScene<T>(this as any)
-  }
-
-  scene: SceneContextScene<T>
-}
-
-export class WizardContextWizard<T extends Context> {
-  state: any = {}
-  cursor: number = 0
-
-  constructor(public ctx: T) {}
-
-  selectStep(index: number) {
-    this.cursor = index
-    return this.ctx
-  }
-
-  next() {
-    this.cursor++
-    return this.ctx
-  }
-
-  back() {
-    this.cursor--
-    return this.ctx
-  }
-
-  step(index: number, middleware: any) {
-    return this
-  }
-}
-
-export class WizardContext<T extends Context> extends SceneContext<T> {
-  constructor(update: any, telegram: any, options: any) {
-    super(update, telegram, options)
-    this.wizard = new WizardContextWizard<T>(this as any)
-  }
-
-  wizard: WizardContextWizard<T>
-}
-
-export const Scenes = {
-  BaseScene,
-  WizardScene,
-  Stage,
-  SceneContext,
-  SceneContextScene,
-  WizardContext,
-  WizardContextWizard,
-}
-
-export default Scenes
+// Экспортируем экземпляр класса как дефолтный экспорт
+export default new MockScenes()
