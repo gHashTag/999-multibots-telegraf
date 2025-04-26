@@ -2,7 +2,9 @@ import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { isRussian } from '@/helpers/language'
 import { type MyContext, type ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import { InputMediaPhoto } from 'telegraf/types'
+import { API_URL, SECRET_API_KEY } from '@/config'
+import { getBotByName } from '@/core/bot'
+import type { InputMediaPhoto } from 'telegraf/types'
 
 export async function generateNeuroImage(
   prompt: string,
@@ -62,29 +64,12 @@ export async function generateNeuroImage(
             {
               reply_markup: {
                 keyboard: [
+                  ['1️⃣', '2️⃣', '3️⃣', '4️⃣'],
                   [
-                    { text: '1️⃣' },
-                    { text: '2️⃣' },
-                    { text: '3️⃣' },
-                    { text: '4️⃣' },
+                    isRussian(ctx) ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
+                    isRussian(ctx) ? '📐 Изменить размер' : '📐 Change size',
                   ],
-                  [
-                    {
-                      text: isRussian(ctx)
-                        ? '⬆️ Улучшить промпт'
-                        : '⬆️ Improve prompt',
-                    },
-                    {
-                      text: isRussian(ctx)
-                        ? '📐 Изменить размер'
-                        : '📐 Change size',
-                    },
-                  ],
-                  [
-                    {
-                      text: isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu',
-                    },
-                  ],
+                  [isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu'],
                 ],
                 resize_keyboard: true,
                 one_time_keyboard: false,

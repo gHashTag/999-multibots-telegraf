@@ -1,5 +1,6 @@
-import { Context, NarrowedContext } from 'telegraf'
-import { Update } from 'telegraf/typings/core/types/typegram'
+import { Context, type NarrowedContext } from 'telegraf'
+import type { Update } from '@telegraf/types'
+import type { PreCheckoutQuery } from '@telegraf/types'
 import { logger } from '@/utils/logger'
 import { type MyContext } from '@/interfaces'
 

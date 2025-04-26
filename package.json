@@ -29,7 +29,8 @@
     "prepare": "husky install",
     "clean": "rimraf dist coverage .vite",
     "reset": "pnpm clean && rimraf node_modules .pnpm-store && pnpm install",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "analyze:bundle": "ANALYZE=true pnpm build"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -93,6 +94,7 @@
     "prettier": "^3.2.4",
     "rimraf": "^6.0.1",
     "rollup": "^4.40.0",
+    "rollup-plugin-visualizer": "^5.14.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "tslib": "^2.8.1",
@@ -105,5 +107,10 @@
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^1.4.0",
     "vitest-mock-extended": "^3.1.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@telegraf/types": "^8.3.1"
+    }
   }
 }

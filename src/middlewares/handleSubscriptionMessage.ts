@@ -1,6 +1,6 @@
 import { type MyContext } from '@/interfaces'
 import { Markup } from 'telegraf'
-import { sendSubscriptionRequiredMessage } from '@/utils/messageBuilder'
+// import { sendSubscriptionRequiredMessage } from '@/utils/messageBuilder' // <-- Временно закомментировано
 import { SubscriptionType } from '@/interfaces'
 
 export async function handleSubscriptionMessage(

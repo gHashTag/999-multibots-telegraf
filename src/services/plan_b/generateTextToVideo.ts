@@ -1,7 +1,8 @@
 import { replicate } from '@/core/replicate'
 import { pulse } from '@/helpers'
-import { processBalanceVideoOperation } from '@/price/helpers'
+import { processBalanceOperation } from '@/price/helpers'
 import { mkdir, writeFile } from 'fs/promises'
+import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
 
 import {
   getUserByTelegramIdString,
@@ -88,8 +89,14 @@ export const generateTextToVideo = async (
       session: { mode: 'TextToVideo' },
     } as any
 
-    const { newBalance, paymentAmount, success, error } =
-      await processBalanceVideoOperation(tempCtx, videoModel, is_ru)
+    const paymentAmount = calculateFinalPrice(videoModel)
+
+    const { newBalance, success, error } = await processBalanceOperation({
+      ctx: tempCtx,
+      telegram_id: Number(telegram_id),
+      paymentAmount: paymentAmount,
+      is_ru: is_ru,
+    })
 
     if (!success) {
       logger.error('Error processing balance for video generation:', {
@@ -174,11 +181,9 @@ export const generateTextToVideo = async (
         reply_markup: {
           keyboard: [
             [
-              {
-                text: is_ru
-                  ? '🎥 Сгенерировать новое видео?'
-                  : '🎥 Generate new video?',
-              },
+              is_ru
+                ? '🎥 Сгенерировать новое видео?'
+                : '🎥 Generate new video?',
             ],
           ],
           resize_keyboard: false,

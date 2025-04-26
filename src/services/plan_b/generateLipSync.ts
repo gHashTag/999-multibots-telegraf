@@ -1,7 +1,9 @@
 import { WEBHOOK_URL } from '@/config'
 import { saveVideoUrlToSupabase } from '@/core/supabase'
-import axios, { AxiosResponse } from 'axios'
+import axios, { type AxiosResponse } from 'axios'
 import { PaymentStatus } from '@/interfaces/payments.interface'
+import FormData from 'form-data'
+import { API_URL, SECRET_API_KEY } from '@/config'
 
 export type LipSyncStatus =
   | 'uploading'

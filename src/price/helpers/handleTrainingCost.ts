@@ -7,7 +7,7 @@ import { calculateCostInStars } from './calculateTrainingCost'
 import { conversionRates } from '@/price/priceCalculator'
 import { logger } from '@/utils/logger'
 import { calculateCost } from '@/price/priceCalculator'
-import { ModelsConfig } from '@/interfaces/models.interface'
+// import { ModelsConfig } from '@/interfaces/models.interface' // <-- ModelsConfig закомментирован
 import { calculateFinalPrice } from './calculateFinalPrice'
 
 type TrainingCostProps = {

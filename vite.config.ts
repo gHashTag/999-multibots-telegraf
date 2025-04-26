@@ -4,15 +4,20 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import path from 'node:path'
 import nodeResolve from '@rollup/plugin-node-resolve'
 import checker from 'vite-plugin-checker'
+import { visualizer } from 'rollup-plugin-visualizer'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command, mode }) => {
   // Загружаем переменные окружения в зависимости от режима
   const env = loadEnv(mode, process.cwd(), '')
   const isProduction = mode === 'production'
+  const isAnalyze = env.ANALYZE === 'true'
 
   console.log(`🌍 [Vite] Запуск в режиме: ${mode}`)
   console.log(`🔧 [Vite] Команда: ${command}`)
+  if (isAnalyze) {
+    console.log(`📊 [Vite] Режим анализа бандла включен.`)
+  }
 
   // Стандартные Node.js модули, которые должны быть исключены из бандла
   const nodeBuiltins = [
@@ -155,6 +160,7 @@ export default defineConfig(({ command, mode }) => {
           'telegraf',
           'mongoose',
           '@supabase/supabase-js',
+          '@telegraf/types',
           'node-fetch',
           'archiver',
         ],
@@ -165,7 +171,15 @@ export default defineConfig(({ command, mode }) => {
             browser: false,
             modulesOnly: false,
           }),
-        ],
+          // Добавляем визуализатор, если включен анализ
+          isAnalyze &&
+            visualizer({
+              filename: 'dist/stats.html', // Куда сохранить отчет
+              open: true, // Открывать ли отчет в браузере после сборки
+              gzipSize: true,
+              brotliSize: true,
+            }),
+        ].filter(Boolean), // Убираем false значения из массива плагинов
       },
     },
 
@@ -243,29 +257,5 @@ export default defineConfig(({ command, mode }) => {
         },
       }),
     ],
-
-    // Test configuration (integrated from vitest.config.ts)
-    test: {
-      globals: true,
-      environment: 'node',
-      setupFiles: ['src/test/setup.ts'],
-      coverage: {
-        provider: 'v8',
-        reporter: ['text', 'json', 'html'],
-        include: ['src/**/*.ts'],
-        exclude: [
-          'src/**/*.test.ts',
-          '__tests__/**/*.test.ts',
-          'src/mocks/**/*.ts',
-          'src/test/**/*.ts',
-          'node_modules/**',
-          'dist/**',
-        ],
-      },
-      reporters: ['default', 'html'],
-      outputFile: {
-        html: './html/index.html',
-      },
-    },
   }
 })

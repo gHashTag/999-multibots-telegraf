@@ -1,5 +1,5 @@
 import { Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 
 import {
   sendInsufficientStarsMessage,
@@ -8,8 +8,8 @@ import {
 import { getUserInfo } from '@/handlers/getUserInfo'
 import {
   ModeEnum,
-  CostCalculationParams,
-  CostCalculationResult,
+  type CostCalculationParams,
+  type CostCalculationResult,
 } from '@/interfaces/modes'
 import { starCost, SYSTEM_CONFIG } from '@/price/constants'
 import { logger } from '@/utils/logger'

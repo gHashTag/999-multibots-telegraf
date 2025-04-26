@@ -12,8 +12,8 @@ import {
   PaymentStatus,
   PaymentType,
   Currency,
-  PaymentCreateParams,
-  PaymentProcessResult,
+  type PaymentCreateParams,
+  type PaymentProcessResult,
 } from '@/interfaces/payments.interface'
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 import { supabaseAdmin } from '@/core/supabase/'

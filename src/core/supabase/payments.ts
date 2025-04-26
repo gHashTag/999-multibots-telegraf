@@ -1,6 +1,7 @@
 import { supabase, supabaseAdmin } from './client'
 import { logger } from '@/utils/logger'
-import type { Payment, PaymentStatus } from '@/interfaces' // Предполагаем, что есть интерфейс Payment
+import type { Payment } from '@/interfaces' // Payment - это интерфейс, оставляем type
+import { PaymentStatus } from '@/interfaces' // PaymentStatus - это enum, убираем type
 import { PostgrestError } from '@supabase/supabase-js'
 import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 

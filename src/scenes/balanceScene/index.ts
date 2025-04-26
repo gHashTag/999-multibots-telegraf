@@ -3,11 +3,11 @@ import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscr
 import {
   type MyContext,
   type SubscriptionType,
-  type TelegramId,
+  // type TelegramId, // <-- Закомментировано
 } from '@/interfaces'
 import { BaseScene } from 'telegraf/scenes'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
-import { getTranslation } from '@/utils/localization'
+// import { getTranslation } from '@/utils/localization' // <-- Временно закомментировано
 import { Scenes } from 'telegraf'
 import { ModeEnum } from '@/interfaces/modes'
 

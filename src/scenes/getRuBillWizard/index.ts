@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import {

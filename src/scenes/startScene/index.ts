@@ -4,37 +4,53 @@ import {
   type TelegramId,
 } from '@/interfaces/telegram.interface'
 import { type MyContext } from '@/interfaces'
-import {
-  getTranslation as getDbTranslation,
-  getUserDetailsSubscription,
-  createUser,
-  getReferalsCountAndUserData,
-} from '@/core/supabase'
-import { BOT_URLS } from '@/core/bot'
 import { logger } from '@/utils/logger'
+import { BOT_URLS } from '@/core/bot'
 import { levels } from '@/menu/mainMenu'
 import { ModeEnum } from '@/interfaces/modes'
-import { getPhotoUrl } from '@/handlers/getPhotoUrl'
-import { isRussian } from '@/helpers/language'
 import { TelegramError } from 'telegraf'
 import type { Message } from 'telegraf/types'
+import type { UserType } from '@/interfaces/supabase.interface'
+
+// === Добавляем недостающие импорты ===
+import {
+  createUser,
+  getReferalsCountAndUserData,
+  getUserDetailsSubscription,
+  getTranslation,
+} from '@/core/supabase'
+import { getPhotoUrl } from '@/handlers'
+import { isRussian } from '@/helpers'
+// ======================================
 
 // --- Dependencies Interface for the Core Logic Function ---
 export interface ProcessStartDependencies {
-  getUserDetailsSubscription: typeof getUserDetailsSubscription
-  createUser: typeof createUser
-  getReferalsCountAndUserData: typeof getReferalsCountAndUserData
+  getUserDetailsSubscription: (telegramId: string) => Promise<{
+    isExist: boolean
+    stars: number
+    subscriptionType: any // Уточнить тип
+    isSubscriptionActive: boolean
+    subscriptionStartDate: string | null
+  }>
+  createUser: (
+    userData: any,
+    transaction?: any
+  ) => Promise<[boolean, any | null]>
+  getReferalsCountAndUserData: (userId: string) => Promise<{
+    count: number
+    userData: UserType | null
+  }>
   getTranslation: (args: {
     key: string
     bot_name: string
     language_code: string | undefined
   }) => Promise<{ translation: string; url: string | null }>
-  isRussian: (langCode: string | undefined) => boolean
+  isRussian: (ctxOrLangCode: MyContext | string | undefined) => boolean // Допускаем и контекст
   getPhotoUrl: (ctx: MyContext, index?: number) => string | null
   reply: (text: string, extra?: any) => Promise<Message.TextMessage>
   replyWithPhoto: (url: string, extra?: any) => Promise<Message.PhotoMessage>
   sendMessage: (chatId: string | number, text: string) => Promise<any>
-  logger: typeof logger
+  logger: typeof logger // Передаем логгер
 }
 
 // --- Input Data Interface for the Core Logic Function ---
@@ -56,7 +72,17 @@ export async function processStartCommand(
   data: ProcessStartData,
   dependencies: ProcessStartDependencies
 ): Promise<boolean> {
-  const { logger, isRussian } = dependencies
+  const {
+    logger,
+    isRussian,
+    getUserDetailsSubscription,
+    getReferalsCountAndUserData,
+    createUser,
+    sendMessage,
+    reply,
+    getTranslation,
+    replyWithPhoto,
+  } = dependencies
   const { telegramId, botName, inviteCode, languageCode } = data
   const finalUsername = data.username || data.firstName || telegramId
   const subscribeChannelId = process.env.SUBSCRIBE_CHANNEL_ID
@@ -66,8 +92,7 @@ export async function processStartCommand(
     logger.info(`[ProcessStart] Checking user: ${telegramId}`, {
       function: 'processStartCommand',
     })
-    const userDetails =
-      await dependencies.getUserDetailsSubscription(telegramId)
+    const userDetails = await getUserDetailsSubscription(telegramId)
     logger.info(`[ProcessStart] User exists: ${userDetails.isExist}`, {
       function: 'processStartCommand',
     })
@@ -77,7 +102,6 @@ export async function processStartCommand(
       logger.info(`[ProcessStart] New user flow for ${telegramId}`, {
         function: 'processStartCommand',
       })
-      const finalUsernameCreate = data.username || data.firstName || telegramId
       let inviterId: string | null = null
 
       // Referral Logic
@@ -87,19 +111,17 @@ export async function processStartCommand(
             function: 'processStartCommand',
           })
           const { count, userData: refUserData } =
-            await dependencies.getReferalsCountAndUserData(
-              inviteCode.toString()
-            )
+            await getReferalsCountAndUserData(inviteCode.toString())
           inviterId = refUserData?.user_id || null
 
           // Notify referrer
           if (inviterId) {
             try {
-              await dependencies.sendMessage(
+              await sendMessage(
                 inviteCode,
                 isRu
-                  ? `🔗 Новый пользователь @${finalUsernameCreate} зарегистрировался по вашей ссылке.\n🆔 Уровень: ${count}`
-                  : `🔗 New user @${finalUsernameCreate} registered via your link.\n🆔 Level: ${count}`
+                  ? `🔗 Новый пользователь @${finalUsername} зарегистрировался по вашей ссылке.\n🆔 Уровень: ${count}`
+                  : `🔗 New user @${finalUsername} registered via your link.\n🆔 Level: ${count}`
               )
             } catch (err) {
               logger.error('[ProcessStart] Failed to notify referrer', {
@@ -117,9 +139,9 @@ export async function processStartCommand(
                 !subscribeChannelId.startsWith('-')
                   ? `@${subscribeChannelId}`
                   : subscribeChannelId
-              await dependencies.sendMessage(
+              await sendMessage(
                 targetChatId,
-                `[${botName}] 🔗 Новый пользователь @${finalUsernameCreate} (ID: ${telegramId}) по реф. от @${refUserData?.username}`
+                `[${botName}] 🔗 Новый пользователь @${finalUsername} (ID: ${telegramId}) по реф. от @${refUserData?.username}`
               )
             } catch (pulseErr) {
               logger.error(
@@ -146,9 +168,9 @@ export async function processStartCommand(
                 !subscribeChannelId.startsWith('-')
                   ? `@${subscribeChannelId}`
                   : subscribeChannelId
-              await dependencies.sendMessage(
+              await sendMessage(
                 targetChatId,
-                `[${botName}] 🔗 Новый пользователь @${finalUsernameCreate} (ID: ${telegramId})`
+                `[${botName}] 🔗 Новый пользователь @${finalUsername} (ID: ${telegramId})`
               )
             } catch (pulseErr) {
               logger.error(
@@ -172,7 +194,7 @@ export async function processStartCommand(
 
       // Create User
       const userDataToCreate = {
-        username: finalUsernameCreate,
+        username: finalUsername,
         telegram_id: telegramId,
         first_name: data.firstName || null,
         last_name: data.lastName || null,
@@ -193,17 +215,13 @@ export async function processStartCommand(
         logger.info(`[ProcessStart] Creating user ${telegramId}`, {
           function: 'processStartCommand',
         })
-        const [wasCreated] = await dependencies.createUser(
-          userDataToCreate,
-          null as any
-        )
+        const [wasCreated] = await createUser(userDataToCreate, null as any)
         if (wasCreated) {
           logger.info(
             `[ProcessStart] User ${telegramId} created successfully`,
             { function: 'processStartCommand' }
           )
-          console.log('[DEBUG] Before Reply 1 (New User Welcome)')
-          await dependencies.reply(
+          await reply(
             isRu
               ? '✅ Аватар успешно создан! Добро пожаловать!'
               : '✅ Avatar created successfully! Welcome!'
@@ -219,8 +237,7 @@ export async function processStartCommand(
           error,
           function: 'processStartCommand',
         })
-        console.log('[DEBUG] Before Reply 2 (New User Creation Error)')
-        await dependencies.reply(
+        await reply(
           isRu
             ? '❌ Произошла ошибка при регистрации. Попробуйте позже.'
             : '❌ An error occurred during registration. Please try again later.'
@@ -240,7 +257,7 @@ export async function processStartCommand(
             !subscribeChannelId.startsWith('-')
               ? `@${subscribeChannelId}`
               : subscribeChannelId
-          await dependencies.sendMessage(
+          await sendMessage(
             targetChatId,
             `[${botName}] 🔄 Пользователь @${finalUsername} (ID: ${telegramId}) перезапустил бота (/start).`
           )
@@ -264,7 +281,7 @@ export async function processStartCommand(
         `[ProcessStart] Getting translation for 'start' for ${telegramId}`,
         { function: 'processStartCommand' }
       )
-      const { translation, url } = await dependencies.getTranslation({
+      const { translation, url } = await getTranslation({
         key: 'start',
         bot_name: botName,
         language_code: languageCode,
@@ -278,15 +295,14 @@ export async function processStartCommand(
         logger.info(`[ProcessStart] Sending welcome photo to ${telegramId}`, {
           function: 'processStartCommand',
         })
-        await dependencies.replyWithPhoto(url, { caption: translation })
+        await replyWithPhoto(url, { caption: translation })
       } else {
         logger.info(`[ProcessStart] Sending welcome text to ${telegramId}`, {
           function: 'processStartCommand',
         })
-        await dependencies.reply(
-          translation || (isRu ? 'Добро пожаловать!' : 'Welcome!'),
-          { parse_mode: 'Markdown' }
-        )
+        await reply(translation || (isRu ? 'Добро пожаловать!' : 'Welcome!'), {
+          parse_mode: 'Markdown',
+        })
       }
 
       const tutorialUrl = BOT_URLS[botName]
@@ -309,7 +325,7 @@ export async function processStartCommand(
           ),
         ]).resize()
 
-        await dependencies.reply(tutorialText, {
+        await reply(tutorialText, {
           parse_mode: 'Markdown',
           reply_markup: replyKeyboard.reply_markup,
         })
@@ -325,12 +341,9 @@ export async function processStartCommand(
             isRu ? levels[103].title_ru : levels[103].title_en
           ),
         ]).resize()
-        await dependencies.reply(
-          isRu ? 'Выберите действие:' : 'Choose an action:',
-          {
-            reply_markup: replyKeyboard.reply_markup,
-          }
-        )
+        await reply(isRu ? 'Выберите действие:' : 'Choose an action:', {
+          reply_markup: replyKeyboard.reply_markup,
+        })
       }
     } catch (error) {
       logger.error('[ProcessStart] Error sending welcome/tutorial message', {
@@ -350,8 +363,7 @@ export async function processStartCommand(
       function: 'processStartCommand',
     })
     try {
-      console.log('[DEBUG] Before Reply 5 (Critical Error Fallback)')
-      await dependencies.reply(
+      await reply(
         isRu
           ? '❌ Произошла внутренняя ошибка. Попробуйте позже или свяжитесь с поддержкой.'
           : '❌ An internal error occurred. Please try again later or contact support.'
@@ -398,7 +410,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       getUserDetailsSubscription: getUserDetailsSubscription,
       createUser: createUser,
       getReferalsCountAndUserData: getReferalsCountAndUserData,
-      getTranslation: args => getDbTranslation({ ...args, ctx: null as any }),
+      getTranslation: args => getTranslation({ ...args, ctx: null as any }),
       isRussian: () => isRussian(ctx),
       getPhotoUrl: (context, index) => getPhotoUrl(context || ctx, index),
       reply: (text, extra) => ctx.reply(text, extra),

@@ -1,7 +1,4 @@
-import {
-  type BalanceOperationResult,
-  type MyContext,
-} from '@/interfaces'
+import { type BalanceOperationResult, type MyContext } from '@/interfaces'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'

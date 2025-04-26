@@ -154,6 +154,7 @@ describe('createUser', () => {
       aspect_ratio: '9:16',
       inviter: null,
       bot_name: 'test_bot',
+      finetune_id: 'mock-finetune-id',
     }
 
     // Expected result matching User interface
@@ -234,6 +235,7 @@ describe('createUser', () => {
       aspect_ratio: '16:9',
       inviter: null,
       bot_name: 'test_bot',
+      finetune_id: 'mock-finetune-id',
     }
     const expectedUpdatePayload = {
       username: 'newuser',
@@ -304,6 +306,7 @@ describe('createUser', () => {
       aspect_ratio: '16:9',
       inviter: null,
       bot_name: 'test_bot',
+      finetune_id: 'mock-finetune-id',
     }
 
     internalMocks.mockMaybeSingle.mockResolvedValueOnce({

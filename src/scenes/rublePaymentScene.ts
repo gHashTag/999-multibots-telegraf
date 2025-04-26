@@ -1,5 +1,5 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext, SessionData, SelectedPayment } from '@/interfaces'
+import type { MyContext, SessionData, SelectedPayment } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { handleSelectRubAmount } from '@/handlers'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'

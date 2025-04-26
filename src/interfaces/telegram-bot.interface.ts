@@ -1,18 +1,15 @@
 import { Context, type NarrowedContext, Scenes } from 'telegraf'
 import { type ModelUrl, type UserModel } from './index'
-import type { Update, Message } from 'telegraf/types'
+import type { Update, Message } from '@telegraf/types'
 import { Buffer } from 'buffer'
 import { Markup } from 'telegraf'
-import { type Chat } from 'telegraf/types'
+import { type Chat } from '@telegraf/types'
 
 import { BroadcastContentType } from './broadcast.interface'
 import { type SubscriptionType } from './subscription.interface'
 import { type TranslationButton } from './supabase.interface'
 import { type SessionPayment } from './payments.interface'
-import {
-  type SceneContextScene,
-  type WizardContextWizard,
-} from 'telegraf/scenes'
+import { SceneContextScene, WizardContextWizard } from 'telegraf/scenes'
 import { ModeEnum, type Mode } from './modes'
 import { type Translation } from './translations.interface'
 

@@ -1,5 +1,6 @@
-import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { Scenes } from 'telegraf'
+import type { MyContext } from '@/interfaces'
+import { Markup } from 'telegraf'
 import { isRussian } from '@/helpers/language'
 
 import { generateImageFromPrompt } from '@/services/generateImageFromPrompt'

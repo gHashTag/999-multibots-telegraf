@@ -1,4 +1,5 @@
-import { MySession, PaymentType } from '@/interfaces'
+import type { MySession } from '@/interfaces'
+import { PaymentType } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { SubscriptionType } from '@/interfaces'
 

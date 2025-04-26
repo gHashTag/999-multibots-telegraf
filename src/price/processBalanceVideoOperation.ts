@@ -1,7 +1,4 @@
-import {
-  type BalanceOperationResult,
-  type MyContext,
-} from '@/interfaces'
+import { type BalanceOperationResult, type MyContext } from '@/interfaces'
 import { type TelegramId } from '@/interfaces/telegram.interface'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
@@ -134,7 +131,10 @@ export const processBalanceVideoOperation = async ({
         currentBalanceOnError = balance
       }
     } catch (getBalanceError) {
-      logger.error('Failed to get balance in catch block', { telegram_id, getBalanceError })
+      logger.error('Failed to get balance in catch block', {
+        telegram_id,
+        getBalanceError,
+      })
     }
     return {
       success: false,

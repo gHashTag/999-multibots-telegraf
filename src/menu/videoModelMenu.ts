@@ -4,7 +4,7 @@ import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { calculateFinalPrice } from '@/price/helpers'
 import { levels } from './mainMenu' // levels нужны
 // import { createHelpButton } from './buttons' // Убираем
-import { ModelsConfig } from '@/interfaces'
+// import { ModelsConfig } from '@/interfaces' // <-- ModelsConfig закомментирован
 
 /**
  * Генерирует Reply клавиатуру с выбором видеомоделей.

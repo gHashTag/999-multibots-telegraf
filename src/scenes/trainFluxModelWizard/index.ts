@@ -1,5 +1,5 @@
 import { Scenes, Markup, Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 
 import { isValidImage } from '../../helpers/images'
 import { isRussian } from '@/helpers'
@@ -81,13 +81,9 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
    - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`,
         {
           reply_markup: {
-            keyboard: [
-              [
-                {
-                  text: isRu ? 'Отмена' : 'Cancel',
-                },
-              ],
-            ],
+            keyboard: [[isRu ? 'Отмена' : 'Cancel']],
+            resize_keyboard: true,
+            one_time_keyboard: false,
           },
           parse_mode: 'HTML',
         }
@@ -178,6 +174,16 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       )
       console.log(`Image ${ctx.session.images.length} added`)
     }
+    await ctx.reply(
+      isRu ? 'Или отмените операцию.' : 'Or cancel the operation.',
+      {
+        reply_markup: {
+          keyboard: [[isRu ? 'Отмена' : 'Cancel']],
+          resize_keyboard: true,
+          one_time_keyboard: false,
+        },
+      }
+    )
   }
 )
 

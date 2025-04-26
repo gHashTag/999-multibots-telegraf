@@ -142,13 +142,7 @@ export async function generateImageToPrompt(
                 parse_mode: 'MarkdownV2',
                 reply_markup: {
                   keyboard: [
-                    [
-                      {
-                        text: is_ru
-                          ? levels[104].title_ru
-                          : levels[104].title_en,
-                      },
-                    ],
+                    [is_ru ? levels[104].title_ru : levels[104].title_en],
                   ],
                   resize_keyboard: true,
                   one_time_keyboard: false,

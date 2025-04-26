@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext, SessionPayment } from '@/interfaces'
+import type { MyContext, SessionPayment } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleSelectRubAmount } from '@/handlers'
 import { isRussian } from '@/helpers'

@@ -1,6 +1,6 @@
 import { Scenes, Telegraf, Markup } from 'telegraf'
 import { generateImageToVideo } from '@/services/generateImageToVideo'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import {
   cancelMenu,
   sendGenerationCancelledMessage,

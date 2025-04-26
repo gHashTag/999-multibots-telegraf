@@ -1,13 +1,14 @@
 import {
-  ServiceType,
-  ServiceConfig,
-  ServiceUsageStats,
-  ServiceValidationResult,
-  ServiceAccessResult,
-  ServiceMetadata,
-} from '../interfaces/service.interface'
+  type ServiceType,
+  type ServiceConfig,
+  type ServiceUsageStats,
+  type ServiceValidationResult,
+  type ServiceAccessResult,
+  type ServiceMetadata,
+} from '@/interfaces/service.interface'
 import { supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
+import { config } from 'dotenv'
 // Normalize transaction type to lowercase
 export const normalizeTransactionType = (type: string): string => {
   return type.toLowerCase()

@@ -1,5 +1,5 @@
 import { type MyContext } from '@/interfaces'
-import { sendSubscriptionRequiredMessage } from '@/utils/messageBuilder'
+// import { sendSubscriptionRequiredMessage } from '@/utils/messageBuilder' // <-- Временно закомментировано
 
 export async function checkSubscription(
   ctx: MyContext,

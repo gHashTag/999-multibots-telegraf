@@ -1,7 +1,7 @@
 import { type MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
-import { sendSubscriptionRequiredMessage } from '@/utils/messageBuilder'
+// import { sendSubscriptionRequiredMessage } from '@/utils/messageBuilder' // <-- Временно закомментировано
 
 export const subscriptionMiddleware = async (
   ctx: MyContext,

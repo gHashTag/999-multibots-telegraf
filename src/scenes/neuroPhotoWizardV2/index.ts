@@ -1,5 +1,6 @@
-import { MyContext } from '@/interfaces'
-import { UserModel } from '../../interfaces'
+import type { MyContext } from '@/interfaces'
+import type { UserModel } from '../../interfaces'
+import { Composer, Scenes } from 'telegraf'
 
 import { generateNeuroImageV2 } from '@/services/generateNeuroImageV2'
 import {

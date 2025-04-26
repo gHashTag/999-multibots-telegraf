@@ -1,13 +1,16 @@
 import { logger } from '@/utils/logger'
-import { MyTextMessageContext } from '@/interfaces'
+import type { MyTextMessageContext } from '@/interfaces'
 import { Scenes } from 'telegraf'
 import { createUser, getReferalsCountAndUserData } from '@/core/supabase'
-
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
-
 import { isRussian } from '@/helpers/language'
-import { MyContext } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
+import { Markup } from 'telegraf'
+import { supabase } from '@/core/supabase/client'
+import { createUser as supabaseCreateUser } from '@/core/supabase/createUser'
+import { getTranslation } from '@/core/supabase/getTranslation'
+// import { sendToSupportChat } from '@/core/telegram/sendToSupportChat' // <-- Временно закомментировано
 
 const SUBSCRIBE_CHANNEL_ID = '@neuro_blogger_pulse'
 

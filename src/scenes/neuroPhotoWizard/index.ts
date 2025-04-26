@@ -1,5 +1,5 @@
-import { MyContext } from '@/interfaces'
-import { ModelUrl } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
+import type { ModelUrl } from '@/interfaces'
 import { Markup } from 'telegraf'
 
 import { generateNeuroImage } from '@/services/generateNeuroImage'

@@ -2,7 +2,7 @@ import { type MyContext } from '@/interfaces'
 import { checkSubscription } from './checkSubscription'
 import { handleSubscriptionMessage } from './handleSubscriptionMessage'
 import { getUserDetailsSubscription } from '@/core'
-import { sendSubscriptionRequiredMessage } from '@/utils/messageBuilder'
+// import { sendSubscriptionRequiredMessage } from '@/utils/messageBuilder' // <-- Временно закомментировано
 
 export async function verifySubscription(
   ctx: MyContext,
