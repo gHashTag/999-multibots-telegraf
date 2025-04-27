@@ -1,4 +1,5 @@
-import { Context, Markup } from 'telegraf'
+import type { Context } from 'telegraf'
+import { Markup } from 'telegraf'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
 
 interface SelectRubParams {

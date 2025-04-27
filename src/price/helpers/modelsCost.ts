@@ -1,9 +1,9 @@
-import { calculateCost } from '@/price/priceCalculator'
-import { logger } from '@/utils/logger'
+import {calculateCost} from "@/price/priceCalculator";
+import {logger} from "@/utils/logger";
 
-import { starCost, SYSTEM_CONFIG } from '@/price/constants'
-import {
-  ModeEnum,
+import {starCost, SYSTEM_CONFIG} from "@/price/constants";
+import { ModeEnum } from '@/interfaces/modes';;
+import type {
   CostCalculationParams,
   CostCalculationResult,
 } from '@/interfaces/modes'

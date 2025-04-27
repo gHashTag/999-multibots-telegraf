@@ -1,5 +1,5 @@
 import { Markup } from 'telegraf'
-import type { Message, Update } from "telegraf/types"
+import type { ReplyKeyboardMarkup } from 'telegraf/types';import type { Message, Update } from "telegraf/types"
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { calculateFinalPrice } from '@/price/helpers'
 import { levels } from './mainMenu' // levels нужны

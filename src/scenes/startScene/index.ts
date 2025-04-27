@@ -1,5 +1,6 @@
 import type { MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
+import type { Update } from 'telegraf/types'
 import {
   getTranslation as getDbTranslation,
   getUserDetailsSubscription,
@@ -9,11 +10,11 @@ import {
 import { BOT_URLS } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { levels } from '@/menu/mainMenu'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { isRussian } from '@/helpers/language'
 import { TelegramError } from 'telegraf'
-import type { Message, Update } from "telegraf/types"
+import type { Message } from "telegraf/types"
 
 // --- Dependencies Interface for the Core Logic Function ---
 export interface ProcessStartDependencies {

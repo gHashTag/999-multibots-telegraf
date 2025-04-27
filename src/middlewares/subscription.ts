@@ -1,5 +1,5 @@
 import type { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 export const subscriptionMiddleware = async (
   ctx: MyContext,
   next: () => Promise<void>

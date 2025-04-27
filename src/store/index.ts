@@ -1,6 +1,8 @@
 import type { MySession } from '@/interfaces'
-import { ModeEnum } from '@/interfaces/modes'
-import { SubscriptionType } from '@/interfaces'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { ModeEnum } from '@/interfaces/modes';
+// Определяем значения напрямую, чтобы избежать проблем с импортом enum
+const STARS = SubscriptionType.NEUROPHOTO;
 
 export const defaultSession: MySession = {
   mode: ModeEnum.TextToImage,
@@ -15,12 +17,12 @@ export const defaultSession: MySession = {
   targetUserId: 0,
   steps: 0,
   selectedSize: '',
-  subscription: SubscriptionType.STARS,
+  subscription: STARS,
   selectedPayment: {
     amount: 0,
     stars: 10,
-    subscription: SubscriptionType.STARS,
-    type: 'BONUS',
+    subscription: STARS,
+    type: 'PAYMENT' as const,
   },
   videoUrl: '',
   imageUrl: '',
@@ -39,4 +41,8 @@ export const defaultSession: MySession = {
   translations: [],
   buttons: [],
   neuroPhotoInitialized: false,
+  __scenes: {
+    cursor: 0,
+    state: {}
+  }
 }

@@ -14,7 +14,7 @@ import {
   sendPhotoDescriptionRequest,
 } from '@/menu'
 import { handleMenu } from '@/handlers'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 import { logger } from '@/utils/logger'
 import { WizardScene } from 'telegraf/scenes'
 import { navigationMenu } from '@/menu/navigationMenu'

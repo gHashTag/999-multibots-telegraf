@@ -15,7 +15,7 @@
 // import { Telegraf } from 'telegraf'
 // import type { MyContext } from '@/interfaces'
 // import { modeCosts } from '@/price/helpers/modelsCost'
-// import { ModeEnum } from '@/interfaces/modes'
+// import { ModeEnum } from '@/interfaces/modes';
 // import { processBalanceOperation, sendBalanceMessage } from '@/price/helpers'
 // import { PaymentType } from '@/interfaces/payments.interface'
 

@@ -3,7 +3,7 @@ import { Scenes } from 'telegraf'
 import { getUserByTelegramIdString } from '@/core/supabase'
 import { verifySubscription } from '@/middlewares/verifySubscription'
 import { isDev } from '@/helpers'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 import { logger } from '@/utils/logger'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { getSubScribeChannel } from '@/handlers/getSubScribeChannel'

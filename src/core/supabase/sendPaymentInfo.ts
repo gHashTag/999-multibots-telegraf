@@ -1,8 +1,8 @@
-import { Payment } from '@/interfaces/payments.interface'
+import type { Payment } from '@/interfaces/payments.interface'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { createBotByName, BOT_NAMES } from '../bot'
-import type { BotName } from '@/interfaces'
+import type { BotName } from '@/interfaces/telegram-bot.interface'
 
 export const sendPaymentInfo = async (invId: string): Promise<boolean> => {
   try {

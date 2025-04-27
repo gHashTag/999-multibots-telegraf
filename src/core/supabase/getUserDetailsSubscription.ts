@@ -14,7 +14,7 @@ import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import {
   normalizeTelegramId,
-  TelegramId,
+  
 } from '@/interfaces/telegram.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 // <<<=== ИМПОРТ ДЛЯ ПОЛУЧЕНИЯ БАЛАНСА ИЗ PAYMENTS_V2 ===>>>
@@ -257,3 +257,5 @@ export const getUserDetailsSubscription = async (
     return defaultResult
   }
 }
+
+type TelegramId = string;

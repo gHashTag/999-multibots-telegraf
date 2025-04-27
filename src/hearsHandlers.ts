@@ -9,7 +9,7 @@ import { generateNeuroImage } from './services/generateNeuroImage'
 import { handleSizeSelection } from './handlers'
 import { levels, mainMenu } from './menu'
 import { getReferalsCountAndUserData } from './core/supabase'
-import { ModeEnum } from './interfaces/modes'
+import { ModeEnum } from './interfaces/modes';
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {

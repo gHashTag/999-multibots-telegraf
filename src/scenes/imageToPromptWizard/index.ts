@@ -6,7 +6,7 @@ import { isRussian } from '@/helpers'
 
 // import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 import { getBotNameByToken } from '@/core/bot'
 import { createHelpButton } from '@/menu/buttons'
 // Используем заглушку для HUGGINGFACE_TOKEN

@@ -1,4 +1,4 @@
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 import { isRussian } from '@/helpers/language'
 import type { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'

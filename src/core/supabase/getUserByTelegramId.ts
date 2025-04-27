@@ -1,4 +1,4 @@
-import { Context } from 'telegraf'
+import type { Context } from 'telegraf'
 import { supabase } from './client'
 
 export const getUserByTelegramId = async (ctx: Context) => {

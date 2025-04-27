@@ -1,6 +1,6 @@
 import type { MyContext } from '@/interfaces'
 import type { UserModel } from '@/interfaces/models.interface'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 
 import { generateNeuroImageV2 } from '@/services/generateNeuroImageV2'
 import {

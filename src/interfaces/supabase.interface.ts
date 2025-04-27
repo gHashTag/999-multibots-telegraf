@@ -1,5 +1,5 @@
 import type { TelegramId } from './telegram.interface'
-import {
+import type {
   SubscriptionType,
   Subscription as SubscriptionInterface,
 } from './subscription.interface'

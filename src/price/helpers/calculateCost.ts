@@ -1,11 +1,16 @@
 // Меняем импорт ModeEnum, чтобы избежать циклической зависимости
-import { ModeEnum } from '../../interfaces/modes'
+import { ModeEnum } from '../../interfaces/modes';
 
 import {
   conversionRates,
   conversionRatesV2,
-  CostDetails,
 } from '@/price/priceCalculator'
+import type { CostDetails } from '@/price/priceCalculator';
+import {
+  getUserDetailsSubscription,
+  getUserById,
+} from '@/core/supabase';
+import { logger } from '@/utils/logger';
 
 export function calculateCostInStars(
   steps: number,

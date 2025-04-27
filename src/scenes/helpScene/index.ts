@@ -18,7 +18,7 @@ import {
 import { mainMenu } from '@/menu'
 
 import { getReferalsCountAndUserData } from '@/core/supabase'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 
 export const helpScene = new Scenes.BaseScene<MyContext>('help')
 

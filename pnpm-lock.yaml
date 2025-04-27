@@ -183,6 +183,9 @@ importers:
       fastify-plugin:
         specifier: ^5.0.1
         version: 5.0.1
+      glob:
+        specifier: ^11.0.2
+        version: 11.0.2
       husky:
         specifier: ^8.0.3
         version: 8.0.3
@@ -271,8 +274,8 @@ importers:
         specifier: ^0.11.1
         version: 0.11.1(vitest@1.4.0)
       vitest-mock-extended:
-        specifier: ^3.1.0
-        version: 3.1.0(typescript@5.8.3)(vitest@1.4.0)
+        specifier: ^1.2.0
+        version: 1.2.0(typescript@5.8.3)(vitest@1.4.0)
 
 packages:
 
@@ -3968,10 +3971,10 @@ packages:
     peerDependencies:
       typescript: '>=4.2.0'
 
-  ts-essentials@10.0.4:
-    resolution: {integrity: sha512-lwYdz28+S4nicm+jFi6V58LaAIpxzhg9rLdgNC1VsdP/xiFBseGhF1M/shwCk6zMmwahBZdXcl34LVHrEang3A==}
+  ts-essentials@9.4.2:
+    resolution: {integrity: sha512-mB/cDhOvD7pg3YCLk2rOtejHjjdSi9in/IBYE13S+8WA5FBSraYf4V/ws55uvs0IvQ/l0wBOlXy5yBNZ9Bl8ZQ==}
     peerDependencies:
-      typescript: '>=4.5.0'
+      typescript: '>=4.1.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -4349,11 +4352,11 @@ packages:
     peerDependencies:
       vitest: '>=0.28.5'
 
-  vitest-mock-extended@3.1.0:
-    resolution: {integrity: sha512-vCM0VkuocOUBwwqwV7JB7YStw07pqeKvEIrZnR8l3PtwYi6rAAJAyJACeC1UYNfbQWi85nz7EdiXWBFI5hll2g==}
+  vitest-mock-extended@1.2.0:
+    resolution: {integrity: sha512-/UwFogR1XFvLHmdru+IDbfEywwqKQ8QuaKPEyoWg1ElbZFck/y/jikeOu/EjAVEoYxS9pB/FKFHAidkNBtwEFA==}
     peerDependencies:
       typescript: 3.x || 4.x || 5.x
-      vitest: '>=3.0.0'
+      vitest: '>=0.31.1'
 
   vitest@1.4.0:
     resolution: {integrity: sha512-gujzn0g7fmwf83/WzrDTnncZt2UiXP41mHuFYFrdwaLRVQ6JYQEiME2IfEjU3vcFL3VKa75XhI3lFgn+hfVsQw==}
@@ -8430,7 +8433,7 @@ snapshots:
     dependencies:
       typescript: 5.8.3
 
-  ts-essentials@10.0.4(typescript@5.8.3):
+  ts-essentials@9.4.2(typescript@5.8.3):
     optionalDependencies:
       typescript: 5.8.3
 
@@ -8784,9 +8787,9 @@ snapshots:
       '@actions/core': 1.11.1
       vitest: 1.4.0(@types/node@20.17.31)(@vitest/browser@3.1.2)(@vitest/ui@1.0.4)(terser@5.39.0)
 
-  vitest-mock-extended@3.1.0(typescript@5.8.3)(vitest@1.4.0):
+  vitest-mock-extended@1.2.0(typescript@5.8.3)(vitest@1.4.0):
     dependencies:
-      ts-essentials: 10.0.4(typescript@5.8.3)
+      ts-essentials: 9.4.2(typescript@5.8.3)
       typescript: 5.8.3
       vitest: 1.4.0(@types/node@20.17.31)(@vitest/browser@3.1.2)(@vitest/ui@1.0.4)(terser@5.39.0)
 

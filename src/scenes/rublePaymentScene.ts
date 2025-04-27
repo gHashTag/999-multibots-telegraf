@@ -9,7 +9,7 @@ import { MERCHANT_LOGIN, PASSWORD1 } from '@/config'
 import { setPayments } from '@/core/supabase'
 import { getBotNameByToken } from '@/core/bot'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 
 import {
   PaymentStatus,

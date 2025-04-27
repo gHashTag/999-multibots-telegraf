@@ -1,6 +1,6 @@
 import type { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
-import type { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
+import { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
 import logger from '@/utils/logger'
 import { isRussian } from '@/helpers/language'
 import type { TranslationButton } from '@/interfaces/supabase.interface'

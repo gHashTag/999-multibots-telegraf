@@ -1,4 +1,5 @@
 import { Scenes } from 'telegraf'
+import type { Update } from 'telegraf/types'
 import type { MyContext } from '../../interfaces'
 import { uploadVideoToServer } from '../../services/uploadVideoToServer'
 import { randomUUID } from 'node:crypto'

@@ -3,6 +3,7 @@ import axios from 'axios'
 import type { MyContext } from '@/interfaces'
 import { refundUser } from '@/price/helpers'
 import { Scenes } from 'telegraf'
+import type { Update } from 'telegraf/types'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage } from '@/menu'
 

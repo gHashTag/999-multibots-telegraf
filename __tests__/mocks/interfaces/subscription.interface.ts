@@ -1,5 +1,0 @@
-export enum SubscriptionType {
-  NEUROPHOTO = 'NEUROPHOTO',
-  NEUROBASE = 'NEUROBASE',
-  NEUROTESTER = 'NEUROTESTER',
-}

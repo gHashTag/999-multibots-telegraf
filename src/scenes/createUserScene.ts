@@ -1,13 +1,14 @@
 import { logger } from '@/utils/logger'
-import { MyTextMessageContext } from '@/interfaces'
+import type { MyTextMessageContext } from '@/interfaces/telegram-bot.interface'
 import { Scenes } from 'telegraf'
+import type { Update } from 'telegraf/types'
 import { createUser, getReferalsCountAndUserData } from '@/core/supabase'
 
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 
 import { isRussian } from '@/helpers/language'
 import type { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 
 const SUBSCRIBE_CHANNEL_ID = '@neuro_blogger_pulse'
 

@@ -6,7 +6,7 @@ export type { TelegramId, TelegramUser } from './telegram.interface'
 export { normalizeTelegramId, isValidTelegramId } from './telegram.interface'
 
 // Экспорт типов из payments.interface.ts
-export type { PaymentType, PaymentStatus } from './payments.interface'
+export { PaymentType, PaymentStatus } from './payments.interface'
 
 // Экспорт из файла modes.ts
 export { ModeEnum } from './modes'

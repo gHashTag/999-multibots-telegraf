@@ -3,7 +3,7 @@ import type { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 import { PaymentType } from '@/interfaces/payments.interface'
 
 /**

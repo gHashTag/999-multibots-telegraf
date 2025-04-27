@@ -1,4 +1,4 @@
-import { Context } from 'telegraf'
+import type { Context } from 'telegraf'
 
 export async function handlePaymentPolicyInfo(ctx: Context) {
   const isRu = ctx.from?.language_code === 'ru'

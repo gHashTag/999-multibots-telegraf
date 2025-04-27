@@ -1,4 +1,4 @@
-import { Context, NarrowedContext } from 'telegraf'
+import type { Context, NarrowedContext } from 'telegraf'
 import type { Message, Update } from "telegraf/types"
 import { logger } from '@/utils/logger'
 import type { MyContext } from '@/interfaces'

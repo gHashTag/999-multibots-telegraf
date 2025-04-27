@@ -1,4 +1,5 @@
-import { MyWizardContext, Subscription } from '@/interfaces'
+import type { Subscription } from '@/interfaces'
+import type { MyWizardContext } from '@/interfaces/telegram-bot.interface'
 import { supabase } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
 import { checkFullAccess } from '@/handlers/checkFullAccess'

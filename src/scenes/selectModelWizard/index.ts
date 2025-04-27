@@ -4,7 +4,7 @@ import { getAvailableModels } from '../../commands/selectModelCommand/getAvailab
 import { sendGenericErrorMessage } from '@/menu'
 import { isRussian } from '@/helpers/language'
 import { updateUserModel } from '@/core/supabase'
-import type { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(
   'select_model',

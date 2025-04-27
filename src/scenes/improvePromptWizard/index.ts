@@ -7,7 +7,7 @@ import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
 import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovementFailureMessage'
 import { sendGenericErrorMessage } from '@/menu'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 const MAX_ATTEMPTS = 10
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(

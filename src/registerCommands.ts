@@ -1,6 +1,6 @@
 import { Telegraf, Scenes, session, Markup } from 'telegraf'
 import type { MyContext } from './interfaces'
-import { ModeEnum } from './interfaces/modes'
+import { ModeEnum } from './interfaces/modes';
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { levels } from './menu/mainMenu'
 import { getUserDetailsSubscription } from '@/core/supabase'

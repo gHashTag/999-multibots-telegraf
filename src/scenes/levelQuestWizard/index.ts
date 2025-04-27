@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 import {
   handleLevel1,
   handleLevel10,

@@ -1,5 +1,5 @@
 import { Markup } from 'telegraf'
-import type { Message, Update } from "telegraf/types"
+import type { ReplyKeyboardMarkup } from 'telegraf/types';import type { Message, Update } from "telegraf/types"
 import { levels } from './mainMenu' // levels нужны
 // import { isRussian } from '@/helpers' // isRu передается аргументом
 // import { createHelpButton } from './buttons' // Убираем

@@ -1,4 +1,5 @@
 import { Scenes } from 'telegraf'
+import type { Update } from 'telegraf/types'
 import type { MyContext } from '../../interfaces'
 import { generateLipSync } from '../../services/generateLipSync'
 

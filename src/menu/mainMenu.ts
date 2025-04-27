@@ -1,7 +1,7 @@
 import type { Message, Update } from "telegraf/types"
 import { checkFullAccess } from '../handlers/checkFullAccess'
 import { Markup } from 'telegraf'
-import type { MyContext } from '../interfaces/telegram-bot.interface'
+import type { ReplyKeyboardMarkup } from 'telegraf/types';import type { MyContext } from '../interfaces/telegram-bot.interface'
 import { SubscriptionType } from '../interfaces/subscription.interface'
 
 interface Level {

@@ -11,7 +11,7 @@ import { Telegraf } from 'telegraf'
 import type { MyContext } from '@/interfaces'
 import { modeCosts } from '@/price/helpers/modelsCost'
 import { levels } from '@/menu'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 import { PaymentType } from '@/interfaces/payments.interface'
 import { v4 as uuidv4 } from 'uuid'
 

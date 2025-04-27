@@ -1,9 +1,10 @@
 import { Markup, Scenes } from 'telegraf'
+import type { Update } from 'telegraf/types'
 import type { MyContext } from '../../interfaces'
 import { handleMenu } from '@/handlers'
 import { getTranslation } from '@/core/supabase'
 import { isRussian } from '@/helpers'
-import { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes';
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import type { TranslationButton } from '@/interfaces/supabase.interface'

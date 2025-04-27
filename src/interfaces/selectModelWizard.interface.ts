@@ -1,5 +1,5 @@
 import { PaymentType } from './payments.interface'
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 
 /**
  * Конфигурация платной модели

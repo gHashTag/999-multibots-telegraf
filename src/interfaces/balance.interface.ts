@@ -1,5 +1,5 @@
 import { PaymentType } from './payments.interface'
-import { ModeEnum } from './modes'
+import type { ModeEnum } from './modes'
 
 export interface BalanceOperation {
   telegram_id: string

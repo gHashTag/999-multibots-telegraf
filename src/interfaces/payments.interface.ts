@@ -1,4 +1,4 @@
-import { ModeEnum } from '@/interfaces/modes'
+import type { ModeEnum } from '@/interfaces/modes'
 import type { TelegramId } from './telegram.interface'
 import { SubscriptionType } from './subscription.interface'
 

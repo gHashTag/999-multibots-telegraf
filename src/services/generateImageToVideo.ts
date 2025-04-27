@@ -5,7 +5,11 @@ import {
   API_SERVER_URL,
   LOCAL_SERVER_URL,
 } from '@/config'
-import type { ImageToVideoResponse } from '@/interfaces'
+interface ImageToVideoResponse {
+  message: string;
+  resultUrl?: string;
+}
+
 
 export async function generateImageToVideo(
   imageUrl: string,

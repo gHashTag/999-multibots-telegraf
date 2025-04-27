@@ -39,7 +39,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
 
     await createModelTraining(
       {
-        filePath: zipPath,
+        filePath: zipPath.toString(),  // Преобразуем Buffer в string
         triggerWord,
         modelName: ctx.session.modelName || '',
         steps: ctx.session.steps || 100,
