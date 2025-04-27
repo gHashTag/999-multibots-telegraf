@@ -15,28 +15,6 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
   'voice',
   async ctx => {
     const isRu = isRussian(ctx)
-    if (!ctx.from?.id) {
-      await ctx.reply(
-        isRu ? 'Ошибка идентификации пользователя' : 'User identification error'
-      )
-      return ctx.scene.leave()
-    }
-
-    const currentBalance = await getUserBalance(ctx.from.id.toString())
-    const price = voiceConversationCost
-    if (currentBalance < price) {
-      await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
-      return ctx.scene.leave()
-    }
-
-    await sendBalanceMessage(
-      ctx,
-      currentBalance,
-      price,
-      isRu,
-      ctx.botInfo.username
-    )
-
     await ctx.reply(
       isRu
         ? '🎙️ Пожалуйста, отправьте голосовое сообщение для создания голосового аватара'

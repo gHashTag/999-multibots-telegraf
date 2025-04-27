@@ -79,19 +79,24 @@ export const stage = new Scenes.Stage<MyContext>([
   trainFluxModelWizard,
   uploadTrainFluxModelScene,
   uploadVideoScene,
-  voiceAvatarWizard,
-  textToSpeechWizard,
+  new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
+  new Scenes.WizardScene(
+    ModeEnum.TextToSpeech,
+    ...(textToSpeechWizard.steps as any)
+  ),
   lipSyncWizard,
   new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
   new Scenes.WizardScene(
     ModeEnum.ChatWithAvatar,
     ...(chatWithAvatarWizard.steps as any)
   ),
+  selectModelWizard,
   digitalAvatarBodyWizard,
   digitalAvatarBodyWizardV2,
   getRuBillWizard,
   levelQuestWizard,
   createUserScene,
+  neuroCoderScene,
 ])
 
 export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
