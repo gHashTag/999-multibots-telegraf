@@ -82,7 +82,11 @@ export const stage = new Scenes.Stage<MyContext>([
   voiceAvatarWizard,
   textToSpeechWizard,
   lipSyncWizard,
-  avatarBrainWizard,
+  new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
+  new Scenes.WizardScene(
+    ModeEnum.ChatWithAvatar,
+    ...(chatWithAvatarWizard.steps as any)
+  ),
   digitalAvatarBodyWizard,
   digitalAvatarBodyWizardV2,
   getRuBillWizard,
