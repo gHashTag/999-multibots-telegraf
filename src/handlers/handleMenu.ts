@@ -184,16 +184,14 @@ export const handleMenu = async (ctx: MyContext) => {
           telegramId,
           function: 'handleMenu',
           action: 'select_model',
-          nextScene: ModeEnum.CheckBalanceScene,
+          nextScene: ModeEnum.SelectModel,
         })
         console.log('CASE: 🤖 Выбор модели ИИ')
         ctx.session.mode = ModeEnum.SelectModel
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.SelectModel}`)
+        await ctx.scene.enter(ModeEnum.SelectModel)
         console.log(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SelectModel}`
         )
       },
       [isRu ? levels[7].title_ru : levels[7].title_en]: async () => {
