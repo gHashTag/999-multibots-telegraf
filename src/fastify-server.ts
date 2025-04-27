@@ -10,7 +10,6 @@ import { SECRET_API_KEY } from '@/config'
 import { Telegraf } from 'telegraf'
 import type { MyContext } from '@/interfaces'
 import { botInstances } from './bot'
-import { webhookCallback } from 'grammy'
 
 const server: FastifyInstance = fastify({
   logger: true,
@@ -91,7 +90,7 @@ function registerRoutes() {
     return { status: 'ok', timestamp: new Date().toISOString() }
   })
 
-  // --- ОБНОВЛЕННЫЙ МАРШРУТ ДЛЯ ВЕБХУКОВ TELEGRAM ---
+  // --- ОБНОВЛЕННЫЙ МАРШРУТ ДЛЯ ВЕБХУКОВ TELEGRAM (с handleUpdate) ---
   server.post(
     '/api/webhook/:botId',
     async (
@@ -101,8 +100,6 @@ function registerRoutes() {
       const botIdParam = request.params.botId
       logger.info(`Webhook request received for botId param: ${botIdParam}`)
 
-      // Ищем бота по ID в массиве инстансов
-      // Важно: Убедиться, что botIdParam - это строковое представление ID бота
       const botInstance = botInstances.find(
         bot => bot.botInfo?.id.toString() === botIdParam
       )
@@ -112,20 +109,22 @@ function registerRoutes() {
           `Found bot instance for ID: ${botIdParam}, username: ${botInstance.botInfo?.username}`
         )
         try {
-          // Создаем и вызываем обработчик webhookCallback для Fastify
-          const callback = webhookCallback(botInstance, 'fastify')
-          await callback(request, reply)
-          // ВАЖНО: grammy/fastify сам отправит ответ, не нужно делать reply.send() здесь
+          // Используем bot.handleUpdate()
+          // Telegraf ожидает объект update из Telegram и объект ответа Node.js http
+          // request.body содержит update, reply.raw - это объект ответа Node.js
+          await botInstance.handleUpdate(request.body as any, reply.raw) // Передаем тело запроса и нативный ответ
+          // ВАЖНО: Telegraf сам отправит ответ через reply.raw, не нужно делать reply.send() здесь
           logger.info(
-            `Webhook for ${botInstance.botInfo?.username} processed by grammy.`
+            `Webhook for ${botInstance.botInfo?.username} processed by Telegraf handleUpdate.`
           )
         } catch (error) {
           logger.error(
-            `Error processing webhook via grammy for bot ${botInstance.botInfo?.username}:`,
+            `Error processing webhook via Telegraf handleUpdate for bot ${botInstance.botInfo?.username}:`,
             error
           )
-          // Отправляем ошибку, только если grammy не смог это сделать
+          // Отправляем ошибку, только если Telegraf не смог это сделать
           if (!reply.sent) {
+            // Проверяем, был ли ответ уже отправлен Telegraf'ом
             reply.code(500).send({ error: 'Internal webhook processing error' })
           }
         }

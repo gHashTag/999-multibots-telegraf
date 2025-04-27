@@ -1,6 +1,10 @@
 import { createServer } from 'vite'
-import { startBot } from './bot'
-import nodeResolve from '@rollup/plugin-node-resolve'
+// import { ViteNodeServer } from 'vite-node/server' // Удаляем
+// import { startBot } from './bot' // Удаляем
+import nodeResolve from '@rollup/plugin-node-resolve' // Оставляем
+// import { viteNodePlugin } from 'vite-plugin-node' // Удаляем
+// import { installSourcemapsSupport } from 'vite-node/source-map' // Удаляем
+// import express from 'express' // Удаляем
 
 /**
  * Скрипт для запуска Telegram-бота в режиме разработки с поддержкой Vite
@@ -50,8 +54,8 @@ async function startDevServer() {
 
     console.log('✅ Vite-сервер успешно запущен')
 
-    // Запускаем основной бот
-    await startBot()
+    // Запускаем основной бот - КОММЕНТИРУЕМ ВЫЗОВ
+    // await startBot()
 
     console.log('🤖 Бот запущен в режиме разработки через Vite')
 
@@ -76,14 +80,14 @@ startDevServer().catch(error => {
   process.exit(1)
 })
 
-// Экспортируем startBot как точку входа для Vite plugin Node
-export { startBot }
+// Экспортируем startBot как точку входа для Vite plugin Node - УДАЛЯЕМ ЭКСПОРТ
+// export { startBot }
 
-// Если запущено напрямую
-if (require.main === module) {
-  console.log('📢 Запуск бота напрямую через Vite...')
-  startBot().catch(error => {
-    console.error('❌ Ошибка запуска бота:', error)
-    process.exit(1)
-  })
-}
+// Если запущено напрямую - КОММЕНТИРУЕМ
+// if (require.main === module) {
+//   console.log('📢 Запуск бота напрямую через Vite...')
+//   startBot().catch(error => {
+//     console.error('❌ Ошибка запуска бота:', error)
+//     process.exit(1)
+//   })
+// }
