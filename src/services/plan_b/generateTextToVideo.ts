@@ -19,6 +19,7 @@ import { toBotName } from '@/helpers/botName.helper'
 import { logger } from '@/utils/logger'
 
 import { generateVideo } from '@/core/replicate/generateVideo'
+import { Markup } from 'telegraf'
 
 // Определяем тип локально
 type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -170,20 +171,13 @@ export const generateTextToVideo = async (
         : `Your video has been generated!\n\nGenerate more?\n\nCost: ${paymentAmount.toFixed(
             2
           )} ⭐️\nYour new balance: ${newBalance.toFixed(2)} ⭐️`,
-      {
-        reply_markup: {
-          keyboard: [
-            [
-              {
-                text: is_ru
-                  ? '🎥 Сгенерировать новое видео?'
-                  : '🎥 Generate new video?',
-              },
-            ],
-          ],
-          resize_keyboard: false,
-        },
-      }
+      Markup.keyboard([
+        [
+          Markup.button.text(
+            is_ru ? '🎥 Сгенерировать новое видео?' : '🎥 Generate new video?'
+          ),
+        ],
+      ]).resize(false)
     )
 
     await pulse(

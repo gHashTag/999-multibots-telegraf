@@ -14,6 +14,7 @@ import { levels } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { v4 as uuidv4 } from 'uuid'
+import { Markup } from 'telegraf'
 
 import { directPaymentProcessor } from '@/core/supabase/directPayment'
 
@@ -140,19 +141,13 @@ export async function generateImageToPrompt(
               '```\n' + caption + '\n```',
               {
                 parse_mode: 'MarkdownV2',
-                reply_markup: {
-                  keyboard: [
-                    [
-                      {
-                        text: is_ru
-                          ? levels[104].title_ru
-                          : levels[104].title_en,
-                      },
-                    ],
+                ...Markup.keyboard([
+                  [
+                    Markup.button.text(
+                      is_ru ? levels[104].title_ru : levels[104].title_en
+                    ),
                   ],
-                  resize_keyboard: true,
-                  one_time_keyboard: false,
-                },
+                ]).resize(),
               }
             )
 

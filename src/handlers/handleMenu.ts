@@ -346,11 +346,11 @@ export const handleMenu = async (ctx: MyContext) => {
           telegramId,
           function: 'handleMenu',
           action: 'help',
-          nextScene: ModeEnum.HelpScene,
+          nextScene: ModeEnum.Help,
         })
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
-        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.HelpScene}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
         await handleTechSupport(ctx)
         console.log(`✅ [handleMenu] Завершен вызов handleTechSupport`)
       },
@@ -440,11 +440,9 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
-        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.HelpScene}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
         await ctx.scene.enter('helpScene')
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.HelpScene}`
-        )
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${ModeEnum.Help}`)
       },
       '/menu': async () => {
         logger.info({

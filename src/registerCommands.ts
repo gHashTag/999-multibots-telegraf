@@ -306,7 +306,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   })
 
   bot.command('help', async ctx => {
-    await ctx.scene.enter('step0')
+    // Входим непосредственно в сцену справки
+    console.log('INFO: Entering helpScene directly from /help command')
+    await ctx.scene.enter('helpScene')
   })
 
   bot.command('neuro_coder', async ctx => {
@@ -319,10 +321,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   // <<< НАЧАЛО: ДОБАВЛЕННЫЕ ОБРАБОТЧИКИ HEARS >>>
   bot.hears([levels[106].title_ru, levels[106].title_en], async ctx => {
     console.log('CASE bot.hears: ❓ Справка / Help')
-    if (!ctx.scene.current) {
-      ctx.session.mode = ModeEnum.Help // Общий режим справки
-    } // Если currentScene установлен, helpScene использует его
-    await ctx.scene.enter(ModeEnum.Help) // HelpScene ID = 'helpScene'
+    // Всегда входим в 'helpScene'. Сцена сама определит контекст по ctx.session.mode, если он есть.
+    console.log('INFO: Entering helpScene from Hears Handler')
+    await ctx.scene.enter('helpScene')
   })
 
   bot.hears([levels[104].title_ru, levels[104].title_en], async ctx => {
