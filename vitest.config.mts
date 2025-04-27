@@ -33,7 +33,6 @@ export default defineConfig({
       'src/__tests__/types/**',
     ],
     mockReset: true,
-    // ВОЗВРАЩАЕМ ОСТАЛЬНЫЕ ОПЦИИ (ЗАКОММЕНТИРОВАННЫЕ РАНЕЕ)
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -49,12 +48,10 @@ export default defineConfig({
       ],
     },
     deps: {
-      inline: ['src', /^(?!.*vitest).*$/],
+      inline: [/^(?!.*vitest).*$/],
     },
     testTimeout: 10000,
     hookTimeout: 10000,
-    threads: false,
-    isolate: false,
   },
   resolve: {
     alias: [
@@ -62,7 +59,6 @@ export default defineConfig({
         find: '@',
         replacement: path.resolve(__dirname, 'src'),
       },
-      /* // Убираем этот алиас временно
       {
         find: '@telegraf/types',
         replacement: path.resolve(
@@ -70,7 +66,6 @@ export default defineConfig({
           'src/__tests__/mocks/typegram.mock.ts'
         ),
       },
-      */
     ],
   },
 })

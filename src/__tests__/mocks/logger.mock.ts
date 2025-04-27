@@ -1,7 +1,7 @@
 import { vi } from 'vitest'
 
 // Mock logger globally
-vi.mock('../utils/logger', () => ({
+vi.mock('@/utils/logger', () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
