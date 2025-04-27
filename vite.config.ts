@@ -143,12 +143,14 @@ export default defineConfig(({ command, mode }) => {
       sourcemap: 'inline',
       rollupOptions: {
         input: resolve(__dirname, 'src/bot.ts'),
-        // Явно указываем ВСЕ зависимости как внешние
         external: externalDeps,
         output: {
           format: 'es',
           esModule: true,
           interop: 'auto',
+          entryFileNames: 'index.js',
+          assetFileNames: '[name].[ext]',
+          chunkFileNames: '[name].js',
         },
       },
     },
