@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { imageModelPrices } from '@/price/models'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImage } from '@/services/generateTextToImage'
 import { getUserBalance } from '@/core/supabase'
@@ -10,8 +10,10 @@ import {
   sendBalanceMessage,
   validateAndCalculateImageModelPrice,
 } from '@/price/helpers'
+import { logger } from '@/utils/logger'
 
 import { createHelpCancelKeyboard } from '@/menu'
+import { getUserProfileAndSettings } from '@/db/userSettings'
 
 export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   'text_to_image',
@@ -173,34 +175,52 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    if (!ctx.session.selectedModel) {
-      console.error('❌ Модель не найдена')
-      await sendGenericErrorMessage(ctx, isRu)
-      return ctx.scene.leave()
-    }
-
-    if (!ctx.botInfo?.username) {
-      console.error('❌ Bot username не найден')
-      await sendGenericErrorMessage(ctx, isRu)
-      return ctx.scene.leave()
-    }
-
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
       return ctx.scene.leave()
     }
 
-    const text = message.text
-    ctx.session.prompt = text
+    const prompt = message.text
 
+    // Используем обновленный хелпер
+    const { profile, settings } = await getUserProfileAndSettings(ctx.from.id)
+    if (!profile || !settings) {
+      logger.error(
+        'Не удалось получить профиль или настройки в textToImageWizard',
+        { telegramId: ctx.from.id }
+      )
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: Не удалось получить данные пользователя.'
+          : 'Error: Could not retrieve user data.'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Устанавливаем выбранную модель в настройки ПЕРЕД вызовом
+    if (ctx.session.selectedModel) {
+      settings.imageModel = ctx.session.selectedModel
+    } else {
+      logger.error('Не найдена выбранная модель в сессии в textToImageWizard', {
+        telegramId: ctx.from.id,
+      })
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: Не удалось определить выбранную модель.'
+          : 'Error: Could not determine the selected model.'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Используем новую сигнатуру generateTextToImage
     await generateTextToImage(
-      text,
+      prompt,
       ctx.session.selectedModel,
       1,
       ctx.from.id.toString(),
       isRu,
       ctx,
-      ctx.botInfo.username
+      ctx.botInfo?.username
     )
 
     return ctx.scene.leave()

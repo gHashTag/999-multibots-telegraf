@@ -8,6 +8,8 @@ import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessag
 import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovementFailureMessage'
 import { sendGenericErrorMessage } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'
+import { getUserProfileAndSettings } from '@/db/userSettings'
+import { logger } from '@/utils/logger'
 const MAX_ATTEMPTS = 10
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
@@ -118,6 +120,23 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ? 'improvePromptWizard: Не удалось определить isRu'
                 : 'improvePromptWizard: Could not identify isRu'
             )
+
+          const { profile, settings } = await getUserProfileAndSettings(
+            ctx.from.id
+          )
+          if (!profile || !settings) {
+            logger.error(
+              'Не удалось получить профиль или настройки в improvePromptWizard',
+              { telegramId: ctx.from.id }
+            )
+            await ctx.reply(
+              isRu
+                ? 'Ошибка: Не удалось получить данные пользователя.'
+                : 'Error: Could not retrieve user data.'
+            )
+            return ctx.scene.leave()
+          }
+
           console.log(mode, 'mode')
           switch (mode) {
             case ModeEnum.NeuroPhoto:
@@ -156,12 +175,12 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             case 'text_to_image':
               await generateTextToImage(
                 ctx.session.prompt,
-                ctx.session.selectedModel || '',
+                settings.imageModel,
                 1,
                 ctx.from.id.toString(),
                 isRu,
                 ctx,
-                ctx.botInfo?.username
+                ctx.botInfo?.username || 'unknown_bot'
               )
               break
             default:

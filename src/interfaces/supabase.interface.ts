@@ -82,3 +82,10 @@ export interface TranslationButton {
   stars_price: number
   subscription: SubscriptionType
 }
+
+// Новый интерфейс для настроек пользователя
+export interface UserSettings {
+  imageModel: string | null
+  // Добавьте другие настройки по мере необходимости
+  // videoModel?: string | null;
+}
