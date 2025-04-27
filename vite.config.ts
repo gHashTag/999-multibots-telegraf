@@ -7,12 +7,10 @@ import { visualizer } from 'rollup-plugin-visualizer'
 import compression from 'vite-plugin-compression'
 import banner from 'vite-plugin-banner'
 import inspect from 'vite-plugin-inspect'
-import { nodePolyfills } from 'vite-plugin-node-polyfills'
-import { VitePluginNode } from 'vite-plugin-node'
-
-// Доступ к package.json
 import { readFileSync } from 'fs'
+
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
+const dependencies = Object.keys(pkg.dependencies || {})
 
 // Определение баннера для выходных файлов
 const bannerContent = `/**
@@ -27,7 +25,6 @@ export default defineConfig(({ command, mode }) => {
   console.log(`🌍 [Vite] Запуск в режиме: ${mode}`)
   console.log(`🔧 [Vite] Команда: ${command}`)
 
-  // Стандартные Node.js модули, которые должны быть исключены из бандла
   const nodeBuiltins = [
     'fs',
     'path',
@@ -56,27 +53,38 @@ export default defineConfig(({ command, mode }) => {
     'timers',
     'tty',
     'perf_hooks',
+    'node:fs',
+    'node:path',
+    'node:os',
+    'node:crypto',
+    'node:stream',
+    'node:http',
+    'node:https',
+    'node:url',
+    'node:util',
+    'node:zlib',
+    'node:querystring',
+    'node:net',
+    'node:tls',
+    'node:dns',
+    'node:events',
+    'node:buffer',
+    'node:assert',
+    'node:module',
+    'node:process',
+  ]
+
+  // Объединяем встроенные модули и зависимости из package.json
+  const externalDeps = [
+    ...nodeBuiltins,
+    ...dependencies,
+    'fsevents',
+    'fs/promises',
   ]
 
   return {
     root: process.cwd(),
     plugins: [
-      nodePolyfills({
-        protocolImports: true,
-        globals: {
-          Buffer: true,
-          global: true,
-          process: true,
-        },
-        // Только стандартные модули
-        include: ['buffer', 'process', 'util'],
-      }),
-      ...VitePluginNode({
-        adapter: 'express',
-        appPath: './src/bot.ts',
-        exportName: 'viteNodeApp',
-        tsCompiler: 'esbuild',
-      }),
       checker({
         typescript: true,
       }),
@@ -133,13 +141,10 @@ export default defineConfig(({ command, mode }) => {
       emptyOutDir: true,
       minify: false,
       sourcemap: 'inline',
-      lib: {
-        entry: resolve(__dirname, 'src/bot.ts'),
-        formats: ['es'],
-        fileName: 'bot',
-      },
       rollupOptions: {
-        external: ['fsevents', ...nodeBuiltins, 'fs/promises'],
+        input: resolve(__dirname, 'src/bot.ts'),
+        // Явно указываем ВСЕ зависимости как внешние
+        external: externalDeps,
         output: {
           format: 'es',
           esModule: true,
@@ -211,18 +216,6 @@ export default defineConfig(({ command, mode }) => {
       },
       host: true,
       strictPort: true,
-    },
-
-    // Специфические настройки для работы с Node.js
-    ssr: {
-      noExternal: [
-        'telegraf',
-        'node-fetch',
-        '@supabase/supabase-js',
-        'replicate',
-        'winston',
-      ],
-      external: [...nodeBuiltins, 'fs/promises'],
     },
 
     define: {
