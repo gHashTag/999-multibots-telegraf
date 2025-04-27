@@ -5,5 +5,14 @@
       "memory": 1024,
       "maxDuration": 10
     }
-  }
+  },
+  "builds": [
+    {
+      "src": "dist/index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "dist/index.js" }
+  ]
 } 
