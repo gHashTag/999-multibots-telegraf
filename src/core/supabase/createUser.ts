@@ -33,243 +33,215 @@ export const createUser = async (
     function: 'createUser',
   })
 
-  // 1. Попытка найти существующего пользователя
-  const { data: existingUser, error: findError } = await supabase
-    .from('users')
-    .select('*')
-    .eq('telegram_id', telegram_id)
-    .maybeSingle() // Используем maybeSingle, чтобы не было ошибки, если пользователь не найден
-
-  if (findError) {
-    logger.error({
-      message: 'Ошибка при поиске пользователя',
-      telegramId: telegram_id,
-      error: findError.message,
+  try {
+    // 1. Check if user exists
+    logger.info('🔍 Поиск существующего пользователя...', {
       function: 'createUser',
+      telegramId: userData.telegram_id,
     })
-    // TEST LOG
-    console.log('[TEST_LOG] Caught error during initial user find')
-    return [false, null] // Не удалось найти, возвращаем ошибку
-  }
+    const { data: existingUser, error: findError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('telegram_id', userData.telegram_id)
+      .maybeSingle()
 
-  if (existingUser) {
-    logger.info({
-      message: 'Пользователь найден',
-      telegramId: telegram_id,
-      userId: existingUser.id,
-      function: 'createUser',
-    })
-    // Опционально: можно добавить логику обновления данных пользователя, если они изменились
-    // Например, если изменился username, first_name, last_name, language_code
-    const updates: Partial<CreateUserData> = {}
-    if (username && existingUser.username !== username)
-      updates.username = username
-    if (first_name && existingUser.first_name !== first_name)
-      updates.first_name = first_name
-    if (last_name && existingUser.last_name !== last_name)
-      updates.last_name = last_name
-    if (language_code && existingUser.language_code !== language_code)
-      updates.language_code = language_code
-
-    if (Object.keys(updates).length > 0) {
-      logger.info({
-        message:
-          'Обнаружены изменения в данных пользователя, попытка обновления',
-        telegramId: telegram_id,
-        userId: existingUser.id,
-        updates,
+    if (findError) {
+      logger.error('❌ Ошибка при поиске пользователя (outer catch):', {
         function: 'createUser',
+        telegramId: userData.telegram_id,
+        error: findError,
+        code: (findError as any).code,
+        details: (findError as any).details,
+        hint: (findError as any).hint,
       })
-      try {
+      return [false, null]
+    }
+
+    // 2. User exists - check for updates
+    if (existingUser) {
+      logger.info(
+        '✅ Пользователь найден. Проверка на необходимость обновления.',
+        {
+          function: 'createUser',
+          telegramId: userData.telegram_id,
+          existingUserId: existingUser.id,
+        }
+      )
+      const updates: Partial<User> = {}
+      if (userData.username && existingUser.username !== userData.username) {
+        updates.username = userData.username
+      }
+      if (
+        userData.language_code &&
+        existingUser.language_code !== userData.language_code
+      ) {
+        updates.language_code = userData.language_code
+      }
+      // Add other fields to check and update if needed
+
+      if (Object.keys(updates).length > 0) {
+        logger.info('🔄 Обновление данных пользователя...', {
+          function: 'createUser',
+          telegramId: userData.telegram_id,
+          userId: existingUser.id,
+          updates,
+        })
         const { error: updateError } = await supabase
           .from('users')
           .update(updates)
-          .eq('telegram_id', telegram_id)
+          .eq('telegram_id', userData.telegram_id)
+        // .select() // Removed select as we return existingUser or updated user data below
 
         if (updateError) {
-          logger.error({
-            message: 'Ошибка при обновлении данных существующего пользователя',
-            telegramId: telegram_id,
-            userId: existingUser.id,
-            error: updateError.message,
-            function: 'createUser',
-          })
-          // TEST LOG
-          console.log('[TEST_LOG] Caught error during user update (inside if)')
-          // Не критично, возвращаем найденного пользователя все равно
-        } else {
-          logger.info({
-            message: 'Данные существующего пользователя успешно обновлены',
-            telegramId: telegram_id,
-            userId: existingUser.id,
-            function: 'createUser',
-          })
-          // Обновим existingUser новыми данными для возврата
-          Object.assign(existingUser, updates)
-        }
-      } catch (updateCatchError) {
-        // TEST LOG
-        console.log(
-          '[TEST_LOG] Caught unexpected error during user update (catch block)'
-        )
-        logger.error({
-          message:
-            'Неожиданная ошибка в блоке catch при обновлении пользователя',
-          telegramId: telegram_id,
-          error:
-            updateCatchError instanceof Error
-              ? updateCatchError.message
-              : String(updateCatchError),
-          function: 'createUser',
-        })
-        // Возвращаем исходного пользователя, так как обновление не удалось
-      }
-    }
-
-    return [false, existingUser] // Пользователь уже существовал
-  }
-
-  // 2. Пользователь не найден, пытаемся создать нового
-  logger.info({
-    message: 'Пользователь не найден, попытка создания нового',
-    telegramId: telegram_id,
-    username: finalUsername,
-    inviter,
-    function: 'createUser',
-  })
-
-  try {
-    const { data: newUser, error: resolvedError } = await supabase
-      .from('users')
-      .insert(userData) // Используем insert вместо upsert
-      .select('*') // Запрашиваем все поля созданного пользователя
-      .single() // Ожидаем одну запись
-
-    // This block might only run if the promise resolves, even if resolvedError is set.
-    // If promise rejects, this is skipped.
-    if (resolvedError) {
-      // This path seems less likely if .single() rejects on DB errors
-      logger.error({
-        message: 'Ошибка при создании нового пользователя (resolvedError)',
-        telegramId: telegram_id,
-        error: resolvedError.message,
-        details: (resolvedError as any).details,
-        hint: (resolvedError as any).hint,
-        code: (resolvedError as any).code,
-        function: 'createUser',
-      })
-      return [false, null]
-    }
-
-    // Handle successful insert (newUser should have data)
-    if (newUser) {
-      logger.info({
-        message: 'Пользователь успешно создан',
-        telegramId: telegram_id,
-        username: finalUsername,
-        userId: newUser.id,
-        function: 'createUser',
-      })
-      return [true, newUser] // Пользователь был создан
-    } else {
-      // Неожиданный случай: insert прошел без ошибки, но не вернул данные
-      logger.error({
-        message:
-          'Insert пользователя прошел без ошибки, но не вернул данные. Критическая ошибка.',
-        telegramId: telegram_id,
-        function: 'createUser',
-      })
-      // В этой ситуации сложно определить статус, возвращаем ошибку
-      return [false, null]
-    }
-  } catch (insertError) {
-    // Catch potential rejection from .single()
-    // TEST LOG
-    console.log(
-      `[TEST_LOG] Caught error during user insert (outer catch block): Code = ${
-        (insertError as any)?.code
-      }`
-    )
-
-    // Check for race condition HERE
-    if ((insertError as any)?.code === '23505') {
-      logger.warn({
-        message:
-          'Конфликт при создании (23505), пользователь мог быть создан параллельно. Повторный поиск.',
-        telegramId: telegram_id,
-        function: 'createUser',
-      })
-      // TEST LOG
-      console.log(
-        '[TEST_LOG] Caught race condition error (23505) in outer catch'
-      )
-      try {
-        // Perform the re-find logic as before
-        const { data: raceUser, error: raceFindError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('telegram_id', telegram_id)
-          .single() // Expect this to succeed in the test case
-
-        if (raceFindError || !raceUser) {
-          logger.error({
-            message: 'Ошибка при повторном поиске после конфликта 23505',
-            telegramId: telegram_id,
-            error:
-              raceFindError?.message ||
-              'Пользователь не найден после конфликта',
-            function: 'createUser',
-          })
-          // TEST LOG
-          console.log(
-            '[TEST_LOG] Error during re-find after 23505 (in outer catch)'
+          logger.error(
+            '❌ Ошибка при обновлении данных пользователя (outer catch):',
+            {
+              function: 'createUser',
+              telegramId: userData.telegram_id,
+              userId: existingUser.id,
+              updates,
+              error: updateError,
+              code: (updateError as any).code,
+              details: (updateError as any).details,
+              hint: (updateError as any).hint,
+            }
           )
-          return [false, null]
+          // Return the original user data even if update fails
+          return [false, existingUser]
         }
-        logger.info({
-          message:
-            'Пользователь найден при повторном поиске после конфликта 23505',
-          telegramId: telegram_id,
-          userId: raceUser.id,
+        logger.info('✅ Данные пользователя успешно обновлены.', {
           function: 'createUser',
+          telegramId: userData.telegram_id,
+          userId: existingUser.id,
         })
-        return [false, raceUser] // Return the found user
-      } catch (raceFindCatchError) {
-        logger.error({
-          message:
-            'Неожиданная ошибка в catch при повторном поиске после 23505',
-          telegramId: telegram_id,
-          error:
-            raceFindCatchError instanceof Error
-              ? raceFindCatchError.message
-              : String(raceFindCatchError),
+        // Return the updated user data
+        return [false, { ...existingUser, ...updates }]
+      } else {
+        logger.info(' zmiany не требуются.', {
+          //Typo needs fixing here
           function: 'createUser',
+          telegramId: userData.telegram_id,
+          userId: existingUser.id,
         })
-        // TEST LOG
-        console.log(
-          '[TEST_LOG] Caught unexpected error during re-find after 23505 (inner catch inside outer catch)'
-        )
-        return [false, null]
+        return [false, existingUser]
       }
-    } else {
-      // Handle other insert errors (non-23505)
-      logger.error({
-        message: 'Ошибка при создании нового пользователя (в catch)',
-        telegramId: telegram_id,
-        error:
-          insertError instanceof Error
-            ? insertError.message
-            : String(insertError),
-        details: (insertError as any)?.details,
-        hint: (insertError as any)?.hint,
-        code: (insertError as any)?.code,
-        function: 'createUser',
-      })
-      // TEST LOG
-      console.log(
-        '[TEST_LOG] Caught non-23505 error during user creation (in outer catch)'
-      )
-      return [false, null]
     }
+
+    // 3. User does not exist - create new user
+    logger.info('✨ Пользователь не найден. Создание нового пользователя...', {
+      function: 'createUser',
+      telegramId: userData.telegram_id,
+      userData,
+    })
+    try {
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .insert(userData)
+        .select('*')
+        .single()
+
+      if (newUser) {
+        logger.info('✅ Новый пользователь успешно создан.', {
+          function: 'createUser',
+          telegramId: userData.telegram_id,
+          userId: newUser.id,
+        })
+        return [true, newUser]
+      } else {
+        // Handle case where insert succeeded but returned no data (should not happen with .single())
+        logger.error(
+          '🤷 Вставка пользователя прошла без ошибок, но данные не возвращены.',
+          { function: 'createUser', telegramId: userData.telegram_id }
+        )
+        throw new Error('User insert succeeded but returned no data') // Throw error
+      }
+    } catch (insertCatchError: any) {
+      // Log the error caught during insert
+      logger.error(
+        '❌ Ошибка при создании нового пользователя (insertCatchError):',
+        {
+          function: 'createUser',
+          telegramId: userData.telegram_id,
+          error: insertCatchError.message,
+          code: insertCatchError.code,
+          details: insertCatchError.details,
+          hint: insertCatchError.hint,
+        }
+      )
+
+      // Handle race condition (duplicate key error code 23505) HERE
+      if (insertCatchError.code === '23505') {
+        logger.warn(
+          '🚦 Конфликт при создании пользователя (23505), пытаемся найти существующего (insertCatchError):',
+          {
+            function: 'createUser',
+            telegramId: userData.telegram_id,
+          }
+        )
+        // Re-attempt to find the user who likely just got created
+        try {
+          const { data: raceUser, error: raceError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('telegram_id', userData.telegram_id)
+            .single() // Use single here, expecting one user
+
+          if (raceError) {
+            logger.error(
+              '❌ Ошибка при повторном поиске пользователя после конфликта 23505 (race condition re-find):',
+              {
+                function: 'createUser',
+                telegramId: userData.telegram_id,
+                error: raceError,
+                code: (raceError as any).code,
+                details: (raceError as any).details,
+                hint: (raceError as any).hint,
+              }
+            )
+            throw raceError // Re-throw the raceError to be caught by the outer block
+          }
+          if (raceUser) {
+            logger.info('✅ Пользователь найден после конфликта 23505.', {
+              function: 'createUser',
+              telegramId: userData.telegram_id,
+            })
+            return [false, raceUser] // Return found user
+          } else {
+            // Should theoretically not happen if 23505 occurred, but handle defensively
+            logger.error(
+              '🤷 Пользователь не найден после конфликта 23505, хотя должен был быть создан.',
+              { function: 'createUser', telegramId: userData.telegram_id }
+            )
+            throw new Error('User not found after 23505 conflict') // Throw a new error
+          }
+        } catch (reFindError) {
+          // Catch errors during the re-find itself
+          logger.error(
+            '❌ Неожиданная ошибка при повторном поиске пользователя после 23505 (re-find catch):',
+            {
+              function: 'createUser',
+              telegramId: userData.telegram_id,
+              error:
+                reFindError instanceof Error
+                  ? reFindError.message
+                  : String(reFindError),
+            }
+          )
+          throw reFindError // Re-throw to outer catch
+        }
+      } else {
+        // If it wasn't a 23505 error, re-throw the original insert error
+        throw insertCatchError
+      }
+    }
+  } catch (error) {
+    // This is the OUTER catch block
+    logger.error('❌ Ошибка в функции createUser (outer catch):', {
+      function: 'createUser',
+      telegramId: userData?.telegram_id,
+      error: error instanceof Error ? error.message : String(error), // Log the message from the re-thrown error
+      error_details: error,
+    })
+    return [false, null]
   }
 }

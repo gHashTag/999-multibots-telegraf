@@ -99,137 +99,124 @@ vi.mock('@telegraf/types', async importOriginal => {
 })
 
 // Мок для telegraf
-vi.mock('telegraf', () => {
-  // --- Определяем классы сцен прямо здесь ---
-  class BaseSceneMock {
-    id: string
-    options: any
-    constructor(id: string, options: any = {}) {
-      this.id = id
-      this.options = options
-    }
-    enter = vi.fn().mockReturnThis()
-    leave = vi.fn().mockReturnThis()
-    hears = vi.fn().mockReturnThis()
-    action = vi.fn().mockReturnThis()
-    on = vi.fn().mockReturnThis()
-    command = vi.fn().mockReturnThis()
-    use = vi.fn().mockReturnThis()
-  }
+vi.mock('telegraf', async importOriginal => {
+  const original = await importOriginal<typeof import('telegraf')>()
 
-  class WizardSceneMock extends BaseSceneMock {
-    steps: any[]
-    constructor(id: string, ...steps: any[]) {
-      super(id)
-      this.steps = steps
-    }
-    middleware() {
-      return this.steps
-    }
-  }
-  // --- Конец определения классов сцен ---
-
-  // Создаем мок класса Telegraf
-  class TelegrafMock {
-    use: any
-    launch: any
-    telegram: any
-    start: any
-    command: any
-    action: any
-    hears: any
-    on: any
-    stop: any
-
-    constructor() {
-      this.use = vi.fn().mockReturnThis()
-      this.launch = vi.fn().mockResolvedValue(undefined)
-      this.telegram = {
-        sendMessage: vi.fn().mockResolvedValue({}),
-        sendPhoto: vi.fn().mockResolvedValue({}),
-        sendDocument: vi.fn().mockResolvedValue({}),
-        sendMediaGroup: vi.fn().mockResolvedValue({}),
-        setChatMenuButton: vi.fn().mockResolvedValue({}),
-        setMyCommands: vi.fn().mockResolvedValue({}),
+  // Максимально упрощенный мок Markup
+  const mockMarkup = {
+    keyboard: vi.fn(buttons => {
+      // Просто возвращаем объект с методом resize
+      const keyboardInstance = {
+        buttons: buttons,
+        resize: vi.fn(() => keyboardInstance), // resize возвращает сам себя
+        // Добавим другие методы цепочки, если они точно нужны
+        oneTime: vi.fn(() => keyboardInstance),
+        selective: vi.fn(() => keyboardInstance),
       }
-      this.start = vi.fn().mockReturnThis()
-      this.command = vi.fn().mockReturnThis()
-      this.action = vi.fn().mockReturnThis()
-      this.hears = vi.fn().mockReturnThis()
-      this.on = vi.fn().mockReturnThis()
-      this.stop = vi.fn().mockResolvedValue(undefined)
-    }
+      return keyboardInstance
+    }),
+    // ... остальные моки Markup ...
+    inlineKeyboard: vi.fn(buttons => ({ buttons })),
+    button: {
+      callback: vi.fn((text, data) => ({ text, data, type: 'callback' })),
+      url: vi.fn((text, url) => ({ text, url, type: 'url' })),
+    },
+    removeKeyboard: vi.fn(),
+    forceReply: vi.fn(),
   }
 
-  // Мок для класса Context
-  class ContextMock {
-    session: any
-    scene: any
-    reply: any
-    replyWithHTML: any
-    replyWithPhoto: any
-    replyWithMediaGroup: any
-    deleteMessage: any
-    editMessageText: any
-    editMessageReplyMarkup: any
-    from: any
-    chat: any
-    callbackQuery: any
+  const mockBot = vi.fn(() => ({
+    use: vi.fn(),
+    command: vi.fn(),
+    action: vi.fn(),
+    on: vi.fn(),
+    hears: vi.fn(),
+    catch: vi.fn(),
+    launch: vi.fn(),
+    stop: vi.fn(),
+    telegram: {
+      sendMessage: vi.fn(),
+      // ... другие методы API Telegram
+    },
+    context: {},
+    options: {},
+    handleUpdate: vi.fn(),
+  }))
 
-    constructor() {
-      this.session = {}
-      this.scene = {
-        enter: vi.fn().mockResolvedValue(undefined),
-        leave: vi.fn().mockResolvedValue(undefined),
-        state: {},
+  const mockStage = vi.fn(() => ({
+    middleware: vi.fn(() => (ctx, next) => next()),
+    register: vi.fn(),
+  }))
+
+  const mockBaseScene = vi.fn(() => ({
+    enter: vi.fn(),
+    leave: vi.fn(),
+    command: vi.fn(),
+    action: vi.fn(),
+    on: vi.fn(),
+    hears: vi.fn(),
+    use: vi.fn(),
+    middleware: vi.fn(() => (ctx, next) => next()), // Базовый middleware
+  }))
+
+  const mockWizardScene = {
+    steps: [],
+    enter: vi.fn((...fns) => {
+      mockWizardScene.enterHandler = fns[fns.length - 1]
+      return mockWizardScene
+    }),
+    leave: vi.fn((...fns) => {
+      mockWizardScene.leaveHandler = fns[fns.length - 1]
+      return mockWizardScene
+    }),
+    action: vi.fn(() => mockWizardScene),
+    on: vi.fn(() => mockWizardScene),
+    hears: vi.fn(() => mockWizardScene),
+    command: vi.fn(() => mockWizardScene),
+    use: vi.fn(() => mockWizardScene),
+    middleware: vi.fn(() => (ctx, next) => {
+      // Простая имитация middleware сцены
+      if (ctx.scene && ctx.scene.current === id) {
+        // Логика обработки шагов волшебника (если нужно)
       }
-      this.reply = vi.fn().mockResolvedValue({})
-      this.replyWithHTML = vi.fn().mockResolvedValue({})
-      this.replyWithPhoto = vi.fn().mockResolvedValue({})
-      this.replyWithMediaGroup = vi.fn().mockResolvedValue({})
-      this.deleteMessage = vi.fn().mockResolvedValue(true)
-      this.editMessageText = vi.fn().mockResolvedValue({})
-      this.editMessageReplyMarkup = vi.fn().mockResolvedValue({})
-      this.from = { id: 123456789, username: 'testuser' }
-      this.chat = { id: 123456789, type: 'private' }
-      this.callbackQuery = null
-    }
+      return next()
+    }),
+    enterHandler: null,
+    leaveHandler: null,
   }
+
+  // Добавляем методы-пустышки для других возможных вызовов
+  ;[
+    'start',
+    'enter',
+    'leave',
+    'command',
+    'action',
+    'on',
+    'hears',
+    'use',
+  ].forEach(method => {
+    if (!mockWizardScene[method]) {
+      mockWizardScene[method] = vi.fn(() => mockWizardScene)
+    }
+  })
 
   return {
-    Telegraf: TelegrafMock,
-    Context: ContextMock,
-    Markup: {
-      inlineKeyboard: vi
-        .fn()
-        .mockReturnValue({ reply_markup: { inline_keyboard: [] } }),
-      keyboard: vi.fn().mockReturnValue({ reply_markup: { keyboard: [] } }),
-      removeKeyboard: vi
-        .fn()
-        .mockReturnValue({ reply_markup: { remove_keyboard: true } }),
-    },
+    ...original,
+    Telegraf: vi.fn().mockImplementation(() => mockBot),
+    Markup: mockMarkup,
+    session: vi.fn(),
     Scenes: {
-      Stage: vi.fn().mockImplementation(() => ({
-        register: vi.fn().mockReturnThis(),
-        middleware: vi.fn().mockReturnValue(() => {}),
-        enter: vi.fn(() => (ctx: any) => ctx.scene?.enter()),
-        leave: vi.fn(() => (ctx: any) => ctx.scene?.leave()),
+      Stage: vi.fn().mockImplementation(() => mockStage),
+      BaseScene: vi.fn().mockImplementation(() => mockBaseScene),
+      WizardScene: vi.fn().mockImplementation((id, ...steps) => ({
+        ...mockWizardScene,
+        id,
+        steps,
       })),
-      BaseScene: BaseSceneMock,
-      WizardScene: WizardSceneMock,
-      SceneContext: vi.fn(),
-      SceneContextScene: vi.fn(),
-      WizardContext: vi.fn(),
-      WizardContextWizard: vi.fn(),
     },
-    Composer: vi.fn().mockImplementation(() => ({
-      use: vi.fn().mockReturnThis(),
-      action: vi.fn().mockReturnThis(),
-      command: vi.fn().mockReturnThis(),
-      hears: vi.fn().mockReturnThis(),
-      on: vi.fn().mockReturnThis(),
-    })),
-    session: vi.fn().mockReturnValue(() => {}),
+    Composer: { compose: vi.fn() },
+    Input: original.Input,
   }
 })
 

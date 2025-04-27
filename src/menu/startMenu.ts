@@ -1,13 +1,17 @@
-import { type MyContext } from '../interfaces'
+import { type MyContext } from '@/interfaces/context.interface'
 import { isRussian } from '@/helpers'
-import { levels } from './mainMenu'
 import { Markup } from 'telegraf'
+import { levels } from './mainMenu'
 
-export async function startMenu(ctx: MyContext, isRu: boolean) {
+export const startMenu = async (ctx: MyContext, isRu: boolean) => {
+  const text = isRu
+    ? 'Добро пожаловать в главное меню!'
+    : 'Welcome to the main menu!'
+
   await ctx.reply(
-    isRu ? 'Выберите действие в меню:' : 'Choose an action in the menu:',
+    text,
     Markup.keyboard([
-      [Markup.button.text(isRu ? levels[104].title_ru : levels[104].title_en)],
+      [isRu ? levels[104].title_ru : levels[104].title_en],
     ]).resize()
   )
 }

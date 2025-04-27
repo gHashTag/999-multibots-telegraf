@@ -136,7 +136,8 @@ export async function processStartCommand(
             try {
               const targetChatId =
                 typeof subscribeChannelId === 'string' &&
-                !subscribeChannelId.startsWith('-')
+                !subscribeChannelId.startsWith('-') &&
+                !subscribeChannelId.startsWith('@')
                   ? `@${subscribeChannelId}`
                   : subscribeChannelId
               await sendMessage(
@@ -165,7 +166,8 @@ export async function processStartCommand(
             try {
               const targetChatId =
                 typeof subscribeChannelId === 'string' &&
-                !subscribeChannelId.startsWith('-')
+                !subscribeChannelId.startsWith('-') &&
+                !subscribeChannelId.startsWith('@')
                   ? `@${subscribeChannelId}`
                   : subscribeChannelId
               await sendMessage(
@@ -254,7 +256,8 @@ export async function processStartCommand(
         try {
           const targetChatId =
             typeof subscribeChannelId === 'string' &&
-            !subscribeChannelId.startsWith('-')
+            !subscribeChannelId.startsWith('-') &&
+            !subscribeChannelId.startsWith('@')
               ? `@${subscribeChannelId}`
               : subscribeChannelId
           await sendMessage(

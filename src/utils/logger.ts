@@ -1,5 +1,3 @@
-import { createLogger, format, transports } from 'winston'
-
 import path from 'path'
 // Используем стандартный модуль fs
 import fs from 'fs'
@@ -16,7 +14,54 @@ if (!fs.existsSync(securityLogsDir)) {
   fs.mkdirSync(securityLogsDir, { recursive: true })
 }
 
-// Улучшенный формат для вывода метаданных и объектов
+// --- ВРЕМЕННАЯ ЗАГЛУШКА WINSTON ---
+const consoleLogger = {
+  info: (...args: any[]) => console.log('INFO:', ...args),
+  warn: (...args: any[]) => console.warn('WARN:', ...args),
+  error: (...args: any[]) => console.error('ERROR:', ...args),
+  debug: (...args: any[]) => console.debug('DEBUG:', ...args),
+}
+
+export const logger = consoleLogger
+
+export const botLogger = {
+  info: (botName: string, message: string, meta?: Record<string, any>) => {
+    console.log(`INFO: [${botName}] ${message}`, meta || '')
+  },
+  warn: (botName: string, message: string, meta?: Record<string, any>) => {
+    console.warn(`WARN: [${botName}] ${message}`, meta || '')
+  },
+  error: (botName: string, message: string, meta?: Record<string, any>) => {
+    console.error(`ERROR: [${botName}] ${message}`, meta || '')
+  },
+  debug: (botName: string, message: string, meta?: Record<string, any>) => {
+    console.debug(`DEBUG: [${botName}] ${message}`, meta || '')
+  },
+}
+
+export const securityLogger = {
+  info: (...args: any[]) => console.log('SEC_INFO:', ...args),
+  warn: (...args: any[]) => console.warn('SEC_WARN:', ...args),
+  error: (...args: any[]) => console.error('SEC_ERROR:', ...args),
+  debug: (...args: any[]) => console.debug('SEC_DEBUG:', ...args),
+}
+
+export const logSecurityEvent = (
+  eventType: string,
+  details: Record<string, any>,
+  severity: 'info' | 'warn' | 'error' = 'warn'
+) => {
+  securityLogger[severity](`Событие безопасности: ${eventType}`, {
+    ...details,
+    timestamp: new Date().toISOString(),
+    eventType,
+  })
+}
+
+export default logger
+// --- КОНЕЦ ВРЕМЕННОЙ ЗАГЛУШКИ ---
+
+/* // --- ОРИГИНАЛЬНЫЙ КОД WINSTON (ЗАКОММЕНТИРОВАНО) --- 
 const prettyJson = format(info => {
   const { timestamp, level, message, ...rest } = info
 
@@ -68,11 +113,10 @@ const prettyJson = format(info => {
   return { ...info, formattedMetadata: formatMetadata(rest) }
 })
 
-// Общий формат для всех логгеров
 const commonFormat = format.combine(
   format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   format.errors({ stack: true }),
-  prettyJson(),
+  prettyJson,
   format.printf(({ level, message, timestamp, stack, formattedMetadata }) => {
     // Эмодзи для разных уровней логов
     const levelEmoji =
@@ -91,11 +135,8 @@ const commonFormat = format.combine(
   })
 )
 
-// Определяем базовые транспорты (консоль)
-// Указываем тип any[], чтобы разрешить разные транспорты
 const baseTransports: any[] = [new transports.Console()]
 
-// Добавляем файловые транспорты только если не режим теста
 if (process.env.NODE_ENV !== 'test') {
   baseTransports.push(
     new transports.File({
@@ -108,34 +149,16 @@ if (process.env.NODE_ENV !== 'test') {
   )
 }
 
-// Основной логгер приложения
 export const logger = createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: commonFormat,
-  transports: baseTransports, // Используем сформированный массив транспортов
+  transports: baseTransports,
 })
 
-// Логгер для ботов с дополнительным контекстом имени бота
-export const botLogger = {
-  info: (botName: string, message: string, meta?: Record<string, any>) => {
-    logger.info(`[${botName}] ${message}`, meta)
-  },
-  warn: (botName: string, message: string, meta?: Record<string, any>) => {
-    logger.warn(`[${botName}] ${message}`, meta)
-  },
-  error: (botName: string, message: string, meta?: Record<string, any>) => {
-    logger.error(`[${botName}] ${message}`, meta)
-  },
-  debug: (botName: string, message: string, meta?: Record<string, any>) => {
-    logger.debug(`[${botName}] ${message}`, meta)
-  },
-}
+export const botLogger = { ... }; // Определен выше в заглушке
 
-// Определяем транспорты для логгера безопасности
-// Указываем тип any[], чтобы разрешить разные транспорты
 const securityTransports: any[] = []
 
-// Добавляем файловые транспорты только если не режим теста
 if (process.env.NODE_ENV !== 'test') {
   securityTransports.push(
     new transports.File({
@@ -149,7 +172,6 @@ if (process.env.NODE_ENV !== 'test') {
   )
 }
 
-// Если мы не в продакшене И не в тесте, также выводим логи безопасности в консоль
 if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
   // Добавляем Console транспорт, если его еще нет
   if (!securityTransports.some(t => t instanceof transports.Console)) {
@@ -161,7 +183,6 @@ if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
   }
 }
 
-// Логгер безопасности для отслеживания подозрительной активности
 export const securityLogger = createLogger({
   level: 'info',
   format: format.combine(
@@ -169,20 +190,10 @@ export const securityLogger = createLogger({
     format.json()
   ),
   defaultMeta: { service: 'security' },
-  transports: securityTransports, // Используем сформированный массив транспортов
+  transports: securityTransports,
 })
 
-// Хелпер для логирования попыток неавторизованного доступа
-export const logSecurityEvent = (
-  eventType: string,
-  details: Record<string, any>,
-  severity: 'info' | 'warn' | 'error' = 'warn'
-) => {
-  securityLogger[severity](`Событие безопасности: ${eventType}`, {
-    ...details,
-    timestamp: new Date().toISOString(),
-    eventType,
-  })
-}
+export const logSecurityEvent = ( ... ); // Определен выше в заглушке
 
-export default logger
+export default logger;
+--- КОНЕЦ ОРИГИНАЛЬНОГО КОДА --- */

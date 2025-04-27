@@ -167,10 +167,12 @@ export const getUserDetailsSubscription = async (
             { telegramId: telegramIdStr }
           )
         } else {
-          // Тип подписки распознан, теперь проверяем активность
+          // Тип подписки распознан, запоминаем его СРАЗУ
+          finalSubscriptionType = foundSubType
+
+          // Теперь проверяем активность
           if (foundSubType === SubscriptionType.NEUROTESTER) {
             isActive = true // Тестеры активны всегда
-            finalSubscriptionType = foundSubType
             logger.info(
               `[getUserDetailsSubscription v4.0 SIMPLE Step 3 OK] NEUROTESTER активен (безлимит)`,
               {
@@ -189,9 +191,6 @@ export const getUserDetailsSubscription = async (
                 paymentDate.getDate() + SUBSCRIPTION_DURATION_DAYS
               )
               isActive = now < expirationDate // Активна, если не истекла
-              if (isActive) {
-                finalSubscriptionType = foundSubType
-              }
               logger.info(
                 `[getUserDetailsSubscription v4.0 SIMPLE Step 3 OK] Проверка подписки`,
                 {
@@ -238,10 +237,10 @@ export const getUserDetailsSubscription = async (
     // --- ШАГ 4: Собираем финальный результат ---
     const result: UserDetailsResult = {
       stars: calculatedStars,
-      subscriptionType: finalSubscriptionType, // Тип из Шага 3
+      subscriptionType: finalSubscriptionType, // Тип из Шага 3 (теперь не зависит от isActive, кроме как при ненахождении)
       isSubscriptionActive: isActive, // Активность из Шага 3
       isExist: userExists,
-      subscriptionStartDate: isActive ? startDateDb : null,
+      subscriptionStartDate: startDateDb, // Дата из Шага 3 (теперь не зависит от isActive)
     }
 
     logger.info(`[getUserDetailsSubscription v4.0 SIMPLE Finish] Результат`, {
