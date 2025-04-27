@@ -8,13 +8,16 @@ import {
   getUserByTelegramId,
   updateUserLevelPlusOne,
 } from '../../core/supabase'
+import { ModeEnum } from '../../interfaces/modes'
+import { logger } from '../../utils/logger'
+
 interface WizardSessionData extends Scenes.WizardSessionData {
   company?: string
   position?: string
 }
 
 export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
-  'avatar_brain',
+  ModeEnum.Avatar,
   async ctx => {
     const isRu = isRussian(ctx)
     await ctx.reply(
@@ -86,10 +89,18 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
     const telegram_id = ctx.from.id
 
     const userExists = await getUserByTelegramId(ctx)
-    if (!userExists.data) {
-      throw new Error(`User with ID ${telegram_id} does not exist.`)
+    if (!userExists) {
+      logger.error(
+        `[avatarBrainWizard] User not found by getUserByTelegramId for telegramId: ${telegram_id}`
+      )
+      await ctx.reply(
+        isRussian(ctx)
+          ? 'Не удалось найти ваши данные. Попробуйте позже.'
+          : 'Could not find your data. Please try again later.'
+      )
+      return ctx.scene.leave()
     }
-    const level = userExists.data.level
+    const level = userExists.level
     if (level === 3) {
       await updateUserLevelPlusOne(telegram_id.toString(), level)
     }
