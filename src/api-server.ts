@@ -1,4 +1,5 @@
-import { startFastifyServer } from './fastify-server'
+import { createFastifyApp } from './fastify-server'
+import { launchBots } from './bot'
 import { logger } from '@/utils/logger'
 import { API_SERVER_URL, PORT } from '@/config'
 
@@ -11,8 +12,18 @@ const port = parseInt(PORT || '3000', 10)
 async function startApiServer() {
   try {
     logger.info('Starting API server...')
-    // Запускаем Fastify сервер
-    await startFastifyServer(port)
+    await launchBots() // Сначала запускаем ботов
+
+    // Создаем, но НЕ запускаем Fastify приложение здесь
+    // Запуск будет через Vercel handler или локально для разработки
+    const app = await createFastifyApp()
+    logger.info('Fastify app created in api-server, ready for handler.')
+
+    // Локальный запуск для разработки можно оставить здесь (если нужно)
+    // if (process.env.NODE_ENV !== 'production') {
+    //   await app.listen({ port: 3000 });
+    //   logger.info('Fastify server listening on port 3000 for development');
+    // }
 
     logger.info(
       `📡 API Server URL: ${API_SERVER_URL || `http://localhost:${port}`}`

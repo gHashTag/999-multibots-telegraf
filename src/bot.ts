@@ -11,9 +11,11 @@ import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update } from 'telegraf/types'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
+import { logger } from './utils/logger'
+import { ADMIN_IDS_ARRAY } from './config'
 
-// Инициализация ботов
-const botInstances: Telegraf<MyContext>[] = []
+// Глобальный массив для хранения экземпляров ботов
+export const botInstances: Telegraf<MyContext>[] = []
 
 // Функция для проверки валидности токена
 export async function validateBotToken(token: string): Promise<boolean> {
@@ -263,3 +265,56 @@ initializeBots()
     console.error('❌ Ошибка при инициализации ботов:', error)
     process.exit(1)
   })
+
+/**
+ * Запускает всех ботов, указанных в process.env.BOT_TOKENS.
+ */
+export async function launchBots() {
+  const botTokensEnv = process.env.BOT_TOKENS
+  if (!botTokensEnv) {
+    // logger.error( // Убедимся, что logger импортирован или удалим использование
+    //  '❌ Переменная окружения BOT_TOKENS не установлена. Невозможно запустить ботов.'
+    // )
+    console.error(
+      '❌ Переменная окружения BOT_TOKENS не установлена. Невозможно запустить ботов.'
+    )
+    return
+  }
+
+  const tokens = botTokensEnv.split(',').map(token => token.trim())
+  logger.info(`Found ${tokens.length} bot tokens. Initializing...`)
+
+  for (const token of tokens) {
+    if (!token) continue
+    try {
+      const bot = new Telegraf<MyContext>(token)
+
+      // Получаем информацию о боте асинхронно
+      const botInfo = await bot.telegram.getMe()
+      bot.botInfo = botInfo // Сохраняем информацию о боте
+      logger.info(`Initializing bot: ${botInfo.username} (ID: ${botInfo.id})`)
+
+      botInstances.push(bot) // Добавляем экземпляр в массив
+
+      // Настройка бота (сцены, команды, мидлвары) происходит через registerCommands
+      // await startBotInstance(bot) // Removed unused call
+    } catch (error) {
+      logger.error(
+        `❌ Failed to initialize bot with token fragment: ...${token.slice(-5)}`,
+        error
+      )
+    }
+  }
+
+  if (botInstances.length === 0) {
+    logger.warn('No bots were launched. Check BOT_TOKENS environment variable.')
+  }
+
+  // Запуск регистрации команд после инициализации ботов
+  if (botInstances.length > 0) {
+    // await registerCommands(botInstances[0]) // Пример для одного бота, нужно адаптировать
+    logger.info('Command registration might be needed here.')
+  }
+
+  logger.info(`Total bots launched: ${botInstances.length}`)
+}

@@ -213,6 +213,3 @@ function registerRoutes(serverInstance: FastifyInstance) {
     }
   )
 }
-
-// Оставляем экспорт по умолчанию, он понадобится для Vercel
-export default server

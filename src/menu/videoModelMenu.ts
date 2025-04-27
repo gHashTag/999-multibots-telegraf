@@ -1,11 +1,12 @@
 import { Markup } from 'telegraf'
 // Убираем импорт InlineKeyboardMarkup, он не нужен
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import type { ReplyKeyboardMarkup } from 'telegraf/types'
 // import { VIDEO_MODELS } from '@/interfaces' // Старый импорт не нужен
-import { VIDEO_MODELS_CONFIG } from '@/config/models.config' // Импортируем конфиг
+import { VIDEO_MODELS_CONFIG } from '../price/models/VIDEO_MODELS_CONFIG' // Импортируем конфиг
 // Импортируем функцию расчета финальной цены
 import { calculateFinalPrice } from '@/price/helpers'
 import { levels } from './mainMenu'
+import { Translation } from '@/interfaces/translations.interface'
 
 export const videoModelKeyboard = (
   isRu: boolean

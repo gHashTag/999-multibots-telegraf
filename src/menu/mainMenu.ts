@@ -1,6 +1,6 @@
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
-import { checkFullAccess } from '../handlers/checkFullAccess'
 import { Markup } from 'telegraf'
+import type { ReplyKeyboardMarkup } from 'telegraf/types'
+import { checkFullAccess } from '../handlers/checkFullAccess'
 import { MyContext } from '../interfaces/telegram-bot.interface'
 import { SubscriptionType } from '../interfaces/subscription.interface'
 

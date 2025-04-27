@@ -46,8 +46,8 @@
     "noEmitOnError": false,
     "checkJs": false,
     "skipDefaultLibCheck": true,
-    "verbatimModuleSyntax": true,
-    "isolatedModules": true,
+    "verbatimModuleSyntax": false,
+    "isolatedModules": false,
     "moduleDetection": "force"
   },
   "ts-node": {

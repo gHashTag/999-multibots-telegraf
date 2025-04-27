@@ -1,5 +1,5 @@
 import { Markup } from 'telegraf'
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import type { ReplyKeyboardMarkup } from 'telegraf/types'
 
 export function getStepSelectionMenu(
   isRu: boolean
