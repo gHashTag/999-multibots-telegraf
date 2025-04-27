@@ -397,16 +397,22 @@ async function ensureInitialized() {
 
 // Обработчик для Vercel
 export default async (req: any, res: any) => {
+  // !!! ДОБАВЛЯЕМ ЛОГ В САМОМ НАЧАЛЕ !!!
+  console.log(`[VERCEL HANDLER ENTRY] Request received for: ${req.url}`)
   try {
     // Убеждаемся, что инициализация завершена перед обработкой запроса
     await ensureInitialized()
-
+    console.log(
+      `[VERCEL HANDLER] Initialization ensured. Emitting request to Fastify.`
+    )
     // Передаем запрос на обработку в Fastify
     // Мы используем server.server.emit, так как Fastify под капотом использует http.Server
     server.server.emit('request', req, res)
   } catch (error) {
     // Обработка ошибок инициализации или других проблем
     console.error('Error handling request in Vercel function:', error)
+    // Добавляем лог перед отправкой ответа
+    console.log(`[VERCEL HANDLER] Sending 500 error response.`)
     res.statusCode = 500
     res.setHeader('Content-Type', 'application/json')
     res.end(
