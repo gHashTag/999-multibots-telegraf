@@ -1,0 +1,135 @@
+# Inherited from .gitignore
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory
+coverage
+*.lcov
+.nyc_output
+
+# Build outputs (handled by Vercel, or should be ignored if already built)
+# dist/ # Let Vercel build the dist folder
+# build/
+# out/
+# .next/
+# .nuxt/
+
+# Dependency directories (handled by Vercel)
+node_modules/
+jspm_packages/
+web_modules/
+bower_components
+
+# Caches
+*.tsbuildinfo
+.npm
+.eslintcache
+.stylelintcache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+.cache/
+.parcel-cache
+.vuepress/dist
+.temp
+.docusaurus
+.fusebox/
+.dynamodb/
+
+# Temp/System files
+.DS_Store
+tmp/
+tmp_tests/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+.vscode-test
+.tern-port
+.lock-wscript
+.grunt
+lib-cov
+.node_repl_history
+*.tgz
+.yarn-integrity
+.serverless/
+
+# Secrets / Environment files (SHOULD NOT BE IN GIT ANYWAY!)
+.env
+.env.*
+!.env.example
+.vault_password
+
+# Specific project files not needed for deployment
+.git/
+.husky/
+.vscode/
+scripts/
+docs/
+ROADMAP.md
+README.md
+README-RU.md
+CHANGELOG-VITE.md
+VITE-NODE.md
+DEPLOYMENT.md
+*.sh
+*.yml
+*.yaml
+Makefile
+*.json # Be careful here, might exclude necessary config if not specific
+!.vercelignore
+!.gitignore
+!package.json
+!package.prod.json
+!pnpm-lock.yaml
+!tsconfig.json
+!tsconfig.node.json
+!tsconfig.prod.json
+!vite.config.ts
+!vite-bot.config.ts
+!vitest.config.*
+!.eslintrc.cjs
+!.swcrc
+!.npmrc
+!.dockerignore
+!.prettierrc
+!.editorconfig
+nginx-config/
+docker-compose.yml
+Dockerfile
+# Source code (if Vercel builds from dist/)
+# src/ # Keep src if Vercel needs it for build
+
+# Tests (not needed in production)
+__tests__/
+mocks/ # If mocks are only for tests
+
+# Other potentially unnecessary files/dirs
+data/
+html/
+html-report/
+etc/
+roles/
+inventory
+playbook.yml
+ansible.cfg
+patches/
+database/ # Unless it contains migrations needed at runtime
+supabase/ # Unless it contains runtime functions/config 
