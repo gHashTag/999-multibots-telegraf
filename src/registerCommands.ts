@@ -328,14 +328,6 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   // Register payment handlers (pre_checkout_query, successful_payment, etc.)
   registerPaymentActions(bot)
 
-  // <<< НАЧАЛО: ДОБАВЛЕННЫЕ ОБРАБОТЧИКИ HEARS >>>
-  bot.hears([levels[106].title_ru, levels[106].title_en], async ctx => {
-    console.log('CASE bot.hears: ❓ Справка / Help')
-    // Всегда входим в 'helpScene'. Сцена сама определит контекст по ctx.session.mode, если он есть.
-    console.log('INFO: Entering helpScene from Hears Handler')
-    await ctx.scene.enter('helpScene')
-  })
-
   bot.hears([levels[104].title_ru, levels[104].title_en], async ctx => {
     console.log('CASE bot.hears: 🏠 Главное меню / Main menu')
     // Логика аналогична /menu
