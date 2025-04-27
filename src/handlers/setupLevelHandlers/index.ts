@@ -14,7 +14,7 @@ import {
   handleLevel11,
   handleQuestComplete,
 } from '../../scenes/levelQuestWizard/handlers'
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 
 export function setupLevelHandlers(bot: Telegraf<MyContext>) {
   bot.action('level_1', handleLevel1)

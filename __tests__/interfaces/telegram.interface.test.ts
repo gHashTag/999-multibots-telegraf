@@ -1,9 +1,11 @@
-import {
+import type {
   TelegramId,
   TelegramUser,
+} from '@/interfaces/telegram.interface'
+import {
   normalizeTelegramId,
   isValidTelegramId,
-} from './telegram.interface'
+} from '@/interfaces/telegram.interface'
 
 describe('Telegram Interface', () => {
   describe('TelegramId type', () => {

@@ -1,15 +1,15 @@
 import { Markup, Scenes } from 'telegraf'
 import type { MyContext } from '../../interfaces'
 import { handleMenu } from '@/handlers'
-import type { getTranslation } from '@/core/supabase'
+import { getTranslation } from '@/core/supabase'
 import { isRussian } from '@/helpers'
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
-import type { SubscriptionType } from '@/interfaces/subscription.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 import type { TranslationButton } from '@/interfaces/supabase.interface'
 import { getUserDetailsSubscription } from '@/core/supabase'
 import { logger } from '@/utils/logger'
-import type { PaymentType } from '@/interfaces/payments.interface'
+import { PaymentType } from '@/interfaces/payments.interface'
 // Проверка валидности типа подписки
 export function isValidPaymentSubscription(value: string): value is string {
   // Преобразуем значение в верхний регистр для сравнения с SubscriptionType

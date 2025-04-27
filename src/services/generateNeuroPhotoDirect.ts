@@ -1,4 +1,4 @@
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { isRussian } from '@/helpers/language'
 import type { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
@@ -10,16 +10,16 @@ import {
 } from '@/core/supabase'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { directPaymentProcessor } from '@/core/supabase/directPayment'
-import type { PaymentType } from '@/interfaces/payments.interface'
+import { PaymentType } from '@/interfaces/payments.interface'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import type { MediaPulseOptions } from '@/helpers/pulse'
 import { sendMediaToPulse } from '@/helpers/pulse'
-import type { processApiResponse } from '@/helpers/error/processApiResponse'
+import { processApiResponse } from '@/helpers/error/processApiResponse'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import { v4 as uuidv4 } from 'uuid'
 import type { ApiResponse } from '@/interfaces/api.interface'
-import type { BotName } from '@/interfaces'
+import type { BotName } from '@/interfaces/telegram-bot.interface'
 /**
  * Прямая генерация нейрофото V1 без использования Inngest.
  * Используется как резервный вариант при отсутствии доступа к Inngest.

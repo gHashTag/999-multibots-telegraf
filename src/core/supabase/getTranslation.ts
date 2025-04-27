@@ -4,7 +4,7 @@ import type { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
 import logger from '@/utils/logger'
 import { isRussian } from '@/helpers/language'
 import type { TranslationButton } from '@/interfaces/supabase.interface'
-import type { SubscriptionType } from '@/interfaces/subscription.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 // Интерфейс для структуры кнопки из базы данных
 const DEFAULT_BUTTONS_RU: TranslationButton[] = [

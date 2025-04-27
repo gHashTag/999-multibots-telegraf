@@ -1,6 +1,6 @@
 import type { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
-import type { SubscriptionType } from '@/interfaces/subscription.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 import {
   getInvoiceId,
   merchantLogin,

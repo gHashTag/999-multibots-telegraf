@@ -11,7 +11,7 @@ import {
   Currency,
   PaymentType,
 } from '@/interfaces/payments.interface'
-import type { SubscriptionType } from '@/interfaces/subscription.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 const merchantLogin = MERCHANT_LOGIN
 const password1 = PASSWORD1
 

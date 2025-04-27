@@ -2,16 +2,16 @@
 // import { replicate } from '@/core/replicate'
 // import { getAspectRatio, savePrompt } from '@/core/supabase'
 // import { downloadFile } from '@/helpers'
-// import type { processApiResponse } from '@/helpers/error'
+// import { processApiResponse } from '@/helpers/error'
 // import { pulse } from '@/helpers/pulse'
 // import {
 //   getUserByTelegramIdString,
 //   updateUserLevelPlusOne,
 // } from '@/core/supabase'
 // import { IMAGES_MODELS } from '@/price/models'
-// import type { ModeEnum } from '@/interfaces/modes'
+// import { ModeEnum } from '@/interfaces/modes'
 // // import { processBalanceOperation } from '@/price/helpers'
-// // import type { PaymentType } from '@/interfaces/payments.interface'
+// // import { PaymentType } from '@/interfaces/payments.interface'
 // import { Telegraf } from 'telegraf'
 // import type { MyContext } from '@/interfaces'
 // import { saveFileLocally } from '@/helpers/saveFileLocally'

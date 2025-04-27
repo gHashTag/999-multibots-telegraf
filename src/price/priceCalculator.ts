@@ -1,4 +1,4 @@
-import type { SubscriptionType } from '@/interfaces/subscription.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 // Базовые константы
 const COST_PER_STEP_IN_STARS = 0.22

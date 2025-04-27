@@ -1,7 +1,7 @@
 import type { MyContext } from '@/interfaces'
 import { Scenes } from 'telegraf'
 import { getUserBalance } from '@/core/supabase'
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 export const balanceScene = new Scenes.WizardScene<MyContext>(
   'balanceScene',
   async (ctx: MyContext) => {

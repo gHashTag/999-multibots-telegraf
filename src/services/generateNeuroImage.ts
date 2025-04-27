@@ -1,8 +1,9 @@
 import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { isRussian } from '@/helpers/language'
-import type { MyContext, ModelUrl } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
+import type { ModelUrl } from '@/interfaces/models.interface'
 import { logger } from '@/utils/logger'
-import { InputMediaPhoto } from 'telegraf/types'
+import type { InputMediaPhoto } from 'telegraf/types'
 
 export async function generateNeuroImage(
   prompt: string,

@@ -1,6 +1,6 @@
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import type { TelegramId } from './telegram.interface'
-import type { SubscriptionType } from './subscription.interface'
+import { SubscriptionType } from './subscription.interface'
 
 export interface SelectedPayment {
   amount: number

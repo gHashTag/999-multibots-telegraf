@@ -15,7 +15,7 @@ import {
   sendServiceErrorToUser,
   sendServiceErrorToAdmin,
 } from '@/helpers/error'
-import type { toBotName } from '@/helpers/botName.helper'
+import { toBotName } from '@/helpers/botName.helper'
 import { logger } from '@/utils/logger'
 
 import { generateVideo } from '@/core/replicate/generateVideo'

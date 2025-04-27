@@ -2,7 +2,7 @@ import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 import { checkFullAccess } from '../handlers/checkFullAccess'
 import { Markup } from 'telegraf'
 import type { MyContext } from '../interfaces/telegram-bot.interface'
-import type { SubscriptionType } from '../interfaces/subscription.interface'
+import { SubscriptionType } from '../interfaces/subscription.interface'
 
 interface Level {
   title_ru: string

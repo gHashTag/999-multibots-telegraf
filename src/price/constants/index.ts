@@ -13,7 +13,7 @@ export const SYSTEM_CONFIG = {
 }
 
 // Импорт типов после объявления примитивных констант
-import type { ModeEnum } from '../../interfaces/modes'
+import { ModeEnum } from '../../interfaces/modes'
 
 // Star purchase limits
 export const STAR_AMOUNTS = {

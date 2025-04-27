@@ -30,7 +30,9 @@
     "prepare": "husky install",
     "clean": "rimraf dist coverage .vite",
     "reset": "pnpm clean && rimraf node_modules .pnpm-store && pnpm install",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "api": "tsx src/api-server.ts",
+    "api:prod": "node dist/api-server.js"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -39,7 +41,11 @@
     ]
   },
   "dependencies": {
+    "@fastify/compress": "^8.0.1",
+    "@fastify/cors": "^11.0.1",
     "@fastify/express": "^4.0.2",
+    "@fastify/helmet": "^13.0.1",
+    "@fastify/rate-limit": "^10.2.2",
     "@supabase/supabase-js": "^2.39.3",
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.0",
@@ -84,8 +90,10 @@
     "@types/uuid": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
+    "@vitest/browser": "^3.1.2",
     "@vitest/coverage-v8": "^1.0.4",
     "@vitest/ui": "^1.0.4",
+    "cross-fetch": "^4.1.0",
     "dotenv-expand": "^12.0.2",
     "esbuild-visualizer": "^0.7.0",
     "eslint": "^8.56.0",
@@ -121,6 +129,7 @@
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^1.4.0",
     "vitest-fetch-mock": "^0.2.0",
+    "vitest-github-actions-reporter": "^0.11.1",
     "vitest-mock-extended": "^3.1.0"
   }
 }

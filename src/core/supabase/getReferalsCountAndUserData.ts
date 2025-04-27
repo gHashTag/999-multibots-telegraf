@@ -1,4 +1,4 @@
-import type { SubscriptionType } from '@/interfaces/subscription.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { supabase } from '@/core/supabase'
 import { UserType } from '@/interfaces/supabase.interface'
 import { getUserDetailsSubscription } from './getUserDetailsSubscription'

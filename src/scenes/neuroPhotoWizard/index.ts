@@ -1,5 +1,5 @@
 import type { MyContext } from '@/interfaces'
-import { ModelUrl } from '@/interfaces'
+import type { ModelUrl } from '@/interfaces/models.interface'
 import { Markup } from 'telegraf'
 
 import { generateNeuroImage } from '@/services/generateNeuroImage'
@@ -14,7 +14,7 @@ import {
   sendPhotoDescriptionRequest,
 } from '@/menu'
 import { handleMenu } from '@/handlers'
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { WizardScene } from 'telegraf/scenes'
 import { navigationMenu } from '@/menu/navigationMenu'

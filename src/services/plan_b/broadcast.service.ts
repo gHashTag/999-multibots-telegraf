@@ -2,8 +2,9 @@ import { supabase } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { avatarService } from './avatar.service'
-import type { BotName } from '@/interfaces'
-import type { toBotName } from '@/helpers/botName.helper'
+import * as FS from 'fs'
+import type { BotName } from '@/interfaces/telegram-bot.interface'
+import { toBotName } from '@/helpers/botName.helper'
 
 export interface BroadcastResult {
   successCount: number

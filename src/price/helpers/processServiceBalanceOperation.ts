@@ -7,7 +7,7 @@ import {
 import { Telegraf } from 'telegraf' // Нужен для отправки сообщения о недостатке средств
 import type { MyContext } from '@/interfaces'
 import logger from '@/utils/logger'
-import type { ModeEnum } from '@/interfaces'
+import { ModeEnum } from '@/interfaces'
 
 // Определим тип для результата, аналогичный BalanceOperationResult, но без ctx-зависимых полей
 export interface ServiceBalanceOperationResult {

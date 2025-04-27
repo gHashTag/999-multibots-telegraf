@@ -1,5 +1,5 @@
 import { supabase } from '@/core/supabase'
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 
 export const savePromptDirect = async (
   prompt: string,

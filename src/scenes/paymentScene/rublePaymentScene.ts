@@ -1,6 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
-import type { MyContext, SessionPayment } from '@/interfaces'
-import type { ModeEnum } from '@/interfaces/modes'
+import type { MyContext } from '@/interfaces'
+import type { SessionPayment } from '@/interfaces/payments.interface'
+import { ModeEnum } from '@/interfaces/modes'
 import { handleSelectRubAmount } from '@/handlers'
 import { isRussian } from '@/helpers'
 import { logger } from '@/utils/logger'
@@ -9,8 +10,9 @@ import {
   getInvoiceId,
 } from '@/scenes/getRuBillWizard/helper'
 import { setPayments } from '@/core/supabase'
-import type { PaymentType } from '@/interfaces/payments.interface'
-import type { SubscriptionType } from '@/interfaces/subscription.interface'
+import { PaymentType } from '@/interfaces/payments.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { cancelMenu } from '@/menu/cancelMenu'
 
 // Manually define subscription details here for now
 // TODO: Move this to a proper config file or fetch from DB

@@ -1,4 +1,4 @@
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { PricingStrategy } from '@/price/types/strategies'
 
 /**

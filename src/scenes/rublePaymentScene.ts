@@ -1,20 +1,22 @@
 import { Markup, Scenes } from 'telegraf'
-import type { MyContext, SessionData, SelectedPayment } from '@/interfaces'
+import type { MyContext } from '@/interfaces'
+import type { SessionData } from '@/interfaces/telegram-bot.interface'
 import { isRussian } from '@/helpers'
 import { handleSelectRubAmount } from '@/handlers'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
 import { getInvoiceId } from '@/scenes/getRuBillWizard/helper'
 import { MERCHANT_LOGIN, PASSWORD1 } from '@/config'
 import { setPayments } from '@/core/supabase'
-import type { getBotNameByToken } from '@/core'
+import { getBotNameByToken } from '@/core/bot'
 import { logger } from '@/utils/logger'
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 
 import {
   PaymentStatus,
   Currency,
   PaymentType,
 } from '@/interfaces/payments.interface'
+import type { SelectedPayment } from '@/interfaces/payments.interface'
 
 export const rublePaymentScene = new Scenes.BaseScene<MyContext>(
   ModeEnum.RublePaymentScene

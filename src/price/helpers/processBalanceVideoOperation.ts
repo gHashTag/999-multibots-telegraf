@@ -5,7 +5,7 @@ import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { calculateFinalPrice } from './calculateFinalPrice'
 
 import { logger } from '@/utils/logger'
-import type { PaymentType } from '@/interfaces/payments.interface'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 /**
  * Обрабатывает операцию с балансом для видео

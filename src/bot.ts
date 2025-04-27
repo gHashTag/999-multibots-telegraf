@@ -4,6 +4,7 @@ import path from 'path'
 import os from 'os'
 import { checkAndCreateLockFile } from './utils/checkAndCreateLockFile'
 import { logger } from './utils/logger'
+import startApiServer from './api-server'
 
 // Путь к файлу конфликта
 const CONFLICT_LOG_PATH = path.join(process.cwd(), 'logs', 'telegram_conflicts')
@@ -343,6 +344,11 @@ process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 // Функция запуска бота
 export async function startBot(): Promise<void> {
   try {
+    logger.info('🚀 Starting bot...');
+
+    // Запускаем API-сервер
+    await startApiServer();
+    
     // Проверяем, возможно ли запустить экземпляр бота
     if (!checkAndCreateLockFile()) {
       logger.error(

@@ -6,7 +6,7 @@ import { starAmounts } from '@/price/helpers/starAmounts' // Предполаг�
 import { setPayments } from '@/core/supabase'
 import type { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { handleTopUp } from '@/handlers/paymentHandlers/handleTopUp'
 
 export const starPaymentScene = new Scenes.BaseScene<MyContext>(

@@ -9,7 +9,7 @@ import {
   PaymentStatus,
   PaymentType,
 } from '@/interfaces/payments.interface'
-import type { SubscriptionType } from '@/interfaces/subscription.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 import type { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { starAmounts } from '@/price/helpers'
 import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'

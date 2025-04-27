@@ -6,7 +6,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    setupFiles: ['src/test/setup.ts'],
+    setupFiles: ['./__tests__/setup.ts'],
     include: ['__tests__/**/*.{test,spec}.ts'],
     exclude: [
       'node_modules',
@@ -16,6 +16,17 @@ export default defineConfig({
       '.cache',
     ],
     testTimeout: 30000,
+    reporters: [
+      'default',
+      process.env.GITHUB_ACTIONS === 'true' 
+        ? 'vitest-github-actions-reporter' 
+        : ''
+    ].filter(Boolean),
+    browser: {
+      enabled: false,
+      headless: true,
+      name: 'chrome',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

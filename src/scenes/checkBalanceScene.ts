@@ -14,7 +14,7 @@ import {
 import { starCost, SYSTEM_CONFIG } from '@/price/constants'
 import { logger } from '@/utils/logger'
 import { getUserDetailsSubscription } from '@/core/supabase'
-import type { SubscriptionType } from '@/interfaces/subscription.interface'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 // Интерфейс для возвращаемого значения
 export interface UserStatus {
   stars: number // Баланс

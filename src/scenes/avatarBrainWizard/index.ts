@@ -3,7 +3,7 @@ import type { MyContext } from '@/interfaces'
 import { updateUserSoul, updateUserLevelPlusOne } from '../../core/supabase'
 import { isRussian } from '@/helpers'
 import { createHelpButton } from '@/menu/buttons'
-import type { getUserByTelegramId } from '../../core/supabase'
+import { getUserByTelegramId } from '../../core/supabase'
 
 interface WizardSessionData extends Scenes.WizardSessionData {
   company?: string

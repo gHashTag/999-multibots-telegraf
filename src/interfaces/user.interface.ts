@@ -1,5 +1,5 @@
 import type { TelegramId } from './telegram.interface'
-import type { SubscriptionType } from './subscription.interface'
+import { SubscriptionType } from './subscription.interface'
 
 /**
  * Интерфейс для пользователя из базы данных

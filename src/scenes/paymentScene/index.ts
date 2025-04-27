@@ -3,8 +3,8 @@ import type { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 
 import { logger } from '@/utils/logger'
-import type { ModeEnum } from '@/interfaces/modes'
-import type { PaymentType } from '@/interfaces/payments.interface'
+import { ModeEnum } from '@/interfaces/modes'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 /**
  * Старая сцена оплаты, теперь используется как точка входа

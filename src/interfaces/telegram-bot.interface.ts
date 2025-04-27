@@ -4,7 +4,7 @@ import type { Update, Message } from 'telegraf/typings/core/types/typegram'
 import { Buffer } from 'buffer'
 
 import { BroadcastContentType } from './broadcast.interface'
-import type { SubscriptionType } from './subscription.interface'
+import { SubscriptionType } from './subscription.interface'
 import type { TranslationButton } from './supabase.interface'
 import type { SessionPayment } from './payments.interface'
 import { SceneContextScene, WizardContextWizard } from 'telegraf/typings/scenes'

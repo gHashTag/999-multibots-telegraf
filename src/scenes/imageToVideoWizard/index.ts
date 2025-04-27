@@ -8,7 +8,7 @@ import {
   videoModelKeyboard,
 } from '@/menu'
 import { isRussian } from '@/helpers/language'
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { getBotToken } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { logger } from '@/utils/logger'
