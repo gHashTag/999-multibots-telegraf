@@ -1,7 +1,7 @@
 import { Markup } from 'telegraf'
 import type { MyContext } from '@/interfaces'
 import { imageModelPrices } from '@/price/models/imageModelPrices'
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import type { Message, Update } from "telegraf/types"
 import { levels } from './mainMenu'
 
 export async function imageModelMenu(

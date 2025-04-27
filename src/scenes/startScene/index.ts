@@ -13,7 +13,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { isRussian } from '@/helpers/language'
 import { TelegramError } from 'telegraf'
-import { Message } from 'telegraf/typings/core/types/typegram'
+import type { Message, Update } from "telegraf/types"
 
 // --- Dependencies Interface for the Core Logic Function ---
 export interface ProcessStartDependencies {

@@ -5,7 +5,7 @@ import { isRussian } from '@/helpers'
 
 import md5 from 'md5'
 import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
-import type { getBotNameByToken } from '@/core'
+import { getBotNameByToken } from '@/core'
 import {
   PaymentStatus,
   Currency,

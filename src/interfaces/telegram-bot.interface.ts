@@ -1,6 +1,6 @@
 import { Context, NarrowedContext, Scenes } from 'telegraf'
 import { ModelUrl, UserModel } from './index'
-import type { Update, Message } from 'telegraf/typings/core/types/typegram'
+import type { Message, Update } from "telegraf/types"
 import { Buffer } from 'buffer'
 
 import { BroadcastContentType } from './broadcast.interface'

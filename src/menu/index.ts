@@ -16,7 +16,7 @@ export * from '@/core/supabase/getUserBalance'
 // Комментируем проблемный реэкспорт
 // export * from './subscription/getUserSubscriptionMenu'
 
-import type { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import type { Message, Update } from "telegraf/types"
 
 /**
  * Создает клавиатуру для генерации изображений

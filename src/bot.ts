@@ -66,7 +66,7 @@ console.log(`[BOT] process.env.NODE_ENV: ${process.env.NODE_ENV}`)
 console.log(`--- End Bot Logic Check ---`)
 
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
-import { Update } from 'telegraf/typings/core/types/typegram'
+import type { Message, Update } from "telegraf/types"
 import { registerCommands } from './registerCommands'
 import type { MyContext } from './interfaces'
 

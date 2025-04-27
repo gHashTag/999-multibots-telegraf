@@ -10,7 +10,7 @@ import {
   PaymentType,
 } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import type { normalizeTelegramId } from '@/interfaces/telegram.interface'
+import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { starAmounts } from '@/price/helpers'
 import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
 // Локальные определения MyContext и SessionData удалены

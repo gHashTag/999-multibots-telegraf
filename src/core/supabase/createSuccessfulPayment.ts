@@ -2,7 +2,7 @@ import type { TelegramId } from '@/interfaces/telegram.interface'
 import { PaymentStatus, Currency } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { logger } from '@/utils/logger'
-import type { determineSubscriptionType } from '@/price/constants/index'
+import { determineSubscriptionType } from '@/price/constants/index'
 import { ADMIN_IDS_ARRAY } from '@/config'
 
 import { supabase } from '@/core/supabase'

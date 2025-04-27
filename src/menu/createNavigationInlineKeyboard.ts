@@ -1,5 +1,5 @@
 import { Markup } from 'telegraf'
-import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import type { Message, Update } from "telegraf/types"
 
 /**
  * Создает стандартную Inline клавиатуру для навигации.

@@ -1,4 +1,4 @@
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import type { Message, Update } from "telegraf/types"
 import { checkFullAccess } from '../handlers/checkFullAccess'
 import { Markup } from 'telegraf'
 import type { MyContext } from '../interfaces/telegram-bot.interface'

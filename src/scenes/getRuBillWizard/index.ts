@@ -10,7 +10,7 @@ import {
 } from './helper'
 import { setPayments } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
-import type { getBotNameByToken } from '@/core'
+import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 import {
   Currency,

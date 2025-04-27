@@ -3,7 +3,7 @@
 // import os from 'os'
 // import { elevenlabs } from '@/core/elevenlabs'
 
-// import { InputFile } from 'telegraf/typings/core/types/typegram'
+// import type { Message, Update } from "telegraf/types"
 // import {
 //   getUserByTelegramIdString,
 //   updateUserLevelPlusOne,
