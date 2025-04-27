@@ -5,6 +5,15 @@ import os from 'os'
 import { checkAndCreateLockFile } from './utils/checkAndCreateLockFile'
 import { logger } from './utils/logger'
 import startApiServer from './api-server'
+import initializeApiServer from './api-server'
+import type { FastifyInstance } from 'fastify'
+import type { MyContext } from '@/interfaces'
+import { Composer, Telegraf, Scenes, Context } from 'telegraf'
+import type { Message, Update } from 'telegraf/types'
+import { registerCommands } from './registerCommands'
+
+// Возвращаем массив для хранения инстансов ботов
+export const botInstances: Telegraf<MyContext>[] = []
 
 // Путь к файлу конфликта
 const CONFLICT_LOG_PATH = path.join(process.cwd(), 'logs', 'telegram_conflicts')
@@ -64,14 +73,6 @@ console.log(
 )
 console.log(`[BOT] process.env.NODE_ENV: ${process.env.NODE_ENV}`)
 console.log(`--- End Bot Logic Check ---`)
-
-import { Composer, Telegraf, Scenes, Context } from 'telegraf'
-import type { Message, Update } from "telegraf/types"
-import { registerCommands } from './registerCommands'
-import type { MyContext } from './interfaces'
-
-// Инициализация ботов
-const botInstances: Telegraf<MyContext>[] = []
 
 // Функция для проверки валидности токена
 export async function validateBotToken(token: string): Promise<boolean> {
@@ -211,7 +212,7 @@ async function initializeBots() {
 
     logger.info('✅ [SCENE_DEBUG] Команды и middleware зарегистрированы')
 
-    botInstances.push(bot)
+    botInstances.push(bot) // Добавляем в массив
     // Используем уже полученную информацию о боте
     logger.info(`🤖 Тестовый бот ${foundBotInfo.username} инициализирован`)
 
@@ -225,95 +226,121 @@ async function initializeBots() {
       ],
     })
     logger.info(
-      `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
+      `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки (polling)`
     )
   } else {
     // В продакшене используем все активные боты
-    const botTokens = [
-      process.env.BOT_TOKEN_1,
-      process.env.BOT_TOKEN_2,
-      process.env.BOT_TOKEN_3,
-      process.env.BOT_TOKEN_4,
-      process.env.BOT_TOKEN_5,
-      process.env.BOT_TOKEN_6,
-      process.env.BOT_TOKEN_7,
-    ].filter((token): token is string => Boolean(token))
+    logger.info(
+      '[Production Mode] Инициализация ботов на основе ACTIVE_BOTS...'
+    )
 
-    let currentPort = 3001
+    const activeBotVarNames = (process.env.ACTIVE_BOTS || '')
+      .split(',')
+      .map(name => name.trim())
+      .filter(Boolean)
 
-    for (const token of botTokens) {
-      if (await validateBotToken(token)) {
-        const bot = new Telegraf<MyContext>(token)
-        bot.use(Composer.log())
-
-        registerCommands({ bot })
-
-        botInstances.push(bot)
-        const botInfo = await bot.telegram.getMe()
-        logger.info(`🤖 Бот ${botInfo.username} инициализирован`)
-
-        while (await isPortInUse(currentPort)) {
-          logger.warn(`⚠️ Порт ${currentPort} занят, пробуем следующий...`)
-          currentPort++
-        }
-
-        logger.info(
-          `🚀 Используем порт ${currentPort} для бота ${botInfo.username}`
-        )
-
-        const webhookDomain = process.env.WEBHOOK_DOMAIN
-        if (!webhookDomain) {
-          throw new Error('WEBHOOK_DOMAIN не установлен в переменных окружения')
-        }
-
-        // Формируем правильный путь для вебхука, используя имя бота
-        const webhookPath = `/${botInfo.username}` // Используем имя бота как путь
-
-        bot.launch({
-          webhook: {
-            domain: webhookDomain,
-            port: currentPort,
-            hookPath: webhookPath, // Новый путь с именем бота
-          },
-          allowedUpdates: [
-            'message',
-            'callback_query',
-            'pre_checkout_query' as any,
-            'successful_payment' as any,
-          ],
-        })
-
-        logger.info(
-          `🚀 Бот ${botInfo.username} запущен в продакшен режиме на порту ${currentPort}`
-        )
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        currentPort++
-      }
+    if (activeBotVarNames.length === 0) {
+      logger.warn(
+        '[Production Mode] Переменная ACTIVE_BOTS не установлена или пуста. Боты не будут запущены.'
+      )
+      // В режиме Vercel нам все равно нужно инициализировать Fastify, даже если ботов нет
+      // Поэтому не выходим здесь
+    } else {
+      logger.info(
+        `[Production Mode] Активные переменные ботов: ${activeBotVarNames.join(', ')}`
+      )
     }
-  }
 
-  logger.info('🔍 Инициализация сцен...')
-  // Перед регистрацией каждой сцены добавляю лог
-  logger.info('📋 Регистрация сцены: payment_scene')
-  // ... существующий код регистрации сцен ...
+    // Инициализируем Fastify сервер ЗДЕСЬ, но не запускаем listen
+    // Используем импортированный инстанс fastify из fastify-server
+    const fastifyInstance = (await import('./fastify-server')).default
+    // Вызовем setupServer для применения настроек, если это еще не сделано
+    // Возможно, setupServer нужно вызывать только один раз при инициализации
+    // Убедимся, что setupServer идемпотентен или вызывается правильно.
+    // В fastify-server.ts setupServer вызывается внутри startFastifyServer,
+    // который мы больше не вызываем напрямую для запуска listen.
+    // Нужно вызывать setupServer() где-то при инициализации приложения.
+    // Пока предполагаем, что fastifyInstance уже настроен при импорте.
 
-  // После регистрации всех сцен добавляю итоговый лог:
-  logger.info('✅ Все сцены успешно зарегистрированы')
+    for (const varName of activeBotVarNames) {
+      const token = process.env[varName]
+      if (!token) {
+        logger.warn(`[Production Mode] Токен для ${varName} не найден в env.`)
+        continue
+      }
+      // Проверка валидности токена перед созданием
+      if (!(await validateBotToken(token))) {
+        logger.error(
+          `❌ [Production Mode] Невалидный токен для ${varName}. Пропуск бота.`
+        )
+        continue
+      }
+
+      try {
+        const bot = new Telegraf<MyContext>(token)
+
+        const botInfo = await bot.telegram.getMe()
+        logger.info(
+          `🤖 [Production Mode] Бот ${botInfo.username} инициализирован.`
+        )
+
+        // Регистрируем команды и сцены
+        registerCommands({ bot })
+        logger.info(
+          `✅ [Production Mode] Команды и middleware для ${botInfo.username} зарегистрированы.`
+        )
+
+        botInstances.push(bot) // Добавляем в массив для дальнейшего использования
+
+        // --- УДАЛЯЕМ УСТАНОВКУ ВЕБХУКА И ЗАПУСК ЗДЕСЬ ---
+        // const webhookUrl = `${process.env.WEBHOOK_DOMAIN}/api/webhook/${botInfo.id}`
+        // logger.info(`[Production Mode] Установка webhook для ${botInfo.username} на ${webhookUrl}`)
+        // await bot.telegram.setWebhook(webhookUrl, {
+        //   allowed_updates: [
+        //     'message',
+        //     'callback_query',
+        //     'pre_checkout_query' as any,
+        //     'successful_payment' as any,
+        //   ],
+        //   secret_token: process.env.SECRET_API_KEY, // Используем для безопасности
+        // })
+        // logger.info(`✅ [Production Mode] Webhook для ${botInfo.username} установлен.`)
+
+        // --- УДАЛЯЕМ bot.launch() ---
+        // Вместо bot.launch(), вебхуки будут обрабатываться через Fastify
+      } catch (error) {
+        logger.error(
+          `❌ [Production Mode] Ошибка инициализации или установки webhook для бота с переменной ${varName}:`,
+          error
+        )
+      }
+    } // end for
+
+    // --- УДАЛЯЕМ ЗАПУСК API СЕРВЕРА ЗДЕСЬ ---
+    // await initializeApiServer() // Больше не нужно запускать listen()
+  } // end else (production)
+
+  // Логика для graceful shutdown остается
+  process.once('SIGINT', () => gracefulShutdown('SIGINT'))
+  process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
+
+  logger.info('🏁 Инициализация ботов завершена.')
+
+  // Возвращаем инстансы для возможного использования
+  return botInstances
 }
 
 // Асинхронная функция для остановки
 async function gracefulShutdown(signal: string) {
   logger.info(`🛑 Получен сигнал ${signal}, начинаем graceful shutdown...`)
 
-  // 1. Останавливаем ботов
-  logger.info(`[${signal}] Stopping ${botInstances.length} bot instance(s)...`)
+  logger.info(`[${signal}] Stopping ${botInstances.length} bot instance(s)...`) // Используем botInstances
   const stopPromises = botInstances.map(async (bot, index) => {
+    // Используем botInstances
     try {
       logger.info(
         `[${signal}] Initiating stop for bot instance index ${index}...`
       )
-      // bot.stop() для long polling обычно синхронный, но для надежности можно обернуть
-      // Хотя Telegraf 4.x stop() возвращает void для polling
       bot.stop(signal)
       logger.info(
         `[${signal}] Successfully stopped bot instance index ${index}.`
@@ -321,15 +348,12 @@ async function gracefulShutdown(signal: string) {
     } catch (error) {
       logger.error(
         `[${signal}] Error stopping bot instance index ${index}:`,
-        error // Логируем полную ошибку
+        error
       )
     }
   })
-  // Не нужно Promise.all, так как bot.stop() синхронный для polling
-  // await Promise.all(stopPromises) // Убираем ожидание, если оно не нужно
   logger.info(`[${signal}] All bot instances processed for stopping.`)
 
-  // 3. Добавляем небольшую задержку перед выходом
   logger.info(`[${signal}] Adding a short delay before exiting...`)
   await new Promise(resolve => setTimeout(resolve, 1500))
 
@@ -337,121 +361,69 @@ async function gracefulShutdown(signal: string) {
   process.exit(0)
 }
 
-// Обработка завершения работы - используем общую асинхронную функцию
-process.once('SIGINT', () => gracefulShutdown('SIGINT'))
-process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
+// --- ЭКСПОРТ ДЛЯ VERCEL ---
+import server from './fastify-server' // Импортируем настроенный инстанс Fastify
 
-// Функция запуска бота
-export async function startBot(): Promise<void> {
-  try {
-    logger.info('🚀 Starting bot...');
+// Флаг для отслеживания завершения инициализации
+let isInitialized = false
+let initPromise: Promise<any> | null = null
 
-    // Запускаем API-сервер
-    await startApiServer();
-    
-    // Проверяем, возможно ли запустить экземпляр бота
-    if (!checkAndCreateLockFile()) {
-      logger.error(
-        '❌ Запуск отменен из-за обнаружения другого запущенного экземпляра бота',
-        {
-          description: 'Bot startup cancelled due to another instance running',
-          suggestion:
-            'Используйте FORCE_START=true для принудительного запуска',
-          example: 'FORCE_START=true pnpm dev',
-        }
-      )
-      return // Выходим без запуска, если уже работает экземпляр
-    }
-
-    // Проверяем и освобождаем порты
-    await checkAndKillPort(2999) // Порт API-сервера
-    await checkAndKillPort(3001) // Дополнительный порт
-    logger.info('✅ All ports checked')
-
-    logger.info('🏁 Запуск приложения')
-    await initializeBots()
-    logger.info('✅ Боты успешно запущены')
-  } catch (error) {
-    // Специальная обработка ошибки конфликта от Telegram API
-    if (
-      error instanceof Error &&
-      error.message.includes(
-        '409: Conflict: terminated by other getUpdates request'
-      )
-    ) {
-      const forceStartActive = process.env.FORCE_START === 'true'
-      const lockFileExists = fs.existsSync(
-        path.join(process.cwd(), '.bot.lock')
-      )
-
-      // Записываем информацию о конфликте для дальнейшего анализа
-      recordTelegramConflict(error.message, forceStartActive, {
-        lock_file_exists: lockFileExists,
-        time_of_day: new Date().toLocaleTimeString(),
-        env_variables: {
-          isDev,
-          test_bot_name: process.env.TEST_BOT_NAME,
-          webhook_domain: process.env.WEBHOOK_DOMAIN,
-          // Не логируем токены и другие чувствительные данные!
-        },
+// Функция для инициализации всего приложения
+async function ensureInitialized() {
+  if (!isInitialized && !initPromise) {
+    console.log('Starting initialization...')
+    // Запускаем инициализацию ботов (которая больше не вызывает listen/launch)
+    // и предполагаем, что Fastify уже настроен при импорте
+    initPromise = initializeBots()
+      .then(() => {
+        console.log('Initialization complete.')
+        isInitialized = true
+        initPromise = null // Сбросить промис после завершения
+        // Важно: Убедиться, что роут вебхука в Fastify настроен ПРАВИЛЬНО
+        // для работы с botInstances
       })
-
-      // Улучшаем сообщение об ошибке
-      logger.error('❌ Ошибка запуска бота: Конфликт с другим экземпляром', {
-        description: 'Telegram API 409 Conflict Error',
-        error_message: error.message,
-        solution: lockFileExists
-          ? 'Обнаружен файл блокировки (.bot.lock). Другой экземпляр бота активен.'
-          : 'Другой экземпляр бота с тем же токеном уже запущен в другом месте',
-        suggestion: lockFileExists
-          ? 'Проверьте запущенные процессы или удалите файл .bot.lock вручную'
-          : 'Остановите другие экземпляры бота или используйте FORCE_START=true',
-        force_start_active: forceStartActive,
-        lock_file_exists: lockFileExists,
-        conflict_logs_path: CONFLICT_LOG_PATH,
+      .catch(err => {
+        console.error('Initialization failed:', err)
+        initPromise = null // Сбросить промис при ошибке
+        // Возможно, стоит выбросить ошибку, чтобы Vercel знал о проблеме
+        throw err
       })
-
-      if (forceStartActive) {
-        logger.warn(
-          '⚠️ ВНИМАНИЕ: Конфликт обнаружен, несмотря на активный FORCE_START',
-          {
-            description: 'Conflict detected with active FORCE_START flag',
-            note: 'Это означает, что другой экземпляр бота запущен на другом компьютере или сервере',
-            warning:
-              'Одновременная работа нескольких экземпляров может привести к непредсказуемому поведению',
-          }
-        )
-
-        // Предоставляем дополнительные рекомендации для устранения проблемы
-        logger.info('💡 Рекомендации для устранения 409 конфликта:', {
-          description: 'Tips for resolving 409 conflict',
-          steps: [
-            'Проверьте другие компьютеры или серверы, где может быть запущен бот',
-            'Убедитесь, что на сервере нет запущенных процессов бота (используйте `ps aux | grep node`)',
-            'Если бот запущен в webhook режиме на сервере, вы не сможете запустить его в polling режиме локально',
-            'Подождите 1-2 минуты, Telegram может очистить сессию самостоятельно',
-            'В крайнем случае, используйте другой токен бота для разработки',
-          ],
-          webhook_note:
-            'Если бот настроен на работу через webhook, он не может одновременно работать в режиме polling',
-          additional_tip:
-            'Добавьте ?new_session=true к URL вашего бота в BotFather для сброса сессии',
-        })
-      }
-
-      return // Выходим, чтобы предотвратить повторные попытки, которые будут приводить к тем же ошибкам
-    }
-
-    // Стандартная обработка других ошибок
-    logger.error('❌ Ошибка запуска бота', {
-      description: 'Error starting bot',
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    })
+    await initPromise
+  } else if (initPromise) {
+    // Если инициализация уже идет, дожидаемся ее завершения
+    await initPromise
   }
 }
 
-// Начинаем выполнение, если файл запущен напрямую
-if (require.main === module) {
-  startBot()
+// Обработчик для Vercel
+export default async (req: any, res: any) => {
+  try {
+    // Убеждаемся, что инициализация завершена перед обработкой запроса
+    await ensureInitialized()
+
+    // Передаем запрос на обработку в Fastify
+    // Мы используем server.server.emit, так как Fastify под капотом использует http.Server
+    server.server.emit('request', req, res)
+  } catch (error) {
+    // Обработка ошибок инициализации или других проблем
+    console.error('Error handling request in Vercel function:', error)
+    res.statusCode = 500
+    res.setHeader('Content-Type', 'application/json')
+    res.end(
+      JSON.stringify({
+        error:
+          'Internal Server Error during initialization or request handling.',
+      })
+    )
+  }
 }
+
+// --- Старый код запуска (если нужно для локального тестирования без Vercel) ---
+// export async function startBot(): Promise<void> {
+//   await initializeBots();
+//   // Если нужно запустить локально НЕ через Vercel, можно добавить вызов listen здесь
+//   // if (isDev || process.env.START_LOCAL === 'true') {
+//   //   const localPort = parseInt(process.env.PORT || '3000', 10);
+//   //   await server.listen({ port: localPort, host: '0.0.0.0' });
+//   // }
+// }

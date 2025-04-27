@@ -62,6 +62,9 @@ importers:
       form-data:
         specifier: ^4.0.0
         version: 4.0.2
+      grammy:
+        specifier: ^1.36.1
+        version: 1.36.1
       inngest:
         specifier: ^3.11.1
         version: 3.35.1(express@4.21.2)(fastify@5.3.2)(typescript@5.8.3)
@@ -688,6 +691,9 @@ packages:
 
   '@fastify/rate-limit@10.2.2':
     resolution: {integrity: sha512-45vXZImiYthKlMohF4XoHXYiBXCyRYY+zmtjLZuQrGraW0Zj9hYPYNOIa47012+5A65M0KJQxIVbzYCNP90hcg==}
+
+  '@grammyjs/types@3.20.0':
+    resolution: {integrity: sha512-KIoikN5VTj6dcJpzMwXtouzaN3BZJ4jihBuEeXzWr25HtEfCF25V3dN11u+uNYi/9sBDvs0KCKZhyN/xFY0MBg==}
 
   '@humanwhocodes/config-array@0.13.0':
     resolution: {integrity: sha512-DZLEEqFWQFiyK6h5YIeynKx7JlvCYWL0cImfSRXZ9l4Sg2efkFGTuFf6vzXjK1cq6IYkU+Eg/JizXw+TD2vRNw==}
@@ -2455,6 +2461,10 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
+
+  grammy@1.36.1:
+    resolution: {integrity: sha512-NZxRWwdUPuVfjBVuycxgVx9TlGd0WYC1IRb5+/yrWeBpWkOVcEcbt3fQcn1oUiT8dcUDj9jqPIdnRltrYkXBew==}
+    engines: {node: ^12.20.0 || >=14.13.1}
 
   graphemer@1.4.0:
     resolution: {integrity: sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==}
@@ -4801,6 +4811,8 @@ snapshots:
       fastify-plugin: 5.0.1
       toad-cache: 3.7.0
 
+  '@grammyjs/types@3.20.0': {}
+
   '@humanwhocodes/config-array@0.13.0':
     dependencies:
       '@humanwhocodes/object-schema': 2.0.3
@@ -6883,6 +6895,16 @@ snapshots:
   gopd@1.2.0: {}
 
   graceful-fs@4.2.11: {}
+
+  grammy@1.36.1:
+    dependencies:
+      '@grammyjs/types': 3.20.0
+      abort-controller: 3.0.0
+      debug: 4.4.0
+      node-fetch: 2.7.0
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
 
   graphemer@1.4.0: {}
 
