@@ -165,7 +165,7 @@ export const handleMenu = async (ctx: MyContext) => {
           message: '💭 [handleMenu] Переход к чату с аватаром',
           telegramId,
           function: 'handleMenu',
-          action: 'chat_with_avatar',
+          action: ModeEnum.ChatWithAvatar,
           nextScene: ModeEnum.CheckBalanceScene,
         })
         console.log('CASE: 💭 Чат с аватаром')

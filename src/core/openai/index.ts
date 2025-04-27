@@ -1,13 +1,14 @@
 import OpenAI from 'openai'
 
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error('OPENAI_API_KEY is not set')
+if (!process.env.DEEPSEEK_API_KEY) {
+  throw new Error('DEEPSEEK_API_KEY is not set')
 }
 
 export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'https://api.deepseek.com/v1',
+  apiKey: process.env.DEEPSEEK_API_KEY,
 })
-
+//
 export * from './getSubtitles'
 export * from './getTriggerReel'
 export * from './requests'
