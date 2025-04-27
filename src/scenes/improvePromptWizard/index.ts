@@ -166,11 +166,12 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 )
               await generateTextToVideo(
                 ctx.session.prompt,
-                ctx.session.videoModel,
                 ctx.from.id.toString(),
                 ctx.from.username || 'unknown',
-                isRu
+                isRu,
+                ctx.botInfo?.username || 'unknown_bot'
               )
+
               break
             case 'text_to_image':
               await generateTextToImage(

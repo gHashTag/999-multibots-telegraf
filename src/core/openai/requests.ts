@@ -20,7 +20,7 @@ export const answerAi = async (
   )}`
 
   const response = await openai.chat.completions.create({
-    model: model,
+    model: 'deepseek-chat',
     messages: [
       {
         role: 'system',

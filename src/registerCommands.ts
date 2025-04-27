@@ -79,15 +79,24 @@ export const stage = new Scenes.Stage<MyContext>([
   trainFluxModelWizard,
   uploadTrainFluxModelScene,
   uploadVideoScene,
-  voiceAvatarWizard,
-  textToSpeechWizard,
+  new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
+  new Scenes.WizardScene(
+    ModeEnum.TextToSpeech,
+    ...(textToSpeechWizard.steps as any)
+  ),
   lipSyncWizard,
-  avatarBrainWizard,
+  new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
+  new Scenes.WizardScene(
+    ModeEnum.ChatWithAvatar,
+    ...(chatWithAvatarWizard.steps as any)
+  ),
+  selectModelWizard,
   digitalAvatarBodyWizard,
   digitalAvatarBodyWizardV2,
   getRuBillWizard,
   levelQuestWizard,
   createUserScene,
+  neuroCoderScene,
 ])
 
 export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
@@ -318,14 +327,6 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
   // Register payment handlers (pre_checkout_query, successful_payment, etc.)
   registerPaymentActions(bot)
-
-  // <<< НАЧАЛО: ДОБАВЛЕННЫЕ ОБРАБОТЧИКИ HEARS >>>
-  bot.hears([levels[106].title_ru, levels[106].title_en], async ctx => {
-    console.log('CASE bot.hears: ❓ Справка / Help')
-    // Всегда входим в 'helpScene'. Сцена сама определит контекст по ctx.session.mode, если он есть.
-    console.log('INFO: Entering helpScene from Hears Handler')
-    await ctx.scene.enter('helpScene')
-  })
 
   bot.hears([levels[104].title_ru, levels[104].title_en], async ctx => {
     console.log('CASE bot.hears: 🏠 Главное меню / Main menu')

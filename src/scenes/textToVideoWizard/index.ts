@@ -181,10 +181,10 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       if (ctx.from && ctx.from.username) {
         await generateTextToVideo(
           prompt,
-          videoModelKey,
           ctx.from.id.toString(),
           ctx.from.username,
-          isRu
+          isRu,
+          ctx.botInfo?.username || 'unknown_bot'
         )
 
         ctx.session.prompt = prompt

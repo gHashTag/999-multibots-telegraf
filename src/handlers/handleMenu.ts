@@ -256,7 +256,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'text_to_video',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        console.log('CASE:  Видео из текста')
+        console.log('CASE: 🎬 Видео из текста')
         ctx.session.mode = ModeEnum.TextToVideo
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
