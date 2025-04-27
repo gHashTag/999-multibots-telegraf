@@ -1,10 +1,11 @@
 import { Markup, Scenes } from 'telegraf'
-import type { MyContext } from '../../interfaces'
+import { MyContext } from '../../interfaces'
 import { saveUserEmail, setPayments } from '../../core/supabase'
 import { isRussian } from '@/helpers'
 
 import md5 from 'md5'
-import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
+import { MERCHANT_LOGIN, RESULT_URL2, ROBOKASSA_PASSWORD_1 } from '@/config'
+import { handleHelpCancel } from '@/handlers'
 import { getBotNameByToken } from '@/core'
 import {
   PaymentStatus,
@@ -13,7 +14,6 @@ import {
 } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 const merchantLogin = MERCHANT_LOGIN
-const password1 = PASSWORD1
 
 const description = 'Покупка звезд'
 
@@ -154,6 +154,11 @@ emailWizard.on('text', async ctx => {
   if (msg && 'text' in msg) {
     const selectedOption = msg.text
 
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
+
     const match = isRu
       ? selectedOption.match(/Купить (\d+)⭐️ за (\d+) р/)
       : selectedOption.match(/Buy (\d+)⭐️ for (\d+) RUB/)
@@ -180,7 +185,7 @@ emailWizard.on('text', async ctx => {
           console.error('❌ Merchant login not found')
           return
         }
-        if (!password1) {
+        if (!ROBOKASSA_PASSWORD_1) {
           console.error('❌ Password not found')
           return
         }
@@ -191,7 +196,7 @@ emailWizard.on('text', async ctx => {
           amount,
           invId,
           description,
-          password1
+          ROBOKASSA_PASSWORD_1
         )
 
         const { bot_name } = getBotNameByToken(ctx.telegram.token)

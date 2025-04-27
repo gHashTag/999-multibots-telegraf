@@ -1,6 +1,6 @@
 import { getBotByName } from '@/core/bot'
-import { Telegraf } from 'telegraf'
-import type { BotName } from '@/interfaces/telegram-bot.interface'
+import type { Telegraf } from 'telegraf'
+import { BotName } from '@/interfaces'
 import { toBotName } from '@/helpers/botName.helper'
 import logger from '@/utils/logger'
 

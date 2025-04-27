@@ -1,9 +1,10 @@
 import { Scenes, Markup } from 'telegraf'
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { calculateFinalPrice } from '@/price/helpers'
 import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
+import { handleHelpCancel } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { getUserBalance } from '@/core/supabase'
 
@@ -39,7 +40,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussian(ctx)
     const message = ctx.message as { text?: string }
-    const selectedButtonText = message?.text
+    const selectedButtonText = message?.text // Получаем текст нажатой кнопки
 
     if (!selectedButtonText) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -57,6 +58,19 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         foundModelKey = key as VideoModelConfigKey
         break
       }
+    }
+
+    // Обрабатываем Помощь и Отмену отдельно, если они были нажаты
+    if (selectedButtonText === (isRu ? 'Помощь' : 'Help')) {
+      // Логика для Помощи (если нужна)
+      await ctx.reply(
+        isRu
+          ? 'Функция Помощи в разработке.'
+          : 'Help function is under development.'
+      )
+      // Можно остаться в сцене или выйти
+      // return ctx.wizard.selectStep(ctx.wizard.cursor) // Остаться на текущем шаге
+      return ctx.scene.leave()
     }
 
     if (selectedButtonText === (isRu ? 'Отмена' : 'Cancel')) {

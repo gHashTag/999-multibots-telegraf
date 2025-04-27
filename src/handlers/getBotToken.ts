@@ -1,4 +1,4 @@
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 
 /**
  * Возвращает токен бота из контекста.

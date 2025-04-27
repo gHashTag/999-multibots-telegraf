@@ -1,4 +1,4 @@
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 
 export function getUserInfo(ctx: MyContext): {
   userId: number

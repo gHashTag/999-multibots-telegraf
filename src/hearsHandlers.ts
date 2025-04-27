@@ -2,16 +2,18 @@ import { imageModelMenu } from './menu/imageModelMenu'
 import { logger } from './utils/logger'
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
-import type { MyContext } from './interfaces/'
+import { MyContext } from './interfaces/'
 import { Telegraf, Context } from 'telegraf'
 
 import { generateNeuroImage } from './services/generateNeuroImage'
 import { handleSizeSelection } from './handlers'
 import { levels, mainMenu } from './menu'
 import { getReferalsCountAndUserData } from './core/supabase'
-import { ModeEnum } from './interfaces/modes';
+import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
+import { getUserProfileAndSettings } from '@/db/userSettings'
+
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
 
@@ -136,8 +138,35 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     logger.debug(`Получен hears для кнопки ${text} от ${ctx.from?.id}`)
     const isRu = isRussian(ctx)
     const prompt = ctx.session.prompt
-    const userId = ctx.from.id
+    const telegramId = ctx.from.id
     const numImages = parseInt(text[0])
+
+    const { profile, settings } = await getUserProfileAndSettings(telegramId)
+
+    if (!profile || !settings) {
+      logger.error(
+        'Не удалось получить профиль или настройки для hears handler',
+        { telegramId }
+      )
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: Не удалось получить данные пользователя.'
+          : 'Error: Could not retrieve user data.'
+      )
+      return
+    }
+
+    if (!prompt) {
+      logger.error('Промпт отсутствует в сессии для hears handler', {
+        telegramId,
+      })
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: Не найден текст для генерации. Попробуйте снова.'
+          : 'Error: Prompt not found. Please try again.'
+      )
+      return
+    }
 
     const generate = async (num: number) => {
       if (ctx.session.mode === ModeEnum.NeuroPhotoV2) {
@@ -145,19 +174,19 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
           prompt,
           ctx.session.userModel.model_url,
           num,
-          userId.toString(),
+          telegramId.toString(),
           ctx,
           ctx.botInfo?.username
         )
       } else {
         await generateTextToImage(
           prompt,
-          ctx.session.selectedModel || '',
-          num,
-          userId.toString(),
+          settings.imageModel,
+          numImages,
+          telegramId.toString(),
           isRu,
           ctx,
-          ctx.botInfo?.username
+          ctx.botInfo?.username || 'unknown_bot'
         )
       }
     }
@@ -214,18 +243,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
-  bot.hears(
-    ['❓ Справка по команде', '❓ Help for the command'],
-    async (ctx: MyContext) => {
-      logger.info('Entering help scene via text command', {
-        telegram_id: ctx.from?.id,
-      })
-      await ctx.scene.enter('helpScene')
-    }
-  )
-
   bot.hears(/^(Отмена|отмена|Cancel|cancel)$/i, async (ctx: MyContext) => {
-    logger.info('Handling cancel command', { telegram_id: ctx.from?.id })
     logger.debug(`Получен hears для Отмена от ${ctx.from?.id}`)
     const isRu = isRussian(ctx)
     const telegram_id = ctx.from?.id?.toString() || ''
@@ -279,19 +297,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   bot.hears(
     [levels[104].title_ru, levels[104].title_en],
     async (ctx: MyContext) => {
-      logger.debug(`Получен hears для главного меню от ${ctx.from?.id}`)
-      ctx.session.mode = ModeEnum.MainMenu
-      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+      logger.debug(`Получен hears для Помощь от ${ctx.from?.id}`)
+      ctx.session.mode = ModeEnum.Help
+      await ctx.scene.enter('helpScene')
     }
   )
-
-  bot.hears(
-    [levels[0].title_ru, levels[0].title_en],
-    async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Оформить подписку от ${ctx.from?.id}`)
-      await ctx.scene.enter(ModeEnum.SubscriptionScene)
-    }
-  )
-
-  logger.info('Обработчики hears настроены.')
 }

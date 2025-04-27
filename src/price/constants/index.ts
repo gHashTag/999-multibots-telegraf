@@ -13,7 +13,8 @@ export const SYSTEM_CONFIG = {
 }
 
 // Импорт типов после объявления примитивных констант
-import { ModeEnum } from '../../interfaces/modes';
+import { ModeEnum } from '@/interfaces/modes'
+import { SubscriptionType } from '@/interfaces'
 
 // Star purchase limits
 export const STAR_AMOUNTS = {
@@ -23,7 +24,7 @@ export const STAR_AMOUNTS = {
 }
 
 // Base costs for different modes (in dollars)
-export const BASE_COSTS = {
+export const BASE_COSTS: Record<string, number> = {
   [ModeEnum.NeuroPhoto]: 0.08,
   [ModeEnum.NeuroPhotoV2]: 0.14,
   [ModeEnum.ImageToPrompt]: 0.03,
@@ -67,7 +68,6 @@ export const BASE_COSTS = {
   [ModeEnum.NeuroCoderScene]: 0,
   [ModeEnum.CancelPredictionsWizard]: 0,
   [ModeEnum.EmailWizard]: 0,
-  [ModeEnum.HelpScene]: 0,
   [ModeEnum.StartScene]: 0,
 } as const
 

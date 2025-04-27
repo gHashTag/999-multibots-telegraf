@@ -1,5 +1,5 @@
-import type { TelegramId } from './telegram.interface'
-import type {
+import { TelegramId } from './telegram.interface'
+import {
   SubscriptionType,
   Subscription as SubscriptionInterface,
 } from './subscription.interface'
@@ -81,4 +81,11 @@ export interface TranslationButton {
   ru_price: number
   stars_price: number
   subscription: SubscriptionType
+}
+
+// Новый интерфейс для настроек пользователя
+export interface UserSettings {
+  imageModel: string | null
+  // Добавьте другие настройки по мере необходимости
+  // videoModel?: string | null;
 }

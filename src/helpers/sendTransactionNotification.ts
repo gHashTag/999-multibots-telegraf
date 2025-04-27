@@ -1,6 +1,6 @@
 import { logger } from '@/utils/logger'
 import { createBotByName } from '@/core/bot'
-import type { BotName } from '@/interfaces/telegram-bot.interface'
+import { BotName } from '@/interfaces/telegram-bot.interface'
 interface TransactionNotificationParams {
   telegram_id: number
   operationId: string

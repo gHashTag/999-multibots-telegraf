@@ -1,6 +1,5 @@
-import { Markup, Telegraf } from 'telegraf'
-import type { MyContext } from '../interfaces'
-import { isRussian } from '@/helpers'
+import { MyContext } from '../interfaces'
+import { createHelpCancelKeyboard } from '@/menu/'
 
 export const sendPhotoDescriptionRequest = async (
   ctx: MyContext,
@@ -12,5 +11,7 @@ export const sendPhotoDescriptionRequest = async (
     ? `📸 Опишите на английском, какую ${type} вы хотите сгенерировать.`
     : `📸 Describe what kind of ${type} you want to generate in English.`
 
-  await ctx.reply(message, {})
+  await ctx.reply(message, {
+    reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+  })
 }

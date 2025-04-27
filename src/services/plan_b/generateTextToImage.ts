@@ -1,4 +1,4 @@
-// import type { ApiResponse, GenerationResult } from '@/interfaces'
+// import { ApiResponse, GenerationResult } from '@/interfaces'
 // import { replicate } from '@/core/replicate'
 // import { getAspectRatio, savePrompt } from '@/core/supabase'
 // import { downloadFile } from '@/helpers'
@@ -9,11 +9,11 @@
 //   updateUserLevelPlusOne,
 // } from '@/core/supabase'
 // import { IMAGES_MODELS } from '@/price/models'
-// import { ModeEnum } from '@/interfaces/modes';
+// import { ModeEnum } from '@/interfaces/modes'
 // // import { processBalanceOperation } from '@/price/helpers'
 // // import { PaymentType } from '@/interfaces/payments.interface'
 // import { Telegraf } from 'telegraf'
-// import type { MyContext } from '@/interfaces'
+// import { MyContext } from '@/interfaces'
 // import { saveFileLocally } from '@/helpers/saveFileLocally'
 // import path from 'path'
 // import fs from 'fs'

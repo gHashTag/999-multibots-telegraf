@@ -1,8 +1,10 @@
-import { Scenes, Markup, Telegraf } from 'telegraf'
-import type { MyContext } from '@/interfaces'
+import { Scenes } from 'telegraf'
+import { MyContext } from '../../interfaces'
+import { Markup } from 'telegraf'
 
 import { isValidImage } from '../../helpers/images'
-import { isRussian } from '@/helpers'
+import { isRussian } from '@/helpers/language'
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 
 export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
@@ -62,33 +64,23 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
 
       await ctx.reply(
         isRu
-          ? `📸 Пожалуйста, отправьте изображения для обучения модели (минимум 10 изображений). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n
-   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n
-   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n
-   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
+          ? `📸 Пожалуйста, отправьте изображения для обучения модели (минимум 10 изображений). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
    - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
    - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
    - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
    - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
    - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
    - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
-          : `📸 Please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n
-   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
+          : `📸 Please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
    - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
    - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
    - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
    - 🏞️ <b>Background and environment:</b> The background in the photos should be neutral.\n
    - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`,
         {
-          reply_markup: {
-            keyboard: [
-              [
-                {
-                  text: isRu ? 'Отмена' : 'Cancel',
-                },
-              ],
-            ],
-          },
+          ...Markup.keyboard([
+            [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
+          ]).resize(),
           parse_mode: 'HTML',
         }
       )
@@ -102,6 +94,10 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
     const message = ctx.message
     console.log('message', message)
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
 
     if (message && 'text' in message && message.text === '/done') {
       console.log('Received /done command')

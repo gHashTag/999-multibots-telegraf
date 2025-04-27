@@ -1,12 +1,12 @@
 import { Markup, Scenes } from 'telegraf'
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { handleSelectStars, handleBuySubscription } from '@/handlers'
 import { starAmounts } from '@/price/helpers/starAmounts' // Предполагаем, что существует
 import { setPayments } from '@/core/supabase'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/interfaces/modes';
+import { ModeEnum } from '@/interfaces/modes'
 import { handleTopUp } from '@/handlers/paymentHandlers/handleTopUp'
 
 export const starPaymentScene = new Scenes.BaseScene<MyContext>(
@@ -57,6 +57,17 @@ starPaymentScene.enter(async ctx => {
   }
 })
 
+// Выход из сцены
+starPaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
+  logger.info(
+    `[${ModeEnum.StarPaymentScene}] Leaving scene via Main Menu button`,
+    {
+      telegram_id: ctx.from?.id,
+    }
+  )
+  await ctx.scene.enter(ModeEnum.MainMenu)
+})
+
 // Action handler for star top-up buttons
 starPaymentScene.action(/top_up_(\d+)/, handleTopUp)
 
@@ -70,8 +81,8 @@ starPaymentScene.on('message', async ctx => {
   })
   await ctx.reply(
     isRu
-      ? 'Пожалуйста, используйте кнопки для выбора.'
-      : 'Please use the buttons to make a selection.'
+      ? 'Пожалуйста, выберите пакет звезд или вернитесь в главное меню.'
+      : 'Please select a star package or return to the main menu.'
   )
-  // Не выходим из сцены и не отправляем клавиатуру
+  // Не выходим из сцены
 })

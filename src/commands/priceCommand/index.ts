@@ -1,5 +1,5 @@
 import { SYSTEM_CONFIG } from '@/price/constants/index'
-import type { MyContext } from '../../interfaces'
+import { MyContext } from '../../interfaces'
 import { minCost, maxCost, modeCosts } from '@/price/helpers/modelsCost'
 import { conversionRates } from '@/price/priceCalculator'
 

@@ -1,5 +1,5 @@
-import { Scenes, Markup, Telegraf } from 'telegraf'
-import type { MyContext } from '../../interfaces'
+import { Scenes } from 'telegraf'
+import { MyContext } from '../../interfaces'
 import { getUserBalance, getVoiceId } from '../../core/supabase'
 import {
   sendBalanceMessage,
@@ -7,6 +7,8 @@ import {
 } from '@/price/helpers'
 import { generateTextToSpeech } from '../../services/generateTextToSpeech'
 import { isRussian } from '@/helpers'
+import { createHelpCancelKeyboard } from '@/menu'
+import { handleHelpCancel } from '@/handlers'
 
 export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   'text_to_speech',
@@ -16,7 +18,8 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '🎙️ Отправьте текст, для преобразования его в голос'
-        : '🎙️ Send text, to convert it to voice'
+        : '🎙️ Send text, to convert it to voice',
+      createHelpCancelKeyboard(isRu)
     )
     ctx.wizard.next()
     return
@@ -33,48 +36,54 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
       return
     }
 
-    try {
-      if (!ctx.from?.id) {
-        console.error('❌ Telegram ID не найден')
-        return
-      }
-      const voice_id = await getVoiceId(ctx.from.id.toString())
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      ctx.scene.leave()
+      return
+    } else {
+      try {
+        if (!ctx.from?.id) {
+          console.error('❌ Telegram ID не найден')
+          return
+        }
+        const voice_id = await getVoiceId(ctx.from.id.toString())
 
-      if (!voice_id) {
+        if (!voice_id) {
+          await ctx.reply(
+            isRu
+              ? '🎯 Для корректной работы обучите аватар используя 🎤 Голос для аватара в главном меню'
+              : '🎯 For correct operation, train the avatar using 🎤 Voice for avatar in the main menu'
+          )
+          ctx.scene.leave()
+          return
+        }
+        if (!ctx.from?.id) {
+          console.error('❌ Telegram ID не найден')
+          return
+        }
+        if (!ctx.from?.username) {
+          console.error('❌ Username не найден')
+          return
+        }
+        await generateTextToSpeech(
+          message.text,
+          voice_id,
+          ctx.from.id,
+          ctx.from.username || '',
+          isRu,
+          ctx.botInfo?.username
+        )
+      } catch (error) {
+        console.error('Error in text_to_speech:', error)
         await ctx.reply(
           isRu
-            ? '🎯 Для корректной работы обучите аватар используя 🎤 Голос для аватара в главном меню'
-            : '🎯 For correct operation, train the avatar using 🎤 Voice for avatar in the main menu'
+            ? 'Произошла ошибка при создании голосового аватара'
+            : 'Error occurred while creating voice avatar'
         )
-        ctx.scene.leave()
-        return
       }
-      if (!ctx.from?.id) {
-        console.error('❌ Telegram ID не найден')
-        return
-      }
-      if (!ctx.from?.username) {
-        console.error('❌ Username не найден')
-        return
-      }
-      await generateTextToSpeech(
-        message.text,
-        voice_id,
-        ctx.from.id,
-        ctx.from.username || '',
-        isRu,
-        ctx.botInfo?.username
-      )
-    } catch (error) {
-      console.error('Error in text_to_speech:', error)
-      await ctx.reply(
-        isRu
-          ? 'Произошла ошибка при создании голосового аватара'
-          : 'Error occurred while creating voice avatar'
-      )
+      ctx.scene.leave()
+      return
     }
-    ctx.scene.leave()
-    return
   }
 )
 

@@ -1,7 +1,6 @@
 import { Scenes, Markup } from 'telegraf'
-import type { MyContext } from '@/interfaces'
-import type { SessionPayment } from '@/interfaces/payments.interface'
-import { ModeEnum } from '@/interfaces/modes';
+import { MyContext, SessionPayment } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { handleSelectRubAmount } from '@/handlers'
 import { isRussian } from '@/helpers'
 import { logger } from '@/utils/logger'
@@ -12,7 +11,6 @@ import {
 import { setPayments } from '@/core/supabase'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { cancelMenu } from '@/menu/cancelMenu'
 
 // Manually define subscription details here for now
 // TODO: Move this to a proper config file or fetch from DB

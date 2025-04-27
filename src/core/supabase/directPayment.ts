@@ -2,7 +2,7 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/core/supabase'
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import {
   getUserBalance,
@@ -12,8 +12,8 @@ import {
   PaymentStatus,
   PaymentType,
   Currency,
-  
-  
+  PaymentCreateParams,
+  PaymentProcessResult,
 } from '@/interfaces/payments.interface'
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 import { supabaseAdmin } from '@/core/supabase/'
@@ -457,6 +457,3 @@ export async function updateUserBalance(
     return false
   }
 }
-
-import type { PaymentCreateParams } from '@/interfaces/payments.interface';
-import type { PaymentProcessResult } from '@/interfaces/payments.interface';

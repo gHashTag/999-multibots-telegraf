@@ -1,9 +1,9 @@
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { setAspectRatio } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
 import { mainMenu } from '@/menu'
-import { ModeEnum } from '@/interfaces/modes';
+import { ModeEnum } from '@/interfaces/modes'
 
 export async function handleSizeSelection(ctx: MyContext, size: string) {
   ctx.session.selectedSize = size

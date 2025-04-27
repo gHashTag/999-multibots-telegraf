@@ -1,6 +1,6 @@
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { supabase } from '@/core/supabase'
-import type { UserType } from '@/interfaces/supabase.interface'
+import { UserType } from '@/interfaces/supabase.interface'
 import { getUserDetailsSubscription } from './getUserDetailsSubscription'
 
 export const getReferalsCountAndUserData = async (

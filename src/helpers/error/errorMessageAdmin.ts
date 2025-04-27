@@ -1,5 +1,5 @@
 import { isDev } from '@/config'
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 
 export const errorMessageAdmin = (ctx: MyContext, error: Error) => {
   !isDev &&

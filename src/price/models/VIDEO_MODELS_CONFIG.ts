@@ -1,6 +1,5 @@
 import { Markup } from 'telegraf'
-import type { ReplyKeyboardMarkup } from 'telegraf/types'
-import type { Message, Update } from "telegraf/types"
+import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 
 // models.config.ts
 export type VideoModelConfig = {

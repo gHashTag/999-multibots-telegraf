@@ -1,7 +1,6 @@
 import { supabase, supabaseAdmin } from './client'
 import { logger } from '@/utils/logger'
-import { PaymentStatus } from '@/interfaces'
-import type { Payment } from '@/interfaces/payments.interface' // Предполагаем, что есть интерфейс Payment
+import { Payment, PaymentStatus } from '@/interfaces' // Предполагаем, что есть интерфейс Payment
 import { PostgrestError } from '@supabase/supabase-js'
 
 /**

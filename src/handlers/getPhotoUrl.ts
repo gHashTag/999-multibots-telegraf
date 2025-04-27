@@ -1,4 +1,4 @@
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { BOT_TOKENS } from '@/core/bot'
 
 export function getPhotoUrl(ctx: MyContext, step: number): string {

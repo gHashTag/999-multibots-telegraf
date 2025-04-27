@@ -1,4 +1,4 @@
-import type { MyContext } from '../interfaces'
+import { MyContext } from '../interfaces'
 import logger from '@/utils/logger'
 
 export async function sendGenericErrorMessage(

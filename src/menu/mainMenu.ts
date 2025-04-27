@@ -1,7 +1,7 @@
-import type { Message, Update } from "telegraf/types"
+import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 import { checkFullAccess } from '../handlers/checkFullAccess'
 import { Markup } from 'telegraf'
-import type { ReplyKeyboardMarkup } from 'telegraf/types';import type { MyContext } from '../interfaces/telegram-bot.interface'
+import { MyContext } from '../interfaces/telegram-bot.interface'
 import { SubscriptionType } from '../interfaces/subscription.interface'
 
 interface Level {
@@ -95,7 +95,6 @@ export const levels: Record<number, Level> = {
     title_ru: '💬 Техподдержка',
     title_en: '💬 Support',
   },
-  // Возвращаем Главное меню
   104: {
     title_ru: '🏠 Главное меню',
     title_en: '🏠 Main menu',
@@ -104,9 +103,8 @@ export const levels: Record<number, Level> = {
     title_ru: '💫 Оформить подписку',
     title_en: '💫 Subscribe',
   },
-  // Возвращаем Справку
   106: {
-    title_ru: '❓ Справка',
+    title_ru: '❓ Справка ',
     title_en: '❓ Help',
   },
 }
@@ -144,15 +142,13 @@ export async function mainMenu({
   let availableLevels: Level[] =
     subscriptionLevelsMap[currentSubscription] || []
 
-  // Фильтруем ВСЕ сервисные кнопки
   const filterServiceLevels = (lvl: Level) =>
-    lvl !== levels[100] && // Пополнить баланс
-    lvl !== levels[101] && // Баланс
-    lvl !== levels[102] && // Пригласить друга
-    lvl !== levels[103] && // Техподдержка
-    lvl !== levels[104] && // Главное меню (не показываем кнопку саму на себя)
-    lvl !== levels[105] && // Оформить подписку
-    lvl !== levels[106] // Справка
+    lvl !== levels[100] &&
+    lvl !== levels[101] &&
+    lvl !== levels[102] &&
+    lvl !== levels[103] &&
+    lvl !== levels[104] &&
+    lvl !== levels[105]
 
   if (
     currentSubscription === SubscriptionType.NEUROTESTER ||
@@ -191,46 +187,55 @@ export async function mainMenu({
     console.log('[mainMenu LOG] Added admin buttons.')
   }
 
+  // --- Создаем кнопки, которые нужны почти всегда ---
+  const supportButton = Markup.button.text(
+    isRu ? levels[103].title_ru : levels[103].title_en // "💬 Техподдержка"
+  )
+  const subscribeButton = Markup.button.text(
+    isRu ? levels[105].title_ru : levels[105].title_en // "💫 Оформить подписку"
+  )
+  // --- ---
+
   const allFunctionalButtons = [...levelButtons, ...adminSpecificButtons]
   const buttonRows = []
   for (let i = 0; i < allFunctionalButtons.length; i += 2) {
     buttonRows.push(allFunctionalButtons.slice(i, i + 2))
   }
 
-  // --- ВОЗВРАЩАЕМ ЛОГИКУ ДЛЯ НИЖНЕГО РЯДА ---
-  const bottomRowButtons = []
-  const helpButton = Markup.button.text(
-    isRu ? levels[106].title_ru : levels[106].title_en // Кнопка Справка
-  )
-  const supportButton = Markup.button.text(
-    isRu ? levels[103].title_ru : levels[103].title_en // Кнопка Техподдержка
-  )
-  // Кнопка Назад (go_back) здесь не нужна, так как это главное меню.
-  // Кнопка Главное меню (levels[104]) здесь тоже не нужна.
+  const bottomRowButtons = [] // Кнопки ПЕРЕД последним рядом (Подписка)
 
   if (currentSubscription === SubscriptionType.STARS) {
-    const subscribeButton = Markup.button.text(
-      isRu ? levels[105].title_ru : levels[105].title_en
-    )
-    // Для STARS: Подписка | Справка | Техподдержка
-    bottomRowButtons.push([subscribeButton, helpButton, supportButton])
+    console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
+    // Для STARS только поддержка (Подписка будет ниже)
+    bottomRowButtons.push([supportButton])
   } else {
+    console.log(
+      `[mainMenu LOG] Generating bottom row for ${currentSubscription} subscription`
+    )
     const balanceButton = Markup.button.text(
-      isRu ? levels[101].title_ru : levels[101].title_en
+      isRu ? levels[101].title_ru : levels[101].title_en // "💰 Баланс"
     )
     const topUpButton = Markup.button.text(
-      isRu ? levels[100].title_ru : levels[100].title_en
+      isRu ? levels[100].title_ru : levels[100].title_en // "💎 Пополнить баланс"
     )
     const inviteButton = Markup.button.text(
-      isRu ? levels[102].title_ru : levels[102].title_en
+      isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
     )
-    buttonRows.push([balanceButton, topUpButton]) // Баланс | Пополнить
-    // Для остальных: Пригласить | Справка | Техподдержка
-    bottomRowButtons.push([inviteButton, helpButton, supportButton])
+    // Баланс и Пополнить идут в основные ряды
+    buttonRows.push([balanceButton, topUpButton])
+    // Пригласить и Поддержка идут в предпоследний ряд
+    bottomRowButtons.push([inviteButton, supportButton])
   }
-  // --- КОНЕЦ ВОЗВРАТА НИЖНЕГО РЯДА ---
+  console.log(
+    `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
+  )
 
+  // Собираем все ряды, КРОМЕ последнего (Подписка)
   const finalKeyboard = [...buttonRows, ...bottomRowButtons]
+
+  // Добавляем кнопку "Оформить подписку" ВСЕГДА в самый низ
+  finalKeyboard.push([subscribeButton])
+
   console.log(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)
 
   return Markup.keyboard(finalKeyboard).resize()

@@ -1,5 +1,5 @@
-import type { MyContext } from '@/interfaces'
-import type { Message, Update } from "telegraf/types"
+import { MyContext } from '@/interfaces'
+import { Message } from 'telegraf/typings/core/types/typegram'
 import { logger } from '@/utils/logger'
 
 /**

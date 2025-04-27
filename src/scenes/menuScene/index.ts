@@ -1,4 +1,4 @@
-import type { Mode, MyContext, Subscription } from '../../interfaces'
+import { Mode, MyContext, Subscription } from '../../interfaces'
 import { sendGenericErrorMessage } from '@/menu'
 import { levels, mainMenu } from '../../menu/mainMenu'
 import { getReferalsCountAndUserData } from '@/core/supabase'
@@ -8,17 +8,15 @@ import { getText } from './getText'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { Scenes } from 'telegraf'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
-import { ModeEnum } from '@/interfaces/modes';
+import { ModeEnum } from '@/interfaces/modes'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
 import { handleMenu } from '@/handlers/handleMenu'
 import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
-import { handleTechSupport } from '@/commands/handleTechSupport'
 
-// --- Export the step function for testing ---
-export const menuCommandStep = async (ctx: MyContext) => {
+const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
   const isRu = isRussian(ctx)
   try {
@@ -160,8 +158,7 @@ export const menuCommandStep = async (ctx: MyContext) => {
  * Безусловный вызов ctx.scene.leave() здесь уместен ТОЛЬКО в блоке else,
  * когда обработать сообщение другим способом невозможно.
  */
-// --- Экспортируем функцию menuNextStep для тестирования ---
-export const menuNextStep = async (ctx: MyContext) => {
+const menuNextStep = async (ctx: MyContext) => {
   logger.info('CASE 1: menuScene.next')
   if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
     const text = ctx.update.callback_query.data
@@ -177,54 +174,9 @@ export const menuNextStep = async (ctx: MyContext) => {
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
-    const isRu = isRussian(ctx)
     logger.info(`[menuNextStep] Text Message Received: ${text}`)
 
-    // --- НАЧАЛО: ОБРАБОТКА НАВИГАЦИОННЫХ КНОПОК ПЕРЕД handleMenu ---
-    if (text === (isRu ? levels[104].title_ru : levels[104].title_en)) {
-      logger.info(
-        `[menuNextStep] Handling 'Главное меню' button. Re-entering menuScene.`
-      )
-      // Перезапускаем текущую сцену (menuScene) для обновления
-      return ctx.scene.reenter()
-    } else if (text === (isRu ? levels[106].title_ru : levels[106].title_en)) {
-      logger.info(
-        `[menuNextStep] Handling 'Справка' button. Entering helpScene.`
-      )
-      ctx.session.mode = ModeEnum.MainMenu // Устанавливаем режим для контекста справки
-      return ctx.scene.enter(ModeEnum.Help)
-    } else if (text === (isRu ? levels[103].title_ru : levels[103].title_en)) {
-      logger.info(`[menuNextStep] Handling 'Техподдержка' button.`)
-      return handleTechSupport(ctx) // Вызываем обработчик техподдержки
-    } else if (text === (isRu ? levels[102].title_ru : levels[102].title_en)) {
-      logger.info(
-        `[menuNextStep] Handling 'Пригласить друга' button. Entering inviteScene.`
-      )
-      ctx.session.mode = ModeEnum.Invite
-      return ctx.scene.enter(ModeEnum.Invite)
-    } else if (text === (isRu ? levels[101].title_ru : levels[101].title_en)) {
-      logger.info(
-        `[menuNextStep] Handling 'Баланс' button. Entering balanceScene.`
-      )
-      ctx.session.mode = ModeEnum.Balance
-      return ctx.scene.enter(ModeEnum.Balance)
-    } else if (text === (isRu ? levels[100].title_ru : levels[100].title_en)) {
-      logger.info(
-        `[menuNextStep] Handling 'Пополнить баланс' button. Entering paymentScene.`
-      )
-      ctx.session.mode = ModeEnum.PaymentScene
-      ctx.session.subscription = SubscriptionType.STARS // Маркер пополнения
-      return ctx.scene.enter(ModeEnum.PaymentScene)
-    } else if (text === (isRu ? levels[105].title_ru : levels[105].title_en)) {
-      logger.info(
-        `[menuNextStep] Handling 'Оформить подписку' button. Entering subscriptionScene.`
-      )
-      ctx.session.mode = ModeEnum.SubscriptionScene
-      return ctx.scene.enter(ModeEnum.SubscriptionScene)
-    }
-    // --- КОНЕЦ ОБРАБОТКИ НАВИГАЦИОННЫХ КНОПОК ---
-
-    // *** Обработка кнопки "Сгенерировать новое видео?" (оставляем здесь) ***
+    // *** НАЧАЛО ВСТАВКИ: Обработка кнопки "Сгенерировать новое видео?" ***
     if (
       text === '🎥 Сгенерировать новое видео?' ||
       text === '🎥 Generate new video?'
@@ -232,19 +184,23 @@ export const menuNextStep = async (ctx: MyContext) => {
       logger.info(
         `[menuNextStep] Detected 'Generate new video' button. Calling handleRestartVideoGeneration...`
       )
+      // Вызываем новую функцию перезапуска, которая использует lastCompletedVideoScene
       await handleRestartVideoGeneration(ctx)
+      // Важно: НЕ передаем управление дальше в handleMenu, так как мы обработали кнопку здесь
       return
     }
+    // *** КОНЕЦ ВСТАВКИ ***
 
-    // Prevent loop if /menu is sent again
+    // Prevent loop if /menu is sent again while already in the menu
     if (text === '/menu') {
       logger.warn(
         '[menuNextStep] Received /menu command while already in menu scene. Ignoring to prevent loop.'
       )
-      return
+      // Optional: Send a message like "You are already in the menu."
+      // await ctx.reply(getText(isRussian(ctx), 'already_in_menu')); // Assuming such a key exists
+      return // Explicitly do nothing further
     }
-
-    // Если текст не был обработан выше, передаем в handleMenu для обработки кнопок функций
+    // Handle other text commands via handleMenu
     logger.info(`[menuNextStep] Forwarding text to handleMenu: ${text}`)
     await handleMenu(ctx)
   } else {

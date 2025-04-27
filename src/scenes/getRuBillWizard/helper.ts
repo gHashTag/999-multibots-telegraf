@@ -1,15 +1,18 @@
-import { MERCHANT_LOGIN, PASSWORD1, RESULT_URL2 } from '@/config'
+import { MERCHANT_LOGIN, RESULT_URL2, ROBOKASSA_PASSWORD_1 } from '@/config'
 import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 console.log('Payment variables check:')
 console.log('MERCHANT_LOGIN:', MERCHANT_LOGIN)
-console.log('PASSWORD1:', PASSWORD1 ? '[PROTECTED]' : 'undefined')
+console.log(
+  'ROBOKASSA_PASSWORD_1:',
+  ROBOKASSA_PASSWORD_1 ? '[PROTECTED]' : 'undefined'
+)
 console.log('RESULT_URL2:', RESULT_URL2)
 
 export const merchantLogin = MERCHANT_LOGIN
-export const password1 = PASSWORD1
+export const password1 = ROBOKASSA_PASSWORD_1
 
 export const description = 'Покупка звезд'
 

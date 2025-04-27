@@ -1,5 +1,5 @@
 import { supabase } from '@/core/supabase'
-import type { ModelTraining } from '@/interfaces'
+import { ModelTraining } from '@/interfaces'
 
 export async function getLatestUserModel(
   telegram_id: number,

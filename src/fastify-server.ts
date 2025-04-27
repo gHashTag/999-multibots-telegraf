@@ -11,87 +11,90 @@ import { Telegraf } from 'telegraf'
 import type { MyContext } from '@/interfaces'
 import { botInstances } from './bot'
 
-const server: FastifyInstance = fastify({
-  logger: true,
-  trustProxy: true,
-})
-
 /**
- * Настройка Fastify сервера
+ * Создает и настраивает экземпляр Fastify, но не запускает его.
+ * @returns Готовый к работе экземпляр Fastify.
  */
-async function setupServer() {
+export async function createFastifyApp(): Promise<FastifyInstance> {
+  const server: FastifyInstance = fastify({
+    logger: true,
+    trustProxy: true, // Важно для получения правильных IP за прокси Vercel
+  })
+
   try {
-    // Регистрируем Express совместимость для плавной миграции
-    await server.register(fastifyExpress)
+    // Регистрируем Express совместимость (если еще нужна)
+    // await server.register(fastifyExpress)
 
     // Регистрируем CORS
     await server.register(fastifyCors, {
-      origin: ['*'],
+      origin: ['*'], // В проде лучше ограничить!
       methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Api-Key'],
     })
 
     // Регистрируем Helmet для защиты
     await server.register(fastifyHelmet, {
-      contentSecurityPolicy: false,
+      contentSecurityPolicy: false, // Отключаем CSP, если он мешает
     })
 
     // Регистрируем сжатие ответов
     await server.register(fastifyCompress)
 
     // Настраиваем ограничение запросов (rate limiting)
-    await server.register(fastifyRateLimit, {
-      max: 100,
-      timeWindow: '1 minute',
-    })
+    // await server.register(fastifyRateLimit, {
+    //   max: 100,
+    //   timeWindow: '1 minute',
+    // })
 
-    // Регистрируем декораторы
-    server.decorateRequest('user', null)
+    // Регистрируем декораторы (если нужны)
+    // server.decorateRequest('user', null)
 
-    // Базовый middleware для проверки API ключа
+    // Middleware для проверки API ключа (кроме вебхуков)
     server.addHook('preHandler', async (request: FastifyRequest, reply) => {
-      const apiKey = request.headers['x-api-key']
       const path = request.url
-
-      // Пропускаем проверку для определенных путей
+      // Пропускаем проверку для вебхуков и health check
       if (path === '/health' || path.startsWith('/api/webhook')) {
         return
       }
-
-      // Проверяем API ключ
+      // Для остальных запросов проверяем ключ
+      const apiKey = request.headers['x-api-key']
       if (!apiKey || apiKey !== SECRET_API_KEY) {
         reply.code(401).send({ error: 'Unauthorized' })
-        return reply
+        return // Прерываем выполнение
       }
     })
 
     // Регистрируем роуты
-    registerRoutes()
+    registerRoutes(server) // Передаем экземпляр в функцию роутов
 
     // Обработка ошибок
     server.setErrorHandler((error, request, reply) => {
       logger.error('Server error:', error)
-      reply.status(500).send({ error: 'Internal Server Error' })
+      // Не отправляем ответ здесь, Vercel сам обработает ошибку функции
     })
 
-    return server
+    await server.ready() // Убедимся, что все плагины загружены
+    logger.info('Fastify instance created and ready for serverless handler.')
+    return server // Возвращаем настроенный экземпляр
   } catch (error) {
-    logger.error('Failed to setup Fastify server:', error)
+    logger.error('Failed to setup Fastify server instance:', error)
     throw error
   }
 }
 
 /**
  * Регистрация маршрутов API
+ * @param serverInstance Экземпляр Fastify для регистрации роутов
  */
-function registerRoutes() {
+function registerRoutes(serverInstance: FastifyInstance) {
   // Маршрут проверки работоспособности
-  server.get('/health', async (request, reply) => {
+  serverInstance.get('/health', async (request, reply) => {
+    logger.info('Health check requested.')
     return { status: 'ok', timestamp: new Date().toISOString() }
   })
 
-  // --- ОБНОВЛЕННЫЙ МАРШРУТ ДЛЯ ВЕБХУКОВ TELEGRAM (с handleUpdate) ---
-  server.post(
+  // Вебхук Telegram
+  serverInstance.post(
     '/api/webhook/:botId',
     async (
       request: FastifyRequest<{ Params: { botId: string } }>,
@@ -109,11 +112,7 @@ function registerRoutes() {
           `Found bot instance for ID: ${botIdParam}, username: ${botInstance.botInfo?.username}`
         )
         try {
-          // Используем bot.handleUpdate()
-          // Telegraf ожидает объект update из Telegram и объект ответа Node.js http
-          // request.body содержит update, reply.raw - это объект ответа Node.js
-          await botInstance.handleUpdate(request.body as any, reply.raw) // Передаем тело запроса и нативный ответ
-          // ВАЖНО: Telegraf сам отправит ответ через reply.raw, не нужно делать reply.send() здесь
+          await botInstance.handleUpdate(request.body as any, reply.raw)
           logger.info(
             `Webhook for ${botInstance.botInfo?.username} processed by Telegraf handleUpdate.`
           )
@@ -122,9 +121,7 @@ function registerRoutes() {
             `Error processing webhook via Telegraf handleUpdate for bot ${botInstance.botInfo?.username}:`,
             error
           )
-          // Отправляем ошибку, только если Telegraf не смог это сделать
           if (!reply.sent) {
-            // Проверяем, был ли ответ уже отправлен Telegraf'ом
             reply.code(500).send({ error: 'Internal webhook processing error' })
           }
         }
@@ -134,95 +131,87 @@ function registerRoutes() {
       }
     }
   )
-  // --- КОНЕЦ ОБНОВЛЕННОГО МАРШРУТА ---
 
-  // Обработчик для вебхука Replicate
-  server.post('/api/replicate-webhook', async (request, reply) => {
+  // Вебхук Replicate
+  serverInstance.post('/api/replicate-webhook', async (request, reply) => {
     const payload = request.body
     logger.info('Received webhook from Replicate:', payload)
     // TODO: Обработка вебхуков от Replicate
     return { status: 'received' }
   })
 
-  // Генерация изображения из видео
-  server.post('/api/generate/image-to-video', async (request, reply) => {
-    const { modelIdentifier, imageUrl } = request.body as {
-      modelIdentifier: string
-      imageUrl: string
-    }
-
-    if (!modelIdentifier || !imageUrl) {
-      return reply.code(400).send({ error: 'Missing required parameters' })
-    }
-
-    try {
-      // TODO: Имплементация логики преобразования изображения в видео через Replicate
-      logger.info('Image to video generation request:', {
-        modelIdentifier,
-        imageUrl,
-      })
-
-      return {
-        status: 'processing',
-        message: 'Your request is being processed',
-        requestId: Date.now().toString(),
+  // Генерация image-to-video
+  serverInstance.post(
+    '/api/generate/image-to-video',
+    async (request, reply) => {
+      const { modelIdentifier, imageUrl } = request.body as {
+        modelIdentifier: string
+        imageUrl: string
       }
-    } catch (error) {
-      logger.error('Error generating video from image:', error)
-      return reply
-        .code(500)
-        .send({ error: 'Failed to process image to video request' })
-    }
-  })
 
-  // Обработчик для интеграции с Robokassa
-  server.post('/api/robokassa/result', async (request, reply) => {
+      if (!modelIdentifier || !imageUrl) {
+        return reply.code(400).send({ error: 'Missing required parameters' })
+      }
+
+      try {
+        // TODO: Имплементация логики преобразования изображения в видео через Replicate
+        logger.info('Image to video generation request:', {
+          modelIdentifier,
+          imageUrl,
+        })
+
+        return {
+          status: 'processing',
+          message: 'Your request is being processed',
+          requestId: Date.now().toString(),
+        }
+      } catch (error) {
+        logger.error('Error generating video from image:', error)
+        return reply
+          .code(500)
+          .send({ error: 'Failed to process image to video request' })
+      }
+    }
+  )
+
+  // Robokassa
+  serverInstance.post('/api/robokassa/result', async (request, reply) => {
     // TODO: Имплементация логики обработки результатов оплаты
     logger.info('Received payment result from Robokassa')
     return { status: 'ok' }
   })
 
-  // Заглушка для получения баланса пользователя
-  server.get('/api/user/:telegramId/balance', async (request, reply) => {
-    const { telegramId } = request.params as { telegramId: string }
-    // TODO: Имплементация получения баланса
-    return { telegramId, balance: 100 }
-  })
+  // Баланс пользователя GET
+  serverInstance.get(
+    '/api/user/:telegramId/balance',
+    async (request, reply) => {
+      const { telegramId } = request.params as { telegramId: string }
+      // TODO: Имплементация получения баланса
+      return { telegramId, balance: 100 }
+    }
+  )
 
-  // Заглушка для обновления баланса пользователя
-  server.post('/api/user/:telegramId/balance', async (request, reply) => {
-    const { telegramId } = request.params as { telegramId: string }
-    const { amount } = request.body as { amount: number }
-    // TODO: Имплементация обновления баланса
-    return { telegramId, updated: true, amount }
-  })
+  // Баланс пользователя POST
+  serverInstance.post(
+    '/api/user/:telegramId/balance',
+    async (request, reply) => {
+      const { telegramId } = request.params as { telegramId: string }
+      const { amount } = request.body as { amount: number }
+      // TODO: Имплементация обновления баланса
+      return { telegramId, updated: true, amount }
+    }
+  )
 
   // Заглушка для обновления подписки пользователя
-  server.post('/api/user/:telegramId/subscription', async (request, reply) => {
-    const { telegramId } = request.params as { telegramId: string }
-    const { subscriptionType } = request.body as { subscriptionType: string }
-    // TODO: Имплементация обновления подписки
-    return { telegramId, updated: true, subscriptionType }
-  })
-}
-
-/**
- * Запуск сервера Fastify
- */
-export async function startFastifyServer(port: number = 3000) {
-  try {
-    await setupServer() // Вызываем настройку здесь
-    // await server.ready(); // listen сделает это - УБИРАЕМ
-    // await server.listen({ port, host: '0.0.0.0' }); // УБИРАЕМ listen
-    logger.info(
-      `🚀 Fastify server configured and ready (but not listening). Port ${port} intended.`
-    )
-    // Возвращаем настроенный сервер для дальнейшего использования
-    return server
-  } catch (error) {
-    logger.error('Error starting Fastify server:', error)
-    process.exit(1)
-  }
+  serverInstance.post(
+    '/api/user/:telegramId/subscription',
+    async (request, reply) => {
+      const { telegramId } = request.params as { telegramId: string }
+      const { subscriptionType } = request.body as { subscriptionType: string }
+      // TODO: Имплементация обновления подписки
+      return { telegramId, updated: true, subscriptionType }
+    }
+  )
 }
 
 // Оставляем экспорт по умолчанию, он понадобится для Vercel

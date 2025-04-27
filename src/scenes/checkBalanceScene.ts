@@ -1,33 +1,20 @@
-import { SYSTEM_CONFIG } from '@/price/constants'
-import { Scenes, Markup } from 'telegraf';
+import { Scenes } from 'telegraf'
+import { MyContext } from '@/interfaces'
 
-import type { MyContext } from '@/interfaces';
-import { logger as log } from '@/utils/logger';
-import {sendInsufficientStarsMessage,
-  sendBalanceMessage} from "@/price/helpers";
-import {getUserInfo} from "@/handlers/getUserInfo";
-
-import { ModeEnum } from '@/interfaces/modes';;
-import { getUserDetailsSubscription as findAndCreateUser } from '@/core/supabase';
-import {SubscriptionType} from "@/interfaces/subscription.interface";
-import type { BotName } from '@/interfaces/telegram-bot.interface';
-import * as os from 'os';
-import { getUserBalance } from '@/core/supabase/getUserBalance';
-import { isRussian } from '@/helpers/language';
-
-// Type definitions
-export interface CostCalculationParams {
-  mode: ModeEnum | string;
-  steps?: number;
-  numImages?: number;
-  modelId?: string;
-}
-
-export interface CostCalculationResult {
-  stars: number;
-  rubles: number;
-  dollars: number;
-}
+import {
+  sendInsufficientStarsMessage,
+  sendBalanceMessage,
+} from '@/price/helpers'
+import { getUserInfo } from '@/handlers/getUserInfo'
+import {
+  ModeEnum,
+  CostCalculationParams,
+  CostCalculationResult,
+} from '@/interfaces/modes'
+import { starCost, SYSTEM_CONFIG } from '@/price/constants'
+import { logger } from '@/utils/logger'
+import { getUserDetailsSubscription } from '@/core/supabase'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 // Интерфейс для возвращаемого значения
 export interface UserStatus {
   stars: number // Баланс
@@ -38,7 +25,7 @@ export interface UserStatus {
 }
 
 export function calculateCostInStars(costInDollars: number): number {
-  return costInDollars / SYSTEM_CONFIG.starCost
+  return costInDollars / starCost
 }
 
 export type CostCalculationParamsInternal = CostCalculationParams
@@ -60,7 +47,7 @@ export const BASE_COSTS: BaseCosts = {
   [ModeEnum.TextToSpeech]: 0.12,
   [ModeEnum.ImageToVideo]: 0,
   [ModeEnum.TextToVideo]: 0,
-  [ModeEnum.TextToImage]: 0.08,
+  [ModeEnum.TextToImage]: 0,
   [ModeEnum.LipSync]: 0.9,
   [ModeEnum.VoiceToText]: 0.08,
   [ModeEnum.DigitalAvatarBody]: 0,
@@ -81,7 +68,7 @@ export function calculateModeCost(
     let normalizedMode = mode
     if (mode === 'neuro_photo_2') {
       normalizedMode = ModeEnum.NeuroPhotoV2
-      log.info({
+      logger.info({
         message: '🔄 Использован алиас режима',
         description: 'Mode alias used',
         originalMode: mode,
@@ -92,7 +79,7 @@ export function calculateModeCost(
     const baseCostInDollars = BASE_COSTS[normalizedMode as keyof BaseCosts]
 
     if (baseCostInDollars === undefined) {
-      log.error({
+      logger.error({
         message: '❌ Неизвестный режим',
         description: 'Unknown mode in cost calculation',
         mode,
@@ -108,9 +95,9 @@ export function calculateModeCost(
       ) {
         // Пример: стоимость зависит от шагов (можно настроить формулу)
         // Допустим, базовая стоимость - это цена за 1 шаг
-        stars = (baseCostInDollars / SYSTEM_CONFIG.starCost) * steps * numImages
+        stars = (baseCostInDollars / starCost) * steps * numImages
       } else {
-        stars = (baseCostInDollars / SYSTEM_CONFIG.starCost) * numImages
+        stars = (baseCostInDollars / starCost) * numImages
       }
     }
 
@@ -120,12 +107,12 @@ export function calculateModeCost(
     }
 
     stars = parseFloat(stars.toFixed(2))
-    const dollars = parseFloat((stars * SYSTEM_CONFIG.starCost).toFixed(2))
+    const dollars = parseFloat((stars * starCost).toFixed(2))
     const rubles = parseFloat((dollars * SYSTEM_CONFIG.interestRate).toFixed(2))
 
     return { stars, dollars, rubles }
   } catch (error) {
-    log.error({
+    logger.error({
       message: '❌ Ошибка при расчете стоимости',
       description: 'Error during cost calculation',
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -216,7 +203,7 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
 
 checkBalanceScene.enter(async ctx => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  log.info({
+  logger.info({
     message: '🚀 [CheckBalanceScene] Вход в сцену проверки баланса',
     telegramId,
     function: 'checkBalanceScene.enter',
@@ -230,7 +217,7 @@ checkBalanceScene.enter(async ctx => {
   const mode = ctx.session.mode as ModeEnum
   const isRu = ctx.from?.language_code === 'ru'
 
-  log.info({
+  logger.info({
     message: `[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`,
     telegramId: userId,
     mode,
@@ -241,16 +228,16 @@ checkBalanceScene.enter(async ctx => {
 
   try {
     // --- ШАГ 2: ПОЛУЧЕНИЕ ДАННЫХ ПОЛЬЗОВАТЕЛЯ ---
-    log.info({
+    logger.info({
       message: `[CheckBalanceScene] Получение данных пользователя из БД`,
       telegramId,
       function: 'checkBalanceScene.enter',
       step: 'fetching_user_data',
     })
 
-    const userDetails = await findAndCreateUser(telegramId)
+    const userDetails = await getUserDetailsSubscription(telegramId)
 
-    log.info({
+    logger.info({
       message: `[CheckBalanceScene] Данные пользователя получены`,
       telegramId,
       function: 'checkBalanceScene.enter',
@@ -263,7 +250,7 @@ checkBalanceScene.enter(async ctx => {
 
     // --- ШАГ 3: ПРОВЕРКА СУЩЕСТВОВАНИЯ ---
     if (!userDetails.isExist) {
-      log.warn({
+      logger.warn({
         message: `[CheckBalanceScene] Пользователь ${telegramId} не найден в БД. Перенаправление в StartScene.`,
         telegramId,
         function: 'checkBalanceScene.enter',
@@ -280,7 +267,7 @@ checkBalanceScene.enter(async ctx => {
 
     // Шаг 4: ПРОВЕРКА ПОДПИСКИ
     if (!userDetails.isSubscriptionActive) {
-      log.warn({
+      logger.warn({
         message: `[CheckBalanceScene] Пользователь ${telegramId} НЕ имеет активной подписки. Перенаправление в StartScene.`,
         telegramId,
         function: 'checkBalanceScene.enter',
@@ -291,7 +278,7 @@ checkBalanceScene.enter(async ctx => {
       })
       return ctx.scene.enter(ModeEnum.StartScene)
     } else {
-      log.info({
+      logger.info({
         message: `[CheckBalanceScene] Подписка активна для пользователя ${telegramId}. Тип: ${userDetails.subscriptionType}`,
         telegramId,
         function: 'checkBalanceScene.enter',
@@ -306,7 +293,7 @@ checkBalanceScene.enter(async ctx => {
     const cost = modeCosts[mode] || 0
     const costValue = getCostValue(cost)
 
-    log.info({
+    logger.info({
       message: `[CheckBalanceScene] Проверка баланса для режима: ${mode}`,
       telegramId,
       function: 'checkBalanceScene.enter',
@@ -319,7 +306,7 @@ checkBalanceScene.enter(async ctx => {
 
     // Шаг 6: Показываем баланс и стоимость, если функция платная
     if (costValue > 0) {
-      log.info({
+      logger.info({
         message: `[CheckBalanceScene] Отображение информации о балансе для платной функции`,
         telegramId,
         function: 'checkBalanceScene.enter',
@@ -341,7 +328,7 @@ checkBalanceScene.enter(async ctx => {
 
     // Шаг 7: Проверка достаточности баланса
     if (currentBalance < costValue) {
-      log.warn({
+      logger.warn({
         message: `[CheckBalanceScene] Недостаточно баланса для режима: ${mode}`,
         telegramId,
         function: 'checkBalanceScene.enter',
@@ -355,7 +342,7 @@ checkBalanceScene.enter(async ctx => {
       // Отправляем сообщение о нехватке звезд
       await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
       // Выходим из сцены, т.к. баланса не хватает
-      log.info({
+      logger.info({
         message: `[CheckBalanceScene] Выход из сцены из-за недостатка баланса`,
         telegramId,
         function: 'checkBalanceScene.enter',
@@ -366,7 +353,7 @@ checkBalanceScene.enter(async ctx => {
     }
 
     // Если все проверки пройдены (достаточно баланса)
-    log.info({
+    logger.info({
       message: `[CheckBalanceScene] Все проверки пройдены, доступ разрешен для режима: ${mode}`,
       telegramId,
       function: 'checkBalanceScene.enter',
@@ -383,7 +370,7 @@ checkBalanceScene.enter(async ctx => {
     await enterTargetScene(ctx, async () => {}, mode, costValue) // <--- Исправленный вызов
   } catch (error) {
     console.error('[DEBUG CheckBalanceScene Enter] Error caught:', error) // Добавлено
-    log.error({
+    logger.error({
       message: `[CheckBalanceScene] Ошибка при проверке баланса`,
       telegramId,
       function: 'checkBalanceScene.enter',
@@ -413,7 +400,7 @@ export const enterTargetScene = async (
 ) => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
 
-  log.info({
+  logger.info({
     message: `[EnterTargetSceneWrapper] Попытка входа в режим ${mode}`,
     telegramId,
     mode,
@@ -422,10 +409,10 @@ export const enterTargetScene = async (
   })
 
   try {
-    const userDetails = await findAndCreateUser(telegramId)
+    const userDetails = await getUserDetailsSubscription(telegramId)
 
     if (!userDetails.isExist) {
-      log.warn({
+      logger.warn({
         message: '[EnterTargetSceneWrapper] ❌ Пользователь не найден в БД',
         telegramId,
         mode,
@@ -440,7 +427,7 @@ export const enterTargetScene = async (
     }
 
     if (!userDetails.isSubscriptionActive) {
-      log.warn({
+      logger.warn({
         message: '[EnterTargetSceneWrapper] ❌ Подписка неактивна',
         telegramId,
         mode,
@@ -454,7 +441,7 @@ export const enterTargetScene = async (
     const currentBalance = userDetails.stars
 
     if (currentBalance < cost) {
-      log.warn({
+      logger.warn({
         message: '[EnterTargetSceneWrapper] ❌ Недостаточно звезд',
         telegramId,
         mode,
@@ -469,7 +456,7 @@ export const enterTargetScene = async (
 
     // Списываем звезды ТОЛЬКО если стоимость > 0
     if (cost > 0) {
-      log.info({
+      logger.info({
         message: `[EnterTargetSceneWrapper] Списание звезд за режим ${mode}`,
         telegramId,
         mode,
@@ -481,7 +468,7 @@ export const enterTargetScene = async (
       // await logTransaction(...)
       // const updatedBalance = await updateUserBalance(...)
       const updatedBalance = currentBalance - cost // Временное решение
-      log.info({
+      logger.info({
         message: `[EnterTargetSceneWrapper] ✅ Звезды списаны (симуляция), баланс обновлен`,
         telegramId,
         mode,
@@ -491,7 +478,7 @@ export const enterTargetScene = async (
       // Здесь можно было бы обновить баланс в ctx.session, если он там хранится
       // ctx.session.user.stars = updatedBalance; // Пример
     } else {
-      log.info({
+      logger.info({
         message: `[EnterTargetSceneWrapper] Режим ${mode} бесплатный, звезды не списываются`,
         telegramId,
         mode,
@@ -499,7 +486,7 @@ export const enterTargetScene = async (
       })
     }
 
-    log.info({
+    logger.info({
       message: `[EnterTargetSceneWrapper] ✅ Доступ разрешен, переход к обработчику`,
       telegramId,
       mode,
@@ -512,7 +499,7 @@ export const enterTargetScene = async (
     // --- ИЛИ ---
 
     // Если эта функция ДОЛЖНА переводить в сцену, то логика будет такой:
-    log.info({
+    logger.info({
       message: `[EnterTargetSceneWrapper] ✅ Переход в целевую сцену ${mode}`,
       telegramId,
       mode,
@@ -525,7 +512,7 @@ export const enterTargetScene = async (
       // Дополнительные данные, если нужны для целевой сцены
     })
   } catch (error) {
-    log.error({
+    logger.error({
       message: `[EnterTargetSceneWrapper] ❌ Ошибка при обработке входа в режим ${mode}`,
       telegramId,
       mode,

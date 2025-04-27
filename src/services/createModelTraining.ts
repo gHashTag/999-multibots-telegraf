@@ -1,5 +1,4 @@
-import axios from 'axios'
-import type { AxiosResponse } from 'axios'
+import axios, { AxiosResponse } from 'axios'
 import FormData from 'form-data'
 import fs from 'fs'
 import {
@@ -8,7 +7,7 @@ import {
   API_SERVER_URL,
   LOCAL_SERVER_URL,
 } from '@/config'
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 interface ModelTrainingRequest {
   filePath: string
   triggerWord: string

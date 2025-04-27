@@ -1,35 +1,26 @@
-import type { MyContext } from '@/interfaces'
+import { Context } from 'telegraf'
 import { starAmounts } from '@/price/helpers'
+import { MyContext } from '@/interfaces'
+import { isRussian } from '@/helpers'
 
 export async function handleBuy(ctx: MyContext) {
-  const isRu = ctx.from?.language_code === 'ru'
+  const callbackData = (ctx.callbackQuery as any)?.data
+  const isRu = isRussian(ctx)
+
+  if (!callbackData) {
+    console.error('CASE: handleBuy - Ошибка: callbackData не определен')
+    await ctx.answerCbQuery('Произошла ошибка')
+    return
+  }
+
   try {
-    const data = ctx.match?.[0]
-    const daysMatch = ctx.match?.[1]
-
-    if (!data || !daysMatch) {
-      console.warn('CASE: handleBuy - Не удалось извлечь данные из ctx.match', {
-        match: ctx.match,
-      })
-      await ctx.answerCbQuery('Ошибка обработки запроса.')
-      return
-    }
-
-    console.log('CASE: handleBuy - Начало обработки', { data, days: daysMatch })
-
-    const days = parseInt(daysMatch, 10)
-    if (isNaN(days)) {
-      console.warn('CASE: handleBuy - Некорректное количество дней:', daysMatch)
-      await ctx.answerCbQuery('Ошибка: некорректное количество дней.')
-      return
-    }
+    console.log('CASE: handleBuy - Начало обработки', { callbackData })
 
     let matchFound = false
+
     for (const amount of starAmounts) {
-      if (days === amount) {
-        console.log(
-          `CASE: handleBuy - Найдено (некорректное?) совпадение для amount=${amount} (извлекли как days=${days})`
-        )
+      if (callbackData.endsWith(`top_up_${amount}`)) {
+        console.log(`CASE: handleBuy - Найдено совпадение для amount=${amount}`)
         matchFound = true
 
         try {
@@ -37,10 +28,10 @@ export async function handleBuy(ctx: MyContext) {
           await ctx.replyWithInvoice({
             title: `${amount} ⭐️`,
             description: isRu
-              ? `�� Получите ${amount} звезд.\nИспользуйте звезды для различных функций нашего бота и наслаждайтесь новыми возможностями!`
+              ? `💬 Получите ${amount} звезд.\nИспользуйте звезды для различных функций нашего бота и наслаждайтесь новыми возможностями!`
               : `💬 Get ${amount} stars.\nUse stars for various functions of our bot and enjoy new opportunities!`,
             payload: `${amount}_${Date.now()}`,
-            currency: 'XTR',
+            currency: 'XTR', // Pass "XTR" for payments in Telegram Stars.
             prices: [
               {
                 label: isRu ? 'Цена' : 'Price',
@@ -56,38 +47,32 @@ export async function handleBuy(ctx: MyContext) {
             'CASE: handleBuy - Ошибка при отправке invoice:',
             invoiceError
           )
-          try {
-            await ctx.answerCbQuery(
-              isRu ? 'Ошибка отправки счета' : 'Invoice sending error'
-            )
-          } catch {
-            /* ignore */
-          }
+          await ctx.answerCbQuery('Ошибка при создании счета')
         }
-
         return
       }
     }
-
+    //
     if (!matchFound) {
       console.warn(
-        'CASE: handleBuy - Не найдено совпадений для извлеченного amount (days):',
-        days
+        'CASE: handleBuy - Не найдено совпадений для callbackData:',
+        callbackData
       )
       console.warn(
         'CASE: handleBuy - Доступные значения starAmounts:',
         starAmounts
       )
-      await ctx.answerCbQuery(
-        isRu ? 'Опция покупки не найдена' : 'Purchase option not found'
-      )
+      await ctx.answerCbQuery('Неизвестное действие')
     }
   } catch (error) {
     console.error('CASE: handleBuy - Общая ошибка:', error)
     try {
-      await ctx.answerCbQuery(isRu ? 'Внутренняя ошибка' : 'Internal error')
-    } catch {
-      /* ignore */
+      await ctx.answerCbQuery('Произошла внутренняя ошибка')
+    } catch (cbError) {
+      console.error(
+        'CASE: handleBuy - Ошибка при ответе на callbackQuery в catch блоке',
+        cbError
+      )
     }
   }
 }

@@ -1,6 +1,7 @@
 import { Telegraf, Scenes, session, Markup } from 'telegraf'
-import type { MyContext } from './interfaces'
-import { ModeEnum } from './interfaces/modes';
+import { message, callbackQuery } from 'telegraf/filters'
+import { MyContext } from './interfaces'
+import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { levels } from './menu/mainMenu'
 import { getUserDetailsSubscription } from '@/core/supabase'
@@ -49,7 +50,7 @@ import {
 } from './scenes'
 
 import { defaultSession } from './store'
-
+//
 import { get100Command } from './commands/get100Command'
 import { handleTechSupport } from './commands/handleTechSupport'
 import { handleBuy } from './handlers/handleBuy'
@@ -169,7 +170,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   bot.command('support', async ctx => {
     console.log('CASE bot.command: support')
     await ctx.scene.leave() // Выходим из сцены перед показом контактов
-    await handleTechSupport(ctx)
+    await handleTechSupport(ctx as MyContext)
   })
 
   // --- НАЧАЛО: ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК ---
@@ -237,7 +238,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
   // --- ИСПРАВЛЕНИЕ: Обработчик команды /menu ---
   bot.command('menu', async ctx => {
-    const { telegramId } = getUserInfo(ctx)
+    const { telegramId } = getUserInfo(ctx as MyContext)
     logger.info({
       message: `[Command /menu START] User: ${telegramId}. Leaving scene, resetting session and checking subscription...`,
       telegramId,
@@ -283,7 +284,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
   bot.command('get100', async ctx => {
     console.log('CASE: get100')
-    await get100Command(ctx)
+    await get100Command(ctx as MyContext)
   })
 
   // Переносим команду /buy из composer в bot
@@ -306,7 +307,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   })
 
   bot.command('help', async ctx => {
-    await ctx.scene.enter('step0')
+    // Входим непосредственно в сцену справки
+    console.log('INFO: Entering helpScene directly from /help command')
+    await ctx.scene.enter('helpScene')
   })
 
   bot.command('neuro_coder', async ctx => {
@@ -319,16 +322,15 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   // <<< НАЧАЛО: ДОБАВЛЕННЫЕ ОБРАБОТЧИКИ HEARS >>>
   bot.hears([levels[106].title_ru, levels[106].title_en], async ctx => {
     console.log('CASE bot.hears: ❓ Справка / Help')
-    if (!ctx.session?.currentScene) {
-      ctx.session.mode = ModeEnum.Help // Общий режим справки
-    } // Если currentScene установлен, helpScene использует его
-    await ctx.scene.enter(ModeEnum.Help) // HelpScene ID = 'helpScene'
+    // Всегда входим в 'helpScene'. Сцена сама определит контекст по ctx.session.mode, если он есть.
+    console.log('INFO: Entering helpScene from Hears Handler')
+    await ctx.scene.enter('helpScene')
   })
 
   bot.hears([levels[104].title_ru, levels[104].title_en], async ctx => {
     console.log('CASE bot.hears: 🏠 Главное меню / Main menu')
     // Логика аналогична /menu
-    const { telegramId } = getUserInfo(ctx)
+    const { telegramId } = getUserInfo(ctx as MyContext)
     logger.info({
       message: `[HEARS Главное меню START] User: ${telegramId}. Resetting session and checking subscription status...`,
       telegramId,
@@ -375,24 +377,6 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     ctx.session.mode = ModeEnum.Invite // Устанавливаем режим
     await ctx.scene.enter(ModeEnum.Invite) // InviteScene ID = 'inviteScene'
   })
-  // <<< КОНЕЦ: ДОБАВЛЕННЫЕ ОБРАБОТЧИКИ HEARS >>>
-
-  bot.command('info', async ctx => {
-    // ... обработчик /info ...
-  })
-
-  // ... остальные команды и обработчики ...
-
-  // Обработка колбэков для кнопок покупки
-  bot.action(/buy_(\d+)_days/, handleBuy)
-
-  // Пример обработки pre_checkout_query для Telegram Payments (если используется)
-  bot.on('pre_checkout_query', ctx => ctx.answerPreCheckoutQuery(true))
-
-  // Обработка successful_payment
-  bot.on('successful_payment', async ctx => {
-    // ... обработчик successful_payment ...
-  })
 
   // --- Регистрация специфичных для оплаты действий ---
   registerPaymentActions(bot)
@@ -426,7 +410,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   })
 
   // Обработчик неизвестных колбэков
-  bot.on('callback_query', async ctx => {
+  bot.on(callbackQuery('data'), async ctx => {
     await ctx.answerCbQuery('Неизвестное действие')
     console.warn('Unhandled callback_query:', ctx.callbackQuery)
   })

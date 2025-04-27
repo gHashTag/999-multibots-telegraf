@@ -1,13 +1,13 @@
-import type {
+import {
   ServiceType,
   ServiceConfig,
   ServiceUsageStats,
   ServiceValidationResult,
   ServiceAccessResult,
+  ServiceMetadata,
 } from '../interfaces/service.interface'
-import type { ServiceMetadata } from '../interfaces/service.interface'
 import { supabase } from '@/core/supabase'
-import type { ModeEnum } from '@/interfaces/modes'
+import { ModeEnum } from '@/interfaces/modes'
 // Normalize transaction type to lowercase
 export const normalizeTransactionType = (type: string): string => {
   return type.toLowerCase()

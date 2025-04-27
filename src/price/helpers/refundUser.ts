@@ -1,4 +1,4 @@
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { getUserBalance, getReferalsCountAndUserData } from '@/core/supabase'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { mainMenu } from '@/menu'

@@ -1,5 +1,4 @@
-import axios from 'axios'
-import type { AxiosRequestConfig, AxiosResponse } from 'axios'
+import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
 
 export async function fetchWithAxios(
   url: string,

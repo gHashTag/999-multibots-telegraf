@@ -7,7 +7,7 @@ import {
   LOCAL_SERVER_URL,
 } from '@/config'
 import { isRussian } from '@/helpers/language'
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 
 export async function generateNeuroImageV2(
   prompt: string,

@@ -1,9 +1,9 @@
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
 import { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
 import logger from '@/utils/logger'
 import { isRussian } from '@/helpers/language'
-import type { TranslationButton } from '@/interfaces/supabase.interface'
+import { TranslationButton } from '@/interfaces/supabase.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 // Интерфейс для структуры кнопки из базы данных

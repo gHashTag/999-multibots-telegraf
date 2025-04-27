@@ -1,6 +1,3 @@
-import type { MyContext } from '@/interfaces'
+import { Context } from 'telegraf'
 
-export const isRussian = (ctx: MyContext) => {
-  const languageCode = ctx.from?.language_code
-  return languageCode === 'ru'
-}
+export const isRussian = (ctx: Context) => ctx.from?.language_code === 'ru'

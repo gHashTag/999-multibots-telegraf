@@ -1,7 +1,6 @@
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import type { MyContext } from '@/interfaces'
-import type { BalanceOperationResult } from '@/interfaces/payments.interface'
+import { BalanceOperationResult, MyContext } from '@/interfaces'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { calculateFinalPrice } from './calculateFinalPrice'
 

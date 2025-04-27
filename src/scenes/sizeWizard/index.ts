@@ -1,6 +1,5 @@
 import { Markup, Scenes } from 'telegraf'
-import type { Update } from 'telegraf/types'
-import type { MyContext } from '../../interfaces'
+import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
 import { handleSizeSelection } from '../../handlers'
 

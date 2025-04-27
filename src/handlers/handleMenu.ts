@@ -1,9 +1,9 @@
-import type { MyContext } from '@/interfaces/telegram-bot.interface'
+import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { Markup } from 'telegraf'
 import { levels } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
 import { priceCommand } from '@/commands/priceCommand'
-import { ModeEnum } from '@/interfaces/modes';
+import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { handleTechSupport } from '@/commands/handleTechSupport'
 // Импортируем функцию перезапуска видео сцены
@@ -165,7 +165,7 @@ export const handleMenu = async (ctx: MyContext) => {
           message: '💭 [handleMenu] Переход к чату с аватаром',
           telegramId,
           function: 'handleMenu',
-          action: 'chat_with_avatar',
+          action: ModeEnum.ChatWithAvatar,
           nextScene: ModeEnum.CheckBalanceScene,
         })
         console.log('CASE: 💭 Чат с аватаром')
@@ -184,16 +184,14 @@ export const handleMenu = async (ctx: MyContext) => {
           telegramId,
           function: 'handleMenu',
           action: 'select_model',
-          nextScene: ModeEnum.CheckBalanceScene,
+          nextScene: ModeEnum.SelectModel,
         })
         console.log('CASE: 🤖 Выбор модели ИИ')
         ctx.session.mode = ModeEnum.SelectModel
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.SelectModel}`)
+        await ctx.scene.enter(ModeEnum.SelectModel)
         console.log(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SelectModel}`
         )
       },
       [isRu ? levels[7].title_ru : levels[7].title_en]: async () => {
@@ -346,11 +344,11 @@ export const handleMenu = async (ctx: MyContext) => {
           telegramId,
           function: 'handleMenu',
           action: 'help',
-          nextScene: ModeEnum.HelpScene,
+          nextScene: ModeEnum.Help,
         })
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
-        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.HelpScene}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
         await handleTechSupport(ctx)
         console.log(`✅ [handleMenu] Завершен вызов handleTechSupport`)
       },
@@ -440,11 +438,9 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
-        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.HelpScene}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
         await ctx.scene.enter('helpScene')
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.HelpScene}`
-        )
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${ModeEnum.Help}`)
       },
       '/menu': async () => {
         logger.info({

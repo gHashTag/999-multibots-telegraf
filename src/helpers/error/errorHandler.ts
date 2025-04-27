@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf'
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 // Убираем импорт отсутствующей функции supportRequest
 // import { supportRequest } from '@/core/bot'

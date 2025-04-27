@@ -1,4 +1,4 @@
-import type { ModeEnum } from './modes'
+import { ModeEnum } from './modes'
 
 export type ServiceType =
   | 'TextToImage'

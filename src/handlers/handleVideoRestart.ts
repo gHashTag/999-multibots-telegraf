@@ -1,5 +1,5 @@
-import type { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/interfaces/modes';
+import { MyContext } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { isRussian } from '@/helpers/language'
 import { logger } from '@/utils/logger'
 import { isDev } from '@/config'

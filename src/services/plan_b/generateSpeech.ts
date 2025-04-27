@@ -3,7 +3,7 @@
 // import os from 'os'
 // import { elevenlabs } from '@/core/elevenlabs'
 
-// import type { Message, Update } from "telegraf/types"
+// import { InputFile } from 'telegraf/typings/core/types/typegram'
 // import {
 //   getUserByTelegramIdString,
 //   updateUserLevelPlusOne,
@@ -13,9 +13,9 @@
 //   sendServiceErrorToAdmin,
 // } from '@/helpers/error'
 // import { Telegraf } from 'telegraf'
-// import type { MyContext } from '@/interfaces'
+// import { MyContext } from '@/interfaces'
 // import { modeCosts } from '@/price/helpers/modelsCost'
-// import { ModeEnum } from '@/interfaces/modes';
+// import { ModeEnum } from '@/interfaces/modes'
 // import { processBalanceOperation, sendBalanceMessage } from '@/price/helpers'
 // import { PaymentType } from '@/interfaces/payments.interface'
 

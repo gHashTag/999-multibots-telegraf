@@ -1,13 +1,13 @@
-import {getUserBalance} from "@/core/supabase/getUserBalance";
-import {updateUserBalance} from "@/core/supabase/updateUserBalance";
-import type {
+import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import {
+  PaymentType,
   BalanceOperationResult,
 } from '@/interfaces/payments.interface'
-import {Telegraf} from "telegraf"; // Нужен для отправки сообщения о недостатке средств
-import type { MyContext } from '@/interfaces'
+import { Telegraf } from 'telegraf' // Нужен для отправки сообщения о недостатке средств
+import { MyContext } from '@/interfaces'
 import logger from '@/utils/logger'
-import type {ModeEnum} from "@/interfaces/modes";
-import {PaymentType} from "@/interfaces/payments.interface";
+import { ModeEnum } from '@/interfaces'
 
 // Определим тип для результата, аналогичный BalanceOperationResult, но без ctx-зависимых полей
 export interface ServiceBalanceOperationResult {

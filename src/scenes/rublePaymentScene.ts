@@ -1,22 +1,20 @@
 import { Markup, Scenes } from 'telegraf'
-import type { MyContext } from '@/interfaces'
-import type { SessionData } from '@/interfaces/telegram-bot.interface'
+import { MyContext, SessionData, SelectedPayment } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { handleSelectRubAmount } from '@/handlers'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
 import { getInvoiceId } from '@/scenes/getRuBillWizard/helper'
-import { MERCHANT_LOGIN, PASSWORD1 } from '@/config'
+import { MERCHANT_LOGIN, ROBOKASSA_PASSWORD_1 } from '@/config'
 import { setPayments } from '@/core/supabase'
-import { getBotNameByToken } from '@/core/bot'
+import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/interfaces/modes';
+import { ModeEnum } from '@/interfaces/modes'
 
 import {
   PaymentStatus,
   Currency,
   PaymentType,
 } from '@/interfaces/payments.interface'
-import type { SelectedPayment } from '@/interfaces/payments.interface'
 
 export const rublePaymentScene = new Scenes.BaseScene<MyContext>(
   ModeEnum.RublePaymentScene
@@ -103,7 +101,7 @@ rublePaymentScene.enter(async ctx => {
         amountRub,
         invId,
         description,
-        PASSWORD1
+        ROBOKASSA_PASSWORD_1
       )
 
       const { bot_name } = getBotNameByToken(ctx.telegram.token)
@@ -260,7 +258,7 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       amountRub,
       invId,
       description,
-      PASSWORD1
+      ROBOKASSA_PASSWORD_1
     )
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)

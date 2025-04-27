@@ -1,4 +1,4 @@
-import type { TelegramId } from '@/interfaces/telegram.interface'
+import { TelegramId } from '@/interfaces/telegram.interface'
 import { PaymentStatus, Currency } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { logger } from '@/utils/logger'

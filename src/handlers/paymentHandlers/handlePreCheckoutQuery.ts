@@ -1,7 +1,7 @@
-import type { Context, NarrowedContext } from 'telegraf'
-import type { Message, Update } from "telegraf/types"
+import { Context, NarrowedContext } from 'telegraf'
+import { Update } from 'telegraf/typings/core/types/typegram'
 import { logger } from '@/utils/logger'
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 
 export async function handlePreCheckoutQuery(
   ctx: NarrowedContext<MyContext, Update.PreCheckoutQueryUpdate>

@@ -4,8 +4,7 @@ dotenv.config()
 
 import { NODE_ENV } from '@/config'
 import { Telegraf } from 'telegraf'
-import type { MyContext } from '@/interfaces'
-import type { BotName } from '@/interfaces/telegram-bot.interface'
+import { MyContext, BotName } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { toBotName } from '@/helpers/botName.helper'
 

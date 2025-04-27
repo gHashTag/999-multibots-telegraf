@@ -1,5 +1,5 @@
 import { Scenes } from 'telegraf'
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '@/core/supabase'
 import { createModelTraining } from '@/services/createModelTraining'
@@ -39,7 +39,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
 
     await createModelTraining(
       {
-        filePath: zipPath.toString(),  // Преобразуем Buffer в string
+        filePath: zipPath,
         triggerWord,
         modelName: ctx.session.modelName || '',
         steps: ctx.session.steps || 100,

@@ -1,2 +1,2 @@
-export * from './createHelpCancelKeyboard'
+export * from '../cancelHelpArray'
 export * from '../cancelMenu'

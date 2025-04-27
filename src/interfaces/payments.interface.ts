@@ -1,5 +1,5 @@
-import type { ModeEnum } from '@/interfaces/modes'
-import type { TelegramId } from './telegram.interface'
+import { ModeEnum } from '@/interfaces/modes'
+import { TelegramId } from './telegram.interface'
 import { SubscriptionType } from './subscription.interface'
 
 export interface SelectedPayment {
@@ -39,10 +39,13 @@ export enum PaymentStatus {
   CANCELLED = 'CANCELLED',
 }
 
+/**
+ * Типы платежных операций.
+ * ВАЖНО: Значения должны соответствовать enum `operation_type` в базе данных Supabase.
+ */
 export enum PaymentType {
   MONEY_INCOME = 'MONEY_INCOME',
   MONEY_OUTCOME = 'MONEY_OUTCOME',
-  BONUS = 'BONUS',
   REFUND = 'REFUND',
 }
 

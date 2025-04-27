@@ -1,9 +1,9 @@
 import { Markup, Scenes } from 'telegraf'
-import type { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 
 import { logger } from '@/utils/logger'
-import { ModeEnum } from '@/interfaces/modes';
+import { ModeEnum } from '@/interfaces/modes'
 import { PaymentType } from '@/interfaces/payments.interface'
 
 /**
@@ -74,11 +74,7 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   const intentType = ctx.session.selectedPayment?.type
   const paymentInfo = ctx.session.selectedPayment
 
-  if (
-    (intentType === PaymentType.MONEY_INCOME ||
-      intentType === PaymentType.REFUND) &&
-    paymentInfo
-  ) {
+  if (intentType === PaymentType.MONEY_INCOME && paymentInfo) {
     logger.info(
       `[${ModeEnum.PaymentScene}] Entering Star scene for SUBSCRIPTION: ${paymentInfo.subscription}`,
       {
@@ -112,11 +108,7 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
     }
   )
 
-  if (
-    (intentType === PaymentType.MONEY_INCOME ||
-      intentType === PaymentType.REFUND) &&
-    paymentInfo
-  ) {
+  if (intentType === PaymentType.MONEY_INCOME && paymentInfo) {
     logger.info(
       `[${ModeEnum.PaymentScene}] Entering Ruble scene for SUBSCRIPTION: ${paymentInfo.subscription}`,
       {
@@ -135,6 +127,14 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
   }
 })
 
+// Выход в главное меню
+paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
+  logger.info(`[${ModeEnum.PaymentScene}] Leaving scene via Main Menu button`, {
+    telegram_id: ctx.from?.id,
+  })
+  await ctx.scene.enter(ModeEnum.MainMenu)
+})
+
 // Обработка непредвиденных сообщений
 paymentScene.on('message', async ctx => {
   const isRu = isRussian(ctx)
@@ -143,21 +143,29 @@ paymentScene.on('message', async ctx => {
     // @ts-ignore - Пытаемся получить текст, даже если тип не TextMessage
     text: ctx.message?.text,
   })
-  // ВАЖНО: НЕ отправляем здесь меню снова, т.к. оно должно быть от предыдущего шага
-  // Если глобальный обработчик не сработал, значит текст не совпал
   await ctx.reply(
     isRu
-      ? 'Пожалуйста, используйте кнопки для выбора.'
-      : 'Please use the buttons to make a selection.'
-  )
-  // УДАЛЯЕМ повторную отправку клавиатуры
-  /*
+      ? 'Пожалуйста, выберите способ оплаты (⭐️ или 💳) или вернитесь в главное меню.'
+      : 'Please select a payment method (⭐️ or 💳) or return to the main menu.',
     {
       // Добавляем ту же клавиатуру, что и в enter
       reply_markup: Markup.keyboard([
-        // ... кнопки ...
+        [
+          Markup.button.text(isRu ? '⭐️ Звездами' : '⭐️ Stars'),
+          Markup.button.text(isRu ? '💳 Рублями' : '💳 Rubles'),
+        ],
+        [
+          {
+            text: isRu ? 'Что такое звезды❓' : 'What are stars❓',
+            web_app: {
+              url: `https://telegram.org/blog/telegram-stars/${
+                isRu ? 'ru' : 'en'
+              }?ln=a`,
+            },
+          },
+        ],
         [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
       ]).resize().reply_markup,
     }
-  */
+  )
 })

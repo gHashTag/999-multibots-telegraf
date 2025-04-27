@@ -1,4 +1,4 @@
-import { ModeEnum } from '@/interfaces/modes';
+import { ModeEnum } from '@/interfaces/modes'
 import { PricingStrategy } from '@/price/types/strategies'
 
 /**
@@ -51,7 +51,6 @@ export const MODE_PRICING_STRATEGY: Partial<Record<ModeEnum, PricingStrategy>> =
     [ModeEnum.Step0]: PricingStrategy.FREE,
     [ModeEnum.NeuroCoderScene]: PricingStrategy.FREE,
     [ModeEnum.CheckBalanceScene]: PricingStrategy.FREE,
-    [ModeEnum.HelpScene]: PricingStrategy.FREE,
     [ModeEnum.CancelPredictionsWizard]: PricingStrategy.FREE,
     [ModeEnum.EmailWizard]: PricingStrategy.FREE,
     [ModeEnum.GetRuBillWizard]: PricingStrategy.FREE,

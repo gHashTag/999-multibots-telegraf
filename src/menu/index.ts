@@ -1,5 +1,7 @@
 export * from './mainMenu'
 export * from './imageModelMenu'
+export * from './mainMenu'
+export * from './imageModelMenu'
 export * from './startMenu'
 export * from './videoModelMenu'
 export * from './cancelMenu'
@@ -11,12 +13,10 @@ export * from './sendGenerationErrorMessage'
 export * from './sendPromptImprovementFailureMessage'
 export * from './sendPromptImprovementMessage'
 export * from './sendGenericErrorMessage'
-// export * from './getBotConfig' // Комментируем, так как файл не найден
-export * from '@/core/supabase/getUserBalance'
-// Комментируем проблемный реэкспорт
-// export * from './subscription/getUserSubscriptionMenu'
+export * from './createHelpCancelKeyboard/createHelpCancelKeyboard'
+export * from './cancelHelpArray'
 
-import type { Message, Update, InlineKeyboardMarkup } from "telegraf/types"
+import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 
 /**
  * Создает клавиатуру для генерации изображений

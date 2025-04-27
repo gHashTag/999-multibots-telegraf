@@ -1,19 +1,9 @@
 import { Markup } from 'telegraf'
-import type { ReplyKeyboardMarkup } from 'telegraf/types';import type { Message, Update } from "telegraf/types"
-import { levels } from './mainMenu' // Импортируем levels
-// import { isRussian } from '@/helpers'
-// import { createHelpButton } from './buttons'
-// import { levels } from './mainMenu' // levels больше не нужны здесь
+import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
 
-/**
- * Генерирует Reply клавиатуру для выбора количества шагов обучения (версия 2).
- * @param {boolean} isRu - Флаг русского языка.
- * @returns {Markup.Markup<ReplyKeyboardMarkup>} Клавиатура Telegraf.
- */
 export function getStepSelectionMenuV2(
   isRu: boolean
 ): Markup.Markup<ReplyKeyboardMarkup> {
-  // Клавиатура с шагами и навигацией
   return Markup.keyboard([
     [
       Markup.button.text(isRu ? '100 шагов' : '100 steps'),
@@ -30,10 +20,9 @@ export function getStepSelectionMenuV2(
       Markup.button.text(isRu ? '800 шагов' : '800 steps'),
       Markup.button.text(isRu ? '1000 шагов' : '1000 steps'),
     ],
-    // Возвращаем кнопки навигации
     [
-      Markup.button.text(isRu ? levels[106].title_ru : levels[106].title_en),
-      Markup.button.text(isRu ? levels[104].title_ru : levels[104].title_en),
+      Markup.button.text(isRu ? 'Справка по команде' : 'Help for the command'),
+      Markup.button.text(isRu ? 'Отмена' : 'Cancel'),
     ],
   ])
     .resize()

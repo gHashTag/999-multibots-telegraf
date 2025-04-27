@@ -1,9 +1,9 @@
 import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { isRussian } from '@/helpers/language'
-import type { MyContext } from '@/interfaces'
-import type { ModelUrl } from '@/interfaces/models.interface'
+import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import type { InputMediaPhoto } from 'telegraf/types'
+import { InputMediaPhoto } from 'telegraf/types'
+import { Markup } from 'telegraf'
 
 export async function generateNeuroImage(
   prompt: string,
@@ -60,37 +60,27 @@ export async function generateNeuroImage(
             isRussian(ctx)
               ? `Ваши изображения сгенерированы!\n\nЕсли хотите сгенерировать еще, то выберите количество изображений в меню 1️⃣, 2️⃣, 3️⃣, 4️⃣`
               : `Your images have been generated!\n\nIf you want to generate more, select the number of images in the menu 1️⃣, 2️⃣, 3️⃣, 4️⃣`,
-            {
-              reply_markup: {
-                keyboard: [
-                  [
-                    { text: '1️⃣' },
-                    { text: '2️⃣' },
-                    { text: '3️⃣' },
-                    { text: '4️⃣' },
-                  ],
-                  [
-                    {
-                      text: isRussian(ctx)
-                        ? '⬆️ Улучшить промпт'
-                        : '⬆️ Improve prompt',
-                    },
-                    {
-                      text: isRussian(ctx)
-                        ? '📐 Изменить размер'
-                        : '📐 Change size',
-                    },
-                  ],
-                  [
-                    {
-                      text: isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu',
-                    },
-                  ],
-                ],
-                resize_keyboard: true,
-                one_time_keyboard: false,
-              },
-            }
+            Markup.keyboard([
+              [
+                Markup.button.text('1️⃣'),
+                Markup.button.text('2️⃣'),
+                Markup.button.text('3️⃣'),
+                Markup.button.text('4️⃣'),
+              ],
+              [
+                Markup.button.text(
+                  isRussian(ctx) ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt'
+                ),
+                Markup.button.text(
+                  isRussian(ctx) ? '📐 Изменить размер' : '📐 Change size'
+                ),
+              ],
+              [
+                Markup.button.text(
+                  isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu'
+                ),
+              ],
+            ]).resize()
           )
         } else {
           const mediaGroup: ReadonlyArray<InputMediaPhoto> =
