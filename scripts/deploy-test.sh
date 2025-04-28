@@ -48,7 +48,8 @@ log "info" "Начинаем деплой тестового окружения 
 
 # Шаг 1: Сборка проекта
 log "info" "Шаг 1: Сборка проекта"
-pnpm build
+# pnpm build
+bun run build
 if [ $? -ne 0 ]; then
   log "error" "Ошибка сборки проекта"
   exit 1
@@ -66,8 +67,9 @@ cp -r dist $DEPLOY_DIR/
 cp -r tests $DEPLOY_DIR/
 cp docker-compose.test.yml $DEPLOY_DIR/
 cp Dockerfile.test $DEPLOY_DIR/
+cp bun.lockb $DEPLOY_DIR/
 cp package.json $DEPLOY_DIR/
-cp pnpm-lock.yaml $DEPLOY_DIR/
+cp tsconfig.json $DEPLOY_DIR/
 cp .env.test $DEPLOY_DIR/
 
 # Создание архива

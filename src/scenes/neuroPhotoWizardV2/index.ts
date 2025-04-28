@@ -5,6 +5,7 @@ import { generateNeuroImageV2 } from '@/services/generateNeuroImageV2'
 import {
   getLatestUserModel,
   getReferalsCountAndUserData,
+  getUserData,
 } from '@/core/supabase'
 import {
   levels,
@@ -92,7 +93,21 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         return
       }
       if (trigger_word) {
-        const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
+        const userData = await getUserData(userId.toString())
+        let genderPromptPart = 'person'
+        if (userData?.gender === 'female') {
+          genderPromptPart = 'female'
+        } else if (userData?.gender === 'male') {
+          genderPromptPart = 'male'
+        }
+        const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
+
+        console.log(
+          `[neuroPhotoWizardV2] Determined gender for prompt: ${genderPromptPart}`
+        )
+
+        const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}, ${detailPrompt}`
+
         await generateNeuroImageV2(
           fullPrompt,
           1,

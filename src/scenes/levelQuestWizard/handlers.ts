@@ -2,8 +2,9 @@ import { MyContext } from '../../interfaces'
 import { errorMessage } from '@/helpers/error'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { getSubScribeChannel } from '@/handlers'
-import { mainMenu } from '@/menu'
+import { levels, mainMenu } from '@/menu'
 import { isRussian } from '@/helpers/language'
+import { Markup } from 'telegraf'
 
 export async function handleQuestRules(ctx: MyContext) {
   try {
@@ -35,7 +36,16 @@ In this bot, you will discover the world of neural networks and learn how to use
 ❓ Ask questions and get help in the support chat @${SUBSCRIBE_CHANNEL_ID}.\n\n
 🌟 Good luck with using the bot! We are confident you will reach new heights! 🌟`
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     errorMessage(ctx, error as Error, isRussian(ctx))
     throw error
@@ -89,7 +99,16 @@ After uploading the images, the bot will start the training process, which can t
 After training, you can use the model to create unique images and videos with your avatar using the "NeuroPhoto" command in the bot's main menu. 🎨\n\n
 Creating a digital avatar body is an important step in personalizing your digital presence. 🌐`
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel1:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -130,7 +149,16 @@ After the process is complete, you will receive your <b>neurophoto</b>. This ima
 - ✨ <b>Improve the prompt</b> and create new images using the "Improve Prompt" command.\n
 - 📏 <b>Resize</b> the image using the "Resize" command.`
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel2:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -177,7 +205,16 @@ export async function handleLevel3(ctx: MyContext) {
 - ♿ <b>Support for visually impaired people:</b> This function can also be useful for visually impaired people, as it allows them to receive textual information about visual content.\n\n
 Using the "Image to Prompt" function opens up new possibilities for creativity and self-expression, allowing you to create higher quality and more detailed neurophotos. 🚀`
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel3:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -220,7 +257,16 @@ Once you provide all the necessary information, our bot will process the data an
 - 🌟 <b>Innovation:</b> Implement new technologies and approaches in your work with the help of an intelligent avatar.\n\n
 `
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel0:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -245,7 +291,16 @@ Your avatar can be set to a specific communication style—formal or informal—
 Chatting with your avatar can be useful in various scenarios: from learning and entertainment to therapy. You can use this feature to get advice, explore new topics, or simply relax and enjoy the conversation. 📚\n\n
 We are proud to offer you such an innovative tool and hope it becomes an indispensable assistant in your daily interactions. Feel free to experiment with different communication styles and topics to find what best suits your needs.`
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel8:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -288,7 +343,16 @@ Allows you to choose the most suitable model for performing various tasks. Choos
 - ⚙️ <b>Task optimization:</b> Using the appropriate model for specific tasks can significantly improve the efficiency and quality of performing these tasks.\n\n
 The "Select AI Model" function opens up the possibility of more flexible and efficient use of the bot's capabilities, adapting its work to your individual needs. 🌐`
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel7:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -347,7 +411,16 @@ By following these criteria, you can create a higher quality voice message for y
 - ⏳ <b>Time-saving:</b> Using a voice avatar saves time on voice-over, providing ready-made audio content that can be easily integrated into your projects.\n\n
 The "Voice for Avatar" function allows you to personalize your digital image, making it more interactive and memorable for your audience. 🚀`
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel7:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -390,7 +463,16 @@ Use it to voice text messages. This opens up new possibilities for creating audi
 - ⚡ <b>Convenience and efficiency:</b> Fast text-to-voice conversion saves time and effort in creating audio content.\n\n
 The "Text to Voice" function makes your digital content more lively and expressive, providing you with the opportunity to easily integrate audio files into your projects. 🚀`
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel6:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -429,7 +511,16 @@ The "Image to Video" function allows you to bring static images with your avatar
 The "Image to Video" function allows you to bring your ideas to life in dynamic videos, adding depth and expressiveness to your projects. 🎥\n\n
 `
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel9:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -500,7 +591,16 @@ The choice of model depends on your goals and preferences. Experiment with diffe
 Imagine you want to create an image that conveys the atmosphere of a sunset over the ocean. You simply enter the text 'sunset over the ocean', and our bot gets to work. It analyzes your description and creates an image that most accurately reflects your idea. This image may include bright orange and pink hues of the sky reflected in the calm waters of the ocean, creating a sense of tranquility and beauty. 🌅🌊\n\n
 But this is just the beginning. You can experiment with different descriptions to see how they come to life. For example, try entering 'snow-capped mountains under a starry sky' or 'city street on a sunny day'. Each time you will receive a unique image that can be used for various purposes — from personal projects to professional presentations. 🚀🎨`
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel10:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -547,7 +647,16 @@ The process begins with selecting a video generation model. Our bot offers sever
    - <b>Application:</b> Choose I2VGen-XL for projects where detailed animation and complex visual effects are important, such as artistic films or animation projects.\n\n
 After selecting a model, the next step is to create a text description or prompt that will be used to generate the video. The prompt is a key part of the process as it determines what the final video will be like. The more detailed your description, the more accurate and unique the video will be. Send the prompt to the bot, and it will start the generation process. Once completed, you will receive a video that can be used for various purposes, from personal projects to professional presentations. Experiment with different models to find the one that best suits your project. 🚀🎥`
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel11:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -584,7 +693,16 @@ Our bot offers you a choice of several preset sizes, each with its features and 
 The process of changing the size of an image with our bot is simple and intuitive. All you need to do is select the desired size from the available options. The bot will automatically resize your image, preserving its quality and proportions. This is especially useful if you don't have access to professional image editing tools or if you want to quickly prepare an image for publication. ⚙️\n\n
 Using the "Change Size" function allows you to easily adapt your avatar images to the needs of various platforms, ensuring their optimal display and interaction with the audience. 🚀`
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
   } catch (error) {
     console.error('Error in handleLevel4:', error)
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
@@ -633,7 +751,16 @@ Share a useful tool with your friends.
 Get rewards for activity.
 Expand the user community and open new horizons together!`
 
-    await ctx.reply(message)
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
     return
   } catch (error) {
     console.error('Error in handleLevel13:', error)

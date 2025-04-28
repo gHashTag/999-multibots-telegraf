@@ -4,7 +4,7 @@ dotenv.config()
 
 <<<<<<< HEAD
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
-import { Update } from 'telegraf/types'
+import { Update, BotCommand } from 'telegraf/types'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
 import { logger } from './utils/logger'
@@ -20,6 +20,7 @@ import type { BotName } from '@/interfaces/telegram-bot.interface'
 import { logger } from '@/utils/logger'
 import { toBotName } from '@/helpers/botName.helper'
 
+<<<<<<< HEAD
 import { getBotGroupFromAvatars } from '@/core/supabase'
 >>>>>>> adf7ec30 (bugfix)
 
@@ -69,6 +70,31 @@ export const BOT_URLS: Partial<Record<BotName, string>> = {
   MetaMuse_Manifest_bot: 'https://t.me/MetaMuse_manifestation/16',
   neuro_blogger_bot: 'https://t.me/neuro_coder_ai/1212',
   ai_koshey_bot: 'https://t.me/neuro_coder_ai/1212',
+=======
+// Define the commands for private chats
+const privateCommands: BotCommand[] = [
+  { command: 'start', description: '🚀 Начать / Restart' },
+  { command: 'menu', description: '🏠 Главное меню / Main Menu' },
+  { command: 'help', description: '❓ Помощь / Help' },
+  { command: 'balance', description: '💰 Баланс / Balance' },
+  { command: 'buy', description: '💎 Пополнить баланс / Top up' },
+  { command: 'invite', description: '👥 Пригласить друга / Invite' },
+  { command: 'support', description: '💬 Техподдержка / Support' },
+  // Add other relevant commands here
+  { command: 'neuro_coder', description: '🤖 НейроКодер / NeuroCoder' },
+]
+
+// Функция для проверки валидности токена
+export async function validateBotToken(token: string): Promise<boolean> {
+  try {
+    const bot = new Telegraf(token)
+    await bot.telegram.getMe()
+    return true
+  } catch (error) {
+    console.error(`❌ Ошибка валидации токена: ${(error as Error).message}`)
+    return false
+  }
+>>>>>>> origin/feat/vitest-integration
 }
 
 export const BOT_TOKENS =
@@ -282,6 +308,193 @@ export const supportRequest = async (title: string, data: any) => {
   } catch (error) {
     throw new Error(`Error supportRequest: ${JSON.stringify(error)}`)
   }
+<<<<<<< HEAD
+=======
+
+  if (isDev) {
+    // В режиме разработки запускаем бота, указанного в TEST_BOT_NAME
+    const targetBotUsername = process.env.TEST_BOT_NAME
+    if (!targetBotUsername) {
+      throw new Error(
+        '❌ Переменная окружения TEST_BOT_NAME не установлена. Укажите username бота для запуска в development.'
+      )
+    }
+
+    console.log(`🔧 Ищем тестового бота с username: ${targetBotUsername}`)
+
+    // Собираем все потенциальные токены из env
+    const potentialTokens = Object.entries(process.env)
+      .filter(([key]) => key.startsWith('BOT_TOKEN'))
+      .map(([, value]) => value)
+      .filter(Boolean) as string[]
+
+    let bot: Telegraf<MyContext> | null = null
+    let foundBotInfo: Awaited<
+      ReturnType<Telegraf<MyContext>['telegram']['getMe']>
+    > | null = null
+
+    for (const token of potentialTokens) {
+      try {
+        const tempBot = new Telegraf<MyContext>(token)
+        const botInfo = await tempBot.telegram.getMe()
+        if (botInfo.username === targetBotUsername) {
+          console.log(`✅ Найден бот ${botInfo.username}`)
+          bot = tempBot // Используем этого бота
+          foundBotInfo = botInfo
+          break // Прерываем цикл, бот найден
+        }
+      } catch (error) {
+        // Игнорируем ошибки валидации токенов, просто ищем дальше
+        // console.warn(`⚠️ Ошибка проверки токена ${token.substring(0, 10)}...: ${error.message}`);
+      }
+    }
+
+    if (!bot || !foundBotInfo) {
+      throw new Error(
+        `❌ Бот с username '${targetBotUsername}' не найден среди токенов в .env или токен невалиден.`
+      )
+    }
+
+    // Добавляем логи перед регистрацией команд
+    console.log(
+      '🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...'
+    )
+
+    // Убираем composer из вызова
+    // Передаем только bot
+    registerCommands({ bot })
+
+    // <<<--- Set commands scope for the development bot ---<<<
+    try {
+      await bot.telegram.setMyCommands(privateCommands, {
+        scope: { type: 'all_private_chats' },
+      })
+      await bot.telegram.setMyCommands([], {
+        scope: { type: 'all_group_chats' },
+      }) // Empty commands for groups
+      await bot.telegram.setMyCommands([], {
+        scope: { type: 'all_chat_administrators' },
+      }) // Optional: Empty for admins too
+      console.log(
+        `✅ Команды установлены для тестового бота ${foundBotInfo.username}`
+      )
+    } catch (error) {
+      console.error(
+        `❌ Ошибка установки команд для ${foundBotInfo.username}:`,
+        error
+      )
+    }
+    // >>>--------------------------------------------------->>>
+
+    botInstances.push(bot)
+    // Используем уже полученную информацию о боте
+    console.log(`🤖 Тестовый бот ${foundBotInfo.username} инициализирован`)
+
+    // В режиме разработки используем polling
+    bot.launch({
+      allowedUpdates: [
+        'message',
+        'callback_query',
+        'pre_checkout_query' as any,
+        'successful_payment' as any,
+      ],
+    })
+    console.log(
+      `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
+    )
+  } else {
+    // В продакшене используем все активные боты
+    const botTokens = [
+      process.env.BOT_TOKEN_1,
+      process.env.BOT_TOKEN_2,
+      process.env.BOT_TOKEN_3,
+      process.env.BOT_TOKEN_4,
+      process.env.BOT_TOKEN_5,
+      process.env.BOT_TOKEN_6,
+      process.env.BOT_TOKEN_7,
+    ].filter((token): token is string => Boolean(token))
+
+    let currentPort = 3001
+
+    for (const token of botTokens) {
+      if (await validateBotToken(token)) {
+        const bot = new Telegraf<MyContext>(token)
+        bot.use(Composer.log())
+
+        registerCommands({ bot })
+
+        botInstances.push(bot)
+        const botInfo = await bot.telegram.getMe()
+        console.log(`🤖 Бот ${botInfo.username} инициализирован`)
+
+        // <<<--- Set commands scope for the production bot ---<<<
+        try {
+          await bot.telegram.setMyCommands(privateCommands, {
+            scope: { type: 'all_private_chats' },
+          })
+          await bot.telegram.setMyCommands([], {
+            scope: { type: 'all_group_chats' },
+          }) // Empty commands for groups
+          await bot.telegram.setMyCommands([], {
+            scope: { type: 'all_chat_administrators' },
+          }) // Optional: Empty for admins too
+          console.log(`✅ Команды установлены для бота ${botInfo.username}`)
+        } catch (error) {
+          console.error(
+            `❌ Ошибка установки команд для ${botInfo.username}:`,
+            error
+          )
+        }
+        // >>>---------------------------------------------------->>>
+
+        while (await isPortInUse(currentPort)) {
+          console.log(`⚠️ Порт ${currentPort} занят, пробуем следующий...`)
+          currentPort++
+        }
+
+        console.log(
+          `🔌 Используем порт ${currentPort} для бота ${botInfo.username}`
+        )
+
+        const webhookDomain = process.env.WEBHOOK_DOMAIN
+        if (!webhookDomain) {
+          throw new Error('WEBHOOK_DOMAIN не установлен в переменных окружения')
+        }
+
+        // Формируем правильный путь для вебхука, используя имя бота
+        const webhookPath = `/${botInfo.username}` // Используем имя бота как путь
+
+        bot.launch({
+          webhook: {
+            domain: webhookDomain,
+            port: currentPort,
+            hookPath: webhookPath, // Используем hookPath, как было раньше
+          },
+          allowedUpdates: [
+            'message',
+            'callback_query',
+            'pre_checkout_query' as any,
+            'successful_payment' as any,
+          ],
+        })
+
+        console.log(
+          `🚀 Бот ${botInfo.username} запущен в продакшен режиме на порту ${currentPort}`
+        )
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        currentPort++
+      }
+    }
+  }
+
+  console.log('🔍 Инициализация сцен...')
+  // Перед регистрацией каждой сцены добавляю лог
+  console.log('📋 Регистрация сцены: payment_scene')
+  // ... существующий код регистрации сцен ...
+
+  // После регистрации всех сцен добавляю итоговый лог:
+  console.log('✅ Все сцены успешно зарегистрированы')
+>>>>>>> origin/feat/vitest-integration
 }
 <<<<<<< HEAD
 

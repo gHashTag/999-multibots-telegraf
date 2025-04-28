@@ -114,59 +114,53 @@ print_header "Проверка зависимостей"
 if [ -f package.json ]; then
   echo -e "${GREEN}✅ Файл package.json найден${NC}"
   
-  # Проверка наличия pnpm
-  if command -v pnpm &> /dev/null; then
-    echo -e "${GREEN}✅ pnpm установлен${NC}"
+  # Проверка наличия bun
+  if command -v bun &> /dev/null; then
+    echo -e "${GREEN}✅ bun установлен${NC}"
   else
-    echo -e "${RED}❌ pnpm не установлен${NC}"
+    echo -e "${RED}❌ bun не установлен${NC}"
   fi
   
   # Проверка наличия node_modules
   if [ -d node_modules ]; then
     echo -e "${GREEN}✅ node_modules найден${NC}"
   else
-    echo -e "${RED}❌ node_modules не найден. Выполните 'pnpm install'${NC}"
+    echo -e "${RED}❌ node_modules не найден. Выполните 'bun install'${NC}"
   fi
   
   # Проверка качества кода
   print_header "Проверка качества кода"
 
   # Проверка типов TypeScript
-  if command -v pnpm &> /dev/null && [ -f tsconfig.json ]; then
-    echo -e "${BLUE}Проверка типов TypeScript (tsc --noEmit)...${NC}"
-    # Перенаправляем stderr в stdout, чтобы захватить ошибки
-    TSC_OUTPUT=$(pnpm tsc --noEmit 2>&1)
-    TSC_EXIT_CODE=$?
-    
-    if [ $TSC_EXIT_CODE -eq 0 ]; then
-      echo -e "${GREEN}✅ Ошибки типов TypeScript не найдены${NC}"
+  echo -e "\n${CYAN}🧬 Проверка типов TypeScript...${NC}"
+  if command -v bun &> /dev/null && [ -f tsconfig.json ]; then
+    # Проверка типов
+    TSC_OUTPUT=$(bun run typecheck 2>&1)
+    if [ $? -eq 0 ]; then
+      echo -e "${GREEN}✅ Типы TypeScript корректны${NC}"
     else
-      echo -e "${RED}❌ Найдены ошибки типов TypeScript:${NC}"
-      # Показываем только строки с 'error TS'
-      echo "$TSC_OUTPUT" | grep 'error TS'
-      echo -e "${YELLOW}Для исправления выполните 'pnpm tsc' или 'pnpm build'${NC}"
+      echo -e "${RED}❌ Найдены ошибки TypeScript:${NC}"
+      echo "$TSC_OUTPUT"
+      echo -e "${YELLOW}Для исправления выполните 'bun run typecheck' или 'bun run build'${NC}"
     fi
   else
-    print_warning "Невозможно проверить типы TypeScript (отсутствует pnpm или tsconfig.json)"
+    print_warning "Невозможно проверить типы TypeScript (отсутствует bun или tsconfig.json)"
   fi
 
   # Проверка форматирования Prettier
-  if command -v pnpm &> /dev/null && [ -f .prettierrc ]; then
-    echo -e "${BLUE}Проверка форматирования Prettier (prettier --check)...${NC}"
-    # Перенаправляем stderr в stdout
-    PRETTIER_OUTPUT=$(pnpm prettier --check . 2>&1)
-    PRETTIER_EXIT_CODE=$?
-    
-    if [ $PRETTIER_EXIT_CODE -eq 0 ]; then
-      echo -e "${GREEN}✅ Проверка форматирования Prettier пройдена${NC}"
+  echo -e "\n${CYAN}💅 Проверка форматирования Prettier...${NC}"
+  if command -v bun &> /dev/null && [ -f .prettierrc ]; then
+    # Проверка форматирования
+    PRETTIER_OUTPUT=$(bun run format --check 2>&1)
+    if [ $? -eq 0 ]; then
+      echo -e "${GREEN}✅ Форматирование Prettier корректно${NC}"
     else
-      echo -e "${RED}❌ Найдены проблемы с форматированием Prettier:${NC}"
-      # Показываем строки с проблемами (обычно они начинаются с ./) 
-      echo "$PRETTIER_OUTPUT" | grep -E '^\./'
-      echo -e "${YELLOW}Для исправления выполните 'pnpm format'${NC}"
+      echo -e "${RED}❌ Найдены ошибки форматирования Prettier:${NC}"
+      echo "$PRETTIER_OUTPUT"
+      echo -e "${YELLOW}Для исправления выполните 'bun run format'${NC}"
     fi
   else
-    print_warning "Невозможно проверить форматирование Prettier (отсутствует pnpm или .prettierrc)"
+    print_warning "Невозможно проверить форматирование Prettier (отсутствует bun или .prettierrc)"
   fi
   
 else
@@ -443,7 +437,7 @@ fi
 
 if [ ! -d node_modules ]; then
   echo -e "${YELLOW}Для установки зависимостей выполните:${NC}"
-  echo -e "   ${BLUE}pnpm install${NC}"
+  echo -e "   ${BLUE}bun install${NC}"
 fi
 
 if [ $ERROR_COUNT -gt 0 ]; then
@@ -455,4 +449,9 @@ echo -e "${YELLOW}Для проверки переменных окружени�
 echo -e "   ${BLUE}cat .env | grep -v \"^#\" | grep -v \"^$\"${NC}"
 
 echo -e "${YELLOW}Для перезапуска системы выполните:${NC}"
-echo -e "   ${BLUE}docker compose down && docker compose up -d --build${NC}" 
+echo -e "   ${BLUE}docker compose down && docker compose up -d --build${NC}"
+
+echo -e "${YELLOW}Для установки и запуска проекта выполните:${NC}"
+echo -e "   ${BLUE}bun install${NC}"
+echo -e "   ${BLUE}bun run dev${NC}"
+echo -e "   ${BLUE}bun run build${NC}" 

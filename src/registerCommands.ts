@@ -56,6 +56,7 @@ import { handleTechSupport } from './commands/handleTechSupport'
 import { handleBuy } from './handlers/handleBuy'
 import { isRussian } from '@/helpers'
 import { registerPaymentActions } from './handlers/paymentActions'
+import { handleTextMessage } from './handlers/handleTextMessage'
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
@@ -98,6 +99,25 @@ export const stage = new Scenes.Stage<MyContext>([
   createUserScene,
   neuroCoderScene,
 ])
+
+// Function to send the promotional message
+const sendGroupCommandReply = async (ctx: MyContext) => {
+  try {
+    const botUsername = ctx.botInfo.username
+    const message = `🕉️ Привет! Команды для меня, ${botUsername}, работают только в нашем личном чате. ✨\n\nЯ часть большой семьи ботов! 🤖❤️ Чтобы пообщаться со мной или использовать мои возможности, пожалуйста, напиши мне напрямую: @${botUsername}\n\n*Ом Шанти!* 🙏`
+    await ctx.reply(message)
+  } catch (e) {
+    logger.error(
+      `Error replying to command in group for ${ctx.botInfo?.username || 'unknown bot'}:`,
+      {
+        error: e instanceof Error ? e.message : String(e),
+        chatId: ctx.chat?.id,
+        userId: ctx.from?.id,
+      }
+    )
+    // console.error(`Error replying to command in group for ${ctx.botInfo?.username}:`, e); // Fallback if logger fails
+  }
+}
 
 export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   bot.use(session({ defaultSession: () => ({ ...defaultSession }) }))
@@ -169,6 +189,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
   // Регистрация команд /start, /support
   bot.command('start', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
     console.log('CASE bot.command: start')
     // При старте всегда сбрасываем сессию и входим в createUserScene
     ctx.session = { ...defaultSession }
@@ -177,6 +200,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   })
 
   bot.command('support', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
     console.log('CASE bot.command: support')
     await ctx.scene.leave() // Выходим из сцены перед показом контактов
     await handleTechSupport(ctx as MyContext)
@@ -245,8 +271,28 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     await ctx.scene.enter(ModeEnum.Balance)
   })
 
+  // Обработчик для "Чат с аватаром"
+  bot.hears([levels[5].title_ru, levels[5].title_en], async ctx => {
+    console.log('CASE bot.hears: 💭 Чат с аватаром / Chat with avatar')
+    logger.info('GLOBAL HEARS: Чат с аватаром', { telegramId: ctx.from?.id })
+    try {
+      await ctx.scene.leave() // Выходим из текущей сцены
+      ctx.session.mode = ModeEnum.ChatWithAvatar
+      await ctx.scene.enter(ModeEnum.ChatWithAvatar)
+    } catch (error) {
+      logger.error('Error in Чат с аватаром hears:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply('Произошла ошибка при входе в чат с аватаром.')
+    }
+  })
+
   // --- ИСПРАВЛЕНИЕ: Обработчик команды /menu ---
   bot.command('menu', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
     const { telegramId } = getUserInfo(ctx as MyContext)
     logger.info({
       message: `[Command /menu START] User: ${telegramId}. Leaving scene, resetting session and checking subscription...`,
@@ -292,12 +338,18 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   })
 
   bot.command('get100', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
     console.log('CASE: get100')
     await get100Command(ctx as MyContext)
   })
 
   // Переносим команду /buy из composer в bot
   bot.command('buy', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
     // Добавляем лог перед входом в сцену
     console.log('[Command /buy] Entering payment scene...')
     logger.info(`[Command /buy] User: ${ctx.from?.id}. Entering payment scene.`)
@@ -306,22 +358,34 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   })
 
   bot.command('invite', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
     console.log('CASE: invite')
     await ctx.scene.enter('inviteScene')
   })
 
   bot.command('balance', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
     console.log('CASE: balance')
     await ctx.scene.enter('balanceScene')
   })
 
   bot.command('help', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
     // Входим непосредственно в сцену справки
     console.log('INFO: Entering helpScene directly from /help command')
     await ctx.scene.enter('helpScene')
   })
 
   bot.command('neuro_coder', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
     await ctx.scene.enter('neuroCoderScene')
   })
 
@@ -385,30 +449,11 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   // --- Обработка перезапуска видео ---
   bot.action(/^restart_video:(.+)$/, handleRestartVideoGeneration)
 
-  // --- ОБРАБОТКА НЕИЗВЕСТНЫХ КОМАНД/ТЕКСТА ---
-  // Ловим любой текст, который не был обработан выше
-  bot.on('text', async ctx => {
-    console.log('CASE bot.on: text')
-    if (ctx.scene.current) {
-      console.log(
-        ` -> Text in scene: ${ctx.scene.current.id}. Ignoring global handler.`
-      )
-      return // Важно! Не обрабатываем текст глобально, если активна сцена.
-    }
-
-    // Если не в сцене, отправляем сообщение о неизвестной команде и главное меню
-    console.log(
-      ` -> Text outside scene: ${ctx.message.text}. Sending unknown command message.`
-    )
-    const isRu = ctx.from?.language_code === 'ru'
-    await ctx.reply(
-      isRu
-        ? '🫤 Неизвестная команда. Пожалуйста, используйте кнопки меню.'
-        : '🫤 Unknown command. Please use the menu buttons.'
-    )
-    // Принудительно входим в главное меню
-    await ctx.scene.enter(ModeEnum.MainMenu)
-  })
+  // <<<--- ВОТ СЮДА ДОБАВЛЯЕМ ОБРАБОТЧИК ТЕКСТА ---<<<
+  // Этот обработчик должен идти ПОСЛЕ hears, чтобы не перехватывать кнопки,
+  // но до обработчика неизвестных колбэков.
+  bot.on(message('text'), handleTextMessage)
+  // >>>--------------------------------------------->>>
 
   // Обработчик неизвестных колбэков
   bot.on(callbackQuery('data'), async ctx => {

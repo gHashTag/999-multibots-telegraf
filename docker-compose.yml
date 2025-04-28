@@ -22,8 +22,12 @@
 #
 # LAST WORKING UPDATE: 21.04.2025
 # TESTED BY: @playra
+<<<<<<< HEAD
 
 version: '3.8'
+=======
+# UPDATED FOR BUN: 28.04.2025
+>>>>>>> origin/feat/vitest-integration
 
 services:
   app:
@@ -37,7 +41,7 @@ services:
     env_file:
       - .env
     environment:
-      - NODE_ENV=production
+      - BUN_ENV=production
       - BOT_TOKEN_1=${BOT_TOKEN_1}
       - BOT_TOKEN_2=${BOT_TOKEN_2}
       - BOT_TOKEN_3=${BOT_TOKEN_3}
@@ -60,12 +64,18 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
       - DOCKER_ENVIRONMENT=true
+<<<<<<< HEAD
       - DEBUG=true
       - TS_NODE_PROJECT=tsconfig.prod.json
     volumes:  # !!! КРИТИЧНО: не менять пути монтирования
       - ./logs:/app/logs
       - ./uploads:/app/uploads
       - ./tmp:/app/tmp
+=======
+      - ./certs:/etc/pki:ro
+    volumes:
+      # Возвращаем важные пути монтирования
+>>>>>>> origin/feat/vitest-integration
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/pki:/etc/pki:ro
     networks:  # !!! КРИТИЧНО: настройки сети
@@ -91,8 +101,14 @@ services:
       - '8080:80'
     volumes:  # !!! КРИТИЧНО: конфигурация nginx
       - ./nginx-config:/etc/nginx/conf.d:ro
+<<<<<<< HEAD
       - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
       - /etc/pki/key.pem:/etc/pki/key.pem:ro
+=======
+      # Используем локальные самоподписанные сертификаты для разработки
+      - ./certs/cert.crt:/etc/pki/cert.crt:ro
+      - ./certs/key.pem:/etc/pki/key.pem:ro
+>>>>>>> origin/feat/vitest-integration
     depends_on:
       app:
         condition: service_healthy

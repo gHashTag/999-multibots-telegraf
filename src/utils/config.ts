@@ -9,11 +9,14 @@ if (process.env.NODE_ENV !== 'production') {
   // Use require for conditional loading
   try {
 <<<<<<< HEAD
+<<<<<<< HEAD
     const dotenv = require('dotenv');
     dotenv.config()
   } catch (error) {
     console.error("Failed to load dotenv in non-production environment (require):", error);
 =======
+=======
+>>>>>>> origin/feat/vitest-integration
     const dotenv = require('dotenv')
     dotenv.config()
   } catch (error) {
@@ -21,7 +24,10 @@ if (process.env.NODE_ENV !== 'production') {
       'Failed to load dotenv in non-production environment (require):',
       error
     )
+<<<<<<< HEAD
 >>>>>>> adf7ec30 (bugfix)
+=======
+>>>>>>> origin/feat/vitest-integration
   }
 }
 
@@ -271,10 +277,14 @@ export function getBotTokens(): string[] {
   // 3. Проверяем файл .env.local если он существует (БОЛЬШЕ НЕ НУЖНО)
   const localEnvPath = path.resolve(process.cwd(), '.env.local')
 <<<<<<< HEAD
+<<<<<<< HEAD
   let localEnvConfig = {}
 =======
   const localEnvConfig = {}
 >>>>>>> adf7ec30 (bugfix)
+=======
+  const localEnvConfig = {}
+>>>>>>> origin/feat/vitest-integration
   // // Load .env.local only in non-production environments
   // if (process.env.NODE_ENV !== 'production' && fs.existsSync(localEnvPath)) {
   //   try {
@@ -302,11 +312,15 @@ export function getBotTokens(): string[] {
   // Check BOT_TOKENS from combined env (now just process.env)
   if (envConfig.BOT_TOKENS) {
 <<<<<<< HEAD
+<<<<<<< HEAD
     const localTokenArray =
       envConfig.BOT_TOKENS.split(/[,\s]+/).filter(Boolean)
 =======
     const localTokenArray = envConfig.BOT_TOKENS.split(/[,\s]+/).filter(Boolean)
 >>>>>>> adf7ec30 (bugfix)
+=======
+    const localTokenArray = envConfig.BOT_TOKENS.split(/[,\s]+/).filter(Boolean)
+>>>>>>> origin/feat/vitest-integration
 
     for (const token of localTokenArray) {
       if (validateToken(token) && !tokens.includes(token)) {

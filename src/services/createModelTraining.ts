@@ -8,6 +8,7 @@ import {
   LOCAL_SERVER_URL,
 } from '@/config'
 import { MyContext } from '@/interfaces'
+
 interface ModelTrainingRequest {
   filePath: string
   triggerWord: string
@@ -29,9 +30,12 @@ export async function createModelTraining(
   ctx: MyContext
 ): Promise<ModelTrainingResponse> {
   try {
-    console.log('requestData', requestData)
+    console.log('createModelTraining requestData:', requestData)
     const mode = ctx.session.mode
-    console.log('mode', mode)
+    const gender = ctx.session.gender
+    console.log('[createModelTraining] Mode:', mode)
+    console.log('[createModelTraining] Gender from session:', gender)
+
     let url = ''
     if (mode === 'digital_avatar_body') {
       url = `${
@@ -42,6 +46,8 @@ export async function createModelTraining(
         isDev ? LOCAL_SERVER_URL : API_SERVER_URL
       }/generate/create-model-training-v2`
     }
+
+    console.log('[createModelTraining] Target URL:', url)
 
     // Проверяем, что файл существует
     if (!fs.existsSync(requestData.filePath)) {
@@ -60,6 +66,18 @@ export async function createModelTraining(
     formData.append('is_ru', requestData.is_ru.toString())
     formData.append('bot_name', requestData.botName)
 
+    // Add gender to the form data if it exists
+    if (gender) {
+      formData.append('gender', gender)
+      console.log('[createModelTraining] Appending gender to FormData:', gender)
+    } else {
+      console.warn(
+        '[createModelTraining] Gender not found in session when sending request.'
+      )
+      // Decide if we should send a default or nothing.
+      // Sending nothing might be safer if the backend expects it optionally.
+    }
+
     const response: AxiosResponse<ModelTrainingResponse> = await axios.post(
       url,
       formData,
@@ -72,19 +90,37 @@ export async function createModelTraining(
       }
     )
 
-    // await fs.promises.unlink(requestData.filePath)
-    // console.log('Model training response:', response.data)
+    // Clean up the zip file after successful upload
+    try {
+      await fs.promises.unlink(requestData.filePath)
+      console.log(
+        `[createModelTraining] Deleted temp zip file: ${requestData.filePath}`
+      )
+    } catch (unlinkError) {
+      console.error(
+        `[createModelTraining] Error deleting temp zip file ${requestData.filePath}:`,
+        unlinkError
+      )
+    }
+
+    console.log('[createModelTraining] API Response:', response.data)
     return response.data
   } catch (error) {
-    // if (axios.isAxiosError(error)) {
-    //   console.error('API Error:', error.response?.data || error.message)
-    //   throw new Error(
-    //     requestData.is_ru
-    //       ? 'Произошла ошибка при создании тренировки модели'
-    //       : 'Error occurred while creating model training'
-    //   )
-    // }
-    console.error('Unexpected error:', error)
-    throw error
+    let errorMessage = 'Unexpected error during model training request'
+    if (axios.isAxiosError(error)) {
+      console.error(
+        '[createModelTraining] Axios Error:',
+        error.response?.status,
+        error.response?.data || error.message
+      )
+      errorMessage = requestData.is_ru
+        ? 'Произошла ошибка при отправке запроса на обучение модели'
+        : 'Error occurred while sending model training request'
+      // You might want to throw a more specific error or return a structured error
+    } else {
+      console.error('[createModelTraining] Unexpected error:', error)
+    }
+    // Rethrow or handle as needed. Rethrowing propagates the error.
+    throw new Error(errorMessage)
   }
 }
