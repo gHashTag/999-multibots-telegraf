@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node dist/bot.js",
+<<<<<<< Updated upstream
     "dev": "NODE_ENV=development NODE_OPTIONS=\"--experimental-specifier-resolution=node --no-warnings\" node ./node_modules/vite/bin/vite.js",
     "dev:force": "FORCE_START=true ./scripts/run-vite-dev.sh force",
     "build": "vite build",
@@ -31,6 +32,17 @@
     "test:run": "vitest run",
     "api": "tsx src/api-server.ts",
     "api:prod": "node dist/api-server.js"
+=======
+    "dev": "nodemon --delay 2 src/bot.ts",
+    "build": "tsc && tsc-alias",
+    "build:prod": "tsc -p tsconfig.prod.json && tsc-alias",
+    "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && tsc-alias",
+    "predev": "pkill -f 'node.*src/bot.ts' || true && node scripts/kill-port.cjs 2999 3001 8288",
+    "test": "vitest run",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "prepare": "husky install"
+>>>>>>> Stashed changes
   },
   "lint-staged": {
     "*.{ts,tsx}": [
