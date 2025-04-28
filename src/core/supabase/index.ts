@@ -60,3 +60,4 @@ export {
 
 // Добавляем экспорт новой функции
 export { updateUserModel } from './updateUserModel'
+export { updateUserGender } from './updateUserGender'

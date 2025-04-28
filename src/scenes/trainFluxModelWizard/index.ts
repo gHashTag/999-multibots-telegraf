@@ -5,6 +5,7 @@ import { isValidImage } from '../../helpers/images'
 import { isRussian } from '@/helpers/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
+import { updateUserGender } from '@/core/supabase'
 
 // Define gender options
 const GENDER_MALE = 'male'
@@ -38,20 +39,38 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussian(ctx)
     let gender: string | null = null
+    let targetUserId: number | undefined = ctx.session.targetUserId
 
-    // Check if it's a callback query for gender
+    if (!targetUserId) {
+      if (ctx.from?.id) {
+        targetUserId = ctx.from.id
+        ctx.session.targetUserId = targetUserId
+        console.log(
+          `[trainFluxModelWizard] Fetched targetUserId from ctx.from: ${targetUserId}`
+        )
+      } else {
+        console.error(
+          '[trainFluxModelWizard] Missing targetUserId in session and ctx.from at step 2.'
+        )
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка сессии. Не могу определить пользователя.'
+            : '❌ Session error. Cannot identify user.'
+        )
+        return ctx.scene.leave()
+      }
+    }
+
     if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
       const data = ctx.callbackQuery.data
       if (data.startsWith('set_gender:')) {
         gender = data.split(':')[1]
-        await ctx.answerCbQuery() // Acknowledge the button press
+        await ctx.answerCbQuery()
       } else {
-        // Unexpected callback data
         await ctx.answerCbQuery(
           isRu ? 'Неизвестное действие' : 'Unknown action'
         )
         console.warn('[trainFluxModelWizard] Unexpected callback data:', data)
-        // Ask again?
         await ctx.reply(
           isRu
             ? '⚠️ Пожалуйста, используйте кнопки для выбора пола.'
@@ -60,7 +79,6 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         return
       }
     } else {
-      // If it's not a callback query, maybe the user sent text? Ignore or handle.
       await ctx.reply(
         isRu
           ? '⚠️ Пожалуйста, используйте кнопки выше для выбора пола.'
@@ -73,71 +91,84 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu ? '❌ Ошибка выбора пола.' : '❌ Error selecting gender.'
       )
-      return ctx.scene.leave() // Or ask again
+      return ctx.scene.leave()
     }
 
-    // Store gender in session
     ctx.session.gender = gender
-    console.log(`[trainFluxModelWizard] Gender set to: ${gender}`)
+    console.log(`[trainFluxModelWizard] Gender set to session: ${gender}`)
 
-    // --- Now, the original logic of the first step (asking for images) ---
-    console.log('CASE 2 ctx.session.steps', ctx.session.steps)
-    // const message = ctx.message as any; // We don't have ctx.message here yet
-    // console.log('CASE: trainFluxModelWizard', message);
-
-    // We need user ID and username here. Let's assume they are already in the session
-    // or we need to get them differently if this wizard is entered directly.
-    // For now, let's assume they come from the previous wizard (`digitalAvatarBodyWizardV2`)
-    // or were set before entering this wizard.
-    const targetUserId = ctx.session.targetUserId // Assuming set before
-    const username = ctx.session.username // Assuming set before
-
-    // TODO: We might need to fetch targetUserId and username here if not already in session,
-    // depending on how this wizard is entered.
-    if (!targetUserId || !username) {
+    const genderUpdateSuccess = await updateUserGender(targetUserId, gender)
+    if (!genderUpdateSuccess) {
       console.error(
-        '[trainFluxModelWizard] Missing targetUserId or username in session at step 2.'
+        `[trainFluxModelWizard] Failed to update gender in DB for user ${targetUserId}`
       )
       await ctx.reply(
         isRu
-          ? '❌ Ошибка сессии. Не найдены данные пользователя.'
-          : '❌ Session error. User data not found.'
+          ? '⚠️ Не удалось сохранить выбор пола, но вы можете продолжить.'
+          : '⚠️ Could not save gender selection, but you can proceed.'
+      )
+    } else {
+      console.log(
+        `[trainFluxModelWizard] Gender successfully saved to DB for user ${targetUserId}`
+      )
+    }
+
+    const username = ctx.session.username
+    if (!username) {
+      console.error(
+        '[trainFluxModelWizard] Missing username in session at step 2.'
+      )
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка сессии. Не найдено имя пользователя.'
+          : '❌ Session error. Username not found.'
       )
       return ctx.scene.leave()
     }
 
     ctx.session.images = []
     ctx.session.modelName = `${username.toLowerCase()}`
-    // ctx.session.targetUserId = parseInt(targetUserId); // Already set?
-    // ctx.session.username = username; // Already set?
     ctx.session.triggerWord = `${username.toLowerCase()}`
 
-    // <<<--- ВОССТАНОВЛЕННЫЙ ТЕКСТ СООБЩЕНИЯ ---<<<
     const replyMessage = isRu
-      ? `✅ Пол ${gender === GENDER_MALE ? 'Мужской' : 'Женский'} выбран.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
+      ? `✅ Пол ${gender === GENDER_MALE ? 'Мужской' : 'Женский'} сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
    - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
    - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
    - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
    - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
    - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
    - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
-      : `✅ Gender ${gender === GENDER_MALE ? 'Male' : 'Female'} selected.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
+      : `✅ Gender ${gender === GENDER_MALE ? 'Male' : 'Female'} saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
    - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
    - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
    - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
    - 🏞️ <b>Background and environment:</b> The background in the photos should be neutral.\n
    - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`
-    // >>>---------------------------------------------->>>
 
-    await ctx.reply(replyMessage, {
+    const fullReplyMessage = isRu
+      ? `✅ Пол ${gender === GENDER_MALE ? 'Мужской' : 'Женский'} сохранен.\n\n�� Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
+   - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
+   - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
+   - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
+   - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
+   - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
+   - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
+      : `✅ Gender ${gender === GENDER_MALE ? 'Male' : 'Female'} saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
+   - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
+   - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
+   - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
+   - 🏞️ <b>Background and environment:</b> The background in the photos should be neutral.\n
+   - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`
+
+    await ctx.reply(fullReplyMessage, {
       ...Markup.keyboard([
         [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
       ]).resize(),
-      parse_mode: 'HTML', // Make sure HTML parsing is intended
+      parse_mode: 'HTML',
     })
 
-    console.log('Proceeding to image upload step')
-    return ctx.wizard.next() // Move to the image collection step
+    console.log('Proceeding to image upload step (Step 3)')
+    return ctx.wizard.next()
   },
 
   // Step 3: Handle Image Collection (Original Step 2)
