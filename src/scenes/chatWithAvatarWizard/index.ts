@@ -6,6 +6,7 @@ import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
+
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ChatWithAvatar,
   async ctx => {
@@ -28,6 +29,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const isCancel = await handleHelpCancel(ctx)
+
     if (isCancel) {
       return ctx.scene.leave()
     }

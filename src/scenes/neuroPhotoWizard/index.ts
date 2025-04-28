@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { ModelUrl } from '@/interfaces'
-
+import { createHelpCancelKeyboard } from '@/menu'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
 import {
   getLatestUserModel,
@@ -16,15 +16,7 @@ import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { WizardScene } from 'telegraf/scenes'
-
-// Заглушка для функции helpCancelHandler, которая проверяет, не отменил ли пользователь операцию
-const helpCancelHandler = async (ctx: MyContext): Promise<boolean> => {
-  if (ctx.message && 'text' in ctx.message) {
-    const text = ctx.message.text.toLowerCase()
-    return text === '/cancel' || text === 'отмена' || text === 'cancel'
-  }
-  return false
-}
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -188,7 +180,10 @@ Describe what you want to depict. For example:
 - fantastic landscape with dragons
 
 <i>The neural network will create an image based on your request using your personal model.</i>`,
-      { parse_mode: 'HTML' }
+      {
+        parse_mode: 'HTML',
+        reply_markup: createHelpCancelKeyboard(isRussian).reply_markup,
+      }
     )
 
     // Остаемся на том же шаге, ожидая ввод промпта
@@ -319,7 +314,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     })
 
     // Проверяем на команду отмены
-    const isCancel = await helpCancelHandler(ctx)
+    const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
       logger.info({
         message: '🛑 [NeuroPhoto] Отмена операции пользователем',

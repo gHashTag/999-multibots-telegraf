@@ -245,6 +245,23 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     await ctx.scene.enter(ModeEnum.Balance)
   })
 
+  // Обработчик для "Чат с аватаром"
+  bot.hears([levels[5].title_ru, levels[5].title_en], async ctx => {
+    console.log('CASE bot.hears: 💭 Чат с аватаром / Chat with avatar')
+    logger.info('GLOBAL HEARS: Чат с аватаром', { telegramId: ctx.from?.id })
+    try {
+      await ctx.scene.leave() // Выходим из текущей сцены
+      ctx.session.mode = ModeEnum.ChatWithAvatar
+      await ctx.scene.enter(ModeEnum.ChatWithAvatar)
+    } catch (error) {
+      logger.error('Error in Чат с аватаром hears:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply('Произошла ошибка при входе в чат с аватаром.')
+    }
+  })
+
   // --- ИСПРАВЛЕНИЕ: Обработчик команды /menu ---
   bot.command('menu', async ctx => {
     const { telegramId } = getUserInfo(ctx as MyContext)
@@ -384,31 +401,6 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
   // --- Обработка перезапуска видео ---
   bot.action(/^restart_video:(.+)$/, handleRestartVideoGeneration)
-
-  // --- ОБРАБОТКА НЕИЗВЕСТНЫХ КОМАНД/ТЕКСТА ---
-  // Ловим любой текст, который не был обработан выше
-  bot.on('text', async ctx => {
-    console.log('CASE bot.on: text')
-    if (ctx.scene.current) {
-      console.log(
-        ` -> Text in scene: ${ctx.scene.current.id}. Ignoring global handler.`
-      )
-      return // Важно! Не обрабатываем текст глобально, если активна сцена.
-    }
-
-    // Если не в сцене, отправляем сообщение о неизвестной команде и главное меню
-    console.log(
-      ` -> Text outside scene: ${ctx.message.text}. Sending unknown command message.`
-    )
-    const isRu = ctx.from?.language_code === 'ru'
-    await ctx.reply(
-      isRu
-        ? '🫤 Неизвестная команда. Пожалуйста, используйте кнопки меню.'
-        : '🫤 Unknown command. Please use the menu buttons.'
-    )
-    // Принудительно входим в главное меню
-    await ctx.scene.enter(ModeEnum.MainMenu)
-  })
 
   // Обработчик неизвестных колбэков
   bot.on(callbackQuery('data'), async ctx => {

@@ -1,5 +1,5 @@
 import { supabase } from '../core/supabase/client'
-import { UserSettings, UserType } from '../interfaces/supabase.interface'
+import { UserSettings, UserType } from '@/interfaces/supabase.interface'
 import { logger } from '../utils/logger'
 
 /**

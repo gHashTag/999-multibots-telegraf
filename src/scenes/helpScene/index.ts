@@ -19,6 +19,7 @@ import { mainMenu } from '@/menu'
 
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
+import { Markup } from 'telegraf'
 
 export const helpScene = new Scenes.BaseScene<MyContext>('helpScene')
 
@@ -112,13 +113,4 @@ helpScene.enter(async ctx => {
     default:
       break
   }
-
-  await ctx.reply(
-    helpText,
-    await mainMenu({
-      isRu,
-      subscription: subscriptionType,
-      ctx,
-    })
-  )
 })

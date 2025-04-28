@@ -1,4 +1,4 @@
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 
 export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {

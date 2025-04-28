@@ -28,8 +28,6 @@ export interface ModelTraining {
   finetune_id: string
 }
 
-export type Subscription = SubscriptionInterface
-
 export interface UserType {
   id: bigint
   created_at: Date
