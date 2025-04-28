@@ -1,9 +1,13 @@
-import { SYSTEM_CONFIG } from '../constants'
+// import { SYSTEM_CONFIG } from '@/price/constants/modelsCost' // Удалено
 
-export function calculateFinalImageCostInStars(baseCost: number): number {
-  const finalCostInDollars = baseCost * (1 + SYSTEM_CONFIG.interestRate)
-  return Math.ceil(finalCostInDollars / SYSTEM_CONFIG.starCost)
-}
+// Эта функция теперь будет в utils.ts
+// export function calculateFinalImageCostInStars(baseCost: number): number {
+//   const finalCostInDollars = baseCost * (1 + SYSTEM_CONFIG.interestRate)
+//   return Math.ceil(finalCostInDollars / SYSTEM_CONFIG.starCost)
+// }
+
+// Импортируем функцию из utils
+import { calculateFinalImageCostInStars } from '../calculator/utils'
 
 interface ModelInfo {
   shortName: string
@@ -116,7 +120,7 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
   },
   'black-forest-labs/flux-redux-schnell': {
     shortName: 'FLUX1.1 [dev] Redux schnell',
-    description_en: `FLUX.1 Redux [schnell] lets you quickly generate variations of your images. It’s optimized for speed, making it perfect for prototyping and creative exploration. While it trades some quality for speed compared to Redux [dev], it’s ideal for rapid iteration or building real-time creative tools.`,
+    description_en: `FLUX.1 Redux [schnell] lets you quickly generate variations of your images. It's optimized for speed, making it perfect for prototyping and creative exploration. While it trades some quality for speed compared to Redux [dev], it's ideal for rapid iteration or building real-time creative tools.`,
     description_ru: `FLUX.1 Redux [schnell] позволяет вам быстро создавать вариации ваших изображений. Он оптимизирован для скорости, делая его идеальным для прототипирования и творческого исследования. Хотя он торгует качеством ради скорости по сравнению с Redux [dev], он идеально подходит для быстрой итерации или создания реально-временных творческих инструментов.`,
     previewImage:
       'https://replicate.delivery/xezq/EXqL6e5mFnSxcS5cebdKDEbKfAfArVBY0aJpf1V8iZoeHem5JA/out-0.webp',
@@ -143,7 +147,7 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
   },
   'ideogram-ai/ideogram-v2': {
     shortName: 'Ideogram',
-    description_en: `Ideogram (pronounced “eye-dee-oh-gram”) is a AI tool that turns your ideas into stunning images, in a matter of seconds. Ideogram excels at creating captivating designs, realistic images, innovative logos and posters. With unique capabilities like text rendering in images, we aim to inspire creativity and help every user bring their imagination to life.`,
+    description_en: `Ideogram (pronounced "eye-dee-oh-gram") is a AI tool that turns your ideas into stunning images, in a matter of seconds. Ideogram excels at creating captivating designs, realistic images, innovative logos and posters. With unique capabilities like text rendering in images, we aim to inspire creativity and help every user bring their imagination to life.`,
     description_ru: `Ideogram (произносится как "ай-ди-о-грам") — это AI-инструмент, который превращает ваши идеи в потрясающие изображения за несколько секунд. Ideogram превосходит в создании захватывающих дизайнов, реалистичных изображений, инновационных логотипов и постеров. С уникальными возможностями, такими как рендеринг текста в изображениях, мы стремимся вдохновить творчество и помочь каждому пользователю воплотить свою фантазию в жизнь.`,
     previewImage:
       'https://replicate.delivery/czjl/wPuHfFHPOGxqbC3r1rJbEomny4eprgwRVpjIP7pN7oKf6pSnA/R8_ideogram.png',

@@ -8,7 +8,7 @@ import {
   generateRobokassaUrl,
   getInvoiceId,
 } from '@/scenes/getRuBillWizard/helper'
-import { setPayments } from '@/core/supabase'
+import { setPayments } from '@/core/supabase/payments/setPayments'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 

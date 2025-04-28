@@ -90,7 +90,7 @@ export const levels: Record<number, Level> = {
     title_ru: '👥 Пригласить друга',
     title_en: '👥 Invite a friend',
   },
-  // helpCommand
+  // helpCommand / supportCommand (Возвращаем как было)
   103: {
     title_ru: '💬 Техподдержка',
     title_en: '💬 Support',
@@ -102,10 +102,6 @@ export const levels: Record<number, Level> = {
   105: {
     title_ru: '💫 Оформить подписку',
     title_en: '💫 Subscribe',
-  },
-  106: {
-    title_ru: '❓ Справка ',
-    title_en: '❓ Help',
   },
 }
 

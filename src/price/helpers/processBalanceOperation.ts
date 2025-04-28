@@ -1,4 +1,4 @@
-import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { getUserBalance } from '@/core/supabase/balance/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { BalanceOperationResult, MyContext } from '@/interfaces'
 import { PaymentType } from '@/interfaces/payments.interface'

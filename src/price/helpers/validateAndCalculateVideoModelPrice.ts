@@ -1,31 +1,25 @@
+import { VIDEO_MODELS_CONFIG } from '@/pricing/config/VIDEO_MODELS_CONFIG'
 import { logger } from '@/utils/logger'
-import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
-import { calculateFinalPrice } from './calculateFinalPrice'
-
-// Определяем тип ключей конфига
-type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
 
 /**
- * @deprecated Use processBalanceVideoOperation instead for comprehensive checks.
- * Validates the video model and calculates its price.
+ * Проверяет видео-модель и (раньше) рассчитывал ее стоимость.
+ * Теперь просто проверяет наличие модели.
+ *
+ * @param videoModel - Ключ модели.
+ * @returns true, если модель существует, иначе false.
  */
-export const validateAndCalculateVideoModelPrice = (
-  videoModel: VideoModelKey // Используем ключ конфига
-): number | null => {
-  logger.warn(
-    'Deprecated function called: validateAndCalculateVideoModelPrice. Use processBalanceVideoOperation instead.'
-  )
-  try {
-    // Проверяем, существует ли модель с таким ключом в конфиге
-    if (!(videoModel in VIDEO_MODELS_CONFIG)) {
-      logger.error('Invalid video model key provided:', { videoModel })
-      return null
-    }
-    // Рассчитываем цену, используя ключ конфига
-    const price = calculateFinalPrice(videoModel)
-    return price
-  } catch (error) {
-    logger.error('Error calculating video model price:', { videoModel, error })
-    return null
+export function validateVideoModel(videoModel: string): boolean {
+  if (!videoModel || !(videoModel in VIDEO_MODELS_CONFIG)) {
+    logger.warn('Invalid or unknown video model selected', { videoModel })
+    return false
   }
+
+  // Старый расчет цены удален, т.к. он делается в калькуляторе
+  // const price = calculateFinalPrice(videoModel)
+  // if (price === null) {
+  //   logger.error('Error calculating price for validated model', { videoModel })
+  //   return false // Считаем невалидной, если цену не рассчитать?
+  // }
+
+  return true // Модель существует
 }

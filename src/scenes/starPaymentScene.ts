@@ -3,7 +3,7 @@ import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { handleSelectStars, handleBuySubscription } from '@/handlers'
 import { starAmounts } from '@/price/helpers/starAmounts' // Предполагаем, что существует
-import { setPayments } from '@/core/supabase'
+import { setPayments } from '@/core/supabase/payments/setPayments'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'

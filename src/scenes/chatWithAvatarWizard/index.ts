@@ -5,9 +5,9 @@ import { handleTextMessage } from '../../handlers/handleTextMessage'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
-
+import { ModeEnum } from '@/interfaces/modes'
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
-  'chat_with_avatar',
+  ModeEnum.ChatWithAvatar,
   async ctx => {
     console.log('CASE: Чат с аватаром')
     const isRu = isRussian(ctx)
@@ -38,10 +38,13 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     const telegram_id = ctx.from.id
 
     const userExists = await getUserByTelegramId(ctx)
-    if (!userExists.data) {
-      throw new Error(`User with ID ${telegram_id} does not exist.`)
+    if (!userExists) {
+      console.error(
+        `[chatWithAvatarWizard] User with ID ${telegram_id} not found after message processing.`
+      )
+      return ctx.scene.leave()
     }
-    const level = userExists.data.level
+    const level = userExists.level
     if (level === 4) {
       await updateUserLevelPlusOne(telegram_id.toString(), level)
     }

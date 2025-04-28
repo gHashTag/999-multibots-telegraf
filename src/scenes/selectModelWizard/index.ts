@@ -16,25 +16,25 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       const models = await getAvailableModels()
 
       // Создаем кнопки для каждой модели, по 3 в ряд
-      const buttons: string[][] = []
+      const buttons: ReturnType<typeof Markup.button.text>[][] = []
       for (let i = 0; i < models.length; i += 3) {
-        const row: string[] = []
+        const row: ReturnType<typeof Markup.button.text>[] = []
         if (models[i]) {
-          row.push(models[i])
+          row.push(Markup.button.text(models[i]))
         }
         if (models[i + 1]) {
-          row.push(models[i + 1])
+          row.push(Markup.button.text(models[i + 1]))
         }
         if (models[i + 2]) {
-          row.push(models[i + 2])
+          row.push(Markup.button.text(models[i + 2]))
         }
         buttons.push(row)
       }
 
       // Добавляем кнопки "Отмена" и "Справка по команде" в конце
       const cancelHelpButtons = [
-        isRu ? 'Справка по команде' : 'Help for the command',
-        isRu ? 'Отмена' : 'Cancel',
+        Markup.button.text(isRu ? 'Отмена' : 'Cancel'),
+        Markup.button.callback(isRu ? '❓ Справка' : '❓ Help', 'go_help'),
       ]
       buttons.push(cancelHelpButtons)
 

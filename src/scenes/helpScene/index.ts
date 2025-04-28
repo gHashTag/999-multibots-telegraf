@@ -108,7 +108,16 @@ helpScene.enter(async ctx => {
         : 'Help for Invite a Friend...'
       await handleLevel13(ctx)
       break
-    case ModeEnum.Help:
+    case ModeEnum.HelpScene:
+      await ctx.reply(
+        isRu ? 'Возвращаемся в меню...' : 'Returning to menu...',
+        await mainMenu({
+          isRu,
+          subscription: subscriptionType,
+          ctx,
+        })
+      )
+      break
     default:
       break
   }

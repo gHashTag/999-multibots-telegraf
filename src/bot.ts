@@ -8,7 +8,7 @@ console.log(`[BOT] process.env.NODE_ENV: ${process.env.NODE_ENV}`)
 console.log(`--- End Bot Logic Check ---`)
 
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
-import { Update } from 'telegraf/typings/core/types/typegram'
+import { Update } from 'telegraf/types'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
 
@@ -186,7 +186,7 @@ async function initializeBots() {
           webhook: {
             domain: webhookDomain,
             port: currentPort,
-            hookPath: webhookPath, // Новый путь с именем бота
+            hookPath: webhookPath, // Используем hookPath, как было раньше
           },
           allowedUpdates: [
             'message',
@@ -244,20 +244,22 @@ async function gracefulShutdown(signal: string) {
 
   // 3. Добавляем небольшую задержку перед выходом
   console.log(`[${signal}] Adding a short delay before exiting...`)
-  await new Promise(resolve => setTimeout(resolve, 1500))
+  await new Promise(resolve => setTimeout(resolve, 3000))
 
   console.log(`[${signal}] Graceful shutdown completed. Exiting.`)
   process.exit(0)
 }
 
-// Обработка завершения работы - используем общую асинхронную функцию
+// Обрабатываем сигналы завершения
 process.once('SIGINT', () => gracefulShutdown('SIGINT'))
 process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
 console.log('🏁 Запуск приложения')
 initializeBots()
-  .then(() => console.log('✅ Боты успешно запущены'))
+  .then(() => {
+    console.log('✅ Боты успешно запущены')
+  })
   .catch(error => {
-    console.error('❌ Критическая ошибка при запуске ботов:', error)
+    console.error('❌ Ошибка при инициализации ботов:', error)
     process.exit(1)
   })

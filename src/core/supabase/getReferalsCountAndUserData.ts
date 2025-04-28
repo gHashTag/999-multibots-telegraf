@@ -1,7 +1,7 @@
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { supabase } from '@/core/supabase'
 import { UserType } from '@/interfaces/supabase.interface'
-import { getUserDetailsSubscription } from './getUserDetailsSubscription'
+import { getUserDetailsSubscription } from './subscriptions/getUserDetailsSubscription'
 
 export const getReferalsCountAndUserData = async (
   telegram_id: string

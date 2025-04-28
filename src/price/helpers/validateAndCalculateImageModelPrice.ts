@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { imageModelPrices } from '@/price/models/imageModelPrices'
+import { imageModelPrices } from '@/pricing/models/imageModelPrices'
 
 export async function validateAndCalculateImageModelPrice(
   imageModel: string,

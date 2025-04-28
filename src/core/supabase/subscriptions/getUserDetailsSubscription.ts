@@ -18,7 +18,7 @@ import {
 } from '@/interfaces/telegram.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 // <<<=== ИМПОРТ ДЛЯ ПОЛУЧЕНИЯ БАЛАНСА ИЗ PAYMENTS_V2 ===>>>
-import { getUserBalance } from './getUserBalance'
+import { getUserBalance } from '../balance/getUserBalance'
 import { PaymentStatus } from '@/interfaces/payments.interface'
 // Импорт интерфейса (убедись, что он не содержит level)
 

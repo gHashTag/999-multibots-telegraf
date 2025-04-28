@@ -20,13 +20,11 @@ export enum ModeEnum {
   SelectNeuroPhoto = 'select_neuro_photo',
   ChangeSize = 'change_size',
   Invite = 'invite',
-  Help = 'helpScene',
   MainMenu = 'main_menu',
   Balance = 'balance',
   ImprovePrompt = 'improve_prompt',
   TopUpBalance = 'top_up_balance',
   VideoInUrl = 'video_in_url',
-  Support = 'support',
   Stats = 'stats',
   BroadcastWizard = 'broadcast_wizard',
   SubscriptionCheckScene = 'subscription_check_scene',
@@ -49,6 +47,7 @@ export enum ModeEnum {
   RublePaymentScene = 'rublePaymentScene',
   StarPaymentScene = 'starPaymentScene',
   MenuScene = 'menuScene',
+  HelpScene = 'helpScene',
 }
 
 // Определяем интерфейсы прямо здесь для предотвращения циклических зависимостей
