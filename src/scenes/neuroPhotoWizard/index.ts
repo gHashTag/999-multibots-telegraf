@@ -562,7 +562,9 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         telegramId,
         nextScene: 'improvePromptWizard',
       })
-      await ctx.scene.enter('improvePromptWizard')
+      await ctx.scene.enter('improvePromptWizard', {
+        prompt: ctx.session.prompt,
+      })
       return
     }
 

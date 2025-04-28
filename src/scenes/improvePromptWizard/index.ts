@@ -17,6 +17,24 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
     console.log(ctx.session, 'ctx.session')
+
+    // Проверяем, был ли промпт передан через state
+    if (
+      !ctx.session.prompt &&
+      ctx.scene.state &&
+      'prompt' in ctx.scene.state &&
+      typeof ctx.scene.state.prompt === 'string'
+    ) {
+      console.log('improvePromptWizard: Получен промпт из ctx.scene.state')
+      ctx.session.prompt = ctx.scene.state.prompt
+    } else if (ctx.session.prompt) {
+      console.log('improvePromptWizard: Промпт уже есть в ctx.session')
+    } else {
+      console.log(
+        'improvePromptWizard: Промпт не найден ни в session, ни в state'
+      )
+    }
+
     const prompt = ctx.session.prompt
 
     console.log(prompt, 'prompt')
