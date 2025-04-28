@@ -22,7 +22,7 @@
 #
 # LAST WORKING UPDATE: 21.04.2025
 # TESTED BY: @playra
-
+# UPDATED FOR BUN: 28.04.2025
 
 services:
   app:
@@ -43,7 +43,7 @@ services:
     env_file:
       - .env
     environment:
-      - NODE_ENV=production
+      - BUN_ENV=production
       - BOT_TOKEN_1=${BOT_TOKEN_1}
       - BOT_TOKEN_2=${BOT_TOKEN_2}
       - BOT_TOKEN_3=${BOT_TOKEN_3}
@@ -66,8 +66,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
       - DOCKER_ENVIRONMENT=true
-      - DEBUG=true
-      - TS_NODE_PROJECT=tsconfig.prod.json
+      - ./certs:/etc/pki:ro
     volumes:
       # Возвращаем важные пути монтирования
       - /var/run/docker.sock:/var/run/docker.sock
@@ -98,9 +97,9 @@ services:
     volumes:
       # Используем нашу кастомную конфигурацию
       - ./nginx-config:/etc/nginx/conf.d:ro
-      # Пути к сертификатам с хоста остаются
-      - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
-      - /etc/pki/key.pem:/etc/pki/key.pem:ro
+      # Используем локальные самоподписанные сертификаты для разработки
+      - ./certs/cert.crt:/etc/pki/cert.crt:ro
+      - ./certs/key.pem:/etc/pki/key.pem:ro
     depends_on:
       - app
     networks:
