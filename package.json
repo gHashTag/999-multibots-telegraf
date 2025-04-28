@@ -25,6 +25,7 @@
     "@fastify/express": "^4.0.2",
     "@supabase/supabase-js": "^2.39.3",
     "@types/axios": "^0.14.4",
+    "adm-zip": "^0.5.16",
     "archiver": "^7.0.0",
     "axios": "^1.8.4",
     "bcrypt": "^5.1.1",
