@@ -5,6 +5,7 @@ import { generateNeuroImage } from '@/services/generateNeuroImage'
 import {
   getLatestUserModel,
   getReferalsCountAndUserData,
+  getUserData,
 } from '@/core/supabase'
 import {
   levels,
@@ -377,8 +378,23 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       return ctx.scene.leave()
     }
 
-    // Формируем полный промпт с trigger_word
-    const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
+    // --- Получаем данные пользователя для определения пола ---
+    const userData = await getUserData(userId.toString())
+    let genderPromptPart = 'person' // Default
+    if (userData?.gender === 'female') {
+      genderPromptPart = 'female'
+    } else if (userData?.gender === 'male') {
+      genderPromptPart = 'male'
+    }
+    logger.info({
+      message: '👤 [NeuroPhoto] Gender determined for prompt',
+      telegramId: userId.toString(),
+      gender: userData?.gender || 'not_set',
+      genderPromptPart,
+    })
+
+    // Формируем полный промпт с trigger_word и полом
+    const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}`
     logger.info({
       message: '🎨 [NeuroPhoto] Начало генерации изображения',
       telegramId,

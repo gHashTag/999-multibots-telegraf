@@ -41,6 +41,23 @@ export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
             : `✅ You selected ${steps} steps costing ${trainingCostInStars}⭐️ stars\n\nYour balance: ${currentBalance} ⭐️`
 
           await ctx.reply(message, Markup.removeKeyboard())
+          if (ctx.from) {
+            ctx.session.targetUserId = ctx.from.id
+            ctx.session.username = ctx.from.username || `user${ctx.from.id}`
+            console.log(
+              `[digitalAvatarBodyWizardV2] Set session data: targetUserId=${ctx.session.targetUserId}, username=${ctx.session.username}`
+            )
+          } else {
+            console.error(
+              '[digitalAvatarBodyWizardV2] Cannot set session data: ctx.from is undefined.'
+            )
+            await ctx.reply(
+              isRu
+                ? '❌ Критическая ошибка: не удалось получить данные пользователя.'
+                : '❌ Critical error: could not retrieve user data.'
+            )
+            return ctx.scene.leave()
+          }
           return ctx.scene.enter('trainFluxModelWizard')
         }
       }

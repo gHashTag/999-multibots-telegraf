@@ -40,6 +40,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
     let gender: string | null = null
     let targetUserId: number | undefined = ctx.session.targetUserId
+    let username: string | undefined = ctx.session.username
 
     if (!targetUserId) {
       if (ctx.from?.id) {
@@ -58,6 +59,22 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
             : '❌ Session error. Cannot identify user.'
         )
         return ctx.scene.leave()
+      }
+    }
+
+    if (!username) {
+      if (ctx.from?.username) {
+        username = ctx.from.username
+        ctx.session.username = username
+        console.log(
+          `[trainFluxModelWizard] Fetched username from ctx.from: ${username}`
+        )
+      } else {
+        username = `user${targetUserId}`
+        ctx.session.username = username
+        console.warn(
+          `[trainFluxModelWizard] Username missing in ctx.from, using fallback: ${username}`
+        )
       }
     }
 
@@ -113,10 +130,9 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       )
     }
 
-    const username = ctx.session.username
     if (!username) {
       console.error(
-        '[trainFluxModelWizard] Missing username in session at step 2.'
+        '[trainFluxModelWizard] CRITICAL: Username is still missing after checks at step 2.'
       )
       await ctx.reply(
         isRu
@@ -146,7 +162,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
    - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`
 
     const fullReplyMessage = isRu
-      ? `✅ Пол ${gender === GENDER_MALE ? 'Мужской' : 'Женский'} сохранен.\n\n�� Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
+      ? `✅ Пол ${gender === GENDER_MALE ? 'Мужской' : 'Женский'} сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
    - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
    - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
    - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
