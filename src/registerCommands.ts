@@ -289,6 +289,23 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     }
   })
 
+  // <<<--- ВОТ СЮДА ДОБАВЛЯЕМ ОБРАБОТЧИК КНОПКИ ГОЛОС АВАТАРА ---<<<
+  bot.hears([levels[7].title_ru, levels[7].title_en], async ctx => {
+    console.log('CASE bot.hears: 🎤 Голос аватара / Avatar Voice')
+    logger.info('GLOBAL HEARS: Голос аватара', { telegramId: ctx.from?.id })
+    try {
+      await ctx.scene.leave() // Выходим из текущей сцены
+      ctx.session.mode = ModeEnum.Voice // Устанавливаем режим
+      await ctx.scene.enter(ModeEnum.Voice) // Входим в сцену голоса
+    } catch (error) {
+      logger.error('Error in Голос аватара hears:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
+  // >>>------------------------------------------------------>>>
+
   // --- ИСПРАВЛЕНИЕ: Обработчик команды /menu ---
   bot.command('menu', async ctx => {
     if (ctx.chat.type !== 'private') {

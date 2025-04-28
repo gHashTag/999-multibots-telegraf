@@ -15,8 +15,7 @@
     "test": "bun test",
     "lint": "bunx eslint . --ext .ts",
     "format": "bunx prettier --write \"src/**/*.ts\"",
-    "typecheck": "bun run build:ts --noEmit",
-    "prepare": "bunx husky install"
+    "typecheck": "bun run build:ts --noEmit"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
