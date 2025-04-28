@@ -1,5 +1,10 @@
 import { Markup } from 'telegraf'
+<<<<<<< HEAD
 import type { InlineKeyboardMarkup } from 'telegraf/types';import type { Message, Update } from "telegraf/types"
+=======
+import type { InlineKeyboardMarkup } from 'telegraf/types'
+import type { Message, Update } from 'telegraf/types'
+>>>>>>> adf7ec30 (bugfix)
 
 /**
  * Создает стандартную Inline клавиатуру для навигации.
