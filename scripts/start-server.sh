@@ -53,15 +53,15 @@ check_status "Очистка завершена" "Ошибка при очист
 
 # Установка зависимостей
 print_message "info" "Установка зависимостей..."
-pnpm install
+bun install
 check_status "Зависимости установлены" "Ошибка при установке зависимостей" || exit 1
 
 # Проверка TypeScript
 print_message "info" "Проверка TypeScript..."
-pnpm tsc --noEmit
+bun run typecheck
 if [ $? -ne 0 ]; then
     print_message "info" "Пробуем использовать production конфигурацию..."
-    pnpm tsc --project tsconfig.prod.json
+    bun run build:prod
     check_status "TypeScript проверка пройдена (prod)" "Ошибка при проверке TypeScript" || exit 1
 else
     print_message "success" "TypeScript проверка пройдена"
@@ -69,7 +69,7 @@ fi
 
 # Сборка проекта
 print_message "info" "Сборка проекта..."
-pnpm build
+bun run build:prod
 check_status "Проект собран успешно" "Ошибка при сборке проекта" || exit 1
 
 # Проверка занятости порта
@@ -95,8 +95,8 @@ if [ "$NODE_ENV" = "production" ]; then
     pm2 start dist/bot.js --name neuroblogger
 else
     # Запуск в development режиме через nodemon
-    NODE_ENV=development pnpm dev &
-    SERVER_PID=$!
+    NODE_ENV=development bun run dev &
+    DEV_PID=$!
 fi
 
 # Ждем запуска сервера
@@ -113,7 +113,7 @@ if [ "$NODE_ENV" = "production" ]; then
         exit 1
     fi
 else
-    if ! ps -p $SERVER_PID > /dev/null; then
+    if ! ps -p $DEV_PID > /dev/null; then
         print_message "error" "Процесс не запущен!"
         exit 1
     fi

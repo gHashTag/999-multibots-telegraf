@@ -4,7 +4,7 @@ export const getUserData = async (telegram_id: string) => {
   const { data, error } = await supabase
     .from('users')
     .select(
-      'username, first_name, last_name, company, position, designation, language_code'
+      'username, first_name, last_name, company, position, designation, language_code, gender'
     )
     .eq('telegram_id', telegram_id.toString())
     .maybeSingle()

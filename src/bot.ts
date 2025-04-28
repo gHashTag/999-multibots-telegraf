@@ -8,12 +8,25 @@ console.log(`[BOT] process.env.NODE_ENV: ${process.env.NODE_ENV}`)
 console.log(`--- End Bot Logic Check ---`)
 
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
-import { Update } from 'telegraf/types'
+import { Update, BotCommand } from 'telegraf/types'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
+
+// Define the commands for private chats
+const privateCommands: BotCommand[] = [
+  { command: 'start', description: '🚀 Начать / Restart' },
+  { command: 'menu', description: '🏠 Главное меню / Main Menu' },
+  { command: 'help', description: '❓ Помощь / Help' },
+  { command: 'balance', description: '💰 Баланс / Balance' },
+  { command: 'buy', description: '💎 Пополнить баланс / Top up' },
+  { command: 'invite', description: '👥 Пригласить друга / Invite' },
+  { command: 'support', description: '💬 Техподдержка / Support' },
+  // Add other relevant commands here
+  { command: 'neuro_coder', description: '🤖 НейроКодер / NeuroCoder' },
+]
 
 // Функция для проверки валидности токена
 export async function validateBotToken(token: string): Promise<boolean> {
@@ -122,7 +135,27 @@ async function initializeBots() {
     // Передаем только bot
     registerCommands({ bot })
 
-    console.log('✅ [SCENE_DEBUG] Команды и middleware зарегистрированы')
+    // <<<--- Set commands scope for the development bot ---<<<
+    try {
+      await bot.telegram.setMyCommands(privateCommands, {
+        scope: { type: 'all_private_chats' },
+      })
+      await bot.telegram.setMyCommands([], {
+        scope: { type: 'all_group_chats' },
+      }) // Empty commands for groups
+      await bot.telegram.setMyCommands([], {
+        scope: { type: 'all_chat_administrators' },
+      }) // Optional: Empty for admins too
+      console.log(
+        `✅ Команды установлены для тестового бота ${foundBotInfo.username}`
+      )
+    } catch (error) {
+      console.error(
+        `❌ Ошибка установки команд для ${foundBotInfo.username}:`,
+        error
+      )
+    }
+    // >>>--------------------------------------------------->>>
 
     botInstances.push(bot)
     // Используем уже полученную информацию о боте
@@ -164,6 +197,26 @@ async function initializeBots() {
         botInstances.push(bot)
         const botInfo = await bot.telegram.getMe()
         console.log(`🤖 Бот ${botInfo.username} инициализирован`)
+
+        // <<<--- Set commands scope for the production bot ---<<<
+        try {
+          await bot.telegram.setMyCommands(privateCommands, {
+            scope: { type: 'all_private_chats' },
+          })
+          await bot.telegram.setMyCommands([], {
+            scope: { type: 'all_group_chats' },
+          }) // Empty commands for groups
+          await bot.telegram.setMyCommands([], {
+            scope: { type: 'all_chat_administrators' },
+          }) // Optional: Empty for admins too
+          console.log(`✅ Команды установлены для бота ${botInfo.username}`)
+        } catch (error) {
+          console.error(
+            `❌ Ошибка установки команд для ${botInfo.username}:`,
+            error
+          )
+        }
+        // >>>---------------------------------------------------->>>
 
         while (await isPortInUse(currentPort)) {
           console.log(`⚠️ Порт ${currentPort} занят, пробуем следующий...`)

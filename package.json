@@ -4,16 +4,19 @@
   "description": "Telegram bot for generating blog posts using AI",
   "main": "src/bot.ts",
   "scripts": {
-    "start": "node dist/bot.js",
-    "dev": "nodemon --delay 2 src/bot.ts",
-    "build": "tsc && tsc-alias",
-    "build:prod": "tsc -p tsconfig.prod.json && tsc-alias",
-    "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && tsc-alias",
-    "predev": "pkill -f 'node.*src/bot.ts' || true && node scripts/kill-port.cjs 2999 3001 8288",
-    "test": "jest",
-    "lint": "eslint . --ext .ts",
-    "format": "prettier --write \"src/**/*.ts\"",
-    "prepare": "husky install"
+    "start": "bun run dist/bot.js",
+    "dev": "bun --watch src/bot.ts",
+    "build": "bun run build:ts && bun run build:alias",
+    "build:ts": "tsc",
+    "build:alias": "tsc-alias",
+    "build:prod": "tsc -p tsconfig.prod.json && bun run build:alias",
+    "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && bun run build:alias",
+    "predev": "pkill -f 'bun.*src/bot.ts' || true && node scripts/kill-port.cjs 2999 3001 8288",
+    "test": "bun test",
+    "lint": "bunx eslint . --ext .ts",
+    "format": "bunx prettier --write \"src/**/*.ts\"",
+    "typecheck": "bun run build:ts --noEmit",
+    "prepare": "bunx husky install"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

@@ -48,7 +48,8 @@ log "info" "Начинаем деплой на сервер: $SERVER_HOST"
 
 # Шаг 1: Сборка проекта
 log "info" "Шаг 1: Сборка проекта"
-pnpm build
+# pnpm build
+bun run build
 if [ $? -ne 0 ]; then
   log "error" "Ошибка сборки проекта"
   exit 1
@@ -65,9 +66,9 @@ mkdir -p $DEPLOY_DIR
 cp -r dist $DEPLOY_DIR/
 cp docker-compose.*.yml $DEPLOY_DIR/
 cp Dockerfile.* $DEPLOY_DIR/
+cp bun.lockb $DEPLOY_DIR/
 cp package.json $DEPLOY_DIR/
-cp pnpm-lock.yaml $DEPLOY_DIR/
-cp .env $DEPLOY_DIR/
+cp tsconfig.json $DEPLOY_DIR/
 
 # Проверка наличия nginx директории
 if [ -d "nginx" ]; then
