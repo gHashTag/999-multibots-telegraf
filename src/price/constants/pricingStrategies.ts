@@ -40,7 +40,6 @@ export const MODE_PRICING_STRATEGY: Partial<Record<ModeEnum, PricingStrategy>> =
     [ModeEnum.ImprovePrompt]: PricingStrategy.FREE,
     [ModeEnum.TopUpBalance]: PricingStrategy.FREE,
     [ModeEnum.VideoInUrl]: PricingStrategy.FREE,
-    [ModeEnum.Support]: PricingStrategy.FREE,
     [ModeEnum.BroadcastWizard]: PricingStrategy.FREE,
     [ModeEnum.SubscriptionCheckScene]: PricingStrategy.FREE,
     [ModeEnum.ImprovePromptWizard]: PricingStrategy.FREE,

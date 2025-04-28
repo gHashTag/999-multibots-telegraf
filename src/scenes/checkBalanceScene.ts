@@ -5,10 +5,10 @@ import {
   sendBalanceMessage,
 } from '@/price/helpers'
 import { getUserInfo } from '@/handlers/getUserInfo'
-import { modeCosts, getCostValue } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
-import { getUserDetailsSubscription } from '@/core/supabase'
+import { getUserDetailsSubscription } from '@/core/supabase/subscriptions/getUserDetailsSubscription'
+import { calculateFinalStarPrice } from '@/pricing/calculator'
 
 // ==================================================================
 // ================== ВАЖНЫЙ КОММЕНТАРИЙ! ОПИСАНИЕ ТЕКУЩЕЙ ЛОГИКИ! ===
@@ -52,11 +52,16 @@ checkBalanceScene.enter(async ctx => {
   const mode = ctx.session.mode as ModeEnum
   const isRu = ctx.from?.language_code === 'ru'
 
+  // Получаем доп. параметры из сессии, если они там есть
+  const steps = ctx.session.steps
+  const modelId = ctx.session.selectedModel
+
   logger.info({
     message: `[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`,
     telegramId: userId,
     mode,
-    language: isRu ? 'ru' : 'other',
+    steps,
+    modelId,
     function: 'checkBalanceScene.enter',
     step: 'identifying_user_and_mode',
   })
@@ -123,20 +128,48 @@ checkBalanceScene.enter(async ctx => {
       })
     }
 
-    // Шаг 5: ПРОВЕРКА БАЛАНСА (только для обычных пользователей без активной подписки)
-    const currentBalance = userDetails.stars
-    const cost = modeCosts[mode] || 0
-    const costValue = getCostValue(cost)
-
+    // --- ШАГ 5: РАСЧЕТ СТОИМОСТИ ---
     logger.info({
-      message: `[CheckBalanceScene] Проверка баланса для режима: ${mode}`,
+      message: `[CheckBalanceScene] Расчет стоимости для режима: ${mode}`,
       telegramId,
       function: 'checkBalanceScene.enter',
-      step: 'balance_check',
+      step: 'calculating_cost',
+      mode,
+      params: { steps, modelId },
+    })
+
+    // Используем НОВУЮ функцию расчета
+    const costResult = calculateFinalStarPrice(mode, { steps, modelId })
+
+    if (!costResult) {
+      logger.error({
+        message: `[CheckBalanceScene] Не удалось рассчитать стоимость для режима: ${mode}`,
+        telegramId,
+        function: 'checkBalanceScene.enter',
+        step: 'cost_calculation_failed',
+        mode,
+        params: { steps, modelId },
+        result: 'scene_leave_error',
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Не удалось рассчитать стоимость операции.'
+          : '❌ Failed to calculate the operation cost.'
+      )
+      return ctx.scene.leave()
+    }
+
+    const costValue = costResult.stars
+    const currentBalance = userDetails.stars
+
+    logger.info({
+      message: `[CheckBalanceScene] Стоимость рассчитана: ${costValue} звезд. Баланс: ${currentBalance}`,
+      telegramId,
+      function: 'checkBalanceScene.enter',
+      step: 'cost_calculated',
       mode,
       cost: costValue,
       balance: currentBalance,
-      hasEnoughBalance: currentBalance >= costValue,
     })
 
     // Шаг 6: Показываем баланс и стоимость, если функция платная
@@ -200,9 +233,7 @@ checkBalanceScene.enter(async ctx => {
     })
 
     // --- ВЫЗОВ ФУНКЦИИ ДЛЯ ВХОДА В ЦЕЛЕВУЮ СЦЕНУ ---
-    // Передаем необходимые параметры: контекст, пустую функцию next, режим, стоимость
-    // @ts-ignore // Временно игнорируем ошибку компилятора, т.к. типы по факту совпадают
-    await enterTargetScene(ctx, async () => {}, mode, costValue) // <--- Исправленный вызов
+    await enterTargetScene(ctx, async () => {}, mode, costValue)
   } catch (error) {
     console.error('[DEBUG CheckBalanceScene Enter] Error caught:', error) // Добавлено
     logger.error({
@@ -292,26 +323,16 @@ export const enterTargetScene = async (
     // Списываем звезды ТОЛЬКО если стоимость > 0
     if (cost > 0) {
       logger.info({
-        message: `[EnterTargetSceneWrapper] Списание звезд за режим ${mode}`,
+        message: `[EnterTargetSceneWrapper] Списание звезд за режим ${mode} (ТРЕБУЕТСЯ РЕАЛИЗАЦИЯ)`,
         telegramId,
         mode,
         cost,
         balanceBefore: currentBalance,
         function: 'enterTargetSceneWrapper',
       })
-      // TODO: Реализовать логику списания и логирования транзакции
-      // await logTransaction(...)
-      // const updatedBalance = await updateUserBalance(...)
-      const updatedBalance = currentBalance - cost // Временное решение
-      logger.info({
-        message: `[EnterTargetSceneWrapper] ✅ Звезды списаны (симуляция), баланс обновлен`,
-        telegramId,
-        mode,
-        balanceAfter: updatedBalance,
-        function: 'enterTargetSceneWrapper',
-      })
-      // Здесь можно было бы обновить баланс в ctx.session, если он там хранится
-      // ctx.session.user.stars = updatedBalance; // Пример
+      // TODO: Реализовать РЕАЛЬНОЕ списание звезд через updateUserBalance или аналогичную функцию
+      // const updatedBalance = await updateUserBalance(telegramId, -cost); // Пример
+      // logger.info({ balanceAfter: updatedBalance });
     } else {
       logger.info({
         message: `[EnterTargetSceneWrapper] Режим ${mode} бесплатный, звезды не списываются`,

@@ -1,10 +1,10 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { imageModelPrices } from '@/price/models'
+import { imageModelPrices } from '@/pricing/models/imageModelPrices'
 import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImage } from '@/services/generateTextToImage'
-import { getUserBalance } from '@/core/supabase'
+import { getUserBalance } from '@/core/supabase/balance/getUserBalance'
 import { isRussian } from '@/helpers/language'
 import {
   sendBalanceMessage,
@@ -46,10 +46,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
 
     keyboardButtons.push(
       [
-        Markup.button.text(
-          isRu ? 'Справка по команде' : 'Help for the command'
-        ),
         Markup.button.text(isRu ? 'Отмена' : 'Cancel'),
+        Markup.button.callback(isRu ? '❓ Справка' : '❓ Help', 'go_help'),
       ],
       [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')]
     )

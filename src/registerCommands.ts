@@ -4,7 +4,7 @@ import { MyContext } from './interfaces'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { levels } from './menu/mainMenu'
-import { getUserDetailsSubscription } from '@/core/supabase'
+import { getUserDetailsSubscription } from '@/core/supabase/subscriptions/getUserDetailsSubscription'
 import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
 // Импортируем новую функцию
@@ -176,11 +176,13 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     await ctx.scene.enter(ModeEnum.CreateUserScene)
   })
 
+  // ---> ВОЗВРАЩАЕМ КОМАНДУ /support <---
   bot.command('support', async ctx => {
     console.log('CASE bot.command: support')
     await ctx.scene.leave() // Выходим из сцены перед показом контактов
     await handleTechSupport(ctx as MyContext)
   })
+  // ---> КОНЕЦ ВОЗВРАЩЕНИЯ <---
 
   // --- НАЧАЛО: ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК ---
 
@@ -199,29 +201,30 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   })
 
   // Обработчик для КНОПКИ "Справка" (ReplyKeyboard)
-  bot.hears(['❓ Справка', '❓ Help'], async ctx => {
-    logger.info('GLOBAL HEARS: Справка', { telegramId: ctx.from?.id })
-    try {
-      // Устанавливаем режим, чтобы справка знала контекст (если мы не вышли из сцены)
-      // ctx.session.mode = ctx.session.__scenes?.current ?? ModeEnum.Help;
-      await ctx.scene.leave() // Выходим из текущей сцены
-      await ctx.scene.enter(ModeEnum.HelpScene) // Входим в сцену справки (Убедись, что ModeEnum.HelpScene = 'helpScene')
-    } catch (error) {
-      logger.error('Error in Справка hears:', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-    }
-  })
+  // Этот обработчик больше не нужен, так как кнопка переименована и обрабатывается в handleMenu
+  // bot.hears(['❓ Справка', '❓ Help'], async ctx => { // <-- УДАЛЯЕМ HEARS Справка/Help
+  //   logger.info('GLOBAL HEARS: Справка', { telegramId: ctx.from?.id })
+  //   try {
+  //     await ctx.scene.leave() // Выходим из текущей сцены
+  //     await ctx.scene.enter(ModeEnum.HelpScene) // Входим в сцену справки
+  //   } catch (error) {
+  //     logger.error('Error in Справка hears:', {
+  //       error,
+  //       telegramId: ctx.from?.id,
+  //     })
+  //   }
+  // })
 
   // --- КОНЕЦ: ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК ---
 
   // Обработчики для других текстовых кнопок главного меню
+  // ---> ВОЗВРАЩАЕМ HEARS ДЛЯ ТЕХПОДДЕРЖКИ <---
   bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
     console.log('CASE bot.hears: 💬 Техподдержка / Support')
     await ctx.scene.leave()
     await handleTechSupport(ctx)
   })
+  // ---> КОНЕЦ ВОЗВРАЩЕНИЯ <---
 
   bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
     console.log('CASE bot.hears: 💫 Оформить подписку / Subscribe')

@@ -7,7 +7,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { TranslationButton } from '@/interfaces/supabase.interface'
-import { getUserDetailsSubscription } from '@/core/supabase'
+import { getUserDetailsSubscription } from '@/core/supabase/subscriptions/getUserDetailsSubscription'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
 // Проверка валидности типа подписки

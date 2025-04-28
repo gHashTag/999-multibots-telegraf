@@ -2,12 +2,7 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { generateVoiceAvatar } from '@/services/generateVoiceAvatar'
 import { isRussian } from '@/helpers/language'
-import { getUserBalance } from '@/core/supabase'
-import {
-  sendInsufficientStarsMessage,
-  sendBalanceMessage,
-  voiceConversationCost,
-} from '@/price/helpers'
+
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 

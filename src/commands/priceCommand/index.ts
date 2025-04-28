@@ -1,51 +1,77 @@
-import { SYSTEM_CONFIG } from '@/price/constants/index'
-import { MyContext } from '../../interfaces'
-import { minCost, maxCost, modeCosts } from '@/price/helpers/modelsCost'
-import { conversionRates } from '@/price/priceCalculator'
+// import { SYSTEM_CONFIG } from '@/price/constants/modelsCost' // Удалено
+// import { getUserLanguage } from '@/handlers' // Удалено
+// import { minCost, maxCost, modeCosts } from '@/price/constants/modelsCost' // Удалено
+// import { conversionRates } from '@/price/priceCalculator' // Удалено
+import { ModeEnum } from '@/interfaces'
+import { MyContext } from '@/interfaces'
+import { calculateFinalStarPrice } from '@/pricing/calculator' // <-- Импорт уже есть
+import { isRussian } from '@/helpers/language' // <-- Импорт уже есть
+import { logger } from '@/utils/logger' // <-- Добавляем логгер
 
-// Helper function to handle potential function types in modeCosts
-const getCost = (cost: number | ((param?: any) => number)): string => {
-  if (typeof cost === 'function') {
-    // Assuming the function doesn't need parameters for this general display
-    // If parameters are needed, this logic might need adjustment based on context
-    return cost().toFixed(2)
-  }
-  return cost.toFixed(2)
-}
+// Удалена старая функция getCost
+// const getCost = (cost: number | ((param?: any) => number)): string => {
+//   const numericCost = typeof cost === 'function' ? cost(1000) : cost // Используем 1000 шагов для примера
+//   return `${numericCost.toFixed(0)}⭐`
+// }
 
 export async function priceCommand(ctx: MyContext) {
-  console.log('CASE: priceCommand')
-  const isRu = ctx.from?.language_code === 'ru'
+  const isRu = isRussian(ctx) // <-- Исправлено
 
-  const message = isRu
-    ? `
-    <b>💰 Стоимость всех услуг:</b>
-    - 🧠 Обучение модели за 1 шаг: ${conversionRates.costPerStepInStars} ⭐️
-    - ✍️ Генерация промпта: ${getCost(modeCosts.text_to_image)} ⭐️
-    - 🖼️ Генерация изображения: от ${minCost} до ${maxCost} ⭐️
-    - 🤖 Нейро-генерация изображения: ${getCost(modeCosts.image_to_prompt)} ⭐️
-    - 🎥 Текст в видео: ${getCost(modeCosts.text_to_video)} ⭐️
-    - 🎤 Голос: ${getCost(modeCosts.voice)} ⭐️
-    - 🗣️ Текст в речь: ${getCost(modeCosts.text_to_speech)} ⭐️
-    - 📽️ Изображение в видео: ${getCost(modeCosts.image_to_video)} ⭐️
+  let message = isRu
+    ? '<b>💰 Прайс-лист на услуги (в звездах ⭐):</b>\\n\\n'
+    : '<b>💰 Price list for services (in stars ⭐):</b>\\n\\n'
 
-    <b>💵 Стоимость звезды:</b> ${(SYSTEM_CONFIG.starCost * 99).toFixed(2)} руб
-    💵 Пополнение баланса /buy
-    `
-    : `
-    <b>💰 Price of all services:</b>
-    - 🧠 Training model: ${conversionRates.costPerStepInStars} ⭐️
-    - ✍️ Prompt generation: ${getCost(modeCosts.text_to_image)} ⭐️
-    - 🖼️ Image generation: from ${minCost} до ${maxCost} ⭐️
-    - 🤖 Neuro-image generation: ${getCost(modeCosts.image_to_prompt)} ⭐️
-    - 🎥 Text to video: ${getCost(modeCosts.text_to_video)} ⭐️
-    - 🎤 Voice: ${getCost(modeCosts.voice)} ⭐️
-    - 🗣️ Text to speech: ${getCost(modeCosts.text_to_speech)} ⭐️
-    - 📽️ Image to video: ${getCost(modeCosts.image_to_video)} ⭐️
+  message += isRu
+    ? '<i>(Цены могут меняться)</i>\\n\\n'
+    : '<i>(Prices are subject to change)</i>\\n\\n'
 
-    <b>💵 Star cost:</b> ${SYSTEM_CONFIG.starCost.toFixed(2)} $
-    💵 Top up balance /buy
-    `
+  let pricesAdded = false
 
-  await ctx.reply(message, { parse_mode: 'HTML' })
+  // Проходим по всем режимам из ModeEnum
+  for (const modeKey of Object.keys(ModeEnum)) {
+    const mode = ModeEnum[modeKey as keyof typeof ModeEnum]
+
+    // Пропускаем системные/внутренние режимы, если они есть
+    if (
+      mode === ModeEnum.MainMenu ||
+      mode === ModeEnum.CheckBalanceScene ||
+      mode === ModeEnum.PaymentScene ||
+      mode === ModeEnum.StarPaymentScene ||
+      mode === ModeEnum.HelpScene
+    ) {
+      continue
+    }
+
+    try {
+      // Вызываем калькулятор для режима.
+      // Для режимов с modelId/steps пока покажем базовую цену (или 0)
+      const costResult = calculateFinalStarPrice(mode)
+
+      if (costResult && costResult.stars > 0) {
+        // Форматируем название режима (можно улучшить для читаемости)
+        const modeName = modeKey
+          .replace(/([A-Z])/g, ' $1') // Добавляем пробелы перед заглавными буквами
+          .replace(/^./, str => str.toUpperCase()) // Первая буква заглавная
+
+        message += `${modeName}: ${costResult.stars} ⭐\\n`
+        pricesAdded = true
+      }
+      // Если costResult.stars === 0, считаем режим бесплатным и не выводим
+    } catch (error) {
+      logger.error(
+        `Error calculating price for mode ${mode} in /price command`,
+        { error }
+      )
+      // Можно добавить строку об ошибке для этого режима, но лучше пропустить
+    }
+  }
+
+  if (!pricesAdded) {
+    message += isRu ? 'Не найдено платных услуг.' : 'No paid services found.'
+  }
+
+  // Удаляем старый TODO и комментарии
+  // message += 'TODO: Implement dynamic price list generation using calculateFinalStarPrice.\\n'
+
+  await ctx.replyWithHTML(message)
 }

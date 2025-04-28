@@ -21,8 +21,8 @@ export function getStepSelectionMenu(
       Markup.button.text(isRu ? '6000 шагов' : '6000 steps'),
     ],
     [
-      Markup.button.text(isRu ? 'Справка по команде' : 'Help for the command'),
       Markup.button.text(isRu ? 'Отмена' : 'Cancel'),
+      Markup.button.callback(isRu ? '❓ Справка' : '❓ Help', 'go_help'),
     ],
   ])
     .resize()

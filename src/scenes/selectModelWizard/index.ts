@@ -33,10 +33,8 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
 
       // Добавляем кнопки "Отмена" и "Справка по команде" в конце
       const cancelHelpButtons = [
-        Markup.button.text(
-          isRu ? 'Справка по команде' : 'Help for the command'
-        ),
         Markup.button.text(isRu ? 'Отмена' : 'Cancel'),
+        Markup.button.callback(isRu ? '❓ Справка' : '❓ Help', 'go_help'),
       ]
       buttons.push(cancelHelpButtons)
 

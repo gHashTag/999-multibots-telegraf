@@ -4,7 +4,7 @@ export { supabase, supabaseAdmin } from './client'
 export { getBotsFromSupabase } from './getBotsFromSupabase'
 export { saveVideoUrlToSupabase } from './saveVideoUrlToSupabase'
 export { updateHistory } from './updateHistory'
-export { getAiFeedbackFromSupabase } from './getAiFeedbackFromSupabase'
+// export { getAiFeedbackFromSupabase } from './ai' // Commented out - file/export missing?
 export { getBotGroupFromAvatars } from './getBotGroupFromAvatars'
 export { createUser } from './createUser'
 export { createModelTraining } from './createModelTraining'
@@ -26,7 +26,7 @@ export {
   getUserBalanceStats,
   type PaymentDetail,
   type UserBalanceStats,
-} from './getUserBalance'
+} from './balance/getUserBalance'
 export { updateUserVoice } from './updateUserVoice'
 export { getUserModel } from './getUserModel'
 export { getReferalsCountAndUserData } from './getReferalsCountAndUserData'
@@ -41,7 +41,7 @@ export { getPaymentsInfoByTelegramId } from './getPaymentsInfoByTelegramId'
 export { updateUserSoul } from './updateUserSoul'
 export { getUserByTelegramId } from './getUserByTelegramId'
 export { getLatestUserModel } from './getLatestUserModel'
-export { setPayments } from './setPayments'
+export { setPayments } from './payments/setPayments'
 export { getUid } from './getUid'
 export { updateUserSubscription } from './updateUserSubscription'
 export { getTranslation } from './getTranslation'
@@ -49,8 +49,8 @@ export { checkPaymentStatus } from './checkPaymentStatus'
 export { updateUserLevelPlusOne } from './updateUserLevelPlusOne'
 export { savePromptDirect } from './savePromptDirect'
 export { getUserByTelegramIdString } from './getUserByTelegramIdString'
-export { getUserDetailsSubscription } from './getUserDetailsSubscription'
-export { createSuccessfulPayment as setSuccessfulPayment } from './createSuccessfulPayment'
+export { getUserDetailsSubscription } from './subscriptions/getUserDetailsSubscription'
+export { createSuccessfulPayment } from './createSuccessfulPayment'
 export { getUserById } from './getUserById'
 export {
   getPendingPayment,
@@ -60,3 +60,13 @@ export {
 
 // Добавляем экспорт новой функции
 export { updateUserModel } from './updateUserModel'
+
+export { checkSubscriptionByTelegramId } from './checkSubscriptionByTelegramId'
+export { directPaymentProcessor } from './directPayment'
+export { getUserLevel } from './getUserLevel'
+export { incrementLimit } from './incrementLimit'
+export { notifyBotOwners } from './notifyBotOwners'
+export { updateModelTraining } from './updateModelTraining'
+// export { updateImageCounter } from './updateImageCounter' // Commented out - file/export missing?
+export { updateUserLevel } from './updateUserLevel'
+export { updateUserStarsBalance } from './balance/updateUserStarsBalance'
