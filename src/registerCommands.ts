@@ -80,6 +80,7 @@ export const stage = new Scenes.Stage<MyContext>([
   trainFluxModelWizard,
   uploadTrainFluxModelScene,
   uploadVideoScene,
+  sizeWizard,
   new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
   new Scenes.WizardScene(
     ModeEnum.TextToSpeech,
