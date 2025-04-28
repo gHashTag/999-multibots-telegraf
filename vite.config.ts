@@ -114,10 +114,6 @@ export default defineConfig(({ command, mode }) => {
       alias: {
         '@': resolve(__dirname, './src'),
         telegraf: resolve(__dirname, 'node_modules/telegraf/lib'),
-        'node-fetch': resolve(
-          __dirname,
-          'node_modules/node-fetch/lib/index.js'
-        ),
         'form-data': resolve(
           __dirname,
           'node_modules/form-data/lib/form_data.js'
@@ -141,9 +137,13 @@ export default defineConfig(({ command, mode }) => {
       emptyOutDir: true,
       minify: false,
       sourcemap: 'inline',
+      commonjsOptions: {
+        include: [/node_modules/],
+        transformMixedEsModules: true,
+      },
       rollupOptions: {
         input: resolve(__dirname, 'src/bot.ts'),
-        external: externalDeps,
+        external: [...externalDeps, 'cross-fetch'],
         output: {
           format: 'es',
           esModule: true,

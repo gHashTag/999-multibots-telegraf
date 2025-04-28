@@ -9,7 +9,7 @@ import { logger } from '@/utils/logger'
 import { SECRET_API_KEY } from '@/config'
 import { Telegraf } from 'telegraf'
 import type { MyContext } from '@/interfaces'
-import { botInstances } from './bot'
+import { bots } from './bot'
 
 /**
  * Создает и настраивает экземпляр Fastify, но не запускает его.
@@ -103,7 +103,7 @@ function registerRoutes(serverInstance: FastifyInstance) {
       const botIdParam = request.params.botId
       logger.info(`Webhook request received for botId param: ${botIdParam}`)
 
-      const botInstance = botInstances.find(
+      const botInstance = bots.find(
         bot => bot.botInfo?.id.toString() === botIdParam
       )
 
@@ -112,13 +112,19 @@ function registerRoutes(serverInstance: FastifyInstance) {
           `Found bot instance for ID: ${botIdParam}, username: ${botInstance.botInfo?.username}`
         )
         try {
+          if (!botInstance.botInfo) {
+            logger.warn(
+              `Bot info not available for bot ID: ${botIdParam} during webhook handling, fetching...`
+            )
+            await botInstance.telegram.getMe()
+          }
           await botInstance.handleUpdate(request.body as any, reply.raw)
           logger.info(
             `Webhook for ${botInstance.botInfo?.username} processed by Telegraf handleUpdate.`
           )
         } catch (error) {
           logger.error(
-            `Error processing webhook via Telegraf handleUpdate for bot ${botInstance.botInfo?.username}:`,
+            `Error processing webhook via Telegraf handleUpdate for bot ${botInstance.botInfo?.username ?? botIdParam}:`,
             error
           )
           if (!reply.sent) {

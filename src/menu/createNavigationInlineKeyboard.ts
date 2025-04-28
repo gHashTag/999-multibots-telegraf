@@ -1,15 +1,5 @@
 import { Markup } from 'telegraf'
-<<<<<<< HEAD
-<<<<<<< HEAD
-import type { InlineKeyboardMarkup } from 'telegraf/types';import type { Message, Update } from "telegraf/types"
-=======
-import type { InlineKeyboardMarkup } from 'telegraf/types'
-import type { Message, Update } from 'telegraf/types'
->>>>>>> adf7ec30 (bugfix)
-=======
-import type { InlineKeyboardMarkup } from 'telegraf/types'
-import type { Message, Update } from 'telegraf/types'
->>>>>>> origin/feat/vitest-integration
+import type { InlineKeyboardMarkup, Message, Update } from 'telegraf/types'
 
 /**
  * Создает стандартную Inline клавиатуру для навигации.

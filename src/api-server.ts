@@ -1,5 +1,5 @@
 import { createFastifyApp } from './fastify-server'
-import { launchBots } from './bot'
+// import { launchBots } from './bot' // Removed unused import
 import { logger } from '@/utils/logger'
 import { API_SERVER_URL, PORT } from '@/config'
 
@@ -12,7 +12,7 @@ const port = parseInt(PORT || '3000', 10)
 async function startApiServer() {
   try {
     logger.info('Starting API server...')
-    await launchBots() // Сначала запускаем ботов
+    // await launchBots() // Removed call to non-existent function
 
     // Создаем, но НЕ запускаем Fastify приложение здесь
     // Запуск будет через Vercel handler или локально для разработки

@@ -206,6 +206,15 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   en?: string
   lastCompletedVideoScene?: ModeEnum | null | undefined
   gender?: string
+  __scenes?: WizardSessionData
+  imageId?: string
+  imagePrompt?: string
+  chatMessage?: string
+  videoPrompt?: string
+  videoId?: string
+  currentCost?: number
+  currentMode?: ModeEnum
+  mySessionProp?: number
 }
 
 export interface MyContext extends Context {
@@ -213,6 +222,7 @@ export interface MyContext extends Context {
   scene: SceneContextScene<MyContext, WizardSessionData>
   wizard: WizardContextWizard<MyContext>
   update: Update.MessageUpdate | Update.CallbackQueryUpdate
+  botName?: BotName
 }
 
 // Создайте новый тип, объединяющий MyContext и WizardContext

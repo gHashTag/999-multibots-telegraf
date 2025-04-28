@@ -6,15 +6,14 @@ import {
   sendBalanceMessage,
 } from '@/price/helpers'
 import { getUserInfo } from '@/handlers/getUserInfo'
-import {
-  ModeEnum,
-  CostCalculationParams,
-  CostCalculationResult,
-} from '@/interfaces/modes'
+import { ModeEnum, CostCalculationParams } from '@/interfaces/modes'
 import { starCost, SYSTEM_CONFIG } from '@/price/constants'
 import { logger } from '@/utils/logger'
 import { getUserDetailsSubscription } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { calculateFinalPrice as calculateFinalStarPrice } from '@/price/helpers/calculateFinalPrice'
+import { CalculationParams } from '@/price/calculator'
+
 // Интерфейс для возвращаемого значения
 export interface UserStatus {
   stars: number // Баланс
@@ -24,255 +23,6 @@ export interface UserStatus {
   isExist: boolean // Найден ли пользователь
 }
 
-interface ConversionRates {
-  costPerStarInDollars: number
-  costPerStepInStars: number
-  rublesToDollarsRate: number
-}
-
-// Определяем конверсии
-export const conversionRates: ConversionRates = {
-  costPerStepInStars: 0.25,
-  costPerStarInDollars: 0.016,
-  rublesToDollarsRate: 100,
-}
-
-export const conversionRatesV2: ConversionRates = {
-  costPerStepInStars: 2.1,
-  costPerStarInDollars: 0.016,
-  rublesToDollarsRate: 100,
-}
-
-export function calculateCostInStars(
-  steps: number,
-  rates: { costPerStepInStars: number }
-): number {
-  const totalCostInStars = steps * rates.costPerStepInStars
-  return parseFloat(totalCostInStars.toFixed(2))
-}
-
-export function calculateCostInDollars(
-  steps: number,
-  rates: { costPerStepInStars: number; costPerStarInDollars: number }
-): number {
-  const totalCostInDollars =
-    steps * rates.costPerStepInStars * rates.costPerStarInDollars
-  return parseFloat(totalCostInDollars.toFixed(2))
-}
-
-export function calculateCostInRubles(
-  steps: number,
-  rates: {
-    costPerStepInStars: number
-    costPerStarInDollars: number
-    rublesToDollarsRate: number
-  }
-): number {
-  const totalCostInRubles =
-    steps *
-    rates.costPerStepInStars *
-    rates.costPerStarInDollars *
-    rates.rublesToDollarsRate
-  return parseFloat(totalCostInRubles.toFixed(2))
-}
-
-export const stepOptions = {
-  v1: [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000],
-  v2: [100, 200, 300, 400, 500, 600, 700, 800, 1000],
-}
-
-export const costDetails = {
-  v1: stepOptions.v1.map(steps => calculateCost(steps, 'v1')),
-  v2: stepOptions.v2.map(steps => calculateCost(steps, 'v2')),
-}
-
-export interface CostDetails {
-  steps: number
-  stars: number
-  rubles: number
-  dollars: number
-}
-
-export function calculateCost(
-  steps: number,
-  version: 'v1' | 'v2' = 'v1'
-): CostDetails {
-  const rates = version === 'v1' ? conversionRates : conversionRatesV2
-  const baseCost = steps * rates.costPerStepInStars
-
-  return {
-    steps,
-    stars: baseCost,
-    dollars: baseCost * rates.costPerStarInDollars,
-    rubles: baseCost * rates.costPerStarInDollars * rates.rublesToDollarsRate,
-  }
-}
-
-// НОВАЯ ФУНКЦИЯ: Расчет конечной стоимости в звездах из базовой в долларах
-function calculateFinalStarCostFromDollars(baseDollarCost: number): number {
-  // Предполагаем, что interestRate - это множитель наценки (например, 1.2 для 20%)
-  // Если interestRate - это процент (например, 20), то формула будет (baseDollarCost / starCost) * (1 + SYSTEM_CONFIG.interestRate / 100)
-  // Используем текущую логику расчета рублей как пример: умножаем на interestRate
-  const finalCost = (baseDollarCost / starCost) * SYSTEM_CONFIG.interestRate
-  return parseFloat(finalCost.toFixed(2))
-}
-
-export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
-  [ModeEnum.DigitalAvatarBody]: (steps: number) => {
-    const cost = calculateCost(steps, 'v1')
-    return cost.stars
-  },
-  [ModeEnum.DigitalAvatarBodyV2]: (steps: number) => {
-    const cost = calculateCost(steps, 'v2')
-    return cost.stars
-  },
-  [ModeEnum.NeuroPhoto]: calculateFinalStarCostFromDollars(0.08),
-  [ModeEnum.NeuroPhotoV2]: calculateFinalStarCostFromDollars(0.14),
-  [ModeEnum.NeuroAudio]: calculateFinalStarCostFromDollars(0.12),
-  [ModeEnum.ImageToPrompt]: calculateFinalStarCostFromDollars(0.03),
-  [ModeEnum.Avatar]: 0,
-  [ModeEnum.ChatWithAvatar]: 0,
-  [ModeEnum.SelectModel]: 0,
-  [ModeEnum.SelectAiTextModel]: 0,
-  [ModeEnum.Voice]: calculateFinalStarCostFromDollars(0.9),
-  [ModeEnum.TextToSpeech]: calculateFinalStarCostFromDollars(0.12),
-  [ModeEnum.ImageToVideo]: 0,
-  [ModeEnum.TextToVideo]: 0,
-  [ModeEnum.TextToImage]: 0,
-  [ModeEnum.LipSync]: calculateFinalStarCostFromDollars(0.9),
-  [ModeEnum.VoiceToText]: calculateFinalStarCostFromDollars(0.08),
-}
-
-export type CostValue = number | ((steps: number) => number)
-// Определяем стоимость для каждого режима
-
-export function calculateModeCost(
-  params: CostCalculationParams
-): CostCalculationResult {
-  const { mode, steps = 0, numImages = 1 } = params
-
-  try {
-    let stars = 0
-
-    let normalizedMode = mode
-    if (mode === ModeEnum.NeuroPhotoV2) {
-      normalizedMode = ModeEnum.NeuroPhotoV2
-      logger.info({
-        message: '🔄 Использован алиас режима',
-        description: 'Mode alias used',
-        originalMode: mode,
-        normalizedMode,
-      })
-    }
-
-    const costValue = BASE_COSTS[normalizedMode as keyof typeof BASE_COSTS]
-
-    if (costValue === undefined) {
-      logger.error({
-        message: '❌ Неизвестный режим или стоимость не определена',
-        description: 'Unknown mode or cost not defined in BASE_COSTS',
-        mode,
-        normalizedMode,
-      })
-      stars = 0
-    } else {
-      let numericCostValue: number
-      if (typeof costValue === 'function') {
-        if (steps === undefined || steps === null) {
-          logger.error({
-            message:
-              '❌ Не передано количество шагов для режима с функцией стоимости',
-            description: 'Steps parameter is missing for function-based cost',
-            mode,
-            normalizedMode,
-          })
-          numericCostValue = 0
-        } else {
-          numericCostValue = costValue(steps)
-        }
-      } else {
-        numericCostValue = costValue
-      }
-
-      if (
-        (normalizedMode === ModeEnum.DigitalAvatarBody ||
-          normalizedMode === ModeEnum.DigitalAvatarBodyV2) &&
-        steps
-      ) {
-        stars = numericCostValue * numImages
-      } else {
-        stars = numericCostValue * numImages
-      }
-    }
-
-    // Дополнительные переопределения стоимости, если нужны
-    if (mode === ModeEnum.VoiceToText) {
-      stars = 5
-    }
-
-    stars = parseFloat(stars.toFixed(2))
-    const dollars = parseFloat((stars * starCost).toFixed(2))
-    const rubles = parseFloat((dollars * SYSTEM_CONFIG.interestRate).toFixed(2))
-
-    return { stars, dollars, rubles }
-  } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при расчете стоимости',
-      description: 'Error during cost calculation',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      mode,
-      steps,
-      numImages,
-    })
-    throw error
-  }
-}
-
-export const modeCosts: Record<string, number | ((param?: any) => number)> = {
-  [ModeEnum.DigitalAvatarBody]: (steps: number) =>
-    calculateModeCost({ mode: ModeEnum.DigitalAvatarBody, steps }).stars,
-  [ModeEnum.DigitalAvatarBodyV2]: (steps: number) =>
-    calculateModeCost({ mode: ModeEnum.DigitalAvatarBodyV2, steps }).stars,
-  [ModeEnum.NeuroPhoto]: calculateModeCost({ mode: ModeEnum.NeuroPhoto }).stars,
-  [ModeEnum.NeuroPhotoV2]: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 })
-    .stars,
-  [ModeEnum.NeuroAudio]: calculateModeCost({ mode: ModeEnum.NeuroAudio }).stars,
-  neuro_photo_2: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 }).stars,
-  [ModeEnum.ImageToPrompt]: calculateModeCost({ mode: ModeEnum.ImageToPrompt })
-    .stars,
-  [ModeEnum.Avatar]: calculateModeCost({ mode: ModeEnum.Avatar }).stars,
-  [ModeEnum.ChatWithAvatar]: calculateModeCost({
-    mode: ModeEnum.ChatWithAvatar,
-  }).stars,
-  [ModeEnum.SelectModel]: calculateModeCost({ mode: ModeEnum.SelectModel })
-    .stars,
-  [ModeEnum.SelectAiTextModel]: calculateModeCost({
-    mode: ModeEnum.SelectAiTextModel,
-  }).stars,
-  [ModeEnum.Voice]: calculateModeCost({ mode: ModeEnum.Voice }).stars,
-  [ModeEnum.TextToSpeech]: calculateModeCost({ mode: ModeEnum.TextToSpeech })
-    .stars,
-  [ModeEnum.ImageToVideo]: calculateModeCost({ mode: ModeEnum.ImageToVideo })
-    .stars,
-  [ModeEnum.TextToVideo]: calculateModeCost({ mode: ModeEnum.TextToVideo })
-    .stars,
-  [ModeEnum.TextToImage]: calculateModeCost({ mode: ModeEnum.TextToImage })
-    .stars,
-  [ModeEnum.LipSync]: calculateModeCost({ mode: ModeEnum.LipSync }).stars,
-  [ModeEnum.VoiceToText]: calculateModeCost({ mode: ModeEnum.VoiceToText })
-    .stars,
-}
-// Найдите минимальную и максимальную стоимость среди всех моделей
-export const minCost = Math.min(
-  ...Object.values(modeCosts).map(cost =>
-    typeof cost === 'function' ? cost() : cost
-  )
-)
-export const maxCost = Math.max(
-  ...Object.values(modeCosts).map(cost =>
-    typeof cost === 'function' ? cost() : cost
-  )
-)
 export const checkBalanceScene = new Scenes.BaseScene<MyContext>(
   ModeEnum.CheckBalanceScene
 )
@@ -339,7 +89,8 @@ checkBalanceScene.enter(async ctx => {
       step: 'fetching_user_data',
     })
 
-    const userDetails = await getUserDetailsSubscription(telegramId)
+    // Передаем ID пользователя как строку
+    const userDetails = await getUserDetailsSubscription(ctx.from.id.toString())
 
     logger.info({
       message: `[CheckBalanceScene] Данные пользователя получены`,
@@ -392,10 +143,10 @@ checkBalanceScene.enter(async ctx => {
       })
     }
 
-    // Шаг 5: ПРОВЕРКА БАЛАНСА (только для обычных пользователей без активной подписки)
+    // Шаг 5: ПРОВЕРКА БАЛАНСА
     const currentBalance = userDetails.stars
-    const cost = modeCosts[mode] || 0
-    const costValue = getCostValue(cost)
+    // Используем новую функцию расчета цены calculateFinalStarPrice, которая возвращает number
+    const costValue = calculateFinalStarPrice(mode)
 
     logger.info({
       message: `[CheckBalanceScene] Проверка баланса для режима: ${mode}`,
@@ -430,7 +181,7 @@ checkBalanceScene.enter(async ctx => {
       )
     }
 
-    // Шаг 7: Проверка достаточности баланса
+    // Шаг 7: ПРОВЕРКА ДОСТАТОЧНОСТИ БАЛАНСА
     if (currentBalance < costValue) {
       logger.warn({
         message: `[CheckBalanceScene] Недостаточно баланса для режима: ${mode}`,
@@ -629,5 +380,164 @@ export const enterTargetScene = async (
     // В middleware обычно не используют ctx.scene.leave()
     // Можно просто не вызывать next() или выбросить ошибку,
     // чтобы остановить цепочку выполнения
+  }
+}
+
+// ==================================================================
+// ========= НОВАЯ ФУНКЦИЯ ПРОВЕРКИ И ВХОДА В СЦЕНУ ================
+// ==================================================================
+// Эта функция объединяет логику проверки баланса и входа
+
+/**
+ * Обертка для входа в целевую сцену с проверкой баланса.
+ * Используется как middleware перед обработчиками, требующими проверки баланса.
+ *
+ * @param ctx Контекст Telegraf
+ * @param next Следующая функция middleware
+ * @param mode Режим, для которого проверяется баланс
+ * @param costParams Параметры для расчета стоимости (например, steps)
+ */
+export const checkBalanceAndEnterScene = async (
+  ctx: MyContext,
+  next: () => Promise<void>,
+  mode: ModeEnum,
+  costParams?: CalculationParams // Этот параметр больше не используется calculateFinalStarPrice, но оставим для совместимости?
+) => {
+  const telegramId = ctx.from?.id?.toString() || 'unknown'
+  const isRu = ctx.from?.language_code === 'ru'
+
+  try {
+    // 1. Получаем данные пользователя
+    const userDetails = await getUserDetailsSubscription(telegramId)
+    const { isExist, stars, isSubscriptionActive, subscriptionType } =
+      userDetails // Удаляем level
+
+    // 2. Проверка существования и подписки
+    if (!isExist) {
+      logger.warn({
+        message: `[CheckBalanceAndEnterScene] Пользователь ${telegramId} не найден в БД. Перенаправление в StartScene.`,
+        telegramId,
+        function: 'checkBalanceAndEnterScene',
+        step: 'user_not_found',
+        result: 'redirect_to_start',
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Не удалось найти ваш профиль. Пожалуйста, перезапустите бота командой /start.'
+          : '❌ Could not find your profile. Please restart the bot with /start.'
+      )
+      return ctx.scene.enter(ModeEnum.StartScene) // Выход, если пользователь не существует
+    }
+
+    // 3. Проверка подписки
+    if (!isSubscriptionActive) {
+      logger.warn({
+        message: `[CheckBalanceAndEnterScene] Пользователь ${telegramId} НЕ имеет активной подписки. Перенаправление в StartScene.`,
+        telegramId,
+        function: 'checkBalanceAndEnterScene',
+        step: 'subscription_check_failed',
+        subscriptionType: userDetails.subscriptionType,
+        mode,
+        result: 'redirect_to_start',
+      })
+      return ctx.scene.enter(ModeEnum.StartScene)
+    } else {
+      logger.info({
+        message: `[CheckBalanceAndEnterScene] Подписка активна для пользователя ${telegramId}. Тип: ${userDetails.subscriptionType}`,
+        telegramId,
+        function: 'checkBalanceAndEnterScene',
+        step: 'subscription_check_passed',
+        subscriptionType: userDetails.subscriptionType,
+        mode,
+      })
+    }
+
+    // 4. Проверка баланса
+    const currentBalance = stars
+    // const costValue = calculateFinalStarPrice(mode, costParams) // calculateFinalStarPrice больше не принимает costParams
+    const costValue = calculateFinalStarPrice(mode)
+
+    logger.info({
+      message: `[CheckBalanceAndEnterScene] Проверка баланса для режима: ${mode}`,
+      telegramId,
+      function: 'checkBalanceAndEnterScene',
+      step: 'balance_check',
+      mode,
+      cost: costValue,
+      balance: currentBalance,
+      hasEnoughBalance: currentBalance >= costValue,
+    })
+
+    // 5. Отображение баланса и стоимости, если функция платная
+    if (costValue > 0) {
+      logger.info({
+        message: `[CheckBalanceAndEnterScene] Отображение информации о балансе для платной функции`,
+        telegramId,
+        function: 'checkBalanceAndEnterScene',
+        step: 'displaying_balance_info',
+        mode,
+        cost: costValue,
+        balance: currentBalance,
+      })
+
+      await sendBalanceMessage(
+        ctx,
+        currentBalance,
+        costValue,
+        isRu,
+        ctx.botInfo.username
+      )
+    }
+
+    // 6. Проверка достаточности баланса
+    if (currentBalance < costValue) {
+      logger.warn({
+        message: `[CheckBalanceAndEnterScene] Недостаточно баланса для режима: ${mode}`,
+        telegramId,
+        function: 'checkBalanceAndEnterScene',
+        step: 'insufficient_balance',
+        mode,
+        cost: costValue,
+        balance: currentBalance,
+        deficit: costValue - currentBalance,
+        result: 'access_denied',
+      })
+      // Отправляем сообщение о нехватке звезд
+      await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
+      // Выходим из сцены, т.к. баланса не хватает
+      logger.info({
+        message: `[CheckBalanceAndEnterScene] Выход из сцены из-за недостатка баланса`,
+        telegramId,
+        function: 'checkBalanceAndEnterScene',
+        step: 'scene_leave',
+        reason: 'insufficient_balance',
+      })
+      return ctx.scene.leave()
+    }
+
+    // 7. Если все проверки пройдены (достаточно баланса)
+    logger.info({
+      message: `[CheckBalanceAndEnterScene] Все проверки пройдены, доступ разрешен для режима: ${mode}`,
+      telegramId,
+      function: 'checkBalanceAndEnterScene',
+      step: 'all_checks_passed',
+      mode,
+      cost: costValue,
+      balance: currentBalance,
+      result: 'access_granted',
+    })
+
+    // 8. Переход к следующему обработчику (фактическому выполнению команды/входу в сцену)
+    await next()
+  } catch (error) {
+    logger.error({
+      message: `[CheckBalanceAndEnterScene] Ошибка при проверке баланса`,
+      telegramId,
+      function: 'checkBalanceAndEnterScene',
+      mode,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    return ctx.scene.leave()
   }
 }
