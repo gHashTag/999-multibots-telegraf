@@ -30,7 +30,7 @@ export const MODE_PRICING_STRATEGY: Partial<Record<ModeEnum, PricingStrategy>> =
 
     // Служебные операции - бесплатно
     [ModeEnum.StartScene]: PricingStrategy.FREE,
-    [ModeEnum.Help]: PricingStrategy.FREE,
+    [ModeEnum.HelpScene]: PricingStrategy.FREE,
     [ModeEnum.MainMenu]: PricingStrategy.FREE,
     [ModeEnum.Balance]: PricingStrategy.FREE,
     [ModeEnum.Stats]: PricingStrategy.FREE,

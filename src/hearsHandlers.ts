@@ -261,7 +261,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     [levels[103].title_ru, levels[103].title_en],
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Помощь от ${ctx.from?.id}`)
-      ctx.session.mode = ModeEnum.Help
+      ctx.session.mode = ModeEnum.HelpScene
       await ctx.scene.enter('helpScene')
     }
   )
@@ -298,8 +298,20 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     [levels[104].title_ru, levels[104].title_en],
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Помощь от ${ctx.from?.id}`)
-      ctx.session.mode = ModeEnum.Help
+      ctx.session.mode = ModeEnum.HelpScene
       await ctx.scene.enter('helpScene')
     }
   )
+
+  bot.hears([isRu ? '💬 Техподдержка' : '💬 Support'], async ctx => {
+    logger.info('Обработчик Техподдержка')
+    ctx.session.mode = ModeEnum.HelpScene
+    await ctx.scene.enter('helpScene')
+  })
+
+  bot.hears([isRu ? '❓ Помощь' : '❓ Help'], async ctx => {
+    logger.info('Обработчик Помощь')
+    ctx.session.mode = ModeEnum.HelpScene
+    await ctx.scene.enter('helpScene')
+  })
 }

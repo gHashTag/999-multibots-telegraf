@@ -205,7 +205,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       // Устанавливаем режим, чтобы справка знала контекст (если мы не вышли из сцены)
       // ctx.session.mode = ctx.session.__scenes?.current ?? ModeEnum.Help;
       await ctx.scene.leave() // Выходим из текущей сцены
-      await ctx.scene.enter(ModeEnum.Help) // Входим в сцену справки (Убедись, что ModeEnum.Help = 'helpScene')
+      await ctx.scene.enter(ModeEnum.HelpScene) // Входим в сцену справки (Убедись, что ModeEnum.HelpScene = 'helpScene')
     } catch (error) {
       logger.error('Error in Справка hears:', {
         error,
