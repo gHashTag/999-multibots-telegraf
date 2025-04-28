@@ -7,25 +7,23 @@ import {
   getUserByTelegramId,
   updateUserLevelPlusOne,
   savePromptDirect,
-  updateUserBalance,
-  getUserBalance,
 } from '@/core/supabase'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { directPaymentProcessor } from '@/core/supabase/directPayment'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
+import { processApiResponse } from '@/helpers/error/processApiResponse'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import { v4 as uuidv4 } from 'uuid'
 import { ApiResponse } from '@/interfaces/api.interface'
 import { BotName } from '@/interfaces/telegram-bot.interface'
-import { generateTextToImage } from '@/services/generateTextToImage'
-import { calculateFinalStarPrice } from '@/pricing/calculator'
 /**
  * Прямая генерация нейрофото V1 без использования Inngest.
  * Используется как резервный вариант при отсутствии доступа к Inngest.
  *
- * @param promptData Промпт для генерации изображения
+ * @param prompt Промпт для генерации изображения
  * @param model_url URL модели для генерации
  * @param numImages Количество изображений для генерации
  * @param telegram_id ID пользователя в Telegram
@@ -35,7 +33,7 @@ import { calculateFinalStarPrice } from '@/pricing/calculator'
  * @returns Объект с информацией о результате генерации
  */
 export async function generateNeuroPhotoDirect(
-  promptData: string | { text: string; img?: string },
+  prompt: string,
   model_url: string,
   numImages: number,
   telegram_id: string,
@@ -45,13 +43,11 @@ export async function generateNeuroPhotoDirect(
     disable_telegram_sending?: boolean
     bypass_payment_check?: boolean
   }
-): Promise<ApiResponse> {
-  const logPrompt =
-    typeof promptData === 'string' ? promptData : promptData.text
+): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
   logger.info({
     message: '🚀 [DIRECT] Начало прямой генерации Neurophoto V1',
     description: 'Starting direct Neurophoto V1 generation',
-    prompt: logPrompt.substring(0, 50) + '...',
+    prompt: prompt.substring(0, 50) + '...',
     model_url,
     numImages,
     telegram_id,
@@ -60,18 +56,8 @@ export async function generateNeuroPhotoDirect(
   })
 
   try {
-    let promptText: string
-    let imageUrl: string | undefined
-
-    if (typeof promptData === 'string') {
-      promptText = promptData
-    } else {
-      promptText = promptData.text
-      imageUrl = promptData.img
-    }
-
     // Проверяем наличие промпта и модели
-    if (!promptText) {
+    if (!prompt) {
       logger.error({
         message: '❌ [DIRECT] Отсутствует промпт для генерации',
         description: 'No prompt found for direct generation',
@@ -188,18 +174,11 @@ export async function generateNeuroPhotoDirect(
       mode: ModeEnum.NeuroPhoto,
     })
 
-    const mode = imageUrl ? ModeEnum.NeuroPhotoV2 : ModeEnum.NeuroPhoto
-    const costResult = calculateFinalStarPrice(mode)
-
-    if (!costResult) {
-      logger.error('Failed to calculate cost for generateNeuroPhotoDirect', {
-        mode,
-        promptData,
-      })
-      return { success: false, data: 'Failed to calculate cost' }
-    }
-    const costInStars = costResult.stars
-    const costPerImage = Number(costInStars)
+    const costResult = calculateModeCost({
+      mode: ModeEnum.NeuroPhoto,
+      steps: validNumImages,
+    })
+    const costPerImage = Number(costResult.stars)
     const totalCost = costPerImage * validNumImages
 
     logger.info({
@@ -226,14 +205,14 @@ export async function generateNeuroPhotoDirect(
       type: PaymentType.MONEY_OUTCOME,
       description: `Payment for generating ${validNumImages} image${
         validNumImages > 1 ? 's' : ''
-      } with prompt: ${promptText.slice(0, 50)}...`,
+      } with prompt: ${prompt.slice(0, 50)}...`,
       bot_name: botName,
       service_type: ModeEnum.NeuroPhoto,
       inv_id: paymentOperationId,
       bypass_payment_check:
         options?.bypass_payment_check || ctx?.session?.bypass_payment_check,
       metadata: {
-        prompt: promptText.substring(0, 100),
+        prompt: prompt.substring(0, 100),
         num_images: validNumImages,
         model_url,
       },
@@ -354,13 +333,13 @@ export async function generateNeuroPhotoDirect(
           message: '🎨 [DIRECT] Запускаем прямую генерацию изображения',
           description: 'Starting direct image generation',
           telegram_id,
-          prompt: promptText.substring(0, 50) + '...',
+          prompt: prompt.substring(0, 50) + '...',
           model_url,
         })
 
         // Настраиваем параметры для модели
         const input = {
-          prompt: `${promptText}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
+          prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
           negative_prompt: 'nsfw, erotic, violence, bad anatomy...',
           num_inference_steps: 40,
           guidance_scale: 3,
@@ -390,51 +369,47 @@ export async function generateNeuroPhotoDirect(
         })
 
         // Выполняем запрос к API
-        const output = await replicate.run(model_url as `${string}/${string}`, {
-          input: input,
-        })
+        const output = (await replicate.run(
+          model_url as `${string}/${string}:${string}`,
+          {
+            input: input,
+          }
+        )) as ApiResponse
 
         logger.info({
-          message: '✅ [DIRECT] Получен ответ от Replicate API',
-          description: 'Received response from Replicate API (direct)',
-          output_preview: JSON.stringify(output).substring(0, 100) + '...',
+          message: '✅ [DIRECT] Получен ответ от API',
+          description: 'API response received (direct)',
+          output_type: typeof output,
+          telegram_id,
         })
 
-        // Обработка ответа Replicate (эта логика должна быть здесь)
-        let result: string[] | null = null
-        if (Array.isArray(output)) {
-          result = output.filter(
-            (item): item is string => typeof item === 'string'
-          )
-        } else if (typeof output === 'string') {
-          result = [output]
-        } else {
-          logger.error('❌ [DIRECT] Неожиданный формат ответа от Replicate', {
-            output,
-          })
-          // Обработка ошибки или возврат
-        }
+        // Обрабатываем API-ответ
+        logger.info({
+          message: '🔍 [DIRECT] Обработка ответа API Replicate',
+          description: 'Processing Replicate API response',
+          output_sample: JSON.stringify(output).substring(0, 100) + '...',
+        })
 
-        if (!result || result.length === 0) {
-          logger.error('❌ [DIRECT] Replicate API не вернул изображений', {
-            output,
+        const imageUrl = await processApiResponse(output)
+
+        // Проверка на валидность URL
+        if (!imageUrl || !imageUrl.startsWith('http')) {
+          logger.error({
+            message: '❌ [DIRECT] Некорректный URL изображения',
+            description: 'Invalid image URL returned from API',
+            url: imageUrl,
+            output_sample: JSON.stringify(output).substring(0, 100) + '...',
           })
-          // Обработка ошибки или возврат
-          return {
-            success: false,
-            error: 'API returned no images',
-            data: 'API returned no images',
-          }
+          throw new Error('Invalid image URL from API')
         }
-        // Теперь переменная result содержит массив URL
 
         // Сохраняем изображение локально для создания постоянной ссылки
-        let localImageUrl = result[0]
+        let localImageUrl = imageUrl
         try {
           // Сохраняем файл локально - используем правильную сигнатуру функции
           const savedLocalPath = await saveFileLocally(
             telegram_id,
-            localImageUrl,
+            imageUrl,
             'neuro-photo-direct',
             '.jpg'
           )
@@ -442,7 +417,7 @@ export async function generateNeuroPhotoDirect(
           // Формируем URL для доступа к сохраненному файлу
           if (savedLocalPath) {
             // Используем оригинальный URL + путь для доступа к изображению
-            localImageUrl = result[0]
+            localImageUrl = imageUrl
 
             logger.info({
               message: '✅ [DIRECT] Изображение успешно сохранено локально',
@@ -456,17 +431,17 @@ export async function generateNeuroPhotoDirect(
           // Отправляем изображение в Pulse для аналитики
           const pulseOptions: MediaPulseOptions = {
             mediaType: 'photo',
-            mediaSource: localImageUrl,
+            mediaSource: imageUrl, // Используем оригинальный URL для отправки
             telegramId: telegram_id,
             username: username || 'unknown',
             language: isRussian(ctx) ? 'ru' : 'en',
             serviceType: ModeEnum.NeuroPhoto,
-            prompt: promptText.substring(0, 250),
+            prompt: prompt.substring(0, 250),
             botName: botName,
             additionalInfo: {
               model_url: model_url,
               aspect_ratio: aspect_ratio || '1:1',
-              original_url: localImageUrl.substring(0, 50) + '...',
+              original_url: imageUrl.substring(0, 50) + '...',
             },
           }
 
@@ -480,10 +455,10 @@ export async function generateNeuroPhotoDirect(
 
           // Сохраняем промпт в базу данных для аналитики и истории
           await savePromptDirect(
-            promptText,
+            prompt,
             model_url,
             ModeEnum.NeuroPhoto,
-            localImageUrl,
+            imageUrl,
             telegram_id.toString(),
             'success'
           )
@@ -500,7 +475,7 @@ export async function generateNeuroPhotoDirect(
             description: 'Error saving image locally',
             error:
               saveError instanceof Error ? saveError.message : 'Unknown error',
-            originalUrl: localImageUrl.substring(0, 50) + '...',
+            originalUrl: imageUrl.substring(0, 50) + '...',
             telegram_id,
           })
           // Продолжаем с оригинальным URL, не прерываем процесс
@@ -521,7 +496,7 @@ export async function generateNeuroPhotoDirect(
           message: '❌ [DIRECT] Ошибка при генерации изображения',
           description: 'Error generating image (direct)',
           error: genError instanceof Error ? genError.message : 'Unknown error',
-          prompt: promptText.substring(0, 50) + '...',
+          prompt: prompt.substring(0, 50) + '...',
           telegram_id,
           index: i,
         })
@@ -566,11 +541,11 @@ export async function generateNeuroPhotoDirect(
             amount: refundAmount,
             type: PaymentType.REFUND,
             description: is_ru
-              ? `Возврат за неудачную генерацию изображения с промптом: ${promptText.slice(
+              ? `Возврат за неудачную генерацию изображения с промптом: ${prompt.slice(
                   0,
                   30
                 )}...`
-              : `Refund for failed image generation with prompt: ${promptText.slice(
+              : `Refund for failed image generation with prompt: ${prompt.slice(
                   0,
                   30
                 )}...`,

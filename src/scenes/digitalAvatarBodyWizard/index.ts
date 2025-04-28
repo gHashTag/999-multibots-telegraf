@@ -1,18 +1,18 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '../../interfaces'
 import { getStepSelectionMenu } from '../../menu/getStepSelectionMenu'
 import { isRussian } from '@/helpers/language'
 import { handleTrainingCost } from '@/price/helpers'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { stepOptions } from '@/price/priceCalculator'
+import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
+import { calculateCost } from '@/price/priceCalculator'
 
 export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
   'digital_avatar_body',
   async ctx => {
     const isRu = isRussian(ctx)
-    await ctx.reply(
-      isRu ? 'Выберите количество шагов:' : 'Select the number of steps:'
-    )
+    const costMessage = generateCostMessage(stepOptions.v1, isRu, 'v1')
+    await ctx.reply(costMessage, getStepSelectionMenu(isRu))
     return ctx.wizard.next()
   },
   async ctx => {

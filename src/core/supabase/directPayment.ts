@@ -7,7 +7,7 @@ import { logger } from '@/utils/logger'
 import {
   getUserBalance,
   invalidateBalanceCache,
-} from './balance/getUserBalance'
+} from '@/core/supabase/getUserBalance'
 import {
   PaymentStatus,
   PaymentType,
@@ -18,9 +18,6 @@ import {
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 import { supabaseAdmin } from '@/core/supabase/'
 import { getUserById } from '@/core/supabase/'
-import { setPayments } from './payments/setPayments'
-import { getUserDetailsSubscription } from './subscriptions/getUserDetailsSubscription'
-import { updateUserStarsBalance } from './balance/updateUserStarsBalance'
 
 // --- ИСПРАВЛЕННЫЙ ИНТЕРФЕЙС ВХОДНЫХ ПАРАМЕТРОВ ---
 export interface DirectPaymentParams {

@@ -16,7 +16,7 @@ export const generateImageToPrompt = async (
 ) => {
   const username = ctx.from?.username || ''
   if (!ctx.from) {
-    console.error('❌ Telegram ID не найден в ctx')
+    console.error('❌ Telegram ID не найден')
     return
   }
   const botResult = getBotByName(botName as BotName)
@@ -26,5 +26,12 @@ export const generateImageToPrompt = async (
   }
   const bot = botResult.bot
 
-  return await planBGenerateImageToPrompt(ctx, imageUrl, null)
+  return await planBGenerateImageToPrompt(
+    imageUrl,
+    telegram_id,
+    username,
+    is_ru,
+    bot,
+    botName
+  )
 }

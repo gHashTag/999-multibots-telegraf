@@ -1,4 +1,4 @@
-import { config } from 'dotenv'
+// import { config } from 'dotenv' // Removed dotenv import
 import fs from 'fs' // Импортируем модуль fs
 import path from 'path' // Импортируем модуль path
 
@@ -6,38 +6,36 @@ console.log('--- Debugging .env loading --- ')
 const cwd = process.cwd()
 console.log(`[CONFIG] Current Working Directory: ${cwd}`)
 
-// Определяем путь к основному .env файлу
-const envPath = path.join(cwd, '.env')
-console.log(`[CONFIG] Attempting to load primary env file from: ${envPath}`)
+// // Determine the primary .env file path
+// const envPath = path.join(cwd, '.env')
+// console.log(`[CONFIG] Assuming primary env file path: ${envPath}`)
 
-// Пытаемся загрузить .env
-const loadResult = config({ path: envPath })
+// // Attempt to load .env (REMOVED THIS LOGIC)
+// const loadResult = config({ path: envPath })
+//
+// if (loadResult.error) {
+//   console.error(
+//     `[CONFIG] CRITICAL ERROR: Failed to load primary .env file from ${envPath}. Error: ${loadResult.error.message}`
+//   )
+//   if (process.env.NODE_ENV === 'production') {
+//     process.exit(1)
+//   } else {
+//     throw new Error(`Failed to load .env file at ${envPath}`)
+//   }
+// } else if (!loadResult.parsed || Object.keys(loadResult.parsed).length === 0) {
+//   console.error(
+//     `[CONFIG] CRITICAL ERROR: Primary .env file loaded from ${envPath}, but it is empty or parsing failed.`
+//   )
+//   if (process.env.NODE_ENV === 'production') {
+//     process.exit(1)
+//   }
+// } else {
+//   console.log(
+//     `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}`
+//   )
+// }
 
-if (loadResult.error) {
-  console.error(
-    `[CONFIG] CRITICAL ERROR: Failed to load primary .env file from ${envPath}. Error: ${loadResult.error.message}`
-  )
-  // В dev режиме можно просто выдать ошибку, в prod - выйти
-  if (process.env.NODE_ENV === 'production') {
-    process.exit(1)
-  } else {
-    // Для dev режима бросим ошибку, чтобы nodemon показал проблему
-    throw new Error(`Failed to load .env file at ${envPath}`)
-  }
-} else if (!loadResult.parsed || Object.keys(loadResult.parsed).length === 0) {
-  console.error(
-    `[CONFIG] CRITICAL ERROR: Primary .env file loaded from ${envPath}, but it is empty or parsing failed.`
-  )
-  if (process.env.NODE_ENV === 'production') {
-    process.exit(1)
-  }
-} else {
-  console.log(
-    `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}`
-  )
-}
-
-// Устанавливаем NODE_ENV по умолчанию, если не задан
+// Set NODE_ENV default if not provided
 if (!process.env.NODE_ENV) {
   console.log("[CONFIG] NODE_ENV was not set, setting to 'development'")
   ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'

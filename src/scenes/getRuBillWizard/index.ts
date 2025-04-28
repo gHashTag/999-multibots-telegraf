@@ -9,7 +9,7 @@ import {
   description,
   subscriptionTitles,
 } from './helper'
-import { setPayments } from '@/core/supabase/payments/setPayments'
+import { setPayments } from '@/core/supabase'
 import { WizardScene } from 'telegraf/scenes'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'

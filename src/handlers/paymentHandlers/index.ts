@@ -1,5 +1,5 @@
 import { isRussian } from '@/helpers'
-import { setPayments } from '@/core/supabase/payments/setPayments'
+import { setPayments } from '@/core/supabase/setPayments'
 
 import { logger } from '@/utils/logger'
 

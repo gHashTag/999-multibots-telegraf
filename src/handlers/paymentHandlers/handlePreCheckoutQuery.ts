@@ -1,7 +1,8 @@
 import { Context, NarrowedContext } from 'telegraf'
-import { Update } from 'telegraf/typings/core/types/typegram'
+import type { Update } from 'telegraf/types'
+import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
+import type { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import { MyContext } from '@/interfaces'
 
 export async function handlePreCheckoutQuery(
   ctx: NarrowedContext<MyContext, Update.PreCheckoutQueryUpdate>

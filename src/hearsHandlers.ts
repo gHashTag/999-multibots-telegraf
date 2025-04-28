@@ -13,7 +13,6 @@ import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
 import { getUserProfileAndSettings } from '@/db/userSettings'
-import { handleTechSupport } from './commands'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
@@ -262,7 +261,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     [levels[103].title_ru, levels[103].title_en],
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Помощь от ${ctx.from?.id}`)
-      ctx.session.mode = ModeEnum.HelpScene
+      ctx.session.mode = ModeEnum.Help
       await ctx.scene.enter('helpScene')
     }
   )
@@ -299,7 +298,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     [levels[104].title_ru, levels[104].title_en],
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Помощь от ${ctx.from?.id}`)
-      ctx.session.mode = ModeEnum.HelpScene
+      ctx.session.mode = ModeEnum.Help
       await ctx.scene.enter('helpScene')
     }
   )

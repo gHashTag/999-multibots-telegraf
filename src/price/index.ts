@@ -1,11 +1,6 @@
-export * from '@/pricing/calculator'
-// export * from './models/videoModelPrices' // Удалено
-export * from './helpers'
-// export * from '@/pricing/models' // Removed export - index deleted
-// export * from './priceCalculator' // Убираем, т.к. логика в ./calculator
-// export { basePrice } from './constants' // Предполагаем, что константы переехали в pricing.config
-// Удаляем повторное объявление
-// export { calculateDiscountedPrice } from './utils'
+export * from './models/imageModelPrices'
+export * from './models/videoModelPrices'
+export const basePrice = 100
 
 /**
  * Рассчитывает итоговую стоимость с учетом скидки

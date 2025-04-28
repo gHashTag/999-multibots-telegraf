@@ -9,215 +9,218 @@ import {
 } from '@/helpers/error'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
+import { modeCosts } from '@/price/helpers/modelsCost'
 import { levels } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { v4 as uuidv4 } from 'uuid'
 import { Markup } from 'telegraf'
 
-import { replicate } from '@/core/replicate'
-import { logger } from '@/utils/logger'
-import { getUserBalance } from '@/core/supabase/balance/getUserBalance'
-import { calculateFinalStarPrice } from '@/pricing/calculator'
-import { getBotByName } from '@/core/bot'
-import {
-  directPaymentProcessor,
-  DirectPaymentParams,
-} from '@/core/supabase/directPayment'
+import { directPaymentProcessor } from '@/core/supabase/directPayment'
 
 export async function generateImageToPrompt(
-  ctx: MyContext,
   imageUrl: string,
-  prompt: string | null
-) {
-  const userId = ctx.from?.id?.toString() ?? ''
-  const username = ctx.from?.username ?? ''
-  const isRu = ctx.from?.language_code === 'ru'
-  const botInfo = ctx.botInfo
-
-  if (!userId) {
-    logger.error('generateImageToPrompt: Cannot find userId')
-    return
-  }
-  if (!botInfo) {
-    logger.error('generateImageToPrompt: Cannot find botInfo')
-    return
-  }
-
-  const botName = botInfo.username
-  const botResult = getBotByName(botName as any)
-  if (!botResult.bot) {
-    logger.error('Bot instance not found in planBGenerateImageToPrompt', {
-      botName,
-      userId,
-    })
-    throw new Error(`Telegraf instance (bot) not found for botName: ${botName}`)
-  }
-  const bot = botResult.bot
-
-  console.log('generateImageToPrompt', imageUrl, userId, username, isRu)
+  telegram_id: string,
+  username: string,
+  is_ru: boolean,
+  bot: Telegraf<MyContext>,
+  bot_name: string
+): Promise<string> {
+  console.log('generateImageToPrompt', imageUrl, telegram_id, username, is_ru)
   let costPerImage: number | undefined = undefined
   let newBalance: number | undefined = undefined
 
   try {
-    const userExists = await getUserByTelegramIdString(userId)
+    const userExists = await getUserByTelegramIdString(telegram_id)
     console.log('userExists', userExists)
     if (!userExists) {
-      throw new Error(`User with ID ${userId} does not exist.`)
+      throw new Error(`User with ID ${telegram_id} does not exist.`)
     }
     const level = userExists.level
     if (level === 2) {
-      await updateUserLevelPlusOne(userId, level)
+      await updateUserLevelPlusOne(telegram_id, level)
     }
 
-    const costResult = calculateFinalStarPrice(ModeEnum.ImageToPrompt)
-    if (!costResult) {
-      logger.error('Failed to calculate cost for ImageToPrompt', { userId })
-      await ctx.reply('Error calculating cost.')
-      return
-    }
-    costPerImage = costResult.stars
-
-    const currentBalance = await getUserBalance(userId, botInfo.username)
-
-    if (currentBalance < costPerImage) {
-      logger.warn('Insufficient balance for ImageToPrompt', {
-        userId,
-        currentBalance,
-        costPerImage,
-      })
-      await ctx.reply(
-        isRu
-          ? `😕 Недостаточно звезд (${costPerImage} ★). Ваш баланс: ${currentBalance} ★.`
-          : `😕 Insufficient stars (${costPerImage} ★). Your balance: ${currentBalance} ★.`
-      )
-      return
+    if (typeof modeCosts[ModeEnum.ImageToPrompt] === 'function') {
+      costPerImage = modeCosts[ModeEnum.ImageToPrompt](1)
+    } else {
+      costPerImage = modeCosts[ModeEnum.ImageToPrompt]
     }
 
-    const paymentOperationId = `payment-${userId}-${Date.now()}-${uuidv4()}`
-    const paymentParams: DirectPaymentParams = {
-      telegram_id: userId,
-      amount: costPerImage ?? 0,
+    const paymentOperationId = `payment-${telegram_id}-${Date.now()}-${uuidv4()}`
+    const paymentResult = await directPaymentProcessor({
+      telegram_id,
+      amount: costPerImage,
       type: PaymentType.MONEY_OUTCOME,
       description: 'Payment for image to prompt',
-      bot_name: botInfo.username,
+      bot_name,
       service_type: ModeEnum.ImageToPrompt,
       inv_id: paymentOperationId,
-      metadata: { is_ru: isRu },
-    }
-    const paymentResult = await directPaymentProcessor(paymentParams)
+      metadata: { is_ru },
+    })
 
     if (!paymentResult.success) {
-      throw new Error(
-        paymentResult.error || 'Failed to process payment for ImageToPrompt'
-      )
+      throw new Error(paymentResult.error || 'Payment failed')
     }
+
     newBalance = paymentResult.balanceChange?.after
 
-    ctx.telegram.sendMessage(
-      userId,
-      isRu ? '⏳ Генерация промпта...' : '⏳ Generating prompt...'
+    bot.telegram.sendMessage(
+      telegram_id,
+      is_ru ? '⏳ Генерация промпта...' : '⏳ Generating prompt...'
     )
 
-    const replicateOutput = await replicate.run(
-      'methexis-inc/img2prompt:50adaf2d3ad20a6f911a8a9e3ccf777b263b8596fbd2c8fc26e8888f8a0edbb5',
+    const initResponse = await axios.post(
+      'https://fancyfeast-joy-caption-alpha-two.hf.space/call/stream_chat',
       {
-        input: {
-          image: imageUrl,
+        data: [
+          { path: imageUrl },
+          'Descriptive',
+          'long',
+          [
+            'Describe the image in detail, including colors, style, mood, and composition.',
+          ],
+          '',
+          '',
+        ],
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
         },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
       }
     )
 
-    let data: string | null = null
-    if (typeof replicateOutput === 'string') {
-      data = replicateOutput
-    } else if (
-      Array.isArray(replicateOutput) &&
-      typeof replicateOutput[0] === 'string'
-    ) {
-      data = replicateOutput[0]
-    } else if (
-      typeof replicateOutput === 'object' &&
-      replicateOutput !== null &&
-      'output' in replicateOutput &&
-      typeof replicateOutput.output === 'string'
-    ) {
-      data = replicateOutput.output
+    console.log(
+      'Init response data:',
+      JSON.stringify(initResponse.data, null, 2)
+    )
+
+    const eventId = initResponse.data?.event_id || initResponse.data
+    console.log('eventId', eventId)
+    if (!eventId) {
+      console.error('No event ID in response:', initResponse.data)
+      throw new Error('No event ID in response')
     }
 
-    if (data) {
-      const caption = data
-      console.log('Found caption:', caption)
-      await ctx.telegram.sendMessage(userId, '```\n' + caption + '\n```', {
-        parse_mode: 'Markdown',
-        reply_markup: Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              isRu ? levels[104].title_ru : levels[104].title_en,
-              'do_nothing'
-            ),
-          ],
-        ]).reply_markup,
-      })
-
-      if (costPerImage !== undefined && newBalance !== undefined) {
-        await ctx.telegram.sendMessage(
-          userId,
-          isRu
-            ? `Стоимость: ${costPerImage.toFixed(
-                2
-              )} ★. Баланс: ${newBalance.toFixed(2)} ★`
-            : `Cost: ${costPerImage.toFixed(
-                2
-              )} ★. Balance: ${newBalance.toFixed(2)} ★`,
-          {
-            reply_markup: Markup.removeKeyboard().reply_markup,
-          }
-        )
+    const resultResponse = await axios.get(
+      `https://fancyfeast-joy-caption-alpha-two.hf.space/call/stream_chat/${eventId}`,
+      {
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
       }
-    } else {
-      logger.error('Failed to get prompt from Replicate', {
-        userId,
-        imageUrl,
-        replicateOutput,
-      })
-      throw new Error('Failed to get prompt from Replicate')
+    )
+
+    console.log(
+      'Result response data:',
+      JSON.stringify(resultResponse.data, null, 2)
+    )
+
+    if (!resultResponse.data) {
+      console.error('Image to prompt: No data in response', resultResponse)
+      throw new Error('Image to prompt: No data in response')
     }
+
+    const responseText = resultResponse.data as string
+    const lines = responseText.split('\n')
+    console.log('Lines:', lines)
+
+    let foundCaption = false
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(line.slice(6))
+          console.log('Parsed data:', data)
+          if (Array.isArray(data) && data.length > 1) {
+            const caption = data[1]
+            console.log('Found caption:', caption)
+            await bot.telegram.sendMessage(
+              telegram_id,
+              '```\n' + caption + '\n```',
+              {
+                parse_mode: 'MarkdownV2',
+                ...Markup.keyboard([
+                  [
+                    Markup.button.text(
+                      is_ru ? levels[104].title_ru : levels[104].title_en
+                    ),
+                  ],
+                ]).resize(),
+              }
+            )
+
+            if (costPerImage !== undefined && newBalance !== undefined) {
+              await bot.telegram.sendMessage(
+                telegram_id,
+                is_ru
+                  ? `Стоимость: ${costPerImage.toFixed(
+                      2
+                    )} ⭐️\nВаш баланс: ${newBalance.toFixed(2)} ⭐️`
+                  : `Cost: ${costPerImage.toFixed(
+                      2
+                    )} ⭐️\nYour balance: ${newBalance.toFixed(2)} ⭐️`
+              )
+            }
+            foundCaption = true
+            return caption
+          }
+        } catch (e) {
+          console.error('Error parsing JSON from line:', line, e)
+        }
+      } else {
+        console.log('Skipped line:', line)
+      }
+    }
+
+    if (!foundCaption) {
+      console.error('No valid caption found in response. All lines:', lines)
+      throw new Error('No valid caption found in response')
+    }
+
+    throw new Error('Internal error: Caption processing failed')
   } catch (error) {
     console.error('Error in generateImageToPrompt:', error)
-    await sendServiceErrorToUser(bot, userId, error as Error, isRu)
-    await sendServiceErrorToAdmin(bot, userId, error as Error)
+    await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
+    await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
 
     if (newBalance !== undefined && costPerImage !== undefined) {
       try {
-        const refundParams: DirectPaymentParams = {
-          telegram_id: userId,
-          amount: costPerImage ?? 0,
+        await directPaymentProcessor({
+          telegram_id,
+          amount: costPerImage,
           type: PaymentType.REFUND,
           description: 'Refund for failed image-to-prompt',
-          bot_name: botInfo.username,
+          bot_name,
           service_type: ModeEnum.ImageToPrompt,
-          inv_id: `refund-${userId}-${Date.now()}-${uuidv4()}`,
-          metadata: { is_ru: isRu },
-        }
-        await directPaymentProcessor(refundParams)
-        console.log(`Refunded ${costPerImage} stars to user ${userId}`)
-        await ctx.telegram.sendMessage(
-          userId,
-          isRu
+          inv_id: `refund-${telegram_id}-${Date.now()}-${uuidv4()}`,
+          metadata: { is_ru },
+        })
+        console.log(`Refunded ${costPerImage} stars to user ${telegram_id}`)
+        await bot.telegram.sendMessage(
+          telegram_id,
+          is_ru
             ? 'Средства возвращены из-за ошибки.'
             : 'Funds refunded due to error.'
         )
       } catch (refundError) {
-        console.error('Error during refund:', refundError)
+        console.error(
+          'CRITICAL: Failed to refund user after error:',
+          refundError
+        )
         await sendServiceErrorToAdmin(
           bot,
-          userId,
+          telegram_id,
           new Error(
-            `Failed refund check! User: ${userId}, Amount: ${costPerImage}. Original error: ${(error as Error).message}. Refund error: ${(refundError as Error).message}`
+            `Failed refund check! User: ${telegram_id}, Amount: ${costPerImage}. Original error: ${
+              (error as Error).message
+            }. Refund error: ${(refundError as Error).message}`
           )
         )
       }
     }
+
+    throw error
   }
 }

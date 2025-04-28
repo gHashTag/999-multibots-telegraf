@@ -1,6 +1,6 @@
 import { Markup } from 'telegraf'
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
-import { cancelHelpArray } from '../'
+import type { ReplyKeyboardMarkup } from 'telegraf/types'
+import { cancelHelpArray } from '@/menu/cancelHelpArray'
 
 export function createHelpCancelKeyboard(
   isRu: boolean

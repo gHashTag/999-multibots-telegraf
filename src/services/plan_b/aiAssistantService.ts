@@ -1,5 +1,4 @@
-// import { getAiFeedbackFromSupabase, updateHistory } from '@/core/supabase' // Commented out
-import { updateHistory } from '@/core/supabase'
+import { getAiFeedbackFromSupabase, updateHistory } from '@/core/supabase'
 
 export class AiAssistantService {
   public async getAiResponse(
@@ -9,18 +8,18 @@ export class AiAssistantService {
     language_code: string,
     full_name: string
   ): Promise<{ ai_response: string }> {
-    // const { ai_response } = await getAiFeedbackFromSupabase({
-    //   assistant_id,
-    //   report,
-    //   language_code,
-    //   full_name,
-    // })
+    const { ai_response } = await getAiFeedbackFromSupabase({
+      assistant_id,
+      report,
+      language_code,
+      full_name,
+    })
 
     await updateHistory({
       telegram_id,
       report,
-      ai_response: '',
+      ai_response,
     })
-    return { ai_response: '' }
+    return { ai_response }
   }
 }

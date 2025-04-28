@@ -338,19 +338,18 @@ export const handleMenu = async (ctx: MyContext) => {
         await ctx.scene.enter('inviteScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
       },
-      // Возвращаем обработчик для "Техподдержка"
       [isRu ? levels[103].title_ru : levels[103].title_en]: async () => {
         logger.info({
-          message: '💬 [handleMenu] Переход к Техподдержке',
+          message: '❓ [handleMenu] Переход к помощи',
           telegramId,
           function: 'handleMenu',
-          action: 'support',
-          // nextScene: ModeEnum.HelpScene, // Убрано - вызываем напрямую
+          action: 'help',
+          nextScene: ModeEnum.Help,
         })
-        console.log('CASE: 💬 Техподдержка')
-        // ctx.session.mode = ModeEnum.Support // Режим Support пока не ясен, убираем
-        // console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Support}`)
-        await handleTechSupport(ctx) // Вызываем напрямую
+        console.log('CASE: ❓ Помощь')
+        ctx.session.mode = ModeEnum.Help
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
+        await handleTechSupport(ctx)
         console.log(`✅ [handleMenu] Завершен вызов handleTechSupport`)
       },
       [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
@@ -438,12 +437,10 @@ export const handleMenu = async (ctx: MyContext) => {
           nextScene: 'helpScene',
         })
         console.log('CASE: ❓ Помощь')
-        ctx.session.mode = ModeEnum.HelpScene
-        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.HelpScene}`)
+        ctx.session.mode = ModeEnum.Help
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
         await ctx.scene.enter('helpScene')
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.HelpScene}`
-        )
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${ModeEnum.Help}`)
       },
       '/menu': async () => {
         logger.info({

@@ -13,7 +13,7 @@ import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
 import { handleMenu } from '@/handlers/handleMenu'
 import { logger } from '@/utils'
-import { getUserDetailsSubscription } from '@/core/supabase/subscriptions/getUserDetailsSubscription'
+import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 
 const menuCommandStep = async (ctx: MyContext) => {

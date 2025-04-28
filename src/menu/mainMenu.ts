@@ -1,6 +1,6 @@
-import { ReplyKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
-import { checkFullAccess } from '../handlers/checkFullAccess'
 import { Markup } from 'telegraf'
+import type { ReplyKeyboardMarkup } from 'telegraf/types'
+import { checkFullAccess } from '../handlers/checkFullAccess'
 import { MyContext } from '../interfaces/telegram-bot.interface'
 import { SubscriptionType } from '../interfaces/subscription.interface'
 
@@ -90,7 +90,7 @@ export const levels: Record<number, Level> = {
     title_ru: '👥 Пригласить друга',
     title_en: '👥 Invite a friend',
   },
-  // helpCommand / supportCommand (Возвращаем как было)
+  // helpCommand
   103: {
     title_ru: '💬 Техподдержка',
     title_en: '💬 Support',

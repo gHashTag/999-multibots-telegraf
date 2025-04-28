@@ -1,25 +1,22 @@
 import { replicate } from '@/core/replicate'
 import { pulse } from '@/helpers'
+import { processBalanceVideoOperation } from '@/price/helpers'
 import { mkdir, writeFile } from 'fs/promises'
 
 import {
   getUserByTelegramIdString,
   saveVideoUrlToSupabase,
-  getUserBalance,
 } from '@/core/supabase'
 import path from 'path'
 import { getBotByName } from '@/core/bot'
 import { updateUserLevelPlusOne } from '@/core/supabase'
-import { VIDEO_MODELS_CONFIG } from '@/pricing/config/models.config'
+import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import {
   sendServiceErrorToUser,
   sendServiceErrorToAdmin,
 } from '@/helpers/error'
 import { toBotName } from '@/helpers/botName.helper'
 import { logger } from '@/utils/logger'
-import { updateUserStarsBalance } from '@/core/supabase/balance/updateUserStarsBalance'
-import { calculateFinalStarPrice } from '@/pricing/calculator'
-import { ModeEnum } from '@/interfaces/modes'
 
 import { generateVideo } from '@/core/replicate/generateVideo'
 import { Markup } from 'telegraf'
@@ -67,7 +64,6 @@ export const generateTextToVideo = async (
     throw new Error('Bot instance not found')
   }
   const { bot } = botData
-  const telegram_id_str = telegram_id.toString()
 
   try {
     logger.info('videoModel', videoModel)
@@ -77,7 +73,7 @@ export const generateTextToVideo = async (
     if (!username) throw new Error('Username is required')
     if (!bot_name) throw new Error('Bot name is required')
 
-    const userExists = await getUserByTelegramIdString(telegram_id_str)
+    const userExists = await getUserByTelegramIdString(telegram_id)
     if (!userExists) {
       throw new Error(`User with ID ${telegram_id} does not exist.`)
     }
@@ -86,66 +82,27 @@ export const generateTextToVideo = async (
       await updateUserLevelPlusOne(telegram_id, level)
     }
 
-    logger.info('💰 Проверка и списание баланса для TextToVideo', {
-      telegram_id: telegram_id_str,
-      videoModel,
-    })
+    const tempCtx = {
+      from: { id: Number(telegram_id) },
+      botInfo: { username: validBotName },
+      telegram: bot.telegram,
+      session: { mode: 'TextToVideo' },
+    } as any
 
-    const costResult = calculateFinalStarPrice(ModeEnum.TextToVideo, {
-      modelId: videoModel,
-    })
-    if (!costResult) {
-      logger.error('❌ Ошибка расчета стоимости TextToVideo', {
-        telegram_id: telegram_id_str,
+    const { newBalance, paymentAmount, success, error } =
+      await processBalanceVideoOperation(tempCtx, videoModel, is_ru)
+
+    if (!success) {
+      logger.error('Error processing balance for video generation:', {
+        telegram_id,
         videoModel,
+        error,
       })
-      throw new Error('Failed to calculate cost for TextToVideo')
+      throw new Error(error || 'Failed to process balance operation')
     }
-    const paymentAmount = costResult.stars
-
-    const currentBalance = await getUserBalance(telegram_id_str, validBotName)
-
-    if (currentBalance < paymentAmount) {
-      logger.warn('📉 Недостаточно средств для TextToVideo', {
-        telegram_id: telegram_id_str,
-        currentBalance,
-        paymentAmount,
-      })
-      const errorMsg = is_ru
-        ? `Недостаточно звезд (нужно ${paymentAmount}⭐️, у вас ${currentBalance}⭐️). Пополните баланс.`
-        : `Insufficient stars (required ${paymentAmount}⭐️, you have ${currentBalance}⭐️). Top up balance.`
-      try {
-        await bot.telegram.sendMessage(telegram_id_str, errorMsg)
-      } catch (e) {
-        logger.error('Error sending insufficient balance message', e)
-      }
-      throw new Error(errorMsg)
-    }
-
-    const expenseAmount = -paymentAmount
-    const updateSuccess = await updateUserStarsBalance(
-      telegram_id_str,
-      expenseAmount
-    )
-    if (!updateSuccess) {
-      logger.error('❌ Ошибка списания звезд для TextToVideo', {
-        telegram_id: telegram_id_str,
-        amount: expenseAmount,
-      })
-      throw new Error('Failed to update stars balance')
-    }
-
-    const newBalance = currentBalance + expenseAmount
-
-    logger.info('✅ Баланс успешно списан для TextToVideo', {
-      telegram_id: telegram_id_str,
-      oldBalance: currentBalance,
-      newBalance,
-      cost: paymentAmount,
-    })
 
     await bot.telegram.sendMessage(
-      telegram_id_str,
+      telegram_id,
       is_ru ? '⏳ Генерация видео...' : '⏳ Generating video...',
       {
         reply_markup: {
@@ -156,9 +113,7 @@ export const generateTextToVideo = async (
 
     const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
     if (!modelConfig) {
-      throw new Error(
-        `Invalid video model configuration for: ${String(videoModel)}`
-      )
+      throw new Error(`Invalid video model configuration for: ${videoModel}`)
     }
 
     const videoBuffer = await generateVideo(
@@ -203,15 +158,19 @@ export const generateTextToVideo = async (
       videoModel
     )
 
-    await bot.telegram.sendVideo(telegram_id_str, {
+    await bot.telegram.sendVideo(telegram_id.toString(), {
       source: videoLocalPath,
     })
 
     await bot.telegram.sendMessage(
-      telegram_id_str,
+      telegram_id,
       is_ru
-        ? `Ваше видео сгенерировано!\n\nСгенерировать еще?\n\nСписано: ${paymentAmount} ⭐️\nВаш новый баланс: ${newBalance} ⭐️`
-        : `Your video has been generated!\n\nGenerate more?\n\nCost: ${paymentAmount} ⭐️\nYour new balance: ${newBalance} ⭐️`,
+        ? `Ваше видео сгенерировано!\n\nСгенерировать еще?\n\nСтоимость: ${paymentAmount.toFixed(
+            2
+          )} ⭐️\nВаш новый баланс: ${newBalance.toFixed(2)} ⭐️`
+        : `Your video has been generated!\n\nGenerate more?\n\nCost: ${paymentAmount.toFixed(
+            2
+          )} ⭐️\nYour new balance: ${newBalance.toFixed(2)} ⭐️`,
       Markup.keyboard([
         [
           Markup.button.text(

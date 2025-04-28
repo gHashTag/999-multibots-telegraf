@@ -1,10 +1,22 @@
 import fs from 'fs'
 import path from 'path'
-import dotenv from 'dotenv'
+// import dotenv from 'dotenv' // Removed static import
 import { botLogger, logSecurityEvent } from './logger'
 import crypto from 'crypto'
 
-dotenv.config()
+// Load .env file only in non-production environments
+if (process.env.NODE_ENV !== 'production') {
+  // Use require for conditional loading
+  try {
+    const dotenv = require('dotenv')
+    dotenv.config()
+  } catch (error) {
+    console.error(
+      'Failed to load dotenv in non-production environment (require):',
+      error
+    )
+  }
+}
 
 /**
  * Интерфейс для конфигурации бота
@@ -249,38 +261,42 @@ export function getBotTokens(): string[] {
     }
   }
 
-  // 3. Проверяем файл .env.local если он существует
-  try {
-    const localEnvPath = path.resolve(process.cwd(), '.env.local')
-    if (fs.existsSync(localEnvPath)) {
-      const localEnvConfig = dotenv.parse(fs.readFileSync(localEnvPath))
+  // 3. Проверяем файл .env.local если он существует (БОЛЬШЕ НЕ НУЖНО)
+  const localEnvPath = path.resolve(process.cwd(), '.env.local')
+  const localEnvConfig = {}
+  // // Load .env.local only in non-production environments
+  // if (process.env.NODE_ENV !== 'production' && fs.existsSync(localEnvPath)) {
+  //   try {
+  //     // Use require here as well for parse
+  //     const dotenv = require('dotenv');
+  //     localEnvConfig = dotenv.parse(fs.readFileSync(localEnvPath))
+  //     botLogger.info('Config', 'Loaded local environment variables from .env.local')
+  //   } catch (error) {
+  //     botLogger.error('Config', 'Error parsing .env.local:', error)
+  //   }
+  // }
 
-      if (
-        localEnvConfig.BOT_TOKEN &&
-        validateToken(localEnvConfig.BOT_TOKEN) &&
-        !tokens.includes(localEnvConfig.BOT_TOKEN)
-      ) {
-        tokens.push(localEnvConfig.BOT_TOKEN)
-      }
+  // Now only use process.env as envConfig
+  const envConfig = { ...process.env } as any // Type assertion still needed for process.env potentially
 
-      if (localEnvConfig.BOT_TOKENS) {
-        const localTokenArray =
-          localEnvConfig.BOT_TOKENS.split(/[,\s]+/).filter(Boolean)
+  // Check BOT_TOKEN from combined env (now just process.env)
+  if (
+    envConfig.BOT_TOKEN &&
+    validateToken(envConfig.BOT_TOKEN) &&
+    !tokens.includes(envConfig.BOT_TOKEN)
+  ) {
+    tokens.push(envConfig.BOT_TOKEN)
+  }
 
-        for (const token of localTokenArray) {
-          if (validateToken(token) && !tokens.includes(token)) {
-            tokens.push(token)
-          }
-        }
+  // Check BOT_TOKENS from combined env (now just process.env)
+  if (envConfig.BOT_TOKENS) {
+    const localTokenArray = envConfig.BOT_TOKENS.split(/[,\s]+/).filter(Boolean)
+
+    for (const token of localTokenArray) {
+      if (validateToken(token) && !tokens.includes(token)) {
+        tokens.push(token)
       }
     }
-  } catch (error) {
-    botLogger.error(
-      'Config',
-      `Ошибка при чтении .env.local: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    )
   }
 
   // 4. Проверяем папку secrets, если она существует

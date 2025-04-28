@@ -16,7 +16,8 @@ export * from './sendGenericErrorMessage'
 export * from './createHelpCancelKeyboard/createHelpCancelKeyboard'
 export * from './cancelHelpArray'
 
-import { InlineKeyboardMarkup } from 'telegraf/typings/core/types/typegram'
+import { Markup } from 'telegraf'
+import type { InlineKeyboardMarkup } from 'telegraf/types'
 
 /**
  * Создает клавиатуру для генерации изображений

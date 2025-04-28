@@ -4,7 +4,6 @@ import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { InputMediaPhoto } from 'telegraf/types'
 import { Markup } from 'telegraf'
-import { ApiResponse } from '@/interfaces/api.interface'
 
 export async function generateNeuroImage(
   prompt: string,
@@ -35,13 +34,15 @@ export async function generateNeuroImage(
   })
 
   try {
-    const directResult: ApiResponse = await generateNeuroPhotoDirect(
+    // Используем прямую генерацию через generateNeuroPhotoDirect
+    const directResult = await generateNeuroPhotoDirect(
       prompt,
       model_url,
       numImages,
       telegram_id,
       ctx as MyContext,
       botName
+      // Передаем опцию disable_telegram_sending, если мы в неправильном окружении
     )
     console.log(directResult, 'directResult')
 
@@ -96,7 +97,6 @@ export async function generateNeuroImage(
           telegram_id,
           urls: directResult.urls,
         })
-        return { data: directResult.message || 'Images generated successfully' }
       } catch (sendError) {
         logger.error({
           message:
@@ -107,7 +107,6 @@ export async function generateNeuroImage(
           telegram_id,
           urls: directResult.urls,
         })
-        return null
       }
     } else if (directResult && !directResult.success) {
       logger.warn({
@@ -117,13 +116,9 @@ export async function generateNeuroImage(
         telegram_id,
         directResult,
       })
-      return null
-    } else {
-      logger.error('Unexpected result from generateNeuroPhotoDirect', {
-        directResult,
-      })
-      return null
     }
+
+    return directResult
   } catch (error) {
     console.error('Ошибка при генерации нейроизображения:', error)
 

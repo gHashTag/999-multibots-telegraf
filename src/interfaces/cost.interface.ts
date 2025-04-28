@@ -1,4 +1,4 @@
-import { VIDEO_MODELS_CONFIG } from '@/pricing/config/models.config'
+import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 
 // Определяем тип ключей из конфига
 export type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
