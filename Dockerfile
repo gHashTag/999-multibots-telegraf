@@ -4,10 +4,12 @@ FROM node:20-alpine as builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+COPY bun.lockb ./
+# Используем Bun для установки зависимостей
+RUN bun install --frozen-lockfile
 
-# Убедимся, что tsc-alias установлен глобально для сборки
-RUN npm install -g tsc-alias
+# Установка tsc-alias больше не нужна глобально
+# RUN npm install -g tsc-alias
 
 COPY . .
 
@@ -37,9 +39,11 @@ RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
 
 # Копируем файлы package.json и package-lock.json
 COPY package*.json ./
+COPY bun.lockb ./
 
 # При установке пропускаем скрипт prepare, который запускает husky install
-RUN npm install --omit=dev --ignore-scripts
+# Используем Bun для установки только production зависимостей
+RUN bun install --production --frozen-lockfile
 
 # Копируем только собранные файлы из этапа сборки
 COPY --from=builder /app/dist ./dist/
@@ -56,8 +60,11 @@ COPY .env.* ./
 RUN touch .env
 
 # Копируем entrypoint скрипт
-COPY docker-entrypoint.sh ./
+COPY scripts/docker-entrypoint.sh ./
 RUN chmod +x /app/docker-entrypoint.sh
+
+# Копируем файл конфигурации PM2
+COPY ecosystem.config.cjs ./
 
 # Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
@@ -65,5 +72,5 @@ EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
 # Используем наш entrypoint скрипт для подготовки окружения
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
-# Запускаем приложение
-CMD ["node", "dist/bot.js"]
+# Запускаем приложение через pm2-runtime
+CMD ["pm2-runtime", "start", "ecosystem.config.cjs", "--env", "production"]
