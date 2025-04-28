@@ -8,7 +8,6 @@ import {
   updateUserLevelPlusOne,
   savePromptDirect,
 } from '@/core/supabase'
-import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { directPaymentProcessor } from '@/core/supabase/directPayment'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
@@ -19,6 +18,14 @@ import { getAspectRatio } from '@/core/supabase/ai'
 import { v4 as uuidv4 } from 'uuid'
 import { ApiResponse } from '@/interfaces/api.interface'
 import { BotName } from '@/interfaces/telegram-bot.interface'
+import { bots } from '@/bot'
+import { calculateFinalStarPrice } from '@/price/calculator'
+import {
+  sendServiceErrorToAdmin,
+  sendServiceErrorToUser,
+} from '@/helpers/error'
+// import { sendSuccessMessage } from '@/helpers/error' // Commented out: Path unknown
+// import { sendImageToUser } from '@/helpers' // Commented out: Path unknown
 /**
  * Прямая генерация нейрофото V1 без использования Inngest.
  * Используется как резервный вариант при отсутствии доступа к Inngest.
@@ -174,11 +181,9 @@ export async function generateNeuroPhotoDirect(
       mode: ModeEnum.NeuroPhoto,
     })
 
-    const costResult = calculateModeCost({
-      mode: ModeEnum.NeuroPhoto,
-      steps: validNumImages,
-    })
-    const costPerImage = Number(costResult.stars)
+    const costResult = calculateFinalStarPrice(ModeEnum.NeuroPhoto)
+    const cost = costResult ? costResult.stars : 0
+    const costPerImage = Number(cost)
     const totalCost = costPerImage * validNumImages
 
     logger.info({

@@ -1,12 +1,14 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { calculateFinalPrice } from '@/price/helpers'
-import { generateTextToVideo } from '@/services/generateTextToVideo'
+import { ModeEnum } from '@/interfaces/modes'
+import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+import { calculateFinalStarPrice, CalculationParams } from '@/price/calculator'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
-import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { getUserBalance } from '@/core/supabase'
+import { generateTextToVideo } from '@/services/generateTextToVideo'
+import { logger } from '@/utils/logger'
 
 // Определяем тип ключа конфига локально
 type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -51,9 +53,13 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     let foundModelKey: VideoModelConfigKey | null = null
 
     for (const [key, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
-      // Рассчитываем ожидаемый текст кнопки с финальной ценой в звездах и эмодзи ⭐
-      const finalPriceInStars = calculateFinalPrice(key)
-      const expectedButtonText = `${config.title} (${finalPriceInStars} ⭐)` // Используем ⭐
+      if (!config.inputType.includes('text')) continue
+      // Calculate price using new calculator
+      const params: CalculationParams = { modelId: key }
+      const costResult = calculateFinalStarPrice(ModeEnum.TextToVideo, params)
+      const finalPriceInStars = costResult ? costResult.stars : 0
+
+      const expectedButtonText = `${config.title} (${finalPriceInStars} ⭐)`
       if (expectedButtonText === selectedButtonText) {
         foundModelKey = key as VideoModelConfigKey
         break
@@ -107,16 +113,11 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     const telegram_id = ctx.from.id.toString()
     const bot_name = ctx.botInfo.username
 
-    // 1. Вычисляем стоимость
-    const cost = calculateFinalPrice(foundModelKey)
-    if (cost === null) {
-      // calculateFinalPrice может вернуть null, если модель не найдена
-      console.error('Could not calculate price for model key:', foundModelKey)
-      await sendGenericErrorMessage(ctx, isRu)
-      return ctx.wizard.selectStep(ctx.wizard.cursor) // Даем выбрать снова
-    }
+    // Calculate cost using new calculator
+    const params: CalculationParams = { modelId: foundModelKey }
+    const costResult = calculateFinalStarPrice(ModeEnum.TextToVideo, params)
+    const cost = costResult ? costResult.stars : 0
 
-    // 2. Получаем текущий баланс
     const currentBalance = await getUserBalance(telegram_id, bot_name)
 
     // 3. Проверяем, достаточно ли средств

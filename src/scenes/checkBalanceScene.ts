@@ -9,10 +9,19 @@ import { getUserInfo } from '@/handlers/getUserInfo'
 import { ModeEnum, CostCalculationParams } from '@/interfaces/modes'
 import { starCost, SYSTEM_CONFIG } from '@/price/constants'
 import { logger } from '@/utils/logger'
-import { getUserDetailsSubscription } from '@/core/supabase'
+import {
+  getUserDetailsSubscription,
+  invalidateBalanceCache,
+  updateUserBalance,
+  getUserBalance,
+} from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { calculateFinalPrice as calculateFinalStarPrice } from '@/price/helpers/calculateFinalPrice'
-import { CalculationParams } from '@/price/calculator'
+import { PaymentType } from '@/interfaces/payments.interface'
+import {
+  calculateFinalStarPrice,
+  CalculationParams,
+  CostCalculationResult,
+} from '@/price/calculator'
 
 // Интерфейс для возвращаемого значения
 export interface UserStatus {
@@ -145,8 +154,30 @@ checkBalanceScene.enter(async ctx => {
 
     // Шаг 5: ПРОВЕРКА БАЛАНСА
     const currentBalance = userDetails.stars
-    // Используем новую функцию расчета цены calculateFinalStarPrice, которая возвращает number
-    const costValue = calculateFinalStarPrice(mode)
+
+    // Рассчитываем стоимость с помощью центральной функции
+    // TODO: Передавать актуальные параметры (modelId, steps) из сессии, если они есть
+    const costParams: CalculationParams = {}
+    const costResult: CostCalculationResult | null = calculateFinalStarPrice(
+      mode,
+      costParams
+    )
+
+    // Проверяем, удалось ли рассчитать стоимость
+    if (costResult === null) {
+      logger.error(
+        '[CheckBalanceScene] Не удалось рассчитать стоимость для режима',
+        { telegramId, mode, costParams }
+      )
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при расчете стоимости. Попробуйте позже.'
+          : '❌ An error occurred while calculating the cost. Please try again later.'
+      )
+      return ctx.scene.leave()
+    }
+
+    const requiredStars = costResult.stars // Получаем звезды из результата
 
     logger.info({
       message: `[CheckBalanceScene] Проверка баланса для режима: ${mode}`,
@@ -154,20 +185,20 @@ checkBalanceScene.enter(async ctx => {
       function: 'checkBalanceScene.enter',
       step: 'balance_check',
       mode,
-      cost: costValue,
+      cost: requiredStars, // Используем звезды из результата
       balance: currentBalance,
-      hasEnoughBalance: currentBalance >= costValue,
+      hasEnoughBalance: currentBalance >= requiredStars, // Сравниваем звезды
     })
 
     // Шаг 6: Показываем баланс и стоимость, если функция платная
-    if (costValue > 0) {
+    if (requiredStars > 0) {
       logger.info({
         message: `[CheckBalanceScene] Отображение информации о балансе для платной функции`,
         telegramId,
         function: 'checkBalanceScene.enter',
         step: 'displaying_balance_info',
         mode,
-        cost: costValue,
+        cost: requiredStars, // Используем звезды из результата
         balance: currentBalance,
       })
 
@@ -175,23 +206,23 @@ checkBalanceScene.enter(async ctx => {
       await sendBalanceMessage(
         ctx,
         currentBalance,
-        costValue,
+        requiredStars, // Передаем звезды
         isRu,
         ctx.botInfo.username
       )
     }
 
     // Шаг 7: ПРОВЕРКА ДОСТАТОЧНОСТИ БАЛАНСА
-    if (currentBalance < costValue) {
+    if (currentBalance < requiredStars) {
       logger.warn({
         message: `[CheckBalanceScene] Недостаточно баланса для режима: ${mode}`,
         telegramId,
         function: 'checkBalanceScene.enter',
         step: 'insufficient_balance',
         mode,
-        cost: costValue,
+        cost: requiredStars, // Используем звезды из результата
         balance: currentBalance,
-        deficit: costValue - currentBalance,
+        deficit: requiredStars - currentBalance, // Вычитаем звезды
         result: 'access_denied',
       })
       // Отправляем сообщение о нехватке звезд
@@ -214,7 +245,7 @@ checkBalanceScene.enter(async ctx => {
       function: 'checkBalanceScene.enter',
       step: 'all_checks_passed',
       mode,
-      cost: costValue,
+      cost: requiredStars, // Используем звезды из результата
       balance: currentBalance,
       result: 'access_granted',
     })
@@ -222,7 +253,7 @@ checkBalanceScene.enter(async ctx => {
     // --- ВЫЗОВ ФУНКЦИИ ДЛЯ ВХОДА В ЦЕЛЕВУЮ СЦЕНУ ---
     // Передаем необходимые параметры: контекст, пустую функцию next, режим, стоимость
     // @ts-ignore // Временно игнорируем ошибку компилятора, т.к. типы по факту совпадают
-    await enterTargetScene(ctx, async () => {}, mode, costValue) // <--- Исправленный вызов
+    await enterTargetScene(ctx, async () => {}, mode, requiredStars) // <--- Исправленный вызов
   } catch (error) {
     console.error('[DEBUG CheckBalanceScene Enter] Error caught:', error) // Добавлено
     logger.error({
@@ -322,16 +353,44 @@ export const enterTargetScene = async (
       // TODO: Реализовать логику списания и логирования транзакции
       // await logTransaction(...)
       // const updatedBalance = await updateUserBalance(...)
-      const updatedBalance = currentBalance - cost // Временное решение
-      logger.info({
-        message: `[EnterTargetSceneWrapper] ✅ Звезды списаны (симуляция), баланс обновлен`,
+      // const updatedBalance = currentBalance - cost // Временное решение - УДАЛЕНО
+
+      // Вызываем updateUserBalance для списания и логирования
+      const success = await updateUserBalance(
         telegramId,
-        mode,
-        balanceAfter: updatedBalance,
-        function: 'enterTargetSceneWrapper',
-      })
-      // Здесь можно было бы обновить баланс в ctx.session, если он там хранится
-      // ctx.session.user.stars = updatedBalance; // Пример
+        -cost, // Отрицательное значение для списания
+        PaymentType.MONEY_OUTCOME, // Тип списания
+        `Списание за режим ${mode}`, // Описание
+        { service_type: mode, bot_name: ctx.botInfo.username } // Метаданные
+      )
+
+      if (success) {
+        invalidateBalanceCache(telegramId) // Инвалидируем кэш баланса
+        const newBalance = await getUserBalance(telegramId) // Получаем актуальный баланс
+        logger.info({
+          message: `[EnterTargetSceneWrapper] ✅ Звезды списаны, баланс обновлен`,
+          telegramId,
+          mode,
+          cost,
+          balanceAfter: newBalance,
+          function: 'enterTargetSceneWrapper',
+        })
+      } else {
+        logger.error({
+          message: `[EnterTargetSceneWrapper] ❌ Не удалось списать звезды`,
+          telegramId,
+          mode,
+          cost,
+          function: 'enterTargetSceneWrapper',
+        })
+        // Сообщаем пользователю об ошибке
+        await ctx.reply(
+          ctx.from?.language_code === 'ru'
+            ? '❌ Произошла ошибка при списании средств. Попробуйте еще раз.'
+            : '❌ An error occurred while deducting funds. Please try again.'
+        )
+        return // Прерываем выполнение, т.к. списание не удалось
+      }
     } else {
       logger.info({
         message: `[EnterTargetSceneWrapper] Режим ${mode} бесплатный, звезды не списываются`,
@@ -454,8 +513,22 @@ export const checkBalanceAndEnterScene = async (
 
     // 4. Проверка баланса
     const currentBalance = stars
-    // const costValue = calculateFinalStarPrice(mode, costParams) // calculateFinalStarPrice больше не принимает costParams
-    const costValue = calculateFinalStarPrice(mode)
+    const costResult = calculateFinalStarPrice(mode, costParams)
+
+    if (costResult === null) {
+      logger.error(
+        '[CheckBalanceAndEnterScene] Не удалось рассчитать стоимость для режима',
+        { telegramId, mode, costParams }
+      )
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при расчете стоимости. Попробуйте позже.'
+          : '❌ An error occurred while calculating the cost. Please try again later.'
+      )
+      return ctx.scene.leave()
+    }
+
+    const requiredStars = costResult.stars // Получаем звезды
 
     logger.info({
       message: `[CheckBalanceAndEnterScene] Проверка баланса для режима: ${mode}`,
@@ -463,43 +536,43 @@ export const checkBalanceAndEnterScene = async (
       function: 'checkBalanceAndEnterScene',
       step: 'balance_check',
       mode,
-      cost: costValue,
+      cost: requiredStars, // Используем звезды
       balance: currentBalance,
-      hasEnoughBalance: currentBalance >= costValue,
+      hasEnoughBalance: currentBalance >= requiredStars, // Сравниваем звезды
     })
 
     // 5. Отображение баланса и стоимости, если функция платная
-    if (costValue > 0) {
+    if (requiredStars > 0) {
       logger.info({
         message: `[CheckBalanceAndEnterScene] Отображение информации о балансе для платной функции`,
         telegramId,
         function: 'checkBalanceAndEnterScene',
         step: 'displaying_balance_info',
         mode,
-        cost: costValue,
+        cost: requiredStars, // Используем звезды
         balance: currentBalance,
       })
 
       await sendBalanceMessage(
         ctx,
         currentBalance,
-        costValue,
+        requiredStars, // Передаем звезды
         isRu,
         ctx.botInfo.username
       )
     }
 
     // 6. Проверка достаточности баланса
-    if (currentBalance < costValue) {
+    if (currentBalance < requiredStars) {
       logger.warn({
         message: `[CheckBalanceAndEnterScene] Недостаточно баланса для режима: ${mode}`,
         telegramId,
         function: 'checkBalanceAndEnterScene',
         step: 'insufficient_balance',
         mode,
-        cost: costValue,
+        cost: requiredStars, // Используем звезды
         balance: currentBalance,
-        deficit: costValue - currentBalance,
+        deficit: requiredStars - currentBalance, // Вычитаем звезды
         result: 'access_denied',
       })
       // Отправляем сообщение о нехватке звезд
@@ -522,7 +595,7 @@ export const checkBalanceAndEnterScene = async (
       function: 'checkBalanceAndEnterScene',
       step: 'all_checks_passed',
       mode,
-      cost: costValue,
+      cost: requiredStars, // Используем звезды
       balance: currentBalance,
       result: 'access_granted',
     })

@@ -3,8 +3,9 @@ import { Markup } from 'telegraf'
 import type { ReplyKeyboardMarkup } from 'telegraf/types'
 // import { VIDEO_MODELS } from '@/interfaces' // Старый импорт не нужен
 import { VIDEO_MODELS_CONFIG } from '../price/models/VIDEO_MODELS_CONFIG' // Импортируем конфиг
-// Импортируем функцию расчета финальной цены
-import { calculateFinalPrice } from '@/price/helpers'
+// Импортируем новую функцию расчета
+import { calculateFinalStarPrice, CalculationParams } from '@/price/calculator'
+import { ModeEnum } from '@/interfaces/modes' // Import ModeEnum
 import { levels } from './mainMenu'
 import { Translation } from '@/interfaces/translations.interface'
 
@@ -13,8 +14,11 @@ export const videoModelKeyboard = (
 ): Markup.Markup<ReplyKeyboardMarkup> => {
   // Создаем массив текстовых названий кнопок С ЦЕНОЙ В ЗВЕЗДАХ ⭐
   const buttons = Object.entries(VIDEO_MODELS_CONFIG).map(([key, config]) => {
-    // Рассчитываем финальную цену в звездах (уже по новой логике)
-    const finalPriceInStars = calculateFinalPrice(key)
+    // Рассчитываем финальную цену, передавая ModeEnum и modelId
+    // TODO: Уточнить правильный ModeEnum (TextToVideo/ImageToVideo?)
+    const params: CalculationParams = { modelId: key }
+    const costResult = calculateFinalStarPrice(ModeEnum.TextToVideo, params)
+    const finalPriceInStars = costResult ? costResult.stars : 0
     // Формируем текст кнопки с ценой в звездах и эмодзи ⭐
     return `${config.title} (${finalPriceInStars} ⭐)` // Заменяем ★ на ⭐
   })

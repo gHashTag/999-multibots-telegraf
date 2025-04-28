@@ -13,7 +13,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { getBotToken, handleHelpCancel } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { logger } from '@/utils/logger'
-import { calculateFinalPrice } from '@/price/helpers'
+import { calculateFinalStarPrice, CalculationParams } from '@/price/calculator'
 import { getUserBalance } from '@/core/supabase'
 import { SYSTEM_CONFIG } from '@/price/constants/index'
 
@@ -55,7 +55,9 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     for (const [key, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
       // Рассчитываем ожидаемый текст кнопки с финальной ценой в звездах и эмодзи ⭐
-      const finalPriceInStars = calculateFinalPrice(key)
+      const params: CalculationParams = { modelId: key }
+      const costResult = calculateFinalStarPrice(ModeEnum.ImageToVideo, params)
+      const finalPriceInStars = costResult ? costResult.stars : 0
       const expectedButtonText = `${config.title} (${finalPriceInStars} ⭐)` // Используем ⭐
       if (expectedButtonText === selectedButtonText) {
         foundModelKey = key as VideoModelKey
@@ -103,7 +105,12 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     const bot_name = ctx.botInfo.username
 
     // 1. Вычисляем ФИНАЛЬНУЮ СТОИМОСТЬ в звездах (с интересом)
-    const finalPriceInStars = calculateFinalPrice(foundModelKey)
+    const costParams: CalculationParams = { modelId: foundModelKey }
+    const costResult = calculateFinalStarPrice(
+      ModeEnum.ImageToVideo,
+      costParams
+    )
+    const finalPriceInStars = costResult ? costResult.stars : 0
 
     // 2. Получаем текущий баланс
     const currentBalance = await getUserBalance(telegram_id, bot_name)
