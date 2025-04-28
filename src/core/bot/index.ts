@@ -1,9 +1,18 @@
-import dotenv from 'dotenv'
+import { Telegraf, type Context, type Middleware } from 'telegraf'
+// import dotenv from 'dotenv' // Keep static import removed
 
-dotenv.config()
+// // Load .env file only in non-production environments
+// if (process.env.NODE_ENV !== 'production') {
+//   // Use require for conditional loading
+//   try {
+//     const dotenv = require('dotenv');
+//     dotenv.config()
+//   } catch (error) {
+//     console.error("Failed to load dotenv in non-production environment (require):", error);
+//   }
+// }
 
 import { NODE_ENV } from '@/config'
-import { Telegraf } from 'telegraf'
 import { MyContext, BotName } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { toBotName } from '@/helpers/botName.helper'

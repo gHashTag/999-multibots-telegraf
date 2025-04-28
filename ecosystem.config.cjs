@@ -1,7 +1,7 @@
 module.exports = {
   apps : [{
     name   : "neuroblogger-bot",
-    script : "./dist/index.js", // Путь к собранному файлу Vite
+    script : "./dist/index.js", // Исправлено с bot.js на index.js, согласно выводу Vite
     cwd    : "/app/",
     // Options reference: https://pm2.keymetrics.io/docs/usage/application-declaration/
     // args: '',
