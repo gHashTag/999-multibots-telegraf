@@ -6,7 +6,7 @@ vi.mock('@/config/pricing.config', async () => {
   // Values taken directly from src/config/pricing.config.ts
   return {
     STAR_COST_USD: 0.016,
-    MARKUP_MULTIPLIER: 1.5,
+    INTEREST_RATE: 1.5,
     BASE_PRICES_USD: {
       [ModeEnum.NeuroPhoto]: 0.1,
       [ModeEnum.NeuroPhotoV2]: 0.15,
@@ -93,7 +93,7 @@ describe('calculateFinalStarPrice', () => {
   // --- Тесты для Базовых Цен (BASE_PRICES_USD) - USING MOCK ---
   it('should calculate price for NeuroPhoto (fixed price)', () => {
     const result = calculateFinalStarPrice(ModeEnum.NeuroPhoto)
-    // Calculation: baseUSD=0.1, costUSD=0.016, markup=1.5
+    // Calculation: baseUSD=0.1, costUSD=0.016, interest=1.5
     // finalStars = floor((0.1 / 0.016) * 1.5) = floor(9.375) = 9
     expect(result?.stars).toBe(9)
     expect(result?.rubles).toBeCloseTo(15)
@@ -102,7 +102,7 @@ describe('calculateFinalStarPrice', () => {
 
   it('should calculate price for NeuroPhotoV2 (fixed price)', () => {
     const result = calculateFinalStarPrice(ModeEnum.NeuroPhotoV2)
-    // Calculation: baseUSD=0.15, costUSD=0.016, markup=1.5
+    // Calculation: baseUSD=0.15, costUSD=0.016, interest=1.5
     // finalStars = floor((0.15 / 0.016) * 1.5) = floor(14.0625) = 14
     expect(result?.stars).toBe(14)
     expect(result?.rubles).toBeCloseTo(22.5)
@@ -111,9 +111,9 @@ describe('calculateFinalStarPrice', () => {
 
   it('should calculate price for VoiceToText (fixed price)', () => {
     const result = calculateFinalStarPrice(ModeEnum.VoiceToText)
-    // Calculation: baseUSD=0.05, costUSD=0.016, markup=1.5
+    // Calculation: baseUSD=0.05, costUSD=0.016, interest=1.5
     // finalStars = floor((0.05 / 0.016) * 1.5) = floor(3.125 * 1.5) = floor(4.6875) = 4
-    // finalUSD = base * markup = 0.05 * 1.5 = 0.075
+    // finalUSD = base * interest = 0.05 * 1.5 = 0.075
     // finalRUB = finalUSD * rate = 0.075 * 100 = 7.5
     //expect(result).toEqual({ stars: 4, rubles: 7.5, dollars: 0.075 });
     expect(result?.stars).toBe(4)
@@ -123,7 +123,7 @@ describe('calculateFinalStarPrice', () => {
 
   it('should calculate price for TextToSpeech (fixed price, updated mock)', () => {
     const result = calculateFinalStarPrice(ModeEnum.TextToSpeech)
-    // Calculation: baseUSD=0.2, costUSD=0.016, markup=1.5
+    // Calculation: baseUSD=0.2, costUSD=0.016, interest=1.5
     // finalStars = floor((0.2 / 0.016) * 1.5) = floor(12.5 * 1.5) = floor(18.75) = 18
     // Expected price reflects higher cost. Previous was 1 star based on $0.02 mock.
     // Updated expectation: floor(0.2 * 1.5 / 0.016) = 18 stars
@@ -134,7 +134,7 @@ describe('calculateFinalStarPrice', () => {
 
   it('should calculate price for LipSync (fixed price)', () => {
     const result = calculateFinalStarPrice(ModeEnum.LipSync)
-    // Calculation: baseUSD=0.03, costUSD=0.016, markup=1.5
+    // Calculation: baseUSD=0.03, costUSD=0.016, interest=1.5
     // finalStars = floor(2.8125) = 2
     expect(result).toEqual({ stars: 2, rubles: 4.5, dollars: 0.045 })
   })
@@ -155,6 +155,7 @@ describe('calculateFinalStarPrice', () => {
       steps: 10,
     })
     // Calculation: stepBaseUSD=0.1, steps=10 => baseUSD=1.0
+    // Calculation: stepBaseUSD=0.1, steps=10 => baseUSD=1.0, interest=1.5
     // finalStars = floor((1.0 / 0.016) * 1.5) = floor(93.75) = 93
     expect(result).toEqual({ stars: 93, rubles: 150, dollars: 1.5 })
   })
@@ -164,6 +165,7 @@ describe('calculateFinalStarPrice', () => {
       steps: 10,
     })
     // Calculation: stepBaseUSD=0.2, steps=10 => baseUSD=2.0
+    // Calculation: stepBaseUSD=0.2, steps=10 => baseUSD=2.0, interest=1.5
     // finalStars = floor((2.0 / 0.016) * 1.5) = floor(187.5) = 187
     expect(result).toEqual({ stars: 187, rubles: 300, dollars: 3.0 })
   })
@@ -222,7 +224,7 @@ describe('calculateFinalStarPrice', () => {
     const result = calculateFinalStarPrice(ModeEnum.TextToVideo, {
       modelId: 'ray-v2',
     })
-    // Calculation: basePriceUSD=0.18 (from mock VIDEO_MODELS_CONFIG)
+    // Calculation: basePriceUSD=0.18 (from mock VIDEO_MODELS_CONFIG), interest=1.5
     // finalStars = floor((0.18 / 0.016) * 1.5) = floor(11.25 * 1.5) = floor(16.875) = 16
     expect(result?.stars).toBe(16)
     expect(result?.rubles).toBeCloseTo(27) // 0.18 * 1.5 * 100
@@ -233,7 +235,7 @@ describe('calculateFinalStarPrice', () => {
     const result = calculateFinalStarPrice(ModeEnum.ImageToVideo, {
       modelId: 'minimax',
     })
-    // Calculation: basePriceUSD=0.5 (from mock VIDEO_MODELS_CONFIG)
+    // Calculation: basePriceUSD=0.5 (from mock VIDEO_MODELS_CONFIG), interest=1.5
     // finalStars = floor((0.5 / 0.016) * 1.5) = floor(31.25 * 1.5) = floor(46.875) = 46
     expect(result?.stars).toBe(46)
     expect(result?.rubles).toBeCloseTo(75) // 0.5 * 1.5 * 100
@@ -244,7 +246,7 @@ describe('calculateFinalStarPrice', () => {
     const result = calculateFinalStarPrice(ModeEnum.TextToImage, {
       modelId: 'flux-pro',
     })
-    // Calculation: basePriceUSD=0.055 (from mock IMAGES_MODELS)
+    // Calculation: basePriceUSD=0.055 (from mock IMAGES_MODELS), interest=1.5
     // finalStars = floor((0.055 / 0.016) * 1.5) = floor(3.4375 * 1.5) = floor(5.15625) = 5
     expect(result?.stars).toBe(5)
     expect(result?.rubles).toBeCloseTo(8.25) // 0.055 * 1.5 * 100
@@ -255,7 +257,7 @@ describe('calculateFinalStarPrice', () => {
     const result = calculateFinalStarPrice(ModeEnum.TextToImage, {
       modelId: 'black-forest-labs/flux-1.1-pro-ultra',
     })
-    // Calculation: basePriceUSD=0.06 (from mock)
+    // Calculation: basePriceUSD=0.06 (from mock), interest=1.5
     // finalStars = floor((0.06 / 0.016) * 1.5) = floor(3.75 * 1.5) = floor(5.625) = 5
     expect(result?.stars).toBe(5)
     expect(result?.rubles).toBeCloseTo(9) // 0.06 * 1.5 * 100
@@ -288,7 +290,7 @@ describe('calculateFinalStarPrice', () => {
     const result = calculateFinalStarPrice(ModeEnum.NeuroPhoto, {
       numImages: 3,
     })
-    // Calculation: baseUSD=0.1, costUSD=0.016, markup=1.5, numImages=3
+    // Calculation: baseUSD=0.1, costUSD=0.016, interest=1.5, numImages=3
     // finalStars = floor((0.1 / 0.016) * 1.5 * 3) = floor(9.375 * 3) = floor(28.125) = 28
     expect(result?.stars).toBe(28)
     expect(result?.rubles).toBeCloseTo(45) // 0.15 * 3 * 100
@@ -319,7 +321,7 @@ describe('calculateFinalStarPrice', () => {
     const result = calculateFinalStarPrice(ModeEnum.NeuroPhoto, {
       numImages: 3,
     })
-    // Calculation: baseUSD=0.1, costUSD=0.016, markup=1.5, numImages=3
+    // Calculation: baseUSD=0.1, costUSD=0.016, interest=1.5, numImages=3
     // finalStars = floor((0.1 / 0.016) * 1.5 * 3) = floor(9.375 * 3) = floor(28.125) = 28
     expect(result?.stars).toBe(28)
     expect(result?.rubles).toBeCloseTo(45) // 0.1 * 1.5 * 3 * 100
@@ -331,7 +333,7 @@ describe('calculateFinalStarPrice', () => {
     // Mock config to get a result just below an integer before flooring
     vi.doMock('@/config/pricing.config', async () => ({
       STAR_COST_USD: 0.01,
-      MARKUP_MULTIPLIER: 1.99, // ~1.99
+      INTEREST_RATE: 1.99,
       BASE_PRICES_USD: { [ModeEnum.NeuroPhoto]: 0.1 }, // base=0.1
       STEP_BASED_PRICES_USD: {},
       CURRENCY_RATES: { USD_TO_RUB: 100 },
@@ -351,7 +353,7 @@ describe('calculateFinalStarPrice', () => {
     const result = calculateFinalStarPrice(ModeEnum.TextToVideo, {
       modelId: 'haiper-video-2',
     })
-    // Calculation: basePriceUSD=0.05 (from mock)
+    // Calculation: basePriceUSD=0.05 (from mock), interest=1.5
     // finalStars = floor((0.05 / 0.016) * 1.5) = floor(3.125 * 1.5) = floor(4.6875) = 4
     expect(result?.stars).toBe(4)
     expect(result?.rubles).toBeCloseTo(7.5) // 0.05 * 1.5 * 100
@@ -362,7 +364,7 @@ describe('calculateFinalStarPrice', () => {
     const result = calculateFinalStarPrice(ModeEnum.TextToVideo, {
       modelId: 'kling-v1.6-pro',
     })
-    // Calculation: basePriceUSD=0.098 (from mock)
+    // Calculation: basePriceUSD=0.098 (from mock), interest=1.5
     // finalStars = floor((0.098 / 0.016) * 1.5) = floor(6.125 * 1.5) = floor(9.1875) = 9
     expect(result?.stars).toBe(9)
     expect(result?.rubles).toBeCloseTo(14.7) // 0.098 * 1.5 * 100

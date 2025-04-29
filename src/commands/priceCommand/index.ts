@@ -6,9 +6,11 @@ import {
   CostCalculationResult,
 } from '@/price/calculator'
 import {
+  BASE_PRICES_USD,
+  STEP_BASED_PRICES_USD,
   STAR_COST_USD,
+  INTEREST_RATE,
   CURRENCY_RATES,
-  MARKUP_MULTIPLIER,
 } from '@/config/pricing.config'
 import { logger } from '@/utils/logger'
 
@@ -58,7 +60,7 @@ export async function priceCommand(ctx: MyContext) {
     // Here we just show the effective rate based on config
     starCostRub = (
       STAR_COST_USD *
-      MARKUP_MULTIPLIER *
+      INTEREST_RATE *
       CURRENCY_RATES.USD_TO_RUB
     ).toFixed(2)
   } catch (error) {

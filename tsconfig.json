@@ -41,7 +41,6 @@
       "@/helpers/*": ["helpers/*"],
       "@/scripts/*": ["scripts/*"]
     },
-    "types": [],
     "noImplicitAny": false,
     "noEmitOnError": false,
     "checkJs": false,

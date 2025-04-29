@@ -3,10 +3,10 @@ import { ModeEnum } from '@/interfaces/modes'
 import * as modelsConfig from '@/config/models.config' // Corrected path
 import {
   STAR_COST_USD,
-  MARKUP_MULTIPLIER,
   BASE_PRICES_USD,
-  CURRENCY_RATES,
   STEP_BASED_PRICES_USD,
+  CURRENCY_RATES,
+  INTEREST_RATE,
 } from '@/config/pricing.config'
 
 /**
@@ -97,32 +97,30 @@ export function calculateFinalStarPrice(
     return { stars: 0, rubles: 0, dollars: 0 }
   }
 
-  // 2. Apply Markup and Calculate Final Prices
-  // Ensure STAR_COST_USD is positive (checked in config, but double-check)
-  if (STAR_COST_USD <= 0) {
-    console.error('[PriceCalc] FATAL: STAR_COST_USD is not positive.')
-    return null // Indicate error
-  }
+  // 2. Convert base price to stars before markup
+  const rawStars = basePriceUSD / STAR_COST_USD
 
-  // *** Apply numImagesMultiplier BEFORE calculating stars ***
+  // 3. Apply markup/interest rate
+  // const starsWithMarkup = rawStars * MARKUP_MULTIPLIER;
+  const starsWithMarkup = rawStars * INTEREST_RATE
+
+  // 4. Apply numImages multiplier if applicable and provided
   const effectiveMultiplier = applyNumImagesMultiplier ? numImagesMultiplier : 1
   const totalBasePriceUSD = basePriceUSD * effectiveMultiplier
 
-  const finalPriceUSD = totalBasePriceUSD * MARKUP_MULTIPLIER
+  // 5. Calculate final star price (floored)
+  const finalStars = Math.max(0, Math.floor(starsWithMarkup))
 
-  // Calculate stars using floor as per rule
-  // *** Use totalBasePriceUSD for star calculation ***
-  const finalStars = Math.floor(
-    (totalBasePriceUSD / STAR_COST_USD) * MARKUP_MULTIPLIER
-  )
-
-  const finalRubles = finalPriceUSD * CURRENCY_RATES.USD_TO_RUB
+  // 6. Calculate display prices in other currencies based on final marked-up USD price
+  // const finalMarkedUpUSD = basePriceUSD * MARKUP_MULTIPLIER * numImagesMultiplier;
+  const finalMarkedUpUSD = totalBasePriceUSD * INTEREST_RATE
+  const finalRubles = finalMarkedUpUSD * (CURRENCY_RATES.USD_TO_RUB || 100) // Default 100 if not set
 
   const result: CostCalculationResult = {
     // Ensure non-negative values
     stars: Math.max(0, finalStars),
     rubles: Math.max(0, finalRubles),
-    dollars: Math.max(0, finalPriceUSD),
+    dollars: Math.max(0, finalMarkedUpUSD),
   }
 
   // console.log(`[PriceCalc] Mode: ${mode}, Params: ${JSON.stringify(params)}, Result: ${JSON.stringify(result)}`);
