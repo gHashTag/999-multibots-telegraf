@@ -43,7 +43,7 @@ services:
     env_file:
       - .env
     environment:
-      - BUN_ENV=production
+      - BUN_ENV=production # Оставляем BUN_ENV на случай, если где-то используется
       - BOT_TOKEN_1=${BOT_TOKEN_1}
       - BOT_TOKEN_2=${BOT_TOKEN_2}
       - BOT_TOKEN_3=${BOT_TOKEN_3}
@@ -65,13 +65,13 @@ services:
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
-      - DOCKER_ENVIRONMENT=true
-      - ./certs:/etc/pki:ro
+      - DOCKER_ENVIRONMENT=true # Важно для docker-entrypoint
+      # - ./certs:/etc/pki:ro # Монтирование certs теперь делается для nginx
     volumes:
       # Возвращаем важные пути монтирования
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /etc/nginx:/etc/nginx
-      - /etc/pki:/etc/pki
+      - /var/run/docker.sock:/var/run/docker.sock # Может понадобиться entrypoint'у
+      - /etc/nginx:/etc/nginx # Может понадобиться entrypoint'у
+      - /etc/pki:/etc/pki     # Может понадобиться entrypoint'у
       # Оставляем закомментированным только проблемный путь
       # - /root/.ssh:/app/.ssh:ro
       # Файлы Ansible
@@ -83,7 +83,7 @@ services:
       - 8.8.4.4
     extra_hosts:
       - "api.elevenlabs.io:127.0.0.1"
-      - "host.docker.internal:172.27.0.1"
+      - "host.docker.internal:host-gateway" # Обновлено для совместимости
     networks:
       - app-network
     restart: unless-stopped
@@ -115,4 +115,4 @@ networks:
 
 # Объявляем Docker Volume
 volumes:
-  nginx-config-volume: 
+  nginx-config-volume:

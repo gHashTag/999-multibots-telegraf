@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 SERVER_USER="root"
 SERVER_HOST="999-multibots-u14194.vm.elestio.app"
 SERVER_PATH="/opt/app/999-multibots-telegraf"
-SSH_KEY="~/.ssh/id_rsa"
+SSH_KEY="/Users/playra/.ssh/elestio_key"
 
 # Функция для форматированного вывода
 log() {
@@ -65,12 +65,11 @@ mkdir -p $DEPLOY_DIR
 # Копирование необходимых файлов
 cp -r dist $DEPLOY_DIR/
 cp -r tests $DEPLOY_DIR/
-cp docker-compose.test.yml $DEPLOY_DIR/
-cp Dockerfile.test $DEPLOY_DIR/
+cp docker-compose.yml $DEPLOY_DIR/
+cp Dockerfile $DEPLOY_DIR/
 cp bun.lockb $DEPLOY_DIR/
 cp package.json $DEPLOY_DIR/
 cp tsconfig.json $DEPLOY_DIR/
-cp .env.test $DEPLOY_DIR/
 
 # Создание архива
 ARCHIVE_NAME="deploy-test.tar.gz"
@@ -103,14 +102,14 @@ fi
 log "success" "Архив успешно распакован на сервере"
 
 # Шаг 5: Запуск контейнеров на сервере
-log "info" "Шаг 5: Запуск тестов на сервере"
-ssh -i $SSH_KEY $SERVER_USER@$SERVER_HOST "cd $SERVER_PATH && docker-compose -f docker-compose.test.yml down && docker-compose -f docker-compose.test.yml up --build"
+log "info" "Шаг 5: Запуск контейнеров на сервере"
+ssh -i $SSH_KEY $SERVER_USER@$SERVER_HOST "cd $SERVER_PATH && docker-compose -f docker-compose.yml down && docker-compose -f docker-compose.yml up --build -d"
 if [ $? -ne 0 ]; then
-  log "error" "Ошибка запуска тестов на сервере"
+  log "error" "Ошибка запуска контейнеров на сервере"
   rm -rf $DEPLOY_DIR $ARCHIVE_NAME
   exit 1
 fi
-log "success" "Тесты успешно запущены на сервере"
+log "success" "Контейнеры успешно запущены на сервере"
 
 # Очистка временных файлов
 rm -rf $DEPLOY_DIR $ARCHIVE_NAME

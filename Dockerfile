@@ -4,7 +4,7 @@ FROM node:20-alpine as builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --ignore-scripts
 
 # Убедимся, что tsc-alias установлен глобально для сборки
 RUN npm install -g tsc-alias
@@ -49,8 +49,6 @@ RUN ls -la dist/ || echo "Директория dist не существует и
 
 # Пытаемся скопировать .env файл если он существует
 COPY .env ./
-# Копируем остальные .env.* файлы, если они есть
-COPY .env.* ./
 
 # Создаем пустой .env файл на всякий случай (entrypoint его наполнит, если нужно)
 RUN touch .env
@@ -58,6 +56,9 @@ RUN touch .env
 # Копируем entrypoint скрипт
 COPY docker-entrypoint.sh ./
 RUN chmod +x /app/docker-entrypoint.sh
+
+# --- Устанавливаем правильного владельца для рабочей директории ---
+RUN chown -R node:node /app
 
 # Экспортируем порт для API и боты
 EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
