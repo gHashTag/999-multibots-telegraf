@@ -80,6 +80,7 @@ export const stage = new Scenes.Stage<MyContext>([
   trainFluxModelWizard,
   uploadTrainFluxModelScene,
   uploadVideoScene,
+  sizeWizard,
   new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
   new Scenes.WizardScene(
     ModeEnum.TextToSpeech,
@@ -287,6 +288,23 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       await ctx.reply('Произошла ошибка при входе в чат с аватаром.')
     }
   })
+
+  // <<<--- ВОТ СЮДА ДОБАВЛЯЕМ ОБРАБОТЧИК КНОПКИ ГОЛОС АВАТАРА ---<<<
+  bot.hears([levels[7].title_ru, levels[7].title_en], async ctx => {
+    console.log('CASE bot.hears: 🎤 Голос аватара / Avatar Voice')
+    logger.info('GLOBAL HEARS: Голос аватара', { telegramId: ctx.from?.id })
+    try {
+      await ctx.scene.leave() // Выходим из текущей сцены
+      ctx.session.mode = ModeEnum.Voice // Устанавливаем режим
+      await ctx.scene.enter(ModeEnum.Voice) // Входим в сцену голоса
+    } catch (error) {
+      logger.error('Error in Голос аватара hears:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
+  // >>>------------------------------------------------------>>>
 
   // --- ИСПРАВЛЕНИЕ: Обработчик команды /menu ---
   bot.command('menu', async ctx => {

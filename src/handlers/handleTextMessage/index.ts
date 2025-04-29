@@ -1,6 +1,7 @@
 import { answerAi } from '../../core/openai/requests'
 import { getUserModel, getUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 
 export async function handleTextMessage(ctx: MyContext) {
   if (
@@ -27,6 +28,7 @@ export async function handleTextMessage(ctx: MyContext) {
   const messageText = ctx.message.text
   const userLanguage = ctx.from.language_code || 'ru'
   const botUsername = ctx.botInfo.username
+  console.log(`[handleTextMessage] Bot username: ${botUsername}`)
 
   console.log(
     `[handleTextMessage] Received message in chat ${chatId} (type: ${chatType}) from user ${userId}`,
@@ -42,8 +44,19 @@ export async function handleTextMessage(ctx: MyContext) {
     let shouldProcess = false
 
     if (chatType === 'private') {
-      shouldProcess = true
-      console.log('[handleTextMessage] Processing in private chat', { userId })
+      if (ctx.scene.current?.id === ModeEnum.ChatWithAvatar) {
+        shouldProcess = true
+        console.log(
+          '[handleTextMessage] Processing in private chat (inside chatWithAvatar scene)',
+          { userId }
+        )
+      } else {
+        console.log(
+          '[handleTextMessage] Ignoring message in private chat (not in chatWithAvatar scene)',
+          { userId }
+        )
+        return
+      }
     } else if (chatType === 'group' || chatType === 'supergroup') {
       if (messageText.includes(`@${botUsername}`)) {
         shouldProcess = true

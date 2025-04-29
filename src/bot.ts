@@ -11,6 +11,7 @@ import { ADMIN_IDS_ARRAY, NODE_ENV } from './config'
 import type { BotName } from '@/interfaces/telegram-bot.interface'
 import { toBotName } from '@/helpers/botName.helper'
 import { getBotGroupFromAvatars } from '@/core/supabase'
+import { setupHearsHandlers } from './hearsHandlers'
 
 if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
 if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')

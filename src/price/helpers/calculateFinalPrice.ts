@@ -1,6 +1,8 @@
-import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG' // Возвращаем старый конфиг
-import { SYSTEM_CONFIG } from '@/price/constants' // Используем константы из SYSTEM_CONFIG
+import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
+import { SYSTEM_CONFIG } from '@/price/constants/index'
 import { logger } from '@/utils/logger'
+
+const DEFAULT_VIDEO_DURATION_SECONDS = 5 // Define default duration
 
 /**
  * Рассчитывает окончательную стоимость в звездах на основе ID модели.
@@ -24,18 +26,14 @@ export function calculateFinalPrice(modelId: string, steps?: number): number {
     return 0 // Модель не найдена
   }
 
-  // 2. Получаем базовую цену в USD из конфига модели
-  const basePriceUsd = modelConfig.basePrice
+  // --- Новый порядок расчета (с учетом цены за секунду) ---
+  // 1. Рассчитываем полную базовую стоимость в USD
+  //    (Умножаем цену за секунду на стандартную длительность)
+  //    TODO: Уточнить, нужно ли для НЕ-Kling моделей использовать другую логику или их basePrice?
+  const totalBaseCostUSD =
+    modelConfig.basePrice * DEFAULT_VIDEO_DURATION_SECONDS
 
-  if (typeof basePriceUsd !== 'number' || basePriceUsd < 0) {
-    logger.error('calculateFinalPrice: Invalid basePrice in model config', {
-      modelId,
-      basePriceUsd,
-    })
-    return 0
-  }
-
-  // 3. Проверяем константы из SYSTEM_CONFIG
+  // Проверка констант (добавлено из HEAD)
   const starCostUsd = SYSTEM_CONFIG.starCost
   const markupMultiplier = 1 + SYSTEM_CONFIG.interestRate // Наценка = 1 + interestRate
 
@@ -53,22 +51,25 @@ export function calculateFinalPrice(modelId: string, steps?: number): number {
     return 0 // Невозможно рассчитать цену
   }
 
-  // 4. Переводим базовую цену USD в звезды
-  const basePriceInStars = basePriceUsd / starCostUsd
-
-  // 5. Применяем наценку
+  // 2. Переводим полную базовую цену в звезды
+  const basePriceInStars = totalBaseCostUSD / starCostUsd
+  // 3. Применяем наценку к звездам
   const finalPriceWithMarkup = basePriceInStars * markupMultiplier
-
-  // 6. Округляем ВНИЗ до целого числа звезд
+  // 4. Округляем ВНИЗ до целого числа звезд
   const finalPriceInStars = Math.floor(finalPriceWithMarkup)
 
-  logger.info('calculateFinalPrice: Calculated price (using modelId)', {
-    modelId,
-    basePriceUSD: basePriceUsd,
-    starCostUSD: starCostUsd,
-    basePriceInStars,
-    markupMultiplier,
-    finalPriceWithMarkup,
+  // Логируем новый расчет
+  logger.info('calculateFinalPrice (Per Second Logic): Calculated price', {
+    // Updated log message
+    modelId, // Используем modelId, как в HEAD
+    basePricePerSecondUSD: modelConfig.basePrice, // Log per second price
+    defaultDuration: DEFAULT_VIDEO_DURATION_SECONDS,
+    totalBaseCostUSD: totalBaseCostUSD, // Log calculated total base cost
+    starCost: SYSTEM_CONFIG.starCost,
+    basePriceInStars: basePriceInStars, // Логируем промежуточный результат
+    interestRate: SYSTEM_CONFIG.interestRate,
+    markupMultiplier: markupMultiplier, // Добавлено для лога
+    finalPriceWithMarkup: finalPriceWithMarkup, // Логируем промежуточный результат
     finalPriceInStars, // Финальный результат
   })
 

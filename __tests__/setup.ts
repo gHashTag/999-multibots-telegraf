@@ -1,6 +1,8 @@
 import { mock, jest } from 'bun:test'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
+// Импортируем оригинальный модуль, чтобы сохранить его экспорты
+import * as originalBotModule from '@/core/bot'
 
 console.log('--- Executing Bun Test Setup File: __tests__/setup.ts ---')
 
@@ -36,11 +38,13 @@ export const mockGetBotByName = jest
   .fn()
   .mockReturnValue({ bot: mockBotInstance, error: null })
 
+// Мокируем @/core/bot, сохраняя оригинальные экспорты
 mock.module('@/core/bot', () => {
   console.log('[Setup] Mocking @/core/bot')
   return {
-    getBotByName: mockGetBotByName,
-    // Если нужны другие мокированные экспорты из @/core/bot, добавляем здесь
+    ...originalBotModule, // Используем импортированный оригинал
+    getBotByName: mockGetBotByName, // Перезаписываем только getBotByName
+    // Если нужно мокировать и другие функции из @/core/bot, делаем это здесь
   }
 })
 

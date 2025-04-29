@@ -277,36 +277,36 @@ importers:
 packages:
 
   '@ampproject/remapping@2.3.0':
-    resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
+    resolution: {integrity: sha512-30iZtAPgdF80mCyiXGrlc0qx5M7nCk1lkF1ZENpGdI/uYWh3BfAAR6AH2NMZxltGLjbVoynPpSZSEWkyujniiA==}
     engines: {node: '>=6.0.0'}
 
   '@babel/code-frame@7.26.2':
-    resolution: {integrity: sha512-RJlIHRueQgwWitWgF8OdFYGZX328Ax5BCemNGlqHfplnRT9ESi8JkFlvaVYbS+UubVY6dpv87Fs2u5M29iNFVQ==}
+    resolution: {integrity: sha512-Yy0iw3tnNzVweZgAnqcoiIsntNm6lNxVQJmAwSPx7/6hcN0GtN50JhjfVNA+qQ4snOI4u7nZNlVmCdID14lBvA==}
     engines: {node: '>=6.9.0'}
 
   '@babel/helper-string-parser@7.25.9':
-    resolution: {integrity: sha512-4A/SCr/2KLd5jrtOMFzaKjVtAei3+2r/NChoBNoZ3EyP/+GlhoaEGoWOZUmFmoITP7zOJyHIMm+DYRd8o3PvHA==}
+    resolution: {integrity: sha512-4A/SCr/2KLd5jrrjQM1n9vu/i1pQQ32AQkPxrXwJ2F51NceX+hZ8YKy4Q+FeyDjmOYA8ATrZt0M6rcL5Ccu2Ow==}
     engines: {node: '>=6.9.0'}
 
   '@babel/helper-validator-identifier@7.25.9':
-    resolution: {integrity: sha512-Ed61U6XJc3CVRfkERJWDz4dJwKe7iLmmJsbOGu9wSloNSFttHV0I8g6UAgb7qnK5ly5bGLPd4oXZlxCdANBOWQ==}
+    resolution: {integrity: sha512-4H0AXR1xU7tTIIKlYLp4D6IhjBau0le9sOyezAGT7jSzMj6y8Qqwgw0vN8FO27RMOAQw57TJT2exDoS98qyPew==}
     engines: {node: '>=6.9.0'}
 
   '@babel/parser@7.27.0':
-    resolution: {integrity: sha512-iaepho73/2Pz7w2eMS0Q5f83+0RKI7i4xmiYeBmDzfRVbQtTOG7Ts0S4HzJVsTMGI9keU8rNfuZr8DKfSt7Yyg==}
+    resolution: {integrity: sha512-j2DI+WaVdJuvlv1M2WVQEnMn7ULGSWAP4CMsBuwP6FvG9FNTTKO3rruUs9jaJfkfmMEMTkAqDltjdbPDp6t/1A==}
     engines: {node: '>=6.0.0'}
     hasBin: true
 
   '@babel/runtime@7.27.0':
-    resolution: {integrity: sha512-VtPOkrdPHZsKc/clNqyi9WUA8TINkZ4cGk63UUE3u4pmB2k+ZMQRDuIOagv8UVd6j7k0T3+RRIb7beKTebNbcw==}
+    resolution: {integrity: sha512-VtPOkrdPHZsKc/clNqyi9WU8T1ryl0imL5DIUPXUxQvIYF1+r90PTCAm88+AXPd68Z7gZpAo5+0vx9skjCl3Ww==}
     engines: {node: '>=6.9.0'}
 
   '@babel/types@7.27.0':
-    resolution: {integrity: sha512-H45s8fVLYjbhFH62dIJ3WtmJ6RSPt/3DRO0ZcT2SUiYiQyz3BLVb9ADEnLl91m74aQPS3AzzeajZHYOalWe3bg==}
+    resolution: {integrity: sha512-1R0ukDj5YlxtAFLpj8x77SPDTSYkhdRiyWMzeo6m+/rDT2/d/ZCuykcdrv5m1NjC/K4jEuCn0ZXYC1s/oh7A4A==}
     engines: {node: '>=6.9.0'}
 
   '@bcoe/v8-coverage@1.0.2':
-    resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
+    resolution: {integrity: sha512-MjNzLNj/mAOVsVmM40cXSoGutCbGfvZUh0vs0kxrQcDkz+/e1NKS4DKfyQ8Y4bYY/6YzW+mUYdOA8IdGp/rCcA==}
     engines: {node: '>=18'}
 
   '@bufbuild/protobuf@2.2.5':
@@ -3917,6 +3917,7 @@ packages:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
     engines: {node: '>= 0.8'}
 
+<<<<<<< HEAD
   vite-dev-rpc@1.0.7:
     resolution: {integrity: sha512-FxSTEofDbUi2XXujCA+hdzCDkXFG1PXktMjSk1efq9Qb5lOYaaM9zNSvKvPPF7645Bak79kSp1PTooMW2wktcA==}
     peerDependencies:
@@ -4037,12 +4038,17 @@ packages:
 
   vite-tsconfig-paths@4.3.2:
     resolution: {integrity: sha512-0Vd/a6po6Q+86rPlntHye7F31zA2URZMbH8M3saAZ/xR9QoGN/L21bxEGfXdWmFdNkqPpRdxFT7nmNe12e9/uA==}
+=======
+  vite-tsconfig-paths@5.1.4:
+    resolution: {integrity: sha512-cYj0LRuLV2c2sMqhqhGpaO3LretdtMn/BVX4cPLanIZuwwrkVl+lK84E/miEXkCHWXuq65rhNN4rXsBcOB3S4w==}
+>>>>>>> origin/test-image-to-video
     peerDependencies:
       vite: '*'
     peerDependenciesMeta:
       vite:
         optional: true
 
+<<<<<<< HEAD
   vite@6.3.3:
     resolution: {integrity: sha512-5nXH+QsELbFKhsEfWLkHrvgRpTdGJzqOZ+utSdmPTvwHmvU6ITTm3xx+mRusihkcI8GeC7lCDyn3kDtiki9scw==}
     engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
@@ -4156,6 +4162,10 @@ packages:
     hasBin: true
     peerDependencies:
       typescript: '*'
+=======
+  walker@1.0.8:
+    resolution: {integrity: sha512-ts/8E8l5b7kY0vlWLewOkDXMmPdLcVV4GmOQLyxuSswIJsweeFZtAsMF7k1Nszz+TYBQrlYRmzOnr398y1JemQ==}
+>>>>>>> origin/test-image-to-video
 
   web-streams-polyfill@3.3.3:
     resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
@@ -8006,9 +8016,15 @@ snapshots:
       normalize-path: 3.0.0
       plimit-lit: 1.6.1
 
+<<<<<<< HEAD
   tsconfck@3.1.5(typescript@5.5.4):
     optionalDependencies:
       typescript: 5.5.4
+=======
+  tsconfck@3.1.5(typescript@5.8.3):
+    optionalDependencies:
+      typescript: 5.8.3
+>>>>>>> origin/test-image-to-video
 
   tsconfig-paths@4.2.0:
     dependencies:
@@ -8102,7 +8118,20 @@ snapshots:
 
   vary@1.1.2: {}
 
+<<<<<<< HEAD
   vite-dev-rpc@1.0.7(vite@6.3.3(@types/node@22.15.3)(terser@5.39.0)(yaml@2.7.1)):
+=======
+  vite-tsconfig-paths@5.1.4(typescript@5.8.3):
+    dependencies:
+      debug: 4.4.0
+      globrex: 0.1.2
+      tsconfck: 3.1.5(typescript@5.8.3)
+    transitivePeerDependencies:
+      - supports-color
+      - typescript
+
+  walker@1.0.8:
+>>>>>>> origin/test-image-to-video
     dependencies:
       birpc: 2.3.0
       vite: 6.3.3(@types/node@22.15.3)(terser@5.39.0)(yaml@2.7.1)
