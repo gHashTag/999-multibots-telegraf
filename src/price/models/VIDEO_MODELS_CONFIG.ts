@@ -6,7 +6,7 @@ export type VideoModelConfig = {
   id: string
   title: string
   description: string
-  inputType: ('text' | 'image')[]
+  inputType: ('text' | 'image' | 'morph')[]
   basePrice: number
   api: {
     model: string
@@ -17,6 +17,7 @@ export type VideoModelConfig = {
     maxDuration?: number
   }
   imageKey?: string
+  canMorph?: boolean
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
@@ -105,8 +106,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'kling-v1.6-pro': {
     id: 'kling-v1.6-pro',
     title: 'Kling v1.6 Pro',
-    inputType: ['text', 'image'],
-    description: 'Продвинутая анимация с оптимизацией промптов',
+    inputType: ['text', 'image', 'morph'],
+    description: 'Продвинутая анимация (цена за секунду)',
     basePrice: 0.098,
     api: {
       model: 'kwaivgi/kling-v1.6-pro',
@@ -116,6 +117,33 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       },
     },
     imageKey: 'start_image',
+    canMorph: true,
+  },
+  'kling-v1.6-standard': {
+    id: 'kling-v1.6-standard',
+    title: 'Kling v1.6 Standard',
+    inputType: ['text', 'image'],
+    description: 'Стандартная анимация Kling (цена за секунду)',
+    basePrice: 0.056,
+    api: {
+      model: 'kwaivgi/kling-v1.6-standard',
+      input: {},
+    },
+    imageKey: 'start_image',
+    canMorph: false,
+  },
+  'kling-v2.0': {
+    id: 'kling-v2.0',
+    title: 'Kling v2.0',
+    inputType: ['text', 'image'],
+    description: 'Новейшая модель Kling (цена за секунду)',
+    basePrice: 0.28,
+    api: {
+      model: 'kwaivgi/kling-v2.0',
+      input: {},
+    },
+    imageKey: 'start_image',
+    canMorph: false,
   },
   'hunyuan-video-fast': {
     id: 'hunyuan-video-fast',
@@ -131,6 +159,25 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     },
   },
 }
+
+// Определяем тип ключей конфига
+type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
+
+// Используем ключи конфига как основу для цен
+export const videoModelPrices: Partial<Record<VideoModelKey, number>> = {
+  // Цены берутся из VIDEO_MODELS_CONFIG.basePrice
+  // Этот файл может быть избыточен, если цены используются только из конфига.
+  minimax: VIDEO_MODELS_CONFIG.minimax.basePrice,
+  'haiper-video-2': VIDEO_MODELS_CONFIG['haiper-video-2'].basePrice,
+  'ray-v2': VIDEO_MODELS_CONFIG['ray-v2'].basePrice,
+  'wan-image-to-video': VIDEO_MODELS_CONFIG['wan-image-to-video'].basePrice,
+  'wan-text-to-video': VIDEO_MODELS_CONFIG['wan-text-to-video'].basePrice,
+  'kling-v1.6-pro': VIDEO_MODELS_CONFIG['kling-v1.6-pro'].basePrice,
+  'hunyuan-video-fast': VIDEO_MODELS_CONFIG['hunyuan-video-fast'].basePrice,
+  'kling-v1.6-standard': VIDEO_MODELS_CONFIG['kling-v1.6-standard'].basePrice,
+  'kling-v2.0': VIDEO_MODELS_CONFIG['kling-v2.0'].basePrice,
+}
+
 export const findModelByTitle = (
   title: string,
   type: 'image' | 'text'

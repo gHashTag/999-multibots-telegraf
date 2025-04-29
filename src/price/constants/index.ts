@@ -3,7 +3,7 @@
 
 // Экспортируем примитивные значения
 export const starCost = 0.016
-export const interestRate = 1.5
+export const interestRate = 0.5
 
 // Теперь создаем объект конфигурации на основе этих значений
 export const SYSTEM_CONFIG = {

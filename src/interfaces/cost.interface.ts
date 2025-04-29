@@ -1,28 +1,16 @@
-import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+import {
+  VIDEO_MODELS_CONFIG,
+  VideoModelConfig,
+} from '@/price/models/VIDEO_MODELS_CONFIG' // Import both value and type
+import { calculateFinalPrice } from '@/price/helpers'
+import { Markup } from 'telegraf' // Import Markup
 
 // Определяем тип ключей из конфига
 export type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
 
-export interface VideoModelConfig {
-  id: string
-  title: string
-  description: string
-  inputType: ('text' | 'image')[]
-  basePrice: number // Base price in dollars
-  api: {
-    model: string
-    input: Record<string, any>
-  }
-  requirements?: {
-    minBalance?: number
-    maxDuration?: number
-  }
-  imageKey?: string
-}
-
-// Заменяем использование VideoModel на VideoModelKey
-export const VIDEO_MODELS: Record<VideoModelKey, VideoModelConfig> =
-  VIDEO_MODELS_CONFIG
+// Удаляем локальное определение VIDEO_MODELS
+// export const VIDEO_MODELS: Record<VideoModelKey, VideoModelConfig> =
+//   VIDEO_MODELS_CONFIG
 
 // Дополнительные режимы, не входящие в ModeEnum
 export type AdditionalMode =
@@ -40,3 +28,36 @@ export type AdditionalMode =
   | 'stats'
   | 'invite'
   | 'help'
+
+// Function to get model config directly from the imported config
+export const getVideoModelConfig = (
+  key: VideoModelKey
+): VideoModelConfig | undefined => {
+  // Use the imported config directly
+  return VIDEO_MODELS_CONFIG[key]
+}
+
+// Function to generate keyboard using the imported config directly
+export const generateVideoModelKeyboard = (isRu: boolean) => {
+  // Use the imported config directly
+  const buttons = Object.entries(VIDEO_MODELS_CONFIG)
+    .map(([key, config]) => {
+      // Filter out models that shouldn't be shown?
+      // if (config.inputType.includes('dev')) return null; // Example filter
+
+      const finalPrice = calculateFinalPrice(key) // Pass the key
+      return Markup.button.callback(
+        `${config.title} (${finalPrice} ⭐)`,
+        `select_video_model_${key}`
+      )
+    })
+    .filter(button => button !== null) // Filter out nulls if using filters
+
+  // Make sure buttons is not empty before creating keyboard
+  if (!buttons.length) {
+    // Handle the case where no models are available (e.g., return null or an empty keyboard)
+    return Markup.inlineKeyboard([])
+  }
+
+  return Markup.inlineKeyboard(buttons as any, { columns: 2 }) // Cast to any if filter causes type issue
+}

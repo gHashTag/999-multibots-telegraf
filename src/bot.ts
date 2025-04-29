@@ -11,6 +11,7 @@ import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update, BotCommand } from 'telegraf/types'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
+import { setupHearsHandlers } from './hearsHandlers'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -134,6 +135,7 @@ async function initializeBots() {
     // Убираем composer из вызова
     // Передаем только bot
     registerCommands({ bot })
+    setupHearsHandlers(bot)
 
     // <<<--- Set commands scope for the development bot ---<<<
     try {
@@ -193,6 +195,7 @@ async function initializeBots() {
         bot.use(Composer.log())
 
         registerCommands({ bot })
+        setupHearsHandlers(bot)
 
         botInstances.push(bot)
         const botInfo = await bot.telegram.getMe()
