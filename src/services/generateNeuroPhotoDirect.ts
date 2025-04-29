@@ -736,7 +736,13 @@ export async function generateNeuroPhotoDirect(
 
     // Отправляем сообщение администратору
     if (bot) {
-      await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+      // Передаем имя бота, а не инстанс
+      const botName = bot.context.botName
+      if (botName) {
+        await sendServiceErrorToAdmin(botName, telegram_id, error as Error)
+      } else {
+        logger.error('Could not determine bot name to send admin error')
+      }
     } else {
       logger.error(
         '❌ [DIRECT] Не удалось отправить ошибку админу: экземпляр бота не был инициализирован.',

@@ -262,8 +262,13 @@ export const generateImageToVideo = async (
     return { videoLocalPath }
   } catch (error) {
     logger.error('Error in generateImageToVideo (Plan B):', error)
-    await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
-    await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+    await sendServiceErrorToUser(
+      validBotName,
+      telegram_id,
+      error as Error,
+      is_ru
+    )
+    await sendServiceErrorToAdmin(validBotName, telegram_id, error as Error)
 
     return null
   }

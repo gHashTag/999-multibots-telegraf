@@ -12,19 +12,20 @@ import {
   sendServiceErrorToUser,
   sendServiceErrorToAdmin,
 } from '@/helpers/error'
-import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { calculateFinalStarPrice } from '@/price/calculator'
 import { processBalanceOperation } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { getBotByName } from '@/core/bot'
+import { toBotName } from '@/helpers/botName.helper'
+import logger from '@/utils/logger'
 
 export const generateSpeech = async ({
   text,
   voice_id,
   telegram_id,
   is_ru,
-  bot,
   bot_name,
   ctx,
 }: {
@@ -32,7 +33,6 @@ export const generateSpeech = async ({
   voice_id: string
   telegram_id: string
   is_ru: boolean
-  bot: Telegraf<MyContext>
   bot_name: string
   ctx: MyContext
 }): Promise<{ audioUrl: string }> => {
@@ -69,6 +69,19 @@ export const generateSpeech = async ({
     throw new Error('ELEVENLABS_API_KEY отсутствует')
   }
 
+  // Получаем инстанс бота в начале функции
+  const botResult = getBotByName(toBotName(bot_name))
+  if (!botResult.bot) {
+    // Если бота нет, выбрасываем ошибку, т.к. без него нельзя отправить сообщение
+    logger.error('Failed to get bot instance in generateSpeech', {
+      bot_name,
+      error: botResult.error,
+      telegram_id,
+    })
+    throw new Error(`Bot instance ${bot_name} not found.`)
+  }
+  const bot = botResult.bot // Сохраняем инстанс бота
+
   // 2. Асинхронные операции API и потоков - ВНЕ промиса (но в try/catch)
   let audioStream
   try {
@@ -84,8 +97,8 @@ export const generateSpeech = async ({
     })
   } catch (error: any) {
     console.error('Error during API call or message sending:', error)
-    await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
-    await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+    await sendServiceErrorToUser(bot_name, telegram_id, error as Error, is_ru)
+    await sendServiceErrorToAdmin(bot_name, telegram_id, error as Error)
     // Перевыбрасываем ошибку, чтобы она была поймана внешним try/catch, если generateSpeech вызывается внутри него
     throw error
   }
@@ -115,10 +128,8 @@ export const generateSpeech = async ({
         await bot.telegram.sendMessage(
           telegram_id,
           is_ru
-            ? `Стоимость: ${paymentAmount.toFixed(2)} ⭐️
-Ваш баланс: ${(balanceCheck.newBalance || 0).toFixed(2)} ⭐️`
-            : `Cost: ${paymentAmount.toFixed(2)} ⭐️
-Your balance: ${(balanceCheck.newBalance || 0).toFixed(2)} ⭐️`
+            ? `Стоимость: ${paymentAmount.toFixed(2)} ⭐️\nВаш баланс: ${(balanceCheck.newBalance || 0).toFixed(2)} ⭐️`
+            : `Cost: ${paymentAmount.toFixed(2)} ⭐️\nYour balance: ${(balanceCheck.newBalance || 0).toFixed(2)} ⭐️`
         )
         resolve() // Промис успешно разрешен
       } catch (sendError) {
@@ -128,7 +139,11 @@ Your balance: ${(balanceCheck.newBalance || 0).toFixed(2)} ⭐️`
         )
         // Пытаемся уведомить админа
         try {
-          await sendServiceErrorToAdmin(bot, telegram_id, sendError as Error)
+          await sendServiceErrorToAdmin(
+            bot_name,
+            telegram_id,
+            sendError as Error
+          )
         } catch (adminError) {
           console.error('Failed to send error to admin:', adminError)
         }
@@ -141,8 +156,13 @@ Your balance: ${(balanceCheck.newBalance || 0).toFixed(2)} ⭐️`
       console.error('Error writing audio file:', error)
       try {
         // Пытаемся уведомить пользователя и админа об ошибке записи файла
-        await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
-        await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+        await sendServiceErrorToUser(
+          bot_name,
+          telegram_id,
+          error as Error,
+          is_ru
+        )
+        await sendServiceErrorToAdmin(bot_name, telegram_id, error as Error)
       } catch (notifyError) {
         console.error('Failed to send write error notification:', notifyError)
       }

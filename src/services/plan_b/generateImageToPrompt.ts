@@ -198,8 +198,8 @@ export async function generateImageToPrompt(
     throw new Error('Internal error: Caption processing failed')
   } catch (error) {
     console.error('Error in generateImageToPrompt:', error)
-    await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
-    await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+    await sendServiceErrorToUser(bot_name, telegram_id, error as Error, is_ru)
+    await sendServiceErrorToAdmin(bot_name, telegram_id, error as Error)
 
     if (newBalance !== undefined && cost !== undefined) {
       try {
@@ -226,7 +226,7 @@ export async function generateImageToPrompt(
           refundError
         )
         await sendServiceErrorToAdmin(
-          bot,
+          bot_name,
           telegram_id,
           new Error(
             `Failed refund check! User: ${telegram_id}, Amount: ${cost}. Original error: ${(error as Error).message}. Refund error: ${(refundError as Error).message}`

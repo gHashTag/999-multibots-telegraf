@@ -20,7 +20,7 @@ alwaysApply: true
     3.  ✅ `src/services/generateTextToVideo.ts` -> `plan_b/generateTextToVideo.ts` (Рефакторинг завершен ✅, требует теста).
     4.  ✅ `src/services/generateImageToVideo.ts` -> `plan_b/generateImageToVideo.ts` (Рефакторинг завершен ✅, требует теста).
     5.  ✅ `src/services/generateLipSync.ts` -> `plan_b/generateLipSync.ts` (Рефакторинг завершен ✅, Тест Plan B ✅).
-    6.  ✏️ `src/services/generateTextToSpeech.ts` -> `plan_b/generateSpeech.ts` (Тест Plan B ✅).
+    6.  ✅ `src/services/generateTextToSpeech.ts` -> `plan_b/generateSpeech.ts` (Рефакторинг завершен ✅, Тест Plan B ✅).
     7.  ✏️ `src/services/uploadVideoToServer.ts` -> `plan_b/videoService.ts` (Тест Plan B ✅).
     8.  ✏️ `src/services/createModelTraining.ts` -> (Требует анализа, есть ли аналог в Plan B или нужна новая локальная реализация).
     9.  ✏️ `src/services/generateNeuroImageV2.ts` -> (Требует анализа, есть ли аналог в Plan B или нужна новая локальная реализация).
@@ -39,10 +39,10 @@ alwaysApply: true
     *   ✏️ `generateImageToVideo.ts` (Написать/адаптировать тест).
     *   (Опционально) `broadcast.service.ts`
 *   **Затронутые Файлы (Следующий шаг):**
-    *   ✏️ `src/services/generateTextToSpeech.ts` (Прочитать для рефакторинга)
-    *   ✏️ `src/services/plan_b/generateSpeech.ts` (Эталонная реализация)
+    *   ✏️ `src/services/uploadVideoToServer.ts` (Прочитать для рефакторинга)
+    *   ✏️ `src/services/plan_b/videoService.ts` (Эталонная реализация)
     *   ✏️ `.cursor/rules/current-task.mdc` (Обновление)
-*   **Статус:** ✅ Рефакторинг `generateLipSync.ts` завершен. ⏳ **(Активно!)** Переход к рефакторингу `src/services/generateTextToSpeech.ts`.
+*   **Статус:** ✅ Рефакторинг `generateTextToSpeech.ts` завершен. ⏳ **(Активно!)** Переход к рефакторингу `src/services/uploadVideoToServer.ts`.
 
 ---
 *Ом Шанти. Путь рефакторинга и тестирования продолжается.* 🙏

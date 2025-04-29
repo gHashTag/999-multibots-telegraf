@@ -196,8 +196,13 @@ export const generateTextToVideo = async (
     return { videoLocalPath }
   } catch (error) {
     logger.error('Error in generateTextToVideo:', error)
-    await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
-    await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+    await sendServiceErrorToUser(
+      validBotName,
+      telegram_id,
+      error as Error,
+      is_ru
+    )
+    await sendServiceErrorToAdmin(validBotName, telegram_id, error as Error)
 
     if (error instanceof Error) {
       console.error('Error name:', error.name)
