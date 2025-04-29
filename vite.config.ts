@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
 import { resolve } from 'path'
 import checker from 'vite-plugin-checker'
-import tsconfigPaths from 'vite-tsconfig-paths'
 import dts from 'vite-plugin-dts'
 import { visualizer } from 'rollup-plugin-visualizer'
 import compression from 'vite-plugin-compression'
@@ -88,7 +87,6 @@ export default defineConfig(({ command, mode }) => {
       checker({
         typescript: true,
       }),
-      tsconfigPaths(),
       dts({
         outDir: 'dist/types',
         exclude: [

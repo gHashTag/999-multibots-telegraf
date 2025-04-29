@@ -9,7 +9,7 @@ import {
   BASE_PRICES_USD,
   STEP_BASED_PRICES_USD,
   STAR_COST_USD,
-  INTEREST_RATE,
+  MARKUP_MULTIPLIER,
   CURRENCY_RATES,
 } from '@/config/pricing.config'
 import { logger } from '@/utils/logger'
@@ -60,7 +60,7 @@ export async function priceCommand(ctx: MyContext) {
     // Here we just show the effective rate based on config
     starCostRub = (
       STAR_COST_USD *
-      INTEREST_RATE *
+      MARKUP_MULTIPLIER *
       CURRENCY_RATES.USD_TO_RUB
     ).toFixed(2)
   } catch (error) {

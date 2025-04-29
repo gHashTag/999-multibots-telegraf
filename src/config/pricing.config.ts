@@ -14,7 +14,7 @@ export const MARKUP_MULTIPLIER = 1.5 // Renamed
 
 // Interest Rate (applied as a multiplier, e.g., 1.5 for 50% markup)
 // Must be > 1 to make a profit.
-// export const INTEREST_RATE = 1.5
+// export const MARKUP_MULTIPLIER = 1.5
 
 // Базовые цены в USD для режимов с фиксированной стоимостью
 // Ключ - ModeEnum, значение - базовая цена в USD (до наценки)
@@ -48,10 +48,10 @@ if (STAR_COST_USD <= 0) {
   throw new Error('Pricing Config Error: STAR_COST_USD must be positive.')
 }
 
-// if (INTEREST_RATE <= 1) {
+// if (MARKUP_MULTIPLIER <= 1) {
 if (MARKUP_MULTIPLIER <= 1) {
   console.warn(
     'Pricing Config Warning: MARKUP_MULTIPLIER should be greater than 1 to make a profit.'
-    // 'Pricing Config Warning: INTEREST_RATE should be greater than 1 to make a profit.'
+    // 'Pricing Config Warning: MARKUP_MULTIPLIER should be greater than 1 to make a profit.'
   )
 }

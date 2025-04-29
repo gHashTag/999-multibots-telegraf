@@ -24,6 +24,7 @@ import {
   sendServiceErrorToAdmin,
   sendServiceErrorToUser,
 } from '@/helpers/error'
+import { Telegraf } from 'telegraf'
 // import { sendSuccessMessage } from '@/helpers/error' // Commented out: Path unknown
 // import { sendImageToUser } from '@/helpers' // Commented out: Path unknown
 /**
@@ -51,6 +52,8 @@ export async function generateNeuroPhotoDirect(
     bypass_payment_check?: boolean
   }
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
+  let bot: Telegraf<MyContext> | null = null
+
   logger.info({
     message: '🚀 [DIRECT] Начало прямой генерации Neurophoto V1',
     description: 'Starting direct Neurophoto V1 generation',
@@ -108,7 +111,7 @@ export async function generateNeuroPhotoDirect(
       throw new Error(`Bot with name ${botName} not found`)
     }
 
-    const bot = botResult.bot
+    bot = botResult.bot
     logger.info({
       message: '✅ [DIRECT] Экземпляр бота получен',
       description: 'Bot instance retrieved',
@@ -731,6 +734,19 @@ export async function generateNeuroPhotoDirect(
       })
     }
 
-    return null
+    // Отправляем сообщение администратору
+    if (bot) {
+      await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+    } else {
+      logger.error(
+        '❌ [DIRECT] Не удалось отправить ошибку админу: экземпляр бота не был инициализирован.',
+        {
+          telegram_id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      )
+    }
+
+    throw error
   }
 }
