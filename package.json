@@ -6,11 +6,7 @@
   "scripts": {
     "start": "bun run dist/bot.js",
     "dev": "bun --watch src/bot.ts",
-    "build": "bun run build:ts && bun run build:alias",
-    "build:ts": "bun run tsc",
-    "build:alias": "bun run tsc-alias",
-    "build:prod": "bun run tsc -p tsconfig.prod.json && bun run build:alias",
-    "build:nocheck": "bun run tsc --skipLibCheck --skipDefaultLibCheck && bun run build:alias",
+    "build": "bun build ./src/bot.ts --outdir ./dist --target=node",
     "predev": "pkill -f 'bun.*src/bot.ts' || true && bun scripts/kill-port.cjs 2999 3001 8288",
     "test": "vitest run",
     "test:watch": "vitest",

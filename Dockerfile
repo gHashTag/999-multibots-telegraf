@@ -1,70 +1,83 @@
-# Этап сборки
-FROM node:20-alpine as builder
+# --- 🏗️ Стадия Сборки Зависимостей (Дхарма Подготовки) ---
+FROM oven/bun:1 as deps
 
-WORKDIR /app
+WORKDIR /opt/app/999-multibots-telegraf
 
-COPY package*.json ./
-RUN npm install --ignore-scripts
+# Устанавливаем OpenSSL для Prisma и других зависимостей
+RUN apt-get update -y && apt-get install -y openssl --no-install-recommends && rm -rf /var/lib/apt/lists/*
+
+COPY package.json bun.lock ./
+# Копируем и другие нужные конфиги для установки/сборки
+COPY tsconfig.json ./
+COPY supabase ./supabase/
+
+# Устанавливаем зависимости с помощью Bun
+RUN bun install --frozen-lockfile
 
 # Убедимся, что tsc-alias установлен глобально для сборки
-RUN npm install -g tsc-alias
+# RUN npm install -g tsc-alias # Убираем, Bun должен справляться или build скрипт сделает
 
-COPY . .
+# COPY . . # Убираем полное копирование здесь
 
 # Создаем временную конфигурацию TypeScript, которая исключает тестовые файлы
-RUN cp tsconfig.json tsconfig.build.json && \
-    sed -i 's/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json", "__tests__\/\*\*\/\*\.ts"\]/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json"\]/' tsconfig.build.json
+# RUN cp tsconfig.json tsconfig.build.json && \
+#    sed -i 's/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json", "__tests__\/\*\*\/\*\.ts"\]/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json"\]/' tsconfig.build.json # Убираем, bun build должен использовать основной tsconfig
 
 # Выполняем сборку TypeScript с пропуском проверки типов для решения проблем совместимости
 # и обрабатываем алиасы путей с помощью tsc-alias (включено в скрипт build:nocheck)
-RUN npx tsc --skipLibCheck --skipDefaultLibCheck --project tsconfig.build.json && npx tsc-alias --project tsconfig.build.json
+# RUN npx tsc --skipLibCheck --skipDefaultLibCheck --project tsconfig.build.json && npx tsc-alias --project tsconfig.build.json # Заменим на bun run build
 
 # Проверяем, что файлы сборки созданы
-RUN ls -la dist/ || echo "Директория dist не существует или пуста"
+# RUN ls -la dist/ || echo "Директория dist не существует или пуста" # Проверим после bun build
 
-# Финальный этап
-FROM node:20-alpine
+# --- 🚀 Стадия Приложения (Карма Исполнения) --- # Объединим с deps пока
+# FROM oven/bun:1 as app
+# WORKDIR /opt/app/999-multibots-telegraf
+# ENV NODE_ENV=production
 
-WORKDIR /app
+# Копируем только исходный код из контекста сборки
+# COPY src ./src
 
-# Устанавливаем только необходимые системные зависимости
-RUN apk add --no-cache \
-    openssh-client \
-    sshpass
+# Копируем зависимости, схему и конфиги из стадии deps
+# COPY --from=deps /opt/app/999-multibots-telegraf/node_modules ./node_modules
+# COPY --from=deps /opt/app/999-multibots-telegraf/supabase ./supabase/
+# COPY --from=deps /opt/app/999-multibots-telegraf/package.json ./package.json
+# COPY --from=deps /opt/app/999-multibots-telegraf/bun.lock ./bun.lock
+# COPY --from=deps /opt/app/999-multibots-telegraf/tsconfig.json ./tsconfig.json
 
-# Создаем нужные каталоги внутри рабочей директории и устанавливаем права
-RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
+# --- Вместо отдельной стадии app, делаем сборку прямо в deps --- 
+WORKDIR /opt/app/999-multibots-telegraf
+COPY . .
 
-# Копируем файлы package.json и package-lock.json
-COPY package*.json ./
+# Генерируем Prisma Client (Проявление Сущности)
+# Осторожно с путями и OpenSSL!
+RUN bunx prisma generate --schema=./supabase/schema.prisma
 
-# При установке пропускаем скрипт prepare, который запускает husky install
-RUN npm install --omit=dev --ignore-scripts
+# Собираем проект с помощью Bun
+RUN bun run build
 
-# Копируем только собранные файлы из этапа сборки
-COPY --from=builder /app/dist ./dist/
+# --- 🛡️ Финальная Стадия (Мокша - Облегченный Образ) ---
+FROM oven/bun:1-slim as final
+WORKDIR /opt/app/999-multibots-telegraf
+ENV NODE_ENV=production
 
-# Проверяем, что файлы сборки скопированы
-RUN ls -la dist/ || echo "Директория dist не существует или пуста"
+# Копируем необходимые артефакты из стадии deps (где была сборка)
+COPY --from=deps /opt/app/999-multibots-telegraf/dist ./dist/
+COPY --from=deps /opt/app/999-multibots-telegraf/node_modules ./node_modules/
+COPY --from=deps /opt/app/999-multibots-telegraf/package.json ./package.json
+COPY --from=deps /opt/app/999-multibots-telegraf/bun.lock ./bun.lock
+COPY --from=deps /opt/app/999-multibots-telegraf/supabase ./supabase/
+COPY .env.production ./.env
 
-# Пытаемся скопировать .env файл если он существует
-COPY .env ./
-
-# Создаем пустой .env файл на всякий случай (entrypoint его наполнит, если нужно)
-RUN touch .env
-
-# Копируем entrypoint скрипт
-COPY docker-entrypoint.sh ./
-RUN chmod +x /app/docker-entrypoint.sh
-
-# --- Устанавливаем правильного владельца для рабочей директории ---
-RUN chown -R node:node /app
+# Устанавливаем правильного владельца для рабочей директории
+# RUN chown -R node:node /app # Пользователь в oven/bun другой!
+USER bun # Явно указываем пользователя bun
 
 # Экспортируем порт для API и боты
-EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 2999
+EXPOSE 2999 3000 3001 3002 3003 3004 3005 3006 3007
 
 # Используем наш entrypoint скрипт для подготовки окружения
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# ENTRYPOINT ["/app/docker-entrypoint.sh"] # Entrypoint может не работать с Bun так же
 
-# Запускаем приложение
-CMD ["node", "dist/bot.js"]
+# Запускаем приложение с помощью Bun
+CMD [ "bun", "run", "start" ]
