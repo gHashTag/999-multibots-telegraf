@@ -41,7 +41,7 @@
       "@/helpers/*": ["helpers/*"],
       "@/scripts/*": ["scripts/*"]
     },
-    "types": ["vitest/globals", "node"],
+    "types": [],
     "noImplicitAny": false,
     "noEmitOnError": false,
     "checkJs": false,
@@ -55,6 +55,6 @@
     "esm": true,
     "experimentalSpecifierResolution": "node"
   },
-  "include": ["src/**/*.ts", "src/**/*.json"],
-  "exclude": ["node_modules", "src/node_modules", "dist", "__tests__"]
+  "include": ["src/**/*.ts", "src/**/*.json", "__tests__/**/*.ts"],
+  "exclude": ["node_modules", "src/node_modules", "dist"]
 }
