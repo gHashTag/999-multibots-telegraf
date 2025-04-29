@@ -194,7 +194,7 @@ export async function checkUser(ctx: MyContext): Promise<UserStatus | null> {
         result: 'access_denied',
       })
       // Отправляем сообщение о нехватке звезд
-      await sendInsufficientStarsMessage(ctx, isRu)
+      await sendInsufficientStarsMessage(ctx, userDetails.stars, isRu)
       // Выходим из сцены, т.к. баланса не хватает
       logger.info({
         message: `[CheckBalanceScene] Выход из сцены из-за недостатка баланса`,
@@ -323,7 +323,11 @@ export const checkBalanceMiddleware = async (
   const requiredStars = costResult.stars
 
   if (!user.isSubscriptionActive && user.stars < requiredStars) {
-    await sendInsufficientStarsMessage(ctx, ctx.from?.language_code === 'ru')
+    await sendInsufficientStarsMessage(
+      ctx,
+      user.stars,
+      ctx.from?.language_code === 'ru'
+    )
     return ctx.scene.enter(ModeEnum.MainMenu)
   }
 
@@ -508,7 +512,7 @@ checkBalanceScene.enter(async ctx => {
         result: 'access_denied',
       })
       // Отправляем сообщение о нехватке звезд
-      await sendInsufficientStarsMessage(ctx, isRu)
+      await sendInsufficientStarsMessage(ctx, userDetails.stars, isRu)
       // Выходим из сцены, т.к. баланса не хватает
       logger.info({
         message: `[CheckBalanceScene] Выход из сцены из-за недостатка баланса`,
@@ -618,7 +622,7 @@ export const enterTargetScene = async (
         function: 'enterTargetSceneWrapper',
       })
       const isRu = ctx.from?.language_code === 'ru'
-      await sendInsufficientStarsMessage(ctx, isRu)
+      await sendInsufficientStarsMessage(ctx, userDetails.stars, isRu)
       return
     }
 
@@ -774,7 +778,7 @@ export const checkBalanceAndEnterScene = async (
     const requiredStars = costResult.stars
 
     if (!user.isSubscriptionActive && user.stars < requiredStars) {
-      await sendInsufficientStarsMessage(ctx, isRu)
+      await sendInsufficientStarsMessage(ctx, user.stars, isRu)
       return ctx.scene.enter(ModeEnum.MainMenu) // Возврат в главное меню
     }
 
