@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, test, beforeEach } from 'bun:test'
 
 // Move mock before imports to avoid temporal dead zone issues
 // Mock path corrected and commented out as file does not exist
@@ -24,31 +24,40 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 // Assuming calculateFinalStarPrice can run without the mock for now
 // TODO: Re-enable and adjust mock when pricing.config.ts is implemented
-import { calculateFinalStarPrice } from '@/pricing/calculator' // Ensure correct path
+import { calculateFinalStarPrice } from '@/price/calculator' // Ensure correct path
 import { ModeEnum } from '@/interfaces/modes'
 
 describe('calculateFinalStarPrice for fixed price modes', () => {
   beforeEach(() => {
-    vi.clearAllMocks() // Use vi
+    // Mocks are automatically reset in bun test
   })
 
-  // These tests depend on the mock and might need adjustments
-  it('should calculate price for NeuroPhoto (fixed price)', () => {
+  // These tests now rely on the actual pricing.config.ts
+  test('should calculate price for NeuroPhoto (fixed price)', () => {
     const result = calculateFinalStarPrice(ModeEnum.NeuroPhoto)
-    expect(result).toBeDefined() // Basic check
-    // expect(result).toEqual({ stars: 20, rubles: 20, dollars: 0.2 });
+    // Calculation based on actual pricing.config: base=0.1, cost=0.016, markup=1.5
+    // finalStars = floor((0.1 / 0.016) * 1.5) = floor(9.375) = 9
+    expect(result?.stars).toBe(9)
+    expect(result?.rubles).toBeCloseTo(15)
+    expect(result?.dollars).toBeCloseTo(0.15)
   })
 
-  it('should calculate price for NeuroPhotoV2 (fixed price)', () => {
+  test('should calculate price for NeuroPhotoV2 (fixed price)', () => {
     const result = calculateFinalStarPrice(ModeEnum.NeuroPhotoV2)
-    expect(result).toBeDefined() // Basic check
-    // expect(result).toEqual({ stars: 30, rubles: 30, dollars: 0.3 });
+    // Calculation based on actual pricing.config: base=0.15, cost=0.016, markup=1.5
+    // finalStars = floor((0.15 / 0.016) * 1.5) = floor(14.0625) = 14
+    expect(result?.stars).toBe(14)
+    expect(result?.rubles).toBeCloseTo(22.5)
+    expect(result?.dollars).toBeCloseTo(0.225)
   })
 
-  it('should calculate price for VoiceToText (fixed price)', () => {
+  test('should calculate price for VoiceToText (fixed price)', () => {
     const result = calculateFinalStarPrice(ModeEnum.VoiceToText)
-    expect(result).toBeDefined() // Basic check
-    // expect(result).toEqual({ stars: 10, rubles: 10, dollars: 0.1 });
+    // Calculation based on actual pricing.config: base=0.05, cost=0.016, markup=1.5
+    // finalStars = floor((0.05 / 0.016) * 1.5) = floor(4.6875) = 4
+    expect(result?.stars).toBe(4)
+    expect(result?.rubles).toBeCloseTo(7.5)
+    expect(result?.dollars).toBeCloseTo(0.075)
   })
 
   // // Бесплатные режимы тоже имеют фиксированную цену 0 - Removed test for HelpScene
@@ -57,7 +66,7 @@ describe('calculateFinalStarPrice for fixed price modes', () => {
   //  expect(result).toEqual({ stars: 0, rubles: 0, dollars: 0 });
   // });
 
-  it('should return 0 for MainMenu (free mode)', () => {
+  test('should return 0 for MainMenu (free mode)', () => {
     const result = calculateFinalStarPrice(ModeEnum.MainMenu)
     expect(result).toEqual({ stars: 0, rubles: 0, dollars: 0 })
   })

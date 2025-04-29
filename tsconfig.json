@@ -7,8 +7,8 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "bundler",
-    "module": "esnext",
+    "moduleResolution": "node",
+    "module": "commonjs",
     "pretty": true,
     "sourceMap": true,
     "declaration": true,
@@ -41,6 +41,7 @@
       "@/helpers/*": ["helpers/*"],
       "@/scripts/*": ["scripts/*"]
     },
+    "types": ["bun"],
     "noImplicitAny": false,
     "noEmitOnError": false,
     "checkJs": false,

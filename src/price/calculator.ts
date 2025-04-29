@@ -6,7 +6,7 @@ import {
   BASE_PRICES_USD,
   STEP_BASED_PRICES_USD,
   CURRENCY_RATES,
-  INTEREST_RATE,
+  MARKUP_MULTIPLIER,
 } from '@/config/pricing.config'
 
 /**
@@ -97,24 +97,22 @@ export function calculateFinalStarPrice(
     return { stars: 0, rubles: 0, dollars: 0 }
   }
 
-  // 2. Convert base price to stars before markup
-  const rawStars = basePriceUSD / STAR_COST_USD
-
-  // 3. Apply markup/interest rate
-  // const starsWithMarkup = rawStars * MARKUP_MULTIPLIER;
-  const starsWithMarkup = rawStars * INTEREST_RATE
-
-  // 4. Apply numImages multiplier if applicable and provided
+  // 2. Apply numImages multiplier *before* calculating stars/final USD
   const effectiveMultiplier = applyNumImagesMultiplier ? numImagesMultiplier : 1
   const totalBasePriceUSD = basePriceUSD * effectiveMultiplier
+
+  // 3. Convert TOTAL base price to stars before markup
+  const rawTotalStars = totalBasePriceUSD / STAR_COST_USD
+
+  // 4. Apply markup/interest rate to get final stars
+  const starsWithMarkup = rawTotalStars * MARKUP_MULTIPLIER
 
   // 5. Calculate final star price (floored)
   const finalStars = Math.max(0, Math.floor(starsWithMarkup))
 
-  // 6. Calculate display prices in other currencies based on final marked-up USD price
-  // const finalMarkedUpUSD = basePriceUSD * MARKUP_MULTIPLIER * numImagesMultiplier;
-  const finalMarkedUpUSD = totalBasePriceUSD * INTEREST_RATE
-  const finalRubles = finalMarkedUpUSD * (CURRENCY_RATES.USD_TO_RUB || 100) // Default 100 if not set
+  // 6. Calculate final marked-up USD price (already includes numImages)
+  const finalMarkedUpUSD = totalBasePriceUSD * MARKUP_MULTIPLIER
+  const finalRubles = finalMarkedUpUSD * (CURRENCY_RATES.USD_TO_RUB || 100)
 
   const result: CostCalculationResult = {
     // Ensure non-negative values
