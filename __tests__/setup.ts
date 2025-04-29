@@ -15,11 +15,12 @@ mock.module('@/core/supabase/client', () => {
   }
 })
 
-// --- Мок для OpenAI/DeepSeek и зависимых модулей ---
-mock.module('@/core/openai/index.ts', () => {
-  console.log('[Setup] Mocking @/core/openai/index.ts')
-  return {}
-})
+// --- УДАЛЕНО: Глобальный мок OpenAI (вызывал ошибку резолва пакета) ---
+// mock.module('@/core/openai/index.ts', () => {
+//   console.log('[Setup] Mocking @/core/openai/index.ts')
+//   return {}
+// })
+
 mock.module('@/core/supabase/getAiFeedbackFromSupabase.ts', () => {
   console.log('[Setup] Mocking @/core/supabase/getAiFeedbackFromSupabase.ts')
   return {
