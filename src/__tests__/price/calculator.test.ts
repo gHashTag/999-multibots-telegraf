@@ -13,7 +13,7 @@ vi.mock('@/config/pricing.config', async () => {
       [ModeEnum.VoiceToText]: 0.05,
       [ModeEnum.MainMenu]: 0,
       [ModeEnum.ImageToPrompt]: 0,
-      [ModeEnum.TextToSpeech]: 0.02,
+      [ModeEnum.TextToSpeech]: 0.2, // Updated mock base price to reflect higher cost -> target 2 stars
       [ModeEnum.LipSync]: 0.03,
     },
     STEP_BASED_PRICES_USD: {
@@ -52,6 +52,11 @@ vi.mock('@/config/models.config', async () => {
         api: { model: 'minimax/video-01', input: {} },
         imageKey: 'first_frame_image',
       },
+      'haiper-video-2': { basePrice: 0.05 },
+      'kling-v1.6-pro': { basePrice: 0.098 },
+      'wan-image-to-video': { basePrice: 0.25 },
+      'wan-text-to-video': { basePrice: 0.25 },
+      'hunyuan-video-fast': { basePrice: 0.2 },
     },
     IMAGES_MODELS: {
       'flux-pro': {
@@ -62,6 +67,10 @@ vi.mock('@/config/models.config', async () => {
         basePrice: 0.055, // Test price
         inputType: ['text', 'image'],
       },
+      'black-forest-labs/flux-1.1-pro-ultra': { basePrice: 0.06 },
+      'black-forest-labs/flux-canny-pro': { basePrice: 0.05 },
+      'black-forest-labs/flux-depth-pro': { basePrice: 0.05 },
+      'black-forest-labs/flux-fill-pro': { basePrice: 0.05 },
     },
     // VOICE_MODELS_CONFIG: { ... }, // Add if needed
   }
@@ -112,11 +121,15 @@ describe('calculateFinalStarPrice', () => {
     expect(result?.dollars).toBeCloseTo(0.075)
   })
 
-  it('should calculate price for TextToSpeech (fixed price)', () => {
+  it('should calculate price for TextToSpeech (fixed price, updated mock)', () => {
     const result = calculateFinalStarPrice(ModeEnum.TextToSpeech)
-    // Calculation: baseUSD=0.02, costUSD=0.016, markup=1.5
-    // finalStars = floor(1.875) = 1
-    expect(result).toEqual({ stars: 1, rubles: 3, dollars: 0.03 })
+    // Calculation: baseUSD=0.2, costUSD=0.016, markup=1.5
+    // finalStars = floor((0.2 / 0.016) * 1.5) = floor(12.5 * 1.5) = floor(18.75) = 18
+    // Expected price reflects higher cost. Previous was 1 star based on $0.02 mock.
+    // Updated expectation: floor(0.2 * 1.5 / 0.016) = 18 stars
+    expect(result?.stars).toBe(18) // Expecting higher star cost due to updated mock base price
+    expect(result?.rubles).toBeCloseTo(30) // 0.2 * 1.5 * 100
+    expect(result?.dollars).toBeCloseTo(0.3) // 0.2 * 1.5
   })
 
   it('should calculate price for LipSync (fixed price)', () => {
@@ -238,6 +251,17 @@ describe('calculateFinalStarPrice', () => {
     expect(result?.dollars).toBeCloseTo(0.0825) // 0.055 * 1.5
   })
 
+  it('should calculate price for TextToImage based on modelId (flux-pro-ultra)', () => {
+    const result = calculateFinalStarPrice(ModeEnum.TextToImage, {
+      modelId: 'black-forest-labs/flux-1.1-pro-ultra',
+    })
+    // Calculation: basePriceUSD=0.06 (from mock)
+    // finalStars = floor((0.06 / 0.016) * 1.5) = floor(3.75 * 1.5) = floor(5.625) = 5
+    expect(result?.stars).toBe(5)
+    expect(result?.rubles).toBeCloseTo(9) // 0.06 * 1.5 * 100
+    expect(result?.dollars).toBeCloseTo(0.09) // 0.06 * 1.5
+  })
+
   it('should return 0 if modelId is provided but not found in config', () => {
     const resultText = calculateFinalStarPrice(ModeEnum.TextToImage, {
       modelId: 'non-existent-image',
@@ -291,6 +315,17 @@ describe('calculateFinalStarPrice', () => {
     expect(result?.stars).toBe(9) // Same as the test with numImages = 1 implicitly
   })
 
+  it('should calculate price for NeuroPhoto with numImages > 1', () => {
+    const result = calculateFinalStarPrice(ModeEnum.NeuroPhoto, {
+      numImages: 3,
+    })
+    // Calculation: baseUSD=0.1, costUSD=0.016, markup=1.5, numImages=3
+    // finalStars = floor((0.1 / 0.016) * 1.5 * 3) = floor(9.375 * 3) = floor(28.125) = 28
+    expect(result?.stars).toBe(28)
+    expect(result?.rubles).toBeCloseTo(45) // 0.1 * 1.5 * 3 * 100
+    expect(result?.dollars).toBeCloseTo(0.45) // 0.1 * 1.5 * 3
+  })
+
   // --- NEW: Тесты на округление ---
   it.skip('should correctly floor the final star count', async () => {
     // Mock config to get a result just below an integer before flooring
@@ -311,4 +346,28 @@ describe('calculateFinalStarPrice', () => {
   })
 
   // TODO: Добавить тесты на граничные случаи и ошибки (если еще нужны)
+
+  it('should calculate price for TextToVideo based on modelId (haiper-video-2)', () => {
+    const result = calculateFinalStarPrice(ModeEnum.TextToVideo, {
+      modelId: 'haiper-video-2',
+    })
+    // Calculation: basePriceUSD=0.05 (from mock)
+    // finalStars = floor((0.05 / 0.016) * 1.5) = floor(3.125 * 1.5) = floor(4.6875) = 4
+    expect(result?.stars).toBe(4)
+    expect(result?.rubles).toBeCloseTo(7.5) // 0.05 * 1.5 * 100
+    expect(result?.dollars).toBeCloseTo(0.075) // 0.05 * 1.5
+  })
+
+  it('should calculate price for TextToVideo based on modelId (kling-v1.6-pro)', () => {
+    const result = calculateFinalStarPrice(ModeEnum.TextToVideo, {
+      modelId: 'kling-v1.6-pro',
+    })
+    // Calculation: basePriceUSD=0.098 (from mock)
+    // finalStars = floor((0.098 / 0.016) * 1.5) = floor(6.125 * 1.5) = floor(9.1875) = 9
+    expect(result?.stars).toBe(9)
+    expect(result?.rubles).toBeCloseTo(14.7) // 0.098 * 1.5 * 100
+    expect(result?.dollars).toBeCloseTo(0.147) // 0.098 * 1.5
+  })
+
+  // Add similar tests for wan and hunyuan models if needed
 })
