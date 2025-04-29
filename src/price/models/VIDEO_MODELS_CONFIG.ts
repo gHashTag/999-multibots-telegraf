@@ -164,19 +164,18 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
 type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
 
 // Используем ключи конфига как основу для цен
-export const videoModelPrices: Partial<Record<VideoModelKey, number>> = {
-  // Цены берутся из VIDEO_MODELS_CONFIG.basePrice
-  // Этот файл может быть избыточен, если цены используются только из конфига.
-  minimax: VIDEO_MODELS_CONFIG.minimax.basePrice,
-  'haiper-video-2': VIDEO_MODELS_CONFIG['haiper-video-2'].basePrice,
-  'ray-v2': VIDEO_MODELS_CONFIG['ray-v2'].basePrice,
-  'wan-image-to-video': VIDEO_MODELS_CONFIG['wan-image-to-video'].basePrice,
-  'wan-text-to-video': VIDEO_MODELS_CONFIG['wan-text-to-video'].basePrice,
-  'kling-v1.6-pro': VIDEO_MODELS_CONFIG['kling-v1.6-pro'].basePrice,
-  'hunyuan-video-fast': VIDEO_MODELS_CONFIG['hunyuan-video-fast'].basePrice,
-  'kling-v1.6-standard': VIDEO_MODELS_CONFIG['kling-v1.6-standard'].basePrice,
-  'kling-v2.0': VIDEO_MODELS_CONFIG['kling-v2.0'].basePrice,
-}
+export const videoModelPrices: Record<VideoModelKey, number> =
+  Object.fromEntries(
+    Object.entries(VIDEO_MODELS_CONFIG).map(([key, config]) => {
+      // Проверяем наличие basePrice на всякий случай
+      if (typeof config.basePrice !== 'number') {
+        throw new Error(
+          `basePrice is missing or not a number for model key: ${key}`
+        )
+      }
+      return [key, config.basePrice]
+    })
+  ) as Record<VideoModelKey, number>
 
 export const findModelByTitle = (
   title: string,

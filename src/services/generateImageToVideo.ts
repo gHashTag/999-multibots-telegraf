@@ -90,6 +90,25 @@ export const generateImageToVideo = async (
       )
     }
 
+    // ---> 🕉️ НОВАЯ ПРОВЕРКА СОВМЕСТИМОСТИ МОРФИНГА 🕉️ <---
+    if (is_morphing && !modelConfig.canMorph) {
+      logger.warn(
+        'API Server (Task): Attempt to use non-morphable model for morphing',
+        {
+          telegram_id,
+          videoModel,
+        }
+      )
+      // Бросаем ошибку, которая будет поймана и отправлена админу,
+      // а пользователю вернется 'error'
+      throw new Error(
+        is_ru
+          ? `Модель ${modelConfig.title} не поддерживает режим морфинга.`
+          : `Model ${modelConfig.title} does not support morphing mode.`
+      )
+    }
+    // <--- КОНЕЦ НОВОЙ ПРОВЕРКИ ---
+
     // --- Логика получения пользователя (Используем ctx) ---
     const userExists = await getUserByTelegramId(ctx) // Pass ctx
     if (!userExists) {
@@ -204,19 +223,20 @@ export const generateImageToVideo = async (
           `Серверная ошибка: Отсутствует imageKey в конфигурации для модели ${videoModel}`
         )
       }
-      const imageBuffer = await downloadFile(imageUrl)
-      // Convert buffer to data URI string
-      const imageMimeType = 'image/jpeg' // Assuming JPEG, adjust if needed or detect dynamically
-      const imageDataUri = `data:${imageMimeType};base64,${imageBuffer.toString('base64')}`
+      // УБИРАЕМ СКАЧИВАНИЕ И КОНВЕРТАЦИЮ В DATA URI
+      // const imageBuffer = await downloadFile(imageUrl)
+      // // Convert buffer to data URI string
+      // const imageMimeType = 'image/jpeg'; // Assuming JPEG, adjust if needed or detect dynamically
+      // const imageDataUri = `data:${imageMimeType};base64,${imageBuffer.toString('base64')}`;
 
       modelInput = {
         ...modelConfig.api.input,
         prompt,
         aspect_ratio: userExists.aspect_ratio, // Сохраняем aspect_ratio
-        [modelConfig.imageKey]: imageDataUri, // Передаем Data URI строку
+        [modelConfig.imageKey]: imageUrl, // <--- ПЕРЕДАЕМ ОРИГИНАЛЬНЫЙ imageUrl
       }
       logger.info(
-        'API Server (Task): Prepared Replicate input for standard (with Data URI)',
+        'API Server (Task): Prepared Replicate input for standard (with direct URL)',
         {
           // Updated log message
           telegram_id,
@@ -263,10 +283,10 @@ export const generateImageToVideo = async (
       )
     }
     // --- Теперь используем извлеченный и проверенный videoUrl ---
-    logger.info(
-      `API Server (Task): Processing extracted video URL`, // Changed log message
-      { videoUrl, telegram_id }
-    )
+    logger.info(`API Server (Task): Processing extracted video URL`, {
+      videoUrl,
+      telegram_id,
+    })
 
     // --- Логика сохранения и отправки (использует videoUrl) ---
     const videoLocalPath = path.join(
@@ -276,6 +296,9 @@ export const generateImageToVideo = async (
       'image-to-video',
       `${new Date().toISOString()}.mp4`
     )
+    // // ВРЕМЕННОЕ ИЗМЕНЕНИЕ ДЛЯ ТЕСТА:
+    // const videoLocalPath = `/tmp/test-video-${telegram_id}-${Date.now()}.mp4`;
+
     await mkdir(path.dirname(videoLocalPath), { recursive: true })
 
     const originalBuffer = await downloadFile(videoUrl as string)

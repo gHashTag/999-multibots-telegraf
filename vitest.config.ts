@@ -26,7 +26,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': './src',
+      '@': path.resolve(__dirname, 'src'),
       // vite-tsconfig-paths should handle other paths from tsconfig.json
     },
   },
