@@ -33,7 +33,7 @@ export type CalculationParams = {
  * Uses configuration from src/config/pricing.config.ts
  *
  * @param mode The mode for which to calculate the price.
- * @param params Optional parameters specific to the mode (e.g., steps, modelId, seconds).
+ * @param params Optional parameters specific to the mode (e.g., steps, modelId, seconds, numImages).
  * @returns An object with stars, rubles, and dollars, or null if price cannot be determined.
  */
 export function calculateFinalStarPrice(
@@ -42,6 +42,9 @@ export function calculateFinalStarPrice(
 ): CostCalculationResult | null {
   let basePriceUSD: number | undefined = undefined
   const modeKey = mode as ModeEnum // Use enum key for lookups
+  const numImagesMultiplier =
+    params?.numImages && params.numImages > 0 ? params.numImages : 1
+  let applyNumImagesMultiplier = false // Flag to control when to apply numImages
 
   // 1. Determine Base Price in USD based on priority
   // Priority 1: Step-based pricing
@@ -49,15 +52,26 @@ export function calculateFinalStarPrice(
     basePriceUSD = (STEP_BASED_PRICES_USD[modeKey] ?? 0) * params.steps
     // console.log(`[PriceCalc] Mode: ${mode}, Type: Step, Steps: ${params.steps}, BaseUSD: ${basePriceUSD}`);
   }
-  // Priority 2: Model-based pricing (Video models)
+  // Priority 2: Model-based pricing
   else if (params?.modelId) {
     const videoModelConfigs = modelsConfig.VIDEO_MODELS_CONFIG ?? {}
+    const imageModels = modelsConfig.IMAGES_MODELS ?? {}
     const videoModelConfig = videoModelConfigs[params.modelId]
+    const imageModelConfig = imageModels[params.modelId]
+
     if (videoModelConfig && typeof videoModelConfig.basePrice === 'number') {
       basePriceUSD = videoModelConfig.basePrice
       // console.log(`[PriceCalc] Mode: ${mode}, Type: Video Model, Model: ${params.modelId}, BaseUSD: ${basePriceUSD}`);
+    }
+    // *** Check imageModels using correct name ***
+    else if (
+      imageModelConfig &&
+      typeof imageModelConfig.basePrice === 'number'
+    ) {
+      basePriceUSD = imageModelConfig.basePrice
+      applyNumImagesMultiplier = true // Apply numImages only for image models (and fixed base price below)
+      // console.log(`[PriceCalc] Mode: ${mode}, Type: Image Model, Model: ${params.modelId}, BaseUSD: ${basePriceUSD}`);
     } else {
-      // TODO: Add checks for IMAGE_MODELS_CONFIG here if applicable
       console.warn(
         `[PriceCalc] Video/Image model config or basePrice not found for modelId: ${params.modelId}`
       )
@@ -68,6 +82,12 @@ export function calculateFinalStarPrice(
   // Priority 3: Fixed base price (if not determined above)
   if (basePriceUSD === undefined && BASE_PRICES_USD[modeKey] !== undefined) {
     basePriceUSD = BASE_PRICES_USD[modeKey]
+    // Apply numImages multiplier also for fixed price modes that might represent images
+    // (Needs refinement if some fixed modes shouldn't use numImages)
+    if (modeKey === ModeEnum.NeuroPhoto || modeKey === ModeEnum.NeuroPhotoV2) {
+      // Be specific for now
+      applyNumImagesMultiplier = true
+    }
     // console.log(`[PriceCalc] Mode: ${mode}, Type: Fixed, BaseUSD: ${basePriceUSD}`);
   }
 
@@ -84,21 +104,25 @@ export function calculateFinalStarPrice(
     return null // Indicate error
   }
 
-  const finalPriceUSD = basePriceUSD * MARKUP_MULTIPLIER
+  // *** Apply numImagesMultiplier BEFORE calculating stars ***
+  const effectiveMultiplier = applyNumImagesMultiplier ? numImagesMultiplier : 1
+  const totalBasePriceUSD = basePriceUSD * effectiveMultiplier
+
+  const finalPriceUSD = totalBasePriceUSD * MARKUP_MULTIPLIER
 
   // Calculate stars using floor as per rule
+  // *** Use totalBasePriceUSD for star calculation ***
   const finalStars = Math.floor(
-    (basePriceUSD / STAR_COST_USD) * MARKUP_MULTIPLIER
+    (totalBasePriceUSD / STAR_COST_USD) * MARKUP_MULTIPLIER
   )
 
   const finalRubles = finalPriceUSD * CURRENCY_RATES.USD_TO_RUB
-  const numImages = params?.numImages ?? 1 // Default to 1 image if not specified
 
   const result: CostCalculationResult = {
     // Ensure non-negative values
-    stars: Math.max(0, finalStars * numImages),
-    rubles: Math.max(0, finalRubles * numImages),
-    dollars: Math.max(0, finalPriceUSD * numImages),
+    stars: Math.max(0, finalStars),
+    rubles: Math.max(0, finalRubles),
+    dollars: Math.max(0, finalPriceUSD),
   }
 
   // console.log(`[PriceCalc] Mode: ${mode}, Params: ${JSON.stringify(params)}, Result: ${JSON.stringify(result)}`);
