@@ -7,7 +7,7 @@ import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
 import { getUserBalance } from '@/core/supabase'
-import { generateTextToVideo } from '@/services/generateTextToVideo'
+import { generateTextToVideo as generateTextToVideoPlanB } from '@/services/plan_b/generateTextToVideo'
 import { logger } from '@/utils/logger'
 
 // Определяем тип ключа конфига локально
@@ -171,26 +171,41 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const videoModelKey = ctx.session.videoModel as
         | VideoModelConfigKey
         | undefined
-      console.log('Selected video model key:', videoModelKey)
+      logger.info('Selected video model key:', { videoModelKey })
 
       if (!videoModelKey) {
-        console.error('Video model key not found in session')
+        logger.error('Video model key not found in session')
         await sendGenericErrorMessage(ctx, isRu)
         return ctx.scene.leave()
       }
 
       if (ctx.from && ctx.from.username) {
-        await generateTextToVideo(
-          prompt,
-          ctx.from.id.toString(),
-          ctx.from.username,
-          isRu,
-          ctx.botInfo?.username || 'unknown_bot'
-        )
-
-        ctx.session.prompt = prompt
+        try {
+          logger.info('Calling generateTextToVideoPlanB', {
+            prompt,
+            videoModelKey,
+            telegram_id: ctx.from.id.toString(),
+            username: ctx.from.username,
+            is_ru: isRu,
+            bot_name: ctx.botInfo?.username || 'unknown_bot',
+          })
+          await generateTextToVideoPlanB(
+            prompt,
+            videoModelKey,
+            ctx.from.id.toString(),
+            ctx.from.username,
+            isRu,
+            ctx.botInfo?.username || 'unknown_bot'
+          )
+          ctx.session.prompt = prompt
+        } catch (generationError) {
+          logger.error('Error calling generateTextToVideoPlanB', {
+            generationError,
+          })
+          await sendGenericErrorMessage(ctx, isRu)
+        }
       } else {
-        console.error('User information missing for video generation')
+        logger.error('User information missing for video generation')
         await sendGenericErrorMessage(ctx, isRu)
       }
 

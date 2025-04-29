@@ -1,7 +1,8 @@
-import axios from 'axios'
+import { MyContext, GenerationResult } from '@/interfaces'
+import { Telegraf } from 'telegraf'
+import { logger } from '@/utils/logger'
 
-import { API_URL, SECRET_API_KEY } from '@/config'
-import { MyContext } from '@/interfaces'
+import { generateTextToImage as generateTextToImagePlanB } from '@/services/plan_b/generateTextToImage'
 
 export const generateTextToImage = async (
   prompt: string,
@@ -10,32 +11,30 @@ export const generateTextToImage = async (
   telegram_id: string,
   isRu: boolean,
   ctx: MyContext,
-  botName: string
-) => {
+  bot: Telegraf<MyContext>
+): Promise<GenerationResult[]> => {
   try {
-    const url = `${API_URL}/generate/text-to-image`
-    console.log(url, 'url')
+    const username = ctx.from?.username ?? 'UnknownUser'
 
-    await axios.post(
-      url,
-      {
-        prompt,
-        model: model_type,
-        num_images,
-        telegram_id,
-        username: ctx.from?.username,
-        is_ru: isRu,
-        bot_name: botName,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
+    const results = await generateTextToImagePlanB(
+      prompt,
+      model_type,
+      num_images,
+      telegram_id,
+      username,
+      isRu,
+      bot,
+      ctx
     )
+
+    return results
   } catch (error) {
-    console.error('Ошибка при генерации изображения:', error)
+    logger.error('❌ Ошибка при вызове локальной generateTextToImage:', {
+      error,
+      prompt,
+      model_type,
+      telegram_id,
+    })
     try {
       if (ctx.reply) {
         await ctx.reply(
@@ -44,9 +43,11 @@ export const generateTextToImage = async (
             : 'An error occurred during image generation. Please try again later.'
         )
       }
-    } catch (err) {
-      console.error('Ошибка при отправке сообщения об ошибке:', err)
+    } catch (replyError) {
+      logger.error('❌ Ошибка при отправке сообщения об ошибке пользователю:', {
+        replyError,
+      })
     }
-    throw error
+    return []
   }
 }

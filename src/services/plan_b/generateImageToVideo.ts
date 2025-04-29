@@ -1,259 +1,270 @@
-// import { replicate } from '@/core/replicate'
+import { replicate } from '@/core/replicate'
 
-// import {
-//   getUserByTelegramIdString,
-//   saveVideoUrlToSupabase,
-// } from '@/core/supabase'
-// import { downloadFile } from '@/helpers'
+import {
+  getUserByTelegramIdString,
+  saveVideoUrlToSupabase,
+  updateUserLevelPlusOne,
+} from '@/core/supabase'
+import { downloadFile } from '@/helpers/downloadFile'
 
-// import { processBalanceVideoOperation } from '@/price/helpers'
-// import { updateUserLevelPlusOne } from '@/core/supabase'
-// import { mkdir, writeFile } from 'fs/promises'
-// import path from 'path'
-// import { getBotByName } from '@/core/bot'
-// import { sendServiceErrorToAdmin } from '@/helpers/error'
-// import { VIDEO_MODELS } from '@/interfaces/cost.interface'
-// import { VideoModel } from '@/interfaces'
+import { processBalanceVideoOperation } from '@/price/helpers'
+import { mkdir, writeFile } from 'fs/promises'
+import path from 'path'
+import { getBotByName } from '@/core/bot'
+import {
+  sendServiceErrorToUser,
+  sendServiceErrorToAdmin,
+} from '@/helpers/error'
+import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
+import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/logger'
+import { Markup } from 'telegraf'
+import { toBotName } from '@/helpers/botName.helper'
+import { pulse } from '@/helpers/pulse'
 
-// interface ReplicateResponse {
-//   id: string
-//   output: string
-// }
+interface ReplicateResponse {
+  id?: string
+  output: string | string[]
+}
 
-// export const truncateText = (text: string, maxLength: number): string => {
-//   console.log(
-//     `✂️ Truncating text from ${text.length} to max ${maxLength} chars`
-//   )
-//   return text.length > maxLength
-//     ? text.substring(0, maxLength - 3) + '...'
-//     : text
-// }
+type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
 
-// export const generateImageToVideo = async (
-//   imageUrl: string,
-//   prompt: string,
-//   videoModel: string,
-//   telegram_id: string,
-//   username: string,
-//   is_ru: boolean,
-//   bot_name: string
-// ): Promise<{ videoUrl?: string; prediction_id?: string } | string> => {
-//   const { bot } = getBotByName(bot_name)
-//   if (!bot) {
-//     console.error(`Bot instance not found for name: ${bot_name}`)
-//     throw new Error('Bot instance not found')
-//   }
+export const truncateText = (text: string, maxLength: number): string => {
+  logger.info(
+    `✂️ Truncating text from ${text.length} to max ${maxLength} chars`
+  )
+  return text.length > maxLength
+    ? text.substring(0, maxLength - 3) + '...'
+    : text
+}
 
-//   try {
-//     console.log('Start generateImageToVideo', {
-//       imageUrl,
-//       prompt,
-//       videoModel,
-//       telegram_id,
-//       username,
-//       is_ru,
-//       bot_name,
-//     })
-//     if (!imageUrl) throw new Error('Image is required')
-//     if (!prompt) throw new Error('Prompt is required')
-//     if (!videoModel) throw new Error('Video model is required')
-//     if (!telegram_id) throw new Error('Telegram ID is required')
-//     if (!username) throw new Error('Username is required')
-//     if (!bot_name) throw new Error('Bot name is required')
+export const generateImageToVideo = async (
+  ctx: MyContext,
+  imageUrl: string | null,
+  prompt: string | null,
+  videoModel: VideoModelConfigKey,
+  telegram_id: string,
+  username: string,
+  is_ru: boolean,
+  bot_name: string,
+  is_morphing = false,
+  imageAUrl: string | null = null,
+  imageBUrl: string | null = null
+): Promise<{ videoLocalPath?: string } | null> => {
+  const validBotName = toBotName(bot_name)
+  const botData = await getBotByName(validBotName)
+  if (!botData || !botData.bot) {
+    logger.error(`Bot instance not found for name: ${validBotName}`)
+    throw new Error('Bot instance not found')
+  }
+  const { bot } = botData
 
-//     const userExists = await getUserByTelegramIdString(telegram_id)
-//     if (!userExists) {
-//       throw new Error(`User with ID ${telegram_id} does not exist.`)
-//     }
-//     const level = userExists.level
-//     if (level === 8) {
-//       await updateUserLevelPlusOne(telegram_id, level)
-//     }
+  try {
+    logger.info('Plan B: Start generateImageToVideo', {
+      imageUrl: imageUrl ? 'present' : 'absent',
+      prompt: prompt ? 'present' : 'absent',
+      videoModel,
+      telegram_id,
+      username,
+      is_ru,
+      bot_name: validBotName,
+      is_morphing,
+      imageAUrl: imageAUrl ? 'present' : 'absent',
+      imageBUrl: imageBUrl ? 'present' : 'absent',
+    })
 
-//     const { bot: botFromBotName } = getBotByName(bot_name)
+    const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
+    if (!modelConfig) {
+      throw new Error(`Конфигурация для модели ${videoModel} не найдена.`)
+    }
 
-//     // Создаём временный ctx для processBalanceVideoOperation
-//     const ctx = {
-//       from: { id: telegram_id },
-//       botInfo: { username: bot_name },
-//       telegram: botFromBotName?.telegram,
-//     } as any // MyContext
-//     const { newBalance, paymentAmount } = await processBalanceVideoOperation(
-//       ctx,
-//       videoModel as VideoModel,
-//       is_ru
-//     )
+    if (is_morphing) {
+      if (!imageAUrl || !imageBUrl) {
+        throw new Error('imageAUrl и imageBUrl обязательны для морфинга')
+      }
+    } else {
+      if (!imageUrl) {
+        throw new Error('imageUrl обязателен для стандартного режима')
+      }
+      if (!prompt) {
+        throw new Error('prompt обязателен для стандартного режима')
+      }
+    }
+    if (!videoModel || !telegram_id || !username || !validBotName) {
+      throw new Error('Отсутствуют общие обязательные параметры')
+    }
+    if (is_morphing && !modelConfig.canMorph) {
+      throw new Error(
+        is_ru
+          ? `Модель ${modelConfig.title} не поддерживает режим морфинга.`
+          : `Model ${modelConfig.title} does not support morphing mode.`
+      )
+    }
 
-//     if (typeof newBalance !== 'number') {
-//       throw new Error('newBalance is undefined')
-//     }
+    const userExists = await getUserByTelegramIdString(telegram_id)
+    if (!userExists) {
+      throw new Error(`User with ID ${telegram_id} does not exist.`)
+    }
+    const level = userExists.level
+    if (level === 8) {
+      await updateUserLevelPlusOne(telegram_id, level)
+    }
 
-//     botFromBotName.telegram.sendMessage(
-//       telegram_id,
-//       is_ru ? '⏳ Генерация видео...' : '⏳ Generating video...',
-//       {
-//         reply_markup: {
-//           remove_keyboard: true,
-//         },
-//       }
-//     )
+    const tempCtxForBalance =
+      ctx ||
+      ({
+        from: { id: Number(telegram_id) },
+        botInfo: { username: validBotName },
+        telegram: bot.telegram,
+        session: { mode: is_morphing ? 'Morphing' : 'ImageToVideo' },
+      } as any)
 
-//     const runModel = async (
-//       model: `${string}/${string}` | `${string}/${string}:${string}`,
-//       input: any
-//     ): Promise<ReplicateResponse> => {
-//       const result = (await replicate.run(model, {
-//         input,
-//       })) as ReplicateResponse
+    const { newBalance, paymentAmount, success, error } =
+      await processBalanceVideoOperation(tempCtxForBalance, videoModel, is_ru)
 
-//       return result
-//     }
+    if (!success) {
+      logger.error('Balance check failed', { telegram_id, error })
+      throw new Error(error || 'Failed to process balance operation')
+    }
 
-//     const imageBuffer = await downloadFile(imageUrl)
-//     const modelConfig = VIDEO_MODELS.find(m => m.name === videoModel)
-//     if (!modelConfig) {
-//       throw new Error(`🚫 Unsupported service: ${videoModel}`)
-//     }
+    await bot.telegram.sendMessage(
+      telegram_id,
+      is_ru ? '⏳ Генерация видео...' : '⏳ Generating video...',
+      {
+        reply_markup: {
+          remove_keyboard: true,
+        },
+      }
+    )
 
-//     // 🎯 Формируем параметры для модели
-//     // !!! НАЧАЛО ПРОБЛЕМНОГО БЛОКА: Закомментировано из-за отсутствия данных о Replicate модели !!!
-//     // Необходим маппинг videoModel ('minimax', 'haiper'...) на полный ID модели Replicate
-//     // и знание структуры input для каждой модели (включая ключ для image).
-//     /*
-//     const modelInput = {
-//       // ...modelConfig.api.input, // Ошибка: .api не существует
-//       prompt,
-//       aspect_ratio: userExists.aspectRatio,
-//       // [(modelConfig.imageKey || 'image') as string]: imageBuffer, // Ошибка: .imageKey не существует
-//     }
+    const runModel = async (
+      model: `${string}/${string}` | `${string}/${string}:${string}`,
+      input: any
+    ): Promise<ReplicateResponse> => {
+      logger.info('Calling replicate.run', {
+        model,
+        inputKeys: Object.keys(input),
+        telegram_id,
+      })
+      const result = await replicate.run(model, { input })
+      logger.info('replicate.run finished', { telegram_id })
+      if (typeof result === 'object' && result !== null && 'output' in result) {
+        return result as ReplicateResponse
+      } else if (typeof result === 'string' || Array.isArray(result)) {
+        return { output: result } as ReplicateResponse
+      } else {
+        throw new Error('Unexpected result format from replicate.run')
+      }
+    }
 
-//     const result = await runModel(
-//       // modelConfig.api.model as shortModelUrl, // Ошибка: .api не существует
-//       'placeholder/replicate-model-id' as shortModelUrl, // <-- ЗАМЕНИТЬ НА РЕАЛЬНЫЙ ID
-//       modelInput
-//     )
+    const replicateModelId = modelConfig.api.model
+    let modelInput: any = {}
 
-//     // 🆕 Добавляем логирование параметров
-//     console.log('🎬 Video generation params:', {
-//       // model: modelConfig.api.model, // Ошибка: .api не существует
-//       model: 'placeholder/replicate-model-id', // <-- ЗАМЕНИТЬ НА РЕАЛЬНЫЙ ID
-//       input: {
-//         ...modelInput,
-//         imageBuffer: imageBuffer?.length ? 'exists' : 'missing', // 🖼 Логируем наличие буфера
-//       },
-//       userAspectRatio: userExists.aspectRatio,
-//       // modelConfig: modelConfig.api.input, // Ошибка: .api не существует
-//     })
+    if (is_morphing) {
+      modelInput = {
+        ...modelConfig.api.input,
+        image_a: imageAUrl,
+        image_b: imageBUrl,
+        prompt: prompt || '',
+      }
+      logger.info('Prepared Replicate input for morphing', {
+        telegram_id,
+        inputKeys: Object.keys(modelInput),
+      })
+    } else {
+      if (!imageUrl || !prompt) throw new Error('Missing imageUrl or prompt')
+      if (!modelConfig.imageKey)
+        throw new Error(`Missing imageKey in config for ${videoModel}`)
 
-//     const videoUrl = result?.output ? result.output : result
-//     */
-//     // !!! КОНЕЦ ПРОБЛЕМНОГО БЛОКА !!!
+      modelInput = {
+        ...modelConfig.api.input,
+        prompt,
+        aspect_ratio: userExists.aspect_ratio || '9:16',
+        [modelConfig.imageKey]: imageUrl,
+      }
+      logger.info('Prepared Replicate input for standard (direct URL)', {
+        telegram_id,
+        inputKeys: Object.keys(modelInput),
+      })
+    }
 
-//     // Временно ставим заглушку, чтобы код ниже не падал
-//     const videoUrl: string | undefined = undefined
-//     // TODO: Раскомментировать блок выше и исправить его, когда будет информация о моделях Replicate
+    const result = await runModel(
+      replicateModelId as
+        | `${string}/${string}`
+        | `${string}/${string}:${string}`,
+      modelInput
+    )
 
-//     console.log('📹 Generated video URL (Placeholder):', videoUrl)
+    let videoUrl: string | undefined
+    if (Array.isArray(result.output)) {
+      videoUrl = result.output[0]
+    } else if (typeof result.output === 'string') {
+      videoUrl = result.output
+    }
 
-//     if (videoUrl) {
-//       const videoLocalPath = path.join(
-//         __dirname,
-//         '../uploads',
-//         telegram_id.toString(),
-//         'image-to-video',
-//         `${new Date().toISOString()}.mp4`
-//       )
-//       await mkdir(path.dirname(videoLocalPath), { recursive: true })
+    logger.info('Generated video URL from Replicate:', { videoUrl })
 
-//       // 1. Сохраняем оригинальное видео в Supabase
-//       const originalBuffer = await downloadFile(videoUrl as string)
-//       await writeFile(videoLocalPath, originalBuffer)
-//       await saveVideoUrlToSupabase(
-//         telegram_id,
-//         videoUrl as string,
-//         videoLocalPath,
-//         videoModel
-//       )
+    if (!videoUrl || !videoUrl.startsWith('http')) {
+      throw new Error(`Invalid video URL received from Replicate: ${videoUrl}`)
+    }
 
-//       await botFromBotName.telegram.sendVideo(telegram_id, {
-//         source: videoLocalPath,
-//       })
+    const videoLocalPath = path.join(
+      __dirname,
+      '../uploads',
+      telegram_id.toString(),
+      'image-to-video',
+      `${new Date().toISOString()}.mp4`
+    )
+    await mkdir(path.dirname(videoLocalPath), { recursive: true })
 
-//       await botFromBotName.telegram.sendMessage(
-//         telegram_id,
-//         is_ru
-//           ? `Ваше видео сгенерировано!\n\nСгенерировать еще?\n\nСтоимость: ${paymentAmount.toFixed(
-//               2
-//             )} ⭐️\nВаш новый баланс: ${newBalance.toFixed(2)} ⭐️`
-//           : `Your video has been generated!\n\nGenerate more?\n\nCost: ${paymentAmount.toFixed(
-//               2
-//             )} ⭐️\nYour new balance: ${newBalance.toFixed(2)} ⭐️`,
-//         {
-//           reply_markup: {
-//             keyboard: [
-//               [
-//                 {
-//                   text: is_ru
-//                     ? '🎥 Сгенерировать новое видео?'
-//                     : '🎥 Generate new video?',
-//                 },
-//               ],
-//             ],
-//           },
-//         }
-//       )
-//       await botFromBotName.telegram.sendVideo(
-//         '@neuro_blogger_pulse',
-//         { source: videoLocalPath },
-//         {
-//           caption: (is_ru
-//             ? `${username} Telegram ID: ${telegram_id} сгенерировал видео с промптом: ${truncateText(
-//                 prompt,
-//                 900
-//               )}\n\nКоманда: ${videoModel}\n\nBot: @${
-//                 botFromBotName.botInfo?.username
-//               }`
-//             : `${username} Telegram ID: ${telegram_id} generated a video with a prompt: ${truncateText(
-//                 prompt,
-//                 900
-//               )}\n\nCommand: ${videoModel}\n\nBot: @${
-//                 botFromBotName.botInfo?.username
-//               }`
-//           ).slice(0, 1000),
-//         }
-//       )
-//     } else {
-//       throw new Error('Video URL is required')
-//     }
+    const videoBuffer = await downloadFile(videoUrl)
+    await writeFile(videoLocalPath, new Uint8Array(videoBuffer))
 
-//     return { videoUrl: videoUrl as string }
-//   } catch (error) {
-//     console.error('Error in generateImageToVideo:', error)
+    await saveVideoUrlToSupabase(
+      telegram_id,
+      videoUrl,
+      videoLocalPath,
+      videoModel
+    )
 
-//     if (!bot) {
-//       console.error('Bot instance became unavailable in catch block')
-//       throw error
-//     }
+    await bot.telegram.sendVideo(telegram_id.toString(), {
+      source: videoLocalPath,
+    })
 
-//     let errorMsg: string
-//     if (error instanceof Error) {
-//       errorMsg = error.message
-//     } else {
-//       errorMsg = String(error)
-//     }
-//     try {
-//       await bot.telegram.sendMessage(
-//         telegram_id,
-//         is_ru
-//           ? `Произошла ошибка при генерации видео. Попробуйте еще раз.\n\nОшибка: ${errorMsg}`
-//           : `An error occurred during video generation. Please try again.\n\nError: ${errorMsg}`
-//       )
-//     } catch (sendUserError) {
-//       console.error('Failed to send error message to user:', sendUserError)
-//     }
+    await bot.telegram.sendMessage(
+      telegram_id,
+      is_ru
+        ? `Ваше видео сгенерировано!\n\nСгенерировать еще?\n\nСтоимость: ${paymentAmount.toFixed(
+            2
+          )} ⭐️\nВаш новый баланс: ${newBalance.toFixed(2)} ⭐️`
+        : `Your video has been generated!\n\nGenerate more?\n\nCost: ${paymentAmount.toFixed(
+            2
+          )} ⭐️\nYour new balance: ${newBalance.toFixed(2)} ⭐️`,
+      Markup.keyboard([
+        [
+          Markup.button.text(
+            is_ru ? '🎥 Сгенерировать новое видео?' : '🎥 Generate new video?'
+          ),
+        ],
+      ]).resize(false)
+    )
 
-//     await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+    await pulse(
+      videoLocalPath,
+      prompt || 'Morphing',
+      is_morphing ? 'morphing' : 'image-to-video',
+      telegram_id,
+      username,
+      is_ru,
+      validBotName
+    )
 
-//     throw error
-//   }
-// }
+    return { videoLocalPath }
+  } catch (error) {
+    logger.error('Error in generateImageToVideo (Plan B):', error)
+    await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
+    await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+
+    return null
+  }
+}

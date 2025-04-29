@@ -212,3 +212,58 @@
 3.  ❗ **(API-SERVER)** Реализовать/проверить эндпоинты `/api/generate/image-to-video` и `/api/replicate-webhook`.
 4.  🐞 Протестировать работу "Фото в видео" и "Текст в фото".
 5.  ❗ **(ДЕПЛОЙ)** Обновить URL вебхуков в Telegram на формат `https://<домен>/<имя_бота>`.
+
+## 🧠 NeuroBlogger - План разработки и запуска
+
+## 📈 Общий Статус Проекта
+
+*   **Состояние:** ⏳ В процессе рефакторинга и тестирования.
+*   **Фокус:** Переход на локальную логику `plan_b`, TDD с Bun Test.
+*   **Последнее действие:** ✅ Успешно исправлены и пройдены тесты для `src/services/plan_b/avatar.service.ts`.
+*   **Следующий шаг:** ✏️ Рефакторинг `src/services/generateTextToImage.ts` для использования `src/services/plan_b/generateTextToImage.ts`.
+
+## ✨ План Рефакторинга (API_URL -> Plan B)
+
+1.  ✅ `src/services/generateVoiceAvatar.ts` -> `plan_b/createVoiceAvatar.ts`
+2.  ✏️ `src/services/generateTextToImage.ts` -> `plan_b/generateTextToImage.ts`
+3.  ✏️ `src/services/generateTextToVideo.ts` -> `plan_b/generateTextToVideo.ts`
+4.  ✏️ `src/services/generateImageToVideo.ts` -> `plan_b/generateImageToVideo.ts`
+5.  ✏️ `src/services/generateLipSync.ts` -> `plan_b/generateLipSync.ts` (Тест Plan B ✅)
+6.  ✏️ `src/services/generateTextToSpeech.ts` -> `plan_b/generateSpeech.ts` (Тест Plan B ✅)
+7.  ✏️ `src/services/uploadVideoToServer.ts` -> `plan_b/videoService.ts` (Тест Plan B ✅)
+8.  ✏️ `src/services/createModelTraining.ts` -> Анализ Plan B / Новая реализация
+9.  ✏️ `src/services/generateNeuroImageV2.ts` -> Анализ Plan B / Новая реализация
+10. ✏️ `src/core/synclabs/generateLipSync/index.ts` -> Локальная обработка вебхуков
+
+## 🧪 План Тестирования (TDD - Plan B)
+
+*   ✅ `aiAssistantService.ts`
+*   ✅ `notification.service.ts`
+*   ✅ `avatar.service.ts`
+*   ✅ `createVoiceAvatar.ts`
+*   ✅ `generateSpeech.ts`
+*   ✅ `generateLipSync.ts`
+*   ✅ `generateImageToPrompt.ts`
+*   ✅ `videoService.ts`
+*   ⏳ `broadcast.service.ts` (Опционально)
+*   ✏️ `generateTextToImage.ts` (После рефакторинга)
+*   ✏️ `generateTextToVideo.ts` (После рефакторинга)
+*   ✏️ `generateImageToVideo.ts` (После рефакторинга)
+
+## ❗ Известные Проблемы и Блокеры
+
+*   (Нет активных блокеров)
+
+## 🚀 Документация по командам
+
+*   **Тесты (все):** `bunx dotenv -- bun test --preload ./__tests__/setup.ts`
+*   **Тесты (конкретный файл):** `bunx dotenv -- bun test --preload ./__tests__/setup.ts <путь_к_файлу>`
+*   **Проверка типов:** `pnpm typecheck` (или `bun exec tsc --noEmit`)
+*   **Локальный запуск:** `pnpm dev`
+
+> **ПРАВИЛА ВЕДЕНИЯ ROADMAP:**
+> 
+> 1. **Обновление и декомпозиция**: При каждой итерации обновлять ROADMAP. При проблемах - декомпозировать.
+> 2. **Система эмодзи-статусов**: ✅ (Готово), ❌ (Ошибка), ⏳ (В процессе), ✏️ (Запланировано).
+> 3. **Логирование проблем**: Подробно документировать ошибки.
+> 4. **Скрипт диагностики**: `./scripts/diagnose.sh` запускать перед задачами (если применимо).

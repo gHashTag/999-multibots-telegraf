@@ -10,6 +10,7 @@ import type { SessionPayment } from './payments.interface'
 import type { SceneContextScene, WizardContextWizard } from 'telegraf/scenes'
 import { ModeEnum, type Mode } from './modes'
 import type { Translation } from './translations.interface'
+import type { User as TelegramUser } from '@telegraf/types'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {
@@ -192,8 +193,6 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
     | 'SHOWING_OPTIONS'
     | 'SUBSCRIPTION_SELECTED'
   imageUrl?: string
-  image_a_file_id?: string
-  image_b_file_id?: string
   prompt?: string
   userModel: UserModel
   selectedModel?: string
@@ -219,10 +218,9 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   mySessionProp?: number
   current_action?: string
   is_morphing?: boolean
-  payment_method?: string // 'telegram_stars' | 'robokassa'
-  payment_amount?: number // Amount for the current operation
-  imageAUrl?: string // For morphing - Image A
-  imageBUrl?: string // For morphing - Image B
+  payment_method?: string
+  imageAUrl?: string
+  imageBUrl?: string
 }
 
 export interface MyContext extends Context {

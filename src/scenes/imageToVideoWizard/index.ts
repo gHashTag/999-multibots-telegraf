@@ -1,5 +1,5 @@
 import { Composer, Scenes, Markup } from 'telegraf'
-import { generateImageToVideo } from '@/services/generateImageToVideo'
+import { generateImageToVideo as generateImageToVideoPlanB } from '@/services/plan_b/generateImageToVideo'
 import { MyContext } from '@/interfaces'
 import {
   cancelMenu,
@@ -629,14 +629,18 @@ async function handleSubmit(ctx: MyContext) {
     imageBUrl,
     imageUrl,
     prompt,
-    paymentAmount,
+    paymentAmount, // Note: paymentAmount is in session but not used by plan_b function directly
   } = ctx.session
   const telegram_id = ctx.from?.id.toString()
   const username = ctx.from?.username || 'unknown'
   const botInfo = await ctx.telegram.getMe()
   const bot_name = botInfo.username
 
-  if (!videoModel || !telegram_id || !bot_name) {
+  // Type assertion for videoModel
+  const videoModelKey = videoModel as VideoModelKey | undefined
+
+  if (!videoModelKey || !telegram_id || !bot_name) {
+    // Check videoModelKey
     logger.error(
       '[I2V Wizard] Missing essential data in session for submission',
       { session: ctx.session }
@@ -645,13 +649,13 @@ async function handleSubmit(ctx: MyContext) {
     return ctx.scene.leave()
   }
 
-  // Validate required fields based on mode
+  // Validate required fields based on mode (already done before, but good to double-check)
   if (is_morphing) {
     if (!imageAUrl || !imageBUrl || !prompt) {
       logger.error('[I2V Wizard] Missing morphing data for submission', {
-        imageAUrl,
-        imageBUrl,
-        prompt,
+        imageAUrl: imageAUrl ? 'present' : 'absent',
+        imageBUrl: imageBUrl ? 'present' : 'absent',
+        prompt: prompt ? 'present' : 'absent',
       })
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
@@ -659,8 +663,8 @@ async function handleSubmit(ctx: MyContext) {
   } else {
     if (!imageUrl || !prompt) {
       logger.error('[I2V Wizard] Missing standard data for submission', {
-        imageUrl,
-        prompt,
+        imageUrl: imageUrl ? 'present' : 'absent',
+        prompt: prompt ? 'present' : 'absent',
       })
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
@@ -675,8 +679,9 @@ async function handleSubmit(ctx: MyContext) {
 
   try {
     // --- Log parameters being sent --- //
-    logger.info('[I2V Wizard] Calling generateImageToVideo service', {
-      videoModel,
+    logger.info('[I2V Wizard] Calling generateImageToVideoPlanB service', {
+      // Updated log
+      videoModel: videoModelKey,
       telegram_id,
       username,
       is_ru: isRu,
@@ -688,12 +693,13 @@ async function handleSubmit(ctx: MyContext) {
       imageBUrl: imageBUrl ? 'present' : 'absent',
     })
 
-    // --- Call the service (no await needed if handled async) --- //
-    generateImageToVideo(
+    // --- Call the Plan B service (no await needed if handled async) --- //
+    generateImageToVideoPlanB(
+      // Changed function call
       ctx, // Pass the full context
       imageUrl, // null for morphing
       prompt, // Pass prompt for both modes now
-      videoModel,
+      videoModelKey, // Pass the validated model key
       telegram_id,
       username,
       isRu,
@@ -704,7 +710,7 @@ async function handleSubmit(ctx: MyContext) {
     ).catch(error => {
       // Log error from the async background task if it fails early
       logger.error(
-        '[I2V Wizard] Error during async generateImageToVideo call',
+        '[I2V Wizard] Error during async generateImageToVideoPlanB call', // Updated log
         {
           error,
           telegram_id,
@@ -719,10 +725,14 @@ async function handleSubmit(ctx: MyContext) {
     })
     return ctx.scene.leave()
   } catch (error) {
-    logger.error('[I2V Wizard] Error in handleSubmit before calling service', {
-      error,
-      telegram_id,
-    })
+    logger.error(
+      '[I2V Wizard] Error in handleSubmit before calling Plan B service',
+      {
+        // Updated log
+        error,
+        telegram_id,
+      }
+    )
     await sendGenericErrorMessage(ctx, isRu)
     return ctx.scene.leave()
   }

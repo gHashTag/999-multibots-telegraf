@@ -778,7 +778,11 @@ export const checkBalanceAndEnterScene = async (
     const requiredStars = costResult.stars
 
     if (!user.isSubscriptionActive && user.stars < requiredStars) {
-      await sendInsufficientStarsMessage(ctx, user.stars, isRu)
+      await sendInsufficientStarsMessage(
+        ctx,
+        user.stars,
+        ctx.from?.language_code === 'ru'
+      )
       return ctx.scene.enter(ModeEnum.MainMenu) // Возврат в главное меню
     }
 
