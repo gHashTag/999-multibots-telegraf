@@ -201,6 +201,31 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     await ctx.scene.leave() // Теперь ctx.scene должен быть доступен
     await handleTechSupport(ctx)
   })
+
+  // Добавляем глобальный обработчик для кнопки "Оформить подписку"
+  bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
+    logger.info('GLOBAL HEARS (POST-STAGE): Оформить подписку / Subscribe', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.scene.leave() // На всякий случай выходим из текущей сцены, если она есть
+      ctx.session.mode = ModeEnum.SubscriptionScene // Устанавливаем режим
+      // ctx.session.subscription = SubscriptionType.???; // TODO: Решить, какой тип подписки устанавливать здесь? Возможно, не нужно?
+      await ctx.scene.enter(ModeEnum.SubscriptionScene) // Входим в сцену подписки
+    } catch (error) {
+      logger.error('Error in Оформить подписку hears (POST-STAGE):', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      const isRu = ctx.from?.language_code === 'ru'
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка при переходе к оформлению подписки.'
+          : '❌ Error entering subscription.'
+      )
+    }
+  })
+
   bot.hears([levels[100].title_ru, levels[100].title_en], async ctx => {
     console.log('CASE bot.hears: 💎 Пополнить баланс / Top up balance')
     await ctx.scene.leave()
