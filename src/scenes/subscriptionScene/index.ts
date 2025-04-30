@@ -1,15 +1,16 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { handleMenu } from '@/handlers'
-import { getTranslation } from '@/core/supabase'
+import { getTranslation, getUserDetailsSubscription } from '@/core/supabase'
 import { isRussian } from '@/helpers'
 import { ModeEnum } from '@/interfaces/modes'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { TranslationButton } from '@/interfaces/supabase.interface'
-import { getUserDetailsSubscription } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
+
 // Проверка валидности типа подписки
 export function isValidPaymentSubscription(value: string): value is string {
   // Преобразуем значение в верхний регистр для сравнения с SubscriptionType
@@ -89,35 +90,47 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Формируем клавиатуру на основе кнопок
+    // Формируем клавиатуру
     const keyboardRows: any[] = []
     buttons.forEach(button => {
       const row = button.row || 0
       if (!keyboardRows[row]) {
         keyboardRows[row] = []
       }
-      const text = `${button.text} - ${
-        isRu ? `${button.ru_price} ₽` : `${button.en_price} $`
-      }`
 
-      keyboardRows[row].push({
-        text,
-        callback_data: button.callback_data,
-        remove_keyboard: true,
-      })
+      const showRubles = shouldShowRubles(ctx)
+      let buttonText = button.text
+
+      if (!showRubles) {
+        if (button.stars_price !== undefined) {
+          buttonText += ` - ${button.stars_price} ⭐`
+        }
+      } else {
+        buttonText += ` - ${isRu ? `${button.ru_price} ₽` : `${button.en_price} $`}`
+      }
+
+      keyboardRows[row].push(
+        Markup.button.callback(buttonText, button.callback_data)
+      )
     })
 
-    // Очистка от пустых элементов
+    // Очистка от пустых строк
     const cleanedKeyboardRows = keyboardRows.filter(
       row => row && row.length > 0
     )
 
-    const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
-
-    await ctx.reply(translation, {
-      reply_markup: inlineKeyboard.reply_markup,
-      parse_mode: 'Markdown',
-    })
+    if (cleanedKeyboardRows.length === 0) {
+      logger.warn(
+        `[${ModeEnum.SubscriptionScene}] No valid buttons generated.`,
+        { telegram_id: ctx.from?.id }
+      )
+    } else {
+      const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
+      await ctx.reply(translation, {
+        reply_markup: inlineKeyboard.reply_markup,
+        parse_mode: 'Markdown',
+      })
+    }
 
     return ctx.wizard.next()
   },

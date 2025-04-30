@@ -103,14 +103,6 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
           command: 'price',
           description: '⭐️ Price / Цена',
         },
-        {
-          command: 'stats',
-          description: '📊 Statistics / Статистика',
-        },
-        {
-          command: 'broadcast',
-          description: '📢 Broadcast / Рассылка сообщений',
-        },
       ],
       {
         scope: {
