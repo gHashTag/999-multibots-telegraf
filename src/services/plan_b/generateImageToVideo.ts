@@ -12,7 +12,7 @@ import { saveVideoUrlToSupabase } from '@/core/supabase/saveVideoUrlToSupabase'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
 // import { errorMessageAdmin } from '@/helpers/errorMessageAdmin' <-- Removed
-import { MyContext } from '@/interfaces' // <-- Added for ctx type
+import { MyContext, VideoModelKey } from '@/interfaces' // <-- Added for ctx type
 import { Update } from 'telegraf/types' // <-- Added for ctx type
 import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin' // <-- Corrected path
 import { Markup } from 'telegraf' // Added import
@@ -308,12 +308,12 @@ export const generateImageToVideo = async (
 
     // --- Сохранение в БД --- Исправляем на 4 аргумента
     await saveVideoUrlToSupabase(
-      telegram_id, // telegram_id
-      videoUrl, // video_url
-      localVideoPath, // video_path
-      videoModel // type (model_id)
+      telegram_id,
+      videoUrl,
+      localVideoPath,
+      modelConfig.id as VideoModelKey
     )
-    logger.info('API Server (Task): Video info saved to DB', { telegram_id })
+    logger.info('API Server (Task): Video URL saved to DB', { telegram_id })
 
     // --- Отправка пользователю --- ИСПРАВЛЯЕМ ДОСТУП К TELEGRAM
     const botInstanceData = getBotByName(bot_name)

@@ -6,71 +6,42 @@ import {
   expect,
   beforeEach,
   afterEach,
-  vi,
   Mock,
   Mocked,
+  vi,
 } from 'vitest'
 import { generateImageToVideo } from '@/services/plan_b/generateImageToVideo'
 import type { MyContext, BalanceOperationResult } from '@/interfaces'
 // Импортируем реальный конфиг, который будет подменен
-import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
+// import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
 // Импортируем реальную calculateFinalPrice, если она нужна в этом файле
-import { calculateFinalPrice } from '@/price/helpers'
+// import { calculateFinalPrice } from '@/price/helpers'
 // Импортируем реальные функции для шпионажа
 import * as PriceHelpers from '@/price/helpers'
 import * as UserBalanceModule from '@/core/supabase/getUserBalance'
 import * as ReplicateClient from '@/core/replicate'
 
 import {
-  setupMocks,
   createMockContext,
   createMockUser,
   MockedDependencies,
   MockContextResult,
+  setupSpies,
+  teardownSpies,
+  MOCK_VIDEO_MODELS_CONFIG,
 } from './helpers'
 
 import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
+import * as ConfigModule from '@/price/models/VIDEO_MODELS_CONFIG'
 
-vi.mock('@/price/models/VIDEO_MODELS_CONFIG', () => ({
-  VIDEO_MODELS_CONFIG: {
-    'stable-video-diffusion': {
-      id: 'stable-video-diffusion',
-      title: 'Stable Video Diffusion',
-      inputType: ['image', 'text'],
-      description: 'Mock SVD',
-      basePrice: 30,
-      api: {
-        model:
-          'stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172638',
-        input: { cfg: 2.5, motion_bucket_id: 127, steps: 25 },
-      },
-      imageKey: 'image',
-      canMorph: false, // Важно: эта не может морфить
-    },
-    'kling-v1.6-pro': {
-      id: 'kling-v1.6-pro',
-      title: 'Kling v1.6 Pro',
-      inputType: ['image', 'text'],
-      description: 'Mock Kling',
-      basePrice: 45,
-      api: {
-        model: 'aliyun/video-kling-v1:kling-v1.6-pro',
-        input: { aspect_ratio: '16:9' },
-      },
-      imageKey: 'image',
-      canMorph: true, // Важно: эта может морфить
-    },
-  },
-}))
+// Определяем тип для шпионов ЛОКАЛЬНО
+type SpiesType = ReturnType<typeof setupSpies>
 
 describe('generateImageToVideo Service: Режим Морфинга', () => {
-  let mocks: MockedDependencies
   let ctx: MyContext
   let mockSendMessage: Mock
   let mockSendVideo: Mock
-  let processBalanceSpy
-  let getUserBalanceSpy
-  let replicateRunSpy
+  let spies: SpiesType
 
   const telegram_id = '54321' // Другой ID для этого набора тестов
   const username = 'morphuser'
@@ -82,23 +53,58 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
   const videoModel = 'stable-video-diffusion'
 
   beforeEach(async () => {
-    // Устанавливаем шпионов ПЕРЕД setupMocks
-    processBalanceSpy = vi.spyOn(
-      PriceHelpers as any,
-      'processBalanceVideoOperation'
-    )
-    getUserBalanceSpy = vi.spyOn(UserBalanceModule, 'getUserBalance')
-    replicateRunSpy = vi.spyOn(ReplicateClient.replicate, 'run')
+    // Мокируем конфиг ПЕРЕД созданием шпионов
+    // try {
+    //   vi.spyOn(configModule, 'VIDEO_MODELS_CONFIG', 'get').mockReturnValue(
+    //     MOCK_VIDEO_MODELS_CONFIG
+    //   )
+    // } catch (error) {
+    //   console.error('Error mocking config in morphing mode:', error)
+    //   throw error // Пробрасываем ошибку, если мокирование не удалось
+    // }
 
-    mocks = await setupMocks() // Сначала вызываем setupMocks, который может установить дефолтные моки
+    // Setup spies
+    spies = setupSpies()
+    const {
+      ctx: mockCtx,
+      mockSendMessage: msgSpy,
+      mockSendVideo: vidSpy,
+    } = createMockContext(telegram_id)
+    ctx = mockCtx
+    mockSendMessage = msgSpy
+    mockSendVideo = vidSpy
+
+    // Default successful resolutions
+    spies.getUserByTelegramIdSpy.mockResolvedValue(createMockUser(telegram_id))
+    spies.getBotByNameSpy.mockResolvedValue({ bot: ctx.telegram } as any)
+    spies.processBalanceSpy.mockResolvedValue({
+      success: true,
+      newBalance: 199,
+      paymentAmount: 10,
+      modePrice: 10,
+    })
+    spies.replicateRunSpy.mockResolvedValue([
+      'http://replicate.com/morph_video.mp4',
+    ])
+    spies.downloadFileSpy.mockResolvedValue(Buffer.from('fake morph data'))
+    spies.saveVideoUrlToSupabaseSpy.mockResolvedValue(undefined)
+    spies.errorMessageAdminSpy.mockImplementation(() => {})
+
+    // Устанавливаем шпионов ПЕРЕД setupMocks
+    // processBalanceSpy = vi.spyOn(
+    //   PriceHelpers as any,
+    //   'processBalanceVideoOperation'
+    // )
+    // getUserBalanceSpy = vi.spyOn(UserBalanceModule, 'getUserBalance')
+    // replicateRunSpy = vi.spyOn(ReplicateClient.replicate, 'run')
 
     // ---> УСТАНАВЛИВАЕМ НАШИ МОКИ ПОСЛЕ setupMocks <---
     // Set default user found
     const defaultUser = createMockUser(telegram_id, 200000) // Даем много баланса
-    mocks.supabaseMock.getUserByTelegramId.mockResolvedValue(defaultUser) // Устанавливаем наш мок ПОСЛЕ setupMocks
-    getUserBalanceSpy.mockResolvedValue(defaultUser.balance) // Мок getUserBalance через шпиона
+    spies.getUserByTelegramIdSpy.mockResolvedValue(defaultUser) // Устанавливаем наш мок ПОСЛЕ setupMocks
+    // getUserBalanceSpy.mockResolvedValue(defaultUser.balance) // Мок getUserBalance через шпиона
 
-    const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
+    const modelConfig = MOCK_VIDEO_MODELS_CONFIG[videoModel]
     if (!modelConfig) {
       throw new Error(
         `Test setup error: Model ${videoModel} not found in mock config after setupMocks`
@@ -125,20 +131,22 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
       currentBalance: defaultInitialBalance,
       error: undefined,
     }
-    processBalanceSpy.mockResolvedValue(mockBalanceResultSuccess) // Мок processBalanceVideoOperation через шпиона
+    // processBalanceSpy.mockResolvedValue(mockBalanceResultSuccess) // Мок processBalanceVideoOperation через шпиона
 
     // Мокируем ответ Replicate через шпиона
-    replicateRunSpy.mockResolvedValue([
+    spies.replicateRunSpy.mockResolvedValue([
       'https://replicate.delivery/pbxt/xyz.../morph.mp4',
     ])
 
     // Мокируем успешное сохранение в БД
-    mocks.supabaseMock.saveVideoUrlToSupabase.mockResolvedValue(undefined)
+    spies.saveVideoUrlToSupabaseSpy.mockResolvedValue(undefined)
   })
 
   // Добавляем afterEach для восстановления моков
   afterEach(() => {
-    vi.restoreAllMocks()
+    teardownSpies(spies)
+    vi.clearAllMocks()
+    vi.restoreAllMocks() // Restore mocks including the config mock
   })
 
   it('✅ [Кейс 2.1] Успешная генерация в режиме морфинга', async () => {
@@ -157,27 +165,28 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
     )
 
     // Проверки вызовов
-    expect(mocks.supabaseMock.getUserByTelegramId).toHaveBeenCalledWith(ctx)
-    expect(processBalanceSpy).toHaveBeenCalledOnce() // Используем шпиона
-    expect(replicateRunSpy).toHaveBeenCalledOnce()
+    expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledWith(ctx)
+    // expect(processBalanceSpy).toHaveBeenCalledOnce() // Используем шпиона
+    expect(spies.processBalanceSpy).toHaveBeenCalledOnce()
+    expect(spies.replicateRunSpy).toHaveBeenCalledOnce()
     expect(mockSendMessage).toHaveBeenCalledTimes(2) // Инфо + результат
     expect(mockSendVideo).toHaveBeenCalledOnce()
-    expect(mocks.supabaseMock.saveVideoUrlToSupabase).toHaveBeenCalledOnce()
+    expect(spies.saveVideoUrlToSupabaseSpy).toHaveBeenCalledOnce()
 
     // Проверка параметров вызова Replicate для морфинга
-    expect(replicateRunSpy).toHaveBeenCalledWith(
-      VIDEO_MODELS_CONFIG[videoModel].api.model,
+    expect(spies.replicateRunSpy).toHaveBeenCalledWith(
+      MOCK_VIDEO_MODELS_CONFIG[videoModel].api.model,
       {
         input: expect.objectContaining({
           image_a: imageAUrl,
           image_b: imageBUrl,
           // Промпт НЕ должен передаваться
-          ...VIDEO_MODELS_CONFIG[videoModel].api.input,
+          ...MOCK_VIDEO_MODELS_CONFIG[videoModel].api.input,
         }),
       }
     )
     expect(
-      (replicateRunSpy.mock.calls[0][1] as any).input.prompt
+      (spies.replicateRunSpy.mock.calls[0][1] as any).input.prompt
     ).toBeUndefined()
 
     // Проверка отправки видео
@@ -189,7 +198,7 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
       },
       {
         caption: expect.stringContaining(
-          `✨ Ваше видео-морфинг готово!\n💰 Списано: ${processBalanceSpy.mock.results[0].value.paymentAmount} ✨\n💎 Остаток: ${processBalanceSpy.mock.results[0].value.newBalance} ✨`
+          `✨ Ваше видео-морфинг готово!\n💰 Списано: ${spies.processBalanceSpy.mock.results[0].value.paymentAmount} ✨\n💎 Остаток: ${spies.processBalanceSpy.mock.results[0].value.newBalance} ✨`
         ),
         reply_markup: expect.anything(),
       }
@@ -206,9 +215,9 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
       currentBalance: 10,
       error: 'Недостаточно средств для морфинга',
     }
-    processBalanceSpy.mockResolvedValue(insufficientBalanceResult) // Используем шпиона
+    spies.processBalanceSpy.mockResolvedValue(insufficientBalanceResult) // Используем шпиона
 
-    mocks.errorAdminMock.errorMessageAdmin.mockClear() // Этот мок управляется иначе, очищаем
+    spies.errorMessageAdminSpy.mockClear() // Этот мок управляется иначе, очищаем
 
     await expect(
       generateImageToVideo(
@@ -226,19 +235,21 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
       )
     ).rejects.toThrow('Недостаточно средств для морфинга') // Ожидаем правильную ошибку
 
-    expect(mocks.supabaseMock.getUserByTelegramId).toHaveBeenCalledWith(ctx)
-    expect(processBalanceSpy).toHaveBeenCalledOnce() // Используем шпиона
-    expect(replicateRunSpy).not.toHaveBeenCalled()
+    expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledWith(ctx)
+    // expect(processBalanceSpy).toHaveBeenCalledOnce() // Используем шпиона
+    expect(spies.processBalanceSpy).toHaveBeenCalledOnce()
+    // expect(replicateRunSpy).not.toHaveBeenCalled()
+    expect(spies.replicateRunSpy).not.toHaveBeenCalled()
     expect(mockSendMessage).not.toHaveBeenCalled()
     expect(mockSendVideo).not.toHaveBeenCalled()
-    expect(mocks.errorAdminMock.errorMessageAdmin).toHaveBeenCalledOnce()
-    expect(mocks.errorAdminMock.errorMessageAdmin.mock.calls[0][0]).toContain(
+    expect(spies.errorMessageAdminSpy).toHaveBeenCalledOnce()
+    expect(spies.errorMessageAdminSpy.mock.calls[0][0]).toContain(
       'Balance check failed'
     )
   })
 
   it('❌ [Кейс 2.3] Отсутствует imageAUrl для режима морфинга', async () => {
-    mocks.errorAdminMock.errorMessageAdmin.mockClear()
+    spies.errorMessageAdminSpy.mockClear()
 
     await expect(
       generateImageToVideo(
@@ -258,16 +269,18 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
       'Серверная ошибка: imageAUrl и imageBUrl обязательны для морфинга'
     ) // Фактическая ошибка из кода
 
-    expect(processBalanceSpy).not.toHaveBeenCalled() // Используем шпиона
-    expect(replicateRunSpy).not.toHaveBeenCalled()
-    expect(mocks.errorAdminMock.errorMessageAdmin).toHaveBeenCalledOnce()
-    expect(mocks.errorAdminMock.errorMessageAdmin.mock.calls[0][0]).toContain(
+    // expect(processBalanceSpy).not.toHaveBeenCalled() // Используем шпиона
+    expect(spies.processBalanceSpy).not.toHaveBeenCalled()
+    // expect(replicateRunSpy).not.toHaveBeenCalled()
+    expect(spies.replicateRunSpy).not.toHaveBeenCalled()
+    expect(spies.errorMessageAdminSpy).toHaveBeenCalledOnce()
+    expect(spies.errorMessageAdminSpy.mock.calls[0][0]).toContain(
       'Отсутствует URL изображения A для морфинга.'
     )
   })
 
   it('❌ [Кейс 2.4] Отсутствует imageBUrl для режима морфинга', async () => {
-    mocks.errorAdminMock.errorMessageAdmin.mockClear()
+    spies.errorMessageAdminSpy.mockClear()
 
     await expect(
       generateImageToVideo(
@@ -287,10 +300,12 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
       'Серверная ошибка: imageAUrl и imageBUrl обязательны для морфинга'
     ) // Фактическая ошибка из кода
 
-    expect(processBalanceSpy).not.toHaveBeenCalled() // Используем шпиона
-    expect(replicateRunSpy).not.toHaveBeenCalled()
-    expect(mocks.errorAdminMock.errorMessageAdmin).toHaveBeenCalledOnce()
-    expect(mocks.errorAdminMock.errorMessageAdmin.mock.calls[0][0]).toContain(
+    // expect(processBalanceSpy).not.toHaveBeenCalled() // Используем шпиона
+    expect(spies.processBalanceSpy).not.toHaveBeenCalled()
+    // expect(replicateRunSpy).not.toHaveBeenCalled()
+    expect(spies.replicateRunSpy).not.toHaveBeenCalled()
+    expect(spies.errorMessageAdminSpy).toHaveBeenCalledOnce()
+    expect(spies.errorMessageAdminSpy.mock.calls[0][0]).toContain(
       'Отсутствует URL изображения B для морфинга.'
     )
   })
@@ -302,7 +317,7 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
     // const nonMorphingModel = 'minimax' // <-- Пример
     // Если нет, то пропускаем тест
     // ВРЕМЕННО ПРОПУСКАЕМ, т.к. SVD теперь может морфить в моке
-    // mocks.errorAdminMock.errorMessageAdmin.mockClear()
+    // spies.errorMessageAdminSpy.mockClear()
     // await expect(
     //   generateImageToVideo(
     //     // ...
@@ -314,8 +329,8 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
     // )
     // expect(processBalanceSpy).not.toHaveBeenCalled()
     // expect(replicateRunSpy).not.toHaveBeenCalled() // <--- Проверяем шпиона
-    // expect(mocks.errorAdminMock.errorMessageAdmin).toHaveBeenCalledOnce()
-    // expect(mocks.errorAdminMock.errorMessageAdmin.mock.calls[0][0]).toContain(
+    // expect(spies.errorMessageAdminSpy).toHaveBeenCalledOnce()
+    // expect(spies.errorMessageAdminSpy.mock.calls[0][0]).toContain(
     //   `Модель ${VIDEO_MODELS_CONFIG[nonMorphingModel].title} не поддерживает режим морфинга.`
     // )
     expect(true).toBe(true) // Placeholder

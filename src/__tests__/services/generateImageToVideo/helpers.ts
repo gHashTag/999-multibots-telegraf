@@ -1,5 +1,6 @@
 import { vi, Mocked, Mock } from 'vitest'
 import type { MyContext } from '@/interfaces'
+import { Telegraf } from 'telegraf'
 
 import * as SupabaseCore from '@/core/supabase'
 import * as PriceHelpers from '@/price/helpers'
@@ -10,7 +11,9 @@ import * as DownloadHelper from '@/helpers/downloadFile'
 import * as ErrorAdmin from '@/helpers/error/errorMessageAdmin'
 import * as LoggerUtils from '@/utils/logger'
 import type { VideoModelKey } from '@/interfaces'
+import * as ConfigModule from '@/config'
 import type { VideoModelConfig } from '@/price/models/VIDEO_MODELS_CONFIG'
+import * as BotIndex from '@/core/bot/index'
 
 // --- Создаем локальные моки для fs/promises ---
 const mkdirMock = vi.fn()
@@ -113,6 +116,7 @@ export interface MockedDependencies {
     mkdir: typeof mkdirMock
     writeFile: typeof writeFileMock
   }
+  spies: ReturnType<typeof setupSpies>
 }
 
 // Define the return type for createMockContext
@@ -183,6 +187,7 @@ export const setupMocks = async (): Promise<MockedDependencies> => {
     errorAdminMock,
     loggerMock,
     fsPromisesMocks,
+    spies: setupSpies(),
   }
 }
 
@@ -248,3 +253,53 @@ export const createMockUser = (
     // Add other user properties as needed by tests
   } as any // Use 'as any' for simplicity or define a proper mock type
 }
+
+// +++ НОВЫЕ ФУНКЦИИ ДЛЯ ШПИОНОВ +++
+export const setupSpies = () => {
+  const spies = {
+    processBalanceSpy: vi.spyOn(PriceHelpers, 'processBalanceVideoOperation'),
+    getUserBalanceSpy: vi.spyOn(SupabaseCore, 'getUserBalance'),
+    replicateRunSpy: vi.spyOn(ReplicateClient.replicate, 'run'),
+    downloadFileSpy: vi.spyOn(DownloadHelper, 'downloadFile'),
+    getUserByTelegramIdSpy: vi.spyOn(SupabaseCore, 'getUserByTelegramId'),
+    saveVideoUrlToSupabaseSpy: vi.spyOn(SupabaseCore, 'saveVideoUrlToSupabase'),
+    getBotByNameSpy: vi.spyOn(BotIndex, 'getBotByName'),
+    errorMessageAdminSpy: vi.spyOn(ErrorAdmin, 'errorMessageAdmin'),
+    loggerErrorSpy: vi.spyOn(LoggerUtils.logger, 'error'),
+    loggerInfoSpy: vi.spyOn(LoggerUtils.logger, 'info'),
+  }
+
+  // Устанавливаем дефолтные реализации (можно переопределить в тестах)
+  spies.processBalanceSpy.mockResolvedValue({
+    success: true,
+    newBalance: 90,
+    modePrice: 10,
+    paymentAmount: 10,
+  })
+  spies.getUserBalanceSpy.mockResolvedValue(100)
+  spies.replicateRunSpy.mockRejectedValue(new Error('Replicate Error Spy'))
+  spies.downloadFileSpy.mockResolvedValue(Buffer.from('fake video data spy'))
+  spies.getUserByTelegramIdSpy.mockResolvedValue(
+    createMockUser('default-user-id')
+  )
+  spies.saveVideoUrlToSupabaseSpy.mockResolvedValue(undefined)
+  spies.getBotByNameSpy.mockResolvedValue({
+    bot: {} as Telegraf<MyContext>,
+    error: null,
+  })
+  spies.errorMessageAdminSpy.mockResolvedValue(undefined)
+  spies.loggerErrorSpy.mockImplementation(() => LoggerUtils.logger)
+  spies.loggerInfoSpy.mockImplementation(() => LoggerUtils.logger)
+
+  return spies
+}
+
+export const teardownSpies = (spies: ReturnType<typeof setupSpies>) => {
+  // Восстанавливаем всех шпионов
+  Object.values(spies).forEach(spy => {
+    if (spy && typeof spy.mockRestore === 'function') {
+      spy.mockRestore()
+    }
+  })
+}
+// +++ КОНЕЦ НОВЫХ ФУНКЦИЙ +++
