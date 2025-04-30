@@ -436,7 +436,7 @@ export async function generateNeuroPhotoDirect(
             username: username || 'unknown',
             language: isRussian(ctx) ? 'ru' : 'en',
             serviceType: ModeEnum.NeuroPhoto,
-            prompt: prompt.substring(0, 250),
+            prompt: prompt, // Передаем ПОЛНЫЙ промпт, без обрезки
             botName: botName,
             additionalInfo: {
               model_url: model_url,
@@ -444,6 +444,15 @@ export async function generateNeuroPhotoDirect(
               original_url: imageUrl.substring(0, 50) + '...',
             },
           }
+
+          // ---> ЛОГ ПЕРЕД ВЫЗОВОМ
+          logger.info({
+            message: '🚦 [DIRECT] Параметры перед отправкой в sendMediaToPulse',
+            description: 'Options before calling sendMediaToPulse',
+            pulseOptions,
+            telegram_id,
+          })
+          // <--- КОНЕЦ ЛОГА
 
           await sendMediaToPulse(pulseOptions)
 

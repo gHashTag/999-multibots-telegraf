@@ -200,17 +200,41 @@ export const sendMediaToPulse = async (
     // Отправляем соответствующий тип медиа
     switch (mediaType) {
       case 'photo':
-        // 1. Отправляем фото без подписи
-        await pulseBot.telegram.sendPhoto(chatId, mediaParams)
+        logger.info({
+          message: '📬 [pulse] Получен запрос на отправку фото',
+          description: 'Received photo sending request in pulse',
+          telegramId,
+          promptLength: prompt?.length ?? 0,
+          promptReceived: !!prompt,
+        })
+        try {
+          // 1. Отправляем фото без подписи
+          await pulseBot.telegram.sendPhoto(chatId, mediaParams)
+          logger.info({
+            message: '📸 [pulse] Фото отправлено, готовим текст',
+            description: 'Photo sent, preparing text message',
+            telegramId,
+            promptAvailable: !!prompt,
+          })
+        } catch (photoError) {
+          logger.error({
+            message: '❌ [pulse] Ошибка при отправке ФОТО',
+            description: 'Error sending PHOTO in pulse',
+            error:
+              photoError instanceof Error
+                ? photoError.message
+                : String(photoError),
+            stack: photoError instanceof Error ? photoError.stack : undefined,
+            telegramId,
+          })
+          // Продолжаем попытку отправить текст, если фото не ушло
+        }
+
         // 2. Формируем и отправляем текстовое сообщение с полным промптом и доп. информацией
         if (prompt) {
           let textMessage = isRussian
-            ? `@${
-                username || 'Пользователь без username'
-              } Telegram ID: ${telegramId} сгенерировал изображение.`
-            : `@${
-                username || 'User without username'
-              } Telegram ID: ${telegramId} generated an image.`
+            ? `@${username || 'Пользователь без username'} Telegram ID: ${telegramId} сгенерировал изображение.`
+            : `@${username || 'User without username'} Telegram ID: ${telegramId} generated an image.`
 
           textMessage += isRussian
             ? `\n\n📝 **Промпт для копирования:**`
@@ -232,19 +256,79 @@ export const sendMediaToPulse = async (
             textMessage += `\nℹ️ ${key}: ${value}`
           }
 
-          await pulseBot.telegram.sendMessage(chatId, textMessage, {
-            parse_mode: 'Markdown',
-            link_preview_options: { is_disabled: true },
+          logger.info({
+            message: '📝 [pulse] Попытка отправки текста с промптом',
+            description: 'Attempting to send text message with prompt',
+            telegramId,
+            textMessageLength: textMessage.length,
           })
+          try {
+            await pulseBot.telegram.sendMessage(chatId, textMessage, {
+              parse_mode: 'Markdown',
+              link_preview_options: { is_disabled: true },
+            })
+            logger.info({
+              message: '✅ [pulse] Текст с промптом успешно отправлен',
+              description: 'Text message with prompt sent successfully',
+              telegramId,
+            })
+          } catch (textError) {
+            logger.error({
+              message: '❌ [pulse] Ошибка при отправке ТЕКСТА с промптом',
+              description: 'Error sending TEXT message with prompt in pulse',
+              error:
+                textError instanceof Error
+                  ? textError.message
+                  : String(textError),
+              stack: textError instanceof Error ? textError.stack : undefined,
+              telegramId,
+              textMessageAttempted: textMessage.substring(0, 500) + '...',
+              parseMode: 'Markdown',
+            })
+            // Попытка отправить без Markdown, если ошибка связана с парсингом
+            if (
+              textError instanceof Error &&
+              textError.message.includes('parse')
+            ) {
+              logger.warn({
+                message:
+                  '⚠️ [pulse] Повторная попытка отправки текста без Markdown',
+                description:
+                  'Retrying text message without Markdown due to parse error',
+                telegramId,
+              })
+              try {
+                await pulseBot.telegram.sendMessage(chatId, textMessage, {
+                  link_preview_options: { is_disabled: true },
+                })
+                logger.info({
+                  message:
+                    '✅ [pulse] Текст с промптом успешно отправлен (без Markdown)',
+                  description:
+                    'Text message with prompt sent successfully (without Markdown)',
+                  telegramId,
+                })
+              } catch (retryError) {
+                logger.error({
+                  message:
+                    '❌ [pulse] Ошибка при повторной отправке ТЕКСТА (без Markdown)',
+                  description: 'Error retrying text message without Markdown',
+                  error:
+                    retryError instanceof Error
+                      ? retryError.message
+                      : String(retryError),
+                  stack:
+                    retryError instanceof Error ? retryError.stack : undefined,
+                  telegramId,
+                })
+              }
+            }
+          }
         } else {
           // Если промпта нет, просто отправляем базовую информацию
           let textMessage = isRussian
-            ? `@${
-                username || 'Пользователь без username'
-              } Telegram ID: ${telegramId} сгенерировал изображение.`
-            : `@${
-                username || 'User without username'
-              } Telegram ID: ${telegramId} generated an image.`
+            ? `@${username || 'Пользователь без username'} Telegram ID: ${telegramId} сгенерировал изображение.`
+            : `@${username || 'User without username'} Telegram ID: ${telegramId} generated an image.`
           if (serviceType) {
             textMessage += isRussian
               ? `\n\n⚙️ Сервис: ${serviceType}`
@@ -258,9 +342,33 @@ export const sendMediaToPulse = async (
           for (const [key, value] of Object.entries(additionalInfo)) {
             textMessage += `\nℹ️ ${key}: ${value}`
           }
-          await pulseBot.telegram.sendMessage(chatId, textMessage, {
-            link_preview_options: { is_disabled: true },
+          logger.info({
+            message: '📝 [pulse] Попытка отправки текста без промпта',
+            description: 'Attempting to send text message without prompt',
+            telegramId,
+            textMessageLength: textMessage.length,
           })
+          try {
+            await pulseBot.telegram.sendMessage(chatId, textMessage, {
+              link_preview_options: { is_disabled: true },
+            })
+            logger.info({
+              message: '✅ [pulse] Текст без промпта успешно отправлен',
+              description: 'Text message without prompt sent successfully',
+              telegramId,
+            })
+          } catch (textError) {
+            logger.error({
+              message: '❌ [pulse] Ошибка при отправке ТЕКСТА без промпта',
+              description: 'Error sending TEXT message without prompt in pulse',
+              error:
+                textError instanceof Error
+                  ? textError.message
+                  : String(textError),
+              stack: textError instanceof Error ? textError.stack : undefined,
+              telegramId,
+            })
+          }
         }
         break
       case 'video':
