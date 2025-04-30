@@ -12,7 +12,7 @@
     "pretty": true,
     "sourceMap": true,
     "declaration": true,
-    "outDir": "dist",
+    "outDir": "./dist",
     "allowJs": true,
     "noEmit": false,
     "esModuleInterop": true,
@@ -40,7 +40,8 @@
       "@/handlers/*": ["handlers/*"],
       "@/helpers/*": ["helpers/*"],
       "@/scripts/*": ["scripts/*"]
-    }
+    },
+    "rootDir": "./src"
   },
   "ts-node": {
     "require": ["tsconfig-paths/register"]

@@ -1,14 +1,16 @@
 import { defineConfig } from 'vitest/config'
 import path from 'path'
-import viteTsconfigPaths from 'vite-tsconfig-paths'
+// import * as viteTsconfigPathsModule from 'vite-tsconfig-paths' // Removed
+
+// const viteTsconfigPaths = viteTsconfigPathsModule.default || viteTsconfigPathsModule; // Removed
 
 export default defineConfig({
-  plugins: [viteTsconfigPaths()],
+  // plugins: [viteTsconfigPaths()], // Removed plugin
   test: {
     globals: true, // Enable global APIs like vi, describe, it
     environment: 'node', // Or 'jsdom' if testing browser-like env
     // Add setup files if needed (similar to jest.setup.js)
-    // setupFiles: ['./jest.setup.js'], // Example: Reuse Jest setup if compatible
+    setupFiles: ['src/__tests__/setup.ts'], // Load .env.test variables
     coverage: {
       provider: 'v8', // or 'istanbul'
       reporter: ['text', 'json', 'html'],
@@ -31,4 +33,3 @@ export default defineConfig({
     },
   },
 })
- 
