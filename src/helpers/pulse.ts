@@ -237,8 +237,8 @@ export const sendMediaToPulse = async (
             : `@${username || 'User without username'} Telegram ID: ${telegramId} generated an image.`
 
           textMessage += isRussian
-            ? `\n\n📝 **Промпт для копирования:**`
-            : `\n\n📝 **Prompt for copying:**`
+            ? `\n\n📝 Промпт для копирования:`
+            : `\n\n📝 Prompt for copying:`
           textMessage += '\n```\n' + prompt + '\n```' // Полный промпт в блоке для копирования
 
           // Добавляем остальную информацию ниже блока с промптом
