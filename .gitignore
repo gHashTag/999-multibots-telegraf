@@ -143,3 +143,5 @@ tmp_tests
 .env.development
 
 tmp_tests
+
+.cursor/rules/current-task.mdc

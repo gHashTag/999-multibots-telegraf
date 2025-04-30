@@ -200,9 +200,71 @@ export const sendMediaToPulse = async (
     // Отправляем соответствующий тип медиа
     switch (mediaType) {
       case 'photo':
-        await pulseBot.telegram.sendPhoto(chatId, mediaParams, { caption })
+        // 1. Отправляем фото без подписи
+        await pulseBot.telegram.sendPhoto(chatId, mediaParams)
+        // 2. Формируем и отправляем текстовое сообщение с полным промптом и доп. информацией
+        if (prompt) {
+          let textMessage = isRussian
+            ? `@${
+                username || 'Пользователь без username'
+              } Telegram ID: ${telegramId} сгенерировал изображение.`
+            : `@${
+                username || 'User without username'
+              } Telegram ID: ${telegramId} generated an image.`
+
+          textMessage += isRussian
+            ? `\n\n📝 **Промпт для копирования:**`
+            : `\n\n📝 **Prompt for copying:**`
+          textMessage += '\n```\n' + prompt + '\n```' // Полный промпт в блоке для копирования
+
+          // Добавляем остальную информацию ниже блока с промптом
+          if (serviceType) {
+            textMessage += isRussian
+              ? `\n\n⚙️ Сервис: ${serviceType}`
+              : `\n\n⚙️ Service: ${serviceType}`
+          }
+          if (botName) {
+            textMessage += isRussian
+              ? `\n🤖 Бот: @${botName}`
+              : `\n🤖 Bot: @${botName}`
+          }
+          for (const [key, value] of Object.entries(additionalInfo)) {
+            textMessage += `\nℹ️ ${key}: ${value}`
+          }
+
+          await pulseBot.telegram.sendMessage(chatId, textMessage, {
+            parse_mode: 'Markdown',
+            link_preview_options: { is_disabled: true },
+          })
+        } else {
+          // Если промпта нет, просто отправляем базовую информацию
+          let textMessage = isRussian
+            ? `@${
+                username || 'Пользователь без username'
+              } Telegram ID: ${telegramId} сгенерировал изображение.`
+            : `@${
+                username || 'User without username'
+              } Telegram ID: ${telegramId} generated an image.`
+          if (serviceType) {
+            textMessage += isRussian
+              ? `\n\n⚙️ Сервис: ${serviceType}`
+              : `\n\n⚙️ Service: ${serviceType}`
+          }
+          if (botName) {
+            textMessage += isRussian
+              ? `\n🤖 Бот: @${botName}`
+              : `\n🤖 Bot: @${botName}`
+          }
+          for (const [key, value] of Object.entries(additionalInfo)) {
+            textMessage += `\nℹ️ ${key}: ${value}`
+          }
+          await pulseBot.telegram.sendMessage(chatId, textMessage, {
+            link_preview_options: { is_disabled: true },
+          })
+        }
         break
       case 'video':
+        // Оставляем отправку видео с caption как есть (или можно адаптировать по аналогии)
         await pulseBot.telegram.sendVideo(chatId, mediaParams, { caption })
         break
       case 'audio':
