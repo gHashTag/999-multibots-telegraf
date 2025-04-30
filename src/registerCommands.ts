@@ -9,6 +9,7 @@ import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
 // Импортируем новую функцию
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
+import { sendMediaToPulse } from './helpers/pulse'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -144,6 +145,40 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
   // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ И ПЕРЕД ОБРАБОТЧИКАМИ, ИСПОЛЬЗУЮЩИМИ СЦЕНЫ)
   bot.use(stage.middleware())
+
+  // --- ТЕСТОВАЯ КОМАНДА ---
+  bot.command('testpulse', async ctx => {
+    logger.info('COMMAND: /testpulse called', { telegramId: ctx.from?.id })
+    if (ctx.from?.id !== 144022504) {
+      // Ограничиваем вызов (замените на нужный ID админа)
+      return ctx.reply('Эта команда только для админа.')
+    }
+    try {
+      const testPrompt = `This is a *test prompt* with some special characters:\n_italic_\n~strikethrough~\n||spoiler||\n[inline URL](http://www.example.com/)\n\`inline fixed-width code\`\n\`\`\`\npre-formatted fixed-width code block\n\`\`\`\nLine with a . period and ! exclamation.\nAnd symbols + - = | { }`
+
+      await ctx.reply('Отправляю тестовое сообщение в @neuro_blogger_pulse...')
+
+      await sendMediaToPulse({
+        mediaType: 'photo',
+        mediaSource: 'https://picsum.photos/200/300/', // Просто случайное фото
+        telegramId: ctx.from.id,
+        username: ctx.from.username || 'test_user',
+        language: isRussian(ctx) ? 'ru' : 'en',
+        serviceType: 'Test Service',
+        prompt: testPrompt,
+        botName: ctx.botInfo.username,
+        additionalInfo: { TestKey: 'TestValue' },
+      })
+
+      await ctx.reply(
+        'Тестовое сообщение отправлено. Проверь @neuro_blogger_pulse.'
+      )
+    } catch (error) {
+      logger.error('Error in /testpulse command:', { error })
+      await ctx.reply('Ошибка при отправке тестового сообщения.')
+    }
+  })
+  // --- КОНЕЦ ТЕСТОВОЙ КОМАНДЫ ---
 
   // --- ТЕПЕРЬ ВСЕ ОСТАЛЬНЫЕ ОБРАБОТЧИКИ ---
 
