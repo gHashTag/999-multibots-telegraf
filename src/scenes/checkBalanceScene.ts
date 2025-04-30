@@ -118,14 +118,8 @@ function calculateFinalStarCostFromDollars(baseDollarCost: number): number {
 }
 
 export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
-  [ModeEnum.DigitalAvatarBody]: (steps: number) => {
-    const cost = calculateCost(steps, 'v1')
-    return cost.stars
-  },
-  [ModeEnum.DigitalAvatarBodyV2]: (steps: number) => {
-    const cost = calculateCost(steps, 'v2')
-    return cost.stars
-  },
+  [ModeEnum.DigitalAvatarBody]: 0,
+  [ModeEnum.DigitalAvatarBodyV2]: 0,
   [ModeEnum.NeuroPhoto]: calculateFinalStarCostFromDollars(0.08),
   [ModeEnum.NeuroPhotoV2]: calculateFinalStarCostFromDollars(0.14),
   [ModeEnum.NeuroAudio]: calculateFinalStarCostFromDollars(0.12),
