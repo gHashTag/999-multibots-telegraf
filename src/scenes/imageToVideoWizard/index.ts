@@ -1,5 +1,5 @@
 import { Composer, Scenes, Markup } from 'telegraf'
-import { generateImageToVideo } from '@/services/generateImageToVideo'
+import { generateImageToVideo } from '@/services/plan_b/generateImageToVideo'
 import { MyContext } from '@/interfaces'
 import {
   cancelMenu,

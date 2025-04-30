@@ -119,47 +119,28 @@ export const generateTextToVideo = async (
       )
     }
 
-    const videoBuffer = await generateVideo(
+    const videoGenerationResult = await generateVideo(
       prompt,
       modelConfig.api.model,
-      modelConfig.api.input.negative_prompt || ''
+      userExists.id
     )
 
-    let videoUrl: string
-    if (Array.isArray(videoBuffer)) {
-      if (!videoBuffer[0]) {
-        throw new Error('Empty array or first element is undefined')
-      }
-      videoUrl = videoBuffer[0]
-    } else if (typeof videoBuffer === 'string') {
-      videoUrl = videoBuffer
-    } else {
-      console.error(
-        'Unexpected output format:',
-        JSON.stringify(videoBuffer, null, 2)
-      )
-      throw new Error(
-        `Unexpected output format from API: ${typeof videoBuffer}`
-      )
+    const videoBuffer = videoGenerationResult.video
+    if (!videoBuffer || videoBuffer.length === 0) {
+      throw new Error('generateVideo returned an empty buffer')
     }
+
     const videoLocalPath = path.join(
       __dirname,
-      '../uploads',
+      '../..//uploads',
       telegram_id.toString(),
       'text-to-video',
-      `${new Date().toISOString()}.mp4`
+      `${Date.now()}_${videoModel}.mp4`
     )
-    console.log(videoLocalPath, 'videoLocalPath')
+    console.log('Saving video to local path:', videoLocalPath)
     await mkdir(path.dirname(videoLocalPath), { recursive: true })
 
     await writeFile(videoLocalPath, videoBuffer)
-
-    await saveVideoUrlToSupabase(
-      telegram_id,
-      videoUrl,
-      videoLocalPath,
-      String(videoModel)
-    )
 
     await bot.telegram.sendVideo(telegram_id.toString(), {
       source: videoLocalPath,

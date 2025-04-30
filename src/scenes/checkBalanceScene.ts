@@ -126,7 +126,7 @@ export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
     const cost = calculateCost(steps, 'v2')
     return cost.stars
   },
-  [ModeEnum.NeuroPhoto]: calculateFinalStarCostFromDollars(0.16),
+  [ModeEnum.NeuroPhoto]: calculateFinalStarCostFromDollars(0.224),
   [ModeEnum.NeuroPhotoV2]: calculateFinalStarCostFromDollars(0.14),
   [ModeEnum.NeuroAudio]: calculateFinalStarCostFromDollars(0.12),
   [ModeEnum.ImageToPrompt]: calculateFinalStarCostFromDollars(0.03),
