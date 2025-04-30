@@ -54,19 +54,30 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
   async ctx => {
     console.log('CASE 3: uploadVideoScene')
     const isRu = ctx.from?.language_code === 'ru'
+    const telegramId = ctx.from?.id
+
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: Не удалось определить ID пользователя.'
+          : '❌ Error: Could not determine user ID.'
+      )
+      return ctx.scene.leave()
+    }
 
     try {
-      await uploadVideoToServer({
+      const filePath = await uploadVideoToServer({
         videoUrl: ctx.session.videoUrl,
-        telegram_id: ctx.from?.id.toString(),
+        telegram_id: telegramId,
         fileName: `video_to_url_${randomUUID()}`,
       })
       await ctx.reply(
-        isRu
-          ? '✅ Видео успешно загружено на сервер'
-          : '✅ Video successfully uploaded to the server'
+        (isRu
+          ? '✅ Видео успешно загружено на сервер. Путь: '
+          : '✅ Video successfully uploaded to the server. Path: ') + filePath
       )
     } catch (error) {
+      console.error('Error uploading video:', error)
       await ctx.reply(
         isRu ? '❌ Ошибка при загрузке видео' : '❌ Error uploading video'
       )
