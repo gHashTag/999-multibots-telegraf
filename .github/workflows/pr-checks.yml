@@ -24,6 +24,7 @@ jobs:
         run_install: false # Мы установим зависимости позже вручную
 
     - name: Get pnpm store directory
+      id: get-pnpm-store-directory
       shell: bash
       run: |
         echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
