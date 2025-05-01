@@ -22,7 +22,10 @@ import { getUserBalance } from './getUserBalance'
 import { PaymentStatus } from '@/interfaces/payments.interface'
 // Импорт интерфейса (убедись, что он не содержит level)
 
-interface UserDetailsResult {
+// Экспортируем интерфейс
+export interface UserDetailsResult {
+  id: number
+  created_at: string
   stars: number
   subscriptionType: SubscriptionType | null
   isSubscriptionActive: boolean
@@ -53,6 +56,8 @@ export const getUserDetailsSubscription = async (
   )
 
   const defaultResult: UserDetailsResult = {
+    id: 0,
+    created_at: '',
     stars: 0,
     subscriptionType: null,
     isSubscriptionActive: false,
@@ -237,6 +242,8 @@ export const getUserDetailsSubscription = async (
 
     // --- ШАГ 4: Собираем финальный результат ---
     const result: UserDetailsResult = {
+      id: 0,
+      created_at: '',
       stars: calculatedStars,
       subscriptionType: finalSubscriptionType, // Тип из Шага 3
       isSubscriptionActive: isActive, // Активность из Шага 3

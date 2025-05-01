@@ -22,7 +22,12 @@
 #
 # LAST WORKING UPDATE: 21.04.2025
 # TESTED BY: @playra
+<<<<<<< HEAD
 
+version: '3.8'
+=======
+# UPDATED FOR BUN: 28.04.2025
+>>>>>>> origin/feat/vitest-integration
 
 services:
   app:
@@ -31,19 +36,12 @@ services:
       context: ./
       dockerfile: Dockerfile
     ports:
-      - '2999:2999'
-      - '3000:3000'
-      - '3001:3001'
-      - '3002:3002'
-      - '3003:3003'
-      - '3004:3004'
-      - '3005:3005'
-      - '3006:3006'
-      - '3007:3007'
+      - '2999:2999'  # !!! КРИТИЧНО: основной порт приложения
+      - '3000-3007:3000-3007'  # !!! КРИТИЧНО: порты для ботов
     env_file:
       - .env
     environment:
-      - NODE_ENV=production
+      - BUN_ENV=production
       - BOT_TOKEN_1=${BOT_TOKEN_1}
       - BOT_TOKEN_2=${BOT_TOKEN_2}
       - BOT_TOKEN_3=${BOT_TOKEN_3}
@@ -66,54 +64,68 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
       - DOCKER_ENVIRONMENT=true
+<<<<<<< HEAD
       - DEBUG=true
       - TS_NODE_PROJECT=tsconfig.prod.json
+    volumes:  # !!! КРИТИЧНО: не менять пути монтирования
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+      - ./tmp:/app/tmp
+=======
+      - ./certs:/etc/pki:ro
     volumes:
       # Возвращаем важные пути монтирования
+>>>>>>> origin/feat/vitest-integration
       - /var/run/docker.sock:/var/run/docker.sock
-      - /etc/nginx:/etc/nginx
-      - /etc/pki:/etc/pki
-      # Оставляем закомментированным только проблемный путь
-      # - /root/.ssh:/app/.ssh:ro
-      # Файлы Ansible
-      - ./playbook.yml:/app/playbook.yml:ro
-      - ./inventory:/app/inventory:ro
-      - ./roles:/app/roles:ro
-    dns:
+      - /etc/pki:/etc/pki:ro
+    networks:  # !!! КРИТИЧНО: настройки сети
+      bot-network:
+        aliases:
+          - app
+    dns:  # !!! КРИТИЧНО: DNS серверы
       - 8.8.8.8
       - 8.8.4.4
-    extra_hosts:
-      - "api.elevenlabs.io:127.0.0.1"
-      - "host.docker.internal:172.27.0.1"
-    networks:
-      - app-network
+    healthcheck:  # !!! КРИТИЧНО: проверка здоровья
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2999/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
     restart: unless-stopped
 
   nginx:
     image: nginx:latest
     container_name: bot-proxy
-    ports:
+    ports:  # !!! КРИТИЧНО: порты nginx
       - '8443:443'
       - '8080:80'
-    volumes:
-      # Используем нашу кастомную конфигурацию
+    volumes:  # !!! КРИТИЧНО: конфигурация nginx
       - ./nginx-config:/etc/nginx/conf.d:ro
-      # Пути к сертификатам с хоста остаются
+<<<<<<< HEAD
       - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
       - /etc/pki/key.pem:/etc/pki/key.pem:ro
+=======
+      # Используем локальные самоподписанные сертификаты для разработки
+      - ./certs/cert.crt:/etc/pki/cert.crt:ro
+      - ./certs/key.pem:/etc/pki/key.pem:ro
+>>>>>>> origin/feat/vitest-integration
     depends_on:
-      - app
-    networks:
-      - app-network
+      app:
+        condition: service_healthy
+    networks:  # !!! КРИТИЧНО: настройки сети
+      bot-network:
+        aliases:
+          - nginx
     restart: unless-stopped
 
+# !!! КРИТИЧНО: настройки сети
 networks:
-  app-network:
+  bot-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.27.0.0/16
+        - subnet: 172.27.0.0/16  # !!! НЕ МЕНЯТЬ SUBNET!
 
 # Объявляем Docker Volume
 volumes:
-  nginx-config-volume: 
+  nginx-config-volume:

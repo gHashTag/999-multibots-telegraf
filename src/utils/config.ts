@@ -263,7 +263,6 @@ export function getBotTokens(): string[] {
 
   // 3. Проверяем файл .env.local если он существует (БОЛЬШЕ НЕ НУЖНО)
   const localEnvPath = path.resolve(process.cwd(), '.env.local')
-  const localEnvConfig = {}
   // // Load .env.local only in non-production environments
   // if (process.env.NODE_ENV !== 'production' && fs.existsSync(localEnvPath)) {
   //   try {

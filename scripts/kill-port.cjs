@@ -1,39 +1,49 @@
-const { execSync } = require('child_process')
-const os = require('os')
+#!/usr/bin/env node
 
-/**
- * Kill process by port
- * @param {number} port - The port to kill
- */
-function killPort(port) {
-  const platform = os.platform()
-  let command = ''
+const { execSync } = require('child_process');
 
-  try {
-    if (platform === 'win32') {
-      command = `netstat -ano | findstr :${port} | findstr LISTENING && FOR /F "tokens=5" %a in ('netstat -ano ^| findstr :${port} ^| findstr LISTENING') do taskkill /F /PID %a`
-    } else {
-      command = `lsof -i :${port} -t | xargs -r kill -9`
-    }
+const ports = process.argv.slice(2); // Получаем порты из аргументов командной строки
 
-    console.log(`Checking port ${port}...`)
-    execSync(command, { stdio: 'pipe' })
-    console.log(`Successfully killed process on port ${port}`)
-  } catch (e) {
-    console.error(`Error checking/killing port ${port}: ${e.message}`)
+if (ports.length === 0) {
+  console.log('Usage: node scripts/kill-port.cjs <port1> [port2] ...');
+  process.exit(1);
+}
+
+ports.forEach(port => {
+  const portNumber = parseInt(port, 10);
+  if (isNaN(portNumber)) {
+    console.warn(`⚠️ Invalid port specified: ${port}. Skipping.`);
+    return;
   }
-}
 
-// Get ports from arguments
-const args = process.argv.slice(2)
-if (args.length === 0) {
-  console.log('No ports specified')
-  process.exit(0)
-}
+  console.log(`🔍 Checking port ${portNumber}...`);
+  try {
+    // Используем lsof для поиска PID процесса, слушающего порт
+    // -i tcp:${portNumber} : Искать TCP соединения на этом порту
+    // -t                 : Вывести только PID
+    // || true            : Игнорировать ошибку, если lsof ничего не нашел (код выхода 1)
+    const pid = execSync(`lsof -ti tcp:${portNumber} || true`, { encoding: 'utf8' }).trim();
 
-// Kill all specified ports
-args.forEach(port => {
-  killPort(parseInt(port, 10))
-})
+    if (pid) {
+      console.log(`⛔ Port ${portNumber} is in use by PID ${pid}. Attempting to kill...`);
+      try {
+        // Завершаем процесс
+        execSync(`kill -9 ${pid}`);
+        console.log(`✅ Successfully killed process ${pid} on port ${portNumber}.`);
+      } catch (killError) {
+        console.error(`❌ Failed to kill process ${pid} on port ${portNumber}:`, killError.message);
+      }
+    } else {
+      console.log(`🟢 Port ${portNumber} is free.`);
+    }
+  } catch (lsofError) {
+    // Обрабатываем другие возможные ошибки lsof, хотя `|| true` должен был предотвратить большинство
+     if (!lsofError.message.includes('exit code 1')) { // Игнорируем ожидаемый код выхода 1, если порт свободен
+       console.error(`❌ Error checking port ${portNumber}:`, lsofError.message);
+    } else {
+         console.log(`🟢 Port ${portNumber} is free (lsof check confirms).`);
+     }
+  }
+});
 
-console.log('All ports checked')
+console.log('🏁 Port check finished.');

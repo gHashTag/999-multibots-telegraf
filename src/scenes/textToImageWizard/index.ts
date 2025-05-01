@@ -11,6 +11,7 @@ import {
   validateAndCalculateImageModelPrice,
 } from '@/price/helpers'
 import { logger } from '@/utils/logger'
+import { bots } from '@/bot'
 
 import { createHelpCancelKeyboard } from '@/menu'
 import { getUserProfileAndSettings } from '@/db/userSettings'
@@ -212,17 +213,75 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Используем новую сигнатуру generateTextToImage
-    await generateTextToImage(
-      prompt,
-      ctx.session.selectedModel,
-      1,
-      ctx.from.id.toString(),
-      isRu,
-      ctx,
-      ctx.botInfo?.username
+    // Находим нужный инстанс бота
+    const currentBotName = ctx.botInfo?.username
+    const currentBotInstance = bots.find(
+      b => b.context.botName === currentBotName
     )
 
+    if (!currentBotInstance) {
+      logger.error(
+        'Не удалось найти инстанс Telegraf для бота в textToImageWizard',
+        {
+          botName: currentBotName,
+          telegramId: ctx.from.id,
+        }
+      )
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: Не удалось инициализировать бота.'
+          : 'Error: Could not initialize the bot.'
+      )
+      return ctx.scene.leave()
+    }
+
+    try {
+      // Передаем найденный инстанс бота как последний аргумент
+      const results = await generateTextToImage(
+        prompt,
+        ctx.session.selectedModel,
+        1,
+        ctx.from.id.toString(),
+        isRu,
+        ctx,
+        currentBotInstance // Передаем найденный инстанс
+      )
+
+      // Логируем результат (опционально)
+      if (results.length === 0) {
+        logger.warn(
+          'generateTextToImage в textToImageWizard вернул пустой результат (вероятно, ошибка обработана внутри)',
+          {
+            telegramId: ctx.from.id,
+            prompt,
+            model: ctx.session.selectedModel,
+          }
+        )
+      }
+      // Сообщение об успехе/ошибке/балансе уже отправлено внутри generateTextToImage
+    } catch (wizardError) {
+      // Ловим ошибки, которые могли возникнуть *до* или *после* вызова generateTextToImage
+      // Ошибки *внутри* generateTextToImage ловятся и логируются там же.
+      logger.error('Ошибка в последнем шаге textToImageWizard:', {
+        error: wizardError,
+        telegramId: ctx.from?.id,
+      })
+      // Пытаемся отправить общее сообщение об ошибке, если еще не отправлено
+      try {
+        await ctx.reply(
+          isRu
+            ? 'Произошла непредвиденная ошибка. Попробуйте снова.'
+            : 'An unexpected error occurred. Please try again.'
+        )
+      } catch (replyError) {
+        logger.error(
+          'Не удалось отправить сообщение об ошибке из textToImageWizard',
+          { replyError }
+        )
+      }
+    }
+
+    // Выходим из сцены в любом случае после попытки генерации
     return ctx.scene.leave()
   }
 )

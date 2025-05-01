@@ -11,11 +11,12 @@ import path from 'path'
 import { ensureDirectoryExistence } from '@/helpers'
 import { sendBalanceMessage } from '@/price/helpers'
 import { logger } from '@/utils/logger'
-
-interface LipSyncResponse {
-  message: string
-  resultUrl?: string
-}
+import {
+  generateLipSync as generateLipSyncPlanB,
+  LipSyncResponse,
+  LipSyncError,
+} from './plan_b/generateLipSync'
+import { MyContext } from '@/interfaces'
 
 export async function downloadFile(
   url: string,
@@ -40,58 +41,66 @@ export async function downloadFile(
   })
 }
 
+/**
+ * Обертка для вызова функции генерации LipSync из Plan B.
+ * Принимает URL видео и аудио, telegram_id и имя бота.
+ * Возвращает результат от Plan B функции.
+ */
 export async function generateLipSync(
   videoUrl: string,
   audioUrl: string,
   telegram_id: string,
   botName: string
-): Promise<LipSyncResponse> {
+): Promise<LipSyncResponse | LipSyncError> {
+  logger.info('Перенаправление вызова generateLipSync на реализацию Plan B', {
+    videoUrl,
+    audioUrl,
+    telegram_id,
+    botName,
+  })
+
   try {
-    const videoPath = path.join(__dirname, '../../tmp', 'temp_video.mp4')
-    const audioPath = path.join(__dirname, '../../tmp', 'temp_audio.mp3')
-    console.log('videoPath', videoPath)
-    console.log('audioPath', audioPath)
-    await ensureDirectoryExistence(path.dirname(videoPath))
-    await ensureDirectoryExistence(path.dirname(audioPath))
-    // Скачиваем видео и аудио файлы
-    await downloadFile(videoUrl, videoPath)
-    await downloadFile(audioUrl, audioPath)
+    // Определяем язык на основе контекста или передаем по умолчанию
+    // TODO: Получить язык из контекста или передать его как параметр
+    const isRu = true // Placeholder - need to determine language properly
 
-    console.log('LipSync request data:', { videoUrl, audioUrl, telegram_id })
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : API_SERVER_URL
-    }/generate/create-lip-sync`
-
-    // Создаем FormData для передачи URL видео и аудио
-    const formData = new FormData()
-    formData.append('type', 'lip-sync')
-    formData.append('telegram_id', telegram_id)
-    formData.append('is_ru', 'true')
-    formData.append('bot_name', botName)
-    formData.append('video', fs.createReadStream(videoPath))
-    formData.append('audio', fs.createReadStream(audioPath))
-
-    console.log('formData', formData)
-    const response: AxiosResponse<LipSyncResponse> = await axios.post(
-      url,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'x-secret-key': SECRET_API_KEY,
-          ...formData.getHeaders(),
-        },
-      }
+    const result = await generateLipSyncPlanB(
+      telegram_id,
+      videoUrl,
+      audioUrl,
+      isRu
     )
 
-    console.log('LipSync response:', response.data)
-    return response.data as LipSyncResponse
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      throw new Error('Error occurred while generating lip sync')
+    // Логируем результат
+    if ('message' in result) {
+      // Error case
+      logger.error('Ошибка при генерации LipSync (Plan B)', {
+        error: result.message,
+        telegram_id,
+        videoUrl,
+        audioUrl,
+      })
+    } else {
+      // Success case
+      logger.info('Успешный запуск генерации LipSync (Plan B)', {
+        responseId: result.id,
+        status: result.status,
+        telegram_id,
+      })
     }
-    console.error('Unexpected error:', error)
-    throw error
+
+    return result
+  } catch (error) {
+    logger.error('Неожиданная ошибка при вызове generateLipSyncPlanB', {
+      error: error instanceof Error ? error.message : String(error),
+      telegram_id,
+      videoUrl,
+      audioUrl,
+    })
+    // Возвращаем стандартизированный объект ошибки
+    return {
+      message:
+        'Unexpected error occurred while calling Plan B lip sync generation',
+    }
   }
 }

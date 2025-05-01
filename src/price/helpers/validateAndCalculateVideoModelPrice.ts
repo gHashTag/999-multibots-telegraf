@@ -1,5 +1,5 @@
 import { logger } from '@/utils/logger'
-import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
 import { calculateFinalPrice } from './calculateFinalPrice'
 
 // Определяем тип ключей конфига

@@ -30,7 +30,7 @@ export interface LipSyncResponse {
   error: string | null
 }
 
-interface LipSyncError {
+export interface LipSyncError {
   message: string
 }
 

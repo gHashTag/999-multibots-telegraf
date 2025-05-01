@@ -10,6 +10,7 @@ import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
 } from '@/core/supabase'
+import logger from '@/utils/logger'
 
 export async function createVoiceAvatar(
   fileUrl: string,
@@ -66,8 +67,16 @@ export async function createVoiceAvatar(
     return { voiceId }
   } catch (error) {
     console.error('Error in createVoiceAvatar:', error)
-    await sendServiceErrorToUser(bot, telegram_id, error as Error, isRu)
-    await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+    // Передаем bot_name в хелперы
+    const botName = bot.context.botName
+    if (botName) {
+      await sendServiceErrorToUser(botName, telegram_id, error as Error, isRu)
+      await sendServiceErrorToAdmin(botName, telegram_id, error as Error)
+    } else {
+      logger.error(
+        'Could not determine bot name in createVoiceAvatar error handler'
+      )
+    }
     throw error
   }
 }

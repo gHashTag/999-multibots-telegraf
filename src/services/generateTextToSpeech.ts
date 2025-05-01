@@ -1,10 +1,6 @@
-import axios, { isAxiosError } from 'axios'
-import {
-  isDev,
-  SECRET_API_KEY,
-  API_SERVER_URL,
-  LOCAL_SERVER_URL,
-} from '@/config'
+import { MyContext } from '@/interfaces'
+import { generateSpeech as generateSpeechPlanB } from './plan_b/generateSpeech'
+import { logger } from '@/utils/logger'
 
 interface TextToSpeechResponse {
   success: boolean
@@ -15,59 +11,69 @@ interface TextToSpeechResponse {
 export async function generateTextToSpeech(
   text: string,
   voice_id: string,
-  telegram_id: number,
-  username: string,
-  isRu: boolean,
-  botName: string
+  telegram_id: string,
+  ctx: MyContext
 ): Promise<TextToSpeechResponse> {
-  try {
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : API_SERVER_URL
-    }/generate/text-to-speech`
-    if (!text) {
-      throw new Error('Text is required')
-    }
-    if (!username) {
-      throw new Error('Username is required')
-    }
-    if (!telegram_id) {
-      throw new Error('Telegram ID is required')
-    }
-    if (!voice_id) {
-      throw new Error('Voice ID is required')
-    }
-    if (!isRu) {
-      throw new Error('Language is required')
-    }
-    const response = await axios.post<TextToSpeechResponse>(
-      url,
-      {
-        text,
-        voice_id,
-        telegram_id: telegram_id.toString(),
-        is_ru: isRu,
-        bot_name: botName,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
+  const botName = ctx.botInfo?.username
+  if (!botName) {
+    logger.error(
+      'Не удалось определить botName из контекста в generateTextToSpeech'
     )
-
-    console.log('Text to speech response:', response.data)
-    return response.data
-  } catch (error) {
-    if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      throw new Error(
-        isRu
-          ? 'Произошла ошибка при преобразовании текста в речь'
-          : 'Error occurred while converting text to speech'
-      )
+    return {
+      success: false,
+      message: 'Could not determine bot name from context',
     }
-    console.error('Unexpected error:', error)
-    throw error
+  }
+
+  logger.info(
+    'Перенаправление вызова generateTextToSpeech на реализацию Plan B',
+    {
+      text,
+      voice_id,
+      telegram_id,
+      botName,
+    }
+  )
+
+  try {
+    const isRu = ctx.from?.language_code === 'ru'
+    const telegram = ctx.telegram
+
+    if (!telegram) {
+      throw new Error('Telegram API instance not found in context')
+    }
+    if (!ctx) {
+      throw new Error('Telegraf context (ctx) is missing')
+    }
+
+    const result = await generateSpeechPlanB({
+      text,
+      voice_id,
+      telegram_id,
+      is_ru: isRu,
+      bot_name: botName,
+      ctx,
+    })
+
+    logger.info('Успешная генерация речи (Plan B)', {
+      audioUrl: result.audioUrl,
+      telegram_id,
+    })
+    return {
+      success: true,
+      audioUrl: result.audioUrl,
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error('Ошибка при вызове generateSpeechPlanB', {
+      error: errorMessage,
+      telegram_id,
+      text,
+      voice_id,
+    })
+    return {
+      success: false,
+      message: errorMessage,
+    }
   }
 }
