@@ -91,6 +91,7 @@
     "@typescript-eslint/parser": "^6.19.0",
     "@vitest/browser": "^3.1.2",
     "@vue/test-utils": "^2.4.5",
+    "bun-types": "^1.2.11",
     "cross-fetch": "^4.1.0",
     "dotenv": "^16.5.0",
     "dotenv-cli": "^8.0.0",

@@ -1,4 +1,4 @@
-import { describe, it, expect, test, beforeEach, afterEach } from 'bun:test'
+import { describe, it, expect, test, beforeEach, afterEach } from 'vitest'
 
 // Mock path corrected and commented out as file does not exist
 // vi.mock('@/config/pricing.config', async () => {
