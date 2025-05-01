@@ -37,6 +37,9 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pnpm-store-
 
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+
     - name: Install dependencies
       run: pnpm install
 
