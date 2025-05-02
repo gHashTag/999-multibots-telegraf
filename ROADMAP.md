@@ -1,3 +1,12 @@
+# Roadmap
+## This document outlines the roadmap for refactoring and improving the codebase.
+
+1. **Core Refactoring**:
+   * Aim: Transition all functions to a new structure for TDD with external APIs.
+   * Details: Create the test before, and after create the logic to make all pass
+
+2.  **All functions should work using this strategy**, the current setup for image-to-video will server as a pattern in order to implement
+
 # 🗺 ROADMAP: NeuroBlogger Project 🚀
 
 ## 🎯 Текущие задачи

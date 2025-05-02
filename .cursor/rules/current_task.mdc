@@ -39,6 +39,9 @@ alwaysApply: false
 *   Неудачный паттерн (неверный порядок middleware) зафиксирован в `REGRESSION_PATTERNS.md`.
 *   Создано правило `HISTORY_LOGGING.mdc` для ведения этих файлов.
 
+
+**✅ `Replicate API`:** Функция `generateImageToVideo` теперь использует Replicate API. Полная информация в `src/modules/localImageToVideo/README.md`
+
 **➡️ Следующий шаг:** Вернуться к задаче "NeurostylistShtogrina_bot - Переход на Оплату Звездами" (шаг 5: **продолжить** проверку специфичной для этого бота логики оплаты звезд).
 
 ---
