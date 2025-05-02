@@ -1,3 +1,13 @@
+# 999-multibots-telegraf
+
+This project contains a set of Telegram bots with various functionalities, including image generation, video generation, and more. See the module-level README files for details.
+
+## Key Modules
+
+- [localImageToVideo](src/modules/localImageToVideo/README.md): This module generates videos from images using the Replicate API.
+
+More modules will be documented soon.
+
 # NeuroBlogger - Мультибот система на Telegraf
 
 Многофункциональная система для управления несколькими Telegram-ботами через один сервер с поддержкой как webhook, так и long-polling режимов.
