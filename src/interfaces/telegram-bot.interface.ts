@@ -159,7 +159,7 @@ export type BotName =
   | 'Gaia_Kamskaia_bot'
   | 'ai_koshey_bot'
   | 'clip_maker_neuro_bot'
-
+  | 'Kaya_easy_art_bot'
 export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   cursor: number
   mode: ModeEnum
