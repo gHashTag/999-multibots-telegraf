@@ -1,26 +1,45 @@
-import axios from 'axios'
-import { isDev, API_SERVER_URL, LOCAL_SERVER_URL } from '@/config'
+import { logger } from '@/utils/logger'
+import { VideoService } from '@/services/plan_b/videoService'
+
 interface UploadVideoRequest {
   videoUrl: string
-  telegram_id: string
+  telegram_id: number
   fileName: string
 }
 
-export async function uploadVideoToServer(
+/**
+ * Загружает видео локально с использованием VideoService.
+ * @param requestData Данные для загрузки видео.
+ * @returns Локальный путь к загруженному видео.
+ */
+export const uploadVideoToServer = async (
   requestData: UploadVideoRequest
-): Promise<void> {
+): Promise<string> => {
   try {
-    console.log('CASE 1: uploadVideoToServer')
-    const url = `${isDev ? LOCAL_SERVER_URL : API_SERVER_URL}/video/upload`
-    const response = await axios.post(url, requestData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    const { videoUrl, telegram_id, fileName } = requestData
+
+    logger.info('🔄 Загрузка видео локально:', {
+      videoUrl,
+      telegram_id,
+      fileName,
     })
 
-    console.log('Video upload response:', response.data)
+    const videoService = new VideoService()
+
+    const localPath = await videoService.processVideo(
+      videoUrl,
+      telegram_id,
+      fileName
+    )
+
+    logger.info('✅ Видео успешно загружено локально:', { localPath })
+
+    return localPath
   } catch (error) {
-    console.error('Error uploading video:', error)
-    throw error
+    logger.error('❌ Ошибка при локальной загрузке видео:', {
+      error: error instanceof Error ? error.message : String(error),
+      requestData,
+    })
+    throw new Error(`Failed to process video locally: ${error}`)
   }
 }

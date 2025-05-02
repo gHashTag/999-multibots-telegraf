@@ -1,29 +1,39 @@
+import { logger } from '@/utils/logger' // Import logger
 import { Markup } from 'telegraf'
 // Убираем импорт InlineKeyboardMarkup, он не нужен
 import type { ReplyKeyboardMarkup } from 'telegraf/types'
 // import { VIDEO_MODELS } from '@/interfaces' // Старый импорт не нужен
-import {
-  VIDEO_MODELS_CONFIG,
-  VideoModelConfig,
-} from '../modules/localImageToVideo/VIDEO_MODELS_CONFIG' // Updated path and added type import
-// Импортируем функцию расчета финальной цены
-import { calculateFinalPrice } from '@/price/helpers'
+import { VIDEO_MODELS_CONFIG } from '../price/models/VIDEO_MODELS_CONFIG' // Импортируем конфиг
+// Импортируем новую функцию расчета
+import { calculateFinalStarPrice, CalculationParams } from '@/price/calculator'
+import { ModeEnum } from '@/interfaces/modes' // Import ModeEnum
 import { levels } from './mainMenu'
 import { Translation } from '@/interfaces/translations.interface'
 
 export const videoModelKeyboard = (
   isRu: boolean
 ): Markup.Markup<ReplyKeyboardMarkup> => {
-  // Создаем массив текстовых названий кнопок С ЦЕНОЙ В ЗВЕЗДАХ ⭐
-  const buttons = Object.entries(VIDEO_MODELS_CONFIG).map(
-    ([key, config]: [string, VideoModelConfig]) => {
-      // Added explicit type
-      // Рассчитываем финальную цену в звездах (уже по новой логике)
-      const finalPriceInStars = calculateFinalPrice(key)
-      // Формируем текст кнопки с ценой в звездах и эмодзи ⭐
-      return `${config.title} (${finalPriceInStars} ⭐)` // Заменяем ★ на ⭐
-    }
+  // --- DEBUG LOGGING START ---
+  logger.debug(
+    '[videoModelKeyboard] Generating keyboard. Config used:',
+    VIDEO_MODELS_CONFIG
   )
+  // --- DEBUG LOGGING END ---
+
+  // Создаем массив текстовых названий кнопок С ЦЕНОЙ В ЗВЕЗДАХ ⭐
+  const buttons = Object.entries(VIDEO_MODELS_CONFIG).map(([key, config]) => {
+    // Рассчитываем финальную цену, передавая ModeEnum и modelId
+    // TODO: Уточнить правильный ModeEnum (TextToVideo/ImageToVideo?)
+    const params: CalculationParams = { modelId: key }
+    const costResult = calculateFinalStarPrice(ModeEnum.TextToVideo, params)
+    const finalPriceInStars = costResult ? costResult.stars : 0
+    // Формируем текст кнопки с ценой в звездах и эмодзи ⭐
+    return `${config.title} (${finalPriceInStars} ⭐)` // Заменяем ★ на ⭐
+  })
+
+  // --- DEBUG LOGGING START ---
+  logger.debug('[videoModelKeyboard] Generated button texts:', buttons)
+  // --- DEBUG LOGGING END ---
 
   // Группируем кнопки моделей по 2 в ряд
   const rows: string[][] = [] // Массив массивов строк
@@ -49,6 +59,10 @@ export const videoModelKeyboard = (
     [helpButtonText, cancelButtonText], // Ряд 1: Справка, Отмена
     [mainMenuButtonText] // Ряд 2: Главное меню
   )
+
+  // --- DEBUG LOGGING START ---
+  logger.debug('[videoModelKeyboard] Final rows structure:', rows)
+  // --- DEBUG LOGGING END ---
 
   // Используем Markup.keyboard и добавляем .resize()
   return Markup.keyboard(rows).resize()

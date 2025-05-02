@@ -1,8 +1,16 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vitest/config'
+import path from 'path'
 
 export default defineConfig({
   test: {
-    globals: true, // Enable Vitest globals like vi, describe, it, etc.
-    environment: 'node', // Specify the environment
+    globals: true,
+    environment: 'node',
+    setupFiles: ['./__tests__/setup.ts'],
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
   },
 })

@@ -10,7 +10,7 @@ import {
 import path from 'path'
 import { getBotByName } from '@/core/bot'
 import { updateUserLevelPlusOne } from '@/core/supabase'
-import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
 import {
   sendServiceErrorToUser,
   sendServiceErrorToAdmin,
@@ -20,6 +20,7 @@ import { logger } from '@/utils/logger'
 
 import { generateVideo } from '@/core/replicate/generateVideo'
 import { Markup } from 'telegraf'
+import { updateUserLevelPlusOne as supabaseUpdateUserLevelPlusOne } from '@/core/supabase'
 
 // Определяем тип локально
 type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -79,7 +80,7 @@ export const generateTextToVideo = async (
     }
     const level = userExists.level
     if (level === 9) {
-      await updateUserLevelPlusOne(telegram_id, level)
+      await supabaseUpdateUserLevelPlusOne(telegram_id, level)
     }
 
     const tempCtx = {
@@ -90,7 +91,7 @@ export const generateTextToVideo = async (
     } as any
 
     const { newBalance, paymentAmount, success, error } =
-      await processBalanceVideoOperation(tempCtx, videoModel, is_ru)
+      await processBalanceVideoOperation(tempCtx, String(videoModel), is_ru)
 
     if (!success) {
       logger.error('Error processing balance for video generation:', {
@@ -113,7 +114,9 @@ export const generateTextToVideo = async (
 
     const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
     if (!modelConfig) {
-      throw new Error(`Invalid video model configuration for: ${videoModel}`)
+      throw new Error(
+        `Invalid video model configuration for: ${String(videoModel)}`
+      )
     }
 
     const videoBuffer = await generateVideo(
@@ -153,9 +156,9 @@ export const generateTextToVideo = async (
 
     await saveVideoUrlToSupabase(
       telegram_id,
-      videoUrl as string,
+      videoUrl,
       videoLocalPath,
-      videoModel
+      String(videoModel)
     )
 
     await bot.telegram.sendVideo(telegram_id.toString(), {
@@ -193,8 +196,13 @@ export const generateTextToVideo = async (
     return { videoLocalPath }
   } catch (error) {
     logger.error('Error in generateTextToVideo:', error)
-    await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
-    await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+    await sendServiceErrorToUser(
+      validBotName,
+      telegram_id,
+      error as Error,
+      is_ru
+    )
+    await sendServiceErrorToAdmin(validBotName, telegram_id, error as Error)
 
     if (error instanceof Error) {
       console.error('Error name:', error.name)

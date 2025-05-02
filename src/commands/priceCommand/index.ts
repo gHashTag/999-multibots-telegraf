@@ -1,50 +1,112 @@
-import { SYSTEM_CONFIG } from '@/price/constants/index'
 import { MyContext } from '../../interfaces'
-import { minCost, maxCost, modeCosts } from '@/price/helpers/modelsCost'
-import { conversionRates } from '@/price/priceCalculator'
+import { ModeEnum } from '@/interfaces/modes'
+import {
+  calculateFinalStarPrice,
+  CalculationParams,
+  CostCalculationResult,
+} from '@/price/calculator'
+import {
+  BASE_PRICES_USD,
+  STEP_BASED_PRICES_USD,
+  STAR_COST_USD,
+  MARKUP_MULTIPLIER,
+  CURRENCY_RATES,
+} from '@/config/pricing.config'
+import { logger } from '@/utils/logger'
 
-// Helper function to handle potential function types in modeCosts
-const getCost = (cost: number | ((param?: any) => number)): string => {
-  if (typeof cost === 'function') {
-    // Assuming the function doesn't need parameters for this general display
-    // If parameters are needed, this logic might need adjustment based on context
-    return cost().toFixed(2)
+// Helper function to get price in stars or return 'N/A' on error
+const getPrice = (mode: ModeEnum, params?: CalculationParams): string => {
+  try {
+    const result = calculateFinalStarPrice(mode, params)
+    if (result === null) {
+      logger.warn('[priceCommand] Could not calculate price for mode', {
+        mode,
+        params,
+      })
+      return 'N/A'
+    }
+    // Show 0 for free services
+    return result.stars === 0 ? '0' : result.stars.toString()
+  } catch (error) {
+    logger.error('[priceCommand] Error calculating price for mode', {
+      mode,
+      params,
+      error,
+    })
+    return 'Error'
   }
-  return cost.toFixed(2)
 }
 
 export async function priceCommand(ctx: MyContext) {
-  console.log('CASE: priceCommand')
+  logger.info('Executing /price command', { userId: ctx.from?.id })
   const isRu = ctx.from?.language_code === 'ru'
+
+  // --- Calculate specific prices ---
+  const stepCost = getPrice(ModeEnum.DigitalAvatarBody, { steps: 1 })
+  const textToImageCost = getPrice(ModeEnum.TextToImage)
+  const imageToPromptCost = getPrice(ModeEnum.ImageToPrompt)
+  const textToVideoCost = getPrice(ModeEnum.TextToVideo)
+  const voiceCost = getPrice(ModeEnum.Voice)
+  const textToSpeechCost = getPrice(ModeEnum.TextToSpeech)
+  const imageToVideoCost = getPrice(ModeEnum.ImageToVideo)
+  const lipSyncCost = getPrice(ModeEnum.LipSync)
+  const voiceToTextCost = getPrice(ModeEnum.VoiceToText)
+  const neuroPhotoCost = getPrice(ModeEnum.NeuroPhoto)
+
+  // --- Calculate star cost in RUB ---
+  let starCostRub = 'N/A'
+  try {
+    // Calculate base cost in RUB and apply markup implicitly included in calculateFinalStarPrice logic
+    // Here we just show the effective rate based on config
+    starCostRub = (
+      STAR_COST_USD *
+      MARKUP_MULTIPLIER *
+      CURRENCY_RATES.USD_TO_RUB
+    ).toFixed(2)
+  } catch (error) {
+    logger.error('[priceCommand] Error calculating star cost in RUB', { error })
+  }
 
   const message = isRu
     ? `
-    <b>💰 Стоимость всех услуг:</b>
-    - 🧠 Обучение модели за 1 шаг: ${conversionRates.costPerStepInStars} ⭐️
-    - ✍️ Генерация промпта: ${getCost(modeCosts.text_to_image)} ⭐️
-    - 🖼️ Генерация изображения: от ${minCost} до ${maxCost} ⭐️
-    - 🤖 Нейро-генерация изображения: ${getCost(modeCosts.image_to_prompt)} ⭐️
-    - 🎥 Текст в видео: ${getCost(modeCosts.text_to_video)} ⭐️
-    - 🎤 Голос: ${getCost(modeCosts.voice)} ⭐️
-    - 🗣️ Текст в речь: ${getCost(modeCosts.text_to_speech)} ⭐️
-    - 📽️ Изображение в видео: ${getCost(modeCosts.image_to_video)} ⭐️
+<b>💰 Стоимость услуг (в ⭐️):</b>
+- <b>Цифровой Аватар</b> (1 шаг): ${stepCost}
+- <b>Текст в Изображение:</b> ${textToImageCost}
+- <b>Изображение в Промпт:</b> ${imageToPromptCost}
+- <b>Текст в Видео:</b> ${textToVideoCost} (зависит от модели)
+- <b>Изображение в Видео:</b> ${imageToVideoCost} (зависит от модели)
+- <b>Голос (Клонирование):</b> ${voiceCost}
+- <b>Текст в Речь:</b> ${textToSpeechCost}
+- <b>Lip Sync (Анимация губ):</b> ${lipSyncCost}
+- <b>Голос в Текст:</b> ${voiceToTextCost}
+- <b>НейроФото:</b> ${neuroPhotoCost}
 
-    <b>💵 Стоимость звезды:</b> ${(SYSTEM_CONFIG.starCost * 99).toFixed(2)} руб
-    💵 Пополнение баланса /buy
+<i>(Стоимость видео/изображений может зависеть от выбранной модели)</i>
+
+<b>💵 Стоимость 1 ⭐️:</b> ~${starCostRub} руб.
+(Может незначительно отличаться из-за округления и курсов)
+
+Для пополнения баланса используйте команду /buy
     `
     : `
-    <b>💰 Price of all services:</b>
-    - 🧠 Training model: ${conversionRates.costPerStepInStars} ⭐️
-    - ✍️ Prompt generation: ${getCost(modeCosts.text_to_image)} ⭐️
-    - 🖼️ Image generation: from ${minCost} до ${maxCost} ⭐️
-    - 🤖 Neuro-image generation: ${getCost(modeCosts.image_to_prompt)} ⭐️
-    - 🎥 Text to video: ${getCost(modeCosts.text_to_video)} ⭐️
-    - 🎤 Voice: ${getCost(modeCosts.voice)} ⭐️
-    - 🗣️ Text to speech: ${getCost(modeCosts.text_to_speech)} ⭐️
-    - 📽️ Image to video: ${getCost(modeCosts.image_to_video)} ⭐️
+<b>💰 Service Prices (in ⭐️):</b>
+- <b>Digital Avatar</b> (1 step): ${stepCost}
+- <b>Text to Image:</b> ${textToImageCost}
+- <b>Image to Prompt:</b> ${imageToPromptCost}
+- <b>Text to Video:</b> ${textToVideoCost} (model dependent)
+- <b>Image to Video:</b> ${imageToVideoCost} (model dependent)
+- <b>Voice Cloning:</b> ${voiceCost}
+- <b>Text to Speech:</b> ${textToSpeechCost}
+- <b>Lip Sync:</b> ${lipSyncCost}
+- <b>Voice to Text:</b> ${voiceToTextCost}
+- <b>NeuroPhoto:</b> ${neuroPhotoCost}
 
-    <b>💵 Star cost:</b> ${SYSTEM_CONFIG.starCost.toFixed(2)} $
-    💵 Top up balance /buy
+<i>(Video/image costs may vary depending on the selected model)</i>
+
+<b>💵 Cost of 1 ⭐️:</b> ~$${STAR_COST_USD.toFixed(3)} USD
+(Displayed RUB price is approximate)
+
+To top up your balance, use the /buy command
     `
 
   await ctx.reply(message, { parse_mode: 'HTML' })

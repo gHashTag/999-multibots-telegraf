@@ -10,6 +10,7 @@ import type { SessionPayment } from './payments.interface'
 import type { SceneContextScene, WizardContextWizard } from 'telegraf/scenes'
 import { ModeEnum, type Mode } from './modes'
 import type { Translation } from './translations.interface'
+import type { User as TelegramUser } from '@telegraf/types'
 
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {
@@ -206,6 +207,20 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   en?: string
   lastCompletedVideoScene?: ModeEnum | null | undefined
   gender?: string
+  __scenes?: WizardSessionData
+  imageId?: string
+  imagePrompt?: string
+  chatMessage?: string
+  videoPrompt?: string
+  videoId?: string
+  currentCost?: number
+  currentMode?: ModeEnum
+  mySessionProp?: number
+  current_action?: string
+  is_morphing?: boolean
+  payment_method?: string
+  imageAUrl?: string
+  imageBUrl?: string
 }
 
 export interface MyContext extends Context {
@@ -213,6 +228,7 @@ export interface MyContext extends Context {
   scene: SceneContextScene<MyContext, WizardSessionData>
   wizard: WizardContextWizard<MyContext>
   update: Update.MessageUpdate | Update.CallbackQueryUpdate
+  botName?: BotName
 }
 
 // Создайте новый тип, объединяющий MyContext и WizardContext

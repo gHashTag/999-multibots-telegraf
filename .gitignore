@@ -78,7 +78,7 @@ web_modules/
 .env.test.local
 .env.production.local
 .env.local
-
+.env.*
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -144,4 +144,6 @@ tmp_tests
 
 tmp_tests
 
-.cursor/rules/current-task.mdc
+.bot.lock
+.vercel
+src/uploads/144022504/image-to-video/

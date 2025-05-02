@@ -8,7 +8,6 @@ import {
   updateUserLevelPlusOne,
   savePromptDirect,
 } from '@/core/supabase'
-import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { directPaymentProcessor } from '@/core/supabase/directPayment'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
@@ -19,6 +18,15 @@ import { getAspectRatio } from '@/core/supabase/ai'
 import { v4 as uuidv4 } from 'uuid'
 import { ApiResponse } from '@/interfaces/api.interface'
 import { BotName } from '@/interfaces/telegram-bot.interface'
+import { bots } from '@/bot'
+import { calculateFinalStarPrice } from '@/price/calculator'
+import {
+  sendServiceErrorToAdmin,
+  sendServiceErrorToUser,
+} from '@/helpers/error'
+import { Telegraf } from 'telegraf'
+// import { sendSuccessMessage } from '@/helpers/error' // Commented out: Path unknown
+// import { sendImageToUser } from '@/helpers' // Commented out: Path unknown
 /**
  * Прямая генерация нейрофото V1 без использования Inngest.
  * Используется как резервный вариант при отсутствии доступа к Inngest.
@@ -44,6 +52,8 @@ export async function generateNeuroPhotoDirect(
     bypass_payment_check?: boolean
   }
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
+  let bot: Telegraf<MyContext> | null = null
+
   logger.info({
     message: '🚀 [DIRECT] Начало прямой генерации Neurophoto V1',
     description: 'Starting direct Neurophoto V1 generation',
@@ -101,7 +111,7 @@ export async function generateNeuroPhotoDirect(
       throw new Error(`Bot with name ${botName} not found`)
     }
 
-    const bot = botResult.bot
+    bot = botResult.bot
     logger.info({
       message: '✅ [DIRECT] Экземпляр бота получен',
       description: 'Bot instance retrieved',
@@ -174,11 +184,9 @@ export async function generateNeuroPhotoDirect(
       mode: ModeEnum.NeuroPhoto,
     })
 
-    const costResult = calculateModeCost({
-      mode: ModeEnum.NeuroPhoto,
-      steps: validNumImages,
-    })
-    const costPerImage = Number(costResult.stars)
+    const costResult = calculateFinalStarPrice(ModeEnum.NeuroPhoto)
+    const cost = costResult ? costResult.stars : 0
+    const costPerImage = Number(cost)
     const totalCost = costPerImage * validNumImages
 
     logger.info({
@@ -735,6 +743,25 @@ export async function generateNeuroPhotoDirect(
       })
     }
 
-    return null
+    // Отправляем сообщение администратору
+    if (bot) {
+      // Передаем имя бота, а не инстанс
+      const botName = bot.context.botName
+      if (botName) {
+        await sendServiceErrorToAdmin(botName, telegram_id, error as Error)
+      } else {
+        logger.error('Could not determine bot name to send admin error')
+      }
+    } else {
+      logger.error(
+        '❌ [DIRECT] Не удалось отправить ошибку админу: экземпляр бота не был инициализирован.',
+        {
+          telegram_id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      )
+    }
+
+    throw error
   }
 }

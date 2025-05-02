@@ -9,7 +9,6 @@ import {
 } from '@/helpers/error'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { modeCosts } from '@/price/helpers/modelsCost'
 import { levels } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'
 import { PaymentType } from '@/interfaces/payments.interface'
@@ -17,6 +16,10 @@ import { v4 as uuidv4 } from 'uuid'
 import { Markup } from 'telegraf'
 
 import { directPaymentProcessor } from '@/core/supabase/directPayment'
+import { supabase } from '@/core/supabase'
+import { bots } from '@/bot'
+import { logger } from '@/utils/logger'
+import { calculateFinalStarPrice, CalculationParams } from '@/price/calculator'
 
 export async function generateImageToPrompt(
   imageUrl: string,
@@ -27,7 +30,7 @@ export async function generateImageToPrompt(
   bot_name: string
 ): Promise<string> {
   console.log('generateImageToPrompt', imageUrl, telegram_id, username, is_ru)
-  let costPerImage: number | undefined = undefined
+  const cost: number | undefined = undefined
   let newBalance: number | undefined = undefined
 
   try {
@@ -41,16 +44,29 @@ export async function generateImageToPrompt(
       await updateUserLevelPlusOne(telegram_id, level)
     }
 
-    if (typeof modeCosts[ModeEnum.ImageToPrompt] === 'function') {
-      costPerImage = modeCosts[ModeEnum.ImageToPrompt](1)
-    } else {
-      costPerImage = modeCosts[ModeEnum.ImageToPrompt]
-    }
+    const imageGenCostResult = calculateFinalStarPrice(ModeEnum.TextToImage)
+    const imageToPromptCostResult = calculateFinalStarPrice(
+      ModeEnum.ImageToPrompt
+    )
+
+    const imageGenCost = imageGenCostResult ? imageGenCostResult.stars : 0
+    const imageToPromptCost = imageToPromptCostResult
+      ? imageToPromptCostResult.stars
+      : 0
+    const cost = imageGenCost + imageToPromptCost
+
+    logger.info(`Рассчитанная стоимость: ${cost} звезд`, {
+      telegram_id,
+      username,
+      is_ru,
+      imageGenCost,
+      imageToPromptCost,
+    })
 
     const paymentOperationId = `payment-${telegram_id}-${Date.now()}-${uuidv4()}`
     const paymentResult = await directPaymentProcessor({
       telegram_id,
-      amount: costPerImage,
+      amount: cost,
       type: PaymentType.MONEY_OUTCOME,
       description: 'Payment for image to prompt',
       bot_name,
@@ -151,14 +167,14 @@ export async function generateImageToPrompt(
               }
             )
 
-            if (costPerImage !== undefined && newBalance !== undefined) {
+            if (cost !== undefined && newBalance !== undefined) {
               await bot.telegram.sendMessage(
                 telegram_id,
                 is_ru
-                  ? `Стоимость: ${costPerImage.toFixed(
+                  ? `Стоимость: ${cost.toFixed(
                       2
                     )} ⭐️\nВаш баланс: ${newBalance.toFixed(2)} ⭐️`
-                  : `Cost: ${costPerImage.toFixed(
+                  : `Cost: ${cost.toFixed(
                       2
                     )} ⭐️\nYour balance: ${newBalance.toFixed(2)} ⭐️`
               )
@@ -182,14 +198,14 @@ export async function generateImageToPrompt(
     throw new Error('Internal error: Caption processing failed')
   } catch (error) {
     console.error('Error in generateImageToPrompt:', error)
-    await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
-    await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+    await sendServiceErrorToUser(bot_name, telegram_id, error as Error, is_ru)
+    await sendServiceErrorToAdmin(bot_name, telegram_id, error as Error)
 
-    if (newBalance !== undefined && costPerImage !== undefined) {
+    if (newBalance !== undefined && cost !== undefined) {
       try {
         await directPaymentProcessor({
           telegram_id,
-          amount: costPerImage,
+          amount: cost,
           type: PaymentType.REFUND,
           description: 'Refund for failed image-to-prompt',
           bot_name,
@@ -197,7 +213,7 @@ export async function generateImageToPrompt(
           inv_id: `refund-${telegram_id}-${Date.now()}-${uuidv4()}`,
           metadata: { is_ru },
         })
-        console.log(`Refunded ${costPerImage} stars to user ${telegram_id}`)
+        console.log(`Refunded ${cost} stars to user ${telegram_id}`)
         await bot.telegram.sendMessage(
           telegram_id,
           is_ru
@@ -210,12 +226,10 @@ export async function generateImageToPrompt(
           refundError
         )
         await sendServiceErrorToAdmin(
-          bot,
+          bot_name,
           telegram_id,
           new Error(
-            `Failed refund check! User: ${telegram_id}, Amount: ${costPerImage}. Original error: ${
-              (error as Error).message
-            }. Refund error: ${(refundError as Error).message}`
+            `Failed refund check! User: ${telegram_id}, Amount: ${cost}. Original error: ${(error as Error).message}. Refund error: ${(refundError as Error).message}`
           )
         )
       }

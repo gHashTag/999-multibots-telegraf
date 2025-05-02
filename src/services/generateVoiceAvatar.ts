@@ -1,60 +1,77 @@
-import axios from 'axios'
-import { SECRET_API_KEY, API_URL } from '@/config'
 import { MyContext } from '@/interfaces'
 import { sendGenericErrorMessage } from '@/menu'
+import { createVoiceAvatar as createVoiceAvatarPlanB } from './plan_b/createVoiceAvatar'
+import { getBotByName } from '@/core/bot'
+import { logger } from '@/utils/logger'
 
 interface VoiceAvatarResponse {
   success: boolean
   message: string
+  voiceId?: string
 }
 
 export async function generateVoiceAvatar(
-  imageUrl: string,
+  fileUrl: string,
   prompt: string,
   telegram_id: string,
   ctx: MyContext,
   isRu: boolean,
   botName: string
 ): Promise<VoiceAvatarResponse | null> {
+  logger.info('[generateVoiceAvatar] Starting refactored function', {
+    fileUrl,
+    telegram_id,
+    botName,
+  })
   try {
-    const url = `${API_URL}/generate/voice-avatar`
+    const botData = getBotByName(botName)
+    if (!botData || !botData.bot) {
+      logger.error('[generateVoiceAvatar] Bot instance not found', {
+        botName,
+      })
+      throw new Error(`Bot instance not found for name: ${botName}`)
+    }
+    const bot = botData.bot
 
-    const response = await axios.post<VoiceAvatarResponse>(
-      url,
-      {
-        imageUrl,
-        prompt,
+    const username = ctx.from?.username
+    if (!username) {
+      logger.error('[generateVoiceAvatar] Username not found in context', {
         telegram_id,
-        username: ctx.from?.username || '',
-        is_ru: isRu,
-        bot_name: botName,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
-    )
-
-    return response.data
-  } catch (error) {
-    console.error('Error generating voice avatar:', error)
-
-    try {
-      const errorMessage = isRu
-        ? 'Произошла ошибка при создании голосового аватара'
-        : 'An error occurred while creating voice avatar'
-
-      await sendGenericErrorMessage(
-        ctx,
-        isRu,
-        error instanceof Error ? error : new Error(errorMessage)
-      )
-    } catch (err) {
-      console.error('Ошибка при отправке сообщения об ошибке:', err)
+      })
+      throw new Error('Username not found')
     }
 
-    return null
+    const result = await createVoiceAvatarPlanB(
+      fileUrl,
+      telegram_id,
+      username,
+      isRu,
+      bot
+    )
+
+    logger.info('[generateVoiceAvatar] Voice creation successful', {
+      telegram_id,
+      voiceId: result.voiceId,
+    })
+    return {
+      success: true,
+      message: isRu ? 'Голос успешно создан' : 'Voice created successfully',
+      voiceId: result.voiceId,
+    }
+  } catch (error) {
+    logger.error('[generateVoiceAvatar] Error generating voice avatar:', {
+      error: error instanceof Error ? error.message : String(error),
+      telegram_id,
+    })
+
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : isRu
+            ? 'Неизвестная ошибка создания голоса'
+            : 'Unknown voice creation error',
+    }
   }
 }

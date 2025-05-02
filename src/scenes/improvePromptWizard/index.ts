@@ -1,15 +1,19 @@
-import { Scenes, Markup } from 'telegraf'
+import { Scenes, Markup, Telegraf } from 'telegraf'
 import { upgradePrompt } from '@/core/openai/upgradePrompt'
 import { MyContext } from '@/interfaces'
 import { generateTextToImage } from '@/services/generateTextToImage'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
-import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
 import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovementFailureMessage'
 import { sendGenericErrorMessage } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'
 import { getUserProfileAndSettings } from '@/db/userSettings'
 import { logger } from '@/utils/logger'
+import { handleHelpCancel } from '@/handlers'
+import { isRussian } from '@/helpers'
+import { imageModelPrices } from '@/price/models'
+import { validateAndCalculateImageModelPrice } from '@/price/helpers'
+import { bots } from '@/bot'
 const MAX_ATTEMPTS = 10
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
@@ -88,194 +92,91 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussian(ctx)
     const message = ctx.message
 
-    if (message && 'text' in message) {
-      const text = message.text
-      console.log(text, 'text')
-
-      if (!ctx.from?.id) {
-        await ctx.reply(
-          isRu
-            ? 'Ошибка идентификации пользователя'
-            : 'User identification error'
-        )
-        return ctx.scene.leave()
-      }
-
-      if (!ctx.session.prompt) {
-        await sendPromptImprovementFailureMessage(ctx, isRu)
-        return ctx.scene.leave()
-      }
-      if (!ctx.session.mode) {
-        await sendPromptImprovementFailureMessage(ctx, isRu)
-        return ctx.scene.leave()
-      }
-      switch (text) {
-        case isRu ? '✅ Да. Cгенерировать?' : '✅ Yes. Generate?': {
-          const mode = ctx.session.mode
-          if (!mode)
-            throw new Error(
-              isRu ? 'Не удалось определить режим' : 'Could not identify mode'
-            )
-
-          if (!ctx.from.id)
-            throw new Error(
-              isRu
-                ? 'improvePromptWizard: Не удалось определить telegram_id'
-                : 'improvePromptWizard: Could not identify telegram_id'
-            )
-          if (!ctx.from.username)
-            throw new Error(
-              isRu
-                ? 'improvePromptWizard: Не удалось определить username'
-                : 'improvePromptWizard: Could not identify username'
-            )
-          if (!isRu)
-            throw new Error(
-              isRu
-                ? 'improvePromptWizard: Не удалось определить isRu'
-                : 'improvePromptWizard: Could not identify isRu'
-            )
-
-          const { profile, settings } = await getUserProfileAndSettings(
-            ctx.from.id
-          )
-          if (!profile || !settings) {
-            logger.error(
-              'Не удалось получить профиль или настройки в improvePromptWizard',
-              { telegramId: ctx.from.id }
-            )
-            await ctx.reply(
-              isRu
-                ? 'Ошибка: Не удалось получить данные пользователя.'
-                : 'Error: Could not retrieve user data.'
-            )
-            return ctx.scene.leave()
-          }
-
-          console.log(mode, 'mode')
-          switch (mode) {
-            case ModeEnum.NeuroPhoto:
-              await generateNeuroImage(
-                ctx.session.prompt,
-                ctx.session.userModel.model_url,
-                1,
-                ctx.from.id.toString(),
-                ctx,
-                ctx.botInfo?.username
-              )
-              break
-            case 'text_to_video':
-              if (!ctx.session.videoModel)
-                throw new Error(
-                  isRu
-                    ? 'improvePromptWizard: Не удалось определить видео модель'
-                    : 'improvePromptWizard: Could not identify video model'
-                )
-
-              console.log(ctx.session.videoModel, 'ctx.session.videoModel')
-              if (!ctx.session.videoModel)
-                throw new Error(
-                  isRu
-                    ? 'improvePromptWizard: Не удалось определить видео модель'
-                    : 'improvePromptWizard: Could not identify video model'
-                )
-              await generateTextToVideo(
-                ctx.session.prompt,
-                ctx.from.id.toString(),
-                ctx.from.username || 'unknown',
-                isRu,
-                ctx.botInfo?.username || 'unknown_bot'
-              )
-
-              break
-            case 'text_to_image':
-              await generateTextToImage(
-                ctx.session.prompt,
-                settings.imageModel,
-                1,
-                ctx.from.id.toString(),
-                isRu,
-                ctx,
-                ctx.botInfo?.username || 'unknown_bot'
-              )
-              break
-            default:
-              throw new Error(
-                isRu
-                  ? 'improvePromptWizard: Неизвестный режим'
-                  : 'improvePromptWizard: Unknown mode'
-              )
-          }
-          return ctx.scene.leave()
-        }
-
-        case isRu ? '🔄 Еще раз улучшить' : '🔄 Improve again': {
-          ctx.session.attempts = (ctx.session.attempts || 0) + 1
-
-          if (ctx.session.attempts >= MAX_ATTEMPTS) {
-            await ctx.reply(
-              isRu
-                ? 'Достигнуто максимальное количество попыток улучшения промпта.'
-                : 'Maximum number of prompt improvement attempts reached.'
-            )
-            return ctx.scene.leave()
-          }
-
-          await ctx.reply(
-            isRu
-              ? '⏳ Повторное улучшение промпта...'
-              : '⏳ Re-improving prompt...'
-          )
-          if (!ctx.session.prompt) {
-            await sendPromptImprovementFailureMessage(ctx, isRu)
-            return ctx.scene.leave()
-          }
-          const improvedPrompt = await upgradePrompt(ctx.session.prompt)
-          if (!improvedPrompt) {
-            await sendPromptImprovementFailureMessage(ctx, isRu)
-            return ctx.scene.leave()
-          }
-
-          ctx.session.prompt = improvedPrompt
-
-          await ctx.reply(
-            isRu
-              ? 'Улучшенный промпт:\n```\n' + improvedPrompt + '\n```'
-              : 'Improved prompt:\n```\n' + improvedPrompt + '\n```',
-            {
-              reply_markup: Markup.keyboard([
-                [
-                  Markup.button.text(
-                    isRu ? '✅ Да. Cгенерировать?' : '✅ Yes. Generate?'
-                  ),
-                ],
-                [
-                  Markup.button.text(
-                    isRu ? '🔄 Еще раз улучшить' : '🔄 Improve again'
-                  ),
-                ],
-                [Markup.button.text(isRu ? '❌ Отмена' : '❌ Cancel')],
-              ]).resize().reply_markup,
-              parse_mode: 'MarkdownV2',
-            }
-          )
-          break
-        }
-
-        case isRu ? '❌ Отмена' : '❌ Cancel': {
-          await ctx.reply(isRu ? 'Операция отменена' : 'Operation cancelled')
-          return ctx.scene.leave()
-        }
-
-        default: {
-          await sendGenericErrorMessage(ctx, isRu)
-          return ctx.scene.leave()
-        }
-      }
+    if (!message || !('text' in message)) {
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave()
     }
+
+    if (!ctx.from?.id) {
+      console.error('❌ Telegram ID не найден')
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave()
+    }
+
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
+
+    const improvedPrompt = message.text
+
+    // Используем улучшенный промпт для генерации изображения
+    if (!ctx.session.selectedModel) {
+      logger.error(
+        'Не найдена выбранная модель в сессии в improvePromptWizard',
+        {
+          telegramId: ctx.from.id,
+        }
+      )
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: Не удалось определить выбранную модель.'
+          : 'Error: Could not determine the selected model.'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Находим нужный инстанс бота
+    const currentBotName = ctx.botInfo?.username
+    const currentBotInstance = bots.find(
+      b => b.context.botName === currentBotName
+    )
+
+    if (!currentBotInstance) {
+      logger.error(
+        'Не удалось найти инстанс Telegraf для бота в improvePromptWizard',
+        {
+          botName: currentBotName,
+          telegramId: ctx.from.id,
+        }
+      )
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: Не удалось инициализировать бота.'
+          : 'Error: Could not initialize the bot.'
+      )
+      return ctx.scene.leave()
+    }
+
+    try {
+      await ctx.reply(
+        isRu
+          ? `⏳ Генерирую изображение с улучшенным промптом...`
+          : `⏳ Generating image with improved prompt...`
+      )
+
+      // Передаем найденный инстанс бота
+      await generateTextToImage(
+        improvedPrompt,
+        ctx.session.selectedModel,
+        1,
+        ctx.from.id.toString(),
+        isRu,
+        ctx,
+        currentBotInstance // Передаем инстанс
+      )
+      // Результат (GenerationResult[]) не обрабатываем, т.к. generateTextToImage сама отправляет сообщение
+    } catch (error) {
+      logger.error('Ошибка при генерации изображения в improvePromptWizard:', {
+        error,
+      })
+      await sendGenericErrorMessage(ctx, isRu)
+    }
+
+    return ctx.scene.leave()
   }
 )
 

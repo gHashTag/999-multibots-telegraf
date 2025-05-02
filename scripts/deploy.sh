@@ -1,42 +1,17 @@
 #!/bin/bash
 
-# Цвета для вывода
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Script for deploying to remote server
 
-# Конфигурация
-SERVER_USER="root"
-SERVER_HOST="999-multibots-u14194.vm.elestio.app"
-SERVER_PATH="/opt/app/999-multibots-telegraf"
-SSH_KEY="$HOME/.ssh/id_rsa"
+SSH_KEY="~/.ssh/id_rsa"
+SERVER="root@999-multibots-u14194.vm.elestio.app"
+APP_DIR="/opt/app/999-multibots-telegraf"
 
-# Функция для форматированного вывода
-log() {
-  local type=$1
-  local message=$2
-  
-  case $type in
-    "info")
-      echo -e "${BLUE}[INFO]${NC} $message"
-      ;;
-    "success")
-      echo -e "${GREEN}[SUCCESS]${NC} $message"
-      ;;
-    "error")
-      echo -e "${RED}[ERROR]${NC} $message"
-      ;;
-    "warning")
-      echo -e "${YELLOW}[WARNING]${NC} $message"
-      ;;
-    *)
-      echo -e "$message"
-      ;;
-  esac
-}
+echo "🚀 Подключаюсь к серверу и запускаю обновление..."
+ssh -i $SSH_KEY $SERVER "cd $APP_DIR && git pull && chmod +x update-docker.sh && ./update-docker.sh"
 
+<<<<<<< HEAD
+echo "✅ Команда обновления отправлена на сервер!" 
+=======
 # Проверка наличия SSH ключа
 if [ ! -f "$SSH_KEY" ]; then
   log "error" "SSH ключ не найден: $SSH_KEY"
@@ -125,3 +100,4 @@ log "info" "Проверьте статус контейнеров: ssh -i $SSH_
 log "info" "Просмотр логов: ssh -i $SSH_KEY $SERVER_USER@$SERVER_HOST 'cd $SERVER_PATH && docker-compose -f docker-compose.webhook.yml logs -f'"
 
 exit 0 
+>>>>>>> origin/feat/vitest-integration

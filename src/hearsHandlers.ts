@@ -3,7 +3,7 @@ import { logger } from './utils/logger'
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
 import { MyContext } from './interfaces/'
-import { Telegraf, Context } from 'telegraf'
+import { Telegraf, Context, Markup, NarrowedContext } from 'telegraf'
 
 import { generateNeuroImage } from './services/generateNeuroImage'
 import { handleSizeSelection } from './handlers'
@@ -13,6 +13,7 @@ import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
 import { getUserProfileAndSettings } from '@/db/userSettings'
+import { bots } from '@/bot'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
@@ -179,14 +180,35 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
           ctx.botInfo?.username
         )
       } else {
+        const currentBotName = ctx.botInfo?.username
+        const currentBotInstance = bots.find(
+          b => b.context.botName === currentBotName
+        )
+
+        if (!currentBotInstance) {
+          logger.error(
+            'Не удалось найти инстанс Telegraf для бота в hearsHandlers (1-4)',
+            {
+              botName: currentBotName,
+              telegramId: ctx.from?.id,
+            }
+          )
+          await ctx.reply(
+            isRu
+              ? 'Ошибка: Не удалось инициализировать бота.'
+              : 'Error: Could not initialize the bot.'
+          )
+          return
+        }
+
         await generateTextToImage(
           prompt,
           settings.imageModel,
-          numImages,
+          num,
           telegramId.toString(),
           isRu,
           ctx,
-          ctx.botInfo?.username || 'unknown_bot'
+          currentBotInstance
         )
       }
     }
