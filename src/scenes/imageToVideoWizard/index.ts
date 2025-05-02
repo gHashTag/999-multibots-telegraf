@@ -1,5 +1,4 @@
 import { Scenes, Markup } from 'telegraf'
-import { generateImageToVideo } from '@/services/generateImageToVideo'
 import { MyContext } from '@/interfaces'
 import {
   cancelMenu,
@@ -8,13 +7,14 @@ import {
   sendGenericErrorMessage,
   videoModelKeyboard,
 } from '@/menu'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { isRussian } from '@/helpers/language'
 import { ModeEnum } from '@/interfaces/modes'
 import { getBotToken, handleHelpCancel } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
 import { logger } from '@/utils/logger'
 import { calculateFinalPrice } from '@/price/helpers'
-import { getUserBalance } from '@/core/supabase'
+import { generateImageToVideoLegacy } from '@/services/generateImageToVideoAdapter'
 import { SYSTEM_CONFIG } from '@/price/constants/index'
 
 // Определяем тип ключей конфига
@@ -257,14 +257,14 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
             isRu,
           })
 
-          await generateImageToVideo(
+          await generateImageToVideoLegacy(
             imageUrl,
             prompt,
             configKey,
             ctx.from.id.toString(),
             ctx.from.username,
             isRu,
-            ctx.botInfo?.username
+            ctx.botInfo?.username || ''
           )
           ctx.session.prompt = prompt
           ctx.session.mode = ModeEnum.ImageToVideo

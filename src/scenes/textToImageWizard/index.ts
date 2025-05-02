@@ -1,6 +1,6 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { imageModelPrices } from '@/price/models'
+import { IMAGES_MODELS, ModelInfo } from '@/price/models/IMAGES_MODELS' // Import new config and type
 import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImage } from '@/services/generateTextToImage'
@@ -27,18 +27,21 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Фильтруем модели и создаем кнопки
-    const filteredModels = Object.values(imageModelPrices).filter(
-      model =>
+    const filteredModels = Object.values(IMAGES_MODELS).filter(
+      (
+        model: ModelInfo // Add type ModelInfo
+      ) =>
         !model.inputType.includes('dev') &&
         (model.inputType.includes('text') ||
           (model.inputType.includes('text') &&
             model.inputType.includes('image')))
     )
     console.log('filteredModels', filteredModels)
-    const modelButtons = filteredModels.map(model =>
-      Markup.button.text(model.shortName)
+    const modelButtons = filteredModels.map(
+      (
+        model: ModelInfo // Add type ModelInfo
+      ) => Markup.button.text(model.shortName)
     )
-
     const keyboardButtons = []
     for (let i = 0; i < modelButtons.length; i += 2) {
       keyboardButtons.push(modelButtons.slice(i, i + 2))
@@ -89,10 +92,10 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const modelShortName = message.text
-    const selectedModelEntry = Object.entries(imageModelPrices).find(
-      ([, modelInfo]) => modelInfo.shortName === modelShortName
+    const selectedModelEntry = Object.entries(IMAGES_MODELS).find(
+      ([, modelInfo]: [string, ModelInfo]) =>
+        modelInfo.shortName === modelShortName // Add type ModelInfo
     )
-
     if (!selectedModelEntry) {
       console.error('Model not found:', modelShortName)
       await sendGenericErrorMessage(ctx, isRu)
@@ -107,7 +110,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    const availableModels = Object.keys(imageModelPrices)
+    const availableModels = Object.keys(IMAGES_MODELS) // Changed imageModelPrices to IMAGES_MODELS
     const userBalance = await getUserBalance(ctx.from.id.toString())
     const price = await validateAndCalculateImageModelPrice(
       fullModelId,

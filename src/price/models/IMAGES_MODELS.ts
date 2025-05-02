@@ -5,7 +5,8 @@ export function calculateFinalImageCostInStars(baseCost: number): number {
   return Math.ceil(finalCostInDollars / SYSTEM_CONFIG.starCost)
 }
 
-interface ModelInfo {
+export interface ModelInfo {
+  // Added export
   shortName: string
   description_en: string
   description_ru: string
