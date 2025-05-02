@@ -1,60 +1,105 @@
-# Local Image to Video Generation Module
+# Модуль: Генерация Видео из Текста (Text-to-Video через Replicate)
 
-This module generates videos from images using the Replicate API.
+Этот модуль (изначально Image-to-Video) теперь описывает, как **создать видео по текстовому описанию**, используя модель `haiper-ai/haiper-video-2` сервиса Replicate.
 
-## Workflow
+## Руководство для Терминала (Прямой вызов Text-to-Video)
 
-The `generateImageToVideo` function orchestrates the video generation process:
+Это руководство показывает, как одной командой `curl` в терминале (Bash) запустить генерацию видео и сразу дождаться результата.
 
-1.  **Input**: Receives an `ImageToVideoRequest` object containing:
-    *   `imageUrl`: The URL of the image to use as input.
-    *   `prompt`: The prompt to guide the video generation.
-    *   `videoModel`: The identifier of the video model to use (key from `VIDEO_MODELS_CONFIG`).
-    *   `metadata`: Metadata like user ID and bot ID.
-    *   `locale`: Localization settings.
-2.  **Model Selection**: Uses the `videoModel` to retrieve the corresponding model configuration from `VIDEO_MODELS_CONFIG.ts`. This config contains the Replicate model ID and input parameters.
-3.  **Image Download**: Downloads the image from `imageUrl` using the `downloadFile` function.
-4.  **Replicate API Call**: Calls the Replicate API using the specified model ID and a constructed input object. The input object includes the prompt and the image data passed as a Base64-encoded Data URI.
-    *   The API is called with the model ID obtained from `VIDEO_MODELS_CONFIG.ts`, model is passed to Replicate with the `input` parameter which follows this stucture:
-        *   `prompt` : The text prompt (if the model supports it).
-        *   `image` : The Base64-encoded image.
-        *   Any other parameters required by the model (read from `VIDEO_MODELS_CONFIG.ts`).
-5.  **Output Processing**: Extracts the generated video URL from the Replicate API response. The response from replicate should be string, or a string within array
-6.  **Result**: Returns an `ImageToVideoResponse` object containing the video URL and a success message.
+**Что понадобится:**
 
-## Implementation Details
+1.  **Терминал:** Окно для ввода команд.
+2.  **Программы:**
+    *   `curl`: Для отправки запроса в интернет.
+    *   `jq`: Для красивого отображения результата (JSON).
+3.  **Ключ Replicate API:** Секретный ключ для доступа к Replicate.
 
--   The `downloadFile` function uses `axios` to download images from URLs. It converts the downloaded image to a Buffer, then to a Base64-encoded Data URI, which is passed to the Replicate API.
--   The configuration for available models can be found in `VIDEO_MODELS_CONFIG.ts`
--   Error handling is implemented at each step (download, Replicate API call).
+**Шаг 1: Подготовка - Задаем наши данные**
 
-## Dependencies
+Открой терминал и выполни эти команды, **подставив свои значения** вместо `<...>`:
 
--   `replicate` (Replicate API client)
--   `axios` (for image downloading)
--   `VIDEO_MODELS_CONFIG.ts` (for model configurations)
--   `downloadFile.ts` (helper for downloading files)
--   All the necessary dependencies are exported from `./types.ts`
+```bash
+# 1. Сохраняем ключ Replicate (ВАЖНО: не показывай его никому!)
+export REPLICATE_API_TOKEN="<твой_ключ_replicate_api>"
 
-## Testing
-To run tests, execute:
+# 2. Пишем описание (промпт) для видео
+export PROMPT="<описание_того_что_должно_быть_на_видео>"
+
+# 3. Задаем параметры для видео (можно изменить)
+export DURATION=6  # Длительность в секундах
+export RESOLUTION=1080 # Разрешение (например, 1080 или 720)
+export ASPECT_RATIO="16:9" # Соотношение сторон
+export USE_PROMPT_ENHANCER=true # Использовать улучшатель промпта (true/false)
+
+# 4. Задаем ID модели Haiper
+export REPLICATE_MODEL_ID="haiper-ai/haiper-video-2"
+
+echo "Переменные установлены! Можно запускать генерацию."
+```
+
+**Шаг 2: Запуск генерации и ожидание результата**
+
+Теперь выполни **одну** команду `curl`. Она отправит запрос в Replicate и, благодаря заголовку `Prefer: wait`, будет ждать, пока видео не сгенерируется, а затем вернет полный ответ.
+
+```bash
+echo "--- Запускаю генерацию видео и жду результат --- "
+
+# Собираем JSON для поля "input" с помощью jq
+JSON_INPUT_DATA=$(jq -n \
+  --arg prompt "$PROMPT" \
+  --argjson duration "$DURATION" \
+  --argjson resolution "$RESOLUTION" \
+  --arg aspect_ratio "$ASPECT_RATIO" \
+  --argjson use_enhancer "$USE_PROMPT_ENHANCER" \
+  '{ "prompt": $prompt, "duration": $duration, "resolution": $resolution, "aspect_ratio": $aspect_ratio, "use_prompt_enhancer": $use_enhancer }'
+)
+
+# Выполняем основной запрос curl (убрали -s для большей детализации)
+curl -X POST \
+  -H "Authorization: Token $REPLICATE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: wait=120" \ # Ждать до 120 секунд (можно увеличить)
+  -d "{ \"input\": $JSON_INPUT_DATA }" \
+  "https://api.replicate.com/v1/models/$REPLICATE_MODEL_ID/predictions" | jq .
+
+# Ответ будет выведен в формате JSON.
+# Если успешно, ищи поле "output" - там будет ссылка на видео.
+# Если ошибка, ищи поле "error".
+echo
+echo "--- Готово! Проверь вывод выше. --- "
+```
+
+**Что происходит в команде `curl`:**
+
+*   `-X POST`: Отправляем данные (создаем новый запрос на генерацию).
+*   `-H "Authorization: Token ..."`: Передаем наш секретный ключ.
+*   `-H "Content-Type: application/json"`: Говорим, что отправляем данные в формате JSON.
+*   `-H "Prefer: wait=120"`: **Самое важное!** Просим Replicate не отвечать сразу ID задачи, а подождать (до 120 секунд), пока задача не завершится (успешно или с ошибкой), и вернуть полный результат.
+*   `-d '{ "input": ... }'`: Передаем наши данные (промпт, длительность и т.д.) в формате JSON. Мы используем `jq` для безопасной сборки части `input`.
+*   `"https://..."`: Адрес API Replicate для запуска предсказаний конкретной модели.
+*   `| jq .`: Полученный ответ (JSON) передаем утилите `jq` для красивого форматирования, чтобы его было удобно читать.
+
+**Результат:**
+
+После выполнения команды ты увидишь в терминале ответ от Replicate в формате JSON. Если все прошло успешно, найди в этом ответе поле `output`. В нем должна быть ссылка (URL) на твое сгенерированное видео.
+
+## Тестирование (TypeScript)
+
+*Примечание: Текущие тесты в `__tests__` могут быть написаны для Image-to-Video и потребуют адаптации для Text-to-Video.*
 
 ```shell
 bun test src/modules/localImageToVideo/__tests__/generateImageToVideo.test.ts
 ```
 
-## Debugging
+## Поиск и устранение неисправностей
 
-If the video generation fails, check the following:
+Если видео не создается или возникает ошибка:
 
--   Make sure the `REPLICATE_API_TOKEN` environment variable is set.
--   Make sure the Replicate API model ID in `VIDEO_MODELS_CONFIG.ts` is correct.
--   Check the Replicate API status.
--   Verify that the input parameters (`prompt`, `imageUrl`, `aspectRatio`) are valid for the selected model.
--   Examine the logs (especially the logger for accurate error messages) for more information.
+*   Убедись, что переменная окружения `REPLICATE_API_TOKEN` установлена правильно и ключ действителен.
+*   Проверь правильность `REPLICATE_MODEL_ID`.
+*   Проверь статус сервиса Replicate.
+*   Посмотри на сообщение об ошибке в поле `error` в JSON-ответе от `curl`.
+*   Попробуй увеличить время ожидания в заголовке `Prefer: wait=...`, если генерация занимает больше 120 секунд.
+*   Убедись, что параметры в `JSON_INPUT_DATA` (duration, resolution и т.д.) допустимы для модели Haiper.
 
-## Additional considerations
-- The `imageKey` from VIDEO_MODELS_CONFIG specifies what is the name of the image input on Replicate API
-- For now the system only creates a still-image, and will require code changes to perform proper video creations.
-
-**NOTE**: This README describes the Replicate API-based implementation of image-to-video generation.
+**NOTE**: This README describes the Replicate API-based implementation.
