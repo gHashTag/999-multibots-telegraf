@@ -12,7 +12,7 @@ export const updateUserModel = async (
 ): Promise<void> => {
   const { data, error } = await supabase
     .from('users')
-    .update({ current_model: model })
+    .update({ model: model })
     .eq('telegram_id', telegram_id)
     .select('id') // Добавляем select, чтобы проверить, был ли пользователь найден
     .single()
