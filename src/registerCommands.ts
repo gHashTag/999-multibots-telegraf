@@ -58,6 +58,8 @@ import { handleBuy } from './handlers/handleBuy'
 import { isRussian } from '@/helpers'
 import { registerPaymentActions } from './handlers/paymentActions'
 import { handleTextMessage } from './handlers/handleTextMessage'
+// Убираем импорт handleMenu, так как он не используется здесь напрямую
+// import { handleMenu } from './handlers/handleMenu'
 //https://github.com/telegraf/telegraf/issues/705
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
@@ -345,6 +347,25 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     })
   }
 
+  // Добавляем обработчик hears для "Выбор модели ИИ" по аналогии
+  if (levels && typeof levels === 'object' && levels[6]) {
+    bot.hears([levels[6].title_ru, levels[6].title_en], async ctx => {
+      console.log('CASE bot.hears: 🤖 Выбор модели ИИ / Choose AI Model')
+      logger.info('GLOBAL HEARS: Выбор модели ИИ', { telegramId: ctx.from?.id })
+      try {
+        await ctx.scene.leave()
+        ctx.session.mode = ModeEnum.SelectModel // Устанавливаем режим
+        await ctx.scene.enter(ModeEnum.SelectModel) // Входим в сцену выбора модели
+      } catch (error) {
+        logger.error('Error in Выбор модели ИИ hears:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+        await ctx.reply('Произошла ошибка при входе в Выбор модели ИИ.')
+      }
+    })
+  }
+
   // 6. ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ НАВИГАЦИИ (ACTION) (теперь ПОСЛЕ stage)
   bot.action('go_main_menu', async ctx => {
     logger.info('GLOBAL ACTION: go_main_menu', { telegramId: ctx.from?.id })
@@ -464,6 +485,10 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   })
 
   // 11. ОБРАБОТЧИК ТЕКСТА (ПОСЛЕДНИЙ)
+  // Убираем ранее добавленный универсальный обработчик,
+  // так как кнопки меню обрабатываются через hears выше.
+  // Оставляем только handleTextMessage, который, вероятно,
+  // предназначен для обработки текста ВНУТРИ сцен.
   bot.on(message('text'), handleTextMessage)
 
   console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')
