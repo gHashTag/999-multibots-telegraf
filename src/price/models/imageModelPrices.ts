@@ -103,13 +103,13 @@ export const imageModelPrices: Record<string, ModelInfo> = {
     inputType: ['text', 'image', 'dev'],
   },
   'black-forest-labs/flux-pro': {
-    shortName: 'FLUX1.1 [pro]',
+    shortName: 'FLUX [pro]',
     description_en: `FLUX.1 [pro] is a model based on a hybrid architecture of multimodal and parallel blocks of diffusion transformer, optimized for image generation from text descriptions. It offers improved performance and efficiency, including rotational positional embeddings and parallel attention layers. FLUX.1 [pro] is available for non-commercial use and supports open weights for scientific research and creative projects.`,
     description_ru: `FLUX.1 [pro] — это модель, основанная на гибридной архитектуре мультимодальных и параллельных блоков диффузионного трансформатора, оптимизированная для генерации изображений из текстовых описаний. Она предлагает улучшенную производительность и эффективность, включая вращательные позиционные вложения и параллельные слои внимания. FLUX.1 [pro] доступна для использования в некоммерческих целях и поддерживает открытые веса для научных исследований и творческих проектов.`,
     previewImage:
       'https://bflapistorage.blob.core.windows.net/public/c8145aa6e5894cbd815d6ce708fea9f2/sample.jpg',
     costPerImage: calculateFinalImageCostInStars(0.055),
-    inputType: ['text', 'image'],
+    inputType: ['text', 'image', 'dev'],
   },
   'black-forest-labs/flux-redux-dev': {
     shortName: 'FLUX1.1 [dev] Redux',
@@ -122,7 +122,7 @@ export const imageModelPrices: Record<string, ModelInfo> = {
   },
   'black-forest-labs/flux-redux-schnell': {
     shortName: 'FLUX1.1 [dev] Redux schnell',
-    description_en: `FLUX.1 Redux [schnell] lets you quickly generate variations of your images. It’s optimized for speed, making it perfect for prototyping and creative exploration. While it trades some quality for speed compared to Redux [dev], it’s ideal for rapid iteration or building real-time creative tools.`,
+    description_en: `FLUX.1 Redux [schnell] lets you quickly generate variations of your images. It's optimized for speed, making it perfect for prototyping and creative exploration. While it trades some quality for speed compared to Redux [dev], it's ideal for rapid iteration or building real-time creative tools.`,
     description_ru: `FLUX.1 Redux [schnell] позволяет вам быстро создавать вариации ваших изображений. Он оптимизирован для скорости, делая его идеальным для прототипирования и творческого исследования. Хотя он торгует качеством ради скорости по сравнению с Redux [dev], он идеально подходит для быстрой итерации или создания реально-временных творческих инструментов.`,
     previewImage:
       'https://replicate.delivery/xezq/EXqL6e5mFnSxcS5cebdKDEbKfAfArVBY0aJpf1V8iZoeHem5JA/out-0.webp',
@@ -149,7 +149,7 @@ export const imageModelPrices: Record<string, ModelInfo> = {
   },
   'ideogram-ai/ideogram-v2': {
     shortName: 'Ideogram',
-    description_en: `Ideogram (pronounced “eye-dee-oh-gram”) is a AI tool that turns your ideas into stunning images, in a matter of seconds. Ideogram excels at creating captivating designs, realistic images, innovative logos and posters. With unique capabilities like text rendering in images, we aim to inspire creativity and help every user bring their imagination to life.`,
+    description_en: `Ideogram (pronounced "eye-dee-oh-gram") is a AI tool that turns your ideas into stunning images, in a matter of seconds. Ideogram excels at creating captivating designs, realistic images, innovative logos and posters. With unique capabilities like text rendering in images, we aim to inspire creativity and help every user bring their imagination to life.`,
     description_ru: `Ideogram (произносится как "ай-ди-о-грам") — это AI-инструмент, который превращает ваши идеи в потрясающие изображения за несколько секунд. Ideogram превосходит в создании захватывающих дизайнов, реалистичных изображений, инновационных логотипов и постеров. С уникальными возможностями, такими как рендеринг текста в изображениях, мы стремимся вдохновить творчество и помочь каждому пользователю воплотить свою фантазию в жизнь.`,
     previewImage:
       'https://replicate.delivery/czjl/wPuHfFHPOGxqbC3r1rJbEomny4eprgwRVpjIP7pN7oKf6pSnA/R8_ideogram.png',

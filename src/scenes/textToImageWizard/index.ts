@@ -3,7 +3,7 @@ import { MyContext } from '../../interfaces'
 import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
-import { generateTextToImage } from '@/services/generateTextToImage'
+import { generateTextToImageDirect } from '@/services/plan_b/generateTextToImageDirect'
 import { getUserBalance } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
 import {
@@ -14,6 +14,9 @@ import { logger } from '@/utils/logger'
 
 import { createHelpCancelKeyboard } from '@/menu'
 import { getUserProfileAndSettings } from '@/db/userSettings'
+import { handleMenu } from '@/handlers/handleMenu'
+import { improvePromptWizard } from '../improvePromptWizard'
+import { sizeWizard } from '../sizeWizard'
 
 export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   'text_to_image',
@@ -100,7 +103,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const [fullModelId, selectedModelInfo] = selectedModelEntry
-    ctx.session.selectedModel = fullModelId
+    ctx.session.selectedImageModel = fullModelId
 
     if (!selectedModelInfo) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -198,8 +201,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Устанавливаем выбранную модель в настройки ПЕРЕД вызовом
-    if (ctx.session.selectedModel) {
-      settings.imageModel = ctx.session.selectedModel
+    if (ctx.session.selectedImageModel) {
+      settings.imageModel = ctx.session.selectedImageModel
     } else {
       logger.error('Не найдена выбранная модель в сессии в textToImageWizard', {
         telegramId: ctx.from.id,
@@ -212,17 +215,133 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Используем новую сигнатуру generateTextToImage
-    await generateTextToImage(
-      prompt,
-      ctx.session.selectedModel,
-      1,
-      ctx.from.id.toString(),
-      isRu,
-      ctx,
-      ctx.botInfo?.username
-    )
+    try {
+      // Используем новую сигнатуру generateTextToImageDirect
+      // TODO: Определить, как получать num_images (пока захардкожено 1)
+      const generationResult = await generateTextToImageDirect(
+        prompt,
+        ctx.session.selectedImageModel,
+        1, // num_images
+        ctx.from.id.toString(),
+        ctx.from.username ?? 'unknown',
+        isRu,
+        ctx
+      )
 
-    return ctx.scene.leave()
+      // Получаем текущий баланс ПОСЛЕ операции
+      const currentBalance = await getUserBalance(ctx.from.id.toString())
+
+      // Сохраняем промпт в сессию для возможного улучшения
+      ctx.session.prompt = prompt
+
+      // Отправляем сообщение с клавиатурой здесь
+      await ctx.reply(
+        isRu
+          ? `Ваши изображения сгенерированы!\n\nЕсли хотите сгенерировать еще, то выберите количество изображений в меню 1️⃣, 2️⃣, 3️⃣, 4️⃣.\n\nВаш новый баланс: ${currentBalance.toFixed(2)} ⭐️`
+          : `Your images have been generated!\n\nGenerate more?\n\nYour new balance: ${currentBalance.toFixed(2)} ⭐️`,
+        {
+          reply_markup: {
+            keyboard: [
+              [{ text: '1️⃣' }, { text: '2️⃣' }, { text: '3️⃣' }, { text: '4️⃣' }],
+              [
+                { text: isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
+                { text: isRu ? '📐 Изменить размер' : '📐 Change size' },
+              ],
+              [{ text: isRu ? '🏠 Главное меню' : '🏠 Main menu' }],
+            ],
+            resize_keyboard: true,
+            // one_time_keyboard: false, // Оставляем клавиатуру
+          },
+        }
+      )
+
+      // Переходим на следующий шаг для обработки кнопок
+      return ctx.wizard.next()
+    } catch (error) {
+      logger.error('Ошибка при вызове generateTextToImageDirect', { error })
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave() // Выходим при ошибке генерации
+    }
+  },
+  // НОВЫЙ ЧЕТВЕРТЫЙ ШАГ
+  async ctx => {
+    const isRu = isRussian(ctx)
+    const message = ctx.message
+
+    if (!message || !('text' in message)) {
+      // Если пришло не текстовое сообщение, просто выходим или просим выбрать кнопку
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, выберите действие с помощью кнопок.'
+          : 'Please select an action using the buttons.'
+      )
+      // Не выходим, ждем нажатия кнопки
+      return
+    }
+
+    const text = message.text
+
+    // Проверяем отмену
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
+
+    // Обработка кнопок
+    switch (text) {
+      case '1️⃣':
+      case '2️⃣':
+      case '3️⃣':
+      case '4️⃣': {
+        const numImages = parseInt(text.replace('️⃣', ''))
+        // TODO: Реализовать повторную генерацию с numImages
+        // Пока просто выводим сообщение и выходим
+        await ctx.reply(
+          `Запущена повторная генерация ${numImages} изображений... (TODO)`
+        )
+        logger.info('Повторная генерация', {
+          numImages,
+          telegramId: ctx.from?.id,
+        })
+        return ctx.scene.leave() // Выходим после запуска (или пока нет реализации)
+      }
+
+      case isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt': {
+        if (ctx.session.prompt) {
+          logger.info('Переход в improvePromptWizard', {
+            telegramId: ctx.from?.id,
+          })
+          return ctx.scene.enter(improvePromptWizard.id)
+        } else {
+          await ctx.reply(
+            isRu
+              ? 'Не найден предыдущий промпт для улучшения.'
+              : 'Previous prompt not found for improvement.'
+          )
+          return ctx.scene.leave()
+        }
+      }
+
+      case isRu ? '📐 Изменить размер' : '📐 Change size': {
+        logger.info('Переход в sizeWizard', { telegramId: ctx.from?.id })
+        // TODO: Передать ID изображения или другую инфу в sizeWizard, если нужно
+        return ctx.scene.enter(sizeWizard.id)
+      }
+
+      case isRu ? '🏠 Главное меню' : '🏠 Main menu': {
+        logger.info('Возврат в главное меню', { telegramId: ctx.from?.id })
+        await handleMenu(ctx) // Используем хендлер главного меню
+        return ctx.scene.leave()
+      }
+
+      default:
+        await ctx.reply(
+          isRu
+            ? 'Пожалуйста, выберите действие с помощью кнопок.'
+            : 'Please select an action using the buttons.'
+        )
+        // Не выходим, ждем нажатия кнопки
+        return
+    }
   }
 )

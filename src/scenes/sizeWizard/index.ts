@@ -26,7 +26,11 @@ export const sizeWizard = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     if (!ctx.message || !('text' in ctx.message)) {
-      return ctx.scene.leave()
+      const isRu = isRussian(ctx)
+      await ctx.reply(
+        isRu ? 'Ожидался текст с размером.' : 'Expected text with size.'
+      )
+      return
     }
 
     const size = ctx.message.text
@@ -59,6 +63,5 @@ export const sizeWizard = new Scenes.WizardScene<MyContext>(
     }
 
     await handleSizeSelection(ctx, size)
-    return ctx.scene.leave()
   }
 )

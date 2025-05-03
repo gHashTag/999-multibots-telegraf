@@ -184,6 +184,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   inviteCode?: string
   inviter?: string
   paymentAmount?: number
+  selectedImageModel?: string
   subscriptionStep?:
     | 'LOADING_TRANSLATIONS'
     | 'LOADING_MODELS'
