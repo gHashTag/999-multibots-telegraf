@@ -1,13 +1,13 @@
-import { mock, jest } from 'bun:test'
+import { vi } from 'vitest'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 // Импортируем оригинальный модуль, чтобы сохранить его экспорты
 import * as originalBotModule from '@/core/bot'
 
-console.log('--- Executing Bun Test Setup File: __tests__/setup.ts ---')
+console.log('--- Executing Vitest Setup File: __tests__/setup.ts ---')
 
 // --- Мок для клиента Supabase ---
-mock.module('@/core/supabase/client', () => {
+vi.mock('@/core/supabase/client', () => {
   console.log('[Setup] Mocking @/core/supabase/client')
   return {
     supabase: {},
@@ -16,47 +16,49 @@ mock.module('@/core/supabase/client', () => {
 })
 
 // --- УДАЛЕНО: Глобальный мок OpenAI (вызывал ошибку резолва пакета) ---
-// mock.module('@/core/openai/index.ts', () => {
+// vi.mock('@/core/openai/index.ts', () => {
 //   console.log('[Setup] Mocking @/core/openai/index.ts')
 //   return {}
 // })
 
-mock.module('@/core/supabase/getAiFeedbackFromSupabase.ts', () => {
+vi.mock('@/core/supabase/getAiFeedbackFromSupabase.ts', () => {
   console.log('[Setup] Mocking @/core/supabase/getAiFeedbackFromSupabase.ts')
   return {
-    getAiFeedbackFromSupabase: mock(),
+    getAiFeedbackFromSupabase: vi.fn(),
   }
 })
 
 // --- Мок для @/core/bot (сначала объявляем переменные) ---
-const mockSendMessage = mock()
+const mockSendMessage = vi.fn()
 const mockTelegram = { sendMessage: mockSendMessage }
 const mockBotInstance = {
   telegram: mockTelegram,
 } as unknown as Telegraf<MyContext>
 // Экспортируем mockGetBotByName, чтобы использовать в тестах
-export const mockGetBotByName = jest
+export const mockGetBotByName = vi
   .fn()
   .mockReturnValue({ bot: mockBotInstance, error: null })
 
-// Мокируем @/core/bot, сохраняя оригинальные экспорты
-mock.module('@/core/bot', () => {
-  console.log('[Setup] Mocking @/core/bot')
+// Mock @/core/bot, preserving original exports
+// Use vi.doMock instead of vi.mock to avoid hoisting issues with originalBotModule
+vi.doMock('@/core/bot', async importOriginal => {
+  console.log('[Setup] Mocking @/core/bot using doMock')
+  const actual = await importOriginal() // Import the actual module
   return {
-    ...originalBotModule, // Используем импортированный оригинал
-    getBotByName: mockGetBotByName, // Перезаписываем только getBotByName
-    // Если нужно мокировать и другие функции из @/core/bot, делаем это здесь
+    ...(actual as typeof originalBotModule), // Spread the actual exports
+    getBotByName: mockGetBotByName, // Override only getBotByName
+    // If other functions from @/core/bot need mocking, do it here
   }
 })
 
 // --- Другие глобальные моки (если нужны) ---
-mock.module('@/utils/logger', () => ({
+vi.mock('@/utils/logger', () => ({
   logger: {
-    info: mock(),
-    warn: mock(),
-    error: mock(),
-    debug: mock(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
   },
 }))
 
-console.log('--- Bun Test Setup File Execution Finished ---')
+console.log('--- Vitest Setup File Execution Finished ---')

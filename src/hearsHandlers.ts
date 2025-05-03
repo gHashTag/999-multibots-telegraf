@@ -1,6 +1,6 @@
 import { imageModelMenu } from './menu/imageModelMenu'
 import { logger } from './utils/logger'
-import { generateTextToImage } from './services/generateTextToImage'
+import { generateTextToImage } from '@/modules/generateTextToImage'
 import { isRussian } from './helpers/language'
 import { MyContext } from './interfaces/'
 import { Telegraf, Context, Markup, NarrowedContext } from 'telegraf'
@@ -14,6 +14,26 @@ import { SubscriptionType } from './interfaces/subscription.interface'
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
 import { getUserProfileAndSettings } from '@/db/userSettings'
 import { bots } from '@/bot'
+import { supabase } from '@/core/supabase'
+import { replicate } from '@/core/replicate'
+import fs from 'fs'
+import path from 'path'
+import { processServiceBalanceOperation as processBalance } from '@/price/helpers'
+import { savePromptDirect as saveImagePrompt } from '@/core/supabase'
+import { saveFileLocally as saveImageLocally } from '@/helpers/saveFileLocally'
+import { getAspectRatio } from '@/core/supabase/getAspectRatio'
+import {
+  sendServiceErrorToUser,
+  sendServiceErrorToAdmin,
+} from '@/helpers/error'
+import { IMAGES_MODELS } from '@/price/models/IMAGES_MODELS'
+import { calculateFinalStarPrice } from '@/price/calculator'
+
+// FIXME: Найти или создать processImageApiResponse
+const processImageApiResponse = async (output: any): Promise<string> => {
+  console.warn('Dummy processImageApiResponse used')
+  return Array.isArray(output) ? output[0] : String(output)
+}
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
@@ -201,15 +221,91 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
           return
         }
 
-        await generateTextToImage(
+        const requestData = {
           prompt,
-          settings.imageModel,
-          num,
-          telegramId.toString(),
-          isRu,
-          ctx,
-          currentBotInstance
-        )
+          model_type: settings.imageModel,
+          num_images: num,
+          telegram_id: telegramId.toString(),
+          username: ctx.from?.username || 'UnknownUser',
+          is_ru: isRu,
+        }
+
+        // --- Адаптер для processBalance --- START
+        const tempProcessBalanceAdapter = async (
+          ctxAdapter: MyContext,
+          modelAdapter: string,
+          isRuAdapter: boolean
+        ): Promise<{
+          success: boolean
+          newBalance?: number
+          paymentAmount: number
+          error?: string
+        }> => {
+          const costResult = calculateFinalStarPrice(ModeEnum.TextToImage, {
+            modelId: modelAdapter,
+          })
+          if (!costResult) {
+            logger.error('Could not calculate price in processBalanceAdapter', {
+              modelAdapter,
+            })
+            return {
+              success: false,
+              paymentAmount: 0,
+              error: 'Could not calculate price',
+            }
+          }
+          const paymentAmount = costResult.stars
+
+          const balanceResult = await processBalance({
+            telegram_id: ctxAdapter.from.id.toString(),
+            paymentAmount: paymentAmount,
+            is_ru: isRuAdapter,
+            bot: currentBotInstance,
+            bot_name: ctxAdapter.botInfo.username,
+            description: `Text to Image generation (${modelAdapter})`,
+            service_type: ModeEnum.TextToImage,
+          })
+          return { ...balanceResult, paymentAmount }
+        }
+        // --- Адаптер для processBalance --- END
+
+        // --- Адаптер для saveImagePrompt --- START
+        const tempSaveImagePromptAdapter = async (
+          promptAdapter: string,
+          modelKeyAdapter: string,
+          imageLocalUrlAdapter: string,
+          telegramIdAdapter: number
+        ): Promise<number> => {
+          const promptId = await saveImagePrompt(
+            promptAdapter,
+            modelKeyAdapter,
+            ModeEnum.TextToImage, // Указываем правильный режим
+            imageLocalUrlAdapter,
+            telegramIdAdapter.toString(), // Преобразуем ID в строку
+            'completed' // Пример статуса
+          )
+          return promptId ?? -1 // Возвращаем ID или -1 в случае ошибки
+        }
+        // --- Адаптер для saveImagePrompt --- END
+
+        const dependencies = {
+          logger,
+          supabase,
+          replicate,
+          telegram: currentBotInstance.telegram,
+          fsCreateReadStream: fs.createReadStream,
+          pathBasename: path.basename,
+          processBalance: tempProcessBalanceAdapter,
+          processImageApiResponse: processImageApiResponse,
+          saveImagePrompt: tempSaveImagePromptAdapter,
+          saveImageLocally: saveImageLocally,
+          getAspectRatio: getAspectRatio,
+          sendErrorToUser: sendServiceErrorToUser,
+          sendErrorToAdmin: sendServiceErrorToAdmin,
+          imageModelsConfig: IMAGES_MODELS,
+        }
+
+        await generateTextToImage(requestData, dependencies)
       }
     }
 

@@ -1,64 +1,74 @@
-import { ApiResponse, GenerationResult } from '@/interfaces'
-import { replicate } from '@/core/replicate'
-import { getAspectRatio, savePrompt } from '@/core/supabase'
-import { downloadFile } from '@/helpers/downloadFile'
-import { processApiResponse } from '@/helpers/error'
-import { pulse } from '@/helpers/pulse'
-import {
-  getUserByTelegramIdString,
-  updateUserLevelPlusOne,
-} from '@/core/supabase'
-import { IMAGES_MODELS } from '@/config/models.config'
-import { ModeEnum } from '@/interfaces/modes'
-import { processBalanceOperation } from '@/price/helpers'
-import { PaymentType } from '@/interfaces/payments.interface'
+import { GenerationResult, MyContext } from '@/interfaces'
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
-import { saveFileLocally } from '@/helpers/saveFileLocally'
-import path from 'path'
-import fs from 'fs'
 import { logger } from '@/utils/logger'
+import { ModeEnum } from '@/interfaces/modes'
 import { calculateFinalStarPrice } from '@/price/calculator'
+import { GenerateTextToImageDependencies } from './types'
+import { determineImageSize } from './utils/sizeCalculator'
 
-const supportedSizes = [
-  '1024x1024',
-  '1365x1024',
-  '1024x1365',
-  '1536x1024',
-  '1024x1536',
-  '1820x1024',
-  '1024x1820',
-  '1024x2048',
-  '2048x1024',
-  '1434x1024',
-  '1024x1434',
-  '1024x1280',
-  '1280x1024',
-  '1024x1707',
-  '1707x1024',
-]
+interface GenerateTextToImageRequest {
+  prompt: string
+  model_type: string
+  num_images: number
+  telegram_id: string
+  username: string
+  is_ru: boolean
+}
 
 export const generateTextToImage = async (
-  prompt: string,
-  model_type: string,
-  num_images: number,
-  telegram_id: string,
-  username: string,
-  is_ru: boolean,
-  bot: Telegraf<MyContext>,
-  ctx: MyContext
+  requestData: GenerateTextToImageRequest,
+  dependencies: GenerateTextToImageDependencies
 ): Promise<GenerationResult[]> => {
+  const {
+    logger,
+    supabase,
+    replicate,
+    telegram,
+    fsCreateReadStream,
+    pathBasename,
+    processBalance,
+    processImageApiResponse,
+    saveImagePrompt,
+    saveImageLocally,
+    getAspectRatio,
+    sendErrorToUser,
+    sendErrorToAdmin,
+    imageModelsConfig,
+  } = dependencies
+
+  const { prompt, model_type, num_images, telegram_id, username, is_ru } =
+    requestData
+
   try {
     const modelKey = model_type.toLowerCase()
-    const modelConfig = IMAGES_MODELS[modelKey]
+    const modelConfig = imageModelsConfig[modelKey]
     logger.info('Model Config:', { modelConfig })
-    const userExists = await getUserByTelegramIdString(telegram_id)
-    if (!userExists) {
+
+    const { data: userExists, error: userError } = await supabase
+      .from('users')
+      .select('level, aspect_ratio')
+      .eq('telegram_id', telegram_id)
+      .single()
+
+    if (userError || !userExists) {
+      logger.error('Error fetching user or user not found', {
+        telegram_id,
+        error: userError,
+      })
       throw new Error(`User with ID ${telegram_id} does not exist.`)
     }
     const level = userExists.level
     if (level === 10) {
-      await updateUserLevelPlusOne(telegram_id, level)
+      const { error: levelUpError } = await supabase.rpc(
+        'increment_user_level',
+        { user_tid: telegram_id }
+      )
+      if (levelUpError) {
+        logger.error('Error incrementing user level', {
+          telegram_id,
+          levelUpError,
+        })
+      }
     }
 
     if (!modelConfig) {
@@ -74,36 +84,19 @@ export const generateTextToImage = async (
     const costPerImage = costPerImageResult.stars
     const totalCost = costPerImage * num_images
 
-    const balanceCheck = await processBalanceOperation({
-      ctx,
-      telegram_id: Number(telegram_id),
-      paymentAmount: totalCost,
-      is_ru,
-    })
+    const tempCtx = {
+      from: { id: Number(telegram_id) },
+    } as any
+    const balanceCheck = await processBalance(tempCtx, modelKey, is_ru)
     logger.info('Balance Check Result:', { balanceCheck })
 
     if (!balanceCheck.success) {
       throw new Error('Insufficient stars')
     }
 
-    const aspect_ratio = await getAspectRatio(Number(telegram_id))
+    const aspect_ratio = userExists.aspect_ratio || '1:1'
 
-    let size: string | undefined
-    if (model_type.toLowerCase() === 'recraft v3') {
-      const [widthRatio, heightRatio] = aspect_ratio.split(':').map(Number)
-      const baseWidth = 1024
-      const calculatedHeight = Math.round(
-        (baseWidth / widthRatio) * heightRatio
-      )
-
-      const calculatedSize = `${baseWidth}x${calculatedHeight}`
-
-      size = supportedSizes.includes(calculatedSize)
-        ? calculatedSize
-        : '1024x1024'
-    } else {
-      size = '1024x1024'
-    }
+    const size = determineImageSize(model_type, aspect_ratio)
 
     const input = {
       prompt,
@@ -115,7 +108,7 @@ export const generateTextToImage = async (
 
     for (let i = 0; i < num_images; i++) {
       try {
-        const replicateModelKey = Object.keys(IMAGES_MODELS).find(
+        const replicateModelKey = Object.keys(imageModelsConfig).find(
           key => key === model_type.toLowerCase()
         ) as `${string}/${string}` | `${string}/${string}:${string}` | undefined
 
@@ -130,14 +123,14 @@ export const generateTextToImage = async (
         })
 
         if (num_images > 1) {
-          await bot.telegram.sendMessage(
+          await telegram.sendMessage(
             telegram_id,
             is_ru
               ? `⏳ Генерация изображения ${i + 1} из ${num_images}`
               : `⏳ Generating image ${i + 1} of ${num_images}`
           )
         } else {
-          await bot.telegram.sendMessage(
+          await telegram.sendMessage(
             telegram_id,
             is_ru ? '⏳ Генерация...' : '⏳ Generating...',
             {
@@ -150,40 +143,42 @@ export const generateTextToImage = async (
           input,
         })
 
-        // Обрабатываем API-ответ
-        logger.info({
-          message: '🔍 [DIRECT] Обработка ответа API Replicate',
-          description: 'Processing Replicate API response',
-          output_sample: JSON.stringify(output).substring(0, 100) + '...',
-        })
+        logger.info(
+          `Processing Replicate API response... Sample: ${JSON.stringify(output).substring(0, 50)}...`,
+          {
+            description: 'Processing Replicate API response',
+            output_sample: JSON.stringify(output).substring(0, 100) + '...',
+          }
+        )
 
-        const imageUrl = await processApiResponse(output as string[] | string)
+        const imageUrl = await processImageApiResponse(
+          output as string[] | string
+        )
 
-        // Проверка на валидность URL
         if (!imageUrl || !imageUrl.startsWith('http')) {
           throw new Error(`Invalid image URL: ${imageUrl}`)
         }
 
-        const imageLocalPath = await saveFileLocally(
+        const imageLocalPath = await saveImageLocally(
           telegram_id,
           imageUrl,
           'text-to-image',
           '.jpeg'
         )
 
-        const imageLocalUrl = `/uploads/${telegram_id}/text-to-image/${path.basename(
+        const imageLocalUrl = `/uploads/${telegram_id}/text-to-image/${pathBasename(
           imageLocalPath
         )}`
 
-        const prompt_id = await savePrompt(
+        const prompt_id = await saveImagePrompt(
           prompt,
           modelKey,
           imageLocalUrl,
           Number(telegram_id)
         )
 
-        await bot.telegram.sendPhoto(telegram_id, {
-          source: fs.createReadStream(imageLocalPath),
+        await telegram.sendPhoto(telegram_id, {
+          source: fsCreateReadStream(imageLocalPath),
         })
 
         results.push({
@@ -196,7 +191,7 @@ export const generateTextToImage = async (
     }
 
     if (results.length > 0) {
-      await bot.telegram.sendMessage(
+      await telegram.sendMessage(
         telegram_id,
         is_ru
           ? `✅ ${results.length === 1 ? 'Ваше изображение' : 'Ваши изображения'} (${results.length} из ${num_images}) сгенерирован${results.length === 1 ? 'о' : 'ы'}!\n\nВыберите количество для следующей генерации или другую опцию.\n\nВаш баланс: ${(balanceCheck.newBalance ?? 0).toFixed(2)} ⭐️`
@@ -217,7 +212,7 @@ export const generateTextToImage = async (
         }
       )
     } else {
-      await bot.telegram.sendMessage(
+      await telegram.sendMessage(
         telegram_id,
         is_ru
           ? `❌ Не удалось сгенерировать изображения по вашему запросу. Попробуйте изменить промпт или модель.`
@@ -229,7 +224,8 @@ export const generateTextToImage = async (
   } catch (error) {
     logger.error('Error in generateTextToImage:', { error })
     try {
-      await ctx.reply(
+      await telegram.sendMessage(
+        telegram_id,
         is_ru
           ? 'Произошла ошибка при генерации изображения. Пожалуйста, попробуйте позже.'
           : 'An error occurred during image generation. Please try again later.'
@@ -237,6 +233,6 @@ export const generateTextToImage = async (
     } catch (replyError) {
       logger.error('Failed to send error reply:', { replyError })
     }
-    return []
+    throw error
   }
 }

@@ -5,7 +5,12 @@
 
 import { SupabaseClient as ActualSupabaseClient } from '@supabase/supabase-js'
 import Replicate from 'replicate'
-import { VIDEO_MODELS_CONFIG } from './VIDEO_MODELS_CONFIG' // Import LOCAL config for type derivation if needed elsewhere
+import {
+  VideoModelConfig,
+  VIDEO_MODELS_CONFIG,
+} from '@/price/models/VIDEO_MODELS_CONFIG'
+import { replicate } from '@/core/replicate'
+import type { DownloadFunction } from './downloadFile'
 
 /**
  * Request parameters for generating a video from an image.
@@ -13,7 +18,7 @@ import { VIDEO_MODELS_CONFIG } from './VIDEO_MODELS_CONFIG' // Import LOCAL conf
 export interface ImageToVideoRequest {
   imageUrl: string
   prompt: string
-  videoModel: keyof typeof VIDEO_MODELS_CONFIG // Use keys from LOCAL config
+  videoModel: keyof typeof VIDEO_MODELS_CONFIG
   metadata: {
     userId: string
     username: string
@@ -39,12 +44,6 @@ export interface ImageToVideoResponse {
  * Interface for the Replicate client dependency.
  */
 export type ReplicateClient = Replicate
-
-/**
- * Interface for the file download function.
- * Downloads a file from a URL and returns its Buffer.
- */
-export type DownloadFunction = (url: string) => Promise<Buffer>
 
 /**
  * Logger interface.

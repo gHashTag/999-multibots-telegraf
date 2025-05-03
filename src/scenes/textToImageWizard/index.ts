@@ -1,17 +1,36 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/interfaces'
 import { IMAGES_MODELS, ModelInfo } from '@/price/models/IMAGES_MODELS' // Import new config and type
 import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
-import { generateTextToImage } from '@/services/generateTextToImage'
-import { getUserBalance } from '@/core/supabase'
-import { isRussian } from '@/helpers/language'
+import { generateTextToImage } from '@/modules/generateTextToImage'
+import { getUserBalance, getAspectRatio } from '@/core/supabase'
+import { isRussian } from '@/helpers'
 import {
   sendBalanceMessage,
   validateAndCalculateImageModelPrice,
 } from '@/price/helpers'
 import { logger } from '@/utils/logger'
 import { bots } from '@/bot'
+import { supabase } from '@/core/supabase' // Импорт supabase
+import { replicate } from '@/core/replicate' // Импорт replicate
+import fs from 'fs' // Импорт fs
+import path from 'path' // Импорт path
+import { processServiceBalanceOperation as processBalance } from '@/price/helpers' // Правильный импорт
+// Импортируем заглушку processImageApiResponse
+// FIXME: Найти или создать processImageApiResponse
+const processImageApiResponse = async (output: any): Promise<string> => {
+  console.warn('Dummy processImageApiResponse used')
+  return Array.isArray(output) ? output[0] : String(output)
+}
+import { savePromptDirect as saveImagePrompt } from '@/core/supabase' // Правильный путь и alias
+import { saveFileLocally as saveImageLocally } from '@/helpers/saveFileLocally' // Используем нужный alias
+import {
+  sendServiceErrorToUser,
+  sendServiceErrorToAdmin,
+} from '@/helpers/error' // Импорт error handlers
+import { calculateFinalStarPrice } from '@/price/calculator' // Импорт калькулятора цен
+import { ModeEnum } from '@/interfaces/modes' // Импорт ModeEnum
 
 import { createHelpCancelKeyboard } from '@/menu'
 import { getUserProfileAndSettings } from '@/db/userSettings'
@@ -239,16 +258,94 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     try {
-      // Передаем найденный инстанс бота как последний аргумент
-      const results = await generateTextToImage(
+      // --- Адаптер для processBalance --- START
+      const tempProcessBalanceAdapter = async (
+        ctxAdapter: MyContext,
+        modelAdapter: string,
+        isRuAdapter: boolean
+      ): Promise<{
+        success: boolean
+        newBalance?: number
+        paymentAmount: number
+        error?: string
+      }> => {
+        const costResult = calculateFinalStarPrice(ModeEnum.TextToImage, {
+          modelId: modelAdapter,
+        })
+        if (!costResult) {
+          logger.error('Could not calculate price in processBalanceAdapter', {
+            modelAdapter,
+          })
+          return {
+            success: false,
+            paymentAmount: 0,
+            error: 'Could not calculate price',
+          }
+        }
+        const paymentAmount = costResult.stars
+
+        const balanceResult = await processBalance({
+          telegram_id: ctxAdapter.from.id.toString(),
+          paymentAmount: paymentAmount,
+          is_ru: isRuAdapter,
+          bot: currentBotInstance, // currentBotInstance доступен в замыкании
+          bot_name: ctxAdapter.botInfo.username,
+          description: `Text to Image generation (${modelAdapter})`,
+          service_type: ModeEnum.TextToImage, // Используем правильный enum
+        })
+        return { ...balanceResult, paymentAmount }
+      }
+      // --- Адаптер для processBalance --- END
+
+      // --- Адаптер для saveImagePrompt --- START
+      const tempSaveImagePromptAdapter = async (
+        promptAdapter: string,
+        modelKeyAdapter: string,
+        imageLocalUrlAdapter: string,
+        telegramIdAdapter: number
+      ): Promise<number> => {
+        const promptId = await saveImagePrompt(
+          promptAdapter,
+          modelKeyAdapter,
+          ModeEnum.TextToImage,
+          imageLocalUrlAdapter,
+          telegramIdAdapter.toString(),
+          'completed'
+        )
+        return promptId ?? -1
+      }
+      // --- Адаптер для saveImagePrompt --- END
+
+      // Собираем данные запроса
+      const requestData = {
         prompt,
-        ctx.session.selectedModel,
-        1,
-        ctx.from.id.toString(),
-        isRu,
-        ctx,
-        currentBotInstance // Передаем найденный инстанс
-      )
+        model_type: ctx.session.selectedModel,
+        num_images: 1,
+        telegram_id: ctx.from.id.toString(),
+        username: ctx.from.username || 'UnknownUser',
+        is_ru: isRu,
+      }
+
+      // Собираем зависимости
+      const dependencies = {
+        logger,
+        supabase,
+        replicate,
+        telegram: currentBotInstance.telegram,
+        fsCreateReadStream: fs.createReadStream,
+        pathBasename: path.basename,
+        processBalance: tempProcessBalanceAdapter, // Передаем адаптер
+        processImageApiResponse: processImageApiResponse, // Возвращаем зависимость
+        saveImagePrompt: tempSaveImagePromptAdapter, // Передаем адаптер
+        saveImageLocally: saveImageLocally, // Используем правильное имя свойства
+        getAspectRatio: getAspectRatio, // FIXME: Уточнить нужность
+        sendErrorToUser: sendServiceErrorToUser,
+        sendErrorToAdmin: sendServiceErrorToAdmin,
+        imageModelsConfig: IMAGES_MODELS,
+      }
+
+      // Передаем найденный инстанс бота как последний аргумент
+      const results = await generateTextToImage(requestData, dependencies)
 
       // Логируем результат (опционально)
       if (results.length === 0) {

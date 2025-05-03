@@ -1,7 +1,7 @@
 import { Scenes, Markup, Telegraf } from 'telegraf'
 import { upgradePrompt } from '@/core/openai/upgradePrompt'
 import { MyContext } from '@/interfaces'
-import { generateTextToImage } from '@/services/generateTextToImage'
+import { generateTextToImage } from '@/modules/generateTextToImage'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
 import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
 import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovementFailureMessage'
@@ -14,7 +14,30 @@ import { isRussian } from '@/helpers'
 import { imageModelPrices } from '@/price/models'
 import { validateAndCalculateImageModelPrice } from '@/price/helpers'
 import { bots } from '@/bot'
+// import { improvePromptWithPlanB } from '@/services/improvePromptWithPlanB' // Файл не найден, удаляем импорт
+import { supabase } from '@/core/supabase' // Импорт supabase
+import { replicate } from '@/core/replicate' // Импорт replicate
+import fs from 'fs' // Импорт fs
+import path from 'path' // Импорт path
+import { processServiceBalanceOperation as processBalance } from '@/price/helpers' // Правильный импорт
+import { savePromptDirect as saveImagePrompt } from '@/core/supabase' // Правильный путь и alias
+import { saveFileLocally as saveImageLocally } from '@/helpers/saveFileLocally' // Используем нужный alias
+import { getAspectRatio } from '@/core/supabase/getAspectRatio' // Импорт getAspectRatio
+import {
+  sendServiceErrorToUser,
+  sendServiceErrorToAdmin,
+} from '@/helpers/error' // Импорт error handlers
+import { IMAGES_MODELS } from '@/price/models/IMAGES_MODELS' // Импорт конфига моделей
+import { calculateFinalStarPrice } from '@/price/calculator' // Импорт калькулятора цен
+
 const MAX_ATTEMPTS = 10
+
+// Импортируем заглушку processImageApiResponse
+// FIXME: Найти или создать processImageApiResponse
+const processImageApiResponse = async (output: any): Promise<string> => {
+  console.warn('Dummy processImageApiResponse used')
+  return Array.isArray(output) ? output[0] : String(output)
+}
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
   'improvePromptWizard',
@@ -158,16 +181,94 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           : `⏳ Generating image with improved prompt...`
       )
 
-      // Передаем найденный инстанс бота
-      await generateTextToImage(
-        improvedPrompt,
-        ctx.session.selectedModel,
-        1,
-        ctx.from.id.toString(),
-        isRu,
-        ctx,
-        currentBotInstance // Передаем инстанс
-      )
+      // --- Адаптер для processBalance --- START
+      const tempProcessBalanceAdapter = async (
+        ctxAdapter: MyContext,
+        modelAdapter: string,
+        isRuAdapter: boolean
+      ): Promise<{
+        success: boolean
+        newBalance?: number
+        paymentAmount: number
+        error?: string
+      }> => {
+        const costResult = calculateFinalStarPrice(ModeEnum.TextToImage, {
+          modelId: modelAdapter,
+        })
+        if (!costResult) {
+          logger.error('Could not calculate price in processBalanceAdapter', {
+            modelAdapter,
+          })
+          return {
+            success: false,
+            paymentAmount: 0,
+            error: 'Could not calculate price',
+          }
+        }
+        const paymentAmount = costResult.stars
+
+        const balanceResult = await processBalance({
+          telegram_id: ctxAdapter.from.id.toString(),
+          paymentAmount: paymentAmount,
+          is_ru: isRuAdapter,
+          bot: currentBotInstance, // currentBotInstance доступен в замыкании
+          bot_name: ctxAdapter.botInfo.username,
+          description: `Text to Image generation (Improved Prompt: ${modelAdapter})`,
+          service_type: ModeEnum.TextToImage, // Используем правильный enum
+        })
+        return { ...balanceResult, paymentAmount }
+      }
+      // --- Адаптер для processBalance --- END
+
+      // --- Адаптер для saveImagePrompt --- START
+      const tempSaveImagePromptAdapter = async (
+        promptAdapter: string,
+        modelKeyAdapter: string,
+        imageLocalUrlAdapter: string,
+        telegramIdAdapter: number
+      ): Promise<number> => {
+        const promptId = await saveImagePrompt(
+          promptAdapter,
+          modelKeyAdapter,
+          ModeEnum.TextToImage,
+          imageLocalUrlAdapter,
+          telegramIdAdapter.toString(),
+          'completed'
+        )
+        return promptId ?? -1
+      }
+      // --- Адаптер для saveImagePrompt --- END
+
+      // Собираем данные запроса
+      const requestData = {
+        prompt: improvedPrompt, // Используем улучшенный промпт
+        model_type: ctx.session.selectedModel, // Модель из сессии
+        num_images: 1, // Генерируем одно изображение
+        telegram_id: ctx.from.id.toString(),
+        username: ctx.from.username || 'UnknownUser',
+        is_ru: isRu,
+      }
+
+      // Собираем зависимости
+      const dependencies = {
+        logger,
+        supabase,
+        replicate,
+        telegram: currentBotInstance.telegram,
+        fsCreateReadStream: fs.createReadStream,
+        pathBasename: path.basename,
+        processBalance: tempProcessBalanceAdapter, // Передаем адаптер
+        processImageApiResponse: processImageApiResponse, // Возвращаем зависимость
+        saveImagePrompt: tempSaveImagePromptAdapter, // Передаем адаптер
+        saveImageLocally: saveImageLocally, // Используем правильное имя свойства
+        getAspectRatio: getAspectRatio, // FIXME: Уточнить нужность
+        sendErrorToUser: sendServiceErrorToUser,
+        sendErrorToAdmin: sendServiceErrorToAdmin,
+        imageModelsConfig: IMAGES_MODELS,
+      }
+
+      // Передаем найденный инстанс бота и другие зависимости
+      await generateTextToImage(requestData, dependencies)
       // Результат (GenerationResult[]) не обрабатываем, т.к. generateTextToImage сама отправляет сообщение
     } catch (error) {
       logger.error('Ошибка при генерации изображения в improvePromptWizard:', {

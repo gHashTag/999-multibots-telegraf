@@ -10,7 +10,7 @@ import {
   ImageToVideoResponse, // Needed for result type
   MinimalLogger, // Needed for mock type
 } from '../types'
-import { VIDEO_MODELS_CONFIG } from '../VIDEO_MODELS_CONFIG'
+import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
 
 // No vi.mock needed, using spyOn instead
 

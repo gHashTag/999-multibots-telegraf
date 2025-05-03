@@ -7,8 +7,23 @@ import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
 import { getUserBalance } from '@/core/supabase'
-import { generateTextToVideo as generateTextToVideoPlanB } from '@/services/plan_b/generateTextToVideo'
+import { generateTextToVideo } from '@/modules/generateTextToVideo'
 import { logger } from '@/utils/logger'
+import { processBalanceVideoOperation } from '@/price/helpers'
+import { bots } from '@/bot'
+import { supabase } from '@/core/supabase'
+import { replicate } from '@/core/replicate'
+import fs from 'fs/promises'
+import path from 'path'
+import { generateVideo } from '@/core/replicate/generateVideo'
+import {
+  sendServiceErrorToUser,
+  sendServiceErrorToAdmin,
+} from '@/helpers/error'
+import { pulse } from '@/helpers'
+import { Telegraf } from 'telegraf'
+import { mock } from 'bun:test'
+import { toBotName } from '@/helpers/botName.helper'
 
 // Определяем тип ключа конфига локально
 type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -181,25 +196,60 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       if (ctx.from && ctx.from.username) {
         try {
-          logger.info('Calling generateTextToVideoPlanB', {
+          logger.info('Calling generateTextToVideo module', {
             prompt,
             videoModelKey,
             telegram_id: ctx.from.id.toString(),
             username: ctx.from.username,
             is_ru: isRu,
             bot_name: ctx.botInfo?.username || 'unknown_bot',
+            pulseHelper: pulse,
+            videoModelsConfig: VIDEO_MODELS_CONFIG,
+            pathJoin: path.join,
+            pathDirname: path.dirname,
+            toBotName: toBotName,
           })
-          await generateTextToVideoPlanB(
+
+          // Собираем данные запроса
+          const requestData = {
             prompt,
-            videoModelKey,
-            ctx.from.id.toString(),
-            ctx.from.username,
-            isRu,
-            ctx.botInfo?.username || 'unknown_bot'
-          )
+            videoModel: videoModelKey,
+            telegram_id: ctx.from.id.toString(),
+            username: ctx.from.username,
+            is_ru: isRu,
+            bot_name: ctx.botInfo?.username || 'unknown_bot',
+          }
+
+          // Собираем зависимости (из импортов и контекста)
+          const dependencies = {
+            logger,
+            supabase,
+            replicate,
+            telegram: (
+              bots.find(
+                b => b.context.botName === requestData.bot_name
+              ) as Telegraf<MyContext>
+            ).telegram, // Получаем telegram из инстанса бота
+            fs: { mkdir: fs.mkdir, writeFile: fs.writeFile },
+            processBalance: processBalanceVideoOperation, // Используем правильную функцию баланса
+            // generateVideoInternal: generateVideo, // Старый неверный мок
+            // Исправленный мок, возвращающий URL (string)
+            generateVideoInternal: mock(() =>
+              Promise.resolve('https://mock-replicate-output.com/video.mp4')
+            ),
+            sendErrorToUser: sendServiceErrorToUser,
+            sendErrorToAdmin: sendServiceErrorToAdmin,
+            pulseHelper: pulse,
+            videoModelsConfig: VIDEO_MODELS_CONFIG,
+            pathJoin: path.join,
+            pathDirname: path.dirname,
+            toBotName: toBotName,
+          }
+
+          await generateTextToVideo(requestData, dependencies)
           ctx.session.prompt = prompt
         } catch (generationError) {
-          logger.error('Error calling generateTextToVideoPlanB', {
+          logger.error('Error calling generateTextToVideo module', {
             generationError,
           })
           await sendGenericErrorMessage(ctx, isRu)

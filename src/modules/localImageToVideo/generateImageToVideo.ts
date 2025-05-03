@@ -1,5 +1,8 @@
 import { replicate } from '@/core/replicate' // Import replicate client
-import { VIDEO_MODELS_CONFIG } from './VIDEO_MODELS_CONFIG' // Import model config
+import {
+  VIDEO_MODELS_CONFIG,
+  VideoModelConfig,
+} from '@/price/models/VIDEO_MODELS_CONFIG' // CORRECTED IMPORT and added type
 import { downloadFile, DownloadFunction } from './downloadFile' // Use relative path
 import {
   ImageToVideoRequest,
@@ -7,6 +10,7 @@ import {
   ImageToVideoDependencies,
   MinimalLogger,
 } from './types' // Use relative path
+import { logger } from '@/utils/logger'
 
 /**
  * Generates video from image using Replicate API.
@@ -37,14 +41,16 @@ export async function generateImageToVideo(
     if (!videoModel) throw new Error('Video model ID is required')
 
     // 2. Get Model Config
-    const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
+    const modelConfig = VIDEO_MODELS_CONFIG[String(videoModel)]
     if (!modelConfig) {
-      throw new Error(`Unsupported video model ID: ${videoModel}`)
+      throw new Error(`Unsupported video model ID: ${String(videoModel)}`)
     }
     if (!modelConfig.inputType.includes('image')) {
-      throw new Error(`Model ${videoModel} does not support image input.`)
+      throw new Error(
+        `Model ${String(videoModel)} does not support image input.`
+      )
     }
-    logger.info(`Using model config for: ${videoModel}`, {
+    logger.info(`Using model config for: ${String(videoModel)}`, {
       modelId: modelConfig.api.model,
     })
 

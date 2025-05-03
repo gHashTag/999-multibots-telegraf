@@ -3,7 +3,7 @@ export type VideoModelConfig = {
   id: string
   title: string
   description: string
-  inputType: ('text' | 'image')[]
+  inputType: ('text' | 'image' | 'morph')[]
   basePrice: number
   api: {
     model: string
@@ -14,6 +14,7 @@ export type VideoModelConfig = {
     maxDuration?: number
   }
   imageKey?: string
+  canMorph?: boolean
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {

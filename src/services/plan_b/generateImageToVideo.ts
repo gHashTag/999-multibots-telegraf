@@ -75,7 +75,9 @@ export const generateImageToVideo = async (
 
     const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
     if (!modelConfig) {
-      throw new Error(`Конфигурация для модели ${videoModel} не найдена.`)
+      throw new Error(
+        `Конфигурация для модели ${String(videoModel)} не найдена.`
+      )
     }
 
     if (is_morphing) {
@@ -94,11 +96,7 @@ export const generateImageToVideo = async (
       throw new Error('Отсутствуют общие обязательные параметры')
     }
     if (is_morphing && !modelConfig.canMorph) {
-      throw new Error(
-        is_ru
-          ? `Модель ${modelConfig.title} не поддерживает режим морфинга.`
-          : `Model ${modelConfig.title} does not support morphing mode.`
-      )
+      throw new Error(`Модель ${String(videoModel)} не поддерживает морфинг.`)
     }
 
     const userExists = await getUserByTelegramIdString(telegram_id)
@@ -173,8 +171,9 @@ export const generateImageToVideo = async (
       })
     } else {
       if (!imageUrl || !prompt) throw new Error('Missing imageUrl or prompt')
-      if (!modelConfig.imageKey)
-        throw new Error(`Missing imageKey in config for ${videoModel}`)
+      if (!modelConfig.imageKey) {
+        throw new Error(`Missing imageKey in config for ${String(videoModel)}`)
+      }
 
       modelInput = {
         ...modelConfig.api.input,
@@ -224,7 +223,7 @@ export const generateImageToVideo = async (
       telegram_id,
       videoUrl,
       videoLocalPath,
-      videoModel
+      String(videoModel)
     )
 
     await bot.telegram.sendVideo(telegram_id.toString(), {
