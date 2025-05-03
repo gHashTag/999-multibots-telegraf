@@ -534,6 +534,18 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 }
 
 const neuroPhotoButtonStep = async (ctx: MyContext) => {
+  // ---> ДОБАВЛЕНО: Проверка флага
+  if (ctx.session.neuroPhotoInProgress) {
+    logger.warn({
+      message:
+        '⏳ [NeuroPhoto] Попытка запустить генерацию, пока предыдущая еще выполняется',
+      telegramId: ctx.from?.id?.toString(),
+    })
+    // Можно добавить ctx.reply() с уведомлением пользователю
+    // await ctx.reply(isRu ? '⏳ Генерация уже выполняется...' : '⏳ Generation already in progress...')
+    return // Игнорируем запрос
+  }
+  // ---<
   console.log('CASE 3: neuroPhotoButtonStep')
   const telegramId = ctx.from?.id?.toString() || 'unknown'
   console.log(
@@ -609,6 +621,13 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     const userId = ctx.from?.id
 
     const generate = async (num: number) => {
+      // ---> ДОБАВЛЕНО: Установка флага перед началом
+      ctx.session.neuroPhotoInProgress = true
+      logger.info({
+        message: '🚩 [NeuroPhoto] Установлен флаг neuroPhotoInProgress = true',
+        telegramId: ctx.from?.id?.toString(),
+      })
+      // ---<
       logger.info({
         message: `🖼️ [NeuroPhoto] Генерация ${num} изображений`,
         telegramId,
@@ -681,6 +700,14 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
             ? '❌ Произошла ошибка при генерации изображений. Пожалуйста, попробуйте другой промпт или повторите попытку позже.'
             : '❌ An error occurred during image generation. Please try a different prompt or try again later.'
         )
+      } finally {
+        // ---> ДОБАВЛЕНО: Сброс флага в finally
+        ctx.session.neuroPhotoInProgress = false
+        logger.info({
+          message: '🚩 [NeuroPhoto] Сброшен флаг neuroPhotoInProgress = false',
+          telegramId: ctx.from?.id?.toString(),
+        })
+        // ---<
       }
     }
 
