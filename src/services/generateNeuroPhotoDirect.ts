@@ -335,6 +335,7 @@ export async function generateNeuroPhotoDirect(
           telegram_id,
           prompt: prompt.substring(0, 50) + '...',
           model_url,
+          iteration: i,
         })
 
         // Настраиваем параметры для модели
@@ -376,6 +377,15 @@ export async function generateNeuroPhotoDirect(
           }
         )) as ApiResponse
 
+        // --- ЛОГ: Ответ от API ---
+        logger.info({
+          message: '🔍 [DIRECT] Ответ от Replicate API получен',
+          telegram_id,
+          iteration: i,
+          api_output: JSON.stringify(output),
+        })
+        // ---
+
         logger.info({
           message: '✅ [DIRECT] Получен ответ от API',
           description: 'API response received (direct)',
@@ -391,6 +401,15 @@ export async function generateNeuroPhotoDirect(
         })
 
         const imageUrl = await processApiResponse(output)
+
+        // --- ЛОГ: Результат обработки ответа ---
+        logger.info({
+          message: '🔍 [DIRECT] Результат processApiResponse',
+          telegram_id,
+          iteration: i,
+          processed_image_url: imageUrl,
+        })
+        // ---
 
         // Проверка на валидность URL
         if (!imageUrl || !imageUrl.startsWith('http')) {
@@ -492,6 +511,17 @@ export async function generateNeuroPhotoDirect(
 
         // Добавляем URL в массив результатов
         generatedUrls.push(localImageUrl)
+
+        // --- ЛОГ: Состояние массива URL ---
+        logger.info({
+          message: '📝 [DIRECT] URL добавлен в массив',
+          telegram_id,
+          iteration: i,
+          current_url: localImageUrl.substring(0, 50) + '...',
+          all_urls_so_far: generatedUrls.map(u => u.substring(u.length - 10)),
+          all_urls_count: generatedUrls.length,
+        })
+        // ---
 
         logger.info({
           message: '📸 [DIRECT] Изображение успешно получено',
