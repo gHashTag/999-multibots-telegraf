@@ -8,6 +8,7 @@ import { logger } from '@/utils/logger'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { getSubScribeChannel } from '@/handlers/getSubScribeChannel'
 import { ADMIN_IDS_ARRAY } from '@/config'
+import { handleMenu } from '@/handlers'
 
 // Проверка существования пользователя
 const checkUserExists = async (ctx: MyContext) => {
@@ -201,17 +202,44 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     })
   }
 
-  // Переход к следующей сцене
-  const nextScene = getNextScene(ctx.session.mode)
-  logger.info({
-    message: `➡️ [SubscriptionCheck] Переход к сцене: ${nextScene}`,
-    telegramId,
-    function: 'subscriptionCheckStep',
-    currentMode: ctx.session.mode,
-    nextScene,
-    result: 'navigation_success',
-  })
-  return ctx.scene.enter(nextScene)
+  const currentMode = ctx.session.mode
+  if (
+    currentMode &&
+    typeof currentMode === 'string' &&
+    Object.values(ModeEnum).includes(currentMode as ModeEnum)
+  ) {
+    const nextScene = getNextScene(currentMode as ModeEnum)
+    if (nextScene) {
+      logger.info({
+        message: '🔄 Переход к следующей сцене после проверки подписки',
+        description: 'Proceeding to next scene after subscription check',
+        telegramId: ctx.from?.id?.toString(),
+        currentMode: currentMode,
+        nextScene: nextScene,
+      })
+      ctx.scene.enter(nextScene)
+    } else {
+      logger.warn({
+        message: '🤔 Не удалось определить следующую сцену',
+        description: 'Could not determine next scene after subscription check',
+        telegramId: ctx.from?.id?.toString(),
+        currentMode: currentMode,
+      })
+      // Возможно, вернуться в главное меню или сообщить об ошибке
+      await handleMenu(ctx)
+    }
+  } else {
+    // Если режим не является допустимым ModeEnum, обрабатываем как ошибку или возвращаемся в меню
+    logger.warn({
+      message:
+        '🤔 Недопустимый или отсутствующий режим в сессии при проверке подписки',
+      description:
+        'Invalid or missing mode in session during subscription check',
+      telegramId: ctx.from?.id?.toString(),
+      currentMode: currentMode,
+    })
+    await handleMenu(ctx) // Возврат в главное меню как безопасный вариант
+  }
 }
 
 export const subscriptionCheckScene = new Scenes.WizardScene(

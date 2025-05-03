@@ -11,6 +11,9 @@ import type { SceneContextScene, WizardContextWizard } from 'telegraf/scenes'
 import { ModeEnum, type Mode } from './modes'
 import type { Translation } from './translations.interface'
 
+type SceneId = string
+type TranslationEntry = Translation
+
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {
   title_ru: string
@@ -75,6 +78,8 @@ export interface MyWizardSession extends Scenes.WizardSessionData {
   __scenes: Record<string, unknown>
   selectedPayment?: SessionPayment
   subscription: SubscriptionType | null
+  step: number
+  cost?: number
 }
 
 export interface Button {
@@ -160,9 +165,9 @@ export type BotName =
   | 'ai_koshey_bot'
   | 'clip_maker_neuro_bot'
   | 'Kaya_easy_art_bot'
-export interface MySession extends Scenes.WizardSession<WizardSessionData> {
+export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   cursor: number
-  mode: ModeEnum
+  mode: ModeEnum | SceneId | null
   neuroPhotoInitialized?: boolean
   subscription?: SubscriptionType
   selectedSize?: string
@@ -192,7 +197,7 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
     | 'SHOWING_OPTIONS'
     | 'SUBSCRIPTION_SELECTED'
   imageUrl?: string
-  prompt?: string
+  prompt?: string | null
   userModel: UserModel
   selectedModel?: string
   videoModel?: string
@@ -206,16 +211,17 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   en?: string
   lastCompletedVideoScene?: ModeEnum | null | undefined
   gender?: string
+  translationCache?: Record<string, TranslationEntry[]> | null
+  neuroPhotoInProgress?: boolean
 }
 
 export interface MyContext extends Context {
   session: MySession
-  scene: SceneContextScene<MyContext, WizardSessionData>
+  scene: SceneContextScene<MyContext, MyWizardSession>
   wizard: WizardContextWizard<MyContext>
   update: Update.MessageUpdate | Update.CallbackQueryUpdate
 }
 
-// Создайте новый тип, объединяющий MyContext и WizardContext
 export type MyWizardContext = MyContext & Scenes.WizardContext<MyWizardSession>
 
 export type MyTextMessageContext = NarrowedContext<
