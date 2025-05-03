@@ -145,3 +145,5 @@ tmp_tests
 tmp_tests
 
 .cursor/rules/current-task.mdc
+
+.cursor/rules/current_task.mdc
