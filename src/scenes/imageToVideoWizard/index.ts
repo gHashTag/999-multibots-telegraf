@@ -685,6 +685,20 @@ async function handleSubmit(ctx: MyContext) {
               2
             )} ⭐️. Your new balance: ${result.newBalance.toFixed(2)} ⭐️.`
       )
+
+      // ---> ДОБАВЛЕНО: Клавиатура для следующего действия <---
+      const keyboard = Markup.keyboard([
+        // Добавляем уточнение, что это Фото в Видео
+        [
+          isRu
+            ? '🔄 Сгенерировать еще (Фото в Видео)'
+            : '🔄 Generate More (Image to Video)',
+        ],
+        [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+      ]).resize()
+      await ctx.reply(isRu ? 'Что дальше?' : 'What next?', keyboard)
+      // Остаемся в сцене, ожидая нажатия кнопки
+      // ---> КОНЕЦ ИЗМЕНЕНИЯ <----
     }
 
     // Сохраняем сессию независимо от результата Replicate
@@ -715,6 +729,44 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 // Add HELP and CANCEL handlers to the scene
 imageToVideoWizard.help(handleHelpCancel)
 imageToVideoWizard.command('cancel', handleHelpCancel)
+
+// ---> ДОБАВЛЕНЫ ОБРАБОТЧИКИ ДЛЯ НОВЫХ КНОПОК <---
+imageToVideoWizard.hears(
+  [/🔄 Сгенерировать еще/, /🔄 Generate More/],
+  async ctx => {
+    const isRu = isRussian(ctx)
+    logger.info('[I2V Wizard] User wants to generate more (Image to Video).', {
+      telegramId: ctx.from?.id,
+    })
+    // Reset relevant session state for this wizard
+    ctx.session.imageUrl = undefined
+    ctx.session.imageAUrl = undefined
+    ctx.session.imageBUrl = undefined
+    ctx.session.prompt = undefined
+    ctx.session.is_morphing = undefined
+    ctx.session.videoModel = undefined
+    ctx.session.paymentAmount = undefined
+    ctx.session.current_action = undefined // Reset direct morphing entry flag too
+
+    // Restart the wizard
+    await ctx.reply(
+      isRu
+        ? 'Хорошо, начнем сначала выбор модели!'
+        : "Okay, let's select the model again!",
+      Markup.removeKeyboard()
+    )
+    return ctx.wizard.selectStep(0) // Возвращаемся к шагу выбора модели
+  }
+)
+
+imageToVideoWizard.hears([/🏠 Главное меню/, /🏠 Main Menu/], async ctx => {
+  logger.info('[I2V Wizard] User requested Main Menu after generation.', {
+    telegramId: ctx.from?.id,
+  })
+  await ctx.scene.leave()
+  return ctx.scene.enter(ModeEnum.MainMenu)
+})
+// ---> КОНЕЦ ДОБАВЛЕННЫХ ОБРАБОТЧИКОВ <---
 
 logger.info(
   '⚡️ ImageToVideo Wizard Scene initialized with Morphing logic and localized texts'

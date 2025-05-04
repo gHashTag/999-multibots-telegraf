@@ -1,33 +1,7 @@
 import Replicate from 'replicate'
 
-// --- НОВАЯ ФУНКЦИЯ: Fetch с таймаутом ---
-const fetchWithTimeout = async (
-  resource: string | URL | Request,
-  options: RequestInit & { timeout?: number } = {}
-) => {
-  const { timeout = 1200000 } = options // По умолчанию 20 минут (1,200,000 ms)
-
-  const controller = new AbortController()
-  const id = setTimeout(() => controller.abort(), timeout)
-
-  try {
-    const response = await fetch(resource, {
-      ...options,
-      signal: controller.signal,
-    })
-    clearTimeout(id)
-    return response
-  } catch (error) {
-    clearTimeout(id)
-    // Перебрасываем ошибку, чтобы она была обработана дальше
-    throw error
-  }
-}
-// --- Конец новой функции ---
-
 export const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
-  fetch: fetchWithTimeout, // <-- Передаем кастомную функцию fetch
 })
 
 export const modelPricing: Record<string, string> = {
