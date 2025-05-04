@@ -11,6 +11,9 @@ import type { SceneContextScene, WizardContextWizard } from 'telegraf/scenes'
 import { ModeEnum, type Mode } from './modes'
 import type { Translation } from './translations.interface'
 
+type SceneId = string
+type TranslationEntry = Translation
+
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {
   title_ru: string
@@ -75,6 +78,8 @@ export interface MyWizardSession extends Scenes.WizardSessionData {
   __scenes: Record<string, unknown>
   selectedPayment?: SessionPayment
   subscription: SubscriptionType | null
+  step: number
+  cost?: number
 }
 
 export interface Button {
@@ -159,10 +164,10 @@ export type BotName =
   | 'Gaia_Kamskaia_bot'
   | 'ai_koshey_bot'
   | 'clip_maker_neuro_bot'
-
-export interface MySession extends Scenes.WizardSession<WizardSessionData> {
+  | 'Kaya_easy_art_bot'
+export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   cursor: number
-  mode: ModeEnum
+  mode: ModeEnum | SceneId | null
   neuroPhotoInitialized?: boolean
   subscription?: SubscriptionType
   selectedSize?: string
@@ -179,6 +184,7 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   inviteCode?: string
   inviter?: string
   paymentAmount?: number
+  selectedImageModel?: string
   subscriptionStep?:
     | 'LOADING_TRANSLATIONS'
     | 'LOADING_MODELS'
@@ -194,7 +200,18 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   imageUrl?: string
   image_a_file_id?: string
   image_b_file_id?: string
-  prompt?: string
+  prompt?: string | null
+  current_action?: string
+  is_morphing?: boolean
+  payment_method?: string // 'telegram_stars' | 'robokassa'
+  payment_amount?: number // Amount for the current operation
+  imageAUrl?: string // For morphing - Image A
+  imageBUrl?: string // For morphing - Image B
+  imageToVideoModel?: string // Модель, выбранная в imageToVideoWizard
+  language?: string // 'ru' или 'en'
+  aspect_ratio?: string // <-- Добавлено соотношение сторон
+  translationCache?: Record<string, TranslationEntry[]> | null
+  neuroPhotoInProgress?: boolean
   userModel: UserModel
   selectedModel?: string
   videoModel?: string
@@ -208,25 +225,15 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   en?: string
   lastCompletedVideoScene?: ModeEnum | null | undefined
   gender?: string
-  current_action?: string
-  is_morphing?: boolean
-  payment_method?: string // 'telegram_stars' | 'robokassa'
-  payment_amount?: number // Amount for the current operation
-  imageAUrl?: string // For morphing - Image A
-  imageBUrl?: string // For morphing - Image B
-  imageToVideoModel?: string // Модель, выбранная в imageToVideoWizard
-  language?: string // 'ru' или 'en'
-  aspect_ratio?: string // <-- Добавлено соотношение сторон
 }
 
 export interface MyContext extends Context {
   session: MySession
-  scene: SceneContextScene<MyContext, WizardSessionData>
+  scene: SceneContextScene<MyContext, MyWizardSession>
   wizard: WizardContextWizard<MyContext>
   update: Update.MessageUpdate | Update.CallbackQueryUpdate
 }
 
-// Создайте новый тип, объединяющий MyContext и WizardContext
 export type MyWizardContext = MyContext & Scenes.WizardContext<MyWizardSession>
 
 export type MyTextMessageContext = NarrowedContext<

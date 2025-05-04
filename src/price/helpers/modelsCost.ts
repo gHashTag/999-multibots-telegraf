@@ -1,7 +1,7 @@
 import { calculateCost } from '@/price/priceCalculator'
 import { logger } from '@/utils/logger'
 
-import { starCost, SYSTEM_CONFIG } from '@/price/constants'
+import { starCost, SYSTEM_CONFIG, interestRate } from '@/price/constants'
 import {
   ModeEnum,
   CostCalculationParams,
@@ -73,7 +73,7 @@ export function calculateModeCost(
         })
         stars = 0
       } else {
-        stars = (baseCostInDollars / starCost) * numImages
+        stars = (baseCostInDollars / starCost) * numImages * interestRate
       }
     }
 
@@ -108,7 +108,7 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.NeuroPhotoV2]: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 })
     .stars,
   [ModeEnum.NeuroAudio]: calculateModeCost({ mode: ModeEnum.NeuroAudio }).stars,
-  neuro_photo_2: calculateModeCost({ mode: 'neuro_photo_2' }).stars,
+  neuro_photo_2: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 }).stars,
   [ModeEnum.ImageToPrompt]: calculateModeCost({ mode: ModeEnum.ImageToPrompt })
     .stars,
   [ModeEnum.Avatar]: calculateModeCost({ mode: ModeEnum.Avatar }).stars,

@@ -29,7 +29,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
           row.push(Markup.button.text(models[i + 2]))
         }
         buttons.push(row)
-      }
+      } //
 
       // Добавляем кнопки "Отмена" и "Справка по команде" в конце
       const cancelHelpButtons = [
@@ -104,11 +104,11 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      const userExists = await getUserByTelegramId(ctx)
-      if (!userExists.data) {
+      const userObject = await getUserByTelegramId(ctx)
+      if (!userObject) {
         throw new Error(`User with ID ${telegram_id} does not exist.`)
       }
-      const level = userExists.data.level
+      const level = userObject.level
       if (level === 5) {
         await updateUserLevelPlusOne(telegram_id.toString(), level)
       }

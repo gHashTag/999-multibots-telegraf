@@ -8,6 +8,7 @@ const validBotNames = [
   'NeuroLenaAssistant_bot',
   'NeurostylistShtogrina_bot',
   'Gaia_Kamskaia_bot',
+  'Kaya_easy_art_bot',
   'ai_koshey_bot',
   'clip_maker_neuro_bot',
 ] as const

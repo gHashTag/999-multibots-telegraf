@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import { upgradePrompt } from '@/core/openai/upgradePrompt'
 import { MyContext } from '@/interfaces'
-import { generateTextToImage } from '@/services/generateTextToImage'
+import { generateTextToImageDirect } from '@/services/plan_b/generateTextToImageDirect'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
 import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
@@ -10,6 +10,7 @@ import { sendGenericErrorMessage } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'
 import { getUserProfileAndSettings } from '@/db/userSettings'
 import { logger } from '@/utils/logger'
+import { getUserBalance } from '@/core/supabase'
 const MAX_ATTEMPTS = 10
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
@@ -156,58 +157,116 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           }
 
           console.log(mode, 'mode')
-          switch (mode) {
-            case ModeEnum.NeuroPhoto:
-              await generateNeuroImage(
-                ctx.session.prompt,
-                ctx.session.userModel.model_url,
-                1,
-                ctx.from.id.toString(),
-                ctx,
-                ctx.botInfo?.username
-              )
-              break
-            case 'text_to_video':
-              if (!ctx.session.videoModel)
-                throw new Error(
-                  isRu
-                    ? 'improvePromptWizard: Не удалось определить видео модель'
-                    : 'improvePromptWizard: Could not identify video model'
+          try {
+            switch (mode) {
+              case ModeEnum.NeuroPhoto:
+                await generateNeuroImage(
+                  ctx.session.prompt,
+                  ctx.session.userModel.model_url,
+                  1,
+                  ctx.from.id.toString(),
+                  ctx,
+                  ctx.botInfo?.username
+                )
+                break
+              case 'text_to_video':
+                if (!ctx.session.videoModel)
+                  throw new Error(
+                    isRu
+                      ? 'improvePromptWizard: Не удалось определить видео модель'
+                      : 'improvePromptWizard: Could not identify video model'
+                  )
+
+                console.log(ctx.session.videoModel, 'ctx.session.videoModel')
+                if (!ctx.session.videoModel)
+                  throw new Error(
+                    isRu
+                      ? 'improvePromptWizard: Не удалось определить видео модель'
+                      : 'improvePromptWizard: Could not identify video model'
+                  )
+                await generateTextToVideo(
+                  ctx.session.prompt,
+                  ctx.from.id.toString(),
+                  ctx.from.username || 'unknown',
+                  isRu,
+                  ctx.botInfo?.username || 'unknown_bot'
                 )
 
-              console.log(ctx.session.videoModel, 'ctx.session.videoModel')
-              if (!ctx.session.videoModel)
+                break
+              case 'text_to_image': {
+                if (!ctx.session.selectedImageModel) {
+                  logger.error(
+                    'Не найдена выбранная модель изображения в сессии в improvePromptWizard',
+                    { telegramId: ctx.from.id }
+                  )
+                  await ctx.reply(
+                    isRu
+                      ? 'Ошибка: Не удалось определить выбранную модель изображения.'
+                      : 'Error: Could not determine the selected image model.'
+                  )
+                  return ctx.scene.leave()
+                }
+                await generateTextToImageDirect(
+                  ctx.session.prompt,
+                  ctx.session.selectedImageModel,
+                  1,
+                  ctx.from.id.toString(),
+                  ctx.from.username || 'unknown',
+                  isRu,
+                  ctx
+                )
+
+                const currentBalance = await getUserBalance(
+                  ctx.from.id.toString()
+                )
+
+                await ctx.reply(
+                  isRu
+                    ? `Ваши изображения сгенерированы!\n\nЕсли хотите сгенерировать еще, то выберите количество изображений в меню 1️⃣, 2️⃣, 3️⃣, 4️⃣.\n\nВаш новый баланс: ${currentBalance.toFixed(2)} ⭐️`
+                    : `Your images have been generated!\n\nGenerate more?\n\nYour new balance: ${currentBalance.toFixed(2)} ⭐️`,
+                  {
+                    reply_markup: {
+                      keyboard: [
+                        [
+                          { text: '1️⃣' },
+                          { text: '2️⃣' },
+                          { text: '3️⃣' },
+                          { text: '4️⃣' },
+                        ],
+                        [
+                          {
+                            text: isRu
+                              ? '⬆️ Улучшить промпт'
+                              : '⬆️ Improve prompt',
+                          },
+                          {
+                            text: isRu
+                              ? '📐 Изменить размер'
+                              : '📐 Change size',
+                          },
+                        ],
+                        [{ text: isRu ? '🏠 Главное меню' : '🏠 Main menu' }],
+                      ],
+                      resize_keyboard: true,
+                    },
+                  }
+                )
+                break
+              }
+              default:
                 throw new Error(
                   isRu
-                    ? 'improvePromptWizard: Не удалось определить видео модель'
-                    : 'improvePromptWizard: Could not identify video model'
+                    ? 'improvePromptWizard: Неизвестный режим'
+                    : 'improvePromptWizard: Unknown mode'
                 )
-              await generateTextToVideo(
-                ctx.session.prompt,
-                ctx.from.id.toString(),
-                ctx.from.username || 'unknown',
-                isRu,
-                ctx.botInfo?.username || 'unknown_bot'
-              )
-
-              break
-            case 'text_to_image':
-              await generateTextToImage(
-                ctx.session.prompt,
-                settings.imageModel,
-                1,
-                ctx.from.id.toString(),
-                isRu,
-                ctx,
-                ctx.botInfo?.username || 'unknown_bot'
-              )
-              break
-            default:
-              throw new Error(
-                isRu
-                  ? 'improvePromptWizard: Неизвестный режим'
-                  : 'improvePromptWizard: Unknown mode'
-              )
+            }
+          } catch (error) {
+            logger.error('Ошибка при генерации после улучшения промпта', {
+              error,
+              telegramId: ctx.from.id,
+            })
+            await sendGenericErrorMessage(ctx, isRu)
+            return ctx.scene.leave()
           }
           return ctx.scene.leave()
         }

@@ -54,6 +54,7 @@ BOT_TOKEN_4=dummy_token_4
 BOT_TOKEN_5=dummy_token_5
 BOT_TOKEN_6=dummy_token_6
 BOT_TOKEN_7=dummy_token_7
+BOT_TOKEN_8=dummy_token_8
 
 # Другие настройки
 ORIGIN=https://999-multibots-telegraf-u14194.vm.elestio.app

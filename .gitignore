@@ -145,6 +145,11 @@ tmp_tests
 
 tmp_tests
 
+# Объединенные строки:
 src/uploads/144022504/image-to-video/
+src/uploads/144022504/text-to-image/
 
 uploads/12345/image-to-video/
+
+.cursor/rules/current-task.mdc
+.cursor/rules/current_task.mdc
