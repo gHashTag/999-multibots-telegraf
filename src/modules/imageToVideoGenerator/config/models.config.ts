@@ -6,7 +6,7 @@ export type VideoModelConfig = {
   id: string
   title: string
   description: string
-  inputType: ('text' | 'image')[]
+  inputType: ('text' | 'image' | 'morph')[]
   basePrice: number
   api: {
     model: string
@@ -17,6 +17,7 @@ export type VideoModelConfig = {
     maxDuration?: number
   }
   imageKey?: string
+  canMorph?: boolean
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
@@ -105,8 +106,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'kling-v1.6-pro': {
     id: 'kling-v1.6-pro',
     title: 'Kling v1.6 Pro',
-    inputType: ['text', 'image'],
-    description: 'Продвинутая анимация с оптимизацией промптов',
+    inputType: ['text', 'image', 'morph'],
+    description: 'Продвинутая анимация (цена за секунду)',
     basePrice: 0.098,
     api: {
       model: 'kwaivgi/kling-v1.6-pro',
@@ -116,6 +117,33 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       },
     },
     imageKey: 'start_image',
+    canMorph: true,
+  },
+  'kling-v1.6-standard': {
+    id: 'kling-v1.6-standard',
+    title: 'Kling v1.6 Standard',
+    inputType: ['text', 'image'],
+    description: 'Стандартная анимация Kling (цена за секунду)',
+    basePrice: 0.056,
+    api: {
+      model: 'kwaivgi/kling-v1.6-standard',
+      input: {},
+    },
+    imageKey: 'start_image',
+    canMorph: false,
+  },
+  'kling-v2.0': {
+    id: 'kling-v2.0',
+    title: 'Kling v2.0',
+    inputType: ['text', 'image'],
+    description: 'Новейшая модель Kling (цена за секунду)',
+    basePrice: 0.28,
+    api: {
+      model: 'kwaivgi/kling-v2.0',
+      input: {},
+    },
+    imageKey: 'start_image',
+    canMorph: false,
   },
   'hunyuan-video-fast': {
     id: 'hunyuan-video-fast',
@@ -131,6 +159,24 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     },
   },
 }
+
+// Определяем тип ключей конфига
+type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
+
+// Используем ключи конфига как основу для цен
+export const videoModelPrices: Record<VideoModelKey, number> =
+  Object.fromEntries(
+    Object.entries(VIDEO_MODELS_CONFIG).map(([key, config]) => {
+      // Проверяем наличие basePrice на всякий случай
+      if (typeof config.basePrice !== 'number') {
+        throw new Error(
+          `basePrice is missing or not a number for model key: ${key}`
+        )
+      }
+      return [key, config.basePrice]
+    })
+  ) as Record<VideoModelKey, number>
+
 export const findModelByTitle = (
   title: string,
   type: 'image' | 'text'
@@ -202,16 +248,16 @@ export const videoModelKeyboard = (
     }
   }
 
-  // Добавляем служебные кнопки
-  modelButtons.push([
-    isRu ? 'Справка по команде' : 'Help for the command',
-    isRu ? 'Отмена' : 'Cancel',
-  ])
+  // Добавляем последнюю кнопку "Назад в меню"
+  const backButtonText = isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'
+  modelButtons.push([backButtonText])
 
-  console.log('⌨️ Итоговая клавиатура:', {
-    description: 'Final keyboard',
-    buttons: modelButtons,
+  // Создаем клавиатуру
+  const keyboard = Markup.keyboard(modelButtons).resize()
+
+  console.log('✅ Клавиатура создана:', {
+    description: 'Keyboard created',
+    buttonRows: modelButtons,
   })
-
-  return Markup.keyboard(modelButtons).resize()
+  return keyboard
 }

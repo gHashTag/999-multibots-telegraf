@@ -1,25 +1,25 @@
-import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { getUserBalance } from '@/core/supabase/getUserBalance' // Keep imports for now
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { BalanceOperationResult, MyContext } from '@/interfaces'
-import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config'
-import { calculateFinalPrice } from './calculateFinalPrice'
+import { BalanceOperationResult } from '@/interfaces' // Keep imports for now
+import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config' // Keep imports for now
+import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice' // Keep imports for now
 
-import { logger } from '@/utils/logger'
-import { PaymentType } from '@/interfaces/payments.interface'
+import { logger } from '@/utils/logger' // Keep logger import
+import { PaymentType } from '@/interfaces/payments.interface' // Keep imports for now
 
 /**
- * Обрабатывает операцию с балансом для видео
+ * Обрабатывает операцию с балансом для видео (Изолированная версия)
  */
-export const processBalanceVideoOperation = async (
-  ctx: MyContext,
-  configKey: keyof typeof VIDEO_MODELS_CONFIG, // Принимаем НАПРЯМУЮ ключ конфигурации
-  isRu: boolean
+export const processBalanceVideoOperationHelper = async (
+  telegramId: string, // Removed ctx dependency
+  modelId: string, // Changed configKey to modelId for clarity
+  isRu: boolean,
+  botName: string // Added botName
 ): Promise<BalanceOperationResult> => {
-  const telegram_id = ctx.from?.id
   let currentBalanceAtStart = 0
 
-  if (!telegram_id) {
-    logger.error('processBalanceVideoOperation: User ID not found')
+  if (!telegramId) {
+    logger.error('processBalanceVideoOperationHelper: User ID not found')
     return {
       success: false,
       error: 'User ID not found',
@@ -30,17 +30,18 @@ export const processBalanceVideoOperation = async (
     }
   }
 
-  logger.info('Processing video balance operation for config key:', {
-    configKey,
+  logger.info('Processing video balance operation (Helper) for model:', {
+    modelId,
+    telegramId,
   })
 
   // Ищем конфигурацию по ключу
-  const selectedModelConfig = VIDEO_MODELS_CONFIG[configKey]
+  const selectedModelConfig = VIDEO_MODELS_CONFIG[modelId]
 
   if (!selectedModelConfig) {
     logger.error(
-      'processBalanceVideoOperation: Invalid config key received, model not found in VIDEO_MODELS_CONFIG:',
-      { configKey }
+      'processBalanceVideoOperationHelper: Invalid modelId received, model not found:',
+      { modelId }
     )
     const errorMsg = isRu
       ? 'Ошибка конфигурации для выбранной модели.'
@@ -58,12 +59,12 @@ export const processBalanceVideoOperation = async (
   let paymentAmount = 0
   let modePrice = 0
   try {
-    // Рассчитываем цену, передавая КЛЮЧ КОНФИГА
-    paymentAmount = calculateFinalPrice(configKey)
+    // Рассчитываем цену, передавая КЛЮЧ КОНФИГА (modelId)
+    paymentAmount = calculateFinalPrice(modelId)
     modePrice = paymentAmount
   } catch (costError) {
-    logger.error('processBalanceVideoOperation: Error calculating cost', {
-      configKey,
+    logger.error('processBalanceVideoOperationHelper: Error calculating cost', {
+      modelId,
       error: costError,
     })
     const errorMsg = isRu
@@ -80,17 +81,17 @@ export const processBalanceVideoOperation = async (
   }
 
   try {
-    currentBalanceAtStart = await getUserBalance(telegram_id.toString())
+    currentBalanceAtStart = await getUserBalance(telegramId) // Direct call for now
 
     if (currentBalanceAtStart < paymentAmount) {
       const message = isRu
         ? 'Недостаточно средств на балансе. Пополните баланс командой /buy.'
         : 'Insufficient funds. Top up your balance using the /buy command.'
-      logger.warn('processBalanceVideoOperation: Insufficient funds', {
-        telegram_id,
+      logger.warn('processBalanceVideoOperationHelper: Insufficient funds', {
+        telegramId,
         currentBalance: currentBalanceAtStart,
         paymentAmount,
-        configKey,
+        modelId,
       })
       return {
         success: false,
@@ -104,15 +105,16 @@ export const processBalanceVideoOperation = async (
 
     const newBalance = currentBalanceAtStart - paymentAmount
 
+    // Removed ctx.session.mode, assuming 'image-to-video' or similar generic type
     const updateSuccess = await updateUserBalance(
-      telegram_id.toString(),
+      telegramId,
       paymentAmount,
       PaymentType.MONEY_OUTCOME,
       `Video generation (${selectedModelConfig.title})`,
       {
-        bot_name: ctx.botInfo?.username,
-        service_type: ctx.session.mode,
-        model: configKey, // В метаданные записываем КЛЮЧ КОНФИГУРАЦИИ
+        bot_name: botName, // Use passed botName
+        service_type: 'image-to-video', // Use a generic service type or make it dynamic if needed
+        model: modelId,
         modePrice,
         currentBalance: currentBalanceAtStart,
         paymentAmount: paymentAmount,
@@ -123,10 +125,10 @@ export const processBalanceVideoOperation = async (
       const message = isRu
         ? 'Ошибка обновления баланса.'
         : 'Error updating balance.'
-      logger.error('processBalanceVideoOperation: Failed to update balance', {
-        telegram_id,
-        configKey,
-      })
+      logger.error(
+        'processBalanceVideoOperationHelper: Failed to update balance',
+        { telegramId, modelId }
+      )
       return {
         success: false,
         error: message,
@@ -137,12 +139,10 @@ export const processBalanceVideoOperation = async (
       }
     }
 
-    logger.info('processBalanceVideoOperation: Balance updated successfully', {
-      telegram_id,
-      newBalance,
-      paymentAmount,
-      configKey,
-    })
+    logger.info(
+      'processBalanceVideoOperationHelper: Balance updated successfully',
+      { telegramId, newBalance, paymentAmount, modelId }
+    )
     return {
       success: true,
       newBalance,
@@ -152,15 +152,15 @@ export const processBalanceVideoOperation = async (
     }
   } catch (error) {
     logger.error(
-      'processBalanceVideoOperation: Error processing video balance operation:',
-      { error, telegram_id, configKey }
+      'processBalanceVideoOperationHelper: Error processing video balance operation:',
+      { error, telegramId, modelId }
     )
     let currentBalanceOnError = currentBalanceAtStart
     try {
-      currentBalanceOnError = await getUserBalance(telegram_id.toString())
+      currentBalanceOnError = await getUserBalance(telegramId)
     } catch (getBalanceError) {
-      logger.error('Failed to get balance in catch block', {
-        telegram_id,
+      logger.error('Failed to get balance in catch block (Helper)', {
+        telegramId,
         getBalanceError,
       })
     }

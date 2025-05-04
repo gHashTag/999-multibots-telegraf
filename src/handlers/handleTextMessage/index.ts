@@ -50,12 +50,6 @@ export async function handleTextMessage(ctx: MyContext) {
           '[handleTextMessage] Processing in private chat (inside chatWithAvatar scene)',
           { userId }
         )
-      } else {
-        console.log(
-          '[handleTextMessage] Ignoring message in private chat (not in chatWithAvatar scene)',
-          { userId }
-        )
-        return
       }
     } else if (chatType === 'group' || chatType === 'supergroup') {
       if (messageText.includes(`@${botUsername}`)) {

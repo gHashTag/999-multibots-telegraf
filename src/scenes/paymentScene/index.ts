@@ -78,7 +78,7 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
 })
 
 // Переход в сцену оплаты Рублями
-// Обработчик "Рублями" - ПОЛНОСТЬЮ УДАЛЕН --- > ВОССТАНАВЛИВАЕМ!
+// Используем версию из origin/main (обработчик восстановлен)
 paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
   logger.info(
     `[${ModeEnum.PaymentScene}] User chose Rubles. Entering RublePaymentScene.`,
@@ -125,7 +125,5 @@ paymentScene.on('message', async ctx => {
 
   await ctx.reply(replyText, { reply_markup: keyboard.reply_markup })
 })
-
-//
 
 export default paymentScene
