@@ -1,26 +1,22 @@
 import { Composer, Scenes, Markup } from 'telegraf'
-import { generateImageToVideo } from '@/services/plan_b/generateImageToVideo'
+import { generateImageToVideo } from '@/modules/imageToVideoGenerator'
 import { MyContext } from '@/interfaces'
 import {
-  cancelMenu,
   createHelpCancelKeyboard,
-  sendGenerationCancelledMessage,
   sendGenericErrorMessage,
   videoModelKeyboard,
 } from '@/menu'
 import { isRussian } from '@/helpers/language'
 import { ModeEnum } from '@/interfaces/modes'
-import { getBotToken, handleHelpCancel } from '@/handlers'
+import { handleHelpCancel } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
 import { logger } from '@/utils/logger'
 import { calculateFinalPrice } from '@/price/helpers'
-import { getUserBalance } from '@/core/supabase'
-import { SYSTEM_CONFIG } from '@/price/constants/index'
+
 import {
   getUserDetailsSubscription,
   UserDetailsResult,
 } from '@/core/supabase/getUserDetailsSubscription'
-import { updateUserModel } from '@/core/supabase'
 
 // Определяем тип ключей конфига
 type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG

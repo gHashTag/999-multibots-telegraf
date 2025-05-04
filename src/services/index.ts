@@ -1,6 +1,5 @@
 export * from './createModelTraining'
 export * from './generateImageToPrompt'
-export * from './plan_b/generateImageToVideo'
 export * from './generateNeuroImage'
 export * from './generateTextToImage'
 export * from './generateTextToSpeech'
