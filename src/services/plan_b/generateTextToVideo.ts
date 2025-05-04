@@ -10,7 +10,7 @@ import {
 import path from 'path'
 import { getBotByName } from '@/core/bot'
 import { updateUserLevelPlusOne } from '@/core/supabase'
-import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config'
 import {
   sendServiceErrorToUser,
   sendServiceErrorToAdmin,
@@ -20,6 +20,7 @@ import { logger } from '@/utils/logger'
 
 import { generateVideo } from '@/core/replicate/generateVideo'
 import { Markup } from 'telegraf'
+import { updateUserLevelPlusOne as supabaseUpdateUserLevelPlusOne } from '@/core/supabase'
 
 // Определяем тип локально
 type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -79,7 +80,7 @@ export const generateTextToVideo = async (
     }
     const level = userExists.level
     if (level === 9) {
-      await updateUserLevelPlusOne(telegram_id, level)
+      await supabaseUpdateUserLevelPlusOne(telegram_id, level)
     }
 
     const tempCtx = {
@@ -90,7 +91,7 @@ export const generateTextToVideo = async (
     } as any
 
     const { newBalance, paymentAmount, success, error } =
-      await processBalanceVideoOperation(tempCtx, videoModel, is_ru)
+      await processBalanceVideoOperation(tempCtx, String(videoModel), is_ru)
 
     if (!success) {
       logger.error('Error processing balance for video generation:', {
@@ -113,50 +114,33 @@ export const generateTextToVideo = async (
 
     const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
     if (!modelConfig) {
-      throw new Error(`Invalid video model configuration for: ${videoModel}`)
+      throw new Error(
+        `Invalid video model configuration for: ${String(videoModel)}`
+      )
     }
 
-    const videoBuffer = await generateVideo(
+    const videoGenerationResult = await generateVideo(
       prompt,
       modelConfig.api.model,
-      modelConfig.api.input.negative_prompt || ''
+      userExists.id
     )
 
-    let videoUrl: string
-    if (Array.isArray(videoBuffer)) {
-      if (!videoBuffer[0]) {
-        throw new Error('Empty array or first element is undefined')
-      }
-      videoUrl = videoBuffer[0]
-    } else if (typeof videoBuffer === 'string') {
-      videoUrl = videoBuffer
-    } else {
-      console.error(
-        'Unexpected output format:',
-        JSON.stringify(videoBuffer, null, 2)
-      )
-      throw new Error(
-        `Unexpected output format from API: ${typeof videoBuffer}`
-      )
+    const videoBuffer = videoGenerationResult.video
+    if (!videoBuffer || videoBuffer.length === 0) {
+      throw new Error('generateVideo returned an empty buffer')
     }
+
     const videoLocalPath = path.join(
       __dirname,
-      '../uploads',
+      '../..//uploads',
       telegram_id.toString(),
       'text-to-video',
-      `${new Date().toISOString()}.mp4`
+      `${Date.now()}_${videoModel}.mp4`
     )
-    console.log(videoLocalPath, 'videoLocalPath')
+    console.log('Saving video to local path:', videoLocalPath)
     await mkdir(path.dirname(videoLocalPath), { recursive: true })
 
     await writeFile(videoLocalPath, videoBuffer)
-
-    await saveVideoUrlToSupabase(
-      telegram_id,
-      videoUrl as string,
-      videoLocalPath,
-      videoModel
-    )
 
     await bot.telegram.sendVideo(telegram_id.toString(), {
       source: videoLocalPath,

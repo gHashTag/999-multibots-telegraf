@@ -11,6 +11,7 @@ import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update, BotCommand } from 'telegraf/types'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
+import { setupHearsHandlers } from './hearsHandlers'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -106,7 +107,9 @@ async function initializeBots() {
 
     for (const token of potentialTokens) {
       try {
-        const tempBot = new Telegraf<MyContext>(token)
+        const tempBot = new Telegraf<MyContext>(token, {
+          handlerTimeout: Infinity,
+        })
         const botInfo = await tempBot.telegram.getMe()
         if (botInfo.username === targetBotUsername) {
           console.log(`✅ Найден бот ${botInfo.username}`)
@@ -134,6 +137,7 @@ async function initializeBots() {
     // Убираем composer из вызова
     // Передаем только bot
     registerCommands({ bot })
+    setupHearsHandlers(bot)
 
     // <<<--- Set commands scope for the development bot ---<<<
     try {
@@ -190,10 +194,13 @@ async function initializeBots() {
 
     for (const token of botTokens) {
       if (await validateBotToken(token)) {
-        const bot = new Telegraf<MyContext>(token)
+        const bot = new Telegraf<MyContext>(token, {
+          handlerTimeout: Infinity,
+        })
         bot.use(Composer.log())
 
         registerCommands({ bot })
+        setupHearsHandlers(bot)
 
         botInstances.push(bot)
         const botInfo = await bot.telegram.getMe()

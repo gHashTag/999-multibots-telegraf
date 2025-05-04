@@ -198,7 +198,20 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     | 'SHOWING_OPTIONS'
     | 'SUBSCRIPTION_SELECTED'
   imageUrl?: string
+  image_a_file_id?: string
+  image_b_file_id?: string
   prompt?: string | null
+  current_action?: string
+  is_morphing?: boolean
+  payment_method?: string // 'telegram_stars' | 'robokassa'
+  payment_amount?: number // Amount for the current operation
+  imageAUrl?: string // For morphing - Image A
+  imageBUrl?: string // For morphing - Image B
+  imageToVideoModel?: string // Модель, выбранная в imageToVideoWizard
+  language?: string // 'ru' или 'en'
+  aspect_ratio?: string // <-- Добавлено соотношение сторон
+  translationCache?: Record<string, TranslationEntry[]> | null
+  neuroPhotoInProgress?: boolean
   userModel: UserModel
   selectedModel?: string
   videoModel?: string
@@ -212,8 +225,6 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   en?: string
   lastCompletedVideoScene?: ModeEnum | null | undefined
   gender?: string
-  translationCache?: Record<string, TranslationEntry[]> | null
-  neuroPhotoInProgress?: boolean
 }
 
 export interface MyContext extends Context {

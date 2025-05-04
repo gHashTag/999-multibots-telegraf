@@ -5,7 +5,7 @@ import { generateTextToVideo } from '@/services/generateTextToVideo'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
-import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config'
 import { getUserBalance } from '@/core/supabase'
 
 // Определяем тип ключа конфига локально

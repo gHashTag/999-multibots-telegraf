@@ -1,8 +1,9 @@
+import { logger } from '@/utils/logger' // Import logger
 import { Markup } from 'telegraf'
 // Убираем импорт InlineKeyboardMarkup, он не нужен
 import type { ReplyKeyboardMarkup } from 'telegraf/types'
 // import { VIDEO_MODELS } from '@/interfaces' // Старый импорт не нужен
-import { VIDEO_MODELS_CONFIG } from '../price/models/VIDEO_MODELS_CONFIG' // Импортируем конфиг
+import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config' // Импортируем конфиг
 // Импортируем функцию расчета финальной цены
 import { calculateFinalPrice } from '@/price/helpers'
 import { levels } from './mainMenu'
@@ -11,6 +12,13 @@ import { Translation } from '@/interfaces/translations.interface'
 export const videoModelKeyboard = (
   isRu: boolean
 ): Markup.Markup<ReplyKeyboardMarkup> => {
+  // --- DEBUG LOGGING START ---
+  logger.debug(
+    '[videoModelKeyboard] Generating keyboard. Config used:',
+    VIDEO_MODELS_CONFIG
+  )
+  // --- DEBUG LOGGING END ---
+
   // Создаем массив текстовых названий кнопок С ЦЕНОЙ В ЗВЕЗДАХ ⭐
   const buttons = Object.entries(VIDEO_MODELS_CONFIG).map(([key, config]) => {
     // Рассчитываем финальную цену в звездах (уже по новой логике)
@@ -18,6 +26,10 @@ export const videoModelKeyboard = (
     // Формируем текст кнопки с ценой в звездах и эмодзи ⭐
     return `${config.title} (${finalPriceInStars} ⭐)` // Заменяем ★ на ⭐
   })
+
+  // --- DEBUG LOGGING START ---
+  logger.debug('[videoModelKeyboard] Generated button texts:', buttons)
+  // --- DEBUG LOGGING END ---
 
   // Группируем кнопки моделей по 2 в ряд
   const rows: string[][] = [] // Массив массивов строк
@@ -43,6 +55,10 @@ export const videoModelKeyboard = (
     [helpButtonText, cancelButtonText], // Ряд 1: Справка, Отмена
     [mainMenuButtonText] // Ряд 2: Главное меню
   )
+
+  // --- DEBUG LOGGING START ---
+  logger.debug('[videoModelKeyboard] Final rows structure:', rows)
+  // --- DEBUG LOGGING END ---
 
   // Используем Markup.keyboard и добавляем .resize()
   return Markup.keyboard(rows).resize()

@@ -4,7 +4,10 @@ import { MyContext } from '@/interfaces'
 import { BalanceOperationResult } from '@/interfaces/payments.interface'
 
 import { calculateFinalPrice } from '@/price/helpers'
-import { VIDEO_MODELS_CONFIG } from '@/config/models.config'
+import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config'
+import { logger } from '@/utils/logger'
+import { PaymentType } from '@/interfaces/payments.interface'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 
 type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
 
@@ -52,7 +55,7 @@ export const processBalanceVideoOperation = async ({
       }
     }
 
-    const modePrice = calculateFinalPrice(videoModel)
+    const modePrice = calculateFinalPrice(videoModel as string)
 
     // Проверка достаточности средств
     if (currentBalance < modePrice) {
