@@ -6,6 +6,8 @@ import type { MyContext } from '@/interfaces' // Import MyContext if needed for 
 import type { User } from '@supabase/supabase-js'
 import { ModeEnum } from '@/interfaces/modes'
 import { BalanceOperationResult } from '@/interfaces/payments.interface'
+import type { Readable, Stream } from 'stream'
+import type { pipeline as PipelineFn } from 'stream/promises'
 
 // --- Interfaces for Dependencies ---
 
@@ -26,7 +28,7 @@ export interface ElevenLabsClient {
     voice: string
     model_id: string
     text: string
-  }) => Promise<NodeJS.ReadableStream> // Assuming it returns a readable stream
+  }) => Promise<Readable> // Возвращает Readable поток
 }
 
 /**
@@ -145,4 +147,5 @@ export interface GenerateSpeechDependencies {
     toBotName: ToBotNameFunction
   }
   elevenlabsApiKey: string
+  streamPipeline: typeof PipelineFn
 }

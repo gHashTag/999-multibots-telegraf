@@ -22,35 +22,36 @@ export interface SubscriptionButton {
   text: string
   callback_data: string
   row: number
-  stars_price: number
   en_price: number
   ru_price: number
+  stars_price: number
   description: string
 }
 
-export interface SessionData {
-  selectedModel: string
-  text: string
-  model_type: ModelUrl
-  selectedSize: string
-  userModel: UserModel
-  mode: Mode
-  videoModel: string
-  imageUrl: string
-  amount: number
-  images: BufferType
-  modelName: string
-  targetUserId: number
-  username: string
-  triggerWord: string
-  steps: number
-  selectedPayment: string
+export interface Memory {
+  messages: Array<{
+    role: 'user' | 'assistant'
+    content: string
+    timestamp?: number
+  }>
 }
 
-export interface MyWizardSession extends Scenes.WizardSessionData {
-  data: string
-  cursor: number
-  severity: number
+export type BotName =
+  | 'neuro_blogger_bot'
+  | 'MetaMuse_Manifest_bot'
+  | 'ZavaraBot'
+  | 'LeeSolarbot'
+  | 'NeuroLenaAssistant_bot'
+  | 'NeurostylistShtogrina_bot'
+  | 'Gaia_Kamskaia_bot'
+  | 'ai_koshey_bot'
+  | 'clip_maker_neuro_bot'
+
+// --- ИНТЕРФЕЙС ДЛЯ КАСТОМНЫХ ПОЛЕЙ СЕССИИ --- //
+interface CustomSessionData {
+  // --- Все кастомные поля --- //
+  data?: string
+  severity?: number
   imageUrl?: string
   text?: string
   textRu?: string
@@ -71,58 +72,19 @@ export interface MyWizardSession extends Scenes.WizardSessionData {
   photoFileId?: string
   videoFileId?: string
   postLink?: string
-  botName?: string
+  botName?: BotName
   subscriptionType?: SubscriptionType
-  __scenes: Record<string, unknown>
   selectedPayment?: SessionPayment
-  subscription: SubscriptionType | null
-}
-
-export interface Button {
-  text: string
-  callback_data: string
-  row: number
-  en_price: number
-  ru_price: number
-  stars_price: number
-  description: string
-}
-
-export interface Memory {
-  messages: Array<{
-    role: 'user' | 'assistant'
-    content: string
-    timestamp?: number
-  }>
-}
-
-export interface MySessionData extends Scenes.WizardSessionData {
-  cursor: number
+  subscription?: SubscriptionType | null
+  videoUrl?: string
   email?: string
   selectedModel?: string
   prompt?: string
-  ownerTelegramId?: string
-  textInputStep?: string
-  textRu?: string
-  textEn?: string
-  contentType?: BroadcastContentType
-  photoFileId?: string
-  videoFileId?: string
-  postLink?: string
-
   selectedSize?: string
-  selectedPayment?: {
-    amount: number
-    stars: number
-    subscription: SubscriptionType | null
-  }
-  subscription: SubscriptionType | null
-  text?: string
   model_type?: ModelUrl
   userModel?: UserModel
-  mode?: Mode
+  mode?: ModeEnum
   videoModel?: string
-  imageUrl?: string
   amount?: number
   images?: BufferType
   modelName?: string
@@ -131,52 +93,9 @@ export interface MySessionData extends Scenes.WizardSessionData {
   triggerWord?: string
   steps?: number
   memory?: Memory
-
-  __scenes: Record<string, unknown>
-}
-
-export interface WizardSessionData extends Scenes.WizardSessionData {
-  cursor: number
-  ownerTelegramId?: string
-  textInputStep?: string
-  textRu?: string
-  textEn?: string
-  contentType?: BroadcastContentType
-  photoFileId?: string
-  videoFileId?: string
-  postLink?: string
-  state: {
-    step: number
-  }
-}
-
-export type BotName =
-  | 'neuro_blogger_bot'
-  | 'MetaMuse_Manifest_bot'
-  | 'ZavaraBot'
-  | 'LeeSolarbot'
-  | 'NeuroLenaAssistant_bot'
-  | 'NeurostylistShtogrina_bot'
-  | 'Gaia_Kamskaia_bot'
-  | 'ai_koshey_bot'
-  | 'clip_maker_neuro_bot'
-
-export interface MySession extends Scenes.WizardSession<WizardSessionData> {
-  cursor: number
-  mode: ModeEnum
   neuroPhotoInitialized?: boolean
-  subscription?: SubscriptionType
-  selectedSize?: string
   bypass_payment_check?: boolean
-  images: BufferType
-  modelName?: string
-  targetUserId: number
-  username?: string
-  triggerWord?: string
-  steps?: number
-  videoUrl?: string
   audioUrl?: string
-  email?: string
   inviteCode?: string
   inviter?: string
   paymentAmount?: number
@@ -192,22 +111,13 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
     | 'LOADING_PAYMENT_FAILURE'
     | 'SHOWING_OPTIONS'
     | 'SUBSCRIPTION_SELECTED'
-  imageUrl?: string
-  prompt?: string
-  userModel: UserModel
-  selectedModel?: string
-  videoModel?: string
   translations?: Translation[]
   buttons?: TranslationButton[]
-  selectedPayment?: SessionPayment
-  memory?: Memory
   attempts?: number
-  amount?: number
   ru?: string
   en?: string
   lastCompletedVideoScene?: ModeEnum | null | undefined
   gender?: string
-  __scenes?: WizardSessionData
   imageId?: string
   imagePrompt?: string
   chatMessage?: string
@@ -223,17 +133,25 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   imageBUrl?: string
 }
 
-export interface MyContext extends Context {
-  session: MySession
-  scene: SceneContextScene<MyContext, WizardSessionData>
+// --- ОСНОВНОЙ ТИП СЕССИИ МАСТЕРА --- //
+// Снова создаем MyWizardSession, объединяя стандартные и кастомные
+interface MyWizardSession extends Scenes.WizardSessionData, CustomSessionData {}
+
+// --- КОНТЕКСТ --- //
+export interface MyContext
+  extends Context,
+    Scenes.SessionContext<MyWizardSession> {
+  // session теперь унаследован от SessionContext<MyWizardSession>
+  scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
   wizard: WizardContextWizard<MyContext>
   update: Update.MessageUpdate | Update.CallbackQueryUpdate
   botName?: BotName
 }
 
-// Создайте новый тип, объединяющий MyContext и WizardContext
+// Тип для WizardContext
 export type MyWizardContext = MyContext & Scenes.WizardContext<MyWizardSession>
 
+// Тип для текстовых сообщений (без изменений)
 export type MyTextMessageContext = NarrowedContext<
   MyContext,
   Update.MessageUpdate<Message.TextMessage>

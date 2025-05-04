@@ -1,8 +1,10 @@
-import { MySession, PaymentType } from '@/interfaces'
+import { PaymentType, SubscriptionType } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
-import { SubscriptionType } from '@/interfaces'
+import { Scenes } from 'telegraf'
 
-export const defaultSession: MySession = {
+export const defaultSession: Partial<Scenes.WizardSession> & {
+  [key: string]: any
+} = {
   mode: ModeEnum.TextToImage,
   prompt: '',
   selectedModel: '',
@@ -26,7 +28,6 @@ export const defaultSession: MySession = {
   imageUrl: '',
   audioUrl: '',
   email: '',
-  cursor: 0,
   images: [],
   memory: {
     messages: [],
@@ -39,4 +40,8 @@ export const defaultSession: MySession = {
   translations: [],
   buttons: [],
   neuroPhotoInitialized: false,
+  inviteCode: undefined,
+  inviter: undefined,
+  paymentAmount: undefined,
+  gender: undefined,
 }

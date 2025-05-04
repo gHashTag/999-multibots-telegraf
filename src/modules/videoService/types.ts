@@ -1,6 +1,7 @@
 // src/modules/videoService/types.ts
 import type { PathLike } from 'fs'
-import type { OpenMode } from 'fs'
+import type { MakeDirectoryOptions, ObjectEncodingOptions, OpenMode } from 'fs'
+import type { FileHandle } from 'fs/promises'
 import type { Abortable } from 'node:events'
 
 // --- Interfaces for Dependencies ---
@@ -25,21 +26,17 @@ export type DownloadFileFunction = (url: string) => Promise<Buffer>
 export interface FileSystemOps {
   mkdir: (
     path: PathLike,
-    options?:
-      | { recursive?: boolean | undefined; mode?: number | undefined }
-      | null
-      | number
+    options?: MakeDirectoryOptions | null | number
   ) => Promise<string | undefined>
   writeFile: (
-    file: PathLike | number,
+    file: PathLike | FileHandle,
     data: string | NodeJS.ArrayBufferView,
     options?:
-      | {
-          encoding?: BufferEncoding | null
+      | (ObjectEncodingOptions & {
           mode?: OpenMode
           flag?: string
           signal?: AbortSignal
-        }
+        })
       | BufferEncoding
       | null
   ) => Promise<void>

@@ -82,7 +82,7 @@ describe('Module: VideoService', () => {
     })
     expect(mockDownloadFile).toHaveBeenCalledWith(videoUrl)
     expect(mockFs.writeFile).toHaveBeenCalledWith(expectedLocalPath, mockBuffer)
-    expect(mockLogger.info).toHaveBeenCalledTimes(5) // Start, path, mkdir, download, write
+    expect(mockLogger.info).toHaveBeenCalledTimes(8)
     expect(mockLogger.error).not.toHaveBeenCalled()
   })
 

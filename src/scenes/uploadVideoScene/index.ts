@@ -1,10 +1,16 @@
-import { Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { uploadVideoToServer } from '../../services/uploadVideoToServer'
+import { uploadVideoService } from '@/modules/uploadVideoService'
+import { VideoService } from '@/modules/videoService'
+import { logger } from '@/utils/logger'
+import { downloadFile } from '@/helpers'
+import fs from 'fs/promises'
+import path from 'path'
+import os from 'os'
 import { randomUUID } from 'node:crypto'
-import { Markup } from 'telegraf'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB, пример ограничения
+const UPLOADS_ROOT = process.env.UPLOADS_DIR || './uploads'
 
 export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
   'video_in_url',
@@ -38,7 +44,7 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
       const videoFile = await ctx.telegram.getFile(message.video.file_id)
       const videoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${videoFile.file_path}`
       console.log('CASE: videoUrl', videoUrl)
-      ctx.session.videoUrl = videoUrl
+      ctx.scene.session.videoUrl = videoUrl
       ctx.wizard.next()
       return
     } else {
@@ -55,6 +61,7 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
     console.log('CASE 3: uploadVideoScene')
     const isRu = ctx.from?.language_code === 'ru'
     const telegramId = ctx.from?.id
+    const videoUrl = ctx.scene.session?.videoUrl
 
     if (!telegramId) {
       await ctx.reply(
@@ -64,22 +71,51 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
       )
       return ctx.scene.leave()
     }
+    if (!videoUrl) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: URL видео не найден в сессии.'
+          : '❌ Error: Video URL not found in session.'
+      )
+      return ctx.scene.leave()
+    }
 
     try {
-      const filePath = await uploadVideoToServer({
-        videoUrl: ctx.session.videoUrl,
+      const videoServiceDeps = {
+        logger: logger,
+        downloadFile: downloadFile,
+        fs: { mkdir: fs.mkdir, writeFile: fs.writeFile },
+        path: { join: path.join, dirname: path.dirname },
+        uploadsDir: UPLOADS_ROOT,
+      }
+      const videoServiceInstance = new VideoService(videoServiceDeps)
+
+      const uploadVideoServiceDeps = {
+        logger: logger,
+        videoService: videoServiceInstance,
+      }
+
+      const requestData = {
+        videoUrl: videoUrl,
         telegram_id: telegramId,
-        fileName: `video_to_url_${randomUUID()}`,
-      })
+        fileName: `video_to_url_${randomUUID()}.mp4`,
+      }
+
+      const result = await uploadVideoService(
+        requestData,
+        uploadVideoServiceDeps
+      )
+      const filePath = result.localPath
+
       await ctx.reply(
         (isRu
-          ? '✅ Видео успешно загружено на сервер. Путь: '
-          : '✅ Video successfully uploaded to the server. Path: ') + filePath
+          ? '✅ Видео успешно загружено локально. Путь: '
+          : '✅ Video successfully downloaded locally. Path: ') + filePath
       )
     } catch (error) {
-      console.error('Error uploading video:', error)
+      logger.error('Error in uploadVideoScene (step 3): ', error)
       await ctx.reply(
-        isRu ? '❌ Ошибка при загрузке видео' : '❌ Error uploading video'
+        isRu ? '❌ Ошибка при обработке видео' : '❌ Error processing video'
       )
     }
     return ctx.scene.leave()

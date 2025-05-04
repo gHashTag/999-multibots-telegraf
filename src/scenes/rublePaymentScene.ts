@@ -1,5 +1,5 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext, SessionData, SelectedPayment } from '@/interfaces'
+import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { handleSelectRubAmount } from '@/handlers'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
@@ -14,6 +14,7 @@ import {
   PaymentStatus,
   Currency,
   PaymentType,
+  type SelectedPayment,
 } from '@/interfaces/payments.interface'
 
 export const rublePaymentScene = new Scenes.BaseScene<MyContext>(
