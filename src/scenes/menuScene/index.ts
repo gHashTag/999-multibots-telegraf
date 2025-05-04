@@ -15,6 +15,7 @@ import { handleMenu } from '@/handlers/handleMenu'
 import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
+import { simulateSubscriptionForDev } from './helpers/simulateSubscription'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -27,17 +28,14 @@ const menuCommandStep = async (ctx: MyContext) => {
     // For now, we still destructure level/count but won't use them.
     const userDetails = await getUserDetailsSubscription(telegram_id)
 
-    const newSubscription = userDetails.subscriptionType
+    // Получаем оригинальную подписку
+    const originalSubscription = userDetails.subscriptionType
 
-    // if (isDev) {
-    //   console.log('DEV MODE: Simulating SUBSCRIPTION TYPE only')
-    //   // --- !!! РЕЖИМ РАЗРАБОТКИ: Имитация ТОЛЬКО ТИПА ПОДПИСКИ !!! ---
-    //   newSubscription = SubscriptionType.NEUROBASE // ЗАМЕНИ НА НУЖНЫЙ ТИП ДЛЯ ТЕСТА
-    //   // -------------------------------------------------------------
-    //   console.log(`DEV SIMULATION: Sub=${newSubscription}`)
-    // } else {
-    //   console.log(`Fetched User Data: Sub=${newSubscription}`)
-    // }
+    // Используем хелпер для симуляции в dev-режиме
+    const newSubscription = simulateSubscriptionForDev(
+      originalSubscription,
+      isDev
+    )
 
     // Pass only necessary data to mainMenu (assuming it adapts or uses defaults for level/count)
     const keyboard = await mainMenu({

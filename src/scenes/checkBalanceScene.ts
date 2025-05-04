@@ -77,7 +77,7 @@ export function calculateCostInRubles(
 }
 
 export const stepOptions = {
-  v1: [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000],
+  v1: [1000, 1500, 2000, 2500, 3000, 3500, 4000],
   v2: [100, 200, 300, 400, 500, 600, 700, 800, 1000],
 }
 
@@ -118,15 +118,9 @@ function calculateFinalStarCostFromDollars(baseDollarCost: number): number {
 }
 
 export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
-  [ModeEnum.DigitalAvatarBody]: (steps: number) => {
-    const cost = calculateCost(steps, 'v1')
-    return cost.stars
-  },
-  [ModeEnum.DigitalAvatarBodyV2]: (steps: number) => {
-    const cost = calculateCost(steps, 'v2')
-    return cost.stars
-  },
-  [ModeEnum.NeuroPhoto]: calculateFinalStarCostFromDollars(0.224),
+  [ModeEnum.DigitalAvatarBody]: 0,
+  [ModeEnum.DigitalAvatarBodyV2]: 0,
+  [ModeEnum.NeuroPhoto]: calculateFinalStarCostFromDollars(0.08),
   [ModeEnum.NeuroPhotoV2]: calculateFinalStarCostFromDollars(0.14),
   [ModeEnum.NeuroAudio]: calculateFinalStarCostFromDollars(0.12),
   [ModeEnum.ImageToPrompt]: calculateFinalStarCostFromDollars(0.03),

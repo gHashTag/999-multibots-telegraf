@@ -78,8 +78,22 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
 })
 
 // Переход в сцену оплаты Рублями
-// Обработчик "Рублями" - ПОЛНОСТЬЮ УДАЛЕН
-// paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => { ... });
+// Используем версию из origin/main (обработчик восстановлен)
+paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
+  logger.info(
+    `[${ModeEnum.PaymentScene}] User chose Rubles. Entering RublePaymentScene.`,
+    { telegram_id: ctx.from?.id }
+  )
+  // Проверяем, есть ли информация об оплате в сессии (например, для подписки)
+  const paymentInfo = ctx.session.selectedPayment
+  if (paymentInfo) {
+    // Передаем информацию в rublePaymentScene, если она есть
+    await ctx.scene.enter(ModeEnum.RublePaymentScene, { paymentInfo })
+  } else {
+    // Иначе просто входим в сцену для выбора суммы пополнения
+    await ctx.scene.enter(ModeEnum.RublePaymentScene)
+  }
+})
 
 // Выход в главное меню
 paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {

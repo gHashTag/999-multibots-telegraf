@@ -2,6 +2,7 @@ import axios from 'axios'
 
 import { API_URL, SECRET_API_KEY } from '@/config'
 import { MyContext } from '@/interfaces'
+import { generateTextToImageDirect } from './plan_b'
 
 export const generateTextToImage = async (
   prompt: string,
@@ -13,26 +14,14 @@ export const generateTextToImage = async (
   botName: string
 ) => {
   try {
-    const url = `${API_URL}/generate/text-to-image`
-    console.log(url, 'url')
-
-    await axios.post(
-      url,
-      {
-        prompt,
-        model: model_type,
-        num_images,
-        telegram_id,
-        username: ctx.from?.username,
-        is_ru: isRu,
-        bot_name: botName,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
+    return await generateTextToImageDirect(
+      prompt,
+      model_type,
+      num_images,
+      telegram_id,
+      ctx.from?.username || '',
+      isRu,
+      ctx
     )
   } catch (error) {
     console.error('Ошибка при генерации изображения:', error)

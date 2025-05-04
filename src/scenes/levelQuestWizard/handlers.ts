@@ -61,7 +61,7 @@ export async function handleLevel1(ctx: MyContext) {
 Создание цифрового тела аватара с помощью технологии FLUX — это процесс, который позволяет вам персонализировать внешний вид вашего аватара, используя ваши фотографии. Это как создание цифрового двойника, который может быть использован в различных визуальных сценариях. 📸\n\n
 <b>Процесс создания:</b>\n
 1️⃣ <b>Выбор количества шагов обучения:</b>\n
-Вы можете выбрать количество шагов обучения от 1000 до 6000. Чем больше шагов, тем более детализированным и реалистичным будет ваш аватар. 🔍\n\n
+Вы можете выбрать количество шагов обучения от 1000 до 4000. Чем больше шагов, тем более детализированным и реалистичным будет ваш аватар. 🔍\n\n
 2️⃣ <b>Подготовка изображений:</b>\n
 Вам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n
    - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n
@@ -82,7 +82,7 @@ This command will help you create the visual appearance of your avatar, which wi
 Creating a digital avatar body using FLUX technology is a process that allows you to personalize your avatar's appearance using your photos. It's like creating a digital twin that can be used in various visual scenarios. 📸\n\n
 <b>Creation process:</b>\n
 1️⃣ <b>Selecting the number of training steps:</b>\n
-You can choose the number of training steps from 1000 to 6000. The more steps, the more detailed and realistic your avatar will be. 🔍\n\n
+You can choose the number of training steps from 1000 to 4000. The more steps, the more detailed and realistic your avatar will be. 🔍\n\n
 2️⃣ <b>Preparing images:</b>\n
 You will need at least 10 photos that meet the following criteria:\n
    - 📷 <b>Clarity and quality of the image:</b> Photos should be clear and high-quality.\n

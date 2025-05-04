@@ -27,6 +27,7 @@ if (!process.env.BOT_TOKEN_4) throw new Error('BOT_TOKEN_4 is not set')
 if (!process.env.BOT_TOKEN_5) throw new Error('BOT_TOKEN_5 is not set')
 if (!process.env.BOT_TOKEN_6) throw new Error('BOT_TOKEN_6 is not set')
 if (!process.env.BOT_TOKEN_7) throw new Error('BOT_TOKEN_7 is not set')
+if (!process.env.BOT_TOKEN_8) throw new Error('BOT_TOKEN_8 is not set')
 
 if (!process.env.BOT_TOKEN_TEST_1)
   throw new Error('BOT_TOKEN_TEST_1 is not set')
@@ -41,6 +42,7 @@ const BOT_TOKENS_PROD: string[] = [
   process.env.BOT_TOKEN_5,
   process.env.BOT_TOKEN_6,
   process.env.BOT_TOKEN_7,
+  process.env.BOT_TOKEN_8,
 ]
 
 const BOT_TOKENS_TEST: string[] = [
@@ -56,6 +58,7 @@ export const BOT_NAMES: Record<BotName, string> = {
   ['NeuroLenaAssistant_bot']: process.env.BOT_TOKEN_5,
   ['NeurostylistShtogrina_bot']: process.env.BOT_TOKEN_6,
   ['Gaia_Kamskaia_bot']: process.env.BOT_TOKEN_7,
+  ['Kaya_easy_art_bot']: process.env.BOT_TOKEN_8,
   ['ai_koshey_bot']: process.env.BOT_TOKEN_TEST_1,
   ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_TEST_2,
 } as const

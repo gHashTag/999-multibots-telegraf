@@ -3,7 +3,7 @@ import { Markup } from 'telegraf'
 // Убираем импорт InlineKeyboardMarkup, он не нужен
 import type { ReplyKeyboardMarkup } from 'telegraf/types'
 // import { VIDEO_MODELS } from '@/interfaces' // Старый импорт не нужен
-import { VIDEO_MODELS_CONFIG } from '../price/models/VIDEO_MODELS_CONFIG' // Импортируем конфиг
+import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config' // Импортируем конфиг
 // Импортируем функцию расчета финальной цены
 import { calculateFinalPrice } from '@/price/helpers'
 import { levels } from './mainMenu'
