@@ -10,7 +10,7 @@ import {
   Mocked,
   vi,
 } from 'vitest'
-import { generateImageToVideo } from '@/services/plan_b/generateImageToVideo'
+import { generateImageToVideo } from '@/modules/imageToVideoGenerator'
 import type { MyContext, BalanceOperationResult } from '@/interfaces'
 // Импортируем реальный конфиг, который будет подменен
 // import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
@@ -37,6 +37,15 @@ import * as ConfigModule from '@/price/models/VIDEO_MODELS_CONFIG'
 // Определяем тип для шпионов ЛОКАЛЬНО
 type SpiesType = ReturnType<typeof setupSpies>
 
+// --- УБИРАЕМ МОКИРОВАНИЕ FS/PROMISES ---
+// const mockMkdir = vi.fn()
+// const mockWriteFile = vi.fn()
+// vi.mock('fs/promises', () => ({
+//   mkdir: mockMkdir,
+//   writeFile: mockWriteFile,
+// }))
+// --- КОНЕЦ УДАЛЕНИЯ ---
+
 describe('generateImageToVideo Service: Режим Морфинга', () => {
   let ctx: MyContext
   let mockSendMessage: Mock
@@ -62,6 +71,9 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
     //   console.error('Error mocking config in morphing mode:', error)
     //   throw error // Пробрасываем ошибку, если мокирование не удалось
     // }
+    vi.spyOn(ConfigModule, 'VIDEO_MODELS_CONFIG', 'get').mockReturnValue(
+      MOCK_VIDEO_MODELS_CONFIG
+    ) // <-- Restore the mock
 
     // Setup spies
     spies = setupSpies()
@@ -74,8 +86,11 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
     mockSendMessage = msgSpy
     mockSendVideo = vidSpy
 
+    // --- НАСТРАИВАЕМ ШПИОНОВ FS ---
+    spies.mkdirSpy.mockResolvedValue(undefined)
+    spies.writeFileSpy.mockResolvedValue(undefined)
+
     // Default successful resolutions
-    spies.getUserByTelegramIdSpy.mockResolvedValue(createMockUser(telegram_id))
     spies.getBotByNameSpy.mockResolvedValue({ bot: ctx.telegram } as any)
     spies.processBalanceSpy.mockResolvedValue({
       success: true,
@@ -101,7 +116,7 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
     // ---> УСТАНАВЛИВАЕМ НАШИ МОКИ ПОСЛЕ setupMocks <---
     // Set default user found
     const defaultUser = createMockUser(telegram_id, 200000) // Даем много баланса
-    spies.getUserByTelegramIdSpy.mockResolvedValue(defaultUser) // Устанавливаем наш мок ПОСЛЕ setupMocks
+    spies.getUserByTelegramIdSpy.mockResolvedValue(defaultUser) // Keep this one
     // getUserBalanceSpy.mockResolvedValue(defaultUser.balance) // Мок getUserBalance через шпиона
 
     const modelConfig = MOCK_VIDEO_MODELS_CONFIG[videoModel]
