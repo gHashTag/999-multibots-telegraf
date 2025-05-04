@@ -107,7 +107,9 @@ async function initializeBots() {
 
     for (const token of potentialTokens) {
       try {
-        const tempBot = new Telegraf<MyContext>(token)
+        const tempBot = new Telegraf<MyContext>(token, {
+          handlerTimeout: Infinity,
+        })
         const botInfo = await tempBot.telegram.getMe()
         if (botInfo.username === targetBotUsername) {
           console.log(`✅ Найден бот ${botInfo.username}`)
@@ -192,7 +194,9 @@ async function initializeBots() {
 
     for (const token of botTokens) {
       if (await validateBotToken(token)) {
-        const bot = new Telegraf<MyContext>(token)
+        const bot = new Telegraf<MyContext>(token, {
+          handlerTimeout: Infinity,
+        })
         bot.use(Composer.log())
 
         registerCommands({ bot })
