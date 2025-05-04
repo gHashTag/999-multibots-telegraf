@@ -248,16 +248,16 @@ export const videoModelKeyboard = (
     }
   }
 
-  // Добавляем служебные кнопки
-  modelButtons.push([
-    isRu ? 'Справка по команде' : 'Help for the command',
-    isRu ? 'Отмена' : 'Cancel',
-  ])
+  // Добавляем последнюю кнопку "Назад в меню"
+  const backButtonText = isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'
+  modelButtons.push([backButtonText])
 
-  console.log('⌨️ Итоговая клавиатура:', {
-    description: 'Final keyboard',
-    buttons: modelButtons,
+  // Создаем клавиатуру
+  const keyboard = Markup.keyboard(modelButtons).resize()
+
+  console.log('✅ Клавиатура создана:', {
+    description: 'Keyboard created',
+    buttonRows: modelButtons,
   })
-
-  return Markup.keyboard(modelButtons).resize()
+  return keyboard
 }

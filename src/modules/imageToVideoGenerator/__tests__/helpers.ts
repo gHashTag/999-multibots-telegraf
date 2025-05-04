@@ -10,7 +10,7 @@ import * as ErrorAdmin from '@/helpers/error/errorMessageAdmin'
 import * as LoggerUtils from '@/utils/logger'
 import type { VideoModelKey } from '@/interfaces'
 import * as ConfigModule from '@/config'
-import type { VideoModelConfig } from '@/price/models/VIDEO_MODELS_CONFIG'
+import type { VideoModelConfig } from '@/modules/imageToVideoGenerator/config/models.config'
 import * as BotIndex from '@/core/bot/index'
 // Import the mocked functions from fs/promises
 // const mockMkdir = vi.fn()
@@ -47,7 +47,7 @@ export const createMockUser = (
 }
 
 // --- УДАЛЯЕМ ДИНАМИЧЕСКИЙ МОК ---
-// vi.mock('@/price/models/VIDEO_MODELS_CONFIG', async importOriginal => {
+// vi.mock('@/modules/imageToVideoGenerator/config/models.config', async importOriginal => {
 //   // ... (весь старый код динамического мока удален) ...
 // })
 

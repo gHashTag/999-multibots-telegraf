@@ -2,7 +2,7 @@
 
 import { replicate } from '@/core/replicate'
 // ... другие импорты ...
-import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
+import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config'
 import { logger } from '@/utils/logger' // Добавляем логгер
 import { downloadFile } from '@/helpers/downloadFile'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'

@@ -10,7 +10,7 @@ import {
 import path from 'path'
 import { getBotByName } from '@/core/bot'
 import { updateUserLevelPlusOne } from '@/core/supabase'
-import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
+import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config'
 import {
   sendServiceErrorToUser,
   sendServiceErrorToAdmin,

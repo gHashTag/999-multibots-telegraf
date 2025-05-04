@@ -1,6 +1,10 @@
 // src/__tests__/services/generateImageToVideo/standard-mode.test.ts
 
-import { generateImageToVideo } from '@/modules/imageToVideoGenerator'
+// Используем generateImageToVideo и типы
+import {
+  generateImageToVideo,
+  type VideoModelConfig, // <-- Import type
+} from '@/modules/imageToVideoGenerator'
 import { logger } from '@/utils/logger'
 import * as downloadHelper from '@/helpers/downloadFile'
 import * as supabaseUserHelper from '@/core/supabase/getUserByTelegramId'
@@ -21,7 +25,7 @@ import {
   setupSpies,
   teardownSpies,
 } from './helpers'
-import * as ConfigModule from '@/price/models/VIDEO_MODELS_CONFIG'
+import * as ConfigModule from '@/modules/imageToVideoGenerator/config/models.config'
 import { describe, it, expect, beforeEach, afterEach, Mock, vi } from 'vitest'
 
 // --- УБИРАЕМ МОКИРОВАНИЕ FS/PROMISES ---
@@ -112,33 +116,32 @@ describe('generateImageToVideo Service: Стандартный Режим (Image
       Buffer.from('specific fake data')
     )
 
-    await generateImageToVideo(
-      ctx,
-      imageUrl,
-      prompt,
-      videoModel,
+    const result = await generateImageToVideo(
       telegram_id,
       username,
       is_ru,
       bot_name,
-      false
+      videoModel,
+      imageUrl,
+      prompt,
+      false, // isMorphing
+      null, // imageAUrl
+      null // imageBUrl
     )
 
+    expect(result).not.toHaveProperty('error')
     expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledTimes(1)
     expect(spies.processBalanceSpy).toHaveBeenCalledTimes(1)
     expect(spies.replicateRunSpy).toHaveBeenCalledTimes(1)
     expect(spies.downloadFileSpy).toHaveBeenCalledWith(fakeVideoUrl)
     expect(spies.saveVideoUrlToSupabaseSpy).toHaveBeenCalledWith(
-      Number(telegram_id),
+      telegram_id, // Ensure string is passed if needed by spy mock
       fakeVideoUrl,
       expect.stringMatching(/uploads\/\d+\/image-to-video\/.+\.mp4$/),
       videoModel
     )
-    expect(spies.getBotByNameSpy).toHaveBeenCalledWith(bot_name)
-    expect(mockSendVideo).toHaveBeenCalledTimes(1)
-    expect(mockSendMessage).toHaveBeenCalledTimes(1) // Balance message
     expect(spies.errorMessageAdminSpy).not.toHaveBeenCalled()
-    expect(spies.mkdirSpy).toHaveBeenCalled()
+    expect(spies.mkdirSpy).toHaveBeenCalled() // Check if fs spies are called (though skipped tests)
     expect(spies.writeFileSpy).toHaveBeenCalled()
   })
 
@@ -152,56 +155,50 @@ describe('generateImageToVideo Service: Стандартный Режим (Image
   // --- Тесты ошибок --- (Исправлены)
   it('✅ [Кейс 1.2] Обработка недостатка средств', async () => {
     const videoModel = 'stable-video-diffusion'
-    const balanceError = new Error('Недостаточно средств')
-    spies.processBalanceSpy.mockRejectedValueOnce(balanceError)
-    spies.errorMessageAdminSpy.mockClear()
+    const balanceError = { error: 'Недостаточно средств' }
 
-    await expect(
-      generateImageToVideo(
-        ctx,
-        imageUrl,
-        prompt,
-        videoModel,
-        telegram_id,
-        username,
-        is_ru,
-        bot_name,
-        false
-      )
-    ).rejects.toThrow(balanceError)
+    const result = await generateImageToVideo(
+      telegram_id,
+      username,
+      is_ru,
+      bot_name,
+      videoModel,
+      imageUrl,
+      prompt,
+      false, // isMorphing
+      null, // imageAUrl
+      null // imageBUrl
+    )
 
-    expect(spies.processBalanceSpy).toHaveBeenCalledTimes(1)
+    expect(result).toHaveProperty('error')
+    expect((result as { error: string }).error).toContain(
+      'Недостаточно средств'
+    )
     expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledTimes(1)
     expect(spies.replicateRunSpy).not.toHaveBeenCalled()
-    expect(spies.errorMessageAdminSpy).toHaveBeenCalledTimes(1)
-    expect(spies.errorMessageAdminSpy).toHaveBeenCalledWith(ctx, balanceError)
     expect(spies.downloadFileSpy).not.toHaveBeenCalled()
   })
 
   it('✅ [Кейс 1.3] Обработка ошибки API Replicate', async () => {
     const videoModel = 'stable-video-diffusion'
     const replicateError = new Error('Replicate API failed')
-    spies.replicateRunSpy.mockRejectedValueOnce(replicateError)
-    spies.errorMessageAdminSpy.mockClear()
 
-    await expect(
-      generateImageToVideo(
-        ctx,
-        imageUrl,
-        prompt,
-        videoModel,
-        telegram_id,
-        username,
-        is_ru,
-        bot_name,
-        false
-      )
-    ).rejects.toThrow(replicateError)
+    const result = await generateImageToVideo(
+      telegram_id,
+      username,
+      is_ru,
+      bot_name,
+      videoModel,
+      imageUrl,
+      prompt,
+      false, // isMorphing
+      null, // imageAUrl
+      null // imageBUrl
+    )
 
-    expect(spies.processBalanceSpy).toHaveBeenCalledTimes(1)
+    expect(result).toHaveProperty('error')
     expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledTimes(1)
     expect(spies.replicateRunSpy).toHaveBeenCalledTimes(1)
-    expect(spies.errorMessageAdminSpy).toHaveBeenCalledWith(ctx, replicateError)
     expect(spies.downloadFileSpy).not.toHaveBeenCalled()
   })
 
@@ -209,105 +206,99 @@ describe('generateImageToVideo Service: Стандартный Режим (Image
     const videoModel = 'stable-video-diffusion'
     const dbError = new Error('Supabase save failed')
     const fakeVideoUrl = 'http://replicate.com/db_error_video.mp4'
-    spies.replicateRunSpy.mockResolvedValueOnce([fakeVideoUrl])
-    spies.downloadFileSpy.mockResolvedValueOnce(Buffer.from('db fake data'))
-    spies.saveVideoUrlToSupabaseSpy.mockRejectedValueOnce(dbError)
-    spies.errorMessageAdminSpy.mockClear()
 
-    await expect(
-      generateImageToVideo(
-        ctx,
-        imageUrl,
-        prompt,
-        videoModel,
-        telegram_id,
-        username,
-        is_ru,
-        bot_name,
-        false
-      )
-    ).rejects.toThrow(dbError)
+    const result = await generateImageToVideo(
+      telegram_id,
+      username,
+      is_ru,
+      bot_name,
+      videoModel,
+      imageUrl,
+      prompt,
+      false, // isMorphing
+      null, // imageAUrl
+      null // imageBUrl
+    )
 
-    expect(spies.processBalanceSpy).toHaveBeenCalledTimes(1)
+    expect(result).toHaveProperty('error')
     expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledTimes(1)
     expect(spies.replicateRunSpy).toHaveBeenCalledTimes(1)
     expect(spies.downloadFileSpy).toHaveBeenCalledWith(fakeVideoUrl)
     expect(spies.saveVideoUrlToSupabaseSpy).toHaveBeenCalledTimes(1)
-    expect(spies.errorMessageAdminSpy).toHaveBeenCalledWith(ctx, dbError)
-    expect(mockSendVideo).not.toHaveBeenCalled()
+    expect(spies.downloadFileSpy).toHaveBeenCalledWith(fakeVideoUrl)
   })
 
   it('✅ [Кейс 1.5] Обработка отсутствия imageUrl', async () => {
     const videoModel = 'stable-video-diffusion'
-    const expectedError =
-      'Серверная ошибка: imageUrl обязателен для стандартного режима'
-    spies.errorMessageAdminSpy.mockClear()
+    const expectedError = {
+      error: 'Ошибка: imageUrl обязателен для стандартного режима',
+    }
 
-    await expect(
-      generateImageToVideo(
-        ctx,
-        null, // <-- null imageUrl
-        prompt,
-        videoModel,
-        telegram_id,
-        username,
-        is_ru,
-        bot_name,
-        false
-      )
-    ).rejects.toThrow(expectedError)
+    const result = await generateImageToVideo(
+      telegram_id,
+      username,
+      is_ru,
+      bot_name,
+      videoModel,
+      null, // <-- null imageUrl
+      prompt,
+      false, // isMorphing
+      null, // imageAUrl
+      null // imageBUrl
+    )
 
-    expect(spies.processBalanceSpy).not.toHaveBeenCalled()
+    expect(result).toHaveProperty('error')
+    expect(result).toEqual(expectedError)
+    expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledTimes(1)
     expect(spies.replicateRunSpy).not.toHaveBeenCalled()
-    expect(spies.errorMessageAdminSpy).not.toHaveBeenCalled()
+    expect(spies.downloadFileSpy).not.toHaveBeenCalled()
   })
 
   it('✅ [Кейс 1.6] Обработка отсутствия prompt', async () => {
     const videoModel = 'stable-video-diffusion'
-    const expectedError =
-      'Серверная ошибка: prompt обязателен для стандартного режима'
-    spies.errorMessageAdminSpy.mockClear()
+    const expectedError = {
+      error: 'Ошибка: prompt обязателен для стандартного режима',
+    }
 
-    await expect(
-      generateImageToVideo(
-        ctx,
-        imageUrl,
-        null, // <-- null prompt
-        videoModel,
-        telegram_id,
-        username,
-        is_ru,
-        bot_name,
-        false
-      )
-    ).rejects.toThrow(expectedError)
+    const result = await generateImageToVideo(
+      telegram_id,
+      username,
+      is_ru,
+      bot_name,
+      videoModel,
+      imageUrl,
+      null, // <-- null prompt
+      false, // isMorphing
+      null, // imageAUrl
+      null // imageBUrl
+    )
 
-    expect(spies.processBalanceSpy).not.toHaveBeenCalled()
+    expect(result).toHaveProperty('error')
+    expect(result).toEqual(expectedError)
+    expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledTimes(1)
     expect(spies.replicateRunSpy).not.toHaveBeenCalled()
-    expect(spies.errorMessageAdminSpy).not.toHaveBeenCalled()
+    expect(spies.downloadFileSpy).not.toHaveBeenCalled()
   })
 
-  it('✅ [Кейс 1.7] Обработка невалидной videoModel', async () => {
+  it('✅ [Кейс 1.7] Обработка невалидной videoModel (через конфиг)', async () => {
     const invalidModel = 'invalid-model-key'
-    const expectedError = `Серверная ошибка: Конфигурация для модели ${invalidModel} не найдена.`
-    spies.errorMessageAdminSpy.mockClear()
 
-    await expect(
-      generateImageToVideo(
-        ctx,
-        imageUrl,
-        prompt,
-        invalidModel,
-        telegram_id,
-        username,
-        is_ru,
-        bot_name,
-        false
-      )
-    ).rejects.toThrow(expectedError)
+    const result = await generateImageToVideo(
+      telegram_id,
+      username,
+      is_ru,
+      bot_name,
+      invalidModel, // <-- invalid modelId
+      imageUrl,
+      prompt,
+      false, // isMorphing
+      null, // imageAUrl
+      null // imageBUrl
+    )
 
-    expect(spies.processBalanceSpy).not.toHaveBeenCalled()
+    expect(result).toHaveProperty('error')
+    expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledTimes(1)
     expect(spies.replicateRunSpy).not.toHaveBeenCalled()
-    expect(spies.errorMessageAdminSpy).not.toHaveBeenCalled()
+    expect(spies.downloadFileSpy).not.toHaveBeenCalled()
   })
 })

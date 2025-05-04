@@ -214,6 +214,9 @@ export interface MySession extends Scenes.WizardSession<WizardSessionData> {
   payment_amount?: number // Amount for the current operation
   imageAUrl?: string // For morphing - Image A
   imageBUrl?: string // For morphing - Image B
+  imageToVideoModel?: string // Модель, выбранная в imageToVideoWizard
+  language?: string // 'ru' или 'en'
+  aspect_ratio?: string // <-- Добавлено соотношение сторон
 }
 
 export interface MyContext extends Context {

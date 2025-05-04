@@ -14,9 +14,9 @@ import type * as PulseHelper from '@/helpers/pulse' // For mocking pulse helper
 import type * as BotNameHelper from '@/helpers/botName.helper' // For mocking toBotName
 import type { BotName } from '@/interfaces'
 import {
-  VIDEO_MODELS_CONFIG as VideoModelsConfigValue,
-  VideoModelConfig,
-} from '@/price/models/VIDEO_MODELS_CONFIG'
+  type VideoModelConfig,
+  VIDEO_MODELS_CONFIG,
+} from '@/modules/imageToVideoGenerator/config/models.config'
 import * as fsPromises from 'fs/promises' // Import namespace for mocking fs functions
 import { Telegram } from 'telegraf' // Import Telegram type for mocking bot.telegram
 
@@ -39,28 +39,15 @@ vi.mock('@/helpers/pulse')
 vi.mock('@/helpers/botName.helper')
 
 // Mock Models Config (can keep the dynamic mock from imageToVideo if needed, or simplify)
-vi.mock('@/price/models/VIDEO_MODELS_CONFIG', async importOriginal => {
-  const originalModule =
-    (await importOriginal()) as typeof import('@/price/models/VIDEO_MODELS_CONFIG')
-  if (!originalModule || !originalModule.VIDEO_MODELS_CONFIG) {
-    throw new Error('Failed to import original VIDEO_MODELS_CONFIG for mocking')
-  }
-  const REAL_VIDEO_MODELS_CONFIG = originalModule.VIDEO_MODELS_CONFIG
-  const mockConfig: Record<string, VideoModelConfig> = {}
-  for (const key in REAL_VIDEO_MODELS_CONFIG) {
-    if (Object.prototype.hasOwnProperty.call(REAL_VIDEO_MODELS_CONFIG, key)) {
-      const realModelConfig = REAL_VIDEO_MODELS_CONFIG[key]
-      mockConfig[key] = {
-        ...realModelConfig,
-        api: {
-          ...realModelConfig.api,
-          input: { ...realModelConfig.api.input },
-        },
-      } // Deep copy essentials
+vi.mock(
+  '@/modules/imageToVideoGenerator/config/models.config',
+  async importOriginal => {
+    const actual = await importOriginal()
+    return {
+      ...((await importOriginal()) as typeof import('@/modules/imageToVideoGenerator/config/models.config')),
     }
   }
-  return { VIDEO_MODELS_CONFIG: mockConfig }
-})
+)
 
 // --- Test Suite ---
 
@@ -146,7 +133,7 @@ describe('generateTextToVideo Service', () => {
     const is_ru = false
     const bot_name = 'text_test_bot'
     const prompt = 'A cat writing code'
-    const videoModel = 'kling-v1.6-pro' as keyof typeof VideoModelsConfigValue // Example model
+    const videoModel = 'kling-v1.6-pro' as keyof typeof VIDEO_MODELS_CONFIG // Example model
 
     // --- Успешная генерация ---
     it('✅ [Кейс 1.1] Успешная генерация', async () => {
@@ -199,7 +186,7 @@ describe('generateTextToVideo Service', () => {
         expect.stringContaining('Generating video...'),
         expect.any(Object)
       )
-      const modelConfig = VideoModelsConfigValue[videoModel]
+      const modelConfig = VIDEO_MODELS_CONFIG[videoModel]
       expect(generateVideoMock.generateVideo).toHaveBeenCalledWith(
         prompt,
         modelConfig.api.model,

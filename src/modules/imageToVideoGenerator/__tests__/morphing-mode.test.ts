@@ -10,7 +10,11 @@ import {
   Mocked,
   vi,
 } from 'vitest'
-import { generateImageToVideo } from '@/modules/imageToVideoGenerator'
+// Используем generateImageToVideoIsolated и типы
+import {
+  generateImageToVideo,
+  type VideoModelConfig,
+} from '@/modules/imageToVideoGenerator'
 import type { MyContext, BalanceOperationResult } from '@/interfaces'
 // Импортируем реальный конфиг, который будет подменен
 // import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
@@ -32,7 +36,7 @@ import {
 } from './helpers'
 
 import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
-import * as ConfigModule from '@/price/models/VIDEO_MODELS_CONFIG'
+import * as ConfigModule from '@/modules/imageToVideoGenerator/config/models.config'
 
 // Определяем тип для шпионов ЛОКАЛЬНО
 type SpiesType = ReturnType<typeof setupSpies>
@@ -165,37 +169,33 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
   })
 
   it('✅ [Кейс 2.1] Успешная генерация в режиме морфинга', async () => {
-    await generateImageToVideo(
-      ctx,
-      undefined, // imageUrl не используется
-      undefined, // prompt не используется
-      videoModel,
+    const result = await generateImageToVideo(
       telegram_id,
       username,
       is_ru,
       bot_name,
-      true, // is_morphing = true
+      videoModel,
+      null,
+      prompt,
+      true,
       imageAUrl,
       imageBUrl
     )
 
-    // Проверки вызовов
-    expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledWith(ctx)
-    // expect(processBalanceSpy).toHaveBeenCalledOnce() // Используем шпиона
+    expect(result).not.toHaveProperty('error')
+    expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledWith(telegram_id)
     expect(spies.processBalanceSpy).toHaveBeenCalledOnce()
     expect(spies.replicateRunSpy).toHaveBeenCalledOnce()
-    expect(mockSendMessage).toHaveBeenCalledTimes(2) // Инфо + результат
+    expect(mockSendMessage).toHaveBeenCalledTimes(2)
     expect(mockSendVideo).toHaveBeenCalledOnce()
     expect(spies.saveVideoUrlToSupabaseSpy).toHaveBeenCalledOnce()
 
-    // Проверка параметров вызова Replicate для морфинга
     expect(spies.replicateRunSpy).toHaveBeenCalledWith(
       MOCK_VIDEO_MODELS_CONFIG[videoModel].api.model,
       {
         input: expect.objectContaining({
           image_a: imageAUrl,
           image_b: imageBUrl,
-          // Промпт НЕ должен передаваться
           ...MOCK_VIDEO_MODELS_CONFIG[videoModel].api.input,
         }),
       }
@@ -204,7 +204,6 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
       (spies.replicateRunSpy.mock.calls[0][1] as any).input.prompt
     ).toBeUndefined()
 
-    // Проверка отправки видео
     expect(mockSendVideo).toHaveBeenCalledWith(
       telegram_id,
       {
@@ -221,39 +220,38 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
   })
 
   it('❌ [Кейс 2.2] Недостаточно средств для режима морфинга', async () => {
-    // Переопределяем мок баланса через шпиона
     const insufficientBalanceResult: BalanceOperationResult = {
       success: false,
-      newBalance: 10, // Пример
+      newBalance: 10,
       modePrice: 45,
       paymentAmount: 0,
       currentBalance: 10,
       error: 'Недостаточно средств для морфинга',
     }
-    spies.processBalanceSpy.mockResolvedValue(insufficientBalanceResult) // Используем шпиона
+    spies.processBalanceSpy.mockResolvedValue(insufficientBalanceResult)
 
-    spies.errorMessageAdminSpy.mockClear() // Этот мок управляется иначе, очищаем
+    spies.errorMessageAdminSpy.mockClear()
 
-    await expect(
-      generateImageToVideo(
-        ctx,
-        undefined,
-        undefined,
-        videoModel,
-        telegram_id,
-        username,
-        is_ru,
-        bot_name,
-        true,
-        imageAUrl,
-        imageBUrl
-      )
-    ).rejects.toThrow('Недостаточно средств для морфинга') // Ожидаем правильную ошибку
+    const result = await generateImageToVideo(
+      telegram_id,
+      username,
+      is_ru,
+      bot_name,
+      videoModel,
+      null,
+      prompt,
+      true,
+      imageAUrl,
+      imageBUrl
+    )
 
-    expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledWith(ctx)
-    // expect(processBalanceSpy).toHaveBeenCalledOnce() // Используем шпиона
+    expect(result).toHaveProperty('error')
+    expect((result as { error: string }).error).toContain(
+      'Недостаточно средств'
+    )
+
+    expect(spies.getUserByTelegramIdSpy).toHaveBeenCalledWith(telegram_id)
     expect(spies.processBalanceSpy).toHaveBeenCalledOnce()
-    // expect(replicateRunSpy).not.toHaveBeenCalled()
     expect(spies.replicateRunSpy).not.toHaveBeenCalled()
     expect(mockSendMessage).not.toHaveBeenCalled()
     expect(mockSendVideo).not.toHaveBeenCalled()
@@ -266,27 +264,25 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
   it('❌ [Кейс 2.3] Отсутствует imageAUrl для режима морфинга', async () => {
     spies.errorMessageAdminSpy.mockClear()
 
-    await expect(
-      generateImageToVideo(
-        ctx,
-        undefined,
-        undefined,
-        videoModel,
-        telegram_id,
-        username,
-        is_ru,
-        bot_name,
-        true,
-        undefined, // <--- imageAUrl is undefined
-        imageBUrl
-      )
-    ).rejects.toThrow(
-      'Серверная ошибка: imageAUrl и imageBUrl обязательны для морфинга'
-    ) // Фактическая ошибка из кода
+    const result = await generateImageToVideo(
+      telegram_id,
+      username,
+      is_ru,
+      bot_name,
+      videoModel,
+      null,
+      prompt,
+      true,
+      null,
+      imageBUrl
+    )
 
-    // expect(processBalanceSpy).not.toHaveBeenCalled() // Используем шпиона
+    expect(result).toHaveProperty('error')
+    expect((result as { error: string }).error).toContain(
+      'imageAUrl и imageBUrl обязательны'
+    )
+
     expect(spies.processBalanceSpy).not.toHaveBeenCalled()
-    // expect(replicateRunSpy).not.toHaveBeenCalled()
     expect(spies.replicateRunSpy).not.toHaveBeenCalled()
     expect(spies.errorMessageAdminSpy).toHaveBeenCalledOnce()
     expect(spies.errorMessageAdminSpy.mock.calls[0][0]).toContain(
@@ -297,27 +293,25 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
   it('❌ [Кейс 2.4] Отсутствует imageBUrl для режима морфинга', async () => {
     spies.errorMessageAdminSpy.mockClear()
 
-    await expect(
-      generateImageToVideo(
-        ctx,
-        undefined,
-        undefined,
-        videoModel,
-        telegram_id,
-        username,
-        is_ru,
-        bot_name,
-        true,
-        imageAUrl,
-        undefined // <--- imageBUrl is undefined
-      )
-    ).rejects.toThrow(
-      'Серверная ошибка: imageAUrl и imageBUrl обязательны для морфинга'
-    ) // Фактическая ошибка из кода
+    const result = await generateImageToVideo(
+      telegram_id,
+      username,
+      is_ru,
+      bot_name,
+      videoModel,
+      null,
+      prompt,
+      true,
+      imageAUrl,
+      null
+    )
 
-    // expect(processBalanceSpy).not.toHaveBeenCalled() // Используем шпиона
+    expect(result).toHaveProperty('error')
+    expect((result as { error: string }).error).toContain(
+      'imageAUrl и imageBUrl обязательны'
+    )
+
     expect(spies.processBalanceSpy).not.toHaveBeenCalled()
-    // expect(replicateRunSpy).not.toHaveBeenCalled()
     expect(spies.replicateRunSpy).not.toHaveBeenCalled()
     expect(spies.errorMessageAdminSpy).toHaveBeenCalledOnce()
     expect(spies.errorMessageAdminSpy.mock.calls[0][0]).toContain(

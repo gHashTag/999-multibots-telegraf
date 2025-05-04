@@ -1,4 +1,4 @@
-import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
+import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config'
 import { SYSTEM_CONFIG } from '@/price/constants/index'
 import { logger } from '@/utils/logger'
 

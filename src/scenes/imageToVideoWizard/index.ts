@@ -1,6 +1,9 @@
 import { Composer, Scenes, Markup } from 'telegraf'
-import { generateImageToVideo } from '@/modules/imageToVideoGenerator'
-import { MyContext } from '@/interfaces'
+import {
+  generateImageToVideo,
+  type VideoModelConfig,
+} from '@/modules/imageToVideoGenerator'
+import { MyContext, MySession } from '@/interfaces'
 import {
   createHelpCancelKeyboard,
   sendGenericErrorMessage,
@@ -9,7 +12,7 @@ import {
 import { isRussian } from '@/helpers/language'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleHelpCancel } from '@/handlers'
-import { VIDEO_MODELS_CONFIG } from '@/price/models/VIDEO_MODELS_CONFIG'
+import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config'
 import { logger } from '@/utils/logger'
 import { calculateFinalPrice } from '@/price/helpers'
 
@@ -17,6 +20,17 @@ import {
   getUserDetailsSubscription,
   UserDetailsResult,
 } from '@/core/supabase/getUserDetailsSubscription'
+
+// Импортируем НОВУЮ функцию и ее типы
+import { replicate } from '@/core/replicate'
+import { downloadFile } from '@/helpers/downloadFile'
+import {
+  getUserByTelegramId,
+  updateUserLevelPlusOne,
+  saveVideoUrlToSupabase,
+  getUserBalance, // Импортируем getUserBalance
+} from '@/core/supabase'
+import { processBalanceVideoOperation } from '@/price/helpers'
 
 // Определяем тип ключей конфига
 type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -623,50 +637,70 @@ async function handleSubmit(ctx: MyContext) {
   await ctx.reply(textStart, Markup.removeKeyboard())
 
   try {
-    // --- Log parameters being sent --- //
-    logger.info('[I2V Wizard] Calling generateImageToVideo service', {
-      videoModel,
-      telegram_id,
-      username,
-      is_ru: isRu,
-      bot_name,
-      is_morphing,
-      imageUrl: imageUrl ? 'present' : 'absent',
-      prompt: prompt ? 'present' : 'absent', // Log prompt presence
-      imageAUrl: imageAUrl ? 'present' : 'absent',
-      imageBUrl: imageBUrl ? 'present' : 'absent',
+    logger.info('Calling generateImageToVideo with:', {
+      modelId: videoModel,
+      telegram_id: ctx.from.id,
+      username: ctx.from.username,
+      isRu,
+      botName: ctx.botInfo.username,
+      userAspectRatio: ctx.session.aspect_ratio ?? '16:9',
+      imageUrl,
+      prompt,
+      isMorphing: ctx.session.is_morphing ?? false,
+      imageAUrl: ctx.session.imageAUrl ?? null,
+      imageBUrl: ctx.session.imageBUrl ?? null,
     })
 
-    // --- Call the service (no await needed if handled async) --- //
-    generateImageToVideo(
-      ctx, // Pass the full context
-      imageUrl, // null for morphing
-      prompt, // Pass prompt for both modes now
-      videoModel,
-      telegram_id,
-      username,
+    const result = await generateImageToVideo(
+      String(ctx.from.id),
+      ctx.from.username ?? 'unknown',
       isRu,
-      bot_name,
-      is_morphing,
-      imageAUrl,
-      imageBUrl
-    ).catch(error => {
-      // Log error from the async background task if it fails early
-      logger.error(
-        '[I2V Wizard] Error during async generateImageToVideo call',
+      ctx.botInfo.username,
+      videoModel,
+      imageUrl,
+      prompt,
+      ctx.session.is_morphing ?? false,
+      ctx.session.imageAUrl ?? null,
+      ctx.session.imageBUrl ?? null
+    )
+
+    // Обработка результата
+    if ('error' in result) {
+      logger.error('generateImageToVideo returned an error:', {
+        error: result.error,
+        telegram_id: ctx.from.id,
+      })
+      await ctx.reply(result.error)
+    } else {
+      // Успех - отправляем видео и сообщение о балансе
+      logger.info('generateImageToVideo success, sending video', {
+        result,
+        telegram_id: ctx.from.id,
+      })
+      await ctx.telegram.sendVideo(
+        String(ctx.from.id),
+        { source: result.localVideoPath },
         {
-          error,
-          telegram_id,
+          caption: isRu
+            ? `✨ Ваше видео готово!\n💰 Списано: ${result.paymentAmount} ✨\n💎 Остаток: ${result.newBalance} ✨`
+            : `✨ Your video is ready!\n💰 Cost: ${result.paymentAmount} ✨\n💎 Balance: ${result.newBalance} ✨`,
         }
       )
-      // Consider sending an admin notification here as well if needed
-    })
+      await ctx.telegram.sendMessage(
+        String(ctx.from.id),
+        isRu
+          ? `✅ Готово! Стоимость: ${result.paymentAmount.toFixed(
+              2
+            )} ⭐️. Ваш новый баланс: ${result.newBalance.toFixed(2)} ⭐️.`
+          : `✅ Done! Cost: ${result.paymentAmount.toFixed(
+              2
+            )} ⭐️. Your new balance: ${result.newBalance.toFixed(2)} ⭐️.`
+      )
+    }
 
-    // Leave the scene immediately after starting the background task
-    logger.info('[I2V Wizard] Left scene after initiating background task', {
-      telegramId: telegram_id,
-    })
-    return ctx.scene.leave()
+    // Сохраняем сессию независимо от результата Replicate
+    ctx.session.prompt = prompt
+    ctx.session.mode = ModeEnum.ImageToVideo
   } catch (error) {
     logger.error('[I2V Wizard] Error in handleSubmit before calling service', {
       error,
