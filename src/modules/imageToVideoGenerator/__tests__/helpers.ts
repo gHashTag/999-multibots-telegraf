@@ -1,43 +1,50 @@
-import { vi, Mocked, Mock } from 'vitest'
+import { vi, Mocked, Mock, MockInstance } from 'vitest'
 import type { MyContext } from '@/interfaces'
 import { Telegraf } from 'telegraf'
 
 import * as SupabaseCore from '@/core/supabase'
 import * as PriceHelpers from '@/price/helpers'
-
 import * as ReplicateClient from '@/core/replicate'
 import * as DownloadHelper from '@/helpers/downloadFile'
-
 import * as ErrorAdmin from '@/helpers/error/errorMessageAdmin'
 import * as LoggerUtils from '@/utils/logger'
 import type { VideoModelKey } from '@/interfaces'
 import * as ConfigModule from '@/config'
 import type { VideoModelConfig } from '@/price/models/VIDEO_MODELS_CONFIG'
 import * as BotIndex from '@/core/bot/index'
-
-// --- Создаем локальные моки для fs/promises ---
-const mkdirMock = vi.fn()
-const writeFileMock = vi.fn()
+// Import the mocked functions from fs/promises
+// const mockMkdir = vi.fn()
+// const mockWriteFile = vi.fn()
+// Import fs/promises
+import * as FSPromises from 'fs/promises'
 
 // --- МОКИ ДРУГИХ МОДУЛЕЙ ---
-
-// Mock Replicate Client - УДАЛЯЕМ ГЛОБАЛЬНЫЙ МОК, БУДЕМ ИСПОЛЬЗОВАТЬ spyOn
-// vi.mock('@/core/replicate', () => ({
-//   replicate: {
-//     run: vi.fn(),
-//   },
+vi.mock('@/utils/logger')
+vi.mock('@/helpers/error/errorMessageAdmin')
+// Мокируем fs/promises, используя объявленные выше переменные
+// vi.mock('fs/promises', () => ({
+//   mkdir: mockMkdir,
+//   writeFile: mockWriteFile,
 // }))
 
-vi.mock('@/utils/logger')
-vi.mock('@/helpers/downloadFile')
-vi.mock('@/core/supabase')
-vi.mock('@/helpers/error/errorMessageAdmin')
+// --- Define helper functions BEFORE vi.mock (если они нужны ВНУТРИ vi.mock, иначе можно ниже) ---
 
-// Мокируем fs/promises
-vi.mock('fs/promises', () => ({
-  mkdir: mkdirMock,
-  writeFile: writeFileMock,
-}))
+// Simple mock user creator (can be expanded)
+export const createMockUser = (
+  telegram_id: string,
+  balance = 100,
+  level = 1,
+  aspect_ratio = '16:9'
+) => {
+  return {
+    id: `user-uuid-${telegram_id}`,
+    telegram_id: Number(telegram_id),
+    balance,
+    level,
+    aspect_ratio,
+    // Add other user properties as needed by tests
+  } as any // Use 'as any' for simplicity or define a proper mock type
+}
 
 // --- УДАЛЯЕМ ДИНАМИЧЕСКИЙ МОК ---
 // vi.mock('@/price/models/VIDEO_MODELS_CONFIG', async importOriginal => {
@@ -112,10 +119,10 @@ export interface MockedDependencies {
   downloadMock: Mocked<typeof DownloadHelper>
   errorAdminMock: Mocked<typeof ErrorAdmin>
   loggerMock: Mocked<typeof LoggerUtils>
-  fsPromisesMocks: {
-    mkdir: typeof mkdirMock
-    writeFile: typeof writeFileMock
-  }
+  // fsPromisesMocks: {
+  //   mkdir: typeof mkdirMock
+  //   writeFile: typeof writeFileMock
+  // }
   spies: ReturnType<typeof setupSpies>
 }
 
@@ -124,13 +131,18 @@ export interface MockContextResult {
   ctx: MyContext
   mockSendMessage: Mock // Use the correct type for vi.fn()
   mockSendVideo: Mock
+  loggerErrorSpy: any
+  loggerInfoSpy: any
+  updateUserLevelPlusOneSpy: any
+  mkdirSpy: any
+  writeFileSpy: any
 }
 
 // --- Setup Function --- (To be called in beforeEach of each test file)
 export const setupMocks = async (): Promise<MockedDependencies> => {
   vi.resetAllMocks()
-  mkdirMock.mockReset()
-  writeFileMock.mockReset()
+  // mkdirMock.mockReset()
+  // writeFileMock.mockReset()
 
   // ---> ДОБАВЛЯЕМ ЯВНУЮ ОЧИСТКУ КЭША
   const GetUserBalanceModule = await import('@/core/supabase/getUserBalance')
@@ -158,10 +170,10 @@ export const setupMocks = async (): Promise<MockedDependencies> => {
   const downloadMock = vi.mocked(DownloadHelper)
   const errorAdminMock = vi.mocked(ErrorAdmin)
   const loggerMock = vi.mocked(LoggerUtils)
-  const fsPromisesMocks = {
-    mkdir: mkdirMock,
-    writeFile: writeFileMock,
-  }
+  // const fsPromisesMocks = {
+  //   mkdir: mkdirMock,
+  //   writeFile: writeFileMock,
+  // }
 
   // --- Set default mock implementations ---
   supabaseMock.getUserByTelegramId.mockResolvedValue(null)
@@ -170,8 +182,8 @@ export const setupMocks = async (): Promise<MockedDependencies> => {
   supabaseMock.saveVideoUrlToSupabase.mockResolvedValue(undefined)
   errorAdminMock.errorMessageAdmin.mockClear()
 
-  fsPromisesMocks.mkdir.mockResolvedValue(undefined as any)
-  fsPromisesMocks.writeFile.mockResolvedValue(undefined)
+  // fsPromisesMocks.mkdir.mockResolvedValue(undefined as any)
+  // fsPromisesMocks.writeFile.mockResolvedValue(undefined)
 
   vi.mocked(downloadMock.downloadFile).mockResolvedValue(
     Buffer.from('fake video data')
@@ -186,7 +198,7 @@ export const setupMocks = async (): Promise<MockedDependencies> => {
     downloadMock,
     errorAdminMock,
     loggerMock,
-    fsPromisesMocks,
+    // fsPromisesMocks,
     spies: setupSpies(),
   }
 }
@@ -234,27 +246,15 @@ export const createMockContext = (
     ctx,
     mockSendMessage,
     mockSendVideo,
+    loggerErrorSpy: vi.spyOn(LoggerUtils.logger, 'error'),
+    loggerInfoSpy: vi.spyOn(LoggerUtils.logger, 'info'),
+    updateUserLevelPlusOneSpy: vi.spyOn(SupabaseCore, 'updateUserLevelPlusOne'),
+    mkdirSpy: vi.spyOn(FSPromises, 'mkdir'),
+    writeFileSpy: vi.spyOn(FSPromises, 'writeFile'),
   }
 }
 
-// Simple mock user creator (can be expanded)
-export const createMockUser = (
-  telegram_id: string,
-  balance = 100,
-  level = 1,
-  aspect_ratio = '16:9'
-) => {
-  return {
-    id: `user-uuid-${telegram_id}`,
-    telegram_id: Number(telegram_id),
-    balance,
-    level,
-    aspect_ratio,
-    // Add other user properties as needed by tests
-  } as any // Use 'as any' for simplicity or define a proper mock type
-}
-
-// +++ НОВЫЕ ФУНКЦИИ ДЛЯ ШПИОНОВ +++
+// +++ УПРОЩАЕМ setupSpies: ТОЛЬКО СОЗДАНИЕ ШПИОНОВ +++
 export const setupSpies = () => {
   const spies = {
     processBalanceSpy: vi.spyOn(PriceHelpers, 'processBalanceVideoOperation'),
@@ -267,39 +267,28 @@ export const setupSpies = () => {
     errorMessageAdminSpy: vi.spyOn(ErrorAdmin, 'errorMessageAdmin'),
     loggerErrorSpy: vi.spyOn(LoggerUtils.logger, 'error'),
     loggerInfoSpy: vi.spyOn(LoggerUtils.logger, 'info'),
+    updateUserLevelPlusOneSpy: vi.spyOn(SupabaseCore, 'updateUserLevelPlusOne'),
+    mkdirSpy: vi.spyOn(FSPromises, 'mkdir'),
+    writeFileSpy: vi.spyOn(FSPromises, 'writeFile'),
   }
 
-  // Устанавливаем дефолтные реализации (можно переопределить в тестах)
-  spies.processBalanceSpy.mockResolvedValue({
-    success: true,
-    newBalance: 90,
-    modePrice: 10,
-    paymentAmount: 10,
-  })
-  spies.getUserBalanceSpy.mockResolvedValue(100)
-  spies.replicateRunSpy.mockRejectedValue(new Error('Replicate Error Spy'))
-  spies.downloadFileSpy.mockResolvedValue(Buffer.from('fake video data spy'))
-  spies.getUserByTelegramIdSpy.mockResolvedValue(
-    createMockUser('default-user-id')
-  )
-  spies.saveVideoUrlToSupabaseSpy.mockResolvedValue(undefined)
-  spies.getBotByNameSpy.mockResolvedValue({
-    bot: {} as Telegraf<MyContext>,
-    error: null,
-  })
-  spies.errorMessageAdminSpy.mockResolvedValue(undefined)
-  spies.loggerErrorSpy.mockImplementation(() => LoggerUtils.logger)
-  spies.loggerInfoSpy.mockImplementation(() => LoggerUtils.logger)
+  // --- УДАЛЯЕМ УСТАНОВКУ ДЕФОЛТНЫХ РЕАЛИЗАЦИЙ ---
+  // spies.processBalanceSpy.mockResolvedValue(...)
+  // spies.getUserBalanceSpy.mockResolvedValue(...)
+  // ... и так далее для всех шпионов ...
 
   return spies
 }
 
+// teardownSpies остается без изменений
 export const teardownSpies = (spies: ReturnType<typeof setupSpies>) => {
-  // Восстанавливаем всех шпионов
   Object.values(spies).forEach(spy => {
     if (spy && typeof spy.mockRestore === 'function') {
       spy.mockRestore()
     }
   })
 }
-// +++ КОНЕЦ НОВЫХ ФУНКЦИЙ +++
+// +++ КОНЕЦ УПРОЩЕНИЯ +++
+
+// Экспортируем моки fs для использования в тестах
+// export { mockMkdir, mockWriteFile }
