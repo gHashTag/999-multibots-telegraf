@@ -21,17 +21,6 @@ import {
   UserDetailsResult,
 } from '@/core/supabase/getUserDetailsSubscription'
 
-// Импортируем НОВУЮ функцию и ее типы
-import { replicate } from '@/core/replicate'
-import { downloadFile } from '@/helpers/downloadFile'
-import {
-  getUserByTelegramId,
-  updateUserLevelPlusOne,
-  saveVideoUrlToSupabase,
-  getUserBalance, // Импортируем getUserBalance
-} from '@/core/supabase'
-import { processBalanceVideoOperation } from '@/price/helpers'
-
 // Определяем тип ключей конфига
 type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
 const MORPHING_MODEL_KEY = 'fofr-video-morpher' // Constant for the morphing model (backend uses this)
