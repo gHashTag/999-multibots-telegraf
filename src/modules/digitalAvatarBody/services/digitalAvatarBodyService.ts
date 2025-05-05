@@ -1,5 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { DigitalAvatarBodyDependencies } from '../interfaces/DigitalAvatarBodyDependencies'
+import { generateAvatarBodyAdapter } from '../adapters/avatarBodyGenerator'
 
 export const processDigitalAvatarBody = async (
   ctx: MyContext,
@@ -18,7 +19,7 @@ export const processDigitalAvatarBody = async (
   const botName = ctx.botInfo.username
 
   try {
-    const avatarBodyUrl = await dependencies.generateAvatarBody(
+    const avatarBodyUrl = await generateAvatarBodyAdapter(
       telegramId,
       username,
       isRu,

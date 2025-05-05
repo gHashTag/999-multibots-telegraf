@@ -3,6 +3,9 @@ import { createDigitalAvatarBody } from '../index'
 import { MyContext } from '@/interfaces'
 import { DigitalAvatarBodyDependencies } from '../interfaces/DigitalAvatarBodyDependencies'
 
+// Мокаем адаптер напрямую
+import * as avatarBodyGenerator from '../adapters/avatarBodyGenerator'
+
 describe('DigitalAvatarBody Module', () => {
   it('should create digital avatar body', async () => {
     // Arrange
@@ -21,11 +24,16 @@ describe('DigitalAvatarBody Module', () => {
       isRussian: vi.fn(() => true),
     }
 
+    // Мокаем прямой вызов адаптера
+    const spy = vi
+      .spyOn(avatarBodyGenerator, 'generateAvatarBodyAdapter')
+      .mockResolvedValue('mocked_avatar_url')
+
     // Act
     await createDigitalAvatarBody(mockCtx, inputData, mockDependencies)
 
     // Assert
-    expect(mockDependencies.generateAvatarBody).toHaveBeenCalledWith(
+    expect(spy).toHaveBeenCalledWith(
       '123',
       'testUser',
       true,
