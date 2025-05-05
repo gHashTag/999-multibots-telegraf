@@ -1,7 +1,7 @@
 import { getUserBalance } from '@/core/supabase/getUserBalance' // Keep imports for now
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { BalanceOperationResult } from '@/interfaces' // Keep imports for now
-import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config' // Keep imports for now
+import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config' // Keep imports for now
 import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice' // Keep imports for now
 
 import { logger } from '@/utils/logger' // Keep logger import
