@@ -1,4 +1,6 @@
 import { MyContext } from '@/interfaces'
+import { processDigitalAvatarBody } from './services/digitalAvatarBodyService'
+import { DigitalAvatarBodyDependencies } from './interfaces/DigitalAvatarBodyDependencies'
 
 /**
  * Основной файл модуля digitalAvatarBody.
@@ -6,12 +8,12 @@ import { MyContext } from '@/interfaces'
  */
 
 export const createDigitalAvatarBody = async (
-  telegramId: string,
-  username: string,
-  isRu: boolean,
-  botName: string,
-  inputData: any
+  ctx: MyContext,
+  inputData: any,
+  dependencies: DigitalAvatarBodyDependencies
 ): Promise<void> => {
-  console.log(`Creating digital avatar body for user: ${username}`)
-  // Здесь будет логика создания цифрового тела аватара
+  console.log(
+    `Creating digital avatar body for user: ${ctx.from?.username || 'unknown'}`
+  )
+  await processDigitalAvatarBody(ctx, dependencies, inputData)
 }

@@ -1,28 +1,39 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createDigitalAvatarBody } from '../index'
+import { MyContext } from '@/interfaces'
+import { DigitalAvatarBodyDependencies } from '../interfaces/DigitalAvatarBodyDependencies'
 
 describe('DigitalAvatarBody Module', () => {
   it('should create digital avatar body', async () => {
     // Arrange
-    const telegramId = 'user123'
-    const username = 'testUser'
-    const isRu = true
-    const botName = 'testBot'
+    const mockCtx = {
+      from: { id: 123, username: 'testUser' },
+      botInfo: { username: 'testBot' },
+      reply: vi.fn(),
+    } as unknown as MyContext
     const inputData = {
       /* test data */
     }
+    const mockDependencies: DigitalAvatarBodyDependencies = {
+      getUserBalance: vi.fn(() => Promise.resolve(100)),
+      generateAvatarBody: vi.fn(() => Promise.resolve('mocked_avatar_url')),
+      sendGenericErrorMessage: vi.fn(() => Promise.resolve()),
+      isRussian: vi.fn(() => true),
+    }
 
     // Act
-    await createDigitalAvatarBody(
-      telegramId,
-      username,
-      isRu,
-      botName,
-      inputData
-    )
+    await createDigitalAvatarBody(mockCtx, inputData, mockDependencies)
 
     // Assert
-    // Здесь можно добавить проверки, если функция будет возвращать результат или вызывать другие функции
-    expect(true).toBe(true) // Заглушка для теста
+    expect(mockDependencies.generateAvatarBody).toHaveBeenCalledWith(
+      '123',
+      'testUser',
+      true,
+      'testBot',
+      inputData
+    )
+    expect(mockCtx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Ваше цифровое тело аватара готово')
+    )
   })
 })
