@@ -1,4 +1,6 @@
 import { MyContext } from '@/interfaces'
+import { generateAvatarFace } from './adapters/avatarFaceGenerator'
+import { formatInputForAvatarFace } from './helpers'
 
 /**
  * Основной файл модуля digitalAvatarFace.
@@ -13,5 +15,7 @@ export const createDigitalAvatarFace = async (
   console.log(
     `Creating digital avatar face for user: ${ctx.from?.username || 'unknown'}`
   )
-  // Здесь будет логика создания лица цифрового аватара
+  const formattedInput = formatInputForAvatarFace(inputData)
+  const avatarFaceUrl = await generateAvatarFace(formattedInput)
+  await ctx.reply(`Generated avatar face: ${avatarFaceUrl}`)
 }

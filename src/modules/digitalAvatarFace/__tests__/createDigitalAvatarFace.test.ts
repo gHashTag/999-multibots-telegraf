@@ -11,7 +11,8 @@ describe('DigitalAvatarFace Module', () => {
       reply: vi.fn(),
     } as unknown as MyContext
     const inputData = {
-      /* test data */
+      features: { eyes: 'blue', hair: 'brown' },
+      style: 'realistic',
     }
     const mockDependencies = {}
 
@@ -19,6 +20,8 @@ describe('DigitalAvatarFace Module', () => {
     await createDigitalAvatarFace(mockCtx, inputData, mockDependencies)
 
     // Assert
-    expect(true).toBe(true) // Заглушка для теста
+    expect(mockCtx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Generated avatar face:')
+    )
   })
 })
