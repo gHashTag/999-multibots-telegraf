@@ -37,6 +37,12 @@ export function isValidPaymentSubscription(value: string): boolean {
 export const subscriptionScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.SubscriptionScene,
   async ctx => {
+    // !!! САМОЕ ПЕРВОЕ ЛОГИРОВАНИЕ !!!
+    logger.info(`[${ModeEnum.SubscriptionScene}] STEP 1 ENTERED`, {
+      telegram_id: ctx.from?.id,
+    })
+    // !!! КОНЕЦ САМОГО ПЕРВОГО ЛОГИРОВАНИЯ !!!
+
     const userDetails = await getUserDetailsSubscription(
       ctx.from?.id.toString()
     )
@@ -87,6 +93,17 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     const keyboardRows: any[] = []
     availablePlans.forEach((plan, index) => {
       // Используем availablePlans
+      // !!! ЛОГИРОВАНИЕ !!!
+      logger.info(
+        `[${ModeEnum.SubscriptionScene}] Processing plan for button:`,
+        {
+          plan_subscription: plan.subscription,
+          isAdminOnly: plan.isAdminOnly,
+          index,
+        }
+      )
+      // !!! КОНЕЦ ЛОГИРОВАНИЯ !!!
+
       const row = index // Просто размещаем каждую кнопку на новой строке для простоты
       if (!keyboardRows[row]) {
         keyboardRows[row] = []
