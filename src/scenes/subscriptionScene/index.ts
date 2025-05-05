@@ -12,23 +12,25 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 
 // Проверка валидности типа подписки
-export function isValidPaymentSubscription(value: string): value is string {
-  // Преобразуем значение в верхний регистр для сравнения с SubscriptionType
-  const upperValue = value.toUpperCase()
+export function isValidPaymentSubscription(value: string): boolean {
+  if (!value) return false
 
-  // Проверяем по значению перечисления
+  // Преобразуем искомое значение в верхний регистр ОДИН РАЗ
+  const upperValueToFind = value.toUpperCase()
+
+  // Проверяем, существует ли такой тип подписки в наших планах
   for (const plan of paymentOptionsPlans) {
-    // Проверяем совпадение с типом подписки
-    if (plan.subscription === (upperValue as SubscriptionType)) {
-      return true
-    }
-
-    // Проверяем callback_data в нижнем регистре (neurophoto, neurobase, и т.д.)
-    if (plan.subscription?.toString().toLowerCase() === value.toLowerCase()) {
+    // Сравниваем строковые представления в верхнем регистре
+    if (plan.subscription?.toString().toUpperCase() === upperValueToFind) {
       return true
     }
   }
 
+  // Если цикл завершился, и мы не нашли совпадения
+  logger.warn(
+    'Unknown subscription type encountered in isValidPaymentSubscription',
+    { value }
+  )
   return false
 }
 
