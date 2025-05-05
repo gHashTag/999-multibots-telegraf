@@ -12,10 +12,18 @@ export const createTextToImage = async (
   inputData: any,
   dependencies: any
 ): Promise<void> => {
-  console.log(
-    `Creating image from text for user: ${ctx.from?.username || 'unknown'}`
-  )
-  const formattedText = formatTextForImage(inputData.text || '')
-  const imageUrl = await generateImageFromText(formattedText)
-  await ctx.reply(`Generated image: ${imageUrl}`)
+  try {
+    console.log(
+      `Creating image from text for user: ${ctx.from?.username || 'unknown'}`
+    )
+    const formattedText = formatTextForImage(inputData.text || '')
+    if (!formattedText) {
+      throw new Error('No text provided for image generation')
+    }
+    const imageUrl = await generateImageFromText(formattedText)
+    await ctx.reply(`Generated image: ${imageUrl}`)
+  } catch (error) {
+    console.error(`Failed to create image: ${error}`)
+    await ctx.reply(`❌ Error generating image: ${error}`)
+  }
 }
