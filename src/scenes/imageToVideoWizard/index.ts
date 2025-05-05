@@ -675,16 +675,6 @@ async function handleSubmit(ctx: MyContext) {
             : `✨ Your video is ready!\n💰 Cost: ${result.paymentAmount} ✨\n💎 Balance: ${result.newBalance} ✨`,
         }
       )
-      await ctx.telegram.sendMessage(
-        String(ctx.from.id),
-        isRu
-          ? `✅ Готово! Стоимость: ${result.paymentAmount.toFixed(
-              2
-            )} ⭐️. Ваш новый баланс: ${result.newBalance.toFixed(2)} ⭐️.`
-          : `✅ Done! Cost: ${result.paymentAmount.toFixed(
-              2
-            )} ⭐️. Your new balance: ${result.newBalance.toFixed(2)} ⭐️.`
-      )
 
       // ---> ДОБАВЛЕНО: Клавиатура для следующего действия <---
       const keyboard = Markup.keyboard([

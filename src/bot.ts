@@ -18,6 +18,9 @@ import {
   handlePreCheckoutQuery,
 } from './handlers/paymentHandlers'
 
+import { handleTextMessage } from './handlers/handleTextMessage'
+import { message } from 'telegraf/filters'
+
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
 
@@ -145,7 +148,11 @@ async function initializeBots() {
     // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
     bot.on('successful_payment', handleSuccessfulPayment as any)
-    setupHearsHandlers(bot) // 4. Hears
+    // Инициализация обработчиков hears из отдельного файла
+    setupHearsHandlers(bot) // 4. Hears (Старые)
+
+    // Обработчик текстовых сообщений по умолчанию - должен быть последним
+    bot.on(message('text'), handleTextMessage)
     // <<<---------------------------------------------------->>>
 
     // <<<--- Set commands scope for the development bot ---<<<
@@ -214,7 +221,11 @@ async function initializeBots() {
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
         bot.on('successful_payment', handleSuccessfulPayment as any)
-        setupHearsHandlers(bot) // 4. Hears
+        // Инициализация обработчиков hears из отдельного файла
+        setupHearsHandlers(bot) // 4. Hears (Старые)
+
+        // Обработчик текстовых сообщений по умолчанию - должен быть последним
+        bot.on(message('text'), handleTextMessage)
         // <<<---------------------------------------------------->>>
 
         botInstances.push(bot)
