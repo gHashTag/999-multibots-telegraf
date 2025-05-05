@@ -1,8 +1,8 @@
-import { Composer, Scenes, Markup } from 'telegraf'
+import { Composer, Scenes, Markup, Telegraf } from 'telegraf'
 import {
   generateImageToVideo,
   type VideoModelConfig,
-} from '@/modules/imageToVideoGenerator'
+} from '@/modules/videoGenerator'
 import { MyContext, MySession } from '@/interfaces'
 import {
   createHelpCancelKeyboard,
@@ -12,7 +12,7 @@ import {
 import { isRussian } from '@/helpers/language'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleHelpCancel } from '@/handlers'
-import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config'
+import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
 import { logger } from '@/utils/logger'
 import { calculateFinalPrice } from '@/price/helpers'
 
@@ -543,6 +543,20 @@ handlePrompt.on('text', async ctx => {
     return ctx.scene.leave()
   }
 
+  // --- Added: Command Check ---
+  if (prompt?.startsWith('/')) {
+    logger.info('[I2V Wizard] Command received instead of prompt, ignoring.', {
+      telegramId: ctx.from?.id,
+      command: prompt,
+    })
+    const text = isRu
+      ? '❗️ Пожалуйста, введите текстовое описание (промпт), а не команду. Для выхода используйте /cancel.'
+      : '❗️ Please enter a text description (prompt), not a command. Use /cancel to exit.'
+    await ctx.reply(text)
+    return // Stay on this step
+  }
+  // --- End Added Check ---
+
   if (!prompt) {
     // HARDCODED TEXT
     const text = isRu
@@ -558,8 +572,19 @@ handlePrompt.on('text', async ctx => {
     prompt,
   })
 
-  // Final confirmation and generation start
-  return handleSubmit(ctx) // Call the final submission logic
+  // --- Modified: Start Background Generation ---
+  // Send confirmation message
+  const textStart = isRu
+    ? '✅ Запрос принят! Начинаю генерацию видео... Это может занять некоторое время. О результате сообщу отдельно.'
+    : '✅ Request accepted! Starting video generation... This might take a while. I will notify you separately about the result.'
+  await ctx.reply(textStart, Markup.removeKeyboard())
+
+  // Start the generation in the background (no await)
+  startGenerateImageToVideoInBackground(ctx)
+
+  // Leave the scene immediately after starting the background task
+  return ctx.scene.leave()
+  // --- End Modification ---
 })
 // Fallback for non-text messages
 handlePrompt.use(async ctx => {
@@ -571,136 +596,132 @@ handlePrompt.use(async ctx => {
   await ctx.reply(text)
 })
 
-// --- Final Submission Logic --- //
-async function handleSubmit(ctx: MyContext) {
+// --- New Function to Start Generation in Background ---
+async function startGenerateImageToVideoInBackground(ctx: MyContext) {
   const isRu = isRussian(ctx)
-  const {
-    videoModel,
-    is_morphing,
-    imageAUrl,
-    imageBUrl,
-    imageUrl,
-    prompt,
-    paymentAmount,
-  } = ctx.session
+  const { videoModel, is_morphing, imageAUrl, imageBUrl, imageUrl, prompt } =
+    ctx.session
   const telegram_id = ctx.from?.id.toString()
   const username = ctx.from?.username || 'unknown'
   const botInfo = await ctx.telegram.getMe()
   const bot_name = botInfo.username
 
-  if (!videoModel || !telegram_id || !bot_name) {
+  if (!videoModel || !telegram_id || !bot_name || !ctx.from?.id) {
     logger.error(
-      '[I2V Wizard] Missing essential data in session for submission',
+      '[I2V Wizard BG] Missing essential data in session for submission',
       { session: ctx.session }
     )
-    await sendGenericErrorMessage(ctx, isRu)
-    return ctx.scene.leave()
+    // We can't easily send an error back to the user here as the original interaction finished
+    // Log the error thoroughly
+    return
   }
 
   // Validate required fields based on mode
+  let validationError = null
   if (is_morphing) {
     if (!imageAUrl || !imageBUrl || !prompt) {
-      logger.error('[I2V Wizard] Missing morphing data for submission', {
-        imageAUrl,
-        imageBUrl,
-        prompt,
-      })
-      await sendGenericErrorMessage(ctx, isRu)
-      return ctx.scene.leave()
+      validationError = '[I2V Wizard BG] Missing morphing data for submission'
+      logger.error(validationError, { imageAUrl, imageBUrl, prompt })
     }
   } else {
     if (!imageUrl || !prompt) {
-      logger.error('[I2V Wizard] Missing standard data for submission', {
-        imageUrl,
-        prompt,
-      })
-      await sendGenericErrorMessage(ctx, isRu)
-      return ctx.scene.leave()
+      validationError = '[I2V Wizard BG] Missing standard data for submission'
+      logger.error(validationError, { imageUrl, prompt })
     }
   }
 
-  // --- HARDCODED TEXT: Start Generation --- //
-  const textStart = isRu
-    ? '⏳ Начинаем генерацию видео... Это может занять некоторое время.'
-    : '⏳ Starting video generation... This might take a while.'
-  await ctx.reply(textStart, Markup.removeKeyboard())
+  if (validationError) {
+    // Log the error, can't easily notify the user at this point
+    return
+  }
 
   try {
-    logger.info('Calling generateImageToVideo with:', {
+    logger.info('[I2V Wizard BG] Starting background generation job', {
       modelId: videoModel,
       telegram_id: ctx.from.id,
       username: ctx.from.username,
       isRu,
       botName: ctx.botInfo.username,
-      userAspectRatio: ctx.session.aspect_ratio ?? '16:9',
-      imageUrl,
+      imageUrl, // Log all relevant data
       prompt,
-      isMorphing: ctx.session.is_morphing ?? false,
-      imageAUrl: ctx.session.imageAUrl ?? null,
-      imageBUrl: ctx.session.imageBUrl ?? null,
+      isMorphing: is_morphing ?? false,
+      imageAUrl,
+      imageBUrl,
     })
 
-    const result = await generateImageToVideo(
+    // Call generateImageToVideo - this will be modified later
+    // to handle the background execution and result sending
+    // For now, just call it. The key is NO AWAIT here on this specific call
+    // if generateImageToVideo itself becomes fully async internally.
+    // If generateImageToVideo still has awaits for replicate, etc.,
+    // we need to wrap this call itself, e.g., `Promise.resolve().then(() => generateImageToVideo(...))`
+    // or use a dedicated job queue if we had one.
+    // Let's assume for now `generateImageToVideo` will be refactored to handle its own async nature.
+    // We pass necessary context for sending the final message.
+
+    // IMPORTANT: generateImageToVideo signature will change in the next step!
+    // It will need ctx.telegram and ctx.from.id to send the result back.
+    // We pass them now in preparation.
+    generateImageToVideo(
       String(ctx.from.id),
       ctx.from.username ?? 'unknown',
       isRu,
       ctx.botInfo.username,
       videoModel,
-      imageUrl,
-      prompt,
-      ctx.session.is_morphing ?? false,
-      ctx.session.imageAUrl ?? null,
-      ctx.session.imageBUrl ?? null
-    )
-
-    // Обработка результата
-    if ('error' in result) {
-      logger.error('generateImageToVideo returned an error:', {
-        error: result.error,
-        telegram_id: ctx.from.id,
-      })
-      await ctx.reply(result.error)
-    } else {
-      // Успех - отправляем видео и сообщение о балансе
-      logger.info('generateImageToVideo success, sending video', {
-        result,
-        telegram_id: ctx.from.id,
-      })
-      await ctx.telegram.sendVideo(
-        String(ctx.from.id),
-        { source: result.localVideoPath },
+      imageUrl, // Pass imageUrl directly
+      prompt!, // Prompt is validated to exist
+      is_morphing ?? false,
+      imageAUrl, // Pass imageAUrl directly
+      imageBUrl, // Pass imageBUrl directly
+      ctx.telegram, // Pass telegram instance
+      ctx.from.id // Pass chat id (which is the user id for private chat)
+    ).catch(bgError => {
+      // Catch errors specifically from the background execution of generateImageToVideo
+      logger.error(
+        '[I2V Wizard BG] Error during generateImageToVideo execution',
         {
-          caption: isRu
-            ? `✨ Ваше видео готово!\n💰 Списано: ${result.paymentAmount} ✨\n💎 Остаток: ${result.newBalance} ✨`
-            : `✨ Your video is ready!\n💰 Cost: ${result.paymentAmount} ✨\n💎 Balance: ${result.newBalance} ✨`,
+          error: bgError,
+          telegram_id: ctx.from?.id,
         }
       )
-
-      // ---> ДОБАВЛЕНО: Клавиатура для следующего действия <---
-      const keyboard = Markup.keyboard([
-        // Добавляем уточнение, что это Фото в Видео
-        [
+      // Attempt to notify user about the background failure
+      ctx.telegram
+        .sendMessage(
+          ctx.from!.id,
           isRu
-            ? '🔄 Сгенерировать еще (Фото в Видео)'
-            : '🔄 Generate More (Image to Video)',
-        ],
-        [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
-      ]).resize()
-      await ctx.reply(isRu ? 'Что дальше?' : 'What next?', keyboard)
-      // Остаемся в сцене, ожидая нажатия кнопки
-      // ---> КОНЕЦ ИЗМЕНЕНИЯ <----
-    }
+            ? '❌ Произошла фоновая ошибка при генерации вашего видео.'
+            : '❌ A background error occurred during your video generation.'
+        )
+        .catch(sendError => {
+          logger.error(
+            '[I2V Wizard BG] Failed to send background error notification',
+            { sendError, telegram_id: ctx.from?.id }
+          )
+        })
+    })
 
-    // Сохраняем сессию независимо от результата Replicate
-    ctx.session.prompt = prompt
-    ctx.session.mode = ModeEnum.ImageToVideo
+    logger.info('[I2V Wizard BG] Background generation initiated', {
+      telegram_id: ctx.from.id,
+    })
   } catch (error) {
-    logger.error('[I2V Wizard] Error in handleSubmit before calling service', {
+    logger.error('[I2V Wizard BG] Error setting up background generation', {
       error,
       telegram_id,
     })
-    await sendGenericErrorMessage(ctx, isRu)
-    return ctx.scene.leave()
+    // Attempt to notify user about the setup failure
+    try {
+      await ctx.telegram.sendMessage(
+        ctx.from!.id,
+        isRu
+          ? '❌ Не удалось запустить фоновую генерацию видео.'
+          : '❌ Failed to start background video generation.'
+      )
+    } catch (sendError) {
+      logger.error('[I2V Wizard BG] Failed to send setup error notification', {
+        sendError,
+        telegram_id,
+      })
+    }
   }
 }
 
@@ -712,52 +733,14 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   handleKlingModeSelection, // Step 2: Handle Kling mode (standard/morphing) action
   handleMorphImageA, // Step 3: Handle Image A for morphing
   handleMorphImageBOrStandardImage, // Step 4: Handle Image B (morph) OR Standard Image
-  handlePrompt // Step 5: Handle Prompt
-  // Step 6 (Implicit): handleSubmit is called from handlePrompt
+  handlePrompt // Step 5: Handle Prompt (now starts background task and leaves)
+  // Step 6 is now handled by the background task initiated in Step 5
 )
 
 // Add HELP and CANCEL handlers to the scene
 imageToVideoWizard.help(handleHelpCancel)
 imageToVideoWizard.command('cancel', handleHelpCancel)
 
-// ---> ДОБАВЛЕНЫ ОБРАБОТЧИКИ ДЛЯ НОВЫХ КНОПОК <---
-imageToVideoWizard.hears(
-  [/🔄 Сгенерировать еще/, /🔄 Generate More/],
-  async ctx => {
-    const isRu = isRussian(ctx)
-    logger.info('[I2V Wizard] User wants to generate more (Image to Video).', {
-      telegramId: ctx.from?.id,
-    })
-    // Reset relevant session state for this wizard
-    ctx.session.imageUrl = undefined
-    ctx.session.imageAUrl = undefined
-    ctx.session.imageBUrl = undefined
-    ctx.session.prompt = undefined
-    ctx.session.is_morphing = undefined
-    ctx.session.videoModel = undefined
-    ctx.session.paymentAmount = undefined
-    ctx.session.current_action = undefined // Reset direct morphing entry flag too
-
-    // Restart the wizard
-    await ctx.reply(
-      isRu
-        ? 'Хорошо, начнем сначала выбор модели!'
-        : "Okay, let's select the model again!",
-      Markup.removeKeyboard()
-    )
-    return ctx.wizard.selectStep(0) // Возвращаемся к шагу выбора модели
-  }
-)
-
-imageToVideoWizard.hears([/🏠 Главное меню/, /🏠 Main Menu/], async ctx => {
-  logger.info('[I2V Wizard] User requested Main Menu after generation.', {
-    telegramId: ctx.from?.id,
-  })
-  await ctx.scene.leave()
-  return ctx.scene.enter(ModeEnum.MainMenu)
-})
-// ---> КОНЕЦ ДОБАВЛЕННЫХ ОБРАБОТЧИКОВ <---
-
 logger.info(
-  '⚡️ ImageToVideo Wizard Scene initialized with Morphing logic and localized texts'
+  '⚡️ ImageToVideo Wizard Scene initialized with Morphing logic and localized texts - Refactored for background generation'
 )
