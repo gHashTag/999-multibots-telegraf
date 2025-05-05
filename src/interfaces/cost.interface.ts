@@ -1,7 +1,7 @@
 import {
   VIDEO_MODELS_CONFIG,
   type VideoModelConfig,
-} from '@/modules/imageToVideoGenerator/config/models.config' // Import both value and type
+} from '@/modules/videoGenerator/config/models.config' // Import both value and type
 import { calculateFinalPrice } from '@/price/helpers'
 import { Markup } from 'telegraf' // Import Markup
 

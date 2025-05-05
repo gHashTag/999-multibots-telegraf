@@ -1,7 +1,15 @@
 // Импортируем нужные функции и типы
-import { calculateFinalPrice, calculateBasePrice, calculateRubPrice } from '../../price/calculator.ts'
-import { PriceCalculationType, PaymentMethod, ServiceType } from '../../interfaces/modes.ts'
-import { vi } from 'vitest'; // Import vi for mocking
+import {
+  calculateFinalPrice,
+  calculateBasePrice,
+  calculateRubPrice,
+} from '../../price/priceCalculator.ts'
+import {
+  PriceCalculationType,
+  PaymentMethod,
+  ServiceType,
+} from '../../interfaces/modes.ts'
+import { vi } from 'vitest' // Import vi for mocking
 
 // Используем vi.mock вместо jest.mock
 vi.mock('@/config/pricing.config', () => ({
@@ -21,12 +29,12 @@ vi.mock('@/config/pricing.config', () => ({
   },
   // Добавим мок для VIDEO_MODELS_CONFIG, если он используется в calculateFinalPrice
   VIDEO_MODELS_CONFIG: {
-      'some-video-model': { basePrice: 0.5 } // Пример
-  }
-}));
+    'some-video-model': { basePrice: 0.5 }, // Пример
+  },
+}))
 
 // ... остальной код тестов ...
 
 describe('Pricing Calculator', () => {
   // ... тесты ...
-}); 
+})

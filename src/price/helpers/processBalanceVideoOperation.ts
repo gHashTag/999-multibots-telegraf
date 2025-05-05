@@ -1,7 +1,7 @@
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { BalanceOperationResult, MyContext } from '@/interfaces'
-import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config'
+import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
 import { calculateFinalPrice } from './calculateFinalPrice'
 
 import { logger } from '@/utils/logger'
