@@ -10,7 +10,7 @@ import * as ErrorAdmin from '@/helpers/error/errorMessageAdmin'
 import * as LoggerUtils from '@/utils/logger'
 import type { VideoModelKey } from '@/interfaces'
 import * as ConfigModule from '@/config'
-import type { VideoModelConfig } from '@/modules/imageToVideoGenerator/config/models.config'
+import type { VideoModelConfig } from '@/modules/videoGenerator/config/models.config'
 import * as BotIndex from '@/core/bot/index'
 // Import the mocked functions from fs/promises
 // const mockMkdir = vi.fn()
@@ -131,11 +131,11 @@ export interface MockContextResult {
   ctx: MyContext
   mockSendMessage: Mock // Use the correct type for vi.fn()
   mockSendVideo: Mock
-  loggerErrorSpy: any
-  loggerInfoSpy: any
-  updateUserLevelPlusOneSpy: any
-  mkdirSpy: any
-  writeFileSpy: any
+  loggerErrorSpy: MockInstance // Correct type for spyOn
+  loggerInfoSpy: MockInstance // Correct type for spyOn
+  updateUserLevelPlusOneSpy: MockInstance // Correct type for spyOn
+  // mkdirSpy: any // REMOVED
+  // writeFileSpy: any // REMOVED
 }
 
 // --- Setup Function --- (To be called in beforeEach of each test file)
@@ -249,46 +249,39 @@ export const createMockContext = (
     loggerErrorSpy: vi.spyOn(LoggerUtils.logger, 'error'),
     loggerInfoSpy: vi.spyOn(LoggerUtils.logger, 'info'),
     updateUserLevelPlusOneSpy: vi.spyOn(SupabaseCore, 'updateUserLevelPlusOne'),
-    mkdirSpy: vi.spyOn(FSPromises, 'mkdir'),
-    writeFileSpy: vi.spyOn(FSPromises, 'writeFile'),
+    // mkdirSpy: vi.spyOn(FSPromises, 'mkdir'), // REMOVED
+    // writeFileSpy: vi.spyOn(FSPromises, 'writeFile'), // REMOVED
   }
 }
 
-// +++ УПРОЩАЕМ setupSpies: ТОЛЬКО СОЗДАНИЕ ШПИОНОВ +++
+// --- Spies Setup/Teardown ---
 export const setupSpies = () => {
-  const spies = {
-    processBalanceSpy: vi.spyOn(PriceHelpers, 'processBalanceVideoOperation'),
-    getUserBalanceSpy: vi.spyOn(SupabaseCore, 'getUserBalance'),
-    replicateRunSpy: vi.spyOn(ReplicateClient.replicate, 'run'),
-    downloadFileSpy: vi.spyOn(DownloadHelper, 'downloadFile'),
+  // Setup spies for functions NOT mocked via vi.mock
+  return {
     getUserByTelegramIdSpy: vi.spyOn(SupabaseCore, 'getUserByTelegramId'),
     saveVideoUrlToSupabaseSpy: vi.spyOn(SupabaseCore, 'saveVideoUrlToSupabase'),
-    getBotByNameSpy: vi.spyOn(BotIndex, 'getBotByName'),
+    getUserBalanceSpy: vi.spyOn(SupabaseCore, 'getUserBalance'), // Assuming this exists
+    calculateFinalPriceSpy: vi.spyOn(PriceHelpers, 'calculateFinalPrice'),
+    replicateRunSpy: vi.spyOn(ReplicateClient.replicate, 'run'), // Spy on replicate.run
+    downloadFileSpy: vi.spyOn(DownloadHelper, 'downloadFile'),
     errorMessageAdminSpy: vi.spyOn(ErrorAdmin, 'errorMessageAdmin'),
-    loggerErrorSpy: vi.spyOn(LoggerUtils.logger, 'error'),
-    loggerInfoSpy: vi.spyOn(LoggerUtils.logger, 'info'),
+    loggerErrorSpy: vi.spyOn(LoggerUtils.logger, 'error'), // Keep spies for logger if needed
+    loggerInfoSpy: vi.spyOn(LoggerUtils.logger, 'info'), // Keep spies for logger if needed
     updateUserLevelPlusOneSpy: vi.spyOn(SupabaseCore, 'updateUserLevelPlusOne'),
-    mkdirSpy: vi.spyOn(FSPromises, 'mkdir'),
-    writeFileSpy: vi.spyOn(FSPromises, 'writeFile'),
+    // mkdirSpy: vi.spyOn(FSPromises, 'mkdir'), // REMOVED
+    // writeFileSpy: vi.spyOn(FSPromises, 'writeFile'), // REMOVED
   }
-
-  // --- УДАЛЯЕМ УСТАНОВКУ ДЕФОЛТНЫХ РЕАЛИЗАЦИЙ ---
-  // spies.processBalanceSpy.mockResolvedValue(...)
-  // spies.getUserBalanceSpy.mockResolvedValue(...)
-  // ... и так далее для всех шпионов ...
-
-  return spies
 }
 
-// teardownSpies остается без изменений
+// teardownSpies остается без изменений, но теперь не будет получать/чистить mkdir/writeFile
 export const teardownSpies = (spies: ReturnType<typeof setupSpies>) => {
   Object.values(spies).forEach(spy => {
+    // The loop will now simply skip the non-existent getOrCreateUserSpy
     if (spy && typeof spy.mockRestore === 'function') {
       spy.mockRestore()
     }
   })
 }
-// +++ КОНЕЦ УПРОЩЕНИЯ +++
 
 // Экспортируем моки fs для использования в тестах
 // export { mockMkdir, mockWriteFile }

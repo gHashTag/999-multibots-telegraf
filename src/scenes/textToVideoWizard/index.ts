@@ -1,11 +1,11 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { calculateFinalPrice } from '@/price/helpers'
-import { generateTextToVideo } from '@/modules/imageToVideoGenerator/generateTextToVideo'
+import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
-import { VIDEO_MODELS_CONFIG } from '@/modules/imageToVideoGenerator/config/models.config'
+import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
 import { getUserBalance } from '@/core/supabase'
 
 // Определяем тип ключа конфига локально
