@@ -2,7 +2,10 @@ import axios from 'axios'
 
 import { API_URL, SECRET_API_KEY } from '@/config'
 import { MyContext } from '@/interfaces'
-import { generateTextToImageDirect } from './plan_b'
+import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/logger'
+import { ModeEnum } from '@/interfaces'
+import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
 
 export const generateTextToImage = async (
   prompt: string,

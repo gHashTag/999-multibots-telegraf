@@ -129,6 +129,21 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
+  bot.hears('🔄 Сгенерировать еще (Фото в Видео)', async (ctx: MyContext) => {
+    logger.info('HEARS: Сгенерировать еще (Фото в Видео)', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      ctx.session.mode = ModeEnum.ImageToVideo
+      await ctx.scene.enter('imageToVideoWizard')
+    } catch (error) {
+      logger.error('Error entering imageToVideoWizard from hears:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
+
   bot.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async (ctx: MyContext) => {
     if (!('text' in ctx.message)) {
       logger.warn('Получено нетекстовое сообщение для числового hears')
@@ -169,7 +184,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
 
     const generate = async (num: number) => {
-      if (ctx.session.mode === ModeEnum.NeuroPhotoV2) {
+      if (ctx.session.mode === ModeEnum.NeuroPhoto) {
         await generateNeuroImage(
           prompt,
           ctx.session.userModel.model_url,
@@ -178,7 +193,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
           ctx,
           ctx.botInfo?.username
         )
-      } else {
+      } else if (ctx.session.mode === ModeEnum.TextToImage) {
         await generateTextToImage(
           prompt,
           settings.imageModel,
@@ -186,7 +201,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
           telegramId.toString(),
           isRu,
           ctx,
-          ctx.botInfo?.username || 'unknown_bot'
+          ctx.botInfo?.username
         )
       }
     }

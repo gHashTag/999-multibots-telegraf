@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { calculateFinalPrice } from '@/price/helpers'
-import { generateTextToVideo } from '@/services/generateTextToVideo'
+import { generateTextToVideo } from '@/modules/imageToVideoGenerator/generateTextToVideo'
 import { isRussian } from '@/helpers/language'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
