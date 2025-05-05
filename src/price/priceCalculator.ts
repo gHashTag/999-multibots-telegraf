@@ -25,6 +25,11 @@ export const paymentOptionsPlans: PaymentOption[] = [
     stars: '32608',
     subscription: SubscriptionType.NEUROBLOGGER,
   },
+  {
+    subscription: SubscriptionType.NEUROTESTER,
+    amount: 1,
+    stars: '1',
+  },
 ]
 
 export const paymentOptions: PaymentOption[] = [
