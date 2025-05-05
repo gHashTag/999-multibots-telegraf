@@ -12,6 +12,11 @@ import { Update, BotCommand } from 'telegraf/types'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
 import { setupHearsHandlers } from './hearsHandlers'
+import { session } from 'telegraf'
+import {
+  handleSuccessfulPayment,
+  handlePreCheckoutQuery,
+} from './handlers/paymentHandlers'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -134,10 +139,14 @@ async function initializeBots() {
       '🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...'
     )
 
-    // Убираем composer из вызова
-    // Передаем только bot
-    registerCommands({ bot })
-    setupHearsHandlers(bot)
+    // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
+    bot.use(session()) // 1. Сессия (из bot.ts)
+    registerCommands({ bot }) // 2. Сцены и команды (включая stage.middleware())
+    // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
+    bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
+    bot.on('successful_payment', handleSuccessfulPayment as any)
+    setupHearsHandlers(bot) // 4. Hears
+    // <<<---------------------------------------------------->>>
 
     // <<<--- Set commands scope for the development bot ---<<<
     try {
@@ -199,8 +208,14 @@ async function initializeBots() {
         })
         bot.use(Composer.log())
 
-        registerCommands({ bot })
-        setupHearsHandlers(bot)
+        // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
+        bot.use(session()) // 1. Сессия (из bot.ts)
+        registerCommands({ bot }) // 2. Сцены и команды (включая stage.middleware())
+        // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
+        bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
+        bot.on('successful_payment', handleSuccessfulPayment as any)
+        setupHearsHandlers(bot) // 4. Hears
+        // <<<---------------------------------------------------->>>
 
         botInstances.push(bot)
         const botInfo = await bot.telegram.getMe()

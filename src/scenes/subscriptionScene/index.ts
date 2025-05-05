@@ -50,14 +50,20 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       ctx,
       bot_name: ctx.botInfo?.username,
     })
-    console.log('buttons!!!', buttons)
+    console.log('buttons fetched from DB or static!!!', buttons)
 
-    // Проверяем, является ли пользователь администратором
+    // Получаем ID админов
     const adminIds = process.env.ADMIN_IDS
-      ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id, 10))
+      ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim(), 10))
       : []
+    const telegramId = ctx.from?.id
+    const isAdmin = telegramId ? adminIds.includes(telegramId) : false
 
-    const telegramId = ctx.from?.id.toString()
+    // Фильтруем планы на основе статуса администратора
+    const availablePlans = paymentOptionsPlans.filter(
+      plan => !plan.isAdminOnly || (plan.isAdminOnly && isAdmin)
+    )
+
     if (!telegramId) {
       await ctx.reply(
         isRu
@@ -67,52 +73,51 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Добавляем тестовый план для администраторов
-    if (adminIds.includes(parseInt(telegramId))) {
-      buttons?.push({
-        row: 4, // Укажите номер строки, где хотите разместить тестовый план
-        text: '🧪 Тест', // Название тестового плана
-        en_price: 1, // Тестовая цена в долларах
-        ru_price: 1, // Тестовая цена в рублях
-        description: 'Тестовый план для проверки функционала.',
-        stars_price: 1, // Количество звезд для тестового плана
-        callback_data: 'neurotester', // Уникальный идентификатор для тестового плана
-        subscription: SubscriptionType.NEUROTESTER,
-      })
-    }
-
-    ctx.session.buttons = buttons as TranslationButton[]
-
-    if (!buttons) {
+    if (!availablePlans || availablePlans.length === 0) {
+      // Проверяем отфильтрованные планы
       await ctx.reply(
         isRu
-          ? '❌ Ошибка: не удалось получить кнопки'
-          : '❌ Error: Buttons not found'
+          ? '❌ Ошибка: не удалось получить доступные планы подписки.'
+          : '❌ Error: Could not retrieve available subscription plans.'
       )
       return ctx.scene.leave()
     }
 
-    // Формируем клавиатуру
+    // Формируем клавиатуру из ОТФИЛЬТРОВАННЫХ планов
     const keyboardRows: any[] = []
-    buttons.forEach(button => {
-      const row = button.row || 0
+    availablePlans.forEach((plan, index) => {
+      // Используем availablePlans
+      const row = index // Просто размещаем каждую кнопку на новой строке для простоты
       if (!keyboardRows[row]) {
         keyboardRows[row] = []
       }
 
       const showRubles = shouldShowRubles(ctx)
-      let buttonText = button.text
+      let buttonText = ''
+
+      // Получаем текст кнопки из перевода, если он есть, иначе используем тип подписки
+      const translatedButton = buttons?.find(
+        b => b.callback_data === plan.subscription?.toString().toLowerCase()
+      )
+      buttonText =
+        translatedButton?.text ||
+        plan.subscription?.toString() ||
+        'Unknown Plan'
 
       if (!showRubles) {
-        if (button.stars_price !== undefined) {
-          buttonText += ` - ${button.stars_price} ⭐`
+        if (plan.stars !== undefined) {
+          buttonText += ` - ${plan.stars} ⭐`
         }
       } else {
-        buttonText += ` - ${isRu ? `${button.ru_price} ₽` : `${button.en_price} $`}`
+        // Используем plan.amount для цены в рублях (или en_price из перевода, если нужно)
+        buttonText += ` - ${plan.amount} ₽`
       }
 
       keyboardRows[row].push(
-        Markup.button.callback(buttonText, button.callback_data)
+        Markup.button.callback(
+          buttonText,
+          plan.subscription?.toString().toLowerCase() || 'error_plan'
+        ) // Используем тип подписки как callback_data
       )
     })
 
@@ -140,30 +145,37 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     console.log('CASE: subscriptionScene.next', ctx)
     if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
       const text = ctx.update.callback_query.data
-      console.log('text', text)
+      console.log('Callback data text:', text)
 
-      // Находим выбранный тариф, учитывая регистр callback_data
+      // Находим выбранный тариф в ЕДИНОМ ИСТОЧНИКЕ, учитывая регистр callback_data
       const selectedPayment = paymentOptionsPlans.find(
         option =>
-          option.subscription === (text as SubscriptionType) ||
           option.subscription?.toString().toLowerCase() === text.toLowerCase()
       )
 
       if (selectedPayment && selectedPayment.subscription) {
-        console.log('Selected payment option:', selectedPayment)
+        // УДАЛЯЕМ ЛИШНЮЮ ПРОВЕРКУ isValidPaymentSubscription, так как find уже гарантирует валидность по списку
+        // if (isValidPaymentSubscription(subscription)) {
         const subscription = selectedPayment.subscription
-        if (isValidPaymentSubscription(subscription)) {
-          ctx.session.subscription = subscription
-          ctx.session.selectedPayment = {
-            amount: selectedPayment.amount,
-            stars: Number(selectedPayment.stars),
-            subscription: subscription as SubscriptionType,
-            type: PaymentType.MONEY_INCOME,
-          }
-          return ctx.scene.enter(ModeEnum.PaymentScene)
+        console.log('Valid subscription selected:', subscription)
+        ctx.session.subscription = subscription
+        ctx.session.selectedPayment = {
+          amount: selectedPayment.amount,
+          stars: Number(selectedPayment.stars), // Убедимся, что звезды - это число
+          subscription: subscription as SubscriptionType,
+          type: PaymentType.MONEY_INCOME,
+        }
+        // Добавляем флаг isAdminTest в сессию, если выбран тестовый план
+        if (subscription === SubscriptionType.NEUROTESTER) {
+          ctx.session.isAdminTest = true
         } else {
+          ctx.session.isAdminTest = false
+        }
+        return ctx.scene.enter(ModeEnum.PaymentScene)
+        /* } else {
+          // ЭТОТ БЛОК БОЛЬШЕ НЕ НУЖЕН, так как find гарантирует валидность
           console.warn(
-            'Subscription type not supported for payment:',
+            '[Callback Handler] Subscription type not supported for payment (should not happen):',
             subscription
           )
           const isRu = isRussian(ctx)
@@ -172,12 +184,13 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
               ? 'Этот тип подписки не поддерживает оплату. Пожалуйста, выберите другой вариант.'
               : 'This subscription type does not support payment. Please select another option.'
           )
-        }
+        } */
       } else if (text === 'mainmenu') {
         console.log('CASE: 🏠 Главное меню')
         return ctx.scene.enter(ModeEnum.MainMenu)
       } else {
-        console.warn('Unknown subscription type:', text)
+        // Этот блок теперь действительно означает неизвестный callback_data
+        console.warn('[Callback Handler] Unknown callback_data received:', text)
         const isRu = isRussian(ctx)
         await ctx.reply(
           isRu

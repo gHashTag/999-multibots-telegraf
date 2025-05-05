@@ -11,39 +11,9 @@ import {
 } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
-import { starAmounts } from '@/price/helpers'
 import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
-// Локальные определения MyContext и SessionData удалены
-
-const SUBSCRIPTION_PLANS = [
-  {
-    row: 0,
-    text: '🎨 NeuroPhoto',
-    en_price: 10,
-    ru_price: 1110,
-    description: 'Creating photos using neural networks.',
-    stars_price: 476,
-    callback_data: 'neurophoto',
-  },
-  {
-    row: 1,
-    text: '📚 NeuroBase',
-    en_price: 33,
-    ru_price: 2999,
-    description: 'Self-study using neural networks with an AI avatar.',
-    stars_price: 1303,
-    callback_data: 'neurobase',
-  },
-  {
-    row: 2,
-    text: '🤖 NeuroBlogger',
-    en_price: 833,
-    ru_price: 75000,
-    description: 'Training on neural networks with a mentor.',
-    stars_price: 32608,
-    callback_data: 'neuroblogger',
-  },
-]
+import { paymentOptionsPlans } from '@/price/priceCalculator'
+import { ModeEnum } from '@/interfaces/modes'
 
 async function sendNotification(ctx: MyContext, message: string) {
   const adminChatId = process.env.ADMIN_CHAT_ID
@@ -63,32 +33,27 @@ async function sendNotification(ctx: MyContext, message: string) {
 }
 
 export async function handleSuccessfulPayment(ctx: MyContext) {
-  console.log('CASE: handleSuccessfulPayment')
+  logger.info('[handleSuccessfulPayment] Starting...', {
+    telegram_id: ctx.from?.id,
+  })
   if (!ctx.message || !('successful_payment' in ctx.message)) {
     logger.warn(
-      '⚠️ Received update without message or successful_payment in handleSuccessfulPayment'
+      '[handleSuccessfulPayment] Received update without message or successful_payment'
     )
     return
   }
   const successfulPayment = ctx.message.successful_payment
 
-  if (!ctx.chat) {
-    logger.error(
-      '❌ Update does not belong to a chat in handleSuccessfulPayment'
-    )
-    return
-  }
-  if (!ctx.from?.id) {
-    logger.error('❌ User ID not found in context for handleSuccessfulPayment')
+  if (!ctx.chat || !ctx.from?.id) {
+    logger.error('[handleSuccessfulPayment] Missing chat or user ID in context')
     return
   }
 
   const isRu = isRussian(ctx)
-  const stars = successfulPayment.total_amount
-  const currency = successfulPayment.currency
-  const payload = successfulPayment.invoice_payload
   const telegramPaymentChargeId = successfulPayment.telegram_payment_charge_id
   const providerPaymentChargeId = successfulPayment.provider_payment_charge_id
+  const payload = successfulPayment.invoice_payload
+  const currency = successfulPayment.currency
 
   const userId = ctx.from.id
   const username = ctx.from?.username ?? 'unknown'
@@ -96,7 +61,7 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
   const botUsername = ctx.botInfo?.username ?? 'unknown_bot'
 
   if (currency !== 'XTR') {
-    logger.error('❌ Incorrect currency in successful_payment:', {
+    logger.error('[handleSuccessfulPayment] Incorrect currency', {
       currency,
       telegram_id: normalizedUserId,
       payload,
@@ -106,125 +71,184 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
         ? 'Произошла ошибка с валютой платежа. Обратитесь в поддержку.'
         : 'Payment currency error. Please contact support.'
     )
-    return
+    return ctx.scene.leave()
   }
 
-  logger.info('💰 Received successful Telegram Stars payment:', {
-    telegram_id: normalizedUserId,
-    username,
-    stars,
-    payload,
-    telegramPaymentChargeId,
-  })
-
-  const subscriptionCallbackData = ctx.session?.subscription
-
-  const purchasedPlan = SUBSCRIPTION_PLANS.find(
-    plan => plan.callback_data === subscriptionCallbackData
-  )
+  let subscriptionType: SubscriptionType | null = null
+  let starsFromPayload: number | null = null
+  let purchasedPlanText: string | null = null
 
   try {
-    logger.info('📈 Balance incremented successfully', {
-      telegram_id: normalizedUserId,
-      stars_added: stars,
-    })
+    let isSubscriptionPurchase = false
+    if (payload) {
+      const parts = payload.split('_')
+      if (
+        parts.length >= 2 &&
+        isNaN(parseInt(parts[0], 10)) &&
+        !isNaN(parseInt(parts[1], 10))
+      ) {
+        const typeFromPayload = parts[0].toUpperCase() as SubscriptionType
+        const starsStr = parts[1]
 
-    if (purchasedPlan) {
-      logger.info('Processing SUBSCRIPTION purchase via Telegram Stars', {
-        telegram_id: normalizedUserId,
-        plan: purchasedPlan.text,
-      })
-      await setPayments({
-        telegram_id: normalizedUserId,
-        OutSum: stars.toString(),
-        InvId: payload || null,
-        currency: Currency.XTR,
-        stars: stars,
-        status: PaymentStatus.COMPLETED,
-        payment_method: 'Telegram',
-        subscription_type: purchasedPlan.callback_data as SubscriptionType,
-        bot_name: botUsername,
-        language: ctx.from?.language_code ?? 'en',
-        type: PaymentType.MONEY_INCOME,
-        metadata: {
-          telegram_payment_charge_id: telegramPaymentChargeId,
-          provider_payment_charge_id: providerPaymentChargeId,
-          invoice_payload: payload,
-          username: username,
-          purchased_plan_text: purchasedPlan.text,
-        },
-      })
+        const planDetails = paymentOptionsPlans.find(
+          p => p.subscription?.toUpperCase() === typeFromPayload
+        )
 
-      await ctx.reply(
-        isRu
-          ? `🎉 Вы успешно приобрели подписку "${purchasedPlan.text}"! Ваш баланс также пополнен на ${stars}⭐.`
-          : `🎉 You have successfully purchased the "${purchasedPlan.text}" subscription! Your balance was also topped up by ${stars}⭐.`
-      )
-      await sendNotification(
-        ctx,
-        `💳 Пользователь @${username} (ID: ${userId}) купил подписку "${purchasedPlan.text}" за ${stars}⭐ через Telegram Stars.`
-      )
-      const bot_name = ctx.botInfo?.username ?? 'unknown_bot'
-      await notifyBotOwners(bot_name, {
-        username,
-        telegram_id: userId.toString(),
-        amount: stars,
-        stars,
-        subscription: purchasedPlan.text,
-      })
-    } else {
-      logger.info('Processing simple STARS top-up via Telegram Stars', {
-        telegram_id: normalizedUserId,
-        stars_added: stars,
-      })
-      await setPayments({
-        telegram_id: normalizedUserId,
-        OutSum: stars.toString(),
-        InvId: payload || null,
-        currency: Currency.XTR,
-        stars: stars,
-        status: PaymentStatus.COMPLETED,
-        payment_method: 'Telegram',
-        subscription_type: null,
-        bot_name: botUsername,
-        language: ctx.from?.language_code ?? 'en',
-        type: PaymentType.MONEY_INCOME,
-        metadata: {
-          telegram_payment_charge_id: telegramPaymentChargeId,
-          provider_payment_charge_id: providerPaymentChargeId,
-          invoice_payload: payload,
-          username: username,
-        },
-      })
-
-      await ctx.reply(
-        isRu
-          ? `💫 Ваш баланс пополнен на ${stars}⭐️ звезд!`
-          : `💫 Your balance has been replenished by ${stars}⭐️ stars!`
-      )
-      await sendNotification(
-        ctx,
-        `💰 Пользователь @${username} (ID: ${userId}) пополнил баланс на ${stars}⭐️ через Telegram Stars.`
-      )
-      const bot_name = ctx.botInfo?.username ?? 'unknown_bot'
-      await notifyBotOwners(bot_name, {
-        username,
-        telegram_id: userId.toString(),
-        amount: stars,
-        stars,
-        subscription: null,
-      })
+        if (planDetails) {
+          const parsedStars = parseInt(starsStr, 10)
+          if (!isNaN(parsedStars) && parsedStars > 0) {
+            isSubscriptionPurchase = true
+            subscriptionType = typeFromPayload
+            starsFromPayload = parsedStars
+            purchasedPlanText =
+              planDetails.subscription?.toString() ?? subscriptionType
+            logger.info(
+              '[handleSuccessfulPayment] Correctly parsed as SUBSCRIPTION from payload',
+              {
+                telegram_id: normalizedUserId,
+                subscriptionType,
+                starsFromPayload,
+              }
+            )
+          } else {
+            logger.warn(
+              '[handleSuccessfulPayment] Invalid star amount in subscription payload',
+              { payload, telegram_id: normalizedUserId }
+            )
+          }
+        } else {
+          logger.warn(
+            '[handleSuccessfulPayment] Subscription type from payload NOT FOUND in plans',
+            { typeFromPayload, telegram_id: normalizedUserId }
+          )
+        }
+      } else if (parts.length >= 1 && !isNaN(parseInt(parts[0], 10))) {
+        const parsedStars = parseInt(parts[0], 10)
+        if (!isNaN(parsedStars) && parsedStars > 0) {
+          starsFromPayload = successfulPayment.total_amount
+          logger.info(
+            '[handleSuccessfulPayment] Parsed as potential TOP-UP from payload (using total_amount)',
+            {
+              payload,
+              total_amount: starsFromPayload,
+              telegram_id: normalizedUserId,
+            }
+          )
+        } else {
+          logger.warn(
+            '[handleSuccessfulPayment] Invalid star amount in top-up payload',
+            { payload, telegram_id: normalizedUserId }
+          )
+        }
+      } else {
+        logger.warn('[handleSuccessfulPayment] Unrecognized payload format', {
+          payload,
+          telegram_id: normalizedUserId,
+        })
+      }
     }
 
-    logger.info('✅ Telegram Stars payment processed successfully.', {
+    if (!isSubscriptionPurchase) {
+      starsFromPayload = successfulPayment.total_amount
+      subscriptionType = null
+      purchasedPlanText = null
+      logger.info(
+        '[handleSuccessfulPayment] Final decision: Processing as stars TOP-UP',
+        {
+          telegram_id: normalizedUserId,
+          stars: starsFromPayload,
+          reason: payload
+            ? 'Payload did not match valid subscription'
+            : 'No payload provided',
+        }
+      )
+    } else {
+      logger.info(
+        '[handleSuccessfulPayment] Final decision: Processing as SUBSCRIPTION purchase',
+        {
+          telegram_id: normalizedUserId,
+          subscription: subscriptionType,
+          stars: starsFromPayload,
+        }
+      )
+    }
+
+    if (isNaN(starsFromPayload) || starsFromPayload <= 0) {
+      logger.error('[handleSuccessfulPayment] Invalid final star amount', {
+        telegram_id: normalizedUserId,
+        starsFromPayload,
+        total_amount: successfulPayment.total_amount,
+      })
+      throw new Error('Invalid star amount after processing')
+    }
+
+    await setPayments({
       telegram_id: normalizedUserId,
-      isSubscription: !!purchasedPlan,
+      OutSum: starsFromPayload.toString(),
+      InvId: payload || null,
+      currency: Currency.XTR,
+      stars: starsFromPayload,
+      status: PaymentStatus.COMPLETED,
+      payment_method: 'Telegram',
+      subscription_type: subscriptionType,
+      bot_name: botUsername,
+      language: ctx.from?.language_code ?? 'en',
+      type: PaymentType.MONEY_INCOME,
+      metadata: {
+        telegram_payment_charge_id: telegramPaymentChargeId,
+        provider_payment_charge_id: providerPaymentChargeId,
+        invoice_payload: payload,
+        username: username,
+        purchased_plan_text: purchasedPlanText,
+      },
     })
-  } catch (error) {
-    logger.error('❌ Error processing successful Telegram Stars payment:', {
-      error: error instanceof Error ? error.message : String(error),
+
+    // !!! DETAILED LOGGING BEFORE DECISION !!!
+    logger.info('[handleSuccessfulPayment] Values before final decision:', {
       telegram_id: normalizedUserId,
-      stars,
+      determined_subscriptionType: subscriptionType,
+      determined_purchasedPlanText: purchasedPlanText,
+      determined_starsFromPayload: starsFromPayload,
+      payload_used_for_parsing: payload,
+    })
+    // !!! END DETAILED LOGGING !!!
+
+    if (subscriptionType && purchasedPlanText) {
+      await ctx.reply(
+        isRu
+          ? `🎉 Вы успешно приобрели подписку "${purchasedPlanText}"! ${starsFromPayload}⭐ зачислено.`
+          : `🎉 You have successfully purchased the "${purchasedPlanText}" subscription! ${starsFromPayload}⭐ added.`
+      )
+    } else {
+      await ctx.reply(
+        isRu
+          ? `💫 Ваш баланс пополнен на ${starsFromPayload}⭐ звезд!`
+          : `💫 Your balance has been replenished by ${starsFromPayload}⭐ stars!`
+      )
+    }
+
+    const notificationMessage = subscriptionType
+      ? `💳 Пользователь @${username} (ID: ${userId}) купил подписку "${purchasedPlanText}" за ${starsFromPayload}⭐ через Telegram Stars.`
+      : `💰 Пользователь @${username} (ID: ${userId}) пополнил баланс на ${starsFromPayload}⭐ через Telegram Stars.`
+    await sendNotification(ctx, notificationMessage)
+    await notifyBotOwners(botUsername, {
+      username,
+      telegram_id: userId.toString(),
+      amount: starsFromPayload,
+      stars: starsFromPayload,
+      subscription: purchasedPlanText,
+    })
+
+    logger.info(
+      '[handleSuccessfulPayment] Entering main menu scene after successful payment...',
+      { telegram_id: normalizedUserId }
+    )
+    await ctx.scene.enter(ModeEnum.MainMenu)
+  } catch (error) {
+    logger.error('❌ [handleSuccessfulPayment] Error processing payment:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      telegram_id: normalizedUserId,
       payload,
     })
     await ctx.reply(
@@ -234,7 +258,40 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
     )
     await sendNotification(
       ctx,
-      `🆘 ОШИБКА обработки платежа Telegram Stars для @${username} (ID: ${userId}). Звезды: ${stars}. Payload: ${payload}. Ошибка: ${error instanceof Error ? error.message : String(error)}`
+      `🆘 ОШИБКА обработки платежа Telegram Stars для @${username} (ID: ${userId}). Payload: ${payload}. Ошибка: ${error instanceof Error ? error.message : String(error)}`
+    )
+    await ctx.scene.leave()
+  }
+}
+
+export async function handlePreCheckoutQuery(ctx: MyContext) {
+  if (!ctx.preCheckoutQuery) {
+    logger.warn(
+      '[handlePreCheckoutQuery] Received update without preCheckoutQuery'
+    )
+    return
+  }
+  const query = ctx.preCheckoutQuery
+  logger.info('🛒 Received pre_checkout_query:', {
+    pre_checkout_query: query,
+    telegram_id: ctx.from?.id,
+  })
+
+  try {
+    await ctx.answerPreCheckoutQuery(true)
+    logger.info('✅ Answered pre_checkout_query successfully', {
+      pre_checkout_query_id: query.id,
+    })
+  } catch (error) {
+    logger.error('❌ Error answering pre_checkout_query:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      pre_checkout_query_id: query.id,
+      telegram_id: ctx.from?.id,
+    })
+    await ctx.answerPreCheckoutQuery(
+      false,
+      'An internal error occurred. Please try again later.'
     )
   }
 }
