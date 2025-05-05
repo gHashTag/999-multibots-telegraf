@@ -18,6 +18,13 @@ import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { WizardScene } from 'telegraf/scenes'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { NeuroPhotoWizardDependencies } from './interfaces'
+import { processNeuroPhotoWizardStep } from './services/neuroPhotoWizardService'
+import {
+  sendWelcomeMessage,
+  notifyNoModelAvailable,
+  sendErrorMessage,
+} from './adapters/telegramSceneAdapter'
 
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -735,41 +742,256 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
   }
 }
 
-export const neuroPhotoWizard = new WizardScene<MyContext>(
-  ModeEnum.NeuroPhoto,
-  neuroPhotoConversationStep,
-  neuroPhotoPromptStep,
-  neuroPhotoButtonStep
-)
+/**
+ * Creates a WizardScene for the NeuroPhoto flow with injected dependencies.
+ * @param dependencies The dependencies to inject for modularity.
+ * @returns A configured WizardScene for the NeuroPhoto flow.
+ */
+export const createNeuroPhotoWizardScene = (
+  dependencies: NeuroPhotoWizardDependencies
+) => {
+  const neuroPhotoWizard = new WizardScene<MyContext>(
+    'neuro-photo-wizard',
+    async ctx => {
+      try {
+        const isRussian = ctx.from?.language_code === 'ru'
 
-// УЛУЧШЕННЫЕ ОБРАБОТЧИКИ СООБЩЕНИЙ
+        // Check if user model exists
+        if (
+          !ctx.session.userModel ||
+          !ctx.session.userModel.model_url ||
+          !ctx.session.userModel.trigger_word
+        ) {
+          await notifyNoModelAvailable(ctx, isRussian)
+          return await ctx.scene.leave()
+        }
 
-// Middleware для всех сообщений - перехватывает и логгирует
-neuroPhotoWizard.use(async (ctx, next) => {
-  const telegramId = ctx.from?.id?.toString() || 'unknown'
-  const step = ctx.session.__scenes?.cursor || 0
-  console.log(`🧙‍♂️ [DEBUG] MIDDLEWARE ВЫЗВАН: Step=${step}, ID=${telegramId}`)
-  console.log(`🧙‍♂️ [MIDDLEWARE] Шаг: ${step}, TelegramID: ${telegramId}`)
+        await processNeuroPhotoWizardStep(ctx, dependencies)
 
-  // Вывод полного состояния сессии для отладки
-  console.log(
-    `🧙‍♂️ [DEBUG] Полное состояние сессии:`,
-    JSON.stringify(ctx.session, null, 2)
+        // If no prompt yet, send welcome message
+        if (!ctx.session.prompt) {
+          await sendWelcomeMessage(ctx, isRussian)
+        }
+
+        return
+      } catch (error: any) {
+        dependencies.logger.error(
+          '❌ [NeuroPhotoWizard] Error in initial step',
+          {
+            telegramId: ctx.from?.id?.toString() || 'unknown',
+            error: error.message,
+          }
+        )
+        await sendErrorMessage(ctx, ctx.from?.language_code === 'ru')
+        return await ctx.scene.leave()
+      }
+    }
   )
 
-  // Проверяем, что сообщение является текстовым
-  if (ctx.message && 'text' in ctx.message) {
-    console.log(`🧙‍♂️ [MIDDLEWARE] Текст: ${ctx.message.text}`)
+  // Handle help and cancel commands
+  neuroPhotoWizard.command(['help', 'cancel'], handleHelpCancel)
+
+  // УЛУЧШЕННЫЕ ОБРАБОТЧИКИ СООБЩЕНИЙ
+
+  // Middleware для всех сообщений - перехватывает и логгирует
+  neuroPhotoWizard.use(async (ctx, next) => {
+    const telegramId = ctx.from?.id?.toString() || 'unknown'
+    const step = ctx.session.__scenes?.cursor || 0
+    console.log(`🧙‍♂️ [DEBUG] MIDDLEWARE ВЫЗВАН: Step=${step}, ID=${telegramId}`)
+    console.log(`🧙‍♂️ [MIDDLEWARE] Шаг: ${step}, TelegramID: ${telegramId}`)
+
+    // Вывод полного состояния сессии для отладки
+    console.log(
+      `🧙‍♂️ [DEBUG] Полное состояние сессии:`,
+      JSON.stringify(ctx.session, null, 2)
+    )
+
+    // Проверяем, что сообщение является текстовым
+    if (ctx.message && 'text' in ctx.message) {
+      console.log(`🧙‍♂️ [MIDDLEWARE] Текст: ${ctx.message.text}`)
+      logger.info({
+        message: '📩 [NeuroPhoto] Получено сообщение',
+        telegramId,
+        messageText: ctx.message.text,
+        step,
+      })
+
+      // Пропускаем обработку специальных команд и кнопок меню
+      const isCommand = ctx.message.text.startsWith('/')
+      const isMenuButton = ctx.message.text === '📸 Нейрофото'
+      const isSceneButton =
+        ctx.message.text === '⬆️ Улучшить промпт' ||
+        ctx.message.text === '⬆️ Improve prompt' ||
+        ctx.message.text === '📐 Изменить размер' ||
+        ctx.message.text === '📐 Change size' ||
+        ctx.message.text === levels[104].title_ru ||
+        ctx.message.text === levels[104].title_en ||
+        /^[1-4]/.test(ctx.message.text)
+
+      // Если это первый шаг (0), у пользователя есть модель, и это не кнопка или команда -
+      // обрабатываем текст как промпт
+      if (
+        step === 0 &&
+        ctx.session.userModel?.model_url &&
+        !isCommand &&
+        !isMenuButton &&
+        !isSceneButton
+      ) {
+        console.log(
+          `🧙‍♂️ [MIDDLEWARE] Перехват текста как промпта на шаге 0: ${ctx.message.text}`
+        )
+        logger.info({
+          message: '🎯 [NeuroPhoto] Перехват текста как промпта на шаге 0',
+          telegramId,
+          prompt: ctx.message.text,
+          action: 'intercepting_prompt_step_0',
+        })
+
+        // Сохраняем промпт в сессии
+        ctx.session.prompt = ctx.message.text
+
+        // Устанавливаем флаг инициализации
+        ctx.session.neuroPhotoInitialized = true
+
+        // Переходим к шагу обработки промпта (шаг 1) - ВАЖНО: используем next для перехода к следующему шагу
+        console.log('🧙‍♂️ [MIDDLEWARE] Переход к шагу 1 через next()')
+        ctx.wizard.next() // Используем next() вместо selectStep для более надежного перехода
+        return await neuroPhotoPromptStep(ctx)
+      }
+
+      // Если это не первый шаг или это специальная команда/кнопка - пропускаем к следующему обработчику
+      return next()
+    }
+
+    return next()
+  })
+
+  // Обработчик входа в сцену
+  neuroPhotoWizard.enter(async ctx => {
+    const telegramId = ctx.from?.id?.toString() || 'unknown'
+    console.log(`��‍♂️ [DEBUG] ENTER ВЫЗВАН: ID=${telegramId}`)
+    console.log(
+      `🧙‍♂️ [DEBUG] Предыдущее состояние сессии: prompt=${
+        ctx.session.prompt || 'нет'
+      }, initialized=${ctx.session.neuroPhotoInitialized || false}`
+    )
+    console.log('🧙‍♂️ [ENTER] Вход в сцену neuroPhotoWizard')
     logger.info({
-      message: '📩 [NeuroPhoto] Получено сообщение',
+      message: '🚪 [NeuroPhoto] Вход в сцену',
       telegramId,
-      messageText: ctx.message.text,
-      step,
+      action: 'enter_scene',
+      scene: ModeEnum.NeuroPhoto,
+      previousSessionState: JSON.stringify({
+        prompt: ctx.session.prompt,
+        initialized: ctx.session.neuroPhotoInitialized,
+        step: ctx.session.__scenes?.cursor,
+      }),
     })
 
-    // Пропускаем обработку специальных команд и кнопок меню
-    const isCommand = ctx.message.text.startsWith('/')
+    // Явно устанавливаем шаг 0 в сцене - это критично для правильной работы
+    ctx.wizard.selectStep(0)
+
+    // Сбрасываем состояние сцены при входе
+    ctx.session.neuroPhotoInitialized = false
+    ctx.session.prompt = undefined
+
+    // Загружаем модель пользователя из базы данных - это КРИТИЧНО для работы сцены
+    try {
+      if (!ctx.from?.id) {
+        throw new Error('ID пользователя не найден')
+      }
+
+      const userId = ctx.from.id
+      console.log(`🧙‍♂️ [ENTER] Загрузка модели из БД для пользователя ${userId}`)
+
+      // Получаем модель из базы данных
+      const userModel = await getLatestUserModel(Number(userId), 'replicate')
+      console.log(
+        `🧙‍♂️ [ENTER] Модель для пользователя ${userId} из базы данных:`,
+        JSON.stringify(userModel, null, 2)
+      )
+
+      if (!userModel) {
+        console.log(
+          `🧙‍♂️ [ENTER] Модель для пользователя ${userId} НЕ НАЙДЕНА в базе данных`
+        )
+        logger.warn({
+          message:
+            '⚠️ [NeuroPhoto] Модель пользователя не найдена в базе данных',
+          telegramId,
+        })
+
+        const isRussian = ctx.from.language_code === 'ru'
+        await ctx.reply(
+          isRussian
+            ? `⚠️ У вас нет доступной модели для нейрофото.
+Создайте свою модель или воспользуйтесь другими функциями бота.`
+            : `⚠️ You don't have an available model for neural photos.
+Create your model or use other bot functions.`,
+          { parse_mode: 'HTML' }
+        )
+        return await ctx.scene.leave()
+      }
+
+      console.log(
+        `🧙‍♂️ [ENTER] Модель из БД:`,
+        JSON.stringify(userModel, null, 2)
+      )
+
+      // Сохраняем модель в сессии - без этого ничего не будет работать
+      ctx.session.userModel = userModel as any
+
+      console.log(
+        `🧙‍♂️ [ENTER] Модель сохранена в сессии. URL: ${userModel.model_url}, Триггер: ${userModel.trigger_word}`
+      )
+      logger.info({
+        message: '✅ [NeuroPhoto] Модель пользователя загружена из БД',
+        telegramId,
+        modelData: JSON.stringify(userModel),
+      })
+
+      // Запускаем первый шаг сцены
+      return await neuroPhotoConversationStep(ctx)
+    } catch (error) {
+      console.error(`🧙‍♂️ [ENTER] Критическая ошибка загрузки модели:`, error)
+      logger.error({
+        message: '❌ [NeuroPhoto] Критическая ошибка при загрузке модели',
+        telegramId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      const isRussian = ctx.from?.language_code === 'ru'
+      await ctx.reply(
+        isRussian
+          ? `❌ Произошла ошибка при загрузке вашей модели. Пожалуйста, попробуйте позже.`
+          : `❌ An error occurred while loading your model. Please try again later.`
+      )
+
+      return await ctx.scene.leave()
+    }
+  })
+
+  // Обработчик для всех текстовых сообщений
+  neuroPhotoWizard.on('text', async (ctx, next) => {
+    const telegramId = ctx.from?.id?.toString() || 'unknown'
+    const step = ctx.session.__scenes?.cursor || 0
+    console.log(
+      `🧙‍♂️ [DEBUG] TEXT HANDLER ВЫЗВАН: Step=${step}, ID=${telegramId}, Text="${ctx.message.text}"`
+    )
+    console.log(
+      `🧙‍♂️ [TEXT] Текстовое сообщение на шаге ${step}: "${ctx.message.text}"`
+    )
+    logger.info({
+      message: '📄 [NeuroPhoto] Обработка текстового сообщения',
+      telegramId,
+      text: ctx.message.text,
+      step,
+      hasUserModel: !!ctx.session.userModel?.model_url,
+    })
+
+    // Проверяем специальные команды и кнопки
     const isMenuButton = ctx.message.text === '📸 Нейрофото'
+    const isCommand = ctx.message.text.startsWith('/')
     const isSceneButton =
       ctx.message.text === '⬆️ Улучшить промпт' ||
       ctx.message.text === '⬆️ Improve prompt' ||
@@ -779,255 +1001,91 @@ neuroPhotoWizard.use(async (ctx, next) => {
       ctx.message.text === levels[104].title_en ||
       /^[1-4]/.test(ctx.message.text)
 
-    // Если это первый шаг (0), у пользователя есть модель, и это не кнопка или команда -
-    // обрабатываем текст как промпт
-    if (
-      step === 0 &&
-      ctx.session.userModel?.model_url &&
-      !isCommand &&
-      !isMenuButton &&
-      !isSceneButton
-    ) {
+    // Если это команда меню или специальная кнопка - пропускаем к следующему обработчику
+    if (isMenuButton || isCommand || isSceneButton) {
+      console.log('🧙‍♂️ [TEXT] Получена команда или кнопка, передаем дальше')
+      return next()
+    }
+
+    // В зависимости от текущего шага сцены
+    if (step === 0) {
+      // На шаге 0, если у пользователя есть модель - обрабатываем текст как промпт
+      if (ctx.session.userModel?.model_url) {
+        console.log('🧙‍♂️ [TEXT] Обрабатываем текст как промпт на шаге 0')
+        logger.info({
+          message: '📝 [NeuroPhoto] Обработка текста как промпта на шаге 0',
+          telegramId,
+          prompt: ctx.message.text,
+        })
+
+        ctx.session.prompt = ctx.message.text
+        ctx.session.neuroPhotoInitialized = true
+
+        // Переходим к шагу обработки промпта через next() для большей надежности
+        ctx.wizard.next()
+        return await neuroPhotoPromptStep(ctx)
+      }
+    } else if (step === 1) {
+      // На шаге 1 - обрабатываем текст как уточнение/изменение промпта
       console.log(
-        `🧙‍♂️ [MIDDLEWARE] Перехват текста как промпта на шаге 0: ${ctx.message.text}`
+        '🧙‍♂️ [TEXT] Обрабатываем текст как обновление промпта на шаге 1'
       )
-      logger.info({
-        message: '🎯 [NeuroPhoto] Перехват текста как промпта на шаге 0',
-        telegramId,
-        prompt: ctx.message.text,
-        action: 'intercepting_prompt_step_0',
-      })
-
-      // Сохраняем промпт в сессии
       ctx.session.prompt = ctx.message.text
-
-      // Устанавливаем флаг инициализации
-      ctx.session.neuroPhotoInitialized = true
-
-      // Переходим к шагу обработки промпта (шаг 1) - ВАЖНО: используем next для перехода к следующему шагу
-      console.log('🧙‍♂️ [MIDDLEWARE] Переход к шагу 1 через next()')
-      ctx.wizard.next() // Используем next() вместо selectStep для более надежного перехода
       return await neuroPhotoPromptStep(ctx)
     }
 
-    // Если это не первый шаг или это специальная команда/кнопка - пропускаем к следующему обработчику
+    // Иначе просто передаем управление дальше
     return next()
-  }
-
-  return next()
-})
-
-// Обработчик входа в сцену
-neuroPhotoWizard.enter(async ctx => {
-  const telegramId = ctx.from?.id?.toString() || 'unknown'
-  console.log(`🧙‍♂️ [DEBUG] ENTER ВЫЗВАН: ID=${telegramId}`)
-  console.log(
-    `🧙‍♂️ [DEBUG] Предыдущее состояние сессии: prompt=${
-      ctx.session.prompt || 'нет'
-    }, initialized=${ctx.session.neuroPhotoInitialized || false}`
-  )
-  console.log('🧙‍♂️ [ENTER] Вход в сцену neuroPhotoWizard')
-  logger.info({
-    message: '🚪 [NeuroPhoto] Вход в сцену',
-    telegramId,
-    action: 'enter_scene',
-    scene: ModeEnum.NeuroPhoto,
-    previousSessionState: JSON.stringify({
-      prompt: ctx.session.prompt,
-      initialized: ctx.session.neuroPhotoInitialized,
-      step: ctx.session.__scenes?.cursor,
-    }),
   })
 
-  // Явно устанавливаем шаг 0 в сцене - это критично для правильной работы
-  ctx.wizard.selectStep(0)
+  // Добавляем обработчик выхода из сцены
+  neuroPhotoWizard.leave(async ctx => {
+    const telegramId = ctx.from?.id?.toString() || 'unknown'
+    console.log(`🧙‍♂️ [DEBUG] LEAVE ВЫЗВАН: ID=${telegramId}`)
 
-  // Сбрасываем состояние сцены при входе
-  ctx.session.neuroPhotoInitialized = false
-  ctx.session.prompt = undefined
-
-  // Загружаем модель пользователя из базы данных - это КРИТИЧНО для работы сцены
-  try {
-    if (!ctx.from?.id) {
-      throw new Error('ID пользователя не найден')
-    }
-
-    const userId = ctx.from.id
-    console.log(`🧙‍♂️ [ENTER] Загрузка модели из БД для пользователя ${userId}`)
-
-    // Получаем модель из базы данных
-    const userModel = await getLatestUserModel(Number(userId), 'replicate')
+    // Добавляем трассировку стека для анализа, откуда был вызван leave
+    const stackTrace = new Error().stack
+    console.log(`🧙‍♂️ [DEBUG] ВАЖНО! ТРАССИРОВКА СТЕКА LEAVE:`, stackTrace)
+    console.log(`🧙‍♂️ [DEBUG] Сцена текущая: ${ctx.session.__scenes?.current}`)
     console.log(
-      `🧙‍♂️ [ENTER] Модель для пользователя ${userId} из базы данных:`,
-      JSON.stringify(userModel, null, 2)
+      `🧙‍♂️ [DEBUG] Состояние сцены при выходе:`,
+      JSON.stringify(ctx.session, null, 2)
     )
 
-    if (!userModel) {
-      console.log(
-        `🧙‍♂️ [ENTER] Модель для пользователя ${userId} НЕ НАЙДЕНА в базе данных`
-      )
-      logger.warn({
-        message: '⚠️ [NeuroPhoto] Модель пользователя не найдена в базе данных',
-        telegramId,
-      })
-
-      const isRussian = ctx.from.language_code === 'ru'
-      await ctx.reply(
-        isRussian
-          ? `⚠️ У вас нет доступной модели для нейрофото.
-Создайте свою модель или воспользуйтесь другими функциями бота.`
-          : `⚠️ You don't have an available model for neural photos.
-Create your model or use other bot functions.`,
-        { parse_mode: 'HTML' }
-      )
-      return await ctx.scene.leave()
-    }
-
-    console.log(`🧙‍♂️ [ENTER] Модель из БД:`, JSON.stringify(userModel, null, 2))
-
-    // Сохраняем модель в сессии - без этого ничего не будет работать
-    ctx.session.userModel = userModel as any
-
-    console.log(
-      `🧙‍♂️ [ENTER] Модель сохранена в сессии. URL: ${userModel.model_url}, Триггер: ${userModel.trigger_word}`
-    )
     logger.info({
-      message: '✅ [NeuroPhoto] Модель пользователя загружена из БД',
+      message: '👋 [NeuroPhoto] Выход из сцены',
       telegramId,
-      modelData: JSON.stringify(userModel),
+      finalSessionState: JSON.stringify({
+        prompt: ctx.session.prompt,
+        initialized: ctx.session.neuroPhotoInitialized,
+        step: ctx.session.__scenes?.cursor,
+      }),
+      stackTrace: stackTrace,
+      currentScene: ctx.session.__scenes?.current,
     })
 
-    // Запускаем первый шаг сцены
-    return await neuroPhotoConversationStep(ctx)
-  } catch (error) {
-    console.error(`🧙‍♂️ [ENTER] Критическая ошибка загрузки модели:`, error)
-    logger.error({
-      message: '❌ [NeuroPhoto] Критическая ошибка при загрузке модели',
+    // Очищаем состояние сцены при выходе
+    ctx.session.neuroPhotoInitialized = false
+    ctx.session.prompt = undefined
+
+    console.log(`🧙‍♂️ [DEBUG] Состояние сессии после выхода очищено`)
+    return
+  })
+
+  // Добавляем обработчик команды /cancel для экстренного выхода из сцены
+  neuroPhotoWizard.command('cancel', async ctx => {
+    const telegramId = ctx.from?.id?.toString() || 'unknown'
+    console.log(`🧙‍♂️ [DEBUG] COMMAND CANCEL ВЫЗВАН: ID=${telegramId}`)
+    logger.info({
+      message: '🚫 [NeuroPhoto] Выход из сцены по команде отмены',
       telegramId,
-      error: error instanceof Error ? error.message : String(error),
     })
 
-    const isRussian = ctx.from?.language_code === 'ru'
-    await ctx.reply(
-      isRussian
-        ? `❌ Произошла ошибка при загрузке вашей модели. Пожалуйста, попробуйте позже.`
-        : `❌ An error occurred while loading your model. Please try again later.`
-    )
+    const isRu = ctx.from?.language_code === 'ru'
+    await ctx.reply(isRu ? '❌ Операция отменена.' : '❌ Operation canceled.')
 
     return await ctx.scene.leave()
-  }
-})
-
-// Обработчик для всех текстовых сообщений
-neuroPhotoWizard.on('text', async (ctx, next) => {
-  const telegramId = ctx.from?.id?.toString() || 'unknown'
-  const step = ctx.session.__scenes?.cursor || 0
-  console.log(
-    `🧙‍♂️ [DEBUG] TEXT HANDLER ВЫЗВАН: Step=${step}, ID=${telegramId}, Text="${ctx.message.text}"`
-  )
-  console.log(
-    `🧙‍♂️ [TEXT] Текстовое сообщение на шаге ${step}: "${ctx.message.text}"`
-  )
-  logger.info({
-    message: '📄 [NeuroPhoto] Обработка текстового сообщения',
-    telegramId,
-    text: ctx.message.text,
-    step,
-    hasUserModel: !!ctx.session.userModel?.model_url,
   })
 
-  // Проверяем специальные команды и кнопки
-  const isMenuButton = ctx.message.text === '📸 Нейрофото'
-  const isCommand = ctx.message.text.startsWith('/')
-  const isSceneButton =
-    ctx.message.text === '⬆️ Улучшить промпт' ||
-    ctx.message.text === '⬆️ Improve prompt' ||
-    ctx.message.text === '📐 Изменить размер' ||
-    ctx.message.text === '📐 Change size' ||
-    ctx.message.text === levels[104].title_ru ||
-    ctx.message.text === levels[104].title_en ||
-    /^[1-4]/.test(ctx.message.text)
-
-  // Если это команда меню или специальная кнопка - пропускаем к следующему обработчику
-  if (isMenuButton || isCommand || isSceneButton) {
-    console.log('🧙‍♂️ [TEXT] Получена команда или кнопка, передаем дальше')
-    return next()
-  }
-
-  // В зависимости от текущего шага сцены
-  if (step === 0) {
-    // На шаге 0, если у пользователя есть модель - обрабатываем текст как промпт
-    if (ctx.session.userModel?.model_url) {
-      console.log('🧙‍♂️ [TEXT] Обрабатываем текст как промпт на шаге 0')
-      logger.info({
-        message: '📝 [NeuroPhoto] Обработка текста как промпта на шаге 0',
-        telegramId,
-        prompt: ctx.message.text,
-      })
-
-      ctx.session.prompt = ctx.message.text
-      ctx.session.neuroPhotoInitialized = true
-
-      // Переходим к шагу обработки промпта через next() для большей надежности
-      ctx.wizard.next()
-      return await neuroPhotoPromptStep(ctx)
-    }
-  } else if (step === 1) {
-    // На шаге 1 - обрабатываем текст как уточнение/изменение промпта
-    console.log('🧙‍♂️ [TEXT] Обрабатываем текст как обновление промпта на шаге 1')
-    ctx.session.prompt = ctx.message.text
-    return await neuroPhotoPromptStep(ctx)
-  }
-
-  // Иначе просто передаем управление дальше
-  return next()
-})
-
-// Добавляем обработчик выхода из сцены
-neuroPhotoWizard.leave(async ctx => {
-  const telegramId = ctx.from?.id?.toString() || 'unknown'
-  console.log(`🧙‍♂️ [DEBUG] LEAVE ВЫЗВАН: ID=${telegramId}`)
-
-  // Добавляем трассировку стека для анализа, откуда был вызван leave
-  const stackTrace = new Error().stack
-  console.log(`🧙‍♂️ [DEBUG] ВАЖНО! ТРАССИРОВКА СТЕКА LEAVE:`, stackTrace)
-  console.log(`🧙‍♂️ [DEBUG] Сцена текущая: ${ctx.session.__scenes?.current}`)
-  console.log(
-    `🧙‍♂️ [DEBUG] Состояние сцены при выходе:`,
-    JSON.stringify(ctx.session, null, 2)
-  )
-
-  logger.info({
-    message: '👋 [NeuroPhoto] Выход из сцены',
-    telegramId,
-    finalSessionState: JSON.stringify({
-      prompt: ctx.session.prompt,
-      initialized: ctx.session.neuroPhotoInitialized,
-      step: ctx.session.__scenes?.cursor,
-    }),
-    stackTrace: stackTrace,
-    currentScene: ctx.session.__scenes?.current,
-  })
-
-  // Очищаем состояние сцены при выходе
-  ctx.session.neuroPhotoInitialized = false
-  ctx.session.prompt = undefined
-
-  console.log(`🧙‍♂️ [DEBUG] Состояние сессии после выхода очищено`)
-  return
-})
-
-// Добавляем обработчик команды /cancel для экстренного выхода из сцены
-neuroPhotoWizard.command('cancel', async ctx => {
-  const telegramId = ctx.from?.id?.toString() || 'unknown'
-  console.log(`🧙‍♂️ [DEBUG] COMMAND CANCEL ВЫЗВАН: ID=${telegramId}`)
-  logger.info({
-    message: '🚫 [NeuroPhoto] Выход из сцены по команде отмены',
-    telegramId,
-  })
-
-  const isRu = ctx.from?.language_code === 'ru'
-  await ctx.reply(isRu ? '❌ Операция отменена.' : '❌ Operation canceled.')
-
-  return await ctx.scene.leave()
-})
+  return neuroPhotoWizard
+}

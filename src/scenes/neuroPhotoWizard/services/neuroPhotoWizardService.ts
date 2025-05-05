@@ -16,8 +16,7 @@ export async function processNeuroPhotoWizardStep(
   const isRussian = ctx.from?.language_code === 'ru'
 
   // Log the start of the wizard step
-  dependencies.logger.info({
-    message: '🔄 [NeuroPhotoWizard] Processing wizard step',
+  dependencies.logger.info('🔄 [NeuroPhotoWizard] Processing wizard step', {
     telegramId,
     step: ctx.session.__scenes?.cursor || 0,
     sessionState: JSON.stringify({
@@ -32,8 +31,7 @@ export async function processNeuroPhotoWizardStep(
     !ctx.session.userModel.model_url ||
     !ctx.session.userModel.trigger_word
   ) {
-    dependencies.logger.info({
-      message: '⚠️ [NeuroPhotoWizard] No user model in session',
+    dependencies.logger.info('⚠️ [NeuroPhotoWizard] No user model in session', {
       telegramId,
       sessionData: JSON.stringify(ctx.session),
     })
@@ -42,8 +40,7 @@ export async function processNeuroPhotoWizardStep(
   }
 
   // Log successful model check
-  dependencies.logger.info({
-    message: '✅ [NeuroPhotoWizard] User model check passed',
+  dependencies.logger.info('✅ [NeuroPhotoWizard] User model check passed', {
     telegramId,
     modelUrl: ctx.session.userModel.model_url,
     triggerWord: ctx.session.userModel.trigger_word,
@@ -51,19 +48,20 @@ export async function processNeuroPhotoWizardStep(
 
   // If prompt exists and scene is initialized, move to next step
   if (ctx.session.prompt && ctx.session.neuroPhotoInitialized === true) {
-    dependencies.logger.info({
-      message: '🔄 [NeuroPhotoWizard] Moving to prompt step (prompt exists)',
-      telegramId,
-      prompt: ctx.session.prompt,
-    })
+    dependencies.logger.info(
+      '🔄 [NeuroPhotoWizard] Moving to prompt step (prompt exists)',
+      {
+        telegramId,
+        prompt: ctx.session.prompt,
+      }
+    )
     ctx.wizard.next()
     return
   }
 
   // Mark scene as initialized
   ctx.session.neuroPhotoInitialized = true
-  dependencies.logger.info({
-    message: '✅ [NeuroPhotoWizard] Scene initialized',
+  dependencies.logger.info('✅ [NeuroPhotoWizard] Scene initialized', {
     telegramId,
   })
 
@@ -74,8 +72,7 @@ export async function processNeuroPhotoWizardStep(
     ctx.message.text !== '📸 Нейрофото'
   ) {
     ctx.session.prompt = ctx.message.text
-    dependencies.logger.info({
-      message: '💾 [NeuroPhotoWizard] Saving prompt',
+    dependencies.logger.info('💾 [NeuroPhotoWizard] Saving prompt', {
       telegramId,
       prompt: ctx.session.prompt,
     })
@@ -84,8 +81,7 @@ export async function processNeuroPhotoWizardStep(
   }
 
   // Send welcome message if no prompt yet
-  dependencies.logger.info({
-    message: '📤 [NeuroPhotoWizard] Sending welcome message',
+  dependencies.logger.info('📤 [NeuroPhotoWizard] Sending welcome message', {
     telegramId,
   })
   // Welcome message will be sent in the scene using the adapter
