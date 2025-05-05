@@ -51,7 +51,8 @@ const menuCommandStep = async (ctx: MyContext) => {
     // --- Determine translation key based ONLY on Subscription Type ---
     if (
       newSubscription === SubscriptionType.NEUROBASE ||
-      newSubscription === SubscriptionType.NEUROTESTER
+      newSubscription === SubscriptionType.NEUROTESTER ||
+      newSubscription === SubscriptionType.NEUROPHOTO
     ) {
       translationKey = 'menu' // Use 'menu' key for full access users
       logger.info(
