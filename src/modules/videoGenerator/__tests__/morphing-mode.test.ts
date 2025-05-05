@@ -9,6 +9,7 @@ import {
   Mock,
   Mocked,
   vi,
+  type MockInstance,
 } from 'vitest'
 // Используем generateImageToVideoIsolated и типы
 import {
@@ -217,6 +218,9 @@ describe('generateImageToVideo Service: Режим Морфинга', () => {
     mockedHelpers.processBalanceVideoOperationHelper.mockResolvedValueOnce({
       success: false,
       error: 'Insufficient funds for morphing',
+      newBalance: 0,
+      paymentAmount: 0,
+      modePrice: 0,
     })
 
     await generateImageToVideo(
