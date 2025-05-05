@@ -1,4 +1,7 @@
-export { generateImageToVideo } from './generateImageToVideo'
-export { generateTextToVideo } from './generateTextToVideo'
-// Re-export VideoModelConfig from its NEW local location
-export { type VideoModelConfig } from './config/models.config'
+export * from './config/videoModels'
+export * from './helpers/determineVideoMode'
+export * from './adapters/telegramConnector'
+// Экспортируем основную функцию генерации видео, когда она будет создана
+export * from './generateImageToVideo'
+// Добавляем экспорт типа VideoModelConfig
+export * from './types'

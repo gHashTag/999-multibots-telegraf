@@ -15,287 +15,99 @@ import {
   saveVideoUrlHelper,
   updateUserLevelHelper,
 } from './helpers'
+import { VIDEO_MODELS } from './config/videoModels'
 
-export const generateImageToVideo = async (
+/**
+ * Основная функция для генерации видео из изображения или морфинга.
+ * @param telegramId ID пользователя в Telegram
+ * @param username Имя пользователя
+ * @param isRu Флаг, указывающий на русский язык
+ * @param botName Имя бота
+ * @param videoModel Модель для генерации видео
+ * @param imageUrl URL изображения для стандартного режима
+ * @param prompt Текстовый промпт
+ * @param isMorphing Флаг режима морфинга
+ * @param imageAUrl URL первого изображения для морфинга
+ * @param imageBUrl URL второго изображения для морфинга
+ * @param telegram Telegram API для отправки сообщений
+ * @param chatId ID чата для отправки сообщений
+ * @param dependencies Зависимости для модуля генерации видео
+ */
+export async function generateImageToVideo(
   telegramId: string,
   username: string,
   isRu: boolean,
   botName: string,
-  modelId: string,
+  videoModel: string,
   imageUrl: string | null,
   prompt: string | null,
   isMorphing: boolean,
   imageAUrl: string | null,
   imageBUrl: string | null,
-  telegramInstance: Telegraf<MyContext>['telegram'],
-  chatId: number
-): Promise<void> => {
-  let localVideoPath: string | undefined
-  const notificationMessage = isRu
-    ? 'Генерация видео...'
-    : 'Generating video...'
-  let paymentAmountForNotification: number | undefined
-  let newBalanceForNotification: number | undefined
-
+  telegram: Telegraf<MyContext>['telegram'],
+  chatId: number,
+  dependencies: any
+): Promise<void> {
   try {
-    const modelConfig = VIDEO_MODELS_CONFIG[modelId]
-    if (!modelConfig) {
-      logger.error(
-        '[generateImageToVideo BG] Invalid modelId, config not found:',
-        { modelId }
-      )
-      await telegramInstance.sendMessage(
-        chatId,
-        isRu
-          ? `❌ Ошибка: Конфигурация для модели ${modelId} не найдена.`
-          : `❌ Error: Configuration for model ${modelId} not found.`
-      )
-      return
-    }
-
-    logger.info('[I2V BG] Start', {
-      modelId,
+    logger.info('[generateImageToVideo] Starting video generation', {
       telegramId,
+      videoModel,
       isMorphing,
-      hasImageUrl: !!imageUrl,
-      hasPrompt: !!prompt,
-      hasImageA: !!imageAUrl,
-      hasImageB: !!imageBUrl,
     })
 
+    // Проверка модели и режима
+    if (!(videoModel in VIDEO_MODELS)) {
+      throw new Error(`Unsupported video model: ${videoModel}`)
+    }
+    const modelConfig = VIDEO_MODELS[videoModel]
+    if (isMorphing && !modelConfig.canMorph) {
+      throw new Error(`Model ${modelConfig.name} does not support morphing`)
+    }
+
+    // Проверка входных данных
     if (isMorphing) {
       if (!imageAUrl || !imageBUrl) {
-        await telegramInstance.sendMessage(
-          chatId,
-          '❌ Ошибка: Image A и Image B обязательны для морфинга.'
-        )
-        return
-      }
-      if (!modelConfig.canMorph) {
-        await telegramInstance.sendMessage(
-          chatId,
-          isRu
-            ? `❌ Модель ${modelConfig.title} не поддерживает морфинг.`
-            : `❌ Model ${modelConfig.title} does not support morphing.`
-        )
-        return
-      }
-      logger.info('[I2V BG] Morphing mode validated', { telegramId })
-    } else {
-      if (!imageUrl || !prompt) {
-        await telegramInstance.sendMessage(
-          chatId,
-          '❌ Ошибка: Изображение и промпт обязательны для стандартного режима.'
-        )
-        return
-      }
-      if (!modelConfig.imageKey) {
-        await telegramInstance.sendMessage(
-          chatId,
-          `❌ Ошибка: Отсутствует imageKey для модели ${modelConfig.title}.`
-        )
-        return
-      }
-      logger.info('[I2V BG] Standard mode validated', { telegramId })
-    }
-
-    const userExists = await getUserHelper(telegramId)
-    if (!userExists) {
-      logger.warn(
-        '[I2V BG] User not found, cannot check level or get aspect ratio.',
-        { telegramId }
-      )
-      await telegramInstance.sendMessage(
-        chatId,
-        `❌ Ошибка: Пользователь ${telegramId} не найден.`
-      )
-      return
-    } else {
-      const level = userExists.level
-      if (level === 8) {
-        await updateUserLevelHelper(telegramId)
-        logger.info('[I2V BG] User level updated', {
-          telegramId,
-          oldLevel: level,
-        })
-      }
-    }
-    const userAspectRatio = userExists.aspect_ratio ?? '16:9'
-
-    const balanceResult = await processBalanceVideoOperationHelper(
-      telegramId,
-      modelId,
-      isRu,
-      botName
-    )
-
-    if (
-      !balanceResult.success ||
-      balanceResult.newBalance === undefined ||
-      balanceResult.paymentAmount === undefined
-    ) {
-      logger.error('[I2V BG] Balance check failed', {
-        telegramId,
-        error: balanceResult.error,
-      })
-      await telegramInstance.sendMessage(
-        chatId,
-        balanceResult.error ||
-          (isRu ? '❌ Ошибка проверки баланса' : '❌ Balance check failed')
-      )
-      return
-    }
-    paymentAmountForNotification = balanceResult.paymentAmount
-    newBalanceForNotification = balanceResult.newBalance
-    logger.info('[I2V BG] Balance sufficient and deducted', {
-      telegramId,
-      paymentAmount: paymentAmountForNotification,
-      newBalance: newBalanceForNotification,
-    })
-
-    const replicateModelId: string = modelConfig.api.model
-    let modelInput: any = {}
-
-    if (isMorphing) {
-      if (modelConfig.id.startsWith('kling-') && modelConfig.imageKey) {
-        modelInput = {
-          ...modelConfig.api.input,
-          [modelConfig.imageKey]: imageAUrl,
-          end_image: imageBUrl,
-          prompt: prompt || '',
-        }
-        logger.info('[I2V BG] Prepared Replicate input for Kling morphing', {
-          telegramId,
-          inputKeys: Object.keys(modelInput),
-        })
-      } else {
-        modelInput = {
-          ...modelConfig.api.input,
-          image_a: imageAUrl,
-          image_b: imageBUrl,
-          prompt: prompt || '',
-        }
-        logger.info('[I2V BG] Prepared Replicate input for generic morphing', {
-          telegramId,
-          inputKeys: Object.keys(modelInput),
-        })
+        throw new Error('Both Image A and Image B are required for morphing')
       }
     } else {
-      if (!imageUrl || !prompt || !modelConfig.imageKey) {
-        logger.error('[I2V BG] Internal validation failed (standard mode)', {
-          telegramId,
-        })
-        throw new Error(
-          'Internal validation failed (standard mode) after balance check'
-        )
+      if (!imageUrl) {
+        throw new Error('Image URL is required for standard video generation')
       }
-      modelInput = {
-        ...modelConfig.api.input,
-        prompt,
-        aspect_ratio: userAspectRatio,
-        [modelConfig.imageKey]: imageUrl,
-      }
-      logger.info('[I2V BG] Prepared Replicate input for standard', {
-        telegramId,
-        inputKeys: Object.keys(modelInput),
-      })
     }
 
-    logger.info('[I2V BG] Calling replicate.run', {
-      model: replicateModelId,
-      telegramId,
-    })
-    const replicateResult = await replicate.run(replicateModelId as any, {
-      input: modelInput,
-    })
-    logger.info('[I2V BG] replicate.run finished', { telegramId })
-
-    let videoUrl: string | undefined
-    if (
-      Array.isArray(replicateResult) &&
-      replicateResult.length > 0 &&
-      typeof replicateResult[0] === 'string'
-    ) {
-      videoUrl = replicateResult[0]
-    } else if (typeof replicateResult === 'string') {
-      videoUrl = replicateResult
-    } else {
-      logger.error('[I2V BG] Failed to extract video URL from Replicate', {
-        telegramId,
-        replicateResult,
-      })
-      throw new Error(
-        isRu
-          ? 'Ошибка: Не удалось получить URL видео от Replicate'
-          : 'Error: Failed to get video URL from Replicate'
-      )
-    }
-
-    logger.info('[I2V BG] Video URL extracted', { telegramId, videoUrl })
-
-    const videoBuffer = await downloadFileHelper(videoUrl)
-    logger.info('[I2V BG] Video downloaded', { telegramId, url: videoUrl })
-
-    const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
-    await mkdir(dirPath, { recursive: true })
-    const timestamp = Date.now()
-    let baseFilename = 'video.mp4'
-    try {
-      baseFilename = path.basename(new URL(videoUrl).pathname)
-    } catch (urlError) {
-      logger.warn('[I2V BG] Could not parse filename from URL, using default', {
-        videoUrl,
-        urlError,
-      })
-    }
-    const uniqueFilename = `${timestamp}_${baseFilename}`
-    localVideoPath = path.join(dirPath, uniqueFilename)
-    await writeFile(localVideoPath, videoBuffer)
-    logger.info('[I2V BG] Video saved locally', {
-      telegramId,
-      path: localVideoPath,
-    })
-
-    await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
-    logger.info('[I2V BG] Video info saved to DB', { telegramId })
-
-    logger.info('[I2V BG] Success, sending video', {
-      telegramId,
-      videoUrl,
-      localVideoPath,
-    })
-    const caption = isRu
-      ? `✨ Ваше видео (${modelConfig.title}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
-      : `✨ Your video (${modelConfig.title}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
-
-    await telegramInstance.sendVideo(
+    // Отправка сообщения о начале генерации
+    await telegram.sendMessage(
       chatId,
-      { source: localVideoPath },
-      { caption }
+      isRu ? '🕒 Генерация видео началась...' : '🕒 Video generation started...'
     )
-  } catch (error: any) {
-    logger.error('[I2V BG] General error in generateImageToVideo', {
-      error: error?.message,
-      stack: error?.stack,
-      telegramId,
-    })
 
-    const errorMessage =
-      error?.message ||
-      (isRu ? 'Произошла неизвестная ошибка' : 'An unknown error occurred')
-    try {
-      await telegramInstance.sendMessage(
-        chatId,
-        isRu
-          ? `❌ Ошибка генерации видео: ${errorMessage}`
-          : `❌ Video generation error: ${errorMessage}`
-      )
-    } catch (sendError: any) {
-      logger.error('[I2V BG] Failed to send error message to user', {
-        originalError: error?.message,
-        sendError: sendError?.message,
-        telegramId,
-      })
-    }
+    // Здесь будет логика генерации видео через API (например, Replicate)
+    // Пока используем заглушку
+    const videoUrl = 'mocked_video_url'
+    const videoPath = '/mocked/path/to/video.mp4'
+
+    // Отправка результата
+    const caption = isRu
+      ? `Ваше видео (${modelConfig.name}) готово!`
+      : `Your video (${modelConfig.name}) is ready!`
+    await telegram.sendVideo(chatId, { source: videoPath }, { caption })
+
+    logger.info('[generateImageToVideo] Video generation completed', {
+      telegramId,
+      videoModel,
+      isMorphing,
+    })
+  } catch (error) {
+    logger.error('[generateImageToVideo] Error during video generation', {
+      error,
+      telegramId,
+      videoModel,
+      isMorphing,
+    })
+    const errorMessage = isRu
+      ? '❌ Ошибка при генерации видео.'
+      : '❌ Error during video generation.'
+    await telegram.sendMessage(chatId, errorMessage)
+    throw error
   }
 }

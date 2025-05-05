@@ -44,16 +44,20 @@ export async function generateNeuroPhotoDirect(
     bypass_payment_check?: boolean
   }
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
-  logger.info({
-    message: '🚀 [DIRECT] Начало прямой генерации Neurophoto V1',
+  console.info(`🚀 [DIRECT] Начало прямой генерации Neurophoto V1`, {
     description: 'Starting direct Neurophoto V1 generation',
-    prompt: prompt.substring(0, 50) + '...',
-    model_url,
-    numImages,
-    telegram_id,
-    botName,
-    disable_telegram_sending: options?.disable_telegram_sending,
+    prompt:
+      typeof prompt === 'string'
+        ? prompt.substring(0, 50) + '...'
+        : 'Prompt not provided',
   })
+
+  if (!model_url) {
+    console.error(`❌ [DIRECT] Отсутствует URL модели для генерации`, {
+      description: 'No model URL found for direct generation',
+    })
+    return null
+  }
 
   try {
     // Проверяем наличие промпта и модели
@@ -64,15 +68,6 @@ export async function generateNeuroPhotoDirect(
         telegram_id,
       })
       throw new Error('Prompt not found')
-    }
-
-    if (!model_url) {
-      logger.error({
-        message: '❌ [DIRECT] Отсутствует URL модели для генерации',
-        description: 'No model URL found for direct generation',
-        telegram_id,
-      })
-      throw new Error('Model URL not found')
     }
 
     // Убедимся что numImages имеет разумное значение
@@ -721,7 +716,7 @@ export async function generateNeuroPhotoDirect(
       error: errorMessage,
       stack: errorStack,
       telegram_id,
-      session_data: JSON.stringify(ctx.session || {}),
+      session_data: ctx && ctx.session ? JSON.stringify(ctx.session) : '{}',
     })
 
     console.error(
@@ -730,7 +725,7 @@ export async function generateNeuroPhotoDirect(
     console.error(`📚 [DIRECT] Стек ошибки:`)
     console.error(errorStack)
     console.error(
-      `📊 [DIRECT] Данные сессии: ${JSON.stringify(ctx.session || {})}`
+      `📊 [DIRECT] Данные сессии: ${ctx && ctx.session ? JSON.stringify(ctx.session) : '{}'}`
     )
 
     // Отправляем пользователю сообщение об ошибке
