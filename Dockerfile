@@ -15,6 +15,10 @@ COPY . .
 RUN cp tsconfig.json tsconfig.build.json && \
     sed -i 's/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json", "__tests__\/\*\*\/\*\.ts"\]/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json"\]/' tsconfig.build.json
 
+# --- ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Удаляем тесты перед сборкой ---
+RUN rm -rf src/modules/videoGenerator/__tests__ && rm -rf src/__tests__
+# --------------------------------------------------------
+
 # Выполняем сборку TypeScript с пропуском проверки типов для решения проблем совместимости
 # и обрабатываем алиасы путей с помощью tsc-alias (включено в скрипт build:nocheck)
 RUN npx tsc --skipLibCheck --skipDefaultLibCheck --project tsconfig.build.json && npx tsc-alias --project tsconfig.build.json
