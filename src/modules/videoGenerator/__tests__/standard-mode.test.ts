@@ -26,7 +26,17 @@ import {
   teardownSpies,
 } from './helpers'
 import * as ConfigModule from '@/modules/videoGenerator/config/models.config'
-import { describe, it, expect, beforeEach, afterEach, Mock, vi } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  Mock,
+  vi,
+  type Mocked,
+  type MockInstance,
+} from 'vitest'
 import * as generateVideoHelpers from '../helpers'
 
 // Mock the local helpers module
@@ -75,7 +85,7 @@ const prompt = 'Test prompt'
 
 // --- Test Suite ---
 describe('generateImageToVideo Service: Стандартный Режим (Image + Prompt -> Video)', () => {
-  // Remove spy declarations for functions now mocked via vi.mock
+  // Correct types for spies
   let getUserByTelegramIdSpy: MockInstance
   let getBotByNameSpy: MockInstance
   let replicateRunSpy: MockInstance
@@ -156,7 +166,7 @@ describe('generateImageToVideo Service: Стандартный Режим (Image
       Buffer.from('specific fake data')
     )
 
-    const result = await generateImageToVideo(
+    await generateImageToVideo(
       telegram_id,
       username,
       is_ru,
@@ -166,10 +176,11 @@ describe('generateImageToVideo Service: Стандартный Режим (Image
       prompt,
       false, // isMorphing
       null, // imageAUrl
-      null // imageBUrl
+      null, // imageBUrl
+      ctx.telegram,
+      Number(telegram_id)
     )
 
-    expect(result).not.toHaveProperty('error')
     expect(getUserByTelegramIdSpy).toHaveBeenCalledTimes(1)
     expect(
       mockedHelpers.processBalanceVideoOperationHelper
@@ -177,15 +188,19 @@ describe('generateImageToVideo Service: Стандартный Режим (Image
     expect(replicateRunSpy).toHaveBeenCalledTimes(1)
     expect(mockedHelpers.downloadFileHelper).toHaveBeenCalledWith(fakeVideoUrl)
     expect(mockedHelpers.saveVideoUrlHelper).toHaveBeenCalledWith(
-      telegram_id, // Ensure string is passed if needed by spy mock
+      telegram_id,
       fakeVideoUrl,
       expect.stringMatching(/uploads\/\d+\/image-to-video\/.+\.mp4$/),
       videoModel
     )
     expect(errorMessageAdminSpy).not.toHaveBeenCalled()
-    // Check if fs spies are called (though skipped tests)
-    // expect(spies.mkdirSpy).toHaveBeenCalled()
-    // expect(spies.writeFileSpy).toHaveBeenCalled()
+    expect(mockSendVideo).toHaveBeenCalledWith(
+      Number(telegram_id),
+      { source: expect.stringMatching(/\.mp4$/) },
+      {
+        caption: expect.stringContaining('Your video (Stable Video Diffusion)'),
+      }
+    )
   })
 
   // --- Тесты на пропуск (можно добавить позже) ---
@@ -201,6 +216,9 @@ describe('generateImageToVideo Service: Стандартный Режим (Image
     mockedHelpers.processBalanceVideoOperationHelper.mockResolvedValueOnce({
       success: false,
       error: 'Insufficient funds. Top up your balance using the /buy command.',
+      newBalance: 0,
+      paymentAmount: 0,
+      modePrice: 0,
     })
 
     await generateImageToVideo(
@@ -222,7 +240,7 @@ describe('generateImageToVideo Service: Стандартный Режим (Image
       Number(telegram_id),
       expect.stringContaining('Insufficient funds')
     )
-    expect(mockedHelpers.getUserHelper).toHaveBeenCalledTimes(1)
+    expect(getUserByTelegramIdSpy).toHaveBeenCalledTimes(1)
     expect(
       mockedHelpers.processBalanceVideoOperationHelper
     ).toHaveBeenCalledTimes(1)

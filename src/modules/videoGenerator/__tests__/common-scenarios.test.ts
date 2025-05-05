@@ -1,6 +1,16 @@
 // src/__tests__/services/generateImageToVideo/common-scenarios.test.ts
 
-import { describe, it, expect, beforeEach, afterEach, Mock, vi } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  Mock,
+  vi,
+  type Mocked,
+  type MockInstance,
+} from 'vitest'
 // Используем generateImageToVideoIsolated и типы
 import {
   generateImageToVideo,
