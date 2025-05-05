@@ -14,6 +14,7 @@ export interface PaymentOption {
   amount: number
   stars: string
   subscription?: SubscriptionType
+  isAdminOnly?: boolean
 }
 
 // У нас два тарифных плана, не менять!!!
@@ -21,9 +22,10 @@ export const paymentOptionsPlans: PaymentOption[] = [
   { amount: 1110, stars: '476', subscription: SubscriptionType.NEUROPHOTO },
   { amount: 2999, stars: '1303', subscription: SubscriptionType.NEUROBASE },
   {
-    amount: 75000,
-    stars: '32608',
-    subscription: SubscriptionType.NEUROBLOGGER,
+    subscription: SubscriptionType.NEUROTESTER,
+    amount: 1, // Price in rubles/currency
+    stars: '1', // Возвращаем к строке
+    isAdminOnly: true, // Flag for admin-only plans
   },
 ]
 

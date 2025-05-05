@@ -142,10 +142,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     return next()
   })
 
-  // 2. Сессия (ДОЛЖНА БЫТЬ ПЕРЕД СЦЕНАМИ И ОБРАБОТЧИКАМИ, ИСПОЛЬЗУЮЩИМИ СЕССИЮ)
-  bot.use(session({ defaultSession: () => ({ ...defaultSession }) }))
-
-  // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ И ПЕРЕД ОБРАБОТЧИКАМИ, ИСПОЛЬЗУЮЩИМИ СЦЕНЫ)
+  // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
   bot.use(stage.middleware())
 
   // --- ТЕСТОВАЯ КОМАНДА ---
