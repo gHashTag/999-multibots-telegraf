@@ -79,59 +79,92 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
   let purchasedPlanText: string | null = null
 
   try {
+    let isSubscriptionPurchase = false
     if (payload) {
       const parts = payload.split('_')
-      if (parts.length >= 2) {
+      if (
+        parts.length >= 2 &&
+        isNaN(parseInt(parts[0], 10)) &&
+        !isNaN(parseInt(parts[1], 10))
+      ) {
         const typeFromPayload = parts[0].toUpperCase() as SubscriptionType
         const starsStr = parts[1]
 
-        const planExists = paymentOptionsPlans.some(
-          plan => plan.subscription?.toUpperCase() === typeFromPayload
+        const planDetails = paymentOptionsPlans.find(
+          p => p.subscription?.toUpperCase() === typeFromPayload
         )
 
-        if (planExists) {
-          subscriptionType = typeFromPayload
-          starsFromPayload = parseInt(starsStr, 10)
-          const planDetails = paymentOptionsPlans.find(
-            p => p.subscription?.toUpperCase() === subscriptionType
+        if (planDetails) {
+          const parsedStars = parseInt(starsStr, 10)
+          if (!isNaN(parsedStars) && parsedStars > 0) {
+            isSubscriptionPurchase = true
+            subscriptionType = typeFromPayload
+            starsFromPayload = parsedStars
+            purchasedPlanText =
+              planDetails.subscription?.toString() ?? subscriptionType
+            logger.info(
+              '[handleSuccessfulPayment] Correctly parsed as SUBSCRIPTION from payload',
+              {
+                telegram_id: normalizedUserId,
+                subscriptionType,
+                starsFromPayload,
+              }
+            )
+          } else {
+            logger.warn(
+              '[handleSuccessfulPayment] Invalid star amount in subscription payload',
+              { payload, telegram_id: normalizedUserId }
+            )
+          }
+        } else {
+          logger.warn(
+            '[handleSuccessfulPayment] Subscription type from payload NOT FOUND in plans',
+            { typeFromPayload, telegram_id: normalizedUserId }
           )
-          purchasedPlanText =
-            planDetails?.subscription?.toString() ?? subscriptionType
+        }
+      } else if (parts.length >= 1 && !isNaN(parseInt(parts[0], 10))) {
+        const parsedStars = parseInt(parts[0], 10)
+        if (!isNaN(parsedStars) && parsedStars > 0) {
+          starsFromPayload = successfulPayment.total_amount
           logger.info(
-            '[handleSuccessfulPayment] Parsed subscription from payload',
+            '[handleSuccessfulPayment] Parsed as potential TOP-UP from payload (using total_amount)',
             {
+              payload,
+              total_amount: starsFromPayload,
               telegram_id: normalizedUserId,
-              subscriptionType,
-              starsFromPayload,
             }
           )
         } else {
           logger.warn(
-            '[handleSuccessfulPayment] Subscription type from payload not found in plans',
-            {
-              telegram_id: normalizedUserId,
-              typeFromPayload,
-            }
+            '[handleSuccessfulPayment] Invalid star amount in top-up payload',
+            { payload, telegram_id: normalizedUserId }
           )
         }
+      } else {
+        logger.warn('[handleSuccessfulPayment] Unrecognized payload format', {
+          payload,
+          telegram_id: normalizedUserId,
+        })
       }
     }
 
-    if (
-      !subscriptionType ||
-      isNaN(starsFromPayload!) ||
-      starsFromPayload! <= 0
-    ) {
+    if (!isSubscriptionPurchase) {
       starsFromPayload = successfulPayment.total_amount
       subscriptionType = null
       purchasedPlanText = null
-      logger.info('[handleSuccessfulPayment] Processing as stars top-up', {
-        telegram_id: normalizedUserId,
-        stars: starsFromPayload,
-      })
+      logger.info(
+        '[handleSuccessfulPayment] Final decision: Processing as stars TOP-UP',
+        {
+          telegram_id: normalizedUserId,
+          stars: starsFromPayload,
+          reason: payload
+            ? 'Payload did not match valid subscription'
+            : 'No payload provided',
+        }
+      )
     } else {
       logger.info(
-        '[handleSuccessfulPayment] Processing as subscription purchase',
+        '[handleSuccessfulPayment] Final decision: Processing as SUBSCRIPTION purchase',
         {
           telegram_id: normalizedUserId,
           subscription: subscriptionType,
