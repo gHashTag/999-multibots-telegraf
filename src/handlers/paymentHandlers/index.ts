@@ -227,10 +227,6 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
       )
     }
 
-    const notificationMessage = subscriptionType
-      ? `💳 Пользователь @${username} (ID: ${userId}) купил подписку "${purchasedPlanText}" за ${starsFromPayload}⭐ через Telegram Stars.`
-      : `💰 Пользователь @${username} (ID: ${userId}) пополнил баланс на ${starsFromPayload}⭐ через Telegram Stars.`
-    await sendNotification(ctx, notificationMessage)
     await notifyBotOwners(botUsername, {
       username,
       telegram_id: userId.toString(),
