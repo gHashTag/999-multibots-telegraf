@@ -1,4 +1,5 @@
-import { MyContext } from '@/interfaces'
+import { MyContext, SubscriptionType } from '@/interfaces'
+import { logger } from '@/utils/logger'
 import { levels } from '@/menu/mainMenu'
 
 interface BuyParams {
@@ -7,78 +8,104 @@ interface BuyParams {
 }
 
 export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
+  logger.info('[handleBuySubscription] Starting...', {
+    telegram_id: ctx.from?.id,
+  })
   try {
-    const subscriptionTitles = {
-      neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
-      neurobase: isRu ? '📚 НейроБаза' : '📚 NeuroBase',
-      neuromeeting: isRu ? '🧠 НейроВстреча' : '🧠 NeuroMeeting',
-      neuroblogger: isRu ? '🤖 НейроБлогер' : '🤖 NeuroBlogger',
-      // neuromentor: isRu ? '🦸🏼‍♂️ НейроМентор' : '🦸🏼‍♂️ NeuroMentor',
+    const selectedPayment = ctx.session.selectedPayment
+    const isAdminTest = ctx.session.isAdminTest ?? false
+
+    if (
+      !selectedPayment ||
+      !selectedPayment.subscription ||
+      selectedPayment.stars === undefined
+    ) {
+      logger.error('[handleBuySubscription] Missing required session data', {
+        telegram_id: ctx.from?.id,
+        selectedPayment: selectedPayment,
+        isAdminTest: isAdminTest,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: Недостаточно данных для покупки подписки. Попробуйте начать заново.'
+          : '❌ Error: Insufficient data to purchase subscription. Please try again.'
+      )
+      return ctx.scene.leave()
     }
 
-    const subscriptionDescriptions = {
-      neurophoto: isRu
-        ? 'Создание фотографий с помощью нейросетей.'
-        : 'Creating photos using neural networks.',
-      neurobase: isRu
-        ? 'Самостоятельное обучение по нейросетям с ИИ аватаром.'
-        : 'Self-study on neural networks with AI avatar.',
-      neuromeeting: isRu
-        ? 'Индивидуальная встреча с экспертом.'
-        : 'Individual meeting with an expert.',
-      neuroblogger: isRu
-        ? 'Обучение по нейросетям с ментором.'
-        : 'Training on neural networks with a mentor.',
-      // neuromentor: isRu
-      //   ? 'Обучение по нейросетям с ментором.'
-      //   : 'Training on neural networks with a mentor.',
+    const subscriptionType = selectedPayment.subscription
+    const amountInStars = Number(selectedPayment.stars)
+
+    logger.info('[handleBuySubscription] Preparing invoice', {
+      telegram_id: ctx.from?.id,
+      subscriptionType,
+      amountInStars,
+      isAdminTest,
+    })
+
+    if (isNaN(amountInStars) || amountInStars <= 0) {
+      logger.error('[handleBuySubscription] Invalid star amount', {
+        telegram_id: ctx.from?.id,
+        amountInStars: selectedPayment.stars,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: Некорректное количество звезд для оплаты.'
+          : '❌ Error: Invalid star amount for payment.'
+      )
+      return ctx.scene.leave()
     }
 
-    const subscriptionStarAmounts = {
-      neurophoto: 476,
-      neurobase: 1303,
+    let title = `${subscriptionType}`
+    let description = isRu
+      ? `Покупка подписки ${subscriptionType}`
+      : `Purchasing subscription ${subscriptionType}`
+
+    if (isAdminTest) {
+      title = isRu ? '🧪 Тестовая Подписка' : '🧪 Test Subscription'
+      description = isRu
+        ? 'Тестовая оплата за 1 звезду'
+        : 'Test payment for 1 star'
     }
 
-    const subscriptionType = ctx.session.subscription?.toLowerCase()
-    if (!subscriptionType) {
-      console.error('❌ Subscription type not found')
-      return
-    }
-    const amount =
-      subscriptionStarAmounts[
-        subscriptionType as keyof typeof subscriptionStarAmounts
-      ]
-    if (!amount) {
-      console.error('❌ Amount not found')
-      return
-    }
+    const payload = `${subscriptionType}_${amountInStars}_${Date.now()}`
 
-    const title =
-      subscriptionTitles[subscriptionType as keyof typeof subscriptionTitles] ||
-      `${amount} ⭐️`
-    const description =
-      subscriptionDescriptions[
-        subscriptionType as keyof typeof subscriptionDescriptions
-      ] ||
-      (isRu
-        ? `💬 Получите ${amount} звезд.\nИспользуйте звезды для различных функций нашего бота и наслаждайтесь новыми возможностями!`
-        : `💬 Get ${amount} stars.\nUse stars for various functions of our bot and enjoy new opportunities!`)
+    logger.info('[handleBuySubscription] Sending invoice', {
+      telegram_id: ctx.from?.id,
+      title,
+      description,
+      payload,
+      amountInStars,
+    })
 
     await ctx.replyWithInvoice({
       title,
       description,
-      payload: `${amount}_${Date.now()}`,
-      currency: 'XTR', // Pass “XTR” for payments in Telegram Stars.
+      payload: payload,
+      currency: 'XTR',
       prices: [
         {
-          label: isRu ? 'Цена' : 'Price',
-          amount: amount,
+          label: isRu ? 'Цена в звездах' : 'Price in Stars',
+          amount: amountInStars,
         },
       ],
-      provider_token: '', // Provider token is not needed for stars
+      provider_token: '',
+    })
+
+    logger.info('[handleBuySubscription] Invoice sent successfully', {
+      telegram_id: ctx.from?.id,
     })
   } catch (error) {
-    console.error('Error in handleBuySubscription:', error)
-    throw error
+    logger.error('[handleBuySubscription] Error creating invoice', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      telegram_id: ctx.from?.id,
+    })
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка при создании счета. Пожалуйста, попробуйте позже.'
+        : '❌ An error occurred while creating the invoice. Please try again later.'
+    )
+    return ctx.scene.leave()
   }
 }

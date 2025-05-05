@@ -21,38 +21,30 @@ starPaymentScene.enter(async ctx => {
     telegram_id: ctx.from?.id,
   })
   const isRu = isRussian(ctx)
-  const subscription = ctx.session.subscription?.toLowerCase()
 
-  // Если в сессии есть конкретная подписка (не 'stars'), предлагаем купить ее за звезды
-  if (
-    subscription &&
-    subscription !== 'stars' &&
-    [
-      'neurobase',
-      'neuromeeting',
-      'neuroblogger',
-      'neurophoto',
-      'neuromentor',
-    ].includes(subscription)
-  ) {
+  // Проверяем, пришли ли мы сюда для покупки КОНКРЕТНОЙ подписки
+  if (ctx.session.selectedPayment && ctx.session.selectedPayment.subscription) {
+    const subscriptionToBuy = ctx.session.selectedPayment.subscription
     logger.info(
-      `[${ModeEnum.StarPaymentScene}] Offering subscription buy with stars: ${subscription}`,
+      `[${ModeEnum.StarPaymentScene}] Entered scene to buy subscription: ${subscriptionToBuy}`,
       {
         telegram_id: ctx.from?.id,
+        selectedPayment: ctx.session.selectedPayment,
       }
     )
-    // Используем хендлер для покупки подписки
+    // Напрямую вызываем логику покупки подписки
+    // Передаем контекст и язык, handleBuySubscription возьмет детали из сессии
     await handleBuySubscription({ ctx, isRu })
-    // Этот хендлер должен сам позаботиться о выходе из сцены или переходе дальше
+    // handleBuySubscription должен сам выйти из сцены или обработать дальнейшие шаги
   } else {
+    // Если информации о подписке нет, значит, пользователь хочет пополнить баланс
     logger.info(
-      `[${ModeEnum.StarPaymentScene}] Offering star package selection`,
+      `[${ModeEnum.StarPaymentScene}] Entered scene for star top-up. Offering package selection.`,
       {
         telegram_id: ctx.from?.id,
       }
     )
-    // Иначе, предлагаем выбор пакета звезд
-    // Используем существующий хендлер для отображения кнопок
+    // Предлагаем выбор пакета звезд
     await handleSelectStars({ ctx, isRu, starAmounts })
   }
 })
@@ -70,19 +62,3 @@ starPaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async
 
 // Action handler for star top-up buttons
 starPaymentScene.action(/top_up_(\d+)/, handleTopUp)
-
-// Обработка любых других сообщений
-starPaymentScene.on('message', async ctx => {
-  const isRu = isRussian(ctx)
-  logger.warn(`[${ModeEnum.StarPaymentScene}] Received unexpected message`, {
-    telegram_id: ctx.from?.id,
-    // @ts-ignore
-    message_text: ctx.message?.text,
-  })
-  await ctx.reply(
-    isRu
-      ? 'Пожалуйста, выберите пакет звезд или вернитесь в главное меню.'
-      : 'Please select a star package or return to the main menu.'
-  )
-  // Не выходим из сцены
-})
