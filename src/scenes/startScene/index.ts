@@ -189,7 +189,10 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       })
 
       await ctx.replyWithPhoto(url, {
-        caption: translation,
+        caption:
+          translation.length > 1024
+            ? translation.substring(0, 1021) + '...'
+            : translation,
       })
     } else {
       logger.info({
@@ -227,8 +230,57 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       ]).resize()
 
       logger.info({
-        message: `🎬 [StartScene] Отправка ссылки на туториал для ${currentBotName}`,
+        message: `📤 [StartScene] Отправка текста с туториалом и клавиатурой`,
+        telegramId,
+        function: 'startScene',
+        step: 'sending_tutorial_text_with_keyboard',
+        buttons: [
+          isRu ? levels[105].title_ru : levels[105].title_en,
+          isRu ? levels[103].title_ru : levels[103].title_en,
+        ],
+      })
+
+      await ctx.reply(tutorialText, {
+        parse_mode: 'Markdown',
+        reply_markup: replyKeyboard.reply_markup,
+      })
+    } else {
+      logger.info({
+        message: `ℹ️ [StartScene] Ссылка на туториал для ${currentBotName} не найдена`,
+        telegramId,
+        function: 'startScene',
+        step: 'tutorial_url_not_found',
+      })
+
+      replyKeyboard = Markup.keyboard([
+        Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en),
+        Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en),
+      ]).resize()
+
+      logger.info({
+        message: `📤 [StartScene] Отправка простого меню выбора действия`,
+        telegramId,
+        function: 'startScene',
+        step: 'sending_basic_menu',
+        buttons: [
+          isRu ? levels[105].title_ru : levels[105].title_en,
+          isRu ? levels[103].title_ru : levels[103].title_en,
+        ],
+      })
+
+      await ctx.reply(isRu ? 'Выберите действие:' : 'Choose an action:', {
+        reply_markup: replyKeyboard.reply_markup,
       })
     }
+    // --- КОНЕЦ: Приветствие + Видео-инструкция ---
+
+    logger.info({
+      message: `🏁 [StartScene] Завершение сцены старта`,
+      telegramId,
+      function: 'startScene',
+      step: 'scene_leave',
+    })
+
+    return ctx.scene.leave()
   }
 )
