@@ -69,26 +69,25 @@ export const getReferalsCountAndUserData = async (
       subscriptionInfo = { type: SubscriptionType.STARS, isActive: false }
     }
 
-    // Теперь ищем рефералов по UUID
-    const { data, error: countError } = await supabase
-      .from('users')
-      .select('inviter', { count: 'exact', head: true })
-      .eq('inviter', userData.user_id)
+    // Теперь ищем рефералов по UUID только если пользователь найден
+    let count = 0
+    if (userData && userData.user_id) {
+      const { data, error: countError } = await supabase
+        .from('users')
+        .select('inviter', { count: 'exact', head: true })
+        .eq('inviter', userData.user_id)
 
-    if (countError) {
-      console.error('Ошибка при получении количества рефералов:', countError)
-      // Возвращаем данные пользователя и подписку, но 0 рефералов
-      return {
-        count: 0,
-        level: userData.level || 0,
-        subscriptionType: subscriptionInfo.type || SubscriptionType.STARS,
-        userData: userData as UserType,
-        isExist: true,
+      if (countError) {
+        console.error('Ошибка при получении количества рефералов:', countError)
+        // Возвращаем данные пользователя и подписку, но 0 рефералов
+        count = 0
+      } else {
+        count = data?.length || 0
       }
     }
 
     return {
-      count: data?.length || 0,
+      count,
       level: userData.level || 0,
       subscriptionType: subscriptionInfo.type || SubscriptionType.STARS,
       userData: userData as UserType,
