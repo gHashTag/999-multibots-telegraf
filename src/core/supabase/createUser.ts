@@ -137,24 +137,97 @@ export const createUser = async (
         .eq('telegram_id', telegram_id)
         .single()
 
-      if (raceFindError || !raceUser) {
-        logger.error({
-          message: 'Ошибка при повторном поиске после конфликта 23505',
+      if (raceUser) {
+        // Найден по telegram_id при повторном поиске
+        logger.info({
+          message:
+            'Пользователь найден по telegram_id при повторном поиске после конфликта 23505',
           telegramId: telegram_id,
-          error:
-            raceFindError?.message || 'Пользователь не найден после конфликта',
+          userId: raceUser.id,
+          function: 'createUser',
+        })
+        return [false, raceUser] // Пользователь уже существовал (создан другим процессом)
+      } else if (raceFindError && raceFindError.code !== 'PGRST116') {
+        // PGRST116 - no rows returned
+        // Другая ошибка при поиске по telegram_id
+        logger.error({
+          message:
+            'Неожиданная ошибка при повторном поиске по telegram_id после конфликта 23505',
+          telegramId: telegram_id,
+          error: raceFindError.message,
           function: 'createUser',
         })
         return [false, null]
       }
-      logger.info({
+
+      // Если не найден по telegram_id (raceFindError.code === 'PGRST116' или !raceUser),
+      // пробуем найти по username, так как конфликт мог быть по нему
+      logger.warn({
         message:
-          'Пользователь найден при повторном поиске после конфликта 23505',
+          'Пользователь не найден по telegram_id после конфликта 23505, пытаемся найти по username.',
         telegramId: telegram_id,
-        userId: raceUser.id,
+        username: finalUsername,
         function: 'createUser',
       })
-      return [false, raceUser] // Пользователь уже существовал (создан другим процессом)
+
+      const { data: userByUsername, error: usernameFindError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', finalUsername)
+        .single()
+
+      if (userByUsername) {
+        // Пользователь найден по username! Это наш случай. Обновим его telegram_id.
+        logger.info({
+          message:
+            'Пользователь найден по username после конфликта 23505. Обновляем telegram_id.',
+          currentTelegramId: userByUsername.telegram_id,
+          newTelegramId: telegram_id,
+          userId: userByUsername.id,
+          function: 'createUser',
+        })
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ telegram_id: telegram_id, ...userData }) // Обновляем и другие данные на всякий случай
+          .eq('id', userByUsername.id)
+          .select('*')
+          .single()
+
+        if (updateError) {
+          logger.error({
+            message:
+              'Ошибка при обновлении telegram_id для пользователя, найденного по username после конфликта.',
+            userId: userByUsername.id,
+            error: updateError.message,
+            function: 'createUser',
+          })
+          return [false, userByUsername] // Возвращаем пользователя как есть, хоть и не смогли обновить
+        }
+        logger.info({
+          message:
+            'Telegram_id успешно обновлен для пользователя, найденного по username.',
+          userId: userByUsername.id,
+          function: 'createUser',
+        })
+        // supabase.update(...).single() возвращает обновленный объект в data
+        const { data: updatedUserAfterConflict } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userByUsername.id)
+          .single()
+        return [false, updatedUserAfterConflict || userByUsername]
+      } else {
+        // Если не найден ни по telegram_id, ни по username после конфликта - это проблема
+        logger.error({
+          message:
+            'Критическая ошибка: Пользователь не найден ни по telegram_id, ни по username после конфликта 23505.',
+          telegramId: telegram_id,
+          username: finalUsername,
+          error: usernameFindError?.message,
+          function: 'createUser',
+        })
+        return [false, null]
+      }
     } else {
       // Другая ошибка при создании
       logger.error({
