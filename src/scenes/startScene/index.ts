@@ -186,7 +186,10 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       })
 
       await ctx.replyWithPhoto(url, {
-        caption: translation,
+        caption:
+          translation.length > 1024
+            ? translation.substring(0, 1021) + '...'
+            : translation,
       })
     } else {
       logger.info({
