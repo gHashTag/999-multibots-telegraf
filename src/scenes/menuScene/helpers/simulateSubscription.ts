@@ -22,6 +22,20 @@ export function simulateSubscriptionForDev(
     SubscriptionType.STARS
   // ---------------------------------------------------------
 
+  // Временно всегда возвращаем оригинальную подписку для тестирования
+  if (isDev) {
+    // Добавляем эту проверку, чтобы было понятно, что это изменение для dev режима
+    logger.info(
+      '[DEV SIMULATION BYPASSED] Returning original subscription for testing purposes.',
+      {
+        original: originalSubscription,
+        function: 'simulateSubscriptionForDev',
+      }
+    )
+    return originalSubscription
+  }
+  // Конец временного изменения
+
   if (!isDev) {
     // В продакшен-режиме всегда возвращаем оригинальную подписку
     return originalSubscription
