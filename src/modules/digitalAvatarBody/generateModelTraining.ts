@@ -199,6 +199,14 @@ export async function generateModelTraining(
       `Created DB training record ID: ${(dbTrainingRecord as any)?.id ?? 'unknown'}`
     )
 
+    console.log(`ZIP URL for training: ${zipUrl}`)
+    if (!zipUrl || !zipUrl.startsWith('http')) {
+      console.error(
+        `Invalid ZIP URL: ${zipUrl}. It must be a valid HTTP/HTTPS URL.`
+      )
+      throw new Error(`Invalid ZIP URL provided for training: ${zipUrl}`)
+    }
+
     console.log(`Starting Replicate training for model ${destination}...`)
     currentTraining = await replicate.trainings.create(
       'ostris',
