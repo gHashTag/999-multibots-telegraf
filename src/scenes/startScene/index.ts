@@ -64,7 +64,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
           )
           actionMessage = 'ОБНОВЛЕН (найден по username)'
           const updatesForExisting: Partial<UserType> = {
-            telegram_id: telegramId, // Обновляем/восстанавливаем telegram_id!
+            telegram_id: telegramId !== 'unknown' ? BigInt(telegramId) : null, // Обновляем/восстанавливаем telegram_id!
             first_name: currentFirstName || userByUsername.first_name || '',
             last_name: currentLastName || userByUsername.last_name || '',
             language_code:
@@ -156,7 +156,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
           'id' | 'user_id' | 'created_at' | 'updated_at' | 'level'
         > & { inviter?: string | null } = {
           username: currentUsername || currentFirstName || telegramId,
-          telegram_id: telegramId,
+          telegram_id: telegramId !== 'unknown' ? BigInt(telegramId) : null,
           first_name: currentFirstName || '',
           last_name: currentLastName || '',
           is_bot: currentIsBot || false,
@@ -168,9 +168,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
           count: 0,
           aspect_ratio: '9:16',
           balance: 0,
-          bot_name: currentBotName,
           vip: false,
-          subscription: 'stars',
           is_leela_start: false,
         }
 
