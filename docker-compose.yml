@@ -82,6 +82,8 @@ services:
       - ./playbook.yml:/app/playbook.yml:ro
       - ./inventory:/app/inventory:ro
       - ./roles:/app/roles:ro
+      # Добавляем общий volume для файлов, которые должны быть доступны через Nginx
+      - files-volume:/etc/nginx/html/files
     dns:
       - 8.8.8.8
       - 8.8.4.4
@@ -104,6 +106,8 @@ services:
       # Пути к сертификатам с хоста остаются
       - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
       - /etc/pki/key.pem:/etc/pki/key.pem:ro
+      # Добавляем общий volume для файлов, которые должны быть доступны через Nginx
+      - files-volume:/etc/nginx/html/files:ro
     depends_on:
       - app
     networks:
@@ -120,3 +124,4 @@ networks:
 # Объявляем Docker Volume
 volumes:
   nginx-config-volume: 
+  files-volume:
