@@ -55,7 +55,8 @@ uploadTrainFluxModelScene.enter(async ctx => {
     // Шаг 1: Определите, какая директория на сервере обслуживает файлы для публичного доступа через URL
     // Например, это может быть /var/www/html/files или /app/public/files
     // Шаг 2: Установите путь к этой директории через переменную окружения SERVER_FILES_DIR или напрямую в коде
-    const serverFilesDir = process.env.SERVER_FILES_DIR || './public/files/'
+    const serverFilesDir =
+      process.env.SERVER_FILES_DIR || '/etc/nginx/html/files/'
     console.log('Using server files directory:', serverFilesDir)
     console.log(
       'Checking if SERVER_FILES_DIR environment variable is set:',
