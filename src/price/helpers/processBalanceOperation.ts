@@ -3,11 +3,12 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { BalanceOperationResult, MyContext } from '@/interfaces'
 import { PaymentType } from '@/interfaces/payments.interface'
 type BalanceOperationProps = {
-  ctx: MyContext
+  ctx?: MyContext
   model?: string
   telegram_id: number
   paymentAmount: number
   is_ru: boolean
+  bot_name?: string
 }
 
 export const processBalanceOperation = async ({
@@ -15,10 +16,20 @@ export const processBalanceOperation = async ({
   telegram_id,
   paymentAmount,
   is_ru,
+  bot_name,
 }: BalanceOperationProps): Promise<BalanceOperationResult> => {
+  console.log('Processing balance operation for:', {
+    telegram_id,
+    paymentAmount,
+    is_ru,
+    bot_name,
+  })
+  console.log('Context available:', !!ctx)
   try {
     // Получаем текущий баланс
+    console.log('Fetching current balance for:', telegram_id)
     const currentBalance = await getUserBalance(telegram_id.toString())
+    console.log('Current balance fetched:', currentBalance)
     // Проверяем достаточно ли средств
     if (currentBalance < paymentAmount) {
       const message = is_ru
@@ -39,14 +50,20 @@ export const processBalanceOperation = async ({
     const newBalance = Number(currentBalance) - Number(paymentAmount)
 
     // Обновляем баланс в БД, передавая все необходимые аргументы
+    console.log('Updating balance with details:', {
+      telegram_id,
+      paymentAmount,
+      bot_name: ctx?.botInfo?.username || bot_name || 'unknown_bot',
+      service_type: ctx?.session?.mode || 'unknown_mode',
+    })
     const updateSuccess = await updateUserBalance(
       telegram_id.toString(),
       paymentAmount,
       PaymentType.MONEY_OUTCOME,
       'Payment operation',
       {
-        bot_name: ctx.botInfo?.username,
-        service_type: ctx.session.mode,
+        bot_name: ctx?.botInfo?.username || bot_name || 'unknown_bot',
+        service_type: ctx?.session?.mode || 'unknown_mode',
         modePrice: paymentAmount,
         currentBalance: currentBalance,
       }
