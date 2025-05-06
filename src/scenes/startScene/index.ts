@@ -14,6 +14,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { isRussian } from '@/helpers/language'
 import { startMenu } from '@/menu'
+import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 
 export const startScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.StartScene,
@@ -113,6 +114,8 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         }
 
         // Создание пользователя
+        const photoUrlResolved = await photo_url
+        const userPhotoUrl = await getUserPhotoUrl(ctx, ctx.from?.id || 0)
         const userDataToCreate = {
           username: final_username_create,
           telegram_id: tg_id.toString(),
@@ -120,7 +123,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
           last_name: last_name || null,
           is_bot: is_bot || false,
           language_code: language_code || 'en',
-          photo_url,
+          photo_url: userPhotoUrl || photoUrlResolved,
           chat_id: ctx.chat?.id || null,
           mode: 'clean',
           model: 'gpt-4-turbo',
@@ -131,7 +134,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
           bot_name: currentBotName,
         }
         try {
-          const [wasCreated] = await createUser(userDataToCreate, ctx)
+          const [wasCreated] = await createUser(userDataToCreate)
           if (wasCreated) {
             await ctx.reply(
               isRussian(ctx)
@@ -224,57 +227,8 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       ]).resize()
 
       logger.info({
-        message: `📤 [StartScene] Отправка текста с туториалом и клавиатурой`,
-        telegramId,
-        function: 'startScene',
-        step: 'sending_tutorial_text_with_keyboard',
-        buttons: [
-          isRu ? levels[105].title_ru : levels[105].title_en,
-          isRu ? levels[103].title_ru : levels[103].title_en,
-        ],
-      })
-
-      await ctx.reply(tutorialText, {
-        parse_mode: 'Markdown',
-        reply_markup: replyKeyboard.reply_markup,
-      })
-    } else {
-      logger.info({
-        message: `ℹ️ [StartScene] Ссылка на туториал для ${currentBotName} не найдена`,
-        telegramId,
-        function: 'startScene',
-        step: 'tutorial_url_not_found',
-      })
-
-      replyKeyboard = Markup.keyboard([
-        Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en),
-        Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en),
-      ]).resize()
-
-      logger.info({
-        message: `📤 [StartScene] Отправка простого меню выбора действия`,
-        telegramId,
-        function: 'startScene',
-        step: 'sending_basic_menu',
-        buttons: [
-          isRu ? levels[105].title_ru : levels[105].title_en,
-          isRu ? levels[103].title_ru : levels[103].title_en,
-        ],
-      })
-
-      await ctx.reply(isRu ? 'Выберите действие:' : 'Choose an action:', {
-        reply_markup: replyKeyboard.reply_markup,
+        message: `🎬 [StartScene] Отправка ссылки на туториал для ${currentBotName}`,
       })
     }
-    // --- КОНЕЦ: Приветствие + Видео-инструкция ---
-
-    logger.info({
-      message: `🏁 [StartScene] Завершение сцены старта`,
-      telegramId,
-      function: 'startScene',
-      step: 'scene_leave',
-    })
-
-    return ctx.scene.leave()
   }
 )

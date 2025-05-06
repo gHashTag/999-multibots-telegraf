@@ -54,6 +54,8 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
   ctx.session.inviteCode = startNumber
 
+  const userPhotoUrl = await getPhotoUrl(ctx, ctx.from?.id || 0)
+  const botPhotoUrl = await photo_url
   const userData = {
     username: finalUsername,
     telegram_id: telegram_id.toString(),
@@ -61,7 +63,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     last_name: last_name || null,
     is_bot: is_bot || false,
     language_code: language_code || 'en',
-    photo_url,
+    photo_url: userPhotoUrl || botPhotoUrl,
     chat_id: ctx.chat?.id || null,
     mode: 'clean',
     model: 'gpt-4-turbo',
@@ -72,7 +74,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     bot_name: botName,
   }
 
-  const [wasCreated] = await createUser(userData, ctx)
+  const [wasCreated] = await createUser(userData)
   // Проверяем, был ли пользователь только что создан
   if (wasCreated) {
     // Если да, сообщаем об успешном создании
