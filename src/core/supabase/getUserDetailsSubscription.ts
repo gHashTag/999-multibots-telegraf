@@ -85,10 +85,11 @@ export const getUserDetailsSubscription = async (
     // --- ШАГ 2: Существование пользователя (оставляем как есть) ---
     let userExists = false
     try {
-      const { count, error: userError } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('telegram_id', { count: 'exact', head: true })
+        .select('id') // Выбираем id (или любое другое не-null поле)
         .eq('telegram_id', telegramIdStr)
+        .maybeSingle() // Ожидаем одну запись или null
 
       if (userError) {
         if (
@@ -102,14 +103,20 @@ export const getUserDetailsSubscription = async (
           })
         } else {
           logger.info({
-            message: `[getUserDetailsSubscription v4.0 SIMPLE Step 2 INFO] Пользователь ${telegramIdStr} НЕ найден в таблице users.`,
+            message: `[getUserDetailsSubscription v4.0 SIMPLE Step 2 INFO] Пользователь ${telegramIdStr} НЕ найден в таблице users или недоступен (RLS?).`,
             telegramId: telegramIdStr,
           })
         }
-      } else if (count !== null && count > 0) {
-        userExists = true
+      } else if (userData) {
+        // <--- ЕСЛИ userData не null (т.е. запись найдена и доступна)
+        userExists = true // <--- Устанавливаем true
       } else {
+        // userData === null (запись не найдена или скрыта RLS)
         // userExists остается false
+        logger.info({
+          message: `[getUserDetailsSubscription v4.0 SIMPLE Step 2 INFO] Пользователь ${telegramIdStr} НЕ найден в таблице users или недоступен (RLS?).`,
+          telegramId: telegramIdStr,
+        })
       }
       logger.info(
         `[getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: ${userExists}`,
