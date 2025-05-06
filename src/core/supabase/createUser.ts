@@ -12,8 +12,7 @@ import { logger } from '@/utils/logger'
  * @returns Промис, разрешающийся в кортеж [wasCreated: boolean, user: User | null].
  */
 export const createUser = async (
-  userData: CreateUserData,
-  ctx: MyContext // ctx пока не используется, но оставлен для будущей совместимости
+  userData: CreateUserData
 ): Promise<[boolean, User | null]> => {
   const {
     telegram_id,
