@@ -70,6 +70,7 @@ services:
       - DOCKER_ENVIRONMENT=true
       - DEBUG=true
       - TS_NODE_PROJECT=tsconfig.prod.json
+      - SERVER_FILES_DIR=/etc/nginx/html/files/
     volumes:
       # Возвращаем важные пути монтирования
       - /var/run/docker.sock:/var/run/docker.sock
