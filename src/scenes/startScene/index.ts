@@ -2,10 +2,9 @@ import { MyContext } from '@/interfaces'
 import { Markup, Scenes } from 'telegraf'
 import {
   getTranslation,
-  getUserDetailsSubscription,
   createUser,
   getReferalsCountAndUserData,
-  getUserData,
+  supabase,
 } from '@/core/supabase'
 import { BOT_URLS } from '@/core/bot'
 import { logger } from '@/utils/logger'
@@ -13,8 +12,8 @@ import { levels } from '@/menu/mainMenu'
 import { ModeEnum } from '@/interfaces/modes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { isRussian } from '@/helpers/language'
-import { startMenu } from '@/menu'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
+import { UserType } from '@/interfaces/supabase.interface'
 
 export const startScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.StartScene,
@@ -22,132 +21,224 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     const telegramId = ctx.from?.id?.toString() || 'unknown'
     const isRu = ctx.from?.language_code === 'ru'
     const currentBotName = ctx.botInfo.username
-    const finalUsername =
-      ctx.from?.username || ctx.from?.first_name || telegramId
-    const telegram_id = ctx.from?.id
+    const {
+      username: currentUsername,
+      first_name: currentFirstName,
+      last_name: currentLastName,
+      language_code: currentLanguageCode,
+      id: tg_id_num,
+      is_bot: currentIsBot,
+    } = ctx.from!
+    const finalUsernameForDisplay =
+      currentUsername || currentFirstName || telegramId
     const subscribeChannelId = process.env.SUBSCRIBE_CHANNEL_ID
 
+    let userToProceed: UserType | null = null
+    let actionMessage = 'ОБРАБОТАН' // Для уведомления админу
+
+    logger.info(
+      `[StartScene v2] Начало обработки для telegram_id: ${telegramId}. Username: ${currentUsername}`
+    )
+
+    // --- НАПОМИНАНИЕ ГУРУ: Убедитесь, что выполнена команда: ALTER TABLE public.users ALTER COLUMN telegram_id TYPE TEXT; ---
+
     try {
-      const userDetails = await getUserDetailsSubscription(telegramId)
+      // === ШАГ 1: Поиск по username (если есть) ===
+      if (currentUsername) {
+        const { data: userByUsername, error: findByUsernameError } =
+          await supabase
+            .from('users')
+            .select<string, UserType>('*')
+            .eq('username', currentUsername)
+            .maybeSingle()
 
-      if (!userDetails.isExist) {
-        // --- Новый пользователь ---
-        const {
-          username,
-          id: tg_id,
-          first_name,
-          last_name,
-          is_bot,
-          language_code,
-        } = ctx.from!
-        const final_username_create = username || first_name || tg_id.toString()
-        const photo_url = getPhotoUrl(ctx, 1)
-
-        let refCount = 0
-        let referrerData: { user_id?: string; username?: string } = {}
-        const invite_code = ctx.session.inviteCode
-
-        try {
-          if (invite_code) {
-            // С рефералом
-            const { count, userData: refUserData } =
-              await getReferalsCountAndUserData(invite_code.toString())
-            refCount = count
-            referrerData = refUserData || {}
-            ctx.session.inviter = referrerData.user_id
-            // Уведомление рефереру
-            try {
-              await ctx.telegram.sendMessage(
-                invite_code,
-                isRussian(ctx)
-                  ? `🔗 Новый пользователь @${final_username_create} зарегистрировался по вашей ссылке.\n🆔 Уровень: ${refCount}`
-                  : `🔗 New user @${final_username_create} registered via your link.\n🆔 Level: ${refCount}`
-              )
-            } catch (err) {
-              /* лог ошибки */
-            }
-            // Уведомление админу (с рефом)
-            if (subscribeChannelId) {
-              try {
-                const targetChatId =
-                  typeof subscribeChannelId === 'string' &&
-                  !subscribeChannelId.startsWith('-')
-                    ? `@${subscribeChannelId}`
-                    : subscribeChannelId
-                await ctx.telegram.sendMessage(
-                  targetChatId,
-                  `[${currentBotName}] 🔗 Новый пользователь @${final_username_create} (ID: ${tg_id}) по реф. от @${referrerData.username}`
-                )
-              } catch (pulseErr) {
-                /* лог ошибки */
-              }
-            } else {
-              /* лог warn */
-            }
-          } else {
-            // Без реферала
-            const { count } = await getReferalsCountAndUserData(
-              tg_id.toString()
-            )
-            refCount = count
-            // Уведомление админу (без рефа)
-            if (subscribeChannelId) {
-              try {
-                const targetChatId =
-                  typeof subscribeChannelId === 'string' &&
-                  !subscribeChannelId.startsWith('-')
-                    ? `@${subscribeChannelId}`
-                    : subscribeChannelId
-                await ctx.telegram.sendMessage(
-                  targetChatId,
-                  `[${currentBotName}] 🔗 Новый пользователь @${final_username_create} (ID: ${tg_id})`
-                )
-              } catch (pulseErr) {
-                /* лог ошибки */
-              }
-            } else {
-              /* лог warn */
-            }
+        if (findByUsernameError) {
+          logger.error(
+            `[StartScene v2] Ошибка при поиске по username ${currentUsername}`,
+            { error: findByUsernameError }
+          )
+          // Не блокируем, пробуем найти по telegram_id
+        } else if (userByUsername) {
+          logger.info(
+            `[StartScene v2] Пользователь найден по username: ${currentUsername}. Обновление данных и telegram_id.`
+          )
+          actionMessage = 'ОБНОВЛЕН (найден по username)'
+          const updatesForExisting: Partial<UserType> = {
+            telegram_id: telegramId, // Обновляем/восстанавливаем telegram_id!
+            first_name: currentFirstName || userByUsername.first_name || '',
+            last_name: currentLastName || userByUsername.last_name || '',
+            language_code:
+              currentLanguageCode || userByUsername.language_code || 'en',
+            photo_url:
+              (await getUserPhotoUrl(ctx, tg_id_num)) ||
+              userByUsername.photo_url,
           }
-        } catch (error) {
-          /* лог ошибки */
-        }
+          const { data: updatedUser, error: updateError } = await supabase
+            .from('users')
+            .update(updatesForExisting)
+            .eq('user_id', userByUsername.user_id) // Обновляем по user_id
+            .select()
+            .single()
 
-        // Создание пользователя
-        const photoUrlResolved = await photo_url
-        const userPhotoUrl = await getUserPhotoUrl(ctx, ctx.from?.id || 0)
-        const userDataToCreate = {
-          username: final_username_create,
-          telegram_id: tg_id.toString(),
-          first_name: first_name || null,
-          last_name: last_name || null,
-          is_bot: is_bot || false,
-          language_code: language_code || 'en',
-          photo_url: userPhotoUrl || photoUrlResolved,
-          chat_id: ctx.chat?.id || null,
+          if (updateError) {
+            logger.error(
+              `[StartScene v2] Ошибка обновления пользователя ${userByUsername.user_id} (найден по username)`,
+              { error: updateError }
+            )
+            // Попробуем найти по telegram_id ниже
+          } else {
+            userToProceed = updatedUser
+          }
+        }
+      }
+
+      // === ШАГ 2: Поиск по telegram_id (если не найден по username или username нет) ===
+      if (!userToProceed) {
+        const { data: userByTelegramId, error: findByTelegramIdError } =
+          await supabase
+            .from('users')
+            .select<string, UserType>('*')
+            .eq('telegram_id', telegramId)
+            .maybeSingle()
+
+        if (
+          findByTelegramIdError &&
+          findByTelegramIdError.code !== 'PGRST116'
+        ) {
+          logger.error(
+            `[StartScene v2] Ошибка при поиске по telegram_id ${telegramId}`,
+            { error: findByTelegramIdError }
+          )
+          // Не блокируем, пробуем создать
+        } else if (userByTelegramId) {
+          logger.info(
+            `[StartScene v2] Пользователь найден по telegram_id: ${telegramId}. Обновление данных.`
+          )
+          actionMessage = 'ОБНОВЛЕН (найден по telegram_id)'
+          const updatesForExisting: Partial<UserType> = {
+            username: currentUsername || userByTelegramId.username, // Обновляем username, если появился
+            first_name: currentFirstName || userByTelegramId.first_name || '',
+            last_name: currentLastName || userByTelegramId.last_name || '',
+            language_code:
+              currentLanguageCode || userByTelegramId.language_code || 'en',
+            photo_url:
+              (await getUserPhotoUrl(ctx, tg_id_num)) ||
+              userByTelegramId.photo_url,
+          }
+          const { data: updatedUser, error: updateError } = await supabase
+            .from('users')
+            .update(updatesForExisting)
+            .eq('telegram_id', telegramId) // Обновляем по telegram_id
+            .select()
+            .single()
+
+          if (updateError) {
+            logger.error(
+              `[StartScene v2] Ошибка обновления пользователя ${telegramId} (найден по telegram_id)`,
+              { error: updateError }
+            )
+            // Пробуем создать ниже, на всякий случай
+          } else {
+            userToProceed = updatedUser
+          }
+        }
+      }
+
+      // === ШАГ 3: Создание нового пользователя (если не найден ни по username, ни по telegram_id) ===
+      if (!userToProceed) {
+        logger.info(
+          `[StartScene v2] Пользователь НЕ найден ни по username, ни по telegram_id (${telegramId}). Создание новой записи.`
+        )
+        actionMessage = 'СОЗДАН'
+        const userPhotoUrl = await getUserPhotoUrl(ctx, tg_id_num)
+        const userDataToCreate: Omit<
+          UserType,
+          'id' | 'user_id' | 'created_at' | 'updated_at' | 'level'
+        > & { inviter?: string | null } = {
+          username: currentUsername || currentFirstName || telegramId,
+          telegram_id: telegramId,
+          first_name: currentFirstName || '',
+          last_name: currentLastName || '',
+          is_bot: currentIsBot || false,
+          language_code: currentLanguageCode || 'en',
+          photo_url: userPhotoUrl,
+          chat_id: BigInt(ctx.chat?.id || 0),
           mode: 'clean',
           model: 'gpt-4-turbo',
           count: 0,
           aspect_ratio: '9:16',
           balance: 0,
-          inviter: ctx.session.inviter || null,
           bot_name: currentBotName,
+          vip: false,
+          subscription: 'stars',
+          is_leela_start: false,
         }
-        try {
-          const [wasCreated] = await createUser(userDataToCreate)
-          if (wasCreated) {
-            await ctx.reply(
-              isRussian(ctx)
-                ? '✅ Аватар успешно создан! Добро пожаловать!'
-                : '✅ Avatar created successfully! Welcome!'
+
+        // Логика обработки реферального кода...
+        const invite_code_session = ctx.session.inviteCode
+        if (invite_code_session) {
+          try {
+            const { userData: refUserData } = await getReferalsCountAndUserData(
+              invite_code_session.toString()
+            )
+            if (refUserData && refUserData.user_id) {
+              userDataToCreate.inviter = refUserData.user_id
+              logger.info(
+                `[StartScene v2] Пользователь ${telegramId} пришел по приглашению от user_id: ${refUserData.user_id}`
+              )
+              await ctx.telegram
+                .sendMessage(
+                  invite_code_session,
+                  isRussian(ctx)
+                    ? `🔗 Новый пользователь @${userDataToCreate.username} зарегистрировался по вашей ссылке.`
+                    : `🔗 New user @${userDataToCreate.username} registered via your link.`
+                )
+                .catch(err =>
+                  logger.warn(
+                    `[StartScene v2] Не удалось уведомить реферера ${invite_code_session}`,
+                    { error: err }
+                  )
+                )
+            } else {
+              logger.warn(
+                `[StartScene v2] Реферер с кодом ${invite_code_session} не найден или не имеет user_id.`
+              )
+            }
+          } catch (refError) {
+            logger.error(
+              `[StartScene v2] Ошибка обработки реферального кода ${invite_code_session}`,
+              { error: refError }
             )
           }
-        } catch (error) {
-          /* лог ошибки + reply + return */
         }
-      } else {
-        // --- Существующий пользователь ---
-        // Уведомление админу о рестарте
+
+        const { data: createdUser, error: createError } = await supabase
+          .from('users')
+          .insert(userDataToCreate as UserType)
+          .select()
+          .single()
+
+        if (createError) {
+          // Если даже создание не удалось (может быть очень редкий конфликт или другая проблема)
+          logger.error(
+            `[StartScene v2] Ошибка при финальной попытке создания пользователя ${telegramId}`,
+            { error: createError }
+          )
+          // Не устанавливаем userToProceed, чтобы ниже вывести сообщение об ошибке
+        } else {
+          userToProceed = createdUser
+        }
+      }
+
+      // === ШАГ 4: Обработка результата и продолжение ===
+      if (userToProceed) {
+        logger.info(
+          `[StartScene v2] Пользователь успешно обработан: telegram_id: ${telegramId}, user_id (UUID): ${userToProceed.user_id}, Действие: ${actionMessage}`
+        )
+        // Не выводим сообщение об успехе здесь, чтобы не дублировать с приветствием ниже
+        // await ctx.reply(...)
+
+        // Уведомление админу о новом/обновленном пользователе
         if (subscribeChannelId) {
           try {
             const targetChatId =
@@ -155,29 +246,57 @@ export const startScene = new Scenes.WizardScene<MyContext>(
               !subscribeChannelId.startsWith('-')
                 ? `@${subscribeChannelId}`
                 : subscribeChannelId
+            // @ts-ignore userToProceed точно не null здесь
+            const finalUsernameNotify =
+              userToProceed.username || userToProceed.first_name || telegramId
+            // @ts-ignore userToProceed точно не null здесь
+            const refMessage = userToProceed.inviter
+              ? `по реф. от user_id: ${userToProceed.inviter}`
+              : ''
             await ctx.telegram.sendMessage(
               targetChatId,
-              `[${currentBotName}] 🔄 Пользователь @${finalUsername} (ID: ${telegram_id}) перезапустил бота (/start).`
+              `[${currentBotName}] ✨ Пользователь @${finalUsernameNotify} (ID: ${telegramId}) ${actionMessage} ${refMessage}`
             )
-          } catch (notifyError) {
-            /* лог ошибки */
+          } catch (pulseErr) {
+            logger.warn(
+              `[StartScene v2] Ошибка уведомления админа о пользователе ${telegramId}`,
+              { error: pulseErr }
+            )
           }
-        } else {
-          /* лог warn */
         }
+      } else {
+        // Если userToProceed все еще null, значит была неразрешимая ошибка
+        logger.error(
+          `[StartScene v2] Не удалось обработать пользователя ${telegramId} после всех попыток.`
+        )
+        await ctx.reply(
+          isRu
+            ? 'Произошла внутренняя ошибка при обработке вашего профиля. Попробуйте /start позже.'
+            : 'An internal error occurred while processing your profile. Please try /start later.'
+        )
+        return ctx.scene.leave()
       }
-    } catch (error) {
-      /* лог ошибки + reply + return */
+    } catch (globalError) {
+      logger.error(
+        `[StartScene v2] Глобальная необработанная ошибка в сцене старта для telegram_id: ${telegramId}`,
+        { error: globalError }
+      )
+      await ctx.reply(
+        isRu
+          ? 'Произошла критическая ошибка. Попробуйте /start еще раз.'
+          : 'A critical error occurred. Please try /start again.'
+      )
+      return ctx.scene.leave()
     }
-    // --- КОНЕЦ: Логика проверки и создания пользователя ---
+    // --- КОНЕЦ: Новая логика проверки/обновления/создания пользователя ---
 
-    // --- НАЧАЛО: Приветствие + Видео-инструкция ---
+    // --- НАЧАЛО: Приветствие + Видео-инструкция (оставляем оригинальную логику) ---
     const { translation, url } = await getTranslation({
       key: 'start',
       ctx,
       bot_name: currentBotName,
     })
-    // Отправка фото или текста
+
     if (url && url.trim() !== '') {
       logger.info({
         message:
@@ -207,7 +326,6 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       })
     }
 
-    // Отправка видео-инструкции (ВОССТАНОВЛЕНА)
     const tutorialUrl = BOT_URLS[currentBotName]
     let replyKeyboard
 
@@ -272,7 +390,6 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         reply_markup: replyKeyboard.reply_markup,
       })
     }
-    // --- КОНЕЦ: Приветствие + Видео-инструкция ---
 
     logger.info({
       message: `🏁 [StartScene] Завершение сцены старта`,
