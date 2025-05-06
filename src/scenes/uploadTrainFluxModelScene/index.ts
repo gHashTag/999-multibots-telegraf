@@ -6,6 +6,9 @@ import { generateModelTraining } from '@/modules/digitalAvatarBody/generateModel
 import { isRussian } from '@/helpers/language'
 import { deleteFile } from '@/helpers'
 import { sendGenericErrorMessage } from '@/menu'
+import { supabase } from '@/core/supabase'
+const fs = require('fs')
+const path = require('path')
 
 export const uploadTrainFluxModelScene = new Scenes.BaseScene<MyContext>(
   'uploadTrainFluxModelScene'
@@ -19,9 +22,82 @@ uploadTrainFluxModelScene.enter(async ctx => {
     const zipPath = await createImagesZip(ctx.session.images)
     console.log('ZIP created at:', zipPath)
 
+    // Формируем URL для ZIP-файла, предполагая, что сервер обслуживает файлы из директории
+    // Используем предоставленный URL сервера
+    const baseServerUrl =
+      'https://999-multibots-telegraf-u14194.vm.elestio.app/files/'
+    const zipFileName = zipPath.split('/').pop() || `training_${Date.now()}.zip`
+    const zipUrl = `${baseServerUrl}${zipFileName}`
+    console.log('Generated ZIP URL for training:', zipUrl)
+
+    // Копируем ZIP-файл в директорию на сервере, которая доступна через указанный URL
+    // Предполагаем, что сервер обслуживает файлы из директории, соответствующей /files/
+    // Шаг 1: Определите, какая директория на сервере обслуживает файлы для публичного доступа через URL
+    // Например, это может быть /var/www/html/files или /app/public/files
+    // Шаг 2: Установите путь к этой директории через переменную окружения SERVER_FILES_DIR или напрямую в коде
+    const serverFilesDir =
+      process.env.SERVER_FILES_DIR || '/path/to/server/files/'
+    console.log('Using server files directory:', serverFilesDir)
+    console.log(
+      'Checking if SERVER_FILES_DIR environment variable is set:',
+      !!process.env.SERVER_FILES_DIR
+    )
+    const serverZipPath = path.join(serverFilesDir, zipFileName)
+    console.log('Target server path for ZIP file:', serverZipPath)
+    if (!fs.existsSync(serverFilesDir)) {
+      console.log('Creating server files directory:', serverFilesDir)
+      try {
+        fs.mkdirSync(serverFilesDir, { recursive: true })
+        console.log(
+          'Successfully created server files directory:',
+          serverFilesDir
+        )
+      } catch (error) {
+        console.error('Error creating server files directory:', error)
+        throw new Error(
+          `Failed to create server files directory: ${error.message}`
+        )
+      }
+    } else {
+      console.log('Server files directory already exists:', serverFilesDir)
+    }
+    try {
+      fs.copyFileSync(zipPath, serverZipPath)
+      console.log(
+        'ZIP file successfully copied to server directory:',
+        serverZipPath
+      )
+    } catch (error) {
+      console.error('Error copying ZIP file to server directory:', error)
+      throw new Error(
+        `Failed to copy ZIP file to server directory: ${error.message}`
+      )
+    }
+
     await ensureSupabaseAuth()
 
     await ctx.reply(isRu ? '⏳ Загружаю архив...' : '⏳ Uploading archive...')
+
+    // Загружаем ZIP-файл в Supabase Storage - закомментировано, так как используем серверный URL
+    /*
+    const fileName = `training_zips/${Date.now()}_${ctx.from.id}.zip`
+    const fileBuffer = await Bun.file(zipPath).arrayBuffer()
+    const { data, error } = await supabase.storage
+      .from('training-data')
+      .upload(fileName, fileBuffer, { contentType: 'application/zip' })
+    if (error) {
+      console.error('Error uploading ZIP to Supabase Storage:', error)
+      throw new Error(`Failed to upload ZIP file to storage: ${error.message}`)
+    }
+    console.log('ZIP uploaded to Supabase Storage:', data)
+
+    // Получаем публичный URL для загруженного файла
+    const { data: publicUrlData } = supabase.storage
+      .from('training-data')
+      .getPublicUrl(fileName)
+    const zipUrlSupabase = publicUrlData.publicUrl
+    console.log('Public ZIP URL obtained:', zipUrlSupabase)
+    */
 
     const triggerWord = `${ctx.session.username?.toLocaleUpperCase()}`
     if (!triggerWord) {
@@ -38,7 +114,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
     )
 
     await generateModelTraining(
-      zipPath,
+      zipUrl,
       triggerWord,
       ctx.session.modelName || 'defaultModelName',
       ctx.session.steps || 1000,
