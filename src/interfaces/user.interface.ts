@@ -13,6 +13,7 @@ export interface User {
   bot_name?: string
   created_at?: string
   updated_at?: string
+  gender?: string
   level?: number
   voiceId?: string
   finetuneId?: string

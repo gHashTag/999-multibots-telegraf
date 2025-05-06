@@ -260,7 +260,7 @@ export async function generateNeuroPhotoDirect(
       user_id: user.id,
     })
 
-    const aspect_ratio = await getAspectRatio(user.telegram_id)
+    const aspect_ratio = await getAspectRatio(Number(user.telegram_id))
 
     logger.info({
       message: '📐 [DIRECT] Соотношение сторон получено',

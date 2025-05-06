@@ -12,7 +12,10 @@ export interface ModelTraining {
 }
 
 export const createModelTraining = async (training: ModelTraining) => {
-  const { error } = await supabase.from('model_trainings').insert(training)
+  const { data, error } = await supabase
+    .from('model_trainings')
+    .insert(training)
   if (error)
     throw new Error(`Ошибка при создании записи о тренировке: ${error.message}`)
+  return data
 }
