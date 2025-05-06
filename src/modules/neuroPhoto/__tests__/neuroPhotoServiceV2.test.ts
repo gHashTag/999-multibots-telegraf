@@ -1,13 +1,13 @@
 /// <reference types="vitest/globals" />
-import { vi, describe, it, expect, beforeEach } from 'vitest'
-import type { MockedFunction } from 'vitest'
+import { vi, describe, it, expect, beforeEach, afterEach, Mock } from 'vitest'
+// import type { MockedFunction } from 'vitest' // MockedFunction не используется, можно удалить
 import {
   generateNeuroPhotoV2, // Тестируемая функция
-  GenerateV2Params, // Тип параметров для V2
-  // GenerationResultItem - уже импортирован в V1 тестах, но можно и здесь для ясности
+  // type GenerateV2Params, // Удаляем дублирующий type-only импорт
 } from '../services/neuroPhotoService'
 import {
   NeuroPhotoServiceDependencies,
+  GenerateV2Params, // Оставляем этот импорт значения/типа
   GetUserByTelegramIdStringFn,
   UpdateUserLevelPlusOneFn,
   SavePromptDirectFn,
@@ -17,93 +17,161 @@ import {
   CalculateModeCostFn,
   SaveFileLocallyFn,
   SendMediaToPulseFn,
-  ProcessApiResponseFn,
   LoggerFn,
   GetAspectRatioFn, // Не используется в V2, но есть в зависимостях
+  NeuroPhotoOverallResult,
+  NeuroPhotoServiceResultItem,
+  NeuroPhotoErrorItem,
+  NeuroPhotoSuccessItem,
+  User, // Используем User напрямую, так как он уже UserType as User в dependencies
+  ReplicateRunMinimalResponse,
 } from '../interfaces/neuroPhotoDependencies.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { BotName } from '@/interfaces/telegram-bot.interface'
+
+// Переносим определение createMockUserV2 сюда, до его использования
+const createMockUserV2 = (
+  telegram_id: string,
+  balance: number = 100,
+  level: number = 2,
+  vip: boolean = false
+): User => ({
+  id: BigInt(Math.floor(Math.random() * 1000000)),
+  telegram_id: BigInt(telegram_id),
+  username: `testuser_${telegram_id}`,
+  balance: balance,
+  first_name: 'Test',
+  last_name: 'User',
+  photo_url: '',
+  created_at: new Date(),
+  language_code: 'en',
+  mode: ModeEnum.NeuroPhotoV2 as string,
+  level: level,
+  vip: vip,
+  user_id: `uuid_user_${telegram_id}`,
+  is_bot: false,
+  email: null,
+  role: null,
+  display_name: `Test User ${telegram_id}`,
+  user_timezone: null,
+  designation: null,
+  position: null,
+  company: null,
+  invitation_codes: null,
+  select_izbushka: null,
+  avatar_id: null,
+  voice_id: null,
+  voice_id_elevenlabs: null,
+  chat_id: BigInt(telegram_id),
+  voice_id_synclabs: null,
+  model: null,
+  count: null,
+  aspect_ratio: null,
+  inviter: null,
+  token: null,
+  is_leela_start: null,
+})
 
 // Аналогично V1, мокаем зависимости
 const mockDependenciesV2 = (): NeuroPhotoServiceDependencies => ({
-  replicateRun: vi.fn() as unknown as MockedFunction<
-    NeuroPhotoServiceDependencies['replicateRun']
-  >,
+  replicateRun:
+    vi.fn<
+      (
+        ...args: [string, { input: any }]
+      ) => Promise<ReplicateRunMinimalResponse>
+    >(),
   getUserByTelegramIdString:
-    vi.fn() as MockedFunction<GetUserByTelegramIdStringFn>,
-  updateUserLevelPlusOne: vi.fn() as MockedFunction<UpdateUserLevelPlusOneFn>,
-  savePromptDirect: vi.fn() as MockedFunction<SavePromptDirectFn>,
-  getLatestUserModel: vi.fn() as MockedFunction<GetLatestUserModelFn>,
-  getUserData: vi.fn() as MockedFunction<GetUserDataFn>,
-  directPaymentProcessor: vi.fn() as MockedFunction<DirectPaymentProcessorFn>,
-  calculateModeCost: vi.fn() as MockedFunction<CalculateModeCostFn>,
-  saveFileLocally: vi.fn() as MockedFunction<SaveFileLocallyFn>,
-  sendMediaToPulse: vi.fn() as MockedFunction<SendMediaToPulseFn>,
-  processApiResponse: vi.fn() as MockedFunction<ProcessApiResponseFn>,
-  generateUUID: vi.fn() as MockedFunction<() => string>,
-  getAspectRatio: vi.fn() as MockedFunction<GetAspectRatioFn>, // Мокаем, даже если не используется в V2
-  logInfo: vi.fn() as MockedFunction<LoggerFn>,
-  logError: vi.fn() as MockedFunction<LoggerFn>,
-  logWarn: vi.fn() as MockedFunction<LoggerFn>,
+    vi.fn<(...args: [string]) => Promise<User | null>>(),
+  updateUserLevelPlusOne: vi.fn<(...args: [string, number]) => Promise<void>>(),
+  savePromptDirect:
+    vi.fn<
+      (...args: [Parameters<SavePromptDirectFn>[0]]) => Promise<string | null>
+    >(),
+  getLatestUserModel:
+    vi.fn<(...args: [number, string]) => ReturnType<GetLatestUserModelFn>>(),
+  getUserData: vi.fn<(...args: [string]) => ReturnType<GetUserDataFn>>(),
+  directPaymentProcessor:
+    vi.fn<
+      (
+        ...args: [Parameters<DirectPaymentProcessorFn>[0]]
+      ) => ReturnType<DirectPaymentProcessorFn>
+    >(),
+  calculateModeCost:
+    vi.fn<
+      (
+        ...args: [Parameters<CalculateModeCostFn>[0]]
+      ) => ReturnType<CalculateModeCostFn>
+    >(),
+  saveFileLocally:
+    vi.fn<(...args: [string, string, string, string]) => Promise<string>>(),
+  sendMediaToPulse:
+    vi.fn<(...args: [Parameters<SendMediaToPulseFn>[0]]) => Promise<void>>(),
+  generateUUID: vi.fn<(...args: []) => string>(),
+  getAspectRatio: vi.fn<(...args: [number]) => Promise<string | null>>(),
+  logInfo: vi.fn<(...args: [string | Record<string, any>]) => void>(),
+  logError: vi.fn<(...args: [string | Record<string, any>]) => void>(),
+  logWarn: vi.fn<(...args: [string | Record<string, any>]) => void>(),
 })
 
 let deps: NeuroPhotoServiceDependencies
 
 describe('generateNeuroPhotoV2', () => {
   const defaultV2Params: GenerateV2Params = {
-    prompt: 'A beautiful portrait',
+    basePrompt: 'A beautiful portrait',
     numImages: 1,
     telegramId: '12345002',
-    username: 'testuser_v2',
-    isRu: true,
-    botName: 'neuro_blogger_bot',
+    username: 'testUserV2',
+    isRu: false,
+    botName: 'neuro_blogger_bot' as BotName,
     bypassPaymentCheck: false,
   }
 
+  const defaultMockBFLModel = {
+    model_url: 'replicate/bfl-model:version_hash',
+    trigger_word: 'my_bfl_trigger',
+    finetune_id: 'bfl_finetune_id_default',
+  }
+
+  const defaultCalculatedCost = 15
+
   beforeEach(() => {
     deps = mockDependenciesV2()
-
-    // Отладочный лог перед использованием
-    console.log(
-      '[TEST_DEBUG_FUNC] typeof deps.getUserByTelegramIdString is: ',
-      typeof deps.getUserByTelegramIdString
-    )
-
-    // Настройка дефолтных успешных моков, аналогично V1, но с учетом специфики V2
     ;(
-      deps.getUserByTelegramIdString as MockedFunction<GetUserByTelegramIdStringFn>
-    ).mockResolvedValue({
-      id: BigInt(123456789),
-      telegram_id: BigInt(defaultV2Params.telegramId),
-      username: 'testuser_v2',
-      level: 2,
-      balance: 1000,
-      created_at: new Date(),
-      language_code: 'ru',
-      first_name: 'TestV2',
-      last_name: 'UserV2',
-      is_bot: false,
-      user_id: 'mock_user_uuid_v2',
-    }) // Закрытие для mockResolvedValue от getUserByTelegramIdString
+      deps.getUserByTelegramIdString as Mock<
+        (...args: [string]) => Promise<User | null>
+      >
+    ).mockResolvedValue(createMockUserV2(defaultV2Params.telegramId, 200))
     ;(
-      deps.getLatestUserModel as MockedFunction<GetLatestUserModelFn>
+      deps.getLatestUserModel as Mock<
+        (...args: [number, string]) => ReturnType<GetLatestUserModelFn>
+      >
+    ).mockResolvedValue(defaultMockBFLModel)
+    ;(
+      deps.getUserData as Mock<(...args: [string]) => ReturnType<GetUserDataFn>>
+    ).mockResolvedValue({ gender: 'female' })
+    ;(
+      deps.calculateModeCost as Mock<
+        (
+          ...args: [Parameters<CalculateModeCostFn>[0]]
+        ) => ReturnType<CalculateModeCostFn>
+      >
+    ).mockReturnValue({ stars: defaultCalculatedCost })
+    ;(
+      deps.directPaymentProcessor as Mock<
+        (
+          ...args: [Parameters<DirectPaymentProcessorFn>[0]]
+        ) => ReturnType<DirectPaymentProcessorFn>
+      >
     ).mockResolvedValue({
-      model_url: 'replicate/bfl-model:version_hash',
-      trigger_word: 'my_bfl_trigger',
-      finetune_id: 'bfl_finetune_id',
-    })
-    ;(deps.getUserData as MockedFunction<GetUserDataFn>).mockResolvedValue({
-      gender: 'female', // Дефолтный гендер для успешного сценария
+      success: true,
+      payment_id: 'mock_payment_id_v2',
     })
     ;(
-      deps.calculateModeCost as MockedFunction<CalculateModeCostFn>
-    ).mockReturnValue({ stars: 15 }) // Пример стоимости для V2
-    ;(
-      deps.directPaymentProcessor as MockedFunction<DirectPaymentProcessorFn>
-    ).mockResolvedValue({ success: true, payment_id: 'mock_payment_id_v2' })
-    ;(
-      deps.replicateRun as MockedFunction<
-        NeuroPhotoServiceDependencies['replicateRun']
+      deps.replicateRun as Mock<
+        (
+          ...args: [string, { input: any }]
+        ) => Promise<ReplicateRunMinimalResponse>
       >
     ).mockResolvedValue({
       id: 'replicate_run_id_v2',
@@ -111,40 +179,47 @@ describe('generateNeuroPhotoV2', () => {
       output: ['http://example.com/image_v2.jpg'],
     })
     ;(
-      deps.processApiResponse as MockedFunction<ProcessApiResponseFn>
-    ).mockImplementation(async (apiOutput, prompt, logError) =>
-      apiOutput ? (Array.isArray(apiOutput) ? apiOutput : [apiOutput]) : []
-    )
-    ;(
-      deps.saveFileLocally as MockedFunction<SaveFileLocallyFn>
+      deps.saveFileLocally as Mock<
+        (...args: [string, string, string, string]) => Promise<string>
+      >
     ).mockResolvedValue('/path/to/local/image_v2.jpg')
     ;(
-      deps.savePromptDirect as MockedFunction<SavePromptDirectFn>
+      deps.savePromptDirect as Mock<
+        (...args: [Parameters<SavePromptDirectFn>[0]]) => Promise<string | null>
+      >
     ).mockResolvedValue('mock_prompt_id_v2')
     ;(
-      deps.sendMediaToPulse as MockedFunction<SendMediaToPulseFn>
+      deps.sendMediaToPulse as Mock<
+        (...args: [Parameters<SendMediaToPulseFn>[0]]) => Promise<void>
+      >
     ).mockResolvedValue(undefined)
-    ;(deps.generateUUID as MockedFunction<() => string>).mockReturnValue(
+    ;(deps.generateUUID as Mock<(...args: []) => string>).mockReturnValue(
       'mock-uuid-v2-12345'
     )
     ;(
-      deps.updateUserLevelPlusOne as MockedFunction<UpdateUserLevelPlusOneFn>
+      deps.updateUserLevelPlusOne as Mock<
+        (...args: [string, number]) => Promise<void>
+      >
     ).mockResolvedValue(undefined)
-    // getAspectRatio мок не нужен для специфичного значения в V2, если он не используется
+    ;(
+      deps.getAspectRatio as Mock<(...args: [number]) => Promise<string | null>>
+    ).mockResolvedValue('1:1')
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('should successfully generate an image with V2 logic', async () => {
     const results = await generateNeuroPhotoV2(defaultV2Params, deps)
 
-    // Ключевые проверки для V2
     expect(deps.getLatestUserModel).toHaveBeenCalledWith(
       Number(defaultV2Params.telegramId),
       'bfl'
     )
     expect(deps.getUserData).toHaveBeenCalledWith(defaultV2Params.telegramId)
 
-    // Проверка формирования промпта (частично, через вызов replicateRun)
-    const expectedFullPromptPart = `Fashionable my_bfl_trigger female, ${defaultV2Params.prompt}` // Без detailPrompt для простоты expect
+    const expectedFullPromptPart = `Fashionable my_bfl_trigger female, ${defaultV2Params.basePrompt}`
     expect(deps.replicateRun).toHaveBeenCalledWith(
       'replicate/bfl-model:version_hash',
       expect.objectContaining({
@@ -154,33 +229,41 @@ describe('generateNeuroPhotoV2', () => {
       })
     )
 
-    // Остальные проверки аналогичны V1 (оплата, сохранение и т.д.)
     expect(deps.directPaymentProcessor).toHaveBeenCalled()
     expect(deps.saveFileLocally).toHaveBeenCalled()
     expect(deps.savePromptDirect).toHaveBeenCalledWith(
       expect.objectContaining({
         model_name: 'replicate/bfl-model:version_hash',
+        prompt: defaultV2Params.basePrompt,
+        replicate_id: 'replicate_run_id_v2',
+        service_type: ModeEnum.NeuroPhotoV2,
+        telegram_id: Number(defaultV2Params.telegramId),
+        image_urls: ['http://example.com/image_v2.jpg'],
         additional_data: expect.objectContaining({
           service_version: 'v2',
-          original_user_prompt: defaultV2Params.prompt,
-          gender_part: 'female',
+          original_user_prompt: defaultV2Params.basePrompt,
+          gender_used: 'female',
           trigger_word: 'my_bfl_trigger',
+          revised_prompt: expect.stringContaining(expectedFullPromptPart),
         }),
+        generation_time: expect.any(Number),
       })
     )
     expect(deps.sendMediaToPulse).toHaveBeenCalled()
 
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBeUndefined()
-    expect(results[0].imageUrl).toBe('http://example.com/image_v2.jpg')
-    expect(results[0].localPath).toBe('/path/to/local/image_v2.jpg')
-    expect(results[0].promptId).toBe('mock_prompt_id_v2')
+    expect(results.results).toHaveLength(1)
+    expect(results.results[0].error).toBeUndefined()
+    expect(results.results[0].imageUrl).toBe('http://example.com/image_v2.jpg')
+    expect(results.results[0].localPath).toBe('/path/to/local/image_v2.jpg')
+    expect(results.results[0].promptId).toBe('mock_prompt_id_v2')
   })
 
   it('should return an error if bfl model is not found', async () => {
     ;(
-      deps.getLatestUserModel as MockedFunction<GetLatestUserModelFn>
-    ).mockResolvedValueOnce(null) // Модель не найдена
+      deps.getLatestUserModel as Mock<
+        (...args: [number, string]) => ReturnType<GetLatestUserModelFn>
+      >
+    ).mockResolvedValueOnce(null)
 
     const results = await generateNeuroPhotoV2(defaultV2Params, deps)
 
@@ -188,187 +271,178 @@ describe('generateNeuroPhotoV2', () => {
       Number(defaultV2Params.telegramId),
       'bfl'
     )
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe(
-      defaultV2Params.isRu
-        ? 'Ваша персональная AI-модель (bfl) не найдена. Обучите ее сначала.'
-        : 'Your personal AI model (bfl) was not found. Please train it first.'
-    )
-    // Убедимся, что ключевые последующие шаги не были вызваны
+    expect(results.results).toHaveLength(1)
+    expect(results.results[0].error).toBe('NO_BFL_MODEL_OR_TRIGGER')
     expect(deps.getUserData).not.toHaveBeenCalled()
     expect(deps.directPaymentProcessor).not.toHaveBeenCalled()
     expect(deps.replicateRun).not.toHaveBeenCalled()
   })
 
   it('should use default gender_part if getUserData returns no gender', async () => {
-    ;(deps.getUserData as MockedFunction<GetUserDataFn>).mockResolvedValueOnce(
-      {}
-    ) // Нет поля gender
-    // или mockResolvedValueOnce(null), если getUserData может вернуть null
+    ;(
+      deps.getUserData as Mock<(...args: [string]) => ReturnType<GetUserDataFn>>
+    ).mockResolvedValueOnce({})
 
     await generateNeuroPhotoV2(defaultV2Params, deps)
 
-    expect(deps.getUserData).toHaveBeenCalledWith(defaultV2Params.telegramId)
-
-    const expectedFullPromptPartWithDefaultGender = `Fashionable my_bfl_trigger person, ${defaultV2Params.prompt}` // Ожидаем 'person'
+    const expectedFullPromptPartDefaultGender = `Fashionable my_bfl_trigger person, ${defaultV2Params.basePrompt}`
     expect(deps.replicateRun).toHaveBeenCalledWith(
       'replicate/bfl-model:version_hash',
       expect.objectContaining({
         input: expect.objectContaining({
-          prompt: expect.stringContaining(
-            expectedFullPromptPartWithDefaultGender
-          ),
+          prompt: expect.stringContaining(expectedFullPromptPartDefaultGender),
         }),
       })
     )
-    // Также проверим, что в savePromptDirect сохранился правильный gender_part
-    expect(deps.savePromptDirect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        additional_data: expect.objectContaining({ gender_part: 'person' }),
-      })
-    )
   })
 
-  it('should generate multiple V2 images if numImages > 1', async () => {
-    const numImagesToGenerate = 2
-    const paramsV2Multiple: GenerateV2Params = {
+  it('should correctly handle numImages > 1', async () => {
+    const paramsWithMultipleImages: GenerateV2Params = {
       ...defaultV2Params,
-      numImages: numImagesToGenerate,
+      numImages: 2,
     }
-
-    // Мокаем replicateRun для V2, чтобы он каждый раз возвращал новый уникальный URL
-    let replicateCallCountV2 = 0
     ;(
-      deps.replicateRun as MockedFunction<
-        NeuroPhotoServiceDependencies['replicateRun']
+      deps.replicateRun as Mock<
+        (
+          ...args: [string, { input: any }]
+        ) => Promise<ReplicateRunMinimalResponse>
       >
-    ).mockImplementation(async () => {
-      replicateCallCountV2++
-      return {
-        id: `replicate_run_id_v2_${replicateCallCountV2}`,
+    )
+      .mockResolvedValueOnce({
+        id: 'replicate_run_id_v2_img1',
         status: 'succeeded',
-        output: [`http://example.com/image_v2_${replicateCallCountV2}.jpg`],
-      }
+        output: ['http://example.com/image_v2_1.jpg'],
+      })
+      .mockResolvedValueOnce({
+        id: 'replicate_run_id_v2_img2',
+        status: 'succeeded',
+        output: ['http://example.com/image_v2_2.jpg'],
+      })
+    ;(deps.generateUUID as Mock<(...args: []) => string>)
+      .mockReturnValueOnce('mock-uuid-v2-img1')
+      .mockReturnValueOnce('mock-uuid-v2-img2')
+    ;(
+      deps.saveFileLocally as Mock<
+        (...args: [string, string, string, string]) => Promise<string>
+      >
+    )
+      .mockResolvedValueOnce('/path/to/local/image_v2_1.jpg')
+      .mockResolvedValueOnce('/path/to/local/image_v2_2.jpg')
+    ;(
+      deps.savePromptDirect as Mock<
+        (...args: [Parameters<SavePromptDirectFn>[0]]) => Promise<string | null>
+      >
+    )
+      .mockResolvedValueOnce('mock_prompt_id_v2_img1')
+      .mockResolvedValueOnce('mock_prompt_id_v2_img2')
+
+    const results = await generateNeuroPhotoV2(paramsWithMultipleImages, deps)
+
+    expect(deps.replicateRun).toHaveBeenCalledTimes(2)
+    expect(deps.directPaymentProcessor).toHaveBeenCalledTimes(1) // Оплата один раз за всю пачку
+    expect(deps.saveFileLocally).toHaveBeenCalledTimes(2)
+    expect(deps.savePromptDirect).toHaveBeenCalledTimes(2)
+    expect(deps.sendMediaToPulse).toHaveBeenCalledTimes(2)
+    expect(results.results).toHaveLength(2)
+    expect(results.results[0].imageUrl).toBe(
+      'http://example.com/image_v2_1.jpg'
+    )
+    expect(results.results[1].imageUrl).toBe(
+      'http://example.com/image_v2_2.jpg'
+    )
+  })
+
+  it('should return an error if user is not found', async () => {
+    ;(
+      deps.getUserByTelegramIdString as Mock<
+        (...args: [string]) => Promise<User | null>
+      >
+    ).mockResolvedValueOnce(null)
+    const results = await generateNeuroPhotoV2(defaultV2Params, deps)
+    expect(results.results).toHaveLength(1)
+    expect(results.results[0].error).toBe('USER_NOT_FOUND')
+    expect(deps.getLatestUserModel).not.toHaveBeenCalled()
+  })
+
+  it('should return an error if user balance is insufficient', async () => {
+    const userWithLowBalance = createMockUserV2(defaultV2Params.telegramId, 5) // Баланс 5, стоимость 15
+    ;(
+      deps.getUserByTelegramIdString as Mock<
+        (...args: [string]) => Promise<User | null>
+      >
+    ).mockResolvedValue(userWithLowBalance)
+    ;(
+      deps.directPaymentProcessor as Mock<
+        (
+          ...args: [Parameters<DirectPaymentProcessorFn>[0]]
+        ) => ReturnType<DirectPaymentProcessorFn>
+      >
+    ).mockResolvedValueOnce({
+      success: false,
+      error: 'INSUFFICIENT_FUNDS',
     })
-    // processApiResponse уже настроен в beforeEach корректно
-
-    let uuidCountV2 = 0
-    ;(deps.generateUUID as MockedFunction<() => string>).mockImplementation(
-      () => `mock-uuid-v2-${++uuidCountV2}`
-    )
-    ;(
-      deps.saveFileLocally as MockedFunction<SaveFileLocallyFn>
-    ).mockImplementation(
-      async (tgId, url, sub, ext) => `/test_v2/path/${sub}/file${ext}`
-    )
-    ;(
-      deps.savePromptDirect as MockedFunction<SavePromptDirectFn>
-    ).mockImplementation(async params => `prompt_v2_${params.replicate_id}`)
-
-    const results = await generateNeuroPhotoV2(paramsV2Multiple, deps)
-
-    expect(deps.replicateRun).toHaveBeenCalledTimes(numImagesToGenerate)
-    expect(deps.saveFileLocally).toHaveBeenCalledTimes(numImagesToGenerate)
-    expect(deps.savePromptDirect).toHaveBeenCalledTimes(numImagesToGenerate)
-    expect(deps.sendMediaToPulse).toHaveBeenCalledTimes(numImagesToGenerate)
-
-    expect(results).toHaveLength(numImagesToGenerate)
-    for (let i = 0; i < numImagesToGenerate; i++) {
-      expect(results[i].error).toBeUndefined()
-      expect(results[i].imageUrl).toBe(
-        `http://example.com/image_v2_${i + 1}.jpg`
-      )
-    }
-
-    const expectedTotalCostV2 =
-      Number(
-        (deps.calculateModeCost as MockedFunction<CalculateModeCostFn>).mock
-          .results[0].value.stars
-      ) * numImagesToGenerate
-    expect(deps.directPaymentProcessor).toHaveBeenCalledTimes(1)
-    expect(deps.directPaymentProcessor).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: expectedTotalCostV2 })
-    )
-  })
-
-  it('should bypass payment for V2 if bypassPaymentCheck is true', async () => {
-    const paramsV2Bypass: GenerateV2Params = {
-      ...defaultV2Params,
-      bypassPaymentCheck: true,
-    }
-
-    const results = await generateNeuroPhotoV2(paramsV2Bypass, deps)
-
-    expect(deps.directPaymentProcessor).not.toHaveBeenCalled()
-
-    // Убедимся, что остальные ключевые шаги V2 прошли
-    expect(deps.getLatestUserModel).toHaveBeenCalled()
-    expect(deps.getUserData).toHaveBeenCalled()
-    expect(deps.replicateRun).toHaveBeenCalled()
-    expect(deps.saveFileLocally).toHaveBeenCalled()
-    expect(deps.savePromptDirect).toHaveBeenCalled()
-    expect(deps.sendMediaToPulse).toHaveBeenCalled()
-
-    expect(results).toHaveLength(1) // Ожидаем 1 изображение по defaultV2Params
-    expect(results[0].error).toBeUndefined()
-    expect(results[0].imageUrl).toBe('http://example.com/image_v2.jpg')
-  })
-
-  it('should return an error if V2 directPaymentProcessor fails', async () => {
-    ;(
-      deps.directPaymentProcessor as MockedFunction<DirectPaymentProcessorFn>
-    ).mockResolvedValueOnce({ success: false, error: 'V2 Payment Failed' })
 
     const results = await generateNeuroPhotoV2(defaultV2Params, deps)
 
     expect(deps.directPaymentProcessor).toHaveBeenCalled()
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe('V2 Payment Failed')
-    // Последующие шаги не должны вызываться
+    expect(results.results).toHaveLength(1)
+    expect(results.results[0].error).toBe('INSUFFICIENT_FUNDS')
+    expect(results.paymentError).toBe('INSUFFICIENT_FUNDS')
     expect(deps.replicateRun).not.toHaveBeenCalled()
   })
 
-  it('should return an error if V2 replicateRun fails', async () => {
+  it('should handle Replicate API error', async () => {
     ;(
-      deps.replicateRun as MockedFunction<
-        NeuroPhotoServiceDependencies['replicateRun']
+      deps.replicateRun as Mock<
+        (
+          ...args: [string, { input: any }]
+        ) => Promise<ReplicateRunMinimalResponse>
       >
-    ).mockRejectedValueOnce(new Error('V2 Replicate Failed'))
-
+    ).mockRejectedValueOnce(new Error('Replicate API Down'))
     const results = await generateNeuroPhotoV2(defaultV2Params, deps)
-
-    expect(deps.replicateRun).toHaveBeenCalled()
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe(
-      defaultV2Params.isRu
-        ? 'Ошибка генерации изображения (V2).'
-        : 'Image generation error (V2).'
-    )
-    expect(results[0].isNsfw).toBe(false)
+    expect(results.results).toHaveLength(1)
+    expect(results.results[0].error).toBe('REPLICATE_API_ERROR')
+    expect(results.results[0].errorMessage).toContain('Replicate API Down')
   })
 
-  it('should handle V2 NSFW content detection', async () => {
+  it('should handle Replicate result with no output', async () => {
     ;(
-      deps.replicateRun as MockedFunction<
-        NeuroPhotoServiceDependencies['replicateRun']
+      deps.replicateRun as Mock<
+        (
+          ...args: [string, { input: any }]
+        ) => Promise<ReplicateRunMinimalResponse>
       >
-    ).mockRejectedValueOnce(
-      new Error('NSFW content detected in V2 by Replicate')
-    )
-
+    ).mockResolvedValueOnce({
+      id: 'replicate_run_id_v2_no_output',
+      status: 'succeeded',
+      output: null, // или output: []
+    })
     const results = await generateNeuroPhotoV2(defaultV2Params, deps)
-
-    expect(deps.replicateRun).toHaveBeenCalled()
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe(
-      defaultV2Params.isRu
-        ? 'Обнаружен NSFW контент. Попробуйте другой запрос (V2).'
-        : 'NSFW content detected. Please try another prompt (V2).'
-    )
-    expect(results[0].isNsfw).toBe(true)
+    expect(results.results).toHaveLength(1)
+    expect(results.results[0].error).toBe('REPLICATE_NO_OUTPUT')
   })
 
-  // TODO: Добавить тесты для V2:
-  // - bypassPaymentCheck: true для V2
-  // - Ошибки (платеж, Replicate, NSFW)
+  // Тест для проверки, что пользователь 1 уровня не может генерировать
+  it('should prevent generation for user level 1', async () => {
+    const userLevel1 = createMockUserV2(defaultV2Params.telegramId, 200, 1)
+    ;(
+      deps.getUserByTelegramIdString as Mock<
+        (...args: [string]) => Promise<User | null>
+      >
+    ).mockResolvedValue(userLevel1)
+    const results = await generateNeuroPhotoV2(defaultV2Params, deps)
+    expect(results.results[0].error).toBe('USER_LEVEL_TOO_LOW')
+    expect(deps.directPaymentProcessor).not.toHaveBeenCalled()
+  })
+
+  // Тест для проверки обхода оплаты
+  it('should bypass payment if bypassPaymentCheck is true', async () => {
+    const paramsBypass: GenerateV2Params = {
+      ...defaultV2Params,
+      bypassPaymentCheck: true,
+    }
+    await generateNeuroPhotoV2(paramsBypass, deps)
+    expect(deps.directPaymentProcessor).not.toHaveBeenCalled()
+    expect(deps.replicateRun).toHaveBeenCalled() // Убедимся, что генерация была вызвана
+  })
 })

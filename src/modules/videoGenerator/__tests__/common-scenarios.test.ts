@@ -38,6 +38,19 @@ import fsPromises from 'fs/promises'
 import { Telegraf } from 'telegraf'
 import * as generateVideoHelpers from '../helpers' // Import the local helpers module
 
+// Mock the Supabase client
+vi.mock('@/core/supabase/client', () => ({
+  supabase: {
+    from: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue({ data: {}, error: null }), // Default mock for .single()
+    rpc: vi.fn().mockResolvedValue({ data: {}, error: null }), // Default mock for .rpc()
+  },
+}))
+
 // Mock the local helpers module
 vi.mock('../helpers', async importOriginal => {
   const actual = await importOriginal<typeof generateVideoHelpers>()
