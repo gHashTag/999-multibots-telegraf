@@ -19,7 +19,7 @@ export function simulateSubscriptionForDev(
   // для тестирования различных уровней доступа и сценариев меню.
   // Доступные типы: NEUROBASE, NEURO_PRO, NEUROTESTER, NEUROPHOTO, STARS, или null (нет подписки).
   const simulatedSubscriptionType: SubscriptionType | null =
-    SubscriptionType.NEUROBASE
+    SubscriptionType.STARS
   // ---------------------------------------------------------
 
   if (!isDev) {
