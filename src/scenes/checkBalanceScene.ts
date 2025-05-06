@@ -110,7 +110,7 @@ export function calculateCost(
 
 // НОВАЯ ФУНКЦИЯ: Расчет конечной стоимости в звездах из базовой в долларах
 function calculateFinalStarCostFromDollars(baseDollarCost: number): number {
-  // Предполагаем, что interestRate - это множитель наценки (например, 1.2 для 20%)
+  //// Предполагаем, что interestRate - это множитель наценки (например, 1.2 для 20%)
   // Если interestRate - это процент (например, 20), то формула будет (baseDollarCost / starCost) * (1 + SYSTEM_CONFIG.interestRate / 100)
   // Используем текущую логику расчета рублей как пример: умножаем на interestRate
   const finalCost = (baseDollarCost / starCost) * SYSTEM_CONFIG.interestRate
@@ -120,7 +120,7 @@ function calculateFinalStarCostFromDollars(baseDollarCost: number): number {
 export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
   [ModeEnum.DigitalAvatarBody]: 0,
   [ModeEnum.DigitalAvatarBodyV2]: 0,
-  [ModeEnum.NeuroPhoto]: calculateFinalStarCostFromDollars(0.08),
+  [ModeEnum.NeuroPhoto]: calculateFinalStarCostFromDollars(0.08), //
   [ModeEnum.NeuroPhotoV2]: calculateFinalStarCostFromDollars(0.14),
   [ModeEnum.NeuroAudio]: calculateFinalStarCostFromDollars(0.12),
   [ModeEnum.ImageToPrompt]: calculateFinalStarCostFromDollars(0.03),
