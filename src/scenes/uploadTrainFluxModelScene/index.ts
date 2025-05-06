@@ -37,15 +37,68 @@ uploadTrainFluxModelScene.enter(async ctx => {
     const targetFilePath = path.join(serverFilesDir, zipFileName)
     console.log('Target server file path for ZIP:', targetFilePath)
 
+    // Альтернативный путь для сохранения, если основной не работает
+    const alternativeFilesDir = '/app/public/files/'
+    const alternativeTargetFilePath = path.join(
+      alternativeFilesDir,
+      zipFileName
+    )
+    console.log(
+      'Alternative server file path for ZIP:',
+      alternativeTargetFilePath
+    )
+
     // Проверяем, существует ли директория, и создаем её, если нет
     try {
       if (!fs.existsSync(serverFilesDir)) {
         console.log('Creating server files directory:', serverFilesDir)
         fs.mkdirSync(serverFilesDir, { recursive: true })
       }
+      // Проверяем права доступа к директории
+      fs.access(serverFilesDir, fs.constants.W_OK, err => {
+        if (err) {
+          console.error(
+            'No write access to directory:',
+            serverFilesDir,
+            'Error:',
+            err
+          )
+        } else {
+          console.log('Write access confirmed for directory:', serverFilesDir)
+        }
+      })
     } catch (error) {
       console.error('Error creating server files directory:', error)
       throw new Error(`Failed to create server directory: ${error.message}`)
+    }
+
+    // Пробуем также создать альтернативную директорию
+    try {
+      if (!fs.existsSync(alternativeFilesDir)) {
+        console.log(
+          'Creating alternative server files directory:',
+          alternativeFilesDir
+        )
+        fs.mkdirSync(alternativeFilesDir, { recursive: true })
+      }
+      // Проверяем права доступа к альтернативной директории
+      fs.access(alternativeFilesDir, fs.constants.W_OK, err => {
+        if (err) {
+          console.error(
+            'No write access to alternative directory:',
+            alternativeFilesDir,
+            'Error:',
+            err
+          )
+        } else {
+          console.log(
+            'Write access confirmed for alternative directory:',
+            alternativeFilesDir
+          )
+        }
+      })
+    } catch (error) {
+      console.error('Error creating alternative server files directory:', error)
     }
 
     // Копируем ZIP-файл в целевую директорию на сервере
@@ -58,10 +111,38 @@ uploadTrainFluxModelScene.enter(async ctx => {
       throw new Error(`Failed to copy ZIP file to server: ${error.message}`)
     }
 
+    // Пробуем также создать в альтернативную директорию
+    try {
+      console.log('Copying ZIP file to alternative server directory...')
+      fs.copyFileSync(zipPath, alternativeTargetFilePath)
+      console.log(
+        'ZIP file copied to alternative server directory:',
+        alternativeTargetFilePath
+      )
+    } catch (error) {
+      console.error(
+        'Error copying ZIP file to alternative server directory:',
+        error
+      )
+    }
+
     // Проверяем, существует ли файл в целевой директории
     if (!fs.existsSync(targetFilePath)) {
       console.error('ZIP file not found in server directory:', targetFilePath)
       throw new Error('ZIP file was not copied to server directory')
+    }
+
+    // Проверяем, существует ли файл в альтернативной директории
+    if (!fs.existsSync(alternativeTargetFilePath)) {
+      console.error(
+        'ZIP file not found in alternative server directory:',
+        alternativeTargetFilePath
+      )
+    } else {
+      console.log(
+        'ZIP file confirmed in alternative server directory:',
+        alternativeTargetFilePath
+      )
     }
 
     // Функция для проверки доступности URL
