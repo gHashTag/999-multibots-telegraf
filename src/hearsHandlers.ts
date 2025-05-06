@@ -17,6 +17,7 @@ import { getUserProfileAndSettings } from '@/db/userSettings'
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
 
+  /* <<<<<<<<<<<<<< НАЧАЛО КОММЕНТИРОВАНИЯ <<<<<<<<<<<<<<<<< 
   bot.hears(
     [levels[1].title_ru, levels[1].title_en],
     async (ctx: MyContext) => {
@@ -25,6 +26,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       await ctx.scene.enter('digitalAvatarBodyWizard')
     }
   )
+  */ // <<<<<<<<<<<<<< КОНЕЦ КОММЕНТИРОВАНИЯ <<<<<<<<<<<<<<<<<
 
   bot.hears(
     [levels[2].title_ru, levels[2].title_en],
