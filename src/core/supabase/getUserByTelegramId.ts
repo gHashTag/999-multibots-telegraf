@@ -1,19 +1,27 @@
 import { Context } from 'telegraf'
 import { supabase } from './client'
 import { logger } from '@/utils/logger'
+import { User } from '@/interfaces/user.interface'
+import { MyContext } from '@/interfaces'
 
-export const getUserByTelegramId = async (ctx: Context) => {
-  logger.info('[getUserByTelegramId] Function called')
+export async function getUserByTelegramId(
+  ctxOrTelegramId: MyContext | string
+): Promise<User | null> {
   try {
-    if (!ctx.from) {
-      logger.error('[getUserByTelegramId] ctx.from is missing!')
-      throw new Error('User not found in context')
+    let telegramId: string
+    if (typeof ctxOrTelegramId === 'string') {
+      telegramId = ctxOrTelegramId
+    } else {
+      if (!ctxOrTelegramId.from) {
+        logger.error({
+          message: '[getUserByTelegramId] User not found in context',
+          telegramId: 'unknown',
+        })
+        throw new Error('User not found in context')
+      }
+      telegramId = ctxOrTelegramId.from.id.toString()
     }
-
-    const telegramId = ctx.from.id.toString()
-    logger.info(
-      `[getUserByTelegramId] Attempting to find user with telegramId: ${telegramId}`
-    )
+    logger.info({ message: '[getUserByTelegramId] Fetching user', telegramId })
 
     const { data: user, error: dbError } = await supabase
       .from('users')
@@ -40,7 +48,14 @@ export const getUserByTelegramId = async (ctx: Context) => {
 
     return user
   } catch (error) {
-    logger.error('[getUserByTelegramId] Caught error:', error)
+    logger.error({
+      message: '[getUserByTelegramId] Caught error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId:
+        typeof ctxOrTelegramId === 'string'
+          ? ctxOrTelegramId
+          : ctxOrTelegramId.from?.id.toString() || 'unknown',
+    })
     return null
   }
 }

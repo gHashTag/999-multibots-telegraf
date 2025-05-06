@@ -1,4 +1,3 @@
-export * from './createModelTraining'
 export * from './generateImageToPrompt'
 export * from './generateNeuroImage'
 export * from './generateTextToImage'

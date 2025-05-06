@@ -123,3 +123,34 @@ export const costDetails = {
   v1: stepOptions.v1.map(steps => calculateCost(steps, 'v1')),
   v2: stepOptions.v2.map(steps => calculateCost(steps, 'v2')),
 }
+
+// Функция для расчета базовой цены
+export function calculateBasePrice(
+  steps: number,
+  version: 'v1' | 'v2' = 'v1'
+): number {
+  const rates = version === 'v1' ? conversionRates : conversionRatesV2
+  const stars = steps * rates.costPerStepInStars
+  return parseFloat(stars.toFixed(2))
+}
+
+// Функция для расчета итоговой цены
+export function calculateFinalPrice(
+  steps: number,
+  version: 'v1' | 'v2' = 'v1'
+): number {
+  const basePrice = calculateBasePrice(steps, version)
+  return basePrice
+}
+
+// Функция для расчета цены в рублях
+export function calculateRubPrice(
+  steps: number,
+  version: 'v1' | 'v2' = 'v1'
+): number {
+  const rates = version === 'v1' ? conversionRates : conversionRatesV2
+  const dollars =
+    calculateBasePrice(steps, version) * rates.costPerStarInDollars
+  const rubles = dollars * rates.rublesToDollarsRate
+  return parseFloat(rubles.toFixed(2))
+}

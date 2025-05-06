@@ -2,7 +2,7 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '@/core/supabase'
-import { createModelTraining } from '@/services/createModelTraining'
+import { generateModelTraining } from '@/modules/digitalAvatarBody/generateModelTraining'
 import { isRussian } from '@/helpers/language'
 import { deleteFile } from '@/helpers'
 import { sendGenericErrorMessage } from '@/menu'
@@ -37,17 +37,16 @@ uploadTrainFluxModelScene.enter(async ctx => {
         : `⏳ Starting model training...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
     )
 
-    await createModelTraining(
-      {
-        filePath: zipPath,
-        triggerWord,
-        modelName: ctx.session.modelName || '',
-        steps: ctx.session.steps || 100,
-        telegram_id: ctx.session.targetUserId.toString(),
-        is_ru: isRu,
-        botName: ctx.botInfo?.username || '',
-      },
-      ctx
+    await generateModelTraining(
+      zipPath,
+      triggerWord,
+      ctx.session.modelName || 'defaultModelName',
+      ctx.session.steps || 1000,
+      ctx.from.id,
+      isRussian(ctx),
+      ctx as any,
+      ctx.botInfo?.username || 'botName',
+      ctx.session.gender || 'male'
     )
 
     // Закомментировано, так как файл уже удаляется в createModelTraining.js
