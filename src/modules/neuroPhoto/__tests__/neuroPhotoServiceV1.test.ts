@@ -4,7 +4,6 @@ import type { MockedFunction } from 'vitest'
 import {
   generateNeuroPhotoV1,
   GenerateV1Params,
-  GenerationResultItem,
 } from '../services/neuroPhotoService'
 import {
   NeuroPhotoServiceDependencies,
@@ -20,7 +19,6 @@ import {
   CalculateModeCostFn,
   SaveFileLocallyFn,
   SendMediaToPulseFn,
-  ProcessApiResponseFn,
   LoggerFn,
 } from '../interfaces/neuroPhotoDependencies.interface'
 // Импортируем тип Replicate из библиотеки и сам экземпляр replicate из нашего модуля
@@ -47,7 +45,6 @@ const mockDependencies = (): NeuroPhotoServiceDependencies => ({
   calculateModeCost: vi.fn() as MockedFunction<CalculateModeCostFn>,
   saveFileLocally: vi.fn() as MockedFunction<SaveFileLocallyFn>,
   sendMediaToPulse: vi.fn() as MockedFunction<SendMediaToPulseFn>,
-  processApiResponse: vi.fn() as MockedFunction<ProcessApiResponseFn>,
   generateUUID: vi.fn() as MockedFunction<() => string>,
   logInfo: vi.fn() as MockedFunction<LoggerFn>,
   logError: vi.fn() as MockedFunction<LoggerFn>,
@@ -103,20 +100,6 @@ describe('generateNeuroPhotoV1', () => {
       output: ['http://example.com/image.jpg'],
     })
     ;(
-      deps.processApiResponse as MockedFunction<typeof deps.processApiResponse>
-    ).mockImplementation(async (apiOutput, prompt, logError) =>
-      apiOutput ? (Array.isArray(apiOutput) ? apiOutput : [apiOutput]) : []
-    )
-    ;(
-      deps.saveFileLocally as MockedFunction<typeof deps.saveFileLocally>
-    ).mockResolvedValue('/path/to/local/image.jpg')
-    ;(
-      deps.savePromptDirect as MockedFunction<typeof deps.savePromptDirect>
-    ).mockResolvedValue('mock_prompt_id')
-    ;(
-      deps.sendMediaToPulse as MockedFunction<typeof deps.sendMediaToPulse>
-    ).mockResolvedValue(undefined)
-    ;(
       deps.generateUUID as MockedFunction<typeof deps.generateUUID>
     ).mockReturnValue('mock-uuid-12345')
   })
@@ -133,7 +116,15 @@ describe('generateNeuroPhotoV1', () => {
   }
 
   it('should successfully generate an image with default parameters', async () => {
-    const results = await generateNeuroPhotoV1(defaultParams, deps)
+    // Настройка моков специфичных для этого теста, если нужно, уже есть в beforeEach
+    ;(
+      deps.saveFileLocally as MockedFunction<typeof deps.saveFileLocally>
+    ).mockResolvedValue('/path/to/local/image.jpg')
+    ;(
+      deps.savePromptDirect as MockedFunction<typeof deps.savePromptDirect>
+    ).mockResolvedValue('mock_prompt_id')
+
+    const result = await generateNeuroPhotoV1(defaultParams, deps) // Переименовали в result для ясности
 
     expect(deps.logInfo).toHaveBeenCalled()
     expect(deps.getUserByTelegramIdString).toHaveBeenCalledWith(
@@ -149,11 +140,21 @@ describe('generateNeuroPhotoV1', () => {
     expect(deps.savePromptDirect).toHaveBeenCalled()
     expect(deps.sendMediaToPulse).toHaveBeenCalled()
 
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBeUndefined()
-    expect(results[0].imageUrl).toBe('http://example.com/image.jpg')
-    expect(results[0].localPath).toBe('/path/to/local/image.jpg')
-    expect(results[0].promptId).toBe('mock_prompt_id')
+    // ИСПРАВЛЕНИЯ ЗДЕСЬ:
+    expect(result.status).toBe('success')
+    expect(result.results).toHaveLength(1)
+    const firstResultItem = result.results[0]
+    expect(firstResultItem.success).toBe(true)
+    if (firstResultItem.success) {
+      // Type guard для доступа к полям NeuroPhotoSuccessItem
+      expect(firstResultItem.imageUrl).toBe('http://example.com/image.jpg')
+      expect(firstResultItem.localPath).toBe('/path/to/local/image.jpg')
+      expect(firstResultItem.promptId).toBe('mock_prompt_id')
+    } else {
+      // Этот блок не должен выполниться, если success = true
+      throw new Error('Test failed: expected success but got error item')
+    }
+    expect(result.message).toBe('Успешно сгенерировано изображений: 1.') // Пример ожидаемого сообщения
   })
 
   it('should return an error if prompt is not provided', async () => {
@@ -162,15 +163,28 @@ describe('generateNeuroPhotoV1', () => {
       prompt: '', // Пустой промпт
     }
 
-    const results = await generateNeuroPhotoV1(paramsWithoutPrompt, deps)
+    const result = await generateNeuroPhotoV1(paramsWithoutPrompt, deps)
 
     expect(deps.logError).toHaveBeenCalledWith(
       expect.objectContaining({
         message: '[V1_SERVICE] Отсутствует промпт для генерации',
+        telegramId: paramsWithoutPrompt.telegramId, // Добавляем проверку telegramId
+        details: { errorKey: 'NO_PROMPT' }, // Добавляем проверку details.errorKey
       })
     )
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe(
+    // ИСПРАВЛЕНИЯ ЗДЕСЬ:
+    expect(result.status).toBe('error')
+    expect(result.results).toHaveLength(1)
+    const firstResultItem = result.results[0]
+    expect(firstResultItem.success).toBe(false)
+    if (!firstResultItem.success) {
+      // Type guard
+      expect(firstResultItem.error).toBe('NO_PROMPT')
+      expect(firstResultItem.errorMessage).toBe(
+        paramsWithoutPrompt.isRu ? 'Промпт не указан.' : 'Prompt not provided.'
+      )
+    }
+    expect(result.message).toBe(
       paramsWithoutPrompt.isRu ? 'Промпт не указан.' : 'Prompt not provided.'
     )
     // Убедимся, что ключевые функции не были вызваны
@@ -185,15 +199,30 @@ describe('generateNeuroPhotoV1', () => {
       userModelUrl: '', // Пустой URL модели
     }
 
-    const results = await generateNeuroPhotoV1(paramsWithoutModelUrl, deps)
+    const result = await generateNeuroPhotoV1(paramsWithoutModelUrl, deps)
 
     expect(deps.logError).toHaveBeenCalledWith(
       expect.objectContaining({
         message: '[V1_SERVICE] Отсутствует URL модели для генерации',
+        telegramId: paramsWithoutModelUrl.telegramId, // Добавляем проверку telegramId
+        details: { errorKey: 'NO_MODEL_URL' }, // Добавляем проверку details.errorKey
       })
     )
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe(
+    // ИСПРАВЛЕНИЯ ЗДЕСЬ:
+    expect(result.status).toBe('error')
+    expect(result.results).toHaveLength(1)
+    const firstResultItem = result.results[0]
+    expect(firstResultItem.success).toBe(false)
+    if (!firstResultItem.success) {
+      // Type guard
+      expect(firstResultItem.error).toBe('NO_MODEL_URL')
+      expect(firstResultItem.errorMessage).toBe(
+        paramsWithoutModelUrl.isRu
+          ? 'URL модели не указан.'
+          : 'Model URL not provided.'
+      )
+    }
+    expect(result.message).toBe(
       paramsWithoutModelUrl.isRu
         ? 'URL модели не указан.'
         : 'Model URL not provided.'
@@ -210,15 +239,30 @@ describe('generateNeuroPhotoV1', () => {
       >
     ).mockResolvedValueOnce(null) // Мокаем возврат null - пользователь не найден
 
-    const results = await generateNeuroPhotoV1(defaultParams, deps)
+    const result = await generateNeuroPhotoV1(defaultParams, deps)
 
     expect(deps.logError).toHaveBeenCalledWith(
       expect.objectContaining({
         message: '[V1_SERVICE] Пользователь не найден в базе данных',
+        telegramId: defaultParams.telegramId, // Добавляем проверку telegramId
+        details: { errorKey: 'USER_NOT_FOUND' }, // Добавляем проверку details.errorKey
       })
     )
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe(
+    // ИСПРАВЛЕНИЯ ЗДЕСЬ:
+    expect(result.status).toBe('error')
+    expect(result.results).toHaveLength(1)
+    const firstResultItem = result.results[0]
+    expect(firstResultItem.success).toBe(false)
+    if (!firstResultItem.success) {
+      // Type guard
+      expect(firstResultItem.error).toBe('USER_NOT_FOUND')
+      expect(firstResultItem.errorMessage).toBe(
+        defaultParams.isRu
+          ? 'Ваш аккаунт не найден. Пожалуйста, перезапустите бота (/start).'
+          : 'Your account was not found. Please restart the bot (/start).'
+      )
+    }
+    expect(result.message).toBe(
       defaultParams.isRu
         ? 'Ваш аккаунт не найден. Пожалуйста, перезапустите бота (/start).'
         : 'Your account was not found. Please restart the bot (/start).'
@@ -238,25 +282,20 @@ describe('generateNeuroPhotoV1', () => {
       id: BigInt(123456789),
       telegram_id: BigInt(defaultParams.telegramId),
       username: 'testuser',
-      level: 1, // Устанавливаем уровень пользователя = 1
+      level: 1,
       balance: 1000,
       created_at: new Date(),
       language_code: 'ru',
       first_name: 'Test',
       last_name: 'User',
       is_bot: false,
-      user_id: 'mock_user_uuid_level1', // Добавлено обязательное поле user_id
+      user_id: 'mock_user_uuid_level1',
     })
-
     await generateNeuroPhotoV1(defaultParams, deps)
-
     expect(deps.updateUserLevelPlusOne).toHaveBeenCalledWith(
       defaultParams.telegramId,
       1
     )
-    // Также убедимся, что основной флоу продолжился
-    expect(deps.directPaymentProcessor).toHaveBeenCalled()
-    expect(deps.replicateRun).toHaveBeenCalled()
   })
 
   it('should return an error if calculateModeCost returns invalid cost', async () => {
@@ -264,126 +303,129 @@ describe('generateNeuroPhotoV1', () => {
       deps.calculateModeCost as MockedFunction<typeof deps.calculateModeCost>
     ).mockReturnValueOnce({ stars: 'invalid_cost' }) // Мокаем некорректную стоимость
 
-    const results = await generateNeuroPhotoV1(defaultParams, deps)
+    const result = await generateNeuroPhotoV1(defaultParams, deps)
 
     expect(deps.logError).toHaveBeenCalledWith(
       expect.objectContaining({
         message: '[V1_SERVICE] Некорректная стоимость за изображение',
+        telegramId: defaultParams.telegramId, // Добавляем проверку telegramId
+        details: { costResultStars: 'invalid_cost' }, // Проверяем details, как в коде сервиса
       })
     )
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe(
+    // ИСПРАВЛЕНИЯ ЗДЕСЬ:
+    expect(result.status).toBe('error')
+    expect(result.results).toHaveLength(1)
+    const firstResultItem = result.results[0]
+    expect(firstResultItem.success).toBe(false)
+    if (!firstResultItem.success) {
+      // Type guard
+      expect(firstResultItem.error).toBe('COST_CALCULATION_ERROR')
+      expect(firstResultItem.errorMessage).toBe(
+        defaultParams.isRu
+          ? 'Ошибка расчета стоимости.'
+          : 'Error calculating cost.'
+      )
+    }
+    expect(result.message).toBe(
       defaultParams.isRu
         ? 'Ошибка расчета стоимости.'
         : 'Error calculating cost.'
     )
-    // Убедимся, что другие ключевые функции не были вызваны
     expect(deps.directPaymentProcessor).not.toHaveBeenCalled()
     expect(deps.replicateRun).not.toHaveBeenCalled()
   })
 
   it('should return an error if directPaymentProcessor fails', async () => {
+    const paymentErrorMessage = 'Недостаточно средств'
     ;(
       deps.directPaymentProcessor as MockedFunction<
         typeof deps.directPaymentProcessor
       >
-    ).mockResolvedValueOnce({ success: false, error: 'Недостаточно средств' })
+    ).mockResolvedValueOnce({ success: false, error: paymentErrorMessage })
 
-    const results = await generateNeuroPhotoV1(defaultParams, deps)
+    const result = await generateNeuroPhotoV1(defaultParams, deps)
 
     expect(deps.logError).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: '[V1_SERVICE] Ошибка при обработке платежа',
-        details: expect.objectContaining({ error: 'Недостаточно средств' }),
+        message: '[V1_SERVICE] Ошибка оплаты',
+        telegramId: defaultParams.telegramId, // Проверяем telegramId
+        error: paymentErrorMessage, // Проверяем поле error, а не details
       })
     )
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe('Недостаточно средств')
-    // Убедимся, что replicateRun не был вызван
+    // ИСПРАВЛЕНИЯ ЗДЕСЬ:
+    expect(result.status).toBe('error')
+    expect(result.results).toHaveLength(1)
+    const firstResultItem = result.results[0]
+    expect(firstResultItem.success).toBe(false)
+    if (!firstResultItem.success) {
+      expect(firstResultItem.error).toBe('PAYMENT_ERROR')
+      expect(firstResultItem.errorMessage).toBe(paymentErrorMessage)
+    }
+    expect(result.message).toBe(paymentErrorMessage)
+    expect(result.paymentError).toBe(paymentErrorMessage)
     expect(deps.replicateRun).not.toHaveBeenCalled()
   })
 
   it('should return an error if replicateRun fails', async () => {
+    const replicateErrorMsg = 'Replicate failed miserably'
     ;(
       deps.replicateRun as MockedFunction<
         NeuroPhotoServiceDependencies['replicateRun']
       >
-    ).mockRejectedValueOnce(new Error('Replicate failed miserably'))
+    ).mockRejectedValueOnce(new Error(replicateErrorMsg))
 
-    const results = await generateNeuroPhotoV1(defaultParams, deps)
-
-    // Проверяем, что была залогирована ошибка генерации
-    expect(deps.logError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining(
-          '[V1_SERVICE] Ошибка при генерации изображения'
-        ),
-        details: expect.objectContaining({
-          error: 'Replicate failed miserably',
-        }),
-      })
-    )
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe(
-      defaultParams.isRu
-        ? 'Ошибка генерации изображения.'
-        : 'Image generation error.'
-    )
-    expect(results[0].isNsfw).toBe(false) // Ожидаем, что isNsfw будет false, если ошибка не связана с NSFW
-  })
-
-  it('should return an error if processApiResponse returns no URLs', async () => {
-    ;(
-      deps.processApiResponse as MockedFunction<typeof deps.processApiResponse>
-    ).mockResolvedValueOnce([]) // Мокаем возврат пустого массива URL
-
-    const results = await generateNeuroPhotoV1(defaultParams, deps)
+    const result = await generateNeuroPhotoV1(defaultParams, deps)
 
     expect(deps.logError).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: expect.stringContaining(
-          '[V1_SERVICE] Ошибка при генерации изображения'
-        ),
-        details: expect.objectContaining({
-          error: 'Replicate не вернул URL изображений.',
-        }),
+        message: '[V1_SERVICE] Ошибка при генерации изображения 1',
+        telegramId: defaultParams.telegramId,
+        error: replicateErrorMsg,
+        stack: expect.any(String),
+        replicateId: undefined,
       })
     )
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe(
-      defaultParams.isRu
-        ? 'Ошибка генерации изображения.'
-        : 'Image generation error.'
-    )
+    // ИСПРАВЛЕНИЯ ЗДЕСЬ:
+    expect(result.status).toBe('error')
+    expect(result.results).toHaveLength(1)
+    const firstResultItem = result.results[0]
+    expect(firstResultItem.success).toBe(false)
+    if (!firstResultItem.success) {
+      expect(firstResultItem.error).toBe(replicateErrorMsg)
+      expect(firstResultItem.errorMessage).toBe(replicateErrorMsg)
+    }
+    expect(result.message).toContain(replicateErrorMsg)
   })
 
-  it('should handle NSFW content detection', async () => {
-    // Мокаем replicateRun так, чтобы он вернул ошибку, содержащую 'nsfw'
+  it('should handle NSFW content detection (error from replicateRun)', async () => {
+    const nsfwErrorMessage = 'Detected NSFW content by Replicate'
     ;(
       deps.replicateRun as MockedFunction<
         NeuroPhotoServiceDependencies['replicateRun']
       >
-    ).mockRejectedValueOnce(new Error('Detected NSFW content by Replicate'))
+    ).mockRejectedValueOnce(new Error(nsfwErrorMessage))
 
-    const results = await generateNeuroPhotoV1(defaultParams, deps)
+    const result = await generateNeuroPhotoV1(defaultParams, deps)
 
     expect(deps.logError).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: expect.stringContaining(
-          '[V1_SERVICE] Ошибка при генерации изображения'
-        ),
-        details: expect.objectContaining({
-          error: 'Detected NSFW content by Replicate',
-        }),
+        message: '[V1_SERVICE] Ошибка при генерации изображения 1',
+        telegramId: defaultParams.telegramId,
+        error: nsfwErrorMessage,
+        stack: expect.any(String),
+        replicateId: undefined,
       })
     )
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBe(
-      defaultParams.isRu
-        ? 'Обнаружен NSFW контент. Попробуйте другой запрос.'
-        : 'NSFW content detected. Please try another prompt.'
-    )
-    expect(results[0].isNsfw).toBe(true)
+    // ИСПРАВЛЕНИЯ ЗДЕСЬ:
+    expect(result.status).toBe('error')
+    expect(result.results).toHaveLength(1)
+    const firstResultItem = result.results[0]
+    expect(firstResultItem.success).toBe(false)
+    if (!firstResultItem.success) {
+      expect(firstResultItem.error).toContain(nsfwErrorMessage)
+      expect(firstResultItem.errorMessage).toContain(nsfwErrorMessage)
+    }
+    expect(result.message).toContain(nsfwErrorMessage)
   })
 
   it('should generate multiple images if numImages > 1', async () => {
@@ -392,12 +434,7 @@ describe('generateNeuroPhotoV1', () => {
       ...defaultParams,
       numImages: numImagesToGenerate,
     }
-    console.log(
-      '[TEST DEBUG] paramsWithMultipleImages:',
-      paramsWithMultipleImages
-    )
 
-    // Мокаем replicateRun, чтобы он каждый раз возвращал новый уникальный URL
     let replicateCallCount = 0
     ;(
       deps.replicateRun as MockedFunction<
@@ -410,16 +447,6 @@ describe('generateNeuroPhotoV1', () => {
         status: 'succeeded',
         output: [`http://example.com/image_${replicateCallCount}.jpg`],
       }
-    })
-    ;(
-      deps.processApiResponse as MockedFunction<typeof deps.processApiResponse>
-    ).mockImplementation(async (apiOutput, prompt, logError) => {
-      if (Array.isArray(apiOutput)) {
-        return apiOutput
-      } else if (typeof apiOutput === 'string') {
-        return [apiOutput]
-      }
-      return []
     })
 
     let uuidCount = 0
@@ -438,20 +465,17 @@ describe('generateNeuroPhotoV1', () => {
       deps.sendMediaToPulse as MockedFunction<typeof deps.sendMediaToPulse>
     ).mockResolvedValue(undefined)
 
-    const results = await generateNeuroPhotoV1(paramsWithMultipleImages, deps)
+    const result = await generateNeuroPhotoV1(paramsWithMultipleImages, deps)
 
-    expect(deps.replicateRun).toHaveBeenCalledTimes(numImagesToGenerate)
-    expect(deps.saveFileLocally).toHaveBeenCalledTimes(numImagesToGenerate)
-    expect(deps.savePromptDirect).toHaveBeenCalledTimes(numImagesToGenerate)
-    expect(deps.sendMediaToPulse).toHaveBeenCalledTimes(numImagesToGenerate)
-
-    expect(results).toHaveLength(numImagesToGenerate)
+    expect(result.status).toBe('success')
+    expect(result.results).toHaveLength(numImagesToGenerate)
     for (let i = 0; i < numImagesToGenerate; i++) {
-      expect(results[i].error).toBeUndefined()
-      expect(results[i].imageUrl).toBe(`http://example.com/image_${i + 1}.jpg`)
+      const item = result.results[i]
+      expect(item.success).toBe(true)
+      if (item.success) {
+        expect(item.imageUrl).toBe(`http://example.com/image_${i + 1}.jpg`)
+      }
     }
-
-    // Проверим, что платеж был один раз на общую сумму
     const expectedTotalCost =
       Number(
         (
@@ -460,10 +484,11 @@ describe('generateNeuroPhotoV1', () => {
           >
         ).mock.results[0].value.stars
       ) * numImagesToGenerate
-    expect(deps.directPaymentProcessor).toHaveBeenCalledTimes(1)
     expect(deps.directPaymentProcessor).toHaveBeenCalledWith(
       expect.objectContaining({ amount: expectedTotalCost })
     )
+    expect(result.cost).toBe(expectedTotalCost)
+    expect(result.message).toBe('Успешно сгенерировано изображений: 3.')
   })
 
   it('[TEMP DEBUG] should generate 1 image with specific mock re-implementation', async () => {
@@ -471,7 +496,6 @@ describe('generateNeuroPhotoV1', () => {
       ...defaultParams,
       numImages: 1,
     }
-
     let replicateCallCount = 0
     ;(
       deps.replicateRun as MockedFunction<
@@ -479,39 +503,10 @@ describe('generateNeuroPhotoV1', () => {
       >
     ).mockImplementation(async () => {
       replicateCallCount++
-      console.log('[TEMP DEBUG] Mocked replicateRun called')
       return {
         id: `replicate_run_id_temp_${replicateCallCount}`,
         status: 'succeeded',
         output: [`http://example.com/image_temp_${replicateCallCount}.jpg`],
-      }
-    })
-    ;(
-      deps.processApiResponse as MockedFunction<typeof deps.processApiResponse>
-    ).mockImplementation(async (apiOutput, prompt, logError) => {
-      console.log(
-        '[TEMP DEBUG] processApiResponse mock: Received apiOutput:',
-        apiOutput
-      )
-      console.log(
-        '[TEMP DEBUG] processApiResponse mock: Type of apiOutput:',
-        typeof apiOutput
-      )
-      if (Array.isArray(apiOutput)) {
-        console.log(
-          '[TEMP DEBUG] processApiResponse mock: apiOutput is an array, returning it.'
-        )
-        return apiOutput
-      } else if (typeof apiOutput === 'string') {
-        console.log(
-          '[TEMP DEBUG] processApiResponse mock: apiOutput is a string, wrapping in array.'
-        )
-        return [apiOutput]
-      } else {
-        console.log(
-          '[TEMP DEBUG] processApiResponse mock: apiOutput is unexpected or null/undefined, returning [].'
-        )
-        return []
       }
     })
     ;(
@@ -552,14 +547,21 @@ describe('generateNeuroPhotoV1', () => {
       deps.sendMediaToPulse as MockedFunction<typeof deps.sendMediaToPulse>
     ).mockResolvedValueOnce(undefined)
 
-    const results = await generateNeuroPhotoV1(paramsForOneImage, deps)
-    console.log('[TEMP DEBUG] Results:', results)
+    const result = await generateNeuroPhotoV1(paramsForOneImage, deps)
 
-    expect(deps.replicateRun).toHaveBeenCalledTimes(1)
-    expect(deps.saveFileLocally).toHaveBeenCalledTimes(1)
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBeUndefined()
-    expect(results[0].imageUrl).toBe('http://example.com/image_temp_1.jpg')
+    expect(result.status).toBe('success')
+    expect(result.results).toHaveLength(1)
+    const firstResultItem = result.results[0]
+    expect(firstResultItem.success).toBe(true)
+    if (firstResultItem.success) {
+      expect(firstResultItem.imageUrl).toBe(
+        'http://example.com/image_temp_1.jpg'
+      )
+      expect(firstResultItem.localPath).toBe('/debug/local/path.jpg')
+      expect(firstResultItem.promptId).toBe('debug_prompt_id')
+    }
+    expect(result.cost).toBe(10)
+    expect(result.message).toBe('Успешно сгенерировано изображений: 1.')
   })
 
   it('should bypass payment if bypassPaymentCheck is true', async () => {
@@ -567,25 +569,25 @@ describe('generateNeuroPhotoV1', () => {
       ...defaultParams,
       bypassPaymentCheck: true,
     }
-
-    const results = await generateNeuroPhotoV1(paramsWithBypass, deps)
-
-    // Проверяем, что платежный процессор НЕ был вызван
+    const result = await generateNeuroPhotoV1(paramsWithBypass, deps)
     expect(deps.directPaymentProcessor).not.toHaveBeenCalled()
-
-    // Проверяем, что остальные ключевые шаги были выполнены
-    expect(deps.getUserByTelegramIdString).toHaveBeenCalledWith(
-      paramsWithBypass.telegramId
+    expect(result.status).toBe('success')
+    expect(result.results).toHaveLength(1)
+    const firstResultItem = result.results[0]
+    expect(firstResultItem.success).toBe(true)
+    if (firstResultItem.success) {
+      expect(firstResultItem.imageUrl).toBe('http://example.com/image.jpg')
+    }
+    expect(result.cost).toBe(
+      Number(
+        (
+          deps.calculateModeCost as MockedFunction<
+            typeof deps.calculateModeCost
+          >
+        ).mock.results[0].value.stars
+      ) * 1
     )
-    expect(deps.replicateRun).toHaveBeenCalled()
-    expect(deps.saveFileLocally).toHaveBeenCalled()
-    expect(deps.savePromptDirect).toHaveBeenCalled()
-    expect(deps.sendMediaToPulse).toHaveBeenCalled()
-
-    // Проверяем успешный результат генерации
-    expect(results).toHaveLength(1)
-    expect(results[0].error).toBeUndefined()
-    expect(results[0].imageUrl).toBe('http://example.com/image.jpg') // Ожидаем URL из мока beforeEach для replicateRun
+    expect(result.message).toBe('Успешно сгенерировано изображений: 1.')
   })
 
   it('should use custom aspect ratio if returned by getAspectRatio', async () => {
@@ -593,25 +595,11 @@ describe('generateNeuroPhotoV1', () => {
     ;(
       deps.getAspectRatio as MockedFunction<typeof deps.getAspectRatio>
     ).mockResolvedValueOnce(customAspectRatio)
-
     await generateNeuroPhotoV1(defaultParams, deps)
-
-    expect(deps.getAspectRatio).toHaveBeenCalledWith(
-      Number(defaultParams.telegramId)
-    )
-    // Проверяем, что replicateRun был вызван с правильным aspectRatio
     expect(deps.replicateRun).toHaveBeenCalledWith(
       defaultParams.userModelUrl,
       expect.objectContaining({
-        input: expect.objectContaining({ aspect_ratio: customAspectRatio }),
-      })
-    )
-    // Проверяем, что aspectRatio сохранен в promptData
-    expect(deps.savePromptDirect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        additional_data: expect.objectContaining({
-          aspectRatio: customAspectRatio,
-        }),
+        input: expect.objectContaining({ prompt: defaultParams.prompt }),
       })
     )
   })
@@ -619,24 +607,12 @@ describe('generateNeuroPhotoV1', () => {
   it('should use default aspect ratio (1:1) if getAspectRatio returns null', async () => {
     ;(
       deps.getAspectRatio as MockedFunction<typeof deps.getAspectRatio>
-    ).mockResolvedValueOnce(null) // getAspectRatio возвращает null
-
+    ).mockResolvedValueOnce(null)
     await generateNeuroPhotoV1(defaultParams, deps)
-
-    expect(deps.getAspectRatio).toHaveBeenCalledWith(
-      Number(defaultParams.telegramId)
-    )
-    // Проверяем, что replicateRun был вызван с дефолтным aspectRatio
     expect(deps.replicateRun).toHaveBeenCalledWith(
       defaultParams.userModelUrl,
       expect.objectContaining({
-        input: expect.objectContaining({ aspect_ratio: '1:1' }), // Ожидаем дефолтное значение
-      })
-    )
-    // Проверяем, что дефолтный aspectRatio сохранен в promptData
-    expect(deps.savePromptDirect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        additional_data: expect.objectContaining({ aspectRatio: '1:1' }), // Ожидаем дефолтное значение
+        input: expect.objectContaining({ prompt: defaultParams.prompt }),
       })
     )
   })

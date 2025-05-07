@@ -1,5 +1,18 @@
 // src/__tests__/services/generateImageToVideo/standard-mode.test.ts
 
+// Mock the Supabase client
+vi.mock('@/core/supabase/client', () => ({
+  supabase: {
+    from: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    rpc: vi.fn().mockResolvedValue({ data: {}, error: null }),
+  },
+}))
+
 // Используем generateImageToVideo и типы
 import {
   generateImageToVideo,
