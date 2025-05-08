@@ -8,7 +8,7 @@ import express, {
 } from 'express'
 import healthRouter from './routes/health.routes' // Предполагаем, что этот файл будет создан
 import { serve } from 'inngest/express'
-import { inngest, functions as inngestFunctions } from '../inngest/client'
+import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 
 // Определяем порт. Берем из process.env.PORT, если есть, иначе 2999.
 const PORT = process.env.PORT || '2999'
