@@ -3,6 +3,7 @@ import { MyContext } from '@/interfaces'
 import { starAmounts } from '@/price/helpers/starAmounts'
 // import { BuyParams } from '../handleBuy/index' // Убираем старый импорт
 import { logger } from '@/utils/logger'
+import { ADMIN_IDS_ARRAY } from '@/config'
 
 // Создаем новый интерфейс для параметров этой функции
 interface SelectStarsParams {
@@ -27,6 +28,16 @@ export async function handleSelectStars({
     const buttons = starAmounts.map(amount => [
       Markup.button.callback(`⭐️ ${amount}`, `top_up_${amount}`),
     ])
+
+    const callerId = ctx.from?.id
+    if (callerId && ADMIN_IDS_ARRAY.includes(callerId)) {
+      logger.info('[handleSelectStars] Adding 1-star admin test button', {
+        telegram_id: callerId,
+      })
+      buttons.unshift([
+        Markup.button.callback('⭐️ 1 (Admin Test)', 'top_up_1'),
+      ])
+    }
 
     const keyboard = Markup.inlineKeyboard(buttons)
 
