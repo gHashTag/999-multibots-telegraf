@@ -27,6 +27,12 @@ interface TrainingResponse {
   error?: string
 }
 
+interface ReplicateModelResponse {
+  latest_version?: {
+    id: string
+  }
+}
+
 interface ModelTrainingResult {
   model_id: string
   model_url?: string
@@ -65,7 +71,7 @@ async function getLatestModelUrl(modelName: string): Promise<string> {
       )
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as ReplicateModelResponse
     console.log('data:', data)
     if (!data.latest_version?.id) {
       throw new Error(
