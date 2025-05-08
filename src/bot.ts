@@ -21,6 +21,9 @@ import {
 import { handleTextMessage } from './handlers/handleTextMessage'
 import { message } from 'telegraf/filters'
 
+// Импортируем наш новый API сервер
+import { startApiServer } from './apiServer'
+
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
 
@@ -342,11 +345,20 @@ process.once('SIGINT', () => gracefulShutdown('SIGINT'))
 process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
 console.log('🏁 Запуск приложения')
+
+// Запускаем API сервер
+// Это будет выполнено при старте src/bot.ts
+startApiServer()
+
+// Возвращаем корректный запуск инициализации ботов
 initializeBots()
   .then(() => {
-    console.log('✅ Боты успешно запущены')
+    console.log('✅ Боты и API сервер успешно запущены') // Обновим сообщение
   })
   .catch(error => {
-    console.error('❌ Ошибка при инициализации ботов:', error)
+    console.error(
+      '❌ Ошибка при инициализации приложения (боты или API сервер):',
+      error
+    ) // Обновим сообщение
     process.exit(1)
   })
