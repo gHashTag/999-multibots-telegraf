@@ -1,6 +1,6 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { generateVoiceAvatar } from '@/services/generateVoiceAvatar'
+import { createVoiceAvatar } from '@/services/plan_b/createVoiceAvatar'
 import { isRussian } from '@/helpers/language'
 import { getUserBalance } from '@/core/supabase'
 import {
@@ -74,24 +74,26 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           console.error('❌ Telegram ID не найден')
           return
         }
-        await generateVoiceAvatar(
+
+        await createVoiceAvatar(
           fileUrl,
-          messageText,
           ctx.from.id.toString(),
-          ctx,
+          ctx.from?.username || '',
           isRu,
-          ctx.botInfo?.username || 'unknown_bot'
+          ctx
         )
+
+        // Если createVoiceAvatar выполнился успешно (не выбросил исключение),
+        // переходим в сцену text_to_speech вместо выхода из текущей сцены.
+        return ctx.scene.enter('text_to_speech')
       } catch (error) {
-        console.error('Error in handleVoiceMessage:', error)
+        console.error('Error in handleVoiceMessage (Plan B):', error)
         await ctx.reply(
           isRu
             ? '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'
             : '❌ An error occurred while creating the voice avatar. Please try again later.'
         )
       }
-
-      return ctx.scene.leave()
     }
   }
 )
