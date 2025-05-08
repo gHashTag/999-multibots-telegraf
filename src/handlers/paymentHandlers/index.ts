@@ -262,6 +262,15 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
       { telegram_id: normalizedUserId }
     )
 
+    // Очищаем информацию о выбранном платеже из сессии
+    if (ctx.session) {
+      ctx.session.selectedPayment = undefined
+      logger.info(
+        '[handleSuccessfulPayment] Cleared ctx.session.selectedPayment',
+        { telegram_id: normalizedUserId }
+      )
+    }
+
     await ctx.scene.enter(ModeEnum.MainMenu)
   } catch (error) {
     logger.error('❌ [handleSuccessfulPayment] Error processing payment:', {
