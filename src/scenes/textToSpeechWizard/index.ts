@@ -3,12 +3,16 @@ import { MyContext } from '../../interfaces'
 import { getUserBalance, getVoiceId } from '../../core/supabase'
 import {
   sendBalanceMessage,
-  sendInsufficientStarsMessage,
+  // sendInsufficientStarsMessage, // Больше не используется здесь напрямую, т.к. проверка баланса выше
 } from '@/price/helpers'
-import { generateTextToSpeech } from '../../services/generateTextToSpeech'
+import { createAudioFileFromText } from '@/core/elevenlabs/createAudioFileFromText'
 import { isRussian } from '@/helpers'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
+import fs from 'fs'
+import logger from '@/utils/logger'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
+import { ModeEnum } from '@/interfaces/modes'
 
 export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   'text_to_speech',
@@ -28,6 +32,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
     console.log('CASE: text_to_speech.next', ctx.message)
     const isRu = isRussian(ctx)
     const message = ctx.message
+    let audioPath: string | null = null
 
     if (!message || !('text' in message)) {
       await ctx.reply(
@@ -57,31 +62,75 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
           ctx.scene.leave()
           return
         }
-        if (!ctx.from?.id) {
-          console.error('❌ Telegram ID не найден')
-          return
-        }
-        if (!ctx.from?.username) {
-          console.error('❌ Username не найден')
-          return
-        }
-        await generateTextToSpeech(
-          message.text,
+
+        logger.info('[textToSpeechWizard] Calling createAudioFileFromText', {
+          text: message.text.substring(0, 20) + '...',
           voice_id,
-          ctx.from.id,
-          ctx.from.username || '',
-          isRu,
-          ctx.botInfo?.username
-        )
+        })
+        audioPath = await createAudioFileFromText({
+          text: message.text,
+          voice_id,
+        })
+        logger.info('[textToSpeechWizard] createAudioFileFromText finished', {
+          audioPath,
+        })
+
+        if (!audioPath) {
+          throw new Error('Failed to generate audio file path.')
+        }
+
+        await ctx.replyWithVoice({ source: audioPath })
+        logger.info('[textToSpeechWizard] Audio sent to user as voice.', {
+          audioPath,
+        })
+
+        await ctx.replyWithDocument({ source: audioPath })
+        logger.info('[textToSpeechWizard] Audio sent to user as document.', {
+          audioPath,
+        })
+
+        // --- Начало блока отправки сообщения о балансе ---
+        const costResult = calculateModeCost({ mode: ModeEnum.TextToSpeech })
+        const cost = costResult.stars
+        const currentUserId = ctx.from?.id?.toString()
+        const botName = ctx.botInfo?.username || 'unknown_bot'
+
+        if (currentUserId) {
+          const currentBalance = await getUserBalance(currentUserId)
+          await sendBalanceMessage(ctx, currentBalance, cost, isRu, botName)
+          logger.info('[textToSpeechWizard] Balance message sent to user.', {
+            currentBalance,
+            cost,
+          })
+        } else {
+          logger.warn(
+            '[textToSpeechWizard] Cannot send balance message, user ID not found.'
+          )
+        }
+        // --- Конец блока отправки сообщения о балансе ---
       } catch (error) {
-        console.error('Error in text_to_speech:', error)
+        console.error('Error processing text_to_speech in wizard:', error)
         await ctx.reply(
           isRu
-            ? 'Произошла ошибка при создании голосового аватара'
-            : 'Error occurred while creating voice avatar'
+            ? '❌ Произошла ошибка при преобразовании текста в речь'
+            : '❌ Error occurred while converting text to speech'
         )
+      } finally {
+        if (audioPath && fs.existsSync(audioPath)) {
+          try {
+            logger.info('[textToSpeechWizard] Deleting temporary audio file', {
+              audioPath,
+            })
+            fs.unlinkSync(audioPath)
+          } catch (unlinkErr) {
+            logger.error(
+              '[textToSpeechWizard] Error deleting temp audio file for TTS',
+              { audioPath, error: unlinkErr }
+            )
+          }
+        }
+        ctx.scene.leave()
       }
-      ctx.scene.leave()
       return
     }
   }
