@@ -46,8 +46,8 @@ export const processServiceBalanceOperation = async ({
     // Проверяем достаточно ли средств
     if (currentBalance < paymentAmount) {
       const message = is_ru
-        ? '❌ Недостаточно звёзд. Пополните баланс через /buy.'
-        : '❌ Insufficient stars. Top up your balance via /buy.'
+        ? '❌ Недостаточно звёзд. Пополните баланс в главном меню.'
+        : '❌ Insufficient stars. Top up your balance in the main menu.'
       // Отправляем сообщение напрямую через bot.telegram
       try {
         await bot.telegram.sendMessage(telegram_id, message)

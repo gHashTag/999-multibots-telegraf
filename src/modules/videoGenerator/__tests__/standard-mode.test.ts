@@ -215,7 +215,7 @@ describe('generateImageToVideo Service: Стандартный Режим (Image
     const videoModel = 'stable-video-diffusion'
     mockedHelpers.processBalanceVideoOperationHelper.mockResolvedValueOnce({
       success: false,
-      error: 'Insufficient funds. Top up your balance using the /buy command.',
+      error: 'Insufficient funds. Top up your balance in the main menu.',
       newBalance: 0,
       paymentAmount: 0,
       modePrice: 0,
