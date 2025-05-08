@@ -7,7 +7,7 @@ import {
   sendServiceErrorToUser,
   sendServiceErrorToAdmin,
 } from '@/helpers/error'
-import { Telegraf } from 'telegraf'
+// import { Telegraf } from 'telegraf' // Telegraf import removed
 import { MyContext } from '@/interfaces'
 import { modeCosts } from '@/price/helpers/modelsCost'
 import { levels } from '@/menu'
@@ -23,7 +23,7 @@ export async function generateImageToPrompt(
   telegram_id: string,
   username: string,
   is_ru: boolean,
-  bot: Telegraf<MyContext>,
+  ctx: MyContext,
   bot_name: string
 ): Promise<string> {
   console.log('generateImageToPrompt', imageUrl, telegram_id, username, is_ru)
@@ -65,7 +65,9 @@ export async function generateImageToPrompt(
 
     newBalance = paymentResult.balanceChange?.after
 
-    bot.telegram.sendMessage(
+    // bot.telegram.sendMessage(
+    await ctx.telegram.sendMessage(
+      // Changed to ctx.telegram.sendMessage
       telegram_id,
       is_ru ? '⏳ Генерация промпта...' : '⏳ Generating prompt...'
     )
@@ -136,7 +138,9 @@ export async function generateImageToPrompt(
           if (Array.isArray(data) && data.length > 1) {
             const caption = data[1]
             console.log('Found caption:', caption)
-            await bot.telegram.sendMessage(
+            // await bot.telegram.sendMessage(
+            await ctx.telegram.sendMessage(
+              // Changed to ctx.telegram.sendMessage
               telegram_id,
               '```\n' + caption + '\n```',
               {
@@ -152,7 +156,9 @@ export async function generateImageToPrompt(
             )
 
             if (costPerImage !== undefined && newBalance !== undefined) {
-              await bot.telegram.sendMessage(
+              // await bot.telegram.sendMessage(
+              await ctx.telegram.sendMessage(
+                // Changed to ctx.telegram.sendMessage
                 telegram_id,
                 is_ru
                   ? `Стоимость: ${costPerImage.toFixed(
@@ -182,8 +188,10 @@ export async function generateImageToPrompt(
     throw new Error('Internal error: Caption processing failed')
   } catch (error) {
     console.error('Error in generateImageToPrompt:', error)
-    await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
-    await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+    // await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
+    await sendServiceErrorToUser(ctx, telegram_id, error as Error, is_ru) // Changed to pass ctx
+    // await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
+    await sendServiceErrorToAdmin(ctx, telegram_id, error as Error) // Changed to pass ctx
 
     if (newBalance !== undefined && costPerImage !== undefined) {
       try {
@@ -198,7 +206,9 @@ export async function generateImageToPrompt(
           metadata: { is_ru },
         })
         console.log(`Refunded ${costPerImage} stars to user ${telegram_id}`)
-        await bot.telegram.sendMessage(
+        // await bot.telegram.sendMessage(
+        await ctx.telegram.sendMessage(
+          // Changed to ctx.telegram.sendMessage
           telegram_id,
           is_ru
             ? 'Средства возвращены из-за ошибки.'
@@ -209,8 +219,11 @@ export async function generateImageToPrompt(
           'CRITICAL: Failed to refund user after error:',
           refundError
         )
+        // await sendServiceErrorToAdmin(
         await sendServiceErrorToAdmin(
-          bot,
+          // Changed to pass ctx
+          // bot,
+          ctx, // Pass ctx
           telegram_id,
           new Error(
             `Failed refund check! User: ${telegram_id}, Amount: ${costPerImage}. Original error: ${
