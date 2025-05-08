@@ -17,6 +17,20 @@ export async function generateNeuroImage(
     throw new Error('Prompt not found')
   }
 
+  // --- DEBUG LOG ---
+  // console.log(
+  //   '>>> generateNeuroImage: Called with',
+  //   {
+  //     telegram_id: telegram_id,
+  //     numImages: numImages,
+  //     promptSample: prompt ? prompt.substring(0, 70) + '...' : 'null',
+  //     model_url: model_url,
+  //     botName: botName,
+  //     userModelFromSession: ctx.session.userModel ? String(ctx.session.userModel).substring(0,70) + '...' : 'null'
+  //   }
+  // );
+  // --- END DEBUG LOG ---
+
   if (!ctx.session.userModel) {
     throw new Error('User model not found')
   }
@@ -31,6 +45,9 @@ export async function generateNeuroImage(
     numImages,
     telegram_id,
     botName,
+    userModelFromSession: ctx.session.userModel
+      ? String(ctx.session.userModel).substring(0, 70) + '...'
+      : 'null',
   })
 
   try {

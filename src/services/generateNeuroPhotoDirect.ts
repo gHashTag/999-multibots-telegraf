@@ -44,6 +44,19 @@ export async function generateNeuroPhotoDirect(
     bypass_payment_check?: boolean
   }
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
+  // --- DEBUG LOG ---
+  // console.log(
+  //   '>>> generateNeuroPhotoDirect: Called with',
+  //   {
+  //     telegram_id: telegram_id,
+  //     numImagesReceived: numImages, // Логируем исходное numImages
+  //     promptSample: prompt ? prompt.substring(0, 70) + '...' : 'null',
+  //     model_url: model_url,
+  //     botName: botName
+  //   }
+  // );
+  // --- END DEBUG LOG ---
+
   logger.info({
     message: '🚀 [DIRECT] Начало прямой генерации Neurophoto V1',
     description: 'Starting direct Neurophoto V1 generation',
@@ -77,6 +90,16 @@ export async function generateNeuroPhotoDirect(
 
     // Убедимся что numImages имеет разумное значение
     const validNumImages = numImages && numImages > 0 ? numImages : 1
+    // --- DEBUG LOG ---
+    // console.log(
+    //   '>>> generateNeuroPhotoDirect: Validated numImages',
+    //   {
+    //     telegram_id: telegram_id,
+    //     originalNumImages: numImages,
+    //     validNumImages: validNumImages
+    //   }
+    // );
+    // --- END DEBUG LOG ---
     const is_ru = isRussian(ctx)
     const username = ctx.from?.username || 'unknown'
 
@@ -273,6 +296,17 @@ export async function generateNeuroPhotoDirect(
     const generatedUrls = []
 
     for (let i = 0; i < validNumImages; i++) {
+      // --- DEBUG LOG ---
+      // console.log(
+      //   '>>> generateNeuroPhotoDirect: LOOP Iteration',
+      //   {
+      //     telegram_id: telegram_id,
+      //     iteration: i,
+      //     totalIterations: validNumImages,
+      //     promptSample: prompt ? prompt.substring(0, 70) + '...' : 'null'
+      //   }
+      // );
+      // --- END DEBUG LOG ---
       try {
         // Отправляем сообщение о начале генерации для каждого изображения
         if (!options?.disable_telegram_sending) {
@@ -362,12 +396,19 @@ export async function generateNeuroPhotoDirect(
           aspect_ratio,
         }
 
-        logger.info({
-          message: '🔄 [DIRECT] Запуск API запроса к модели',
-          description: 'Calling Replicate API',
-          model_url,
-          input_params: JSON.stringify(input).substring(0, 200) + '...',
-        })
+        // --- DEBUG LOG ---
+        // console.log(
+        //   '>>> generateNeuroPhotoDirect: Calling Replicate.run with input (num_outputs=1)',
+        //   {
+        //     telegram_id: telegram_id,
+        //     iteration: i,
+        //     model_url: model_url,
+        //     // Не логируем весь input, он может быть большим, только ключевые моменты
+        //     inputPromptSample: input.prompt.substring(0,70) + '...',
+        //     inputNumOutputs: input.num_outputs
+        //   }
+        // );
+        // --- END DEBUG LOG ---
 
         // Выполняем запрос к API
         const output = (await replicate.run(

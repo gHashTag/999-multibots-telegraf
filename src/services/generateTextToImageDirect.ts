@@ -7,8 +7,10 @@ import { pulse } from '@/helpers/pulse'
 import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
+  getUserBalance,
 } from '@/core/supabase'
 import { IMAGES_MODELS } from '@/price/models'
+import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { processBalanceOperation } from '@/price/helpers'
 // import { PaymentType } from '@/interfaces/payments.interface'
@@ -16,7 +18,7 @@ import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
 import fs from 'fs'
-
+import { Markup } from 'telegraf'
 const supportedSizes = [
   '1024x1024',
   '1365x1024',
@@ -34,6 +36,20 @@ const supportedSizes = [
   '1024x1707',
   '1707x1024',
 ]
+
+// Вспомогательная функция для создания клавиатуры (чтобы не дублировать код)
+const createGenerationResultKeyboard = (is_ru: boolean) => {
+  return Markup.keyboard([
+    [{ text: '1️⃣' }, { text: '2️⃣' }, { text: '3️⃣' }, { text: '4️⃣' }],
+    [
+      { text: is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
+      { text: is_ru ? '📐 Изменить размер' : '📐 Change size' },
+    ],
+    [{ text: is_ru ? '🏠 Главное меню' : '🏠 Main menu' }],
+  ])
+    .resize()
+    .oneTime(false) // Чтобы клавиатура не исчезала
+}
 
 export const generateTextToImageDirect = async (
   prompt: string,
@@ -195,6 +211,32 @@ export const generateTextToImageDirect = async (
         }
         await ctx.telegram.sendMessage(telegram_id, errorMessageToUser)
         throw error
+      }
+    }
+
+    if (results.length > 0) {
+      try {
+        const currentBalance = await getUserBalance(telegram_id) // Получаем АКТУАЛЬНЫЙ баланс
+        logger.info(
+          `[generateTextToImageDirect] Successfully generated ${results.length} image(s) for user ${telegram_id}. Final balance to show: ${currentBalance}`
+        )
+
+        const keyboard = createGenerationResultKeyboard(is_ru)
+
+        await ctx.telegram.sendMessage(
+          telegram_id,
+          is_ru
+            ? `Ваши изображения сгенерированы! (${results.length} шт.)\n\nЕсли хотите сгенерировать еще, выберите количество.\n\nВаш новый баланс: ${currentBalance.toFixed(2)} ⭐️`
+            : `Your images have been generated! (${results.length} pcs.)\n\nWant to generate more? Select the quantity.\n\nYour new balance: ${currentBalance.toFixed(2)} ⭐️`,
+          {
+            reply_markup: keyboard.reply_markup,
+          }
+        )
+      } catch (error) {
+        logger.error(
+          `[generateTextToImageDirect] Error sending final message with balance for user ${telegram_id}:`,
+          error
+        )
       }
     }
 
