@@ -6,6 +6,8 @@ import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
+import { handleSelectStars } from '@/handlers/handleSelectStars'
+import { starAmounts } from '@/price/helpers/starAmounts'
 
 /**
  * Старая сцена оплаты, теперь используется как точка входа
@@ -64,17 +66,15 @@ paymentScene.enter(async ctx => {
 // Переход в сцену оплаты Звездами
 paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   logger.info(
-    `[${ModeEnum.PaymentScene}] User chose Stars. Entering StarPaymentScene.`,
+    `[${ModeEnum.PaymentScene}] User chose Stars for top-up. Calling handleSelectStars.`,
     { telegram_id: ctx.from?.id }
   )
-  // Определяем, это подписка или пополнение (логика может быть сложнее)
-  const intentType = ctx.session.selectedPayment?.type
-  const paymentInfo = ctx.session.selectedPayment
-  if (intentType === PaymentType.MONEY_INCOME && paymentInfo) {
-    await ctx.scene.enter(ModeEnum.StarPaymentScene, { paymentInfo })
-  } else {
-    await ctx.scene.enter(ModeEnum.StarPaymentScene)
-  }
+  const isRu = isRussian(ctx)
+  // Вызываем функцию, чтобы показать кнопки выбора суммы звезд
+  await handleSelectStars({ ctx, starAmounts, isRu })
+  // НЕ ВХОДИМ НИ В КАКУЮ СЦЕНУ ЗДЕСЬ.
+  // Обработка нажатия на кнопки 'top_up_X' произойдет через bot.action
+  // и вызовет handleTopUp -> handleBuy, который отправит инвойс.
 })
 
 // Переход в сцену оплаты Рублями
