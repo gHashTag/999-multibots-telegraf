@@ -241,6 +241,17 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     const telegramId = ctx.from.id
     const numImages = parseInt(text[0])
 
+    // --- DEBUG LOG ---
+    logger.debug('>>> HEARS HANDLER (1-4):', {
+      telegramId: telegramId,
+      textButton: text,
+      parsedNumImages: numImages,
+      sessionPromptSample: prompt ? prompt.substring(0, 70) + '...' : 'null',
+      sessionMode: ctx.session.mode,
+      sessionSelectedImageModel: ctx.session.selectedImageModel,
+    })
+    // --- END DEBUG LOG ---
+
     const { profile, settings } = await getUserProfileAndSettings(telegramId)
 
     if (!profile || !settings) {
@@ -279,9 +290,27 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
           ctx.botInfo?.username
         )
       } else if (ctx.session.mode === ModeEnum.TextToImage) {
+        const modelToUse = ctx.session.selectedImageModel
+
+        if (!modelToUse) {
+          logger.error(
+            '[Hears 1-4 TextToImage] Model not found in session (ctx.session.selectedImageModel).',
+            { telegramId }
+          )
+          await ctx.reply(
+            isRu
+              ? 'Ошибка: Модель для генерации не найдена в текущей сессии. Попробуйте начать заново из главного меню.'
+              : 'Error: Model for generation not found in the current session. Please try starting over from the main menu.'
+          )
+          return
+        }
+
+        logger.info(
+          `[Hears 1-4 TextToImage] Using model from session: ${modelToUse} for user ${telegramId}`
+        )
         await generateTextToImage(
           prompt,
-          settings.imageModel,
+          modelToUse,
           numImages,
           telegramId.toString(),
           isRu,

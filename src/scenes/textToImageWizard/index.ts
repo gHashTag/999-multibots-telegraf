@@ -234,114 +234,55 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       // Сохраняем промпт в сессию для возможного улучшения
       ctx.session.prompt = prompt
 
-      // Отправляем сообщение с клавиатурой здесь
-      await ctx.reply(
-        isRu
-          ? `Ваши изображения сгенерированы!\n\nЕсли хотите сгенерировать еще, то выберите количество изображений в меню 1️⃣, 2️⃣, 3️⃣, 4️⃣.\n\nВаш новый баланс: ${currentBalance.toFixed(2)} ⭐️`
-          : `Your images have been generated!\n\nGenerate more?\n\nYour new balance: ${currentBalance.toFixed(2)} ⭐️`,
-        {
-          reply_markup: {
-            keyboard: [
-              [{ text: '1️⃣' }, { text: '2️⃣' }, { text: '3️⃣' }, { text: '4️⃣' }],
-              [
-                { text: isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
-                { text: isRu ? '📐 Изменить размер' : '📐 Change size' },
-              ],
-              [{ text: isRu ? '🏠 Главное меню' : '🏠 Main menu' }],
-            ],
-            resize_keyboard: true,
-            // one_time_keyboard: false, // Оставляем клавиатуру
-          },
-        }
-      )
-
-      // Переходим на следующий шаг для обработки кнопок
-      return ctx.wizard.next()
+      // После успешной генерации (сообщение теперь отправляет generateTextToImageDirect),
+      // мы просто покидаем сцену.
+      return ctx.scene.leave() // Покидаем сцену
     } catch (error) {
-      logger.error('Ошибка при вызове generateTextToImageDirect', { error })
+      logger.error('Ошибка при генерации изображения в textToImageWizard:', {
+        error,
+        telegramId: ctx.from.id,
+      })
       await sendGenericErrorMessage(ctx, isRu)
-      return ctx.scene.leave() // Выходим при ошибке генерации
-    }
-  },
-  // НОВЫЙ ЧЕТВЕРТЫЙ ШАГ
-  async ctx => {
-    const isRu = isRussian(ctx)
-    const message = ctx.message
-
-    if (!message || !('text' in message)) {
-      // Если пришло не текстовое сообщение, просто выходим или просим выбрать кнопку
-      await ctx.reply(
-        isRu
-          ? 'Пожалуйста, выберите действие с помощью кнопок.'
-          : 'Please select an action using the buttons.'
-      )
-      // Не выходим, ждем нажатия кнопки
-      return
-    }
-
-    const text = message.text
-
-    // Проверяем отмену
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
       return ctx.scene.leave()
     }
-
-    // Обработка кнопок
-    switch (text) {
-      case '1️⃣':
-      case '2️⃣':
-      case '3️⃣':
-      case '4️⃣': {
-        const numImages = parseInt(text.replace('️⃣', ''))
-        // TODO: Реализовать повторную генерацию с numImages
-        // Пока просто выводим сообщение и выходим
-        await ctx.reply(
-          `Запущена повторная генерация ${numImages} изображений... (TODO)`
-        )
-        logger.info('Повторная генерация', {
-          numImages,
-          telegramId: ctx.from?.id,
-        })
-        return ctx.scene.leave() // Выходим после запуска (или пока нет реализации)
-      }
-
-      case isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt': {
-        if (ctx.session.prompt) {
-          logger.info('Переход в improvePromptWizard', {
-            telegramId: ctx.from?.id,
-          })
-          return ctx.scene.enter(improvePromptWizard.id)
-        } else {
-          await ctx.reply(
-            isRu
-              ? 'Не найден предыдущий промпт для улучшения.'
-              : 'Previous prompt not found for improvement.'
-          )
-          return ctx.scene.leave()
-        }
-      }
-
-      case isRu ? '📐 Изменить размер' : '📐 Change size': {
-        logger.info('Переход в sizeWizard', { telegramId: ctx.from?.id })
-        // TODO: Передать ID изображения или другую инфу в sizeWizard, если нужно
-        return ctx.scene.enter(sizeWizard.id)
-      }
-
-      case isRu ? '🏠 Главное меню' : '🏠 Main menu': {
-        logger.info('Возврат в главное меню', { telegramId: ctx.from?.id })
-        await handleMenu(ctx) // Используем хендлер главного меню
-        return ctx.scene.leave()
-      }
-
-      default:
-        await ctx.reply(
-          isRu
-            ? 'Пожалуйста, выберите действие с помощью кнопок.'
-            : 'Please select an action using the buttons.'
-        )
-        // Не выходим, ждем нажатия кнопки
-        return
-    }
+  },
+  // ЭТОТ ШАГ, СКОРЕЕ ВСЕГО, БОЛЬШЕ НЕ НУЖЕН ИЛИ ДОЛЖЕН БЫТЬ ПУСТЫМ,
+  // ТАК КАК ПРЕДЫДУЩИЙ ШАГ ЗАВЕРШАЕТСЯ ctx.scene.leave()
+  // ИЛИ ОБРАБОТКА ПЕРЕХОДИТ К HEARS HANDLERS
+  async ctx => {
+    // УДАЛЯЕМ СТРОКУ С "TODO" ОТСЮДА ИЛИ ВЕСЬ ЭТОТ ШАГ, ЕСЛИ ОН НЕ НУЖЕН
+    // logger.info(
+    //   `textToImageWizard step 4: User ${ctx.from?.id} ` +
+    //     ` ${ctx.message && 'text' in ctx.message ? ctx.message.text : 'no text'}`
+    // )
+    // const message = ctx.message
+    // if (message && 'text' in message) {
+    //   const text = message.text
+    //   const numImages = parseInt(text[0])
+    //   if (!isNaN(numImages) && numImages >= 1 && numImages <= 4) {
+    //     // TODO: Реализовать повторную генерацию с numImages
+    //     // await ctx.reply(
+    //     //   `Запущена повторная генерация ${numImages} изображений... (TODO)`
+    //     // )
+    //     // Здесь нужно вызвать generateTextToImageDirect или аналогичную логику,
+    //     // а затем снова показать клавиатуру, как на предыдущем шаге.
+    //     // Однако, это уже делается через hearsHandlers, поэтому этот шаг избыточен.
+    //   } else if (text === (isRussian(ctx) ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt')) {
+    //     return ctx.scene.enter(improvePromptWizard.id)
+    //   } else if (text === (isRussian(ctx) ? '📐 Изменить размер' : '📐 Change size')) {
+    //     // TODO: Передать ID изображения или другую инфу в sizeWizard, если нужно
+    //     return ctx.scene.enter(sizeWizard.id)
+    //   } else if (text === (isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu')) {
+    //     await handleMenu(ctx, true) // Возвращаемся в главное меню
+    //     return ctx.scene.leave()
+    //   }
+    // }
+    // Этот шаг, скорее всего, не будет достигнут, если предыдущий завершается ctx.scene.leave()
+    // или если пользователь нажимает кнопки, обрабатываемые hearsHandlers.
+    // Оставляем его пустым или удаляем, чтобы избежать неожиданного поведения.
+    logger.warn(
+      `Reached an unexpected step in textToImageWizard for user ${ctx.from?.id}. Leaving scene.`
+    )
+    return ctx.scene.leave()
   }
 )
