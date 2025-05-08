@@ -95,6 +95,7 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
     logger.info('[handleBuySubscription] Invoice sent successfully', {
       telegram_id: ctx.from?.id,
     })
+    await ctx.scene.leave()
   } catch (error) {
     logger.error('[handleBuySubscription] Error creating invoice', {
       error: error instanceof Error ? error.message : String(error),
