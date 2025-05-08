@@ -30,7 +30,6 @@ export async function priceCommand(ctx: MyContext) {
     - 📽️ Изображение в видео: ${getCost(modeCosts.image_to_video)} ⭐️
 
     <b>💵 Стоимость звезды:</b> ${(SYSTEM_CONFIG.starCost * 99).toFixed(2)} руб
-    💵 Пополнение баланса /buy
     `
     : `
     <b>💰 Price of all services:</b>
@@ -44,7 +43,6 @@ export async function priceCommand(ctx: MyContext) {
     - 📽️ Image to video: ${getCost(modeCosts.image_to_video)} ⭐️
 
     <b>💵 Star cost:</b> ${SYSTEM_CONFIG.starCost.toFixed(2)} $
-    💵 Top up balance /buy
     `
 
   await ctx.reply(message, { parse_mode: 'HTML' })

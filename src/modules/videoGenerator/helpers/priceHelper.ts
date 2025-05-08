@@ -85,8 +85,8 @@ export const processBalanceVideoOperationHelper = async (
 
     if (currentBalanceAtStart < paymentAmount) {
       const message = isRu
-        ? 'Недостаточно средств на балансе. Пополните баланс командой /buy.'
-        : 'Insufficient funds. Top up your balance using the /buy command.'
+        ? 'Недостаточно средств на балансе. Пополните баланс в главном меню.'
+        : 'Insufficient funds. Top up your balance in the main menu.'
       logger.warn('processBalanceVideoOperationHelper: Insufficient funds', {
         telegramId,
         currentBalance: currentBalanceAtStart,
