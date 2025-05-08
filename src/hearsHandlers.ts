@@ -3,7 +3,7 @@ import { logger } from './utils/logger'
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
 import { MyContext } from './interfaces/'
-import { Telegraf, Context } from 'telegraf'
+import { Telegraf } from 'telegraf'
 
 import { generateNeuroImage } from './services/generateNeuroImage'
 import { handleSizeSelection } from './handlers'
@@ -11,7 +11,7 @@ import { levels, mainMenu } from './menu'
 import { getReferalsCountAndUserData } from './core/supabase'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
-import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
+// import { handleRestartVideoGeneration } from './handlers/handleVideoRestart' // Закомментировано, так как кнопка неясна
 import { getUserProfileAndSettings } from '@/db/userSettings'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
@@ -109,7 +109,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Видео из текста от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.TextToVideo
-      await ctx.scene.enter('textToVideoWizard')
+      await ctx.scene.enter('text_to_video')
     }
   )
 
@@ -122,12 +122,12 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
-  bot.hears(
-    ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
-    async (ctx: MyContext) => {
-      await handleRestartVideoGeneration(ctx)
-    }
-  )
+  // bot.hears(
+  //   ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
+  //   async (ctx: MyContext) => {
+  //     await handleRestartVideoGeneration(ctx)
+  //   }
+  // )
 
   bot.hears('🔄 Сгенерировать еще (Фото в Видео)', async (ctx: MyContext) => {
     logger.info('HEARS: Сгенерировать еще (Фото в Видео)', {
@@ -143,6 +143,91 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       })
     }
   })
+
+  // НОВЫЕ ОБРАБОТЧИКИ ДЛЯ "ТЕКСТ В ВИДЕО"
+  bot.hears(
+    ['✨ Создать еще (Текст в Видео)', '✨ Create More (Text to Video)'],
+    async (ctx: MyContext) => {
+      logger.info('HEARS: Создать еще (Текст в Видео)', {
+        telegramId: ctx.from?.id,
+      })
+      try {
+        ctx.session.mode = ModeEnum.TextToVideo
+        if (ctx.scene.current) {
+          await ctx.scene.leave()
+        }
+        await ctx.scene.enter('text_to_video')
+        if (ctx.wizard) {
+          ctx.wizard.selectStep(0)
+          logger.info(
+            '[Hears] Explicitly set wizard step to 0 for textToVideoWizard re-entry.'
+          )
+        } else {
+          logger.warn(
+            '[Hears] Wizard context not available immediately after entering textToVideoWizard.'
+          )
+        }
+      } catch (error) {
+        logger.error(
+          'Error entering textToVideoWizard from "Создать еще" hears:',
+          {
+            error: error,
+            errorString: String(error),
+            errorJson: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+            telegramId: ctx.from?.id,
+          }
+        )
+        const isRu = isRussian(ctx)
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка при попытке начать новую генерацию. Попробуйте вернуться в главное меню.'
+            : 'An error occurred while trying to start a new generation. Please try returning to the main menu.'
+        )
+      }
+    }
+  )
+
+  bot.hears(
+    ['🖼 Выбрать другую модель (Видео)', '🖼 Select Another Model (Video)'],
+    async (ctx: MyContext) => {
+      logger.info('HEARS: Выбрать другую модель (Видео)', {
+        telegramId: ctx.from?.id,
+      })
+      try {
+        ctx.session.mode = ModeEnum.TextToVideo
+        if (ctx.scene.current) {
+          await ctx.scene.leave()
+        }
+        await ctx.scene.enter('text_to_video')
+        if (ctx.wizard) {
+          ctx.wizard.selectStep(0)
+          logger.info(
+            '[Hears] Explicitly set wizard step to 0 for textToVideoWizard re-entry.'
+          )
+        } else {
+          logger.warn(
+            '[Hears] Wizard context not available immediately after entering textToVideoWizard.'
+          )
+        }
+      } catch (error) {
+        logger.error(
+          'Error entering textToVideoWizard from "Выбрать другую модель" hears:',
+          {
+            error: error,
+            errorString: String(error),
+            errorJson: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+            telegramId: ctx.from?.id,
+          }
+        )
+        const isRu = isRussian(ctx)
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка при попытке выбора другой модели. Попробуйте вернуться в главное меню.'
+            : 'An error occurred while trying to select another model. Please try returning to the main menu.'
+        )
+      }
+    }
+  )
 
   bot.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async (ctx: MyContext) => {
     if (!('text' in ctx.message)) {

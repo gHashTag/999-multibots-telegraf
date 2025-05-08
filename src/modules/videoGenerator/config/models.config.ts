@@ -106,7 +106,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'kling-v1.6-pro': {
     id: 'kling-v1.6-pro',
     title: 'Kling v1.6 Pro',
-    inputType: ['text', 'image', 'morph'],
+    inputType: ['image', 'morph'],
     description: 'Продвинутая анимация (цена за секунду)',
     basePrice: 0.098,
     api: {
@@ -122,7 +122,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'kling-v1.6-standard': {
     id: 'kling-v1.6-standard',
     title: 'Kling v1.6 Standard',
-    inputType: ['text', 'image'],
+    inputType: ['image'],
     description: 'Стандартная анимация Kling (цена за секунду)',
     basePrice: 0.056,
     api: {
@@ -135,7 +135,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'kling-v2.0': {
     id: 'kling-v2.0',
     title: 'Kling v2.0',
-    inputType: ['text', 'image'],
+    inputType: ['image'],
     description: 'Новейшая модель Kling (цена за секунду)',
     basePrice: 0.28,
     api: {
