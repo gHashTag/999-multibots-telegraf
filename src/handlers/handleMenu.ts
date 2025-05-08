@@ -8,6 +8,7 @@ import { logger } from '@/utils/logger'
 import { handleTechSupport } from '@/commands/handleTechSupport'
 // Импортируем функцию перезапуска видео сцены
 import { handleRestartVideoGeneration } from './handleVideoRestart'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
@@ -303,7 +304,23 @@ export const handleMenu = async (ctx: MyContext) => {
           nextScene: ModeEnum.PaymentScene,
         })
         console.log('CASE: 💎 Пополнить баланс')
-        ctx.session.mode = ModeEnum.TopUpBalance
+        ctx.session.mode = ModeEnum.PaymentScene
+
+        // Очищаем/инициализируем selectedPayment для контекста пополнения баланса
+        ctx.session.selectedPayment = {
+          amount: 0, // Сумма будет определена в payment_scene
+          stars: 0, // Количество звезд будет определено в payment_scene
+          subscription: null, // Явно указываем, что это не покупка подписки
+          type: PaymentType.MONEY_INCOME, // Тип операции - пополнение
+        }
+        logger.info(
+          '[handleMenu] Initialized ctx.session.selectedPayment for top-up',
+          {
+            telegramId,
+            selectedPayment: ctx.session.selectedPayment,
+          }
+        )
+
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
         await ctx.scene.enter(ModeEnum.PaymentScene)
         console.log(
