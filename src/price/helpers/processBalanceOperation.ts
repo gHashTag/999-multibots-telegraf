@@ -33,8 +33,8 @@ export const processBalanceOperation = async ({
     // Проверяем достаточно ли средств
     if (currentBalance < paymentAmount) {
       const message = is_ru
-        ? 'Недостаточно средств на балансе. Пополните баланс вызвав команду /buy.'
-        : 'Insufficient funds. Top up your balance by calling the /buy command.'
+        ? 'Недостаточно средств на балансе. Пополните баланс в главном меню.'
+        : 'Insufficient funds. Top up your balance in the main menu.'
       await ctx.telegram.sendMessage(telegram_id.toString(), message)
       return {
         newBalance: currentBalance,
