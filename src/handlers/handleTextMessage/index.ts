@@ -208,11 +208,16 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
       chatId,
     })
     try {
-      await ctx.reply(
+      const friendlyMessage =
         userLanguage === 'ru'
-          ? 'Произошла критическая ошибка при обработке вашего сообщения 😥'
-          : 'A critical error occurred while processing your message 😥'
-      )
+          ? '✨ Упс! Кажется, возникла небольшая техническая заминка. Не волнуйтесь, такое бывает!\n\nЕсли проблема повторится, пожалуйста, скопируйте и отправьте разработчику информацию ниже, чтобы мы могли быстрее все исправить 🙏:'
+          : "✨ Oops! Looks like there was a small technical hiccup. Don't worry, it happens!\n\nIf the problem persists, please copy and share the information below with the developer so we can fix it quickly 🙏:"
+
+      const errorDetails = `\`\`\`\nError: ${errorMessage}\n\`\`\``
+
+      await ctx.reply(`${friendlyMessage}\n\n${errorDetails}`, {
+        parse_mode: 'Markdown',
+      })
     } catch (replyError) {
       const replyErrorMessage =
         replyError instanceof Error ? replyError.message : String(replyError)
