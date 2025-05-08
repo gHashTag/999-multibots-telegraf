@@ -14,6 +14,131 @@ import { logger } from '@/utils/logger'
 // Определяем тип ключа конфига локально
 type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
 
+// Новая асинхронная функция для обработки генерации видео в фоне
+async function processVideoGeneration(
+  ctx: MyContext,
+  prompt: string,
+  videoModelKey: VideoModelConfigKey,
+  isRu: boolean
+) {
+  try {
+    // Проверка наличия необходимой информации о пользователе и боте
+    if (!ctx.from || !ctx.from.id || !ctx.botInfo || !ctx.chat?.id) {
+      logger.error(
+        '[processVideoGeneration] Critical user/bot/chat info missing.',
+        { from: ctx.from, botInfo: ctx.botInfo, chatId: ctx.chat?.id }
+      )
+      // Попытка отправить сообщение об ошибке, если chat.id известен
+      if (ctx.chat?.id) {
+        await ctx.telegram.sendMessage(
+          ctx.chat.id,
+          isRu
+            ? 'Произошла внутренняя ошибка (отсутствует информация для обработки вашего запроса).'
+            : 'An internal error occurred (missing information to process your request).'
+        )
+      }
+      return
+    }
+    const telegramId = ctx.from.id.toString()
+    const username = ctx.from.username || 'unknown_user' // Предоставить значение по умолчанию, если username отсутствует
+    const botName = ctx.botInfo.username
+
+    const videoUrl = await generateTextToVideo(
+      prompt,
+      telegramId,
+      username,
+      isRu,
+      botName,
+      videoModelKey
+    )
+
+    if (videoUrl) {
+      await ctx.telegram.sendVideo(ctx.chat.id, videoUrl)
+
+      try {
+        const modelTitle =
+          VIDEO_MODELS_CONFIG[videoModelKey]?.title || videoModelKey
+        const pulseOptions: MediaPulseOptions = {
+          mediaType: 'video',
+          mediaSource: videoUrl,
+          telegramId: telegramId,
+          username: username,
+          language: isRu ? 'ru' : 'en',
+          serviceType: ModeEnum.TextToVideo,
+          prompt: prompt,
+          botName: botName,
+          additionalInfo: {
+            model_used: modelTitle,
+            original_url:
+              videoUrl.substring(0, 100) + (videoUrl.length > 100 ? '...' : ''),
+          },
+        }
+        await sendMediaToPulse(pulseOptions)
+        logger.info('[processVideoGeneration] Pulse sent successfully.', {
+          telegram_id: telegramId,
+        })
+      } catch (pulseError) {
+        logger.error('[processVideoGeneration] Error sending pulse:', {
+          telegram_id: telegramId,
+          error: pulseError,
+        })
+      }
+
+      const keyboard = Markup.keyboard([
+        [
+          isRu
+            ? '✨ Создать еще (Текст в Видео)'
+            : '✨ Create More (Text to Video)',
+        ],
+        [
+          isRu
+            ? '🖼 Выбрать другую модель (Видео)'
+            : '🖼 Select Another Model (Video)',
+        ],
+        [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+      ]).resize()
+      await ctx.telegram.sendMessage(
+        ctx.chat.id,
+        isRu
+          ? 'Ваше видео готово! Что дальше?'
+          : 'Your video is ready! What next?',
+        keyboard
+      )
+    } else {
+      await ctx.telegram.sendMessage(
+        ctx.chat.id,
+        isRu
+          ? 'Не удалось сгенерировать видео. Попробуйте другой промпт или модель.'
+          : 'Failed to generate video. Try a different prompt or model.'
+      )
+    }
+  } catch (error) {
+    logger.error(
+      '[processVideoGeneration] Error during background video processing:',
+      { error, telegram_id: ctx.from?.id }
+    )
+    try {
+      if (ctx.chat?.id) {
+        await ctx.telegram.sendMessage(
+          ctx.chat.id,
+          isRu
+            ? 'Произошла ошибка во время генерации видео.'
+            : 'An error occurred during video generation.'
+        )
+      } else {
+        logger.error(
+          '[processVideoGeneration] ctx.chat.id is undefined, cannot send error message to user.'
+        )
+      }
+    } catch (e) {
+      logger.error(
+        '[processVideoGeneration] Failed to send error message to user after background processing error',
+        e
+      )
+    }
+  }
+}
+
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   'text_to_video',
   async ctx => {
@@ -185,56 +310,57 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         const textStart = isRu
           ? '⏳ Запрос принят! Начинаю генерацию видео... Это может занять некоторое время. О результате сообщу отдельно.'
           : '⏳ Request accepted! Starting video generation... This might take a while. I will notify you separately about the result.'
+
+        // 1. Сначала отправляем подтверждение пользователю
         await ctx.reply(textStart, Markup.removeKeyboard())
 
-        const videoUrl = await generateTextToVideo(
-          prompt,
-          ctx.from.id.toString(),
-          ctx.from.username,
-          isRu,
-          ctx.botInfo?.username || 'unknown_bot',
-          videoModelKey
-        )
+        // 2. Запускаем генерацию в фоновом режиме
+        processVideoGeneration(ctx, prompt, videoModelKey, isRu)
+          .then(() => {
+            logger.info(
+              `[TextToVideoWizard] Асинхронная обработка видео для ${ctx.from?.id} инициирована.`
+            )
+          })
+          .catch(async error => {
+            logger.error(
+              `[TextToVideoWizard] Критическая ошибка при инициации асинхронной обработки видео для ${ctx.from?.id}:`,
+              error
+            )
+            try {
+              // Убедимся что ctx.chat.id доступен, прежде чем пытаться отправить сообщение
+              if (ctx.chat?.id) {
+                await ctx.telegram.sendMessage(
+                  ctx.chat.id,
+                  isRu
+                    ? 'Не удалось запустить генерацию видео. Пожалуйста, попробуйте позже.'
+                    : 'Failed to start video generation. Please try again later.'
+                )
+              } else {
+                logger.error(
+                  '[TextToVideoWizard] ctx.chat.id is undefined, cannot send critical error message to user.'
+                )
+              }
+            } catch (e) {
+              logger.error(
+                '[TextToVideoWizard] Failed to send critical error message to user',
+                e
+              )
+            }
+          })
 
         ctx.session.prompt = prompt
 
-        if (videoUrl) {
-          await ctx.replyWithVideo(videoUrl)
-
-          // Отправляем "пульс"
-          try {
-            const modelTitle =
-              VIDEO_MODELS_CONFIG[videoModelKey]?.title || videoModelKey
-            const pulseOptions: MediaPulseOptions = {
-              mediaType: 'video',
-              mediaSource: videoUrl,
-              telegramId: ctx.from.id.toString(),
-              username: ctx.from.username || 'unknown',
-              language: isRu ? 'ru' : 'en',
-              serviceType: ModeEnum.TextToVideo,
-              prompt: prompt,
-              botName: ctx.botInfo?.username || 'unknown_bot',
-              additionalInfo: {
-                model_used: modelTitle,
-                original_url:
-                  videoUrl.substring(0, 100) +
-                  (videoUrl.length > 100 ? '...' : ''),
-              },
-            }
-            await sendMediaToPulse(pulseOptions)
-            logger.info('[TextToVideoWizard] Pulse sent successfully.', {
-              telegram_id: ctx.from.id.toString(),
-            })
-          } catch (pulseError) {
-            logger.error('[TextToVideoWizard] Error sending pulse:', {
-              telegram_id: ctx.from.id.toString(),
-              error: pulseError,
-            })
-          }
-        } else {
-          // Если videoUrl не получен, отправляем сообщение об ошибке (generateTextToVideo уже залогировал детали)
-          await sendGenericErrorMessage(ctx, isRu)
-        }
+        // Важно: не ждем завершения processVideoGeneration здесь.
+        // Сцена должна либо завершиться, либо явно ожидать другого ввода,
+        // но не блокироваться на долгой операции.
+        // Поскольку пользователь получил сообщение "О результате сообщу отдельно",
+        // и кнопки для дальнейших действий будут отправлены из processVideoGeneration,
+        // можно оставить сцену "активной" без явного ctx.scene.leave() здесь,
+        // если предполагается, что пользователь может что-то еще ввести в этой сцене.
+        // Однако, если новые кнопки должны обрабатываться глобальными hears, то лучше выйти.
+        // Пока что оставляем без ctx.scene.leave() здесь, чтобы минимизировать изменения,
+        // но это место для потенциального улучшения управления состоянием.
+        // Главная цель - убрать await долгой операции - достигнута.
       } else {
         console.error('User information missing for video generation')
         await sendGenericErrorMessage(ctx, isRu)
