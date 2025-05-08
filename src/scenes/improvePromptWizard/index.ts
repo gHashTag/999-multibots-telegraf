@@ -189,7 +189,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                   ctx.from.id.toString(),
                   ctx.from.username || 'unknown',
                   isRu,
-                  ctx.botInfo?.username || 'unknown_bot'
+                  ctx.botInfo?.username || 'unknown_bot',
+                  ctx.session.videoModel
                 )
 
                 break
