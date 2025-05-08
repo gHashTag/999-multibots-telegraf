@@ -10,7 +10,7 @@ const ADMIN_CHAT_ID = '@neuro_coder_privat' // Или используй пер�
  * Используется в сервисах, где нет доступа к ctx.
  */
 export const sendServiceErrorToAdmin = async (
-  bot: Telegraf<MyContext>,
+  ctx: MyContext,
   culpritTelegramId: string, // ID пользователя, у которого произошла ошибка
   error: Error
 ): Promise<void> => {
@@ -31,7 +31,7 @@ export const sendServiceErrorToAdmin = async (
     const truncatedMessage =
       message.length > 4000 ? message.substring(0, 4000) + '...' : message
 
-    await bot.telegram.sendMessage(ADMIN_CHAT_ID, truncatedMessage)
+    await ctx.telegram.sendMessage(ADMIN_CHAT_ID, truncatedMessage)
     logger.info(`Sent service error message to admin chat ${ADMIN_CHAT_ID}`, {
       culpritTelegramId,
       error: error.message,
