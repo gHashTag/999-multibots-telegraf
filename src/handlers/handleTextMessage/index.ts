@@ -3,7 +3,10 @@ import { getUserModel, getUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 
-export async function handleTextMessage(ctx: MyContext) {
+export async function handleTextMessage(
+  ctx: MyContext,
+  next: () => Promise<void>
+) {
   if (
     ctx.message &&
     'text' in ctx.message &&
@@ -12,7 +15,7 @@ export async function handleTextMessage(ctx: MyContext) {
     console.log('[handleTextMessage] Skipping command', {
       telegramId: ctx.from?.id,
     })
-    return
+    return await next()
   }
 
   if (!ctx.message || !('text' in ctx.message) || !ctx.from || !ctx.chat) {
@@ -41,19 +44,25 @@ export async function handleTextMessage(ctx: MyContext) {
   )
 
   try {
-    let shouldProcess = false
+    let shouldProcessByThisHandler = false
 
     if (chatType === 'private') {
       if (ctx.scene.current?.id === ModeEnum.ChatWithAvatar) {
-        shouldProcess = true
+        shouldProcessByThisHandler = true
         console.log(
           '[handleTextMessage] Processing in private chat (inside chatWithAvatar scene)',
           { userId }
         )
+      } else {
+        console.log(
+          '[handleTextMessage] Skipping private chat text (not in chatWithAvatar scene)',
+          { userId, scene: ctx.scene.current?.id }
+        )
+        return await next()
       }
     } else if (chatType === 'group' || chatType === 'supergroup') {
       if (messageText.includes(`@${botUsername}`)) {
-        shouldProcess = true
+        shouldProcessByThisHandler = true
         console.log(
           `[handleTextMessage] Processing mention in group chat ${chatId}`,
           { chatId, userId }
@@ -63,11 +72,16 @@ export async function handleTextMessage(ctx: MyContext) {
           `[handleTextMessage] Ignoring message in group chat ${chatId} (no mention)`,
           { chatId, userId }
         )
-        return
+        return await next()
       }
+    } else {
+      console.log(
+        `[handleTextMessage] Unknown chat type: ${chatType}. Skipping.`
+      )
+      return await next()
     }
 
-    if (shouldProcess) {
+    if (shouldProcessByThisHandler) {
       console.log(
         `[handleTextMessage] Sending 'typing' action to chat ${chatId}`,
         { chatId, userId }
@@ -135,22 +149,24 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
 
       if (!textForAi) {
         console.log(
-          `[handleTextMessage] Empty text after removing mention in group chat ${chatId}`,
+          `[handleTextMessage] Empty text after removing mention in group chat ${chatId}. Skipping AI call.`,
           { chatId, userId }
         )
         return
       }
 
       console.log(
-        `[handleTextMessage] Preparing to call answerAi for user ${userId}. Model: ${userModel}. Text: "${textForAi.substring(0, 50)}..."`,
-        { userId, model: userModel }
+        `[handleTextMessage] Preparing to call answerAi for user ${userId}. Model: ${userModel || 'default_model'}. Text: "${textForAi.substring(0, 50)}..."`,
+        { userId, model: userModel || 'deepseek-chat' }
       )
       console.log(
         `[handleTextMessage] Using System Prompt with: ${genderInstruction}`
       )
 
+      const modelToUse = userModel || 'deepseek-chat'
+
       const response = await answerAi(
-        userModel,
+        modelToUse,
         userData,
         textForAi,
         userLanguage,

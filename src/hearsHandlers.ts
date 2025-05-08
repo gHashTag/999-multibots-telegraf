@@ -109,7 +109,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Видео из текста от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.TextToVideo
-      await ctx.scene.enter('textToVideoWizard')
+      await ctx.scene.enter('text_to_video')
     }
   )
 
@@ -153,12 +153,27 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       })
       try {
         ctx.session.mode = ModeEnum.TextToVideo
-        await ctx.scene.enter('textToVideoWizard')
+        if (ctx.scene.current) {
+          await ctx.scene.leave()
+        }
+        await ctx.scene.enter('text_to_video')
+        if (ctx.wizard) {
+          ctx.wizard.selectStep(0)
+          logger.info(
+            '[Hears] Explicitly set wizard step to 0 for textToVideoWizard re-entry.'
+          )
+        } else {
+          logger.warn(
+            '[Hears] Wizard context not available immediately after entering textToVideoWizard.'
+          )
+        }
       } catch (error) {
         logger.error(
           'Error entering textToVideoWizard from "Создать еще" hears:',
           {
-            error,
+            error: error,
+            errorString: String(error),
+            errorJson: JSON.stringify(error, Object.getOwnPropertyNames(error)),
             telegramId: ctx.from?.id,
           }
         )
@@ -179,13 +194,28 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         telegramId: ctx.from?.id,
       })
       try {
-        ctx.session.mode = ModeEnum.TextToVideo // Устанавливаем режим, чтобы сцена знала, для чего выбирается модель
-        await ctx.scene.enter('textToVideoWizard') // textToVideoWizard начинается с выбора модели
+        ctx.session.mode = ModeEnum.TextToVideo
+        if (ctx.scene.current) {
+          await ctx.scene.leave()
+        }
+        await ctx.scene.enter('text_to_video')
+        if (ctx.wizard) {
+          ctx.wizard.selectStep(0)
+          logger.info(
+            '[Hears] Explicitly set wizard step to 0 for textToVideoWizard re-entry.'
+          )
+        } else {
+          logger.warn(
+            '[Hears] Wizard context not available immediately after entering textToVideoWizard.'
+          )
+        }
       } catch (error) {
         logger.error(
           'Error entering textToVideoWizard from "Выбрать другую модель" hears:',
           {
-            error,
+            error: error,
+            errorString: String(error),
+            errorJson: JSON.stringify(error, Object.getOwnPropertyNames(error)),
             telegramId: ctx.from?.id,
           }
         )
