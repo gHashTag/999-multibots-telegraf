@@ -10,22 +10,27 @@ import { levels } from './mainMenu'
 import { Translation } from '@/interfaces/translations.interface'
 
 export const videoModelKeyboard = (
-  isRu: boolean
+  isRu: boolean,
+  inputType: 'text' | 'image' | 'morph'
 ): Markup.Markup<ReplyKeyboardMarkup> => {
   // --- DEBUG LOGGING START ---
   logger.debug(
     '[videoModelKeyboard] Generating keyboard. Config used:',
-    VIDEO_MODELS_CONFIG
+    VIDEO_MODELS_CONFIG,
+    'Filtering by inputType:',
+    inputType
   )
   // --- DEBUG LOGGING END ---
 
-  // Создаем массив текстовых названий кнопок С ЦЕНОЙ В ЗВЕЗДАХ ⭐
-  const buttons = Object.entries(VIDEO_MODELS_CONFIG).map(([key, config]) => {
-    // Рассчитываем финальную цену в звездах (уже по новой логике)
-    const finalPriceInStars = calculateFinalPrice(key)
-    // Формируем текст кнопки с ценой в звездах и эмодзи ⭐
-    return `${config.title} (${finalPriceInStars} ⭐)` // Заменяем ★ на ⭐
-  })
+  // Фильтруем модели по inputType, затем создаем массив текстовых названий кнопок С ЦЕНОЙ В ЗВЕЗДАХ ⭐
+  const buttons = Object.entries(VIDEO_MODELS_CONFIG)
+    .filter(([key, config]) => config.inputType.includes(inputType))
+    .map(([key, config]) => {
+      // Рассчитываем финальную цену в звездах (уже по новой логике)
+      const finalPriceInStars = calculateFinalPrice(key)
+      // Формируем текст кнопки с ценой в звездах и эмодзи ⭐
+      return `${config.title} (${finalPriceInStars} ⭐)` // Заменяем ★ на ⭐
+    })
 
   // --- DEBUG LOGGING START ---
   logger.debug('[videoModelKeyboard] Generated button texts:', buttons)
