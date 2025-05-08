@@ -74,6 +74,8 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
         await generateImageToPrompt(
           imageUrl,
           String(ctx.from?.id),
+          ctx.from?.username || 'unknown_user',
+          ctx.from?.language_code === 'ru',
           ctx,
           botName
         )

@@ -1,6 +1,6 @@
 import path from 'path'
 import os from 'os'
-import { createWriteStream } from 'fs'
+import fs, { createWriteStream } from 'fs'
 import { elevenlabs } from '.'
 
 export const createAudioFileFromText = async ({
@@ -11,7 +11,7 @@ export const createAudioFileFromText = async ({
   voice_id: string
 }): Promise<string> => {
   // Логируем входные данные
-  console.log('Attempting to create audio with:', {
+  console.log('[TTS_BOT] Attempting to create audio with:', {
     voice_id,
     textLength: text.length,
     apiKeyPresent: !!process.env.ELEVENLABS_API_KEY,
@@ -20,56 +20,82 @@ export const createAudioFileFromText = async ({
 
   // Проверяем наличие API ключа
   if (!process.env.ELEVENLABS_API_KEY) {
-    console.warn('ELEVENLABS_API_KEY отсутствует, будет использован mock')
+    console.warn(
+      '[TTS_BOT] ELEVENLABS_API_KEY отсутствует, будет использован mock'
+    )
   }
 
   try {
     // Логируем попытку генерации
-    console.log('Generating audio stream...')
+    console.log('Generating audio stream using new method...')
 
-    // Используем метод generateVoiceSpeech согласно новому интерфейсу
-    const audioBuffer = await elevenlabs.generateVoiceSpeech(voice_id, text)
-
-    // Логируем успешную генерацию
+    const requestPayload = {
+      voice: voice_id,
+      text: text,
+      model_id: 'eleven_turbo_v2_5',
+    }
     console.log(
-      'Audio generated successfully, size:',
-      audioBuffer instanceof ArrayBuffer ? audioBuffer.byteLength : 'unknown'
+      '[TTS_BOT] Request Payload to elevenlabs.generate:',
+      requestPayload
     )
 
+    // Используем метод .generate() и ожидаем Node.js ReadableStream
+    const audioStream = await elevenlabs.generate(requestPayload)
+
+    console.log(
+      '[TTS_BOT] Received audioStream object from elevenlabs.generate. Type:',
+      typeof audioStream
+    )
+    // console.log(audioStream); // Для детального изучения структуры, если понадобится
+
     const outputPath = path.join(os.tmpdir(), `audio_${Date.now()}.mp3`)
-    const writeStream = createWriteStream(outputPath)
 
-    return await new Promise<string>((resolve, reject) => {
-      // Преобразуем ArrayBuffer в Buffer и записываем
-      const buffer = Buffer.from(audioBuffer)
-      writeStream.write(buffer, error => {
-        if (error) {
-          console.error('Error writing audio buffer to file:', error)
-          reject(error)
-          return
+    return new Promise<string>((resolve, reject) => {
+      ;(async () => {
+        try {
+          const chunks: Buffer[] = []
+          // @ts-ignore (Если audioStream не типизирован как AsyncIterable<Uint8Array | Buffer>)
+          for await (const chunk of audioStream) {
+            chunks.push(
+              Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array)
+            )
+          }
+          console.log(`[TTS_BOT] Collected ${chunks.length} chunks.`)
+          const completeBuffer = Buffer.concat(chunks)
+          console.log(
+            '[TTS_BOT] Audio stream concatenated. Total size:',
+            completeBuffer.length
+          )
+
+          fs.writeFile(outputPath, completeBuffer, err => {
+            if (err) {
+              console.error('[TTS_BOT] Error writing audio file manually:', err)
+              reject(err)
+            } else {
+              console.log(
+                '[TTS_BOT] Audio file written successfully manually to:',
+                outputPath
+              )
+              resolve(outputPath)
+            }
+          })
+        } catch (streamError) {
+          console.error('[TTS_BOT] Error processing audio stream:', streamError)
+          reject(streamError)
         }
-
-        writeStream.end(() => {
-          console.log('Audio file written successfully to:', outputPath)
-          resolve(outputPath)
-        })
-      })
-
-      writeStream.on('error', error => {
-        console.error('Error writing audio file:', error)
-        reject(error)
-      })
+      })()
     })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
-    console.error('Error in createAudioFileFromText:', {
-      message: error.message,
-      statusCode: error.statusCode,
-      stack: error.stack,
-    })
-    // Выбрасываем обработанную ошибку с более информативным сообщением
+    console.error(
+      '[TTS_BOT] Error in createAudioFileFromText (manual stream processing):',
+      {
+        message: error.message,
+        statusCode: error.statusCode,
+        stack: error.stack,
+      }
+    )
     throw new Error(
-      `Failed to generate audio: ${error.message || 'Unknown error'}`
+      `[TTS_BOT] Failed to generate audio (manual stream processing): ${error.message || 'Unknown error'}`
     )
   }
 }

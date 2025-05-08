@@ -7,7 +7,7 @@ import logger from '@/utils/logger'
  * Используется в сервисах, где нет доступа к ctx.
  */
 export const sendServiceErrorToUser = async (
-  bot: Telegraf<MyContext>,
+  ctx: MyContext,
   telegramId: string,
   error: Error,
   isRu: boolean
@@ -17,7 +17,7 @@ export const sendServiceErrorToUser = async (
       ? `❌ Произошла ошибка.\n\nОшибка: ${error.message}`
       : `❌ An error occurred.\n\nError: ${error.message}`
 
-    await bot.telegram.sendMessage(telegramId, message)
+    await ctx.telegram.sendMessage(telegramId, message)
     logger.info(`Sent service error message to user ${telegramId}`, {
       telegramId,
       error: error.message,
