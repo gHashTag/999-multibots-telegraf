@@ -24,7 +24,11 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    if (!ctx.message || !('text' in ctx.message)) {
+    if ('text' in ctx.message) {
+      // Передаем текстовое сообщение в обработчик
+      await handleTextMessage(ctx, async () => {}) // Передаем пустую async функцию как next
+    } else {
+      // Обработка других типов сообщений, если нужно
       return ctx.scene.leave()
     }
 
@@ -33,9 +37,6 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     if (isCancel) {
       return ctx.scene.leave()
     }
-
-    // Обработка текстового сообщения
-    await handleTextMessage(ctx)
 
     const telegram_id = ctx.from.id
 
