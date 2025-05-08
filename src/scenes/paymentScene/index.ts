@@ -70,6 +70,17 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   const isRu = isRussian(ctx)
   const selectedPaymentInfo = ctx.session.selectedPayment
 
+  // ----- >>> ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ СЕССИИ ПЕРЕД РЕШЕНИЕМ <<< -----
+  logger.info(
+    `[${ModeEnum.PaymentScene}] HEARS '⭐️ Звездами': Checking session BEFORE decision.`,
+    {
+      telegram_id: ctx.from?.id,
+      session_dump: JSON.stringify(ctx.session, null, 2), // Выводим всю сессию
+      extracted_selectedPaymentInfo: selectedPaymentInfo, // Выводим извлеченное значение
+    }
+  )
+  // ----- >>> КОНЕЦ ДЕТАЛЬНОГО ЛОГИРОВАНИЯ <<< -----
+
   logger.info(
     `[${ModeEnum.PaymentScene}] User chose Stars. Session selectedPayment:`,
     { telegram_id: ctx.from?.id, selectedPaymentInfo }
