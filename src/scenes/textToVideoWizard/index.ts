@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext, VideoModelKey } from '@/interfaces'
 import { calculateFinalPrice } from '@/price/helpers'
 import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
 import { isRussian } from '@/helpers/language'
@@ -7,6 +7,9 @@ import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
 import { getUserBalance } from '@/core/supabase'
+import { ModeEnum } from '@/interfaces/modes'
+import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
+import { logger } from '@/utils/logger'
 
 // Определяем тип ключа конфига локально
 type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -20,7 +23,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu ? 'Выберите модель для генерации:' : 'Choose generation model:',
         {
-          reply_markup: videoModelKeyboard(isRu).reply_markup,
+          reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
         }
       )
 
@@ -130,7 +133,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           : `😕 Insufficient stars for generation (${cost}). Your balance: ${currentBalance} ★. Please select another model or top up your balance.`,
         // Оставляем клавиатуру для выбора
         {
-          reply_markup: videoModelKeyboard(isRu).reply_markup,
+          reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
         }
       )
       // Остаемся на этом же шаге
@@ -179,25 +182,89 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       }
 
       if (ctx.from && ctx.from.username) {
-        await generateTextToVideo(
+        const textStart = isRu
+          ? '⏳ Запрос принят! Начинаю генерацию видео... Это может занять некоторое время. О результате сообщу отдельно.'
+          : '⏳ Request accepted! Starting video generation... This might take a while. I will notify you separately about the result.'
+        await ctx.reply(textStart, Markup.removeKeyboard())
+
+        const videoUrl = await generateTextToVideo(
           prompt,
           ctx.from.id.toString(),
           ctx.from.username,
           isRu,
-          ctx.botInfo?.username || 'unknown_bot'
+          ctx.botInfo?.username || 'unknown_bot',
+          videoModelKey
         )
 
         ctx.session.prompt = prompt
+
+        if (videoUrl) {
+          await ctx.replyWithVideo(videoUrl)
+
+          // Отправляем "пульс"
+          try {
+            const modelTitle =
+              VIDEO_MODELS_CONFIG[videoModelKey]?.title || videoModelKey
+            const pulseOptions: MediaPulseOptions = {
+              mediaType: 'video',
+              mediaSource: videoUrl,
+              telegramId: ctx.from.id.toString(),
+              username: ctx.from.username || 'unknown',
+              language: isRu ? 'ru' : 'en',
+              serviceType: ModeEnum.TextToVideo,
+              prompt: prompt,
+              botName: ctx.botInfo?.username || 'unknown_bot',
+              additionalInfo: {
+                model_used: modelTitle,
+                original_url:
+                  videoUrl.substring(0, 100) +
+                  (videoUrl.length > 100 ? '...' : ''),
+              },
+            }
+            await sendMediaToPulse(pulseOptions)
+            logger.info('[TextToVideoWizard] Pulse sent successfully.', {
+              telegram_id: ctx.from.id.toString(),
+            })
+          } catch (pulseError) {
+            logger.error('[TextToVideoWizard] Error sending pulse:', {
+              telegram_id: ctx.from.id.toString(),
+              error: pulseError,
+            })
+          }
+        } else {
+          // Если videoUrl не получен, отправляем сообщение об ошибке (generateTextToVideo уже залогировал детали)
+          await sendGenericErrorMessage(ctx, isRu)
+        }
       } else {
         console.error('User information missing for video generation')
         await sendGenericErrorMessage(ctx, isRu)
       }
 
-      await ctx.scene.leave()
+      // После отправки видео и пульса, можно завершить сцену
+      // или предложить пользователю что-то еще.
+      // Для простоты пока завершим.
+      // await ctx.scene.leave() // <--- Убираем завершение сцены здесь
     } else {
       await sendGenericErrorMessage(ctx, isRu)
       await ctx.scene.leave()
     }
+  }
+)
+
+// Добавляем обработчик для новых кнопок
+textToVideoWizard.hears(
+  ['🎬 Да, создать еще (эта же модель)', '🎬 Yes, create more (same model)'], // <--- ИЗМЕНЕНО
+  async ctx => {
+    // Просто перезапускаем текущий шаг запроса промпта (шаг 2, индекс 2)
+    // ... existing code ...
+  }
+)
+
+textToVideoWizard.hears(
+  ['🔄 Выбрать другую модель', '🔄 Choose another model'], // <--- ИЗМЕНЕНО
+  async ctx => {
+    // Возвращаемся к первому шагу выбора модели (индекс 0)
+    return ctx.wizard.selectStep(0) // Индекс шага выбора модели
   }
 )
 

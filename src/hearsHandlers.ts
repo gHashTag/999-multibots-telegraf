@@ -122,12 +122,13 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
-  bot.hears(
-    ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
-    async (ctx: MyContext) => {
-      await handleRestartVideoGeneration(ctx)
-    }
-  )
+  // Закомментируем этот обработчик, так как неясно, где используется кнопка
+  // bot.hears(
+  //   ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
+  //   async (ctx: MyContext) => {
+  //     await handleRestartVideoGeneration(ctx)
+  //   }
+  // )
 
   bot.hears('🔄 Сгенерировать еще (Фото в Видео)', async (ctx: MyContext) => {
     logger.info('HEARS: Сгенерировать еще (Фото в Видео)', {

@@ -187,110 +187,6 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       )
       return // Остаемся на этом шаге
     }
-
-    // Старый код ниже этой точки не должен больше достигаться при нормальном потоке
-    // Если уже есть промпт и сцена инициализирована, сразу переходим к шагу промпта
-    // if (ctx.session.prompt && ctx.session.neuroPhotoInitialized === true) {
-    //   console.log(
-    //     `🧙‍♂️ [STEP0] Уже есть промпт: ${ctx.session.prompt}, переход к шагу 1`
-    //   )
-    //   logger.info({
-    //     message: '🔄 [NeuroPhoto] Переход к шагу промпта (уже есть промпт)',
-    //     telegramId,
-    //     prompt: ctx.session.prompt,
-    //     action: 'skip_to_prompt_step',
-    //   })
-
-    //   ctx.wizard.next() // Используем next() вместо selectStep для более надежного перехода
-    //   return await neuroPhotoPromptStep(ctx)
-    // }
-
-    // // Отмечаем, что сцена инициализирована
-    // ctx.session.neuroPhotoInitialized = true
-    // console.log('🧙‍♂️ Успешная инициализация! neuroPhotoInitialized = true')
-    // logger.info({
-    //   message: '✅ [NeuroPhoto] Сцена готова к получению промпта',
-    //   telegramId,
-    // })
-    // console.log('🧙‍♂️ Готов к получению промпта')
-
-    // // Проверяем, есть ли текст в сообщении пользователя
-    // if (
-    //   ctx.message &&
-    //   'text' in ctx.message &&
-    //   ctx.message.text !== levels[ModeEnum.NeuroPhoto]?.title_ru && // Проверка на русский вариант кнопки
-    //   ctx.message.text !== levels[ModeEnum.NeuroPhoto]?.title_en    // Проверка на английский вариант кнопки
-    // ) {
-    //   console.log(`🧙‍♂️ [STEP0] Получен текст: ${ctx.message.text}`)
-    //   logger.info({
-    //     message: '📝 [NeuroPhoto] Получен текст от пользователя',
-    //     telegramId,
-    //     text: ctx.message.text,
-    //   })
-
-    //   // Сохраняем текст как промпт
-    //   ctx.session.prompt = ctx.message.text
-    //   console.log(`🧙‍♂️ [STEP0] Сохранен промпт: ${ctx.session.prompt}`)
-    //   logger.info({
-    //     message: '💾 [NeuroPhoto] Сохранение промпта',
-    //     telegramId,
-    //     prompt: ctx.session.prompt,
-    //   })
-
-    //   // Переходим к шагу промпта через next()
-    //   ctx.wizard.next()
-    //   return await neuroPhotoPromptStep(ctx)
-    // } else if (
-    //   ctx.message &&
-    //   'text' in ctx.message &&
-    //   (ctx.message.text === levels[ModeEnum.NeuroPhoto]?.title_ru || // Проверка на русский вариант кнопки
-    //    ctx.message.text === levels[ModeEnum.NeuroPhoto]?.title_en)     // Проверка на английский вариант кнопки
-    // ) {
-    //   // Это команда меню - не обрабатываем как промпт
-    //   console.log('🧙‍♂️ [STEP0] Это команда меню, ожидаем следующего сообщения')
-    //   logger.info({
-    //     message: '⏳ [NeuroPhoto] Получена команда меню, ожидаем ввода промпта',
-    //     telegramId,
-    //     text: ctx.message.text,
-    //   })
-    //   // Здесь ДОЛЖЕН быть какой-то механизм, чтобы ОСТАТЬСЯ на этом шаге
-    //   // и ждать следующего сообщения, А НЕ проваливаться дальше.
-    //   // Например, повторный вызов reply с просьбой ввести промпт
-    //   // или просто `return;` если это первый шаг визарда и он должен ждать.
-    // }
-
-    // // Отправляем сообщение с инструкцией по использованию
-    // console.log(
-    //   '🧙‍♂️ [neuroPhotoConversationStep] Отправка приветственного сообщения'
-    // )
-    // logger.info({
-    //   message: '📤 [NeuroPhoto] Отправка инструкции пользователю',
-    //   telegramId,
-    //   action: 'send_welcome_message',
-    // })
-
-    // const isRussian = ctx.from?.language_code === 'ru'
-    // await ctx.reply(
-    //   isRussian
-    //     ? `🎨 <b>Создание Hейрофото</b>\n\nОпишите <b>НА АНГЛИЙСКОМ ЯЗЫКЕ</b>, что вы хотите изобразить. Например:\n- portrait of a girl in anime style\n- man in a space suit\n- fantastic landscape with dragons\n\n<i>Нейросеть создаст изображение на основе вашего запроса с использованием вашей персональной модели. Для лучших результатов используйте английский язык!</i>`
-    //     : `🎨 <b>Creating Neural Photo</b>\n\nDescribe what you want to depict. For example:\n- anime-style portrait of a girl\n- cat in a space suit\n- fantastic landscape with dragons\n\n<i>The neural network will create an image based on your request using your personal model.</i>`,
-    //   {
-    //     parse_mode: 'HTML',
-    //     reply_markup: createHelpCancelKeyboard(isRussian).reply_markup,
-    //   }
-    // )
-
-    // // Остаемся на том же шаге, ожидая ввод промпта
-    // console.log(
-    //   '🧙‍♂️ [neuroPhotoConversationStep] Ожидаем ввод промпта от пользователя'
-    // )
-    // logger.info({
-    //   message: '⏳ [NeuroPhoto] Ожидание промпта от пользователя',
-    //   telegramId,
-    //   action: 'waiting_for_prompt',
-    // })
-
-    // return // <-- ЭТОТ RETURN БЫЛ ПРОБЛЕМОЙ, если предыдущий if/else if не делал return
   } catch (error: any) {
     console.error(`🧙‍♂️ [neuroPhotoConversationStep] Ошибка: ${error.message}`)
     logger.error({
@@ -486,8 +382,11 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       genderPromptPart,
     })
 
+    const realisticPromptPart =
+      'Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines'
+
     // Формируем полный промпт с trigger_word и полом
-    const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}`
+    const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}, ${realisticPromptPart}`
     logger.info({
       message: '🎨 [NeuroPhoto] Начало генерации изображения',
       telegramId,

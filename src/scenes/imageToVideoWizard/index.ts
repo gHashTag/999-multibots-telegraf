@@ -23,7 +23,7 @@ import {
 
 // Определяем тип ключей конфига
 type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
-const MORPHING_MODEL_KEY = 'fofr-video-morpher' // Constant for the morphing model (backend uses this)
+const MORPHING_MODEL_KEY = 'kling-v1.6-pro' // Constant for the morphing model
 
 // --- Wizard Steps --- //
 
@@ -66,7 +66,7 @@ askModelStep.on('message', async ctx => {
     return ctx.wizard.selectStep(ctx.wizard.cursor + 3) // Jump to handleMorphImageA (step index 3)
   } else {
     // Standard flow: Ask to select model
-    const keyboardMarkup = videoModelKeyboard(isRu)
+    const keyboardMarkup = videoModelKeyboard(isRu, 'image')
     // HARDCODED TEXT
     const text = isRu
       ? '🤔 Выберите модель для генерации видео:'
@@ -190,7 +190,7 @@ handleModelSelection.on('text', async ctx => {
       await ctx.reply(text)
 
       // Reshow model selection
-      const keyboardMarkup = videoModelKeyboard(isRu)
+      const keyboardMarkup = videoModelKeyboard(isRu, 'image')
       // HARDCODED TEXT
       const textSelectAnother = isRu
         ? '🤔 Выберите другую модель:'
@@ -271,7 +271,7 @@ handleKlingModeSelection.action('kling_standard', async ctx => {
     await ctx.reply(textInsufficient)
 
     // Reshow model selection
-    const keyboardMarkup = videoModelKeyboard(isRu)
+    const keyboardMarkup = videoModelKeyboard(isRu, 'image')
     // HARDCODED TEXT
     const textSelectAnother = isRu
       ? '🤔 Выберите другую модель:'
@@ -332,7 +332,7 @@ handleKlingModeSelection.action('kling_morphing', async ctx => {
     await ctx.reply(textInsufficient)
 
     // Reshow model selection
-    const keyboardMarkup = videoModelKeyboard(isRu)
+    const keyboardMarkup = videoModelKeyboard(isRu, 'morph')
     const textSelectAnother = isRu
       ? '🤔 Выберите другую модель:'
       : '🤔 Choose another model:'
