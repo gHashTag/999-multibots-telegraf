@@ -34,6 +34,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       },
     },
     imageKey: 'first_frame_image',
+    canMorph: false,
   },
   'haiper-video-2': {
     id: 'haiper-video-2',
