@@ -4,7 +4,8 @@ import {
   Response as ExpressResponse,
 } from 'express'
 
-const router = Router()
+// Явная типизация для переменной router
+const router: Router = Router()
 
 // Функциональный обработчик для корневого маршрута
 const handleRoot = (req: ExpressRequest, res: ExpressResponse): void => {
