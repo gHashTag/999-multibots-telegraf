@@ -21,31 +21,34 @@ export function startApiServer(): void {
 
   // Простой middleware для логгирования запросов (опционально)
   app.use((req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
-    console.log(`[API Server] Received request: ${req.method} ${req.url}`)
+    // Используем приведение типов для безопасного доступа к свойствам
+    const method = (req as any).method || 'unknown'
+    const url = (req as any).url || 'unknown'
+    console.log(`[API Server] Received request: ${method} ${url}`)
     next()
   })
 
-  // Регистрируем Inngest эндпоинт
-  // По документации Inngest, хороший путь - /api/inngest
-  app.use(
-    '/api/inngest',
-    serve(
-      inngest, // Первый аргумент - клиент inngest
-      inngestFunctions, // Второй аргумент - массив функций
-      {
-        // Третий аргумент - опции (если нужны)
-        signingKey: process.env.INNGEST_SIGNING_KEY || undefined,
-      }
-    )
-  )
-
   // Подключаем роуты для проверки здоровья
   app.use('/', healthRouter)
+
+  // Интеграция с Inngest - обработчик вебхуков
+  // @ts-ignore - Игнорируем ошибку типов для совместимости с разными версиями Inngest
+  app.use('/api/inngest', serve(inngest, inngestFunctions))
 
   app
     .listen(PORT, () => {
       console.log(
         `[API Server] Successfully started and listening on port ${PORT}`
+      )
+      console.log(
+        '[API Server] Health check available at: http://localhost:' +
+          PORT +
+          '/api/health'
+      )
+      console.log(
+        '[API Server] Inngest webhook handler available at: http://localhost:' +
+          PORT +
+          '/api/inngest'
       )
     })
     .on('error', (error: NodeJS.ErrnoException) => {
