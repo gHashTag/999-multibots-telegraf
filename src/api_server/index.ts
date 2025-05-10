@@ -16,26 +16,31 @@ const PORT = process.env.PORT || '2999'
 export function startApiServer(): void {
   const app: Application = express()
 
-  // Временно используем as any для всей строки, чтобы разблокировать
+  // Middleware для парсинга JSON с установленным лимитом в 10MB
   app.use(expressJson({ limit: '10mb' }) as any)
 
   // Простой middleware для логгирования запросов (опционально)
   app.use((req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
-    // Временно возвращаем as any для разблокировки
-    console.log(
-      `[API Server] Received request: ${(req as any).method} ${(req as any).url}`
-    )
+    console.log(`[API Server] Received request: ${req.method} ${req.url}`)
     next()
   })
 
   // Регистрируем Inngest эндпоинт
-  // Обычно рекомендуется путь /api/inngest
-  app.use('/api/inngest', serve(inngest, inngestFunctions))
+  // По документации Inngest, хороший путь - /api/inngest
+  app.use(
+    '/api/inngest',
+    serve(
+      inngest, // Первый аргумент - клиент inngest
+      inngestFunctions, // Второй аргумент - массив функций
+      {
+        // Третий аргумент - опции (если нужны)
+        signingKey: process.env.INNGEST_SIGNING_KEY || undefined,
+      }
+    )
+  )
 
-  // Подключаем роуты
-  // Все роуты из health.routes.ts будут доступны по их внутренним путям
+  // Подключаем роуты для проверки здоровья
   app.use('/', healthRouter)
-  // В будущем: app.use('/api/users', usersRouter);
 
   app
     .listen(PORT, () => {
@@ -44,12 +49,10 @@ export function startApiServer(): void {
       )
     })
     .on('error', (error: NodeJS.ErrnoException) => {
-      // Уточнили тип ошибки
       console.error(
         `[API Server] Failed to start server on port ${PORT}:`,
         error
       )
-      // Можно добавить process.exit(1) если сервер не может запуститься
     })
 }
 
