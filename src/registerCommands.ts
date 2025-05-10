@@ -10,8 +10,8 @@ import { getUserInfo } from './handlers/getUserInfo'
 // Импортируем новую функцию
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
 import { sendMediaToPulse } from './helpers/pulse'
-// Импортируем Inngest клиент для отправки событий
-import { inngest } from './inngest_app/client'
+// Импортируем обработчик команды hello_world
+import { handleHelloWorld } from './commands/handleHelloWorld'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -180,41 +180,6 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     }
   })
   // --- КОНЕЦ ТЕСТОВОЙ КОМАНДЫ ---
-
-  // --- INNGEST TEST COMMAND ---
-  bot.command('hello_world', async ctx => {
-    logger.info('COMMAND: /hello_world called', { telegramId: ctx.from?.id })
-    try {
-      // Отправляем сообщение пользователю о начале обработки
-      await ctx.reply('🚀 Отправка тестового события в Inngest...')
-
-      // Информация о пользователе и сообщении для включения в событие
-      const eventData = {
-        userId: ctx.from.id,
-        username: ctx.from.username || 'unknown',
-        chatId: ctx.chat.id,
-        timestamp: new Date().toISOString(),
-        message: 'Hello from Telegram bot!',
-      }
-
-      // Отправляем событие в Inngest
-      await inngest.send({
-        name: 'test/hello.world',
-        data: eventData,
-      })
-
-      // Сообщаем пользователю об успешной отправке
-      await ctx.reply(
-        '✅ Тестовое событие успешно отправлено в Inngest!\nПроверьте лог функции в Inngest Dev UI: http://localhost:8288'
-      )
-    } catch (error) {
-      logger.error('Error in /hello_world command:', { error })
-      await ctx.reply(
-        `❌ Ошибка при отправке события в Inngest: ${error.message}`
-      )
-    }
-  })
-  // --- END INNGEST TEST COMMAND ---
 
   // --- ТЕПЕРЬ ВСЕ ОСТАЛЬНЫЕ ОБРАБОТЧИКИ ---
 
@@ -468,6 +433,14 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     ctx.session = { ...defaultSession }
     await ctx.scene.leave() // Явно выходим из любой сцены
     await ctx.scene.enter(ModeEnum.CreateUserScene)
+  })
+
+  // Регистрируем команду /hello_world для тестирования Inngest
+  bot.command('hello_world', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+    await handleHelloWorld(ctx)
   })
 
   bot.command('support', async ctx => {
