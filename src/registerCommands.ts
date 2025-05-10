@@ -10,6 +10,8 @@ import { getUserInfo } from './handlers/getUserInfo'
 // Импортируем новую функцию
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
 import { sendMediaToPulse } from './helpers/pulse'
+// Импортируем обработчик команды hello_world
+import { handleHelloWorld } from './commands/handleHelloWorld'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -431,6 +433,14 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     ctx.session = { ...defaultSession }
     await ctx.scene.leave() // Явно выходим из любой сцены
     await ctx.scene.enter(ModeEnum.CreateUserScene)
+  })
+
+  // Регистрируем команду /hello_world для тестирования Inngest
+  bot.command('hello_world', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+    await handleHelloWorld(ctx)
   })
 
   bot.command('support', async ctx => {

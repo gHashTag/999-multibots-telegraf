@@ -1,29 +1,20 @@
-import {
-  Router,
-  Request as ExpressRequest,
-  Response as ExpressResponse,
-} from 'express'
+import { Router } from 'express'
 
-const router = Router()
+// Явно указываем тип для router
+const router: any = Router()
 
 // Функциональный обработчик для корневого маршрута
-const handleRoot = (req: ExpressRequest, res: ExpressResponse): void => {
-  // Временно возвращаем as any для разблокировки
-  ;(res as any)
-    .status(200)
-    .send('API Server is alive and running! (from health.routes)')
-  return
+const handleRoot = (req: any, res: any): void => {
+  res.status(200).send('API Server is alive and running! (from health.routes)')
 }
 
 // Функциональный обработчик для /api/health
-const handleApiHealth = (req: ExpressRequest, res: ExpressResponse): void => {
-  // Временно возвращаем as any для разблокировки
-  ;(res as any).status(200).json({
+const handleApiHealth = (req: any, res: any): void => {
+  res.status(200).json({
     status: 'UP',
     source: 'health.routes',
     timestamp: new Date().toISOString(),
   })
-  return
 }
 
 // Регистрация маршрутов

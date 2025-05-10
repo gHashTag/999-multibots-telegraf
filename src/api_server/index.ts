@@ -1,11 +1,4 @@
-import express, {
-  Request as ExpressRequest,
-  Response as ExpressResponse,
-  NextFunction,
-  Application,
-  RequestHandler,
-  json as expressJson,
-} from 'express'
+import express from 'express'
 import healthRouter from './routes/health.routes' // Предполагаем, что этот файл будет создан
 import { serve } from 'inngest/express'
 import { inngest, functions as inngestFunctions } from '../inngest_app/client'
@@ -14,49 +7,81 @@ import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 const PORT = process.env.PORT || '2999'
 
 export function startApiServer(): void {
-  const app: Application = express()
+  const app: any = express()
 
-  // Временно используем as any для всей строки, чтобы разблокировать
-  app.use(expressJson({ limit: '10mb' }) as any)
+  // Middleware для парсинга JSON с установленным лимитом в 10MB
+  app.use(express.json({ limit: '10mb' }) as any)
 
-  // Простой middleware для логгирования запросов (опционально)
-  app.use((req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
-    // Временно возвращаем as any для разблокировки
-    console.log(
-      `[API Server] Received request: ${(req as any).method} ${(req as any).url}`
-    )
+  // Простой middleware для логгирования запросов
+  app.use((req: any, res: any, next: any) => {
+    console.log(`[API] ${new Date().toISOString()} | ${req.method} ${req.url}`)
     next()
   })
 
-  // Регистрируем Inngest эндпоинт
-  // Обычно рекомендуется путь /api/inngest
-  app.use(
-    '/api/inngest',
-    serve({ client: inngest, functions: inngestFunctions })
-  )
-
-  // Подключаем роуты
-  // Все роуты из health.routes.ts будут доступны по их внутренним путям
+  // Регистрируем маршруты для проверки работоспособности
   app.use('/', healthRouter)
-  // В будущем: app.use('/api/users', usersRouter);
 
-  app
-    .listen(PORT, () => {
-      console.log(
-        `[API Server] Successfully started and listening on port ${PORT}`
-      )
+  // Интеграция Inngest с API для версии 2.7.2
+  // Используем type assertion, чтобы избежать ошибок типизации
+  const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
+  app.use('/api/inngest', inngestHandler)
+
+  // Маршрут hello world для тестирования
+  app.get('/api/hello', (req: any, res: any) => {
+    res.status(200).json({
+      message: 'Hello from API Server!',
+      timestamp: new Date().toISOString(),
     })
-    .on('error', (error: NodeJS.ErrnoException) => {
-      // Уточнили тип ошибки
-      console.error(
-        `[API Server] Failed to start server on port ${PORT}:`,
-        error
-      )
-      // Можно добавить process.exit(1) если сервер не может запуститься
+  })
+
+  // Маршрут для тестирования Inngest функции hello world
+  app.post('/api/test-inngest', async (req: any, res: any) => {
+    try {
+      // Отправляем тестовое событие в Inngest
+      const result = await inngest.send({
+        name: 'test/hello.world', // Имя события, на которое слушает наша функция
+        data: {
+          test: true,
+          message: 'Test event from API',
+          timestamp: new Date().toISOString(),
+        },
+      })
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Inngest test event sent successfully',
+        timestamp: new Date().toISOString(),
+      })
+    } catch (error) {
+      console.error('Error sending Inngest event:', error)
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to send Inngest test event',
+        error: String(error),
+        timestamp: new Date().toISOString(),
+      })
+    }
+  })
+
+  // Обработка 404
+  app.use((req: any, res: any) => {
+    res.status(404).json({
+      status: 'error',
+      message: 'Route not found',
+      path: req.url,
     })
+  })
+
+  // Запускаем сервер на указанном порту
+  app.listen(PORT, () => {
+    console.log(`[API] Server started on port ${PORT}`)
+  })
 }
 
 // Если этот файл будет запускаться напрямую (например, для тестов или отдельного инстанса)
 // if (require.main === module) {
 //   startApiServer();
 // }
+
+// Экспортируем функцию для внешнего использования (например, в index.ts)
+export default startApiServer
