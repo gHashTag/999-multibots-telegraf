@@ -4,7 +4,7 @@ import {
   Response as ExpressResponse,
 } from 'express'
 
-// Явная типизация для переменной router
+// Явно указываем тип для router
 const router: Router = Router()
 
 // Функциональный обработчик для корневого маршрута

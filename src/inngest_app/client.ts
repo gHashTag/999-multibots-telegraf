@@ -1,7 +1,7 @@
 import { Inngest } from 'inngest'
 
 // Создаем клиент Inngest
-// Используем осмысленное id, например, имя проекта или приложения
+// Используем осмысленное name, согласно документации Inngest 2.7.2
 export const inngest = new Inngest({
   name: '999-multibots-telegraf',
   eventKey: process.env.INNGEST_EVENT_KEY,
@@ -9,8 +9,8 @@ export const inngest = new Inngest({
 
 // Наша первая Inngest функция - Hello World
 export const helloWorld = inngest.createFunction(
-  { name: 'hello-world-function' },
-  { event: 'test/hello.world' },
+  { name: 'hello-world-function' }, // Уникальный name для этой функции
+  { event: 'test/hello.world' }, // Событие, на которое триггерится функция
   async ({ event, step, logger }) => {
     logger.info('[Inngest:hello-world-function] Function started', {
       eventName: event.name,
