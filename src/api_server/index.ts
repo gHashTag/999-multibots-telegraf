@@ -30,10 +30,7 @@ export function startApiServer(): void {
 
   // Регистрируем Inngest эндпоинт
   // Обычно рекомендуется путь /api/inngest
-  app.use(
-    '/api/inngest',
-    serve({ client: inngest, functions: inngestFunctions })
-  )
+  app.use('/api/inngest', serve(inngest, inngestFunctions))
 
   // Подключаем роуты
   // Все роуты из health.routes.ts будут доступны по их внутренним путям
