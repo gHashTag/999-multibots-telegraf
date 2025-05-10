@@ -2,7 +2,7 @@
   "compileOnSave": false,
   "compilerOptions": {
     "target": "es2022",
-    "lib": ["esnext"],
+    "lib": ["esnext", "dom"],
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
@@ -20,6 +20,7 @@
     "importHelpers": true,
     "strict": false,
     "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
     "baseUrl": "src",
     "paths": {
       "@/*": ["./*"],
@@ -41,11 +42,15 @@
       "@/helpers/*": ["helpers/*"],
       "@/scripts/*": ["scripts/*"]
     },
+    "typeRoots": ["./src/types", "./node_modules/@types", "./node_modules/.pnpm/@types"],
     "rootDir": "./src"
+  },
+  "typeAcquisition": {
+    "enable": true
   },
   "ts-node": {
     "require": ["tsconfig-paths/register"]
   },
   "include": ["src/**/*.ts", "src/**/*.json", "__tests__/**/*.ts"],
-  "exclude": ["node_modules", "src/node_modules", "dist"]
+  "exclude": ["node_modules", "src/node_modules", "dist", "**/*.d.ts"]
 }
