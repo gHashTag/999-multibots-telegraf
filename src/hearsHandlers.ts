@@ -22,7 +22,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Цифровое тело от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.DigitalAvatarBody
-      await ctx.scene.enter('digitalAvatarBodyWizard')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
@@ -31,14 +31,14 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Нейрофото от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.NeuroPhotoV2
-      await ctx.scene.enter('neuroPhotoWizardV2')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
   bot.hears(['📸 Нейрофото 2', '📸 NeuroPhoto 2'], async (ctx: MyContext) => {
     logger.debug(`Получен hears для Нейрофото 2 от ${ctx.from?.id}`)
     ctx.session.mode = ModeEnum.NeuroPhoto
-    await ctx.scene.enter('neuroPhotoWizard')
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
   bot.hears(
@@ -46,7 +46,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Промпт из фото от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.ImageToPrompt
-      await ctx.scene.enter(ModeEnum.ImageToPrompt)
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
@@ -55,7 +55,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Мозг аватара от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.Avatar
-      await ctx.scene.enter('avatarWizard')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
@@ -64,7 +64,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Чат с аватаром от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.ChatWithAvatar
-      await ctx.scene.enter('chatWithAvatarWizard')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
@@ -73,7 +73,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Выбор модели ИИ от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.SelectModel
-      await ctx.scene.enter('selectModelWizard')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
@@ -82,7 +82,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Голос аватара от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.Voice
-      await ctx.scene.enter('voiceAvatarWizard')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
@@ -91,7 +91,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Текст в голос от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.TextToSpeech
-      await ctx.scene.enter('textToSpeechWizard')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
@@ -100,7 +100,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Фото в видео от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.ImageToVideo
-      await ctx.scene.enter('imageToVideoWizard')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
@@ -109,7 +109,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Видео из текста от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.TextToVideo
-      await ctx.scene.enter('text_to_video')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
@@ -118,7 +118,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Текст в фото от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.TextToImage
-      await ctx.scene.enter('textToImageWizard')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
@@ -135,7 +135,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     })
     try {
       ctx.session.mode = ModeEnum.ImageToVideo
-      await ctx.scene.enter('imageToVideoWizard')
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     } catch (error) {
       logger.error('Error entering imageToVideoWizard from hears:', {
         error,
@@ -156,17 +156,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         if (ctx.scene.current) {
           await ctx.scene.leave()
         }
-        await ctx.scene.enter('text_to_video')
-        if (ctx.wizard) {
-          ctx.wizard.selectStep(0)
-          logger.info(
-            '[Hears] Explicitly set wizard step to 0 for textToVideoWizard re-entry.'
-          )
-        } else {
-          logger.warn(
-            '[Hears] Wizard context not available immediately after entering textToVideoWizard.'
-          )
-        }
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       } catch (error) {
         logger.error(
           'Error entering textToVideoWizard from "Создать еще" hears:',
@@ -198,17 +188,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         if (ctx.scene.current) {
           await ctx.scene.leave()
         }
-        await ctx.scene.enter('text_to_video')
-        if (ctx.wizard) {
-          ctx.wizard.selectStep(0)
-          logger.info(
-            '[Hears] Explicitly set wizard step to 0 for textToVideoWizard re-entry.'
-          )
-        } else {
-          logger.warn(
-            '[Hears] Wizard context not available immediately after entering textToVideoWizard.'
-          )
-        }
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
       } catch (error) {
         logger.error(
           'Error entering textToVideoWizard from "Выбрать другую модель" hears:',
@@ -331,7 +311,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     ['⬆️ Улучшить промпт', '⬆️ Improve prompt'],
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Улучшить промпт от ${ctx.from?.id}`)
-      await ctx.scene.enter('improvePromptWizard')
+      await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
     }
   )
 
@@ -339,7 +319,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     ['📐 Изменить размер', '📐 Change size'],
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Изменить размер от ${ctx.from?.id}`)
-      await ctx.scene.enter('sizeWizard')
+      await ctx.scene.enter(ModeEnum.SizeWizard)
     }
   )
 
@@ -391,7 +371,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Помощь от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.Help
-      await ctx.scene.enter('helpScene')
+      await ctx.scene.enter(ModeEnum.Help)
     }
   )
 
@@ -410,7 +390,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Баланс от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.Balance
-      await ctx.scene.enter('balanceScene')
+      await ctx.scene.enter(ModeEnum.BalanceScene)
     }
   )
 
@@ -419,16 +399,32 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Пригласить друга от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.Invite
-      await ctx.scene.enter('inviteScene')
+      await ctx.scene.enter(ModeEnum.InviteScene)
     }
   )
 
   bot.hears(
-    [levels[104].title_ru, levels[104].title_en],
+    ['✨ Улучшить промт', '✨ Improve Prompt'],
     async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Помощь от ${ctx.from?.id}`)
-      ctx.session.mode = ModeEnum.Help
-      await ctx.scene.enter('helpScene')
+      logger.debug(`Получен hears для Улучшить промт от ${ctx.from?.id}`)
+      ctx.session.mode = ModeEnum.ImprovePrompt
+      await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
     }
   )
+
+  bot.hears(['📝 Размер', '📝 Size'], async (ctx: MyContext) => {
+    logger.debug(`Получен hears для Размер от ${ctx.from?.id}`)
+    ctx.session.mode = ModeEnum.ChangeSize
+    await ctx.scene.enter(ModeEnum.SizeWizard)
+  })
+
+  bot.hears(['❓ Помощь', '❓ Help'], async (ctx: MyContext) => {
+    logger.debug(`Получен hears для Помощь от ${ctx.from?.id}`)
+    await ctx.scene.enter(ModeEnum.Help)
+  })
+
+  bot.hears(['ℹ️ О боте', 'ℹ️ About'], async ctx => {
+    logger.debug(`Получен hears для О боте от ${ctx.from?.id}`)
+    await ctx.scene.enter(ModeEnum.Help)
+  })
 }
