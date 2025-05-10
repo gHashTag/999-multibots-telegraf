@@ -435,14 +435,6 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     await ctx.scene.enter(ModeEnum.CreateUserScene)
   })
 
-  // Регистрируем команду /hello_world для тестирования Inngest
-  bot.command('hello_world', async ctx => {
-    if (ctx.chat.type !== 'private') {
-      return sendGroupCommandReply(ctx)
-    }
-    await handleHelloWorld(ctx)
-  })
-
   bot.command('support', async ctx => {
     if (ctx.chat.type !== 'private') {
       return sendGroupCommandReply(ctx)
@@ -477,6 +469,17 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
         /* ignore */
       }
     }
+  })
+
+  // Регистрируем команду /hello_world для тестирования Inngest
+  bot.command('hello_world', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+    logger.info('COMMAND /hello_world: Testing Inngest integration', {
+      telegramId: ctx.from?.id,
+    })
+    await handleHelloWorld(ctx)
   })
 
   // 8. Регистрация специфичных для оплаты действий
