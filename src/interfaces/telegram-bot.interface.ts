@@ -232,7 +232,11 @@ export interface MyContext extends Context {
   session: MySession
   scene: SceneContextScene<MyContext, MyWizardSession>
   wizard: WizardContextWizard<MyContext>
-  update: Update.MessageUpdate | Update.CallbackQueryUpdate
+  update: Update
+  botInfo: any
+  reply: (text: string, extra?: any) => Promise<any>
+  chat: any
+  from: any
 }
 
 export type MyWizardContext = MyContext & Scenes.WizardContext<MyWizardSession>

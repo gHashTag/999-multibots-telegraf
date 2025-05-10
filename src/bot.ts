@@ -31,13 +31,7 @@ const botInstances: Telegraf<MyContext>[] = []
 const privateCommands: BotCommand[] = [
   { command: 'start', description: '🚀 Начать / Restart' },
   { command: 'menu', description: '🏠 Главное меню / Main Menu' },
-  { command: 'help', description: '❓ Помощь / Help' },
-  { command: 'balance', description: '💰 Баланс / Balance' },
-  { command: 'buy', description: '💎 Пополнить баланс / Top up' },
-  { command: 'invite', description: '👥 Пригласить друга / Invite' },
   { command: 'support', description: '💬 Техподдержка / Support' },
-  // Add other relevant commands here
-  { command: 'neuro_coder', description: '🤖 НейроКодер / NeuroCoder' },
 ]
 
 // Функция для проверки валидности токена
