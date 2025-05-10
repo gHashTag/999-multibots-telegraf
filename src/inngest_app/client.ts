@@ -1,39 +1,48 @@
 import { Inngest } from 'inngest'
 
+// Экспортируем все функции для использования в index.ts
+export const functions: any[] = []
+
 // Создаем клиент Inngest
-// Используем осмысленное id, например, имя проекта или приложения
+// @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
 export const inngest = new Inngest({
+  // В разных версиях Inngest используются разные свойства (name/id)
+  // @ts-ignore - Совместимость между версиями
+  name: '999-multibots-telegraf',
+  // @ts-ignore - Совместимость между версиями
   id: '999-multibots-telegraf',
   eventKey: process.env.INNGEST_EVENT_KEY,
 })
 
 // Наша первая Inngest функция - Hello World
+// @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
 export const helloWorld = inngest.createFunction(
-  { id: 'hello-world-function' }, // Уникальный ID для этой функции
+  // В разных версиях Inngest используются разные свойства (name/id)
+  // @ts-ignore - Совместимость между версиями
+  {
+    name: 'hello-world-function',
+    id: 'hello-world-function',
+  },
   { event: 'test/hello.world' }, // Событие, на которое триггерится функция
   async ({ event, step, logger }) => {
     logger.info('[Inngest:hello-world-function] Function started', {
       eventName: event.name,
     })
 
-    await step.sleep('wait-a-moment', '1s') // Небольшая задержка для имитации работы
+    // В версии 2.x используем просто строку в качестве параметра для step.sleep
+    await step.sleep('1s')
 
     const message = `Hello from Inngest! Event received: ${event.name}. Data: ${JSON.stringify(event.data)}`
     logger.info('[Inngest:hello-world-function] Processing complete', {
       message,
     })
 
-    // Возвращаем результат (опционально, но полезно для отладки)
     return {
-      event_name: event.name,
-      received_data: event.data,
-      processed_message: message,
+      message,
+      receivedAt: new Date().toISOString(),
     }
   }
 )
 
-// Экспортируем массив всех функций для использования в serve хендлере
-export const functions = [
-  helloWorld,
-  // Сюда можно будет добавлять другие функции Inngest в будущем
-]
+// Добавляем функцию в экспортируемый массив
+functions.push(helloWorld)

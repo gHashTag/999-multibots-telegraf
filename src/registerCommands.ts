@@ -10,6 +10,8 @@ import { getUserInfo } from './handlers/getUserInfo'
 // Импортируем новую функцию
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
 import { sendMediaToPulse } from './helpers/pulse'
+// Импортируем обработчик команды hello_world
+import { handleHelloWorld } from './commands/handleHelloWorld'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -467,6 +469,17 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
         /* ignore */
       }
     }
+  })
+
+  // Регистрируем команду /hello_world для тестирования Inngest
+  bot.command('hello_world', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+    logger.info('COMMAND /hello_world: Testing Inngest integration', {
+      telegramId: ctx.from?.id,
+    })
+    await handleHelloWorld(ctx)
   })
 
   // 8. Регистрация специфичных для оплаты действий
