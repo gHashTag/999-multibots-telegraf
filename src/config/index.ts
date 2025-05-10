@@ -76,6 +76,7 @@ export const {
   SECRET_API_KEY,
   LOG_FORMAT,
   LOG_DIR,
+  UPLOAD_DIR,
   ORIGIN,
   SUPABASE_URL,
   SUPABASE_KEY,
@@ -103,6 +104,15 @@ export const {
 } = process.env
 
 export const API_URL = isDev ? LOCAL_SERVER_URL : API_SERVER_URL
+
+// Объект стоимостей операций (пример, реальные значения могут быть другими)
+// Этот объект должен быть доступен и в bot.ts, и в сценах
+export const COSTS = {
+  NEURO_TRAIN_LORA: 1500, // Стоимость тренировки Digital Avatar Body
+  TEXT_TO_IMAGE_SDXL: 10, // Пример
+  IMAGE_TO_VIDEO: 25,   // Пример
+  // ... другие операции
+};
 
 // Парсинг ADMIN_IDS в массив чисел
 const adminIdsString = process.env.ADMIN_IDS || ''

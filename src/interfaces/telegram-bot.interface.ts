@@ -10,6 +10,7 @@ import type { SessionPayment } from './payments.interface'
 import type { SceneContextScene, WizardContextWizard } from 'telegraf/scenes'
 import { ModeEnum, type Mode } from './modes'
 import type { Translation } from './translations.interface'
+import type { initDigitalAvatarBodyModule } from '@/modules/digitalAvatarBody'
 
 type SceneId = string
 type TranslationEntry = Translation
@@ -237,6 +238,7 @@ export interface MyContext extends Context {
   reply: (text: string, extra?: any) => Promise<any>
   chat: any
   from: any
+  digitalAvatarAPI?: ReturnType<typeof initDigitalAvatarBodyModule>
 }
 
 export type MyWizardContext = MyContext & Scenes.WizardContext<MyWizardSession>

@@ -27,6 +27,7 @@
   "dependencies": {
     "@fastify/express": "^4.0.2",
     "@supabase/supabase-js": "^2.39.3",
+    "@types/pino": "^7.0.5",
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.0",
     "axios": "1.8.2",
@@ -47,6 +48,7 @@
     "node-fetch": "^3.3.2",
     "openai": "^4.24.7",
     "pinata-web3": "^0.5.4",
+    "pino": "^9.6.0",
     "qs": "^6.11.2",
     "replicate": "^0.25.2",
     "telegraf": "^4.16.3",
@@ -83,6 +85,7 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.3.3",
-    "vitest": "^3.1.2"
+    "vitest": "^3.1.2",
+    "vitest-mock-extended": "^3.1.0"
   }
 }

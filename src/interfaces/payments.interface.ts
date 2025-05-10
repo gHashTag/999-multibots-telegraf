@@ -47,6 +47,7 @@ export enum PaymentType {
   MONEY_INCOME = 'MONEY_INCOME',
   MONEY_OUTCOME = 'MONEY_OUTCOME',
   REFUND = 'REFUND',
+  NEURO_TRAIN_LORA = 'NEURO_TRAIN_LORA',
 }
 
 export interface BasePayment {
