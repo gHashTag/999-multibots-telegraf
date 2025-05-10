@@ -21,8 +21,8 @@ import {
 import { handleTextMessage } from './handlers/handleTextMessage'
 import { message } from 'telegraf/filters'
 
-// Импортируем наш новый API сервер
-import { startApiServer } from './apiServer'
+// Импортируем наш API сервер из новой директории
+import { startApiServer } from './api_server'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -359,6 +359,6 @@ initializeBots()
     console.error(
       '❌ Ошибка при инициализации приложения (боты или API сервер):',
       error
-    ) // Обновим сообщение
+    )
     process.exit(1)
   })
