@@ -4,15 +4,26 @@ import { Inngest } from 'inngest'
 export const functions: any[] = []
 
 // Создаем клиент Inngest
-// @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
 export const inngest = new Inngest({
-  // В разных версиях Inngest используются разные свойства (name/id)
-  // @ts-ignore - Совместимость между версиями
   name: '999-multibots-telegraf',
-  // @ts-ignore - Совместимость между версиями
   id: '999-multibots-telegraf',
   eventKey: process.env.INNGEST_EVENT_KEY,
 })
+
+// ТЕСТОВЫЙ ВЫЗОВ ДЛЯ ДИАГНОСТИКИ ТИПА
+async function testInngestSend() {
+  console.log('Тестируем inngest.send в client.ts');
+  const testPayload = { test: 'data' };
+  const result = await inngest.send({ 
+    name: 'test/diagnostic.event', 
+    data: testPayload 
+  });
+  console.log('Результат тестового вызова в client.ts:', result);
+  // Если TypeScript здесь выведет для result тип void, то проблема глобальна для этого инстанса.
+  // Если тип будет корректным (например, SendEventsResponse или { ids: string[] }), 
+  // то проблема возникает при передаче/использовании инстанса в других модулях.
+}
+// testInngestSend(); // Не будем вызывать его при запуске, только для проверки типов
 
 // Наша первая Inngest функция - Hello World
 // @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest

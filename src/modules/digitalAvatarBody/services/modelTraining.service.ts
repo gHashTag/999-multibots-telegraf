@@ -7,6 +7,14 @@ import type { DigitalAvatarBodyDependencies } from '../index'
 import { MyContext } from '@/interfaces'
 import { PaymentType } from '@/interfaces/payments.interface'
 
+// Определяем ожидаемый тип для результата inngest.send()
+// Это поможет TypeScript, если он не может корректно вывести тип
+type ExpectedInngestSendResult = {
+  ids?: string[];       // Ожидаем, что ids это опциональный массив строк
+  error?: any;          // Может быть поле error
+  [key: string]: any;   // Позволяем другие поля, так как точная структура может варьироваться
+};
+
 /* // Закомментируем эту функцию, так как она не используется и вызывает ошибку с logger
 // Функция для кодирования файла в base64 (остается для справки или потенциального использования)
 async function encodeFileToBase64(filePath: string): Promise<string> {
@@ -35,6 +43,19 @@ export function createModelTrainingService(dependencies: DigitalAvatarBodyDepend
     getUserBalance,
     sendTelegramMessage
   } = dependencies
+
+  // ================= ДИАГНОСТИКА ТИПА INNGEST ПРИ ВХОДЕ В ФУНКЦИЮ =================
+  const localInngestInstance = inngest; 
+  logger.info('Диагностика типа inngest в createModelTrainingService', { 
+    typeofInngest: typeof inngest, 
+    inngestKeys: Object.keys(inngest || {}),
+    hasSendMethod: !!(inngest && typeof (inngest as any).send === 'function') 
+  });
+  // ================= КОНЕЦ ДИАГНОСТИКИ =================
+
+  // "Фиксируем" ссылку на метод send здесь
+  const sendInngestEvent = inngest.send;
+  // Какой тип TypeScript выведет для sendInngestEvent здесь?
 
   // Вспомогательная функция для загрузки файла и получения URL
   async function uploadFileAndGetUrl(filePath: string): Promise<string> {
@@ -89,6 +110,8 @@ export function createModelTrainingService(dependencies: DigitalAvatarBodyDepend
     requestData: ModelTrainingRequest,
     ctx: MyContext 
   ): Promise<ModelTrainingResponse> {
+    logger.info('modelTrainingService called', { requestData, telegramId: ctx.from?.id });
+
     const telegramId = requestData.telegram_id;
     const isRu = requestData.is_ru;
 
@@ -268,12 +291,19 @@ export function createModelTrainingService(dependencies: DigitalAvatarBodyDepend
           chat_id: ctx.chat?.id
         };
         
-        const result = await inngest.send({
+        // ИСПОЛЬЗУЕМ ДВОЙНОЕ ПРИВЕДЕНИЕ ТИПА (через unknown), ЧТОБЫ ПОДАВИТЬ ОШИБКУ
+        const result = (await inngest.send({ 
           name: 'digital-avatar-body/model-training.requested',
           data: eventPayload
-        });
+        })) as unknown as ExpectedInngestSendResult; 
 
-        logger.info('Событие для тренировки модели отправлено в Inngest (План А)', { eventName: 'digital-avatar-body/model-training.requested', eventIds: result.ids });
+        let eventIds: string[] = [];
+        if (result && result.ids && Array.isArray(result.ids)) {
+            eventIds = result.ids;
+        }
+        const firstEventId = eventIds.length > 0 ? eventIds[0] : undefined;
+
+        logger.info('Событие для тренировки модели отправлено в Inngest (План А)', { eventName: 'digital-avatar-body/model-training.requested', eventIds });
 
         // Удаляем файл после успешной отправки события
         if (fs.existsSync(requestData.file_path)) {
@@ -284,15 +314,15 @@ export function createModelTrainingService(dependencies: DigitalAvatarBodyDepend
           await sendTelegramMessage?.(
             telegramId,
             isRu
-              ? `✅ Запрос на тренировку модели "${requestData.model_name}" успешно отправлен в обработку (План А). ID события: ${result.ids?.[0]}. Вы будете уведомлены о завершении.`
-              : `✅ Model training request "${requestData.model_name}" successfully sent for processing (Plan A). Event ID: ${result.ids?.[0]}. You will be notified upon completion.`
+              ? `✅ Запрос на тренировку модели \"${requestData.model_name}\" успешно отправлен в обработку (План А). ID события: ${firstEventId || 'N/A'}. Вы будете уведомлены о завершении.`
+              : `✅ Model training request \"${requestData.model_name}\" successfully sent for processing (Plan A). Event ID: ${firstEventId || 'N/A'}. You will be notified upon completion.`
           );
         }
 
         return {
           success: true,
           message: 'Запрос на тренировку модели успешно отправлен в обработку (План А).',
-          eventId: result.ids?.[0],
+          eventId: firstEventId, // Используем firstEventId, который может быть undefined
           cost: cost,
         };
       } catch (error) {

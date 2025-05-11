@@ -22,7 +22,7 @@ describe('createModelTrainingWorker', () => {
     // Используем mockDeep для зависимостей
     mockDependencies = {
       logger: mockDeep<WinstonLogger>(), // Мокируем Winston Logger правильно
-      replicate: mockDeep<typeof Replicate>(),   // Мокируем Replicate Client
+      replicate: mockDeep<Replicate>(),   // Исправляем мок для Replicate Client
       sendTelegramMessage: vi.fn().mockResolvedValue({ message_id: 1 } as Message.TextMessage), // Оставляем vi.fn() для простоты, если calledWith не нужен
       updateUserBalance: vi.fn().mockResolvedValue(true),
       config: {
@@ -73,6 +73,7 @@ describe('createModelTrainingWorker', () => {
       output: null,
       logs: null,
       error: null,
+      source: 'api',
       created_at: new Date().toISOString(),
       started_at: null,
       completed_at: null,
@@ -197,5 +198,122 @@ describe('createModelTrainingWorker', () => {
     expect(result.body).toBe('Error: zipUrl is undefined');
   });
 
-  // Можно добавить тесты на разные значения is_ru для текстов сообщений
+  // --- Новые тесты для локализации и явных steps ---
+
+  describe('Localization and Explicit Steps', () => {
+    it('[T1.1] should send success notification in Russian when is_ru is true', async () => {
+      const eventDataRu = { ...baseEventData, is_ru: true };
+      const mockReplicateCreateResponse: Training = {
+        id: 'replicate_train_worker_ru_success',
+        status: 'starting',
+        version: 'test-version',
+        model: 'test-model',
+        input: { input_images: eventDataRu.zipUrl },
+        output: null,
+        logs: null,
+        error: null,
+        source: 'api',
+        created_at: new Date().toISOString(),
+        started_at: null,
+        completed_at: null,
+        urls: { get: '', cancel: '' },
+      };
+      mockDependencies.replicate.trainings.create.mockResolvedValue(mockReplicateCreateResponse as any);
+
+      const event = { data: eventDataRu };
+      await workerFn({ event, step: mockStep });
+
+      expect(mockDependencies.sendTelegramMessage).toHaveBeenCalledWith(
+        eventDataRu.telegram_id,
+        expect.stringContaining('⏳ Ваша модель "worker_model" начала обучение.') // Проверка русского текста
+      );
+    });
+
+    it('[T1.2] should send Replicate failure and refund notifications in Russian when is_ru is true', async () => {
+      const eventDataRu = { ...baseEventData, is_ru: true };
+      const replicateError = new Error('Replicate RU failed');
+      mockDependencies.replicate.trainings.create.mockRejectedValue(replicateError);
+      mockDependencies.updateUserBalance.mockResolvedValue(true);
+
+      const event = { data: eventDataRu };
+      await workerFn({ event, step: mockStep });
+
+      expect(mockDependencies.sendTelegramMessage).toHaveBeenCalledWith(
+        eventDataRu.telegram_id,
+        expect.stringContaining('⚠️ Произошла ошибка во время обработки вашего запроса на обучение. Средства (50 звезд) были возвращены на ваш баланс.') // Проверка русского текста
+      );
+      expect(mockDependencies.sendTelegramMessage).toHaveBeenCalledWith(
+        eventDataRu.telegram_id,
+        expect.stringContaining('❌ Произошла ошибка при запуске тренировки модели "worker_model". Администратор уже уведомлен.') // Проверка русского текста
+      );
+    });
+
+    it('[T1.3] should send critical error notification in Russian when is_ru is true', async () => {
+      const eventDataRu = { ...baseEventData, is_ru: true };
+      const replicateError = new Error('Replicate RU critical failed');
+      const refundError = new Error('Supabase RU said NO to refund');
+      mockDependencies.replicate.trainings.create.mockRejectedValue(replicateError);
+      mockDependencies.updateUserBalance.mockRejectedValue(refundError);
+
+      const event = { data: eventDataRu };
+      await workerFn({ event, step: mockStep });
+
+      expect(mockDependencies.sendTelegramMessage).toHaveBeenCalledWith(
+        eventDataRu.telegram_id,
+        expect.stringContaining('🆘 КРИТИЧЕСКАЯ ОШИБКА во время обучения И возврата средств. Обратитесь в поддержку для разрешения ситуации с балансом.') // Проверка русского текста
+      );
+       // Второе сообщение об общей ошибке также должно быть на русском
+      expect(mockDependencies.sendTelegramMessage).toHaveBeenCalledWith(
+        eventDataRu.telegram_id,
+        expect.stringContaining('❌ Произошла ошибка при запуске тренировки модели "worker_model". Администратор уже уведомлен.')
+      );
+    });
+
+    it('[T1.4] should send zipUrl undefined error in Russian when is_ru is true', async () => {
+      const eventDataRuNoZip = { ...baseEventData, zipUrl: undefined as any, is_ru: true };
+      
+      const event = { data: eventDataRuNoZip };
+      await workerFn({ event, step: mockStep });
+
+      expect(mockDependencies.sendTelegramMessage).toHaveBeenCalledWith(
+        eventDataRuNoZip.telegram_id,
+        expect.stringContaining('Произошла ошибка: URL файла не определен для тренировки модели.') // Проверка русского текста
+      );
+    });
+
+    it('[T2.1] should use explicitly passed "steps" for max_train_steps in Replicate training', async () => {
+      const explicitSteps = 1500;
+      const eventDataWithSteps = { ...baseEventData, steps: explicitSteps };
+      const mockReplicateCreateResponse: Training = {
+        id: 'replicate_train_worker_steps',
+        status: 'starting',
+        version: 'test-version',
+        model: 'test-model',
+        input: { input_images: eventDataWithSteps.zipUrl },
+        output: null,
+        logs: null,
+        error: null,
+        source: 'api',
+        created_at: new Date().toISOString(),
+        started_at: null,
+        completed_at: null,
+        urls: { get: '', cancel: '' },
+      };
+      mockDependencies.replicate.trainings.create.mockResolvedValue(mockReplicateCreateResponse as any);
+
+      const event = { data: eventDataWithSteps };
+      await workerFn({ event, step: mockStep });
+
+      expect(mockDependencies.replicate.trainings.create).toHaveBeenCalledWith(
+        expect.anything(), // owner
+        expect.anything(), // name
+        expect.anything(), // version
+        expect.objectContaining({
+          input: expect.objectContaining({
+            max_train_steps: explicitSteps, // Проверка использования явного значения steps
+          }),
+        })
+      );
+    });
+  });
 }); 
