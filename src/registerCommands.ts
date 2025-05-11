@@ -435,8 +435,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     await ctx.scene.enter(ModeEnum.CreateUserScene)
   })
 
-
-  bot.command('get100', async (ctx) => {
+  bot.command('get100', async ctx => {
     if (!ctx.session.userModel) {
       ctx.session.userModel = {
         model_name: 'default',
@@ -482,6 +481,18 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
         /* ignore */
       }
     }
+  })
+
+  bot.command('get100', async ctx => {
+    if (!ctx.session.userModel) {
+      ctx.session.userModel = {
+        model_name: 'default',
+        trigger_word: '',
+        model_url: 'placeholder/placeholder:placeholder',
+        finetune_id: '',
+      }
+    }
+    await get100Command(ctx)
   })
 
   // Регистрируем команду /hello_world для тестирования Inngest
