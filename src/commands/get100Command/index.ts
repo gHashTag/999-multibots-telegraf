@@ -26,7 +26,7 @@ async function get100Command(ctx: MyContext) {
   await generateNeuroImage(
     message,
     model_url,
-    100,
+    5,
     ctx.from.id.toString(),
     ctx,
     ctx.botInfo?.username

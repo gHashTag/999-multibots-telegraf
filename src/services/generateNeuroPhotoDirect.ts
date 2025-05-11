@@ -377,6 +377,7 @@ export async function generateNeuroPhotoDirect(
           prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
           negative_prompt: 'nsfw, erotic, violence, bad anatomy...',
           num_inference_steps: 40,
+          output_format: 'jpg',
           guidance_scale: 3,
           lora_scale: 1,
           megapixels: '1',
