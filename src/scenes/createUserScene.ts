@@ -69,7 +69,6 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     model: 'gpt-4-turbo',
     count: 0,
     aspect_ratio: '9:16',
-    balance: 0,
     inviter: ctx.session.inviter || null,
     bot_name: botName,
   }
