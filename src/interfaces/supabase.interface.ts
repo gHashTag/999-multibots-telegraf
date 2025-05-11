@@ -40,6 +40,7 @@ export interface UserType {
   email?: string | null
   photo_url?: string | null
   user_id: string // UUID
+  // balance?: number | null; // 🕉️ Поле удалено, т.к. баланс теперь в 'payments_v2'
   role?: string | null
   display_name?: string | null
   user_timezone?: string | null
@@ -59,7 +60,6 @@ export interface UserType {
   aspect_ratio?: string | null
   inviter?: string | null // UUID
   vip?: boolean | null
-  balance?: number | null
   level?: number
   token?: string | null
   is_leela_start?: boolean | null
