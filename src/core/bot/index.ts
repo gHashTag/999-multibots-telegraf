@@ -48,6 +48,7 @@ const BOT_TOKENS_PROD: string[] = [
 const BOT_TOKENS_TEST: string[] = [
   process.env.BOT_TOKEN_TEST_1,
   process.env.BOT_TOKEN_TEST_2,
+  process.env.BOT_TOKEN_TEST_3,
 ]
 
 export const BOT_NAMES: Record<BotName, string> = {
@@ -61,6 +62,7 @@ export const BOT_NAMES: Record<BotName, string> = {
   ['Kaya_easy_art_bot']: process.env.BOT_TOKEN_8,
   ['ai_koshey_bot']: process.env.BOT_TOKEN_TEST_1,
   ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_TEST_2,
+  ['TestNeurocoder_bot']: process.env.BOT_TOKEN_TEST_3,
 } as const
 
 // Tutorial URLs
@@ -83,41 +85,24 @@ logger.info('🤖 Инициализация defaultBot:', {
   tokenLength: DEFAULT_BOT_TOKEN.length,
 })
 
-// Инициализируем ботов при старте приложения
-export const bots = Object.entries(BOT_NAMES)
-  .filter(([, token]) => token) // Фильтруем undefined токены
+// Вместо массива:
+export const bots: Record<BotName, Telegraf<MyContext>> = {} as any;
+
+Object.entries(BOT_NAMES)
+  .filter(([, token]) => token)
   .filter(([name, token]) => {
-    // В development режиме используем только тестовых ботов
     if (NODE_ENV === 'development') {
       return BOT_TOKENS_TEST.includes(token)
     }
-    // В production режиме используем только продакшен ботов
     return BOT_TOKENS_PROD.includes(token)
   })
-  .map(([name, token]) => {
-    // Если это defaultBot, используем существующий экземпляр
-    if (name === DEFAULT_BOT_NAME) {
-      logger.info('🤖 Использование существующего defaultBot:', {
-        description: 'Using existing defaultBot',
-        bot_name: name,
-      })
-      return defaultBot
-    }
-
-    const bot = new Telegraf<MyContext>(token)
-
-    logger.info('🤖 Инициализация бота:', {
-      description: 'Bot initialization',
-      bot_name: name,
-      tokenLength: token.length,
-    })
-
-    return bot
-  })
+  .forEach(([name, token]) => {
+    bots[name as BotName] = name === DEFAULT_BOT_NAME ? defaultBot : new Telegraf<MyContext>(token);
+  });
 
 logger.info('🌟 Инициализировано ботов:', {
   description: 'Bots initialized',
-  count: bots.length,
+  count: Object.keys(bots).length,
   bot_names: Object.keys(BOT_NAMES),
 })
 
@@ -180,15 +165,12 @@ export async function createBotByName(botName: string): Promise<
     return undefined
   }
 
-  const botIndex = Object.keys(BOT_NAMES).indexOf(validBotName)
-  const bot = bots[botIndex]
+  const bot = bots[validBotName as BotName]
 
   if (!bot) {
     logger.error('❌ Экземпляр бота не найден:', {
       description: 'Bot instance not found',
       botName: validBotName,
-      botIndex,
-      availableBots: Object.keys(BOT_NAMES),
     })
     return undefined
   }
@@ -206,68 +188,12 @@ export function getBotByName(bot_name: string): {
 } {
   try {
     const validBotName = toBotName(bot_name)
-    logger.info({
-      message: '🔎 getBotByName запрошен для',
-      description: 'getBotByName requested for',
-      bot_name: validBotName,
-    })
-
-    const token = BOT_NAMES[validBotName]
-    if (!token) {
-      logger.error({
-        message: '❌ Токен бота не найден в конфигурации',
-        description: 'Bot token not found in configuration',
-        bot_name: validBotName,
-        availableBots: Object.keys(BOT_NAMES),
-      })
-      return { error: 'Bot not found in configuration' }
+    const bot = bots[validBotName]
+    if (!bot) {
+      return { error: 'Bot instance not found' }
     }
-
-    logger.info({
-      message: '🔑 Токен бота получен из конфигурации',
-      description: 'Bot token retrieved from configuration',
-      bot_name: validBotName,
-      tokenLength: token.length,
-    })
-
-    const botIndex = Object.keys(BOT_NAMES).indexOf(validBotName)
-    let bot = bots[botIndex]
-
-    if (!bot || !bot.telegram?.sendMessage) {
-      logger.info({
-        message: '🔄 Создание нового экземпляра бота',
-        description: 'Creating new bot instance',
-        bot_name: validBotName,
-      })
-      bot = new Telegraf<MyContext>(token)
-      if (!bot.telegram?.sendMessage) {
-        logger.error({
-          message: '❌ Ошибка инициализации бота',
-          description: 'Bot initialization error',
-          bot_name: validBotName,
-          hasTelegram: !!bot.telegram,
-          methods: bot.telegram ? Object.keys(bot.telegram) : [],
-        })
-        return { error: 'Bot initialization failed' }
-      }
-      bots[botIndex] = bot
-    }
-
-    logger.info({
-      message: '✅ Бот успешно получен',
-      description: 'Bot successfully retrieved',
-      bot_name: validBotName,
-      hasSendMessage: typeof bot.telegram?.sendMessage === 'function',
-    })
-
     return { bot }
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при получении бота',
-      description: 'Error getting bot',
-      bot_name,
-      error,
-    })
     return { error: 'Invalid bot name' }
   }
 }
