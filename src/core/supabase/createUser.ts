@@ -40,7 +40,7 @@ export const createUser = async (
 
   if (findError) {
     logger.error({
-      message: 'Ошибка при поиске пользователя',
+      message: 'Ошибка при поиске пользователя в users',
       telegramId: telegram_id,
       error: findError.message,
       function: 'createUser',
@@ -50,7 +50,7 @@ export const createUser = async (
 
   if (existingUser) {
     logger.info({
-      message: 'Пользователь найден',
+      message: 'Пользователь найден в users',
       telegramId: telegram_id,
       userId: existingUser.id,
       function: 'createUser',
@@ -105,13 +105,57 @@ export const createUser = async (
     return [false, existingUser] // Пользователь уже существовал
   }
 
-  // 2. Пользователь не найден, пытаемся создать нового
+  // === НАЧАЛО УЛУЧШЕННОЙ ЛОГИКИ ===
+  // Пользователь НЕ найден в 'users'. Проверим, есть ли он в 'payments_v2'.
   logger.info({
-    message: 'Пользователь не найден, попытка создания нового',
+    message: `Пользователь ${telegram_id} не найден в 'users'. Проверяем 'payments_v2' для признаков прошлой активности...`,
+    telegramId: telegram_id,
+    function: 'createUser_checkPaymentsV2',
+  })
+
+  const { data: paymentRecords, error: paymentError } = await supabase
+    .from('payments_v2')
+    .select('telegram_id') // Достаточно проверить наличие по telegram_id
+    .eq('telegram_id', telegram_id)
+    .limit(1) // Нам нужна хотя бы одна запись для подтверждения
+
+  if (paymentError) {
+    logger.warn({
+      // Используем warn, так как это не блокирующая ошибка для создания нового
+      message: `Ошибка при проверке 'payments_v2' для ${telegram_id}. Продолжаем как для нового пользователя.`,
+      error: paymentError.message,
+      function: 'createUser_checkPaymentsV2',
+    })
+    // Ошибка при доступе к payments_v2, продолжаем с обычной логикой создания нового пользователя
+  } else if (paymentRecords && paymentRecords.length > 0) {
+    // Пользователь найден в 'payments_v2'! Это означает, что он существовал ранее.
+    // Создаем его в 'users' как "восстановленного".
+    logger.info({
+      message: `Обнаружены записи в 'payments_v2' для ${telegram_id}. Пользователь существовал ранее. Создаем запись в 'users'.`,
+      telegramId: telegram_id,
+      function: 'createUser_recoverFromPaymentsV2',
+    })
+    // Переходим к логике создания нового пользователя НИЖЕ, но с этим знанием.
+  } else {
+    // Записей в 'payments_v2' не найдено. Это действительно новый пользователь.
+    logger.info({
+      message: `Записей в 'payments_v2' для ${telegram_id} не найдено. Это новый пользователь.`,
+      telegramId: telegram_id,
+      function: 'createUser_checkPaymentsV2',
+    })
+  }
+  // === КОНЕЦ УЛУЧШЕННОЙ ЛОГИКИ ===
+
+  // 2. Пользователь не найден в 'users' (или не требовал "восстановления" специфического UUID),
+  //    пытаемся создать нового в 'users'.
+  //    Если он был в payments_v2, это просто означает, что мы создаем для него запись в users,
+  //    используя предоставленные userData.
+  logger.info({
+    message: `Попытка создания новой записи в 'users' для ${telegram_id}`,
     telegramId: telegram_id,
     username: finalUsername,
     inviter,
-    function: 'createUser',
+    function: 'createUser_insertNew',
   })
 
   const { data: newUser, error: createError } = await supabase
@@ -243,25 +287,21 @@ export const createUser = async (
     }
   }
 
-  // 3. Пользователь успешно создан
+  // 3. Пользователь успешно создан в 'users'
   if (newUser) {
     logger.info({
-      message: 'Пользователь успешно создан',
+      message: 'Пользователь успешно создан в users',
       telegramId: telegram_id,
-      username: finalUsername,
       userId: newUser.id,
       function: 'createUser',
     })
-    return [true, newUser] // Пользователь был создан
-  } else {
-    // Неожиданный случай: insert прошел без ошибки, но не вернул данные
-    logger.error({
-      message:
-        'Insert пользователя прошел без ошибки, но не вернул данные. Критическая ошибка.',
-      telegramId: telegram_id,
-      function: 'createUser',
-    })
-    // В этой ситуации сложно определить статус, возвращаем ошибку
-    return [false, null]
+    return [true, newUser] // Пользователь был только что создан
   }
+
+  // На всякий случай, если что-то пошло не так и newUser null без ошибки
+  logger.error({
+    message: `Неожиданное состояние: newUser is null, но createError также null для ${telegram_id}`,
+    function: 'createUser',
+  })
+  return [false, null]
 }
