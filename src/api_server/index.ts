@@ -1,5 +1,6 @@
 import express from 'express'
 import healthRouter from './routes/health.routes' // Предполагаем, что этот файл будет создан
+import webhookRouter from './routes/webhook.routes' // <-- Добавляем импорт нового роутера
 import { serve } from 'inngest/express'
 import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 
@@ -20,6 +21,9 @@ export function startApiServer(): void {
 
   // Регистрируем маршруты для проверки работоспособности
   app.use('/', healthRouter)
+
+  // 👇 Регистрируем новый роутер для вебхуков
+  app.use('/api', webhookRouter) // Все маршруты из webhookRouter будут доступны по /api/replicate-webhook
 
   // Интеграция Inngest с API для версии 2.7.2
   // Используем type assertion, чтобы избежать ошибок типизации

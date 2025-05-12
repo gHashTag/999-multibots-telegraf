@@ -193,14 +193,14 @@ export class ReplicateWebhookController {
         message: '❌ Критическая ошибка при обработке вебхука',
         error: error.message,
         stack: error.stack,
-        request_id: req.headers['x-request-id'],
+        request_id: req.get('x-request-id'),
       })
 
       // Даже при критической ошибке отвечаем 200, чтобы избежать повторных запросов
       res.status(200).json({
         success: false,
         message: 'Critical error but webhook acknowledged',
-        request_id: req.headers['x-request-id'],
+        request_id: req.get('x-request-id'),
         timestamp: new Date().toISOString(),
       })
     }
