@@ -85,6 +85,8 @@ export const {
   SUPABASE_SERVICE_KEY,
   RUNWAY_API_KEY,
   ELEVENLABS_API_KEY,
+  REPLICATE_USERNAME,
+  REPLICATE_TRAINING_MODEL_VERSION,
   API_SERVER_URL,
   NGROK,
   PIXEL_API_KEY,
@@ -110,9 +112,9 @@ export const API_URL = isDev ? LOCAL_SERVER_URL : API_SERVER_URL
 export const COSTS = {
   NEURO_TRAIN_LORA: 1500, // Стоимость тренировки Digital Avatar Body
   TEXT_TO_IMAGE_SDXL: 10, // Пример
-  IMAGE_TO_VIDEO: 25,   // Пример
+  IMAGE_TO_VIDEO: 25, // Пример
   // ... другие операции
-};
+}
 
 // Парсинг ADMIN_IDS в массив чисел
 const adminIdsString = process.env.ADMIN_IDS || ''

@@ -20,6 +20,7 @@ import { Inngest } from 'inngest'
 // import type { User } from '@/interfaces/user.interface'
 // import type { SupabaseClient } from '@supabase/supabase-js'
 
+// ----- ВОЗВРАЩАЕМ ЭКСПОРТ МАССИВА -----
 // Экспортируем массив для функций Inngest
 // Функции будут добавляться в этот массив извне (например, из bot.ts)
 export const functions: any[] = []
@@ -82,8 +83,8 @@ export const helloWorld = inngest.createFunction(
   }
 )
 
-// Добавляем helloWorld в экспортируемый массив
-functions.push(helloWorld)
-
 // Добавляем нашу новую функцию в экспортируемый массив
-// functions.push(createGenerateModelTrainingHandler(deps)) // <-- Комментируем/удаляем, функция будет добавлена в bot.ts
+// functions.push(createGenerateModelTrainingHandler(deps)) // <-- Пока не добавляем здесь
+
+// Добавляем helloWorld функцию в экспортируемый массив сразу
+functions.push(helloWorld)

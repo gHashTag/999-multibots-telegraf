@@ -1,16 +1,11 @@
-import { replicate } from '@/core/replicate'
-import {
-  getUserByTelegramId,
-  updateUserBalance,
-  updateUserLevelPlusOne,
-  getUserBalance,
-  createModelTraining,
-  supabase,
-} from '@/core/supabase'
-import { getBotByName } from '@/core/bot'
 import { ModeEnum } from '@/interfaces/modes'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
-import { API_URL } from '@/config'
+import {
+  API_URL,
+  COSTS,
+  REPLICATE_USERNAME,
+  REPLICATE_TRAINING_MODEL_VERSION,
+} from '@/config'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
 import {
@@ -26,6 +21,7 @@ import type { Prediction } from 'replicate'
 import type { User } from '@/interfaces/user.interface'
 import type { ModelTraining } from '@/core/supabase/createModelTraining'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { NonRetriableError } from 'inngest'
 
 // Более чёткое определение типов
 type ActiveCheckFromDB = {

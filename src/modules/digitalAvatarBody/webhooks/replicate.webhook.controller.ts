@@ -1,4 +1,4 @@
-import { Request, Response } from 'express'
+// import type { Request, Response } from 'express' // Комментируем или удаляем
 import { inngest } from '@/inngest_app/client' // ИСПРАВЛЕН ПУТЬ
 import {
   updateLatestModelTrainingQuick,
@@ -13,7 +13,8 @@ import { sendTelegramMessageFromWorker } from '@/utils/telegramHelpers'
 export class ReplicateWebhookController {
   private notificationService = new NotificationService()
 
-  async handleWebhook(req: Request, res: Response): Promise<void> {
+  // Используем any временно для разблокировки
+  async handleWebhook(req: any, res: any): Promise<void> {
     try {
       const event = req.body
       logger.info({

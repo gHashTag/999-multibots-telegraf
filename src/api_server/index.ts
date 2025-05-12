@@ -1,13 +1,15 @@
 import express from 'express'
 import healthRouter from './routes/health.routes' // Предполагаем, что этот файл будет создан
-import webhookRouter from './routes/webhook.routes' // <-- Добавляем импорт нового роутера
+import webhookRouter from './routes/webhook.routes' // Импортируем роутер
+import { inngest, functions as inngestFunctions } from '../inngest_app/client' // Импортируем только клиент
 import { serve } from 'inngest/express'
-import { inngest, functions as inngestFunctions } from '../inngest_app/client'
+import { logger } from '@/utils/logger' // Импортируем логгер
 
 // Определяем порт. Берем из process.env.PORT, если есть, иначе 2999.
 const PORT = process.env.PORT || '2999'
 
-export function startApiServer(): void {
+// Возвращаем синхронную функцию startApiServer
+function startApiServer(): void {
   const app: any = express()
 
   // Middleware для парсинга JSON с установленным лимитом в 10MB
@@ -25,10 +27,15 @@ export function startApiServer(): void {
   // 👇 Регистрируем новый роутер для вебхуков
   app.use('/api', webhookRouter) // Все маршруты из webhookRouter будут доступны по /api/replicate-webhook
 
-  // Интеграция Inngest с API для версии 2.7.2
-  // Используем type assertion, чтобы избежать ошибок типизации
-  const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
-  app.use('/api/inngest', inngestHandler)
+  // 👇 Используем импортированный массив функций НАПРЯМУЮ
+  app.use(
+    '/api/inngest',
+    // Передаем client и functions как два аргумента
+    serve(inngest, inngestFunctions)
+  )
+  logger.info(
+    `[API Server] Эндпоинт /api/inngest зарегистрирован с ${inngestFunctions.length} функциями.`
+  )
 
   // Маршрут hello world для тестирования
   app.get('/api/hello', (req: any, res: any) => {
@@ -76,16 +83,13 @@ export function startApiServer(): void {
     })
   })
 
-  // Запускаем сервер на указанном порту
+  // Запускаем прослушивание порта
   app.listen(PORT, () => {
-    console.log(`[API] Server started on port ${PORT}`)
+    logger.info(`[API Server] Сервер запущен на порту ${PORT}`)
   })
 }
 
-// Если этот файл будет запускаться напрямую (например, для тестов или отдельного инстанса)
-// if (require.main === module) {
-//   startApiServer();
-// }
-
-// Экспортируем функцию для внешнего использования (например, в index.ts)
-export default startApiServer
+// Если файл запускался напрямую, можно вернуть этот блок
+if (require.main === module) {
+  startApiServer()
+}

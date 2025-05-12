@@ -85,3 +85,98 @@ export function initDigitalAvatarBodyModule(
 // но это сложнее, т.к. Inngest функции обычно регистрируются глобально.
 // Возможно, воркеру придется импортировать инициализированный модуль
 // или мы передадим зависимости ему при регистрации в главном файле Inngest.
+
+import {
+  createGenerateModelTrainingHandler,
+  // type GenerateModelTrainingDependencies, // <-- Удаляем старый тип зависимостей
+} from './inngest/generateModelTraining'
+import {
+  startModelTraining,
+  StartModelTrainingArgs,
+} from './services/startModelTraining.service'
+import { replicateWebhookHandler } from './webhooks/replicate.webhook.controller'
+
+// 👇 Определяем НОВЫЙ, упрощенный интерфейс зависимостей
+export interface DigitalAvatarBodyMinimalDependencies {
+  inngest: Inngest
+  sendTelegramMessage: (
+    chatId: string | number,
+    text: string,
+    extra?: any
+  ) => Promise<any> // Уточнить тип возвращаемого значения, если нужно
+}
+
+/**
+ * Инициализирует модуль Digital Avatar Body.
+ * Регистрирует Inngest функции и возвращает API модуля.
+ */
+export function initDigitalAvatarBodyModuleMinimal(
+  // 👇 Используем НОВЫЙ интерфейс
+  deps: DigitalAvatarBodyMinimalDependencies
+) {
+  console.log(
+    '[Module Init] Инициализация модуля digitalAvatarBody... (Minimal Deps)'
+  )
+
+  // Создаем обработчик Inngest, передавая ему только необходимые внешние зависимости
+  // Внутренние зависимости (supabase, replicate, logger, config) будут импортированы внутри
+  const generateModelTrainingFnConfig = createGenerateModelTrainingHandler({
+    // Передаем только то, что пришло снаружи
+    inngest: deps.inngest,
+    sendTelegramMessage: deps.sendTelegramMessage,
+    // Остальные зависимости обработчик должен импортировать сам
+  })
+
+  console.log(
+    '[Module Init] Конфигурация Inngest функции modelTrainingWorker создана.'
+  )
+
+  return {
+    // Возвращаем конфигурацию для регистрации в bot.ts
+    inngestFunctions: [generateModelTrainingFnConfig],
+    // Возвращаем прямой метод API
+    startModelTraining: startModelTraining, // Сервис startModelTraining должен сам импортировать зависимости
+    // Возвращаем обработчик вебхука (он тоже должен импортировать зависимости)
+    replicateWebhookHandler: replicateWebhookHandler,
+  }
+}
+
+// Импортируем напрямую отрефакторенную функцию
+import { generateModelTraining } from './inngest/generateModelTraining.refactored'
+
+// Удаляем неиспользуемый интерфейс
+// interface LocalDependencies extends DigitalAvatarBodyMinimalDependencies {}
+
+// API, которое будет предоставлять модуль
+// Если DigitalAvatarBodyModuleAPI не используется или вызывает ошибки, можно его закомментировать или упростить
+export interface DigitalAvatarBodyModuleAPI {
+  // Метод для запуска тренировки модели (если он будет использоваться)
+  // startModelTraining?: (
+  //   request: ModelTrainingRequest
+  // ) => Promise<ModelTrainingResponse>;
+  inngestFunctions: any[] // Массив конфигураций Inngest функций
+}
+
+// Инициализация модуля теперь просто возвращает API с Inngest функцией
+export const initDigitalAvatarBodyModule = (
+  deps: DigitalAvatarBodyMinimalDependencies // Используем минимальные зависимости
+): DigitalAvatarBodyModuleAPI => {
+  // Логика инициализации, если нужна (например, проверка deps.inngest)
+  if (!deps.inngest) {
+    throw new Error('Inngest instance is required for DigitalAvatarBody module')
+  }
+
+  return {
+    inngestFunctions: [
+      generateModelTraining, // Добавляем импортированную и отрефакторенную Inngest функцию
+    ],
+  }
+}
+
+// Экспортируем только необходимые типы вовне
+export type {
+  DigitalAvatarBodyMinimalDependencies, // Этот тип должен быть импортирован в bot.ts
+  // DigitalAvatarBodyModuleAPI, // Экспортируем, если он действительно нужен внешнему коду
+  ModelTrainingRequest, // Если используется внешним кодом
+  ModelTrainingResponse, // Если используется внешним кодом
+}
