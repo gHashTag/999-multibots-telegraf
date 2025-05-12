@@ -28,12 +28,26 @@ import { startApiServer } from './api_server'
 // Импорт зависимостей для digitalAvatarBodyModule
 import { initDigitalAvatarBodyModule } from '@/modules/digitalAvatarBody'
 import { inngest } from '@/inngest_app/client' // Клиент Inngest
-import { replicate } from '@/core/replicate'     // Клиент Replicate
+import { replicate } from '@/core/replicate' // Клиент Replicate
 import {
   getUserBalance,
   updateUserBalance,
+  supabase,
+  getUserByTelegramId,
+  updateUserLevelPlusOne,
+  createModelTraining,
 } from '@/core/supabase' // Функции Supabase
-import { COSTS, UPLOAD_DIR } from '@/config'; // Импортируем COSTS и UPLOAD_DIR напрямую
+import { COSTS, UPLOAD_DIR, API_URL } from '@/config' // Импортируем COSTS, UPLOAD_DIR и API_URL
+import {
+  calculateCost as actualCalculateCost,
+  type CostDetails,
+} from '@/price/priceCalculator' // Импортируем как actualCalculateCost и тип CostDetails
+import { PaymentType } from '@/interfaces/payments.interface' // Импорт PaymentType
+import { createGenerateModelTrainingHandler } from '@/modules/digitalAvatarBody/inngest/generateModelTraining'
+import { functions as inngestFunctions } from '@/inngest_app/client' // Переименуем, чтобы избежать конфликта имен
+import { getBotByName } from '@/core/bot' // <-- Импортируем функцию
+import type { GenerateModelTrainingDependencies } from '@/modules/digitalAvatarBody/inngest/generateModelTraining'
+import { ModeEnum } from '@/interfaces/modes' // <-- Добавляем импорт ModeEnum
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -75,6 +89,17 @@ export async function isPortInUse(port: number): Promise<boolean> {
     console.error(`❌ Ошибка проверки порта ${port}:`, error)
     return true
   }
+}
+
+// Создаем функцию-адаптер для calculateCost
+const calculateCostAdapter = (params: {
+  steps: number
+  mode: ModeEnum // mode и другие параметры пока не используются оберткой, но тип должен совпадать
+  telegram_id?: string
+  bot_name?: string
+}): CostDetails => {
+  // Вызываем оригинальную функцию с нужным параметром
+  return actualCalculateCost(params.steps)
 }
 
 // Добавляю логи перед инициализацией ботов
@@ -123,7 +148,9 @@ async function initializeBots() {
     > | null = null
 
     // Переменная для хранения инстанса API нашего модуля
-    let digitalAvatarAPIInstance: ReturnType<typeof initDigitalAvatarBodyModule> | null = null;
+    const digitalAvatarAPIInstance: ReturnType<
+      typeof initDigitalAvatarBodyModule
+    > | null = null
 
     for (const token of potentialTokens) {
       try {
@@ -136,29 +163,39 @@ async function initializeBots() {
           bot = tempBot // Используем этого бота
           foundBotInfo = botInfo
 
-          // Инициализация digitalAvatarBodyModule для этого бота
-          const digitalAvatarDependencies = {
+          // Инициализация digitalAvatarBodyModule и зависимостей для Inngest
+          const digitalAvatarDependencies: GenerateModelTrainingDependencies = {
+            // <-- Указываем точный тип
             inngest: inngest,
             logger: logger,
             replicate: replicate,
             config: {
-              API_URL: process.env.API_URL, 
-              CONFIG_UPLOAD_DIR: UPLOAD_DIR,
-              SECRET_API_KEY: process.env.REPLICATE_API_TOKEN, // Пример, если нужен
-              COSTS: COSTS,
-              REPLICATE: {
-                TRAINING_MODEL_ID: process.env.REPLICATE_TRAINING_MODEL_ID, // или из appConfig
-                TRAINING_MODEL_VERSION: process.env.REPLICATE_TRAINING_MODEL_VERSION, // или из appConfig
-              }
+              API_URL: API_URL,
+              REPLICATE_USERNAME: process.env.REPLICATE_USERNAME as string,
             },
-            getUserBalance: getUserBalance,
-            updateUserBalance: updateUserBalance,
-            sendTelegramMessage: async (chatId: string | number, messageText: string, extra?: any) => {
-              return bot!.telegram.sendMessage(chatId, messageText, extra); // Используем ! так как bot здесь точно определен
-            }
-          };
-          digitalAvatarAPIInstance = initDigitalAvatarBodyModule(digitalAvatarDependencies);
-          logger.info(`[Module Init] digitalAvatarBodyModule инициализирован для ${botInfo.username}`);
+            supabase: supabase, // <-- Передаем клиент Supabase
+            getUserByTelegramId: getUserByTelegramId, // <-- Передаем функцию
+            updateUserBalance: updateUserBalance, // <-- Передаем функцию
+            updateUserLevelPlusOne: updateUserLevelPlusOne, // <-- Передаем функцию
+            getUserBalance: getUserBalance, // <-- Передаем функцию
+            createModelTraining: createModelTraining, // <-- Передаем функцию
+            getBotByName: getBotByName, // <-- Теперь функция должна быть найдена
+            calculateCost: calculateCostAdapter, // <-- Передаем адаптированную функцию
+            // Убираем sendTelegramMessage, если не нужен для GenerateModelTrainingDependencies
+            // sendTelegramMessage: async (...) => { ... },
+          }
+          // Инициализация API модуля (если он все еще нужен отдельно)
+          // digitalAvatarAPIInstance = initDigitalAvatarBodyModule(digitalAvatarDependencies); // Возможно, теперь это не нужно или требует другого набора зависимостей
+          // logger.info(...)
+
+          // 👇 ВОССТАНАВЛИВАЕМ И ДОБАВЛЯЕМ ФУНКЦИЮ ЗДЕСЬ
+          const generateModelTraining = createGenerateModelTrainingHandler(
+            digitalAvatarDependencies
+          )
+          inngestFunctions.push(generateModelTraining)
+          logger.info(
+            `[Inngest Func Add] generateModelTraining добавлена для ${botInfo.username}`
+          )
 
           break // Прерываем цикл, бот найден
         }
@@ -172,17 +209,21 @@ async function initializeBots() {
         `❌ Бот с username '${targetBotUsername}' не найден среди токенов в .env или токен невалиден.`
       )
     }
-    
+
     // Middleware для добавления digitalAvatarAPI в контекст
     if (digitalAvatarAPIInstance) {
-      const api = digitalAvatarAPIInstance; // Копируем в локальную переменную для замыкания
+      const api = digitalAvatarAPIInstance // Копируем в локальную переменную для замыкания
       bot.use((ctx, next) => {
-        ctx.digitalAvatarAPI = api;
-        return next();
-      });
-      logger.info(`[Middleware] digitalAvatarAPI добавлен в контекст для ${foundBotInfo.username}`);
+        ctx.digitalAvatarAPI = api
+        return next()
+      })
+      logger.info(
+        `[Middleware] digitalAvatarAPI добавлен в контекст для ${foundBotInfo.username}`
+      )
     } else {
-      logger.warn(`[Middleware] digitalAvatarAPIInstance не был создан, middleware не добавлен для ${foundBotInfo.username}`);
+      logger.warn(
+        `[Middleware] digitalAvatarAPIInstance не был создан, middleware не добавлен для ${foundBotInfo.username}`
+      )
     }
 
     // Добавляем логи перед регистрацией команд
@@ -275,26 +316,39 @@ async function initializeBots() {
             COSTS: COSTS,
             REPLICATE: {
               TRAINING_MODEL_ID: process.env.REPLICATE_TRAINING_MODEL_ID,
-              TRAINING_MODEL_VERSION: process.env.REPLICATE_TRAINING_MODEL_VERSION,
-            }
+              TRAINING_MODEL_VERSION:
+                process.env.REPLICATE_TRAINING_MODEL_VERSION,
+            },
           },
           getUserBalance: getUserBalance,
           updateUserBalance: updateUserBalance,
-          sendTelegramMessage: async (chatId: string | number, messageText: string, extra?: any) => {
-            return bot.telegram.sendMessage(chatId, messageText, extra);
-          }
-        };
-        const currentDigitalAvatarAPI = initDigitalAvatarBodyModule(digitalAvatarDependencies);
-        const botInfoForLog = await bot.telegram.getMe(); // Получаем botInfo для логирования
-        logger.info(`[Module Init] digitalAvatarBodyModule инициализирован для ${botInfoForLog.username}`);
+          sendTelegramMessage: async (
+            chatId: string | number,
+            messageText: string,
+            extra?: any
+          ) => {
+            return bot.telegram.sendMessage(chatId, messageText, extra)
+          },
+        }
+        const currentDigitalAvatarAPI = initDigitalAvatarBodyModule(
+          digitalAvatarDependencies
+        )
+        const botInfoForLog = await bot.telegram.getMe() // Получаем botInfo для логирования
+        logger.info(
+          `[Module Init] digitalAvatarBodyModule инициализирован для ${botInfoForLog.username}`
+        )
 
         // Middleware для добавления digitalAvatarAPI в контекст
         // Важно: создаем замыкание на currentDigitalAvatarAPI для каждого бота
-        bot.use(((apiInstance) => (ctx: MyContext, next: () => Promise<void>) => {
-          ctx.digitalAvatarAPI = apiInstance;
-          return next();
-        })(currentDigitalAvatarAPI));
-        logger.info(`[Middleware] digitalAvatarAPI добавлен в контекст для ${botInfoForLog.username}`);
+        bot.use(
+          (apiInstance => (ctx: MyContext, next: () => Promise<void>) => {
+            ctx.digitalAvatarAPI = apiInstance
+            return next()
+          })(currentDigitalAvatarAPI)
+        )
+        logger.info(
+          `[Middleware] digitalAvatarAPI добавлен в контекст для ${botInfoForLog.username}`
+        )
 
         // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
         bot.use(session()) // 1. Сессия (из bot.ts)
