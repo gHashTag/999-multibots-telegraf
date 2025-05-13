@@ -78,62 +78,70 @@ export async function generateNeuroImage(
       directResult.urls &&
       directResult.urls.length > 0
     ) {
-      try {
-        if (directResult.urls.length === 1) {
-          await ctx.replyWithPhoto(directResult.urls[0])
-          await ctx.telegram.sendMessage(
-            telegram_id,
-            isRussian(ctx)
-              ? `Ваши изображения сгенерированы!\n\nЕсли хотите сгенерировать еще, то выберите количество изображений в меню 1️⃣, 2️⃣, 3️⃣, 4️⃣`
-              : `Your images have been generated!\n\nIf you want to generate more, select the number of images in the menu 1️⃣, 2️⃣, 3️⃣, 4️⃣`,
-            Markup.keyboard([
-              [
-                Markup.button.text('1️⃣'),
-                Markup.button.text('2️⃣'),
-                Markup.button.text('3️⃣'),
-                Markup.button.text('4️⃣'),
-              ],
-              [
-                Markup.button.text(
-                  isRussian(ctx) ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt'
-                ),
-                Markup.button.text(
-                  isRussian(ctx) ? '📐 Изменить размер' : '📐 Change size'
-                ),
-              ],
-              [
-                Markup.button.text(
-                  isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu'
-                ),
-              ],
-            ]).resize()
-          )
-        } else {
-          const mediaGroup: ReadonlyArray<InputMediaPhoto> =
-            directResult.urls.map(url => ({
-              type: 'photo',
-              media: url,
-            }))
-          await ctx.replyWithMediaGroup(mediaGroup)
+      for (const url of directResult.urls) {
+        try {
+          await ctx.replyWithPhoto(url)
+          logger.info({
+            message: `✅ [generateNeuroImage] Фото (${url}) успешно отправлено пользователю (вызов Telegram API выполнен)`,
+            telegram_id: telegram_id,
+            url: url,
+          })
+        } catch (photoError: any) {
+          logger.error({
+            message: `❌ [generateNeuroImage] Ошибка при отправке фото (${url}) пользователю`,
+            error: {
+              message: photoError.message,
+              stack: photoError.stack,
+              description: photoError.description, // Telegraf errors often have this
+              code: photoError.code, // And this
+            },
+            telegram_id: telegram_id,
+            prompt: prompt,
+            url: url,
+          })
+          // Пока не будем отправлять пользователю сообщение об ошибке отправки конкретного фото, чтобы не засорять чат.
+          // Если все фото не отправятся, общее сообщение об ошибке из вызывающей функции должно покрыть это.
         }
-        logger.info({
-          message:
-            '✅ [generateNeuroImage] Фото успешно отправлено пользователю',
-          description: 'Photo sent successfully to user',
-          telegram_id,
-          urls: directResult.urls,
-        })
-      } catch (sendError) {
-        logger.error({
-          message:
-            '❌ [generateNeuroImage] Ошибка при отправке фото пользователю',
-          description: 'Error sending photo to user',
-          error:
-            sendError instanceof Error ? sendError.message : 'Unknown error',
-          telegram_id,
-          urls: directResult.urls,
-        })
       }
+      // Если все фото успешно отправлены (или по крайней мере попытки отправки сделаны)
+      logger.info({
+        message: '✅ [generateNeuroImage] Фото успешно отправлено пользователю',
+        description: 'Photo sent successfully to user',
+        telegram_id,
+        urls: directResult.urls,
+      })
+
+      // ВОССТАНАВЛИВАЕМ ОТПРАВКУ КЛАВИАТУРЫ
+      await ctx.telegram.sendMessage(
+        telegram_id, // Используем telegram_id для отправки напрямую, а не ctx.reply, чтобы избежать путаницы с текущим контекстом сцены
+        isRussian(ctx)
+          ? 'Ваши изображения сгенерированы!\n\nЕсли хотите сгенерировать еще, выберите количество изображений в меню ниже или введите новый промпт.'
+          : 'Your images have been generated!\n\nIf you want to generate more, select the number of images in the menu below or enter a new prompt.',
+        Markup.keyboard([
+          [
+            Markup.button.text('1️⃣'),
+            Markup.button.text('2️⃣'),
+            Markup.button.text('3️⃣'),
+            Markup.button.text('4️⃣'),
+          ],
+          // Восстанавливаем кнопки "Улучшить промпт" и "Изменить размер", а "Новый промпт" убираем, чтобы соответствовать исходному скриншоту Гуру
+          [
+            Markup.button.text(
+              isRussian(ctx) ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt'
+            ),
+          ],
+          [
+            Markup.button.text(
+              isRussian(ctx) ? '📐 Изменить размер' : '📐 Change size'
+            ),
+          ],
+          [
+            Markup.button.text(
+              isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu'
+            ),
+          ],
+        ]).resize()
+      )
     } else if (directResult && !directResult.success) {
       logger.warn({
         message:
