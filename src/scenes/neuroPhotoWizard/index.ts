@@ -2,17 +2,8 @@ import { MyContext } from '@/interfaces'
 import { ModelUrl } from '@/interfaces'
 import { createHelpCancelKeyboard } from '@/menu'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
-import {
-  getLatestUserModel,
-  getReferalsCountAndUserData,
-  getUserData,
-} from '@/core/supabase'
-import {
-  levels,
-  mainMenu,
-  sendGenericErrorMessage,
-  sendPhotoDescriptionRequest,
-} from '@/menu'
+import { getLatestUserModel, getUserData } from '@/core/supabase'
+import { levels } from '@/menu'
 import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
@@ -31,20 +22,6 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       ctx.session.prompt || 'нет'
     }, initialized=${ctx.session.neuroPhotoInitialized || false}`
   )
-  // console.log(
-  //   `🧙‍♂️ [neuroPhotoConversationStep] Шаг 0, TelegramId: ${telegramId}`
-  // )
-  // logger.info({
-  //   message: '🔄 [NeuroPhoto] Запуск шага неинициализированной беседы',
-  //   telegramId,
-  //   step: 0,
-  //   action: 'conversation_step',
-  //   sessionStep: ctx.session.__scenes?.cursor || 0,
-  //   sessionState: JSON.stringify({
-  //     prompt: ctx.session.prompt,
-  //     initialized: ctx.session.neuroPhotoInitialized,
-  //   }),
-  // })
 
   // Начало конверсации - проверяем модель пользователя
   try {
@@ -425,13 +402,24 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     try {
       // Генерация изображения
       // Сохраняем результат!
+
+      let explicitAspectRatio: string | null = null
+      if (ctx.session.selectedSize && ctx.session.isSizeFresh === true) {
+        explicitAspectRatio = ctx.session.selectedSize
+        ctx.session.isSizeFresh = false // "Гасим" флаг
+        logger.info(
+          `🧙‍♂️ [NeuroPhoto] Используется свежий aspectRatio из сессии: ${explicitAspectRatio}`
+        )
+      }
+
       const generationResult = await generateNeuroImage(
         fullPrompt,
         model_url,
         1,
         userId.toString(),
         ctx,
-        ctx.botInfo?.username
+        ctx.botInfo?.username,
+        explicitAspectRatio // <--- НОВЫЙ ПАРАМЕТР
       )
 
       // Останавливаем интервал
