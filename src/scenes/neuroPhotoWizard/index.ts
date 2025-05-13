@@ -756,12 +756,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         buttonText: text,
       })
       // Отправляем сообщение и клавиатуру помощи/отмены
-      await ctx.reply(
-        isRu
-          ? 'Пожалуйста, используйте кнопки для выбора действия.'
-          : 'Please use the buttons to select an action.',
-        createHelpCancelKeyboard(isRu) // Отправляем клавиатуру помощи/отмены
-      )
+      handleMenu(ctx)
       return // Остаемся на текущем шаге
     }
   } else {
