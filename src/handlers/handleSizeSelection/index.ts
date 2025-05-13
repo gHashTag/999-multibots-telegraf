@@ -10,10 +10,22 @@ export async function handleSizeSelection(ctx: MyContext, size: string) {
     console.error('❌ Telegram ID не найден')
     return
   }
-  await setAspectRatio(ctx.from.id, size)
+  const success = await setAspectRatio(ctx.from.id, size)
   const isRu = isRussian(ctx)
-  await ctx.reply(
-    isRu ? `✅ Вы выбрали размер: ${size}` : `✅ You selected size: ${size}`
-  )
+
+  if (success) {
+    await ctx.reply(
+      isRu
+        ? `✅ Размер изображения обновлен на: ${size}`
+        : `✅ Image size updated to: ${size}`
+    )
+    ctx.session.isSizeFresh = true
+  } else {
+    await ctx.reply(
+      isRu
+        ? `⚠️ Не удалось обновить размер изображения. Попробуйте позже.`
+        : `⚠️ Failed to update image size. Please try again later.`
+    )
+  }
   await ctx.scene.enter(ModeEnum.MainMenu)
 }

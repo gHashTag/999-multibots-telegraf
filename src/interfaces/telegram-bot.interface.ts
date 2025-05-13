@@ -228,6 +228,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   lastCompletedVideoScene?: ModeEnum | null | undefined
   gender?: string
   isAdminTest?: boolean
+  isSizeFresh?: boolean
 }
 
 export interface MyContext extends Context {
