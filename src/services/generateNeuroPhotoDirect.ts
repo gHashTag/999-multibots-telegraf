@@ -375,26 +375,14 @@ export async function generateNeuroPhotoDirect(
         // Настраиваем параметры для модели
         const input = {
           prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
-          negative_prompt: 'nsfw, erotic, violence, bad anatomy...',
+          negative_prompt:
+            'nsfw, erotic, violence, bad anatomy, bad hands, deformed fingers, blurry, grainy, ugly, lowres',
           num_inference_steps: 40,
           output_format: 'jpg',
           guidance_scale: 3,
-          lora_scale: 1,
-          megapixels: '1',
           output_quality: 80,
-          prompt_strength: 0.8,
-          extra_lora_scale: 1,
-          go_fast: false,
-          ...(aspect_ratio === '1:1'
-            ? { width: 1024, height: 1024 }
-            : aspect_ratio === '16:9'
-              ? { width: 1368, height: 768 }
-              : aspect_ratio === '9:16'
-                ? { width: 768, height: 1368 }
-                : { width: 1024, height: 1024 }),
-          sampler: 'flowmatch',
           num_outputs: 1,
-          aspect_ratio,
+          aspect_ratio: aspect_ratio || '1:1',
         }
 
         // --- DEBUG LOG ---
@@ -412,13 +400,24 @@ export async function generateNeuroPhotoDirect(
         // --- END DEBUG LOG ---
 
         // Выполняем запрос к API
+        logger.info({
+          message: '[DIAGNOSTIC] Перед вызовом replicate.run()',
+          iteration: i,
+          telegram_id,
+        }) // Новый лог
         const output = (await replicate.run(
           model_url as `${string}/${string}:${string}`,
           {
             input: input,
           }
         )) as ApiResponse
-
+        logger.info({
+          message: '[DIAGNOSTIC] Сразу после вызова replicate.run()',
+          output_is_null: output === null,
+          output_is_undefined: output === undefined,
+          iteration: i,
+          telegram_id,
+        }) // Новый лог
         // --- ЛОГ: Ответ от API ---
         logger.info({
           message: '🔍 [DIRECT] Ответ от Replicate API получен',
@@ -442,7 +441,19 @@ export async function generateNeuroPhotoDirect(
           output_sample: JSON.stringify(output).substring(0, 100) + '...',
         })
 
+        logger.info({
+          message: '[DIAGNOSTIC] Перед вызовом processApiResponse()',
+          iteration: i,
+          telegram_id,
+        }) // Новый лог
         const imageUrl = await processApiResponse(output)
+        logger.info({
+          message: '[DIAGNOSTIC] Сразу после вызова processApiResponse()',
+          imageUrl_is_null: imageUrl === null,
+          imageUrl_is_undefined: imageUrl === undefined,
+          iteration: i,
+          telegram_id,
+        }) // Новый лог
 
         // --- ЛОГ: Результат обработки ответа ---
         logger.info({
