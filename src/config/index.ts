@@ -1,4 +1,4 @@
-// import { config } from 'dotenv' // Removed dotenv import
+import 'dotenv/config'
 import fs from 'fs' // Импортируем модуль fs
 import path from 'path' // Импортируем модуль path
 
@@ -110,7 +110,7 @@ export const API_URL = isDev ? LOCAL_SERVER_URL : API_SERVER_URL
 // Объект стоимостей операций (пример, реальные значения могут быть другими)
 // Этот объект должен быть доступен и в bot.ts, и в сценах
 export const COSTS = {
-  NEURO_TRAIN_LORA: 1500, // Стоимость тренировки Digital Avatar Body
+  NEURO_TRAIN_LORA: parseInt(process.env.NEURO_TRAIN_LORA_COST ?? '100', 10),
   TEXT_TO_IMAGE_SDXL: 10, // Пример
   IMAGE_TO_VIDEO: 25, // Пример
   // ... другие операции
@@ -137,3 +137,9 @@ if (!isSupabaseConfigured && process.env.NODE_ENV === 'production') {
     '⚠️ ВНИМАНИЕ: Не настроены параметры Supabase. Боты будут загружены из переменных окружения.'
   )
 }
+
+export const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN ?? ''
+export const REPLICATE_TRAINING_OWNER =
+  process.env.REPLICATE_TRAINING_OWNER ?? 'replicate' // Пример: используем 'replicate' по умолчанию
+export const REPLICATE_TRAINING_MODEL =
+  process.env.REPLICATE_TRAINING_MODEL ?? 'trainable-model' // Пример: используем 'trainable-model' по умолчанию

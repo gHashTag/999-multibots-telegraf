@@ -13,6 +13,9 @@ import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { logger } from '@/utils/logger'
+import { ModelTrainingResponse } from './types'
+import { updateTrainingRecordOnError } from './helpers/trainingHelpers'
 
 export interface ApiError extends Error {
   response?: {
@@ -31,11 +34,6 @@ interface ReplicateModelResponse {
   latest_version?: {
     id: string
   }
-}
-
-interface ModelTrainingResult {
-  model_id: string
-  model_url?: string
 }
 
 const activeTrainings = new Map<string, { cancel: () => void }>()
@@ -59,7 +57,7 @@ async function getLatestModelUrl(modelName: string): Promise<string> {
 
     if (!response.ok) {
       if (response.status === 404) {
-        console.warn(
+        logger.warn(
           `Model ${username}/${modelName} not found or has no version yet.`
         )
         throw new Error(
@@ -72,17 +70,20 @@ async function getLatestModelUrl(modelName: string): Promise<string> {
     }
 
     const data = (await response.json()) as ReplicateModelResponse
-    console.log('data:', data)
+    logger.debug('data from getLatestModelUrl:', data)
     if (!data.latest_version?.id) {
       throw new Error(
         `Latest version ID not found for model ${username}/${modelName}`
       )
     }
     const model_url = `${username}/${modelName}:${data.latest_version.id}`
-    console.log('model_url:', model_url)
+    logger.debug('model_url from getLatestModelUrl:', model_url)
     return model_url
   } catch (error) {
-    console.error('Error fetching latest model url:', error)
+    logger.error('Error fetching latest model url:', {
+      error: (error as Error).message,
+      stack: (error as Error).stack,
+    })
     throw error
   }
 }
@@ -97,15 +98,30 @@ export async function generateModelTraining(
   bot: Telegraf<MyContext>,
   bot_name: string,
   gender: string
-): Promise<ModelTrainingResult> {
+): Promise<ModelTrainingResponse> {
   const userExists = await getUserByTelegramIdString(telegram_id.toString())
   if (!userExists) {
-    throw new Error(`User with ID ${telegram_id} does not exist.`)
+    const errorMsg = `User with ID ${telegram_id} does not exist.`
+    logger.error(errorMsg, { telegram_id })
+    try {
+      await bot.telegram.sendMessage(
+        telegram_id.toString(),
+        is_ru
+          ? 'Ваш профиль не найден. Пожалуйста, перезапустите бота командой /start.'
+          : 'Your profile was not found. Please restart the bot with /start.'
+      )
+    } catch (notifyError) {
+      logger.error('Failed to send user_not_found notification (Plan B)', {
+        telegramId: telegram_id,
+        error: notifyError,
+      })
+    }
+    return { success: false, message: errorMsg, error: 'USER_NOT_FOUND' }
   }
   const level = userExists.level
   await updateUserLevelPlusOne(telegram_id.toString(), level)
   let currentTraining: TrainingResponse | null = null
-  console.log(`currentTraining: ${currentTraining}`)
+  logger.debug(`Initial currentTraining: ${currentTraining}`, { telegram_id })
 
   const costResult = calculateModeCost({
     mode: ModeEnum.DigitalAvatarBody,
@@ -113,18 +129,30 @@ export async function generateModelTraining(
   })
   const paymentAmount = costResult.stars
 
-  console.log('Starting balance check for user:', telegram_id)
-  console.log('Payment amount:', paymentAmount)
-  console.log('Is Russian:', is_ru)
+  logger.info('Starting balance check for user (Plan B):', {
+    telegram_id,
+    paymentAmount,
+    is_ru,
+  })
   const balanceCheck = await processBalanceOperation({
     telegram_id: Number(telegram_id),
     paymentAmount,
     is_ru,
     bot_name: bot_name,
   } as any)
-  console.log('Balance check result:', balanceCheck)
+  logger.info('Balance check result (Plan B):', {
+    telegram_id,
+    success: balanceCheck.success,
+    error: balanceCheck.error,
+  })
 
   if (!balanceCheck.success) {
+    const errorMsg =
+      balanceCheck.error ||
+      (is_ru ? 'Ошибка проверки баланса' : 'Balance check failed')
+    logger.warn(
+      `Balance check failed for user ${telegram_id} (Plan B): ${errorMsg}`
+    )
     if (balanceCheck.error) {
       try {
         await bot.telegram.sendMessage(
@@ -132,19 +160,18 @@ export async function generateModelTraining(
           balanceCheck.error
         )
       } catch (notifyError) {
-        console.error(
-          'Failed to send balance error notification to user (Training)',
+        logger.error(
+          'Failed to send balance error notification to user (Plan B Training)',
           { telegramId: telegram_id, error: notifyError }
         )
-        // errorMessageAdmin(notifyError as Error)
       }
     }
-    throw new Error(
-      balanceCheck.error ||
-        (is_ru ? 'Ошибка проверки баланса' : 'Balance check failed')
-    )
+    return { success: false, message: errorMsg, error: 'INSUFFICIENT_BALANCE' }
   }
   const initialBalance = balanceCheck.currentBalance
+
+  let modelIdForResponse: string | undefined = undefined
+  let modelUrlForResponse: string | undefined = undefined
 
   try {
     const username = process.env.REPLICATE_USERNAME
@@ -153,39 +180,53 @@ export async function generateModelTraining(
     }
 
     const destination: `${string}/${string}` = `${username}/${modelName}`
-    console.log('destination', destination)
+    modelIdForResponse = destination
+    logger.debug('destination for replicate model (Plan B):', {
+      destination,
+      telegram_id,
+    })
     let modelExists = false
     try {
-      console.log(`Checking if model exists: ${username}/${modelName}`)
+      logger.debug(`Checking if model exists (Plan B): ${destination}`, {
+        telegram_id,
+      })
       await replicate.models.get(username, modelName)
-      console.log(`Model ${username}/${modelName} exists.`)
+      logger.info(`Model ${destination} exists (Plan B).`, { telegram_id })
       modelExists = true
     } catch (error) {
       if ((error as ApiError).response?.status === 404) {
-        console.log(
-          `Model ${username}/${modelName} does not exist. Creating...`
+        logger.info(
+          `Model ${destination} does not exist (Plan B). Creating...`,
+          { telegram_id }
         )
         modelExists = false
       } else {
-        console.error('Error checking model existence:', error)
+        logger.error('Error checking model existence (Plan B):', {
+          error: (error as Error).message,
+          stack: (error as Error).stack,
+          telegram_id,
+        })
         throw error
       }
     }
 
     if (!modelExists) {
       try {
-        console.log(`Creating model ${username}/${modelName}...`)
+        logger.info(`Creating model ${destination} (Plan B)...`, {
+          telegram_id,
+        })
         await replicate.models.create(username, modelName, {
           description: `LoRA model trained with trigger word: ${triggerWord}`,
           visibility: 'public',
           hardware: 'gpu-t4',
         })
-        console.log(`Model ${username}/${modelName} created.`)
+        logger.info(`Model ${destination} created (Plan B).`, { telegram_id })
         await new Promise(resolve => setTimeout(resolve, 3000))
       } catch (error) {
-        console.error('Ошибка API при создании модели:', error.message)
-        // errorMessage(error as Error, telegram_id, is_ru)
-        // errorMessageAdmin(error as Error)
+        logger.error('API error during model creation (Plan B):', {
+          message: (error as Error).message,
+          telegram_id,
+        })
         throw error
       }
     }
@@ -201,19 +242,25 @@ export async function generateModelTraining(
       api: 'replicate',
       bot_name: bot_name,
     } as any)
-    console.log(
-      `Created DB training record ID: ${(dbTrainingRecord as any)?.id ?? 'unknown'}`
+    logger.info(
+      `Created DB training record ID (Plan B): ${(dbTrainingRecord as any)?.id ?? 'unknown'}`,
+      { telegram_id }
     )
 
-    console.log(`ZIP URL for training: ${zipUrl}`)
+    logger.debug(`ZIP URL for training (Plan B): ${zipUrl}`, { telegram_id })
     if (!zipUrl || !zipUrl.startsWith('http')) {
-      console.error(
-        `Invalid ZIP URL: ${zipUrl}. It must be a valid HTTP/HTTPS URL.`
-      )
-      throw new Error(`Invalid ZIP URL provided for training: ${zipUrl}`)
+      const zipErrorMsg = `Invalid ZIP URL provided for training (Plan B): ${zipUrl}`
+      logger.error(zipErrorMsg, { telegram_id })
+      if ((dbTrainingRecord as any)?.id) {
+        await updateTrainingRecordOnError(userExists.id, modelName, zipErrorMsg)
+      }
+      throw new Error(zipErrorMsg)
     }
 
-    console.log(`Starting Replicate training for model ${destination}...`)
+    logger.info(
+      `Starting Replicate training for model ${destination} (Plan B)...`,
+      { telegram_id }
+    )
     currentTraining = await replicate.trainings.create(
       'ostris',
       'flux-dev-lora-trainer',
@@ -234,7 +281,10 @@ export async function generateModelTraining(
         },
       }
     )
-    console.log(`Replicate training started. ID: ${currentTraining.id}`)
+    logger.info(
+      `Replicate training started (Plan B). ID: ${currentTraining.id}`,
+      { telegram_id }
+    )
 
     await supabase
       .from('model_trainings')
@@ -244,137 +294,142 @@ export async function generateModelTraining(
       })
       .eq('id', (dbTrainingRecord as any)?.id ?? 'unknown')
 
-    const newBalance = initialBalance - paymentAmount
-    await updateUserBalance(
-      telegram_id.toString(),
-      newBalance,
-      PaymentType.MONEY_OUTCOME,
-      `Model training start ${modelName} (steps: ${steps})`,
-      {
-        stars: paymentAmount,
-        payment_method: 'Internal',
-        bot_name: bot_name,
-        language: is_ru ? 'ru' : 'en',
-        operation_id: currentTraining.id,
-      }
-    )
-    console.log(
-      `Balance updated after training start. New balance: ${newBalance}`
-    )
-
-    await bot.telegram.sendMessage(
-      telegram_id,
-      is_ru
-        ? `✅ Тренировка модели ${modelName} успешно запущена! Списано: ${paymentAmount} ⭐️. Ваш новый баланс: ${newBalance.toFixed(
-            2
-          )} ⭐️.`
-        : `✅ Model training ${modelName} started successfully! Deducted: ${paymentAmount} ⭐️. Your new balance: ${newBalance.toFixed(
-            2
-          )} ⭐️.`
-    )
-
-    const trainingProcess = {
-      cancel: () => {
-        activeTrainings.delete(telegram_id.toString())
-      },
-    }
-    activeTrainings.set(telegram_id.toString(), trainingProcess)
-
-    let status = currentTraining.status
-    console.log(`Initial training status: ${status}, ID: ${currentTraining.id}`)
-
+    let trainingStatus = currentTraining.status
     while (
-      status !== 'succeeded' &&
-      status !== 'failed' &&
-      status !== 'canceled'
+      trainingStatus !== 'succeeded' &&
+      trainingStatus !== 'failed' &&
+      trainingStatus !== 'canceled'
     ) {
-      console.log(
-        `Waiting for training ${currentTraining.id} to complete... Current status: ${status}`
-      )
-      await new Promise(resolve => setTimeout(resolve, 15000))
-      const updatedTraining = await replicate.trainings.get(currentTraining.id)
-      status = updatedTraining.status
-
-      if (updatedTraining.error) {
-        console.error(
-          `Training ${currentTraining.id} error details from Replicate:`,
-          {
-            error: updatedTraining.error,
-            status: updatedTraining.status,
-          }
+      await new Promise(resolve => setTimeout(resolve, 10000))
+      if (currentTraining?.id) {
+        const updatedTraining = await replicate.trainings.get(
+          currentTraining.id
         )
+        trainingStatus = updatedTraining.status
+        logger.debug(
+          `Polling Replicate training status (Plan B): ${trainingStatus}`,
+          { telegram_id, trainingId: currentTraining.id }
+        )
+
+        if (trainingStatus !== currentTraining.status) {
+          await supabase
+            .from('model_trainings')
+            .update({ status: trainingStatus.toUpperCase() })
+            .eq('replicate_training_id', currentTraining.id)
+          currentTraining.status = trainingStatus
+        }
+      } else {
+        logger.warn(
+          'currentTraining.id is not available for polling, breaking loop.',
+          { telegram_id }
+        )
+        throw new Error('Training ID became unavailable during polling.')
       }
     }
-    console.log(
-      `Training ${currentTraining.id} finished with status: ${status}`
-    )
 
-    if (status === 'succeeded') {
-      console.log('Training succeeded!')
-      const model_url = await getLatestModelUrl(modelName)
-      console.log('Latest model URL:', model_url)
-      await supabase
-        .from('users')
-        .update({
-          latest_model_training: {
-            status: 'SUCCESS',
-            model_url,
-            replicate_training_id: currentTraining.id,
-          },
-        })
-        .eq('telegram_id', telegram_id.toString())
+    if (trainingStatus === 'succeeded') {
+      logger.info('Replicate training succeeded (Plan B).', {
+        telegram_id,
+        trainingId: currentTraining.id,
+      })
+      modelUrlForResponse = await getLatestModelUrl(modelName)
 
       await supabase
         .from('model_trainings')
-        .update({ status: 'SUCCESS', model_url: model_url })
+        .update({
+          status: 'SUCCEEDED',
+          model_url: modelUrlForResponse,
+        })
         .eq('replicate_training_id', currentTraining.id)
 
-      bot.telegram.sendMessage(
-        telegram_id,
-        is_ru
-          ? `✅ Модель ${modelName} успешно обучена!\nВаш уникальный ключ: ${triggerWord}`
-          : `✅ Model ${modelName} trained successfully!\nYour unique keyword: ${triggerWord}`
-      )
+      const successMessage = is_ru
+        ? `🎉 Ваша модель "${modelName}" успешно обучена и готова к использованию! Вы можете найти ее в списке ваших моделей.`
+        : `🎉 Your model "${modelName}" has been successfully trained and is ready to use! You can find it in your models list.`
+      try {
+        await bot.telegram.sendMessage(telegram_id.toString(), successMessage)
+      } catch (notifyError) {
+        logger.error('Failed to send training success notification (Plan B)', {
+          telegramId: telegram_id,
+          error: notifyError,
+        })
+      }
       return {
-        model_id: currentTraining.id,
-        model_url: model_url,
+        success: true,
+        message: is_ru
+          ? 'Модель успешно обучена!'
+          : 'Model trained successfully!',
+        replicateTrainingId: currentTraining.id,
+        model_id: modelIdForResponse,
+        model_url: modelUrlForResponse,
       }
     } else {
-      console.error(
-        `Training ${currentTraining.id} failed or canceled. Status: ${status}`
+      const failureMsg = `Training ${trainingStatus} (Plan B): ${currentTraining.error || 'No specific error from Replicate'}`
+      logger.error(failureMsg, {
+        telegram_id,
+        trainingId: currentTraining.id,
+        errorDetails: currentTraining.error,
+      })
+      await updateTrainingRecordOnError(
+        userExists.id,
+        modelName,
+        `Replicate training ${trainingStatus}: ${currentTraining.error || 'Unknown Replicate error'}`
       )
-      const errorMessageText = is_ru
-        ? `❌ Тренировка модели ${modelName} не удалась (статус: ${status}). Средства НЕ списаны (или будут возвращены, если логика возврата есть).`
-        : `❌ Model training ${modelName} failed or canceled (status: ${status}). Funds were NOT deducted (or will be refunded if refund logic exists).`
-      await bot.telegram.sendMessage(telegram_id, errorMessageText)
-      throw new Error(`Training failed or canceled with status: ${status}`)
-    }
-  } catch (error) {
-    console.error('Error during model training process:', error)
-    if (currentTraining?.id) {
+
+      const userErrorMessage = is_ru
+        ? `К сожалению, тренировка модели "${modelName}" завершилась со статусом: ${trainingStatus}. ${currentTraining.error ? 'Детали: ' + currentTraining.error : ''}`
+        : `Unfortunately, training for model "${modelName}" finished with status: ${trainingStatus}. ${currentTraining.error ? 'Details: ' + currentTraining.error : ''}`
       try {
-        console.log(
-          `Attempting to cancel training ${currentTraining.id} due to error...`
-        )
-        await replicate.trainings.cancel(currentTraining.id)
-        console.log(`Training ${currentTraining.id} cancellation requested.`)
-        await supabase
-          .from('model_trainings')
-          .update({ status: 'canceled' })
-          .eq('replicate_training_id', currentTraining.id)
-      } catch (cancelError) {
-        console.error(
-          `Failed to cancel training ${currentTraining.id}:`,
-          cancelError
+        await bot.telegram.sendMessage(telegram_id.toString(), userErrorMessage)
+      } catch (notifyError) {
+        logger.error(
+          'Failed to send training failure/canceled notification (Plan B)',
+          { telegramId: telegram_id, error: notifyError }
         )
       }
+      return {
+        success: false,
+        message: failureMsg,
+        replicateTrainingId: currentTraining.id,
+        error: `REPLICATE_TRAINING_${trainingStatus.toUpperCase()}`,
+      }
     }
-    if (!error.message?.includes('Balance check failed')) {
-      // errorMessage(error as Error, telegram_id.toString(), is_ru)
+  } catch (error: any) {
+    logger.error('Critical error during model training (Plan B)', {
+      telegram_id,
+      model_name: modelName,
+      error: error.message,
+      stack: error.stack,
+    })
+
+    if (userExists && userExists.id) {
+      await updateTrainingRecordOnError(
+        userExists.id,
+        modelName,
+        error.message || 'Unknown critical error in Plan B training'
+      )
+    } else {
+      logger.error(
+        'User ID not available for updating training record on critical error (Plan B)',
+        { telegram_id }
+      )
     }
-    // errorMessageAdmin(error as Error)
-    throw error
-  } finally {
-    activeTrainings.delete(telegram_id.toString())
+
+    const userMessage = is_ru
+      ? `Во время тренировки модели "${modelName}" произошла критическая ошибка. Мы уже занимаемся этим.`
+      : `A critical error occurred while training the model "${modelName}". We are investigating.`
+    try {
+      await bot.telegram.sendMessage(telegram_id.toString(), userMessage)
+    } catch (notifyError) {
+      logger.error(
+        'Failed to send critical training error notification to user (Plan B)',
+        { telegramId: telegram_id, error: notifyError }
+      )
+    }
+
+    return {
+      success: false,
+      message: `Training failed critically: ${error.message}`,
+      error: 'TRAINING_PROCESS_CRITICAL_ERROR',
+    }
   }
 }
