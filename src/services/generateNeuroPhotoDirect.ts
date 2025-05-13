@@ -283,12 +283,29 @@ export async function generateNeuroPhotoDirect(
       user_id: user.id,
     })
 
-    const aspect_ratio = await getAspectRatio(Number(user.telegram_id))
+    // Преобразуем строковый telegram_id в число для функции getAspectRatio
+    const numericTelegramId = parseInt(telegram_id, 10)
+    let aspectRatio = await getAspectRatio(numericTelegramId)
+
+    // Проверка и установка значения по умолчанию для aspectRatio
+    if (
+      !aspectRatio ||
+      typeof aspectRatio !== 'string' ||
+      !aspectRatio.includes(':')
+    ) {
+      logger.warn({
+        message: `⚠️ [DIRECT] Некорректное или отсутствующее значение aspectRatio (${aspectRatio}), используется значение по умолчанию "1:1"`,
+        original_value: aspectRatio,
+        default_value: '1:1',
+        telegram_id,
+      })
+      aspectRatio = '1:1' // Значение по умолчанию
+    }
 
     logger.info({
       message: '📐 [DIRECT] Соотношение сторон получено',
       description: 'Aspect ratio retrieved',
-      aspect_ratio,
+      aspect_ratio: aspectRatio,
       telegram_id,
     })
 
@@ -372,7 +389,7 @@ export async function generateNeuroPhotoDirect(
           iteration: i,
         })
 
-        // Настраиваем параметры для модели
+        // Формируем input для Replicate API
         const input = {
           prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
           negative_prompt:
@@ -382,29 +399,15 @@ export async function generateNeuroPhotoDirect(
           guidance_scale: 3,
           output_quality: 80,
           num_outputs: 1,
-          aspect_ratio: aspect_ratio || '1:1',
+          aspect_ratio: aspectRatio,
         }
 
-        // --- DEBUG LOG ---
-        // console.log(
-        //   '>>> generateNeuroPhotoDirect: Calling Replicate.run with input (num_outputs=1)',
-        //   {
-        //     telegram_id: telegram_id,
-        //     iteration: i,
-        //     model_url: model_url,
-        //     // Не логируем весь input, он может быть большим, только ключевые моменты
-        //     inputPromptSample: input.prompt.substring(0,70) + '...',
-        //     inputNumOutputs: input.num_outputs
-        //   }
-        // );
-        // --- END DEBUG LOG ---
-
-        // Выполняем запрос к API
         logger.info({
           message: '[DIAGNOSTIC] Перед вызовом replicate.run()',
           iteration: i,
           telegram_id,
-        }) // Новый лог
+        })
+
         const output = (await replicate.run(
           model_url as `${string}/${string}:${string}`,
           {
@@ -417,7 +420,7 @@ export async function generateNeuroPhotoDirect(
           output_is_undefined: output === undefined,
           iteration: i,
           telegram_id,
-        }) // Новый лог
+        })
         // --- ЛОГ: Ответ от API ---
         logger.info({
           message: '🔍 [DIRECT] Ответ от Replicate API получен',
@@ -445,7 +448,7 @@ export async function generateNeuroPhotoDirect(
           message: '[DIAGNOSTIC] Перед вызовом processApiResponse()',
           iteration: i,
           telegram_id,
-        }) // Новый лог
+        })
         const imageUrl = await processApiResponse(output)
         logger.info({
           message: '[DIAGNOSTIC] Сразу после вызова processApiResponse()',
@@ -453,7 +456,7 @@ export async function generateNeuroPhotoDirect(
           imageUrl_is_undefined: imageUrl === undefined,
           iteration: i,
           telegram_id,
-        }) // Новый лог
+        })
 
         // --- ЛОГ: Результат обработки ответа ---
         logger.info({
@@ -512,7 +515,7 @@ export async function generateNeuroPhotoDirect(
             botName: botName,
             additionalInfo: {
               model_url: model_url,
-              aspect_ratio: aspect_ratio || '1:1',
+              aspect_ratio: aspectRatio || '1:1',
               original_url: imageUrl.substring(0, 50) + '...',
             },
           }
