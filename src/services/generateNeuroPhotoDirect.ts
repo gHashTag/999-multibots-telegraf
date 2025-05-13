@@ -29,6 +29,7 @@ import { BotName } from '@/interfaces/telegram-bot.interface'
  * @param telegram_id ID пользователя в Telegram
  * @param ctx Контекст Telegraf
  * @param botName Имя бота
+ * @param explicitAspectRatio Явное соотношение сторон для изображения
  * @param options Опции для функции
  * @returns Объект с информацией о результате генерации
  */
@@ -39,6 +40,7 @@ export async function generateNeuroPhotoDirect(
   telegram_id: string,
   ctx: MyContext,
   botName: string,
+  explicitAspectRatio?: string | null,
   options?: {
     disable_telegram_sending?: boolean
     bypass_payment_check?: boolean
@@ -283,29 +285,40 @@ export async function generateNeuroPhotoDirect(
       user_id: user.id,
     })
 
-    // Преобразуем строковый telegram_id в число для функции getAspectRatio
-    const numericTelegramId = parseInt(telegram_id, 10)
-    let aspectRatio = await getAspectRatio(numericTelegramId)
-
-    // Проверка и установка значения по умолчанию для aspectRatio
-    if (
-      !aspectRatio ||
-      typeof aspectRatio !== 'string' ||
-      !aspectRatio.includes(':')
-    ) {
-      logger.warn({
-        message: `⚠️ [DIRECT] Некорректное или отсутствующее значение aspectRatio (${aspectRatio}), используется значение по умолчанию "1:1"`,
-        original_value: aspectRatio,
-        default_value: '1:1',
+    let finalAspectRatio: string | null = null
+    if (explicitAspectRatio) {
+      finalAspectRatio = explicitAspectRatio
+      logger.info({
+        message: `🧙‍♂️ [DIRECT] Используется явный aspectRatio: ${finalAspectRatio}`,
         telegram_id,
       })
-      aspectRatio = '1:1' // Значение по умолчанию
+    } else {
+      const numericTelegramId = parseInt(telegram_id, 10)
+      const dbAspectRatio = await getAspectRatio(numericTelegramId)
+      if (
+        dbAspectRatio &&
+        typeof dbAspectRatio === 'string' &&
+        dbAspectRatio.includes(':')
+      ) {
+        finalAspectRatio = dbAspectRatio
+        logger.info({
+          message: `🧙‍♂️ [DIRECT] Используется aspectRatio из БД: ${finalAspectRatio}`,
+          telegram_id,
+        })
+      } else {
+        logger.warn({
+          message: `⚠️ [DIRECT] Некорректное или отсутствующее значение aspectRatio из БД (${dbAspectRatio}), используется значение по умолчанию "1:1"`,
+          original_value: dbAspectRatio,
+          default_value: '1:1',
+          telegram_id,
+        })
+        finalAspectRatio = '1:1' // Значение по умолчанию
+      }
     }
 
     logger.info({
-      message: '📐 [DIRECT] Соотношение сторон получено',
-      description: 'Aspect ratio retrieved',
-      aspect_ratio: aspectRatio,
+      message: '📐 [DIRECT] Итоговое соотношение сторон определено',
+      aspect_ratio: finalAspectRatio,
       telegram_id,
     })
 
@@ -390,7 +403,7 @@ export async function generateNeuroPhotoDirect(
         })
 
         // Формируем input для Replicate API
-        const input = {
+        const replicateInput: any = {
           prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
           negative_prompt:
             'nsfw, erotic, violence, bad anatomy, bad hands, deformed fingers, blurry, grainy, ugly, lowres',
@@ -399,7 +412,10 @@ export async function generateNeuroPhotoDirect(
           guidance_scale: 3,
           output_quality: 80,
           num_outputs: 1,
-          aspect_ratio: aspectRatio,
+        }
+
+        if (finalAspectRatio) {
+          replicateInput.aspect_ratio = finalAspectRatio
         }
 
         logger.info({
@@ -411,7 +427,7 @@ export async function generateNeuroPhotoDirect(
         const output = (await replicate.run(
           model_url as `${string}/${string}:${string}`,
           {
-            input: input,
+            input: replicateInput,
           }
         )) as ApiResponse
         logger.info({
@@ -515,7 +531,7 @@ export async function generateNeuroPhotoDirect(
             botName: botName,
             additionalInfo: {
               model_url: model_url,
-              aspect_ratio: aspectRatio || '1:1',
+              aspect_ratio: finalAspectRatio || '1:1',
               original_url: imageUrl.substring(0, 50) + '...',
             },
           }
