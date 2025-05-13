@@ -20,7 +20,8 @@ export async function generateNeuroImage(
   numImages: number,
   telegram_id: string,
   ctx: MyContext,
-  botName: string
+  botName: string,
+  explicitAspectRatio?: string | null
 ): Promise<GenerateNeuroImageResult | null> {
   if (!ctx.session.prompt) {
     throw new Error('Prompt not found')
@@ -67,7 +68,8 @@ export async function generateNeuroImage(
       numImages,
       telegram_id,
       ctx as MyContext,
-      botName
+      botName,
+      explicitAspectRatio
       // Передаем опцию disable_telegram_sending, если мы в неправильном окружении
     )
     console.log(directResult, 'directResult')
