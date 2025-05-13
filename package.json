@@ -26,7 +26,6 @@
     ]
   },
   "dependencies": {
-    "@fastify/express": "^4.0.2",
     "@supabase/supabase-js": "^2.39.3",
     "@types/pino": "^7.0.5",
     "adm-zip": "^0.5.16",
@@ -37,10 +36,9 @@
     "dotenv": "^16.3.1",
     "elevenlabs": "^0.16.1",
     "envalid": "^7.3.1",
-    "express": "^5.1.0",
+    "express": "^4.17.1",
     "express-fileupload": "^1.4.3",
     "express-serve-static-core": "^0.1.1",
-    "fastify": "^5.3.2",
     "form-data": "^4.0.0",
     "inngest": "^2.7.2",
     "jest-mock": "^29.7.0",
@@ -59,10 +57,11 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
+    "@inngest/test": "^0.1.6",
     "@types/axios": "^0.14.4",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.18",
-    "@types/express": "^5.0.1",
+    "@types/express": "^4.17.13",
     "@types/express-fileupload": "^1.5.1",
     "@types/jest": "^29.5.14",
     "@types/md5": "^2.3.5",

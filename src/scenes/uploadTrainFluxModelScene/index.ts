@@ -8,6 +8,7 @@ import type { ModelTrainingRequest } from '@/modules/digitalAvatarBody/types'
 import { COSTS } from '@/config'
 import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { startModelTraining } from '@/modules/digitalAvatarBody/services/modelTraining.service'
 
 export const uploadTrainFluxModelScene = new Scenes.BaseScene<MyContext>(
   'uploadTrainFluxModelScene'
@@ -150,70 +151,46 @@ uploadTrainFluxModelScene.enter(async ctx => {
       requestData: { ...requestData, file_path: 'local_zip_path_omitted' },
       telegramId,
     })
-    await ctx.reply(
-      isRu
-        ? '🤖 Отправляю данные на тренировку... Это может занять некоторое время.'
-        : '🤖 Sending data for training... This may take some time.'
+
+    logger.info(
+      `[uploadTrainFluxModelScene] Sending training request for user ${ctx.from.id}`
     )
 
-    const moduleResponse = await ctx.digitalAvatarAPI.startModelTraining(
-      requestData,
-      ctx
-    )
+    try {
+      const moduleResponse = await startModelTraining(requestData, ctx)
 
-    logger.info('[Module Response]', { response: moduleResponse, telegramId })
-
-    if (moduleResponse.success) {
-      await ctx.reply(moduleResponse.message)
-      if (moduleResponse.replicateTrainingId) {
+      if (moduleResponse.success) {
         logger.info(
-          `[Plan B Success] Replicate ID: ${moduleResponse.replicateTrainingId}`,
-          { telegramId }
+          `[uploadTrainFluxModelScene] Training started successfully for user ${ctx.from.id}, replicate ID: ${moduleResponse.replicateTrainingId}`
         )
-      } else if (moduleResponse.eventId) {
-        logger.info(
-          `[Plan A Success] Inngest Event ID: ${moduleResponse.eventId}`,
-          { telegramId }
-        )
-      }
-    } else {
-      logger.error('[Module Error]', {
-        telegramId,
-        error: moduleResponse.error,
-        details: moduleResponse.details,
-        message: moduleResponse.message,
-      })
-      await ctx.reply(
-        `${isRu ? '❌ Произошла ошибка во время запуска тренировки' : '❌ An error occurred during training startup'}: ${moduleResponse.message}${moduleResponse.details ? ` (${moduleResponse.details})` : ''}`
-      )
-
-      if (moduleResponse.cost && moduleResponse.cost > 0) {
-        logger.info(
-          `[Refunding after Module Error Attempted] User: ${telegramId}, Amount: ${moduleResponse.cost}`
-        )
-        await updateUserBalance(
-          telegramId.toString(),
-          moduleResponse.cost,
-          PaymentType.MONEY_INCOME,
-          `${operationTypeForCost}_REFUND_MODULE_ERROR_${steps}_STEPS`,
-          { bot_name: ctx.botInfo?.username }
-        )
-        await ctx.reply(
-          isRu
-            ? `✅ Средства (${moduleResponse.cost} ⭐) были возвращены на ваш баланс (операция зарегистрирована).`
-            : `✅ Funds (${moduleResponse.cost} ⭐) have been refunded to your balance (operation registered).`
-        )
+        const successMessage = isRu
+          ? `✅ Тренировка успешно запущена!\n   ID задачи: ${moduleResponse.replicateTrainingId || 'N/A'}\n   Списано: ${moduleResponse.cost || cost} ⭐`
+          : `✅ Training started successfully!\n   Task ID: ${moduleResponse.replicateTrainingId || 'N/A'}\n   Cost: ${moduleResponse.cost || cost} ⭐`
+        await ctx.reply(successMessage)
       } else {
-        logger.warn(
-          '[Module Error, No Refund Cost] Не удалось определить сумму для возврата из ответа модуля.',
-          { moduleResponse, telegramId, steps }
-        )
-        await ctx.reply(
-          isRu
-            ? 'Пожалуйста, свяжитесь с поддержкой для проверки баланса.'
-            : 'Please contact support to check your balance.'
+        throw new Error(
+          moduleResponse.message || 'Unknown error starting training'
         )
       }
+    } catch (error: any) {
+      logger.error(
+        `[uploadTrainFluxModelScene] Error starting training for user ${ctx.from.id}: ${error.message}`
+      )
+      await updateUserBalance(
+        telegramId.toString(),
+        cost,
+        PaymentType.MONEY_INCOME,
+        `${operationTypeForCost}_REFUND_START_ERROR_${steps}_STEPS`,
+        { bot_name: ctx.botInfo?.username, error_message: error.message }
+      )
+      logger.info(
+        `[Funds Refunded Attempted] Start error. User: ${telegramId}, Amount: ${cost}`
+      )
+      const errorMessageText = isRu
+        ? `❌ Ошибка при запуске тренировки: ${error.message}`
+        : `❌ Error starting training: ${error.message}`
+      await ctx.reply(errorMessageText)
+      return ctx.scene.leave()
     }
   } catch (error: any) {
     logger.error('[Scene Error] uploadTrainFluxModelScene', {

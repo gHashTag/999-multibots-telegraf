@@ -1,6 +1,7 @@
 import { supabase } from '@/core/supabase'
 
 export interface ModelTraining {
+  id?: string | number
   user_id: string
   model_name: string
   trigger_word?: string
@@ -13,6 +14,7 @@ export interface ModelTraining {
   steps?: number
   status?: string
   error?: string
+  created_at?: string
 }
 
 export const createModelTraining = async (training: ModelTraining) => {

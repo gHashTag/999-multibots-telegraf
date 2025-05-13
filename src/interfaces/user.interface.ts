@@ -6,18 +6,24 @@ import { SubscriptionType } from './subscription.interface'
  */
 export interface User {
   id: number | string
-  telegram_id: TelegramId
-  username?: string
+  telegram_id: string
+  username: string
   first_name?: string
   last_name?: string
-  bot_name?: string
-  created_at?: string
-  updated_at?: string
-  gender?: string
-  level?: number
-  voiceId?: string
-  finetuneId?: string
-  aspectRatio?: string
-  language?: string
+  balance: number
+  stars?: number | null
+  level?: number | null
+  invited_by_user_id?: number | null
+  invited_user_id?: number | null
+  created_at?: Date
+  updated_at?: Date
+  email?: string | null
+  isAdmin?: boolean
+  neuro_token?: number
+  is_bot_blocked?: boolean
   is_ru?: boolean
+  api_token?: string
+  api_key_elevenlabs?: string
+  replicate_username?: string
+  api?: string | null
 }

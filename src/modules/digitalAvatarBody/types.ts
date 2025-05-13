@@ -4,14 +4,13 @@ import { PaymentType } from '@/interfaces/payments.interface'
  * Данные для запроса на тренировку модели цифрового аватара.
  */
 export interface ModelTrainingRequest {
-  telegram_id: number | string
-  bot_name: string
+  telegram_id: number | string // Может быть строкой или числом
+  file_path: string
   model_name: string
-  trigger_word: string
-  file_path: string // Уже snake_case, путь к локальному ZIP-файлу
-  steps?: number
+  trigger_word?: string
   is_ru: boolean
-  // ctx?: MyContext; // Убрали ctx отсюда, он будет передаваться отдельно в сервисе
+  bot_name: string
+  steps?: number // Добавляем опционально, если нужно передавать
 }
 
 /**
@@ -20,12 +19,11 @@ export interface ModelTrainingRequest {
 export interface ModelTrainingResponse {
   success: boolean
   message: string
-  replicateTrainingId?: string // Для ID тренировки от Replicate (План Б)
-  replicateStatus?: string // Для статуса от Replicate (План Б)
-  eventId?: string // Для ID события Inngest (План А)
-  error?: string // Код ошибки (например, 'cost_configuration_error')
+  replicateTrainingId?: string
   cost?: number
-  details?: string // Описание ошибки или доп. инфо об успехе
+  error?: string
+  model_id?: string
+  model_url?: string
 }
 
 /**
@@ -33,17 +31,58 @@ export interface ModelTrainingResponse {
  * На основе event.data в modelTraining.worker.ts
  */
 export interface ModelTrainingInngestEventData {
-  telegram_id: number | string
+  telegram_id: string // Inngest часто работает со строками
   bot_name: string
   model_name: string
   trigger_word?: string
-  zipUrl: string // Это должен быть URL файла, загруженного на внешний сервер
-  steps?: number
+  zipUrl: string
+  cost_for_refund?: number // Используем cost_for_refund для ясности
+  calculatedCost: number // <--- ДОБАВЛЕНО: Рассчитанная стоимость
+  operation_type_for_refund: PaymentType // Тип операции для возврата
   is_ru: boolean
-  cost_for_refund?: number
-  operation_type_for_refund?: PaymentType
-  original_message_id?: number
-  chat_id?: number
+  // Опциональные поля, передаваемые из сервиса или сцены
+  steps?: number
+  user_api?: string | null // Добавляем, т.к. используется в generateModelTraining
+  user_replicate_username?: string | null // Добавляем, т.к. используется в generateModelTraining
+  // paymentType?: PaymentType // Удаляем, так как есть operation_type_for_refund
 }
 
-// Можно добавить и другие типы, специфичные для этого модуля, по мере необходимости
+// --- Типы для проверки активных тренировок (оставляем без изменений) ---
+export type ActiveCheckResult =
+  | ErrorActiveCheck
+  | ActiveCheckFromDB
+  | ActiveCheckFromCache
+  | NoActiveCheck
+
+export interface ErrorActiveCheck {
+  status: 'error'
+  message: string
+}
+
+export interface ActiveCheckFromDB {
+  status: 'active_db'
+  replicate_id: string | null
+  db_status: string | null // Добавляем статус из БД
+  created_at?: string // Делаем опциональным
+  model_name?: string // Делаем опциональным
+}
+
+export interface ActiveCheckFromCache {
+  status: 'active_cache'
+  cache_status: 'starting' | 'running'
+}
+
+export interface NoActiveCheck {
+  status: 'inactive'
+}
+
+// Тип для вебхука (если он будет использоваться)
+export enum WebhookEventType {
+  Completed = 'completed',
+  Failed = 'failed',
+  // Другие статусы по необходимости
+}
+
+export interface DigitalAvatarBodyDependencies {
+  // ... existing code ...
+}

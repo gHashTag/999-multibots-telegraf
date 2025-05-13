@@ -1,18 +1,17 @@
-import { Router, Request, Response } from 'express'
+import { Router } from 'express'
 import { replicateWebhookHandler } from '../../modules/digitalAvatarBody/webhooks/replicate.webhook.controller'
 import { logger } from '../../utils/logger' // Импортируем логгер
 
 const webhookRouter: Router = Router()
 
 // Middleware для логирования именно вебхук-запросов
-webhookRouter.use((req: Request, res: Response, next) => {
+webhookRouter.use((req, res, next) => {
   logger.info(`[Webhook Router] Received ${req.method} ${req.path}`)
   next()
 })
 
 // Определяем маршрут для вебхука Replicate
-// Используем правильные типы Request и Response здесь
-webhookRouter.post('/replicate-webhook', (req: Request, res: Response) => {
+webhookRouter.post('/replicate-webhook', (req, res) => {
   // Вызываем наш асинхронный обработчик
   // Оборачиваем в try...catch на всякий случай, хотя основной catch есть в handler
   try {
