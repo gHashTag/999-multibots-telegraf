@@ -5,6 +5,15 @@ import { logger } from '@/utils/logger'
 import { InputMediaPhoto } from 'telegraf/types'
 import { Markup } from 'telegraf'
 
+// Определяем интерфейс для результата
+interface GenerateNeuroImageResult {
+  success: boolean
+  urls?: string[]
+  data?: any // Можно уточнить, если известна структура data от generateNeuroPhotoDirect
+  error?: string
+  message?: string // Поле message также может присутствовать в результате generateNeuroPhotoDirect
+}
+
 export async function generateNeuroImage(
   prompt: string,
   model_url: ModelUrl,
@@ -12,7 +21,7 @@ export async function generateNeuroImage(
   telegram_id: string,
   ctx: MyContext,
   botName: string
-): Promise<{ data: string } | null> {
+): Promise<GenerateNeuroImageResult | null> {
   if (!ctx.session.prompt) {
     throw new Error('Prompt not found')
   }

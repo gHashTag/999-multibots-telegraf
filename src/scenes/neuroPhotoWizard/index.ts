@@ -421,7 +421,8 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
     try {
       // Генерация изображения
-      await generateNeuroImage(
+      // Сохраняем результат!
+      const generationResult = await generateNeuroImage(
         fullPrompt,
         model_url,
         1,
@@ -434,11 +435,14 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       clearInterval(progressInterval)
       if (!ctx.chat?.id) {
         console.error('❌ Chat ID не найден')
-        return
+        // ВАЖНО: Если chat ID нет, нужно безопасно выйти, возможно, завершив сцену.
+        // Пока оставим return, но это потенциальная точка отказа, если сцена не завершится.
+        return ctx.scene.leave() // Добавлено завершение сцены
       }
       if (!processingMessage.message_id) {
         console.error('❌ Processing message ID не найден')
-        return
+        // Аналогично, безопасно выходим
+        return ctx.scene.leave() // Добавлено завершение сцены
       }
       // Удаляем сообщение о прогрессе
       try {
@@ -450,41 +454,47 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         // Игнорируем ошибки удаления сообщения
       }
 
-      logger.info({
-        message:
-          '✅ [NeuroPhoto] Генерация изображения завершена, переход к следующему шагу',
-        telegramId,
-        nextStep: 'neuroPhotoButtonStep',
-        result: 'success',
-      })
-
-      console.log('🧙‍♂️ Генерация изображения успешно завершена!')
-
-      ctx.wizard.next()
-      return neuroPhotoButtonStep(ctx)
+      // Проверяем результат!
+      if (generationResult && generationResult.success) {
+        logger.info({
+          message:
+            '✅ [NeuroPhoto] Генерация изображения (prompt step) завершена успешно, переход к следующему шагу',
+          telegramId,
+          nextStep: 'neuroPhotoButtonStep',
+          result: 'success',
+          urls: generationResult.urls, // Логируем URL, если они есть
+        })
+        console.log('🧙‍♂️ Генерация изображения (prompt step) успешно завершена!')
+        ctx.wizard.next() // Переходим к шагу с кнопками
+        return neuroPhotoButtonStep(ctx) // Явно вызываем следующий шаг
+      } else {
+        // Ошибка уже должна была быть сообщена пользователю из generateNeuroImage/generateNeuroPhotoDirect
+        logger.warn({
+          message:
+            '⚠️ [NeuroPhoto] Генерация изображения (prompt step) не удалась или не вернула success:true. Завершение сцены.',
+          telegramId,
+          result: JSON.stringify(generationResult),
+        })
+        // КРИТИЧЕСКИ ВАЖНО: Завершаем сцену при ошибке!
+        return ctx.scene.leave()
+      }
     } catch (generateError) {
       // Останавливаем интервал в случае ошибки
       clearInterval(progressInterval)
-      if (!ctx.chat?.id) {
-        console.error('❌ Chat ID не найден')
-        return
-      }
-      if (!processingMessage.message_id) {
-        console.error('❌ Processing message ID не найден')
-        return
-      }
-      // Удаляем сообщение о прогрессе
-      try {
-        await ctx.telegram.deleteMessage(
-          ctx.chat?.id,
-          processingMessage.message_id
-        )
-      } catch (e) {
-        // Игнорируем ошибки удаления сообщения
+      if (ctx.chat?.id && processingMessage?.message_id) {
+        // Проверяем существование перед удалением
+        try {
+          await ctx.telegram.deleteMessage(
+            ctx.chat?.id,
+            processingMessage.message_id
+          )
+        } catch (e) {
+          // Игнорируем ошибки удаления сообщения
+        }
       }
 
       logger.error({
-        message: '❌ [NeuroPhoto] Ошибка генерации изображения',
+        message: '❌ [NeuroPhoto] Ошибка генерации изображения (prompt step)',
         telegramId,
         error:
           generateError instanceof Error
@@ -493,16 +503,21 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         stack: generateError instanceof Error ? generateError.stack : undefined,
       })
 
-      console.error('🧙‍♂️ Ошибка генерации:', generateError)
+      console.error('🧙‍♂️ Ошибка генерации (prompt step):', generateError)
 
-      await ctx.reply(
-        isRu
-          ? '❌ Произошла ошибка при генерации изображения. Пожалуйста, попробуйте другой промпт или повторите попытку позже.'
-          : '❌ An error occurred during image generation. Please try a different prompt or try again later.'
-      )
+      // Сообщение об ошибке уже должно было быть отправлено из generateNeuroPhotoDirect/generateNeuroImage
+      // если это штатный { success: false }. Если это исключение здесь, то отправляем.
+      // Чтобы избежать дублирования, проверим, было ли оно уже отправлено.
+      // Но для простоты сейчас, если мы в catch, то предполагаем, что предыдущий уровень не отправил
+      // (или это не важно, лучше перестраховаться).
+      // Однако, если generateNeuroImage ВООБЩЕ НЕ ВЫЗВАЛСЯ из-за ошибки ДО него (напр. в fullPrompt), то сообщение нужно.
+      // Логика generateNeuroPhotoDirect уже отправляет сообщение, так что здесь можно не дублировать,
+      // если ошибка пришла оттуда. Но если это исключение на уровне сцены - то нужно.
+      // Решено: generateNeuroImage уже обрабатывает отправку сообщения об ошибке и возврат звезд.
+      // Поэтому здесь просто завершаем сцену.
 
-      // Остаемся на том же шаге, чтобы пользователь мог ввести новый промпт
-      return
+      // КРИТИЧЕСКИ ВАЖНО: Завершаем сцену при исключении в генерации!
+      return ctx.scene.leave()
     }
   } catch (error) {
     // Обработка любых других ошибок
@@ -616,28 +631,39 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
             : `⏳ Starting generation of ${num} images. This may take some time...`
         )
         if (!ctx.chat?.id) {
-          console.error('❌ Chat ID не найден')
-          return
+          console.error(
+            '❌ Chat ID не найден в neuroPhotoButtonStep -> generate'
+          )
+          return { error: true, sceneLeave: true } // Возвращаем признак ошибки и необходимость завершить сцену
         }
         if (!ctx.session.userModel.model_url) {
-          console.error('❌ Model URL не найден')
-          return
+          console.error(
+            '❌ Model URL не найден в neuroPhotoButtonStep -> generate'
+          )
+          return { error: true, sceneLeave: true } // Возвращаем признак ошибки и необходимость завершить сцену
         }
         if (!userId) {
-          console.error('❌ User ID не найден')
-          return
+          console.error(
+            '❌ User ID не найден в neuroPhotoButtonStep -> generate'
+          )
+          return { error: true, sceneLeave: true } // Возвращаем признак ошибки и необходимость завершить сцену
         }
 
         if (!ctx.botInfo?.username) {
-          console.error('❌ Bot username не найден')
-          return
+          console.error(
+            '❌ Bot username не найден в neuroPhotoButtonStep -> generate'
+          )
+          return { error: true, sceneLeave: true } // Возвращаем признак ошибки и необходимость завершить сцену
         }
         if (!prompt) {
-          console.error('❌ Prompt не найден')
-          return
+          console.error(
+            '❌ Prompt не найден в neuroPhotoButtonStep -> generate'
+          )
+          return { error: true, sceneLeave: true } // Возвращаем признак ошибки и необходимость завершить сцену
         }
         // Генерируем изображения
-        await generateNeuroImage(
+        // Сохраняем результат!
+        const generationResult = await generateNeuroImage(
           prompt,
           ctx.session.userModel.model_url,
           num,
@@ -648,31 +674,43 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
         // Удаляем сообщение о прогрессе
         try {
-          await ctx.telegram.deleteMessage(
-            ctx.chat?.id,
-            processingMessage.message_id
-          )
+          if (ctx.chat?.id && processingMessage?.message_id) {
+            // Добавлена проверка
+            await ctx.telegram.deleteMessage(
+              ctx.chat?.id,
+              processingMessage.message_id
+            )
+          }
         } catch (e) {
           // Игнорируем ошибки удаления сообщения
         }
 
-        logger.info({
-          message: `✅ [NeuroPhoto] Успешно сгенерировано ${num} изображений`,
-          telegramId,
-          result: 'success',
-        })
+        // Проверяем результат!
+        if (generationResult && generationResult.success) {
+          logger.info({
+            message: `✅ [NeuroPhoto] Успешно сгенерировано ${num} изображений (button step)`,
+            telegramId,
+            result: 'success',
+            urls: generationResult.urls, // Логируем URL
+          })
+          return { error: false } // Возвращаем признак успеха
+        } else {
+          logger.warn({
+            message: `⚠️ [NeuroPhoto] Генерация ${num} изображений (button step) не удалась или не вернула success:true. Завершение сцены.`,
+            telegramId,
+            result: JSON.stringify(generationResult),
+          })
+          return { error: true, sceneLeave: true } // Возвращаем признак ошибки и необходимость завершить сцену
+        }
       } catch (error) {
         logger.error({
-          message: `❌ [NeuroPhoto] Ошибка при генерации ${num} изображений`,
+          message: `❌ [NeuroPhoto] Ошибка при генерации ${num} изображений (button step)`,
           telegramId,
           error: error instanceof Error ? error.message : String(error),
         })
-
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла ошибка при генерации изображений. Пожалуйста, попробуйте другой промпт или повторите попытку позже.'
-            : '❌ An error occurred during image generation. Please try a different prompt or try again later.'
-        )
+        // Сообщение об ошибке пользователю уже должно было быть отправлено из generateNeuroPhotoDirect/generateNeuroImage
+        // или будет отправлено из основного блока catch neuroPhotoButtonStep.
+        return { error: true, sceneLeave: true } // Возвращаем признак ошибки и необходимость завершить сцену
       }
     }
 
@@ -682,7 +720,15 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         telegramId,
         numImages,
       })
-      await generate(numImages)
+      const result = await generate(numImages) // Сохраняем результат от generate
+      if (result && result.sceneLeave) {
+        // Проверяем признак необходимости завершить сцену
+        // Пользователь уже должен был получить сообщение об ошибке
+        return ctx.scene.leave()
+      }
+      // Если нет ошибки, требующей немедленного выхода из сцены, остаемся на шаге кнопок.
+      // Явный return undefined (или ничего не возвращаем), чтобы Telegraf знал, что обработка апдейта завершена.
+      return
     } else {
       logger.info({
         message: '🔄 [NeuroPhoto] Возврат в главное меню (неизвестная команда)',
