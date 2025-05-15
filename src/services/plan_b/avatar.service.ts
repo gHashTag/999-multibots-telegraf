@@ -8,6 +8,7 @@ export interface Avatar {
   created_at: string
   updated_at: string
   bot_name: string
+  support: string
 }
 
 export const avatarService = {
