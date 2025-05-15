@@ -19,6 +19,13 @@ import { getAspectRatio } from '@/core/supabase/ai'
 import { v4 as uuidv4 } from 'uuid'
 import { ApiResponse } from '@/interfaces/api.interface'
 import { BotName } from '@/interfaces/telegram-bot.interface'
+import crypto from 'crypto'
+import { supabase } from '@/core/supabase'
+
+// --- Локальный кэш для идемпотентности ---
+const idemCache = new Map<string, { result: any; expiresAt: number }>()
+const IDEMPOTENCY_TTL_MS = 20 * 1000 // 20 секунд
+
 /**
  * Прямая генерация нейрофото V1 без использования Inngest.
  * Используется как резервный вариант при отсутствии доступа к Inngest.
@@ -46,6 +53,68 @@ export async function generateNeuroPhotoDirect(
     bypass_payment_check?: boolean
   }
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
+  // --- IDEMPOTENCY KEY ---
+  const idempotencyKey = crypto
+    .createHash('sha256')
+    .update(`${telegram_id}:${prompt}:${model_url}:${numImages}`)
+    .digest('hex')
+  const now = Date.now()
+  const cacheEntry = idemCache.get(idempotencyKey)
+  if (cacheEntry && cacheEntry.expiresAt > now) {
+    logger.info({
+      message: '[IDEMPOTENCY] Найден локальный результат',
+      idempotencyKey,
+    })
+    return cacheEntry.result
+  }
+  // --- Проверка идемпотентности ---
+  // Псевдокод: ищем в Supabase (таблица payments_v2 или idempotency_keys) запись с этим ключом и created_at > now() - TTL
+  const { data: idemRows, error: idemError } = await supabase
+    .from('idempotency_keys')
+    .select('*')
+    .eq('idempotency_key', idempotencyKey)
+    .gte(
+      'created_at',
+      new Date(Date.now() - IDEMPOTENCY_TTL_MS / 1000).toISOString()
+    )
+    .limit(1)
+  if (idemError) {
+    logger.error({
+      message: '[IDEMPOTENCY] Ошибка поиска ключа',
+      idempotencyKey,
+      idemError,
+    })
+  }
+  if (idemRows && idemRows.length > 0) {
+    const row = idemRows[0]
+    if (row.result) {
+      logger.info({
+        message: '[IDEMPOTENCY] Найден результат, возвращаю сохранённый',
+        idempotencyKey,
+      })
+      idemCache.set(idempotencyKey, {
+        result: row.result,
+        expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
+      })
+      return row.result
+    }
+    logger.info({
+      message: '[IDEMPOTENCY] Операция уже выполняется, возвращаю статус',
+      idempotencyKey,
+    })
+    return { data: 'Processing', success: false }
+  }
+  // --- Сохраняем ключ как "в процессе" ---
+  await supabase.from('idempotency_keys').insert({
+    idempotency_key: idempotencyKey,
+    created_at: new Date().toISOString(),
+    status: 'processing',
+    telegram_id,
+    prompt,
+    model_url,
+    num_images: numImages,
+    bot_name: botName,
+  })
   // --- DEBUG LOG ---
   // console.log(
   //   '>>> generateNeuroPhotoDirect: Called with',
@@ -776,6 +845,28 @@ export async function generateNeuroPhotoDirect(
         success: false,
       }
     }
+
+    // Сохраняем результат
+    await supabase
+      .from('idempotency_keys')
+      .update({
+        status: 'done',
+        result: {
+          data: 'Processing completed',
+          success: true,
+          urls: generatedUrls,
+        },
+      })
+      .eq('idempotency_key', idempotencyKey)
+
+    idemCache.set(idempotencyKey, {
+      result: {
+        data: 'Processing completed',
+        success: true,
+        urls: generatedUrls,
+      },
+      expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
+    })
 
     return {
       data: 'Processing completed',
