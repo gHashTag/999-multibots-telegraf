@@ -6,12 +6,20 @@ import { handleTrainingCost } from '@/price/helpers'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
 import { calculateCost } from '@/price/priceCalculator'
+import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 
 export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
   'digital_avatar_body',
   async ctx => {
     const isRu = isRussian(ctx)
-    const costMessage = generateCostMessage(stepOptions.v1, isRu, 'v1')
+    const showRubles = shouldShowRubles(ctx)
+    const costMessage = generateCostMessage(
+      stepOptions.v1,
+      isRu,
+      'v1',
+      showRubles,
+      isRu
+    )
     await ctx.reply(costMessage, getStepSelectionMenu(isRu))
     return ctx.wizard.next()
   },

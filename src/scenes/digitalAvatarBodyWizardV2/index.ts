@@ -10,12 +10,20 @@ import {
   calculateCost,
 } from '@/price/priceCalculator'
 import { getStepSelectionMenuV2 } from '@/menu'
+import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 
 export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
   'digital_avatar_body_2',
   async ctx => {
     const isRu = isRussian(ctx)
-    const costMessage = generateCostMessage(stepOptions.v2, isRu, 'v2')
+    const showRubles = shouldShowRubles(ctx)
+    const costMessage = generateCostMessage(
+      stepOptions.v2,
+      isRu,
+      'v2',
+      showRubles,
+      isRu
+    )
     await ctx.reply(costMessage, getStepSelectionMenuV2(isRu))
     return ctx.wizard.next()
   },
