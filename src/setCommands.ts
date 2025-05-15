@@ -69,7 +69,7 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
           description: '📟 Menu / Главное меню',
         },
         {
-          command: 'tech',
+          command: 'support',
           description: '🛠 Tech Support / Техподдержка',
         },
         {
@@ -96,7 +96,7 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
           description: '📟 Menu / Главное меню',
         },
         {
-          command: 'tech',
+          command: 'support',
           description: '🛠 Tech Support / Техподдержка',
         },
         {
