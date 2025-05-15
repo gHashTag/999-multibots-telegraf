@@ -1,13 +1,15 @@
 import { logger } from '../utils/logger'
 // import { User } from '@/interfaces/user.interface' // REMOVED: No longer used
-import { type ReplicateTrainingResponse as Training } from '../types' // CHANGED: Using local ReplicateTrainingResponse aliased as Training
+import {
+  type ReplicateTrainingResponse as Training,
+  TrainingStatus,
+} from '../types' // CHANGED: Using local ReplicateTrainingResponse aliased as Training and added TrainingStatus import
 import { PaymentType } from '../types' // CHANGED: Using local PaymentType
 import { getDigitalAvatarBodyConfig } from '../config'
 import { sendTelegramMessageFromWorker } from '@/utils/telegramHelpers'
 import { getReplicateClient } from '../utils/replicateClient'
 import {
   updateDigitalAvatarTraining,
-  setLatestDigitalAvatarTrainingToError,
   setDigitalAvatarTrainingError,
 } from './modelTrainingsDb'
 import {
@@ -15,6 +17,7 @@ import {
   updateUserNeuroTokens,
   DigitalAvatarUserProfile,
 } from './userProfileDb'
+import { Prediction, Page, WebhookEventType } from 'replicate' // Removed ReplicateError
 
 interface ReplicateModelResponseForHelper {
   latest_version?: {
@@ -209,6 +212,26 @@ export async function updateTrainingRecordOnError(
   }
 }
 
+// Helper to map Replicate SDK's Prediction status to our internal TrainingStatus
+const mapReplicateStatusToTrainingStatus = (
+  replicateStatus: Prediction['status']
+): TrainingStatus => {
+  switch (replicateStatus) {
+    case 'starting':
+    case 'processing':
+      return 'PROCESSING'
+    case 'succeeded':
+      return 'SUCCEEDED'
+    case 'failed':
+      return 'FAILED'
+    case 'canceled':
+      return 'CANCELED'
+    default:
+      logger.warn(`Unknown Replicate status received: ${replicateStatus}`)
+      return 'FAILED' // Default to FAILED for unknown statuses
+  }
+}
+
 /**
  * Запускает тренировку модели на Replicate.
  * @param user - Объект пользователя.
@@ -224,85 +247,78 @@ export async function startReplicateTraining(
   zipUrl: string,
   triggerWord: string,
   stepsFromCaller?: number // Переименовано для ясности
-): Promise<Training> {
+): Promise<Prediction> {
   const config = getDigitalAvatarBodyConfig()
-  const ownerFromConfig = config.replicateUsername
-  const destinationOwner = user.replicate_username || ownerFromConfig
-  if (!destinationOwner) {
-    throw new Error(
-      'Replicate destination model owner could not be determined (user.replicate_username is null and REPLICATE_USERNAME from config is also null/undefined).'
+  const replicate = getReplicateClient()
+
+  const destinationModel = formatReplicateModelName(
+    user.replicate_username || config.replicateUsername, // Use user's replicate_username first, then config
+    modelName
+  )
+
+  const effectiveSteps = stepsFromCaller || config.replicateDefaultSteps || 1500
+  // instanceClass is not directly used by replicate.trainings.create in this way.
+  // It's part of the input to the trainer model itself.
+  // const instanceClass = triggerWord
+
+  const webhookUrl = config.apiUrl
+    ? `${config.apiUrl}/replicate-webhook`
+    : undefined
+  if (!webhookUrl) {
+    logger.error(
+      '[startReplicateTraining] API_URL is not defined in config, cannot create webhook URL'
     )
+    throw new Error('API_URL is not defined, webhook URL cannot be created.')
   }
-  const destination = `${destinationOwner}/${modelName}`
 
-  if (!config.apiUrl) {
-    throw new Error(
-      'API_URL is not configured. Cannot form Replicate webhook URL.'
-    )
+  const webhookEventsFilter: WebhookEventType[] = [
+    'start',
+    'output',
+    'logs',
+    'completed',
+  ]
+
+  const trainingInput = {
+    input_images_zip_url: zipUrl,
+    token_string: triggerWord,
+    // instance_prompt: `a photo of a ${triggerWord} person`, // Example: this is model specific
+    // gender: user.gender, // Example: this is model specific
+    steps: effectiveSteps,
+    // Any other specific inputs required by config.replicateTrainingModelVersion
   }
-  const webhookUrl = `${config.apiUrl}/api/replicate-webhook`
-
-  const tokenForClient = user.api // User's token takes precedence
-  // getReplicateClient будет использовать config.replicateApiToken если tokenForClient не предоставлен или пуст
-  const replicateClient = getReplicateClient(tokenForClient || undefined)
-
-  const steps = stepsFromCaller ?? config.replicateDefaultSteps // Используем шаги из конфига по умолчанию
 
   logger.info(
-    `[Replicate Training Start] Destination: ${destination}, Trigger: ${triggerWord}, Steps: ${steps}, User: ${user.telegram_id}`,
-    {
-      telegram_id: user.telegram_id,
-      destination,
-      zipUrl,
-      triggerWord,
-      steps,
-      replicateTrainerVersion: config.replicateTrainingModelVersion, // CORRECTED
-      webhookUrl,
-    }
+    `[startReplicateTraining] Starting Replicate training for user ${user.id} with destination model ${destinationModel}, version ${config.replicateTrainingModelVersion}`,
+    { trainingInput, webhookUrl, webhookEventsFilter }
   )
 
   try {
-    const training = (await replicateClient.trainings.create(
-      ownerFromConfig, // Используем username владельца модели из конфига
-      modelName, // Имя модели, которую тренируем/создаем
-      config.replicateTrainingModelVersion, // CORRECTED: Версия трейнера из конфига
+    const training = await replicate.trainings.create(
+      config.replicateUsername, // Owner
+      modelName, // Name of the model (without owner prefix)
+      config.replicateTrainingModelVersion || 'version-not-set', // Version
       {
-        destination: destination as `${string}/${string}`, // CORRECTED: Cast to satisfy type
-        input: {
-          train_data: zipUrl,
-          caption_prefix: `a photo of ${triggerWord}`,
-          max_train_steps: steps,
-          learning_rate: config.replicateLearningRate, // CORRECTED: From config
-          train_batch_size: config.replicateTrainBatchSize, // CORRECTED: From config
-          // Дополнительные параметры, если необходимы, могут быть добавлены сюда из config
-        },
-        webhook: webhookUrl, // webhook для уведомлений
-        webhook_events_filter: ['completed'], // интересуют только завершенные события
+        // Fourth argument: object containing input and other options
+        input: trainingInput, // trainingInput goes inside the 'input' field
+        destination: destinationModel as `${string}/${string}`,
+        webhook: webhookUrl,
+        webhook_events_filter: webhookEventsFilter,
       }
-    )) as Training
-    // activeTrainings.set(training.id, { cancel: () => replicate.trainings.cancel(training.id) }); // Логика отмены, если нужна
-
+    )
     logger.info(
-      `[Replicate Training Created] ID: ${training.id}, Status: ${training.status}`,
-      {
-        telegram_id: user.telegram_id,
-        trainingId: training.id,
-        status: training.status,
-      }
+      `[startReplicateTraining] Training started successfully for user ${user.id} with destination model ${destinationModel}, version ${config.replicateTrainingModelVersion}`,
+      { trainingInput, webhookUrl, webhookEventsFilter }
     )
-    return training
+    return training as Prediction
   } catch (error: any) {
-    logger.error(
-      `[Replicate Training Error] Failed to create training for ${destination}`,
-      {
-        telegram_id: user.telegram_id,
-        destination,
-        error: error.message,
-        stack: error.stack,
-        response_data: error.response?.data,
-      }
-    )
-    throw error // Перебрасываем ошибку дальше для обработки выше
+    logger.error('[Replicate API Error] Failed to start training:', {
+      user_id: user.id,
+      model_name: destinationModel,
+      error_message: error.message,
+      error_stack: error.stack,
+      error_response: error.response?.data,
+    })
+    throw new Error(`Replicate API error: ${error.message}`)
   }
 }
 
@@ -476,62 +492,83 @@ export async function getLatestModelUrl(
  * @param telegram_id - Optional telegram ID for logging context.
  */
 export async function ensureReplicateModelExists(
-  ownerUsername: string,
+  ownerUsername: string, // Это должен быть replicate_username пользователя или из конфига
   modelName: string,
-  triggerWord: string,
+  triggerWord: string, // triggerWord здесь не используется для создания модели
   loggerInstance: typeof logger,
   telegram_id?: number
 ): Promise<void> {
-  const destination: `${string}/${string}` = `${ownerUsername}/${modelName}`
-  let modelExists = false
-  const replicateClient = getReplicateClient()
+  const config = getDigitalAvatarBodyConfig()
+  const replicate = getReplicateClient()
+
+  // Используем ownerUsername, переданный в функцию, который должен быть актуальным replicate_username
+  const destination = `${ownerUsername}/${modelName}`
 
   try {
-    loggerInstance.debug(`Checking if Replicate model exists: ${destination}`, {
-      telegram_id,
-    })
-    await replicateClient.models.get(ownerUsername, modelName)
-    loggerInstance.info(`Replicate model ${destination} exists.`, {
-      telegram_id,
-    })
-    modelExists = true
-  } catch (error) {
-    if ((error as any)?.response?.status === 404) {
+    loggerInstance.debug(
+      `[Replicate Helper] Checking if model exists: ${destination}`,
+      { telegram_id }
+    )
+    await replicate.models.get(ownerUsername, modelName)
+    loggerInstance.info(
+      `[Replicate Helper] Model ${destination} already exists.`,
+      { telegram_id }
+    )
+  } catch (error: any) {
+    // Если модель не найдена (обычно ошибка 404), создаем ее
+    if (error.response && error.response.status === 404) {
       loggerInstance.info(
-        `Replicate model ${destination} does not exist. Creating...`,
+        `[Replicate Helper] Model ${destination} not found. Creating...`,
         { telegram_id }
       )
-      modelExists = false
+      try {
+        await replicate.models.create(
+          ownerUsername, // Используем ownerUsername
+          modelName, // Используем modelName
+          {
+            // Опции передаются третьим аргументом
+            visibility: 'private', // или 'public', в зависимости от требований
+            hardware: 'gpu-a40-small', // Выберите подходящее железо
+            description: `Custom model for ${ownerUsername}, trigger: ${triggerWord}`,
+            // cover_image_url: 'URL_К_ОБЛОЖКЕ_МОДЕЛИ', // Опционально
+            // paper_url: 'URL_К_ОПИСАНИЮ_МОДЕЛИ', // Опционально
+            // github_url: 'URL_К_GITHUB_РЕПОЗИТОРИЮ', // Опционально
+            // category: 'image-generation', // Опционально
+          }
+        )
+        loggerInstance.info(
+          `[Replicate Helper] Model ${destination} created successfully.`,
+          { telegram_id }
+        )
+      } catch (createError: any) {
+        loggerInstance.error(
+          `[Replicate API Error] Failed to create model ${destination}:`,
+          {
+            error_message: createError.message,
+            error_stack: createError.stack,
+            error_response: createError.response?.data,
+            telegram_id,
+          }
+        )
+        // Бросаем ошибку дальше, чтобы вызывающая функция могла ее обработать
+        throw new Error(
+          `Failed to create Replicate model ${destination}: ${createError.message}`
+        )
+      }
     } else {
-      loggerInstance.error('Error checking Replicate model existence:', {
-        error: (error as Error).message,
-        stack: (error as Error).stack,
-        telegram_id,
-      })
-      throw error
-    }
-  }
-
-  if (!modelExists) {
-    try {
-      loggerInstance.info(`Creating Replicate model ${destination}...`, {
-        telegram_id,
-      })
-      await replicateClient.models.create(ownerUsername, modelName, {
-        description: `LoRA model trained with trigger word: ${triggerWord}`,
-        visibility: 'public',
-        hardware: 'gpu-t4',
-      })
-      loggerInstance.info(`Replicate model ${destination} created.`, {
-        telegram_id,
-      })
-      await new Promise(resolve => setTimeout(resolve, 3000))
-    } catch (error) {
-      loggerInstance.error('API error during Replicate model creation:', {
-        message: (error as Error).message,
-        telegram_id,
-      })
-      throw error
+      // Если произошла другая ошибка (не 404), также бросаем ее
+      loggerInstance.error(
+        `[Replicate API Error] Failed to check model ${destination}:`,
+        {
+          error_message: error.message,
+          error_stack: error.stack,
+          error_response: error.response?.data,
+          telegram_id,
+        }
+      )
+      throw new Error(
+        `Failed to check Replicate model ${destination}: ${error.message}`
+      )
     }
   }
 }

@@ -4,7 +4,7 @@ import { inngest } from '@/inngest_app/client' // Правильный импо�
 import { validateAndPrepareTrainingRequest } from '../helpers/trainingHelpers' // Импорт хелпера
 import { getUserBalance } from '@/core/supabase/getUserBalance' // Прямой импорт
 import { updateUserBalance } from '@/core/supabase/updateUserBalance' // Прямой импорт
-import * as supabaseTraining from '@/core/supabase/createModelTraining' // Мокируем через * as
+import * as supabaseTraining from '@/modules/digitalAvatarBody/helpers/createModelTraining' // Мокируем через * as
 import * as priceCalculator from '@/price/priceCalculator' // Мокируем через * as
 import * as config from '@/config' // Импортируем весь модуль config
 import * as fs from 'fs'
@@ -13,7 +13,7 @@ import { MyContext } from '@/interfaces'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { User } from '@/interfaces/user.interface'
 import Replicate from 'replicate' // Импортируем тип Replicate
-import { ModelTraining } from '@/core/supabase/createModelTraining'
+import { ModelTraining } from '@/modules/digitalAvatarBody/helpers/createModelTraining'
 import { logger } from '@/utils/logger'
 import * as trainingHelpers from '../helpers/trainingHelpers'
 import { DeepMockProxy } from 'vitest-mock-extended'

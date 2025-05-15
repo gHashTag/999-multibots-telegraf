@@ -203,7 +203,7 @@ export async function generateModelTraining(
       trigger_word: triggerWord,
       steps_amount: steps,
       status: 'PENDING',
-      gender: gender as 'male' | 'female' | 'other' | undefined,
+      gender: gender as 'male' | 'female',
       api: 'replicate',
       bot_name: bot_name,
       cost_in_stars: finalCost,

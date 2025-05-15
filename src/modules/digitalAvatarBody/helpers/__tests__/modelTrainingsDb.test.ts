@@ -18,6 +18,7 @@ import {
   updateDigitalAvatarTraining,
   setDigitalAvatarTrainingError,
   ModelTraining,
+  ModelTrainingArgs,
 } from '../modelTrainingsDb'
 import { supabase } from '@/core/supabase/client' // To potentially spy on or check mock calls
 import { logger } from '@/utils/logger'
@@ -32,20 +33,18 @@ describe('modelTrainingsDb helpers', () => {
 
   describe('createDigitalAvatarTraining', () => {
     it('should call supabase.insert with correct data (excluding telegram_id) and return the result', async () => {
-      const mockTrainingDataWithTgId: Omit<ModelTraining, 'id' | 'created_at'> =
-        {
-          user_id: 'user-uuid-123',
-          model_name: 'test-model-db',
-          telegram_id: 'tg-123',
-          zip_url: 'http://example.com/zip.zip',
-          status: 'PENDING',
-          cost_in_stars: 10,
-          steps_amount: 100,
-          bot_name: 'TestBot',
-          api: 'replicate',
-          gender: 'female',
-          trigger_word: 'testtrigger',
-        }
+      const mockTrainingDataWithTgId: ModelTrainingArgs = {
+        user_id: 'user-uuid-123',
+        model_name: 'test-model-db',
+        telegram_id: 'tg-123',
+        status: 'PENDING',
+        cost_in_stars: 10,
+        steps_amount: 100,
+        bot_name: 'TestBot',
+        api: 'replicate',
+        gender: 'female',
+        trigger_word: 'testtrigger',
+      }
       const { telegram_id, ...expectedInsertData } = mockTrainingDataWithTgId
 
       const mockApiResponse = {
@@ -77,20 +76,18 @@ describe('modelTrainingsDb helpers', () => {
     })
 
     it('should return null and log error if supabase.insert fails', async () => {
-      const mockTrainingDataWithTgId: Omit<ModelTraining, 'id' | 'created_at'> =
-        {
-          user_id: 'user-123',
-          telegram_id: 'tg-123',
-          model_name: 'test-model',
-          status: 'PENDING',
-          zip_url: 'http://example.com/zip',
-          trigger_word: 'test',
-          cost_in_stars: 0,
-          steps_amount: 0,
-          bot_name: 'TestBot',
-          api: 'replicate',
-          gender: 'other',
-        }
+      const mockTrainingDataWithTgId: ModelTrainingArgs = {
+        user_id: 'user-123',
+        telegram_id: 'tg-123',
+        model_name: 'test-model',
+        status: 'PENDING',
+        trigger_word: 'test',
+        cost_in_stars: 0,
+        steps_amount: 0,
+        bot_name: 'TestBot',
+        api: 'replicate',
+        gender: 'female',
+      }
       const { telegram_id, ...expectedInsertData } = mockTrainingDataWithTgId
 
       const mockError = {

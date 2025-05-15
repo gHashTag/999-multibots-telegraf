@@ -1,536 +1,433 @@
-import { NonRetriableError, type Inngest, type EventPayload } from 'inngest'
-
+import type { Inngest, EventPayload as InngestEvent } from 'inngest'
+import { getBotByName, type BotInstanceResult } from '@/core/bot' // Correct import path
+import type { ModelTrainingInngestEventData, TrainingStatus } from '../types' // Ensure TrainingStatus is imported
 import { logger } from '../utils/logger'
-import { inngest } from '@/inngest_app/client'
-import type { ModelTrainingInngestEventData } from '../types'
-// Импортируем хелперы
+import { sendModuleTelegramMessage } from '../utils/telegramNotifier'
 import {
-  validateAndPrepareTrainingRequest,
-  // createTrainingRecord, // Not used
-  startReplicateTraining,
-  // updateTrainingRecordOnError, // Not used
-  // formatReplicateModelName, // Not used
-  checkAndSetTrainingCache,
-  updateTrainingStatus,
-  TRAINING_MESSAGES,
-  ensureReplicateModelExists,
+  // checkAndSetTrainingCache, // Commented out, seems unused and caused issues. Re-evaluate if needed.
   getLatestModelUrl,
   pollReplicateTrainingStatus,
-  // getReplicateWebhookUrl, // Not used
+  startReplicateTraining,
+  updateTrainingRecordOnError, // Ensure this uses trainingId
+  // updateTrainingStatus, // Directly using updateDigitalAvatarTraining with specific statuses
+  ensureReplicateModelExists,
 } from '../helpers/trainingHelpers'
-import { sendModuleTelegramMessage } from '../utils/telegramNotifier'
-import type { DigitalAvatarUserProfile } from '../helpers/userProfileDb' // Added import for local user profile type
-import { getBotByName } from '@/core/bot' // ADDED IMPORT
-
 import {
+  getDigitalAvatarTrainingById,
   updateDigitalAvatarTraining,
-  setDigitalAvatarTrainingError,
-  getDigitalAvatarTrainingByReplicateIdWithUserDetails, // RESTORED
-  type ModelTrainingWithUserDetails, // RESTORED
-  type ModelTraining as LocalModelTraining, // RESTORED
+  type ModelTraining, // Corrected: Changed LocalModelTraining to ModelTraining
 } from '../helpers/modelTrainingsDb'
-import { getDigitalAvatarBodyConfig } from '../config' // ADDED: Import module config
+import { getDigitalAvatarUserProfile } from '../helpers/userProfileDb'
+import { getDigitalAvatarBodyConfig } from '../config'
+// Assuming TRAINING_MESSAGES is correctly defined in constants/messages.ts
+// and provides localized strings or functions for them.
+import { TRAINING_MESSAGES } from '../constants/messages'
+import { Prediction } from 'replicate' // Replicate's Prediction type, used for status
 
-// Event interface (используем импортированный тип для data)
-export interface GenerateModelTrainingEvent {
-  name: string // Changed to string, as it will be a dynamic value from config
-  data: ModelTrainingInngestEventData
+// Function to check and set cache - might be needed if re-enabled
+// For now, this logic is simplified by directly checking DB status or relying on Inngest's deduplication
+function checkAndSetTrainingCache(
+  telegram_id: string,
+  model_name: string,
+  status: 'PENDING' | 'COMPLETED' | 'FAILED', // These are statuses for updateTrainingStatus if used
+  loggerInstance: typeof logger // Added loggerInstance
+): boolean {
+  // Simplified: In a real scenario, this would interact with a KV store or similar
+  loggerInstance.info('checkAndSetTrainingCache called (currently a stub)', {
+    telegram_id,
+    model_name,
+    status,
+  })
+  return true // Placeholder
 }
 
-// const activeTrainings = new Map<string, { cancel: () => void }>() // Not used
+// Define the expected structure of the event object for this Inngest function
+// by extending Inngest's base EventPayload and specifying the 'data' type.
+interface GenerateModelTrainingInngestEvent extends InngestEvent {
+  data?: ModelTrainingInngestEventData // data is optional in base InngestEvent, align with it.
+  // 'name', 'id', 'ts', 'v', 'user' are inherited from InngestEvent
+}
 
-// Factory function that creates and returns the Inngest function
+// Interface for the expected result from step.run when calling startReplicateTraining
+interface ReplicateStepRunResult {
+  id: string
+  status: Prediction['status'] // Use Prediction['status'] for strong typing from Replicate lib
+  version?: string
+  error?: any
+  // Add other fields if they are reliably returned by step.run and used later
+  // e.g., output?: any; if getLatestModelUrl needs it from this variable
+}
+
 export const createGenerateModelTraining = (inngestInstance: Inngest) => {
-  const config = getDigitalAvatarBodyConfig() // Get module config
-  const eventNameFromConfig = config.inngestEventNameGenerateModelTraining
-
-  if (!eventNameFromConfig) {
-    // This case should ideally be caught by Zod schema if made mandatory
-    // or have a default in the config getter itself.
-    // For safety, logging an error and throwing if it somehow ends up empty.
-    logger.error(
-      '[InngestFunction] Critical: inngestEventNameGenerateModelTraining is not defined in module config.'
-    )
-    throw new Error(
-      'Inngest event name for generate model training is not configured.'
-    )
-  }
-  logger.info(
-    `[InngestFunction] Registering Inngest function for event: ${eventNameFromConfig}`
-  )
+  const config = getDigitalAvatarBodyConfig()
 
   return inngestInstance.createFunction(
     {
       id: 'digital-avatar-body-generate-model-training-v2',
-      name: 'Digital Avatar Body - Generate Model Training v2',
-      retries: 3,
-      rateLimit: {
-        key: 'event.data.telegram_id',
-        limit: 1,
-        period: '10s',
-      },
+      name: 'Digital Avatar Body Generate Model Training V2',
     },
-    { event: eventNameFromConfig },
-    async ({ event, step }: { event: EventPayload; step: any }) => {
-      let user: DigitalAvatarUserProfile | null | undefined = null
+    { event: config.inngestEventNameGenerateModelTraining },
+    async ({
+      event,
+      step,
+    }: {
+      event: GenerateModelTrainingInngestEvent
+      step: any
+    }) => {
+      let user: Awaited<ReturnType<typeof getDigitalAvatarUserProfile>> = null
 
-      // Type assertion for event.data
-      // It's crucial that the event this function is subscribed to *actually* has this data structure.
-      if (!event.data || typeof event.data !== 'object') {
-        logger.error(
-          '[InngestFunction] Event data is missing or not an object.',
-          { eventName: event.name, eventData: event.data }
-        )
-        throw new NonRetriableError('Event data is missing or not an object.')
-      }
-      // Perform a more specific check if possible, or rely on the fields accessed later
-      // For now, we cast it after the basic check.
-      const eventSpecificData = event.data as ModelTrainingInngestEventData
-
-      logger.info('[InngestFunction] Received model training event', {
-        eventName: event.name,
-        timestamp: new Date(event.ts).toISOString(),
-        telegramId: eventSpecificData.telegram_id,
-      })
-
+      // event.data is now strongly typed as ModelTrainingInngestEventData
+      // We use '!' because for this specific event, 'data' is always expected.
       const {
-        telegram_id,
+        user_id, // from DB
+        telegram_id, // string
         is_ru,
         bot_name,
+        bot_token, // available
         model_name,
-        zipUrl,
-        steps: trainingSteps,
+        publicUrl,
+        steps,
         trigger_word,
-        calculatedCost,
-        operation_type_for_refund,
-        trainingDbIdFromEvent,
-      } = eventSpecificData // Use the asserted data object
+        gender,
+        db_model_training_id, // This is the crucial ID for our DB record
+        calculatedCost, // available
+        operation_type_for_refund, // available
+        replicateModelDestination,
+      } = event.data! // Use non-null assertion operator
 
-      const telegramIdNumber = Number(telegram_id)
-      if (isNaN(telegramIdNumber)) {
-        logger.error('[InngestFunction] Invalid telegram_id received', {
-          telegram_id,
-        })
-        throw new NonRetriableError('Invalid telegram_id: Must be a number.')
-      }
-
-      if (
-        !checkAndSetTrainingCache(
-          telegram_id.toString(),
-          model_name,
-          'PENDING',
-          logger
-        )
-      ) {
-        const botInfo = getBotByName(bot_name) // NEW: Get bot instance
-        await sendModuleTelegramMessage(
-          // NEW CALL
-          telegram_id.toString(),
-          TRAINING_MESSAGES.duplicateRequest[is_ru ? 'ru' : 'en'],
-          botInfo
-        )
-        logger.warn('Duplicate training request identified by cache', {
+      const functionName = 'inngest.generateModelTraining.v2'
+      logger.info(
+        `[${functionName}] Received event for DB record ID: ${db_model_training_id}`,
+        {
           telegram_id,
           model_name,
-        })
-        return { status: 'Duplicate request, already processing by cache.' }
-      }
+        }
+      )
 
-      if (!trainingDbIdFromEvent) {
+      const botInfo: BotInstanceResult = getBotByName(bot_name)
+      if (botInfo.error || !botInfo.bot) {
         logger.error(
-          'Critical: trainingDbIdFromEvent is missing in Inngest event data for v2 function.',
-          { eventData: eventSpecificData }
+          `[${functionName}] Bot instance ${bot_name} not found or error: ${botInfo.error}. Cannot send messages.`,
+          { telegram_id, db_model_training_id }
         )
-        updateTrainingStatus(
-          telegram_id.toString(),
-          model_name,
-          'FAILED',
-          logger
-        )
-        const botInfoCrit = getBotByName(bot_name) // NEW: Get bot instance
-        await sendModuleTelegramMessage(
-          // NEW CALL
-          telegram_id.toString(),
-          TRAINING_MESSAGES.error('Internal configuration error.')[
-            is_ru ? 'ru' : 'en'
-          ],
-          botInfoCrit
-        )
-        throw new NonRetriableError('trainingDbIdFromEvent is missing.')
+        // Cannot easily update DB here without user context if user_id is not yet validated
+        // Consider how to handle this critical config error.
+        // For now, we throw to let Inngest handle retries/failure.
+        throw new Error(`Bot instance ${bot_name} not found. Critical error.`)
       }
-      const currentTrainingDbId = trainingDbIdFromEvent as string
 
       try {
-        await step.run('send-initial-message', async () => {
-          const botInfoInitial = getBotByName(bot_name) // NEW: Get bot instance
-          return sendModuleTelegramMessage(
-            // NEW CALL
-            telegram_id.toString(),
-            TRAINING_MESSAGES.start[is_ru ? 'ru' : 'en'],
-            botInfoInitial
+        // 1. Get User Profile
+        user = await getDigitalAvatarUserProfile(telegram_id) // telegram_id is string
+        if (!user) {
+          logger.error(
+            `[${functionName}] User not found for telegram_id: ${telegram_id}. Aborting.`,
+            { db_model_training_id }
           )
-        })
-
-        const validationResult = await step.run(
-          'validate-user-and-prepare-training',
-          async () => {
-            const validationRes = await validateAndPrepareTrainingRequest(
-              telegramIdNumber,
-              zipUrl,
-              model_name,
-              trigger_word,
-              is_ru,
-              bot_name,
-              operation_type_for_refund,
-              calculatedCost
-            )
-            if (validationRes) {
-              user = validationRes.user
-            }
-            return validationRes
+          await updateDigitalAvatarTraining(db_model_training_id, {
+            status: 'FAILED',
+            error_message: 'User profile not found in Inngest worker.',
+          })
+          // No bot message here as user context is missing for bot_name
+          return {
+            message: 'User not found, training failed.',
+            db_model_training_id,
           }
-        )
-
-        if (!validationResult) {
-          updateTrainingStatus(
-            telegram_id.toString(),
-            model_name,
-            'FAILED',
-            logger
-          )
+        }
+        // Verify consistency with user_id from event if needed, though telegram_id is primary key here
+        if (user.id !== user_id) {
           logger.warn(
-            'Валидация пользователя или подготовка к тренировке не пройдена.',
-            { telegramId: telegram_id }
+            `[${functionName}] User ID mismatch for telegram_id ${telegram_id}. Event user_id: ${user_id}, DB user_id: ${user.id}. Proceeding with DB user_id.`,
+            { db_model_training_id }
           )
-          const botInfoValidation = getBotByName(bot_name) // NEW: Get bot instance
-          await sendModuleTelegramMessage(
-            // NEW CALL
-            telegram_id.toString(),
-            TRAINING_MESSAGES.error('Validation failed')[is_ru ? 'ru' : 'en'],
-            botInfoValidation
-          )
-          throw new NonRetriableError(
-            'User validation or training prep failed.'
-          )
+          // Potentially update the user_id in the event data if this is a concern
         }
 
-        // const { publicUrl, costInStars } = validationResult // costInStars not used
-        const { publicUrl } = validationResult
-        if (!user || !user.id) {
-          updateTrainingStatus(
-            telegram_id.toString(),
-            model_name,
-            'FAILED',
-            logger
-          )
+        // 2. Check current status in DB to prevent re-processing completed/failed
+        const initialDbRecord =
+          await getDigitalAvatarTrainingById(db_model_training_id)
+        if (!initialDbRecord) {
           logger.error(
-            'User object or user.id is null before calling startReplicateTraining. This should not happen.',
-            { telegram_id, userId: user?.id }
+            `[${functionName}] DB record ${db_model_training_id} not found. Aborting.`,
+            { telegram_id }
           )
-          throw new NonRetriableError(
-            'User object or user.id is null before calling startReplicateTraining. This should not happen.'
+          // No user message as this is an internal error
+          throw new Error(`DB record ${db_model_training_id} not found.`)
+        }
+
+        if (
+          initialDbRecord.status === 'SUCCEEDED' ||
+          initialDbRecord.status === 'FAILED' ||
+          initialDbRecord.status === 'CANCELED'
+        ) {
+          logger.warn(
+            `[${functionName}] Training ${db_model_training_id} already in terminal state: ${initialDbRecord.status}. Skipping.`,
+            { telegram_id }
           )
+          return {
+            message: `Training already ${initialDbRecord.status}.`,
+            db_model_training_id,
+          }
+        }
+        // If PENDING_INNGest, we proceed. If PROCESSING, it might be a retry, also proceed.
+
+        // Cache check (simplified)
+        // The original checkAndSetTrainingCache was problematic.
+        // Inngest offers built-in deduplication. If more complex logic is needed,
+        // it should be re-evaluated with a proper KV store or DB check.
+        // For now, we assume Inngest handles basic deduplication if event IDs are consistent.
+        // Or, rely on checking the DB status as done above.
+
+        // const isDuplicateByCache = !checkAndSetTrainingCache(
+        //   telegram_id, // string
+        //   model_name,
+        //   'PENDING',
+        //   logger
+        // )
+        // if (isDuplicateByCache) {
+        //   logger.warn(
+        //     `[${functionName}] Duplicate training request identified by cache (stub).`,
+        //     { telegram_id, model_name, db_model_training_id }
+        //   )
+        //   await sendModuleTelegramMessage(
+        //     telegram_id, // string
+        //     TRAINING_MESSAGES.duplicateRequest[is_ru ? 'ru' : 'en'],
+        //     botInfo // Pass BotInstanceResult
+        //   )
+        //   // Optionally update DB status to FAILED if this is a hard stop
+        //   return { message: 'Duplicate request by cache.', db_model_training_id }
+        // }
+
+        // 3. Ensure Replicate Model Exists (Trainer)
+        // The replicateUsername should be from config (trainer's account), not user's
+        const trainerUsername = config.replicateUsername
+        if (!trainerUsername) {
+          logger.error(
+            `[${functionName}] REPLICATE_USERNAME for trainer not set in module config. Aborting.`,
+            { telegram_id, db_model_training_id }
+          )
+          await updateDigitalAvatarTraining(db_model_training_id, {
+            status: 'FAILED',
+            error_message: 'Replicate trainer username not configured.',
+          })
+          await sendModuleTelegramMessage(
+            telegram_id, // string
+            TRAINING_MESSAGES.error(
+              'Internal configuration error (Replicate username).'
+            )[is_ru ? 'ru' : 'en'],
+            botInfo // Pass BotInstanceResult
+          )
+          return {
+            message: 'Replicate trainer username not configured.',
+            db_model_training_id,
+          }
         }
 
         await step.run('ensure-replicate-model-exists', async () => {
-          if (!user || !user.replicate_username) {
-            logger.error(
-              'User replicate_username is missing before ensureReplicateModelExists',
-              { telegram_id, userId: user?.id }
-            )
-            throw new NonRetriableError(
-              'User replicate_username is required to ensure model exists.'
-            )
-          }
           await ensureReplicateModelExists(
-            user.replicate_username,
-            model_name,
-            trigger_word,
+            trainerUsername,
+            model_name, // User's desired model name
+            trigger_word || '', // User's trigger word
             logger,
-            telegramIdNumber
+            Number(telegram_id) // ensureReplicateModelExists might expect number
           )
         })
 
-        updateTrainingStatus(
-          telegram_id.toString(),
-          model_name,
-          'PENDING',
-          logger,
-          currentTrainingDbId
-        )
-
-        const replicateData = await step.run(
-          'start-replicate-training',
-          async () => {
-            if (!user || !user.id) {
-              updateTrainingStatus(
-                telegram_id.toString(),
+        // 4. Start Replicate Training
+        let replicateTraining: ReplicateStepRunResult | null = null // Use the new interface
+        try {
+          // The result of step.run is a JsonifyObject. We cast it to our expected serializable structure.
+          replicateTraining = (await step.run(
+            'start-replicate-training',
+            async () => {
+              // startReplicateTraining itself returns a Promise<Prediction>
+              // but step.run will process it into a JsonifyObject.
+              return await startReplicateTraining(
+                user!,
                 model_name,
-                'FAILED',
-                logger,
-                currentTrainingDbId
-              )
-              logger.error(
-                'User object or user.id is null before calling startReplicateTraining. This should not happen.',
-                {
-                  telegram_id,
-                  userId: user?.id,
-                  trainingRecordId: currentTrainingDbId,
-                }
-              )
-              throw new NonRetriableError(
-                'User object or user.id is null before calling startReplicateTraining.'
+                publicUrl,
+                trigger_word || '',
+                steps
               )
             }
-            // Ensure created_at and updated_at are either Date objects or undefined.
-            // If they are already Date objects (due to userProfileDb change), no conversion needed.
-            // If they were strings and somehow bypassed userProfileDb conversion (unlikely), convert them.
-            const createdAtDate =
-              user.created_at instanceof Date
-                ? user.created_at
-                : user.created_at
-                  ? new Date(user.created_at)
-                  : undefined
-            const updatedAtDate =
-              user.updated_at instanceof Date
-                ? user.updated_at
-                : user.updated_at
-                  ? new Date(user.updated_at)
-                  : undefined
+          )) as ReplicateStepRunResult // Cast to the new interface
+        } catch (startError: any) {
+          logger.error(
+            `[${functionName}] Error starting Replicate training for DB ID ${db_model_training_id}: ${startError.message}`,
+            { telegram_id, error: startError }
+          )
+          await updateDigitalAvatarTraining(db_model_training_id, {
+            status: 'FAILED',
+            error_message: `Failed to start Replicate training: ${startError.message}`,
+          })
+          await sendModuleTelegramMessage(
+            telegram_id,
+            TRAINING_MESSAGES.error('Failed to start model training process.')[
+              is_ru ? 'ru' : 'en'
+            ],
+            botInfo
+          )
+          return {
+            message: 'Failed to start Replicate training.',
+            db_model_training_id,
+          }
+        }
 
-            const compliantUser: DigitalAvatarUserProfile = {
-              ...user,
-              id: String(user.id),
-              created_at: createdAtDate,
-              updated_at: updatedAtDate,
-              telegram_id: String(user.telegram_id),
-            } as DigitalAvatarUserProfile
+        if (!replicateTraining || !replicateTraining.id) {
+          logger.error(
+            `[${functionName}] Failed to start Replicate training or get ID for DB ID ${db_model_training_id}.`,
+            { telegram_id }
+          )
+          await updateDigitalAvatarTraining(db_model_training_id, {
+            status: 'FAILED',
+            error_message: 'Replicate training did not return an ID.',
+          })
+          await sendModuleTelegramMessage(
+            telegram_id, // string
+            TRAINING_MESSAGES.error('Training start failed (no ID).')[
+              is_ru ? 'ru' : 'en'
+            ],
+            botInfo // Pass BotInstanceResult
+          )
+          return {
+            message: 'Replicate training start failed (no ID).',
+            db_model_training_id,
+          }
+        }
 
-            return await startReplicateTraining(
-              compliantUser,
-              model_name,
-              publicUrl,
-              trigger_word,
-              trainingSteps
+        logger.info(
+          `[${functionName}] Replicate training started. Replicate ID: ${replicateTraining.id}, DB ID: ${db_model_training_id}`,
+          { telegram_id }
+        )
+        await updateDigitalAvatarTraining(db_model_training_id, {
+          replicate_training_id: replicateTraining.id,
+          status: 'PROCESSING', // Our local status
+        })
+
+        // 5. Poll Replicate Training Status
+        // The polling logic is now part of pollReplicateTrainingStatus helper
+        // It needs the initial Replicate training details and our DB record ID
+        // Use config for timeout and interval
+
+        const finalReplicateStatus = await step.run(
+          'poll-replicate-status',
+          async () => {
+            return await pollReplicateTrainingStatus(
+              {
+                id: replicateTraining!.id, // From ReplicateStepRunResult
+                status: replicateTraining!.status, // From ReplicateStepRunResult, should be Prediction['status'] compatible
+              },
+              String(db_model_training_id),
+              logger,
+              Number(telegram_id) // The 4th optional argument
             )
           }
         )
 
-        await step.run('update-training-record-with-replicate-id', async () => {
-          logger.info('Mock: Update DB with Replicate ID', {
-            trainingRecordId: currentTrainingDbId,
-            replicateId: replicateData.id,
+        // 6. Handle Final Status
+        if (finalReplicateStatus === 'succeeded') {
+          logger.info(
+            `[${functionName}] Replicate training SUCCEEDED for DB ID: ${db_model_training_id}, Replicate ID: ${replicateTraining.id}`,
+            { telegram_id }
+          )
+          const modelUrl = await step.run('get-latest-model-url', async () => {
+            return await getLatestModelUrl(
+              model_name, // modelName is user's desired model name
+              logger // Pass logger
+            )
           })
-          await updateDigitalAvatarTraining(currentTrainingDbId, {
-            replicate_training_id: replicateData.id,
-            status: 'PROCESSING',
-          })
-        })
 
-        return {
-          status: 'Training successfully submitted to Replicate.',
-          replicate_id: replicateData.id,
-          training_record_id: currentTrainingDbId,
+          await updateDigitalAvatarTraining(db_model_training_id, {
+            status: 'SUCCEEDED', // Our local status
+            model_url: modelUrl,
+            replicate_model_version: replicateTraining.version, // Store the trained model version
+          })
+
+          // updateTrainingStatus(telegram_id, model_name, 'COMPLETED', logger, String(db_model_training_id)) // OLD
+          // This was causing type errors. We are directly setting SUCCEEDED above.
+
+          await sendModuleTelegramMessage(
+            telegram_id, // string
+            TRAINING_MESSAGES.success(model_name)[is_ru ? 'ru' : 'en'],
+            botInfo // Pass BotInstanceResult
+          )
+          return {
+            message: `Training succeeded. Model URL: ${modelUrl}`,
+            db_model_training_id,
+            replicate_id: replicateTraining.id,
+          }
+        } else {
+          // Status is 'failed' or 'canceled' or any other non-succeeded terminal state
+          const replicateError =
+            replicateTraining.error || 'Unknown Replicate error'
+          logger.error(
+            `[${functionName}] Replicate training ${finalReplicateStatus} for DB ID: ${db_model_training_id}, Replicate ID: ${replicateTraining.id}. Error: ${replicateError}`,
+            { telegram_id }
+          )
+          await updateDigitalAvatarTraining(db_model_training_id, {
+            status: finalReplicateStatus === 'canceled' ? 'CANCELED' : 'FAILED', // Map to our status
+            error_message:
+              typeof replicateError === 'string'
+                ? replicateError
+                : JSON.stringify(replicateError),
+            // replicate_output: replicateTraining.error ? JSON.stringify(replicateTraining.error) : undefined, // Old: error_message is better
+          })
+
+          // updateTrainingStatus(telegram_id, model_name, 'FAILED', logger, String(db_model_training_id)) // OLD
+
+          await sendModuleTelegramMessage(
+            telegram_id, // string
+            TRAINING_MESSAGES.error(
+              `${finalReplicateStatus}: ${typeof replicateError === 'string' ? replicateError : 'Details logged.'}`
+            )[is_ru ? 'ru' : 'en'],
+            botInfo // Pass BotInstanceResult
+          )
+          return {
+            message: `Training ${finalReplicateStatus}. Error: ${replicateError}`,
+            db_model_training_id,
+            replicate_id: replicateTraining.id,
+          }
         }
       } catch (error: any) {
-        logger.error(`Error in Inngest training function: ${error.message}`, {
-          telegramId: telegram_id,
-          modelName: model_name,
-          error: error.message,
-          stack: error.stack,
-          originalError: error.originalError, // if NonRetriableError wraps another
-        })
-        updateTrainingStatus(
-          telegram_id.toString(),
-          model_name,
-          'FAILED',
-          logger,
-          currentTrainingDbId || undefined
+        const errorMessage =
+          error.message || 'Unknown error during Inngest training function'
+        logger.error(
+          `[${functionName}] CRITICAL error for DB ID ${db_model_training_id}: ${errorMessage}`,
+          {
+            telegram_id,
+            stack: error.stack,
+          }
         )
-
-        if (currentTrainingDbId) {
-          await step.run('update-training-record-on-error', async () => {
-            if (user && user.id) {
-              return setDigitalAvatarTrainingError(
-                currentTrainingDbId,
-                error.message
-              )
-            } else {
-              logger.error(
-                'User or user.id is undefined in catch block when calling updateTrainingRecordOnError',
-                {
-                  telegramId: telegram_id,
-                  modelName: model_name,
-                  trainingRecordId: currentTrainingDbId,
-                }
-              )
-              return
-            }
+        // Attempt to update DB record to FAILED
+        try {
+          await updateDigitalAvatarTraining(db_model_training_id, {
+            status: 'FAILED',
+            error_message: `Critical Inngest worker error: ${errorMessage}`,
           })
+        } catch (dbUpdateError: any) {
+          logger.error(
+            `[${functionName}] CRITICAL - Failed to update DB record ${db_model_training_id} to FAILED after main error: ${dbUpdateError.message}`,
+            { telegram_id }
+          )
         }
 
-        const botInfoFinalError = getBotByName(bot_name) // NEW: Get bot instance
-        await sendModuleTelegramMessage(
-          // NEW CALL
-          telegram_id.toString(),
-          TRAINING_MESSAGES.error(error.message)[is_ru ? 'ru' : 'en'],
-          botInfoFinalError
-        )
-
-        if (error instanceof NonRetriableError) {
-          throw error
+        // Attempt to notify user
+        try {
+          await sendModuleTelegramMessage(
+            telegram_id, // string
+            TRAINING_MESSAGES.error(
+              'A critical error occurred during model training. Support has been notified.'
+            )[is_ru ? 'ru' : 'en'],
+            botInfo // Pass BotInstanceResult
+          )
+        } catch (notifyError: any) {
+          logger.error(
+            `[${functionName}] CRITICAL - Failed to notify user ${telegram_id} about critical training error: ${notifyError.message}`
+          )
         }
-        throw new NonRetriableError(`Training failed: ${error.message}`)
+        // Rethrow to let Inngest handle the failure according to its retry policy
+        throw error
       }
     }
   )
 }
-
-// Inngest функция для обработки вебхуков от Replicate
-export const handleReplicateWebhookDigitalAvatarBody = inngest.createFunction(
-  {
-    id: 'handle-replicate-webhook-digital-avatar-body',
-    name: 'Handle Replicate Webhook Digital Avatar Body',
-  },
-  { event: 'replicate/webhook.digital_avatar_body' },
-  async ({ event, logger }) => {
-    const webhookData = event.data
-    const replicateTrainingId = webhookData.id
-    const status = webhookData.status
-
-    if (!replicateTrainingId) {
-      logger.error('Replicate Training ID missing in webhook payload', {
-        payload: webhookData,
-      })
-      return { success: false, error: 'Missing Replicate Training ID' }
-    }
-
-    logger.info('Received webhook for Replicate training', {
-      replicateTrainingId,
-      status,
-    })
-
-    const trainingRecordWithUser =
-      await getDigitalAvatarTrainingByReplicateIdWithUserDetails(
-        replicateTrainingId
-      )
-
-    if (!trainingRecordWithUser) {
-      logger.error(
-        'Failed to find training record for webhook or user details using helper',
-        {
-          replicateTrainingId,
-        }
-      )
-      return {
-        success: false,
-        error: 'Failed to find training record or user details using helper',
-      }
-    }
-
-    const trainingRecord =
-      trainingRecordWithUser as ModelTrainingWithUserDetails
-    const dbRecordId = trainingRecord.id as string
-
-    const userTelegramId = trainingRecord.users?.telegram_id
-    const userBotName = trainingRecord.users?.bot_name
-    const isRuUser = trainingRecord.users?.is_ru_language ?? false // Default to false if undefined
-
-    // It is critical to have userTelegramId and userBotName for notifications
-    if (!userTelegramId || typeof userBotName === 'undefined') {
-      logger.error(
-        'User telegram_id or bot_name missing in fetched record for webhook notification. Cannot send message.',
-        {
-          replicateTrainingId,
-          userId: trainingRecord.user_id,
-          retrievedUserSubObject: trainingRecord.users,
-        }
-      )
-      // Do not proceed with message sending logic if these are missing.
-      // However, DB update logic should still proceed.
-    }
-
-    try {
-      if (status === 'succeeded') {
-        const modelUrl = webhookData.output?.version
-        await updateDigitalAvatarTraining(dbRecordId, {
-          status: 'SUCCEEDED',
-          model_url: modelUrl,
-          error: null,
-        })
-        logger.info('Training succeeded, record updated', {
-          replicateTrainingId,
-          dbId: dbRecordId,
-          modelUrl,
-        })
-        if (userTelegramId && userBotName) {
-          // Check again before sending
-          const botInfo = getBotByName(userBotName) // NEW: Get bot instance
-          await sendModuleTelegramMessage(
-            userTelegramId.toString(),
-            TRAINING_MESSAGES.success(trainingRecord.model_name)[
-              isRuUser ? 'ru' : 'en'
-            ],
-            botInfo
-          )
-        }
-      } else {
-        // This block handles other statuses like 'processing', 'starting', etc.
-        // It should NOT try to map 'SUCCESS' to 'SUCCEEDED' as 'SUCCESS' isn't a valid Replicate webhook status.
-        // The cast to LocalModelTraining['status'] should be safe if Replicate sends valid statuses
-        // that are a subset or can be mapped to our LocalModelTraining statuses.
-        // For now, we only update if the status is one of our defined ones.
-        const ourWebhookStatus = status as LocalModelTraining['status']
-        if (
-          ourWebhookStatus &&
-          Object.values([
-            'PENDING',
-            'PROCESSING',
-            'FAILED',
-            'CANCELED',
-            'SUCCEEDED',
-          ]).includes(ourWebhookStatus)
-        ) {
-          await updateDigitalAvatarTraining(dbRecordId, {
-            status: ourWebhookStatus,
-          })
-          logger.info(
-            `[Webhook] Successfully updated DB record ${dbRecordId} to status: ${ourWebhookStatus}`
-          )
-        } else {
-          logger.warn(
-            `[Webhook] Received unhandled status from Replicate: ${status} for DB record ${dbRecordId}. Not updating.`
-          )
-        }
-      }
-      return { success: true }
-    } catch (error: any) {
-      logger.error('Error processing webhook', {
-        replicateTrainingId,
-        dbId: trainingRecord?.id,
-        error: error.message,
-        stack: error.stack,
-      })
-      if (trainingRecord?.id) {
-        try {
-          await updateDigitalAvatarTraining(dbRecordId, {
-            status: 'FAILED',
-            error: `Webhook processing error: ${error.message}`.substring(
-              0,
-              255
-            ),
-          })
-        } catch (dbUpdateError: any) {
-          logger.error(
-            'Failed to update DB record with webhook processing error',
-            {
-              dbId: dbRecordId,
-              dbUpdateError: dbUpdateError.message,
-            }
-          )
-        }
-      }
-      return { success: false, error: 'Webhook processing failed' }
-    }
-  }
-)

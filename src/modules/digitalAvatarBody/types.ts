@@ -1,26 +1,25 @@
-// import { PaymentType } from '@/interfaces/payments.interface' // This line was causing the conflict
+import { PaymentType } from '@/interfaces/payments.interface'
+// import { Training } from 'replicate' // Not used here, ReplicateTrainingResponse is local
 
 /**
  * Определение для данных события Inngest, используемых в modelTraining.worker.ts
  * На основе event.data в modelTraining.worker.ts
  */
 export interface ModelTrainingInngestEventData {
-  telegram_id: string // Inngest часто работает со строками
+  user_id: string // User's actual ID from DB
+  telegram_id: string // User's telegram ID
+  is_ru: boolean
   bot_name: string
+  bot_token: string // Bot token for sending messages from worker
   model_name: string
   trigger_word?: string
-  zipUrl: string
-  cost_for_refund?: number // Используем cost_for_refund для ясности
-  calculatedCost: number // <--- ДОБАВЛЕНО: Рассчитанная стоимость
-  operation_type_for_refund: PaymentType // Тип операции для возврата
-  is_ru: boolean
-  // Опциональные поля, передаваемые из сервиса или сцены
+  publicUrl: string // URL of the zip file for training
   steps?: number
-  gender?: string // <--- ДОБАВЛЕНО
-  user_api: string // Добавлено для передачи в Inngest
-  user_replicate_username: string // Добавлено для передачи в Inngest
-  trainingDbIdFromEvent?: string // ADDED: ID записи из БД, если она уже создана
-  // paymentType?: PaymentType // Удаляем, так как есть operation_type_for_refund
+  gender?: 'male' | 'female' | 'other' | undefined
+  db_model_training_id: string | number // ID of the record in our DB
+  calculatedCost: number
+  operation_type_for_refund: PaymentType
+  replicateModelDestination?: `${string}/${string}` // Optional: if pre-calculated
 }
 
 // --- Типы для проверки активных тренировок (оставляем без изменений) ---
@@ -63,58 +62,46 @@ export interface DigitalAvatarBodyDependencies {
   // ... existing code ...
 }
 
-// Определение типа для результата initiateDigitalAvatarModelTraining
-export interface InitiateModelTrainingResult {
-  success: boolean
-  message: string
-  data?: {
-    plan: 'A' | 'B'
-    replicate_id?: string
-    db_id: string | number
-  }
-}
+/**
+ * Represents the status of a training process.
+ * Used in ModelTraining and potentially other places to track progress.
+ */
+export type TrainingStatus =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCELED'
+  | 'PENDING_INNGest' // Note: Case sensitive for 'G'
 
-// Новый тип для входных данных функции-диспетчера (восстанавливаем для uploadTrainFluxModelScene)
-export interface InitiateModelTrainingPayload {
+export interface DigitalAvatarUserProfile {
+  id: string // UUID
   telegram_id: string
-  is_ru: boolean
-  bot_name: string
-  model_name: string
-  localZipPath: string
-  steps?: number
-  trigger_word?: string
-  gender?: 'male' | 'female' | 'other' | undefined
-  calculatedCost: number
-  operation_type_for_refund: PaymentType
-  publicUrl?: string
-  stepsAmount?: number
-  user_replicate_username: string | null
+  neuro_tokens: number
+  level: number
+  replicate_username?: string | null
+  // Add other user-specific fields relevant to this module if necessary
 }
 
-// Copied from @/interfaces/payments.interface.ts
-export enum PaymentType {
-  MONEY_INCOME = 'MONEY_INCOME',
-  MONEY_OUTCOME = 'MONEY_OUTCOME',
-  REFUND = 'REFUND',
+// Cost calculation specific to this module
+export interface DigitalAvatarBodyCostInput {
+  mode: ModeEnum // Assuming ModeEnum is defined and imported if needed, or defined locally
+  steps: number
 }
 
-// Local ReplicateTrainingResponse (subset of replicate.Training)
+// Local definition for Replicate training response, if needed by types in this module
 export interface ReplicateTrainingResponse {
   id: string
-  version?: string // model version ID
-  status: string // e.g., "starting", "processing", "succeeded", "failed", "canceled"
+  version?: string
+  status?: TrainingStatus // Use our local TrainingStatus
   input?: any
-  output?: any // Contains version on success: { version: "username/modelname:versionid" }
+  output?: any
   error?: any
   logs?: string
-  webhook?: string
-  created_at?: string
-  started_at?: string | null
-  completed_at?: string | null
-  urls?: {
-    get: string
-    cancel: string
-  }
+  metrics?: any
+  model?: string
+  webhook_completed?: boolean
+  // Add other fields from Replicate webhook or API response as needed
 }
 
 // Copied from @/interfaces/modes.ts
@@ -172,11 +159,35 @@ export enum ModeEnum {
   UPLOAD_TRAIN_FLUX_MODEL_SCENE = 'upload_train_flux_model_scene',
 }
 
-// ADDING TrainingStatus definition
-export type TrainingStatus =
-  | 'PENDING'
-  | 'PROCESSING'
-  | 'FAILED'
-  | 'CANCELED'
-  | 'SUCCEEDED'
-  | 'PENDING_INNGST' // Added the status used in index.ts
+/**
+ * Payload for the main entry point function `initiateDigitalAvatarModelTraining` in `index.ts`.
+ */
+export interface InitiateModelTrainingPayload {
+  telegram_id: string
+  is_ru: boolean
+  bot_name: string
+  bot_token: string // Added bot_token
+  model_name: string
+  publicUrl: string // Publicly accessible URL for the training data (zip file)
+  stepsAmount?: number // Preferred over steps if both exist, clarify usage
+  steps?: number // Legacy or alternative, clarify usage
+  trigger_word?: string
+  gender?: 'male' | 'female' | 'other' | undefined
+  calculatedCost: number
+  operation_type_for_refund: PaymentType // Using corrected import
+}
+
+/**
+ * Result type for `initiateDigitalAvatarModelTraining`
+ */
+export interface InitiateModelTrainingResult {
+  success: boolean
+  message: string
+  error_type?: string // e.g., 'USER_NOT_FOUND', 'VALIDATION_FAILED', 'DB_ERROR', 'INNGEST_ERROR', 'PLAN_B_ERROR'
+  training_id?: string | number
+  replicate_id?: string
+  plan?: 'A' | 'B' // 'A' for Inngest, 'B' for direct/PlanB
+}
+
+// Re-export PaymentType so other files in this module can import it from here
+export { PaymentType } // CORRECTED PATH

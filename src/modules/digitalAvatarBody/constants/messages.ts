@@ -23,5 +23,9 @@ export const TRAINING_MESSAGES = {
     ru: 'Операция успешно начата.',
     en: 'Operation started successfully.',
   },
+  success: (modelName: string) => ({
+    ru: `🎉 Модель ${modelName} успешно обучена и готова к использованию!`,
+    en: `🎉 Your model ${modelName} has been successfully trained and is ready to use!`,
+  }),
   // Добавьте другие сообщения по мере необходимости
 }

@@ -1,5 +1,6 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { generateModelTraining } from '../generateModelTraining'
+import { Prediction } from 'replicate'
 
 // Import and mock module-local dependencies
 import {
@@ -74,12 +75,9 @@ vi.mock('../helpers/trainingHelpers', async importOriginal => {
 vi.mock('../config', () => ({
   getDigitalAvatarBodyConfig: vi.fn().mockReturnValue({
     replicateUsername: 'test_replicate_user_env',
-    replicateModelNameSuffix: '',
-    webhookUrl: 'http://test.webhook.url/api/digital-avatar-body-webhook',
     replicateDefaultSteps: 1000,
-    replicateTrainerVersion: 'test-trainer-version',
+    replicateTrainingModelVersion: 'test-trainer-version',
     inngestEventNameGenerateModelTraining: 'test/event',
-    isDevEnvironment: false,
   }),
 }))
 
@@ -155,19 +153,20 @@ describe('generateModelTraining (Plan B Refactored)', () => {
     } as ModelTraining)
     vi.mocked(startReplicateTraining).mockResolvedValue({
       id: 'replicate-training-id-default',
-      status: 'starting',
       version: 'test-version',
       model: 'test-model',
+      source: 'api',
       input: {},
-      logs: '',
+      logs: 'Starting training...',
       error: null,
+      status: 'starting',
       output: null,
       created_at: new Date().toISOString(),
       started_at: null,
       completed_at: null,
-      metrics: { predict_time: 0 },
-      urls: { get: 'http://replicate.com/get_url_default', cancel: '' },
-    } as ReplicateTrainingResponse)
+      metrics: { predict_time: 123 },
+      urls: { cancel: '', get: 'http://replicate.com/get_url_default' },
+    } as Prediction)
     vi.mocked(updateDigitalAvatarTraining).mockResolvedValue(
       {} as ModelTraining
     )
@@ -340,16 +339,17 @@ describe('generateModelTraining (Plan B Refactored)', () => {
     const mockReplicateError = 'mock replicate processing error'
     vi.mocked(startReplicateTraining).mockResolvedValue({
       id: 'replicate-training-id-failed-poll',
-      status: 'failed',
-      error: mockReplicateError,
-      version: 'v1',
-      model: 'm1',
+      version: 'test-version',
+      model: 'test-model',
+      source: 'api',
       input: {},
-      logs: '',
+      logs: 'Polling...',
+      error: 'Training failed during polling',
+      status: 'failed',
       output: null,
-      created_at: '',
+      created_at: new Date().toISOString(),
       urls: { get: '', cancel: '' },
-    } as ReplicateTrainingResponse)
+    } as Prediction)
 
     const result = await callGenerateModelTrainingWithDefaults()
 
@@ -436,7 +436,8 @@ describe('generateModelTraining (Plan B Refactored)', () => {
     vi.mocked(getDigitalAvatarBodyConfig).mockReturnValue({
       replicateUsername: 'default_config_user',
       inngestEventNameGenerateModelTraining: 'test/event',
-      isDevEnvironment: false,
+      replicateDefaultSteps: 1000,
+      replicateTrainingModelVersion: 'test-trainer-version',
     })
 
     const result = await callGenerateModelTrainingWithDefaults({
@@ -474,7 +475,8 @@ describe('generateModelTraining (Plan B Refactored)', () => {
     vi.mocked(getDigitalAvatarBodyConfig).mockReturnValue({
       replicateUsername: 'config_default_user',
       inngestEventNameGenerateModelTraining: 'test/event',
-      isDevEnvironment: false,
+      replicateDefaultSteps: 1000,
+      replicateTrainingModelVersion: 'test-trainer-version',
     })
 
     const result = await callGenerateModelTrainingWithDefaults({
@@ -504,16 +506,17 @@ describe('generateModelTraining (Plan B Refactored)', () => {
   it('should handle undefined triggerWord by using a default in startReplicateTraining', async () => {
     vi.mocked(startReplicateTraining).mockResolvedValue({
       id: 'replicate-training-id-no-trigger',
-      status: 'succeeded',
-      version: 'v1',
-      model: 'm1',
+      version: 'test-version',
+      model: 'test-model',
+      source: 'api',
       input: {},
-      logs: '',
+      logs: 'Training complete',
       error: null,
+      status: 'succeeded',
       output: null,
       created_at: new Date().toISOString(),
       urls: { get: '', cancel: '' },
-    } as ReplicateTrainingResponse)
+    } as Prediction)
     vi.mocked(pollReplicateTrainingStatus).mockResolvedValue('succeeded')
     vi.mocked(getLatestModelUrl).mockResolvedValue(
       'http://example.com/model_no_trigger.zip'
