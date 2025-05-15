@@ -14,7 +14,7 @@ import {
   getLatestModelUrl,
   ensureReplicateModelExists,
   pollReplicateTrainingStatus,
-  startFluxLoraTrainerReplicateTraining,
+  startReplicateTraining,
   validateAndPrepareTrainingRequest, // ADDED IMPORT
 } from './helpers/trainingHelpers'
 import {
@@ -72,7 +72,9 @@ export async function generateModelTraining(
   const bot = botInstanceResult.bot
 
   // const userExists = await getUserByTelegramIdString(telegram_id.toString()) // OLD CALL
-  const userExists = await getDigitalAvatarUserProfile(telegram_id.toString()) // NEW CALL
+  let userExists = await getDigitalAvatarUserProfile(telegram_id.toString()) // Use let as it might be reassigned by preparationResult
+  let dbRecordIdToUpdate: string | undefined = undefined // MOVED and INITIALIZED
+  let validatedUser = userExists // Initialize with userExists, will be updated if preparationResult is valid
 
   if (!userExists) {
     const errorMsg = `User with ID ${telegram_id} does not exist.`
@@ -136,8 +138,25 @@ export async function generateModelTraining(
     }
   }
 
-  const { user: validatedUser, costInStars: finalCost } = preparationResult
+  let finalCost = costResult.stars // Default to calculatedCost, can be updated
+  if (preparationResult && preparationResult.user) {
+    validatedUser = preparationResult.user
+    userExists = preparationResult.user // Keep userExists in sync or ensure validatedUser is prime
+    finalCost = preparationResult.costInStars
+  } else {
+    // This case should ideally not be hit if validateAndPrepareTrainingRequest handles its errors properly
+    // and returns null, which is checked above. If it *can* return a non-null object without a .user,
+    // that's a contract violation by validateAndPrepareTrainingRequest or a logic error here.
+    // For now, if preparationResult is falsy, validatedUser remains userExists, and finalCost remains calculatedCost.
+    // If preparationResult is truthy but .user is falsy, this is an unexpected state.
+    logger.warn(
+      'Preparation result was truthy, but user was not defined in it. Using initial user and cost.',
+      { telegram_id }
+    )
+  }
+
   // At this point, user exists, balance was sufficient, and cost has been deducted.
+  // validatedUser should hold the correct user profile to proceed with.
 
   // Increment user level after successful payment and user validation
   await incrementUserLevelForAvatarTraining(
@@ -182,7 +201,6 @@ export async function generateModelTraining(
       telegram_id: telegram_id.toString(),
       model_name: modelName,
       trigger_word: triggerWord,
-      zip_url: zipUrl,
       steps_amount: steps,
       status: 'PENDING',
       gender: gender as 'male' | 'female' | 'other' | undefined,
@@ -194,16 +212,17 @@ export async function generateModelTraining(
       `Created DB training record ID (Plan B): ${(dbTrainingRecord as any)?.id ?? 'unknown'}`,
       { telegram_id }
     )
+    dbRecordIdToUpdate = (dbTrainingRecord as any)?.id // Assign here
 
     logger.debug(`ZIP URL for training (Plan B): ${zipUrl}`, { telegram_id })
     if (!zipUrl || !zipUrl.startsWith('http')) {
       const zipErrorMsg = `Invalid ZIP URL provided for training (Plan B): ${zipUrl}`
       logger.error(zipErrorMsg, { telegram_id })
-      if ((dbTrainingRecord as any)?.id) {
+      if (dbRecordIdToUpdate) {
+        // NEW check using variable from outer scope
         await updateTrainingRecordOnError(
-          (dbTrainingRecord as any).user_id, // This should be validatedUser.id
-          modelName,
-          zipErrorMsg
+          dbRecordIdToUpdate, // CORRECTED: Pass ID
+          zipErrorMsg // CORRECTED: Pass error message
         )
       }
       throw new Error(zipErrorMsg)
@@ -213,22 +232,23 @@ export async function generateModelTraining(
       `Starting Replicate training for model ${modelIdForResponse} (Plan B)...`,
       { telegram_id }
     )
-    currentTraining = (await startFluxLoraTrainerReplicateTraining(
-      modelIdForResponse as `${string}/${string}`,
+    currentTraining = (await startReplicateTraining(
+      validatedUser,
+      modelName,
       zipUrl,
       triggerWord,
-      steps,
-      logger,
-      telegram_id
+      steps
     )) as TrainingResponse
     logger.info(
       `Replicate training started (Plan B). ID: ${currentTraining.id}`,
       { telegram_id }
     )
 
-    const dbRecordIdToUpdate = (dbTrainingRecord as any)?.id
     if (!dbRecordIdToUpdate) {
-      throw new Error('DB Training Record ID not found after creation.')
+      // Check if dbRecordIdToUpdate was set correctly
+      throw new Error(
+        'DB Training Record ID not found after creation for PROCESSING update.'
+      )
     }
 
     await updateDigitalAvatarTraining(dbRecordIdToUpdate, {
@@ -282,15 +302,14 @@ export async function generateModelTraining(
         trainingId: currentTraining.id,
         errorDetails: currentTraining.error,
       })
-      if (validatedUser && validatedUser.id) {
+      if (dbRecordIdToUpdate) {
         await updateTrainingRecordOnError(
-          validatedUser.id, // USE validatedUser
-          modelName,
+          dbRecordIdToUpdate,
           `Replicate training ${finalTrainingStatus}: ${currentTraining.error || 'Unknown Replicate error'}`
         )
       } else {
         logger.warn(
-          'User ID not available for updateTrainingRecordOnError after polling',
+          'DB Record ID not available for updateTrainingRecordOnError after polling',
           { telegram_id, modelName }
         )
       }
@@ -321,16 +340,24 @@ export async function generateModelTraining(
       stack: error.stack,
     })
 
-    if (validatedUser && validatedUser.id) {
+    if (dbRecordIdToUpdate) {
       await updateTrainingRecordOnError(
-        validatedUser.id, // USE validatedUser
-        modelName,
+        dbRecordIdToUpdate,
         error.message || 'Unknown critical error in Plan B training'
+      )
+    } else if (currentTraining?.id) {
+      logger.error(
+        'DB Record ID not available for critical error update, Replicate ID was ',
+        {
+          replicateTrainingId: currentTraining.id,
+          originalError: error.message,
+          telegram_id,
+        }
       )
     } else {
       logger.error(
-        'User ID not available for updating training record on critical error (Plan B)',
-        { telegram_id }
+        'Neither DB Record ID nor Replicate Training ID available for critical error update (Plan B)',
+        { telegram_id, originalError: error.message }
       )
     }
 

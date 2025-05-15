@@ -8,6 +8,7 @@ import { getReplicateClient } from '../utils/replicateClient'
 import {
   updateDigitalAvatarTraining,
   setLatestDigitalAvatarTrainingToError,
+  setDigitalAvatarTrainingError,
 } from './modelTrainingsDb'
 import {
   getDigitalAvatarUserProfile,
@@ -163,48 +164,44 @@ export const validateAndPrepareTrainingRequest = async (
 }
 
 /**
- * Обновляет запись о тренировке при ошибке.
- * @param userId - ID пользователя.
- * @param modelName - Имя модели.
+ * Обновляет запись о тренировке при ошибке, используя ID записи.
+ * @param trainingId - ID записи тренировки в БД.
  * @param error - Сообщение об ошибке.
  */
 export async function updateTrainingRecordOnError(
-  userId: string,
-  modelName: string,
+  trainingId: string, // Изменено: принимаем ID записи
   error: string
 ): Promise<void> {
   try {
-    const updateResult = await setLatestDigitalAvatarTrainingToError(
-      userId,
-      modelName,
-      error
-    )
+    // const updateResult = await setLatestDigitalAvatarTrainingToError( // Старый вызов
+    //   userId,
+    //   modelName,
+    //   error
+    // )
+    const updateResult = await setDigitalAvatarTrainingError(trainingId, error) // Новый вызов
 
     if (!updateResult) {
       logger.error(
-        '[DB Error Handling] Failed to update training record on error using helper (or no record found)',
+        '[DB Error Handling] Failed to update training record on error using specific ID',
         {
-          userId,
-          modelName,
+          trainingId, // Обновлено для лога
           originalError: error,
         }
       )
     } else {
       logger.info(
-        '[DB Update via Helper] Training record updated to ERROR for user/model',
+        '[DB Update via Helper] Training record updated to ERROR for specific ID',
         {
-          userId,
-          modelName,
+          trainingId, // Обновлено для лога
           error,
         }
       )
     }
   } catch (dbError: any) {
     logger.error(
-      '[DB Exception Catch] Exception during updateTrainingRecordOnError when calling helper',
+      '[DB Exception Catch] Exception during updateTrainingRecordOnError (using specific ID)',
       {
-        userId,
-        modelName,
+        trainingId, // Обновлено для лога
         originalError: error,
         exceptionMessage: dbError.message,
       }
@@ -218,7 +215,7 @@ export async function updateTrainingRecordOnError(
  * @param modelName - Имя модели.
  * @param zipUrl - Публичный URL архива.
  * @param triggerWord - Триггерное слово.
- * @param steps - Количество шагов.
+ * @param stepsFromCaller - Количество шагов (опционально, будет использовано значение из конфига, если не предоставлено).
  * @returns Объект с данными о запущенной тренировке Replicate.
  */
 export async function startReplicateTraining(
@@ -226,7 +223,7 @@ export async function startReplicateTraining(
   modelName: string,
   zipUrl: string,
   triggerWord: string,
-  steps?: number
+  stepsFromCaller?: number // Переименовано для ясности
 ): Promise<Training> {
   const config = getDigitalAvatarBodyConfig()
   const ownerFromConfig = config.replicateUsername
@@ -246,60 +243,66 @@ export async function startReplicateTraining(
   const webhookUrl = `${config.apiUrl}/api/replicate-webhook`
 
   const tokenForClient = user.api // User's token takes precedence
-  if (!tokenForClient && !config.replicateApiToken) {
-    // Log if neither user token nor module config token is available, getReplicateClient will throw
-    logger.warn(
-      'No Replicate API token found (user.api is null/undefined, and module config REPLICATE_API_TOKEN is also null/undefined) for startReplicateTraining',
-      {
-        userId: user.id,
-      }
-    )
-  }
-  const replicateClient = getReplicateClient(tokenForClient)
+  // getReplicateClient будет использовать config.replicateApiToken если tokenForClient не предоставлен или пуст
+  const replicateClient = getReplicateClient(tokenForClient || undefined)
+
+  const steps = stepsFromCaller ?? config.replicateDefaultSteps // Используем шаги из конфига по умолчанию
+
+  logger.info(
+    `[Replicate Training Start] Destination: ${destination}, Trigger: ${triggerWord}, Steps: ${steps}, User: ${user.telegram_id}`,
+    {
+      telegram_id: user.telegram_id,
+      destination,
+      zipUrl,
+      triggerWord,
+      steps,
+      replicateTrainerVersion: config.replicateTrainingModelVersion, // CORRECTED
+      webhookUrl,
+    }
+  )
 
   try {
-    const owner = config.replicateUsername || user.replicate_username
-    const modelBaseName = modelName
-    const version = config.replicateTrainingModelVersion
-
-    if (!owner) {
-      throw new Error(
-        'Replicate model owner could not be determined (REPLICATE_USERNAME or user.replicate_username required).'
-      )
-    }
-    if (!version) {
-      throw new Error(
-        'Replicate training model version (REPLICATE_TRAINING_MODEL_VERSION) is not configured.'
-      )
-    }
-
-    const training = await replicateClient.trainings.create(
-      owner,
-      modelBaseName,
-      version,
+    const training = (await replicateClient.trainings.create(
+      ownerFromConfig, // Используем username владельца модели из конфига
+      modelName, // Имя модели, которую тренируем/создаем
+      config.replicateTrainingModelVersion, // CORRECTED: Версия трейнера из конфига
       {
-        destination: destination as `${string}/${string}`,
+        destination: destination as `${string}/${string}`, // CORRECTED: Cast to satisfy type
         input: {
-          input_images: zipUrl,
-          token_string: triggerWord,
-          use_face_detection_instead: true,
+          train_data: zipUrl,
+          caption_prefix: `a photo of ${triggerWord}`,
           max_train_steps: steps,
+          learning_rate: config.replicateLearningRate, // CORRECTED: From config
+          train_batch_size: config.replicateTrainBatchSize, // CORRECTED: From config
+          // Дополнительные параметры, если необходимы, могут быть добавлены сюда из config
         },
-        webhook: webhookUrl,
-        webhook_events_filter: ['completed'],
+        webhook: webhookUrl, // webhook для уведомлений
+        webhook_events_filter: ['completed'], // интересуют только завершенные события
+      }
+    )) as Training
+    // activeTrainings.set(training.id, { cancel: () => replicate.trainings.cancel(training.id) }); // Логика отмены, если нужна
+
+    logger.info(
+      `[Replicate Training Created] ID: ${training.id}, Status: ${training.status}`,
+      {
+        telegram_id: user.telegram_id,
+        trainingId: training.id,
+        status: training.status,
       }
     )
-
-    logger.info('Replicate training created:', { trainingId: training.id })
-    const trainingResult: Training = training as Training
-
-    return trainingResult
+    return training
   } catch (error: any) {
-    logger.error('[Replicate Error] Failed to start training', {
-      destination: destination,
-      error: error.message,
-    })
-    throw error
+    logger.error(
+      `[Replicate Training Error] Failed to create training for ${destination}`,
+      {
+        telegram_id: user.telegram_id,
+        destination,
+        error: error.message,
+        stack: error.stack,
+        response_data: error.response?.data,
+      }
+    )
+    throw error // Перебрасываем ошибку дальше для обработки выше
   }
 }
 
@@ -636,71 +639,4 @@ export async function pollReplicateTrainingStatus(
     { telegram_id }
   )
   return currentPolledStatus
-}
-
-/**
- * Starts a specific Replicate training using the 'flux-dev-lora-trainer' model.
- * This is tailored for the "Plan B" scenario in generateModelTraining.
- *
- * @param destinationModelId - The fully qualified destination model ID (e.g., 'username/modelname').
- * @param zipUrl - URL to the input images zip file.
- * @param triggerWord - The trigger word for the LoRA model.
- * @param steps - Number of training steps.
- * @param loggerInstance - Logger instance.
- * @param telegram_id - Optional telegram ID for logging context.
- * @returns The Replicate training response.
- */
-export async function startFluxLoraTrainerReplicateTraining(
-  destinationModelId: `${string}/${string}`,
-  zipUrl: string,
-  triggerWord: string,
-  steps: number,
-  loggerInstance: typeof logger,
-  telegram_id?: number
-): Promise<Training> {
-  const replicateClient = getReplicateClient()
-  try {
-    loggerInstance.info(
-      `Starting Replicate training with flux-dev-lora-trainer for ${destinationModelId}...`,
-      { telegram_id, zipUrl, steps, triggerWord }
-    )
-
-    const training = await replicateClient.trainings.create(
-      'ostris',
-      'flux-dev-lora-trainer',
-      'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
-      {
-        destination: destinationModelId,
-        input: {
-          steps,
-          lora_rank: 128,
-          optimizer: 'adamw8bit',
-          batch_size: 1,
-          resolution: '512,768,1024',
-          autocaption: true,
-          input_images: zipUrl,
-          trigger_word: triggerWord,
-          learning_rate: 0.0001,
-          wandb_project: 'flux_train_replicate',
-        },
-      }
-    )
-
-    loggerInstance.info(
-      `Replicate training (flux-dev-lora-trainer) started. ID: ${training.id}`,
-      { telegram_id, destinationModelId }
-    )
-    return training as Training
-  } catch (error: any) {
-    loggerInstance.error(
-      'Error starting Replicate training with flux-dev-lora-trainer',
-      {
-        destinationModelId,
-        error: error.message,
-        stack: error.stack,
-        telegram_id,
-      }
-    )
-    throw error
-  }
 }

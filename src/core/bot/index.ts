@@ -153,6 +153,11 @@ export function getTokenByBotName(botName: string): string | undefined {
   return token
 }
 
+export interface BotInstanceResult {
+  bot?: Telegraf<MyContext>
+  error?: string | null
+}
+
 export async function createBotByName(botName: string): Promise<
   | {
       token: string
@@ -290,5 +295,6 @@ export const initializeBot = async (
   token: string,
   groupId: string
 ) => {
-  // ... existing code ...
+  // TODO: Implement bot initialization logic if needed beyond current setup
+  logger.info('Bot initialized', { botName, token, groupId })
 }

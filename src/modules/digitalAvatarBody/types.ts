@@ -80,14 +80,15 @@ export interface InitiateModelTrainingPayload {
   is_ru: boolean
   bot_name: string
   model_name: string
-  zipPath: string // Local path to the zip file
+  localZipPath: string
   steps?: number
   trigger_word?: string
   gender?: 'male' | 'female' | 'other' | undefined
   calculatedCost: number
-  payment_operation_type: PaymentType // Using the local PaymentType now
-  user_replicate_username: string | null // Added to avoid re-fetching in Inngest
-  // user_api?: string // Potentially add if needed by Inngest and not wanting to pass full user
+  operation_type_for_refund: PaymentType
+  publicUrl?: string
+  stepsAmount?: number
+  user_replicate_username: string | null
 }
 
 // Copied from @/interfaces/payments.interface.ts
@@ -170,3 +171,12 @@ export enum ModeEnum {
   MenuScene = 'menuScene',
   UPLOAD_TRAIN_FLUX_MODEL_SCENE = 'upload_train_flux_model_scene',
 }
+
+// ADDING TrainingStatus definition
+export type TrainingStatus =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'FAILED'
+  | 'CANCELED'
+  | 'SUCCEEDED'
+  | 'PENDING_INNGST' // Added the status used in index.ts

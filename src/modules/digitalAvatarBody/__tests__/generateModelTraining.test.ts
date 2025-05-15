@@ -16,7 +16,7 @@ import {
   ensureReplicateModelExists,
   pollReplicateTrainingStatus,
   getLatestModelUrl,
-  startFluxLoraTrainerReplicateTraining,
+  startReplicateTraining,
   updateTrainingRecordOnError,
   validateAndPrepareTrainingRequest,
   type PreparedTrainingData,
@@ -65,7 +65,7 @@ vi.mock('../helpers/trainingHelpers', async importOriginal => {
     ensureReplicateModelExists: vi.fn(),
     pollReplicateTrainingStatus: vi.fn(),
     getLatestModelUrl: vi.fn(),
-    startFluxLoraTrainerReplicateTraining: vi.fn(),
+    startReplicateTraining: vi.fn(),
     updateTrainingRecordOnError: vi.fn(),
     validateAndPrepareTrainingRequest: vi.fn(),
   }
@@ -153,7 +153,7 @@ describe('generateModelTraining (Plan B Refactored)', () => {
       replicate_model_url: null,
       base_model: null,
     } as ModelTraining)
-    vi.mocked(startFluxLoraTrainerReplicateTraining).mockResolvedValue({
+    vi.mocked(startReplicateTraining).mockResolvedValue({
       id: 'replicate-training-id-default',
       status: 'starting',
       version: 'test-version',
@@ -225,7 +225,7 @@ describe('generateModelTraining (Plan B Refactored)', () => {
     )
     expect(ensureReplicateModelExists).toHaveBeenCalled()
     expect(createDigitalAvatarTraining).toHaveBeenCalled()
-    expect(startFluxLoraTrainerReplicateTraining).toHaveBeenCalled()
+    expect(startReplicateTraining).toHaveBeenCalled()
     expect(updateDigitalAvatarTraining).toHaveBeenCalledTimes(2)
     expect(pollReplicateTrainingStatus).toHaveBeenCalled()
     expect(getLatestModelUrl).toHaveBeenCalled()
@@ -313,11 +313,9 @@ describe('generateModelTraining (Plan B Refactored)', () => {
     )
   })
 
-  it('should return REPLICATE_TRAINING_START_FAILED if startFluxLoraTrainerReplicateTraining throws', async () => {
+  it('should return REPLICATE_TRAINING_START_FAILED if startReplicateTraining throws', async () => {
     const startError = new Error('Replicate start error')
-    vi.mocked(startFluxLoraTrainerReplicateTraining).mockRejectedValue(
-      startError
-    )
+    vi.mocked(startReplicateTraining).mockRejectedValue(startError)
     const result = await callGenerateModelTrainingWithDefaults()
 
     expect(result.success).toBe(false)
@@ -340,7 +338,7 @@ describe('generateModelTraining (Plan B Refactored)', () => {
   it('should return REPLICATE_POLL_FAILED if pollReplicateTrainingStatus fails (status not "succeeded")', async () => {
     vi.mocked(pollReplicateTrainingStatus).mockResolvedValue('failed')
     const mockReplicateError = 'mock replicate processing error'
-    vi.mocked(startFluxLoraTrainerReplicateTraining).mockResolvedValue({
+    vi.mocked(startReplicateTraining).mockResolvedValue({
       id: 'replicate-training-id-failed-poll',
       status: 'failed',
       error: mockReplicateError,
@@ -451,7 +449,7 @@ describe('generateModelTraining (Plan B Refactored)', () => {
       'test_replicate_user_from_db/test_model_male_gender'
     )
 
-    expect(startFluxLoraTrainerReplicateTraining).toHaveBeenCalledWith(
+    expect(startReplicateTraining).toHaveBeenCalledWith(
       expect.anything(),
       'test_replicate_user_from_db/test_model_male_gender',
       mockTrainingBaseParams.zipUrl,
@@ -486,7 +484,7 @@ describe('generateModelTraining (Plan B Refactored)', () => {
 
     expect(result.success).toBe(true)
     expect(result.model_id).toBe('config_default_user/test_model_other_gender')
-    expect(startFluxLoraTrainerReplicateTraining).toHaveBeenCalledWith(
+    expect(startReplicateTraining).toHaveBeenCalledWith(
       expect.anything(),
       'config_default_user/test_model_other_gender',
       mockTrainingBaseParams.zipUrl,
@@ -503,8 +501,8 @@ describe('generateModelTraining (Plan B Refactored)', () => {
     )
   })
 
-  it('should handle undefined triggerWord by using a default in startFluxLoraTrainerReplicateTraining', async () => {
-    vi.mocked(startFluxLoraTrainerReplicateTraining).mockResolvedValue({
+  it('should handle undefined triggerWord by using a default in startReplicateTraining', async () => {
+    vi.mocked(startReplicateTraining).mockResolvedValue({
       id: 'replicate-training-id-no-trigger',
       status: 'succeeded',
       version: 'v1',
@@ -531,7 +529,7 @@ describe('generateModelTraining (Plan B Refactored)', () => {
     expect(result.model_id).toBe(
       'test_replicate_user_env/test_model_no_trigger'
     )
-    expect(startFluxLoraTrainerReplicateTraining).toHaveBeenCalledWith(
+    expect(startReplicateTraining).toHaveBeenCalledWith(
       expect.anything(),
       expect.stringMatching(/test_replicate_user_env\/test_model_no_trigger$/),
       mockTrainingBaseParams.zipUrl,

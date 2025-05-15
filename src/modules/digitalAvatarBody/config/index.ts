@@ -7,7 +7,10 @@ const digitalAvatarBodyConfigSchema = z.object({
   apiUrl: z.string().url().optional(),
   replicateApiToken: z.string().optional(),
   replicateUsername: z.string().optional(),
-  replicateTrainingModelVersion: z.string().optional(),
+  replicateTrainingModelVersion: z.string().optional(), // This is the trainer version for Replicate model
+  replicateDefaultSteps: z.number().positive().int().optional().default(1000),
+  replicateLearningRate: z.number().positive().optional().default(0.0001),
+  replicateTrainBatchSize: z.number().positive().int().optional().default(1),
   inngestEventKey: z.string().optional(), // Original event key, might be for a different event or general
   inngestEventNameGenerateModelTraining: z.string(), // Specific for this function. Correctly defined.
   isDevEnvironment: z.boolean().default(false),
@@ -31,6 +34,15 @@ export function getDigitalAvatarBodyConfig(): DigitalAvatarBodyConfig {
     replicateApiToken: process.env.REPLICATE_API_TOKEN,
     replicateUsername: process.env.REPLICATE_USERNAME,
     replicateTrainingModelVersion: process.env.REPLICATE_TRAINING_MODEL_VERSION,
+    replicateDefaultSteps: process.env.REPLICATE_DEFAULT_STEPS
+      ? parseInt(process.env.REPLICATE_DEFAULT_STEPS, 10)
+      : undefined,
+    replicateLearningRate: process.env.REPLICATE_LEARNING_RATE
+      ? parseFloat(process.env.REPLICATE_LEARNING_RATE)
+      : undefined,
+    replicateTrainBatchSize: process.env.REPLICATE_TRAIN_BATCH_SIZE
+      ? parseInt(process.env.REPLICATE_TRAIN_BATCH_SIZE, 10)
+      : undefined,
     inngestEventKey: process.env.INNGEST_EVENT_KEY,
     inngestEventNameGenerateModelTraining:
       process.env.INNGEST_EVENT_NAME_DIGITAL_AVATAR_GENERATE_MODEL_TRAINING ||

@@ -3,6 +3,7 @@ import { logger } from '../utils/logger'
 // import {
 //   ModelTraining as CoreModelTraining, // Renaming to avoid conflict if ModelTraining here is different
 // } from '@/core/supabase/createModelTraining' // REMOVING THIS IMPORT AND CoreModelTraining EXTENSION
+import { TrainingStatus } from '../types' // Assuming this is where TrainingStatus is defined
 
 // Define ModelTraining independently for this module
 export interface ModelTraining {
@@ -11,74 +12,132 @@ export interface ModelTraining {
   user_id: string // Foreign key to users table
   model_name: string
   trigger_word?: string
-  zip_url: string
+  // zip_url: string // Поле удалено, так как оно не сохраняется в БД
   model_url?: string
   replicate_training_id?: string
   steps_amount?: number // Using steps_amount as it's used in createDigitalAvatarTraining
-  status?:
-    | 'PENDING'
-    // | 'SUCCESS' // Prefer SUCCEEDED from module logic
-    | 'PROCESSING'
-    | 'FAILED'
-    | 'CANCELED'
-    | 'SUCCEEDED'
-  error?: string
+  status?: TrainingStatus // Corrected from TrainingStatus
+  error_message?: string
   created_at?: string // Supabase automatically handles this, but good for type if selected
   api?: 'replicate' | 'bfl'
-  gender?: 'male' | 'female' | 'other' // Aligning with payload types, DB might be string
+  gender?: 'male' | 'female' | 'other' // Added gender as it was in the calling code
   bot_name?: string
 
   // Module-specific fields (already present)
   telegram_id?: string // Not in DB table, used for passing data into create function
   cost_in_stars?: number // This is now part of the primary definition here
+  replicate_model_id?: string
+  replicate_model_version?: string
 }
 
 const MODEL_TRAININGS_TABLE = 'model_trainings'
 
+export interface ModelTrainingArgs {
+  user_id: string
+  telegram_id: string
+  model_name: string
+  trigger_word?: string
+  // zip_url?: string // Поле удалено
+  public_url?: string // Оставляем, если используется для других целей
+  replicate_training_id?: string
+  replicate_model_id?: string
+  replicate_model_version?: string
+  model_url?: string
+  status?: TrainingStatus
+  error_message?: string
+  gender?: 'male' | 'female' | 'other' // Added gender as it was in the calling code
+  api?: string
+  bot_name?: string
+  cost_in_stars?: number
+  photo_urls?: string[]
+  steps_amount?: number
+  is_public?: boolean
+  message_id?: number
+  cache_id?: string
+  replicate_model_name?: string
+}
+
 /**
  * Creates a new training record in the database for Digital Avatar.
- * @param trainingDataWithTgId - The data for the new training record, including telegram_id.
+ * @param args - The data for the new training record.
  * @returns The created training record or null if an error occurred.
  */
 export async function createDigitalAvatarTraining(
-  trainingDataWithTgId: Omit<ModelTraining, 'id' | 'created_at'>
+  args: ModelTrainingArgs
 ): Promise<ModelTraining | null> {
-  try {
-    const { telegram_id, ...dbInsertData } = trainingDataWithTgId // Destructure to exclude telegram_id
+  const {
+    user_id,
+    telegram_id,
+    model_name,
+    trigger_word,
+    // zip_url, // Поле удалено
+    public_url,
+    replicate_training_id,
+    replicate_model_id,
+    replicate_model_version,
+    model_url,
+    status,
+    error_message,
+    gender,
+    api,
+    bot_name,
+    cost_in_stars,
+    photo_urls,
+    steps_amount,
+    is_public,
+    message_id,
+    cache_id,
+    replicate_model_name,
+  } = args
 
+  try {
     const { data, error } = await supabase
-      .from(MODEL_TRAININGS_TABLE)
-      .insert(dbInsertData as any) // Insert data without telegram_id
+      .from('model_trainings')
+      .insert([
+        {
+          user_id,
+          telegram_id,
+          model_name,
+          trigger_word,
+          // zip_url, // Поле удалено
+          public_url,
+          replicate_training_id,
+          replicate_model_id,
+          replicate_model_version,
+          model_url,
+          status: status || 'PENDING',
+          error_message,
+          gender,
+          api,
+          bot_name,
+          cost_in_stars,
+          photo_urls,
+          steps_amount,
+          is_public,
+          message_id,
+          cache_id,
+          replicate_model_name,
+        },
+      ])
       .select()
-      .single<ModelTraining>()
+      .single()
 
     if (error) {
-      logger.error(
-        '[DB Error] Failed to create digital avatar training record',
-        {
-          error: error.message,
-          details: error.details,
-          trainingData: dbInsertData, // Log data that was attempted to insert
-        }
-      )
+      logger.error('Error creating digital avatar training record', {
+        error: error.message,
+        args,
+      })
       return null
     }
-    // If insert was successful, data might not contain telegram_id as it wasn't in dbInsertData
-    // However, the full ModelTraining type expects it optionally.
-    // For consistency, let's ensure the returned object matches the input if it had telegram_id.
-    // This part is tricky as `select().single()` returns what's in DB.
-    // It's better if the caller handles the telegram_id separately if needed after creation.
-    // For now, we return what Supabase returns, which won't have telegram_id.
-    return data
+    logger.info('Digital avatar training record created successfully', {
+      data,
+    })
+    return data as ModelTraining // Cast to ensure type compatibility
   } catch (e: any) {
-    logger.error(
-      '[DB Exception] Exception during createDigitalAvatarTraining',
-      {
-        error: e.message,
-        stack: e.stack,
-        trainingData: trainingDataWithTgId, // Log original data
-      }
-    )
+    logger.error('Supabase error in createDigitalAvatarTraining', {
+      error: e.message,
+      args,
+    })
     return null
   }
 }
