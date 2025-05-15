@@ -19,6 +19,7 @@ import { getAspectRatio } from '@/core/supabase/ai'
 import { v4 as uuidv4 } from 'uuid'
 import { ApiResponse } from '@/interfaces/api.interface'
 import { BotName } from '@/interfaces/telegram-bot.interface'
+import { supabase } from '@/core/supabase/client' // Added for idempotency
 /**
  * Прямая генерация нейрофото V1 без использования Inngest.
  * Используется как резервный вариант при отсутствии доступа к Inngest.
@@ -42,19 +43,17 @@ export async function generateNeuroPhotoDirect(
   options?: {
     disable_telegram_sending?: boolean
     bypass_payment_check?: boolean
+    idempotencyKey?: string // Added for idempotency
   }
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
   // --- DEBUG LOG ---
-  // console.log(
-  //   '>>> generateNeuroPhotoDirect: Called with',
-  //   {
-  //     telegram_id: telegram_id,
-  //     numImagesReceived: numImages, // Логируем исходное numImages
-  //     promptSample: prompt ? prompt.substring(0, 70) + '...' : 'null',
-  //     model_url: model_url,
-  //     botName: botName
-  //   }
-  // );
+  console.log('>>> generateNeuroPhotoDirect: Called with', {
+    telegram_id: telegram_id,
+    numImagesReceived: numImages, // Логируем исходное numImages
+    promptSample: prompt ? prompt.substring(0, 70) + '...' : 'null',
+    model_url: model_url,
+    botName: botName,
+  })
   // --- END DEBUG LOG ---
 
   logger.info({
@@ -66,9 +65,91 @@ export async function generateNeuroPhotoDirect(
     telegram_id,
     botName,
     disable_telegram_sending: options?.disable_telegram_sending,
+    idempotencyKey: options?.idempotencyKey,
   })
 
+  const idempotencyKey = options?.idempotencyKey || uuidv4()
+
   try {
+    // Idempotency Check
+    if (options?.idempotencyKey) {
+      const { data: existingKey, error: keyError } = await supabase
+        .from('idempotency_keys')
+        .select('*')
+        .eq('key', idempotencyKey)
+        .single()
+
+      if (keyError && keyError.code !== 'PGRST116') {
+        // PGRST116: 'No rows found'
+        logger.error({
+          message: '❌ [DIRECT] Ошибка при проверке ключа идемпотентности',
+          description: 'Error checking idempotency key',
+          idempotencyKey,
+          error: keyError,
+        })
+        // Decide how to handle: proceed or return error
+      } else if (existingKey) {
+        logger.info({
+          message: `🔄 [DIRECT] Ключ идемпотентности ${idempotencyKey} уже существует. Статус: ${existingKey.status}`,
+          description: `Idempotency key ${idempotencyKey} already exists. Status: ${existingKey.status}`,
+          existingKey,
+        })
+        if (existingKey.status === 'completed' && existingKey.response_data) {
+          logger.info({
+            message: `✅ [DIRECT] Возврат кешированного ответа для ключа ${idempotencyKey}`,
+            description: `Returning cached response for key ${idempotencyKey}`,
+          })
+          return existingKey.response_data as any // Cast to expected return type
+        } else if (existingKey.status === 'pending') {
+          logger.warn({
+            message: `⏳ [DIRECT] Запрос с ключом ${idempotencyKey} уже в обработке.`,
+            description: `Request with key ${idempotencyKey} is already pending.`,
+          })
+          return {
+            data: 'Request already in progress',
+            success: false, // Or a specific status code/message
+          }
+        } else if (existingKey.status === 'failed') {
+          logger.warn({
+            message: `🔁 [DIRECT] Повторная попытка для ключа ${idempotencyKey} после предыдущей неудачи.`,
+            description: `Retrying request for key ${idempotencyKey} after previous failure.`,
+          })
+          // Allow to proceed, but the key status will be updated later
+        }
+      }
+    }
+
+    // Store idempotency key as pending
+    const requestParams = {
+      prompt,
+      model_url,
+      numImages,
+      telegram_id,
+      botName,
+      options: { ...options, idempotencyKey: undefined },
+    } // Exclude key from params to avoid recursion
+    const { error: insertKeyError } = await supabase
+      .from('idempotency_keys')
+      .upsert(
+        {
+          key: idempotencyKey,
+          status: 'pending',
+          request_params: requestParams,
+          // expires_at can be set based on a TTL policy, e.g., now + 24 hours
+        },
+        { onConflict: 'key' }
+      )
+
+    if (insertKeyError) {
+      logger.error({
+        message: '❌ [DIRECT] Ошибка при сохранении ключа идемпотентности',
+        description: 'Error saving idempotency key',
+        idempotencyKey,
+        error: insertKeyError,
+      })
+      // Decide how to handle: proceed or return error
+    }
+
     // Проверяем наличие промпта и модели
     if (!prompt) {
       logger.error({
@@ -91,14 +172,11 @@ export async function generateNeuroPhotoDirect(
     // Убедимся что numImages имеет разумное значение
     const validNumImages = numImages && numImages > 0 ? numImages : 1
     // --- DEBUG LOG ---
-    // console.log(
-    //   '>>> generateNeuroPhotoDirect: Validated numImages',
-    //   {
-    //     telegram_id: telegram_id,
-    //     originalNumImages: numImages,
-    //     validNumImages: validNumImages
-    //   }
-    // );
+    console.log('>>> generateNeuroPhotoDirect: Validated numImages', {
+      telegram_id: telegram_id,
+      originalNumImages: numImages,
+      validNumImages: validNumImages,
+    })
     // --- END DEBUG LOG ---
     const is_ru = isRussian(ctx)
     const username = ctx.from?.username || 'unknown'
@@ -746,12 +824,50 @@ export async function generateNeuroPhotoDirect(
       }
     }
 
-    return {
+    // Update idempotency key to completed
+    const responseData = {
       data: 'Processing completed',
       success: true,
       urls: generatedUrls,
     }
+    const { error: updateKeyError } = await supabase
+      .from('idempotency_keys')
+      .update({ status: 'completed', response_data: responseData })
+      .eq('key', idempotencyKey)
+
+    if (updateKeyError) {
+      logger.error({
+        message:
+          '❌ [DIRECT] Ошибка при обновлении ключа идемпотентности на completed',
+        description: 'Error updating idempotency key to completed',
+        idempotencyKey,
+        error: updateKeyError,
+      })
+    }
+    return responseData
   } catch (error) {
+    // This is the main try-catch block for the entire function
+    // Update idempotency key to failed
+    const { error: updateKeyToFailedError } = await supabase
+      .from('idempotency_keys')
+      .update({
+        status: 'failed',
+        response_data: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      })
+      .eq('key', idempotencyKey)
+
+    if (updateKeyToFailedError) {
+      logger.error({
+        message:
+          '❌ [DIRECT] Ошибка при обновлении ключа идемпотентности на failed',
+        description: 'Error updating idempotency key to failed',
+        idempotencyKey,
+        error: updateKeyToFailedError,
+      })
+    }
+
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
@@ -806,6 +922,7 @@ export async function generateNeuroPhotoDirect(
       })
     }
 
+    // The original return null for critical errors remains
     return null
   }
 }

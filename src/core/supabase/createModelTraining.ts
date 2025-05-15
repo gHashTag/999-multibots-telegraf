@@ -12,9 +12,21 @@ export interface ModelTraining {
   webhook_url?: string
   replicate_model_name?: string
   steps?: number
-  status?: string
+  steps_amount?: number
+  status?:
+    | 'PENDING'
+    | 'SUCCESS'
+    | 'PROCESSING'
+    | 'FAILED'
+    | 'CANCELED'
+    | 'SUCCEEDED'
   error?: string
   created_at?: string
+  api?: 'replicate' | 'bfl'
+  gender?: string
+  cost_in_stars?: number
+  is_ru_language?: boolean
+  bot_name?: string
 }
 
 export const createModelTraining = async (training: ModelTraining) => {

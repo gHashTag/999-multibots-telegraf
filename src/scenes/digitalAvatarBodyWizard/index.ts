@@ -5,7 +5,6 @@ import { isRussian } from '@/helpers/language'
 import { handleTrainingCost } from '@/price/helpers'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
-import { calculateCost } from '@/price/priceCalculator'
 
 export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
   'digital_avatar_body',
@@ -33,6 +32,9 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
         if (leaveScene) {
           return ctx.scene.leave()
         } else {
+          // Save the calculated cost to the session
+          ctx.session.calculatedCost = trainingCostInStars
+
           const message = isRu
             ? `✅ Вы выбрали ${steps} шагов стоимостью ${trainingCostInStars}⭐️ звезд\n\nВаш баланс: ${currentBalance} ⭐️`
             : `✅ You selected ${steps} steps costing ${trainingCostInStars}⭐️ stars\n\nYour balance: ${currentBalance} ⭐️`

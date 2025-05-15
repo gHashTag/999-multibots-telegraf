@@ -1,17 +1,19 @@
-import { Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { Scenes, Markup } from 'telegraf'
+import { MyContext, type User } from '@/interfaces'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { isRussian } from '@/helpers/language'
 import { deleteFile } from '@/helpers'
 import { logger } from '@/utils/logger'
-import type { ModelTrainingRequest } from '@/modules/digitalAvatarBody/types'
-import { COSTS } from '@/config'
-import { getUserBalance, updateUserBalance } from '@/core/supabase'
+import { getUserBalance } from '@/core/supabase'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { startModelTraining } from '@/modules/digitalAvatarBody/services/modelTraining.service'
+import {
+  type InitiateModelTrainingPayload,
+  initiateDigitalAvatarModelTraining,
+} from '@/modules/digitalAvatarBody/index'
+import { ModeEnum } from '@/interfaces/modes'
 
 export const uploadTrainFluxModelScene = new Scenes.BaseScene<MyContext>(
-  'uploadTrainFluxModelScene'
+  ModeEnum.UPLOAD_TRAIN_FLUX_MODEL_SCENE
 )
 
 uploadTrainFluxModelScene.enter(async ctx => {
@@ -19,216 +21,170 @@ uploadTrainFluxModelScene.enter(async ctx => {
   logger.info('[Scene Enter] uploadTrainFluxModelScene', {
     telegramId: ctx.from?.id,
   })
-  let zipPath: string | undefined = undefined
+  let localZipPath: string | undefined = undefined
+
+  const sessionUser = ctx.session.user
+  const sessionDigitalAvatarBody = ctx.session.digitalAvatarBody
+
+  if (!sessionUser || !sessionDigitalAvatarBody) {
+    logger.error(
+      '[uploadTrainFluxModelScene] Missing user or digitalAvatarBody in session.',
+      {
+        telegramId: ctx.from?.id,
+        sessionUserExists: !!sessionUser,
+        sessionDigitalAvatarBodyExists: !!sessionDigitalAvatarBody,
+      }
+    )
+    await ctx.reply(
+      '❌ Ошибка: Не удалось получить критические данные из сессии. Пожалуйста, начните заново.'
+    )
+    return ctx.scene.leave()
+  }
+
+  const steps = sessionDigitalAvatarBody.steps
+  const calculatedCost = sessionDigitalAvatarBody.calculatedCost
+
+  if (typeof steps !== 'number' || typeof calculatedCost !== 'number') {
+    logger.error(
+      '[uploadTrainFluxModelScene] Missing steps or calculatedCost in session data.',
+      {
+        telegramId: ctx.from?.id,
+        steps,
+        calculatedCost,
+      }
+    )
+    await ctx.reply(
+      '❌ Ошибка: Данные о шагах или стоимости некорректны. Пожалуйста, начните заново.'
+    )
+    return ctx.scene.leave()
+  }
 
   try {
     await ctx.reply(isRu ? '⏳ Создаю архив...' : '⏳ Creating archive...')
-    zipPath = await createImagesZip(ctx.session.images)
-    logger.info('[ZIP Created]', { zipPath, telegramId: ctx.from?.id })
+    localZipPath = await createImagesZip(ctx.session.images)
+    logger.info('[ZIP Created]', { localZipPath, telegramId: ctx.from?.id })
 
-    if (!ctx.digitalAvatarAPI) {
+    if (!ctx.from?.id) {
       logger.error(
-        '[DigitalAvatarAPI Missing] digitalAvatarAPI не найден в контексте.',
+        '[uploadTrainFluxModelScene] User Telegram ID is undefined for balance check.',
         { telegramId: ctx.from?.id }
       )
       await ctx.reply(
         isRu
-          ? '❌ Критическая ошибка: Сервис тренировки недоступен. Сообщите администратору.'
-          : '❌ Critical error: Training service unavailable. Please inform an administrator.'
+          ? '❌ Критическая ошибка: Не удалось определить ваш ID для проверки баланса.'
+          : '❌ Critical Error: Could not determine your ID for balance check.'
       )
       return ctx.scene.leave()
     }
+    const userTelegramIdString = String(ctx.from.id)
+    const userBalance = await getUserBalance(userTelegramIdString)
 
-    const telegramId = ctx.from?.id
-    if (!telegramId) {
-      logger.error('[TelegramID Missing]', { session: ctx.session })
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка: не удалось определить ваш ID.'
-          : '❌ Error: could not determine your ID.'
-      )
-      return ctx.scene.leave()
-    }
-
-    const steps = ctx.session.steps || 1000
-    const costPerStep = 0.22
-    const cost = Math.round(steps * costPerStep)
-    const operationTypeForCost = 'NEURO_TRAIN_LORA'
-
-    logger.info(
-      `[Cost Calculated] Operation: ${operationTypeForCost}, Steps: ${steps}, Cost: ${cost} звезд`,
-      { telegramId }
-    )
-
-    const balance = await getUserBalance(telegramId.toString())
-    logger.info(
-      `[Balance Check] User: ${telegramId}, Balance: ${balance} звезд`,
-      { cost }
-    )
-
-    if (balance === null || balance < cost) {
-      logger.warn(
-        `[Insufficient Funds] User: ${telegramId}, Balance: ${balance}, Cost: ${cost}`
-      )
-      await ctx.reply(
-        isRu
-          ? `⚠️ Недостаточно средств. Текущий баланс: ${balance || 0} ⭐. Требуется: ${cost} ⭐. Пожалуйста, пополните баланс.`
-          : `⚠️ Insufficient funds. Current balance: ${balance || 0} ⭐. Required: ${cost} ⭐. Please top up your balance.`
-      )
-      return ctx.scene.enter('paymentScene')
-    }
-
-    await ctx.reply(
-      isRu
-        ? `⏳ Списываю ${cost} ⭐ за тренировку...`
-        : `⏳ Deducting ${cost} ⭐ for training...`
-    )
-    const debitResult = await updateUserBalance(
-      telegramId.toString(),
-      cost,
-      PaymentType.MONEY_OUTCOME,
-      `${operationTypeForCost}_DEBIT_${steps}_STEPS`,
-      { bot_name: ctx.botInfo?.username }
-    )
-
-    if (!debitResult) {
-      logger.error(
-        '[Debit Failed] Ошибка при вызове updateUserBalance для списания средств.',
-        { telegramId, cost }
-      )
-      await ctx.reply(
-        isRu
-          ? '❌ Произошла ошибка при списании средств. Попробуйте позже.'
-          : '❌ An error occurred while deducting funds. Please try again later.'
-      )
-      return ctx.scene.leave()
-    }
-    logger.info(
-      `[Funds Debited Attempted] User: ${telegramId}, Amount: ${cost} звезд`
-    )
-    await ctx.reply(
-      isRu
-        ? `✅ ${cost} ⭐ успешно списано (операция зарегистрирована). Начинаю подготовку к тренировке...`
-        : `✅ ${cost} ⭐ successfully deducted (operation registered). Preparing for training...`
-    )
-
-    const triggerWord = `${ctx.session.username?.toLocaleUpperCase()}`
-    if (!triggerWord) {
-      logger.error('[TriggerWord Missing]', {
-        telegramId,
-        session: ctx.session,
-      })
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка: не удалось определить ключевое слово для тренировки.'
-          : '❌ Error: could not determine trigger word for training.'
-      )
-      await updateUserBalance(
-        telegramId.toString(),
-        cost,
-        PaymentType.MONEY_INCOME,
-        `${operationTypeForCost}_REFUND_TRIGGERWORD_ERROR_${steps}_STEPS`,
-        { bot_name: ctx.botInfo?.username }
-      )
+    if (userBalance < calculatedCost) {
       logger.info(
-        `[Funds Refunded Attempted] TriggerWord error. User: ${telegramId}, Amount: ${cost}`,
-        { operationTypeForCost, steps }
+        `[uploadTrainFluxModelScene] Not enough balance for user ${ctx.from?.id}`,
+        { calculatedCost, userBalance }
+      )
+      await ctx.reply(
+        isRu
+          ? `😔 Недостаточно средств. Стоимость: ${calculatedCost} ⭐. Ваш баланс: ${userBalance} ⭐.`
+          : `😔 Insufficient funds. Cost: ${calculatedCost} ⭐. Your balance: ${userBalance} ⭐.`
       )
       return ctx.scene.leave()
     }
 
-    const requestData: ModelTrainingRequest = {
-      telegram_id: telegramId.toString(),
-      bot_name: ctx.botInfo?.username || 'unknown_bot',
-      model_name: ctx.session.modelName || 'defaultModelName',
-      trigger_word: triggerWord,
-      file_path: zipPath,
-      steps: steps,
+    await ctx.reply('✅ Processing request...', Markup.removeKeyboard())
+
+    const { telegram_id, replicate_username } = sessionUser
+    const { model_name, trigger_word, gender } = sessionDigitalAvatarBody
+
+    if (!localZipPath) {
+      logger.error(
+        '[UploadScene] localZipPath is undefined before calling service.',
+        { telegram_id }
+      )
+      await ctx.reply('Ошибка создания архива.')
+      return ctx.scene.leave()
+    }
+
+    const servicePayload: InitiateModelTrainingPayload = {
+      telegram_id: String(ctx.from.id),
       is_ru: isRu,
+      bot_name: ctx.botInfo.username,
+      model_name: model_name || `default_model_${telegram_id}`,
+      zipPath: localZipPath,
+      steps: steps,
+      trigger_word: trigger_word || undefined,
+      gender: (gender as 'male' | 'female' | 'other' | undefined) || undefined,
+      calculatedCost: calculatedCost,
+      payment_operation_type: PaymentType.MONEY_OUTCOME,
+      user_replicate_username: replicate_username || null,
     }
 
-    logger.info('[Module Call] Вызов digitalAvatarAPI.startModelTraining', {
-      requestData: { ...requestData, file_path: 'local_zip_path_omitted' },
-      telegramId,
+    logger.info('[UploadScene] Calling initiateDigitalAvatarModelTraining', {
+      servicePayload,
     })
 
-    logger.info(
-      `[uploadTrainFluxModelScene] Sending training request for user ${ctx.from.id}`
+    const serviceResult = await initiateDigitalAvatarModelTraining(
+      Number(servicePayload.telegram_id),
+      servicePayload.zipPath,
+      servicePayload.model_name,
+      servicePayload.trigger_word,
+      servicePayload.is_ru,
+      servicePayload.bot_name,
+      servicePayload.payment_operation_type,
+      servicePayload.calculatedCost,
+      servicePayload.steps,
+      servicePayload.gender as 'male' | 'female' | 'other' | undefined
     )
 
-    try {
-      const moduleResponse = await startModelTraining(requestData, ctx)
+    logger.info('[UploadScene] serviceResult', { serviceResult })
 
-      if (moduleResponse.success) {
-        logger.info(
-          `[uploadTrainFluxModelScene] Training started successfully for user ${ctx.from.id}, replicate ID: ${moduleResponse.replicateTrainingId}`
-        )
-        const successMessage = isRu
-          ? `✅ Тренировка успешно запущена!\n   ID задачи: ${moduleResponse.replicateTrainingId || 'N/A'}\n   Списано: ${moduleResponse.cost || cost} ⭐`
-          : `✅ Training started successfully!\n   Task ID: ${moduleResponse.replicateTrainingId || 'N/A'}\n   Cost: ${moduleResponse.cost || cost} ⭐`
-        await ctx.reply(successMessage)
-      } else {
-        throw new Error(
-          moduleResponse.message || 'Unknown error starting training'
-        )
-      }
-    } catch (error: any) {
+    if (!serviceResult.success) {
+      await ctx.reply(
+        isRu
+          ? `😕 Не удалось начать обучение модели: ${serviceResult.message}`
+          : `😕 Failed to start model training: ${serviceResult.message}`
+      )
       logger.error(
-        `[uploadTrainFluxModelScene] Error starting training for user ${ctx.from.id}: ${error.message}`
+        '[UploadScene] Error from initiateDigitalAvatarModelTraining',
+        {
+          message: serviceResult.message,
+          telegramId: ctx.from.id,
+        }
       )
-      await updateUserBalance(
-        telegramId.toString(),
-        cost,
-        PaymentType.MONEY_INCOME,
-        `${operationTypeForCost}_REFUND_START_ERROR_${steps}_STEPS`,
-        { bot_name: ctx.botInfo?.username, error_message: error.message }
-      )
-      logger.info(
-        `[Funds Refunded Attempted] Start error. User: ${telegramId}, Amount: ${cost}`
-      )
-      const errorMessageText = isRu
-        ? `❌ Ошибка при запуске тренировки: ${error.message}`
-        : `❌ Error starting training: ${error.message}`
-      await ctx.reply(errorMessageText)
-      return ctx.scene.leave()
-    }
-  } catch (error: any) {
-    logger.error('[Scene Error] uploadTrainFluxModelScene', {
-      telegramId: ctx.from?.id,
-      error: error.message,
-      stack: error.stack,
-      session: ctx.session,
-    })
-    const userMessage = isRu
-      ? '❌ Произошла непредвиденная ошибка в сцене загрузки. Попробуйте позже или обратитесь в поддержку.'
-      : '❌ An unexpected error occurred in the upload scene. Please try again later or contact support.'
-    await ctx
-      .reply(userMessage)
-      .catch(e =>
-        logger.error(
-          '[Reply Error] Failed to send error message in upload scene',
-          { error: e.message }
-        )
-      )
-  } finally {
-    if (zipPath) {
-      await deleteFile(zipPath).catch(e =>
-        logger.warn('[ZIP Cleanup Error]', {
-          zipPath,
-          error: e.message,
-          telegramId: ctx.from?.id,
-        })
+    } else {
+      await ctx.reply(
+        isRu
+          ? '🚀 Запрос на обучение модели успешно отправлен! Вы получите уведомление, когда модель будет готова.'
+          : '🚀 Model training request sent successfully! You will be notified when the model is ready.'
       )
     }
-    logger.info('[Scene Leave] uploadTrainFluxModelScene', {
+
+    return ctx.scene.leave()
+  } catch (error) {
+    logger.error('[uploadTrainFluxModelScene] Error in scene', {
+      error,
       telegramId: ctx.from?.id,
     })
-    await ctx.scene.leave().catch(e =>
-      logger.warn('[Scene Leave Error]', {
-        sceneId: ctx.scene.current?.id,
-        error: e.message,
-      })
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка при отправке запроса на тренировку.'
+        : '❌ An error occurred while sending the training request.'
     )
+  } finally {
+    if (localZipPath) {
+      try {
+        await deleteFile(localZipPath)
+        logger.info('[UploadScene] Temporary zip file deleted.', {
+          localZipPath,
+        })
+      } catch (delError) {
+        logger.error('[UploadScene] Error deleting temporary zip file.', {
+          localZipPath,
+          error: delError,
+        })
+      }
+    }
   }
 })
 

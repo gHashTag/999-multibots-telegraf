@@ -9,7 +9,7 @@ import { logger } from '@/utils/logger' // Импортируем логгер
 const PORT = process.env.PORT || '2999'
 
 // Возвращаем синхронную функцию startApiServer
-function startApiServer(): void {
+export function startApiServer(): void {
   const app: any = express()
 
   // Middleware для парсинга JSON с установленным лимитом в 10MB

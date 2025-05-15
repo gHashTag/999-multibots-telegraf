@@ -107,15 +107,6 @@ export const {
 
 export const API_URL = isDev ? LOCAL_SERVER_URL : API_SERVER_URL
 
-// Объект стоимостей операций (пример, реальные значения могут быть другими)
-// Этот объект должен быть доступен и в bot.ts, и в сценах
-export const COSTS = {
-  NEURO_TRAIN_LORA: parseInt(process.env.NEURO_TRAIN_LORA_COST ?? '100', 10),
-  TEXT_TO_IMAGE_SDXL: 10, // Пример
-  IMAGE_TO_VIDEO: 25, // Пример
-  // ... другие операции
-}
-
 // Парсинг ADMIN_IDS в массив чисел
 const adminIdsString = process.env.ADMIN_IDS || ''
 export const ADMIN_IDS_ARRAY: number[] = adminIdsString

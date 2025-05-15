@@ -1,27 +1,40 @@
-import { replicate } from '@/core/replicate'
+import { replicate } from '@/core/replicate' // Removed as no longer directly used
+import {} from // updateUserLevelPlusOne, // Removed global import
+// getUserByTelegramIdString, // Removed global import
+'@/core/supabase'
+// import { processBalanceOperation } from '@/price/helpers' // REMOVED GLOBAL IMPORT
+
+// import { Telegraf } from 'telegraf' // No longer directly needed as parameter
+// import { MyContext } from '@/interfaces' // Not used
+import { ModeEnum } from './types'
+// import { calculateModeCost } from '@/price/helpers/modelsCost' // REMOVED Global import
+import { logger } from './utils/logger'
 import {
-  updateUserBalance,
-  updateUserLevelPlusOne,
-  supabase,
-  createModelTraining,
-  getUserByTelegramIdString,
-} from '@/core/supabase'
-import { processBalanceOperation } from '@/price/helpers'
+  updateTrainingRecordOnError,
+  getLatestModelUrl,
+  ensureReplicateModelExists,
+  pollReplicateTrainingStatus,
+  startFluxLoraTrainerReplicateTraining,
+  validateAndPrepareTrainingRequest, // ADDED IMPORT
+} from './helpers/trainingHelpers'
+import {
+  updateDigitalAvatarTraining,
+  createDigitalAvatarTraining,
+} from './helpers/modelTrainingsDb'
+import {
+  getDigitalAvatarUserProfile,
+  incrementUserLevelForAvatarTraining,
+} from './helpers/userProfileDb' // Added module-local imports
+import { getBotByName } from '@/core/bot'
+import { getDigitalAvatarBodyConfig } from './config' // Import new config getter
+import { PaymentType } from './types'
+import { calculateDigitalAvatarBodyCost } from './helpers/pricingHelpers' // ADDED Local import
 
-import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/interfaces/modes'
-import { calculateModeCost } from '@/price/helpers/modelsCost'
-import { PaymentType } from '@/interfaces/payments.interface'
-import { logger } from '@/utils/logger'
-import { ModelTrainingResponse } from './types'
-import { updateTrainingRecordOnError } from './helpers/trainingHelpers'
-
-export interface ApiError extends Error {
-  response?: {
-    status: number
-  }
-}
+// export interface ApiError extends Error { // Not used
+//   response?: {
+//     status: number
+//   }
+// }
 
 interface TrainingResponse {
   id: string
@@ -30,63 +43,7 @@ interface TrainingResponse {
   error?: string
 }
 
-interface ReplicateModelResponse {
-  latest_version?: {
-    id: string
-  }
-}
-
-const activeTrainings = new Map<string, { cancel: () => void }>()
-
-async function getLatestModelUrl(modelName: string): Promise<string> {
-  try {
-    const username = process.env.REPLICATE_USERNAME
-    if (!username) {
-      throw new Error('REPLICATE_USERNAME is not set in environment variables')
-    }
-    const response = await fetch(
-      `https://api.replicate.com/v1/models/${username}/${modelName}`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        logger.warn(
-          `Model ${username}/${modelName} not found or has no version yet.`
-        )
-        throw new Error(
-          `Model ${username}/${modelName} not found or has no version yet.`
-        )
-      }
-      throw new Error(
-        `Failed to fetch latest version id, status: ${response.status}`
-      )
-    }
-
-    const data = (await response.json()) as ReplicateModelResponse
-    logger.debug('data from getLatestModelUrl:', data)
-    if (!data.latest_version?.id) {
-      throw new Error(
-        `Latest version ID not found for model ${username}/${modelName}`
-      )
-    }
-    const model_url = `${username}/${modelName}:${data.latest_version.id}`
-    logger.debug('model_url from getLatestModelUrl:', model_url)
-    return model_url
-  } catch (error) {
-    logger.error('Error fetching latest model url:', {
-      error: (error as Error).message,
-      stack: (error as Error).stack,
-    })
-    throw error
-  }
-}
+// const activeTrainings = new Map<string, { cancel: () => void }>() // Not used
 
 export async function generateModelTraining(
   zipUrl: string,
@@ -95,11 +52,28 @@ export async function generateModelTraining(
   steps: number,
   telegram_id: number,
   is_ru: boolean,
-  bot: Telegraf<MyContext>,
   bot_name: string,
-  gender: string
-): Promise<ModelTrainingResponse> {
-  const userExists = await getUserByTelegramIdString(telegram_id.toString())
+  gender: string,
+  sendMessage: (chatId: string, text: string) => Promise<void>
+): Promise<any> {
+  const config = getDigitalAvatarBodyConfig() // Get config once
+  const botInstanceResult = getBotByName(bot_name)
+  if (botInstanceResult.error || !botInstanceResult.bot) {
+    logger.error(
+      `Failed to get bot instance for ${bot_name} (Plan B): ${botInstanceResult.error}`,
+      { telegram_id }
+    )
+    return {
+      success: false,
+      message: `Bot instance ${bot_name} not found.`,
+      error: 'BOT_INSTANCE_NOT_FOUND',
+    }
+  }
+  const bot = botInstanceResult.bot
+
+  // const userExists = await getUserByTelegramIdString(telegram_id.toString()) // OLD CALL
+  const userExists = await getDigitalAvatarUserProfile(telegram_id.toString()) // NEW CALL
+
   if (!userExists) {
     const errorMsg = `User with ID ${telegram_id} does not exist.`
     logger.error(errorMsg, { telegram_id })
@@ -119,129 +93,103 @@ export async function generateModelTraining(
     return { success: false, message: errorMsg, error: 'USER_NOT_FOUND' }
   }
   const level = userExists.level
-  await updateUserLevelPlusOne(telegram_id.toString(), level)
+  // await updateUserLevelPlusOne(telegram_id.toString(), level) // OLD CALL
+  await incrementUserLevelForAvatarTraining(userExists.id, level) // NEW CALL
   let currentTraining: TrainingResponse | null = null
   logger.debug(`Initial currentTraining: ${currentTraining}`, { telegram_id })
 
-  const costResult = calculateModeCost({
-    mode: ModeEnum.DigitalAvatarBody,
+  const costResult = calculateDigitalAvatarBodyCost({
+    // NEW CALL
+    mode: ModeEnum.DigitalAvatarBody, // ModeEnum is already local
     steps: steps,
   })
   const paymentAmount = costResult.stars
 
-  logger.info('Starting balance check for user (Plan B):', {
+  logger.info(
+    `Starting validation and preparation for training (Plan B). User: ${telegram_id}, Cost: ${paymentAmount}`,
+    { telegram_id }
+  )
+  const preparationResult = await validateAndPrepareTrainingRequest(
     telegram_id,
-    paymentAmount,
+    zipUrl, // validateAndPrepareTrainingRequest also checks this URL, ensure consistency or simplify
+    modelName,
+    triggerWord,
     is_ru,
-  })
-  const balanceCheck = await processBalanceOperation({
-    telegram_id: Number(telegram_id),
-    paymentAmount,
-    is_ru,
-    bot_name: bot_name,
-  } as any)
-  logger.info('Balance check result (Plan B):', {
-    telegram_id,
-    success: balanceCheck.success,
-    error: balanceCheck.error,
-  })
+    bot_name,
+    PaymentType.MONEY_OUTCOME, // Explicitly set as outcome
+    paymentAmount
+  )
 
-  if (!balanceCheck.success) {
-    const errorMsg =
-      balanceCheck.error ||
-      (is_ru ? 'Ошибка проверки баланса' : 'Balance check failed')
+  if (!preparationResult) {
+    // validateAndPrepareTrainingRequest already sends a message to the user on failure.
     logger.warn(
-      `Balance check failed for user ${telegram_id} (Plan B): ${errorMsg}`
+      `Validation and preparation failed for user ${telegram_id} (Plan B).`,
+      { telegram_id }
     )
-    if (balanceCheck.error) {
-      try {
-        await bot.telegram.sendMessage(
-          telegram_id.toString(),
-          balanceCheck.error
-        )
-      } catch (notifyError) {
-        logger.error(
-          'Failed to send balance error notification to user (Plan B Training)',
-          { telegramId: telegram_id, error: notifyError }
-        )
-      }
+    // The error message to return should be generic as user already got details.
+    return {
+      success: false,
+      message: is_ru
+        ? 'Ошибка подготовки к тренировке модели.'
+        : 'Failed to prepare for model training.',
+      error: 'PREPARATION_FAILED',
     }
-    return { success: false, message: errorMsg, error: 'INSUFFICIENT_BALANCE' }
   }
-  const initialBalance = balanceCheck.currentBalance
+
+  const { user: validatedUser, costInStars: finalCost } = preparationResult
+  // At this point, user exists, balance was sufficient, and cost has been deducted.
+
+  // Increment user level after successful payment and user validation
+  await incrementUserLevelForAvatarTraining(
+    validatedUser.id,
+    validatedUser.level
+  )
 
   let modelIdForResponse: string | undefined = undefined
   let modelUrlForResponse: string | undefined = undefined
 
   try {
-    const username = process.env.REPLICATE_USERNAME
+    const username = config.replicateUsername // NEW WAY
     if (!username) {
-      throw new Error('REPLICATE_USERNAME is not set')
+      // This check might be redundant if EnvSchema in config ensures it, but good for safety
+      // However, validateAndPrepareTrainingRequest should have already checked for replicate_username on user
+      // if (!validatedUser.replicate_username) { // This check might be more relevant here
+      //   throw new Error('User does not have Replicate username configured after validation.')
+      // }
+      // username = validatedUser.replicate_username;
+      // Or rely on config.replicateUsername as the primary source for the training destination
+      throw new Error(
+        'REPLICATE_USERNAME is not set in module config for training destination.'
+      )
     }
 
-    const destination: `${string}/${string}` = `${username}/${modelName}`
-    modelIdForResponse = destination
+    await ensureReplicateModelExists(
+      username, // Use username from config
+      modelName,
+      triggerWord,
+      logger,
+      telegram_id
+    )
+
+    modelIdForResponse = `${username}/${modelName}` // Use username from config
     logger.debug('destination for replicate model (Plan B):', {
-      destination,
+      destination: modelIdForResponse,
       telegram_id,
     })
-    let modelExists = false
-    try {
-      logger.debug(`Checking if model exists (Plan B): ${destination}`, {
-        telegram_id,
-      })
-      await replicate.models.get(username, modelName)
-      logger.info(`Model ${destination} exists (Plan B).`, { telegram_id })
-      modelExists = true
-    } catch (error) {
-      if ((error as ApiError).response?.status === 404) {
-        logger.info(
-          `Model ${destination} does not exist (Plan B). Creating...`,
-          { telegram_id }
-        )
-        modelExists = false
-      } else {
-        logger.error('Error checking model existence (Plan B):', {
-          error: (error as Error).message,
-          stack: (error as Error).stack,
-          telegram_id,
-        })
-        throw error
-      }
-    }
 
-    if (!modelExists) {
-      try {
-        logger.info(`Creating model ${destination} (Plan B)...`, {
-          telegram_id,
-        })
-        await replicate.models.create(username, modelName, {
-          description: `LoRA model trained with trigger word: ${triggerWord}`,
-          visibility: 'public',
-          hardware: 'gpu-t4',
-        })
-        logger.info(`Model ${destination} created (Plan B).`, { telegram_id })
-        await new Promise(resolve => setTimeout(resolve, 3000))
-      } catch (error) {
-        logger.error('API error during model creation (Plan B):', {
-          message: (error as Error).message,
-          telegram_id,
-        })
-        throw error
-      }
-    }
-
-    const dbTrainingRecord = await createModelTraining({
-      telegram_id: telegram_id,
+    const dbTrainingRecord = await createDigitalAvatarTraining({
+      user_id: validatedUser.id, // USE validatedUser
+      telegram_id: telegram_id.toString(),
       model_name: modelName,
       trigger_word: triggerWord,
       zip_url: zipUrl,
-      steps,
-      status: 'starting',
-      gender,
+      steps_amount: steps,
+      status: 'PENDING',
+      gender: gender as 'male' | 'female' | 'other' | undefined,
       api: 'replicate',
       bot_name: bot_name,
-    } as any)
+      cost_in_stars: finalCost,
+    })
     logger.info(
       `Created DB training record ID (Plan B): ${(dbTrainingRecord as any)?.id ?? 'unknown'}`,
       { telegram_id }
@@ -252,95 +200,60 @@ export async function generateModelTraining(
       const zipErrorMsg = `Invalid ZIP URL provided for training (Plan B): ${zipUrl}`
       logger.error(zipErrorMsg, { telegram_id })
       if ((dbTrainingRecord as any)?.id) {
-        await updateTrainingRecordOnError(userExists.id, modelName, zipErrorMsg)
+        await updateTrainingRecordOnError(
+          (dbTrainingRecord as any).user_id, // This should be validatedUser.id
+          modelName,
+          zipErrorMsg
+        )
       }
       throw new Error(zipErrorMsg)
     }
 
     logger.info(
-      `Starting Replicate training for model ${destination} (Plan B)...`,
+      `Starting Replicate training for model ${modelIdForResponse} (Plan B)...`,
       { telegram_id }
     )
-    currentTraining = await replicate.trainings.create(
-      'ostris',
-      'flux-dev-lora-trainer',
-      'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
-      {
-        destination,
-        input: {
-          steps,
-          lora_rank: 128,
-          optimizer: 'adamw8bit',
-          batch_size: 1,
-          resolution: '512,768,1024',
-          autocaption: true,
-          input_images: zipUrl,
-          trigger_word: triggerWord,
-          learning_rate: 0.0001,
-          wandb_project: 'flux_train_replicate',
-        },
-      }
-    )
+    currentTraining = (await startFluxLoraTrainerReplicateTraining(
+      modelIdForResponse as `${string}/${string}`,
+      zipUrl,
+      triggerWord,
+      steps,
+      logger,
+      telegram_id
+    )) as TrainingResponse
     logger.info(
       `Replicate training started (Plan B). ID: ${currentTraining.id}`,
       { telegram_id }
     )
 
-    await supabase
-      .from('model_trainings')
-      .update({
-        replicate_training_id: currentTraining.id,
-        status: 'processing',
-      })
-      .eq('id', (dbTrainingRecord as any)?.id ?? 'unknown')
-
-    let trainingStatus = currentTraining.status
-    while (
-      trainingStatus !== 'succeeded' &&
-      trainingStatus !== 'failed' &&
-      trainingStatus !== 'canceled'
-    ) {
-      await new Promise(resolve => setTimeout(resolve, 10000))
-      if (currentTraining?.id) {
-        const updatedTraining = await replicate.trainings.get(
-          currentTraining.id
-        )
-        trainingStatus = updatedTraining.status
-        logger.debug(
-          `Polling Replicate training status (Plan B): ${trainingStatus}`,
-          { telegram_id, trainingId: currentTraining.id }
-        )
-
-        if (trainingStatus !== currentTraining.status) {
-          await supabase
-            .from('model_trainings')
-            .update({ status: trainingStatus.toUpperCase() })
-            .eq('replicate_training_id', currentTraining.id)
-          currentTraining.status = trainingStatus
-        }
-      } else {
-        logger.warn(
-          'currentTraining.id is not available for polling, breaking loop.',
-          { telegram_id }
-        )
-        throw new Error('Training ID became unavailable during polling.')
-      }
+    const dbRecordIdToUpdate = (dbTrainingRecord as any)?.id
+    if (!dbRecordIdToUpdate) {
+      throw new Error('DB Training Record ID not found after creation.')
     }
 
-    if (trainingStatus === 'succeeded') {
+    await updateDigitalAvatarTraining(dbRecordIdToUpdate, {
+      replicate_training_id: currentTraining.id,
+      status: 'PROCESSING',
+    })
+
+    const finalTrainingStatus = await pollReplicateTrainingStatus(
+      currentTraining,
+      dbRecordIdToUpdate,
+      logger,
+      telegram_id
+    )
+
+    if (finalTrainingStatus === 'succeeded') {
       logger.info('Replicate training succeeded (Plan B).', {
         telegram_id,
         trainingId: currentTraining.id,
       })
-      modelUrlForResponse = await getLatestModelUrl(modelName)
+      modelUrlForResponse = await getLatestModelUrl(modelName, logger)
 
-      await supabase
-        .from('model_trainings')
-        .update({
-          status: 'SUCCEEDED',
-          model_url: modelUrlForResponse,
-        })
-        .eq('replicate_training_id', currentTraining.id)
+      await updateDigitalAvatarTraining(dbRecordIdToUpdate, {
+        status: 'SUCCEEDED',
+        model_url: modelUrlForResponse,
+      })
 
       const successMessage = is_ru
         ? `🎉 Ваша модель "${modelName}" успешно обучена и готова к использованию! Вы можете найти ее в списке ваших моделей.`
@@ -363,21 +276,28 @@ export async function generateModelTraining(
         model_url: modelUrlForResponse,
       }
     } else {
-      const failureMsg = `Training ${trainingStatus} (Plan B): ${currentTraining.error || 'No specific error from Replicate'}`
+      const failureMsg = `Training ${finalTrainingStatus} (Plan B): ${currentTraining.error || 'No specific error from Replicate'}`
       logger.error(failureMsg, {
         telegram_id,
         trainingId: currentTraining.id,
         errorDetails: currentTraining.error,
       })
-      await updateTrainingRecordOnError(
-        userExists.id,
-        modelName,
-        `Replicate training ${trainingStatus}: ${currentTraining.error || 'Unknown Replicate error'}`
-      )
+      if (validatedUser && validatedUser.id) {
+        await updateTrainingRecordOnError(
+          validatedUser.id, // USE validatedUser
+          modelName,
+          `Replicate training ${finalTrainingStatus}: ${currentTraining.error || 'Unknown Replicate error'}`
+        )
+      } else {
+        logger.warn(
+          'User ID not available for updateTrainingRecordOnError after polling',
+          { telegram_id, modelName }
+        )
+      }
 
       const userErrorMessage = is_ru
-        ? `К сожалению, тренировка модели "${modelName}" завершилась со статусом: ${trainingStatus}. ${currentTraining.error ? 'Детали: ' + currentTraining.error : ''}`
-        : `Unfortunately, training for model "${modelName}" finished with status: ${trainingStatus}. ${currentTraining.error ? 'Details: ' + currentTraining.error : ''}`
+        ? `К сожалению, тренировка модели "${modelName}" завершилась со статусом: ${finalTrainingStatus}. ${currentTraining.error ? 'Детали: ' + currentTraining.error : ''}`
+        : `Unfortunately, training for model "${modelName}" finished with status: ${finalTrainingStatus}. ${currentTraining.error ? 'Details: ' + currentTraining.error : ''}`
       try {
         await bot.telegram.sendMessage(telegram_id.toString(), userErrorMessage)
       } catch (notifyError) {
@@ -390,7 +310,7 @@ export async function generateModelTraining(
         success: false,
         message: failureMsg,
         replicateTrainingId: currentTraining.id,
-        error: `REPLICATE_TRAINING_${trainingStatus.toUpperCase()}`,
+        error: `REPLICATE_TRAINING_${finalTrainingStatus.toUpperCase()}`,
       }
     }
   } catch (error: any) {
@@ -401,9 +321,9 @@ export async function generateModelTraining(
       stack: error.stack,
     })
 
-    if (userExists && userExists.id) {
+    if (validatedUser && validatedUser.id) {
       await updateTrainingRecordOnError(
-        userExists.id,
+        validatedUser.id, // USE validatedUser
         modelName,
         error.message || 'Unknown critical error in Plan B training'
       )

@@ -68,4 +68,35 @@
 *   **Коммит:** (Будет добавлен после коммита изменений)
 *   **Связанная Задача:** Запись в `current_task.mdc` от 2025-05-08.
 
---- 
+---
+
+## 2024-08-02: Рефакторинг и Тестирование generateModelTraining.ts (Plan B) и его хелперов
+
+*   **Задача:** Полностью рефакторить `src/modules/digitalAvatarBody/generateModelTraining.ts` (версия "Plan B", не Inngest), вынести вспомогательную логику в хелперы `trainingHelpers.ts` и `modelTrainingsDb.ts`. Устранить ошибки типов, обеспечить консистентность статусов (UPPERCASE). Написать unit-тесты для хелперов и основной функции.
+*   **Результат:**
+    *   Логика Replicate API (создание модели, запуск тренировки, опрос статуса, получение URL модели) вынесена в `trainingHelpers.ts`.
+    *   Логика взаимодействия с БД (создание и обновление записей о тренировках) вынесена в `modelTrainingsDb.ts`.
+    *   Основная функция `generateModelTraining.ts` обновлена для использования хелперов.
+    *   Убрана прямая зависимость от `Telegraf` в `generateModelTraining.ts`, экземпляр бота получается через `getBotByName`.
+    *   Исправлены все ошибки типов, связанные с рефакторингом.
+    *   Статусы тренировок приведены к UPPERCASE (`PENDING`, `PROCESSING`, `SUCCEEDED`, `FAILED`).
+    *   Созданы и успешно проходят unit-тесты для:
+        *   `src/modules/digitalAvatarBody/helpers/__tests__/trainingHelpers.test.ts` (существующие тесты адаптированы и проходят).
+        *   `src/modules/digitalAvatarBody/helpers/__tests__/modelTrainingsDb.test.ts` (новые тесты созданы и проходят).
+        *   `src/modules/digitalAvatarBody/__tests__/generateModelTraining.test.ts` (новые тесты для основной функции, покрывающие 6 ключевых сценариев, созданы и проходят).
+    *   Обновлен скрипт `test` в `package.json` на `bunx vitest run` для корректной работы моков.
+*   **Ключевой паттерн успеха:** Декомпозиция сложной функции на более мелкие, тестируемые хелперы. Тщательное мокирование зависимостей для unit-тестирования. Использование `bunx vitest run` вместо `bun test` для решения проблем с `vi.mock`.
+*   **Коммит:** `cadd5cc1e0bccf2819b8fb64af006d6c8a7d6938` (Ветка: `feature/restore-inngest-training-logic`)
+
+## [YYYY-MM-DD] - Успешная Локализация Зависимостей в Модуле `digitalAvatarBody` (Этап X)
+
+*   **Проблема:** Модуль `digitalAvatarBody` имел множество внешних зависимостей (конфигурация, типы, клиенты API), что затрудняло его изоляцию и поддержку.
+*   **Паттерн Успеха:**
+    *   Создана модульная конфигурация (`src/modules/digitalAvatarBody/config/index.ts`) с использованием Zod для валидации переменных окружения, специфичных для модуля.
+    *   Ключевые типы (`PaymentType`, `ModeEnum`, `ReplicateTrainingResponse`, `User` -> `DigitalAvatarUserProfile`, `ModelTraining`) были локализованы или заменены на специфичные для модуля аналоги в `src/modules/digitalAvatarBody/types.ts`.
+    *   Глобальный клиент Replicate API заменен на вызов локальной фабричной функции `getReplicateClient()` в `src/modules/digitalAvatarBody/utils/replicateClient.ts`, которая использует токен из модульной конфигурации или переданный пользователем.
+    *   Импорты во многих файлах модуля (`index.ts`, `helpers/trainingHelpers.ts`, `generateModelTraining.ts` (План Б), `functions/generateModelTraining.ts`) были обновлены для использования локальных версий типов, конфигурации и клиентов.
+    *   В Inngest-функции (`functions/generateModelTraining.ts`) имя события теперь получается из модульной конфигурации.
+    *   Устранены сопутствующие ошибки типов и линтера.
+*   **Результат:** Значительно повышена автономность модуля `digitalAvatarBody`, уменьшено количество прямых внешних зависимостей.
+*   **Коммит:** (Будет добавлен после завершения всей задачи и коммита) 

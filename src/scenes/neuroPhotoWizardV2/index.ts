@@ -156,6 +156,9 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
     // Обработка кнопок с числами
     const numImages = parseInt(text[0])
+    console.log(
+      `[neuroPhotoWizardV2] Parsed numImages: ${numImages} from text: ${text}`
+    )
     const prompt = ctx.session.prompt
     const userId = ctx.from?.id
     const trigger_word = ctx.session.userModel.trigger_word as string
@@ -169,12 +172,18 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       return
     }
     const generate = async (num: number) => {
+      console.log(
+        `[neuroPhotoWizardV2] Calling generateNeuroImageV2 with numImages: ${num}, userId: ${userId?.toString()}, prompt: ${fullPrompt.substring(0, 50)}...`
+      )
       await generateNeuroImageV2(
         fullPrompt,
         num,
         userId.toString(),
         ctx,
         ctx.botInfo?.username
+      )
+      console.log(
+        `[neuroPhotoWizardV2] Finished calling generateNeuroImageV2 for numImages: ${num}`
       )
     }
 

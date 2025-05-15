@@ -49,6 +49,7 @@ export enum ModeEnum {
   RublePaymentScene = 'rublePaymentScene',
   StarPaymentScene = 'starPaymentScene',
   MenuScene = 'menuScene',
+  UPLOAD_TRAIN_FLUX_MODEL_SCENE = 'upload_train_flux_model_scene',
 }
 
 // Определяем интерфейсы прямо здесь для предотвращения циклических зависимостей

@@ -2,6 +2,7 @@ import { Context, NarrowedContext, Scenes } from 'telegraf'
 import type { ModelUrl, UserModel } from './index'
 import type { Update, Message } from 'telegraf/types'
 import { Buffer } from 'buffer'
+import { User } from './user.interface'
 
 import { BroadcastContentType } from './broadcast.interface'
 import { SubscriptionType } from './subscription.interface'
@@ -10,10 +11,9 @@ import type { SessionPayment } from './payments.interface'
 import type { SceneContextScene, WizardContextWizard } from 'telegraf/scenes'
 import { ModeEnum, type Mode } from './modes'
 import type { Translation } from './translations.interface'
-import type { initDigitalAvatarBodyModule } from '@/modules/digitalAvatarBody'
 
-type SceneId = string
-type TranslationEntry = Translation
+export type SceneId = string
+export type TranslationEntry = Translation
 
 export type BufferType = { buffer: Buffer; filename: string }[]
 export interface Level {
@@ -220,6 +220,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   buttons?: TranslationButton[]
   selectedPayment?: SessionPayment
   memory?: Memory
+  calculatedCost?: number
   attempts?: number
   amount?: number
   ru?: string
@@ -227,6 +228,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   lastCompletedVideoScene?: ModeEnum | null | undefined
   gender?: string
   isAdminTest?: boolean
+  digitalAvatarBody?: DigitalAvatarBodySessionData
+  user?: User
 }
 
 export interface MyContext extends Context {
@@ -238,7 +241,7 @@ export interface MyContext extends Context {
   reply: (text: string, extra?: any) => Promise<any>
   chat: any
   from: any
-  digitalAvatarAPI?: ReturnType<typeof initDigitalAvatarBodyModule>
+  // i18n?: I18nContext // Временно закомментировано
 }
 
 export type MyWizardContext = MyContext & Scenes.WizardContext<MyWizardSession>
@@ -250,4 +253,13 @@ export type MyTextMessageContext = NarrowedContext<
 
 export interface ExtendedTranslationButton extends TranslationButton {
   subscription: SubscriptionType
+}
+
+export interface DigitalAvatarBodySessionData {
+  model_name?: string
+  trigger_word?: string
+  steps?: number
+  calculatedCost?: number
+  zipPath?: string
+  gender?: string
 }

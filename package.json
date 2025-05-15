@@ -12,12 +12,13 @@
     "build:prod": "tsc -p tsconfig.prod.json && bun run build:alias",
     "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && bun run build:alias",
     "predev": "pkill -f 'bun.*src/bot.ts' || true && node scripts/kill-port.cjs 2999 3001 8288",
-    "test": "bun test",
+    "test": "bunx vitest run",
     "test:vitest": "cross-env SUPABASE_URL=TEST_URL SUPABASE_SERVICE_KEY=TEST_KEY pnpm vitest run",
     "lint": "bunx eslint . --ext .ts",
     "format": "bunx prettier --write \"src/**/*.ts\"",
     "typecheck": "bun run build:ts --noEmit",
-    "inngest-dev": "bunx inngest-cli dev"
+    "inngest-dev": "bunx inngest-cli dev",
+    "start:api": "bun run dist/api_server/index.js"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

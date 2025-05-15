@@ -682,7 +682,17 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         telegramId,
         numImages,
       })
+      logger.info({
+        message: `[NeuroPhotoV1] About to call generate with numImages: ${numImages}`,
+        telegramId,
+        numImages,
+      })
       await generate(numImages)
+      logger.info({
+        message: `[NeuroPhotoV1] Finished calling generate for numImages: ${numImages}`,
+        telegramId,
+        numImages,
+      })
     } else {
       logger.info({
         message: '🔄 [NeuroPhoto] Возврат в главное меню (неизвестная команда)',
