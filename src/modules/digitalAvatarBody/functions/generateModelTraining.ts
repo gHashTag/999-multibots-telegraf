@@ -20,6 +20,7 @@ import {
 } from '../helpers/trainingHelpers'
 import { sendModuleTelegramMessage } from '../utils/telegramNotifier'
 import type { DigitalAvatarUserProfile } from '../helpers/userProfileDb' // Added import for local user profile type
+import { getBotByName } from '@/core/bot' // ADDED IMPORT
 
 import {
   updateDigitalAvatarTraining,
@@ -121,10 +122,12 @@ export const createGenerateModelTraining = (inngestInstance: Inngest) => {
           logger
         )
       ) {
+        const botInfo = getBotByName(bot_name) // NEW: Get bot instance
         await sendModuleTelegramMessage(
+          // NEW CALL
           telegram_id.toString(),
           TRAINING_MESSAGES.duplicateRequest[is_ru ? 'ru' : 'en'],
-          bot_name
+          botInfo
         )
         logger.warn('Duplicate training request identified by cache', {
           telegram_id,
@@ -144,12 +147,14 @@ export const createGenerateModelTraining = (inngestInstance: Inngest) => {
           'FAILED',
           logger
         )
+        const botInfoCrit = getBotByName(bot_name) // NEW: Get bot instance
         await sendModuleTelegramMessage(
+          // NEW CALL
           telegram_id.toString(),
           TRAINING_MESSAGES.error('Internal configuration error.')[
             is_ru ? 'ru' : 'en'
           ],
-          bot_name
+          botInfoCrit
         )
         throw new NonRetriableError('trainingDbIdFromEvent is missing.')
       }
@@ -157,10 +162,12 @@ export const createGenerateModelTraining = (inngestInstance: Inngest) => {
 
       try {
         await step.run('send-initial-message', async () => {
+          const botInfoInitial = getBotByName(bot_name) // NEW: Get bot instance
           return sendModuleTelegramMessage(
+            // NEW CALL
             telegram_id.toString(),
             TRAINING_MESSAGES.start[is_ru ? 'ru' : 'en'],
-            bot_name
+            botInfoInitial
           )
         })
 
@@ -195,10 +202,12 @@ export const createGenerateModelTraining = (inngestInstance: Inngest) => {
             'Валидация пользователя или подготовка к тренировке не пройдена.',
             { telegramId: telegram_id }
           )
+          const botInfoValidation = getBotByName(bot_name) // NEW: Get bot instance
           await sendModuleTelegramMessage(
+            // NEW CALL
             telegram_id.toString(),
             TRAINING_MESSAGES.error('Validation failed')[is_ru ? 'ru' : 'en'],
-            bot_name
+            botInfoValidation
           )
           throw new NonRetriableError(
             'User validation or training prep failed.'
@@ -360,13 +369,13 @@ export const createGenerateModelTraining = (inngestInstance: Inngest) => {
           })
         }
 
-        await step.run('send-error-message', async () => {
-          return sendModuleTelegramMessage(
-            telegram_id.toString(),
-            TRAINING_MESSAGES.error(error.message)[is_ru ? 'ru' : 'en'],
-            bot_name
-          )
-        })
+        const botInfoFinalError = getBotByName(bot_name) // NEW: Get bot instance
+        await sendModuleTelegramMessage(
+          // NEW CALL
+          telegram_id.toString(),
+          TRAINING_MESSAGES.error(error.message)[is_ru ? 'ru' : 'en'],
+          botInfoFinalError
+        )
 
         if (error instanceof NonRetriableError) {
           throw error
@@ -456,12 +465,13 @@ export const handleReplicateWebhookDigitalAvatarBody = inngest.createFunction(
         })
         if (userTelegramId && userBotName) {
           // Check again before sending
+          const botInfo = getBotByName(userBotName) // NEW: Get bot instance
           await sendModuleTelegramMessage(
             userTelegramId.toString(),
             TRAINING_MESSAGES.success(trainingRecord.model_name)[
               isRuUser ? 'ru' : 'en'
             ],
-            userBotName
+            botInfo
           )
         }
       } else {

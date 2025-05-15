@@ -1,4 +1,4 @@
-import { inngest } from '@/inngest_app/client'
+import { Inngest } from 'inngest'
 import { logger } from './logger'
 import type { ModelTrainingInngestEventData } from '../types'
 
@@ -8,12 +8,13 @@ interface InngestUserPayload {
 }
 
 export async function publishDigitalAvatarTrainingEvent(
+  inngestClient: Inngest,
   eventName: string,
   data: ModelTrainingInngestEventData,
   user?: InngestUserPayload
 ): Promise<void> {
   try {
-    await inngest.send({
+    await inngestClient.send({
       name: eventName,
       data,
       user,
