@@ -88,21 +88,27 @@ export function calculateCost(
 }
 
 // Функция форматирования стоимости
-export function formatCost(cost: CostDetails, isRu: boolean): string {
+export function formatCost(
+  cost: CostDetails,
+  isRu: boolean,
+  showRubles = true,
+  showDollars = false
+): string {
   if (isRu) {
-    return `${cost.steps} шагов - ${cost.stars.toFixed(
-      0
-    )}⭐ / ${cost.rubles.toFixed(0)}₽`
+    let result = `${cost.steps} шагов - ${cost.stars.toFixed(0)}⭐`
+    if (showRubles) result += ` / ${cost.rubles.toFixed(0)}₽`
+    if (showDollars) result += ` / $${cost.dollars.toFixed(2)}`
+    return result
   }
-  return `${cost.steps} steps - ${cost.stars.toFixed(
-    0
-  )}⭐ / $${cost.dollars.toFixed(2)}`
+  return `${cost.steps} steps - ${cost.stars.toFixed(0)}⭐ / $${cost.dollars.toFixed(2)}`
 }
 
 export function generateCostMessage(
   steps: number[],
   isRu: boolean,
-  version: 'v1' | 'v2' = 'v1'
+  version: 'v1' | 'v2' = 'v1',
+  showRubles = true,
+  showDollars = false
 ): string {
   const baseMessage = isRu
     ? '🔢 Пожалуйста, выберите количество шагов для обучения модели.\n\n📈 Чем больше шагов, тем лучше качество, но это будет стоить дороже. 💰\n\n💰 Стоимость:\n'
@@ -110,7 +116,10 @@ export function generateCostMessage(
 
   const costDetails = steps.map(steps => calculateCost(steps, version))
   return (
-    baseMessage + costDetails.map(detail => formatCost(detail, isRu)).join('\n')
+    baseMessage +
+    costDetails
+      .map(detail => formatCost(detail, isRu, showRubles, showDollars))
+      .join('\n')
   )
 }
 
