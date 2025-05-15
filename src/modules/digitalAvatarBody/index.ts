@@ -3,6 +3,7 @@ import type {
   PaymentType, // Use local PaymentType
   ReplicateTrainingResponse, // Use local ReplicateTrainingResponse
   ModelTrainingInngestEventData, // ADDED: For explicit typing of event data
+  InitiateModelTrainingResult,
 } from './types'
 import { logger } from './utils/logger'
 import { sendModuleTelegramMessage } from './utils/telegramNotifier'
@@ -18,6 +19,9 @@ import {
   updateDigitalAvatarTraining,
 } from './helpers/modelTrainingsDb'
 import { getDigitalAvatarBodyConfig } from './config'
+import { getDigitalAvatarUserProfile } from './helpers/userProfileDb'
+import { uploadFileToPinata } from './utils/fileStorageUtils'
+import { TRAINING_MESSAGES as CONST_TRAINING_MESSAGES } from './constants/messages' // CORRECTED IMPORT PATH
 
 export type { InitiateModelTrainingPayload }
 
@@ -89,7 +93,7 @@ export const initiateDigitalAvatarModelTraining = async (
     model_name: modelName,
     zip_url: publicZipUrl,
     trigger_word: triggerWord,
-    status: 'PENDING',
+    status: 'PENDING_INNGST',
     gender: gender,
     steps_amount: stepsAmount,
     cost_in_stars: costInStars,
