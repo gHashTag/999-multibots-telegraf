@@ -212,7 +212,10 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       console.log('Proceeding to upload scene')
       // Pass necessary data including gender to the next scene if needed
       // ctx.scene.enter('uploadTrainFluxModelScene', { gender: ctx.session.gender }); // Example if state is passed
-      return ctx.scene.enter('uploadTrainFluxModelScene')
+      return ctx.scene.enter('uploadTrainFluxModelScene', {
+        ...((ctx.scene.state as object) || {}),
+        gender: ctx.session.gender,
+      })
     }
 
     if (message && 'photo' in message) {
