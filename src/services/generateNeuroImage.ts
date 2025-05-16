@@ -35,6 +35,7 @@ export async function generateNeuroImage(
     telegram_id,
     botName,
   })
+  await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
   try {
     const url = `${isDev ? LOCAL_SERVER_URL : API_URL}/generate/neuro-photo`
