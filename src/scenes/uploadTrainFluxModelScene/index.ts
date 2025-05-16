@@ -8,6 +8,7 @@ import { deleteFile } from '@/helpers'
 import { sendGenericErrorMessage } from '@/menu'
 import { supabase } from '@/core/supabase'
 import fetch from 'node-fetch'
+import { API_URL, isDev } from '@/config'
 const fs = require('fs')
 const path = require('path')
 
@@ -23,12 +24,11 @@ uploadTrainFluxModelScene.enter(async ctx => {
     const zipPath = await createImagesZip(ctx.session.images)
     console.log('ZIP created at:', zipPath)
 
-    // Формируем URL для ZIP-файла, предполагая, что сервер обслуживает файлы из директории
-    // Используем предоставленный URL сервера
-    const baseServerUrl =
-      'https://999-multibots-telegraf-u14194.vm.elestio.app/files/'
+    // Формируем URL для ZIP-файла, используя API_URL из конфигурации или локальный Nginx URL
     const zipFileName = zipPath.split('/').pop() || `training_${Date.now()}.zip`
-    const zipUrl = `${baseServerUrl}${zipFileName}`
+    const filesBaseUrl = `${API_URL}/files/`
+
+    const zipUrl = `${filesBaseUrl}${zipFileName}`
     console.log('Generated ZIP URL for training:', zipUrl)
 
     // Определяем целевую директорию на сервере, которая соответствует /etc/nginx/html/files/
@@ -86,35 +86,6 @@ uploadTrainFluxModelScene.enter(async ctx => {
     if (!fs.existsSync(targetFilePath)) {
       console.error('ZIP file not found in server directory:', targetFilePath)
       throw new Error('ZIP file was not copied to server directory')
-    }
-
-    // Функция для проверки доступности URL
-    const checkUrlAccessibility = async url => {
-      try {
-        const response = await fetch(url, { method: 'HEAD' })
-        if (response.ok) {
-          console.log('ZIP URL is accessible:', url)
-          return true
-        } else {
-          console.error(
-            'ZIP URL is not accessible:',
-            url,
-            'Status:',
-            response.status
-          )
-          return false
-        }
-      } catch (error) {
-        console.error('Error checking ZIP URL accessibility:', error)
-        return false
-      }
-    }
-
-    // Проверяем доступность серверного URL
-    const isUrlAccessible = await checkUrlAccessibility(zipUrl)
-    if (!isUrlAccessible) {
-      console.error('Server ZIP URL is not accessible:', zipUrl)
-      throw new Error('Failed to access ZIP URL from server')
     }
 
     await ensureSupabaseAuth()
