@@ -119,13 +119,13 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     // Обработка кнопок "Улучшить промпт" и "Изменить размер"
     if (text === '⬆️ Улучшить промпт' || text === '⬆️ Improve prompt') {
       console.log('CASE: Улучшить промпт')
-      await ctx.scene.enter('improvePromptWizard')
+      await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
       return
     }
 
     if (text === '📐 Изменить размер' || text === '📐 Change size') {
       console.log('CASE: Изменить размер')
-      await ctx.scene.enter('sizeWizard')
+      await ctx.scene.enter(ModeEnum.SizeWizard)
       return
     }
 
