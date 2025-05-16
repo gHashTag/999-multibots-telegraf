@@ -7,6 +7,7 @@ if (!process.env.DEEPSEEK_API_KEY) {
 export const openai = new OpenAI({
   baseURL: 'https://api.deepseek.com/v1',
   apiKey: process.env.DEEPSEEK_API_KEY,
+  timeout: 60 * 1000, // 60 seconds in milliseconds
 })
 //
 export * from './getSubtitles'

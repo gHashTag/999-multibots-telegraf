@@ -36,6 +36,27 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
       )
     }
 
+    // Проверяем, был ли mode передан через state
+    if (
+      !ctx.session.mode && // Если в сессии еще нет mode
+      ctx.scene.state &&
+      'mode' in ctx.scene.state &&
+      typeof ctx.scene.state.mode === 'string' // Убедимся, что это строка (или нужный тип)
+    ) {
+      console.log('improvePromptWizard: Получен mode из ctx.scene.state')
+      ctx.session.mode = ctx.scene.state.mode as ModeEnum // Приводим к типу
+    } else if (ctx.session.mode) {
+      console.log('improvePromptWizard: Mode уже есть в ctx.session')
+    } else {
+      console.log(
+        'improvePromptWizard: Mode не найден ни в session, ни в state'
+      )
+      // Можно добавить обработку, если mode не найден и он критичен уже здесь
+      // Например, отправить сообщение пользователю и выйти из сцены
+      // await ctx.reply(isRu ? 'Ошибка: не удалось определить режим работы.' : 'Error: Could not determine operation mode.');
+      // return ctx.scene.leave();
+    }
+
     const prompt = ctx.session.prompt
 
     console.log(prompt, 'prompt')
@@ -132,12 +153,6 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
               isRu
                 ? 'improvePromptWizard: Не удалось определить username'
                 : 'improvePromptWizard: Could not identify username'
-            )
-          if (!isRu)
-            throw new Error(
-              isRu
-                ? 'improvePromptWizard: Не удалось определить isRu'
-                : 'improvePromptWizard: Could not identify isRu'
             )
 
           const { profile, settings } = await getUserProfileAndSettings(
