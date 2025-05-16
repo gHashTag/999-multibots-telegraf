@@ -27,11 +27,6 @@ export const paymentOptionsPlans: PaymentOption[] = [
     stars: '1', // Возвращаем к строке
     isAdminOnly: true, // Flag for admin-only plans
   },
-  {
-    subscription: SubscriptionType.NEUROTESTER,
-    amount: 1,
-    stars: '1',
-  },
 ]
 
 export const paymentOptions: PaymentOption[] = [
