@@ -11,6 +11,7 @@ interface ModelTrainingRequest {
   is_ru: boolean
   steps: number
   botName: string
+  gender: string
 }
 
 interface ModelTrainingResponse {
@@ -50,6 +51,7 @@ export async function createModelTraining(
 
     formData.append('is_ru', requestData.is_ru.toString())
     formData.append('bot_name', requestData.botName)
+    formData.append('gender', requestData.gender)
 
     const response: AxiosResponse<ModelTrainingResponse> = await axios.post(
       url,
