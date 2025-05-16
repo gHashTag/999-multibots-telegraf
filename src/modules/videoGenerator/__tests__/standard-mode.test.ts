@@ -240,7 +240,7 @@ describe('generateImageToVideo Service: Стандартный Режим (Image
       Number(telegram_id),
       expect.stringContaining('Insufficient funds')
     )
-    expect(getUserByTelegramIdSpy).toHaveBeenCalledTimes(1)
+    expect(mockedHelpers.getUserHelper).toHaveBeenCalledTimes(1)
     expect(
       mockedHelpers.processBalanceVideoOperationHelper
     ).toHaveBeenCalledTimes(1)

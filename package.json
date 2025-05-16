@@ -55,7 +55,8 @@
     "tsc-alias": "^1.8.8",
     "tslib": "^2.6.2",
     "uuid": "^9.0.1",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@inngest/test": "^0.1.6",

@@ -15,30 +15,44 @@ import {
   TRAINING_MESSAGES,
 } from '@/modules/digitalAvatarBody/helpers/trainingHelpers'
 import { sendTelegramMessageFromWorker } from '@/utils/telegramHelpers'
-import { logger as actualLogger } from '@/utils/logger'
+import { logger } from '@/utils/logger'
 import type { Telegraf } from 'telegraf'
 import type { User } from '@/interfaces/user.interface'
 import { PaymentType } from '@/interfaces/payments.interface'
 import * as modelTrainingsDb from '@/modules/digitalAvatarBody/helpers/modelTrainingsDb'
 import type { DigitalAvatarUserProfile } from '../../helpers/userProfileDb'
-
-// Тестируемая Inngest-функция
-import {
-  createGenerateModelTraining,
-  // DigitalAvatarBodyDependencies, // REMOVED - not exported or used
-  // FUNCTION_ID_GENERATE_MODEL_TRAINING, // REMOVED - not exported or used
-} from '../generateModelTraining'
-
-// --- Импорт типов для моков и данных ---
-import type { ModelTrainingInngestEventData } from '../../types'
 import type { ModelTraining } from '../../helpers/modelTrainingsDb'
+import type { ModelTrainingInngestEventData } from '../../types'
+import { createGenerateModelTraining } from '../generateModelTraining'
 
 // --- Мокирование зависимостей ---
-vi.mock('@/utils/logger', () => ({
-  logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
+
+// Глобальные supabaseMockObject и supabaseAdminMockObject УДАЛЕНЫ.
+// Каждый vi.mock будет определять свои собственные, полностью независимые моки.
+
+vi.mock('@/core/supabase/client', () => ({
+  supabase: {
+    // Независимый мок для @/core/supabase/client
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    })),
+    rpc: vi.fn().mockResolvedValue({ data: {}, error: null }),
+  },
+  supabaseAdmin: {
+    // Независимый мок для @/core/supabase/client
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    })),
+    rpc: vi.fn().mockResolvedValue({ data: {}, error: null }),
   },
 }))
 
@@ -48,8 +62,40 @@ vi.mock('@/core/supabase', async importOriginal => {
     ...original,
     getUserByTelegramId: vi.fn(),
     updateUserBalance: vi.fn(),
+    updateUserNeuroTokens: vi.fn(),
+    supabase: {
+      // Совершенно независимый мок для @/core/supabase
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        insert: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: {}, error: null }),
+      })),
+      rpc: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    },
+    supabaseAdmin: {
+      // Совершенно независимый мок для @/core/supabase
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        insert: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        delete: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: {}, error: null }),
+      })),
+      rpc: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    },
   }
 })
+
+vi.mock('@/utils/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}))
 
 vi.mock(
   '@/modules/digitalAvatarBody/helpers/trainingHelpers',
@@ -103,7 +149,7 @@ const inngestInstance = new Inngest({
   name: 'Test Inngest Client',
   eventKey: 'test',
 })
-const generateModelTraining = createGenerateModelTraining(inngestInstance)
+const inngestFunctionToTest = createGenerateModelTraining(inngestInstance)
 
 // --- Типы для мокированных функций (для удобства) ---
 type MockedTrainingHelpers = DeepMockProxy<
@@ -112,7 +158,7 @@ type MockedTrainingHelpers = DeepMockProxy<
 
 describe('generateModelTraining Inngest Function', () => {
   let testEngine: InngestTestEngine
-  let mockLogger: ReturnType<typeof vi.mocked<typeof actualLogger>>
+  let mockLogger: ReturnType<typeof vi.mocked<typeof logger>>
   let mockSupabaseHelpers: DeepMockProxy<typeof import('@/core/supabase')>
   let mockHelpers: MockedTrainingHelpers
   let mockReplicateClient: DeepMockProxy<ReplicateClient>
@@ -189,7 +235,7 @@ describe('generateModelTraining Inngest Function', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    testEngine = new InngestTestEngine({ function: generateModelTraining })
+    testEngine = new InngestTestEngine({ function: inngestFunctionToTest })
 
     vi.mocked(getUserByTelegramId).mockResolvedValue(mockUser)
     vi.mocked(validateAndPrepareTrainingRequest).mockResolvedValue(
@@ -202,7 +248,7 @@ describe('generateModelTraining Inngest Function', () => {
       mockModelTraining as any
     )
 
-    mockLogger = vi.mocked(actualLogger)
+    mockLogger = vi.mocked(logger)
     mockSupabaseHelpers = mockDeep<typeof import('@/core/supabase')>()
     vi.mocked(
       require('@/core/supabase')
@@ -232,10 +278,10 @@ describe('generateModelTraining Inngest Function', () => {
   })
 
   it('should be defined and be an Inngest function object', () => {
-    expect(generateModelTraining).toBeDefined()
-    expect(generateModelTraining).toHaveProperty('id')
-    expect(generateModelTraining).toHaveProperty('handler')
-    expect(generateModelTraining).toHaveProperty('triggers')
+    expect(inngestFunctionToTest).toBeDefined()
+    expect(inngestFunctionToTest).toHaveProperty('id')
+    expect(inngestFunctionToTest).toHaveProperty('handler')
+    expect(inngestFunctionToTest).toHaveProperty('triggers')
   })
 
   test('happy path - should process training request successfully', async () => {

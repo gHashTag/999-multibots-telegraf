@@ -3,6 +3,7 @@ import {
   generateNeuroPhotoV2,
   NeuroPhotoServiceDependencies,
 } from '../services/neuroPhotoService'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 describe('NeuroPhoto Service', () => {
   let mockDeps: NeuroPhotoServiceDependencies
@@ -10,15 +11,15 @@ describe('NeuroPhoto Service', () => {
   beforeEach(() => {
     mockDeps = {
       replicate: {
-        generate: jest.fn().mockResolvedValue({ output: 'mocked output' }),
+        generate: vi.fn().mockResolvedValue({ output: 'mocked output' }),
       },
       supabase: {
-        getUser: jest.fn().mockResolvedValue({ id: 'user123', balance: 100 }),
-        deductBalance: jest.fn().mockResolvedValue(true),
+        getUser: vi.fn().mockResolvedValue({ id: 'user123', balance: 100 }),
+        deductBalance: vi.fn().mockResolvedValue(true),
       },
       logger: {
-        log: jest.fn(),
-        error: jest.fn(),
+        log: vi.fn(),
+        error: vi.fn(),
       },
     }
   })

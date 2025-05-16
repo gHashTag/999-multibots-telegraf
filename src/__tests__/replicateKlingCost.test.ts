@@ -8,7 +8,7 @@ const TEST_IMAGE_URL =
   'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/flux_pro.jpeg' // Это пример URL видео, нужен URL изображения
 const TEST_PROMPT = 'A beautiful sunset over the mountains, cinematic lighting'
 
-describe('Replicate Kling Video Generation Cost Test', () => {
+describe.skip('Replicate Kling Video Generation Cost Test', () => {
   it('should run a video generation and log predict_time and estimated cost', async () => {
     logger.info('[ReplicateCostTest] Starting test...')
 

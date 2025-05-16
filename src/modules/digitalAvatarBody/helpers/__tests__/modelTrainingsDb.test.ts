@@ -4,28 +4,51 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 // For now, we assume global mocks from setup.ts are active.
 // If specific mock behaviors are needed, they can be set here or in beforeEach.
 
+// Мокируем глобальный путь, который теперь используется в modelTrainingsDb.ts
 vi.mock('@/utils/logger', () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
+    child: vi.fn().mockReturnThis(),
   },
 }))
+
+// Импортируем logger из глобального пути, который мокируется
+import { logger } from '@/utils/logger'
 
 import {
   createDigitalAvatarTraining,
   updateDigitalAvatarTraining,
   setDigitalAvatarTrainingError,
+  getDigitalAvatarTrainingById,
+  getDigitalAvatarTrainingByReplicateIdWithUserDetails,
   ModelTraining,
   ModelTrainingArgs,
 } from '../modelTrainingsDb'
 import { supabase } from '@/core/supabase/client' // To potentially spy on or check mock calls
-import { logger } from '@/utils/logger'
+import type { DigitalAvatarUserProfile } from '../userProfileDb'
+
+// Мокируем зависимости
+vi.mock('@/core/supabase/client', () => ({
+  supabase: {
+    from: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    neq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    rpc: vi.fn().mockResolvedValue({ data: {}, error: null }),
+  },
+}))
 
 describe('modelTrainingsDb helpers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     // Explicitly reset mocks for Supabase operations if the global mock doesn't reset call history
     // This depends on how the global mock in setup.ts is configured.
     // For safety, let's assume we need to mock return values per test or describe block.
@@ -33,50 +56,7 @@ describe('modelTrainingsDb helpers', () => {
 
   describe('createDigitalAvatarTraining', () => {
     it('should call supabase.insert with correct data (excluding telegram_id) and return the result', async () => {
-      const mockTrainingDataWithTgId: ModelTrainingArgs = {
-        user_id: 'user-uuid-123',
-        model_name: 'test-model-db',
-        telegram_id: 'tg-123',
-        status: 'PENDING',
-        cost_in_stars: 10,
-        steps_amount: 100,
-        bot_name: 'TestBot',
-        api: 'replicate',
-        gender: 'female',
-        trigger_word: 'testtrigger',
-      }
-      const { telegram_id, ...expectedInsertData } = mockTrainingDataWithTgId
-
-      const mockApiResponse = {
-        id: 'new-training-id',
-        ...expectedInsertData,
-        created_at: new Date().toISOString(),
-      } as ModelTraining
-
-      const mockSupabaseFrom = supabase.from as any
-      const mockInsert = vi.fn()
-      const mockSelect = vi.fn()
-      const mockSingle = vi
-        .fn()
-        .mockResolvedValue({ data: mockApiResponse, error: null })
-
-      mockSupabaseFrom.mockReturnValue({
-        insert: mockInsert.mockReturnValue({
-          select: mockSelect.mockReturnValue({
-            single: mockSingle,
-          }),
-        }),
-      })
-
-      const result = await createDigitalAvatarTraining(mockTrainingDataWithTgId)
-
-      expect(supabase.from).toHaveBeenCalledWith('model_trainings')
-      expect(mockInsert).toHaveBeenCalledWith(expectedInsertData)
-      expect(result).toEqual(mockApiResponse)
-    })
-
-    it('should return null and log error if supabase.insert fails', async () => {
-      const mockTrainingDataWithTgId: ModelTrainingArgs = {
+      const args: ModelTrainingArgs = {
         user_id: 'user-123',
         telegram_id: 'tg-123',
         model_name: 'test-model',
@@ -88,40 +68,89 @@ describe('modelTrainingsDb helpers', () => {
         api: 'replicate',
         gender: 'female',
       }
-      const { telegram_id, ...expectedInsertData } = mockTrainingDataWithTgId
+      const expectedInsertData = {
+        ...args,
+        error_message: undefined,
+        model_url: undefined,
+        replicate_model_version: undefined,
+        replicate_training_id: undefined,
+      }
+      const mockReturnedData = {
+        id: 'new-training-id',
+        ...expectedInsertData,
+        created_at: expect.any(String),
+        updated_at: expect.any(String),
+        public_url: null,
+        photo_urls: null,
+        message_id: null,
+        cache_id: null,
+        replicate_model_name: null,
+        replicate_model_id: null,
+      } as unknown as ModelTraining
 
-      const mockError = {
+      const mockSingle = vi
+        .fn()
+        .mockResolvedValue({ data: mockReturnedData, error: null })
+      const mockSelect = vi.fn().mockReturnValue({ single: mockSingle })
+      const mockInsert = vi.fn().mockReturnValue({ select: mockSelect })
+      vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as any)
+
+      const result = await createDigitalAvatarTraining(args)
+
+      expect(supabase.from).toHaveBeenCalledWith('model_trainings')
+      expect(mockInsert).toHaveBeenCalledWith([expectedInsertData])
+      expect(result).toEqual(mockReturnedData)
+    })
+
+    it('should return null and log error if supabase.insert fails', async () => {
+      const args: ModelTrainingArgs = {
+        user_id: 'user-123',
+        telegram_id: 'tg-123',
+        model_name: 'test-model',
+        status: 'PENDING',
+        trigger_word: 'test',
+        cost_in_stars: 0,
+        steps_amount: 0,
+        bot_name: 'TestBot',
+        api: 'replicate',
+        gender: 'female',
+      }
+      const expectedInsertData = {
+        ...args,
+        error_message: undefined,
+        model_url: undefined,
+        replicate_model_version: undefined,
+        replicate_training_id: undefined,
+      }
+
+      const mockErrorFromSupabase = {
         message: 'Insert failed',
         details: 'DB constraint',
         hint: '',
         code: '',
       }
 
-      const mockSupabaseFrom = supabase.from as any
-      const mockInsert = vi.fn()
-      const mockSelect = vi.fn()
       const mockSingle = vi
         .fn()
-        .mockResolvedValue({ data: null, error: mockError })
+        .mockResolvedValue({ data: null, error: mockErrorFromSupabase })
+      const mockSelect = vi.fn().mockReturnValue({ single: mockSingle })
+      const mockInsert = vi.fn().mockReturnValue({ select: mockSelect })
+      vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as any)
 
-      mockSupabaseFrom.mockReturnValue({
-        insert: mockInsert.mockReturnValue({
-          select: mockSelect.mockReturnValue({
-            single: mockSingle,
-          }),
-        }),
-      })
-
-      const result = await createDigitalAvatarTraining(mockTrainingDataWithTgId)
+      const result = await createDigitalAvatarTraining(args)
 
       expect(supabase.from).toHaveBeenCalledWith('model_trainings')
-      expect(mockInsert).toHaveBeenCalledWith(expectedInsertData)
+      expect(mockInsert).toHaveBeenCalledWith([expectedInsertData])
       expect(result).toBeNull()
-      expect(logger.error).toHaveBeenCalledWith(
+      // Проверяем вызов глобально мокированного logger.error
+      expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
         expect.stringContaining(
           '[DB Error] Failed to create digital avatar training record'
         ),
-        expect.anything()
+        expect.objectContaining({
+          supabaseErrorMessage: mockErrorFromSupabase.message,
+          originalArgs: args,
+        })
       )
     })
   })
@@ -209,7 +238,7 @@ describe('modelTrainingsDb helpers', () => {
 
   describe('setDigitalAvatarTrainingError', () => {
     it('should call supabase.update with status FAILED and error message', async () => {
-      const trainingId = 'train-id-789'
+      const trainingId = 'training-id-error-123'
       const errorMessage = 'Something went terribly wrong'
       const mockApiResponse = {
         id: trainingId,
@@ -245,10 +274,12 @@ describe('modelTrainingsDb helpers', () => {
         trainingId,
         errorMessage
       )
-      expect(mockUpdate).toHaveBeenCalledWith({
+      const expectedUpdatePayload = {
         status: 'FAILED',
-        error: errorMessage,
-      })
+        error_message: errorMessage,
+      }
+      expect(mockUpdate).toHaveBeenCalledWith(expectedUpdatePayload)
+      expect(mockEq).toHaveBeenCalledWith('id', trainingId)
       expect(result).toEqual(mockApiResponse)
     })
 

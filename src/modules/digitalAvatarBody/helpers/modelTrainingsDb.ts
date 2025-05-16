@@ -1,5 +1,5 @@
 import { supabase } from '@/core/supabase/client'
-import { logger } from '../utils/logger'
+import { logger } from '@/utils/logger'
 import { TrainingStatus } from '../types'
 import type { DigitalAvatarUserProfile } from '../types'
 
@@ -73,9 +73,9 @@ export const createDigitalAvatarTraining = async (
     .single()
 
   if (error) {
-    logger.error('Supabase error in createDigitalAvatarTraining', {
-      error: error.message,
-      args,
+    logger.error('[DB Error] Failed to create digital avatar training record', {
+      supabaseErrorMessage: error.message,
+      originalArgs: args,
     })
     return null
   }
