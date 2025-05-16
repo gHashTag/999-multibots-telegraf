@@ -119,6 +119,23 @@ uploadTrainFluxModelScene.enter(async ctx => {
 
     await ensureSupabaseAuth()
 
+    // Получаем gender из состояния сцены или сессии
+    const sceneState = ctx.scene.state as { gender?: string }
+    const gender = sceneState?.gender || ctx.session.gender
+
+    if (!gender) {
+      console.error(
+        'Error in uploadTrainFluxModelScene: Gender not found in session or scene state.'
+      )
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: пол не определен. Попробуйте начать заново.'
+          : '❌ Error: Gender not specified. Please try starting over.'
+      )
+      return ctx.scene.leave()
+    }
+    console.log(`[uploadTrainFluxModelScene] Using gender: ${gender}`)
+
     await ctx.reply(isRu ? '⏳ Загружаю архив...' : '⏳ Uploading archive...')
 
     const triggerWord = `${ctx.session.username?.toLocaleUpperCase()}`
@@ -144,6 +161,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
         telegram_id: ctx.session.targetUserId.toString(),
         is_ru: isRu,
         botName: ctx.botInfo?.username,
+        gender: gender,
       },
       ctx
     )
