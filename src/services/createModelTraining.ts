@@ -58,7 +58,6 @@ export async function createModelTraining(
       formData,
       {
         headers: {
-          'Content-Type': 'multipart/form-data',
           'x-secret-key': SECRET_API_KEY,
           ...formData.getHeaders(),
         },

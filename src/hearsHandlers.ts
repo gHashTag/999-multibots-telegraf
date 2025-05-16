@@ -311,7 +311,10 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     ['⬆️ Улучшить промпт', '⬆️ Improve prompt'],
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Улучшить промпт от ${ctx.from?.id}`)
-      await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
+      await ctx.scene.enter(ModeEnum.ImprovePromptWizard, {
+        prompt: ctx.session.prompt,
+        mode: ctx.session.mode,
+      })
     }
   )
 
@@ -407,8 +410,10 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     ['✨ Улучшить промт', '✨ Improve Prompt'],
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Улучшить промт от ${ctx.from?.id}`)
-      ctx.session.mode = ModeEnum.ImprovePrompt
-      await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
+      await ctx.scene.enter(ModeEnum.ImprovePromptWizard, {
+        prompt: ctx.session.prompt,
+        mode: ctx.session.mode,
+      })
     }
   )
 
