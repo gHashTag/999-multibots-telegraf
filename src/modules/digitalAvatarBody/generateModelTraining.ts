@@ -1,11 +1,4 @@
 import { replicate } from '@/core/replicate'
-import {
-  updateUserBalance,
-  updateUserLevelPlusOne,
-  supabase,
-  createModelTraining,
-  getUserByTelegramIdString,
-} from '@/core/supabase'
 import { processBalanceOperation } from '@/price/helpers'
 
 import { Telegraf } from 'telegraf'
@@ -13,6 +6,16 @@ import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { PaymentType } from '@/interfaces/payments.interface'
+import {
+  createDigitalAvatarTrainingInDb,
+  updateDigitalAvatarTrainingInDb,
+  DigitalAvatarModelTrainingInsert,
+} from './modelTrainingsDb'
+import {
+  getDigitalAvatarUser,
+  incrementDigitalAvatarUserLevel,
+  updateDigitalAvatarUserBalance,
+} from './userProfileDb'
 
 export interface ApiError extends Error {
   response?: {
@@ -98,12 +101,12 @@ export async function generateModelTraining(
   bot_name: string,
   gender: string
 ): Promise<ModelTrainingResult> {
-  const userExists = await getUserByTelegramIdString(telegram_id.toString())
+  const userExists = await getDigitalAvatarUser(telegram_id.toString())
   if (!userExists) {
     throw new Error(`User with ID ${telegram_id} does not exist.`)
   }
   const level = userExists.level
-  await updateUserLevelPlusOne(telegram_id.toString(), level)
+  await incrementDigitalAvatarUserLevel(telegram_id.toString(), level)
   let currentTraining: TrainingResponse | null = null
   console.log(`currentTraining: ${currentTraining}`)
 
@@ -190,19 +193,23 @@ export async function generateModelTraining(
       }
     }
 
-    const dbTrainingRecord = await createModelTraining({
+    const trainingInsertData: DigitalAvatarModelTrainingInsert = {
       telegram_id: telegram_id,
       model_name: modelName,
       trigger_word: triggerWord,
       zip_url: zipUrl,
-      steps,
+      steps: steps,
       status: 'starting',
-      gender,
+      gender: gender,
       api: 'replicate',
       bot_name: bot_name,
-    } as any)
+    }
+
+    const dbTrainingRecord =
+      await createDigitalAvatarTrainingInDb(trainingInsertData)
+
     console.log(
-      `Created DB training record ID: ${(dbTrainingRecord as any)?.id ?? 'unknown'}`
+      `Created DB training record ID: ${dbTrainingRecord.id ?? 'unknown'}`
     )
 
     console.log(`ZIP URL for training: ${zipUrl}`)
@@ -236,28 +243,13 @@ export async function generateModelTraining(
     )
     console.log(`Replicate training started. ID: ${currentTraining.id}`)
 
-    await supabase
-      .from('model_trainings')
-      .update({
-        replicate_training_id: currentTraining.id,
-        status: 'processing',
-      })
-      .eq('id', (dbTrainingRecord as any)?.id ?? 'unknown')
+    await updateDigitalAvatarTrainingInDb(dbTrainingRecord.id, {
+      replicate_training_id: currentTraining.id,
+      status: 'processing',
+    })
 
     const newBalance = initialBalance - paymentAmount
-    await updateUserBalance(
-      telegram_id.toString(),
-      newBalance,
-      PaymentType.MONEY_OUTCOME,
-      `Model training start ${modelName} (steps: ${steps})`,
-      {
-        stars: paymentAmount,
-        payment_method: 'Internal',
-        bot_name: bot_name,
-        language: is_ru ? 'ru' : 'en',
-        operation_id: currentTraining.id,
-      }
-    )
+    await updateDigitalAvatarUserBalance(telegram_id.toString(), newBalance)
     console.log(
       `Balance updated after training start. New balance: ${newBalance}`
     )
