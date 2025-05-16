@@ -14,7 +14,7 @@ import { getUserBalance } from '@/core/supabase'
 const MAX_ATTEMPTS = 10
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
-  'improvePromptWizard',
+  ModeEnum.ImprovePromptWizard,
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
     console.log(ctx.session, 'ctx.session')
