@@ -22,10 +22,16 @@ export interface CreateUserData {
 }
 
 export interface ModelTraining {
+  id: string
+  created_at: string
   model_name: string
   trigger_word: string
   model_url: string
-  finetune_id: string
+  finetune_id?: string
+  status?: string
+  api?: string
+  telegram_id?: number
+  steps?: number
 }
 
 export interface UserType {

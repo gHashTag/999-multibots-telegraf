@@ -1,5 +1,8 @@
 import { supabase } from '@/core/supabase'
-import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
+import {
+  createVoiceElevenLabs,
+  ElevenLabsVoiceLimitError,
+} from '@/core/elevenlabs/createVoiceElevenLabs'
 import {
   sendServiceErrorToUser,
   sendServiceErrorToAdmin,
@@ -80,8 +83,15 @@ export async function createVoiceAvatar(
     return { voiceId }
   } catch (error) {
     console.error('Error in createVoiceAvatar:', error)
-    await sendServiceErrorToUser(ctx, telegram_id, error as Error, isRu)
     await sendServiceErrorToAdmin(ctx, telegram_id, error as Error)
-    throw error
+
+    if (error instanceof ElevenLabsVoiceLimitError) {
+      const userMessage = isRu
+        ? `⚠️ К сожалению, мы достигли лимита на создание новых голосовых аватаров. Пожалуйста, попробуйте позже или свяжитесь с поддержкой.`
+        : `⚠️ Unfortunately, we've reached the limit for creating new voice avatars. Please try again later or contact support.`
+      await ctx.telegram.sendMessage(telegram_id, userMessage)
+    } else {
+      throw error
+    }
   }
 }
