@@ -1,10 +1,10 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext } from '../../interfaces'
+import { MyContext, ModeEnum } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
 import { handleSizeSelection } from '../../handlers'
 
 export const sizeWizard = new Scenes.WizardScene<MyContext>(
-  'sizeWizard',
+  ModeEnum.SizeWizard,
   async ctx => {
     const isRu = isRussian(ctx)
     const keyboard = Markup.keyboard([
