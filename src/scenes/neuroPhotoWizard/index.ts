@@ -72,12 +72,12 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
         )
 
         if (isRu) {
-          buttonText += `Модель натренирована ${dateString}`
+          buttonText += `Модель ${dateString}`
           if (model.steps && model.steps > 0) {
             buttonText += `, ${model.steps} шагов`
           }
         } else {
-          buttonText += `Model trained on ${dateString}`
+          buttonText += `Model ${dateString}`
           if (model.steps && model.steps > 0) {
             buttonText += `, ${model.steps} steps`
           }
