@@ -6,6 +6,13 @@ import os from 'os'
 import FormData from 'form-data'
 import logger from '@/utils/logger'
 
+export class ElevenLabsVoiceLimitError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ElevenLabsVoiceLimitError'
+  }
+}
+
 async function downloadVoiceMessage(fileUrl: string, downloadPath: string) {
   logger.info('[downloadVoiceMessage] Starting download', {
     fileUrl,
@@ -114,27 +121,45 @@ export async function createVoiceElevenLabs({
 
     if (response.status === 200 || response.status === 201) {
       const result = response.data as { voice_id: string }
-      console.log('Voice created in ElevenLabs:', result)
+      logger.info('[createVoiceElevenLabs] Voice created successfully.', {
+        username,
+        voiceId: result.voice_id,
+      })
       return result.voice_id
     } else {
-      console.error(
-        `Error adding voice to ElevenLabs: ${response.status} ${response.statusText}`,
-        response.data
+      logger.error(
+        `[createVoiceElevenLabs] Error adding voice, status: ${response.status}`,
+        { username, statusText: response.statusText, data: response.data }
       )
-      return null
+      throw new Error(`ElevenLabs API returned status ${response.status}`)
     }
   } catch (error: any) {
-    if (axios.isAxiosError(error)) {
-      console.error('Axios error creating voice in ElevenLabs:', {
+    if (
+      axios.isAxiosError(error) &&
+      error.response?.data?.detail?.status === 'voice_limit_reached'
+    ) {
+      logger.warn('[createVoiceElevenLabs] ElevenLabs voice limit reached.', {
+        username,
+        data: error.response.data.detail,
+      })
+      throw new ElevenLabsVoiceLimitError(error.response.data.detail.message)
+    } else if (axios.isAxiosError(error)) {
+      logger.error('[createVoiceElevenLabs] Axios error.', {
+        username,
         message: error.message,
         status: error.response?.status,
         data: error.response?.data,
-        // config: error.config, // Можно раскомментировать для детальной отладки, но может быть многословно
       })
+      throw new Error(`ElevenLabs API request failed: ${error.message}`)
     } else {
-      console.error('Generic error creating voice in ElevenLabs:', error)
+      logger.error('[createVoiceElevenLabs] Generic error.', {
+        username,
+        error,
+      })
+      throw new Error(
+        `An unexpected error occurred while creating voice: ${error.message}`
+      )
     }
-    return null
   } finally {
     if (fs.existsSync(downloadPath)) {
       try {
