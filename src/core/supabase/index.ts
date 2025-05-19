@@ -23,9 +23,10 @@ export { getUidInviter } from './getUidInviter'
 export {
   getUserBalance,
   invalidateBalanceCache,
-  getUserBalanceStats,
-  type PaymentDetail,
   type UserBalanceStats,
+  type RubPurchaseDetail,
+  type XtrPurchaseDetail,
+  type ServiceUsageDetail,
 } from './getUserBalance'
 export { updateUserVoice } from './updateUserVoice'
 export { getUserModel } from './getUserModel'
@@ -62,3 +63,7 @@ export {
 export { updateUserModel } from './updateUserModel'
 export { updateUserGender } from './updateUserGender'
 export { getActiveUserModelsByType } from './getActiveUserModelsByType'
+export * from './getUserBalanceStats'
+// export * from './getUserReferralCode'; // Assuming this was intentionally commented
+export * from './getUserDetailsSubscription'
+export { getUserBalanceStats } from './getUserBalanceStats'
