@@ -119,9 +119,68 @@ export const invalidateBalanceCache = (telegram_id: TelegramId): void => {
   }
 }
 
+// Новые определения интерфейсов для детальной статистики
+
+export interface RubPurchaseDetail {
+  payment_date: string // formatted as DD.MM.YYYY or ISO string
+  amount_rub: number
+  payment_system: string
+  transaction_id?: string
+}
+
+export interface XtrPurchaseDetail {
+  purchase_date: string // formatted as DD.MM.YYYY or ISO string
+  xtr_amount: number
+  rub_amount: number
+  payment_system: string
+  transaction_id?: string
+}
+
+export interface ServiceUsageDetail {
+  usage_date: string // formatted as DD.MM.YYYY or ISO string
+  xtr_cost: number
+  service_name: string
+  model_name?: string
+  details?: string
+  transaction_id?: string
+}
+
+export interface UserBalanceStats {
+  user_telegram_id: string
+  user_first_name?: string
+  user_last_name?: string
+  user_username?: string
+
+  balance_rub?: number
+  balance_xtr?: number
+
+  total_rub_deposited?: number
+  total_rub_purchases_count?: number
+  rub_purchase_details?: RubPurchaseDetail[]
+
+  total_rub_spent_for_xtr?: number
+  total_xtr_purchased?: number
+  total_xtr_purchases_count?: number
+  xtr_purchase_details?: XtrPurchaseDetail[]
+
+  total_xtr_spent_on_services?: number
+  total_service_usage_count?: number
+  service_usage_details?: ServiceUsageDetail[]
+
+  first_payment_date?: string // ISO string
+  last_payment_date?: string // ISO string
+}
+
+// Старые интерфейсы PaymentDetail и UserBalanceStats (старая структура) можно будет удалить или закомментировать,
+// если они больше нигде не используются после того, как getUserBalanceStats будет обновлена
+// для возврата новой структуры UserBalanceStats.
+// Пока оставляем их, чтобы не сломать другие части, которые могли их использовать.
+
 /**
+ * @deprecated Используйте новую структуру UserBalanceStats и детализированные интерфейсы.
  * Интерфейс детальной информации о платеже
  */
+/* // Закомментируем старое определение PaymentDetail
 export interface PaymentDetail {
   currency: string
   stars: string
@@ -132,10 +191,13 @@ export interface PaymentDetail {
   payment_method: string
   status: string
 }
+*/
 
 /**
+ * @deprecated Используйте новую структуру UserBalanceStats.
  * Интерфейс для статистики баланса
  */
+/* // Закомментируем старое определение UserBalanceStats
 export interface UserBalanceStats {
   stars: number // Баланс в звездах (переименовано с balance)
   total_added: number
@@ -145,116 +207,6 @@ export interface UserBalanceStats {
   added_rub: number
   services: Record<string, number>
   payment_methods?: Record<string, number>
-  payments?: PaymentDetail[]
+  payments?: PaymentDetail[] // Этот PaymentDetail также должен быть закомментирован или обновлен
 }
-
-/**
- * Получает всю статистику баланса пользователя одним запросом
- * Вызывает SQL-функцию get_user_balance_stats
- */
-export const getUserBalanceStats = async (
-  telegram_id: TelegramId,
-  bot_name?: string
-): Promise<UserBalanceStats> => {
-  try {
-    if (!telegram_id) {
-      logger.warn('⚠️ Запрос статистики баланса без telegram_id:', {
-        description: 'Balance stats request without telegram_id',
-        bot_name,
-      })
-      return {
-        stars: 0,
-        total_added: 0,
-        total_spent: 0,
-        bonus_stars: 0,
-        added_stars: 0,
-        added_rub: 0,
-        services: {},
-        payment_methods: {},
-        payments: [],
-      }
-    }
-
-    // Нормализуем telegram_id в строку
-    const normalizedId = normalizeTelegramId(telegram_id)
-
-    logger.info('🔍 Получение статистики баланса пользователя:', {
-      description: 'Getting user balance statistics',
-      telegram_id: normalizedId,
-      bot_name,
-    })
-
-    // Получаем статистику из функции get_user_balance_stats
-    const { data: stats, error } = await supabase.rpc(
-      'get_user_balance_stats',
-      {
-        user_telegram_id: normalizedId.toString(), // Важно передать в виде строки
-      }
-    )
-
-    if (error) {
-      logger.error('❌ Ошибка получения статистики баланса:', {
-        description: 'Error getting balance statistics',
-        error: error.message,
-        error_details: error,
-        telegram_id: normalizedId,
-      })
-      return {
-        stars: 0,
-        total_added: 0,
-        total_spent: 0,
-        bonus_stars: 0,
-        added_stars: 0,
-        added_rub: 0,
-        services: {},
-        payment_methods: {},
-        payments: [],
-      }
-    }
-
-    const result: UserBalanceStats = {
-      stars: Number(stats.stars) || 0, // получаем из поля stars, не balance
-      total_added: Number(stats.total_added) || 0,
-      total_spent: Number(stats.total_spent) || 0,
-      bonus_stars: Number(stats.bonus_stars) || 0,
-      added_stars: Number(stats.added_stars) || 0,
-      added_rub: Number(stats.added_rub) || 0,
-      services: stats.services || {},
-      payment_methods: stats.payment_methods || {},
-      payments: stats.payments || [],
-    }
-
-    logger.info('✅ Статистика баланса пользователя получена:', {
-      description: 'User balance statistics retrieved',
-      telegram_id: normalizedId,
-      stats: {
-        stars: result.stars,
-        total_added: result.total_added,
-        total_spent: result.total_spent,
-        payment_methods_count: Object.keys(result.payment_methods || {}).length,
-        payments_count: (result.payments || []).length,
-      },
-      bot_name,
-    })
-
-    return result
-  } catch (error) {
-    logger.error('❌ Ошибка в getUserBalanceStats:', {
-      description: 'Error in getUserBalanceStats function',
-      error: error instanceof Error ? error.message : String(error),
-      error_details: error,
-      telegram_id,
-    })
-    return {
-      stars: 0,
-      total_added: 0,
-      total_spent: 0,
-      bonus_stars: 0,
-      added_stars: 0,
-      added_rub: 0,
-      services: {},
-      payment_methods: {},
-      payments: [],
-    }
-  }
-}
+*/

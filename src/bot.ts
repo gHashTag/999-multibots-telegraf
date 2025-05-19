@@ -18,6 +18,9 @@ import {
   handlePreCheckoutQuery,
 } from './handlers/paymentHandlers'
 
+// Импорт новой команды
+import { setupStatsCommand } from './commands/statsCommand'
+
 import { handleTextMessage } from './handlers/handleTextMessage'
 import { message } from 'telegraf/filters'
 
@@ -142,6 +145,8 @@ async function initializeBots() {
     // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
     bot.use(session()) // 1. Сессия (из bot.ts)
     registerCommands({ bot }) // 2. Сцены и команды (включая stage.middleware())
+    // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
+    setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
     // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
     bot.on('successful_payment', handleSuccessfulPayment as any)
@@ -215,6 +220,8 @@ async function initializeBots() {
         // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
         bot.use(session()) // 1. Сессия (из bot.ts)
         registerCommands({ bot }) // 2. Сцены и команды (включая stage.middleware())
+        // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
+        setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
         bot.on('successful_payment', handleSuccessfulPayment as any)
