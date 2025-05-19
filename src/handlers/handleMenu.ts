@@ -24,14 +24,15 @@ export const handleMenu = async (ctx: MyContext) => {
   const isRu = isRussian(ctx)
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text || ''
+    const normalizedText = text.replace(/\s+/g, ' ').trim()
     logger.info({
-      message: `📝 [handleMenu] Получен текст команды: "${text}"`,
+      message: `📝 [handleMenu] Получен текст команды: "${normalizedText}"`,
       telegramId,
       function: 'handleMenu',
-      text,
+      text: normalizedText,
     })
 
-    console.log('CASE: handleMenuCommand.text', text)
+    console.log('CASE: handleMenuCommand.text', normalizedText)
 
     // Создаем объект для сопоставления текста с действиями
     const actions: Record<string, () => Promise<void>> = {
@@ -116,6 +117,25 @@ export const handleMenu = async (ctx: MyContext) => {
           nextScene: ModeEnum.CheckBalanceScene,
         })
         console.log('CASE: 📸 Нейрофото 2')
+        ctx.session.mode = ModeEnum.NeuroPhotoV2
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
+      },
+      // Обработка варианта с двойным пробелом (например, если кнопка содержит лишний пробел)
+      [isRu ? '📸 Нейрофото 2' : '📸 NeuroPhoto 2']: async () => {
+        logger.info({
+          message: '📸 [handleMenu] Переход к нейрофото 2 (двойной пробел)',
+          telegramId,
+          function: 'handleMenu',
+          action: 'neurophoto_v2',
+          nextScene: ModeEnum.CheckBalanceScene,
+        })
+        console.log('CASE: 📸  Нейрофото 2 (двойной пробел)')
         ctx.session.mode = ModeEnum.NeuroPhotoV2
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -512,26 +532,26 @@ export const handleMenu = async (ctx: MyContext) => {
     }
 
     // Выполняем действие, если оно существует
-    if (actions[text]) {
+    if (actions[normalizedText]) {
       logger.info({
-        message: `✅ [handleMenu] Найдено действие для текста: "${text}"`,
+        message: `✅ [handleMenu] Найдено действие для текста: "${normalizedText}"`,
         telegramId,
         function: 'handleMenu',
-        text,
+        text: normalizedText,
         result: 'action_found',
       })
-      console.log('CASE: handleMenuCommand.if', text)
-      await actions[text]()
+      console.log('CASE: handleMenuCommand.if', normalizedText)
+      await actions[normalizedText]()
     } else {
       // Логика для необработанного текста (если нужна)
       logger.warn({
-        message: `⚠️ [handleMenu] Не найдено действие для текста: "${text}"`,
+        message: `⚠️ [handleMenu] Не найдено действие для текста: "${normalizedText}"`,
         telegramId,
         function: 'handleMenu',
-        text,
+        text: normalizedText,
         result: 'action_not_found',
       })
-      console.log('CASE: handleMenuCommand.else', text)
+      console.log('CASE: handleMenuCommand.else', normalizedText)
       // Возможно, здесь не нужно ничего делать или отправить сообщение типа "Неизвестная команда"
     }
   } else {
