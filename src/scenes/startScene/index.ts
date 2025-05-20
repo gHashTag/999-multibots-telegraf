@@ -178,7 +178,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       bot_name: currentBotName,
     })
     // Отправка фото или текста
-    if (url && url.trim() !== '') {
+    if (url && url.trim() !== '' && !url.startsWith('https://t.me/c/')) {
       logger.info({
         message:
           '🖼️ [StartScene] Отправка приветственного изображения с подписью',
