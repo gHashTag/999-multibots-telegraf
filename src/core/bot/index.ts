@@ -70,6 +70,7 @@ export const BOT_URLS: Partial<Record<BotName, string>> = {
   MetaMuse_Manifest_bot: 'https://t.me/MetaMuse_manifestation/16',
   neuro_blogger_bot: 'https://t.me/neuro_coder_ai/1212',
   ai_koshey_bot: 'https://t.me/neuro_coder_ai/1212',
+  Kaya_easy_art_bot: 'https://t.me/c/2561144891/13',
 }
 
 export const BOT_TOKENS =
@@ -86,7 +87,7 @@ logger.info('🤖 Инициализация defaultBot:', {
 })
 
 // Вместо массива:
-export const bots: Record<BotName, Telegraf<MyContext>> = {} as any;
+export const bots: Record<BotName, Telegraf<MyContext>> = {} as any
 
 Object.entries(BOT_NAMES)
   .filter(([, token]) => token)
@@ -97,8 +98,9 @@ Object.entries(BOT_NAMES)
     return BOT_TOKENS_PROD.includes(token)
   })
   .forEach(([name, token]) => {
-    bots[name as BotName] = name === DEFAULT_BOT_NAME ? defaultBot : new Telegraf<MyContext>(token);
-  });
+    bots[name as BotName] =
+      name === DEFAULT_BOT_NAME ? defaultBot : new Telegraf<MyContext>(token)
+  })
 
 logger.info('🌟 Инициализировано ботов:', {
   description: 'Bots initialized',
