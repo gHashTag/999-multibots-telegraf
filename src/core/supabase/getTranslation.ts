@@ -20,13 +20,13 @@ const DEFAULT_BUTTONS_RU: TranslationButton[] = [
   },
   {
     row: 2,
-    text: '📚 НейроБаза',
+    text: '📚 НейроВидео',
     stars_price: 1303,
     en_price: 35,
     ru_price: 2999,
-    description: 'Опис тарифу НейроБаза...',
-    subscription: SubscriptionType.NEUROBASE,
-    callback_data: 'neurobase',
+    description: 'Опис тарифу НейроВидео...',
+    subscription: SubscriptionType.NEUROVIDEO,
+    callback_data: 'neurovideo',
   },
 ]
 const DEFAULT_BUTTONS_EN: TranslationButton[] = [
@@ -42,13 +42,13 @@ const DEFAULT_BUTTONS_EN: TranslationButton[] = [
   },
   {
     row: 2,
-    text: '📚 NeuroBase',
+    text: '📚 NeuroVideo',
     en_price: 35,
     ru_price: 2999,
-    description: 'Description of the NeuroBase tariff...',
+    description: 'Description of the NeuroVideo tariff...',
     stars_price: 1303,
-    callback_data: 'neurobase',
-    subscription: SubscriptionType.NEUROBASE,
+    callback_data: 'neurovideo',
+    subscription: SubscriptionType.NEUROVIDEO,
   },
 ]
 
