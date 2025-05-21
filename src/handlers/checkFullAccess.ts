@@ -1,7 +1,7 @@
 export const checkFullAccess = (subscription: string): boolean => {
   const fullAccessSubscriptions = [
     'neurophoto',
-    'neurobase',
+    'neurovideo',
     'neuromeeting',
     'neuroblogger',
     'neurotester',
