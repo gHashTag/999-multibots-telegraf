@@ -10,6 +10,7 @@ import { TranslationButton } from '@/interfaces/supabase.interface'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
+import { escapeMarkdownV2 } from '@/helpers/escapeMarkdown'
 
 // Проверка валидности типа подписки
 export function isValidPaymentSubscription(value: string): boolean {
@@ -150,9 +151,19 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       )
     } else {
       const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
-      await ctx.reply(translation, {
+
+      // Сначала экранируем весь текст для MarkdownV2
+      let textForTelegram = escapeMarkdownV2(translation)
+      // Затем заменяем экранированные двойные звездочки на одинарные для MarkdownV2 bold
+      // Это превратит \*\*текст\*\* в *текст*
+      textForTelegram = textForTelegram.replace(
+        /\\\*\\\*(.*?)\\\*\\\*/g,
+        '*$1*'
+      )
+
+      await ctx.reply(textForTelegram, {
         reply_markup: inlineKeyboard.reply_markup,
-        parse_mode: 'Markdown',
+        parse_mode: 'MarkdownV2',
       })
     }
 
