@@ -152,7 +152,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
       await ctx.reply(translation, {
         reply_markup: inlineKeyboard.reply_markup,
-        parse_mode: 'Markdown',
+        parse_mode: 'MarkdownV2',
       })
     }
 
