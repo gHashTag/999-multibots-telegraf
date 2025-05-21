@@ -20,7 +20,7 @@ export interface PaymentOption {
 // У нас два тарифных плана, не менять!!!
 export const paymentOptionsPlans: PaymentOption[] = [
   { amount: 1110, stars: '476', subscription: SubscriptionType.NEUROPHOTO },
-  { amount: 2999, stars: '1303', subscription: SubscriptionType.NEUROBASE },
+  { amount: 2999, stars: '1303', subscription: SubscriptionType.NEUROVIDEO },
   {
     subscription: SubscriptionType.NEUROTESTER,
     amount: 1, // Price in rubles/currency
