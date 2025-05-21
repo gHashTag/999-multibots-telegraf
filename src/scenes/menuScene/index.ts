@@ -50,7 +50,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     // --- Determine translation key based ONLY on Subscription Type ---
     if (
-      newSubscription === SubscriptionType.NEUROBASE ||
+      newSubscription === SubscriptionType.NEUROVIDEO ||
       newSubscription === SubscriptionType.NEUROTESTER ||
       newSubscription === SubscriptionType.NEUROPHOTO
     ) {
@@ -59,10 +59,10 @@ const menuCommandStep = async (ctx: MyContext) => {
         `[menuCommandStep] Subscription: ${newSubscription}. Using translation key: '${translationKey}'`
       )
     } else {
-      // Includes NEUROPHOTO and users without active subscription
+      // For NEUROBLOGGER, STARS, or any other case (including null/undefined newSubscription)
       translationKey = 'digitalAvatar' // Use 'digitalAvatar' for limited access / prompt to subscribe
       logger.info(
-        `[menuCommandStep] Subscription: ${newSubscription} or None. Using translation key: '${translationKey}'`
+        `[menuCommandStep] Subscription: ${newSubscription || 'None'}. Using translation key: '${translationKey}'`
       )
     }
 

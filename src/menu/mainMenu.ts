@@ -130,7 +130,7 @@ export async function mainMenu({
   const subscriptionLevelsMap: Record<SubscriptionType, Level[]> = {
     [SubscriptionType.STARS]: [],
     [SubscriptionType.NEUROPHOTO]: [levels[1], levels[2], levels[3]],
-    [SubscriptionType.NEUROBASE]: Object.values(levels), // Все
+    [SubscriptionType.NEUROVIDEO]: Object.values(levels), // Все
     [SubscriptionType.NEUROBLOGGER]: Object.values(levels), // Все
     [SubscriptionType.NEUROTESTER]: Object.values(levels), // Все
   }
@@ -148,7 +148,7 @@ export async function mainMenu({
 
   if (
     currentSubscription === SubscriptionType.NEUROTESTER ||
-    currentSubscription === SubscriptionType.NEUROBASE ||
+    currentSubscription === SubscriptionType.NEUROVIDEO ||
     currentSubscription === SubscriptionType.NEUROBLOGGER
   ) {
     hasFullAccess = true

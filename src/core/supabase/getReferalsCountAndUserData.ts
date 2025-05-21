@@ -44,20 +44,30 @@ export const getReferalsCountAndUserData = async (
     try {
       // Вызываем функцию для получения сырых данных
       const rawSubscriptionInfo = await getUserDetailsSubscription(telegram_id)
-      // Преобразуем строковый тип в Enum
-      let mappedType: SubscriptionType = SubscriptionType.STARS // По умолчанию STARS
-      if (
-        rawSubscriptionInfo.subscriptionType === SubscriptionType.NEUROPHOTO
-      ) {
-        mappedType = SubscriptionType.NEUROPHOTO
-      } else if (
-        rawSubscriptionInfo.subscriptionType === SubscriptionType.NEUROBASE
-      ) {
-        mappedType = SubscriptionType.NEUROBASE
-      } // Добавить другие типы при необходимости
+      // Определение типа подписки пользователя на основе имени подписки в metadata
+      // const metadata = await supabase
+      // .from('metadata')
+      // .select('*')
+      // .eq('user_id', userData.user_id)
+      // .single()
+
+      // let mappedType = null
+      // if (
+      // rawSubscriptionInfo.subscriptionType === SubscriptionType.NEUROPHOTO
+      // ) {
+      // mappedType = SubscriptionType.NEUROPHOTO
+      // } else if (
+      // rawSubscriptionInfo.subscriptionType === SubscriptionType.NEUROVIDEO
+      // ) {
+      // mappedType = SubscriptionType.NEUROVIDEO
+      // } else if (
+      // rawSubscriptionInfo.subscriptionType === SubscriptionType.NEUROTESTER
+      // ) {
+      // mappedType = SubscriptionType.NEUROTESTER
+      // }
 
       subscriptionInfo = {
-        type: mappedType,
+        type: rawSubscriptionInfo.subscriptionType,
         isActive: rawSubscriptionInfo.isSubscriptionActive,
       }
     } catch (subError) {
