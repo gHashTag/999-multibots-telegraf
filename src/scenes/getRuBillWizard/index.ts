@@ -39,7 +39,7 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
     if (subscription === SubscriptionType.NEUROPHOTO.toLowerCase()) {
       amount = 1110 // Правильная сумма для НейроФото
       stars = 476
-    } else if (subscription === SubscriptionType.NEUROBASE.toLowerCase()) {
+    } else if (subscription === SubscriptionType.NEUROVIDEO.toLowerCase()) {
       amount = 2999 // Правильная сумма для НейроБаза
       stars = 1303
     } else {
@@ -82,9 +82,9 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
       ) {
         subTypeEnum = SubscriptionType.NEUROPHOTO
       } else if (
-        subscription.toLowerCase() === SubscriptionType.NEUROBASE.toLowerCase()
+        subscription.toLowerCase() === SubscriptionType.NEUROVIDEO.toLowerCase()
       ) {
-        subTypeEnum = SubscriptionType.NEUROBASE
+        subTypeEnum = SubscriptionType.NEUROVIDEO
       } else if (
         subscription.toLowerCase() ===
         SubscriptionType.NEUROBLOGGER.toLowerCase()
