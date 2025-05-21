@@ -14,14 +14,6 @@ export function simulateSubscriptionForDev(
   originalSubscription: SubscriptionType | null,
   isDev: boolean
 ): SubscriptionType | null {
-  // --- !!! НАСТРОЙКА СИМУЛЯЦИИ (ТОЛЬКО ДЛЯ РАЗРАБОТКИ) !!! ---
-  // Измените значение `simulatedSubscriptionType` на нужный тип SubscriptionType
-  // для тестирования различных уровней доступа и сценариев меню.
-  // Доступные типы: NEUROBASE, NEURO_PRO, NEUROTESTER, NEUROPHOTO, STARS, или null (нет подписки).
-  const simulatedSubscriptionType: SubscriptionType | null =
-    SubscriptionType.STARS
-  // ---------------------------------------------------------
-
   // Временно всегда возвращаем оригинальную подписку для тестирования
   if (isDev) {
     // Добавляем эту проверку, чтобы было понятно, что это изменение для dev режима
@@ -42,20 +34,17 @@ export function simulateSubscriptionForDev(
   }
 
   // --- !!! РЕЖИМ РАЗРАБОТКИ: СИМУЛЯЦИЯ ПОДПИСКИ !!! ---
-  // ЗАМЕНИТЕ ЗНАЧЕНИЕ НИЖЕ НА НУЖНЫЙ ТИП SubscriptionType ДЛЯ ТЕСТИРОВАНИЯ
-  // const simulatedSubscriptionType: SubscriptionType | null = SubscriptionType.NEUROBASE;
-  // Например:
-  // const simulatedSubscriptionType: SubscriptionType | null = SubscriptionType.NEURO_PRO;
-  // const simulatedSubscriptionType: SubscriptionType | null = null; // Для симуляции отсутствия подписки
-  // -----------------------------------------------------
-
-  if (simulatedSubscriptionType !== originalSubscription) {
+  // ЕСЛИ ПОНАДОБИТСЯ АКТИВНАЯ СИМУЛЯЦИЯ, РАСКОММЕНТИРУЙТЕ И НАСТРОЙТЕ БЛОК НИЖЕ
+  // А ТАКЖЕ ЗАКОММЕНТИРУЙТЕ БЛОК if(isDev) ВЫШЕ (строки 23-32)
+  const simulatedSubscriptionTypeToUse: SubscriptionType | null =
+    SubscriptionType.NEUROVIDEO
+  if (simulatedSubscriptionTypeToUse !== originalSubscription) {
     logger.warn('[DEV SIMULATION] Subscription type is being simulated!', {
       original: originalSubscription,
-      simulated: simulatedSubscriptionType,
+      simulated: simulatedSubscriptionTypeToUse,
       function: 'simulateSubscriptionForDev',
     })
-    return simulatedSubscriptionType
+    return simulatedSubscriptionTypeToUse
   } else {
     logger.info(
       '[DEV SIMULATION] Simulation requested, but simulated type matches original. Using original.',

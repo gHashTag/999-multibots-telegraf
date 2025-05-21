@@ -1,14 +1,12 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { PaymentStatus, Currency } from '@/interfaces/payments.interface'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { logger } from '@/utils/logger'
-import { determineSubscriptionType } from '@/price/constants/index'
+import { getSubscriptionTypeByAmount } from '@/price/constants/index'
 import { ADMIN_IDS_ARRAY } from '@/config'
 
 import { supabase } from '@/core/supabase'
 import { getUserByTelegramIdString } from '@/core/supabase'
 import { normalizeTransactionType } from '@/utils/service.utils'
-import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 
 interface CreateSuccessfulPaymentParams {
   telegram_id: TelegramId
@@ -116,8 +114,10 @@ export async function createSuccessfulPayment({
 
     // Определяем subscription_type с помощью импортированной функции
     const calculatedSubscriptionType =
-      status === PaymentStatus.COMPLETED && normalizedType === 'money_income'
-        ? determineSubscriptionType(numericAmount, currency)
+      status === PaymentStatus.COMPLETED &&
+      normalizedType === 'money_income' &&
+      currency === Currency.RUB
+        ? getSubscriptionTypeByAmount(numericAmount)
         : null
 
     // Данные для вставки
