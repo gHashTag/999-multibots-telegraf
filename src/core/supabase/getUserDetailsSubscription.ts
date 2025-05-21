@@ -161,13 +161,19 @@ export const getUserDetailsSubscription = async (
         let foundSubType: SubscriptionType | null = null
         const upperCaseSubType = rawSubscriptionType.toUpperCase()
 
-        if (upperCaseSubType === SubscriptionType.NEUROPHOTO) {
+        if (upperCaseSubType === SubscriptionType.NEUROPHOTO.toString()) {
           foundSubType = SubscriptionType.NEUROPHOTO
-        } else if (upperCaseSubType === SubscriptionType.NEUROBASE) {
-          foundSubType = SubscriptionType.NEUROBASE
-        } else if (upperCaseSubType === SubscriptionType.NEUROTESTER) {
+        } else if (
+          upperCaseSubType === SubscriptionType.NEUROVIDEO.toString()
+        ) {
+          foundSubType = SubscriptionType.NEUROVIDEO
+        } else if (
+          upperCaseSubType === SubscriptionType.NEUROTESTER.toString()
+        ) {
           foundSubType = SubscriptionType.NEUROTESTER
-        } else if (upperCaseSubType === SubscriptionType.NEUROBLOGGER) {
+        } else if (
+          upperCaseSubType === SubscriptionType.NEUROBLOGGER.toString()
+        ) {
           // Добавим на всякий случай
           foundSubType = SubscriptionType.NEUROBLOGGER
         }
