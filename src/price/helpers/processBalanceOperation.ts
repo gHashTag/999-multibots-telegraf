@@ -66,7 +66,8 @@ export const processBalanceOperation = async ({
         service_type: ctx?.session?.mode || 'unknown_mode',
         modePrice: paymentAmount,
         currentBalance: currentBalance,
-      }
+      },
+      paymentAmount
     )
 
     if (!updateSuccess) {
