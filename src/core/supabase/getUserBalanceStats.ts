@@ -11,6 +11,28 @@ import {
   ServiceUsageDetail,
 } from './getUserBalance'
 
+// Добавляем определение интерфейса здесь
+interface GetUserBalanceStatsParams {
+  p_user_telegram_id: string
+  p_bot_name?: string // Сделаем bot_name опциональным, как в SQL
+}
+
+// Новый интерфейс для статистики по боту с учетом себестоимости
+export interface BotStatistics {
+  bot_name: string
+  neurovideo_income: number
+  stars_topup_income: number
+  total_income: number
+  total_outcome: number
+  total_cost: number // Себестоимость в звездах
+  net_profit: number // Чистая прибыль (доход - расход - себестоимость)
+}
+
+// Новый интерфейс для результата SQL-функции
+export interface UserBalanceStatsResult {
+  stats: BotStatistics[]
+}
+
 /**
  * Получает всю статистику баланса пользователя одним запросом для конкретного бота.
  * Вызывает SQL-функцию get_user_balance_stats, которая должна быть обновлена для возврата детализированной структуры.
@@ -18,7 +40,7 @@ import {
 export const getUserBalanceStats = async (
   userTelegramId: string,
   botName?: string
-): Promise<UserBalanceStats | null> => {
+): Promise<UserBalanceStatsResult | null> => {
   if (!userTelegramId) {
     logger.warn(
       '[getUserBalanceStats] Attempted to fetch stats without userTelegramId'
@@ -26,21 +48,15 @@ export const getUserBalanceStats = async (
     return null
   }
 
-  const params: GetUserBalanceStatsParams = {
-    p_user_telegram_id: userTelegramId,
-  }
-  if (botName) {
-    params.p_bot_name = botName
-  }
-
-  logger.info('[getUserBalanceStats] Fetching stats with params:', params) // Лог параметров вызова
-
   try {
-    const { data, error } = await supabase.rpc('get_user_balance_stats', params)
+    // Функция get_user_balance_stats теперь принимает только один параметр - user_telegram_id
+    const { data, error } = await supabase.rpc('get_user_balance_stats', {
+      user_telegram_id: userTelegramId,
+    })
 
     logger.info('[getUserBalanceStats] Raw data from SQL function:', {
       data_received: data,
-    }) // <--- ДОБАВЛЕН ЭТОТ ЛОГ
+    })
 
     if (error) {
       logger.error(
@@ -55,7 +71,7 @@ export const getUserBalanceStats = async (
       return null
     }
 
-    if (!data) {
+    if (!data || !data.stats) {
       logger.warn(
         '[getUserBalanceStats] SQL get_user_balance_stats не вернула данные.',
         { userTelegramId, botName }
@@ -63,94 +79,36 @@ export const getUserBalanceStats = async (
       return null
     }
 
-    const resultFromSql = data as any // Получаем данные как any для безопасного маппинга
-
-    // Обновляем validatedResult в соответствии с новым интерфейсом UserBalanceStats
-    // и предполагаемой структурой ответа от SQL
-    const validatedResult: UserBalanceStats = {
-      user_telegram_id: String(
-        resultFromSql.user_telegram_id || userTelegramId
-      ),
-      user_first_name: resultFromSql.user_first_name
-        ? String(resultFromSql.user_first_name)
-        : undefined,
-      user_last_name: resultFromSql.user_last_name
-        ? String(resultFromSql.user_last_name)
-        : undefined,
-      user_username: resultFromSql.user_username
-        ? String(resultFromSql.user_username)
-        : undefined,
-
-      balance_rub: Number(resultFromSql.balance_rub) || 0,
-      balance_xtr: Number(resultFromSql.balance_xtr) || 0,
-
-      total_rub_deposited: Number(resultFromSql.total_rub_deposited) || 0,
-      total_rub_purchases_count:
-        Number(resultFromSql.total_rub_purchases_count) || 0,
-      rub_purchase_details: Array.isArray(resultFromSql.rub_purchase_details)
-        ? resultFromSql.rub_purchase_details.map(
-            (p: any): RubPurchaseDetail => ({
-              payment_date: formatDateSafe(p.payment_date),
-              amount_rub: Number(p.amount_rub) || 0,
-              payment_system: String(p.payment_system || 'N/A'),
-              transaction_id: p.transaction_id
-                ? String(p.transaction_id)
-                : undefined,
+    // Преобразуем статистику из SQL в типизированный формат
+    const validatedResult: UserBalanceStatsResult = {
+      stats: Array.isArray(data.stats)
+        ? data.stats.map(
+            (stat: any): BotStatistics => ({
+              bot_name: String(stat.bot_name || 'unknown'),
+              neurovideo_income: Number(stat.neurovideo_income || 0),
+              stars_topup_income: Number(stat.stars_topup_income || 0),
+              total_income: Number(stat.total_income || 0),
+              total_outcome: Number(stat.total_outcome || 0),
+              total_cost: Number(stat.total_cost || 0),
+              net_profit: Number(stat.net_profit || 0),
             })
           )
         : [],
+    }
 
-      total_rub_spent_for_xtr:
-        Number(resultFromSql.total_rub_spent_for_xtr) || 0,
-      total_xtr_purchased: Number(resultFromSql.total_xtr_purchased) || 0,
-      total_xtr_purchases_count:
-        Number(resultFromSql.total_xtr_purchases_count) || 0,
-      xtr_purchase_details: Array.isArray(resultFromSql.xtr_purchase_details)
-        ? resultFromSql.xtr_purchase_details.map(
-            (p: any): XtrPurchaseDetail => ({
-              purchase_date: formatDateSafe(p.purchase_date),
-              xtr_amount: Number(p.xtr_amount) || 0,
-              rub_amount: Number(p.rub_amount) || 0,
-              payment_system: String(p.payment_system || 'N/A'),
-              transaction_id: p.transaction_id
-                ? String(p.transaction_id)
-                : undefined,
-            })
-          )
-        : [],
-
-      total_xtr_spent_on_services:
-        Number(resultFromSql.total_xtr_spent_on_services) || 0,
-      total_service_usage_count:
-        Number(resultFromSql.total_service_usage_count) || 0,
-      service_usage_details: Array.isArray(resultFromSql.service_usage_details)
-        ? resultFromSql.service_usage_details.map(
-            (s: any): ServiceUsageDetail => ({
-              usage_date: formatDateSafe(s.usage_date),
-              xtr_cost: Number(s.xtr_cost) || 0,
-              service_name: String(s.service_name || 'Unknown Service'),
-              model_name: s.model_name ? String(s.model_name) : undefined,
-              details: s.details ? String(s.details) : undefined,
-              transaction_id: s.transaction_id
-                ? String(s.transaction_id)
-                : undefined,
-            })
-          )
-        : [],
-
-      first_payment_date: resultFromSql.first_payment_date
-        ? formatDateSafe(resultFromSql.first_payment_date)
-        : undefined,
-      last_payment_date: resultFromSql.last_payment_date
-        ? formatDateSafe(resultFromSql.last_payment_date)
-        : undefined,
+    // Если указан конкретный бот, фильтруем результаты только для него
+    if (botName) {
+      validatedResult.stats = validatedResult.stats.filter(
+        stat => stat.bot_name === botName
+      )
     }
 
     logger.info('[getUserBalanceStats] Статистика баланса успешно получена:', {
       userTelegramId,
       botName,
-      // result: validatedResult // Можно залогировать, если нужно для отладки, но может быть много данных
+      stats_count: validatedResult.stats.length,
     })
+
     return validatedResult
   } catch (e) {
     logger.error('[getUserBalanceStats] Непредвиденная ошибка:', {

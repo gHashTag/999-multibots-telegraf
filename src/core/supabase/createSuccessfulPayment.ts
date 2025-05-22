@@ -7,6 +7,13 @@ import { ADMIN_IDS_ARRAY } from '@/config'
 import { supabase } from '@/core/supabase'
 import { getUserByTelegramIdString } from '@/core/supabase'
 import { normalizeTransactionType } from '@/utils/service.utils'
+import {
+  CreatePaymentV2Schema,
+  type PaymentV2,
+  type CreatePaymentV2,
+  PaymentV2Schema as ZodPaymentV2Schema,
+} from '@/interfaces/zod/payment.zod'
+import { z } from 'zod'
 
 interface CreateSuccessfulPaymentParams {
   telegram_id: TelegramId
@@ -43,15 +50,24 @@ export async function createSuccessfulPayment({
   inv_id,
   currency = Currency.XTR,
   invoice_url,
-}: CreateSuccessfulPaymentParams) {
+}: CreateSuccessfulPaymentParams): Promise<PaymentV2 | null> {
   try {
     // Если передан inv_id, проверяем, не существует ли уже платеж с таким ID
     if (inv_id) {
-      const { data: existingPayment } = await supabase
-        .from('payments_v2')
-        .select('id, inv_id')
-        .eq('inv_id', inv_id)
-        .maybeSingle()
+      const { data: existingPayment, error: existingPaymentError } =
+        await supabase
+          .from('payments_v2')
+          .select('id, inv_id')
+          .eq('inv_id', inv_id)
+          .maybeSingle()
+
+      if (existingPaymentError) {
+        logger.error(
+          '❌ Ошибка при проверке существующего платежа по inv_id:',
+          { inv_id, error: existingPaymentError }
+        )
+        return null
+      }
 
       if (existingPayment) {
         logger.info('🔄 [ДУБЛИКАТ]: Обнаружен платеж с тем же inv_id:', {
@@ -61,24 +77,50 @@ export async function createSuccessfulPayment({
           existing_payment_id: existingPayment.id,
         })
 
-        // Возвращаем найденный платеж, чтобы избежать дублирования
-        const { data: paymentData } = await supabase
+        const { data: paymentData, error: paymentError } = await supabase
           .from('payments_v2')
           .select('*')
           .eq('id', existingPayment.id)
           .single()
 
-        logger.info(
-          '✅ Возвращаем существующий платеж вместо создания дубликата:',
-          {
-            description:
-              'Returning existing payment instead of creating duplicate',
-            payment_id: existingPayment.id,
-            inv_id,
-          }
-        )
+        if (paymentError) {
+          logger.error(
+            '❌ Ошибка при получении деталей существующего платежа:',
+            { id: existingPayment.id, error: paymentError }
+          )
+          return null
+        }
+        if (!paymentData) {
+          logger.warn(
+            '⚠️ Существующий платеж не найден по ID после проверки inv_id',
+            { id: existingPayment.id }
+          )
+          return null
+        }
 
-        return paymentData
+        try {
+          const validatedExistingPayment = ZodPaymentV2Schema.parse(paymentData)
+          logger.info(
+            '✅ Возвращаем существующий валидированный платеж вместо создания дубликата:',
+            {
+              description:
+                'Returning existing validated payment instead of creating duplicate',
+              payment_id: validatedExistingPayment.inv_id,
+            }
+          )
+          return validatedExistingPayment as PaymentV2
+        } catch (validationError) {
+          logger.error('❌ Ошибка Zod-валидации существующего платежа:', {
+            description: 'Zod validation failed for existing payment data',
+            errors:
+              validationError instanceof z.ZodError
+                ? validationError.errors
+                : validationError,
+            payment_id: existingPayment.id,
+            rawData: paymentData,
+          })
+          return null
+        }
       }
     }
 
@@ -121,7 +163,7 @@ export async function createSuccessfulPayment({
         : null
 
     // Данные для вставки
-    const insertData = {
+    const rawInsertData = {
       telegram_id: telegramIdStr,
       amount: numericAmount,
       stars: numericStars,
@@ -138,12 +180,34 @@ export async function createSuccessfulPayment({
       subscription_type: calculatedSubscriptionType,
     }
 
-    logger.info('➡️ Попытка вставки платежа:', { insertData })
+    // ---> НАЧАЛО ZOD ВАЛИДАЦИИ <---
+    let insertDataValidated: CreatePaymentV2
+    try {
+      insertDataValidated = CreatePaymentV2Schema.parse(rawInsertData)
+      logger.info('✅ Zod-валидация данных для вставки прошла успешно:', {
+        validatedData: insertDataValidated,
+      })
+    } catch (validationError) {
+      logger.error('❌ Ошибка Zod-валидации данных для вставки:', {
+        description: 'Zod validation failed for payment insert data',
+        errors:
+          validationError instanceof z.ZodError
+            ? validationError.errors
+            : validationError,
+        rawData: rawInsertData,
+      })
+      throw validationError
+    }
+    // ---> КОНЕЦ ZOD ВАЛИДАЦИИ <---
+
+    logger.info('➡️ Попытка вставки платежа:', {
+      insertData: insertDataValidated,
+    })
 
     // Вставка в базу
     const { data, error } = await supabase
       .from('payments_v2')
-      .insert(insertData)
+      .insert(insertDataValidated)
       .select()
       .single()
 
@@ -193,11 +257,28 @@ export async function createSuccessfulPayment({
       payment_id: data.id,
       telegram_id,
       amount,
-      type: normalizedType,
+      type: data.type,
       bot_name,
     })
 
-    return data
+    try {
+      const validatedData = ZodPaymentV2Schema.parse(data)
+      return validatedData
+    } catch (validationError) {
+      logger.error(
+        '❌ Ошибка Zod-валидации данных, полученных от БД после вставки:',
+        {
+          description:
+            'Zod validation failed for data returned from DB after insert',
+          errors:
+            validationError instanceof z.ZodError
+              ? validationError.errors
+              : validationError,
+          rawData: data,
+        }
+      )
+      return null
+    }
   } catch (error) {
     // Для дублирования inv_id
     if (

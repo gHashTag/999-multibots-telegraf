@@ -1,7 +1,11 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import { getUserBalanceStats } from '@/core/supabase/getUserBalanceStats'
+import {
+  getUserBalanceStats,
+  BotStatistics,
+  UserBalanceStatsResult,
+} from '@/core/supabase/getUserBalanceStats'
 import {
   UserBalanceStats,
   RubPurchaseDetail,
@@ -9,6 +13,7 @@ import {
   ServiceUsageDetail,
 } from '@/core/supabase/getUserBalance'
 import { ADMIN_IDS_ARRAY } from '@/config'
+import { getOwnedBots } from '@/core/supabase/getOwnedBots'
 
 // Заменяем существующую formatDate на более надежную formatDateSafe
 const formatDateSafe = (dateString: any): string => {
@@ -33,7 +38,7 @@ const formatDateSafe = (dateString: any): string => {
 }
 
 /**
- * Handles the /stats command, providing statistics to bot owners.
+ * Handles the /stats command, providing statistics to bot owners or admins.
  * @param bot The Telegraf bot instance.
  */
 export const setupStatsCommand = (bot: Telegraf<MyContext>): void => {
@@ -58,60 +63,85 @@ export const setupStatsCommand = (bot: Telegraf<MyContext>): void => {
       return
     }
 
-    let botNameToFetchStats = ctx.botInfo.username // По умолчанию текущий бот
-
-    logger.info('[statsCommand] Initial params for fetching stats', {
-      telegram_id_to_use: String(telegramId),
-      bot_name_to_use: botNameToFetchStats,
-      specified_target_bot: targetBotNameArg,
-    })
-
-    if (targetBotNameArg) {
-      // Если указан аргумент с именем бота, проверяем права администратора
-      if (!ADMIN_IDS_ARRAY.includes(telegramId)) {
-        await ctx.reply(
-          'У вас нет прав для просмотра статистики по указанному боту. Статистика будет показана для текущего бота.'
-        )
-        // botNameToFetchStats остается именем текущего бота
-      } else {
-        // Администратор может смотреть статистику по указанному боту
-        botNameToFetchStats = targetBotNameArg
-        logger.info(
-          `[statsCommand] Admin user ${telegramId} requested stats for bot: ${targetBotNameArg}`
-        )
-      }
-    }
-
-    if (!botNameToFetchStats) {
-      await ctx.reply(
-        'Не удалось определить имя бота для получения статистики.'
-      )
-      logger.warn(
-        '[statsCommand] Could not determine bot name to fetch stats for (current or arg)',
-        { telegram_id: telegramId }
-      )
-      return
-    }
+    const isUserAdmin = ADMIN_IDS_ARRAY.includes(telegramId)
 
     try {
-      const stats = await getUserBalanceStats(
-        String(telegramId),
-        botNameToFetchStats // Используем определенное имя бота
-      )
+      if (targetBotNameArg) {
+        // Сценарий: Указан конкретный бот в аргументе
+        const botNameToFetchStats = targetBotNameArg
+        const userIdForStats = String(telegramId) // По умолчанию статистика для вызвавшего пользователя
 
-      logger.info('[statsCommand] Stats object received before formatting:', {
-        stats_object: stats,
-      })
+        if (isUserAdmin) {
+          logger.info(
+            `[statsCommand] Admin user ${telegramId} requested stats for bot: ${targetBotNameArg}`
+          )
+          // Здесь может потребоваться логика для определения, чью статистику админ хочет видеть
+          // Пока что, как и раньше, админ видит СВОЮ статистику в указанном боте
+          // Если Гуру решит, что админ должен видеть статистику владельца бота, здесь будут изменения.
+        } else {
+          // Обычный пользователь указал конкретного бота - покажем его статистику для этого бота,
+          // если getUserBalanceStats это поддерживает (т.е. покажет его транзакции в этом боте)
+          logger.info(
+            `[statsCommand] User ${telegramId} requested stats for specific bot: ${targetBotNameArg}`
+          )
+        }
 
-      if (!stats) {
-        await ctx.reply(
-          `Не удалось получить статистику для бота @${botNameToFetchStats}.`
+        const statsResult = await getUserBalanceStats(
+          userIdForStats,
+          botNameToFetchStats
         )
-        return
-      }
+        if (!statsResult || statsResult.stats.length === 0) {
+          await ctx.reply(
+            `Не удалось получить статистику для вас по боту @${botNameToFetchStats}.`
+          )
+          return
+        }
 
-      const message = formatStatsMessage(stats, botNameToFetchStats)
-      await ctx.replyWithHTML(message)
+        // Берем первую статистику, так как мы запрашивали для конкретного бота
+        const botStats = statsResult.stats[0]
+        const message = formatBotStatsMessage(botStats, true)
+        await ctx.replyWithHTML(message)
+      } else if (isUserAdmin) {
+        // Сценарий: Админ вызвал /stats без аргументов
+        // TODO: Определить, что должен видеть админ в этом случае.
+        // Пока что можно показать сообщение о том, что нужно указать имя бота.
+        await ctx.reply(
+          'Администратор, пожалуйста, укажите имя бота для получения статистики, например, /stats @имя_бота'
+        )
+      } else {
+        // Сценарий: Обычный пользователь вызвал /stats без аргументов - показываем статистику по всем его ботам
+        const ownedBots = await getOwnedBots(String(telegramId))
+
+        if (ownedBots === null) {
+          await ctx.reply('Произошла ошибка при получении списка ваших ботов.')
+          return
+        }
+
+        if (ownedBots.length === 0) {
+          await ctx.reply(
+            'У вас нет зарегистрированных ботов для просмотра статистики.'
+          )
+          return
+        }
+
+        let fullMessage = '📊 <b>Ваша статистика по ботам:</b>\n'
+
+        // Получаем полную статистику для всех ботов пользователя
+        const statsResult = await getUserBalanceStats(String(telegramId))
+
+        if (!statsResult || statsResult.stats.length === 0) {
+          await ctx.reply('Не удалось получить статистику по вашим ботам.')
+          return
+        }
+
+        // Отображаем статистику по каждому боту
+        for (const botStat of statsResult.stats) {
+          fullMessage += `\n\n--- <b>@${botStat.bot_name}</b> ---\n`
+          fullMessage += formatBotStatsMessage(botStat, false) // Без заголовка, так как он уже включен выше
+        }
+
+        await ctx.replyWithHTML(fullMessage)
+      }
     } catch (error) {
       logger.error('[statsCommand] Error fetching or processing stats:', {
         error,
@@ -124,9 +154,49 @@ export const setupStatsCommand = (bot: Telegraf<MyContext>): void => {
   })
 }
 
-// Helper function to format the statistics message
-function formatStatsMessage(stats: UserBalanceStats, botName: string): string {
-  let message = `📊 <b>Статистика для бота @${botName}</b>\n\n`
+// Новая функция для форматирования статистики по боту
+function formatBotStatsMessage(
+  stats: BotStatistics,
+  includeMainHeader = true
+): string {
+  let message = ''
+  if (includeMainHeader) {
+    message += `📊 <b>Статистика для бота @${stats.bot_name}</b>\n\n`
+  }
+
+  // Доходы
+  message += `💰 <b>Доходы</b>\n`
+  message += `   Всего дохода: ${stats.total_income} ⭐️\n`
+  message += `   - NEUROVIDEO: ${stats.neurovideo_income} ⭐️\n`
+  message += `   - Пополнения: ${stats.stars_topup_income} ⭐️\n\n`
+
+  // Расходы
+  message += `💸 <b>Расходы пользователей</b>\n`
+  message += `   Всего потрачено: ${stats.total_outcome} ⭐️\n\n`
+
+  // Себестоимость (новое)
+  message += `💲 <b>Себестоимость</b>\n`
+  message += `   Всего себестоимость: ${stats.total_cost} ⭐️\n\n`
+
+  // Чистая прибыль (новое)
+  message += `📈 <b>Чистая прибыль</b>\n`
+  message += `   Прибыль: ${stats.net_profit} ⭐️\n`
+  message += `   (Доход - Расходы - Себестоимость)\n\n`
+
+  return message
+}
+
+// Старая функция formatStatsMessage - можно оставить для совместимости
+// или удалить, если она больше не используется
+function formatStatsMessage(
+  stats: UserBalanceStats,
+  botName: string,
+  includeMainHeader = true
+): string {
+  let message = ''
+  if (includeMainHeader) {
+    message += `📊 <b>Статистика для бота @${botName}</b>\n\n`
+  }
 
   message += `👤 <b>Пользователь:</b> ${stats.user_telegram_id}\n`
   if (stats.user_first_name || stats.user_last_name) {
