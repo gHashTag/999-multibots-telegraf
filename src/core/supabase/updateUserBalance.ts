@@ -5,6 +5,8 @@ import {
   Currency,
   PaymentType,
 } from '@/interfaces/payments.interface'
+import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
+import { CreatePaymentV2Schema } from '@/interfaces/zod/payment.zod'
 
 type BalanceUpdateMetadata = {
   stars?: number
@@ -28,7 +30,8 @@ export const updateUserBalance = async (
   amount: number,
   type: PaymentType,
   description?: string,
-  metadata?: BalanceUpdateMetadata
+  metadata?: BalanceUpdateMetadata,
+  cost_in_stars?: number
 ): Promise<boolean> => {
   try {
     // Подробное логирование входных данных для диагностики
@@ -40,6 +43,7 @@ export const updateUserBalance = async (
       type,
       operation_description: description,
       metadata: metadata ? JSON.stringify(metadata) : 'нет метаданных',
+      cost_in_stars,
     })
 
     // Проверка входных данных
@@ -435,6 +439,95 @@ export const updateUserBalance = async (
     }
 
     // Обновление баланса в таблице Users больше не требуется
+
+    // --- НОВАЯ ЛОГИКА СОХРАНЕНИЯ ТРАНЗАКЦИИ В payments_v2 ---
+    const paymentRecordToValidate: any = {
+      telegram_id: telegram_id.toString(),
+      amount: originalAmount,
+      stars: safeAmount,
+      currency: metadata?.currency || Currency.XTR,
+      status: metadata?.status || PaymentStatus.COMPLETED,
+      type: type,
+      payment_method: metadata?.payment_method || 'System',
+      description: description || 'System operation',
+      metadata: metadata,
+      bot_name: metadata?.bot_name || 'unknown_bot',
+      service_type:
+        type === PaymentType.MONEY_OUTCOME
+          ? metadata?.service_type || 'unknown_service'
+          : null,
+      subscription_type:
+        type === PaymentType.MONEY_INCOME
+          ? metadata?.subscription_type || null
+          : null,
+      payment_date:
+        metadata?.status === PaymentStatus.COMPLETED
+          ? new Date().toISOString()
+          : null,
+      inv_id: metadata?.inv_id || `sys-${Date.now()}-${telegram_id}`,
+    }
+
+    // Добавляем cost только для MONEY_OUTCOME и если cost_in_stars предоставлен
+    if (type === PaymentType.MONEY_OUTCOME && cost_in_stars !== undefined) {
+      paymentRecordToValidate.cost = cost_in_stars
+    }
+
+    // Валидация с помощью Zod
+    try {
+      const validatedPaymentRecord = CreatePaymentV2Schema.parse(
+        paymentRecordToValidate
+      )
+      logger.info('✅ Данные для payments_v2 прошли валидацию Zod:', {
+        description: 'Data for payments_v2 passed Zod validation',
+        telegram_id,
+        record: validatedPaymentRecord,
+      })
+
+      // Вставляем валидированную запись в payments_v2
+      const { error: paymentError } = await supabase
+        .from('payments_v2')
+        .insert(validatedPaymentRecord)
+
+      if (paymentError) {
+        logger.error('❌ Ошибка при добавлении записи в payments_v2:', {
+          description: 'Error inserting record into payments_v2',
+          telegram_id,
+          record: validatedPaymentRecord,
+          error: paymentError.message,
+          details: paymentError.details,
+          hint: paymentError.hint,
+        })
+        return false
+      }
+
+      logger.info('✅ Запись успешно добавлена в payments_v2:', {
+        description: 'Record successfully added to payments_v2',
+        telegram_id,
+        record_id: validatedPaymentRecord.inv_id,
+        type,
+        final_amount_stars: safeAmount,
+        cost_in_stars: validatedPaymentRecord.cost,
+      })
+    } catch (validationError) {
+      logger.error(
+        '❌ Ошибка валидации Zod для payments_v2 (CreatePaymentV2Schema):',
+        {
+          description:
+            'Zod validation error for payments_v2 (CreatePaymentV2Schema)',
+          telegram_id,
+          record: paymentRecordToValidate,
+          error: validationError.errors || validationError.message,
+        }
+      )
+      return false
+    }
+
+    // Инвалидация кэша баланса
+    await invalidateBalanceCache(telegram_id.toString())
+    logger.info('💰 Кэш баланса инвалидирован для:', {
+      description: 'Balance cache invalidated for',
+      telegram_id,
+    })
 
     return true
   } catch (error) {
