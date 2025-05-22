@@ -171,14 +171,22 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     }
     // --- КОНЕЦ: Логика проверки и создания пользователя ---
 
-    // --- НАЧАЛО: Приветствие + Видео-инструкция ---
+    // --- НАЧАЛО: Приветствие ---
     const { translation, url } = await getTranslation({
       key: 'start',
       ctx,
       bot_name: currentBotName,
     })
-    // Отправка фото или текста
-    if (url && url.trim() !== '' && !url.startsWith('https://t.me/c/')) {
+
+    // Функция для проверки валидности URL изображения
+    const isValidImageUrl = (url: string | null): boolean => {
+      if (!url || url.trim() === '') return false
+      if (url.includes('t.me/c/') || url.startsWith('https://t.me/c/'))
+        return false
+      return true
+    }
+
+    if (isValidImageUrl(url)) {
       logger.info({
         message:
           '🖼️ [StartScene] Отправка приветственного изображения с подписью',
@@ -187,7 +195,6 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         url,
         step: 'sending_welcome_image',
       })
-
       await ctx.replyWithPhoto(url, {
         caption:
           translation.length > 1024
@@ -201,86 +208,137 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         function: 'startScene',
         step: 'sending_welcome_text',
       })
-
       await ctx.reply(translation, {
         parse_mode: 'Markdown',
       })
     }
+    // --- КОНЕЦ: Приветствие ---
 
-    // Отправка видео-инструкции (ВОССТАНОВЛЕНА)
-    const tutorialUrl = BOT_URLS[currentBotName]
-    let replyKeyboard
+    // --- НАЧАЛО: Лид-магнит / Видео-инструкция / Меню ---
+    const groupJoinOrVideoUrl = BOT_URLS[currentBotName]
 
-    if (tutorialUrl) {
+    if (groupJoinOrVideoUrl) {
       logger.info({
-        message: `🎬 [StartScene] Отправка ссылки на туториал для ${currentBotName}`,
+        message: `🧲 [StartScene] Отправка лид-магнита для ${currentBotName}`,
         telegramId,
         function: 'startScene',
-        tutorialUrl,
-        step: 'sending_tutorial',
+        url: groupJoinOrVideoUrl,
+        step: 'sending_lead_magnet',
       })
 
-      const tutorialText = isRu
-        ? `🎬 Посмотрите [видео-инструкцию](${tutorialUrl}), как создавать нейрофото в этом боте.\n\nВ этом видео вы научитесь тренировать свою модель (Цифровое тело аватара), создавать фотографии и получать prompt из любого фото, которым вы вдохновились.`
-        : `🎬 Watch this [tutorial video](${tutorialUrl}) on how to create neurophotos in this bot.\n\nIn this video, you will learn how to train your model (Digital avatar body), create photos, and get a prompt from any photo that inspires you.`
+      const leadMagnetTextRu = `Хочешь получить обучающее видео? 📀
+Подпишись на живую группу - и тебе откроется доступ!
 
-      replyKeyboard = Markup.keyboard([
-        Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en),
-        Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en),
-      ]).resize()
+Но и это ещё не всё - в этой же группе ты сможешь:
 
-      logger.info({
-        message: `📤 [StartScene] Отправка текста с туториалом и клавиатурой`,
-        telegramId,
-        function: 'startScene',
-        step: 'sending_tutorial_text_with_keyboard',
-        buttons: [
-          isRu ? levels[105].title_ru : levels[105].title_en,
-          isRu ? levels[103].title_ru : levels[103].title_en,
-        ],
-      })
+🟡 освоить все фишки нейробота без боли и танцев с бубном
+🟡 получать уроки, подсказки и вдохновляющие разборы
+🟡 задавать вопросы и получать ответы (да, лично от меня)
+🟡 делиться своими работами и наблюдать, как растут другие
+🟡 быть частью тёплого, креативного нейро-комьюнити
 
-      await ctx.reply(tutorialText, {
+Когда ты посмотришь видеоинструкцию, ты поймёшь:
+это только начало.
+Дальше - больше: живое общение, поддержка, идеи, совместный рост.
+И всё это - уже внутри.
+
+В общем, если ты не фанат одиночных исследований и хочешь чуть больше поддержки, красоты и пользы - жми "Подписаться" и ныряй с нами.
+
+⸻
+
+А если тебе норм и ты хочешь идти в соло-плавание, без видео, группы и подсказок -
+нажимай "Оформить подписку" и пользуйся ботом в своём ритме.
+Ты свободен, нейро-одиночка!`
+
+      const leadMagnetTextEn = `Want to get a tutorial video? 📀
+Subscribe to our live group for access!
+
+Plus, in the group you can:
+🟡 Master the neurobot's features easily
+🟡 Get lessons, tips, and inspiring case studies
+🟡 Ask questions and get answers
+🟡 Share your work and see others grow
+🟡 Be part of a warm, creative neuro-community
+
+If you want support, beauty, and benefits - click "Subscribe & Dive In".
+Or, if you prefer to go solo, click "Proceed to Subscription".`
+
+      const leadMagnetMessage = isRu ? leadMagnetTextRu : leadMagnetTextEn
+
+      const inlineKeyboard = Markup.inlineKeyboard([
+        Markup.button.url(
+          isRu ? '🌊 Подписаться и ныряй с нами' : '🌊 Subscribe & Dive In',
+          groupJoinOrVideoUrl
+        ),
+        Markup.button.callback(
+          isRu ? '💳 Оформить подписку' : '💳 Proceed to Subscription',
+          'go_to_subscription_scene'
+        ),
+      ])
+
+      await ctx.reply(leadMagnetMessage, {
         parse_mode: 'Markdown',
-        reply_markup: replyKeyboard.reply_markup,
+        reply_markup: inlineKeyboard.reply_markup,
       })
     } else {
+      // Случай, если URL для лид-магнита/видео не найден для этого бота
       logger.info({
-        message: `ℹ️ [StartScene] Ссылка на туториал для ${currentBotName} не найдена`,
+        message: `ℹ️ [StartScene] URL для лид-магнита/туториала для ${currentBotName} не найден, показываем стандартное меню`,
         telegramId,
         function: 'startScene',
-        step: 'tutorial_url_not_found',
+        step: 'lead_magnet_or_tutorial_url_not_found_showing_basic_menu',
       })
 
-      replyKeyboard = Markup.keyboard([
-        Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en),
-        Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en),
+      const replyKeyboard = Markup.keyboard([
+        Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en), // Пример кнопки, адаптируйте под ваши levels
+        Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en), // Пример кнопки
       ]).resize()
-
-      logger.info({
-        message: `📤 [StartScene] Отправка простого меню выбора действия`,
-        telegramId,
-        function: 'startScene',
-        step: 'sending_basic_menu',
-        buttons: [
-          isRu ? levels[105].title_ru : levels[105].title_en,
-          isRu ? levels[103].title_ru : levels[103].title_en,
-        ],
-      })
 
       await ctx.reply(isRu ? 'Выберите действие:' : 'Choose an action:', {
         reply_markup: replyKeyboard.reply_markup,
       })
     }
-    // --- КОНЕЦ: Приветствие + Видео-инструкция ---
+    // --- КОНЕЦ: Лид-магнит / Видео-инструкция / Меню ---
 
     logger.info({
-      message: `🏁 [StartScene] Завершение сцены старта`,
+      message: `🏁 [StartScene] Завершение основного шага сцены старта`,
       telegramId,
       function: 'startScene',
-      step: 'scene_leave',
+      step: 'main_handler_step_leave',
     })
-
-    return ctx.scene.leave()
+    // Оставляем сцену активной, чтобы обработчики action могли сработать,
+    // или переходим в другую сцену через action.
+    // Если пользователь нажмет URL, он уйдет из контекста бота временно.
+    // Если нажмет callback-кнопку, сработает соответствующий action.
+    return ctx.wizard.next() // Переходим к следующему шагу, если он есть, или завершаем сцену, если это последний шаг.
+    // В данном случае, у нас один основной шаг обработки.
+    // Вместо next() можно просто ничего не делать, чтобы сцена оставалась в текущем шаге.
+    // Или ctx.scene.leave() если мы уверены, что все дальнейшие действия - это переход в другие сцены или выход из контекста.
+    // Для inline кнопок, которые ведут в другие сцены, ctx.scene.leave() здесь безопасно.
+    // Однако, чтобы обработчики .action() этой же сцены сработали, сцена должна быть активна.
+    // Давайте пока уберем явный ctx.scene.leave() отсюда, т.к. переход будет через action.
   }
 )
+
+startScene.action('go_to_subscription_scene', async ctx => {
+  const isRu = ctx.from?.language_code === 'ru'
+  try {
+    await ctx.answerCbQuery()
+    logger.info({
+      message: `💳 [StartScene] Пользователь нажал "Оформить подписку". Переход в SubscriptionScene.`,
+      telegramId: ctx.from?.id?.toString() || 'unknown',
+      function: 'startScene.action.go_to_subscription_scene',
+    })
+    // Можно отправить подтверждающее сообщение перед переходом
+    // await ctx.reply(isRu ? 'Переходим к выбору подписки...' : 'Proceeding to subscription options...')
+    return ctx.scene.enter(ModeEnum.SubscriptionScene)
+  } catch (error) {
+    logger.error('Error in go_to_subscription_scene action:', error)
+    await ctx.reply(
+      isRu
+        ? 'Произошла ошибка. Попробуйте позже.'
+        : 'An error occurred. Please try again later.'
+    )
+    return ctx.scene.leave() // В случае ошибки выходим из сцены
+  }
+})
