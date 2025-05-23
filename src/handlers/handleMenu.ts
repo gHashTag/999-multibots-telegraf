@@ -406,6 +406,20 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
         )
       },
+      ['/support']: async () => {
+        logger.info({
+          message: '❓ [handleMenu] Переход к помощи',
+          telegramId,
+          function: 'handleMenu',
+          action: 'help',
+          nextScene: ModeEnum.Help,
+        })
+        console.log('CASE: ❓ Помощь')
+        ctx.session.mode = ModeEnum.Help
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
+        await handleTechSupport(ctx)
+        console.log(`✅ [handleMenu] Завершен вызов handleTechSupport`)
+      },
       '/invite': async () => {
         logger.info({
           message:
@@ -421,23 +435,18 @@ export const handleMenu = async (ctx: MyContext) => {
         await ctx.scene.enter('inviteScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
       },
-      '/buy': async () => {
+      '/price': async () => {
         logger.info({
-          message:
-            '💰 [handleMenu] Команда /buy - переход к пополнению баланса',
+          message: '💰 [handleMenu] Команда /price - переход к ценам',
           telegramId,
           function: 'handleMenu',
-          action: 'buy_command',
-          nextScene: ModeEnum.PaymentScene,
+          action: 'price_command',
+          nextScene: 'priceScene',
         })
-        console.log('CASE: 💰 Пополнить баланс')
-        ctx.session.mode = ModeEnum.TopUpBalance
-        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
-        await ctx.scene.enter(ModeEnum.PaymentScene)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.PaymentScene}`
-        )
+        console.log('CASE: 💰 Цены')
+        await priceCommand(ctx)
       },
+
       '/balance': async () => {
         logger.info({
           message: '💰 [handleMenu] Команда /balance - переход к балансу',

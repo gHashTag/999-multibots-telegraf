@@ -168,22 +168,15 @@ const menuNextStep = async (ctx: MyContext) => {
       await ctx.scene.enter('subscriptionScene')
     } else {
       // Assuming other callbacks might be handled by handleMenu if they represent scene entries
+      // or specific actions defined as callbacks
       logger.info(`[menuNextStep] Forwarding callback to handleMenu: ${text}`)
-      await handleMenu(ctx)
+      await handleMenu(ctx) // handleMenu can process known callback_data
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
     logger.info(`[menuNextStep] Text Message Received: ${text}`)
 
-    // Если это команда (начинается с /), выходим из сцены, чтобы она обработалась глобально
-    if (text.startsWith('/')) {
-      logger.info(
-        `[menuNextStep] Detected command '${text}'. Leaving scene for global handling.`
-      )
-      return ctx.scene.leave() // Выходим из сцены и ничего больше не делаем
-    }
-
-    // *** НАЧАЛО ВСТАВКИ: Обработка кнопки "Сгенерировать новое видео?" ***
+    // Specific text button handling (example: "Generate new video?")
     if (
       text === '🎥 Сгенерировать новое видео?' ||
       text === '🎥 Generate new video?'
@@ -191,34 +184,33 @@ const menuNextStep = async (ctx: MyContext) => {
       logger.info(
         `[menuNextStep] Detected 'Generate new video' button. Calling handleRestartVideoGeneration...`
       )
-      // Вызываем новую функцию перезапуска, которая использует lastCompletedVideoScene
       await handleRestartVideoGeneration(ctx)
-      // Важно: НЕ передаем управление дальше в handleMenu, так как мы обработали кнопку здесь
-      return
+      return // Explicitly handled
     }
-    // *** КОНЕЦ ВСТАВКИ ***
 
-    // Prevent loop if /menu is sent again while already in the menu
-    if (text === '/menu') {
-      logger.warn(
-        '[menuNextStep] Received /menu command while already in menu scene. Ignoring to prevent loop.'
-      )
-      // Optional: Send a message like "You are already in the menu."
-      // await ctx.reply(getText(isRussian(ctx), 'already_in_menu')); // Assuming such a key exists
-      return // Explicitly do nothing further
-    }
-    // Handle other text commands via handleMenu
-    logger.info(`[menuNextStep] Forwarding text to handleMenu: ${text}`)
+    // If the text is not a specific button handled above,
+    // and not a command (which should be handled globally),
+    // we can consider it an unhandled text message within the menu scene.
+    // For now, we can log it and do nothing, or re-send the menu.
+    // Let's re-send the menu if it's an unexpected text.
+    // However, handleMenu is designed to map button texts to actions.
+    // If the text matches a known menu button text, handleMenu will process it.
+    // This means regular menu button presses (not commands, not callbacks) will still work.
+    logger.info(
+      `[menuNextStep] Forwarding text message to handleMenu for potential button match: ${text}`
+    )
     await handleMenu(ctx)
   } else {
     // Handle other update types or leave if unhandled
     logger.warn(
-      '[menuNextStep] Unhandled update type or message format. Leaving scene.',
+      '[menuNextStep] Unhandled update type or message format in menuScene.',
       ctx.update
     )
-    // It might be better *not* to leave automatically here unless necessary.
-    // Consider if specific error handling is needed.
-    // ctx.scene.leave(); // Removed for safety, only leave if truly unhandled/error.
+    // Consider replying to the user that the action is not understood in the current context.
+    // For example:
+    // await ctx.reply(isRussian(ctx) ? 'Не совсем понимаю вас в этом меню. Пожалуйста, используйте кнопки.' : 'I don't quite understand you in this menu. Please use the buttons.');
+    // Leaving the scene might be too abrupt if it's just an unhandled message type.
+    // It's often better to guide the user or repeat the menu.
   }
 }
 
