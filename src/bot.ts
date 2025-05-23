@@ -139,7 +139,7 @@ async function initializeBots() {
     console.log(
       '🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...'
     )
-
+    //
     // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
     bot.use(session()) // 1. Сессия (из bot.ts)
     bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
