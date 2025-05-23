@@ -21,6 +21,7 @@ const getCost = (
 export async function priceCommand(ctx: MyContext) {
   console.log('CASE: priceCommand')
   const isRu = ctx.from?.language_code === 'ru'
+  const currentBotUsername = ctx.botInfo.username // Получаем имя бота
 
   // Расчет диапазона цен для генерации изображений (TextToImage)
   const imageCosts = Object.values(imageModelPrices).map(
@@ -73,14 +74,21 @@ export async function priceCommand(ctx: MyContext) {
   )
 
   let subscriptionInfoRu = ''
-  if (neuroPhotoSubscription) {
-    subscriptionInfoRu += `\n    - 📸 ${neuroPhotoSubscription.subscription}: <b>${neuroPhotoSubscription.amount} руб</b> (дает <b>${neuroPhotoSubscription.stars} ⭐️</b>)`
-  }
-  if (neuroVideoSubscription) {
-    subscriptionInfoRu += `\n    - 🎬 ${neuroVideoSubscription.subscription}: <b>${neuroVideoSubscription.amount} руб</b> (дает <b>${neuroVideoSubscription.stars} ⭐️</b>)`
-  }
-  if (subscriptionInfoRu) {
-    subscriptionInfoRu = `\n    <b>🌟 Подписки для пополнения баланса:</b>${subscriptionInfoRu}\n    <i>Покупка подписки - это выгодный способ пополнить ваш баланс звезд!</i>\n`
+  let starCostInfoRu = '' // Новая переменная для стоимости звезды
+
+  // Условие для отображения рублевых цен и информации о подписках в рублях
+  if (currentBotUsername !== 'NeurostylistShtogrina_bot') {
+    if (neuroPhotoSubscription) {
+      subscriptionInfoRu += `\n    - 📸 ${neuroPhotoSubscription.subscription}: <b>${neuroPhotoSubscription.amount} руб</b> (дает <b>${neuroPhotoSubscription.stars} ⭐️</b>)`
+    }
+    if (neuroVideoSubscription) {
+      subscriptionInfoRu += `\n    - 🎬 ${neuroVideoSubscription.subscription}: <b>${neuroVideoSubscription.amount} руб</b> (дает <b>${neuroVideoSubscription.stars} ⭐️</b>)`
+    }
+    if (subscriptionInfoRu) {
+      subscriptionInfoRu = `\n    <b>🌟 Подписки для пополнения баланса:</b>${subscriptionInfoRu}\n    <i>Покупка подписки - это выгодный способ пополнить ваш баланс звезд!</i>\n`
+    }
+    // Стоимость звезды в рублях показываем только если не NeurostylistShtogrina_bot
+    starCostInfoRu = `\n    <b>💵 Стоимость 1 ⭐️:</b> ${(SYSTEM_CONFIG.starCost * SYSTEM_CONFIG.rubRate).toFixed(2)} руб`
   }
 
   const message = isRu
@@ -97,7 +105,7 @@ export async function priceCommand(ctx: MyContext) {
     - 🎥 Текст в видео: от ${minTextToVideoCost.toFixed(2)} до ${maxTextToVideoCost.toFixed(2)}
     - 📽️ Изображение в видео: от ${minImageToVideoCost.toFixed(2)} до ${maxImageToVideoCost.toFixed(2)}
 ${subscriptionInfoRu}
-    <b>💵 Стоимость 1 ⭐️:</b> ${(SYSTEM_CONFIG.starCost * SYSTEM_CONFIG.rubRate).toFixed(2)} руб
+    ${starCostInfoRu}    
     `
     : `
     <b>💰 Price of services (in ⭐️):</b>
