@@ -433,3 +433,4 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     await ctx.scene.enter(ModeEnum.Help)
   })
 }
+//
