@@ -7,7 +7,7 @@ import { imageModelPrices } from '@/price/models/imageModelPrices'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
 import { calculateFinalPrice as calculateVideoFinalPrice } from '@/price/helpers'
 
-// Helper function to handle potential function types in modeCosts
+// Helper function to handle potential function types in modeCosts.
 const getCost = (
   cost: number | ((steps?: number) => number),
   steps?: number
