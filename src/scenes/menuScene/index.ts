@@ -175,6 +175,14 @@ const menuNextStep = async (ctx: MyContext) => {
     const text = ctx.update.message.text
     logger.info(`[menuNextStep] Text Message Received: ${text}`)
 
+    // Если это команда (начинается с /), выходим из сцены, чтобы она обработалась глобально
+    if (text.startsWith('/')) {
+      logger.info(
+        `[menuNextStep] Detected command '${text}'. Leaving scene for global handling.`
+      )
+      return ctx.scene.leave() // Выходим из сцены и ничего больше не делаем
+    }
+
     // *** НАЧАЛО ВСТАВКИ: Обработка кнопки "Сгенерировать новое видео?" ***
     if (
       text === '🎥 Сгенерировать новое видео?' ||
