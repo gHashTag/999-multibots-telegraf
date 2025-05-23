@@ -3,6 +3,7 @@ import { openai } from '@/core/openai'
 // Тип для модели с рейтингом
 interface ModelWithRating {
   id: string
+  name: string // человекочитаемое имя модели
   rating: number // чем выше, тем популярнее
   provider: string
   category?: string // категория модели
@@ -18,124 +19,54 @@ enum ModelCategory {
 
 // Список популярных моделей с рейтингом
 const popularModels: ModelWithRating[] = [
-  // ТОП категория - самые популярные модели (рейтинг 95-100)
   {
-    id: 'google/gemini-2.0-flash-001',
+    id: 'google/gemini-2.5-pro-preview',
+    name: 'Gemini 2.5 Pro Preview',
     rating: 100,
     provider: 'google',
     category: ModelCategory.TOP,
   },
   {
-    id: 'anthropic/claude-3.7-sonnet',
+    id: 'anthropic/claude-opus-4',
+    name: 'Claude Opus 4',
     rating: 99,
     provider: 'anthropic',
     category: ModelCategory.TOP,
   },
   {
-    id: 'anthropic/claude-3.5-sonnet',
+    id: 'openai/gpt-4.1',
+    name: 'GPT-4.1',
     rating: 98,
-    provider: 'anthropic',
+    provider: 'openai',
     category: ModelCategory.TOP,
   },
   {
-    id: 'deepseek/deepseek-r1:free',
+    id: 'deepseek/deepseek-v3-0324:free',
+    name: 'DeepSeek V3 (Free)',
     rating: 97,
     provider: 'deepseek',
     category: ModelCategory.TOP,
   },
   {
-    id: 'google/gemini-flash-1.5-8b',
-    rating: 96,
-    provider: 'google',
-    category: ModelCategory.TOP,
-  },
-  {
-    id: 'anthropic/claude-3.7-sonnet:thinking',
-    rating: 95,
-    provider: 'anthropic',
-    category: ModelCategory.TOP,
-  },
-
-  // HIGH категория - продвинутые модели (рейтинг 80-94)
-  {
-    id: 'google/gemini-flash-1.5',
-    rating: 94,
-    provider: 'google',
-    category: ModelCategory.HIGH,
-  },
-  {
-    id: 'openai/gpt-4o-mini',
-    rating: 93,
-    provider: 'openai',
-    category: ModelCategory.HIGH,
-  },
-  {
-    id: 'anthropic/claude-3.7-sonnet:beta',
-    rating: 92,
-    provider: 'anthropic',
-    category: ModelCategory.HIGH,
-  },
-  {
     id: 'meta-llama/llama-3.3-70b-instruct',
-    rating: 91,
+    name: 'Llama 3.3 70B Instruct',
+    rating: 95,
     provider: 'meta-llama',
-    category: ModelCategory.HIGH,
-  },
-  {
-    id: 'google/gemini-2.0-pro-exp-02-05:free',
-    rating: 90,
-    provider: 'google',
-    category: ModelCategory.HIGH,
-  },
-  {
-    id: 'google/gemini-2.0-flash-exp:free',
-    rating: 89,
-    provider: 'google',
-    category: ModelCategory.HIGH,
-  },
-  {
-    id: 'anthropic/claude-3.5-sonnet:beta',
-    rating: 88,
-    provider: 'anthropic',
-    category: ModelCategory.HIGH,
+    category: ModelCategory.TOP,
   },
   {
     id: 'mistralai/mistral-nemo',
-    rating: 87,
+    name: 'Mistral Nemo',
+    rating: 90,
     provider: 'mistralai',
     category: ModelCategory.HIGH,
   },
   {
-    id: 'deepseek/deepseek-chat:free',
-    rating: 86,
-    provider: 'deepseek',
-    category: ModelCategory.HIGH,
-  },
-
-  // MEDIUM категория - хорошие модели (рейтинг 60-79)
-  {
-    id: 'google/gemini-2.0-flash-lite-001',
-    rating: 79,
-    provider: 'google',
-    category: ModelCategory.MEDIUM,
-  },
-  {
-    id: 'meta-llama/llama-3.1-70b-instruct',
-    rating: 78,
-    provider: 'meta-llama',
-    category: ModelCategory.MEDIUM,
-  },
-  {
-    id: 'deepseek/deepseek-r1-distill-llama-70b',
-    rating: 77,
-    provider: 'deepseek',
-    category: ModelCategory.MEDIUM,
-  },
-  {
     id: 'nousresearch/hermes-3-llama-3.1-405b',
-    rating: 76,
+    name: 'Hermes 3 Llama 3.1 405B',
+    rating: 85,
     provider: 'nousresearch',
-    category: ModelCategory.MEDIUM,
+    category: ModelCategory.HIGH,
   },
 ]
 
@@ -152,9 +83,14 @@ function getProviderFromFullId(fullId: string): string {
   return fullId.includes('/') ? fullId.split('/')[0] : ''
 }
 
+export interface SelectableModel {
+  id: string
+  name: string
+}
+
 export async function getAvailableModels(
   options: ModelFilterOptions = {}
-): Promise<string[]> {
+): Promise<SelectableModel[]> {
   try {
     console.log(
       '🔍 Получаем список доступных моделей... [Getting list of available models]'
@@ -174,18 +110,20 @@ export async function getAvailableModels(
               model.provider === provider
             : true)
       )
-      .map(model => model.id)
+      .map(model => ({ id: model.id, name: model.name }))
 
     // Объединяем с моделями OpenAI
     const combinedModels = [...filteredPopularModels]
 
     // Удаляем дубликаты (учитывая полные ID с провайдером)
-    const uniqueModels = Array.from(new Set(combinedModels))
+    const uniqueModels = Array.from(
+      new Set(combinedModels.map(model => JSON.stringify(model)))
+    ).map(strModel => JSON.parse(strModel) as SelectableModel)
 
     // Сортируем модели по рейтингу (популярные сначала)
     const sortedModels = uniqueModels.sort((a, b) => {
-      const modelAInfo = popularModels.find(m => m.id === a)
-      const modelBInfo = popularModels.find(m => m.id === b)
+      const modelAInfo = popularModels.find(m => m.id === a.id)
+      const modelBInfo = popularModels.find(m => m.id === b.id)
 
       // Если обе модели найдены в списке популярных, сравниваем их рейтинги
       if (modelAInfo && modelBInfo) {
@@ -216,7 +154,9 @@ export async function getAvailableModels(
     const provider = options.provider
 
     // Список моделей по умолчанию (первые 10 моделей из списка)
-    const defaultModels = popularModels.slice(0, 10).map(model => model.id)
+    const defaultModels = popularModels
+      .slice(0, 10)
+      .map(model => ({ id: model.id, name: model.name }))
 
     const maxResults = 20
 
@@ -232,7 +172,7 @@ export async function getAvailableModels(
                 model.provider === provider
               : true)
         )
-        .map(model => model.id)
+        .map(model => ({ id: model.id, name: model.name }))
         .slice(0, maxResults)
     }
 
@@ -243,12 +183,12 @@ export async function getAvailableModels(
 // Функция для получения моделей по категории
 export async function getModelsByCategory(
   category: ModelCategory
-): Promise<string[]> {
+): Promise<SelectableModel[]> {
   return getAvailableModels({ category })
 }
 
 // Функция для получения топовых моделей
-export async function getTopModels(count = 5): Promise<string[]> {
+export async function getTopModels(count = 5): Promise<SelectableModel[]> {
   return getAvailableModels({ minRating: 95, maxResults: count })
 }
 
@@ -256,6 +196,6 @@ export async function getTopModels(count = 5): Promise<string[]> {
 export async function getProviderModels(
   provider: string,
   minRating = 0
-): Promise<string[]> {
+): Promise<SelectableModel[]> {
   return getAvailableModels({ provider, minRating })
 }

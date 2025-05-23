@@ -20,19 +20,19 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       for (let i = 0; i < models.length; i += 3) {
         const row: ReturnType<typeof Markup.button.text>[] = []
         if (models[i]) {
-          row.push(Markup.button.text(models[i]))
+          row.push(Markup.button.text(models[i].name))
         }
         if (models[i + 1]) {
-          row.push(Markup.button.text(models[i + 1]))
+          row.push(Markup.button.text(models[i + 1].name))
         }
         if (models[i + 2]) {
-          row.push(Markup.button.text(models[i + 2]))
+          row.push(Markup.button.text(models[i + 2].name))
         }
         buttons.push(row)
-      } //
+      }
 
       // Добавляем кнопки "Отмена" и "Справка по команде" в конце
-      const cancelHelpButtons = [
+      const cancelHelpButtons: ReturnType<typeof Markup.button.text>[] = [
         Markup.button.text(
           isRu ? 'Справка по команде' : 'Help for the command'
         ),
@@ -62,57 +62,86 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
     const message = ctx.message
 
-    if (!message || !('text' in message)) {
-      await sendGenericErrorMessage(ctx, isRu)
-      return ctx.scene.leave()
-    }
+    if (message && 'text' in message) {
+      const text = message.text
 
-    const isCancel = await handleHelpCancel(ctx)
-    console.log('CASE: select_model', isCancel)
-    if (isCancel) {
-      console.log('CASE: select_model', isCancel)
-      return ctx.scene.leave()
-    } else {
-      const model = message.text
-      console.log('CASE: select_model', model)
+      if (
+        text === (isRu ? 'Отмена' : 'Cancel') ||
+        text === (isRu ? 'Справка по команде' : 'Help for the command')
+      ) {
+        const isCancel = await handleHelpCancel(ctx)
+        if (isCancel) {
+          return ctx.scene.leave()
+        }
+        if (text === (isRu ? 'Справка по команде' : 'Help for the command')) {
+          // Дополнительная логика для справки, если handleHelpCancel ее не покрывает полностью
+          // Например, можно отправить еще одно сообщение и оставить в сцене или выйти.
+          // Пока оставим как есть, предполагая, что handleHelpCancel достаточен.
+        }
+        return
+      }
+
       const models = await getAvailableModels()
-      if (!models.includes(model)) {
-        await ctx.reply(isRu ? '❌ Модель не найдена' : '❌ Model not found')
-        return ctx.scene.leave()
+      const selectedModelObject = models.find(m => m.name === text)
+
+      if (!selectedModelObject) {
+        await ctx.reply(
+          isRu
+            ? '❌ Модель не найдена, выберите из списка.'
+            : '❌ Model not found, please select from the list.'
+        )
+        return ctx.wizard.selectStep(ctx.wizard.cursor)
       }
 
       if (!ctx.from?.id) {
         console.error('❌ Telegram ID не найден')
-        return
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка, попробуйте позже.'
+            : 'An error occurred, please try again later.'
+        )
+        return ctx.scene.leave()
       }
-      await updateUserModel(ctx.from.id.toString(), model)
+
+      await updateUserModel(ctx.from.id.toString(), selectedModelObject.id)
 
       await ctx.reply(
         isRu
-          ? `✅ Модель успешно изменена на ${model}`
-          : `✅ Model successfully changed to ${model}`,
+          ? `✅ Модель успешно изменена на ${selectedModelObject.name}`
+          : `✅ Model successfully changed to ${selectedModelObject.name}`,
         {
-          reply_markup: {
-            remove_keyboard: true,
-          },
+          reply_markup: { remove_keyboard: true },
         }
       )
 
       const telegram_id = ctx.from?.id
       if (!telegram_id) {
-        console.error('❌ Telegram ID не найден')
-        return
+        console.error('❌ Telegram ID не найден на этапе обновления уровня')
+        return ctx.scene.leave()
       }
 
       const userObject = await getUserByTelegramId(ctx)
       if (!userObject) {
-        throw new Error(`User with ID ${telegram_id} does not exist.`)
+        console.error(`User with ID ${telegram_id} does not exist.`)
+        return ctx.scene.leave()
       }
       const level = userObject.level
       if (level === 5) {
         await updateUserLevelPlusOne(telegram_id.toString(), level)
       }
-
+      return ctx.scene.leave()
+    } else if (ctx.callbackQuery) {
+      await ctx
+        .answerCbQuery()
+        .catch(e => console.error('Failed to answer CB query', e))
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, выберите модель кнопкой.'
+          : 'Please select a model using the buttons.'
+      )
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    } else {
+      await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
   }
