@@ -10,6 +10,8 @@ export const SYSTEM_CONFIG = {
   starCost: starCost,
   interestRate: interestRate,
   currency: 'RUB',
+  subscriptionBonus: 0.0,
+  rubRate: 80,
 }
 
 // Импорт типов после объявления примитивных констант
@@ -23,10 +25,10 @@ export const STAR_AMOUNTS = {
 }
 
 // Speech-related costs (in stars)
-export const SPEECH_COSTS = {
-  [ModeEnum.TextToSpeech]: 10,
-  [ModeEnum.Voice]: 50,
-} as const
+// export const SPEECH_COSTS = {
+//   TextToSpeech: 10,
+//   Voice: 50,
+// }
 
 // Voice conversation cost (in stars)
 export const VOICE_CONVERSATION_COST = 0.5
@@ -52,4 +54,15 @@ export const getSubscriptionTypeByAmount = (
   if (amount === NEUROPHOTO_PRICE_RUB) return 'neurophoto'
   if (amount === NEUROVIDEO_PRICE_RUB) return 'neurovideo'
   return null
+}
+
+export const {
+  starCost: systemStarCost,
+  interestRate: systemInterestRate,
+  subscriptionBonus,
+  rubRate,
+} = SYSTEM_CONFIG
+
+export const conversionRates = {
+  // ... existing code ...
 }
