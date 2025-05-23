@@ -1,14 +1,19 @@
 import { SYSTEM_CONFIG } from '@/price/constants/index'
 import { MyContext } from '../../interfaces'
-import { minCost, maxCost, modeCosts } from '@/price/helpers/modelsCost'
-import { conversionRates } from '@/price/priceCalculator'
+import { modeCosts } from '@/price/helpers/modelsCost'
+import { conversionRates, paymentOptionsPlans } from '@/price/priceCalculator'
+import { ModeEnum, SubscriptionType } from '@/interfaces'
+import { imageModelPrices } from '@/price/models/imageModelPrices'
+import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+import { calculateFinalPrice as calculateVideoFinalPrice } from '@/price/helpers'
 
 // Helper function to handle potential function types in modeCosts
-const getCost = (cost: number | ((param?: any) => number)): string => {
+const getCost = (
+  cost: number | ((steps?: number) => number),
+  steps?: number
+): string => {
   if (typeof cost === 'function') {
-    // Assuming the function doesn't need parameters for this general display
-    // If parameters are needed, this logic might need adjustment based on context
-    return cost().toFixed(2)
+    return cost(steps).toFixed(2)
   }
   return cost.toFixed(2)
 }
@@ -17,32 +22,97 @@ export async function priceCommand(ctx: MyContext) {
   console.log('CASE: priceCommand')
   const isRu = ctx.from?.language_code === 'ru'
 
+  // Расчет диапазона цен для генерации изображений (TextToImage)
+  const imageCosts = Object.values(imageModelPrices).map(
+    modelInfo => modelInfo.costPerImage
+  )
+  const minImageCost = imageCosts.length > 0 ? Math.min(...imageCosts) : 0
+  const maxImageCost = imageCosts.length > 0 ? Math.max(...imageCosts) : 0
+
+  // Расчет диапазона цен для Текст-в-Видео
+  const textToVideoModelKeys = Object.keys(VIDEO_MODELS_CONFIG).filter(key =>
+    VIDEO_MODELS_CONFIG[key].inputType.includes('text')
+  )
+  const textToVideoCosts = textToVideoModelKeys.map(key =>
+    calculateVideoFinalPrice(key)
+  )
+  const minTextToVideoCost =
+    textToVideoCosts.length > 0 ? Math.min(...textToVideoCosts) : 0
+  const maxTextToVideoCost =
+    textToVideoCosts.length > 0 ? Math.max(...textToVideoCosts) : 0
+
+  // Расчет диапазона цен для Изображение-в-Видео
+  const imageToVideoModelKeys = Object.keys(VIDEO_MODELS_CONFIG).filter(key =>
+    VIDEO_MODELS_CONFIG[key].inputType.includes('image')
+  )
+  const imageToVideoCosts = imageToVideoModelKeys.map(key =>
+    calculateVideoFinalPrice(key)
+  )
+  const minImageToVideoCost =
+    imageToVideoCosts.length > 0 ? Math.min(...imageToVideoCosts) : 0
+  const maxImageToVideoCost =
+    imageToVideoCosts.length > 0 ? Math.max(...imageToVideoCosts) : 0
+
+  // Стоимость обучения за 1 шаг
+  // conversionRates.costPerStepInStars уже учитывает версию v1 по умолчанию
+  // Для v2 нам нужно явно вызвать calculateCost или иметь отдельную константу
+  // Предположим, что modeCosts[ModeEnum.DigitalAvatarBody] и modeCosts[ModeEnum.DigitalAvatarBodyV2]
+  // являются функциями, принимающими steps.
+
+  const trainingCostV1 = getCost(modeCosts[ModeEnum.DigitalAvatarBody], 1)
+  const trainingCostV2 = getCost(modeCosts[ModeEnum.DigitalAvatarBodyV2], 1)
+
+  // Получаем информацию о подписках
+  const neuroPhotoSubscription = paymentOptionsPlans.find(
+    plan =>
+      plan.subscription === SubscriptionType.NEUROPHOTO && !plan.isAdminOnly
+  )
+  const neuroVideoSubscription = paymentOptionsPlans.find(
+    plan =>
+      plan.subscription === SubscriptionType.NEUROVIDEO && !plan.isAdminOnly
+  )
+
+  let subscriptionInfoRu = ''
+  if (neuroPhotoSubscription) {
+    subscriptionInfoRu += `\n    - 📸 ${neuroPhotoSubscription.subscription}: <b>${neuroPhotoSubscription.amount} руб</b> (дает <b>${neuroPhotoSubscription.stars} ⭐️</b>)`
+  }
+  if (neuroVideoSubscription) {
+    subscriptionInfoRu += `\n    - 🎬 ${neuroVideoSubscription.subscription}: <b>${neuroVideoSubscription.amount} руб</b> (дает <b>${neuroVideoSubscription.stars} ⭐️</b>)`
+  }
+  if (subscriptionInfoRu) {
+    subscriptionInfoRu = `\n    <b>🌟 Подписки для пополнения баланса:</b>${subscriptionInfoRu}\n    <i>Покупка подписки - это выгодный способ пополнить ваш баланс звезд!</i>\n`
+  }
+
   const message = isRu
     ? `
-    <b>💰 Стоимость всех услуг:</b>
-    - 🧠 Обучение модели за 1 шаг: ${conversionRates.costPerStepInStars} ⭐️
-    - ✍️ Генерация промпта: ${getCost(modeCosts.text_to_image)} ⭐️
-    - 🖼️ Генерация изображения: от ${minCost} до ${maxCost} ⭐️
-    - 🤖 Нейро-генерация изображения: ${getCost(modeCosts.image_to_prompt)} ⭐️
-    - 🎥 Текст в видео: ${getCost(modeCosts.text_to_video)} ⭐️
-    - 🎤 Голос: ${getCost(modeCosts.voice)} ⭐️
-    - 🗣️ Текст в речь: ${getCost(modeCosts.text_to_speech)} ⭐️
-    - 📽️ Изображение в видео: ${getCost(modeCosts.image_to_video)} ⭐️
-
-    <b>💵 Стоимость звезды:</b> ${(SYSTEM_CONFIG.starCost * 99).toFixed(2)} руб
+    <b>💰 Стоимость услуг (в ⭐️):</b>
+    - 🧠 Обучение модели (1 шаг):
+        v1: ${trainingCostV1}
+        v2: ${trainingCostV2}
+    - ✍️ Генерация промпта: ${getCost(modeCosts[ModeEnum.ImageToPrompt])}
+    - 🖼️ Генерация изображения: от ${minImageCost.toFixed(2)} до ${maxImageCost.toFixed(2)}
+    - 🤖 Нейро-генерация изображения: ${getCost(modeCosts[ModeEnum.NeuroPhoto])}
+    - 🎤 Создание голоса: ${getCost(modeCosts[ModeEnum.Voice])}
+    - 🗣️ Текст в речь: ${getCost(modeCosts[ModeEnum.TextToSpeech])}
+    - 🎥 Текст в видео: от ${minTextToVideoCost.toFixed(2)} до ${maxTextToVideoCost.toFixed(2)}
+    - 📽️ Изображение в видео: от ${minImageToVideoCost.toFixed(2)} до ${maxImageToVideoCost.toFixed(2)}
+${subscriptionInfoRu}
+    <b>💵 Стоимость 1 ⭐️:</b> ${(SYSTEM_CONFIG.starCost * SYSTEM_CONFIG.rubRate).toFixed(2)} руб
     `
     : `
-    <b>💰 Price of all services:</b>
-    - 🧠 Training model 1 step: ${conversionRates.costPerStepInStars} ⭐️
-    - ✍️ Prompt generation: ${getCost(modeCosts.text_to_image)} ⭐️
-    - 🖼️ Image generation: from ${minCost} to ${maxCost} ⭐️
-    - 🤖 Neuro-image generation: ${getCost(modeCosts.image_to_prompt)} ⭐️
-    - 🎥 Text to video: ${getCost(modeCosts.text_to_video)} ⭐️
-    - 🎤 Voice: ${getCost(modeCosts.voice)} ⭐️
-    - 🗣️ Text to speech: ${getCost(modeCosts.text_to_speech)} ⭐️
-    - 📽️ Image to video: ${getCost(modeCosts.image_to_video)} ⭐️
+    <b>💰 Price of services (in ⭐️):</b>
+    - 🧠 Training model (1 step):
+        v1: ${trainingCostV1}
+        v2: ${trainingCostV2}
+    - ✍️ Prompt generation: ${getCost(modeCosts[ModeEnum.ImageToPrompt])}
+    - 🖼️ Image generation: from ${minImageCost.toFixed(2)} to ${maxImageCost.toFixed(2)}
+    - 🤖 Neuro-image generation: ${getCost(modeCosts[ModeEnum.NeuroPhoto])}
+    - 🎤 Voice creation: ${getCost(modeCosts[ModeEnum.Voice])}
+    - 🗣️ Text to speech: ${getCost(modeCosts[ModeEnum.TextToSpeech])}
+    - 🎥 Text to video: from ${minTextToVideoCost.toFixed(2)} to ${maxTextToVideoCost.toFixed(2)}
+    - 📽️ Image to video: from ${minImageToVideoCost.toFixed(2)} to ${maxImageToVideoCost.toFixed(2)}
 
-    <b>💵 Star cost:</b> ${SYSTEM_CONFIG.starCost.toFixed(2)} $
+    <b>💵 Star cost (1 ⭐️):</b> ${SYSTEM_CONFIG.starCost.toFixed(3)} $
     `
 
   await ctx.reply(message, { parse_mode: 'HTML' })
