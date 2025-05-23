@@ -142,6 +142,7 @@ async function initializeBots() {
 
     // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
     bot.use(session()) // 1. Сессия (из bot.ts)
+    bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
     registerCommands({ bot }) // 2. Сцены и команды (включая stage.middleware())
     // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
@@ -192,7 +193,7 @@ async function initializeBots() {
         const bot = new Telegraf<MyContext>(token, {
           handlerTimeout: Infinity,
         })
-        bot.use(Composer.log())
+        bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
 
         // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
         bot.use(session()) // 1. Сессия (из bot.ts)
@@ -271,41 +272,15 @@ async function initializeBots() {
 
 // Асинхронная функция для остановки
 async function gracefulShutdown(signal: string) {
-  console.log(`🛑 Получен сигнал ${signal}, начинаем graceful shutdown...`)
-
-  // 1. Останавливаем ботов
-  console.log(`[${signal}] Stopping ${botInstances.length} bot instance(s)...`)
-  const stopPromises = botInstances.map(async (bot, index) => {
-    try {
-      console.log(
-        `[${signal}] Initiating stop for bot instance index ${index}...`
-      )
-      // bot.stop() для long polling обычно синхронный, но для надежности можно обернуть
-      // Хотя Telegraf 4.x stop() возвращает void для polling
-      bot.stop(signal)
-      console.log(
-        `[${signal}] Successfully stopped bot instance index ${index}.`
-      )
-    } catch (error) {
-      console.error(
-        `[${signal}] Error stopping bot instance index ${index}:`,
-        error // Логируем полную ошибку
-      )
-    }
-  })
-  // Не нужно Promise.all, так как bot.stop() синхронный для polling
-  // await Promise.all(stopPromises) // Убираем ожидание, если оно не нужно
-  console.log(`[${signal}] All bot instances processed for stopping.`)
-
-  // 3. Добавляем небольшую задержку перед выходом
-  console.log(`[${signal}] Adding a short delay before exiting...`)
-  await new Promise(resolve => setTimeout(resolve, 3000))
-
-  console.log(`[${signal}] Graceful shutdown completed. Exiting.`)
+  console.log(`🚨 Получен сигнал ${signal}. Завершение работы...`)
+  for (const bot of botInstances) {
+    console.log(`🚫 Остановка бота ${bot.botInfo?.username}...`)
+    await bot.stop()
+  }
   process.exit(0)
 }
 
-// Обрабатываем сигналы завершения
+// Ловим сигналы завершения
 process.once('SIGINT', () => gracefulShutdown('SIGINT'))
 process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
