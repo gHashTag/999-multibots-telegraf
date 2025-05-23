@@ -148,6 +148,81 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
   bot.use(stage.middleware())
 
+  // 6. --- РЕГИСТРАЦИЯ ГЛОБАЛЬНЫХ КОМАНД ---
+  // Команды должны быть зарегистрированы здесь, до hears и общего on('text')
+
+  bot.command('start', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+    console.log('CASE bot.command: start')
+    // При старте всегда сбрасываем сессию и входим в createUserScene
+    ctx.session = { ...defaultSession }
+    await ctx.scene.leave() // Явно выходим из любой сцены
+    await ctx.scene.enter(ModeEnum.CreateUserScene)
+  })
+
+  bot.command('get100', async ctx => {
+    // Первый экземпляр get100
+    if (!ctx.session.userModel) {
+      ctx.session.userModel = {
+        model_name: 'default',
+        trigger_word: '',
+        model_url: 'placeholder/placeholder:placeholder',
+        finetune_id: '',
+      }
+    }
+    await get100Command(ctx)
+  })
+
+  bot.command('support', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+    console.log('CASE bot.command: support')
+    await ctx.scene.leave() // Выходим из сцены перед показом контактов
+    await handleTechSupport(ctx as MyContext)
+  })
+
+  bot.command('menu', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      // В группах команда /menu не должна работать так же, как /start
+      // Можно либо ничего не делать, либо отправить другое сообщение
+      return // Просто игнорируем в группе
+    }
+    logger.info('COMMAND /menu: Переход к главному меню', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      // Re-enter the menu scene
+      ctx.session.mode = ModeEnum.MainMenu // Устанавливаем режим перед входом
+      await ctx.scene.leave() // Выходим из текущей, если есть
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    } catch (error) {
+      logger.error('Error in /menu command:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      try {
+        await ctx.reply('Ошибка при переходе в меню.')
+      } catch {
+        /* ignore */
+      }
+    }
+  })
+
+  bot.command('hello_world', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+    logger.info('COMMAND /hello_world: Testing Inngest integration', {
+      telegramId: ctx.from?.id,
+    })
+    await handleHelloWorld(ctx)
+  })
+
+  bot.command('price', priceCommand)
+
   // --- ТЕСТОВАЯ КОМАНДА ---
   bot.command('testpulse', async ctx => {
     logger.info('COMMAND: /testpulse called', { telegramId: ctx.from?.id })
@@ -424,109 +499,12 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     }
   })
 
-  // 7. Регистрация команд /start, /support, /menu (теперь ПОСЛЕ stage)
-  bot.command('start', async ctx => {
-    if (ctx.chat.type !== 'private') {
-      return sendGroupCommandReply(ctx)
-    }
-    console.log('CASE bot.command: start')
-    // При старте всегда сбрасываем сессию и входим в createUserScene
-    ctx.session = { ...defaultSession }
-    await ctx.scene.leave() // Явно выходим из любой сцены
-    await ctx.scene.enter(ModeEnum.CreateUserScene)
-  })
-
-  bot.command('get100', async ctx => {
-    if (!ctx.session.userModel) {
-      ctx.session.userModel = {
-        model_name: 'default',
-        trigger_word: '',
-        model_url: 'placeholder/placeholder:placeholder',
-        finetune_id: '',
-      }
-    }
-    await get100Command(ctx)
-  })
-
-  bot.command('support', async ctx => {
-    if (ctx.chat.type !== 'private') {
-      return sendGroupCommandReply(ctx)
-    }
-    console.log('CASE bot.command: support')
-    await ctx.scene.leave() // Выходим из сцены перед показом контактов
-    await handleTechSupport(ctx as MyContext)
-  })
-
-  bot.command('menu', async ctx => {
-    if (ctx.chat.type !== 'private') {
-      // В группах команда /menu не должна работать так же, как /start
-      // Можно либо ничего не делать, либо отправить другое сообщение
-      return // Просто игнорируем в группе
-    }
-    logger.info('COMMAND /menu: Переход к главному меню', {
-      telegramId: ctx.from?.id,
-    })
-    try {
-      // Re-enter the menu scene
-      ctx.session.mode = ModeEnum.MainMenu // Устанавливаем режим перед входом
-      await ctx.scene.leave() // Выходим из текущей, если есть
-      await ctx.scene.enter(ModeEnum.MainMenu)
-    } catch (error) {
-      logger.error('Error in /menu command:', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-      try {
-        await ctx.reply('Ошибка при переходе в меню.')
-      } catch {
-        /* ignore */
-      }
-    }
-  })
-
-  bot.command('get100', async ctx => {
-    if (!ctx.session.userModel) {
-      ctx.session.userModel = {
-        model_name: 'default',
-        trigger_word: '',
-        model_url: 'placeholder/placeholder:placeholder',
-        finetune_id: '',
-      }
-    }
-    await get100Command(ctx)
-  })
-
-  // Регистрируем команду /hello_world для тестирования Inngest
-  bot.command('hello_world', async ctx => {
-    if (ctx.chat.type !== 'private') {
-      return sendGroupCommandReply(ctx)
-    }
-    logger.info('COMMAND /hello_world: Testing Inngest integration', {
-      telegramId: ctx.from?.id,
-    })
-    await handleHelloWorld(ctx)
-  })
-
-  // 8. Регистрация специфичных для оплаты действий
-  registerPaymentActions(bot)
-
-  // 9. Обработка перезапуска видео
-  bot.action(/^restart_video:(.+)$/, handleRestartVideoGeneration)
-
-  // 10. Обработчик неизвестных колбэков (предпоследний)
-  bot.on(callbackQuery('data'), async ctx => {
-    await ctx.answerCbQuery('Неизвестное действие')
-    console.warn('Unhandled callback_query:', ctx.callbackQuery)
-  })
-
-  // 11. ОБРАБОТЧИК ТЕКСТА (ПОСЛЕДНИЙ)
+  // 10. ОБРАБОТЧИК ТЕКСТА (ПОСЛЕДНИЙ)
   // Убираем ранее добавленный универсальный обработчик,
   // так как кнопки меню обрабатываются через hears выше.
   // Оставляем только handleTextMessage, который, вероятно,
   // предназначен для обработки текста ВНУТРИ сцен.
   bot.on(message('text'), handleTextMessage)
-
-  bot.command('price', priceCommand)
 
   console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')
   console.log(
