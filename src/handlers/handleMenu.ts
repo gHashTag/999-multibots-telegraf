@@ -421,19 +421,6 @@ export const handleMenu = async (ctx: MyContext) => {
         await ctx.scene.enter('inviteScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
       },
-      '/price': async () => {
-        logger.info({
-          message: '💰 [handleMenu] Команда /price - показ цены',
-          telegramId,
-          function: 'handleMenu',
-          action: 'price_command',
-        })
-        console.log('CASE: 💰 Цена')
-        ctx.session.mode = ModeEnum.Price
-        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Price}`)
-        await priceCommand(ctx)
-        console.log(`✅ [handleMenu] Завершен вход в сцену ${ModeEnum.Price}`)
-      },
       '/buy': async () => {
         logger.info({
           message:

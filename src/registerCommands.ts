@@ -12,6 +12,7 @@ import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
 import { sendMediaToPulse } from './helpers/pulse'
 // Импортируем обработчик команды hello_world
 import { handleHelloWorld } from './commands/handleHelloWorld'
+import { priceCommand } from './commands/priceCommand'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -524,6 +525,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   // Оставляем только handleTextMessage, который, вероятно,
   // предназначен для обработки текста ВНУТРИ сцен.
   bot.on(message('text'), handleTextMessage)
+
+  bot.command('price', priceCommand)
 
   console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')
   console.log(
