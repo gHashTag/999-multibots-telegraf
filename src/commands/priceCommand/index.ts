@@ -33,9 +33,9 @@ export async function priceCommand(ctx: MyContext) {
     `
     : `
     <b>💰 Price of all services:</b>
-    - 🧠 Training model: ${conversionRates.costPerStepInStars} ⭐️
+    - 🧠 Training model 1 step: ${conversionRates.costPerStepInStars} ⭐️
     - ✍️ Prompt generation: ${getCost(modeCosts.text_to_image)} ⭐️
-    - 🖼️ Image generation: from ${minCost} до ${maxCost} ⭐️
+    - 🖼️ Image generation: from ${minCost} to ${maxCost} ⭐️
     - 🤖 Neuro-image generation: ${getCost(modeCosts.image_to_prompt)} ⭐️
     - 🎥 Text to video: ${getCost(modeCosts.text_to_video)} ⭐️
     - 🎤 Voice: ${getCost(modeCosts.voice)} ⭐️
