@@ -5,7 +5,6 @@ import {
   getUserDetailsSubscription,
   createUser,
   getReferalsCountAndUserData,
-  getUserData,
 } from '@/core/supabase'
 import { BOT_URLS } from '@/core/bot'
 import { logger } from '@/utils/logger'
@@ -13,8 +12,22 @@ import { levels } from '@/menu/mainMenu'
 import { ModeEnum } from '@/interfaces/modes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { isRussian } from '@/helpers/language'
-import { startMenu } from '@/menu'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
+import { defaultSession } from '@/store'
+
+interface StartSceneState {
+  initialDisplayDone?: boolean
+}
+
+// Список известных глобальных команд, которые startScene должна "отпускать"
+const GLOBAL_COMMANDS_TO_RELEASE = [
+  '/menu',
+  '/price',
+  '/start', // Если пользователь снова введет /start, глобальный обработчик должен сработать
+  '/support',
+  '/get100',
+  // Добавьте другие глобальные команды по мере необходимости
+]
 
 export const startScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.StartScene,
@@ -22,211 +35,362 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     const telegramId = ctx.from?.id?.toString() || 'unknown'
     const isRu = ctx.from?.language_code === 'ru'
     const currentBotName = ctx.botInfo.username
+
+    // Проверка, не является ли это командой, которую нужно отпустить
+    if (
+      (ctx.wizard.state as StartSceneState).initialDisplayDone &&
+      ctx.message &&
+      'text' in ctx.message
+    ) {
+      const text = ctx.message.text
+      if (GLOBAL_COMMANDS_TO_RELEASE.includes(text)) {
+        logger.info({
+          message: `[StartScene] Active, received global command "${text}". Handling directly.`,
+          telegramId,
+          function: 'startScene',
+          command: text,
+        })
+        delete (ctx.wizard.state as StartSceneState).initialDisplayDone // Очищаем состояние перед выходом
+
+        // ✅ ИСПРАВЛЕНИЕ: Напрямую обрабатываем команды вместо ожидания глобального обработчика
+        switch (text) {
+          case '/menu': {
+            // ✅ ИСПРАВЛЕНИЕ: Проверяем подписку перед входом в меню
+            const { getUserDetailsSubscription } = await import(
+              '@/core/supabase'
+            )
+            const { simulateSubscriptionForDev } = await import(
+              '@/scenes/menuScene/helpers/simulateSubscription'
+            )
+            const { isDev } = await import('@/config')
+
+            const userDetails = await getUserDetailsSubscription(telegramId)
+            const effectiveSubscription = simulateSubscriptionForDev(
+              userDetails?.subscriptionType || null,
+              isDev
+            )
+
+            logger.info('[StartScene] /menu: Checking subscription', {
+              telegramId,
+              originalSubscription: userDetails?.subscriptionType,
+              effectiveSubscription,
+              isDev,
+            })
+
+            await ctx.scene.leave()
+
+            // Если нет подписки (включая симуляцию), направляем в subscriptionScene
+            if (!effectiveSubscription || effectiveSubscription === 'STARS') {
+              logger.info(
+                '[StartScene] /menu: No subscription, redirecting to subscription scene',
+                {
+                  telegramId,
+                  effectiveSubscription,
+                }
+              )
+              ctx.session.mode = ModeEnum.SubscriptionScene
+              return ctx.scene.enter(ModeEnum.SubscriptionScene)
+            }
+
+            // Если подписка есть, входим в меню
+            ctx.session.mode = ModeEnum.MainMenu
+            return ctx.scene.enter(ModeEnum.MainMenu)
+          }
+          case '/price': {
+            // ✅ ЗАЩИТА: Проверяем подписку перед показом цен
+            const { checkSubscriptionGuard } = await import(
+              '@/helpers/subscriptionGuard'
+            )
+            const hasSubscription = await checkSubscriptionGuard(ctx, '/price')
+            if (!hasSubscription) {
+              return // Пользователь перенаправлен в subscriptionScene
+            }
+
+            await ctx.scene.leave()
+            // Импортируем и вызываем priceCommand напрямую
+            const { priceCommand } = await import('@/commands/priceCommand')
+            return priceCommand(ctx)
+          }
+          case '/start': {
+            ctx.session = { ...defaultSession }
+            await ctx.scene.leave()
+            return ctx.scene.enter(ModeEnum.CreateUserScene)
+          }
+          case '/support': {
+            await ctx.scene.leave()
+            const { handleTechSupport } = await import(
+              '@/commands/handleTechSupport'
+            )
+            return handleTechSupport(ctx)
+          }
+          case '/get100': {
+            // ✅ ЗАЩИТА: Проверяем подписку перед выдачей бонуса
+            const { checkSubscriptionGuard } = await import(
+              '@/helpers/subscriptionGuard'
+            )
+            const hasSubscription = await checkSubscriptionGuard(ctx, '/get100')
+            if (!hasSubscription) {
+              return // Пользователь перенаправлен в subscriptionScene
+            }
+
+            await ctx.scene.leave()
+            const { get100Command } = await import('@/commands/get100Command')
+            return get100Command(ctx)
+          }
+          default: {
+            // Если команда не распознана, просто выходим из сцены
+            await ctx.scene.leave()
+            return
+          }
+        }
+      }
+    }
+
+    // --- ОСНОВНАЯ ЛОГИКА СЦЕНЫ (Проверка пользователя, приветствие, кнопки) ---
     const finalUsername =
       ctx.from?.username || ctx.from?.first_name || telegramId
     const telegram_id = ctx.from?.id
     const subscribeChannelId = process.env.SUBSCRIBE_CHANNEL_ID
 
-    try {
-      const userDetails = await getUserDetailsSubscription(telegramId)
+    // Только при первом входе в сцену (когда initialDisplayDone еще не установлен)
+    // или если это не команда, которую нужно было отпустить.
+    if (!(ctx.wizard.state as StartSceneState).initialDisplayDone) {
+      try {
+        const userDetails = await getUserDetailsSubscription(telegramId)
 
-      if (!userDetails.isExist) {
-        // --- Новый пользователь ---
-        const {
-          username,
-          id: tg_id,
-          first_name,
-          last_name,
-          is_bot,
-          language_code,
-        } = ctx.from!
-        const final_username_create = username || first_name || tg_id.toString()
-        const photo_url = getPhotoUrl(ctx, 1)
+        if (!userDetails.isExist) {
+          // --- Новый пользователь ---
+          const {
+            username,
+            id: tg_id,
+            first_name,
+            last_name,
+            is_bot,
+            language_code,
+          } = ctx.from!
+          const final_username_create =
+            username || first_name || tg_id.toString()
+          const photo_url = getPhotoUrl(ctx, 1)
 
-        let refCount = 0
-        let referrerData: { user_id?: string; username?: string } = {}
-        const invite_code = ctx.session.inviteCode
+          let refCount = 0
+          let referrerData: { user_id?: string; username?: string } = {}
+          const invite_code = ctx.session.inviteCode
 
-        try {
-          if (invite_code) {
-            // С рефералом
-            const { count, userData: refUserData } =
-              await getReferalsCountAndUserData(invite_code.toString())
-            refCount = count
-            referrerData = refUserData || {}
-            ctx.session.inviter = referrerData.user_id
-            // Уведомление рефереру
-            try {
-              await ctx.telegram.sendMessage(
-                invite_code,
-                isRussian(ctx)
-                  ? `🔗 Новый пользователь @${final_username_create} зарегистрировался по вашей ссылке.\n🆔 Уровень: ${refCount}`
-                  : `🔗 New user @${final_username_create} registered via your link.\n🆔 Level: ${refCount}`
+          try {
+            if (invite_code) {
+              // С рефералом
+              const { count, userData: refUserData } =
+                await getReferalsCountAndUserData(invite_code.toString())
+              refCount = count
+              referrerData = refUserData || {}
+              ctx.session.inviter = referrerData.user_id
+              // Уведомление рефереру
+              try {
+                await ctx.telegram.sendMessage(
+                  invite_code,
+                  isRussian(ctx)
+                    ? `🔗 Новый пользователь @${final_username_create} зарегистрировался по вашей ссылке.\n🆔 Уровень: ${refCount}`
+                    : `🔗 New user @${final_username_create} registered via your link.\n🆔 Level: ${refCount}`
+                )
+              } catch (err) {
+                logger.warn(
+                  `[StartScene] Could not notify referrer ${invite_code} about new user ${final_username_create}`,
+                  err
+                )
+              }
+              // Уведомление админу (с рефом)
+              if (subscribeChannelId) {
+                try {
+                  const targetChatId =
+                    typeof subscribeChannelId === 'string' &&
+                    !subscribeChannelId.startsWith('-')
+                      ? `@${subscribeChannelId}`
+                      : subscribeChannelId
+                  await ctx.telegram.sendMessage(
+                    targetChatId,
+                    `[${currentBotName}] 🔗 Новый пользователь @${final_username_create} (ID: ${tg_id}) по реф. от @${referrerData.username}`
+                  )
+                } catch (pulseErr) {
+                  logger.warn(
+                    `[StartScene] Could not notify admin channel ${subscribeChannelId} about new referred user`,
+                    pulseErr
+                  )
+                }
+              } else {
+                logger.warn(
+                  '[StartScene] SUBSCRIBE_CHANNEL_ID is not set, admin will not be notified about new referred user.'
+                )
+              }
+            } else {
+              // Без реферала
+              const { count } = await getReferalsCountAndUserData(
+                tg_id.toString()
               )
-            } catch (err) {
-              /* лог ошибки */
-            }
-            // Уведомление админу (с рефом)
-            if (subscribeChannelId) {
-              try {
-                const targetChatId =
-                  typeof subscribeChannelId === 'string' &&
-                  !subscribeChannelId.startsWith('-')
-                    ? `@${subscribeChannelId}`
-                    : subscribeChannelId
-                await ctx.telegram.sendMessage(
-                  targetChatId,
-                  `[${currentBotName}] 🔗 Новый пользователь @${final_username_create} (ID: ${tg_id}) по реф. от @${referrerData.username}`
+              refCount = count
+              // Уведомление админу (без рефа)
+              if (subscribeChannelId) {
+                try {
+                  const targetChatId =
+                    typeof subscribeChannelId === 'string' &&
+                    !subscribeChannelId.startsWith('-')
+                      ? `@${subscribeChannelId}`
+                      : subscribeChannelId
+                  await ctx.telegram.sendMessage(
+                    targetChatId,
+                    `[${currentBotName}] 🔗 Новый пользователь @${final_username_create} (ID: ${tg_id})`
+                  )
+                } catch (pulseErr) {
+                  logger.warn(
+                    `[StartScene] Could not notify admin channel ${subscribeChannelId} about new user`,
+                    pulseErr
+                  )
+                }
+              } else {
+                logger.warn(
+                  '[StartScene] SUBSCRIBE_CHANNEL_ID is not set, admin will not be notified about new user.'
                 )
-              } catch (pulseErr) {
-                /* лог ошибки */
               }
-            } else {
-              /* лог warn */
             }
-          } else {
-            // Без реферала
-            const { count } = await getReferalsCountAndUserData(
-              tg_id.toString()
+          } catch (error) {
+            logger.error(
+              '[StartScene] Error processing referral logic for new user:',
+              error
             )
-            refCount = count
-            // Уведомление админу (без рефа)
-            if (subscribeChannelId) {
-              try {
-                const targetChatId =
-                  typeof subscribeChannelId === 'string' &&
-                  !subscribeChannelId.startsWith('-')
-                    ? `@${subscribeChannelId}`
-                    : subscribeChannelId
-                await ctx.telegram.sendMessage(
-                  targetChatId,
-                  `[${currentBotName}] 🔗 Новый пользователь @${final_username_create} (ID: ${tg_id})`
-                )
-              } catch (pulseErr) {
-                /* лог ошибки */
-              }
-            } else {
-              /* лог warn */
-            }
           }
-        } catch (error) {
-          /* лог ошибки */
-        }
 
-        // Создание пользователя
-        const photoUrlResolved = await photo_url
-        const userPhotoUrl = await getUserPhotoUrl(ctx, ctx.from?.id || 0)
-        const userDataToCreate = {
-          username: final_username_create,
-          telegram_id: tg_id.toString(),
-          first_name: first_name || null,
-          last_name: last_name || null,
-          is_bot: is_bot || false,
-          language_code: language_code || 'en',
-          photo_url: userPhotoUrl || photoUrlResolved,
-          chat_id: ctx.chat?.id || null,
-          mode: 'clean',
-          model: 'gpt-4-turbo',
-          count: 0,
-          aspect_ratio: '9:16',
-          balance: 0,
-          inviter: ctx.session.inviter || null,
-          bot_name: currentBotName,
-        }
-        try {
-          const [wasCreated] = await createUser(userDataToCreate)
-          if (wasCreated) {
+          // Создание пользователя
+          const photoUrlResolved = await photo_url
+          const userPhotoUrl = await getUserPhotoUrl(ctx, ctx.from?.id || 0)
+          const userDataToCreate = {
+            username: final_username_create,
+            telegram_id: tg_id.toString(),
+            first_name: first_name || null,
+            last_name: last_name || null,
+            is_bot: is_bot || false,
+            language_code: language_code || 'en',
+            photo_url: userPhotoUrl || photoUrlResolved,
+            chat_id: ctx.chat?.id || null,
+            mode: 'clean',
+            model: 'gpt-4-turbo',
+            count: 0,
+            aspect_ratio: '9:16',
+            balance: 0,
+            inviter: ctx.session.inviter || null,
+            bot_name: currentBotName,
+          }
+          try {
+            const [wasCreated] = await createUser(userDataToCreate)
+            if (wasCreated) {
+              await ctx.reply(
+                isRussian(ctx)
+                  ? '✅ Аватар успешно создан! Добро пожаловать!'
+                  : '✅ Avatar created successfully! Welcome!'
+              )
+            }
+          } catch (error) {
+            logger.error('[StartScene] Error creating user:', {
+              error,
+              telegramId,
+            })
             await ctx.reply(
               isRussian(ctx)
-                ? '✅ Аватар успешно создан! Добро пожаловать!'
-                : '✅ Avatar created successfully! Welcome!'
+                ? 'Произошла ошибка при создании вашего профиля.'
+                : 'Error creating your profile.'
             )
-          }
-        } catch (error) {
-          /* лог ошибки + reply + return */
-        }
-      } else {
-        // --- Существующий пользователь ---
-        // Уведомление админу о рестарте
-        if (subscribeChannelId) {
-          try {
-            const targetChatId =
-              typeof subscribeChannelId === 'string' &&
-              !subscribeChannelId.startsWith('-')
-                ? `@${subscribeChannelId}`
-                : subscribeChannelId
-            await ctx.telegram.sendMessage(
-              targetChatId,
-              `[${currentBotName}] 🔄 Пользователь @${finalUsername} (ID: ${telegram_id}) перезапустил бота (/start).`
-            )
-          } catch (notifyError) {
-            /* лог ошибки */
+            return ctx.scene.leave() // Выходим при критической ошибке
           }
         } else {
-          /* лог warn */
+          // --- Существующий пользователь ---
+          // Уведомление админу о рестарте
+          if (subscribeChannelId) {
+            try {
+              const targetChatId =
+                typeof subscribeChannelId === 'string' &&
+                !subscribeChannelId.startsWith('-')
+                  ? `@${subscribeChannelId}`
+                  : subscribeChannelId
+              await ctx.telegram.sendMessage(
+                targetChatId,
+                `[${currentBotName}] 🔄 Пользователь @${finalUsername} (ID: ${telegram_id}) перезапустил бота (/start).`
+              )
+            } catch (notifyError) {
+              logger.warn(
+                `[StartScene] Could not notify admin channel ${subscribeChannelId} about user restart`,
+                notifyError
+              )
+            }
+          } else {
+            logger.warn(
+              '[StartScene] SUBSCRIBE_CHANNEL_ID is not set, admin will not be notified about user restart.'
+            )
+          }
         }
+      } catch (error) {
+        logger.error('[StartScene] Error in user processing logic:', {
+          error,
+          telegramId,
+        })
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка при обработке вашего профиля.'
+            : 'Error processing your profile.'
+        )
+        return ctx.scene.leave() // Выходим при критической ошибке
       }
-    } catch (error) {
-      /* лог ошибки + reply + return */
-    }
-    // --- КОНЕЦ: Логика проверки и создания пользователя ---
 
-    // --- НАЧАЛО: Приветствие ---
-    const { translation, url } = await getTranslation({
-      key: 'start',
-      ctx,
-      bot_name: currentBotName,
-    })
-
-    // Функция для проверки валидности URL изображения
-    const isValidImageUrl = (url: string | null): boolean => {
-      if (!url || url.trim() === '') return false
-      if (url.includes('t.me/c/') || url.startsWith('https://t.me/c/'))
-        return false
-      return true
-    }
-
-    if (isValidImageUrl(url)) {
-      logger.info({
-        message:
-          '🖼️ [StartScene] Отправка приветственного изображения с подписью',
-        telegramId,
-        function: 'startScene',
-        url,
-        step: 'sending_welcome_image',
-      })
-      await ctx.replyWithPhoto(url, {
-        caption:
-          translation.length > 1024
-            ? translation.substring(0, 1021) + '...'
-            : translation,
-      })
-    } else {
-      logger.info({
-        message: '📝 [StartScene] Отправка текстового приветствия',
-        telegramId,
-        function: 'startScene',
-        step: 'sending_welcome_text',
-      })
-      await ctx.reply(translation, {
-        parse_mode: 'Markdown',
-      })
-    }
-    // --- КОНЕЦ: Приветствие ---
-
-    // --- НАЧАЛО: Лид-магнит / Видео-инструкция / Меню ---
-    const groupJoinOrVideoUrl = BOT_URLS[currentBotName]
-
-    if (groupJoinOrVideoUrl) {
-      logger.info({
-        message: `🧲 [StartScene] Отправка лид-магнита для ${currentBotName}`,
-        telegramId,
-        function: 'startScene',
-        url: groupJoinOrVideoUrl,
-        step: 'sending_lead_magnet',
+      const { translation, url } = await getTranslation({
+        key: 'start',
+        ctx,
+        bot_name: currentBotName,
       })
 
-      const leadMagnetTextRu = `Хочешь получить обучающее видео? 📀
+      // Функция для проверки валидности URL изображения
+      const isValidImageUrl = (imgUrl: string | null): boolean => {
+        if (!imgUrl || imgUrl.trim() === '') return false
+        if (imgUrl.includes('t.me/c/') || imgUrl.startsWith('https://t.me/c/'))
+          return false
+        return true
+      }
+
+      if (isValidImageUrl(url)) {
+        logger.info({
+          message:
+            '🖼️ [StartScene] Отправка приветственного изображения с подписью',
+          telegramId,
+          function: 'startScene',
+          url,
+          step: 'sending_welcome_image',
+        })
+        await ctx.replyWithPhoto(url, {
+          caption:
+            translation.length > 1024
+              ? translation.substring(0, 1021) + '...'
+              : translation,
+        })
+      } else {
+        logger.info({
+          message: '📝 [StartScene] Отправка текстового приветствия',
+          telegramId,
+          function: 'startScene',
+          step: 'sending_welcome_text',
+        })
+        await ctx.reply(translation, {
+          parse_mode: 'Markdown',
+        })
+      }
+
+      const groupJoinOrVideoUrl = BOT_URLS[currentBotName]
+
+      if (groupJoinOrVideoUrl) {
+        logger.info({
+          message: `🧲 [StartScene] Отправка лид-магнита для ${currentBotName}`,
+          telegramId,
+          function: 'startScene',
+          url: groupJoinOrVideoUrl,
+          step: 'sending_lead_magnet',
+        })
+
+        const leadMagnetTextRu = `Хочешь получить обучающее видео? 📀
 Подпишись на живую группу - и тебе откроется доступ!
 
 Но и это ещё не всё - в этой же группе ты сможешь:
@@ -250,7 +414,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
 нажимай "Оформить подписку" и пользуйся ботом в своём ритме.
 Ты свободен, нейро-одиночка!`
 
-      const leadMagnetTextEn = `Want to get a tutorial video? 📀
+        const leadMagnetTextEn = `Want to get a tutorial video? 📀
 Subscribe to our live group for access!
 
 Plus, in the group you can:
@@ -263,60 +427,62 @@ Plus, in the group you can:
 If you want support, beauty, and benefits - click "Subscribe & Dive In".
 Or, if you prefer to go solo, click "Proceed to Subscription".`
 
-      const leadMagnetMessage = isRu ? leadMagnetTextRu : leadMagnetTextEn
+        await ctx.replyWithHTML(
+          isRu ? leadMagnetTextRu : leadMagnetTextEn,
+          Markup.inlineKeyboard([
+            [
+              Markup.button.url(
+                isRu
+                  ? '🌊 Подписаться и ныряй с нами'
+                  : '🌊 Subscribe and dive in',
+                groupJoinOrVideoUrl
+              ),
+            ],
+            [
+              Markup.button.callback(
+                isRu ? '💳 Оформить подписку' : '💳 Subscribe',
+                'go_to_subscription_scene'
+              ),
+            ],
+          ])
+        )
+      } else {
+        // Случай, если URL для лид-магнита/видео не найден для этого бота
+        logger.info({
+          message: `ℹ️ [StartScene] URL для лид-магнита/туториала для ${currentBotName} не найден, показываем стандартное меню`,
+          telegramId,
+          function: 'startScene',
+          step: 'lead_magnet_or_tutorial_url_not_found_showing_basic_menu',
+        })
 
-      const inlineKeyboard = Markup.inlineKeyboard([
-        Markup.button.url(
-          isRu ? '🌊 Подписаться и ныряй с нами' : '🌊 Subscribe & Dive In',
-          groupJoinOrVideoUrl
-        ),
-        Markup.button.callback(
-          isRu ? '💳 Оформить подписку' : '💳 Proceed to Subscription',
-          'go_to_subscription_scene'
-        ),
-      ])
+        // Восстанавливаем replyKeyboard, если нет лид-магнита, используя isRu
+        const replyKeyboard = Markup.keyboard([
+          Markup.button.text(
+            isRu ? levels[105].title_ru : levels[105].title_en
+          ), // Пример кнопки, адаптируйте под ваши levels
+          Markup.button.text(
+            isRu ? levels[103].title_ru : levels[103].title_en
+          ), // Пример кнопки
+        ]).resize()
 
-      await ctx.reply(leadMagnetMessage, {
-        parse_mode: 'Markdown',
-        reply_markup: inlineKeyboard.reply_markup,
-      })
-    } else {
-      // Случай, если URL для лид-магнита/видео не найден для этого бота
-      logger.info({
-        message: `ℹ️ [StartScene] URL для лид-магнита/туториала для ${currentBotName} не найден, показываем стандартное меню`,
-        telegramId,
-        function: 'startScene',
-        step: 'lead_magnet_or_tutorial_url_not_found_showing_basic_menu',
-      })
+        await ctx.reply(isRu ? 'Выберите действие:' : 'Choose an action:', {
+          reply_markup: replyKeyboard.reply_markup,
+        })
+      }
 
-      const replyKeyboard = Markup.keyboard([
-        Markup.button.text(isRu ? levels[105].title_ru : levels[105].title_en), // Пример кнопки, адаптируйте под ваши levels
-        Markup.button.text(isRu ? levels[103].title_ru : levels[103].title_en), // Пример кнопки
-      ]).resize()
-
-      await ctx.reply(isRu ? 'Выберите действие:' : 'Choose an action:', {
-        reply_markup: replyKeyboard.reply_markup,
-      })
-    }
-    // --- КОНЕЦ: Лид-магнит / Видео-инструкция / Меню ---
+      ;(ctx.wizard.state as StartSceneState).initialDisplayDone = true // Устанавливаем флаг после успешного отображения
+    } // Конец if (!(ctx.wizard.state as StartSceneState).initialDisplayDone)
 
     logger.info({
-      message: `🏁 [StartScene] Завершение основного шага сцены старта`,
+      message: `🏁 [StartScene] Завершение обработки в WizardScene. Сцена остается активной для action-обработчиков.`,
       telegramId,
       function: 'startScene',
-      step: 'main_handler_step_leave',
+      initialDisplayDone: (ctx.wizard.state as StartSceneState)
+        .initialDisplayDone,
     })
-    // Оставляем сцену активной, чтобы обработчики action могли сработать,
-    // или переходим в другую сцену через action.
-    // Если пользователь нажмет URL, он уйдет из контекста бота временно.
-    // Если нажмет callback-кнопку, сработает соответствующий action.
-    return ctx.wizard.next() // Переходим к следующему шагу, если он есть, или завершаем сцену, если это последний шаг.
-    // В данном случае, у нас один основной шаг обработки.
-    // Вместо next() можно просто ничего не делать, чтобы сцена оставалась в текущем шаге.
-    // Или ctx.scene.leave() если мы уверены, что все дальнейшие действия - это переход в другие сцены или выход из контекста.
-    // Для inline кнопок, которые ведут в другие сцены, ctx.scene.leave() здесь безопасно.
-    // Однако, чтобы обработчики .action() этой же сцены сработали, сцена должна быть активна.
-    // Давайте пока уберем явный ctx.scene.leave() отсюда, т.к. переход будет через action.
+    // НЕ вызываем ctx.scene.leave() или ctx.wizard.next() здесь,
+    // чтобы action-обработчики (инлайн-кнопки) могли сработать.
+    // Если придет команда, она будет обработана в начале этого же хендлера на следующем вызове.
   }
 )
 
@@ -329,8 +495,7 @@ startScene.action('go_to_subscription_scene', async ctx => {
       telegramId: ctx.from?.id?.toString() || 'unknown',
       function: 'startScene.action.go_to_subscription_scene',
     })
-    // Можно отправить подтверждающее сообщение перед переходом
-    // await ctx.reply(isRu ? 'Переходим к выбору подписки...' : 'Proceeding to subscription options...')
+    delete (ctx.wizard.state as StartSceneState).initialDisplayDone // Очищаем состояние при переходе в другую сцену
     return ctx.scene.enter(ModeEnum.SubscriptionScene)
   } catch (error) {
     logger.error('Error in go_to_subscription_scene action:', error)
@@ -339,6 +504,7 @@ startScene.action('go_to_subscription_scene', async ctx => {
         ? 'Произошла ошибка. Попробуйте позже.'
         : 'An error occurred. Please try again later.'
     )
+    delete (ctx.wizard.state as StartSceneState).initialDisplayDone // Очищаем состояние и при ошибке
     return ctx.scene.leave() // В случае ошибки выходим из сцены
   }
 })
