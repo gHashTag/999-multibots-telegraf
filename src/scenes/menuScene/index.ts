@@ -40,7 +40,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     // Pass only necessary data to mainMenu (assuming it adapts or uses defaults for level/count)
     const keyboard = await mainMenu({
       isRu,
-      subscription: userDetails.subscriptionType, // Pass only subscription
+      subscription: newSubscription,
       ctx,
     })
 

@@ -14,20 +14,6 @@ export function simulateSubscriptionForDev(
   originalSubscription: SubscriptionType | null,
   isDev: boolean
 ): SubscriptionType | null {
-  // Временно всегда возвращаем оригинальную подписку для тестирования
-  if (isDev) {
-    // Добавляем эту проверку, чтобы было понятно, что это изменение для dev режима
-    logger.info(
-      '[DEV SIMULATION BYPASSED] Returning original subscription for testing purposes.',
-      {
-        original: originalSubscription,
-        function: 'simulateSubscriptionForDev',
-      }
-    )
-    return originalSubscription
-  }
-  // Конец временного изменения
-
   if (!isDev) {
     // В продакшен-режиме всегда возвращаем оригинальную подписку
     return originalSubscription
@@ -37,7 +23,7 @@ export function simulateSubscriptionForDev(
   // ЕСЛИ ПОНАДОБИТСЯ АКТИВНАЯ СИМУЛЯЦИЯ, РАСКОММЕНТИРУЙТЕ И НАСТРОЙТЕ БЛОК НИЖЕ
   // А ТАКЖЕ ЗАКОММЕНТИРУЙТЕ БЛОК if(isDev) ВЫШЕ (строки 23-32)
   const simulatedSubscriptionTypeToUse: SubscriptionType | null =
-    SubscriptionType.NEUROVIDEO
+    SubscriptionType.NEUROVIDEO // ✅ Симулируем пользователя с подпиской NEUROTESTER
   if (simulatedSubscriptionTypeToUse !== originalSubscription) {
     logger.warn('[DEV SIMULATION] Subscription type is being simulated!', {
       original: originalSubscription,
