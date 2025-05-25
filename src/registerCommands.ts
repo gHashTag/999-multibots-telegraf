@@ -13,6 +13,7 @@ import { sendMediaToPulse } from './helpers/pulse'
 // Импортируем обработчик команды hello_world
 import { handleHelloWorld } from './commands/handleHelloWorld'
 import { priceCommand } from './commands/priceCommand'
+import { checkSubscriptionGuard } from './helpers/subscriptionGuard'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -148,6 +149,139 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
   bot.use(stage.middleware())
 
+  // 6. --- РЕГИСТРАЦИЯ ГЛОБАЛЬНЫХ КОМАНД ---
+  // Команды должны быть зарегистрированы здесь, до hears и общего on('text')
+
+  bot.command('start', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+    console.log('CASE bot.command: start')
+    // При старте всегда сбрасываем сессию и входим в createUserScene
+    ctx.session = { ...defaultSession }
+    await ctx.scene.leave() // Явно выходим из любой сцены
+    await ctx.scene.enter(ModeEnum.CreateUserScene)
+  })
+
+  bot.command('get100', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+
+    // ✅ ЗАЩИТА: Проверяем подписку перед выдачей бонуса
+    const hasSubscription = await checkSubscriptionGuard(ctx, '/get100')
+    if (!hasSubscription) {
+      return // Пользователь перенаправлен в subscriptionScene
+    }
+
+    // Первый экземпляр get100
+    if (!ctx.session.userModel) {
+      ctx.session.userModel = {
+        model_name: 'default',
+        trigger_word: '',
+        model_url: 'placeholder/placeholder:placeholder',
+        finetune_id: '',
+      }
+    }
+    await get100Command(ctx)
+  })
+
+  bot.command('support', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+    console.log('CASE bot.command: support')
+    await ctx.scene.leave() // Выходим из сцены перед показом контактов
+    await handleTechSupport(ctx as MyContext)
+  })
+
+  bot.command('menu', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      // В группах команда /menu не должна работать так же, как /start
+      // Можно либо ничего не делать, либо отправить другое сообщение
+      return // Просто игнорируем в группе
+    }
+    logger.info('COMMAND /menu: Переход к главному меню', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.scene.leave() // Выходим из текущей, если есть
+
+      // ✅ ИСПРАВЛЕНИЕ: Проверяем подписку перед входом в меню
+      const telegramId = ctx.from?.id?.toString() || 'unknown'
+      const { getUserDetailsSubscription } = await import('@/core/supabase')
+      const { simulateSubscriptionForDev } = await import(
+        '@/scenes/menuScene/helpers/simulateSubscription'
+      )
+      const { isDev } = await import('@/config')
+
+      const userDetails = await getUserDetailsSubscription(telegramId)
+      const effectiveSubscription = simulateSubscriptionForDev(
+        userDetails?.subscriptionType || null,
+        isDev
+      )
+
+      logger.info('COMMAND /menu: Checking subscription', {
+        telegramId,
+        originalSubscription: userDetails?.subscriptionType,
+        effectiveSubscription,
+        isDev,
+      })
+
+      // Если нет подписки (включая симуляцию), направляем в subscriptionScene
+      if (!effectiveSubscription || effectiveSubscription === 'STARS') {
+        logger.info(
+          'COMMAND /menu: No subscription, redirecting to subscription scene',
+          {
+            telegramId,
+            effectiveSubscription,
+          }
+        )
+        ctx.session.mode = ModeEnum.SubscriptionScene
+        await ctx.scene.enter(ModeEnum.SubscriptionScene)
+        return
+      }
+
+      // Если подписка есть, входим в меню
+      ctx.session.mode = ModeEnum.MainMenu
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    } catch (error) {
+      logger.error('Error in /menu command:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      try {
+        await ctx.reply('Ошибка при переходе в меню.')
+      } catch {
+        /* ignore */
+      }
+    }
+  })
+
+  bot.command('hello_world', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+    logger.info('COMMAND /hello_world: Testing Inngest integration', {
+      telegramId: ctx.from?.id,
+    })
+    await handleHelloWorld(ctx)
+  })
+
+  bot.command('price', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+
+    // ✅ ЗАЩИТА: Проверяем подписку перед показом цен
+    const hasSubscription = await checkSubscriptionGuard(ctx, '/price')
+    if (!hasSubscription) {
+      return // Пользователь перенаправлен в subscriptionScene
+    }
+
+    return priceCommand(ctx)
+  })
+
   // --- ТЕСТОВАЯ КОМАНДА ---
   bot.command('testpulse', async ctx => {
     logger.info('COMMAND: /testpulse called', { telegramId: ctx.from?.id })
@@ -182,56 +316,6 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   })
   // --- КОНЕЦ ТЕСТОВОЙ КОМАНДЫ ---
 
-  // --- ТЕПЕРЬ ВСЕ ОСТАЛЬНЫЕ ОБРАБОТЧИКИ ---
-
-  // 4. ГЛОБАЛЬНЫЕ HEARS ДЛЯ ОСНОВНОЙ НАВИГАЦИИ (теперь ПОСЛЕ stage)
-  bot.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
-    logger.info('GLOBAL HEARS (POST-STAGE): Главное меню', {
-      telegramId: ctx.from?.id,
-    })
-    try {
-      await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.MainMenu)
-    } catch (error) {
-      logger.error('Error in Главное меню hears (POST-STAGE):', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-    }
-  })
-  bot.hears(['❓ Справка', '❓ Help'], async ctx => {
-    logger.info('GLOBAL HEARS (POST-STAGE): Справка', {
-      telegramId: ctx.from?.id,
-    })
-    try {
-      await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.Help)
-    } catch (error) {
-      logger.error('Error in Справка hears (POST-STAGE):', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-    }
-  })
-  bot.hears(['Отмена', 'Cancel'], async ctx => {
-    logger.info('GLOBAL HEARS (POST-STAGE): Отмена/Cancel', {
-      telegramId: ctx.from?.id,
-    })
-    try {
-      await ctx.reply(
-        isRussian(ctx) ? '❌ Процесс отменён.' : '❌ Process cancelled.',
-        Markup.removeKeyboard()
-      )
-      await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.MainMenu)
-    } catch (error) {
-      logger.error('Error in Отмена/Cancel hears (POST-STAGE):', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-    }
-  })
-
   // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
   bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
     console.log('CASE bot.hears: 💬 Техподдержка / Support')
@@ -263,108 +347,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     }
   })
 
-  bot.hears([levels[100].title_ru, levels[100].title_en], async ctx => {
-    console.log('CASE bot.hears: 💎 Пополнить баланс / Top up balance')
-    await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.PaymentScene
-    ctx.session.subscription = SubscriptionType.STARS
-    await ctx.scene.enter(ModeEnum.PaymentScene)
-  })
-  bot.hears([levels[101].title_ru, levels[101].title_en], async ctx => {
-    console.log('CASE bot.hears: 🤑 Баланс / Balance')
-    await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.Balance
-    await ctx.scene.enter(ModeEnum.Balance)
-  })
-  bot.hears([levels[5].title_ru, levels[5].title_en], async ctx => {
-    console.log('CASE bot.hears: 💭 Чат с аватаром / Chat with avatar')
-    logger.info('GLOBAL HEARS: Чат с аватаром', { telegramId: ctx.from?.id })
-    try {
-      await ctx.scene.leave()
-      ctx.session.mode = ModeEnum.ChatWithAvatar
-      await ctx.scene.enter(ModeEnum.ChatWithAvatar)
-    } catch (error) {
-      logger.error('Error in Чат с аватаром hears:', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-      await ctx.reply('Произошла ошибка при входе в чат с аватаром.')
-    }
-  })
-  bot.hears([levels[7].title_ru, levels[7].title_en], async ctx => {
-    console.log('CASE bot.hears: 🎤 Голос аватара / Avatar Voice')
-    logger.info('GLOBAL HEARS: Голос аватара', { telegramId: ctx.from?.id })
-    try {
-      await ctx.scene.leave()
-      ctx.session.mode = ModeEnum.Voice
-      await ctx.scene.enter(ModeEnum.Voice)
-    } catch (error) {
-      logger.error('Error in Голос аватара hears:', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-      await ctx.reply('Произошла ошибка при входе в Голос Аватара.')
-    }
-  })
-
-  // ... (остальные hears для levels[0]...levels[10]) ...
-  // Например:
-  if (levels && typeof levels === 'object' && levels[1]) {
-    bot.hears([levels[1].title_ru, levels[1].title_en], async ctx => {
-      // 🤖 Цифровое тело
-      logger.info('GLOBAL HEARS: Цифровое тело', { telegramId: ctx.from?.id })
-      await ctx.scene.leave() // Теперь должно работать
-      ctx.session.mode = ModeEnum.DigitalAvatarBody
-      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-    })
-  }
-  // ... (и так далее для всех функциональных кнопок)
-
-  // Админские кнопки hears
-  bot.hears('🤖 Цифровое тело 2', async ctx => {
-    logger.info('GLOBAL HEARS: Цифровое тело 2 (Admin)', {
-      telegramId: ctx.from?.id,
-    })
-    await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-  })
-  bot.hears('📸 Нейрофото 2', async ctx => {
-    logger.info('GLOBAL HEARS: Нейрофото 2 (Admin)', {
-      telegramId: ctx.from?.id,
-    })
-    await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.NeuroPhotoV2
-    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-  })
-
-  // hears для "Пригласить друга"
-  if (levels && typeof levels === 'object' && levels[102]) {
-    bot.hears([levels[102].title_ru, levels[102].title_en], async ctx => {
-      console.log('CASE bot.hears: 👥 Пригласить друга / Invite a friend')
-      ctx.session.mode = ModeEnum.Invite // Устанавливаем режим
-      await ctx.scene.enter(ModeEnum.Invite) // InviteScene ID = 'inviteScene'
-    })
-  }
-
-  // Добавляем обработчик hears для "Выбор модели ИИ" по аналогии
-  if (levels && typeof levels === 'object' && levels[6]) {
-    bot.hears([levels[6].title_ru, levels[6].title_en], async ctx => {
-      console.log('CASE bot.hears: 🤖 Выбор модели ИИ / Choose AI Model')
-      logger.info('GLOBAL HEARS: Выбор модели ИИ', { telegramId: ctx.from?.id })
-      try {
-        await ctx.scene.leave()
-        ctx.session.mode = ModeEnum.SelectModel // Устанавливаем режим
-        await ctx.scene.enter(ModeEnum.SelectModel) // Входим в сцену выбора модели
-      } catch (error) {
-        logger.error('Error in Выбор модели ИИ hears:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        await ctx.reply('Произошла ошибка при входе в Выбор модели ИИ.')
-      }
-    })
-  }
+  // ВСЕ ОСТАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ПЕРЕНЕСЕНЫ В hearsHandlers.ts
 
   // 6. ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ НАВИГАЦИИ (ACTION) (теперь ПОСЛЕ stage)
   bot.action('go_main_menu', async ctx => {
@@ -424,109 +407,12 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     }
   })
 
-  // 7. Регистрация команд /start, /support, /menu (теперь ПОСЛЕ stage)
-  bot.command('start', async ctx => {
-    if (ctx.chat.type !== 'private') {
-      return sendGroupCommandReply(ctx)
-    }
-    console.log('CASE bot.command: start')
-    // При старте всегда сбрасываем сессию и входим в createUserScene
-    ctx.session = { ...defaultSession }
-    await ctx.scene.leave() // Явно выходим из любой сцены
-    await ctx.scene.enter(ModeEnum.CreateUserScene)
-  })
-
-  bot.command('get100', async ctx => {
-    if (!ctx.session.userModel) {
-      ctx.session.userModel = {
-        model_name: 'default',
-        trigger_word: '',
-        model_url: 'placeholder/placeholder:placeholder',
-        finetune_id: '',
-      }
-    }
-    await get100Command(ctx)
-  })
-
-  bot.command('support', async ctx => {
-    if (ctx.chat.type !== 'private') {
-      return sendGroupCommandReply(ctx)
-    }
-    console.log('CASE bot.command: support')
-    await ctx.scene.leave() // Выходим из сцены перед показом контактов
-    await handleTechSupport(ctx as MyContext)
-  })
-
-  bot.command('menu', async ctx => {
-    if (ctx.chat.type !== 'private') {
-      // В группах команда /menu не должна работать так же, как /start
-      // Можно либо ничего не делать, либо отправить другое сообщение
-      return // Просто игнорируем в группе
-    }
-    logger.info('COMMAND /menu: Переход к главному меню', {
-      telegramId: ctx.from?.id,
-    })
-    try {
-      // Re-enter the menu scene
-      ctx.session.mode = ModeEnum.MainMenu // Устанавливаем режим перед входом
-      await ctx.scene.leave() // Выходим из текущей, если есть
-      await ctx.scene.enter(ModeEnum.MainMenu)
-    } catch (error) {
-      logger.error('Error in /menu command:', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-      try {
-        await ctx.reply('Ошибка при переходе в меню.')
-      } catch {
-        /* ignore */
-      }
-    }
-  })
-
-  bot.command('get100', async ctx => {
-    if (!ctx.session.userModel) {
-      ctx.session.userModel = {
-        model_name: 'default',
-        trigger_word: '',
-        model_url: 'placeholder/placeholder:placeholder',
-        finetune_id: '',
-      }
-    }
-    await get100Command(ctx)
-  })
-
-  // Регистрируем команду /hello_world для тестирования Inngest
-  bot.command('hello_world', async ctx => {
-    if (ctx.chat.type !== 'private') {
-      return sendGroupCommandReply(ctx)
-    }
-    logger.info('COMMAND /hello_world: Testing Inngest integration', {
-      telegramId: ctx.from?.id,
-    })
-    await handleHelloWorld(ctx)
-  })
-
-  // 8. Регистрация специфичных для оплаты действий
-  registerPaymentActions(bot)
-
-  // 9. Обработка перезапуска видео
-  bot.action(/^restart_video:(.+)$/, handleRestartVideoGeneration)
-
-  // 10. Обработчик неизвестных колбэков (предпоследний)
-  bot.on(callbackQuery('data'), async ctx => {
-    await ctx.answerCbQuery('Неизвестное действие')
-    console.warn('Unhandled callback_query:', ctx.callbackQuery)
-  })
-
-  // 11. ОБРАБОТЧИК ТЕКСТА (ПОСЛЕДНИЙ)
+  // 10. ОБРАБОТЧИК ТЕКСТА (ПОСЛЕДНИЙ)
   // Убираем ранее добавленный универсальный обработчик,
   // так как кнопки меню обрабатываются через hears выше.
   // Оставляем только handleTextMessage, который, вероятно,
   // предназначен для обработки текста ВНУТРИ сцен.
   bot.on(message('text'), handleTextMessage)
-
-  bot.command('price', priceCommand)
 
   console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')
   console.log(

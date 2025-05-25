@@ -11,7 +11,6 @@ import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update, BotCommand } from 'telegraf/types'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
-import { setupHearsHandlers } from './hearsHandlers'
 import { session } from 'telegraf'
 import {
   handleSuccessfulPayment,
@@ -24,6 +23,7 @@ import { message } from 'telegraf/filters'
 
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
+import { setupHearsHandlers } from './hearsHandlers'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -139,7 +139,7 @@ async function initializeBots() {
     console.log(
       '🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...'
     )
-
+    //
     // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
     bot.use(session()) // 1. Сессия (из bot.ts)
     bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
@@ -148,7 +148,7 @@ async function initializeBots() {
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
     bot.on('successful_payment', handleSuccessfulPayment as any)
     // Инициализация обработчиков hears из отдельного файла
-    setupHearsHandlers(bot) // 4. Hears (Старые)
+    setupHearsHandlers(bot) // 4. Hears (Возвращаем)
 
     // Обработчик текстовых сообщений по умолчанию - должен быть последним
     bot.on(message('text'), handleTextMessage)
@@ -202,7 +202,7 @@ async function initializeBots() {
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
         bot.on('successful_payment', handleSuccessfulPayment as any)
         // Инициализация обработчиков hears из отдельного файла
-        setupHearsHandlers(bot) // 4. Hears (Старые)
+        setupHearsHandlers(bot) // 4. Hears (Возвращаем)
 
         // Обработчик текстовых сообщений по умолчанию - должен быть последним
         bot.on(message('text'), handleTextMessage)
