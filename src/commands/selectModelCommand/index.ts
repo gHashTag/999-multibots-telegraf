@@ -1,7 +1,7 @@
 import { Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 
-import { getAvailableModels } from './getAvailableModels'
+import { getAvailableModels, SelectableModel } from './getAvailableModels'
 import { sendGenericErrorMessage } from '@/menu'
 
 // Функция для получения доступных моделей
@@ -9,25 +9,23 @@ export async function selectModelCommand(ctx: MyContext) {
   const isRu = ctx.from?.language_code === 'ru'
 
   try {
-    const models = await getAvailableModels()
+    const models: SelectableModel[] = await getAvailableModels()
 
     // Создаем кнопки для каждой модели, по 3 в ряд
     const buttons: ReturnType<typeof Markup.button.text>[][] = []
     for (let i = 0; i < models.length; i += 3) {
       const row: ReturnType<typeof Markup.button.text>[] = []
       if (models[i]) {
-        row.push(Markup.button.text(models[i]))
+        row.push(Markup.button.text(models[i].name))
       }
       if (models[i + 1]) {
-        row.push(Markup.button.text(models[i + 1]))
+        row.push(Markup.button.text(models[i + 1].name))
       }
       if (models[i + 2]) {
-        row.push(Markup.button.text(models[i + 2]))
+        row.push(Markup.button.text(models[i + 2].name))
       }
       buttons.push(row)
     }
-
-    buttons.push([Markup.button.text(isRu ? 'Отмена' : 'Cancel')])
 
     const keyboard = Markup.keyboard(buttons).resize()
 

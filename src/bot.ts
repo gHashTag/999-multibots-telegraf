@@ -11,12 +11,12 @@ import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update, BotCommand } from 'telegraf/types'
 import { registerCommands } from './registerCommands'
 import { MyContext } from './interfaces'
-import { setupHearsHandlers } from './hearsHandlers'
 import { session } from 'telegraf'
 import {
   handleSuccessfulPayment,
   handlePreCheckoutQuery,
 } from './handlers/paymentHandlers'
+import { setBotCommands } from './setCommands'
 
 // Импорт новой команды
 import { setupStatsCommand } from './commands/statsCommand'
@@ -26,16 +26,17 @@ import { message } from 'telegraf/filters'
 
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
+import { setupHearsHandlers } from './hearsHandlers'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
 
 // Define the commands for private chats
-const privateCommands: BotCommand[] = [
-  { command: 'start', description: '🚀 Начать / Restart' },
-  { command: 'menu', description: '🏠 Главное меню / Main Menu' },
-  { command: 'support', description: '💬 Техподдержка / Support' },
-]
+// const privateCommands: BotCommand[] = [
+//   { command: 'start', description: '🚀 Начать / Restart' },
+//   { command: 'menu', description: '🏠 Главное меню / Main Menu' },
+//   { command: 'support', description: '💬 Техподдержка / Support' },
+// ]
 
 // Функция для проверки валидности токена
 export async function validateBotToken(token: string): Promise<boolean> {
@@ -141,9 +142,10 @@ async function initializeBots() {
     console.log(
       '🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...'
     )
-
+    //
     // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
     bot.use(session()) // 1. Сессия (из bot.ts)
+    bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
     registerCommands({ bot }) // 2. Сцены и команды (включая stage.middleware())
     // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
     setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
@@ -151,33 +153,14 @@ async function initializeBots() {
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
     bot.on('successful_payment', handleSuccessfulPayment as any)
     // Инициализация обработчиков hears из отдельного файла
-    setupHearsHandlers(bot) // 4. Hears (Старые)
+    setupHearsHandlers(bot) // 4. Hears (Возвращаем)
 
     // Обработчик текстовых сообщений по умолчанию - должен быть последним
     bot.on(message('text'), handleTextMessage)
     // <<<---------------------------------------------------->>>
 
-    // <<<--- Set commands scope for the development bot ---<<<
-    try {
-      await bot.telegram.setMyCommands(privateCommands, {
-        scope: { type: 'all_private_chats' },
-      })
-      await bot.telegram.setMyCommands([], {
-        scope: { type: 'all_group_chats' },
-      }) // Empty commands for groups
-      await bot.telegram.setMyCommands([], {
-        scope: { type: 'all_chat_administrators' },
-      }) // Optional: Empty for admins too
-      console.log(
-        `✅ Команды установлены для тестового бота ${foundBotInfo.username}`
-      )
-    } catch (error) {
-      console.error(
-        `❌ Ошибка установки команд для ${foundBotInfo.username}:`,
-        error
-      )
-    }
-    // >>>--------------------------------------------------->>>
+    // Используем импортированную функцию setBotCommands
+    await setBotCommands(bot)
 
     botInstances.push(bot)
     // Используем уже полученную информацию о боте
@@ -215,7 +198,7 @@ async function initializeBots() {
         const bot = new Telegraf<MyContext>(token, {
           handlerTimeout: Infinity,
         })
-        bot.use(Composer.log())
+        bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
 
         // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
         bot.use(session()) // 1. Сессия (из bot.ts)
@@ -226,7 +209,7 @@ async function initializeBots() {
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
         bot.on('successful_payment', handleSuccessfulPayment as any)
         // Инициализация обработчиков hears из отдельного файла
-        setupHearsHandlers(bot) // 4. Hears (Старые)
+        setupHearsHandlers(bot) // 4. Hears (Возвращаем)
 
         // Обработчик текстовых сообщений по умолчанию - должен быть последним
         bot.on(message('text'), handleTextMessage)
@@ -236,25 +219,14 @@ async function initializeBots() {
         const botInfo = await bot.telegram.getMe()
         console.log(`🤖 Бот ${botInfo.username} инициализирован`)
 
-        // <<<--- Set commands scope for the production bot ---<<<
-        try {
-          await bot.telegram.setMyCommands(privateCommands, {
-            scope: { type: 'all_private_chats' },
-          })
-          await bot.telegram.setMyCommands([], {
-            scope: { type: 'all_group_chats' },
-          }) // Empty commands for groups
-          await bot.telegram.setMyCommands([], {
-            scope: { type: 'all_chat_administrators' },
-          }) // Optional: Empty for admins too
-          console.log(`✅ Команды установлены для бота ${botInfo.username}`)
-        } catch (error) {
-          console.error(
-            `❌ Ошибка установки команд для ${botInfo.username}:`,
-            error
-          )
-        }
-        // >>>---------------------------------------------------->>>
+        // Используем импортированную функцию setBotCommands
+        await setBotCommands(bot)
+
+        // Запускаем webhook для каждого бота
+        // Старый блок установки команд ниже должен быть полностью удален
+
+        // webhook settings
+        // ... existing code ...
 
         while (await isPortInUse(currentPort)) {
           console.log(`⚠️ Порт ${currentPort} занят, пробуем следующий...`)
@@ -307,41 +279,15 @@ async function initializeBots() {
 
 // Асинхронная функция для остановки
 async function gracefulShutdown(signal: string) {
-  console.log(`🛑 Получен сигнал ${signal}, начинаем graceful shutdown...`)
-
-  // 1. Останавливаем ботов
-  console.log(`[${signal}] Stopping ${botInstances.length} bot instance(s)...`)
-  const stopPromises = botInstances.map(async (bot, index) => {
-    try {
-      console.log(
-        `[${signal}] Initiating stop for bot instance index ${index}...`
-      )
-      // bot.stop() для long polling обычно синхронный, но для надежности можно обернуть
-      // Хотя Telegraf 4.x stop() возвращает void для polling
-      bot.stop(signal)
-      console.log(
-        `[${signal}] Successfully stopped bot instance index ${index}.`
-      )
-    } catch (error) {
-      console.error(
-        `[${signal}] Error stopping bot instance index ${index}:`,
-        error // Логируем полную ошибку
-      )
-    }
-  })
-  // Не нужно Promise.all, так как bot.stop() синхронный для polling
-  // await Promise.all(stopPromises) // Убираем ожидание, если оно не нужно
-  console.log(`[${signal}] All bot instances processed for stopping.`)
-
-  // 3. Добавляем небольшую задержку перед выходом
-  console.log(`[${signal}] Adding a short delay before exiting...`)
-  await new Promise(resolve => setTimeout(resolve, 3000))
-
-  console.log(`[${signal}] Graceful shutdown completed. Exiting.`)
+  console.log(`🚨 Получен сигнал ${signal}. Завершение работы...`)
+  for (const bot of botInstances) {
+    console.log(`🚫 Остановка бота ${bot.botInfo?.username}...`)
+    await bot.stop()
+  }
   process.exit(0)
 }
 
-// Обрабатываем сигналы завершения
+// Ловим сигналы завершения
 process.once('SIGINT', () => gracefulShutdown('SIGINT'))
 process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
