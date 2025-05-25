@@ -70,7 +70,7 @@ export const BOT_URLS: Partial<Record<BotName, string>> = {
   MetaMuse_Manifest_bot: 'https://t.me/MetaMuse_manifestation/16',
   neuro_blogger_bot: 'https://t.me/neuro_coder_ai/1212',
   ai_koshey_bot: 'https://t.me/neuro_coder_ai/1212',
-  Kaya_easy_art_bot: 'https://t.me/c/2561144891/13',
+  Kaya_easy_art_bot: 'https://t.me/kaya_easy_art/13',
 }
 
 export const BOT_TOKENS =

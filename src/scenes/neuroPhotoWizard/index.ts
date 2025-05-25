@@ -216,9 +216,10 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
     if (numImages >= 1 && numImages <= 4) {
       await generate(numImages)
+      return ctx.scene.leave()
     } else {
       console.log(
-        'CASE: Неизвестная команда в neuroPhotoButtonStep, возврат в меню'
+        'CASE: Неизвестный ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
       )
       await mainMenu({
         isRu,
@@ -227,6 +228,17 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       })
       return ctx.scene.leave()
     }
+  } else {
+    const isRu = ctx.from?.language_code === 'ru'
+    console.log(
+      'CASE: Нетекстовый или отсутствующий ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
+    )
+    await mainMenu({
+      isRu,
+      subscription: ctx.session.subscription || null,
+      ctx,
+    })
+    return ctx.scene.leave()
   }
 }
 
