@@ -216,6 +216,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
     if (numImages >= 1 && numImages <= 4) {
       await generate(numImages)
+      return ctx.scene.leave()
     } else {
       console.log(
         'CASE: Неизвестный ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
