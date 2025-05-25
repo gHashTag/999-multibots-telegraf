@@ -181,7 +181,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
     if (numImages >= 1 && numImages <= 4) {
       await generate(numImages)
-      return
+      return ctx.scene.leave()
     } else {
       const { subscriptionType } = await getReferalsCountAndUserData(
         ctx.from?.id?.toString() || ''
