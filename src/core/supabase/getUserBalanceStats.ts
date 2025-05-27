@@ -33,9 +33,120 @@ export interface UserBalanceStatsResult {
   stats: BotStatistics[]
 }
 
+// Обновленные интерфейсы согласно реальной структуре БД
+export interface PaymentV2Record {
+  id: number
+  telegram_id: number
+  payment_date: string
+  amount: number
+  description: string | null
+  metadata: Record<string, any>
+  stars: number
+  currency: string
+  inv_id: string | null
+  invoice_url: string | null
+  status: 'PENDING' | 'COMPLETED' | 'FAILED'
+  type:
+    | 'MONEY_INCOME'
+    | 'MONEY_OUTCOME'
+    | 'BONUS'
+    | 'REFUND'
+    | 'SUBSCRIPTION_PURCHASE'
+    | 'SUBSCRIPTION_RENEWAL'
+    | 'REFERRAL'
+    | 'SYSTEM'
+  service_type: string | null
+  operation_id: string | null
+  bot_name: string
+  language: string
+  payment_method: string | null
+  subscription_type: string | null
+  is_system_payment: boolean
+  created_at: string
+  cost: number | null // Себестоимость операции
+  category: string
+}
+
+export interface UserRecord {
+  id: string
+  telegram_id: string
+  first_name: string | null
+  last_name: string | null
+  username: string | null
+  created_at: string
+  updated_at: string
+  bot_name: string
+}
+
+export interface BotStatsWithCost {
+  // Финансовые метрики (общие)
+  total_income: number
+  total_outcome: number
+  total_cost: number
+  net_profit: number
+  profit_margin: number
+  cost_percentage: number
+
+  // Детализация по валютам - Рубли
+  rub_income: number
+  rub_outcome: number
+  rub_net_result: number
+  rub_income_transactions: number
+  rub_outcome_transactions: number
+
+  // Детализация по валютам - Звезды
+  stars_income: number
+  stars_outcome: number
+  stars_cost: number
+  stars_net_result: number
+  stars_income_transactions: number
+  stars_outcome_transactions: number
+
+  // Пользовательские метрики
+  total_users: number
+  active_users_today: number
+  active_users_week: number
+  active_users_month: number
+  new_users_today: number
+  new_users_week: number
+  new_users_month: number
+
+  // Операционные метрики
+  total_transactions: number
+  transactions_today: number
+  transactions_week: number
+  transactions_month: number
+  avg_transaction_value: number
+
+  // Метрики роста и конверсии
+  user_growth_rate: number
+  revenue_growth_rate: number
+  conversion_rate: number
+  retention_rate: number
+
+  // Анализ сервисов
+  top_services: ServiceProfitabilityStats[]
+
+  // Рекомендации
+  recommendations: string[]
+}
+
+export interface ServiceProfitabilityStats {
+  service_name: string
+  emoji: string
+  transaction_count: number
+  total_revenue: number
+  total_cost: number
+  profit: number
+  profit_margin: number
+  cost_percentage: number
+  avg_transaction_value: number
+  growth_trend: 'up' | 'down' | 'stable'
+}
+
 /**
  * Получает всю статистику баланса пользователя одним запросом для конкретного бота.
- * Вызывает SQL-функцию get_user_balance_stats, которая должна быть обновлена для возврата детализированной структуры.
+ * Временная реализация работает напрямую с таблицей payments_v2 до создания SQL функции.
  */
 export const getUserBalanceStats = async (
   userTelegramId: string,
@@ -49,69 +160,99 @@ export const getUserBalanceStats = async (
   }
 
   try {
-    // Функция get_user_balance_stats теперь принимает только один параметр - user_telegram_id
-    const { data, error } = await supabase.rpc('get_user_balance_stats', {
-      user_telegram_id: userTelegramId,
-    })
-
-    logger.info('[getUserBalanceStats] Raw data from SQL function:', {
-      data_received: data,
-    })
-
-    if (error) {
-      logger.error(
-        '[getUserBalanceStats] Ошибка при вызове SQL get_user_balance_stats:',
-        {
-          userTelegramId,
-          botName,
-          error_message: error.message,
-          error_details: error,
-        }
-      )
-      return null
-    }
-
-    if (!data || !data.stats) {
-      logger.warn(
-        '[getUserBalanceStats] SQL get_user_balance_stats не вернула данные.',
-        { userTelegramId, botName }
-      )
-      return null
-    }
-
-    // Преобразуем статистику из SQL в типизированный формат
-    const validatedResult: UserBalanceStatsResult = {
-      stats: Array.isArray(data.stats)
-        ? data.stats.map(
-            (stat: any): BotStatistics => ({
-              bot_name: String(stat.bot_name || 'unknown'),
-              neurovideo_income: Number(stat.neurovideo_income || 0),
-              stars_topup_income: Number(stat.stars_topup_income || 0),
-              total_income: Number(stat.total_income || 0),
-              total_outcome: Number(stat.total_outcome || 0),
-              total_cost: Number(stat.total_cost || 0),
-              net_profit: Number(stat.net_profit || 0),
-            })
-          )
-        : [],
-    }
-
-    // Если указан конкретный бот, фильтруем результаты только для него
-    if (botName) {
-      validatedResult.stats = validatedResult.stats.filter(
-        stat => stat.bot_name === botName
-      )
-    }
-
-    logger.info('[getUserBalanceStats] Статистика баланса успешно получена:', {
+    logger.info('[getUserBalanceStats] Calculating stats from payments_v2:', {
       userTelegramId,
       botName,
-      stats_count: validatedResult.stats.length,
     })
 
-    return validatedResult
+    // Получаем все платежи пользователя для указанного бота
+    let query = supabase
+      .from('payments_v2')
+      .select('bot_name, stars, type, service_type, cost, status, category')
+      .eq('telegram_id', parseInt(userTelegramId))
+      .eq('status', 'COMPLETED')
+
+    if (botName) {
+      query = query.eq('bot_name', botName)
+    }
+
+    const { data: payments, error } = await query
+
+    if (error) {
+      logger.error('[getUserBalanceStats] Error fetching payments:', {
+        error: error.message,
+        userTelegramId,
+        botName,
+      })
+      return null
+    }
+
+    if (!payments || payments.length === 0) {
+      logger.warn('[getUserBalanceStats] No payments found:', {
+        userTelegramId,
+        botName,
+      })
+      return { stats: [] }
+    }
+
+    // Группируем платежи по ботам
+    const botStatsMap = new Map<string, BotStatistics>()
+
+    payments.forEach(payment => {
+      const currentBotName = payment.bot_name || 'unknown'
+
+      if (!botStatsMap.has(currentBotName)) {
+        botStatsMap.set(currentBotName, {
+          bot_name: currentBotName,
+          neurovideo_income: 0,
+          stars_topup_income: 0,
+          total_income: 0,
+          total_outcome: 0,
+          total_cost: 0,
+          net_profit: 0,
+        })
+      }
+
+      const stats = botStatsMap.get(currentBotName)!
+      const stars = payment.stars || 0
+      const cost = payment.cost || 0
+
+      if (payment.type === 'MONEY_INCOME' && payment.category === 'REAL') {
+        stats.total_income += stars
+
+        // Разделяем доходы по типам
+        if (payment.service_type === 'neurovideo') {
+          stats.neurovideo_income += stars
+        } else if (payment.service_type === 'topup' || !payment.service_type) {
+          stats.stars_topup_income += stars
+        }
+      } else if (
+        payment.type === 'MONEY_OUTCOME' &&
+        payment.category === 'REAL'
+      ) {
+        stats.total_outcome += stars
+        stats.total_cost += cost
+      }
+
+      // Рассчитываем чистую прибыль
+      stats.net_profit =
+        stats.total_income - stats.total_outcome - stats.total_cost
+    })
+
+    const result: UserBalanceStatsResult = {
+      stats: Array.from(botStatsMap.values()),
+    }
+
+    logger.info('[getUserBalanceStats] Stats calculated successfully:', {
+      userTelegramId,
+      botName,
+      stats_count: result.stats.length,
+      stats: result.stats,
+    })
+
+    return result
   } catch (e) {
-    logger.error('[getUserBalanceStats] Непредвиденная ошибка:', {
+    logger.error('[getUserBalanceStats] Unexpected error:', {
       userTelegramId,
       botName,
       error: e instanceof Error ? e.message : String(e),
@@ -146,5 +287,501 @@ const formatDateSafe = (dateString: any): string => {
       { input: dateString, error: e }
     )
     return 'Formatting Error'
+  }
+}
+
+/**
+ * Получает статистику бота с учетом себестоимости
+ */
+export async function getBotStatsWithCost(
+  botName: string,
+  timeframe: 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all' = 'all'
+): Promise<BotStatsWithCost> {
+  try {
+    const currentTime = new Date()
+
+    // Получаем все платежи для бота
+    let query = supabase
+      .from('payments_v2')
+      .select('*')
+      .eq('bot_name', botName)
+      .eq('status', 'COMPLETED')
+
+    // Применяем фильтр по времени если нужно
+    if (timeframe !== 'all') {
+      let startDate: string
+      switch (timeframe) {
+        case 'today': {
+          startDate = currentTime.toISOString().split('T')[0]
+          break
+        }
+        case 'week': {
+          const weekAgo = new Date(
+            currentTime.getTime() - 7 * 24 * 60 * 60 * 1000
+          )
+          startDate = weekAgo.toISOString()
+          break
+        }
+        case 'month': {
+          const monthAgo = new Date(
+            currentTime.getTime() - 30 * 24 * 60 * 60 * 1000
+          )
+          startDate = monthAgo.toISOString()
+          break
+        }
+        case 'quarter': {
+          const quarterAgo = new Date(
+            currentTime.getTime() - 90 * 24 * 60 * 60 * 1000
+          )
+          startDate = quarterAgo.toISOString()
+          break
+        }
+        case 'year': {
+          const yearAgo = new Date(
+            currentTime.getTime() - 365 * 24 * 60 * 60 * 1000
+          )
+          startDate = yearAgo.toISOString()
+          break
+        }
+        default:
+          startDate = ''
+      }
+      if (startDate) {
+        query = query.gte('payment_date', startDate)
+      }
+    }
+
+    const { data: payments, error } = await query
+
+    if (error) throw error
+
+    // Общие финансовые метрики (в звездах)
+    // ИСПРАВЛЕНИЕ: Для общих метрик учитываем ВСЕ операции
+    const income = payments
+      .filter(p => p.type === 'MONEY_INCOME')
+      .reduce((sum, p) => sum + (p.stars || 0), 0)
+
+    const outcome = payments
+      .filter(p => p.type === 'MONEY_OUTCOME')
+      .reduce((sum, p) => sum + (p.stars || 0), 0)
+
+    const cost = payments
+      .filter(p => p.type === 'MONEY_OUTCOME')
+      .reduce((sum, p) => sum + (p.cost || 0), 0)
+
+    const netProfit = income - outcome - cost
+    const profitMargin = income > 0 ? (netProfit / income) * 100 : 0
+    const costPercentage = outcome > 0 ? (cost / outcome) * 100 : 0
+
+    // Детализация по валютам - Рубли (RUB)
+    const rubIncomePayments = payments.filter(
+      p =>
+        p.type === 'MONEY_INCOME' &&
+        p.category === 'REAL' &&
+        p.currency === 'RUB'
+    )
+    const rubOutcomePayments = payments.filter(
+      p =>
+        p.type === 'MONEY_OUTCOME' &&
+        p.category === 'REAL' &&
+        p.currency === 'RUB'
+    )
+
+    const rubIncome = rubIncomePayments.reduce(
+      (sum, p) => sum + (p.amount || 0),
+      0
+    )
+    const rubOutcome = rubOutcomePayments.reduce(
+      (sum, p) => sum + (p.amount || 0),
+      0
+    )
+    const rubNetResult = rubIncome - rubOutcome
+
+    // Детализация по валютам - Звезды (XTR/STARS) - только РЕАЛЬНЫЕ операции
+    const starsIncomePayments = payments.filter(
+      p =>
+        p.type === 'MONEY_INCOME' &&
+        p.category === 'REAL' &&
+        (p.currency === 'XTR' || p.currency === 'STARS')
+    )
+    const starsOutcomePayments = payments.filter(
+      p => p.type === 'MONEY_OUTCOME' && p.category === 'REAL'
+    )
+
+    const starsIncome = starsIncomePayments.reduce(
+      (sum, p) => sum + (p.stars || 0),
+      0
+    )
+    const starsOutcome = starsOutcomePayments.reduce(
+      (sum, p) => sum + (p.stars || 0),
+      0
+    )
+    const starsCost = starsOutcomePayments.reduce(
+      (sum, p) => sum + (p.cost || 0),
+      0
+    )
+    const starsNetResult = starsIncome - starsOutcome - starsCost
+
+    // Пользовательские метрики
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('bot_name', botName)
+
+    if (usersError) throw usersError
+
+    const totalUsers = users.length
+    const today = currentTime.toISOString().split('T')[0]
+    const weekAgo = new Date(
+      currentTime.getTime() - 7 * 24 * 60 * 60 * 1000
+    ).toISOString()
+    const monthAgo = new Date(
+      currentTime.getTime() - 30 * 24 * 60 * 60 * 1000
+    ).toISOString()
+
+    // Активные пользователи (у кого есть транзакции)
+    const activeUsersToday = new Set(
+      payments.filter(p => p.payment_date >= today).map(p => p.telegram_id)
+    ).size
+
+    const activeUsersWeek = new Set(
+      payments.filter(p => p.payment_date >= weekAgo).map(p => p.telegram_id)
+    ).size
+
+    const activeUsersMonth = new Set(
+      payments.filter(p => p.payment_date >= monthAgo).map(p => p.telegram_id)
+    ).size
+
+    // Новые пользователи - используем первую транзакцию как дату "активации"
+    // Группируем платежи по пользователям и находим первую транзакцию
+    const firstTransactionByUser = new Map<number, string>()
+    payments.forEach(payment => {
+      if (!firstTransactionByUser.has(payment.telegram_id)) {
+        firstTransactionByUser.set(payment.telegram_id, payment.created_at)
+      }
+    })
+
+    let newUsersToday = 0
+    let newUsersWeek = 0
+    let newUsersMonth = 0
+
+    firstTransactionByUser.forEach(firstTransactionDate => {
+      const transactionDate = new Date(firstTransactionDate)
+      if (transactionDate >= new Date(today)) newUsersToday++
+      if (transactionDate >= new Date(weekAgo)) newUsersWeek++
+      if (transactionDate >= new Date(monthAgo)) newUsersMonth++
+    })
+
+    // Операционные метрики
+    const totalTransactions = payments.length
+    const transactionsToday = payments.filter(
+      p => p.payment_date >= today
+    ).length
+    const transactionsWeek = payments.filter(
+      p => p.payment_date >= weekAgo
+    ).length
+    const transactionsMonth = payments.filter(
+      p => p.payment_date >= monthAgo
+    ).length
+    const avgTransactionValue =
+      totalTransactions > 0 ? (income + outcome) / totalTransactions : 0
+
+    // Анализ сервисов
+    const topServices = await getTopServicesByProfitability(payments)
+
+    // Рекомендации
+    const recommendations = generateRecommendations({
+      profitMargin,
+      costPercentage,
+      conversionRate:
+        totalUsers > 0 ? (activeUsersMonth / totalUsers) * 100 : 0,
+      topServices,
+    })
+
+    return {
+      total_income: income,
+      total_outcome: outcome,
+      total_cost: cost,
+      net_profit: netProfit,
+      profit_margin: profitMargin,
+      cost_percentage: costPercentage,
+
+      // Детализация по валютам - Рубли
+      rub_income: rubIncome,
+      rub_outcome: rubOutcome,
+      rub_net_result: rubNetResult,
+      rub_income_transactions: rubIncomePayments.length,
+      rub_outcome_transactions: rubOutcomePayments.length,
+
+      // Детализация по валютам - Звезды
+      stars_income: starsIncome,
+      stars_outcome: starsOutcome,
+      stars_cost: starsCost,
+      stars_net_result: starsNetResult,
+      stars_income_transactions: starsIncomePayments.length,
+      stars_outcome_transactions: starsOutcomePayments.length,
+
+      total_users: totalUsers,
+      active_users_today: activeUsersToday,
+      active_users_week: activeUsersWeek,
+      active_users_month: activeUsersMonth,
+      new_users_today: newUsersToday,
+      new_users_week: newUsersWeek,
+      new_users_month: newUsersMonth,
+
+      total_transactions: totalTransactions,
+      transactions_today: transactionsToday,
+      transactions_week: transactionsWeek,
+      transactions_month: transactionsMonth,
+      avg_transaction_value: avgTransactionValue,
+
+      user_growth_rate:
+        totalUsers > newUsersMonth
+          ? (newUsersMonth / (totalUsers - newUsersMonth)) * 100
+          : 0,
+      revenue_growth_rate: 0, // Требует исторических данных
+      conversion_rate:
+        totalUsers > 0 ? (activeUsersMonth / totalUsers) * 100 : 0,
+      retention_rate:
+        activeUsersMonth > 0 ? (activeUsersWeek / activeUsersMonth) * 100 : 0,
+
+      top_services: topServices,
+      recommendations: recommendations,
+    }
+  } catch (error) {
+    console.error('Error in getBotStatsWithCost:', error)
+    return getDefaultStats()
+  }
+}
+
+/**
+ * Анализирует топ сервисы по прибыльности
+ */
+async function getTopServicesByProfitability(
+  payments: PaymentV2Record[]
+): Promise<ServiceProfitabilityStats[]> {
+  // Фильтруем только реальные РАСХОДНЫЕ операции
+  // Доходы (MONEY_INCOME) не должны попадать в анализ сервисов
+  const realOutcomePayments = payments.filter(
+    p => p.category === 'REAL' && p.type === 'MONEY_OUTCOME'
+  )
+
+  const serviceMap = new Map<string, any>()
+
+  // Группируем по сервисам
+  realOutcomePayments.forEach(payment => {
+    const serviceName = getServiceDisplayName(
+      payment.service_type,
+      payment.description
+    )
+    const current = serviceMap.get(serviceName) || {
+      revenue: 0,
+      cost: 0,
+      count: 0,
+    }
+
+    serviceMap.set(serviceName, {
+      revenue: current.revenue + (payment.stars || 0),
+      cost: current.cost + (payment.cost || 0),
+      count: current.count + 1,
+    })
+  })
+
+  // Преобразуем в массив и сортируем по прибыли
+  return Array.from(serviceMap.entries())
+    .map(([serviceName, stats]) => ({
+      service_name: serviceName,
+      emoji: getServiceEmoji(serviceName),
+      transaction_count: stats.count,
+      total_revenue: stats.revenue,
+      total_cost: stats.cost,
+      profit: stats.revenue - stats.cost,
+      profit_margin:
+        stats.revenue > 0
+          ? ((stats.revenue - stats.cost) / stats.revenue) * 100
+          : 0,
+      cost_percentage:
+        stats.revenue > 0 ? (stats.cost / stats.revenue) * 100 : 0,
+      avg_transaction_value: stats.count > 0 ? stats.revenue / stats.count : 0,
+      growth_trend: 'stable' as const, // Требует исторических данных для расчета
+    }))
+    .sort((a, b) => b.profit - a.profit)
+    .slice(0, 10)
+}
+
+/**
+ * Получает отображаемое имя сервиса
+ */
+function getServiceDisplayName(
+  serviceType: string | null,
+  description: string | null
+): string {
+  if (serviceType) return serviceType
+
+  if (description) {
+    // Видео генерация
+    if (description.includes('Video generation (Kling v1.6 Pro)'))
+      return 'video_kling_pro'
+    if (description.includes('Video generation (Kling v2.0)'))
+      return 'video_kling_v2'
+    if (description.includes('Video generation (Haiper')) return 'video_haiper'
+    if (description.includes('Video generation (Minimax)'))
+      return 'video_minimax'
+    if (description.includes('Video generation (Ray-v2)')) return 'video_ray'
+    if (description.includes('Video generation (Kling v1.6 Standard)'))
+      return 'video_standard'
+    if (description.includes('Video generation (Wan-2.1-i2v)'))
+      return 'video_wan'
+
+    // Тренировка моделей
+    if (
+      description.includes('тренировки модели') ||
+      description.includes('Model training') ||
+      description.includes('NEURO_TRAIN_LORA_DEBIT')
+    )
+      return 'model_training'
+
+    // Анализ изображений
+    if (
+      description.includes('image to prompt') ||
+      description.includes('Анализ изображения')
+    )
+      return 'image_analysis'
+
+    // Генерация изображений
+    if (description.includes('generating') && description.includes('image'))
+      return 'image_generation'
+
+    // Платежные операции
+    if (description === 'Payment operation') return 'payment_operation'
+  }
+
+  return 'other'
+}
+
+/**
+ * Получает эмодзи для сервиса
+ */
+function getServiceEmoji(serviceName: string): string {
+  const emojiMap: Record<string, string> = {
+    neuro_photo: '🎨',
+    video_kling_pro: '🎬',
+    video_kling_v2: '🎥',
+    video_haiper: '📹',
+    video_minimax: '🎞️',
+    video_ray: '🎪',
+    video_standard: '📺',
+    video_wan: '🎭',
+    model_training: '🧠',
+    image_to_prompt: '🔍',
+    image_analysis: '🔍',
+    image_generation: '🖼️',
+    text_to_speech: '🗣️',
+    digital_avatar_body: '👤',
+    prompts: '💭',
+    payment_operation: '💳',
+    other: '❓',
+  }
+
+  return emojiMap[serviceName] || '❓'
+}
+
+/**
+ * Генерирует рекомендации на основе метрик
+ */
+function generateRecommendations(metrics: {
+  profitMargin: number
+  costPercentage: number
+  conversionRate: number
+  topServices: ServiceProfitabilityStats[]
+}): string[] {
+  const recommendations: string[] = []
+
+  if (metrics.profitMargin < 50) {
+    recommendations.push(
+      '💡 Низкая маржинальность. Рассмотрите оптимизацию себестоимости или повышение цен'
+    )
+  }
+
+  if (metrics.costPercentage > 30) {
+    recommendations.push(
+      '⚠️ Высокая себестоимость. Ищите более эффективных поставщиков API'
+    )
+  }
+
+  if (metrics.conversionRate < 10) {
+    recommendations.push(
+      '📈 Низкая конверсия. Улучшите onboarding и мотивацию к первой покупке'
+    )
+  }
+
+  const topService = metrics.topServices[0]
+  if (topService && topService.profit_margin > 80) {
+    recommendations.push(
+      `🚀 Сервис "${topService.service_name}" очень прибыльный. Продвигайте его активнее`
+    )
+  }
+
+  const lowMarginServices = metrics.topServices.filter(
+    s => s.profit_margin < 30
+  )
+  if (lowMarginServices.length > 0) {
+    recommendations.push(
+      `🔧 Сервисы с низкой маржой: ${lowMarginServices.map(s => s.service_name).join(', ')}. Оптимизируйте их`
+    )
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push('✅ Отличные показатели! Продолжайте в том же духе')
+  }
+
+  return recommendations
+}
+
+/**
+ * Возвращает статистику по умолчанию
+ */
+function getDefaultStats(): BotStatsWithCost {
+  return {
+    total_income: 0,
+    total_outcome: 0,
+    total_cost: 0,
+    net_profit: 0,
+    profit_margin: 0,
+    cost_percentage: 0,
+
+    // Детализация по валютам - Рубли
+    rub_income: 0,
+    rub_outcome: 0,
+    rub_net_result: 0,
+    rub_income_transactions: 0,
+    rub_outcome_transactions: 0,
+
+    // Детализация по валютам - Звезды
+    stars_income: 0,
+    stars_outcome: 0,
+    stars_cost: 0,
+    stars_net_result: 0,
+    stars_income_transactions: 0,
+    stars_outcome_transactions: 0,
+
+    total_users: 0,
+    active_users_today: 0,
+    active_users_week: 0,
+    active_users_month: 0,
+    new_users_today: 0,
+    new_users_week: 0,
+    new_users_month: 0,
+    total_transactions: 0,
+    transactions_today: 0,
+    transactions_week: 0,
+    transactions_month: 0,
+    avg_transaction_value: 0,
+    user_growth_rate: 0,
+    revenue_growth_rate: 0,
+    conversion_rate: 0,
+    retention_rate: 0,
+    top_services: [],
+    recommendations: ['📊 Недостаточно данных для анализа'],
   }
 }

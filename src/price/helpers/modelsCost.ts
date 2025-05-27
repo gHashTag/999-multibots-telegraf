@@ -19,16 +19,28 @@ type BaseCosts = {
 }
 
 export const BASE_COSTS: BaseCosts = {
+  // 💰 ПЛАТНЫЕ СЕРВИСЫ (простой расчет - фиксированная цена)
   [ModeEnum.NeuroPhoto]: 0.08,
-  [ModeEnum.NeuroPhotoV2]: 0.14,
-  [ModeEnum.NeuroAudio]: 0.12,
   [ModeEnum.ImageToPrompt]: 0.03,
+  [ModeEnum.TextToSpeech]: 0.12,
+
+  // 💰 ПЛАТНЫЕ СЕРВИСЫ (сложный расчет - базовые цены для видео)
+  [ModeEnum.KlingVideo]: 1.1, // ~69⭐ = $1.1
+  [ModeEnum.HaiperVideo]: 0.6, // ~38⭐ = $0.6
+  [ModeEnum.MinimaxVideo]: 6.2, // ~390⭐ = $6.2
+  [ModeEnum.VideoGenerationOther]: 2.5, // ~158⭐ = $2.5
+  // DigitalAvatarBody - рассчитывается отдельно по шагам
+
+  // 🔧 СИСТЕМНЫЕ ОПЕРАЦИИ (бесплатные)
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: 0,
   [ModeEnum.SelectModel]: 0,
   [ModeEnum.SelectAiTextModel]: 0,
+
+  // ⚠️ УСТАРЕВШИЕ (оставляем для совместимости)
+  [ModeEnum.NeuroPhotoV2]: 0.14,
+  [ModeEnum.NeuroAudio]: 0.12,
   [ModeEnum.Voice]: 0.9,
-  [ModeEnum.TextToSpeech]: 0.12,
   [ModeEnum.ImageToVideo]: 0,
   [ModeEnum.TextToVideo]: 0,
   [ModeEnum.TextToImage]: 0.08,
@@ -75,10 +87,6 @@ export function calculateModeCost(
       } else {
         stars = (baseCostInDollars / starCost) * numImages * interestRate
       }
-    }
-
-    if (mode === ModeEnum.VoiceToText) {
-      stars = 5
     }
 
     stars = parseFloat(stars.toFixed(2))
@@ -132,6 +140,16 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.LipSync]: calculateModeCost({ mode: ModeEnum.LipSync }).stars,
   [ModeEnum.VoiceToText]: calculateModeCost({ mode: ModeEnum.VoiceToText })
     .stars,
+
+  // 💰 ПЛАТНЫЕ ВИДЕО-СЕРВИСЫ
+  [ModeEnum.KlingVideo]: calculateModeCost({ mode: ModeEnum.KlingVideo }).stars,
+  [ModeEnum.HaiperVideo]: calculateModeCost({ mode: ModeEnum.HaiperVideo })
+    .stars,
+  [ModeEnum.MinimaxVideo]: calculateModeCost({ mode: ModeEnum.MinimaxVideo })
+    .stars,
+  [ModeEnum.VideoGenerationOther]: calculateModeCost({
+    mode: ModeEnum.VideoGenerationOther,
+  }).stars,
 }
 
 export const minCost = parseFloat(

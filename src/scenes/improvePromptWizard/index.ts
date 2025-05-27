@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { upgradePrompt } from '@/core/openai/upgradePrompt'
 import { MyContext } from '@/interfaces'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
-import { generateNeuroImage } from '@/services/generateNeuroImage'
+import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
 import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
 import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
 import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovementFailureMessage'
@@ -10,7 +10,7 @@ import { sendGenericErrorMessage } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'
 import { getUserProfileAndSettings } from '@/db/userSettings'
 import { logger } from '@/utils/logger'
-import { getUserBalance } from '@/core/supabase'
+import { getUserBalance, getUserData } from '@/core/supabase'
 const MAX_ATTEMPTS = 10
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
@@ -174,9 +174,29 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           console.log(mode, 'mode')
           try {
             switch (mode) {
-              case ModeEnum.NeuroPhoto:
-                await generateNeuroImage(
-                  ctx.session.prompt,
+              case ModeEnum.NeuroPhoto: {
+                // ИСПРАВЛЕНИЕ: Формируем правильный промпт с учетом пола и trigger_word
+                const trigger_word = ctx.session.userModel
+                  .trigger_word as string
+
+                const userData = await getUserData(ctx.from.id.toString())
+                let genderPromptPart = 'person'
+                if (userData?.gender === 'female') {
+                  genderPromptPart = 'female'
+                } else if (userData?.gender === 'male') {
+                  genderPromptPart = 'male'
+                }
+
+                console.log(
+                  `[improvePromptWizard] Determined gender for prompt: ${genderPromptPart}`
+                )
+
+                const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
+
+                const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${ctx.session.prompt}, ${detailPrompt}`
+
+                await generateNeuroPhotoHybrid(
+                  fullPrompt,
                   ctx.session.userModel.model_url,
                   1,
                   ctx.from.id.toString(),
@@ -184,6 +204,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                   ctx.botInfo?.username
                 )
                 break
+              }
               case 'text_to_video':
                 if (!ctx.session.videoModel)
                   throw new Error(
