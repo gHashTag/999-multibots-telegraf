@@ -10,7 +10,11 @@ import { ModeEnum } from '@/interfaces/modes'
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
 
 // Рассчитываем стоимость LipSync
-const LIPSYNC_COST = BASE_COSTS[ModeEnum.LipSync] || 84.38 // 84.38⭐
+const LIPSYNC_COST_VALUE = BASE_COSTS[ModeEnum.LipSync] || 84.38 // 84.38⭐
+const LIPSYNC_COST =
+  typeof LIPSYNC_COST_VALUE === 'function'
+    ? LIPSYNC_COST_VALUE(1)
+    : LIPSYNC_COST_VALUE
 
 export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
   'lip_sync',
