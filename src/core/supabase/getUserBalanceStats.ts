@@ -570,7 +570,7 @@ async function getTopServicesByProfitability(
 
   // Группируем по сервисам
   realOutcomePayments.forEach(payment => {
-    const serviceName = getServiceDisplayName(
+    const serviceName = getServiceDisplayNameFromMapping(
       payment.service_type,
       payment.description
     )
@@ -591,7 +591,7 @@ async function getTopServicesByProfitability(
   return Array.from(serviceMap.entries())
     .map(([serviceName, stats]) => ({
       service_name: serviceName,
-      emoji: getServiceEmoji(serviceName),
+      emoji: getServiceEmojiFromMapping(serviceName),
       transaction_count: stats.count,
       total_revenue: stats.revenue,
       total_cost: stats.cost,
@@ -609,82 +609,10 @@ async function getTopServicesByProfitability(
     .slice(0, 10)
 }
 
-/**
- * Получает отображаемое имя сервиса
- */
-function getServiceDisplayName(
-  serviceType: string | null,
-  description: string | null
-): string {
-  if (serviceType) return serviceType
-
-  if (description) {
-    // Видео генерация
-    if (description.includes('Video generation (Kling v1.6 Pro)'))
-      return 'video_kling_pro'
-    if (description.includes('Video generation (Kling v2.0)'))
-      return 'video_kling_v2'
-    if (description.includes('Video generation (Haiper')) return 'video_haiper'
-    if (description.includes('Video generation (Minimax)'))
-      return 'video_minimax'
-    if (description.includes('Video generation (Ray-v2)')) return 'video_ray'
-    if (description.includes('Video generation (Kling v1.6 Standard)'))
-      return 'video_standard'
-    if (description.includes('Video generation (Wan-2.1-i2v)'))
-      return 'video_wan'
-
-    // Тренировка моделей
-    if (
-      description.includes('тренировки модели') ||
-      description.includes('Model training') ||
-      description.includes('NEURO_TRAIN_LORA_DEBIT')
-    )
-      return 'model_training'
-
-    // Анализ изображений
-    if (
-      description.includes('image to prompt') ||
-      description.includes('Анализ изображения')
-    )
-      return 'image_analysis'
-
-    // Генерация изображений
-    if (description.includes('generating') && description.includes('image'))
-      return 'image_generation'
-
-    // Платежные операции
-    if (description === 'Payment operation') return 'payment_operation'
-  }
-
-  return 'other'
-}
-
-/**
- * Получает эмодзи для сервиса
- */
-function getServiceEmoji(serviceName: string): string {
-  const emojiMap: Record<string, string> = {
-    neuro_photo: '🎨',
-    video_kling_pro: '🎬',
-    video_kling_v2: '🎥',
-    video_haiper: '📹',
-    video_minimax: '🎞️',
-    video_ray: '🎪',
-    video_standard: '📺',
-    video_wan: '🎭',
-    model_training: '🧠',
-    image_to_prompt: '🔍',
-    image_analysis: '🔍',
-    image_generation: '🖼️',
-    text_to_speech: '🗣️',
-    digital_avatar_body: '👤',
-    prompts: '💭',
-    payment_operation: '💳',
-    other: '❓',
-  }
-
-  return emojiMap[serviceName] || '❓'
-}
+import {
+  getServiceDisplayName as getServiceDisplayNameFromMapping,
+  getServiceEmoji as getServiceEmojiFromMapping,
+} from '@/utils/serviceMapping'
 
 /**
  * Генерирует рекомендации на основе метрик
