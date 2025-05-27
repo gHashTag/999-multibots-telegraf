@@ -74,7 +74,7 @@ export async function generateNeuroPhotoHybrid(
 
     await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
-    const url = `${isDev ? LOCAL_SERVER_URL : API_SERVER_URL}/generate/neuro-photo`
+    const url = `${API_SERVER_URL}/generate/neuro-photo`
 
     const serverPayload = {
       prompt,
