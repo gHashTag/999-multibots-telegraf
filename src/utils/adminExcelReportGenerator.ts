@@ -12,7 +12,7 @@ import {
   UserService,
 } from './serviceMapping'
 
-// Zod схемы для валидации данных
+// Zod схемы для валидации данных (исправленные для реальных типов БД)
 const PaymentSchema = z.object({
   id: z.number(),
   telegram_id: z.union([z.string(), z.number()]).transform(val => String(val)),
@@ -46,9 +46,9 @@ const ServiceStatsSchema = z.object({
 
 const TopUserSchema = z.object({
   telegram_id: z.string(),
-  username: z.string().optional(),
-  first_name: z.string().optional(),
-  last_name: z.string().optional(),
+  username: z.string().nullable().optional(),
+  first_name: z.string().nullable().optional(),
+  last_name: z.string().nullable().optional(),
   total_spending: z.number(),
   transactions_count: z.number(),
 })
@@ -74,45 +74,44 @@ const DailyStatsSchema = z.object({
   transactions: z.number(),
 })
 
-const BotReportDataSchema = z.object({
-  botName: z.string(),
-  totalIncome: z.number(),
-  totalOutcome: z.number(),
-  totalCost: z.number(),
-  netProfit: z.number(),
-  profitMargin: z.number(),
-  totalUsers: z.number(),
-  activeUsersMonth: z.number(),
-  totalTransactions: z.number(),
+// Упрощенная схема без валидации Map (так как Zod плохо работает с Map)
+interface BotReportData {
+  botName: string
+  totalIncome: number
+  totalOutcome: number
+  totalCost: number
+  netProfit: number
+  profitMargin: number
+  totalUsers: number
+  activeUsersMonth: number
+  totalTransactions: number
 
   // Детализация по валютам
-  rubIncome: z.number(),
-  rubOutcome: z.number(),
-  starsIncome: z.number(),
-  starsOutcome: z.number(),
-  starsCost: z.number(),
+  rubIncome: number
+  rubOutcome: number
+  starsIncome: number
+  starsOutcome: number
+  starsCost: number
 
   // Детализация по способам оплаты
-  robokassaPayments: z.array(PaymentSchema),
-  telegramStarsPayments: z.array(PaymentSchema),
-  bonusPayments: z.array(PaymentSchema),
+  robokassaPayments: z.infer<typeof PaymentSchema>[]
+  telegramStarsPayments: z.infer<typeof PaymentSchema>[]
+  bonusPayments: z.infer<typeof PaymentSchema>[]
 
   // Операции по сервисам
-  serviceStats: z.map(z.string(), ServiceStatsSchema),
+  serviceStats: Map<string, { count: number; revenue: number; cost: number }>
 
   // Пользователи
-  topUsers: z.array(TopUserSchema),
-  userSegments: z.array(z.any()), // TODO: implement proper schema
+  topUsers: z.infer<typeof TopUserSchema>[]
+  userSegments: any[]
 
   // Временная аналитика
-  monthlyStats: z.array(MonthlyStatsSchema),
-  dailyStats: z.array(DailyStatsSchema),
+  monthlyStats: z.infer<typeof MonthlyStatsSchema>[]
+  dailyStats: z.infer<typeof DailyStatsSchema>[]
 
   // Все транзакции
-  allTransactions: z.array(PaymentSchema),
-})
-
-type BotReportData = z.infer<typeof BotReportDataSchema>
+  allTransactions: z.infer<typeof PaymentSchema>[]
+}
 
 export async function generateAdminExcelReport(
   botName: string
@@ -124,34 +123,31 @@ export async function generateAdminExcelReport(
     // Получаем все данные бота
     const reportData = await getBotReportData(validatedBotName)
 
-    // Валидируем полученные данные
-    const validatedData = BotReportDataSchema.parse(reportData)
-
     // Создаем новую книгу Excel
     const workbook = XLSX.utils.book_new()
 
     // Лист 1: Общая сводка
-    const summarySheet = createBotSummarySheet(validatedData)
+    const summarySheet = createBotSummarySheet(reportData)
     XLSX.utils.book_append_sheet(workbook, summarySheet, '📊 Общая сводка')
 
     // Лист 2: Финансовая аналитика
-    const financialSheet = createFinancialAnalyticsSheet(validatedData)
+    const financialSheet = createFinancialAnalyticsSheet(reportData)
     XLSX.utils.book_append_sheet(workbook, financialSheet, '💰 Финансы')
 
     // Лист 3: Аналитика по сервисам
-    const servicesSheet = createServicesAnalyticsSheet(validatedData)
+    const servicesSheet = createServicesAnalyticsSheet(reportData)
     XLSX.utils.book_append_sheet(workbook, servicesSheet, '🛠️ Сервисы')
 
     // Лист 4: Пользователи
-    const usersSheet = createUsersAnalyticsSheet(validatedData)
+    const usersSheet = createUsersAnalyticsSheet(reportData)
     XLSX.utils.book_append_sheet(workbook, usersSheet, '👥 Пользователи')
 
     // Лист 5: Временная аналитика
-    const timeSheet = createTimeAnalyticsSheet(validatedData)
+    const timeSheet = createTimeAnalyticsSheet(reportData)
     XLSX.utils.book_append_sheet(workbook, timeSheet, '📅 Динамика')
 
     // Лист 6: Все транзакции
-    const transactionsSheet = createTransactionsSheet(validatedData)
+    const transactionsSheet = createTransactionsSheet(reportData)
     XLSX.utils.book_append_sheet(workbook, transactionsSheet, '📋 Транзакции')
 
     // Конвертируем в Buffer
@@ -167,12 +163,37 @@ export async function generateAdminExcelReport(
 
 async function getBotReportData(botName: string): Promise<BotReportData> {
   // Получаем все транзакции бота
-  const { data: payments } = await supabase
-    .from('payments_v2')
-    .select('*')
-    .eq('bot_name', botName)
-    .eq('status', 'COMPLETED')
-    .order('payment_date', { ascending: false })
+  // ИСПРАВЛЕНИЕ: Используем пагинацию для получения ВСЕХ записей
+  let allPayments: any[] = []
+  let from = 0
+  const batchSize = 1000
+  let hasMore = true
+
+  while (hasMore) {
+    const { data: batchPayments, error } = await supabase
+      .from('payments_v2')
+      .select('*')
+      .eq('bot_name', botName)
+      .eq('status', 'COMPLETED')
+      .range(from, from + batchSize - 1)
+      .order('payment_date', { ascending: false })
+
+    if (error) throw error
+
+    if (!batchPayments || batchPayments.length === 0) {
+      hasMore = false
+    } else {
+      allPayments = allPayments.concat(batchPayments)
+      from += batchSize
+
+      // Если получили меньше чем размер батча, значит это последняя порция
+      if (batchPayments.length < batchSize) {
+        hasMore = false
+      }
+    }
+  }
+
+  const payments = allPayments
 
   if (!payments) throw new Error('Не удалось получить данные о транзакциях')
 
@@ -182,9 +203,13 @@ async function getBotReportData(botName: string): Promise<BotReportData> {
     .select('*')
     .eq('bot_name', botName)
 
+  // Валидируем и преобразуем данные
+  const validatedPayments = payments.map(p => PaymentSchema.parse(p))
+  const validatedUsers = users ? users.map(u => UserSchema.parse(u)) : []
+
   // Разделяем транзакции
-  const incomes = payments.filter(p => p.type === 'MONEY_INCOME')
-  const outcomes = payments.filter(p => p.type === 'MONEY_OUTCOME')
+  const incomes = validatedPayments.filter(p => p.type === 'MONEY_INCOME')
+  const outcomes = validatedPayments.filter(p => p.type === 'MONEY_OUTCOME')
   const realIncomes = incomes.filter(p => p.category === 'REAL')
   const bonusIncomes = incomes.filter(p => p.category === 'BONUS')
 
@@ -254,8 +279,8 @@ async function getBotReportData(botName: string): Promise<BotReportData> {
     .sort(([, a], [, b]) => b - a)
     .slice(0, 20)
     .map(([userId, spending]) => {
-      const user = users?.find(u => u.telegram_id === userId)
-      return {
+      const user = validatedUsers.find(u => u.telegram_id === userId)
+      return TopUserSchema.parse({
         telegram_id: userId,
         username: user?.username,
         first_name: user?.first_name,
@@ -263,25 +288,27 @@ async function getBotReportData(botName: string): Promise<BotReportData> {
         total_spending: spending,
         transactions_count: outcomes.filter(p => p.telegram_id === userId)
           .length,
-      }
+      })
     })
 
   // Месячная статистика
-  const monthlyStats = getMonthlyStats(payments)
+  const monthlyStats = getMonthlyStats(validatedPayments).map(stat =>
+    MonthlyStatsSchema.parse(stat)
+  )
   const dailyStats = getDailyStats(
-    payments.filter(p => {
+    validatedPayments.filter(p => {
       const date = new Date(p.payment_date)
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
       return date >= thirtyDaysAgo
     })
-  )
+  ).map(stat => DailyStatsSchema.parse(stat))
 
   // Активные пользователи за месяц
   const oneMonthAgo = new Date()
   oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
   const activeUsersMonth = new Set(
-    payments
+    validatedPayments
       .filter(p => new Date(p.payment_date) >= oneMonthAgo)
       .map(p => p.telegram_id)
   ).size
@@ -293,9 +320,9 @@ async function getBotReportData(botName: string): Promise<BotReportData> {
     totalCost,
     netProfit,
     profitMargin,
-    totalUsers: users?.length || 0,
+    totalUsers: validatedUsers.length,
     activeUsersMonth,
-    totalTransactions: payments.length,
+    totalTransactions: validatedPayments.length,
     rubIncome,
     rubOutcome,
     starsIncome,
@@ -309,7 +336,7 @@ async function getBotReportData(botName: string): Promise<BotReportData> {
     userSegments: [], // TODO: implement user segmentation
     monthlyStats,
     dailyStats,
-    allTransactions: payments,
+    allTransactions: validatedPayments,
   }
 }
 
@@ -320,64 +347,109 @@ function createBotSummarySheet(data: BotReportData) {
     ['🤖 Название бота:', `@${data.botName}`, '', ''],
     ['📅 Дата отчета:', new Date().toLocaleDateString('ru-RU'), '', ''],
     ['', '', '', ''],
-    ['💰 ФИНАНСОВЫЕ ПОКАЗАТЕЛИ', '', '', ''],
-    ['', '', '', ''],
-    [
-      '📈 Общий доход:',
-      `${Math.round(data.totalIncome * 100) / 100} ⭐`,
-      '',
-      '',
-    ],
-    [
-      '📉 Общий расход:',
-      `${Math.round(data.totalOutcome * 100) / 100} ⭐`,
-      '',
-      '',
-    ],
-    [
-      '🏭 Себестоимость:',
-      `${Math.round(data.totalCost * 100) / 100} ⭐`,
-      '',
-      '',
-    ],
-    [
-      '💎 Чистая прибыль:',
-      `${Math.round(data.netProfit * 100) / 100} ⭐`,
-      '',
-      '',
-    ],
-    [
-      '📊 Маржинальность:',
-      `${Math.round(data.profitMargin * 100) / 100}%`,
-      '',
-      '',
-    ],
-    ['', '', '', ''],
-    ['💳 РАЗДЕЛЕНИЕ ПО ВАЛЮТАМ', '', '', ''],
-    ['', '', '', ''],
-    ['💰 Рублевые операции:', '', '', ''],
-    ['   📈 Доходы:', `${Math.round(data.rubIncome * 100) / 100} руб.`, '', ''],
-    [
-      '   📉 Расходы:',
-      `${Math.round(data.rubOutcome * 100) / 100} руб.`,
-      '',
-      '',
-    ],
-    ['', '', '', ''],
-    ['⭐ Звездные операции:', '', '', ''],
-    ['   📈 Доходы:', `${Math.round(data.starsIncome * 100) / 100} ⭐`, '', ''],
-    [
-      '   📉 Расходы:',
-      `${Math.round(data.starsOutcome * 100) / 100} ⭐`,
-      '',
-      '',
-    ],
-    [
-      '   🏭 Себестоимость:',
-      `${Math.round(data.starsCost * 100) / 100} ⭐`,
-      '',
-      '',
-    ],
+  ]
+
+  // Добавляем рублевые операции только если есть данные
+  if (data.rubIncome > 0 || data.robokassaPayments.length > 0) {
+    summaryData.push(
+      ['💰 РУБЛЕВЫЕ ОПЕРАЦИИ', '', '', ''],
+      ['', '', '', ''],
+      [
+        '📈 Доходы:',
+        `${Math.round(data.rubIncome * 100) / 100} руб.`,
+        `(${data.robokassaPayments.length} операций)`,
+        '',
+      ],
+      [
+        '📉 Расходы:',
+        `${Math.round(data.rubOutcome * 100) / 100} руб.`,
+        '',
+        '',
+      ],
+      [
+        '💎 Результат:',
+        `${Math.round((data.rubIncome - data.rubOutcome) * 100) / 100} руб.`,
+        '',
+        '',
+      ],
+      ['', '', '', '']
+    )
+  }
+
+  // Добавляем звездные операции только если есть данные
+  if (data.starsIncome > 0 || data.telegramStarsPayments.length > 0) {
+    summaryData.push(
+      ['⭐ ЗВЕЗДНЫЕ ОПЕРАЦИИ', '', '', ''],
+      ['', '', '', ''],
+      [
+        '📈 Доходы:',
+        `${Math.round(data.starsIncome * 100) / 100} ⭐`,
+        `(${data.telegramStarsPayments.length} операций)`,
+        '',
+      ],
+      [
+        '📉 Расходы:',
+        `${Math.round(data.starsOutcome * 100) / 100} ⭐`,
+        '',
+        '',
+      ],
+      [
+        '🏭 Себестоимость:',
+        `${Math.round(data.starsCost * 100) / 100} ⭐`,
+        '',
+        '',
+      ],
+      [
+        '💎 Результат:',
+        `${Math.round((data.starsIncome - data.starsOutcome - data.starsCost) * 100) / 100} ⭐`,
+        '',
+        '',
+      ],
+      ['', '', '', '']
+    )
+  }
+
+  // Общие финансовые показатели - только если есть хоть какие-то данные
+  if (data.totalIncome > 0 || data.totalOutcome > 0) {
+    summaryData.push(
+      ['💰 ОБЩИЕ ФИНАНСОВЫЕ ПОКАЗАТЕЛИ', '', '', ''],
+      ['', '', '', ''],
+      [
+        '📈 Общий доход:',
+        `${Math.round(data.totalIncome * 100) / 100} ⭐`,
+        '',
+        '',
+      ],
+      [
+        '📉 Общий расход:',
+        `${Math.round(data.totalOutcome * 100) / 100} ⭐`,
+        '',
+        '',
+      ],
+      [
+        '🏭 Себестоимость:',
+        `${Math.round(data.totalCost * 100) / 100} ⭐`,
+        '',
+        '',
+      ],
+      [
+        '💎 Чистая прибыль:',
+        `${Math.round(data.netProfit * 100) / 100} ⭐`,
+        '',
+        '',
+      ],
+      [
+        '📊 Маржинальность:',
+        `${Math.round(data.profitMargin * 100) / 100}%`,
+        '',
+        '',
+      ],
+      ['', '', '', '']
+    )
+  }
+
+  // Остальные разделы
+  summaryData.push(
     ['', '', '', ''],
     ['👥 ПОЛЬЗОВАТЕЛИ', '', '', ''],
     ['', '', '', ''],
@@ -417,8 +489,8 @@ function createBotSummarySheet(data: BotReportData) {
         `${Math.round(stats.revenue * 100) / 100} ⭐`,
         `(${stats.count} операций)`,
         '',
-      ]),
-  ]
+      ])
+  )
 
   return XLSX.utils.aoa_to_sheet(summaryData)
 }

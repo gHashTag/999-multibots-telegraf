@@ -14,6 +14,7 @@ import { sendMediaToPulse } from './helpers/pulse'
 import { handleHelloWorld } from './commands/handleHelloWorld'
 import { priceCommand } from './commands/priceCommand'
 import { checkSubscriptionGuard } from './helpers/subscriptionGuard'
+import { setupInteractiveStats } from './commands/interactiveStatsCommand'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -271,6 +272,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
     return priceCommand(ctx)
   })
+
+  // 🎯 ИНТЕРАКТИВНАЯ КОМАНДА СТАТИСТИКИ
+  setupInteractiveStats(bot)
 
   // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
   bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {

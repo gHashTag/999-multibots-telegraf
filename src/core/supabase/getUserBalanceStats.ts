@@ -302,59 +302,83 @@ export async function getBotStatsWithCost(
     const currentTime = new Date()
 
     // Получаем все платежи для бота
-    let query = supabase
-      .from('payments_v2')
-      .select('*')
-      .eq('bot_name', botName)
-      .eq('status', 'COMPLETED')
+    // ИСПРАВЛЕНИЕ: Используем пагинацию для получения ВСЕХ записей
+    let allPayments: PaymentV2Record[] = []
+    let from = 0
+    const batchSize = 1000
+    let hasMore = true
 
-    // Применяем фильтр по времени если нужно
-    if (timeframe !== 'all') {
-      let startDate: string
-      switch (timeframe) {
-        case 'today': {
-          startDate = currentTime.toISOString().split('T')[0]
-          break
+    while (hasMore) {
+      let query = supabase
+        .from('payments_v2')
+        .select('*')
+        .eq('bot_name', botName)
+        .eq('status', 'COMPLETED')
+        .range(from, from + batchSize - 1)
+        .order('created_at', { ascending: false })
+
+      // Применяем фильтр по времени если нужно
+      if (timeframe !== 'all') {
+        let startDate: string
+        switch (timeframe) {
+          case 'today': {
+            startDate = currentTime.toISOString().split('T')[0]
+            break
+          }
+          case 'week': {
+            const weekAgo = new Date(
+              currentTime.getTime() - 7 * 24 * 60 * 60 * 1000
+            )
+            startDate = weekAgo.toISOString()
+            break
+          }
+          case 'month': {
+            const monthAgo = new Date(
+              currentTime.getTime() - 30 * 24 * 60 * 60 * 1000
+            )
+            startDate = monthAgo.toISOString()
+            break
+          }
+          case 'quarter': {
+            const quarterAgo = new Date(
+              currentTime.getTime() - 90 * 24 * 60 * 60 * 1000
+            )
+            startDate = quarterAgo.toISOString()
+            break
+          }
+          case 'year': {
+            const yearAgo = new Date(
+              currentTime.getTime() - 365 * 24 * 60 * 60 * 1000
+            )
+            startDate = yearAgo.toISOString()
+            break
+          }
+          default:
+            startDate = ''
         }
-        case 'week': {
-          const weekAgo = new Date(
-            currentTime.getTime() - 7 * 24 * 60 * 60 * 1000
-          )
-          startDate = weekAgo.toISOString()
-          break
+        if (startDate) {
+          query = query.gte('payment_date', startDate)
         }
-        case 'month': {
-          const monthAgo = new Date(
-            currentTime.getTime() - 30 * 24 * 60 * 60 * 1000
-          )
-          startDate = monthAgo.toISOString()
-          break
-        }
-        case 'quarter': {
-          const quarterAgo = new Date(
-            currentTime.getTime() - 90 * 24 * 60 * 60 * 1000
-          )
-          startDate = quarterAgo.toISOString()
-          break
-        }
-        case 'year': {
-          const yearAgo = new Date(
-            currentTime.getTime() - 365 * 24 * 60 * 60 * 1000
-          )
-          startDate = yearAgo.toISOString()
-          break
-        }
-        default:
-          startDate = ''
       }
-      if (startDate) {
-        query = query.gte('payment_date', startDate)
+
+      const { data: batchPayments, error } = await query
+
+      if (error) throw error
+
+      if (!batchPayments || batchPayments.length === 0) {
+        hasMore = false
+      } else {
+        allPayments = allPayments.concat(batchPayments)
+        from += batchSize
+
+        // Если получили меньше чем размер батча, значит это последняя порция
+        if (batchPayments.length < batchSize) {
+          hasMore = false
+        }
       }
     }
 
-    const { data: payments, error } = await query
-
-    if (error) throw error
+    const payments = allPayments
 
     // Общие финансовые метрики (в звездах)
     // ИСПРАВЛЕНИЕ: Для общих метрик учитываем ВСЕ операции
