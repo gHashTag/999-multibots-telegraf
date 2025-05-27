@@ -22,6 +22,7 @@ import {
   getServiceDisplayTitle,
   UserService,
 } from '@/utils/serviceMapping'
+import { generateAdminExcelReport } from '@/utils/adminExcelReportGenerator'
 
 // Создаем локальные интерфейсы для избежания конфликтов
 interface LocalUserBalanceStats {
@@ -279,6 +280,7 @@ export async function statsCommand(ctx: MyContext): Promise<void> {
 
     const timeframe = parseTimeframe(args[0])
     const isExport = args.includes('--export')
+    const isExcel = args.includes('--excel')
     const isDetailed = args.includes('--detailed')
     const botName =
       args.find(arg => !arg.startsWith('--') && arg !== timeframe) ||
@@ -326,8 +328,11 @@ export async function statsCommand(ctx: MyContext): Promise<void> {
     // Получаем статистику с учетом себестоимости
     const stats = await getAdditionalBotMetrics(botName)
 
-    if (isExport) {
-      // Экспорт в CSV
+    if (isExcel) {
+      // Экспорт в Excel (новый формат)
+      await sendAdminExcelReport(ctx, botName)
+    } else if (isExport) {
+      // Экспорт в CSV (старый формат)
       await sendStatsExport(ctx, stats as DetailedBotStats, botName)
     } else {
       // Отправляем форматированную статистику
@@ -1003,7 +1008,71 @@ function formatStatsMessage(
   return message
 }
 
-// Функция экспорта статистики в CSV
+// Функция экспорта статистики в Excel (новый формат)
+async function sendAdminExcelReport(
+  ctx: MyContext,
+  botName: string
+): Promise<void> {
+  try {
+    await ctx.reply(
+      '📊 Генерирую детальный Excel отчет...\n⏳ Это может занять несколько секунд'
+    )
+
+    const startTime = Date.now()
+    const excelBuffer = await generateAdminExcelReport(botName)
+    const generationTime = ((Date.now() - startTime) / 1000).toFixed(1)
+
+    const fileName = `admin_report_${botName}_${new Date().toISOString().split('T')[0]}.xlsx`
+
+    // Создаем временный файл
+    const fs = require('fs')
+    const path = require('path')
+    const tempDir = path.join(process.cwd(), 'tmp')
+
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true })
+    }
+
+    const filePath = path.join(tempDir, fileName)
+    fs.writeFileSync(filePath, excelBuffer)
+
+    const fileSizeKB = Math.round(excelBuffer.length / 1024)
+
+    await ctx.replyWithDocument(
+      { source: filePath, filename: fileName },
+      {
+        caption:
+          `📊 <b>Детальный отчет по боту @${botName}</b>\n\n` +
+          `📅 Дата: ${formatDateSafe(new Date())}\n` +
+          `📋 Листы: 6 (Сводка, Финансы, Сервисы, Пользователи, Динамика, Транзакции)\n` +
+          `⚡ Время генерации: ${generationTime} сек\n` +
+          `💾 Размер файла: ${fileSizeKB} KB\n\n` +
+          `🎯 <b>Содержание:</b>\n` +
+          `📊 Общая сводка - ключевые метрики\n` +
+          `💰 Финансы - детализация по валютам и способам оплаты\n` +
+          `🛠️ Сервисы - прибыльность каждого сервиса\n` +
+          `👥 Пользователи - топ-20 по тратам\n` +
+          `📅 Динамика - месячная и дневная статистика\n` +
+          `📋 Транзакции - полная история операций`,
+        parse_mode: 'HTML',
+      }
+    )
+
+    // Удаляем временный файл
+    fs.unlinkSync(filePath)
+
+    logger.info(`📊 Excel отчет создан для @${botName}`, {
+      botName,
+      generationTime: `${generationTime}s`,
+      fileSize: `${fileSizeKB}KB`,
+    })
+  } catch (error) {
+    logger.error('[sendAdminExcelReport] Error:', { error, botName })
+    await ctx.reply('❌ Ошибка при создании Excel отчета. Попробуйте позже.')
+  }
+}
+
+// Функция экспорта статистики в CSV (старый формат)
 async function sendStatsExport(
   ctx: MyContext,
   stats: DetailedBotStats,
@@ -2067,6 +2136,7 @@ export async function adminHelpCommand(ctx: MyContext): Promise<void> {
 📊 <b>Анализ ботов:</b>
 <code>/stats bot_name</code> - основная статистика
 <code>/stats bot_name --detailed</code> - детальная разбивка
+<code>/stats bot_name --excel</code> - 📊 Excel отчет (6 листов)
 <code>/stats bot_name month</code> - за месяц
 <code>/debug_stats bot_name</code> - отладка данных и примеры транзакций
 
@@ -2078,7 +2148,16 @@ export async function adminHelpCommand(ctx: MyContext): Promise<void> {
 
 🛠️ <b>Дополнительные параметры:</b>
 • <code>--detailed</code> - детальная разбивка
-• <code>--export</code> - экспорт в CSV
+• <code>--export</code> - экспорт в CSV (старый формат)
+• <code>--excel</code> - 📊 Excel отчет (новый формат, 6 листов)
+
+📊 <b>Excel отчет включает:</b>
+• 📊 Общая сводка - ключевые метрики
+• 💰 Финансы - детализация по валютам и способам оплаты
+• 🛠️ Сервисы - прибыльность каждого сервиса
+• 👥 Пользователи - топ-20 по тратам
+• 📅 Динамика - месячная и дневная статистика
+• 📋 Транзакции - полная история операций
 
 💡 <b>Примеры рабочих процессов:</b>
 
@@ -2088,7 +2167,8 @@ export async function adminHelpCommand(ctx: MyContext): Promise<void> {
 
 <b>Анализ бота:</b>
 1. <code>/stats MetaMuse_Manifest_bot --detailed</code>
-2. <code>/debug_stats MetaMuse_Manifest_bot</code>
+2. <code>/stats MetaMuse_Manifest_bot --excel</code>
+3. <code>/debug_stats MetaMuse_Manifest_bot</code>
 
 👑 У вас SuperAdmin доступ ко всем ботам и командам.`
 

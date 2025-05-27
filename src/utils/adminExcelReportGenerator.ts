@@ -1,0 +1,806 @@
+/**
+ * ГЕНЕРАТОР EXCEL-ОТЧЕТОВ ДЛЯ ВЛАДЕЛЬЦЕВ БОТОВ И СУПЕР-АДМИНОВ
+ * Создает детальную аналитику по ботам с красивым оформлением
+ */
+
+import * as XLSX from 'xlsx'
+import { z } from 'zod'
+import { supabase } from '@/core/supabase'
+import {
+  getServiceDisplayTitle,
+  getServiceEmoji,
+  UserService,
+} from './serviceMapping'
+
+// Zod схемы для валидации данных
+const PaymentSchema = z.object({
+  id: z.number(),
+  telegram_id: z.union([z.string(), z.number()]).transform(val => String(val)),
+  bot_name: z.string(),
+  type: z.enum(['MONEY_INCOME', 'MONEY_OUTCOME', 'REFUND']),
+  category: z.enum(['REAL', 'BONUS']).nullable().optional(),
+  currency: z.enum(['RUB', 'XTR', 'STARS']).nullable().optional(),
+  payment_method: z.string().nullable().optional(),
+  service_type: z.string().nullable().optional(),
+  stars: z.number().nullable().optional(),
+  amount: z.number().nullable().optional(),
+  cost: z.number().nullable().optional(),
+  payment_date: z.string(),
+  description: z.string().nullable().optional(),
+  status: z.string(),
+})
+
+const UserSchema = z.object({
+  telegram_id: z.union([z.string(), z.number()]).transform(val => String(val)),
+  username: z.string().nullable().optional(),
+  first_name: z.string().nullable().optional(),
+  last_name: z.string().nullable().optional(),
+  bot_name: z.string(),
+})
+
+const ServiceStatsSchema = z.object({
+  count: z.number(),
+  revenue: z.number(),
+  cost: z.number(),
+})
+
+const TopUserSchema = z.object({
+  telegram_id: z.string(),
+  username: z.string().optional(),
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  total_spending: z.number(),
+  transactions_count: z.number(),
+})
+
+const MonthlyStatsSchema = z.object({
+  period: z.string(),
+  income: z.number(),
+  income_rub: z.number(),
+  outcome: z.number(),
+  cost: z.number(),
+  profit: z.number(),
+  margin: z.number(),
+  transactions: z.number(),
+  active_users: z.number(),
+})
+
+const DailyStatsSchema = z.object({
+  date: z.string(),
+  income: z.number(),
+  outcome: z.number(),
+  cost: z.number(),
+  profit: z.number(),
+  transactions: z.number(),
+})
+
+const BotReportDataSchema = z.object({
+  botName: z.string(),
+  totalIncome: z.number(),
+  totalOutcome: z.number(),
+  totalCost: z.number(),
+  netProfit: z.number(),
+  profitMargin: z.number(),
+  totalUsers: z.number(),
+  activeUsersMonth: z.number(),
+  totalTransactions: z.number(),
+
+  // Детализация по валютам
+  rubIncome: z.number(),
+  rubOutcome: z.number(),
+  starsIncome: z.number(),
+  starsOutcome: z.number(),
+  starsCost: z.number(),
+
+  // Детализация по способам оплаты
+  robokassaPayments: z.array(PaymentSchema),
+  telegramStarsPayments: z.array(PaymentSchema),
+  bonusPayments: z.array(PaymentSchema),
+
+  // Операции по сервисам
+  serviceStats: z.map(z.string(), ServiceStatsSchema),
+
+  // Пользователи
+  topUsers: z.array(TopUserSchema),
+  userSegments: z.array(z.any()), // TODO: implement proper schema
+
+  // Временная аналитика
+  monthlyStats: z.array(MonthlyStatsSchema),
+  dailyStats: z.array(DailyStatsSchema),
+
+  // Все транзакции
+  allTransactions: z.array(PaymentSchema),
+})
+
+type BotReportData = z.infer<typeof BotReportDataSchema>
+
+export async function generateAdminExcelReport(
+  botName: string
+): Promise<Buffer> {
+  try {
+    // Валидируем входные данные
+    const validatedBotName = z.string().min(1).parse(botName)
+
+    // Получаем все данные бота
+    const reportData = await getBotReportData(validatedBotName)
+
+    // Валидируем полученные данные
+    const validatedData = BotReportDataSchema.parse(reportData)
+
+    // Создаем новую книгу Excel
+    const workbook = XLSX.utils.book_new()
+
+    // Лист 1: Общая сводка
+    const summarySheet = createBotSummarySheet(validatedData)
+    XLSX.utils.book_append_sheet(workbook, summarySheet, '📊 Общая сводка')
+
+    // Лист 2: Финансовая аналитика
+    const financialSheet = createFinancialAnalyticsSheet(validatedData)
+    XLSX.utils.book_append_sheet(workbook, financialSheet, '💰 Финансы')
+
+    // Лист 3: Аналитика по сервисам
+    const servicesSheet = createServicesAnalyticsSheet(validatedData)
+    XLSX.utils.book_append_sheet(workbook, servicesSheet, '🛠️ Сервисы')
+
+    // Лист 4: Пользователи
+    const usersSheet = createUsersAnalyticsSheet(validatedData)
+    XLSX.utils.book_append_sheet(workbook, usersSheet, '👥 Пользователи')
+
+    // Лист 5: Временная аналитика
+    const timeSheet = createTimeAnalyticsSheet(validatedData)
+    XLSX.utils.book_append_sheet(workbook, timeSheet, '📅 Динамика')
+
+    // Лист 6: Все транзакции
+    const transactionsSheet = createTransactionsSheet(validatedData)
+    XLSX.utils.book_append_sheet(workbook, transactionsSheet, '📋 Транзакции')
+
+    // Конвертируем в Buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+    return buffer
+  } catch (error) {
+    console.error('❌ Ошибка генерации Excel отчета:', error)
+    throw new Error(
+      `Не удалось создать Excel отчет: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+    )
+  }
+}
+
+async function getBotReportData(botName: string): Promise<BotReportData> {
+  // Получаем все транзакции бота
+  const { data: payments } = await supabase
+    .from('payments_v2')
+    .select('*')
+    .eq('bot_name', botName)
+    .eq('status', 'COMPLETED')
+    .order('payment_date', { ascending: false })
+
+  if (!payments) throw new Error('Не удалось получить данные о транзакциях')
+
+  // Получаем пользователей бота
+  const { data: users } = await supabase
+    .from('users')
+    .select('*')
+    .eq('bot_name', botName)
+
+  // Разделяем транзакции
+  const incomes = payments.filter(p => p.type === 'MONEY_INCOME')
+  const outcomes = payments.filter(p => p.type === 'MONEY_OUTCOME')
+  const realIncomes = incomes.filter(p => p.category === 'REAL')
+  const bonusIncomes = incomes.filter(p => p.category === 'BONUS')
+
+  // Разделяем по способам оплаты
+  const robokassaPayments = realIncomes.filter(
+    p =>
+      p.currency === 'RUB' &&
+      (p.payment_method === 'Robokassa' || p.payment_method === 'Manual')
+  )
+  const telegramStarsPayments = realIncomes.filter(
+    p =>
+      (p.currency === 'XTR' || p.currency === 'STARS') &&
+      p.payment_method === 'Telegram'
+  )
+
+  // Подсчитываем основные метрики
+  const totalIncome = realIncomes.reduce((sum, p) => sum + (p.stars || 0), 0)
+  const totalOutcome = outcomes.reduce((sum, p) => sum + (p.stars || 0), 0)
+  const totalCost = outcomes.reduce((sum, p) => sum + (p.cost || 0), 0)
+  const netProfit = totalIncome - totalOutcome - totalCost
+  const profitMargin = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0
+
+  // Разделяем по валютам
+  const rubIncome = robokassaPayments.reduce(
+    (sum, p) => sum + (p.amount || 0),
+    0
+  )
+  const rubOutcome = outcomes
+    .filter(p => p.currency === 'RUB')
+    .reduce((sum, p) => sum + (p.amount || 0), 0)
+  const starsIncome = telegramStarsPayments.reduce(
+    (sum, p) => sum + (p.stars || 0),
+    0
+  )
+  const starsOutcome = outcomes
+    .filter(p => p.currency !== 'RUB')
+    .reduce((sum, p) => sum + (p.stars || 0), 0)
+  const starsCost = outcomes.reduce((sum, p) => sum + (p.cost || 0), 0)
+
+  // Анализ по сервисам
+  const serviceStats = new Map<
+    string,
+    { count: number; revenue: number; cost: number }
+  >()
+  outcomes.forEach(payment => {
+    const service = payment.service_type || 'unknown'
+    const current = serviceStats.get(service) || {
+      count: 0,
+      revenue: 0,
+      cost: 0,
+    }
+    current.count += 1
+    current.revenue += payment.stars || 0
+    current.cost += payment.cost || 0
+    serviceStats.set(service, current)
+  })
+
+  // Топ пользователи по тратам
+  const userSpending = new Map<string, number>()
+  outcomes.forEach(payment => {
+    const userId = payment.telegram_id
+    const current = userSpending.get(userId) || 0
+    userSpending.set(userId, current + (payment.stars || 0))
+  })
+
+  const topUsers = Array.from(userSpending.entries())
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 20)
+    .map(([userId, spending]) => {
+      const user = users?.find(u => u.telegram_id === userId)
+      return {
+        telegram_id: userId,
+        username: user?.username,
+        first_name: user?.first_name,
+        last_name: user?.last_name,
+        total_spending: spending,
+        transactions_count: outcomes.filter(p => p.telegram_id === userId)
+          .length,
+      }
+    })
+
+  // Месячная статистика
+  const monthlyStats = getMonthlyStats(payments)
+  const dailyStats = getDailyStats(
+    payments.filter(p => {
+      const date = new Date(p.payment_date)
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      return date >= thirtyDaysAgo
+    })
+  )
+
+  // Активные пользователи за месяц
+  const oneMonthAgo = new Date()
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
+  const activeUsersMonth = new Set(
+    payments
+      .filter(p => new Date(p.payment_date) >= oneMonthAgo)
+      .map(p => p.telegram_id)
+  ).size
+
+  return {
+    botName,
+    totalIncome,
+    totalOutcome,
+    totalCost,
+    netProfit,
+    profitMargin,
+    totalUsers: users?.length || 0,
+    activeUsersMonth,
+    totalTransactions: payments.length,
+    rubIncome,
+    rubOutcome,
+    starsIncome,
+    starsOutcome,
+    starsCost,
+    robokassaPayments,
+    telegramStarsPayments,
+    bonusPayments: bonusIncomes,
+    serviceStats,
+    topUsers,
+    userSegments: [], // TODO: implement user segmentation
+    monthlyStats,
+    dailyStats,
+    allTransactions: payments,
+  }
+}
+
+function createBotSummarySheet(data: BotReportData) {
+  const summaryData = [
+    ['🤖 ОТЧЕТ ПО БОТУ - ОБЩАЯ СВОДКА', '', '', ''],
+    ['', '', '', ''],
+    ['🤖 Название бота:', `@${data.botName}`, '', ''],
+    ['📅 Дата отчета:', new Date().toLocaleDateString('ru-RU'), '', ''],
+    ['', '', '', ''],
+    ['💰 ФИНАНСОВЫЕ ПОКАЗАТЕЛИ', '', '', ''],
+    ['', '', '', ''],
+    [
+      '📈 Общий доход:',
+      `${Math.round(data.totalIncome * 100) / 100} ⭐`,
+      '',
+      '',
+    ],
+    [
+      '📉 Общий расход:',
+      `${Math.round(data.totalOutcome * 100) / 100} ⭐`,
+      '',
+      '',
+    ],
+    [
+      '🏭 Себестоимость:',
+      `${Math.round(data.totalCost * 100) / 100} ⭐`,
+      '',
+      '',
+    ],
+    [
+      '💎 Чистая прибыль:',
+      `${Math.round(data.netProfit * 100) / 100} ⭐`,
+      '',
+      '',
+    ],
+    [
+      '📊 Маржинальность:',
+      `${Math.round(data.profitMargin * 100) / 100}%`,
+      '',
+      '',
+    ],
+    ['', '', '', ''],
+    ['💳 РАЗДЕЛЕНИЕ ПО ВАЛЮТАМ', '', '', ''],
+    ['', '', '', ''],
+    ['💰 Рублевые операции:', '', '', ''],
+    ['   📈 Доходы:', `${Math.round(data.rubIncome * 100) / 100} руб.`, '', ''],
+    [
+      '   📉 Расходы:',
+      `${Math.round(data.rubOutcome * 100) / 100} руб.`,
+      '',
+      '',
+    ],
+    ['', '', '', ''],
+    ['⭐ Звездные операции:', '', '', ''],
+    ['   📈 Доходы:', `${Math.round(data.starsIncome * 100) / 100} ⭐`, '', ''],
+    [
+      '   📉 Расходы:',
+      `${Math.round(data.starsOutcome * 100) / 100} ⭐`,
+      '',
+      '',
+    ],
+    [
+      '   🏭 Себестоимость:',
+      `${Math.round(data.starsCost * 100) / 100} ⭐`,
+      '',
+      '',
+    ],
+    ['', '', '', ''],
+    ['👥 ПОЛЬЗОВАТЕЛИ', '', '', ''],
+    ['', '', '', ''],
+    ['👤 Всего пользователей:', data.totalUsers.toString(), '', ''],
+    ['🟢 Активных за месяц:', data.activeUsersMonth.toString(), '', ''],
+    [
+      '📊 Конверсия:',
+      `${data.totalUsers > 0 ? Math.round((data.activeUsersMonth / data.totalUsers) * 10000) / 100 : 0}%`,
+      '',
+      '',
+    ],
+    ['', '', '', ''],
+    ['⚡ ОПЕРАЦИИ', '', '', ''],
+    ['', '', '', ''],
+    ['🔢 Всего транзакций:', data.totalTransactions.toString(), '', ''],
+    [
+      '💳 Robokassa платежей:',
+      data.robokassaPayments.length.toString(),
+      '',
+      '',
+    ],
+    [
+      '⭐ Telegram Stars платежей:',
+      data.telegramStarsPayments.length.toString(),
+      '',
+      '',
+    ],
+    ['🎁 Бонусных операций:', data.bonusPayments.length.toString(), '', ''],
+    ['', '', '', ''],
+    ['🏆 ТОП СЕРВИСЫ', '', '', ''],
+    ['', '', '', ''],
+    ...Array.from(data.serviceStats.entries())
+      .sort(([, a], [, b]) => b.revenue - a.revenue)
+      .slice(0, 5)
+      .map(([service, stats], index) => [
+        `${index + 1}. ${getServiceEmoji(service)} ${getServiceDisplayTitle(service as UserService)}:`,
+        `${Math.round(stats.revenue * 100) / 100} ⭐`,
+        `(${stats.count} операций)`,
+        '',
+      ]),
+  ]
+
+  return XLSX.utils.aoa_to_sheet(summaryData)
+}
+
+function createFinancialAnalyticsSheet(data: BotReportData) {
+  const headers = [
+    '📅 Период',
+    '💰 Доходы (⭐)',
+    '💰 Доходы (руб.)',
+    '📉 Расходы (⭐)',
+    '🏭 Себестоимость (⭐)',
+    '💎 Прибыль (⭐)',
+    '📊 Маржа (%)',
+    '🔢 Транзакций',
+  ]
+
+  const financialData = [
+    ['💰 ФИНАНСОВАЯ АНАЛИТИКА ПО МЕСЯЦАМ', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', ''],
+    headers,
+    ['', '', '', '', '', '', '', ''],
+    ...data.monthlyStats.map(stat => [
+      stat.period,
+      Math.round(stat.income * 100) / 100,
+      Math.round(stat.income_rub * 100) / 100,
+      Math.round(stat.outcome * 100) / 100,
+      Math.round(stat.cost * 100) / 100,
+      Math.round(stat.profit * 100) / 100,
+      Math.round(stat.margin * 100) / 100,
+      stat.transactions,
+    ]),
+    ['', '', '', '', '', '', '', ''],
+    ['💳 ДЕТАЛИЗАЦИЯ ПО СПОСОБАМ ОПЛАТЫ', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', ''],
+    [
+      'Способ оплаты',
+      'Количество',
+      'Сумма (⭐)',
+      'Сумма (руб.)',
+      'Средний чек',
+      '',
+      '',
+      '',
+    ],
+    ['', '', '', '', '', '', '', ''],
+    [
+      '💳 Robokassa',
+      data.robokassaPayments.length,
+      data.robokassaPayments.reduce((sum, p) => sum + (p.stars || 0), 0),
+      data.robokassaPayments.reduce((sum, p) => sum + (p.amount || 0), 0),
+      data.robokassaPayments.length > 0
+        ? Math.round(
+            (data.robokassaPayments.reduce(
+              (sum, p) => sum + (p.stars || 0),
+              0
+            ) /
+              data.robokassaPayments.length) *
+              100
+          ) / 100
+        : 0,
+      '',
+      '',
+      '',
+    ],
+    [
+      '⭐ Telegram Stars',
+      data.telegramStarsPayments.length,
+      data.telegramStarsPayments.reduce((sum, p) => sum + (p.stars || 0), 0),
+      0,
+      data.telegramStarsPayments.length > 0
+        ? Math.round(
+            (data.telegramStarsPayments.reduce(
+              (sum, p) => sum + (p.stars || 0),
+              0
+            ) /
+              data.telegramStarsPayments.length) *
+              100
+          ) / 100
+        : 0,
+      '',
+      '',
+      '',
+    ],
+    [
+      '🎁 Бонусы',
+      data.bonusPayments.length,
+      data.bonusPayments.reduce((sum, p) => sum + (p.stars || 0), 0),
+      0,
+      data.bonusPayments.length > 0
+        ? Math.round(
+            (data.bonusPayments.reduce((sum, p) => sum + (p.stars || 0), 0) /
+              data.bonusPayments.length) *
+              100
+          ) / 100
+        : 0,
+      '',
+      '',
+      '',
+    ],
+  ]
+
+  return XLSX.utils.aoa_to_sheet(financialData)
+}
+
+function createServicesAnalyticsSheet(data: BotReportData) {
+  const headers = [
+    '🛠️ Сервис',
+    '🔢 Операций',
+    '💰 Выручка (⭐)',
+    '🏭 Себестоимость (⭐)',
+    '💎 Прибыль (⭐)',
+    '📊 Маржа (%)',
+    '📈 % от оборота',
+  ]
+
+  const totalRevenue = Array.from(data.serviceStats.values()).reduce(
+    (sum, s) => sum + s.revenue,
+    0
+  )
+
+  const servicesData = [
+    ['🛠️ АНАЛИТИКА ПО СЕРВИСАМ', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', ''],
+    headers,
+    ['', '', '', '', '', '', ''],
+    ...Array.from(data.serviceStats.entries())
+      .sort(([, a], [, b]) => b.revenue - a.revenue)
+      .map(([service, stats]) => {
+        const profit = stats.revenue - stats.cost
+        const margin = stats.revenue > 0 ? (profit / stats.revenue) * 100 : 0
+        const revenueShare =
+          totalRevenue > 0 ? (stats.revenue / totalRevenue) * 100 : 0
+
+        return [
+          `${getServiceEmoji(service)} ${getServiceDisplayTitle(service as UserService)}`,
+          stats.count,
+          Math.round(stats.revenue * 100) / 100,
+          Math.round(stats.cost * 100) / 100,
+          Math.round(profit * 100) / 100,
+          Math.round(margin * 100) / 100,
+          Math.round(revenueShare * 100) / 100,
+        ]
+      }),
+  ]
+
+  return XLSX.utils.aoa_to_sheet(servicesData)
+}
+
+function createUsersAnalyticsSheet(data: BotReportData) {
+  const headers = [
+    '👤 ID пользователя',
+    '📱 Username',
+    '👤 Имя',
+    '💰 Потрачено (⭐)',
+    '🔢 Транзакций',
+    '💵 Средний чек',
+    '📊 % от оборота',
+  ]
+
+  const totalSpending = data.topUsers.reduce(
+    (sum, u) => sum + u.total_spending,
+    0
+  )
+
+  const usersData = [
+    ['👥 АНАЛИТИКА ПО ПОЛЬЗОВАТЕЛЯМ', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', ''],
+    ['📊 ТОП-20 ПОЛЬЗОВАТЕЛЕЙ ПО ТРАТАМ', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', ''],
+    headers,
+    ['', '', '', '', '', '', ''],
+    ...data.topUsers.map(user => {
+      const avgCheck =
+        user.transactions_count > 0
+          ? user.total_spending / user.transactions_count
+          : 0
+      const spendingShare =
+        totalSpending > 0 ? (user.total_spending / totalSpending) * 100 : 0
+
+      return [
+        user.telegram_id,
+        user.username ? `@${user.username}` : 'Не указан',
+        `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
+          'Не указано',
+        Math.round(user.total_spending * 100) / 100,
+        user.transactions_count,
+        Math.round(avgCheck * 100) / 100,
+        Math.round(spendingShare * 100) / 100,
+      ]
+    }),
+  ]
+
+  return XLSX.utils.aoa_to_sheet(usersData)
+}
+
+function createTimeAnalyticsSheet(data: BotReportData) {
+  const monthlyHeaders = [
+    '📅 Месяц',
+    '💰 Доходы (⭐)',
+    '📉 Расходы (⭐)',
+    '💎 Прибыль (⭐)',
+    '🔢 Транзакций',
+    '👥 Активных пользователей',
+  ]
+
+  const dailyHeaders = [
+    '📅 Дата',
+    '💰 Доходы (⭐)',
+    '📉 Расходы (⭐)',
+    '💎 Прибыль (⭐)',
+    '🔢 Транзакций',
+  ]
+
+  const timeData = [
+    ['📅 ВРЕМЕННАЯ АНАЛИТИКА', '', '', '', '', ''],
+    ['', '', '', '', '', ''],
+    ['📊 СТАТИСТИКА ПО МЕСЯЦАМ', '', '', '', '', ''],
+    ['', '', '', '', '', ''],
+    monthlyHeaders,
+    ['', '', '', '', '', ''],
+    ...data.monthlyStats.map(stat => [
+      stat.period,
+      Math.round(stat.income * 100) / 100,
+      Math.round(stat.outcome * 100) / 100,
+      Math.round(stat.profit * 100) / 100,
+      stat.transactions,
+      stat.active_users || 0,
+    ]),
+    ['', '', '', '', '', ''],
+    ['📊 СТАТИСТИКА ПО ДНЯМ (ПОСЛЕДНИЕ 30 ДНЕЙ)', '', '', '', '', ''],
+    ['', '', '', '', '', ''],
+    dailyHeaders,
+    ['', '', '', '', '', ''],
+    ...data.dailyStats.map(stat => [
+      stat.date,
+      Math.round(stat.income * 100) / 100,
+      Math.round(stat.outcome * 100) / 100,
+      Math.round(stat.profit * 100) / 100,
+      stat.transactions,
+    ]),
+  ]
+
+  return XLSX.utils.aoa_to_sheet(timeData)
+}
+
+function createTransactionsSheet(data: BotReportData) {
+  const headers = [
+    '📅 Дата',
+    '📊 Тип',
+    '💰 Сумма (⭐)',
+    '💵 Сумма (руб.)',
+    '💳 Способ оплаты',
+    '🛠️ Сервис',
+    '👤 Пользователь',
+    '📝 Описание',
+    '🏷️ Категория',
+  ]
+
+  const transactionsData = [
+    ['📋 ВСЕ ТРАНЗАКЦИИ', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', ''],
+    headers,
+    ['', '', '', '', '', '', '', '', ''],
+    ...data.allTransactions.map(payment => [
+      new Date(payment.payment_date).toLocaleDateString('ru-RU'),
+      payment.type === 'MONEY_INCOME' ? '📈 Доход' : '📉 Расход',
+      Math.round((payment.stars || 0) * 100) / 100,
+      payment.currency === 'RUB'
+        ? Math.round((payment.amount || 0) * 100) / 100
+        : '',
+      getPaymentMethodDisplay(payment),
+      payment.service_type
+        ? `${getServiceEmoji(payment.service_type)} ${getServiceDisplayTitle(payment.service_type as UserService)}`
+        : '',
+      payment.telegram_id,
+      payment.description || '',
+      payment.category === 'REAL' ? '💎 Реальные' : '🎁 Бонусы',
+    ]),
+  ]
+
+  return XLSX.utils.aoa_to_sheet(transactionsData)
+}
+
+function getPaymentMethodDisplay(payment: any): string {
+  if (
+    payment.currency === 'RUB' &&
+    (payment.payment_method === 'Robokassa' ||
+      payment.payment_method === 'Manual')
+  ) {
+    return '💳 Robokassa'
+  } else if (
+    (payment.currency === 'XTR' || payment.currency === 'STARS') &&
+    payment.payment_method === 'Telegram'
+  ) {
+    return '⭐ Telegram Stars'
+  } else if (payment.payment_method === 'System') {
+    return '🤖 Система'
+  } else if (payment.payment_method === 'Bonus') {
+    return '🎁 Бонус'
+  } else if (payment.payment_method === 'Manual') {
+    return '✋ Ручное'
+  }
+  return payment.payment_method || '❓ Неизвестно'
+}
+
+function getMonthlyStats(payments: any[]) {
+  const monthlyMap = new Map<string, any>()
+
+  payments.forEach(payment => {
+    const date = new Date(payment.payment_date)
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+
+    const current = monthlyMap.get(monthKey) || {
+      period: monthKey,
+      income: 0,
+      income_rub: 0,
+      outcome: 0,
+      cost: 0,
+      profit: 0,
+      margin: 0,
+      transactions: 0,
+      active_users: new Set(),
+    }
+
+    current.transactions += 1
+    current.active_users.add(payment.telegram_id)
+
+    if (payment.type === 'MONEY_INCOME' && payment.category === 'REAL') {
+      current.income += payment.stars || 0
+      if (payment.currency === 'RUB') {
+        current.income_rub += payment.amount || 0
+      }
+    } else if (payment.type === 'MONEY_OUTCOME') {
+      current.outcome += payment.stars || 0
+      current.cost += payment.cost || 0
+    }
+
+    current.profit = current.income - current.outcome - current.cost
+    current.margin =
+      current.income > 0 ? (current.profit / current.income) * 100 : 0
+
+    monthlyMap.set(monthKey, current)
+  })
+
+  return Array.from(monthlyMap.values())
+    .map(stat => ({
+      ...stat,
+      active_users: stat.active_users.size,
+    }))
+    .sort((a, b) => b.period.localeCompare(a.period))
+}
+
+function getDailyStats(payments: any[]) {
+  const dailyMap = new Map<string, any>()
+
+  payments.forEach(payment => {
+    const date = new Date(payment.payment_date).toISOString().split('T')[0]
+
+    const current = dailyMap.get(date) || {
+      date,
+      income: 0,
+      outcome: 0,
+      cost: 0,
+      profit: 0,
+      transactions: 0,
+    }
+
+    current.transactions += 1
+
+    if (payment.type === 'MONEY_INCOME' && payment.category === 'REAL') {
+      current.income += payment.stars || 0
+    } else if (payment.type === 'MONEY_OUTCOME') {
+      current.outcome += payment.stars || 0
+      current.cost += payment.cost || 0
+    }
+
+    current.profit = current.income - current.outcome - current.cost
+
+    dailyMap.set(date, current)
+  })
+
+  return Array.from(dailyMap.values()).sort((a, b) =>
+    b.date.localeCompare(a.date)
+  )
+}
