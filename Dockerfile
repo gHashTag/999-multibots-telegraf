@@ -13,10 +13,13 @@ COPY . .
 
 # Создаем временную конфигурацию TypeScript, которая исключает тестовые файлы
 RUN cp tsconfig.json tsconfig.build.json && \
-    sed -i 's/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json", "__tests__\/\*\*\/\*\.ts"\]/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json"\]/' tsconfig.build.json
+    sed -i 's/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json", "__tests__\/\*\*\/\*\.ts"\]/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json"\]/' tsconfig.build.json && \
+    echo '{"extends": "./tsconfig.json", "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**/*", "src/__tests__/**/*"]}' > tsconfig.build.json
 
-# --- ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Удаляем тесты перед сборкой ---
-RUN rm -rf src/modules/videoGenerator/__tests__ && rm -rf src/__tests__
+# --- ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Удаляем ВСЕ тесты перед сборкой ---
+RUN find src -name "__tests__" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find src -name "*.test.ts" -type f -delete 2>/dev/null || true && \
+    find src -name "*.spec.ts" -type f -delete 2>/dev/null || true
 # --------------------------------------------------------
 
 # Выполняем сборку TypeScript с пропуском проверки типов для решения проблем совместимости
