@@ -2,7 +2,11 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { getUserBalance, supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
-import { getServiceEmoji } from '@/utils/serviceMapping'
+import {
+  getServiceEmoji,
+  getServiceDisplayTitle,
+  UserService,
+} from '@/utils/serviceMapping'
 
 /**
  * Функция для получения детализации трат пользователя
@@ -152,10 +156,11 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
             const serviceStars = Math.floor(stats.stars * 100) / 100
 
-            // Эмодзи для сервисов
+            // Эмодзи и название для сервисов
             const serviceEmoji = getServiceEmoji(service)
+            const serviceTitle = getServiceDisplayTitle(service as UserService)
 
-            message += `   ${index + 1}. ${serviceEmoji} ${service}:\n`
+            message += `   ${index + 1}. ${serviceEmoji} ${serviceTitle}:\n`
             message += `      💰 ${serviceStars}⭐ (${percentage}%)\n`
             message += `      🔢 ${stats.count} ${isRu ? 'операций' : 'operations'}\n\n`
           })
@@ -197,8 +202,11 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
             const serviceEmoji = getServiceEmoji(
               payment.service_type || 'unknown'
             )
+            const serviceTitle = getServiceDisplayTitle(
+              (payment.service_type || 'unknown') as UserService
+            )
 
-            message += `   ${index + 1}. 📉 ${date}: ${stars}⭐ - ${serviceEmoji} ${payment.service_type || 'unknown'}\n`
+            message += `   ${index + 1}. 📉 ${date}: ${stars}⭐ - ${serviceEmoji} ${serviceTitle}\n`
           })
         }
 

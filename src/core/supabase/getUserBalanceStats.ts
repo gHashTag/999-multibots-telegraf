@@ -133,6 +133,7 @@ export interface BotStatsWithCost {
 
 export interface ServiceProfitabilityStats {
   service_name: string
+  service_display_name: string
   emoji: string
   transaction_count: number
   total_revenue: number
@@ -591,6 +592,7 @@ async function getTopServicesByProfitability(
   return Array.from(serviceMap.entries())
     .map(([serviceName, stats]) => ({
       service_name: serviceName,
+      service_display_name: getServiceDisplayTitle(serviceName as UserService),
       emoji: getServiceEmojiFromMapping(serviceName),
       transaction_count: stats.count,
       total_revenue: stats.revenue,
@@ -612,6 +614,8 @@ async function getTopServicesByProfitability(
 import {
   getServiceDisplayName as getServiceDisplayNameFromMapping,
   getServiceEmoji as getServiceEmojiFromMapping,
+  getServiceDisplayTitle,
+  UserService,
 } from '@/utils/serviceMapping'
 
 /**

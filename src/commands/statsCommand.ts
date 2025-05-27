@@ -17,7 +17,11 @@ import { ADMIN_IDS_ARRAY } from '@/config'
 import { getOwnedBots } from '@/core/supabase/getOwnedBots'
 import { supabase } from '@/core/supabase'
 import { Context } from 'telegraf'
-import { getServiceEmoji } from '@/utils/serviceMapping'
+import {
+  getServiceEmoji,
+  getServiceDisplayTitle,
+  UserService,
+} from '@/utils/serviceMapping'
 
 // Создаем локальные интерфейсы для избежания конфликтов
 interface LocalUserBalanceStats {
@@ -827,7 +831,7 @@ function formatDetailedStatsMessage(stats: DetailedBotStats): string {
   if (stats.top_services && stats.top_services.length > 0) {
     message += `🏆 <b>Топ сервисы по прибыльности</b>\n`
     stats.top_services.slice(0, 5).forEach((service, index) => {
-      message += `   ${index + 1}. ${service.emoji} ${service.service_name}\n`
+      message += `   ${index + 1}. ${service.emoji} ${service.service_display_name}\n`
       message += `      💰 Выручка: ${formatNumber(service.total_revenue)} ⭐️ | 💸 Себестоимость: ${formatNumber(service.total_cost)} ⭐️\n`
       message += `      📈 Прибыль: ${formatNumber(service.profit)} ⭐️ | 📊 Маржа: ${formatPercent(service.profit_margin)}%\n`
       message += `      🔢 Использований: ${service.transaction_count}\n`
@@ -898,13 +902,13 @@ function generateRecommendations(stats: DetailedBotStats): string[] {
     const topService = stats.top_services[0]
     if (topService.total_revenue / stats.total_income > 0.5) {
       recommendations.push(
-        `⚠️ Зависимость от одного сервиса "${topService.service_name}". Диверсифицируйте предложение`
+        `⚠️ Зависимость от одного сервиса "${topService.service_display_name}". Диверсифицируйте предложение`
       )
     }
 
     if (topService.profit_margin > 80) {
       recommendations.push(
-        `🚀 Сервис "${topService.service_name}" очень прибыльный. Продвигайте его активнее`
+        `🚀 Сервис "${topService.service_display_name}" очень прибыльный. Продвигайте его активнее`
       )
     }
   }
