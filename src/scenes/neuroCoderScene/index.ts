@@ -1,6 +1,6 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { generateNeuroImage } from '../../services/generateNeuroImage'
+import { generateNeuroPhotoHybrid } from '../../services/generateNeuroPhotoHybrid'
 import { isRussian } from '@/helpers'
 import { handleHelpCancel } from '@/handlers'
 import { promptNeuroCoder } from './promts'
@@ -52,7 +52,7 @@ export const neuroCoderScene = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
 
-        await generateNeuroImage(
+        await generateNeuroPhotoHybrid(
           prompt,
           model_url,
           numImages,

@@ -7,6 +7,7 @@ import {
 } from '@/interfaces/payments.interface'
 import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 import { CreatePaymentV2Schema } from '@/interfaces/zod/payment.zod'
+import { calculateServiceCost } from '@/price/helpers/calculateServiceCost'
 
 type BalanceUpdateMetadata = {
   stars?: number
@@ -14,6 +15,7 @@ type BalanceUpdateMetadata = {
   bot_name?: string
   language?: string
   service_type?: string
+  model_name?: string // Название модели (kling_video, haiper_video, neuro_photo и т.д.)
   inv_id?: string
   modePrice?: number
   currentBalance?: number
@@ -388,9 +390,9 @@ export const updateUserBalance = async (
       try {
         // Создаем запись о транзакции с корректным типом данных
         // Все числовые поля преобразуем в целые числа для безопасности
-        // БЕЗОПАСНОЕ преобразование, защита от null/undefined
+        // ТОЧНОЕ преобразование без округления для сохранения 7.5⭐
         const safeRoundedAmount =
-          transactionAmount != null ? Math.round(transactionAmount) : 0
+          transactionAmount != null ? Number(transactionAmount.toFixed(2)) : 0
 
         const { error: paymentError } = await supabase
           .from('payments_v2')
@@ -444,7 +446,7 @@ export const updateUserBalance = async (
     const paymentRecordToValidate: any = {
       telegram_id: telegram_id.toString(),
       amount: originalAmount,
-      stars: safeAmount,
+      stars: Number(safeAmount.toFixed(2)), // Сохраняем точность до 2 знаков
       currency: metadata?.currency || Currency.XTR,
       status: metadata?.status || PaymentStatus.COMPLETED,
       type: type,
@@ -455,6 +457,10 @@ export const updateUserBalance = async (
       service_type:
         type === PaymentType.MONEY_OUTCOME
           ? metadata?.service_type || 'unknown_service'
+          : null,
+      model_name:
+        type === PaymentType.MONEY_OUTCOME
+          ? metadata?.model_name || null
           : null,
       subscription_type:
         type === PaymentType.MONEY_INCOME
@@ -467,9 +473,38 @@ export const updateUserBalance = async (
       inv_id: metadata?.inv_id || `sys-${Date.now()}-${telegram_id}`,
     }
 
-    // Добавляем cost только для MONEY_OUTCOME и если cost_in_stars предоставлен
-    if (type === PaymentType.MONEY_OUTCOME && cost_in_stars !== undefined) {
-      paymentRecordToValidate.cost = cost_in_stars
+    // Рассчитываем и добавляем cost для MONEY_OUTCOME операций
+    if (type === PaymentType.MONEY_OUTCOME) {
+      let calculatedCost = 0
+
+      // Если cost_in_stars передан явно, используем его
+      if (cost_in_stars !== undefined) {
+        calculatedCost = cost_in_stars
+        logger.info('🎯 Используем переданный cost_in_stars:', {
+          telegram_id,
+          service_type: metadata?.service_type,
+          cost_in_stars,
+        })
+      } else {
+        // Автоматически рассчитываем cost на основе service_type
+        calculatedCost = calculateServiceCost(
+          metadata?.service_type || null,
+          metadata,
+          safeAmount
+        )
+        logger.info('🧮 Автоматически рассчитан cost:', {
+          telegram_id,
+          service_type: metadata?.service_type,
+          metadata,
+          stars: safeAmount,
+          calculatedCost,
+        })
+      }
+
+      paymentRecordToValidate.cost = calculatedCost
+    } else {
+      // Для MONEY_INCOME операций cost всегда 0
+      paymentRecordToValidate.cost = 0
     }
 
     // Валидация с помощью Zod

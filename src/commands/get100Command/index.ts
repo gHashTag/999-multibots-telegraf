@@ -1,6 +1,6 @@
 import { MyContext } from '../../interfaces'
 
-import { generateNeuroImage } from '../../services/generateNeuroImage'
+import { generateNeuroPhotoHybrid } from '../../services/generateNeuroPhotoHybrid'
 import { models } from '../../core/replicate'
 import { solarPunkAngelPrompt } from './prompts'
 
@@ -23,7 +23,7 @@ async function get100Command(ctx: MyContext) {
     return
   }
 
-  await generateNeuroImage(
+  await generateNeuroPhotoHybrid(
     message,
     model_url,
     5,

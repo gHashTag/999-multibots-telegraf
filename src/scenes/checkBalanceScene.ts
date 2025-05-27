@@ -414,7 +414,7 @@ checkBalanceScene.enter(async ctx => {
         balance: currentBalance,
       })
 
-      console.log(ctx.botInfo)    
+      console.log(ctx.botInfo)
 
       // Передаем и баланс и уровень из userDetails
       await sendBalanceMessage(
@@ -425,8 +425,6 @@ checkBalanceScene.enter(async ctx => {
         ctx.botInfo.username
       )
     }
-
-  
 
     // Шаг 7: Проверка достаточности баланса
     if (currentBalance < costValue) {

@@ -91,5 +91,4 @@ export const COMMANDS_WITHOUT_SUBSCRIPTION_CHECK = [
   '💬 Support',
   '💫 Оформить подписку',
   '💫 Subscribe',
-  'testpulse', // админская команда
 ]
