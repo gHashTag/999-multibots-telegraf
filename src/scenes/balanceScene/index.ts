@@ -2,6 +2,7 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { getUserBalance, supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
+import { getServiceEmoji } from '@/utils/serviceMapping'
 
 /**
  * Функция для получения детализации трат пользователя
@@ -218,26 +219,4 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
   }
 )
 
-/**
- * Функция для получения эмодзи сервиса
- */
-function getServiceEmoji(service: string): string {
-  const emojiMap: Record<string, string> = {
-    neuro_photo: '🖼️',
-    digital_avatar_body: '🎭',
-    image_to_video: '🎬',
-    kling_video: '🎬',
-    haiper_video: '🎥',
-    minimax_video: '🎞️',
-    image_to_prompt: '📝',
-    text_to_speech: '🗣️',
-    lip_sync: '💋',
-    text_to_video: '📹',
-    text_to_image: '🎨',
-    voice: '🎤',
-    voice_to_text: '🎙️',
-    unknown: '❓',
-  }
-
-  return emojiMap[service] || '❓'
-}
+// Функция getServiceEmoji теперь импортируется из @/utils/serviceMapping

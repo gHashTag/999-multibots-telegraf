@@ -17,6 +17,7 @@ import { ADMIN_IDS_ARRAY } from '@/config'
 import { getOwnedBots } from '@/core/supabase/getOwnedBots'
 import { supabase } from '@/core/supabase'
 import { Context } from 'telegraf'
+import { getServiceEmoji } from '@/utils/serviceMapping'
 
 // Создаем локальные интерфейсы для избежания конфликтов
 interface LocalUserBalanceStats {
@@ -1036,19 +1037,7 @@ async function sendStatsExport(
   }
 }
 
-// Вспомогательная функция для эмодзи сервисов (можно расширить)
-function getServiceEmoji(serviceName: string): string {
-  const emojiMap: Record<string, string> = {
-    neuro_photo: '📸',
-    image_to_prompt: '🔍',
-    text_to_speech: '🗣️',
-    neurovideo: '🎥', // Новое название для нейровидео
-    neurobase: '🎥', // Поддержка старого названия
-    system: '⚙️',
-    unknown: '❓',
-  }
-  return emojiMap[serviceName] || emojiMap.unknown
-}
+// Функция getServiceEmoji теперь импортируется из @/utils/serviceMapping
 
 // Новая функция для форматирования статистики по боту
 function formatBotStatsMessage(
