@@ -260,15 +260,13 @@ export async function statsCommand(ctx: MyContext): Promise<void> {
       return
     }
 
-    // Проверяем, является ли пользователь админом
+    // Проверяем права доступа
     const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
-
-    // Получаем список ботов пользователя
     const ownedBots = await getOwnedBots(userId)
 
-    // Для админов не требуем наличие собственных ботов
+    // Пользователь должен быть либо админом, либо владельцем ботов
     if (!isAdmin && (!ownedBots || ownedBots.length === 0)) {
-      await ctx.reply('❌ У вас нет ботов для просмотра статистики')
+      await ctx.reply('❌ У вас нет доступа к статистике ботов')
       return
     }
 
@@ -1684,10 +1682,10 @@ export async function debugStatsCommand(ctx: MyContext): Promise<void> {
       return
     }
 
-    // Проверяем, является ли пользователь админом
+    // Проверяем, является ли пользователь супер-админом
     const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
     if (!isAdmin) {
-      await ctx.reply('❌ Эта команда доступна только администраторам')
+      await ctx.reply('❌ Эта команда доступна только супер-администраторам')
       return
     }
 
@@ -1769,10 +1767,10 @@ export async function userSpendingCommand(ctx: MyContext): Promise<void> {
       return
     }
 
-    // Проверяем, является ли пользователь админом
+    // Проверяем, является ли пользователь супер-админом
     const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
     if (!isAdmin) {
-      await ctx.reply('❌ Эта команда доступна только администраторам')
+      await ctx.reply('❌ Эта команда доступна только супер-администраторам')
       return
     }
 
@@ -1988,10 +1986,10 @@ export async function findUserCommand(ctx: MyContext): Promise<void> {
       return
     }
 
-    // Проверяем, является ли пользователь админом
+    // Проверяем, является ли пользователь супер-админом
     const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
     if (!isAdmin) {
-      await ctx.reply('❌ Эта команда доступна только администраторам')
+      await ctx.reply('❌ Эта команда доступна только супер-администраторам')
       return
     }
 
@@ -2118,10 +2116,13 @@ export async function adminHelpCommand(ctx: MyContext): Promise<void> {
       return
     }
 
-    // Проверяем, является ли пользователь админом
+    // Проверяем права доступа
     const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
-    if (!isAdmin) {
-      await ctx.reply('❌ Эта команда доступна только администраторам')
+    const ownedBots = await getOwnedBots(userId)
+
+    // Пользователь должен быть либо админом, либо владельцем ботов
+    if (!isAdmin && (!ownedBots || ownedBots.length === 0)) {
+      await ctx.reply('❌ У вас нет доступа к командам статистики')
       return
     }
 
@@ -2138,7 +2139,7 @@ export async function adminHelpCommand(ctx: MyContext): Promise<void> {
 • 📈 Excel отчеты одним нажатием
 • 🔄 Быстрое переключение периодов
 
-🔍 <b>Поиск и анализ пользователей:</b>
+🔍 <b>Поиск и анализ пользователей (только супер-админ):</b>
 <code>/find_user Иван</code> - поиск по имени
 <code>/find_user @username</code> - поиск по username  
 <code>/find_user 352374518</code> - поиск по ID
@@ -2149,7 +2150,7 @@ export async function adminHelpCommand(ctx: MyContext): Promise<void> {
 <code>/stats bot_name --detailed</code> - детальная разбивка
 <code>/stats bot_name --excel</code> - 📊 Excel отчет (6 листов)
 <code>/stats bot_name month</code> - за месяц
-<code>/debug_stats bot_name</code> - отладка данных и примеры транзакций
+<code>/debug_stats bot_name</code> - отладка данных и примеры транзакций (только супер-админ)
 
 ⏰ <b>Временные периоды:</b>
 • <code>today/сегодня</code> - за сегодня
@@ -2186,7 +2187,8 @@ export async function adminHelpCommand(ctx: MyContext): Promise<void> {
 2. <code>/stats MetaMuse_Manifest_bot --excel</code>
 3. <code>/debug_stats MetaMuse_Manifest_bot</code>
 
-👑 У вас SuperAdmin доступ ко всем ботам и командам.`
+🔐 <b>Ваш уровень доступа:</b>
+${isAdmin ? '👑 Супер-админ - доступ ко всем ботам' : `👤 Владелец ботов - доступ к: ${ownedBots?.join(', ') || 'нет ботов'}`}`
 
     await ctx.reply(helpMessage, { parse_mode: 'HTML' })
   } catch (error) {

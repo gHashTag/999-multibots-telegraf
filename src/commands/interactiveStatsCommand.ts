@@ -10,6 +10,7 @@ import { ADMIN_IDS_ARRAY } from '@/config'
 import { getBotStatsWithCost } from '@/core/supabase/getUserBalanceStats'
 import { generateAdminExcelReport } from '@/utils/adminExcelReportGenerator'
 import { supabase } from '@/core/supabase'
+import { getOwnedBots } from '@/core/supabase/getOwnedBots'
 import {
   analyzeTrends,
   generateSmartRecommendations,
@@ -38,6 +39,23 @@ interface StatsSession {
 const statsSessions = new Map<string, StatsSession>()
 
 /**
+ * Проверяет права доступа пользователя к боту
+ */
+async function checkBotAccess(
+  userId: string,
+  botName: string
+): Promise<boolean> {
+  const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
+
+  if (isAdmin) {
+    return true // Супер-админы имеют доступ ко всем ботам
+  }
+
+  const ownedBots = await getOwnedBots(userId)
+  return ownedBots ? ownedBots.includes(botName) : false
+}
+
+/**
  * Главная команда /stats_menu - показывает интерактивное меню
  */
 export async function interactiveStatsCommand(ctx: MyContext): Promise<void> {
@@ -48,10 +66,13 @@ export async function interactiveStatsCommand(ctx: MyContext): Promise<void> {
       return
     }
 
-    // Проверяем права админа
+    // Проверяем права доступа
     const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
-    if (!isAdmin) {
-      await ctx.reply('❌ Эта команда доступна только администраторам')
+    const ownedBots = await getOwnedBots(userId)
+
+    // Пользователь должен быть либо админом, либо владельцем ботов
+    if (!isAdmin && (!ownedBots || ownedBots.length === 0)) {
+      await ctx.reply('❌ У вас нет доступа к статистике ботов')
       return
     }
 
@@ -64,7 +85,13 @@ export async function interactiveStatsCommand(ctx: MyContext): Promise<void> {
 
     // Если бот не указан, показываем список доступных ботов
     if (!botName) {
-      await showBotSelection(ctx, userId)
+      await showBotSelection(ctx, userId, isAdmin, ownedBots)
+      return
+    }
+
+    // Проверяем права доступа к конкретному боту
+    if (!isAdmin && ownedBots && !ownedBots.includes(botName)) {
+      await ctx.reply(`❌ У вас нет доступа к боту @${botName}`)
       return
     }
 
@@ -85,42 +112,57 @@ export async function interactiveStatsCommand(ctx: MyContext): Promise<void> {
 /**
  * Показывает список доступных ботов для выбора
  */
-async function showBotSelection(ctx: MyContext, userId: string): Promise<void> {
+async function showBotSelection(
+  ctx: MyContext,
+  userId: string,
+  isAdmin: boolean,
+  ownedBots: string[] | null
+): Promise<void> {
   try {
-    // Получаем список ботов из таблицы avatars (там все боты)
-    const { data: bots, error } = await supabase
-      .from('avatars')
-      .select('bot_name')
-      .not('bot_name', 'is', null)
-      .limit(50)
+    let availableBots: string[] = []
 
-    if (error) throw error
+    if (isAdmin) {
+      // Супер-админы видят всех ботов
+      const { data: bots, error } = await supabase
+        .from('avatars')
+        .select('bot_name')
+        .not('bot_name', 'is', null)
+        .limit(50)
 
-    const uniqueBots = Array.from(new Set(bots.map(b => b.bot_name)))
-      .filter(bot => bot && bot.trim() !== '')
-      .sort()
+      if (error) throw error
 
-    if (uniqueBots.length === 0) {
-      await ctx.reply('❌ Не найдено ботов в системе')
+      availableBots = Array.from(new Set(bots.map(b => b.bot_name)))
+        .filter(bot => bot && bot.trim() !== '')
+        .sort()
+    } else {
+      // Владельцы ботов видят только свои боты
+      availableBots = ownedBots || []
+    }
+
+    if (availableBots.length === 0) {
+      const message = isAdmin
+        ? '❌ Не найдено ботов в системе'
+        : '❌ У вас нет ботов для просмотра статистики'
+      await ctx.reply(message)
       return
     }
 
     // Создаем кнопки для ботов (по 2 в ряд)
     const buttons = []
-    for (let i = 0; i < uniqueBots.length; i += 2) {
+    for (let i = 0; i < availableBots.length; i += 2) {
       const row = []
       row.push(
         Markup.button.callback(
-          `🤖 ${uniqueBots[i]}`,
-          `select_bot:${uniqueBots[i]}`
+          `🤖 ${availableBots[i]}`,
+          `select_bot:${availableBots[i]}`
         )
       )
 
-      if (uniqueBots[i + 1]) {
+      if (availableBots[i + 1]) {
         row.push(
           Markup.button.callback(
-            `🤖 ${uniqueBots[i + 1]}`,
-            `select_bot:${uniqueBots[i + 1]}`
+            `🤖 ${availableBots[i + 1]}`,
+            `select_bot:${availableBots[i + 1]}`
           )
         )
       }
@@ -129,9 +171,11 @@ async function showBotSelection(ctx: MyContext, userId: string): Promise<void> {
 
     const keyboard = Markup.inlineKeyboard(buttons)
 
+    const accessLevel = isAdmin ? '👑 Супер-админ' : '👤 Владелец ботов'
     await ctx.reply(
       `🤖 <b>Выберите бота для анализа:</b>\n\n` +
-        `📊 Найдено ботов: ${uniqueBots.length}\n` +
+        `🔐 Уровень доступа: ${accessLevel}\n` +
+        `📊 Доступно ботов: ${availableBots.length}\n` +
         `💡 Или используйте: <code>/stats_menu bot_name</code>`,
       {
         parse_mode: 'HTML',
@@ -292,6 +336,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
 
     if (!userId) return
 
+    // Проверяем права доступа к боту
+    const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
+    const ownedBots = await getOwnedBots(userId)
+
+    if (!isAdmin && ownedBots && !ownedBots.includes(botName)) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
+
     statsSessions.set(userId, {
       botName,
       period: 'all',
@@ -307,7 +362,10 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
     const userId = ctx.from?.id?.toString()
     if (!userId) return
 
-    await showBotSelection(ctx, userId)
+    const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
+    const ownedBots = await getOwnedBots(userId)
+
+    await showBotSelection(ctx, userId, isAdmin, ownedBots)
     await ctx.answerCbQuery('Выберите другого бота')
   })
 
@@ -318,6 +376,15 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
     const userId = ctx.from?.id?.toString()
 
     if (!userId) return
+
+    // Проверяем права доступа к боту
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     // Проверяем, не выбран ли уже этот период
     const session = statsSessions.get(userId)
@@ -340,6 +407,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
   bot.action(/^detailed:(.+):(.+)$/, async ctx => {
     const botName = ctx.match[1]
     const period = ctx.match[2]
+    const userId = ctx.from?.id?.toString()
+
+    if (!userId) return
+
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     await ctx.answerCbQuery('Генерирую детальную разбивку...')
     await sendDetailedStats(ctx, botName, period)
@@ -349,6 +427,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
   bot.action(/^excel:(.+):(.+)$/, async ctx => {
     const botName = ctx.match[1]
     const period = ctx.match[2]
+    const userId = ctx.from?.id?.toString()
+
+    if (!userId) return
+
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     await ctx.answerCbQuery('Создаю Excel отчет...')
     await sendExcelReport(ctx, botName, period)
@@ -357,6 +446,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
   // Отладка данных
   bot.action(/^debug:(.+)$/, async ctx => {
     const botName = ctx.match[1]
+    const userId = ctx.from?.id?.toString()
+
+    if (!userId) return
+
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     await ctx.answerCbQuery('Анализирую данные...')
     await sendDebugInfo(ctx, botName)
@@ -366,6 +466,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
   bot.action(/^top_users:(.+):(.+)$/, async ctx => {
     const botName = ctx.match[1]
     const period = ctx.match[2]
+    const userId = ctx.from?.id?.toString()
+
+    if (!userId) return
+
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     await ctx.answerCbQuery('Получаю топ пользователей...')
     await sendTopUsers(ctx, botName, period)
@@ -374,6 +485,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
   // Тренды и прогнозы
   bot.action(/^trends:(.+)$/, async ctx => {
     const botName = ctx.match[1]
+    const userId = ctx.from?.id?.toString()
+
+    if (!userId) return
+
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     await ctx.answerCbQuery('Анализирую тренды...')
     await sendTrendAnalysis(ctx, botName)
@@ -382,6 +504,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
   // Умные рекомендации
   bot.action(/^recommendations:(.+)$/, async ctx => {
     const botName = ctx.match[1]
+    const userId = ctx.from?.id?.toString()
+
+    if (!userId) return
+
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     await ctx.answerCbQuery('Генерирую рекомендации...')
     await sendSmartRecommendations(ctx, botName)
@@ -390,6 +523,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
   // Сегменты пользователей
   bot.action(/^segments:(.+)$/, async ctx => {
     const botName = ctx.match[1]
+    const userId = ctx.from?.id?.toString()
+
+    if (!userId) return
+
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     await ctx.answerCbQuery('Анализирую пользователей...')
     await sendUserSegmentation(ctx, botName)
@@ -398,6 +542,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
   // AI-Инсайты
   bot.action(/^ai_insights:(.+)$/, async ctx => {
     const botName = ctx.match[1]
+    const userId = ctx.from?.id?.toString()
+
+    if (!userId) return
+
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     await ctx.answerCbQuery('Генерирую AI-инсайты...')
     await sendAIInsights(ctx, botName)
@@ -406,6 +561,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
   // Уведомления
   bot.action(/^alerts:(.+)$/, async ctx => {
     const botName = ctx.match[1]
+    const userId = ctx.from?.id?.toString()
+
+    if (!userId) return
+
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     await ctx.answerCbQuery('Проверяю уведомления...')
     await sendAlerts(ctx, botName)
@@ -414,6 +580,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
   // Еженедельная сводка
   bot.action(/^weekly_summary:(.+)$/, async ctx => {
     const botName = ctx.match[1]
+    const userId = ctx.from?.id?.toString()
+
+    if (!userId) return
+
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     await ctx.answerCbQuery('Генерирую сводку...')
     await sendWeeklySummaryReport(ctx, botName)
@@ -423,6 +600,17 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
   bot.action(/^refresh:(.+):(.+)$/, async ctx => {
     const botName = ctx.match[1]
     const period = ctx.match[2]
+    const userId = ctx.from?.id?.toString()
+
+    if (!userId) return
+
+    const hasAccess = await checkBotAccess(userId, botName)
+    if (!hasAccess) {
+      await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
+        show_alert: true,
+      })
+      return
+    }
 
     try {
       await showStatsMenu(ctx, botName, period)
