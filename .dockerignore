@@ -12,6 +12,12 @@
 
 # test
 jest.config.js
+**/__tests__/**
+**/*.test.ts
+**/*.spec.ts
+src/__tests__
+src/core/supabase/__tests__
+src/modules/videoGenerator/__tests__
 
 # docker
 Dockerfile
