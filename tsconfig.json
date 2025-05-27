@@ -42,7 +42,7 @@
       "@/helpers/*": ["helpers/*"],
       "@/scripts/*": ["scripts/*"]
     },
-    "typeRoots": ["./src/types", "./node_modules/@types", "./node_modules/.pnpm/@types"],
+    "typeRoots": ["./src/types", "./node_modules/@types"],
     "rootDir": "./src"
   },
   "typeAcquisition": {

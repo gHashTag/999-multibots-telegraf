@@ -7,6 +7,7 @@ import {
   getServiceDisplayTitle,
   UserService,
 } from '@/utils/serviceMapping'
+import { generateUserExcelReport } from '@/utils/excelReportGenerator'
 
 /**
  * Функция для получения детализации трат пользователя
@@ -32,6 +33,20 @@ async function getUserSpendingDetails(userId: string) {
   const realIncomes = incomes.filter(p => p.category === 'REAL')
   const bonusIncomes = incomes.filter(p => p.category === 'BONUS')
 
+  // Разделяем реальные доходы по способам оплаты
+  const rublesIncomes = realIncomes.filter(
+    p =>
+      p.currency === 'RUB' &&
+      (p.payment_method === 'Robokassa' || p.payment_method === 'Manual') &&
+      p.status === 'COMPLETED'
+  )
+  const starsIncomes = realIncomes.filter(
+    p =>
+      (p.currency === 'XTR' || p.currency === 'STARS') &&
+      p.payment_method === 'Telegram' &&
+      p.status === 'COMPLETED'
+  )
+
   // Подсчитываем суммы
   const totalRealIncomeStars = realIncomes.reduce(
     (sum, p) => sum + (p.stars || 0),
@@ -42,6 +57,14 @@ async function getUserSpendingDetails(userId: string) {
     0
   )
   const totalOutcomeStars = outcomes.reduce((sum, p) => sum + (p.stars || 0), 0)
+
+  // Подсчитываем суммы по способам оплаты
+  const rublesStars = rublesIncomes.reduce((sum, p) => sum + (p.stars || 0), 0)
+  const rublesAmount = rublesIncomes.reduce(
+    (sum, p) => sum + (p.amount || 0),
+    0
+  )
+  const telegramStars = starsIncomes.reduce((sum, p) => sum + (p.stars || 0), 0)
 
   // Анализ по сервисам - ВСЕ сервисы
   const serviceStats = new Map<string, { count: number; stars: number }>()
@@ -74,6 +97,14 @@ async function getUserSpendingDetails(userId: string) {
     recentTopUps,
     totalTransactions: payments.length,
     hasBonuses: totalBonusStars > 0,
+    // Новые поля для разделения по способам оплаты
+    rublesStars,
+    rublesAmount,
+    telegramStars,
+    hasRublesPayments: rublesIncomes.length > 0,
+    hasTelegramPayments: starsIncomes.length > 0,
+    rublesIncomes,
+    starsIncomes,
   }
 }
 
@@ -119,9 +150,43 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
           ? `📊 <b>Общая статистика:</b>\n`
           : `📊 <b>Overall statistics:</b>\n`
 
-        message += isRu
-          ? `   📈 Всего пополнений: ${totalTopUps} ⭐\n`
-          : `   📈 Total top-ups: ${totalTopUps} ⭐\n`
+        // Показываем разделение по способам пополнения
+        if (
+          spendingDetails.hasRublesPayments ||
+          spendingDetails.hasTelegramPayments
+        ) {
+          message += isRu
+            ? `   📈 <b>Пополнения:</b>\n`
+            : `   📈 <b>Top-ups:</b>\n`
+
+          // Показываем рубли только если есть платежи в рублях
+          if (spendingDetails.hasRublesPayments) {
+            const rublesStars =
+              Math.floor(spendingDetails.rublesStars * 100) / 100
+            const rublesAmount =
+              Math.floor(spendingDetails.rublesAmount * 100) / 100
+            message += isRu
+              ? `      💳 Через Robokassa: ${rublesStars} ⭐ (${rublesAmount} руб.)\n`
+              : `      💳 Via Robokassa: ${rublesStars} ⭐ (${rublesAmount} RUB)\n`
+          }
+
+          // Показываем Telegram Stars только если есть такие платежи
+          if (spendingDetails.hasTelegramPayments) {
+            const telegramStars =
+              Math.floor(spendingDetails.telegramStars * 100) / 100
+            message += isRu
+              ? `      ⭐ Через Telegram Stars: ${telegramStars} ⭐\n`
+              : `      ⭐ Via Telegram Stars: ${telegramStars} ⭐\n`
+          }
+
+          message += isRu
+            ? `   📈 <b>Итого пополнений:</b> ${totalTopUps} ⭐\n`
+            : `   📈 <b>Total top-ups:</b> ${totalTopUps} ⭐\n`
+        } else {
+          message += isRu
+            ? `   📈 Всего пополнений: ${totalTopUps} ⭐\n`
+            : `   📈 Total top-ups: ${totalTopUps} ⭐\n`
+        }
 
         // Показываем бонусы только если они есть
         if (spendingDetails.hasBonuses) {
@@ -166,7 +231,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
           })
         }
 
-        // Последние пополнения
+        // Последние пополнения с разделением по способам
         if (spendingDetails.recentTopUps.length > 0) {
           message += isRu
             ? `📈 <b>Последние пополнения:</b>\n`
@@ -179,10 +244,30 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
             const stars = Math.floor((payment.stars || 0) * 100) / 100
             const amount = Math.floor((payment.amount || 0) * 100) / 100
 
-            message += `   ${index + 1}. 📈 ${date}: ${stars}⭐`
+            // Определяем способ оплаты и иконку
+            let paymentIcon = '📈'
+            let paymentMethod = ''
+
+            if (
+              payment.currency === 'RUB' &&
+              (payment.payment_method === 'Robokassa' ||
+                payment.payment_method === 'Manual')
+            ) {
+              paymentIcon = '💳'
+              paymentMethod = isRu ? ' (Robokassa)' : ' (Robokassa)'
+            } else if (
+              (payment.currency === 'XTR' || payment.currency === 'STARS') &&
+              payment.payment_method === 'Telegram'
+            ) {
+              paymentIcon = '⭐'
+              paymentMethod = isRu ? ' (Telegram Stars)' : ' (Telegram Stars)'
+            }
+
+            message += `   ${index + 1}. ${paymentIcon} ${date}: ${stars}⭐`
             if (payment.currency === 'RUB' && amount > 0) {
               message += ` (${amount} руб.)`
             }
+            message += paymentMethod
             message += `\n`
           })
           message += '\n'
@@ -210,10 +295,28 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
           })
         }
 
-        await ctx.reply(message, { parse_mode: 'HTML' })
+        await ctx.reply(message, {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '📊 Скачать детальный отчет Excel',
+                  callback_data: 'download_excel_report',
+                },
+              ],
+              [
+                {
+                  text: '🔙 Назад в меню',
+                  callback_data: 'back_to_menu',
+                },
+              ],
+            ],
+          },
+        })
       }
 
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      // Не переходим в меню автоматически, ждем действий пользователя
     } catch (error) {
       console.error('Error in balanceScene:', error)
       const isRu = ctx.from?.language_code === 'ru'
@@ -226,5 +329,103 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
     }
   }
 )
+
+// Обработчик для кнопки скачивания Excel отчета
+balanceScene.action('download_excel_report', async (ctx: MyContext) => {
+  try {
+    const isRu = ctx.from?.language_code === 'ru'
+    const userId = ctx.from?.id.toString() || ''
+
+    await ctx.answerCbQuery(
+      isRu ? '📊 Генерируем отчет...' : '📊 Generating report...'
+    )
+
+    // Показываем индикатор загрузки
+    await ctx.editMessageText(
+      isRu
+        ? '📊 Генерируем детальный Excel-отчет...\n⏳ Это может занять несколько секунд'
+        : '📊 Generating detailed Excel report...\n⏳ This may take a few seconds',
+      { parse_mode: 'HTML' }
+    )
+
+    // Генерируем Excel отчет
+    const excelBuffer = await generateUserExcelReport(userId)
+
+    // Получаем username для имени файла
+    const { data: userInfo } = await supabase
+      .from('users')
+      .select('username')
+      .eq('telegram_id', userId)
+      .single()
+
+    const filename = `financial_report_${userInfo?.username || userId}_${new Date().toISOString().split('T')[0]}.xlsx`
+
+    // Отправляем файл
+    await ctx.replyWithDocument(
+      {
+        source: excelBuffer,
+        filename: filename,
+      },
+      {
+        caption: isRu
+          ? `📊 <b>Ваш персональный финансовый отчет</b>\n\n` +
+            `📅 Дата: ${new Date().toLocaleDateString('ru-RU')}\n` +
+            `📋 Включает: все транзакции, аналитику по сервисам, детальную историю\n\n` +
+            `💡 <i>Откройте файл в Excel или Google Sheets для лучшего просмотра</i>`
+          : `📊 <b>Your personal financial report</b>\n\n` +
+            `📅 Date: ${new Date().toLocaleDateString('en-US')}\n` +
+            `📋 Includes: all transactions, service analytics, detailed history\n\n` +
+            `💡 <i>Open the file in Excel or Google Sheets for best viewing</i>`,
+        parse_mode: 'HTML',
+      }
+    )
+
+    // Возвращаем исходное сообщение с кнопками
+    await ctx.editMessageText(
+      isRu
+        ? '✅ Отчет успешно сгенерирован и отправлен!'
+        : '✅ Report successfully generated and sent!',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: isRu ? '🔙 Назад в меню' : '🔙 Back to menu',
+                callback_data: 'back_to_menu',
+              },
+            ],
+          ],
+        },
+      }
+    )
+  } catch (error) {
+    console.error('Error generating Excel report:', error)
+    const isRu = ctx.from?.language_code === 'ru'
+
+    await ctx.editMessageText(
+      isRu
+        ? '❌ Произошла ошибка при генерации отчета. Попробуйте позже.'
+        : '❌ Error occurred while generating report. Please try again later.',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: isRu ? '🔙 Назад в меню' : '🔙 Back to menu',
+                callback_data: 'back_to_menu',
+              },
+            ],
+          ],
+        },
+      }
+    )
+  }
+})
+
+// Обработчик для кнопки "Назад в меню"
+balanceScene.action('back_to_menu', async (ctx: MyContext) => {
+  await ctx.answerCbQuery()
+  await ctx.scene.enter(ModeEnum.MainMenu)
+})
 
 // Функция getServiceEmoji теперь импортируется из @/utils/serviceMapping
