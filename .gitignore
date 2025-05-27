@@ -178,4 +178,11 @@ dev-debug.log
 # OS specific
 # Task files
 tasks.json
-tasks/ 
+tasks/
+
+# Analytics scripts (temporary data analysis files)
+scripts/analytics/
+
+# Test files for debugging
+test_*.ts
+check_*.ts 

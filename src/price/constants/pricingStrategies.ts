@@ -56,4 +56,10 @@ export const MODE_PRICING_STRATEGY: Partial<Record<ModeEnum, PricingStrategy>> =
     [ModeEnum.GetRuBillWizard]: PricingStrategy.FREE,
     [ModeEnum.SubscriptionScene]: PricingStrategy.FREE,
     [ModeEnum.CreateUserScene]: PricingStrategy.FREE,
+
+    // 💰 ПЛАТНЫЕ ВИДЕО-СЕРВИСЫ
+    [ModeEnum.KlingVideo]: PricingStrategy.FIXED,
+    [ModeEnum.HaiperVideo]: PricingStrategy.FIXED,
+    [ModeEnum.MinimaxVideo]: PricingStrategy.FIXED,
+    [ModeEnum.VideoGenerationOther]: PricingStrategy.FIXED,
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { supabase } from '@/lib/supabaseClient'
+import { supabase } from '@/core/supabase'
 import { updateUserBalance } from '../updateUserBalance'
 import {
   PaymentType,
@@ -9,7 +9,7 @@ import { CreatePaymentV2Schema } from '../../../interfaces/zod/payment.zod'
 import { ModeEnum } from '../../../interfaces/modes'
 
 // Мокируем зависимости
-vi.mock('@/lib/supabaseClient', () => ({
+vi.mock('@/core/supabase', () => ({
   supabase: {
     from: vi.fn(),
     rpc: vi.fn(), // Добавляем мок для rpc здесь, если он используется глобально supabase.rpc
@@ -158,17 +158,19 @@ describe('updateUserBalance', () => {
         .insert as ReturnType<typeof vi.fn>
     ).mockResolvedValueOnce({ error: null })
 
-    const result = await updateUserBalance({
+    const result = await updateUserBalance(
       telegram_id_str,
-      amount: starsAmount, // amount здесь - это количество звезд
-      rub_amount: rubAmount,
+      starsAmount, // amount здесь - это количество звезд
       type,
       description,
-      bot_name,
-      service_type,
-      invoice_url,
-      // cost_in_stars не передается для MONEY_INCOME обычно
-    })
+      {
+        bot_name,
+        service_type,
+        invoice_url,
+        rub_amount: rubAmount,
+      },
+      cost_in_stars
+    )
 
     expect(result).toBe(true)
     expect(CreatePaymentV2Schema.parse).toHaveBeenCalledWith(
@@ -220,15 +222,17 @@ describe('updateUserBalance', () => {
         .insert as ReturnType<typeof vi.fn>
     ).mockResolvedValueOnce({ error: null })
 
-    const result = await updateUserBalance({
+    const result = await updateUserBalance(
       telegram_id_str,
-      amount: starsAmount,
+      starsAmount,
       type,
       description,
-      bot_name,
-      service_type,
-      cost_in_stars,
-    })
+      {
+        bot_name,
+        service_type,
+      },
+      cost_in_stars
+    )
 
     expect(result).toBe(true)
     expect(CreatePaymentV2Schema.parse).toHaveBeenCalledWith(
@@ -260,14 +264,16 @@ describe('updateUserBalance', () => {
         .select as ReturnType<typeof vi.fn>
     ).mockReturnValueOnce({ data: [], error: null }) // Пользователь не найден
 
-    const result = await updateUserBalance({
-      telegram_id_str: '111',
-      amount: 10,
-      type: PaymentType.MONEY_INCOME,
-      description: 'Test No User',
-      bot_name: 'TestBot',
-      service_type: ModeEnum.MainMenu, // ИСПРАВЛЕНО: ModeEnum.MainMenu
-    })
+    const result = await updateUserBalance(
+      '111',
+      10,
+      PaymentType.MONEY_INCOME,
+      'Test No User',
+      {
+        bot_name: 'TestBot',
+        service_type: ModeEnum.MainMenu,
+      }
+    )
 
     expect(result).toBe(false)
     expect(CreatePaymentV2Schema.parse).not.toHaveBeenCalled()
@@ -292,14 +298,16 @@ describe('updateUserBalance', () => {
         .insert as ReturnType<typeof vi.fn>
     ).mockResolvedValueOnce({ error: new Error('Insert failed') })
 
-    const result = await updateUserBalance({
-      telegram_id_str: '222',
-      amount: 20,
-      type: PaymentType.MONEY_INCOME,
-      description: 'Test Insert Fail',
-      bot_name: 'TestBot',
-      service_type: ModeEnum.MainMenu, // ИСПРАВЛЕНО: ModeEnum.MainMenu
-    })
+    const result = await updateUserBalance(
+      '222',
+      20,
+      PaymentType.MONEY_INCOME,
+      'Test Insert Fail',
+      {
+        bot_name: 'TestBot',
+        service_type: ModeEnum.MainMenu,
+      }
+    )
 
     expect(result).toBe(false)
     // Parse будет вызван, так как он до insert
@@ -322,16 +330,16 @@ describe('updateUserBalance', () => {
       error: null,
     })
 
-    const result = await updateUserBalance({
-      telegram_id_str: '333',
-      amount: 30,
-      type: PaymentType.MONEY_INCOME,
-      // Отсутствует description, что должно вызвать ошибку валидации Zod
-      // @ts-expect-error - намеренно передаем невалидные данные
-      description: undefined,
-      bot_name: 'TestBot',
-      service_type: ModeEnum.MainMenu, // ИСПРАВЛЕНО: ModeEnum.MainMenu
-    })
+    const result = await updateUserBalance(
+      '333',
+      30,
+      PaymentType.MONEY_INCOME,
+      undefined as any, // намеренно передаем невалидные данные
+      {
+        bot_name: 'TestBot',
+        service_type: ModeEnum.MainMenu,
+      }
+    )
 
     expect(result).toBe(false)
     expect(CreatePaymentV2Schema.parse).toHaveBeenCalledTimes(1)
