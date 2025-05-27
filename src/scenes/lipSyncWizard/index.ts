@@ -1,8 +1,16 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { generateLipSync } from '../../services/generateLipSync'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import { PaymentType } from '@/interfaces/payments.interface'
+import { BASE_COSTS } from '@/scenes/checkBalanceScene'
+import { ModeEnum } from '@/interfaces/modes'
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB, пример ограничения
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
+
+// Рассчитываем стоимость LipSync
+const LIPSYNC_COST = BASE_COSTS[ModeEnum.LipSync] || 84.38 // 84.38⭐
 
 export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
   'lip_sync',
@@ -35,7 +43,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     } else if (message && 'text' in message) {
       videoUrl = message.text
     }
-    console.log('videoUrl', videoUrl)
+
     if (!videoUrl) {
       await ctx.reply(
         isRu ? 'Ошибка: видео не предоставлено' : 'Error: video not provided'
@@ -73,7 +81,6 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       audioUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${audioFile.file_path}`
     } else if (message && 'voice' in message) {
       const voiceFile = await ctx.telegram.getFile(message.voice.file_id)
-      console.log('voiceFile', voiceFile)
       if (voiceFile?.file_size && voiceFile.file_size > MAX_FILE_SIZE) {
         await ctx.reply(
           isRu
@@ -104,28 +111,81 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       )
       return ctx.scene.leave()
     }
-    if (!ctx.session.videoUrl) {
-      console.error('❌ Video URL не найден')
-      return
+
+    // НОВОЕ: ПРОВЕРКА БАЛАНСА
+    const telegramId = ctx.from.id.toString()
+    const currentBalance = await getUserBalance(telegramId)
+
+    if (currentBalance === null) {
+      await ctx.reply(
+        isRu
+          ? 'Ошибка получения баланса. Попробуйте позже.'
+          : 'Error getting balance. Try again later.'
+      )
+      return ctx.scene.leave()
     }
-    if (!ctx.session.audioUrl) {
-      console.error('❌ Audio URL не найден')
-      return
+
+    if (currentBalance < LIPSYNC_COST) {
+      await ctx.reply(
+        isRu
+          ? `Недостаточно средств. Требуется: ${LIPSYNC_COST}⭐, у вас: ${currentBalance}⭐`
+          : `Insufficient funds. Required: ${LIPSYNC_COST}⭐, you have: ${currentBalance}⭐`
+      )
+      return ctx.scene.leave()
     }
-    if (!ctx.from?.id) {
-      console.error('❌ Telegram ID не найден')
-      return
+
+    // НОВОЕ: СПИСАНИЕ СРЕДСТВ
+    const paymentSuccess = await updateUserBalance(
+      telegramId,
+      LIPSYNC_COST,
+      PaymentType.MONEY_OUTCOME,
+      'LipSync video generation',
+      {
+        bot_name: ctx.botInfo?.username || 'unknown_bot',
+        service_type: 'lip_sync',
+        model_name: 'lipsync-1.9.0-beta',
+        language: isRu ? 'ru' : 'en',
+      }
+    )
+
+    if (!paymentSuccess) {
+      await ctx.reply(
+        isRu
+          ? 'Ошибка списания средств. Попробуйте позже.'
+          : 'Error charging payment. Try again later.'
+      )
+      return ctx.scene.leave()
     }
-    if (!ctx.botInfo?.username) {
-      console.error('❌ Bot username не найден')
-      return
+
+    // Показываем информацию о списании
+    const newBalance = currentBalance - LIPSYNC_COST
+    await ctx.reply(
+      isRu
+        ? `💰 Списано ${LIPSYNC_COST}⭐. Новый баланс: ${newBalance}⭐`
+        : `💰 Charged ${LIPSYNC_COST}⭐. New balance: ${newBalance}⭐`
+    )
+
+    if (!ctx.session.videoUrl || !ctx.session.audioUrl) {
+      console.error('❌ Video URL или Audio URL не найден')
+      // Возвращаем средства при ошибке
+      await updateUserBalance(
+        telegramId,
+        LIPSYNC_COST,
+        PaymentType.MONEY_INCOME,
+        'LipSync refund - missing URLs',
+        {
+          bot_name: ctx.botInfo?.username || 'unknown_bot',
+        }
+      )
+      return ctx.scene.leave()
     }
+
     try {
       await generateLipSync(
         ctx.session.videoUrl,
         ctx.session.audioUrl,
-        ctx.from.id.toString(),
-        ctx.botInfo?.username
+        telegramId,
+        ctx.botInfo?.username || 'unknown_bot'
       )
 
       await ctx.reply(
@@ -135,10 +195,22 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       )
     } catch (error) {
       console.error('Error in generateLipSync:', error)
+
+      // Возвращаем средства при ошибке
+      await updateUserBalance(
+        telegramId,
+        LIPSYNC_COST,
+        PaymentType.MONEY_INCOME,
+        'LipSync refund - generation error',
+        {
+          bot_name: ctx.botInfo?.username || 'unknown_bot',
+        }
+      )
+
       await ctx.reply(
         isRu
-          ? 'Произошла ошибка при обработке видео'
-          : 'An error occurred while processing the video'
+          ? 'Произошла ошибка при обработке видео. Средства возвращены.'
+          : 'An error occurred while processing the video. Funds refunded.'
       )
     }
     return ctx.scene.leave()

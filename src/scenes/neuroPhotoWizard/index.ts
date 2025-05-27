@@ -1,10 +1,11 @@
 import { MyContext } from '@/interfaces'
 import { ModelUrl, UserModel, ModelTraining } from '@/interfaces'
 
-import { generateNeuroImage } from '@/services/generateNeuroImage'
+import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
 import {
   getActiveUserModelsByType,
   getReferalsCountAndUserData,
+  getUserData,
 } from '@/core/supabase'
 import {
   levels,
@@ -142,8 +143,23 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
       const userId = ctx.from?.id
 
-      const fullPrompt = `Fashionable ${trigger_word}, ${promptText}`
-      await generateNeuroImage(
+      // ИСПРАВЛЕНИЕ: Получаем пол пользователя для правильного промпта
+      const userData = await getUserData(userId?.toString() ?? '')
+      let genderPromptPart = 'person'
+      if (userData?.gender === 'female') {
+        genderPromptPart = 'female'
+      } else if (userData?.gender === 'male') {
+        genderPromptPart = 'male'
+      }
+
+      console.log(
+        `[neuroPhotoWizard PromptStep] Determined gender for prompt: ${genderPromptPart}`
+      )
+
+      const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
+
+      const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}, ${detailPrompt}`
+      await generateNeuroPhotoHybrid(
         fullPrompt,
         model_url,
         1,
@@ -204,8 +220,27 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     }
 
     const generate = async (num: number) => {
-      await generateNeuroImage(
-        prompt,
+      // ИСПРАВЛЕНИЕ: Формируем правильный промпт с учетом пола
+      const trigger_word = ctx.session.userModel.trigger_word as string
+
+      const userData = await getUserData(userId?.toString() ?? '')
+      let genderPromptPart = 'person'
+      if (userData?.gender === 'female') {
+        genderPromptPart = 'female'
+      } else if (userData?.gender === 'male') {
+        genderPromptPart = 'male'
+      }
+
+      console.log(
+        `[neuroPhotoWizard ButtonStep] Determined gender for prompt: ${genderPromptPart}`
+      )
+
+      const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
+
+      const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
+
+      await generateNeuroPhotoHybrid(
+        fullPrompt,
         ctx.session.userModel.model_url,
         num,
         userId?.toString() ?? '',
