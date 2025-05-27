@@ -14,6 +14,7 @@ import { sendMediaToPulse } from './helpers/pulse'
 import { handleHelloWorld } from './commands/handleHelloWorld'
 import { priceCommand } from './commands/priceCommand'
 import { checkSubscriptionGuard } from './helpers/subscriptionGuard'
+import { setupInteractiveStats } from './commands/interactiveStatsCommand'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -258,16 +259,6 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     }
   })
 
-  bot.command('hello_world', async ctx => {
-    if (ctx.chat.type !== 'private') {
-      return sendGroupCommandReply(ctx)
-    }
-    logger.info('COMMAND /hello_world: Testing Inngest integration', {
-      telegramId: ctx.from?.id,
-    })
-    await handleHelloWorld(ctx)
-  })
-
   bot.command('price', async ctx => {
     if (ctx.chat.type !== 'private') {
       return sendGroupCommandReply(ctx)
@@ -282,39 +273,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     return priceCommand(ctx)
   })
 
-  // --- ТЕСТОВАЯ КОМАНДА ---
-  bot.command('testpulse', async ctx => {
-    logger.info('COMMAND: /testpulse called', { telegramId: ctx.from?.id })
-    if (ctx.from?.id !== 144022504) {
-      // Ограничиваем вызов (замените на нужный ID админа)
-      return ctx.reply('Эта команда только для админа.')
-    }
-    try {
-      const testPrompt = `This is a *test prompt* with some special characters:\n_italic_\n~strikethrough~\n||spoiler||\n[inline URL](http://www.example.com/)\n\`inline fixed-width code\`\n\`\`\`\npre-formatted fixed-width code block\n\`\`\`\nLine with a . period and ! exclamation.\nAnd symbols + - = | { }`
-
-      await ctx.reply('Отправляю тестовое сообщение в @neuro_blogger_pulse...')
-
-      await sendMediaToPulse({
-        mediaType: 'photo',
-        mediaSource: 'https://picsum.photos/200/300/', // Просто случайное фото
-        telegramId: ctx.from.id,
-        username: ctx.from.username || 'test_user',
-        language: isRussian(ctx) ? 'ru' : 'en',
-        serviceType: 'Test Service',
-        prompt: testPrompt,
-        botName: ctx.botInfo.username,
-        additionalInfo: { TestKey: 'TestValue' },
-      })
-
-      await ctx.reply(
-        'Тестовое сообщение отправлено. Проверь @neuro_blogger_pulse.'
-      )
-    } catch (error) {
-      logger.error('Error in /testpulse command:', { error })
-      await ctx.reply('Ошибка при отправке тестового сообщения.')
-    }
-  })
-  // --- КОНЕЦ ТЕСТОВОЙ КОМАНДЫ ---
+  // 🎯 ИНТЕРАКТИВНАЯ КОМАНДА СТАТИСТИКИ
+  setupInteractiveStats(bot)
 
   // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
   bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {

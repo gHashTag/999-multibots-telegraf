@@ -8,6 +8,7 @@ import {
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
+import { calculateServiceCost } from '@/price/helpers/calculateServiceCost'
 
 type PaymentParams = {
   telegram_id: string
@@ -22,6 +23,8 @@ type PaymentParams = {
   type: PaymentType
   subscription_type: SubscriptionType | null
   metadata?: object
+  service_type?: string | null
+  cost?: number
 }
 
 /**
@@ -42,6 +45,8 @@ export const setPayments = async ({
   type,
   subscription_type,
   metadata,
+  service_type,
+  cost,
 }: PaymentParams) => {
   try {
     const amount = parseFloat(OutSum)
@@ -68,6 +73,25 @@ export const setPayments = async ({
       metadata: metadata || {},
     })
 
+    // Рассчитываем cost если не передан
+    let finalCost = cost
+    if (type === PaymentType.MONEY_OUTCOME && finalCost === undefined) {
+      finalCost = calculateServiceCost(
+        service_type,
+        metadata as Record<string, any>,
+        stars
+      )
+      logger.info('🧮 Автоматически рассчитан cost в setPayments:', {
+        telegram_id: normalizedId,
+        service_type,
+        metadata,
+        stars,
+        calculatedCost: finalCost,
+      })
+    } else if (type === PaymentType.MONEY_INCOME) {
+      finalCost = 0 // Для доходов cost всегда 0
+    }
+
     const { error } = await supabase.from('payments_v2').insert({
       telegram_id: normalizedId,
       amount: amount,
@@ -81,6 +105,8 @@ export const setPayments = async ({
       type: type,
       language,
       subscription_type: subscription_type,
+      service_type: type === PaymentType.MONEY_OUTCOME ? service_type : null,
+      cost: finalCost,
       metadata: metadata || {},
     })
 

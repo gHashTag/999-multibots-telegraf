@@ -22,6 +22,7 @@ interface CreateSuccessfulPaymentParams {
   description: string
   bot_name: string
   service_type?: string
+  model_name?: string // Название модели (kling_video, haiper_video, neuro_photo и т.д.)
   payment_method?: string
   metadata?: Record<string, any>
   inv_id: string
@@ -42,6 +43,7 @@ export async function createSuccessfulPayment({
   type,
   description,
   service_type,
+  model_name,
   stars,
   payment_method = 'Telegram',
   bot_name,
@@ -171,6 +173,7 @@ export async function createSuccessfulPayment({
       description,
       type: normalizedType,
       service_type,
+      model_name,
       bot_name,
       status,
       metadata: finalMetadata,
