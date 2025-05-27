@@ -622,6 +622,39 @@ export async function generateNeuroPhotoDirect(
             telegram_id,
           })
 
+          // ОТПРАВЛЯЕМ ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЮ В ЛИЧНЫЕ СООБЩЕНИЯ
+          try {
+            if (!options?.disable_telegram_sending) {
+              await bot.telegram.sendPhoto(telegram_id, { url: imageUrl })
+
+              logger.info({
+                message: '📸 [DIRECT] Изображение отправлено пользователю',
+                description: 'Image sent to user in private messages',
+                telegram_id,
+                imageUrl: imageUrl.substring(0, 50) + '...',
+              })
+            } else {
+              logger.info({
+                message:
+                  '🔇 [DIRECT] Отправка изображения пользователю пропущена (режим тестирования)',
+                description: 'Skipping image sending to user (test mode)',
+                telegram_id,
+              })
+            }
+          } catch (sendUserError) {
+            logger.error({
+              message:
+                '❌ [DIRECT] Ошибка при отправке изображения пользователю',
+              description: 'Error sending image to user',
+              error:
+                sendUserError instanceof Error
+                  ? sendUserError.message
+                  : 'Unknown error',
+              telegram_id,
+              imageUrl: imageUrl.substring(0, 50) + '...',
+            })
+          }
+
           // Сохраняем промпт в базу данных для аналитики и истории
           await savePromptDirect(
             prompt,
