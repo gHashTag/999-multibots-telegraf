@@ -27,6 +27,7 @@ interface ServiceBalanceOperationProps {
   bot_name: string
   description: string
   service_type: ModeEnum // Use ModeEnum as specified
+  metadata?: Record<string, any> // Метаданные для расчета cost
 }
 
 export const processServiceBalanceOperation = async ({
@@ -37,6 +38,7 @@ export const processServiceBalanceOperation = async ({
   bot_name,
   description,
   service_type,
+  metadata,
 }: ServiceBalanceOperationProps): Promise<ServiceBalanceOperationResult> => {
   let currentBalance = 0
   try {
@@ -82,6 +84,7 @@ export const processServiceBalanceOperation = async ({
         paymentAmount: paymentAmount, // Дублируем для логики внутри updateUserBalance
         currentBalance: currentBalance, // Передаем текущий баланс для логов
         operation: 'service_payment', // Добавляем маркер операции
+        ...metadata, // Добавляем переданные метаданные для расчета cost
       }
     )
 

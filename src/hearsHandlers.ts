@@ -5,10 +5,10 @@ import { isRussian } from './helpers/language'
 import { MyContext } from './interfaces/'
 import { Telegraf, Markup } from 'telegraf'
 
-import { generateNeuroImage } from './services/generateNeuroImage'
+import { generateNeuroPhotoHybrid } from './services/generateNeuroPhotoHybrid'
 import { handleSizeSelection } from './handlers'
 import { levels, mainMenu } from './menu'
-import { getReferalsCountAndUserData } from './core/supabase'
+import { getReferalsCountAndUserData, getUserData } from './core/supabase'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 // import { handleRestartVideoGeneration } from './handlers/handleVideoRestart' // Закомментировано, так как кнопка неясна
@@ -428,8 +428,30 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
     const generate = async (num: number) => {
       if (ctx.session.mode === ModeEnum.NeuroPhoto) {
-        await generateNeuroImage(
-          prompt,
+        // ИСПРАВЛЕНИЕ: Формируем правильный промпт с учетом пола и trigger_word
+        const trigger_word = ctx.session.userModel.trigger_word as string
+
+        const userData = await getUserData(telegramId.toString())
+        let genderPromptPart = 'person'
+        if (userData?.gender === 'female') {
+          genderPromptPart = 'female'
+        } else if (userData?.gender === 'male') {
+          genderPromptPart = 'male'
+        }
+
+        logger.info(
+          `[hearsHandlers 1-4] Determined gender for prompt: ${genderPromptPart}`,
+          {
+            telegramId,
+          }
+        )
+
+        const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
+
+        const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
+
+        await generateNeuroPhotoHybrid(
+          fullPrompt,
           ctx.session.userModel.model_url,
           num,
           telegramId.toString(),
