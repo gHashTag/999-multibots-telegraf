@@ -78,17 +78,22 @@ export function getServiceDisplayName(
   serviceType: string | null,
   description: string | null
 ): UserService {
-  // Если есть service_type, проверяем является ли он пользовательским сервисом
-  if (
-    serviceType &&
-    Object.values(UserService).includes(serviceType as UserService)
-  ) {
-    return serviceType as UserService
-  }
-
-  // Если нет service_type или он не является пользовательским, определяем по description
+  // Сначала проверяем описание для промо-операций и системных операций
   if (description) {
     const desc = description.toLowerCase()
+
+    // ПРОМО-ОПЕРАЦИИ → payment_operation (системный сервис)
+    if (desc.includes('promo bonus') || desc.includes('🎁')) {
+      return UserService.PaymentOperation
+    }
+
+    // АВТОАКТИВАЦИЯ ПОДПИСКИ → payment_operation (системный сервис)
+    if (
+      desc.includes('auto-activated subscription') ||
+      desc.includes('🎁 auto-activated')
+    ) {
+      return UserService.PaymentOperation
+    }
 
     // ВСЕ ВИДЕО ГЕНЕРАЦИИ → text_to_video (пользовательский сервис)
     if (desc.includes('video generation')) {
@@ -120,6 +125,37 @@ export function getServiceDisplayName(
     // Платежные операции → payment_operation (системный сервис)
     if (desc === 'payment operation') {
       return UserService.PaymentOperation
+    }
+  }
+
+  // Если есть service_type, проверяем является ли он пользовательским сервисом
+  if (
+    serviceType &&
+    Object.values(UserService).includes(serviceType as UserService)
+  ) {
+    return serviceType as UserService
+  }
+
+  // Проверяем service_type для системных операций
+  if (serviceType) {
+    const normalizedServiceType = serviceType.toLowerCase()
+
+    // Системные сцены и операции
+    if (
+      normalizedServiceType === 'start_scene' ||
+      normalizedServiceType === 'main_menu' ||
+      normalizedServiceType === 'balance_scene' ||
+      normalizedServiceType === 'payment_scene' ||
+      normalizedServiceType === 'subscription_scene' ||
+      normalizedServiceType === 'top_up_balance' ||
+      normalizedServiceType === 'subscribe'
+    ) {
+      return UserService.PaymentOperation
+    }
+
+    // Обработка unknown как отдельного случая
+    if (normalizedServiceType === 'unknown') {
+      return UserService.Unknown
     }
   }
 
@@ -161,9 +197,17 @@ export function getServiceEmoji(serviceName: string): string {
     // Старые сервисы аватаров
     model_training: UserService.DigitalAvatarBody,
 
-    // Системные
-    system: UserService.Other,
+    // Системные операции
+    system: UserService.PaymentOperation,
     prompts: UserService.Other,
+    start_scene: UserService.PaymentOperation,
+    main_menu: UserService.PaymentOperation,
+    balance_scene: UserService.PaymentOperation,
+    payment_scene: UserService.PaymentOperation,
+    subscription_scene: UserService.PaymentOperation,
+    top_up_balance: UserService.PaymentOperation,
+    subscribe: UserService.PaymentOperation,
+    unknown: UserService.Unknown,
   }
 
   const mappedService = legacyMapping[normalizedName]
@@ -205,10 +249,38 @@ export function getServiceCategory(
 }
 
 /**
- * Получает человекочитаемое название сервиса
+ * Получает человекочитаемое название сервиса с учетом контекста операции
  */
-export function getServiceDisplayTitle(service: UserService): string {
-  const titles: Record<UserService, string> = {
+export function getServiceDisplayTitle(
+  service: UserService,
+  description?: string,
+  isRu: boolean = true
+): string {
+  // Если это платежная операция, пытаемся определить более точное название
+  if (service === UserService.PaymentOperation && description) {
+    const desc = description.toLowerCase()
+
+    if (desc.includes('promo bonus') || desc.includes('🎁 promo bonus')) {
+      return isRu ? 'Промо-бонус' : 'Promo Bonus'
+    }
+
+    if (
+      desc.includes('auto-activated subscription') ||
+      desc.includes('🎁 auto-activated')
+    ) {
+      return isRu ? 'Активация подписки' : 'Subscription Activation'
+    }
+
+    if (desc.includes('subscription') || desc.includes('подписка')) {
+      return isRu ? 'Подписка' : 'Subscription'
+    }
+
+    if (desc.includes('top-up') || desc.includes('пополнение')) {
+      return isRu ? 'Пополнение баланса' : 'Balance Top-up'
+    }
+  }
+
+  const titlesRu: Record<UserService, string> = {
     // 🖼️ ИЗОБРАЖЕНИЯ
     [UserService.NeuroPhoto]: 'Нейрофото',
     [UserService.ImageToPrompt]: 'Анализ изображений',
@@ -230,10 +302,38 @@ export function getServiceDisplayTitle(service: UserService): string {
     [UserService.TextToImage]: 'Генерация изображений',
 
     // ⚙️ СИСТЕМНЫЕ
-    [UserService.PaymentOperation]: 'Платежная операция',
+    [UserService.PaymentOperation]: 'Системная операция',
     [UserService.Other]: 'Другое',
     [UserService.Unknown]: 'Неизвестно',
   }
 
+  const titlesEn: Record<UserService, string> = {
+    // 🖼️ IMAGES
+    [UserService.NeuroPhoto]: 'NeuroPhoto',
+    [UserService.ImageToPrompt]: 'Image Analysis',
+
+    // 🎬 VIDEO
+    [UserService.TextToVideo]: 'Video Generation',
+    [UserService.ImageToVideo]: 'Image to Video',
+
+    // 🎵 AUDIO
+    [UserService.TextToSpeech]: 'Text to Speech',
+    [UserService.Voice]: 'Voice Avatar',
+    [UserService.VoiceToText]: 'Speech Recognition',
+    [UserService.LipSync]: 'Lip Sync',
+
+    // 🎭 AVATARS
+    [UserService.DigitalAvatarBody]: 'Digital Avatar',
+
+    // 🎨 ADDITIONAL
+    [UserService.TextToImage]: 'Image Generation',
+
+    // ⚙️ SYSTEM
+    [UserService.PaymentOperation]: 'System Operation',
+    [UserService.Other]: 'Other',
+    [UserService.Unknown]: 'Unknown',
+  }
+
+  const titles = isRu ? titlesRu : titlesEn
   return titles[service] || titles[UserService.Unknown]
 }

@@ -317,12 +317,14 @@ export async function hasReceivedPromo(
  * @param telegram_id - User's Telegram ID
  * @param promoParameter - Optional parameter from promo link
  * @param bot_name - Bot name for tracking
+ * @param isRu - Language preference (default: true for Russian)
  * @returns Promise<{ success: boolean; message: string; alreadyReceived?: boolean }>
  */
 export async function processPromoLink(
   telegram_id: string,
   promoParameter: string = '',
-  bot_name: string = 'MetaMuse_Manifest_bot'
+  bot_name: string = 'MetaMuse_Manifest_bot',
+  isRu: boolean = true
 ): Promise<{ success: boolean; message: string; alreadyReceived?: boolean }> {
   try {
     // Determine promo configuration based on parameter
@@ -364,7 +366,9 @@ export async function processPromoLink(
       })
       return {
         success: false,
-        message: 'You have already received this promotional bonus!',
+        message: isRu
+          ? 'Вы уже получили этот промо-бонус!'
+          : 'You have already received this promotional bonus!',
         alreadyReceived: true,
       }
     }
@@ -381,12 +385,16 @@ export async function processPromoLink(
 
       return {
         success: true,
-        message: `🎁 Welcome bonus received! You got ${starAmount} free stars!`,
+        message: isRu
+          ? `🎁 Приветственный бонус получен! Вы получили ${starAmount} бесплатных звезд!`
+          : `🎁 Welcome bonus received! You got ${starAmount} free stars!`,
       }
     } else {
       return {
         success: false,
-        message: 'Failed to process promotional bonus. Please try again later.',
+        message: isRu
+          ? 'Не удалось обработать промо-бонус. Попробуйте позже.'
+          : 'Failed to process promotional bonus. Please try again later.',
       }
     }
   } catch (error) {
@@ -398,7 +406,9 @@ export async function processPromoLink(
     })
     return {
       success: false,
-      message: 'An error occurred while processing your promotional bonus.',
+      message: isRu
+        ? 'Произошла ошибка при обработке промо-бонуса.'
+        : 'An error occurred while processing your promotional bonus.',
     }
   }
 }
