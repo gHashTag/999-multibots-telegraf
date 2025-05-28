@@ -112,18 +112,22 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         : '✅ Avatar created successfully! Welcome!'
     )
 
-    // Process promo link if detected
+    // Handle promo logic (new users only)
     if (promoInfo?.isPromo) {
       try {
         const promoResult = await processPromoLink(
           telegram_id.toString(),
-          promoInfo.parameter || '',
-          ctx.botInfo.username,
-          isRussian(ctx)
+          promoInfo.parameter || 'neurovideo_promo',
+          ctx.botInfo.username
         )
 
-        if (promoResult.success) {
-          await ctx.reply(promoResult.message)
+        if (promoResult) {
+          const isRu = isRussian(ctx)
+          const message = isRu
+            ? '🎁 Промо-бонус успешно получен! Вы получили бесплатные звезды!'
+            : '🎁 Promo bonus received! You got free stars!'
+
+          await ctx.reply(message)
 
           // Notify admin channel about promo usage
           try {
@@ -144,7 +148,12 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
             )
           }
         } else {
-          await ctx.reply(promoResult.message)
+          const isRu = isRussian(ctx)
+          const message = isRu
+            ? '❌ Вы уже получили этот промо-бонус!'
+            : '❌ You have already received this promo bonus!'
+
+          await ctx.reply(message)
         }
       } catch (promoError) {
         logger.error('❌ [CreateUserScene] Error processing promo link', {
@@ -287,15 +296,24 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       try {
         const promoResult = await processPromoLink(
           telegram_id.toString(),
-          promoInfo.parameter || '',
-          ctx.botInfo.username,
-          isRussian(ctx)
+          promoInfo.parameter || 'neurovideo_promo',
+          ctx.botInfo.username
         )
 
-        if (promoResult.success) {
-          await ctx.reply(promoResult.message)
+        if (promoResult) {
+          const isRu = isRussian(ctx)
+          const message = isRu
+            ? '🎁 Промо-бонус успешно получен! Вы получили бесплатные звезды!'
+            : '🎁 Promo bonus received! You got free stars!'
+
+          await ctx.reply(message)
         } else {
-          await ctx.reply(promoResult.message)
+          const isRu = isRussian(ctx)
+          const message = isRu
+            ? '❌ Вы уже получили этот промо-бонус!'
+            : '❌ You have already received this promo bonus!'
+
+          await ctx.reply(message)
         }
       } catch (promoError) {
         logger.error(
