@@ -444,7 +444,7 @@ export const updateUserBalance = async (
 
     // --- НОВАЯ ЛОГИКА СОХРАНЕНИЯ ТРАНЗАКЦИИ В payments_v2 ---
     const paymentRecordToValidate: any = {
-      telegram_id: telegram_id.toString(),
+      telegram_id: Number(telegram_id), // Преобразуем в число для соответствия схеме
       amount: originalAmount,
       stars: Number(safeAmount.toFixed(2)), // Сохраняем точность до 2 знаков
       currency: metadata?.currency || Currency.XTR,
@@ -471,6 +471,7 @@ export const updateUserBalance = async (
           ? new Date().toISOString()
           : null,
       inv_id: metadata?.inv_id || `sys-${Date.now()}-${telegram_id}`,
+      operation_id: metadata?.operation_id || `op-${Date.now()}-${telegram_id}`, // Добавляем обязательное поле operation_id
     }
 
     // Рассчитываем и добавляем cost для MONEY_OUTCOME операций
