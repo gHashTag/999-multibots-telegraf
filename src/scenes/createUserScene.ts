@@ -118,15 +118,12 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         const promoResult = await processPromoLink(
           telegram_id.toString(),
           promoInfo.parameter || '',
-          ctx.botInfo.username
+          ctx.botInfo.username,
+          isRussian(ctx)
         )
 
         if (promoResult.success) {
-          await ctx.reply(
-            isRussian(ctx)
-              ? `🎁 ${promoResult.message.replace('Welcome bonus received! You got', 'Приветственный бонус получен! Вы получили').replace('free stars!', 'бесплатных звезд!')}`
-              : promoResult.message
-          )
+          await ctx.reply(promoResult.message)
 
           // Notify admin channel about promo usage
           try {
@@ -146,18 +143,8 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
               }
             )
           }
-        } else if (promoResult.alreadyReceived) {
-          await ctx.reply(
-            isRussian(ctx)
-              ? '⚠️ Вы уже получили этот промо-бонус ранее!'
-              : '⚠️ You have already received this promotional bonus!'
-          )
         } else {
-          await ctx.reply(
-            isRussian(ctx)
-              ? '❌ Не удалось обработать промо-бонус. Попробуйте позже.'
-              : '❌ Failed to process promotional bonus. Please try again later.'
-          )
+          await ctx.reply(promoResult.message)
         }
       } catch (promoError) {
         logger.error('❌ [CreateUserScene] Error processing promo link', {
@@ -301,27 +288,14 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         const promoResult = await processPromoLink(
           telegram_id.toString(),
           promoInfo.parameter || '',
-          ctx.botInfo.username
+          ctx.botInfo.username,
+          isRussian(ctx)
         )
 
         if (promoResult.success) {
-          await ctx.reply(
-            isRussian(ctx)
-              ? `🎁 ${promoResult.message.replace('Welcome bonus received! You got', 'Промо-бонус получен! Вы получили').replace('free stars!', 'бесплатных звезд!')}`
-              : promoResult.message
-          )
-        } else if (promoResult.alreadyReceived) {
-          await ctx.reply(
-            isRussian(ctx)
-              ? '⚠️ Вы уже получили этот промо-бонус ранее!'
-              : '⚠️ You have already received this promotional bonus!'
-          )
+          await ctx.reply(promoResult.message)
         } else {
-          await ctx.reply(
-            isRussian(ctx)
-              ? '❌ Не удалось обработать промо-бонус. Попробуйте позже.'
-              : '❌ Failed to process promotional bonus. Please try again later.'
-          )
+          await ctx.reply(promoResult.message)
         }
       } catch (promoError) {
         logger.error(
