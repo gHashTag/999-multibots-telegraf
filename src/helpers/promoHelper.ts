@@ -330,20 +330,23 @@ export async function processPromoLink(
     // Determine promo configuration based on parameter
     let promoConfig: PromoConfig = DEFAULT_PROMO_CONFIG
 
-    // You can extend this logic to handle different promo types based on parameter
+    // Handle different promo types based on parameter
     if (promoParameter) {
-      // Example: handle different promo codes
       switch (promoParameter.toLowerCase()) {
+        case 'neurovideo':
         case 'video':
           promoConfig = {
             defaultTier: SubscriptionType.NEUROVIDEO,
-            promoType: 'video_promo',
+            promoType: 'neurovideo_promo',
+            autoActivateSubscription: true,
           }
           break
+        case 'neurophoto':
         case 'photo':
           promoConfig = {
             defaultTier: SubscriptionType.NEUROPHOTO,
-            promoType: 'photo_promo',
+            promoType: 'neurophoto_promo',
+            autoActivateSubscription: true,
           }
           break
         default:
@@ -364,11 +367,26 @@ export async function processPromoLink(
         promoType: promoConfig.promoType,
         function: 'processPromoLink',
       })
+
+      // More specific messages based on promo type
+      let message = ''
+      if (promoConfig.promoType === 'neurovideo_promo') {
+        message = isRu
+          ? '🎬 Вы уже получили промо-бонус НейроВидео!'
+          : '🎬 You have already received the NeuroVideo promotional bonus!'
+      } else if (promoConfig.promoType === 'neurophoto_promo') {
+        message = isRu
+          ? '📸 Вы уже получили промо-бонус НейроФото!'
+          : '📸 You have already received the NeuroPhoto promotional bonus!'
+      } else {
+        message = isRu
+          ? 'Вы уже получили этот промо-бонус!'
+          : 'You have already received this promotional bonus!'
+      }
+
       return {
         success: false,
-        message: isRu
-          ? 'Вы уже получили этот промо-бонус!'
-          : 'You have already received this promotional bonus!',
+        message,
         alreadyReceived: true,
       }
     }
@@ -383,11 +401,25 @@ export async function processPromoLink(
       const starAmount =
         promoConfig.customStars || (tierPlan ? parseInt(tierPlan.stars) : 0)
 
+      // More specific success messages based on promo type
+      let message = ''
+      if (promoConfig.promoType === 'neurovideo_promo') {
+        message = isRu
+          ? `🎬 НейроВидео промо-бонус получен! Вы получили ${starAmount} бесплатных звезд и доступ к генерации видео!`
+          : `🎬 NeuroVideo promo bonus received! You got ${starAmount} free stars and access to video generation!`
+      } else if (promoConfig.promoType === 'neurophoto_promo') {
+        message = isRu
+          ? `📸 НейроФото промо-бонус получен! Вы получили ${starAmount} бесплатных звезд и доступ к генерации фото!`
+          : `📸 NeuroPhoto promo bonus received! You got ${starAmount} free stars and access to photo generation!`
+      } else {
+        message = isRu
+          ? `🎁 Приветственный бонус получен! Вы получили ${starAmount} бесплатных звезд!`
+          : `🎁 Welcome bonus received! You got ${starAmount} free stars!`
+      }
+
       return {
         success: true,
-        message: isRu
-          ? `🎁 Приветственный бонус получен! Вы получили ${starAmount} бесплатных звезд!`
-          : `🎁 Welcome bonus received! You got ${starAmount} free stars!`,
+        message,
       }
     } else {
       return {

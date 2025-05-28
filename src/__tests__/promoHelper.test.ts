@@ -22,7 +22,25 @@ describe('Promo Helper Tests', () => {
       expect(result?.parameter).toBe('')
     })
 
-    it('should detect promo command with parameter', () => {
+    it('should detect promo command with neurovideo parameter', () => {
+      const ctx = createMockContext('/start promo neurovideo')
+      const result = extractPromoFromContext(ctx as any)
+
+      expect(result).not.toBeNull()
+      expect(result?.isPromo).toBe(true)
+      expect(result?.parameter).toBe('neurovideo')
+    })
+
+    it('should detect promo command with neurophoto parameter', () => {
+      const ctx = createMockContext('/start promo neurophoto')
+      const result = extractPromoFromContext(ctx as any)
+
+      expect(result).not.toBeNull()
+      expect(result?.isPromo).toBe(true)
+      expect(result?.parameter).toBe('neurophoto')
+    })
+
+    it('should detect promo command with video parameter', () => {
       const ctx = createMockContext('/start promo video')
       const result = extractPromoFromContext(ctx as any)
 
@@ -40,6 +58,24 @@ describe('Promo Helper Tests', () => {
       expect(result?.parameter).toBe('photo')
     })
 
+    it('should detect direct neurovideo command', () => {
+      const ctx = createMockContext('/start neurovideo')
+      const result = extractPromoFromContext(ctx as any)
+
+      expect(result).not.toBeNull()
+      expect(result?.isPromo).toBe(true)
+      expect(result?.parameter).toBe('neurovideo')
+    })
+
+    it('should detect direct neurophoto command', () => {
+      const ctx = createMockContext('/start neurophoto')
+      const result = extractPromoFromContext(ctx as any)
+
+      expect(result).not.toBeNull()
+      expect(result?.isPromo).toBe(true)
+      expect(result?.parameter).toBe('neurophoto')
+    })
+
     it('should not detect regular start command', () => {
       const ctx = createMockContext('/start 123456')
       const result = extractPromoFromContext(ctx as any)
@@ -55,12 +91,21 @@ describe('Promo Helper Tests', () => {
     })
 
     it('should handle case insensitive promo detection', () => {
-      const ctx = createMockContext('/start PROMO VIDEO')
+      const ctx = createMockContext('/start PROMO NEUROVIDEO')
       const result = extractPromoFromContext(ctx as any)
 
       expect(result).not.toBeNull()
       expect(result?.isPromo).toBe(true)
-      expect(result?.parameter).toBe('VIDEO')
+      expect(result?.parameter).toBe('NEUROVIDEO')
+    })
+
+    it('should handle case insensitive direct promo detection', () => {
+      const ctx = createMockContext('/start NEUROPHOTO')
+      const result = extractPromoFromContext(ctx as any)
+
+      expect(result).not.toBeNull()
+      expect(result?.isPromo).toBe(true)
+      expect(result?.parameter).toBe('NEUROPHOTO')
     })
   })
 
@@ -93,24 +138,28 @@ describe('Promo Helper Tests', () => {
   })
 
   describe('Promo Configuration Logic', () => {
-    it('should create correct config for video promo', () => {
+    it('should create correct config for neurovideo promo', () => {
       const promoConfig: PromoConfig = {
         defaultTier: SubscriptionType.NEUROVIDEO,
-        promoType: 'video_promo',
+        promoType: 'neurovideo_promo',
+        autoActivateSubscription: true,
       }
 
       expect(promoConfig.defaultTier).toBe(SubscriptionType.NEUROVIDEO)
-      expect(promoConfig.promoType).toBe('video_promo')
+      expect(promoConfig.promoType).toBe('neurovideo_promo')
+      expect(promoConfig.autoActivateSubscription).toBe(true)
     })
 
-    it('should create correct config for photo promo', () => {
+    it('should create correct config for neurophoto promo', () => {
       const promoConfig: PromoConfig = {
         defaultTier: SubscriptionType.NEUROPHOTO,
-        promoType: 'photo_promo',
+        promoType: 'neurophoto_promo',
+        autoActivateSubscription: true,
       }
 
       expect(promoConfig.defaultTier).toBe(SubscriptionType.NEUROPHOTO)
-      expect(promoConfig.promoType).toBe('photo_promo')
+      expect(promoConfig.promoType).toBe('neurophoto_promo')
+      expect(promoConfig.autoActivateSubscription).toBe(true)
     })
 
     it('should handle custom star amounts', () => {
@@ -144,7 +193,7 @@ describe('Promo Helper Tests', () => {
 
 // Integration test to verify the URL structure works
 describe('Promo URL Integration', () => {
-  it('should handle the expected promo URL format', () => {
+  it('should handle the expected default promo URL format', () => {
     // Test the URL: https://t.me/MetaMuse_Manifest_bot/promo
     // This would translate to: /start promo
     const ctx = createMockContext('/start promo')
@@ -162,6 +211,70 @@ describe('Promo URL Integration', () => {
     expect(tierPlan).toBeDefined()
     expect(tierPlan?.amount).toBe(1110) // RUB price
     expect(tierPlan?.stars).toBe('476') // Star amount
+  })
+
+  it('should handle neurovideo promo URL format', () => {
+    // Test the URL: https://t.me/MetaMuse_Manifest_bot/promo?start=neurovideo
+    // This would translate to: /start promo neurovideo
+    const ctx = createMockContext('/start promo neurovideo')
+    const result = extractPromoFromContext(ctx as any)
+
+    expect(result).not.toBeNull()
+    expect(result?.isPromo).toBe(true)
+    expect(result?.parameter).toBe('neurovideo')
+
+    // This should grant NEUROVIDEO tier stars (1303 stars for 2999 RUB)
+    const expectedTier = SubscriptionType.NEUROVIDEO
+    const tierPlan = paymentOptionsPlans.find(
+      plan => plan.subscription === expectedTier
+    )
+
+    expect(tierPlan).toBeDefined()
+    expect(tierPlan?.amount).toBe(2999) // RUB price
+    expect(tierPlan?.stars).toBe('1303') // Star amount
+  })
+
+  it('should handle neurophoto promo URL format', () => {
+    // Test the URL: https://t.me/MetaMuse_Manifest_bot/promo?start=neurophoto
+    // This would translate to: /start promo neurophoto
+    const ctx = createMockContext('/start promo neurophoto')
+    const result = extractPromoFromContext(ctx as any)
+
+    expect(result).not.toBeNull()
+    expect(result?.isPromo).toBe(true)
+    expect(result?.parameter).toBe('neurophoto')
+
+    // This should grant NEUROPHOTO tier stars (476 stars for 1110 RUB)
+    const expectedTier = SubscriptionType.NEUROPHOTO
+    const tierPlan = paymentOptionsPlans.find(
+      plan => plan.subscription === expectedTier
+    )
+
+    expect(tierPlan).toBeDefined()
+    expect(tierPlan?.amount).toBe(1110) // RUB price
+    expect(tierPlan?.stars).toBe('476') // Star amount
+  })
+
+  it('should handle direct neurovideo URL format', () => {
+    // Test the URL: https://t.me/MetaMuse_Manifest_bot?start=neurovideo
+    // This would translate to: /start neurovideo
+    const ctx = createMockContext('/start neurovideo')
+    const result = extractPromoFromContext(ctx as any)
+
+    expect(result).not.toBeNull()
+    expect(result?.isPromo).toBe(true)
+    expect(result?.parameter).toBe('neurovideo')
+  })
+
+  it('should handle direct neurophoto URL format', () => {
+    // Test the URL: https://t.me/MetaMuse_Manifest_bot?start=neurophoto
+    // This would translate to: /start neurophoto
+    const ctx = createMockContext('/start neurophoto')
+    const result = extractPromoFromContext(ctx as any)
+
+    expect(result).not.toBeNull()
+    expect(result?.isPromo).toBe(true)
+    expect(result?.parameter).toBe('neurophoto')
   })
 })
 
