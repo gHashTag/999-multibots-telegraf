@@ -39,6 +39,8 @@ export interface DirectPaymentParams {
   bypass_payment_check?: boolean
   /** Опционально: Дополнительные метаданные для записи в БД */
   metadata?: Record<string, any>
+  /** Опционально: Тип подписки для активации */
+  subscription_type?: string
 }
 
 // --- ИСПРАВЛЕННЫЙ ИНТЕРФЕЙС РЕЗУЛЬТАТА ---
@@ -97,6 +99,7 @@ export async function directPaymentProcessor(
     inv_id, // Доступно благодаря исправлению интерфейса
     bypass_payment_check = false, // Доступно благодаря исправлению интерфейса
     metadata = {}, // Доступно благодаря исправлению интерфейса
+    subscription_type, // Добавляем поддержку subscription_type
   } = params
 
   const operationId = inv_id || `direct-${uuidv4()}`
@@ -161,6 +164,7 @@ export async function directPaymentProcessor(
       inv_id: operationId,
       is_system_payment: metadata?.is_system_payment || false,
       category: metadata?.category || 'REAL',
+      subscription_type: subscription_type || null, // Добавляем subscription_type
       metadata: {
         ...metadata,
         direct_payment: true,
