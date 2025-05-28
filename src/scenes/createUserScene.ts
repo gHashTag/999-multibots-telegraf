@@ -8,6 +8,11 @@ import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { isRussian } from '@/helpers/language'
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
+import {
+  extractInviteCodeFromContext,
+  extractPromoFromContext,
+} from '@/helpers/contextUtils'
+import { processPromoLink } from '@/helpers/promoHelper'
 
 const SUBSCRIBE_CHANNEL_ID = '@neuro_blogger_pulse'
 
@@ -25,6 +30,22 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
   const finalUsername = username || first_name || telegram_id.toString()
   const photo_url = getPhotoUrl(ctx, 1)
+
+  // Extract invite code using the helper function
+  const inviteCode = extractInviteCodeFromContext(ctx)
+  ctx.session.inviteCode = inviteCode
+
+  // Extract promo information using the helper function
+  const promoInfo = extractPromoFromContext(ctx)
+
+  // Log promo detection
+  if (promoInfo?.isPromo) {
+    logger.info('🎁 [CreateUserScene] Promo link detected', {
+      telegram_id: telegram_id.toString(),
+      promoParameter: promoInfo.parameter,
+      function: 'createUserStep',
+    })
+  }
 
   // Проверка на полную ссылку или просто команду /start
   const botNameMatch = ctx.message.text.match(
@@ -52,7 +73,10 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     startNumber = parts.length > 1 ? parts[1] : ''
   }
 
-  ctx.session.inviteCode = startNumber
+  // Use extracted invite code if available, otherwise use legacy extraction
+  if (!ctx.session.inviteCode && startNumber && !promoInfo?.isPromo) {
+    ctx.session.inviteCode = startNumber
+  }
 
   const userPhotoUrl = await getPhotoUrl(ctx, ctx.from?.id || 0)
   const botPhotoUrl = await photo_url
@@ -74,6 +98,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   }
 
   const [wasCreated] = await createUser(userData)
+
   // Проверяем, был ли пользователь только что создан
   if (wasCreated) {
     // Если да, сообщаем об успешном создании
@@ -82,6 +107,73 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         ? '✅ Аватар успешно создан! Добро пожаловать!'
         : '✅ Avatar created successfully! Welcome!'
     )
+
+    // Process promo link if detected
+    if (promoInfo?.isPromo) {
+      try {
+        const promoResult = await processPromoLink(
+          telegram_id.toString(),
+          promoInfo.parameter || '',
+          ctx.botInfo.username
+        )
+
+        if (promoResult.success) {
+          await ctx.reply(
+            isRussian(ctx)
+              ? `🎁 ${promoResult.message.replace('Welcome bonus received! You got', 'Приветственный бонус получен! Вы получили').replace('free stars!', 'бесплатных звезд!')}`
+              : promoResult.message
+          )
+
+          // Notify admin channel about promo usage
+          try {
+            await ctx.telegram.sendMessage(
+              SUBSCRIBE_CHANNEL_ID,
+              `🎁 Новый пользователь @${finalUsername} получил промо-бонус! Параметр: ${promoInfo.parameter || 'default'}`
+            )
+          } catch (notifyError) {
+            logger.warn(
+              '⚠️ [CreateUserScene] Failed to notify admin channel about promo usage',
+              {
+                telegram_id: telegram_id.toString(),
+                error:
+                  notifyError instanceof Error
+                    ? notifyError.message
+                    : String(notifyError),
+              }
+            )
+          }
+        } else if (promoResult.alreadyReceived) {
+          await ctx.reply(
+            isRussian(ctx)
+              ? '⚠️ Вы уже получили этот промо-бонус ранее!'
+              : '⚠️ You have already received this promotional bonus!'
+          )
+        } else {
+          await ctx.reply(
+            isRussian(ctx)
+              ? '❌ Не удалось обработать промо-бонус. Попробуйте позже.'
+              : '❌ Failed to process promotional bonus. Please try again later.'
+          )
+        }
+      } catch (promoError) {
+        logger.error('❌ [CreateUserScene] Error processing promo link', {
+          telegram_id: telegram_id.toString(),
+          promoParameter: promoInfo.parameter,
+          error:
+            promoError instanceof Error
+              ? promoError.message
+              : String(promoError),
+        })
+
+        await ctx.reply(
+          isRussian(ctx)
+            ? '❌ Произошла ошибка при обработке промо-ссылки.'
+            : '❌ An error occurred while processing the promo link.'
+        )
+      }
+    }
+
+    // Handle referral logic (existing code)
     if (ctx.session.inviteCode) {
       console.log('CASE: ctx.session.inviteCode', ctx.session.inviteCode)
       const { count, userData } = await getReferalsCountAndUserData(
@@ -152,9 +244,13 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       console.log('CASE: ctx.session.inviteCode not exists')
 
       try {
+        const notificationMessage = promoInfo?.isPromo
+          ? `🎁 Новый пользователь зарегистрировался в боте: @${finalUsername} (через промо-ссылку)`
+          : `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}`
+
         await ctx.telegram.sendMessage(
           SUBSCRIBE_CHANNEL_ID,
-          `🔗 Новый пользователь зарегистрировался в боте: @${finalUsername}`
+          notificationMessage
         )
         logger.info({
           message:
@@ -162,6 +258,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           telegramId: telegram_id.toString(),
           channel: SUBSCRIBE_CHANNEL_ID,
           step: 'admin_notification_sent_no_referral',
+          isPromo: promoInfo?.isPromo || false,
         })
       } catch (notifyError) {
         if (
@@ -193,7 +290,57 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         }
       }
     }
+  } else {
+    // User already exists - check if they're accessing via promo link
+    if (promoInfo?.isPromo) {
+      try {
+        const promoResult = await processPromoLink(
+          telegram_id.toString(),
+          promoInfo.parameter || '',
+          ctx.botInfo.username
+        )
+
+        if (promoResult.success) {
+          await ctx.reply(
+            isRussian(ctx)
+              ? `🎁 ${promoResult.message.replace('Welcome bonus received! You got', 'Промо-бонус получен! Вы получили').replace('free stars!', 'бесплатных звезд!')}`
+              : promoResult.message
+          )
+        } else if (promoResult.alreadyReceived) {
+          await ctx.reply(
+            isRussian(ctx)
+              ? '⚠️ Вы уже получили этот промо-бонус ранее!'
+              : '⚠️ You have already received this promotional bonus!'
+          )
+        } else {
+          await ctx.reply(
+            isRussian(ctx)
+              ? '❌ Не удалось обработать промо-бонус. Попробуйте позже.'
+              : '❌ Failed to process promotional bonus. Please try again later.'
+          )
+        }
+      } catch (promoError) {
+        logger.error(
+          '❌ [CreateUserScene] Error processing promo link for existing user',
+          {
+            telegram_id: telegram_id.toString(),
+            promoParameter: promoInfo.parameter,
+            error:
+              promoError instanceof Error
+                ? promoError.message
+                : String(promoError),
+          }
+        )
+
+        await ctx.reply(
+          isRussian(ctx)
+            ? '❌ Произошла ошибка при обработке промо-ссылки.'
+            : '❌ An error occurred while processing the promo link.'
+        )
+      }
+    }
   }
+
   return ctx.scene.enter(ModeEnum.StartScene)
 }
 
