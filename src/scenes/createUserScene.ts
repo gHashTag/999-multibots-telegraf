@@ -74,8 +74,12 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   }
 
   // Use extracted invite code if available, otherwise use legacy extraction
+  // Only set referral code if it's not a promo link AND it's a numeric code
   if (!ctx.session.inviteCode && startNumber && !promoInfo?.isPromo) {
-    ctx.session.inviteCode = startNumber
+    // Check if startNumber is numeric (referral code) and not "promo"
+    if (/^\d+$/.test(startNumber)) {
+      ctx.session.inviteCode = startNumber
+    }
   }
 
   const userPhotoUrl = await getPhotoUrl(ctx, ctx.from?.id || 0)
