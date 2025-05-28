@@ -375,7 +375,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
           step: 'sending_welcome_text',
         })
         await ctx.reply(translation, {
-          parse_mode: 'Markdown',
+          parse_mode: 'MarkdownV2',
         })
       }
 
