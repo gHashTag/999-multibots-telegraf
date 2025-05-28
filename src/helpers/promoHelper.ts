@@ -15,6 +15,8 @@ export interface PromoConfig {
   customStars?: number
   /** Promo type identifier */
   promoType: string
+  /** Whether to auto-activate subscription if user has enough stars */
+  autoActivateSubscription?: boolean
 }
 
 /**
@@ -23,6 +25,7 @@ export interface PromoConfig {
 export const DEFAULT_PROMO_CONFIG: PromoConfig = {
   defaultTier: SubscriptionType.NEUROPHOTO,
   promoType: 'welcome_bonus',
+  autoActivateSubscription: true, // Auto-activate subscription by default
 }
 
 /**
@@ -69,6 +72,7 @@ export async function allocatePromoStars(
       starAmount,
       promoType: config.promoType,
       tier: config.defaultTier,
+      autoActivateSubscription: config.autoActivateSubscription,
       function: 'allocatePromoStars',
     })
 
@@ -91,32 +95,167 @@ export async function allocatePromoStars(
       },
     })
 
-    if (result.success) {
-      logger.info('✅ [PromoHelper] Promo stars allocated successfully', {
-        telegram_id,
-        starAmount,
-        paymentId: result.payment_id,
-        operationId: result.operation_id,
-        balanceChange: result.balanceChange,
-        function: 'allocatePromoStars',
-      })
-      return true
-    } else {
+    if (!result.success) {
       logger.error('❌ [PromoHelper] Failed to allocate promo stars', {
         telegram_id,
         error: result.error,
-        operationId: result.operation_id,
         function: 'allocatePromoStars',
       })
       return false
     }
+
+    logger.info('✅ [PromoHelper] Promo stars allocated successfully', {
+      telegram_id,
+      starAmount,
+      paymentId: result.payment_id,
+      operationId: result.operation_id,
+      balanceChange: result.balanceChange,
+      function: 'allocatePromoStars',
+    })
+
+    // Auto-activate subscription if enabled and user has enough stars
+    if (config.autoActivateSubscription) {
+      await autoActivateSubscriptionIfEligible(
+        telegram_id,
+        config.defaultTier,
+        bot_name
+      )
+    }
+
+    return true
   } catch (error) {
-    logger.error('❌ [PromoHelper] Exception during promo star allocation', {
+    logger.error('❌ [PromoHelper] Error allocating promo stars', {
       telegram_id,
       error: error instanceof Error ? error.message : String(error),
       function: 'allocatePromoStars',
     })
     return false
+  }
+}
+
+/**
+ * Auto-activates subscription if user has enough stars for the tier
+ * @param telegram_id - User's Telegram ID
+ * @param tier - Subscription tier to activate
+ * @param bot_name - Bot name for tracking
+ */
+async function autoActivateSubscriptionIfEligible(
+  telegram_id: string,
+  tier: SubscriptionType,
+  bot_name: string
+): Promise<void> {
+  try {
+    const { getUserBalance } = await import('@/core/supabase/getUserBalance')
+    const { getUserDetailsSubscription } = await import(
+      '@/core/supabase/getUserDetailsSubscription'
+    )
+
+    // Get current user details
+    const userDetails = await getUserDetailsSubscription(telegram_id)
+
+    // Skip if user already has an active subscription
+    if (userDetails.isSubscriptionActive) {
+      logger.info(
+        '🔄 [PromoHelper] User already has active subscription, skipping auto-activation',
+        {
+          telegram_id,
+          currentSubscription: userDetails.subscriptionType,
+          function: 'autoActivateSubscriptionIfEligible',
+        }
+      )
+      return
+    }
+
+    // Find the tier plan to get required stars
+    const tierPlan = paymentOptionsPlans.find(
+      plan => plan.subscription === tier
+    )
+    if (!tierPlan) {
+      logger.error('❌ [PromoHelper] Tier plan not found for auto-activation', {
+        telegram_id,
+        tier,
+        function: 'autoActivateSubscriptionIfEligible',
+      })
+      return
+    }
+
+    const requiredStars = parseInt(tierPlan.stars)
+    const currentBalance = userDetails.stars
+
+    // Check if user has enough stars
+    if (currentBalance >= requiredStars) {
+      logger.info(
+        '🎯 [PromoHelper] User has enough stars, auto-activating subscription',
+        {
+          telegram_id,
+          tier,
+          requiredStars,
+          currentBalance,
+          function: 'autoActivateSubscriptionIfEligible',
+        }
+      )
+
+      // Create subscription payment record
+      const subscriptionResult = await directPaymentProcessor({
+        telegram_id,
+        amount: requiredStars,
+        type: PaymentType.MONEY_OUTCOME,
+        description: `🎁 Auto-activated subscription: ${tier}`,
+        bot_name,
+        service_type: ModeEnum.StartScene,
+        inv_id: `auto-sub-${tier}-${Date.now()}`,
+        metadata: {
+          is_auto_activation: true,
+          subscription_type: tier,
+          promo_activation: true,
+          activation_timestamp: new Date().toISOString(),
+          category: 'REAL', // This is a real subscription activation
+          subscription_type_field: tier, // Add subscription_type to metadata
+        },
+        // Add subscription_type directly to the payment record
+        subscription_type: tier,
+      })
+
+      if (subscriptionResult.success) {
+        logger.info(
+          '✅ [PromoHelper] Subscription auto-activated successfully',
+          {
+            telegram_id,
+            tier,
+            paymentId: subscriptionResult.payment_id,
+            operationId: subscriptionResult.operation_id,
+            balanceChange: subscriptionResult.balanceChange,
+            function: 'autoActivateSubscriptionIfEligible',
+          }
+        )
+      } else {
+        logger.error('❌ [PromoHelper] Failed to auto-activate subscription', {
+          telegram_id,
+          tier,
+          error: subscriptionResult.error,
+          function: 'autoActivateSubscriptionIfEligible',
+        })
+      }
+    } else {
+      logger.info(
+        '💫 [PromoHelper] User does not have enough stars for auto-activation',
+        {
+          telegram_id,
+          tier,
+          requiredStars,
+          currentBalance,
+          deficit: requiredStars - currentBalance,
+          function: 'autoActivateSubscriptionIfEligible',
+        }
+      )
+    }
+  } catch (error) {
+    logger.error('❌ [PromoHelper] Error in auto-activation check', {
+      telegram_id,
+      tier,
+      error: error instanceof Error ? error.message : String(error),
+      function: 'autoActivateSubscriptionIfEligible',
+    })
   }
 }
 
