@@ -10,6 +10,7 @@ import { getUserBalance } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
 import { logger } from '@/utils/logger'
+import { processBalanceVideoOperationHelper } from '@/modules/videoGenerator/helpers/priceHelper'
 
 // Определяем тип ключа конфига локально
 type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -43,6 +44,42 @@ async function processVideoGeneration(
     const username = ctx.from.username || 'unknown_user' // Предоставить значение по умолчанию, если username отсутствует
     const botName = ctx.botInfo.username
 
+    // ===== ДОБАВЛЯЕМ СПИСАНИЕ БАЛАНСА =====
+    logger.info(
+      '[processVideoGeneration] Processing balance for text-to-video',
+      {
+        telegramId,
+        videoModelKey,
+      }
+    )
+
+    const balanceResult = await processBalanceVideoOperationHelper(
+      telegramId,
+      videoModelKey,
+      isRu,
+      botName
+    )
+
+    if (!balanceResult.success || balanceResult.newBalance === undefined) {
+      logger.error('[processVideoGeneration] Balance check failed', {
+        telegramId,
+        error: balanceResult.error,
+      })
+      await ctx.telegram.sendMessage(
+        ctx.chat.id,
+        balanceResult.error ||
+          (isRu ? '❌ Ошибка проверки баланса' : '❌ Balance check failed')
+      )
+      return
+    }
+
+    logger.info('[processVideoGeneration] Balance sufficient and deducted', {
+      telegramId,
+      paymentAmount: balanceResult.paymentAmount,
+      newBalance: balanceResult.newBalance,
+    })
+    // ===== КОНЕЦ СПИСАНИЯ БАЛАНСА =====
+
     const videoUrl = await generateTextToVideo(
       prompt,
       telegramId,
@@ -53,11 +90,16 @@ async function processVideoGeneration(
     )
 
     if (videoUrl) {
-      await ctx.telegram.sendVideo(ctx.chat.id, videoUrl)
+      // Добавляем информацию о стоимости в сообщение с видео
+      const modelTitle =
+        VIDEO_MODELS_CONFIG[videoModelKey]?.title || videoModelKey
+      const caption = isRu
+        ? `✨ Ваше видео (${modelTitle}) готово!\n💰 Списано: ${balanceResult.paymentAmount} ✨\n💎 Остаток: ${balanceResult.newBalance} ✨`
+        : `✨ Your video (${modelTitle}) is ready!\n💰 Cost: ${balanceResult.paymentAmount} ✨\n💎 Balance: ${balanceResult.newBalance} ✨`
+
+      await ctx.telegram.sendVideo(ctx.chat.id, videoUrl, { caption })
 
       try {
-        const modelTitle =
-          VIDEO_MODELS_CONFIG[videoModelKey]?.title || videoModelKey
         const pulseOptions: MediaPulseOptions = {
           mediaType: 'video',
           mediaSource: videoUrl,
