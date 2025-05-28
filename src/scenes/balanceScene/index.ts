@@ -6,6 +6,7 @@ import {
   getServiceEmoji,
   getServiceDisplayTitle,
   UserService,
+  getServiceDisplayName,
 } from '@/utils/serviceMapping'
 import { generateUserExcelReport } from '@/utils/excelReportGenerator'
 
@@ -69,11 +70,17 @@ async function getUserSpendingDetails(userId: string) {
   // Анализ по сервисам - ВСЕ сервисы
   const serviceStats = new Map<string, { count: number; stars: number }>()
   outcomes.forEach(payment => {
-    const service = payment.service_type || 'unknown'
-    const current = serviceStats.get(service) || { count: 0, stars: 0 }
+    // Используем новую функцию маппинга для определения правильного сервиса
+    const mappedService = getServiceDisplayName(
+      payment.service_type,
+      payment.description
+    )
+    const serviceKey = mappedService
+
+    const current = serviceStats.get(serviceKey) || { count: 0, stars: 0 }
     current.count += 1
     current.stars += payment.stars || 0
-    serviceStats.set(service, current)
+    serviceStats.set(serviceKey, current)
   })
 
   // ВСЕ сервисы, отсортированные по тратам
@@ -223,7 +230,11 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
             // Эмодзи и название для сервисов
             const serviceEmoji = getServiceEmoji(service)
-            const serviceTitle = getServiceDisplayTitle(service as UserService)
+            const serviceTitle = getServiceDisplayTitle(
+              service as UserService,
+              undefined,
+              isRu
+            )
 
             message += `   ${index + 1}. ${serviceEmoji} ${serviceTitle}:\n`
             message += `      💰 ${serviceStars}⭐ (${percentage}%)\n`
@@ -239,7 +250,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
           spendingDetails.recentTopUps.forEach((payment, index) => {
             const date = new Date(payment.payment_date).toLocaleDateString(
-              'ru-RU'
+              isRu ? 'ru-RU' : 'en-US'
             )
             const stars = Math.floor((payment.stars || 0) * 100) / 100
             const amount = Math.floor((payment.amount || 0) * 100) / 100
@@ -265,7 +276,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
             message += `   ${index + 1}. ${paymentIcon} ${date}: ${stars}⭐`
             if (payment.currency === 'RUB' && amount > 0) {
-              message += ` (${amount} руб.)`
+              message += ` (${amount} ${isRu ? 'руб.' : 'RUB'})`
             }
             message += paymentMethod
             message += `\n`
@@ -281,14 +292,16 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
           spendingDetails.recentOutcomes.forEach((payment, index) => {
             const date = new Date(payment.payment_date).toLocaleDateString(
-              'ru-RU'
+              isRu ? 'ru-RU' : 'en-US'
             )
             const stars = Math.floor((payment.stars || 0) * 100) / 100
             const serviceEmoji = getServiceEmoji(
               payment.service_type || 'unknown'
             )
             const serviceTitle = getServiceDisplayTitle(
-              (payment.service_type || 'unknown') as UserService
+              (payment.service_type || 'unknown') as UserService,
+              payment.description || undefined,
+              isRu
             )
 
             message += `   ${index + 1}. 📉 ${date}: ${stars}⭐ - ${serviceEmoji} ${serviceTitle}\n`
@@ -301,13 +314,15 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
             inline_keyboard: [
               [
                 {
-                  text: '📊 Скачать детальный отчет Excel',
+                  text: isRu
+                    ? '📊 Скачать детальный отчет Excel'
+                    : '📊 Download detailed Excel report',
                   callback_data: 'download_excel_report',
                 },
               ],
               [
                 {
-                  text: '🔙 Назад в меню',
+                  text: isRu ? '🔙 Назад в меню' : '🔙 Back to menu',
                   callback_data: 'back_to_menu',
                 },
               ],
