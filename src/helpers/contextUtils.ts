@@ -75,6 +75,7 @@ export function extractInviteCodeFromContext(ctx: MyContext): string {
 /**
  * Extracts promo parameter from the context (message text).
  * Handles /start promo command to detect promo link usage.
+ * Supports specific promo types: neurovideo, neurophoto, video, photo
  * @param ctx - The Telegraf context object.
  * @returns Object with isPromo flag and extracted parameter, or null if not a promo link.
  */
@@ -86,7 +87,8 @@ export function extractPromoFromContext(
   if (ctx.message && 'text' in ctx.message) {
     const messageText = (ctx.message as Message.TextMessage).text
 
-    // Check for /start promo command
+    // Check for /start promo command with optional parameter
+    // Supports: /start promo, /start promo neurovideo, /start promo neurophoto, etc.
     const promoMatch = messageText.match(/^\/start\s+promo(?:\s+(\S+))?/i)
 
     if (promoMatch) {
@@ -98,6 +100,31 @@ export function extractPromoFromContext(
         function: 'extractPromoFromContext',
         parameter,
         fullCommand: messageText,
+        promoType: parameter ? `specific_${parameter}` : 'default',
+      })
+
+      return {
+        isPromo: true,
+        parameter,
+      }
+    }
+
+    // Also check for direct promo type commands (alternative format)
+    // Supports: /start neurovideo, /start neurophoto
+    const directPromoMatch = messageText.match(
+      /^\/start\s+(neurovideo|neurophoto)$/i
+    )
+
+    if (directPromoMatch) {
+      const parameter = directPromoMatch[1]
+
+      logger.info({
+        message: `[extractPromo] Direct promo type detected`,
+        telegramId,
+        function: 'extractPromoFromContext',
+        parameter,
+        fullCommand: messageText,
+        promoType: `direct_${parameter}`,
       })
 
       return {
