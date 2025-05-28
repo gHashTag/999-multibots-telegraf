@@ -17,6 +17,10 @@ export const OperationTypeEnum = z.enum([
 ])
 export type OperationType = z.infer<typeof OperationTypeEnum>
 
+// Enum для категории транзакции
+export const TransactionCategoryEnum = z.enum(['REAL', 'BONUS'])
+export type TransactionCategory = z.infer<typeof TransactionCategoryEnum>
+
 // Основная схема для payments_v2
 export const PaymentV2Schema = z.object({
   id: z.number(),
@@ -41,6 +45,7 @@ export const PaymentV2Schema = z.object({
   is_system_payment: z.boolean().default(false),
   created_at: z.string().datetime(),
   cost: z.number().nullable(), // Себестоимость операции в звездах
+  category: TransactionCategoryEnum.default('REAL'), // Категория транзакции
 })
 
 export type PaymentV2 = z.infer<typeof PaymentV2Schema>
@@ -63,6 +68,7 @@ export const CreatePaymentV2Schema = PaymentV2Schema.omit({
   subscription_type: true,
   is_system_payment: true,
   cost: true,
+  category: true,
 })
 
 export type CreatePaymentV2 = z.infer<typeof CreatePaymentV2Schema>

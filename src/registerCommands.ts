@@ -15,6 +15,11 @@ import { handleHelloWorld } from './commands/handleHelloWorld'
 import { priceCommand } from './commands/priceCommand'
 import { checkSubscriptionGuard } from './helpers/subscriptionGuard'
 import { setupInteractiveStats } from './commands/interactiveStatsCommand'
+// Импортируем админские команды
+import {
+  handleAddBalanceCommand,
+  handleCheckBalanceCommand,
+} from './handlers/adminCommands'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -275,6 +280,10 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
   // 🎯 ИНТЕРАКТИВНАЯ КОМАНДА СТАТИСТИКИ
   setupInteractiveStats(bot)
+
+  // 👑 АДМИНСКИЕ КОМАНДЫ
+  bot.command('addbalance', handleAddBalanceCommand)
+  bot.command('checkbalance', handleCheckBalanceCommand)
 
   // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
   bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
