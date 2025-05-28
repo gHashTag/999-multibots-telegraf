@@ -159,6 +159,8 @@ export async function directPaymentProcessor(
       bot_name: bot_name,
       status: PaymentStatus.COMPLETED,
       inv_id: operationId,
+      is_system_payment: metadata?.is_system_payment || false,
+      category: metadata?.category || 'REAL',
       metadata: {
         ...metadata,
         direct_payment: true,
