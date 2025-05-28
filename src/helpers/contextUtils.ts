@@ -14,13 +14,26 @@ export function extractInviteCodeFromContext(ctx: MyContext): string {
 
   if (ctx.message && 'text' in ctx.message) {
     const messageText = (ctx.message as Message.TextMessage).text
+
+    // First check if it's a promo link - if so, don't extract as referral
+    if (messageText.match(/^\/start\s+promo(?:\s+\S+)?/i)) {
+      logger.info({
+        message:
+          '[extractInviteCode] Promo link detected, skipping referral extraction',
+        telegramId,
+        function: 'extractInviteCodeFromContext',
+        messageText,
+      })
+      return ''
+    }
+
     // Check for command /start code or deep link
     // Regex explained:
-    // ^\/start (\S+) : Matches /start followed by space and non-space characters (captured in group 1)
+    // ^\/start\s+(\d+) : Matches /start followed by whitespace and digits (captured in group 1)
     // |
     // https:\/\/t\.me\/[a-zA-Z0-9_]+\?start=(\d+) : Matches a telegram deep link with digits as code (captured in group 2)
     const codeMatch = messageText.match(
-      /^\/start (\S+)|https:\/\/t\.me\/[a-zA-Z0-9_]+\?start=(\d+)/i
+      /^\/start\s+(\d+)|https:\/\/t\.me\/[a-zA-Z0-9_]+\?start=(\d+)/i
     )
 
     if (codeMatch) {
