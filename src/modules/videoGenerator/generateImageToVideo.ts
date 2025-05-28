@@ -126,7 +126,8 @@ export const generateImageToVideo = async (
       telegramId,
       modelId,
       isRu,
-      botName
+      botName,
+      'image-to-video'
     )
 
     if (
