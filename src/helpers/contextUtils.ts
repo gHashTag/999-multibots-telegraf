@@ -58,3 +58,41 @@ export function extractInviteCodeFromContext(ctx: MyContext): string {
 
   return inviteCode
 }
+
+/**
+ * Extracts promo parameter from the context (message text).
+ * Handles /start promo command to detect promo link usage.
+ * @param ctx - The Telegraf context object.
+ * @returns Object with isPromo flag and extracted parameter, or null if not a promo link.
+ */
+export function extractPromoFromContext(
+  ctx: MyContext
+): { isPromo: boolean; parameter?: string } | null {
+  const telegramId = ctx.from?.id?.toString() || 'unknown'
+
+  if (ctx.message && 'text' in ctx.message) {
+    const messageText = (ctx.message as Message.TextMessage).text
+
+    // Check for /start promo command
+    const promoMatch = messageText.match(/^\/start\s+promo(?:\s+(\S+))?/i)
+
+    if (promoMatch) {
+      const parameter = promoMatch[1] || '' // Optional parameter after promo
+
+      logger.info({
+        message: `[extractPromo] Promo link detected`,
+        telegramId,
+        function: 'extractPromoFromContext',
+        parameter,
+        fullCommand: messageText,
+      })
+
+      return {
+        isPromo: true,
+        parameter,
+      }
+    }
+  }
+
+  return null
+}
