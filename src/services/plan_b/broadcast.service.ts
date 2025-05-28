@@ -420,7 +420,7 @@ export const broadcastService = {
                 videoFileId,
                 {
                   caption: messageText,
-                  parse_mode: 'Markdown',
+                  parse_mode: 'MarkdownV2',
                 }
               )
             } else if (imageUrl) {
@@ -443,7 +443,7 @@ export const broadcastService = {
                 imageUrl,
                 {
                   caption: messageText,
-                  parse_mode: 'Markdown',
+                  parse_mode: 'MarkdownV2',
                 }
               )
             } else {

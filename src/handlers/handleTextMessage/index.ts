@@ -191,7 +191,7 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
         { userId, chatId }
       )
       await ctx.reply(response, {
-        parse_mode: 'Markdown',
+        parse_mode: 'MarkdownV2',
       })
       console.log(
         `[handleTextMessage] Reply sent successfully to user ${userId} in chat ${chatId}`,
@@ -216,7 +216,7 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
       const errorDetails = `\`\`\`\nError: ${errorMessage}\n\`\`\``
 
       await ctx.reply(`${friendlyMessage}\n\n${errorDetails}`, {
-        parse_mode: 'Markdown',
+        parse_mode: 'MarkdownV2',
       })
     } catch (replyError) {
       const replyErrorMessage =
