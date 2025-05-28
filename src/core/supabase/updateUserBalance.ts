@@ -20,6 +20,7 @@ type BalanceUpdateMetadata = {
   modePrice?: number
   currentBalance?: number
   paymentAmount?: number
+  category?: 'REAL' | 'BONUS' // Категория транзакции
   [key: string]: any
 }
 
@@ -472,6 +473,7 @@ export const updateUserBalance = async (
           : null,
       inv_id: metadata?.inv_id || `sys-${Date.now()}-${telegram_id}`,
       operation_id: metadata?.operation_id || null, // Добавляем operation_id из метаданных
+      category: metadata?.category || 'REAL', // Добавляем category из метаданных, по умолчанию REAL
     }
 
     // Рассчитываем и добавляем cost для MONEY_OUTCOME операций

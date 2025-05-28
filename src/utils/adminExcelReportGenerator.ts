@@ -18,7 +18,7 @@ const PaymentSchema = z.object({
   telegram_id: z.union([z.string(), z.number()]).transform(val => String(val)),
   bot_name: z.string(),
   type: z.enum(['MONEY_INCOME', 'MONEY_OUTCOME', 'REFUND']),
-  category: z.enum(['REAL', 'BONUS']).nullable().optional(),
+  category: z.enum(['REAL', 'BONUS', 'ADMIN']).nullable().optional(),
   currency: z.enum(['RUB', 'XTR', 'STARS']).nullable().optional(),
   payment_method: z.string().nullable().optional(),
   service_type: z.string().nullable().optional(),
@@ -97,6 +97,7 @@ interface BotReportData {
   robokassaPayments: z.infer<typeof PaymentSchema>[]
   telegramStarsPayments: z.infer<typeof PaymentSchema>[]
   bonusPayments: z.infer<typeof PaymentSchema>[]
+  adminPayments: z.infer<typeof PaymentSchema>[]
 
   // Операции по сервисам
   serviceStats: Map<string, { count: number; revenue: number; cost: number }>
@@ -212,6 +213,21 @@ async function getBotReportData(botName: string): Promise<BotReportData> {
   const outcomes = validatedPayments.filter(p => p.type === 'MONEY_OUTCOME')
   const realIncomes = incomes.filter(p => p.category === 'REAL')
   const bonusIncomes = incomes.filter(p => p.category === 'BONUS')
+
+  // Определяем админские операции по payment_method или описанию
+  const adminIncomes = incomes.filter(
+    p =>
+      p.payment_method === 'Admin' ||
+      (p.description && p.description.includes('Admin balance')) ||
+      (p.description && p.description.includes('admin'))
+  )
+  const adminOutcomes = outcomes.filter(
+    p =>
+      p.payment_method === 'Admin' ||
+      (p.description && p.description.includes('Admin balance')) ||
+      (p.description && p.description.includes('admin'))
+  )
+  const adminPayments = [...adminIncomes, ...adminOutcomes] // Все админские операции
 
   // Разделяем по способам оплаты
   const robokassaPayments = realIncomes.filter(
@@ -331,6 +347,7 @@ async function getBotReportData(botName: string): Promise<BotReportData> {
     robokassaPayments,
     telegramStarsPayments,
     bonusPayments: bonusIncomes,
+    adminPayments,
     serviceStats,
     topUsers,
     userSegments: [], // TODO: implement user segmentation
@@ -498,7 +515,7 @@ function createBotSummarySheet(data: BotReportData) {
 function createFinancialAnalyticsSheet(data: BotReportData) {
   const headers = [
     '📅 Период',
-    '💰 Доходы (⭐)',
+    '�� Доходы (⭐)',
     '💰 Доходы (руб.)',
     '📉 Расходы (⭐)',
     '🏭 Себестоимость (⭐)',
@@ -583,6 +600,22 @@ function createFinancialAnalyticsSheet(data: BotReportData) {
         ? Math.round(
             (data.bonusPayments.reduce((sum, p) => sum + (p.stars || 0), 0) /
               data.bonusPayments.length) *
+              100
+          ) / 100
+        : 0,
+      '',
+      '',
+      '',
+    ],
+    [
+      '👨‍💼 Админские',
+      data.adminPayments.length,
+      data.adminPayments.reduce((sum, p) => sum + (p.stars || 0), 0),
+      0,
+      data.adminPayments.length > 0
+        ? Math.round(
+            (data.adminPayments.reduce((sum, p) => sum + (p.stars || 0), 0) /
+              data.adminPayments.length) *
               100
           ) / 100
         : 0,
@@ -767,7 +800,15 @@ function createTransactionsSheet(data: BotReportData) {
         : '',
       payment.telegram_id,
       payment.description || '',
-      payment.category === 'REAL' ? '💎 Реальные' : '🎁 Бонусы',
+      payment.category === 'REAL'
+        ? '💎 Реальные'
+        : payment.category === 'BONUS'
+          ? '🎁 Бонусы'
+          : payment.payment_method === 'Admin' ||
+              (payment.description &&
+                payment.description.includes('Admin balance'))
+            ? '👨‍💼 Админские'
+            : '❓ Неизвестно',
     ]),
   ]
 
