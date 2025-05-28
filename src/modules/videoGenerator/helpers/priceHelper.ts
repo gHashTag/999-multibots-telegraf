@@ -14,7 +14,8 @@ export const processBalanceVideoOperationHelper = async (
   telegramId: string, // Removed ctx dependency
   modelId: string, // Changed configKey to modelId for clarity
   isRu: boolean,
-  botName: string // Added botName
+  botName: string, // Added botName
+  serviceType: string = 'image-to-video' // Добавляем параметр для типа сервиса
 ): Promise<BalanceOperationResult> => {
   let currentBalanceAtStart = 0
 
