@@ -112,7 +112,7 @@ export const processBalanceVideoOperation = async (
       {
         bot_name: ctx.botInfo?.username,
         service_type: ctx.session.mode,
-        model: configKey, // В метаданные записываем КЛЮЧ КОНФИГУРАЦИИ
+        model_name: configKey, // Исправляем на model_name для соответствия схеме БД
         modePrice,
         currentBalance: currentBalanceAtStart,
         paymentAmount: paymentAmount,

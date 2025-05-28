@@ -111,7 +111,28 @@ export async function generateNeuroPhotoHybrid(
       message: '✅ [HYBRID] План А успешен - сервер ответил',
       telegram_id,
       response_status: response.status,
+      response_data: JSON.stringify(response.data),
     })
+
+    // Проверяем содержимое ответа сервера
+    if (!response.data) {
+      logger.error({
+        message: '❌ [HYBRID] Сервер вернул пустой ответ',
+        telegram_id,
+        response_status: response.status,
+      })
+      throw new Error('Server returned empty response')
+    }
+
+    // Проверяем, есть ли ошибка в ответе сервера
+    if (response.data.error) {
+      logger.error({
+        message: '❌ [HYBRID] Сервер вернул ошибку',
+        telegram_id,
+        server_error: response.data.error,
+      })
+      throw new Error(`Server error: ${response.data.error}`)
+    }
 
     return response.data
   } catch (error) {
