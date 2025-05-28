@@ -114,7 +114,7 @@ export const processBalanceVideoOperationHelper = async (
       `Video generation (${selectedModelConfig.title})`,
       {
         bot_name: botName, // Use passed botName
-        service_type: serviceType, // Use the provided serviceType
+        service_type: 'image-to-video', // Use a generic service type or make it dynamic if needed
         model_name: modelId, // Исправляем на model_name для соответствия схеме БД
         modePrice,
         currentBalance: currentBalanceAtStart,
