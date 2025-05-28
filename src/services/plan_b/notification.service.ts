@@ -48,7 +48,7 @@ export class NotificationService {
       await bot.telegram.sendMessage(
         telegramId,
         `🚨 *Ошибка обучения модели*\n\n\`\`\`\n${message}\n\`\`\``,
-        { parse_mode: 'Markdown' }
+        { parse_mode: 'MarkdownV2' }
       )
 
       console.log(`📩 Уведомление отправлено пользователю ${telegramId}`)
@@ -73,7 +73,7 @@ export class NotificationService {
         ? '🎉 Обучение завершено! 🎉\n\nМодель готова к использованию!\n\nНажмите 📸 Нейрофото в главном меню, чтобы использовать модель.'
         : '🎉 Training completed! 🎉\n\nModel is ready to use!\n\nClick 📸 Neurophoto in the main menu to use the model.'
       await bot.telegram.sendMessage(telegramId, message, {
-        parse_mode: 'Markdown',
+        parse_mode: 'MarkdownV2',
       })
     } catch (error) {
       console.error('Ошибка отправки успешного уведомления:', error)
