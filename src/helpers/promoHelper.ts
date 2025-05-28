@@ -1,26 +1,27 @@
 import { PaymentType } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 
 /**
  * Configuration for different promo types
  */
 export interface PromoConfig {
-  stars: number
   subscriptionTier: SubscriptionType
+  promoType: string
 }
 
 /**
  * Default promo configurations
  */
 const PROMO_CONFIGS: Record<string, PromoConfig> = {
-  neurovideo_promo: {
-    stars: 1303,
+  neurovideo: {
     subscriptionTier: SubscriptionType.NEUROVIDEO,
+    promoType: 'neurovideo_promo',
   },
-  neurophoto_promo: {
-    stars: 476,
+  neurophoto: {
     subscriptionTier: SubscriptionType.NEUROPHOTO,
+    promoType: 'neurophoto_promo',
   },
 }
 
@@ -34,17 +35,15 @@ export function getPromoConfig(promoType: string): PromoConfig | null {
 }
 
 /**
- * Allocates promo stars to a user
+ * Activates free promo subscription for a user
  * @param telegram_id - User's Telegram ID
- * @param stars - Number of stars to allocate
- * @param subscriptionTier - Subscription tier equivalent
+ * @param subscriptionTier - Subscription tier to activate
  * @param promoType - Type of promo
  * @param bot_name - Bot name for tracking
  * @returns Promise<boolean> - Success status
  */
-async function allocatePromoStars(
+async function activatePromoSubscription(
   telegram_id: string,
-  stars: number,
   subscriptionTier: SubscriptionType,
   promoType: string,
   bot_name: string
@@ -55,46 +54,56 @@ async function allocatePromoStars(
     )
 
     const metadata = {
-      is_promo: true,
+      is_promo_subscription: true,
+      is_free_subscription: true,
       promo_type: promoType,
-      subscription_tier_equivalent: subscriptionTier,
-      stars_granted: stars,
-      allocation_timestamp: new Date().toISOString(),
+      subscription_type: subscriptionTier,
+      promo_activation: true,
+      activation_timestamp: new Date().toISOString(),
       category: 'BONUS',
-      direct_payment: true,
+      subscription_type_field: subscriptionTier,
     }
 
-    const result = await directPaymentProcessor(
+    // Create FREE subscription activation record (no stars deducted)
+    const result = await directPaymentProcessor({
       telegram_id,
-      stars,
-      PaymentType.MONEY_INCOME,
-      `🎁 Promo bonus: ${stars} stars`,
-      metadata,
+      amount: 0, // FREE subscription - no stars deducted
+      type: PaymentType.MONEY_INCOME, // Use INCOME since we're not taking money
+      description: `🎁 Free promo subscription: ${subscriptionTier}`,
       bot_name,
-      `promo-${promoType}-${Date.now()}`
-    )
+      service_type: ModeEnum.StartScene,
+      inv_id: `promo-sub-${subscriptionTier}-${Date.now()}`,
+      metadata,
+      subscription_type: subscriptionTier, // Add subscription_type directly
+    })
 
     if (result.success) {
-      logger.info('✅ [PromoHelper] Promo stars allocated successfully', {
-        telegram_id,
-        stars,
-        promo_type: promoType,
-        subscription_tier: subscriptionTier,
-      })
+      logger.info(
+        '✅ [PromoHelper] Free promo subscription activated successfully',
+        {
+          telegram_id,
+          subscription_tier: subscriptionTier,
+          promo_type: promoType,
+          payment_id: result.payment_id,
+        }
+      )
       return true
     } else {
-      logger.error('❌ [PromoHelper] Failed to allocate promo stars', {
-        telegram_id,
-        stars,
-        promo_type: promoType,
-        error: result.error,
-      })
+      logger.error(
+        '❌ [PromoHelper] Failed to activate free promo subscription',
+        {
+          telegram_id,
+          subscription_tier: subscriptionTier,
+          promo_type: promoType,
+          error: result.error,
+        }
+      )
       return false
     }
   } catch (error) {
-    logger.error('❌ [PromoHelper] Exception in allocatePromoStars', {
+    logger.error('❌ [PromoHelper] Exception in activatePromoSubscription', {
       telegram_id,
-      stars,
+      subscription_tier: subscriptionTier,
       promo_type: promoType,
       error: error instanceof Error ? error.message : 'Unknown error',
     })
@@ -103,7 +112,7 @@ async function allocatePromoStars(
 }
 
 /**
- * Checks if a user has already received promo stars of a specific type
+ * Checks if a user has already received promo subscription of a specific type
  * @param telegram_id - User's Telegram ID
  * @param promoType - Type of promo to check
  * @returns Promise<boolean> - True if user already received this promo
@@ -115,26 +124,33 @@ export async function hasReceivedPromo(
   try {
     const { supabase } = await import('@/core/supabase')
 
-    // Check for promo stars (BONUS category)
-    const { data: promoStars, error: starsError } = await supabase
+    // Check for free promo subscriptions (BONUS category with subscription)
+    const { data: promoSubs, error: subsError } = await supabase
       .from('payments_v2')
       .select('id')
       .eq('telegram_id', telegram_id)
-      .eq('type', PaymentType.MONEY_INCOME)
       .eq('category', 'BONUS')
-      .contains('metadata', { is_promo: true, promo_type: promoType })
+      .contains('metadata', {
+        is_promo_subscription: true,
+        promo_activation: true,
+        promo_type: promoType,
+      })
+      .not('subscription_type', 'is', null)
       .limit(1)
 
-    if (starsError) {
-      logger.error('❌ [PromoHelper] Error checking promo history', {
-        telegram_id,
-        promoType,
-        error: starsError.message,
-      })
+    if (subsError) {
+      logger.error(
+        '❌ [PromoHelper] Error checking promo subscription history',
+        {
+          telegram_id,
+          promoType,
+          error: subsError.message,
+        }
+      )
       return false
     }
 
-    const hasReceived = promoStars && promoStars.length > 0
+    const hasReceived = promoSubs && promoSubs.length > 0
 
     logger.info('🔍 [PromoHelper] Promo check result', {
       telegram_id,
@@ -156,13 +172,13 @@ export async function hasReceivedPromo(
 /**
  * Processes promo link for a user
  * @param telegram_id - User's Telegram ID
- * @param promoType - Type of promo (default: 'neurovideo_promo')
+ * @param promoType - Type of promo (neurovideo, neurophoto)
  * @param bot_name - Bot name for tracking
  * @returns Promise<boolean> - Success status
  */
 export async function processPromoLink(
   telegram_id: string,
-  promoType: string = 'neurovideo_promo',
+  promoType: string,
   bot_name: string = 'MetaMuse_Manifest_bot'
 ): Promise<boolean> {
   try {
@@ -171,16 +187,6 @@ export async function processPromoLink(
       promo_type: promoType,
       bot_name,
     })
-
-    // Check if user already received this promo
-    const alreadyReceived = await hasReceivedPromo(telegram_id, promoType)
-    if (alreadyReceived) {
-      logger.info('🚫 [PromoHelper] User already received this promo', {
-        telegram_id,
-        promo_type: promoType,
-      })
-      return false
-    }
 
     // Get promo configuration
     const config = getPromoConfig(promoType)
@@ -192,20 +198,49 @@ export async function processPromoLink(
       return false
     }
 
-    // Allocate promo stars
-    const success = await allocatePromoStars(
+    // Check if user already received this promo
+    const alreadyReceived = await hasReceivedPromo(
       telegram_id,
-      config.stars,
+      config.promoType
+    )
+    if (alreadyReceived) {
+      logger.info('🚫 [PromoHelper] User already received this promo', {
+        telegram_id,
+        promo_type: config.promoType,
+      })
+      return false
+    }
+
+    // Check if user already has an active subscription
+    const { getUserDetailsSubscription } = await import(
+      '@/core/supabase/getUserDetailsSubscription'
+    )
+    const userDetails = await getUserDetailsSubscription(telegram_id)
+
+    if (userDetails.isSubscriptionActive) {
+      logger.info(
+        '🔄 [PromoHelper] User already has active subscription, skipping promo',
+        {
+          telegram_id,
+          currentSubscription: userDetails.subscriptionType,
+          requestedPromo: config.subscriptionTier,
+        }
+      )
+      return false
+    }
+
+    // Activate free promo subscription
+    const success = await activatePromoSubscription(
+      telegram_id,
       config.subscriptionTier,
-      promoType,
+      config.promoType,
       bot_name
     )
 
     if (success) {
       logger.info('✅ [PromoHelper] Promo processed successfully', {
         telegram_id,
-        promo_type: promoType,
-        stars_granted: config.stars,
+        promo_type: config.promoType,
         subscription_tier: config.subscriptionTier,
       })
     }
