@@ -8,6 +8,10 @@ import { isRussian } from '@/helpers/language'
 // Список админов (можно вынести в конфиг)
 const ADMIN_IDS = [144022504, 1254048880, 352374518, 1852726961] // Ваши админ ID
 
+// Кэш для предотвращения дублирования операций
+const operationCache = new Map<string, number>()
+const OPERATION_CACHE_TTL = 5000 // 5 секунд
+
 /**
  * Проверяет, является ли пользователь админом
  */
@@ -16,9 +20,8 @@ function isAdmin(telegramId: number): boolean {
 }
 
 /**
- * Команда для пополнения баланса пользователя
- * Использование: /addbalance <user_id> <amount> [reason]
- * Пример: /addbalance 484954118 1000 Бонус за активность
+ * Команда для пополнения/списания баланса пользователя
+ * Использование: /addbalance <user_id> <amount> [причина]
  */
 export async function handleAddBalanceCommand(ctx: MyContext) {
   const isRu = isRussian(ctx)
@@ -41,7 +44,6 @@ export async function handleAddBalanceCommand(ctx: MyContext) {
     return
   }
 
-  // Парсим команду: /addbalance <user_id> <amount> [reason]
   const parts = message.text.split(' ')
   if (parts.length < 3) {
     await ctx.reply(
@@ -87,6 +89,41 @@ Examples:
         : '❌ Maximum operation amount: 10,000 ⭐'
     )
     return
+  }
+
+  // ЗАЩИТА ОТ ДУБЛИРОВАНИЯ ОПЕРАЦИЙ
+  const operationKey = `${ctx.from.id}-${targetUserId}-${amount}-${Date.now().toString().slice(0, -3)}` // Округляем до секунд
+  const now = Date.now()
+
+  // Проверяем, была ли такая операция недавно
+  if (operationCache.has(operationKey)) {
+    const lastOperation = operationCache.get(operationKey)!
+    if (now - lastOperation < OPERATION_CACHE_TTL) {
+      logger.warn('🚫 Предотвращено дублирование операции addbalance', {
+        admin_id: ctx.from.id,
+        target_user_id: targetUserId,
+        amount: amount,
+        operation_key: operationKey,
+        time_since_last: now - lastOperation,
+      })
+
+      await ctx.reply(
+        isRu
+          ? '⚠️ Операция уже выполняется. Подождите несколько секунд.'
+          : '⚠️ Operation is already in progress. Please wait a few seconds.'
+      )
+      return
+    }
+  }
+
+  // Записываем операцию в кэш
+  operationCache.set(operationKey, now)
+
+  // Очищаем старые записи из кэша
+  for (const [key, timestamp] of operationCache.entries()) {
+    if (now - timestamp > OPERATION_CACHE_TTL) {
+      operationCache.delete(key)
+    }
   }
 
   try {
@@ -136,7 +173,7 @@ Examples:
       const newBalance = await getUserBalance(targetUserId)
 
       // Логируем операцию
-      logger.info('💰 Admin balance top-up completed', {
+      logger.info('💰 Admin balance operation completed', {
         admin_id: ctx.from.id,
         admin_username: ctx.from.username,
         target_user_id: targetUserId,
@@ -144,6 +181,7 @@ Examples:
         reason: reason,
         balance_before: currentBalance,
         balance_after: newBalance,
+        operation_key: operationKey,
       })
 
       await ctx.reply(
@@ -170,15 +208,16 @@ ${isDeduction ? '➖ Deducted' : '➕ Added'}: ${absoluteAmount} ⭐
     } else {
       await ctx.reply(
         isRu
-          ? '❌ Ошибка при пополнении баланса. Проверьте логи.'
-          : '❌ Error adding balance. Check logs.'
+          ? '❌ Ошибка при изменении баланса. Проверьте логи.'
+          : '❌ Error changing balance. Check logs.'
       )
     }
   } catch (error) {
-    logger.error('❌ Error in admin balance top-up', {
+    logger.error('❌ Error in admin balance operation', {
       admin_id: ctx.from.id,
       target_user_id: targetUserId,
       amount: amount,
+      operation_key: operationKey,
       error: error instanceof Error ? error.message : 'Unknown error',
     })
 
@@ -187,6 +226,11 @@ ${isDeduction ? '➖ Deducted' : '➕ Added'}: ${absoluteAmount} ⭐
         ? `❌ Произошла ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
         : `❌ An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
+  } finally {
+    // Удаляем операцию из кэша через некоторое время
+    setTimeout(() => {
+      operationCache.delete(operationKey)
+    }, OPERATION_CACHE_TTL)
   }
 }
 
