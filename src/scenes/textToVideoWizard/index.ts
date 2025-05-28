@@ -57,7 +57,8 @@ async function processVideoGeneration(
       telegramId,
       videoModelKey,
       isRu,
-      botName
+      botName,
+      'text-to-video'
     )
 
     if (!balanceResult.success || balanceResult.newBalance === undefined) {
