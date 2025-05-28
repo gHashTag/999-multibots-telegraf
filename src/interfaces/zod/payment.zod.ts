@@ -57,6 +57,7 @@ export const CreatePaymentV2Schema = PaymentV2Schema.omit({
   currency: true,
   inv_id: true,
   invoice_url: true,
+  operation_id: true,
   language: true,
   payment_method: true,
   subscription_type: true,
