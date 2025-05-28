@@ -112,24 +112,51 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         : '✅ Avatar created successfully! Welcome!'
     )
 
-    // Process promo link if detected
+    // Handle promo logic (new users only)
     if (promoInfo?.isPromo) {
       try {
+        // Determine promo type from parameter
+        let promoType = 'neurovideo' // default
+        if (promoInfo.parameter) {
+          const param = promoInfo.parameter.toLowerCase()
+          if (param === 'neurophoto' || param === 'photo') {
+            promoType = 'neurophoto'
+          } else if (param === 'neurovideo' || param === 'video') {
+            promoType = 'neurovideo'
+          }
+        }
+
         const promoResult = await processPromoLink(
           telegram_id.toString(),
-          promoInfo.parameter || '',
-          ctx.botInfo.username,
-          isRussian(ctx)
+          promoType,
+          ctx.botInfo.username
         )
 
-        if (promoResult.success) {
-          await ctx.reply(promoResult.message)
+        if (promoResult) {
+          const isRu = isRussian(ctx)
+          let message = ''
+
+          if (promoType === 'neurovideo') {
+            message = isRu
+              ? '🎬 НейроВидео промо-подписка активирована! Теперь у вас есть доступ к генерации видео!'
+              : '🎬 NeuroVideo promo subscription activated! You now have access to video generation!'
+          } else if (promoType === 'neurophoto') {
+            message = isRu
+              ? '📸 НейроФото промо-подписка активирована! Теперь у вас есть доступ к генерации фото!'
+              : '📸 NeuroPhoto promo subscription activated! You now have access to photo generation!'
+          } else {
+            message = isRu
+              ? '🎁 Промо-подписка активирована!'
+              : '🎁 Promo subscription activated!'
+          }
+
+          await ctx.reply(message)
 
           // Notify admin channel about promo usage
           try {
             await ctx.telegram.sendMessage(
               SUBSCRIBE_CHANNEL_ID,
-              `🎁 Новый пользователь @${finalUsername} получил промо-бонус! Параметр: ${promoInfo.parameter || 'default'}`
+              `🎁 Новый пользователь @${finalUsername} получил промо-подписку ${promoType.toUpperCase()}!`
             )
           } catch (notifyError) {
             logger.warn(
@@ -144,7 +171,12 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
             )
           }
         } else {
-          await ctx.reply(promoResult.message)
+          const isRu = isRussian(ctx)
+          const message = isRu
+            ? '❌ Вы уже получили эту промо-подписку или у вас уже есть активная подписка!'
+            : '❌ You have already received this promo subscription or you already have an active subscription!'
+
+          await ctx.reply(message)
         }
       } catch (promoError) {
         logger.error('❌ [CreateUserScene] Error processing promo link', {
@@ -285,17 +317,49 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     // User already exists - check if they're accessing via promo link
     if (promoInfo?.isPromo) {
       try {
+        // Determine promo type from parameter
+        let promoType = 'neurovideo' // default
+        if (promoInfo.parameter) {
+          const param = promoInfo.parameter.toLowerCase()
+          if (param === 'neurophoto' || param === 'photo') {
+            promoType = 'neurophoto'
+          } else if (param === 'neurovideo' || param === 'video') {
+            promoType = 'neurovideo'
+          }
+        }
+
         const promoResult = await processPromoLink(
           telegram_id.toString(),
-          promoInfo.parameter || '',
-          ctx.botInfo.username,
-          isRussian(ctx)
+          promoType,
+          ctx.botInfo.username
         )
 
-        if (promoResult.success) {
-          await ctx.reply(promoResult.message)
+        if (promoResult) {
+          const isRu = isRussian(ctx)
+          let message = ''
+
+          if (promoType === 'neurovideo') {
+            message = isRu
+              ? '🎬 НейроВидео промо-подписка активирована! Теперь у вас есть доступ к генерации видео!'
+              : '🎬 NeuroVideo promo subscription activated! You now have access to video generation!'
+          } else if (promoType === 'neurophoto') {
+            message = isRu
+              ? '📸 НейроФото промо-подписка активирована! Теперь у вас есть доступ к генерации фото!'
+              : '📸 NeuroPhoto promo subscription activated! You now have access to photo generation!'
+          } else {
+            message = isRu
+              ? '🎁 Промо-подписка активирована!'
+              : '🎁 Promo subscription activated!'
+          }
+
+          await ctx.reply(message)
         } else {
-          await ctx.reply(promoResult.message)
+          const isRu = isRussian(ctx)
+          const message = isRu
+            ? '❌ Вы уже получили эту промо-подписку или у вас уже есть активная подписка!'
+            : '❌ You have already received this promo subscription or you already have an active subscription!'
+
+          await ctx.reply(message)
         }
       } catch (promoError) {
         logger.error(
