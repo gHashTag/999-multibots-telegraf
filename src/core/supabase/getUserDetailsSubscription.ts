@@ -183,13 +183,15 @@ export const getUserDetailsSubscription = async (
           // Тип подписки распознан, теперь проверяем активность
           // Проверяем дату для всех типов подписок
           try {
+            let expirationDate: Date | null = null // Declare expirationDate variable
+
             if (foundSubType === SubscriptionType.NEUROTESTER) {
               isActive = true
               finalSubscriptionType = foundSubType
             } else {
               const paymentDate = new Date(startDateDb)
               const now = new Date()
-              const expirationDate = new Date(paymentDate)
+              expirationDate = new Date(paymentDate)
               expirationDate.setDate(
                 paymentDate.getDate() + SUBSCRIPTION_DURATION_DAYS
               )
@@ -204,7 +206,9 @@ export const getUserDetailsSubscription = async (
                 telegramId: telegramIdStr,
                 type: foundSubType,
                 date: startDateDb,
-                expiration: expirationDate.toISOString(),
+                expiration: expirationDate
+                  ? expirationDate.toISOString()
+                  : 'Не ограничена (NEUROTESTER)',
                 isActive,
               }
             )
