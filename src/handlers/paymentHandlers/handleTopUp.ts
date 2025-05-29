@@ -16,11 +16,11 @@ export async function handleTopUp(ctx: MyContext) {
       }
     )
 
-    const data = ctx.match?.[0]
+    const data = (ctx.callbackQuery as any)?.data
     logger.info('🌟 [handleTopUp] Полученные данные колбэка', {
       telegramId,
       data,
-      match: ctx.match,
+      callbackQuery: ctx.callbackQuery,
     })
 
     const isRu = ctx.from?.language_code === 'ru'
