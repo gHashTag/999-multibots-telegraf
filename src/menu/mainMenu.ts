@@ -131,6 +131,7 @@ export async function mainMenu({
     [SubscriptionType.STARS]: [],
     [SubscriptionType.NEUROPHOTO]: [levels[1], levels[2], levels[3]],
     [SubscriptionType.NEUROVIDEO]: Object.values(levels), // Все
+    [SubscriptionType.NEUROTESTER]: Object.values(levels), // Все возможности для тестера
   }
 
   let availableLevels: Level[] =
