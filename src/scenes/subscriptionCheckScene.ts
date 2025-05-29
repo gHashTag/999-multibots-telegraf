@@ -1,12 +1,9 @@
 import { MyContext } from '@/interfaces'
 import { Scenes } from 'telegraf'
 import { getUserByTelegramIdString } from '@/core/supabase'
-import { verifySubscription } from '@/middlewares/verifySubscription'
-import { isDev } from '@/helpers'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { getSubScribeChannel } from '@/handlers/getSubScribeChannel'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { handleMenu } from '@/handlers'
 
@@ -49,69 +46,6 @@ const checkUserExists = async (ctx: MyContext) => {
     language: user.language_code,
   })
   return user
-}
-
-// Проверка подписки на канал
-const checkChannelSubscription = async (
-  ctx: MyContext,
-  languageCode: string
-) => {
-  const telegramId = ctx.from?.id?.toString() || 'unknown'
-  logger.info({
-    message: '🔍 [SubscriptionCheck] Проверка подписки на канал',
-    telegramId,
-    function: 'checkChannelSubscription',
-    language: languageCode,
-  })
-
-  if (isDev) {
-    logger.info({
-      message:
-        '🔧 [SubscriptionCheck] Режим разработки - пропуск проверки подписки на канал',
-      telegramId,
-      function: 'checkChannelSubscription',
-      result: 'dev_skip',
-    })
-    return true
-  }
-
-  const channelId = await getSubScribeChannel(ctx)
-  if (!channelId) {
-    logger.error({
-      message: '❌ [SubscriptionCheck] Не удалось получить ID канала подписки',
-      telegramId,
-      function: 'checkChannelSubscription',
-      result: 'failed',
-    })
-    await ctx.reply(
-      languageCode === 'ru'
-        ? '❌ Не удалось получить ID канала подписки'
-        : '❌ Failed to get subscribe channel ID'
-    )
-    return false
-  }
-
-  logger.info({
-    message: '🔍 [SubscriptionCheck] Проверка подписки для канала',
-    telegramId,
-    function: 'checkChannelSubscription',
-    channelId,
-    step: 'verifying',
-  })
-
-  const isSubscribed = await verifySubscription(ctx, languageCode, channelId)
-
-  logger.info({
-    message: `📊 [SubscriptionCheck] Статус подписки на канал: ${
-      isSubscribed ? 'Активна' : 'Неактивна'
-    }`,
-    telegramId,
-    function: 'checkChannelSubscription',
-    channelId,
-    isSubscribed,
-    result: isSubscribed ? 'active' : 'inactive',
-  })
-  return isSubscribed
 }
 
 // Определение следующей сцены
@@ -159,47 +93,34 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     return ctx.scene.enter(ModeEnum.CreateUserScene)
   }
 
-  // Проверка типа подписки
-  if (user.subscription !== SubscriptionType.STARS) {
+  // Проверка типа подписки - ТОЛЬКО ПЛАТНЫЕ ПОДПИСКИ
+  if (
+    user.subscription === SubscriptionType.NEUROPHOTO ||
+    user.subscription === SubscriptionType.NEUROVIDEO ||
+    user.subscription === SubscriptionType.STARS
+  ) {
     logger.info({
       message:
-        '💫 [SubscriptionCheck] У пользователя нет подписки STARS, проверка подписки на канал',
+        '⭐ [SubscriptionCheck] У пользователя есть платная подписка, доступ разрешен',
       telegramId,
       function: 'subscriptionCheckStep',
       userSubscription: user.subscription,
-      step: 'checking_channel',
+      result: 'paid_subscription_active',
     })
-
-    const isSubscribed = await checkChannelSubscription(ctx, user.language_code)
-
-    if (!isSubscribed) {
-      logger.info({
-        message:
-          '❌ [SubscriptionCheck] Нет подписки на канал, требуется подписка',
-        telegramId,
-        function: 'subscriptionCheckStep',
-        result: 'channel_subscription_required',
-      })
-      // Не нужно ничего делать здесь, так как checkChannelSubscription
-      // уже перенаправит на SubscriptionScene при неудаче
-      return // Просто выходим, пользователь уже перенаправлен
-    } else {
-      logger.info({
-        message: '✅ [SubscriptionCheck] Подписка на канал подтверждена',
-        telegramId,
-        function: 'subscriptionCheckStep',
-        result: 'channel_subscription_verified',
-      })
-    }
   } else {
     logger.info({
       message:
-        '⭐ [SubscriptionCheck] У пользователя есть подписка STARS, пропуск проверки канала',
+        '❌ [SubscriptionCheck] У пользователя нет платной подписки, требуется оплата',
       telegramId,
       function: 'subscriptionCheckStep',
       userSubscription: user.subscription,
-      result: 'stars_subscription_active',
+      result: 'no_paid_subscription',
     })
+
+    // Направляем в subscriptionScene для оформления подписки
+    await ctx.scene.leave()
+    ctx.session.mode = ModeEnum.SubscriptionScene
+    return ctx.scene.enter(ModeEnum.SubscriptionScene)
   }
 
   const currentMode = ctx.session.mode

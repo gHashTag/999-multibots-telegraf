@@ -31,9 +31,6 @@ export const paymentOptions: {
 export const subscriptionTitles = (isRu: boolean) => ({
   neurophoto: isRu ? levels[2].title_ru : levels[2].title_en,
   neurovideo: isRu ? '📚 НейроВидео' : '📚 NeuroVideo',
-  neuromeeting: isRu ? '🧠 НейроВстреча' : '🧠 NeuroMeeting',
-  neuroblogger: isRu ? '🤖 НейроБлогер' : '🤖 NeuroBlogger',
-  //   neuromentor: isRu ? '🦸🏼‍♂️ НейроМентор' : '🦸🏼‍♂️ NeuroMentor',
 })
 
 export const resultUrl2 = RESULT_URL2

@@ -85,11 +85,6 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
         subscription.toLowerCase() === SubscriptionType.NEUROVIDEO.toLowerCase()
       ) {
         subTypeEnum = SubscriptionType.NEUROVIDEO
-      } else if (
-        subscription.toLowerCase() ===
-        SubscriptionType.NEUROBLOGGER.toLowerCase()
-      ) {
-        subTypeEnum = SubscriptionType.NEUROBLOGGER
       }
 
       if (!subTypeEnum) {
