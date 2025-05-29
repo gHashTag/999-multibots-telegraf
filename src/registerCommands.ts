@@ -155,6 +155,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
   bot.use(stage.middleware())
 
+  // 4. РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ ПЛАТЕЖЕЙ
+  registerPaymentActions(bot)
+
   // 6. --- РЕГИСТРАЦИЯ ГЛОБАЛЬНЫХ КОМАНД ---
   // Команды должны быть зарегистрированы здесь, до hears и общего on('text')
 
@@ -285,6 +288,98 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   bot.command('addbalance', handleAddBalanceCommand)
   bot.command('checkbalance', handleCheckBalanceCommand)
 
+  // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ СООБЩЕНИЯ ПОСЛЕ ОПЛАТЫ
+  bot.command('test_payment_message', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+
+    const isRu = ctx.from?.language_code === 'ru'
+    logger.info('TEST COMMAND: test_payment_message', {
+      telegramId: ctx.from?.id,
+    })
+
+    try {
+      // Сначала отправляем сообщение об активации подписки
+      await ctx.reply(
+        isRu
+          ? `🎉 Ваша подписка "NEUROVIDEO" успешно оформлена и активна! Пользуйтесь ботом.`
+          : `🎉 Your subscription "NEUROVIDEO" has been successfully activated! Enjoy the bot.`
+      )
+
+      // Получаем канал для вступления
+      const { getSubScribeChannel } = await import(
+        '@/handlers/getSubScribeChannel'
+      )
+      const channelId = await getSubScribeChannel(ctx)
+
+      if (channelId) {
+        const chatInviteMessage = isRu
+          ? `Нейро путник, твоя подписка активирована ✨
+
+Хочешь вступить в чат для общения и стать частью креативного сообщества?
+
+В этом чате ты: 
+🔹 можешь задавать вопросы и получать ответы (да, лично от меня)
+🔹 делиться своими работами и быть в сотворчестве с другими нейро путниками  
+🔹станешь частью тёплого, креативного комьюнити
+
+Если да, нажимай на кнопку «Я с вами» и добро пожаловать 🤗 
+
+А если нет, продолжай самостоятельно и нажми кнопку «Я сам»`
+          : `Neuro traveler, your subscription is activated ✨
+
+Want to join the chat for communication and become part of the creative community?
+
+In this chat you:
+🔹 can ask questions and get answers (yes, personally from me)
+🔹 share your work and be in co-creation with other neuro travelers
+🔹 become part of a warm, creative community
+
+If yes, click the "I'm with you" button and welcome 🤗
+
+If not, continue on your own and click the "I myself" button`
+
+        await ctx.reply(chatInviteMessage, {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: isRu ? '👋 ☺️ Я с вами' : "👋 ☺️ I'm with you",
+                  url: channelId.startsWith('@')
+                    ? `https://t.me/${channelId.slice(1)}`
+                    : channelId,
+                },
+              ],
+              [
+                {
+                  text: isRu ? '🙅🙅‍♀️ Я сам' : '🙅🙅‍♀️ I myself',
+                  callback_data: 'continue_solo',
+                },
+              ],
+            ],
+          },
+        })
+      } else {
+        await ctx.reply(
+          isRu
+            ? '⚠️ Канал для вступления не настроен'
+            : '⚠️ Channel for joining is not configured'
+        )
+      }
+    } catch (error) {
+      logger.error('Error in test_payment_message command:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка при тестировании сообщения'
+          : '❌ Error testing message'
+      )
+    }
+  })
+
   // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
   bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
     console.log('CASE bot.hears: 💬 Техподдержка / Support')
@@ -370,6 +465,51 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       // try { await ctx.deleteMessage(); } catch { /* ignore */ }
     } catch (error) {
       logger.error('Error in go_back action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
+
+  // Добавляем глобальный обработчик для кнопки "Оформить подписку"
+  bot.action('go_to_subscription_scene', async ctx => {
+    const isRu = ctx.from?.language_code === 'ru'
+    logger.info('GLOBAL ACTION: go_to_subscription_scene', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.SubscriptionScene
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+    } catch (error) {
+      logger.error('Error in go_to_subscription_scene action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply(
+        isRu
+          ? 'Произошла ошибка. Попробуйте позже.'
+          : 'An error occurred. Please try again later.'
+      )
+    }
+  })
+
+  // Добавляем обработчик для кнопки "Я сам"
+  bot.action('continue_solo', async ctx => {
+    const isRu = ctx.from?.language_code === 'ru'
+    logger.info('GLOBAL ACTION: continue_solo', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+      await ctx.reply(
+        isRu
+          ? '👍 Отлично! Продолжайте пользоваться ботом самостоятельно. Если понадобится помощь - обращайтесь!'
+          : '👍 Great! Continue using the bot on your own. If you need help - feel free to ask!'
+      )
+    } catch (error) {
+      logger.error('Error in continue_solo action:', {
         error,
         telegramId: ctx.from?.id,
       })

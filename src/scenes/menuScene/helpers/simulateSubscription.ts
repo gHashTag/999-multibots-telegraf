@@ -23,7 +23,7 @@ export function simulateSubscriptionForDev(
   // ЕСЛИ ПОНАДОБИТСЯ АКТИВНАЯ СИМУЛЯЦИЯ, РАСКОММЕНТИРУЙТЕ И НАСТРОЙТЕ БЛОК НИЖЕ
   // А ТАКЖЕ ЗАКОММЕНТИРУЙТЕ БЛОК if(isDev) ВЫШЕ (строки 23-32)
   const simulatedSubscriptionTypeToUse: SubscriptionType | null =
-    SubscriptionType.NEUROVIDEO // ✅ Симулируем пользователя с подпиской NEUROTESTER
+    SubscriptionType.NEUROVIDEO // ✅ Симулируем пользователя с подпиской NEUROVIDEO
   if (simulatedSubscriptionTypeToUse !== originalSubscription) {
     logger.warn('[DEV SIMULATION] Subscription type is being simulated!', {
       original: originalSubscription,

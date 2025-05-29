@@ -241,6 +241,61 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
           ? `🎉 Ваша подписка "${purchasedPlanText}" успешно оформлена и активна! Пользуйтесь ботом.`
           : `🎉 Your subscription "${purchasedPlanText}" has been successfully activated! Enjoy the bot.`
       )
+
+      // Отправляем сообщение о вступлении в чат
+      const { getSubScribeChannel } = await import(
+        '@/handlers/getSubScribeChannel'
+      )
+      const channelId = await getSubScribeChannel(ctx)
+
+      if (channelId) {
+        const chatInviteMessage = isRu
+          ? `Нейро путник, твоя подписка активирована ✨
+
+Хочешь вступить в чат для общения и стать частью креативного сообщества?
+
+В этом чате ты: 
+🔹 можешь задавать вопросы и получать ответы (да, лично от меня)
+🔹 делиться своими работами и быть в сотворчестве с другими нейро путниками  
+🔹станешь частью тёплого, креативного комьюнити
+
+Если да, нажимай на кнопку «Я с вами» и добро пожаловать 🤗 
+
+А если нет, продолжай самостоятельно и нажми кнопку «Я сам»`
+          : `Neuro traveler, your subscription is activated ✨
+
+Want to join the chat for communication and become part of the creative community?
+
+In this chat you:
+🔹 can ask questions and get answers (yes, personally from me)
+🔹 share your work and be in co-creation with other neuro travelers
+🔹 become part of a warm, creative community
+
+If yes, click the "I'm with you" button and welcome 🤗
+
+If not, continue on your own and click the "I myself" button`
+
+        await ctx.reply(chatInviteMessage, {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: isRu ? '👋 ☺️ Я с вами' : "👋 ☺️ I'm with you",
+                  url: channelId.startsWith('@')
+                    ? `https://t.me/${channelId.slice(1)}`
+                    : channelId,
+                },
+              ],
+              [
+                {
+                  text: isRu ? '🙅🙅‍♀️ Я сам' : '🙅🙅‍♀️ I myself',
+                  callback_data: 'continue_solo',
+                },
+              ],
+            ],
+          },
+        })
+      }
     } else {
       await ctx.reply(
         isRu

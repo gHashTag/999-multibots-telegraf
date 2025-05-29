@@ -14,7 +14,7 @@ export const getPendingPayment = async (
     const { data, error } = await supabaseAdmin
       .from('payments_v2') // Убедитесь, что таблица называется 'payments'
       .select('*')
-      .eq('InvId', invId)
+      .eq('inv_id', invId)
       .eq('status', PaymentStatus.PENDING)
       .single() // Ожидаем один или ноль результатов
 
@@ -43,7 +43,7 @@ export const getPaymentByInvId = async (
     const { data, error } = await supabaseAdmin
       .from('payments_v2')
       .select('*')
-      .eq('InvId', invId)
+      .eq('inv_id', invId)
       .maybeSingle() // Может быть один или ноль
 
     if (error && error.code !== 'PGRST116') {
@@ -72,7 +72,7 @@ export const updatePaymentStatus = async (
     const { data, error } = await supabaseAdmin
       .from('payments_v2')
       .update({ status: newStatus, updated_at: new Date() })
-      .eq('InvId', invId)
+      .eq('inv_id', invId)
       .select() // Возвращаем обновленные данные для логгирования/проверки
 
     if (error) {
