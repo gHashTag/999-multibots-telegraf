@@ -167,6 +167,10 @@ export const getUserDetailsSubscription = async (
           upperCaseSubType === SubscriptionType.NEUROVIDEO.toString()
         ) {
           foundSubType = SubscriptionType.NEUROVIDEO
+        } else if (
+          upperCaseSubType === SubscriptionType.NEUROTESTER.toString()
+        ) {
+          foundSubType = SubscriptionType.NEUROTESTER
         }
         // Добавить другие типы если нужно
 
@@ -179,15 +183,20 @@ export const getUserDetailsSubscription = async (
           // Тип подписки распознан, теперь проверяем активность
           // Проверяем дату для всех типов подписок
           try {
-            const paymentDate = new Date(startDateDb)
-            const now = new Date()
-            const expirationDate = new Date(paymentDate)
-            expirationDate.setDate(
-              paymentDate.getDate() + SUBSCRIPTION_DURATION_DAYS
-            )
-            isActive = now < expirationDate // Активна, если не истекла
-            if (isActive) {
+            if (foundSubType === SubscriptionType.NEUROTESTER) {
+              isActive = true
               finalSubscriptionType = foundSubType
+            } else {
+              const paymentDate = new Date(startDateDb)
+              const now = new Date()
+              const expirationDate = new Date(paymentDate)
+              expirationDate.setDate(
+                paymentDate.getDate() + SUBSCRIPTION_DURATION_DAYS
+              )
+              isActive = now < expirationDate // Активна, если не истекла
+              if (isActive) {
+                finalSubscriptionType = foundSubType
+              }
             }
             logger.info(
               `[getUserDetailsSubscription v4.0 SIMPLE Step 3 OK] Проверка подписки`,
