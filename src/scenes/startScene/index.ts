@@ -14,6 +14,7 @@ import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { isRussian } from '@/helpers/language'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { defaultSession } from '@/store'
+import { handleMenu } from '@/handlers/handleMenu'
 
 interface StartSceneState {
   initialDisplayDone?: boolean
@@ -457,9 +458,59 @@ Click "Training" and dive with us.
       initialDisplayDone: (ctx.wizard.state as StartSceneState)
         .initialDisplayDone,
     })
-    // НЕ вызываем ctx.scene.leave() или ctx.wizard.next() здесь,
-    // чтобы action-обработчики (инлайн-кнопки) могли сработать.
-    // Если придет команда, она будет обработана в начале этого же хендлера на следующем вызове.
+
+    // Переключаемся на второй хендлер для обработки текстовых сообщений
+    return ctx.wizard.next()
+  },
+  // Второй шаг WizardScene для обработки текстовых сообщений
+  async ctx => {
+    const telegramId = ctx.from?.id?.toString() || 'unknown'
+    const isRu = isRussian(ctx)
+
+    if ('message' in ctx.update && 'text' in ctx.update.message) {
+      const text = ctx.update.message.text
+      logger.info(`[StartScene Step 2] Received text: ${text}`, {
+        telegramId,
+        text,
+      })
+
+      // Обработка кнопки "Оформить подписку"
+      if (text === levels[105].title_ru || text === levels[105].title_en) {
+        logger.info({
+          message: `💫 [StartScene] Пользователь нажал текстовую кнопку "Оформить подписку". Переход в SubscriptionScene.`,
+          telegramId,
+          function: 'startScene.step2.subscription_button',
+        })
+        delete (ctx.wizard.state as StartSceneState).initialDisplayDone
+        return ctx.scene.enter(ModeEnum.SubscriptionScene)
+      }
+
+      // Обработка кнопки "Техподдержка"
+      if (text === levels[103].title_ru || text === levels[103].title_en) {
+        logger.info({
+          message: `💬 [StartScene] Пользователь нажал "Техподдержка".`,
+          telegramId,
+          function: 'startScene.step2.support_button',
+        })
+        await ctx.scene.leave()
+        const { handleTechSupport } = await import(
+          '@/commands/handleTechSupport'
+        )
+        return handleTechSupport(ctx)
+      }
+
+      // Для остальных сообщений используем handleMenu
+      logger.info({
+        message: `📝 [StartScene] Forwarding text to handleMenu: ${text}`,
+        telegramId,
+        text,
+      })
+      await handleMenu(ctx)
+      return
+    }
+
+    // Если не текстовое сообщение, возвращаемся на первый шаг
+    return ctx.wizard.back()
   }
 )
 
