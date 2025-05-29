@@ -4,10 +4,12 @@ import { simulateSubscriptionForDev } from '@/scenes/menuScene/helpers/simulateS
 import { isDev } from '@/config'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
+import { kickUnpaidUser } from '@/middlewares/checkSubscription'
+import { getSubScribeChannel } from '@/handlers/getSubScribeChannel'
 
 /**
  * Проверяет, имеет ли пользователь активную подписку.
- * Если подписки нет, направляет в subscriptionScene.
+ * Если подписки нет, направляет в subscriptionScene и кикает из группы.
  *
  * @param ctx - Контекст Telegraf
  * @param commandName - Название команды для логирования
@@ -35,7 +37,7 @@ export async function checkSubscriptionGuard(
     })
 
     // Если нет подписки (включая симуляцию), направляем в subscriptionScene
-    if (!effectiveSubscription || effectiveSubscription === 'STARS') {
+    if (!effectiveSubscription) {
       logger.info(
         `[SubscriptionGuard] ${commandName}: No subscription, redirecting to subscription scene`,
         {
@@ -44,6 +46,37 @@ export async function checkSubscriptionGuard(
           command: commandName,
         }
       )
+
+      // Кикаем пользователя из группы, если он там есть
+      try {
+        const channelId = await getSubScribeChannel(ctx)
+        if (channelId) {
+          const isRu = ctx.from?.language_code === 'ru'
+          const kickReason = isRu
+            ? 'Отсутствие оплаченной подписки'
+            : 'No paid subscription'
+
+          logger.info(
+            `[SubscriptionGuard] ${commandName}: Attempting to kick unpaid user from group`,
+            {
+              telegramId,
+              channelId,
+              reason: kickReason,
+            }
+          )
+
+          await kickUnpaidUser(ctx, channelId, kickReason)
+        }
+      } catch (kickError) {
+        logger.warn(
+          `[SubscriptionGuard] ${commandName}: Could not kick user from group`,
+          {
+            error: kickError,
+            telegramId,
+          }
+        )
+        // Продолжаем выполнение даже если кик не удался
+      }
 
       await ctx.scene.leave()
       ctx.session.mode = ModeEnum.SubscriptionScene
