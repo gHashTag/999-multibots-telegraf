@@ -202,11 +202,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
           type: PaymentType.MONEY_INCOME,
         }
         // Добавляем флаг isAdminTest в сессию, если выбран тестовый план
-        if (subscription === SubscriptionType.NEUROTESTER) {
-          ctx.session.isAdminTest = true
-        } else {
-          ctx.session.isAdminTest = false
-        }
+        ctx.session.isAdminTest = false
         return ctx.scene.enter(ModeEnum.PaymentScene)
         /* } else {
           // ЭТОТ БЛОК БОЛЬШЕ НЕ НУЖЕН, так как find гарантирует валидность
