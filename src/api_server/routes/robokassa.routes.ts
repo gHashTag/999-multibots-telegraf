@@ -90,7 +90,7 @@ router.post('/robokassa-result', async (req: any, res: any) => {
     logger.info('✅ Payment status updated to COMPLETED', {
       InvId,
       telegram_id: payment.telegram_id,
-      subscription_type: payment.subscription_type,
+      subscription_type: payment.subscription,
     })
 
     // Отправляем уведомление пользователю через бота
@@ -125,15 +125,15 @@ async function sendPaymentSuccessNotification(payment: any) {
 
     const bot = result.bot
     const isRu = payment.language === 'ru'
-    const isSubscription = !!payment.subscription_type
+    const isSubscription = !!payment.subscription
 
     if (isSubscription) {
       // Сообщение об успешной оплате подписки
       await bot.telegram.sendMessage(
         payment.telegram_id,
         isRu
-          ? `🎉 Ваша подписка "${payment.subscription_type}" успешно оформлена и активна! Пользуйтесь ботом.`
-          : `🎉 Your subscription "${payment.subscription_type}" has been successfully activated! Enjoy the bot.`
+          ? `🎉 Ваша подписка "${payment.subscription}" успешно оформлена и активна! Пользуйтесь ботом.`
+          : `🎉 Your subscription "${payment.subscription}" has been successfully activated! Enjoy the bot.`
       )
 
       // Отправляем сообщение о вступлении в чат
@@ -205,7 +205,7 @@ If not, continue on your own and click the "I myself" button`
     logger.info('✅ Payment success notification sent', {
       telegram_id: payment.telegram_id,
       bot_name: payment.bot_name,
-      subscription_type: payment.subscription_type,
+      subscription_type: payment.subscription,
     })
   } catch (error) {
     logger.error('❌ Error sending payment success notification', {
