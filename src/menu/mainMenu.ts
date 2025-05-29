@@ -131,8 +131,6 @@ export async function mainMenu({
     [SubscriptionType.STARS]: [],
     [SubscriptionType.NEUROPHOTO]: [levels[1], levels[2], levels[3]],
     [SubscriptionType.NEUROVIDEO]: Object.values(levels), // Все
-    [SubscriptionType.NEUROBLOGGER]: Object.values(levels), // Все
-    [SubscriptionType.NEUROTESTER]: Object.values(levels), // Все
   }
 
   let availableLevels: Level[] =
@@ -146,21 +144,13 @@ export async function mainMenu({
     lvl !== levels[104] &&
     lvl !== levels[105]
 
-  if (
-    currentSubscription === SubscriptionType.NEUROTESTER ||
-    currentSubscription === SubscriptionType.NEUROVIDEO ||
-    currentSubscription === SubscriptionType.NEUROBLOGGER
-  ) {
+  if (currentSubscription === SubscriptionType.NEUROVIDEO) {
     hasFullAccess = true
     console.log(
       `[mainMenu LOG] Overriding hasFullAccess to true for ${currentSubscription}`
     )
-    if (currentSubscription === SubscriptionType.NEUROTESTER) {
-      availableLevels = Object.values(levels).filter(filterServiceLevels)
-    } else {
-      availableLevels =
-        subscriptionLevelsMap[currentSubscription].filter(filterServiceLevels)
-    }
+    availableLevels =
+      subscriptionLevelsMap[currentSubscription].filter(filterServiceLevels)
   } else if (currentSubscription === SubscriptionType.STARS) {
     availableLevels = []
   }
