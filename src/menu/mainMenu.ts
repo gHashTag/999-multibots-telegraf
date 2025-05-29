@@ -145,7 +145,10 @@ export async function mainMenu({
     lvl !== levels[104] &&
     lvl !== levels[105]
 
-  if (currentSubscription === SubscriptionType.NEUROVIDEO) {
+  if (
+    currentSubscription === SubscriptionType.NEUROVIDEO ||
+    currentSubscription === SubscriptionType.NEUROTESTER
+  ) {
     hasFullAccess = true
     console.log(
       `[mainMenu LOG] Overriding hasFullAccess to true for ${currentSubscription}`
