@@ -122,16 +122,21 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
         plan.subscription?.toString() ||
         'Unknown Plan'
 
-      // Основной фактор - язык пользователя
-      if (isRu) {
-        // Для русского языка показываем рубли
+      // Используем showRubles вместо только проверки языка
+      if (isRu && showRubles) {
+        // Для русского языка показываем рубли только если shouldShowRubles разрешает
         if (translatedButton?.ru_price) {
           buttonText += ` - ${translatedButton.ru_price} ₽`
         } else if (plan.amount !== undefined) {
           buttonText += ` - ${plan.amount} ₽`
         }
+      } else if (isRu && !showRubles) {
+        // Для русского языка, когда рубли отключены, показываем звезды
+        if (plan.stars !== undefined) {
+          buttonText += ` - ${plan.stars} ⭐`
+        }
       } else {
-        // Для английского языка показываем доллары
+        // Для английского языка показываем доллары/звезды
         if (translatedButton?.en_price) {
           buttonText += ` - $${translatedButton.en_price}`
         } else if (plan.stars !== undefined) {
