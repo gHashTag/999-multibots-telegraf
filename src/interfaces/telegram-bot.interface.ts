@@ -113,6 +113,7 @@ export interface MySessionData extends Scenes.WizardSessionData {
   photoFileId?: string
   videoFileId?: string
   postLink?: string
+  promoProcessed?: boolean
 
   selectedSize?: string
   selectedPayment?: {
@@ -187,6 +188,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   inviter?: string
   paymentAmount?: number
   selectedImageModel?: string
+  promoProcessed?: boolean
   subscriptionStep?:
     | 'LOADING_TRANSLATIONS'
     | 'LOADING_MODELS'
