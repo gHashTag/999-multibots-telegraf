@@ -35,7 +35,9 @@ export function getPromoConfig(promoType: string): PromoConfig | null {
 }
 
 /**
- * Activates free promo subscription for a user
+ * Activates promo subscription for a user by:
+ * 1. First allocating bonus stars to user balance
+ * 2. Then activating subscription by spending those stars
  * @param telegram_id - User's Telegram ID
  * @param subscriptionTier - Subscription tier to activate
  * @param promoType - Type of promo
@@ -53,51 +55,103 @@ async function activatePromoSubscription(
       '@/core/supabase/directPayment'
     )
 
-    const metadata = {
+    // Calculate star amounts based on subscription tier
+    let starAmount = 476 // Default NEUROPHOTO amount
+    if (subscriptionTier === SubscriptionType.NEUROVIDEO) {
+      starAmount = 1303
+    } else if (subscriptionTier === SubscriptionType.NEUROPHOTO) {
+      starAmount = 476
+    }
+
+    logger.info('🎁 [PromoHelper] Starting promo subscription activation', {
+      telegram_id,
+      subscription_tier: subscriptionTier,
+      promo_type: promoType,
+      star_amount: starAmount,
+    })
+
+    // STEP 1: Allocate bonus stars to user balance
+    const bonusMetadata = {
+      is_promo: true,
+      promo_type: promoType,
+      subscription_tier_equivalent: subscriptionTier,
+      stars_granted: starAmount,
+      allocation_timestamp: new Date().toISOString(),
+      category: 'BONUS',
+    }
+
+    const bonusResult = await directPaymentProcessor({
+      telegram_id,
+      amount: starAmount,
+      type: PaymentType.MONEY_INCOME,
+      description: `🎁 Promo bonus: ${starAmount} stars (${subscriptionTier})`,
+      bot_name,
+      service_type: ModeEnum.StartScene,
+      inv_id: `promo-bonus-${subscriptionTier}-${Date.now()}`,
+      metadata: bonusMetadata,
+    })
+
+    if (!bonusResult.success) {
+      logger.error('❌ [PromoHelper] Failed to allocate bonus stars', {
+        telegram_id,
+        subscription_tier: subscriptionTier,
+        promo_type: promoType,
+        error: bonusResult.error,
+      })
+      return false
+    }
+
+    logger.info('✅ [PromoHelper] Bonus stars allocated successfully', {
+      telegram_id,
+      subscription_tier: subscriptionTier,
+      promo_type: promoType,
+      star_amount: starAmount,
+      bonus_payment_id: bonusResult.payment_id,
+    })
+
+    // STEP 2: Activate subscription by spending the bonus stars
+    const subscriptionMetadata = {
       is_promo_subscription: true,
-      is_free_subscription: true,
+      is_auto_activation: true,
       promo_type: promoType,
       subscription_type: subscriptionTier,
       promo_activation: true,
       activation_timestamp: new Date().toISOString(),
-      category: 'BONUS',
-      subscription_type_field: subscriptionTier,
+      category: 'REAL', // Subscription activation is REAL transaction
     }
 
-    // Create FREE subscription activation record (no stars deducted)
-    const result = await directPaymentProcessor({
+    const subscriptionResult = await directPaymentProcessor({
       telegram_id,
-      amount: 0, // FREE subscription - no stars deducted
-      type: PaymentType.MONEY_INCOME, // Use INCOME since we're not taking money
-      description: `🎁 Free promo subscription: ${subscriptionTier}`,
+      amount: starAmount,
+      type: PaymentType.MONEY_OUTCOME,
+      description: `🎯 Auto-activated subscription: ${subscriptionTier} (from promo)`,
       bot_name,
       service_type: ModeEnum.StartScene,
       inv_id: `promo-sub-${subscriptionTier}-${Date.now()}`,
-      metadata,
-      subscription_type: subscriptionTier, // Add subscription_type directly
+      metadata: subscriptionMetadata,
+      subscription_type: subscriptionTier, // This creates the subscription
     })
 
-    if (result.success) {
+    if (subscriptionResult.success) {
       logger.info(
-        '✅ [PromoHelper] Free promo subscription activated successfully',
+        '✅ [PromoHelper] Promo subscription activated successfully',
         {
           telegram_id,
           subscription_tier: subscriptionTier,
           promo_type: promoType,
-          payment_id: result.payment_id,
+          star_amount: starAmount,
+          bonus_payment_id: bonusResult.payment_id,
+          subscription_payment_id: subscriptionResult.payment_id,
         }
       )
       return true
     } else {
-      logger.error(
-        '❌ [PromoHelper] Failed to activate free promo subscription',
-        {
-          telegram_id,
-          subscription_tier: subscriptionTier,
-          promo_type: promoType,
-          error: result.error,
-        }
-      )
+      logger.error('❌ [PromoHelper] Failed to activate subscription', {
+        telegram_id,
+        subscription_tier: subscriptionTier,
+        promo_type: promoType,
+        error: subscriptionResult.error,
+      })
       return false
     }
   } catch (error) {
