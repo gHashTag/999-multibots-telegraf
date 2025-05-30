@@ -24,10 +24,9 @@ interface StartSceneState {
 const GLOBAL_COMMANDS_TO_RELEASE = [
   '/menu',
   '/price',
-  '/start', // Если пользователь снова введет /start, глобальный обработчик должен сработать
+  '/start',
   '/support',
   '/get100',
-  // Добавьте другие глобальные команды по мере необходимости
 ]
 
 export const startScene = new Scenes.WizardScene<MyContext>(
@@ -36,6 +35,30 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     const telegramId = ctx.from?.id?.toString() || 'unknown'
     const isRu = ctx.from?.language_code === 'ru'
     const currentBotName = ctx.botInfo.username
+
+    // ✅ ИСПРАВЛЕНИЕ: Проверяем, является ли это ПРОМО-командой (не всеми командами с параметрами!)
+    if (ctx.message && 'text' in ctx.message) {
+      const messageText = ctx.message.text
+
+      // Проверяем ТОЛЬКО промо-команды, используя существующую функцию
+      const { extractPromoFromContext } = await import('@/helpers/contextUtils')
+      const promoInfo = extractPromoFromContext(ctx)
+
+      // Если это промо-ссылка, перенаправляем в CreateUserScene
+      if (promoInfo?.isPromo) {
+        logger.info({
+          message: `[StartScene] Promo command detected, redirecting to CreateUserScene`,
+          telegramId,
+          command: messageText,
+          promoType: promoInfo.parameter,
+        })
+
+        // Очищаем сессию и переходим в CreateUserScene для обработки промо-логики
+        ctx.session = { ...defaultSession }
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.CreateUserScene)
+      }
+    }
 
     // Проверка, не является ли это командой, которую нужно отпустить
     if (
