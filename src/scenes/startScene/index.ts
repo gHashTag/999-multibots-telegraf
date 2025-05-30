@@ -44,8 +44,8 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       const { extractPromoFromContext } = await import('@/helpers/contextUtils')
       const promoInfo = extractPromoFromContext(ctx)
 
-      // Если это промо-ссылка, перенаправляем в CreateUserScene
-      if (promoInfo?.isPromo) {
+      // Если это промо-ссылка И промо еще не было обработано, перенаправляем в CreateUserScene
+      if (promoInfo?.isPromo && !ctx.session.promoProcessed) {
         logger.info({
           message: `[StartScene] Promo command detected, redirecting to CreateUserScene`,
           telegramId,
@@ -53,10 +53,27 @@ export const startScene = new Scenes.WizardScene<MyContext>(
           promoType: promoInfo.parameter,
         })
 
+        // Устанавливаем флаг, что промо будет обработано
+        ctx.session.promoProcessed = true
+
         // Очищаем сессию и переходим в CreateUserScene для обработки промо-логики
-        ctx.session = { ...defaultSession }
+        ctx.session = { ...defaultSession, promoProcessed: true }
         await ctx.scene.leave()
         return ctx.scene.enter(ModeEnum.CreateUserScene)
+      }
+
+      // Если это промо-ссылка, но промо уже было обработано, идем в главное меню
+      if (promoInfo?.isPromo && ctx.session.promoProcessed) {
+        logger.info({
+          message: `[StartScene] Promo already processed, redirecting to MainMenu`,
+          telegramId,
+          command: messageText,
+          promoType: promoInfo.parameter,
+        })
+
+        ctx.session.mode = ModeEnum.MainMenu
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.MainMenu)
       }
     }
 
@@ -496,6 +513,42 @@ Click "Training" and dive with us.
         telegramId,
         text,
       })
+
+      // ✅ ДОБАВЛЯЕМ: Проверка промо-команд во втором шаге
+      const { extractPromoFromContext } = await import('@/helpers/contextUtils')
+      const promoInfo = extractPromoFromContext(ctx)
+
+      // Если это промо-команда и промо уже обработано, идем в главное меню
+      if (promoInfo?.isPromo && ctx.session.promoProcessed) {
+        logger.info({
+          message: `[StartScene Step 2] Promo already processed, redirecting to MainMenu`,
+          telegramId,
+          command: text,
+          promoType: promoInfo.parameter,
+        })
+
+        ctx.session.mode = ModeEnum.MainMenu
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.MainMenu)
+      }
+
+      // Если это промо-команда и промо еще не обработано, перенаправляем в CreateUserScene
+      if (promoInfo?.isPromo && !ctx.session.promoProcessed) {
+        logger.info({
+          message: `[StartScene Step 2] Promo command detected, redirecting to CreateUserScene`,
+          telegramId,
+          command: text,
+          promoType: promoInfo.parameter,
+        })
+
+        // Устанавливаем флаг, что промо будет обработано
+        ctx.session.promoProcessed = true
+
+        // Очищаем сессию и переходим в CreateUserScene для обработки промо-логики
+        ctx.session = { ...defaultSession, promoProcessed: true }
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.CreateUserScene)
+      }
 
       // Обработка кнопки "Оформить подписку"
       if (text === levels[105].title_ru || text === levels[105].title_en) {
