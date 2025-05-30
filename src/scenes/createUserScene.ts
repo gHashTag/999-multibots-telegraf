@@ -133,21 +133,24 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         )
 
         if (promoResult) {
+          // Устанавливаем флаг, что промо обработано
+          ctx.session.promoProcessed = true
+
           const isRu = isRussian(ctx)
           let message = ''
 
           if (promoType === 'neurovideo') {
             message = isRu
-              ? '🎬 НейроВидео промо-подписка активирована! Теперь у вас есть доступ к генерации видео!'
-              : '🎬 NeuroVideo promo subscription activated! You now have access to video generation!'
+              ? '🎬 НейроВидео промо-подписка активирована! Вы получили 1303 звезды и доступ к генерации видео! ⭐'
+              : '🎬 NeuroVideo promo subscription activated! You got 1303 stars and access to video generation! ⭐'
           } else if (promoType === 'neurophoto') {
             message = isRu
-              ? '📸 НейроФото промо-подписка активирована! Теперь у вас есть доступ к генерации фото!'
-              : '📸 NeuroPhoto promo subscription activated! You now have access to photo generation!'
+              ? '📸 НейроФото промо-подписка активирована! Вы получили 476 звезд и доступ к генерации фото! ⭐'
+              : '📸 NeuroPhoto promo subscription activated! You got 476 stars and access to photo generation! ⭐'
           } else {
             message = isRu
-              ? '🎁 Промо-подписка активирована!'
-              : '🎁 Promo subscription activated!'
+              ? '🎁 Промо-подписка активирована! Звезды добавлены на ваш баланс и активирована подписка! ⭐'
+              : '🎁 Promo subscription activated! Stars added to your balance and subscription activated! ⭐'
           }
 
           await ctx.reply(message)
@@ -156,7 +159,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           try {
             await ctx.telegram.sendMessage(
               SUBSCRIBE_CHANNEL_ID,
-              `🎁 Новый пользователь @${finalUsername} получил промо-подписку ${promoType.toUpperCase()}!`
+              `🎁 Новый пользователь @${finalUsername} получил промо-бонус ${promoType.toUpperCase()}!`
             )
           } catch (notifyError) {
             logger.warn(
@@ -337,21 +340,24 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         )
 
         if (promoResult) {
+          // Устанавливаем флаг, что промо обработано
+          ctx.session.promoProcessed = true
+
           const isRu = isRussian(ctx)
           let message = ''
 
           if (promoType === 'neurovideo') {
             message = isRu
-              ? '🎬 НейроВидео промо-подписка активирована! Теперь у вас есть доступ к генерации видео!'
-              : '🎬 NeuroVideo promo subscription activated! You now have access to video generation!'
+              ? '🎬 НейроВидео промо-подписка активирована! Вы получили 1303 звезды и доступ к генерации видео! ⭐'
+              : '🎬 NeuroVideo promo subscription activated! You got 1303 stars and access to video generation! ⭐'
           } else if (promoType === 'neurophoto') {
             message = isRu
-              ? '📸 НейроФото промо-подписка активирована! Теперь у вас есть доступ к генерации фото!'
-              : '📸 NeuroPhoto promo subscription activated! You now have access to photo generation!'
+              ? '📸 НейроФото промо-подписка активирована! Вы получили 476 звезд и доступ к генерации фото! ⭐'
+              : '📸 NeuroPhoto promo subscription activated! You got 476 stars and access to photo generation! ⭐'
           } else {
             message = isRu
-              ? '🎁 Промо-подписка активирована!'
-              : '🎁 Promo subscription activated!'
+              ? '🎁 Промо-подписка активирована! Звезды добавлены на ваш баланс и активирована подписка! ⭐'
+              : '🎁 Promo subscription activated! Stars added to your balance and subscription activated! ⭐'
           }
 
           await ctx.reply(message)
@@ -387,7 +393,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     }
   }
 
-  return ctx.scene.enter(ModeEnum.StartScene)
+  return ctx.scene.enter(ModeEnum.MainMenu)
 }
 
 export const createUserScene = new Scenes.WizardScene<MyContext>(
