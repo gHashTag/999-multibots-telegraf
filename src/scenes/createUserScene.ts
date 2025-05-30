@@ -171,12 +171,14 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
             )
           }
         } else {
-          const isRu = isRussian(ctx)
-          const message = isRu
-            ? '❌ Вы уже получили эту промо-подписку или у вас уже есть активная подписка!'
-            : '❌ You have already received this promo subscription or you already have an active subscription!'
-
-          await ctx.reply(message)
+          // Промо уже был получен или есть активная подписка - просто логируем, не показываем ошибку
+          logger.info(
+            '📝 [CreateUserScene] Promo not processed for existing user (already received or has subscription)',
+            {
+              telegram_id: telegram_id.toString(),
+              promoType,
+            }
+          )
         }
       } catch (promoError) {
         logger.error('❌ [CreateUserScene] Error processing promo link', {
@@ -354,12 +356,14 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
           await ctx.reply(message)
         } else {
-          const isRu = isRussian(ctx)
-          const message = isRu
-            ? '❌ Вы уже получили эту промо-подписку или у вас уже есть активная подписка!'
-            : '❌ You have already received this promo subscription or you already have an active subscription!'
-
-          await ctx.reply(message)
+          // Промо уже был получен или есть активная подписка - просто логируем, не показываем ошибку
+          logger.info(
+            '📝 [CreateUserScene] Promo not processed for existing user (already received or has subscription)',
+            {
+              telegram_id: telegram_id.toString(),
+              promoType,
+            }
+          )
         }
       } catch (promoError) {
         logger.error(
