@@ -606,6 +606,19 @@ export const enterTargetScene = async (
       mode,
       function: 'enterTargetSceneWrapper',
     })
+
+    // Специальная логика для FluxKontext - направляем в флюкс-контекст сцену
+    if (mode === ModeEnum.FluxKontext) {
+      logger.info({
+        message: `[EnterTargetSceneWrapper] FluxKontext режим - переход в flux_kontext_scene`,
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      })
+      await ctx.scene.enter('flux_kontext_scene')
+      return
+    }
+
     // Не присваиваем результат, т.к. ctx.scene.enter ничего не возвращает
     await ctx.scene.enter(mode, {
       ...(ctx.scene.state || {}),
