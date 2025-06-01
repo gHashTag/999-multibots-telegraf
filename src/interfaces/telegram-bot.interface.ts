@@ -239,6 +239,29 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   kontextImageUrl?: string
   kontextModelType?: 'pro' | 'max'
   kontextSelectedModel?: 'pro' | 'max' // Для предварительного выбора модели в сцене
+
+  // Advanced FLUX Kontext fields
+  fluxKontextMode?:
+    | 'single'
+    | 'multi'
+    | 'portrait_series'
+    | 'haircut'
+    | 'landmarks'
+    | 'headshot'
+  fluxKontextImageA?: string // Первое изображение
+  fluxKontextImageB?: string // Второе изображение для multi-image режима
+  awaitingFluxKontextImageA?: boolean
+  awaitingFluxKontextImageB?: boolean
+  fluxKontextStep?:
+    | 'mode_select'
+    | 'image_a'
+    | 'image_b'
+    | 'prompt'
+    | 'processing'
+
+  // Upscaling fields
+  lastGeneratedImageUrl?: string // URL последнего сгенерированного изображения
+  lastGeneratedPrompt?: string // Промпт последнего сгенерированного изображения
 }
 
 export interface MyContext extends Context {

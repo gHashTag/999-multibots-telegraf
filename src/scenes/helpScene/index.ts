@@ -14,6 +14,7 @@ import {
   handleLevel11,
   handleLevel12,
   handleLevel13,
+  handleFluxKontextHelp,
 } from '../../scenes/levelQuestWizard/handlers'
 import { mainMenu } from '@/menu'
 
@@ -108,6 +109,12 @@ helpScene.enter(async ctx => {
         ? 'Справка по Приглашению друга...'
         : 'Help for Invite a Friend...'
       await handleLevel13(ctx)
+      break
+    case ModeEnum.FluxKontext:
+      helpText = isRu
+        ? 'Справка по FLUX Kontext...'
+        : 'Help for FLUX Kontext...'
+      await handleFluxKontextHelp(ctx)
       break
     case ModeEnum.Help:
     default:

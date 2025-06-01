@@ -789,3 +789,101 @@ export async function handleQuestComplete(ctx: MyContext) {
   )
   console.log('Quest completed')
 }
+
+export async function handleFluxKontextHelp(ctx: MyContext) {
+  try {
+    const isRu = ctx.from?.language_code === 'ru'
+    const message = isRu
+      ? `🎨 <b>Команда: FLUX Kontext - ИИ Редактирование изображений</b> 🌟\n\n
+FLUX Kontext от Black Forest Labs — это революционная семья моделей ИИ для редактирования изображений с помощью естественного языка. Вместо описания всего изображения, просто скажите что нужно изменить! 🚀\n\n
+<b>🔥 Главные возможности:</b>\n
+• <b>Хирургическая точность</b> — изменяет только то, что вы просите\n
+• <b>Сохранение персонажей</b> — лица и характеристики остаются неизменными\n
+• <b>Превосходная работа с текстом</b> — меняет надписи сохраняя стиль\n
+• <b>Итеративное редактирование</b> — можно делать правки пошагово\n
+• <b>Перенос стилей</b> — применяет художественные эффекты\n\n
+<b>💎 Доступные модели:</b>\n
+💼 <b>FLUX Kontext Pro (9⭐)</b> — быстрая и качественная обработка\n
+🚀 <b>FLUX Kontext Max (12⭐)</b> — максимальное качество и точность\n\n
+<b>✨ Что можно делать:</b>\n
+• Изменить стиль изображения ("сделай в стиле 90-х")\n
+• Добавить элементы ("добавь золотое ожерелье")\n
+• Изменить причёску ("сделай пикси стрижку")\n
+• Заменить фон ("поставь на пляж")\n
+• Редактировать текст на изображении\n
+• Менять цвета объектов ("сделай машину красной")\n
+• Стилизация и художественные эффекты\n\n
+<b>🎯 Примеры команд:</b>\n
+• "change the car color to red"\n
+• "add sunglasses to the person"\n
+• "replace 'SALE' with 'SOLD'"\n
+• "make it vintage photography style"\n
+• "put mountains in the background"\n
+• "remove the person in the background"\n\n
+<b>💡 Советы для лучших результатов:</b>\n
+• Пишите промпты на английском языке\n
+• Будьте конкретными в описании\n
+• Начинайте с простых изменений\n
+• Для сохранения лица: "while keeping the same facial features"\n
+• Используйте кавычки для точного текста\n\n
+<b>🔄 Как использовать:</b>\n
+1️⃣ Отправьте изображение боту\n
+2️⃣ Выберите модель (Pro или Max)\n
+3️⃣ Опишите что хотите изменить\n
+4️⃣ Получите отредактированное изображение!\n\n
+FLUX Kontext — это будущее редактирования изображений уже сегодня! 🌈✨`
+      : `🎨 <b>Command: FLUX Kontext - AI Image Editing</b> 🌟\n\n
+FLUX Kontext from Black Forest Labs is a revolutionary family of AI models for image editing using natural language. Instead of describing the entire image, just say what you want to change! 🚀\n\n
+<b>🔥 Key capabilities:</b>\n
+• <b>Surgical precision</b> — changes only what you ask for\n
+• <b>Character preservation</b> — faces and characteristics remain unchanged\n
+• <b>Superior text handling</b> — changes inscriptions while preserving style\n
+• <b>Iterative editing</b> — you can make edits step by step\n
+• <b>Style transfer</b> — applies artistic effects\n\n
+<b>💎 Available models:</b>\n
+💼 <b>FLUX Kontext Pro (9⭐)</b> — fast and quality processing\n
+🚀 <b>FLUX Kontext Max (12⭐)</b> — maximum quality and precision\n\n
+<b>✨ What you can do:</b>\n
+• Change image style ("make this a 90s cartoon")\n
+• Add elements ("give her a gold necklace")\n
+• Change hairstyle ("give her a pixie haircut")\n
+• Replace background ("put her on a beach")\n
+• Edit text in images\n
+• Change object colors ("make the car red")\n
+• Stylization and artistic effects\n\n
+<b>🎯 Example commands:</b>\n
+• "change the car color to red"\n
+• "add sunglasses to the person"\n
+• "replace 'SALE' with 'SOLD'"\n
+• "make it vintage photography style"\n
+• "put mountains in the background"\n
+• "remove the person in the background"\n\n
+<b>💡 Tips for best results:</b>\n
+• Write prompts in English\n
+• Be specific in descriptions\n
+• Start with simple changes\n
+• To preserve identity: "while keeping the same facial features"\n
+• Use quotes for exact text\n\n
+<b>🔄 How to use:</b>\n
+1️⃣ Send an image to the bot\n
+2️⃣ Choose model (Pro or Max)\n
+3️⃣ Describe what you want to change\n
+4️⃣ Get your edited image!\n\n
+FLUX Kontext is the future of image editing, available today! 🌈✨`
+
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
+  } catch (error) {
+    console.error('Error in handleFluxKontextHelp:', error)
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    throw error
+  }
+}

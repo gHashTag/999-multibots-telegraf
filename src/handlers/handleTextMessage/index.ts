@@ -3,6 +3,7 @@ import { getUserModel, getUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleFluxKontextPrompt } from '../../commands/fluxKontextCommand'
+import { handleHelpCancel } from '../handleHelpCancel'
 
 export async function handleTextMessage(
   ctx: MyContext,
@@ -26,6 +27,28 @@ export async function handleTextMessage(
     return
   }
 
+  // === FLUX KONTEXT ОБРАБОТКА ОЖИДАНИЯ ИЗОБРАЖЕНИЯ ===
+  // Проверяем, ожидает ли пользователь загрузку изображения для FLUX Kontext
+  if (
+    ctx.session?.awaitingFluxKontextImage &&
+    ctx.message &&
+    'text' in ctx.message
+  ) {
+    // Проверяем на кнопки отмены и справки
+    if (await handleHelpCancel(ctx)) {
+      return
+    }
+
+    // Если это не кнопка справки/отмены, игнорируем текст и ждем изображение
+    const isRu = ctx.from?.language_code === 'ru'
+    await ctx.reply(
+      isRu
+        ? '📷 Пожалуйста, отправьте изображение для редактирования.'
+        : '📷 Please send an image for editing.'
+    )
+    return
+  }
+
   // === FLUX KONTEXT ОБРАБОТКА ===
   // Проверяем, ожидает ли пользователь ввод промпта для FLUX Kontext
   if (
@@ -33,6 +56,11 @@ export async function handleTextMessage(
     ctx.message &&
     'text' in ctx.message
   ) {
+    // Сначала проверяем на кнопки отмены и справки
+    if (await handleHelpCancel(ctx)) {
+      return
+    }
+
     console.log('[handleTextMessage] Processing FLUX Kontext prompt', {
       telegramId: ctx.from?.id,
       prompt: ctx.message.text.substring(0, 50) + '...',

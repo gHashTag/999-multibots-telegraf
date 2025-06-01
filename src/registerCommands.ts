@@ -544,13 +544,6 @@ If not, continue on your own and click the "I myself" button`
     }
   })
 
-  // 10. ОБРАБОТЧИК ТЕКСТА (ПОСЛЕДНИЙ)
-  // Убираем ранее добавленный универсальный обработчик,
-  // так как кнопки меню обрабатываются через hears выше.
-  // Оставляем только handleTextMessage, который, вероятно,
-  // предназначен для обработки текста ВНУТРИ сцен.
-  bot.on(message('text'), handleTextMessage)
-
   // Обработчик фото для FLUX Kontext
   bot.on(message('photo'), async ctx => {
     logger.info('GLOBAL PHOTO HANDLER: Photo received', {
@@ -571,6 +564,100 @@ If not, continue on your own and click the "I myself" button`
     logger.info('GLOBAL PHOTO HANDLER: Photo not for FLUX Kontext, skipping', {
       telegramId: ctx.from?.id,
     })
+  })
+
+  // НОВЫЕ ОБРАБОТЧИКИ ДЛЯ INLINE КНОПОК FLUX KONTEXT
+  bot.action('upscale_image', async ctx => {
+    logger.info('GLOBAL ACTION: upscale_image', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+
+      const telegram_id = ctx.from?.id?.toString()
+      const username = ctx.from?.username || ''
+      const is_ru = ctx.from?.language_code === 'ru'
+
+      if (!telegram_id) {
+        await ctx.reply(
+          is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
+        )
+        return
+      }
+
+      // Проверяем, есть ли сохраненное изображение для upscaling
+      if (!ctx.session?.lastGeneratedImageUrl) {
+        await ctx.reply(
+          is_ru
+            ? '❌ Нет изображения для увеличения качества. Сначала сгенерируйте изображение с помощью FLUX Kontext.'
+            : '❌ No image to upscale. Please generate an image with FLUX Kontext first.'
+        )
+        return
+      }
+
+      // Импортируем и запускаем upscaling
+      const { upscaleFluxKontextImage } = await import(
+        './services/generateFluxKontext'
+      )
+      await upscaleFluxKontextImage({
+        imageUrl: ctx.session.lastGeneratedImageUrl,
+        telegram_id,
+        username,
+        is_ru,
+        ctx,
+        originalPrompt: ctx.session.lastGeneratedPrompt,
+      })
+    } catch (error) {
+      logger.error('Error in upscale_image action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply(
+        ctx.from?.language_code === 'ru'
+          ? '❌ Произошла ошибка при увеличении качества изображения.'
+          : '❌ An error occurred while upscaling the image.'
+      )
+    }
+  })
+
+  bot.action('more_editing', async ctx => {
+    logger.info('GLOBAL ACTION: more_editing', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+      await ctx.reply(
+        ctx.from?.language_code === 'ru'
+          ? '📷 Отправьте новое изображение для редактирования:'
+          : '📷 Send a new image for editing:'
+      )
+
+      if (ctx.session) {
+        ctx.session.awaitingFluxKontextImage = true
+      }
+    } catch (error) {
+      logger.error('Error in more_editing action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
+
+  bot.action('different_mode', async ctx => {
+    logger.info('GLOBAL ACTION: different_mode', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+      // Возвращаемся к продвинутой сцене FLUX Kontext
+      await ctx.scene.leave()
+      await ctx.scene.enter('flux_kontext_scene')
+    } catch (error) {
+      logger.error('Error in different_mode action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
   })
 
   console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')

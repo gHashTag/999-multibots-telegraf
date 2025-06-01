@@ -253,6 +253,8 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
     .stars,
   [ModeEnum.TextToImage]: calculateModeCost({ mode: ModeEnum.TextToImage })
     .stars,
+  [ModeEnum.FluxKontext]: calculateModeCost({ mode: ModeEnum.FluxKontext })
+    .stars,
   [ModeEnum.LipSync]: calculateModeCost({ mode: ModeEnum.LipSync }).stars,
   [ModeEnum.VoiceToText]: calculateModeCost({ mode: ModeEnum.VoiceToText })
     .stars,
