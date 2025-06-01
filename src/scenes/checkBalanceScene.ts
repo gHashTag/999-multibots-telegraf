@@ -133,6 +133,7 @@ export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
   [ModeEnum.ImageToVideo]: 0,
   [ModeEnum.TextToVideo]: 0,
   [ModeEnum.TextToImage]: 0,
+  [ModeEnum.FluxKontext]: 0, // Цена рассчитывается динамически в зависимости от выбранной модели (Pro/Max)
   [ModeEnum.LipSync]: calculateFinalStarCostFromDollars(0.9),
   [ModeEnum.VoiceToText]: calculateFinalStarCostFromDollars(0.08),
 }
@@ -605,6 +606,19 @@ export const enterTargetScene = async (
       mode,
       function: 'enterTargetSceneWrapper',
     })
+
+    // Специальная логика для FluxKontext - направляем в флюкс-контекст сцену
+    if (mode === ModeEnum.FluxKontext) {
+      logger.info({
+        message: `[EnterTargetSceneWrapper] FluxKontext режим - переход в flux_kontext_scene`,
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      })
+      await ctx.scene.enter('flux_kontext_scene')
+      return
+    }
+
     // Не присваиваем результат, т.к. ctx.scene.enter ничего не возвращает
     await ctx.scene.enter(mode, {
       ...(ctx.scene.state || {}),
