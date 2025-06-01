@@ -133,6 +133,7 @@ export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
   [ModeEnum.ImageToVideo]: 0,
   [ModeEnum.TextToVideo]: 0,
   [ModeEnum.TextToImage]: 0,
+  [ModeEnum.FluxKontext]: 0, // Цена рассчитывается динамически в зависимости от выбранной модели (Pro/Max)
   [ModeEnum.LipSync]: calculateFinalStarCostFromDollars(0.9),
   [ModeEnum.VoiceToText]: calculateFinalStarCostFromDollars(0.08),
 }

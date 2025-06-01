@@ -66,6 +66,7 @@ export enum ModeEnum {
   NeuroAudio = 'neuro_audio',
   /** @deprecated Не используется, есть NeuroPhoto */
   TextToImage = 'text_to_image',
+  FluxKontext = 'flux_kontext',
 }
 
 // Определяем интерфейсы прямо здесь для предотвращения циклических зависимостей

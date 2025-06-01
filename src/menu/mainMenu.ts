@@ -65,12 +65,17 @@ export const levels: Record<number, Level> = {
     title_ru: '🖼️ Текст в фото',
     title_en: '🖼️ Text to Image',
   },
+  // flux_kontext
+  12: {
+    title_ru: '🎨 FLUX Kontext',
+    title_en: '🎨 FLUX Kontext',
+  },
   // lip_sync
-  // 12: {
+  // 13: {
   //   title_ru: '🎤 Синхронизация губ',
   //   title_en: '🎤 Lip Sync',
   // },
-  // 13: {
+  // 14: {
   //   title_ru: '🎥 Видео в URL',
   //   title_en: '🎥 Video in URL',
   // },
