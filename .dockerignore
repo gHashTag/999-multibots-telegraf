@@ -6,8 +6,12 @@
 .git
 .gitignore
 
-# environment files
-.env*
+# environment files - оставляем только ненужные .env файлы
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# .env* - убираем это правило, оно исключало все .env файлы
 !.env.example
 
 # logs
