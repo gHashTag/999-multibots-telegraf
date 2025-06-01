@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "📚 VIBECODING - Полная книга.md",
+                "file": "🔥 ЛЕНДИНГ - VIBECODER.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "📚 VIBECODING - Полная книга"
+              "title": "🔥 ЛЕНДИНГ - VIBECODER"
             }
           }
         ],
@@ -109,7 +109,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "📚 VIBECODING - Полная книга.md",
+                "file": "🔥 ЛЕНДИНГ - VIBECODER.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -119,7 +119,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Обратные ссылки для 📚 VIBECODING - Полная книга"
+              "title": "Обратные ссылки для 🔥 ЛЕНДИНГ - VIBECODER"
             }
           },
           {
@@ -128,12 +128,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "📚 VIBECODING - Полная книга.md",
+                "file": "🔥 ЛЕНДИНГ - VIBECODER.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Исходящие ссылки из 📚 VIBECODING - Полная книга"
+              "title": "Исходящие ссылки из 🔥 ЛЕНДИНГ - VIBECODER"
             }
           },
           {
@@ -157,13 +157,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "📚 VIBECODING - Полная книга.md",
+                "file": "🔥 ЛЕНДИНГ - VIBECODER.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Структура 📚 VIBECODING - Полная книга"
+              "title": "Структура 🔥 ЛЕНДИНГ - VIBECODER"
             }
           }
         ]
@@ -186,6 +186,8 @@
   },
   "active": "7481ecc836668bc7",
   "lastOpenFiles": [
+    "04 - ИНСТРУМЕНТЫ/📱 Telegram-бот для обучения.md",
+    "📚 VIBECODING - Полная книга.md",
     "🎉 ССЫЛКИ СОДЕРЖАНИЯ РАБОТАЮТ.md",
     "00 - ГЛАВНАЯ/🎯 Главная - VIBECODING.md",
     "✅ OBSIDIAN ССЫЛКИ ГОТОВЫ.md",
@@ -198,8 +200,6 @@
     "02 - ПРАКТИКА/🗺️ Карта обучения VIBECODING.md",
     "02 - ПРАКТИКА/🚀 Начните свое путешествие.md",
     "03 - ПРОДУКТЫ/💰 Курс VIBECODER - Годовая подписка.md",
-    "04 - ИНСТРУМЕНТЫ/📱 Telegram-бот для обучения.md",
-    "📚 VIBECODING - Полная книга.md",
     "🔥 ЛЕНДИНГ - VIBECODER.md",
     "🔧 ДИАГНОСТИКА ССЫЛОК.md",
     "🚨 КРИТИЧЕСКИЙ АНАЛИЗ РАСХОЖДЕНИЙ.md",
