@@ -41,8 +41,6 @@ services:
       - '3006:3006'
       - '3007:3007'
       - '3008:3008'
-    env_file:
-      - .env
     environment:
       - NODE_ENV=production
       - BOT_TOKEN_1=${BOT_TOKEN_1}
