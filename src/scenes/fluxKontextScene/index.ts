@@ -1,237 +1,595 @@
-import { Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
-import { logger } from '@/utils/logger'
-import { FLUX_KONTEXT_MODELS } from '@/price/models'
-import { isRussian } from '@/helpers'
-import { Markup } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
+import { MyContext } from '../../interfaces'
+import { FLUX_KONTEXT_MODELS } from '../../price/models/FLUX_KONTEXT_MODELS'
+import { isRussian } from '../../helpers/language'
+import { getUserBalance } from '../../core/supabase'
+import { logger } from '../../utils/logger'
 import { handleFluxKontextCommand } from '@/commands/fluxKontextCommand'
 import { levels } from '@/menu/mainMenu'
-import { getUserBalance } from '@/core/supabase'
 import { sendBalanceMessage } from '@/price/helpers'
 import { ModeEnum } from '@/interfaces'
+
+// Конфигурация режимов FLUX Kontext
+const FLUX_MODES = {
+  single: {
+    title_ru: '🖼️ Одиночное редактирование',
+    title_en: '🖼️ Single Image Edit',
+    description_ru: 'Редактирование одного изображения',
+    description_en: 'Edit a single image',
+    images_required: 1,
+  },
+  multi: {
+    title_ru: '🔗 Объединение изображений',
+    title_en: '🔗 Multi-Image Combine',
+    description_ru: 'Объединение двух изображений в одно',
+    description_en: 'Combine two images into one',
+    images_required: 2,
+  },
+  portrait_series: {
+    title_ru: '👤 Серия портретов',
+    title_en: '👤 Portrait Series',
+    description_ru: 'Создание серии портретов из одного изображения',
+    description_en: 'Generate a series of portraits from one image',
+    images_required: 1,
+  },
+  haircut: {
+    title_ru: '💇 Изменить стрижку',
+    title_en: '💇 Change Haircut',
+    description_ru: 'Изменить прическу и цвет волос',
+    description_en: 'Change hairstyle and hair color',
+    images_required: 1,
+  },
+  landmarks: {
+    title_ru: '🏛️ Знаменитые места',
+    title_en: '🏛️ Iconic Locations',
+    description_ru: 'Поместить себя на фоне известных достопримечательностей',
+    description_en: 'Put yourself in front of famous landmarks',
+    images_required: 1,
+  },
+  headshot: {
+    title_ru: '📸 Профессиональный портрет',
+    title_en: '📸 Professional Headshot',
+    description_ru: 'Создать профессиональный портрет из любого изображения',
+    description_en: 'Generate a professional headshot from any image',
+    images_required: 1,
+  },
+}
 
 // Создание сцены
 export const fluxKontextScene = new Scenes.BaseScene<MyContext>(
   'flux_kontext_scene'
 )
 
-// Функция для показа моделей с ценами
-const showFluxKontextModels = async (ctx: MyContext) => {
-  const isRu = isRussian(ctx)
+// Функция для создания клавиатуры выбора режима
+const createModeSelectionKeyboard = (isRu: boolean) => {
+  const keyboard = []
 
-  if (!ctx.from?.id) {
-    await ctx.reply(
-      isRu ? '❌ Ошибка получения ID пользователя' : '❌ Error getting user ID'
+  // Добавляем режимы по 2 в ряд
+  const modes = Object.entries(FLUX_MODES)
+  for (let i = 0; i < modes.length; i += 2) {
+    const row = []
+    const [modeKey1, mode1] = modes[i]
+    row.push(
+      Markup.button.callback(
+        isRu ? mode1.title_ru : mode1.title_en,
+        `flux_mode_${modeKey1}`
+      )
     )
-    await ctx.scene.leave()
-    return
+
+    if (i + 1 < modes.length) {
+      const [modeKey2, mode2] = modes[i + 1]
+      row.push(
+        Markup.button.callback(
+          isRu ? mode2.title_ru : mode2.title_en,
+          `flux_mode_${modeKey2}`
+        )
+      )
+    }
+
+    keyboard.push(row)
   }
 
-  // Получаем баланс пользователя
-  const userBalance = await getUserBalance(ctx.from.id.toString())
+  // Добавляем кнопку отмены
+  keyboard.push([
+    Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'flux_kontext_cancel'),
+  ])
 
+  return Markup.inlineKeyboard(keyboard)
+}
+
+// Функция для создания клавиатуры выбора модели
+const createModelSelectionKeyboard = (isRu: boolean) => {
   const proModel = FLUX_KONTEXT_MODELS['black-forest-labs/flux-kontext-pro']
   const maxModel = FLUX_KONTEXT_MODELS['black-forest-labs/flux-kontext-max']
 
-  // Показываем баланс пользователя
-  if (ctx.botInfo?.username) {
-    await sendBalanceMessage(
-      ctx,
-      userBalance,
-      Math.min(proModel.costPerImage, maxModel.costPerImage), // Показываем минимальную цену
-      isRu,
-      ctx.botInfo.username
-    )
-  }
-
-  const title = isRu
-    ? '🎨 *FLUX Kontext* - AI Редактирование изображений'
-    : '🎨 *FLUX Kontext* - AI Image Editing'
-
-  const description = isRu
-    ? `✨ *Что можно делать:*
-• Изменить стиль изображения
-• Добавить/удалить элементы  
-• Изменить причёску и одежду
-• Заменить фон
-• Редактировать текст на изображении
-• Художественная стилизация
-
-💰 *Стоимость:*`
-    : `✨ *What you can do:*
-• Change image style
-• Add/remove elements
-• Change hairstyle and clothing  
-• Replace background
-• Edit text in images
-• Artistic stylization
-
-💰 *Pricing:*`
-
-  const proInfo = isRu
-    ? `💼 **${proModel.shortName}** - ${proModel.costPerImage} ⭐
-${proModel.description_ru}`
-    : `💼 **${proModel.shortName}** - ${proModel.costPerImage} ⭐
-${proModel.description_en}`
-
-  const maxInfo = isRu
-    ? `🚀 **${maxModel.shortName}** - ${maxModel.costPerImage} ⭐
-${maxModel.description_ru}`
-    : `🚀 **${maxModel.shortName}** - ${maxModel.costPerImage} ⭐
-${maxModel.description_en}`
-
-  const balanceInfo = isRu
-    ? `💰 *Ваш баланс:* ${userBalance} ⭐`
-    : `💰 *Your balance:* ${userBalance} ⭐`
-
-  const footer = isRu
-    ? '👇 Выберите модель для начала:'
-    : '👇 Choose a model to start:'
-
-  const message = `${title}\n\n${description}\n\n${proInfo}\n\n${maxInfo}\n\n${balanceInfo}\n\n${footer}`
-
-  // Проверяем, хватает ли денег хотя бы на самую дешевую модель
-  const minPrice = Math.min(proModel.costPerImage, maxModel.costPerImage)
-  const canAffordPro = userBalance >= proModel.costPerImage
-  const canAffordMax = userBalance >= maxModel.costPerImage
-
-  const keyboard = []
-
-  if (canAffordPro) {
-    keyboard.push([
+  return Markup.inlineKeyboard([
+    [
       Markup.button.callback(
-        isRu
-          ? `💼 FLUX Kontext Pro (${proModel.costPerImage} ⭐)`
-          : `💼 FLUX Kontext Pro (${proModel.costPerImage} ⭐)`,
-        'flux_kontext_pro'
+        `💼 Pro (${proModel.costPerImage}⭐)`,
+        'flux_model_pro'
       ),
-    ])
-  }
-
-  if (canAffordMax) {
-    keyboard.push([
+    ],
+    [
       Markup.button.callback(
-        isRu
-          ? `🚀 FLUX Kontext Max (${maxModel.costPerImage} ⭐)`
-          : `🚀 FLUX Kontext Max (${maxModel.costPerImage} ⭐)`,
-        'flux_kontext_max'
+        `🚀 Max (${maxModel.costPerImage}⭐)`,
+        'flux_model_max'
       ),
-    ])
-  }
-
-  keyboard.push([
-    Markup.button.callback(
-      isRu ? '❌ Отмена' : '❌ Cancel',
-      'flux_kontext_cancel'
-    ),
+    ],
+    [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'flux_kontext_cancel')],
   ])
-
-  if (keyboard.length === 1) {
-    // Только кнопка отмены
-    await ctx.reply(
-      isRu
-        ? `❌ *Недостаточно средств*\n\nДля использования FLUX Kontext нужно минимум ${minPrice} ⭐\nВаш баланс: ${userBalance} ⭐`
-        : `❌ *Insufficient funds*\n\nFLUX Kontext requires at least ${minPrice} ⭐\nYour balance: ${userBalance} ⭐`,
-      {
-        parse_mode: 'Markdown',
-        reply_markup: Markup.inlineKeyboard(keyboard).reply_markup,
-      }
-    )
-  } else {
-    await ctx.reply(message, {
-      parse_mode: 'Markdown',
-      reply_markup: Markup.inlineKeyboard(keyboard).reply_markup,
-    })
-  }
 }
 
 // Вход в сцену
 fluxKontextScene.enter(async ctx => {
-  logger.info('FLUX Kontext Scene: Entering scene', {
-    telegramId: ctx.from?.id,
-  })
-
-  await showFluxKontextModels(ctx)
-})
-
-// Обработка выбора модели Pro
-fluxKontextScene.action('flux_kontext_pro', async ctx => {
   try {
-    await ctx.answerCbQuery()
+    const isRu = isRussian(ctx)
 
     if (!ctx.from?.id) {
-      await ctx.reply('❌ Error getting user ID')
-      await ctx.scene.leave()
-      return
-    }
-
-    // Проверяем баланс еще раз перед запуском
-    const userBalance = await getUserBalance(ctx.from.id.toString())
-    const proModel = FLUX_KONTEXT_MODELS['black-forest-labs/flux-kontext-pro']
-
-    if (userBalance < proModel.costPerImage) {
-      const isRu = isRussian(ctx)
       await ctx.reply(
         isRu
-          ? `❌ Недостаточно средств для FLUX Kontext Pro\nТребуется: ${proModel.costPerImage} ⭐\nВаш баланс: ${userBalance} ⭐`
-          : `❌ Insufficient funds for FLUX Kontext Pro\nRequired: ${proModel.costPerImage} ⭐\nYour balance: ${userBalance} ⭐`
+          ? '❌ Ошибка получения ID пользователя'
+          : '❌ Error getting user ID'
       )
       await ctx.scene.leave()
       return
     }
 
-    await ctx.scene.leave()
-
-    // Устанавливаем модель в сессии и запускаем команду
+    // Сброс состояния
     if (ctx.session) {
-      ctx.session.kontextSelectedModel = 'pro'
+      ctx.session.fluxKontextMode = undefined
+      ctx.session.fluxKontextImageA = undefined
+      ctx.session.fluxKontextImageB = undefined
+      ctx.session.awaitingFluxKontextImageA = false
+      ctx.session.awaitingFluxKontextImageB = false
+      ctx.session.fluxKontextStep = 'mode_select'
+      ctx.session.kontextModelType = undefined
     }
 
-    await handleFluxKontextCommand(ctx)
+    const title = isRu
+      ? '🎨 *FLUX Kontext* - Продвинутое ИИ редактирование изображений'
+      : '🎨 *FLUX Kontext* - Advanced AI Image Editing'
+
+    const description = isRu
+      ? `Выберите режим редактирования:
+
+🖼️ *Одиночное редактирование* - классическое редактирование одного изображения
+🔗 *Объединение изображений* - объединение двух изображений в одно
+👤 *Серия портретов* - создание серии портретов из одного изображения  
+💇 *Изменить стрижку* - изменение прически и цвета волос
+🏛️ *Знаменитые места* - помещение себя на фоне достопримечательностей
+📸 *Профессиональный портрет* - создание профессионального портрета
+
+💡 *Для лучших результатов пишите промпты на английском языке*`
+      : `Choose editing mode:
+
+🖼️ *Single Image Edit* - classic editing of one image
+🔗 *Multi-Image Combine* - combine two images into one
+👤 *Portrait Series* - generate a series of portraits from one image
+💇 *Change Haircut* - change hairstyle and hair color  
+🏛️ *Iconic Locations* - put yourself in front of famous landmarks
+📸 *Professional Headshot* - generate a professional headshot
+
+💡 *For best results, write prompts in English*`
+
+    await ctx.reply(title + '\n\n' + description, {
+      parse_mode: 'Markdown',
+      reply_markup: createModeSelectionKeyboard(isRu).reply_markup,
+    })
   } catch (error) {
-    logger.error('Error handling FLUX Kontext Pro selection', {
+    logger.error('Error in FLUX Kontext scene enter', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+    await ctx.scene.leave()
+  }
+})
+
+// Обработка выбора режима
+Object.keys(FLUX_MODES).forEach(modeKey => {
+  fluxKontextScene.action(`flux_mode_${modeKey}`, async ctx => {
+    try {
+      await ctx.answerCbQuery()
+      const isRu = isRussian(ctx)
+
+      if (ctx.session) {
+        ctx.session.fluxKontextMode = modeKey as any
+        ctx.session.fluxKontextStep = 'image_a'
+      }
+
+      const mode = FLUX_MODES[modeKey as keyof typeof FLUX_MODES]
+      const modeTitle = isRu ? mode.title_ru : mode.title_en
+      const modeDescription = isRu ? mode.description_ru : mode.description_en
+
+      await ctx.editMessageText(
+        isRu
+          ? `✅ *Выбран режим:* ${modeTitle}\n\n${modeDescription}\n\n📷 Отправьте ${mode.images_required === 1 ? 'изображение' : 'первое изображение'}:`
+          : `✅ *Selected mode:* ${modeTitle}\n\n${modeDescription}\n\n📷 Send ${mode.images_required === 1 ? 'an image' : 'the first image'}:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
+        }
+      )
+
+      // Устанавливаем ожидание первого изображения
+      if (ctx.session) {
+        ctx.session.awaitingFluxKontextImageA = true
+      }
+    } catch (error) {
+      logger.error('Error handling FLUX Kontext mode selection', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        telegramId: ctx.from?.id,
+        mode: modeKey,
+      })
+    }
+  })
+})
+
+// Обработка выбора модели
+fluxKontextScene.action('flux_model_pro', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    if (ctx.session) {
+      ctx.session.kontextModelType = 'pro'
+    }
+    await handleModelSelection(ctx, 'pro')
+  } catch (error) {
+    logger.error('Error selecting FLUX Kontext Pro', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
     })
   }
 })
 
-// Обработка выбора модели Max
-fluxKontextScene.action('flux_kontext_max', async ctx => {
+fluxKontextScene.action('flux_model_max', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    if (ctx.session) {
+      ctx.session.kontextModelType = 'max'
+    }
+    await handleModelSelection(ctx, 'max')
+  } catch (error) {
+    logger.error('Error selecting FLUX Kontext Max', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Функция обработки выбора модели
+const handleModelSelection = async (
+  ctx: MyContext,
+  modelType: 'pro' | 'max'
+) => {
+  const isRu = isRussian(ctx)
+  const model =
+    FLUX_KONTEXT_MODELS[`black-forest-labs/flux-kontext-${modelType}`]
+
+  await ctx.editMessageText(
+    isRu
+      ? `✅ *Выбрана модель:* FLUX Kontext ${modelType.toUpperCase()} (${model.costPerImage}⭐)\n\n📷 Теперь отправьте изображение:`
+      : `✅ *Selected model:* FLUX Kontext ${modelType.toUpperCase()} (${model.costPerImage}⭐)\n\n📷 Now send an image:`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            isRu ? 'Отмена' : 'Cancel',
+            'flux_kontext_cancel'
+          ),
+        ],
+      ]).reply_markup,
+    }
+  )
+}
+
+// Обработка изображений
+fluxKontextScene.on('photo', async ctx => {
+  try {
+    const isRu = isRussian(ctx)
+
+    if (
+      !ctx.session?.awaitingFluxKontextImageA &&
+      !ctx.session?.awaitingFluxKontextImageB
+    ) {
+      await ctx.reply(
+        isRu
+          ? '❌ Сначала выберите режим редактирования.'
+          : '❌ Please select an editing mode first.'
+      )
+      return
+    }
+
+    const photo = ctx.message.photo?.pop()
+    if (!photo) {
+      await ctx.reply(
+        isRu ? '❌ Не удалось получить изображение.' : '❌ Failed to get image.'
+      )
+      return
+    }
+
+    const fileLink = await ctx.telegram.getFileLink(photo.file_id)
+
+    if (ctx.session?.awaitingFluxKontextImageA) {
+      // Обработка первого изображения
+      if (ctx.session) {
+        ctx.session.fluxKontextImageA = fileLink.href
+        ctx.session.awaitingFluxKontextImageA = false
+      }
+
+      const mode =
+        FLUX_MODES[ctx.session?.fluxKontextMode as keyof typeof FLUX_MODES]
+
+      if (mode?.images_required === 2) {
+        // Нужно второе изображение
+        if (ctx.session) {
+          ctx.session.awaitingFluxKontextImageB = true
+          ctx.session.fluxKontextStep = 'image_b'
+        }
+
+        await ctx.reply(
+          isRu
+            ? '✅ Первое изображение получено!\n\n📷 Теперь отправьте второе изображение:'
+            : '✅ First image received!\n\n📷 Now send the second image:',
+          {
+            reply_markup: Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  isRu ? 'Отмена' : 'Cancel',
+                  'flux_kontext_cancel'
+                ),
+              ],
+            ]).reply_markup,
+          }
+        )
+      } else {
+        // Достаточно одного изображения, переходим к промпту
+        await requestPrompt(ctx)
+      }
+    } else if (ctx.session?.awaitingFluxKontextImageB) {
+      // Обработка второго изображения
+      if (ctx.session) {
+        ctx.session.fluxKontextImageB = fileLink.href
+        ctx.session.awaitingFluxKontextImageB = false
+      }
+
+      await ctx.reply(
+        isRu ? '✅ Второе изображение получено!' : '✅ Second image received!'
+      )
+
+      await requestPrompt(ctx)
+    }
+  } catch (error) {
+    logger.error('Error handling FLUX Kontext image', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Функция запроса промпта
+const requestPrompt = async (ctx: MyContext) => {
+  const isRu = isRussian(ctx)
+  const mode =
+    FLUX_MODES[ctx.session?.fluxKontextMode as keyof typeof FLUX_MODES]
+
+  if (ctx.session) {
+    ctx.session.fluxKontextStep = 'prompt'
+    ctx.session.awaitingFluxKontextPrompt = true
+  }
+
+  let promptExamples = ''
+
+  // Добавляем специфичные примеры для каждого режима
+  switch (ctx.session?.fluxKontextMode) {
+    case 'multi':
+      promptExamples = isRu
+        ? `\n\n💡 *Примеры для объединения:*\n• "combine these two people in one photo"\n• "merge the backgrounds seamlessly"\n• "blend the lighting from both images"`
+        : `\n\n💡 *Examples for combining:*\n• "combine these two people in one photo"\n• "merge the backgrounds seamlessly"\n• "blend the lighting from both images"`
+      break
+    case 'portrait_series':
+      promptExamples = isRu
+        ? `\n\n💡 *Примеры для серии портретов:*\n• "create 4 different professional portraits"\n• "show different emotions and expressions"\n• "various lighting setups"`
+        : `\n\n💡 *Examples for portrait series:*\n• "create 4 different professional portraits"\n• "show different emotions and expressions"\n• "various lighting setups"`
+      break
+    case 'haircut':
+      promptExamples = isRu
+        ? `\n\n💡 *Примеры для стрижки:*\n• "give her a bob haircut"\n• "change hair color to blonde"\n• "modern short hairstyle"`
+        : `\n\n💡 *Examples for haircut:*\n• "give her a bob haircut"\n• "change hair color to blonde"\n• "modern short hairstyle"`
+      break
+    case 'landmarks':
+      promptExamples = isRu
+        ? `\n\n💡 *Примеры для достопримечательностей:*\n• "put in front of Eiffel Tower"\n• "Times Square background"\n• "standing at the Great Wall of China"`
+        : `\n\n💡 *Examples for landmarks:*\n• "put in front of Eiffel Tower"\n• "Times Square background"\n• "standing at the Great Wall of China"`
+      break
+    case 'headshot':
+      promptExamples = isRu
+        ? `\n\n💡 *Примеры для профессионального портрета:*\n• "professional business headshot"\n• "corporate portrait with neutral background"\n• "LinkedIn profile photo style"`
+        : `\n\n💡 *Examples for professional headshot:*\n• "professional business headshot"\n• "corporate portrait with neutral background"\n• "LinkedIn profile photo style"`
+      break
+    default:
+      promptExamples = isRu
+        ? `\n\n💡 *Общие примеры:*\n• "add sunglasses"\n• "change background to beach"\n• "make it vintage style"`
+        : `\n\n💡 *General examples:*\n• "add sunglasses"\n• "change background to beach"\n• "make it vintage style"`
+  }
+
+  await ctx.reply(
+    isRu
+      ? `📝 *Опишите изменения:*\n\nТеперь опишите, что вы хотите изменить или как обработать изображение${mode ? ` в режиме "${isRu ? mode.title_ru : mode.title_en}"` : ''}.${promptExamples}\n\n🌐 *Для лучших результатов пишите на английском языке*`
+      : `📝 *Describe changes:*\n\nNow describe what you want to change or how to process the image${mode ? ` in "${isRu ? mode.title_ru : mode.title_en}" mode` : ''}.${promptExamples}\n\n🌐 *For best results, write in English*`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            isRu ? 'Отмена' : 'Cancel',
+            'flux_kontext_cancel'
+          ),
+        ],
+      ]).reply_markup,
+    }
+  )
+}
+
+// Обработка текстовых сообщений (промптов)
+fluxKontextScene.on('text', async ctx => {
+  try {
+    const isRu = isRussian(ctx)
+
+    if (!ctx.session?.awaitingFluxKontextPrompt) {
+      await ctx.reply(
+        isRu
+          ? '❌ Сначала отправьте изображение.'
+          : '❌ Please send an image first.'
+      )
+      return
+    }
+
+    const prompt = ctx.message.text
+
+    if (!prompt) {
+      await ctx.reply(isRu ? '❌ Пустой промпт.' : '❌ Empty prompt.')
+      return
+    }
+
+    // Очищаем состояние ожидания
+    if (ctx.session) {
+      ctx.session.awaitingFluxKontextPrompt = false
+      ctx.session.fluxKontextStep = 'processing'
+    }
+
+    await ctx.reply(
+      isRu
+        ? '✅ Промпт получен! Начинаю обработку изображения...'
+        : '✅ Prompt received! Starting image processing...',
+      {
+        reply_markup: {
+          remove_keyboard: true,
+        },
+      }
+    )
+
+    // Здесь будет вызов функции генерации
+    await processFluxKontextRequest(ctx, prompt)
+  } catch (error) {
+    logger.error('Error handling FLUX Kontext prompt', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Функция обработки запроса (теперь с реальной интеграцией)
+const processFluxKontextRequest = async (ctx: MyContext, prompt: string) => {
+  const isRu = isRussian(ctx)
+
+  // Получаем данные из сессии
+  const {
+    fluxKontextMode,
+    fluxKontextImageA,
+    fluxKontextImageB,
+    kontextModelType,
+  } = ctx.session || {}
+
+  // Валидация данных
+  if (
+    !fluxKontextMode ||
+    !fluxKontextImageA ||
+    !kontextModelType ||
+    !ctx.from?.id
+  ) {
+    logger.error('Missing required data for FLUX Kontext processing', {
+      telegramId: ctx.from?.id,
+      mode: fluxKontextMode,
+      hasImageA: !!fluxKontextImageA,
+      modelType: kontextModelType,
+    })
+
+    await ctx.reply(
+      isRu
+        ? '❌ Ошибка: недостаточно данных для обработки.'
+        : '❌ Error: insufficient data for processing.'
+    )
+    return
+  }
+
+  logger.info('Processing FLUX Kontext request', {
+    telegramId: ctx.from?.id,
+    mode: fluxKontextMode,
+    modelType: kontextModelType,
+    hasImageA: !!fluxKontextImageA,
+    hasImageB: !!fluxKontextImageB,
+    prompt: prompt.substring(0, 100) + '...',
+  })
+
+  try {
+    // Импортируем и используем продвинутый сервис
+    const { generateAdvancedFluxKontext } = await import(
+      '../../services/generateFluxKontext'
+    )
+
+    const result = await generateAdvancedFluxKontext({
+      prompt,
+      mode: fluxKontextMode,
+      imageA: fluxKontextImageA,
+      imageB: fluxKontextImageB,
+      modelType: kontextModelType,
+      telegram_id: ctx.from.id.toString(),
+      username: ctx.from.username || 'unknown',
+      is_ru: isRu,
+      ctx,
+    })
+
+    logger.info('FLUX Kontext processing completed successfully', {
+      telegramId: ctx.from.id,
+      promptId: result.prompt_id,
+    })
+
+    // Очищаем сессию после успешной обработки
+    if (ctx.session) {
+      ctx.session.fluxKontextMode = undefined
+      ctx.session.fluxKontextImageA = undefined
+      ctx.session.fluxKontextImageB = undefined
+      ctx.session.fluxKontextStep = undefined
+      ctx.session.kontextModelType = undefined
+    }
+  } catch (error) {
+    logger.error('Error in FLUX Kontext processing', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+
+    // Ошибка уже обработана в сервисе, но добавляем дополнительную обработку если нужно
+    if (ctx.session) {
+      ctx.session.fluxKontextMode = undefined
+      ctx.session.fluxKontextImageA = undefined
+      ctx.session.fluxKontextImageB = undefined
+      ctx.session.fluxKontextStep = undefined
+      ctx.session.kontextModelType = undefined
+    }
+  }
+}
+
+// Обработка кнопки "Ещё редактирование"
+fluxKontextScene.action('flux_more_editing', async ctx => {
   try {
     await ctx.answerCbQuery()
 
-    if (!ctx.from?.id) {
-      await ctx.reply('❌ Error getting user ID')
-      await ctx.scene.leave()
-      return
-    }
-
-    // Проверяем баланс еще раз перед запуском
-    const userBalance = await getUserBalance(ctx.from.id.toString())
-    const maxModel = FLUX_KONTEXT_MODELS['black-forest-labs/flux-kontext-max']
-
-    if (userBalance < maxModel.costPerImage) {
-      const isRu = isRussian(ctx)
-      await ctx.reply(
-        isRu
-          ? `❌ Недостаточно средств для FLUX Kontext Max\nТребуется: ${maxModel.costPerImage} ⭐\nВаш баланс: ${userBalance} ⭐`
-          : `❌ Insufficient funds for FLUX Kontext Max\nRequired: ${maxModel.costPerImage} ⭐\nYour balance: ${userBalance} ⭐`
-      )
-      await ctx.scene.leave()
-      return
-    }
-
-    await ctx.scene.leave()
-
-    // Устанавливаем модель в сессии и запускаем команду
+    // Сброс состояния и возврат к выбору режима
     if (ctx.session) {
-      ctx.session.kontextSelectedModel = 'max'
+      ctx.session.fluxKontextMode = undefined
+      ctx.session.fluxKontextImageA = undefined
+      ctx.session.fluxKontextImageB = undefined
+      ctx.session.awaitingFluxKontextImageA = false
+      ctx.session.awaitingFluxKontextImageB = false
+      ctx.session.awaitingFluxKontextPrompt = false
+      ctx.session.fluxKontextStep = 'mode_select'
+      ctx.session.kontextModelType = undefined
     }
 
-    await handleFluxKontextCommand(ctx)
+    // Перезапускаем сцену
+    await ctx.scene.reenter()
   } catch (error) {
-    logger.error('Error handling FLUX Kontext Max selection', {
+    logger.error('Error handling more editing', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
     })
@@ -245,19 +603,18 @@ fluxKontextScene.action('flux_kontext_cancel', async ctx => {
     const isRu = isRussian(ctx)
 
     await ctx.reply(
-      isRu ? '❌ Действие отменено.' : '❌ Action cancelled.',
-      Markup.keyboard([
-        [
-          Markup.button.text(
-            isRu ? levels[104].title_ru : levels[104].title_en
-          ),
-        ],
-      ]).resize()
+      isRu
+        ? '❌ Процесс отменён. Возвращаюсь в главное меню.'
+        : '❌ Process cancelled. Returning to main menu.',
+      {
+        reply_markup: {
+          remove_keyboard: true,
+        },
+      }
     )
 
     await ctx.scene.leave()
-    // Переходим в главное меню после отмены
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    await ctx.scene.enter('main_menu')
   } catch (error) {
     logger.error('Error handling FLUX Kontext cancel', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -265,5 +622,3 @@ fluxKontextScene.action('flux_kontext_cancel', async ctx => {
     })
   }
 })
-
-export default fluxKontextScene
