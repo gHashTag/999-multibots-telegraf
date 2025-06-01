@@ -8,6 +8,7 @@ import { handleFluxKontextCommand } from '@/commands/fluxKontextCommand'
 import { levels } from '@/menu/mainMenu'
 import { getUserBalance } from '@/core/supabase'
 import { sendBalanceMessage } from '@/price/helpers'
+import { ModeEnum } from '@/interfaces'
 
 // Создание сцены
 export const fluxKontextScene = new Scenes.BaseScene<MyContext>(
@@ -255,6 +256,8 @@ fluxKontextScene.action('flux_kontext_cancel', async ctx => {
     )
 
     await ctx.scene.leave()
+    // Переходим в главное меню после отмены
+    await ctx.scene.enter(ModeEnum.MainMenu)
   } catch (error) {
     logger.error('Error handling FLUX Kontext cancel', {
       error: error instanceof Error ? error.message : 'Unknown error',
