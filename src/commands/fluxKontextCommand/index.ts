@@ -136,8 +136,8 @@ export const handleFluxKontextImageUpload = async (ctx: MyContext) => {
 
     if (ctx.message && 'photo' in ctx.message && ctx.message.photo) {
       const photo = ctx.message.photo[ctx.message.photo.length - 1]
-      // Используем getFileLink вместо ручного построения URL
-      imageUrl = await ctx.telegram.getFileLink(photo.file_id)
+      // Используем getFileLink вместо ручного построения URL и преобразуем URL в строку
+      imageUrl = (await ctx.telegram.getFileLink(photo.file_id)).toString()
     }
 
     if (!imageUrl) {
