@@ -231,6 +231,14 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   gender?: string
   isAdminTest?: boolean
   isSizeFresh?: boolean
+
+  // FLUX Kontext fields
+  awaitingFluxKontextImage?: boolean
+  awaitingFluxKontextModel?: boolean
+  awaitingFluxKontextPrompt?: boolean
+  kontextImageUrl?: string
+  kontextModelType?: 'pro' | 'max'
+  kontextSelectedModel?: 'pro' | 'max' // Для предварительного выбора модели в сцене
 }
 
 export interface MyContext extends Context {

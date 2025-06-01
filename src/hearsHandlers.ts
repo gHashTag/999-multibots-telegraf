@@ -14,6 +14,12 @@ import { SubscriptionType } from './interfaces/subscription.interface'
 // import { handleRestartVideoGeneration } from './handlers/handleVideoRestart' // Закомментировано, так как кнопка неясна
 import { getUserProfileAndSettings } from '@/db/userSettings'
 import { checkSubscriptionGuard } from './helpers/subscriptionGuard'
+// Импортируем обработчики FLUX Kontext
+import {
+  handleFluxKontextImageUpload,
+  handleFluxKontextModelSelection,
+  handleFluxKontextPrompt,
+} from './commands/fluxKontextCommand'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
@@ -114,6 +120,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       return // Пользователь перенаправлен в subscriptionScene
     }
 
+    await ctx.scene.leave()
     ctx.session.mode = ModeEnum.NeuroPhoto
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
@@ -286,6 +293,26 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
       ctx.session.mode = ModeEnum.TextToImage
       await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    }
+  )
+
+  bot.hears(
+    [levels[12].title_ru, levels[12].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для FLUX Kontext от ${ctx.from?.id}`)
+
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в FLUX Kontext
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        '🎨 FLUX Kontext'
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      // Входим в сцену выбора модели FLUX Kontext
+      await ctx.scene.leave()
+      await ctx.scene.enter('flux_kontext_scene')
     }
   )
 
@@ -683,6 +710,64 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     await ctx.scene.leave()
     ctx.session.mode = ModeEnum.NeuroPhoto
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+  })
+
+  // === FLUX KONTEXT ОБРАБОТЧИКИ ===
+  bot.hears(['💼 FLUX Kontext Pro'], async ctx => {
+    logger.info('GLOBAL HEARS: FLUX Kontext Pro selected', {
+      telegramId: ctx.from?.id,
+    })
+    await handleFluxKontextModelSelection(ctx, 'pro')
+  })
+
+  bot.hears(['🚀 FLUX Kontext Max'], async ctx => {
+    logger.info('GLOBAL HEARS: FLUX Kontext Max selected', {
+      telegramId: ctx.from?.id,
+    })
+    await handleFluxKontextModelSelection(ctx, 'max')
+  })
+
+  // Обработчик для кнопок результата редактирования
+  bot.hears(['✨ Ещё редактирование', '✨ More editing'], async ctx => {
+    logger.info('GLOBAL HEARS: More editing requested', {
+      telegramId: ctx.from?.id,
+    })
+
+    await ctx.reply(
+      isRussian(ctx)
+        ? '📷 Отправьте новое изображение для редактирования:'
+        : '📷 Send a new image for editing:',
+      {
+        reply_markup: {
+          remove_keyboard: true,
+        },
+      }
+    )
+
+    if (ctx.session) {
+      ctx.session.awaitingFluxKontextImage = true
+    }
+  })
+
+  bot.hears(['🔙 Назад к оригиналу', '🔙 Back to original'], async ctx => {
+    logger.info('GLOBAL HEARS: Back to original requested', {
+      telegramId: ctx.from?.id,
+    })
+
+    await ctx.reply(
+      isRussian(ctx)
+        ? '📷 Отправьте оригинальное изображение заново:'
+        : '📷 Send the original image again:',
+      {
+        reply_markup: {
+          remove_keyboard: true,
+        },
+      }
+    )
+
+    if (ctx.session) {
+      ctx.session.awaitingFluxKontextImage = true
+    }
   })
 }
 //

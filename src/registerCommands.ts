@@ -22,6 +22,8 @@ import {
 } from './handlers/adminCommands'
 // Импортируем команду анализа расходов
 import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
+// Импортируем FLUX Kontext команду
+import { handleFluxKontextCommand } from './commands/fluxKontextCommand'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -60,6 +62,7 @@ import {
   createUserScene,
   checkBalanceScene,
   uploadVideoScene,
+  fluxKontextScene,
 } from './scenes'
 
 import { defaultSession } from './store'
@@ -96,6 +99,7 @@ export const stage = new Scenes.Stage<MyContext>([
   uploadTrainFluxModelScene,
   uploadVideoScene,
   sizeWizard,
+  fluxKontextScene,
   new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
   new Scenes.WizardScene(
     ModeEnum.TextToSpeech,
@@ -281,6 +285,25 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     }
 
     return priceCommand(ctx)
+  })
+
+  bot.command('kontext', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+
+    // ✅ ЗАЩИТА: Проверяем подписку перед использованием FLUX Kontext
+    const hasSubscription = await checkSubscriptionGuard(ctx, '/kontext')
+    if (!hasSubscription) {
+      return // Пользователь перенаправлен в subscriptionScene
+    }
+
+    logger.info('COMMAND /kontext: FLUX Kontext image editing started', {
+      telegramId: ctx.from?.id,
+    })
+
+    await ctx.scene.leave() // Выходим из текущей сцены
+    await handleFluxKontextCommand(ctx)
   })
 
   // 🎯 ИНТЕРАКТИВНАЯ КОМАНДА СТАТИСТИКИ
@@ -527,6 +550,28 @@ If not, continue on your own and click the "I myself" button`
   // Оставляем только handleTextMessage, который, вероятно,
   // предназначен для обработки текста ВНУТРИ сцен.
   bot.on(message('text'), handleTextMessage)
+
+  // Обработчик фото для FLUX Kontext
+  bot.on(message('photo'), async ctx => {
+    logger.info('GLOBAL PHOTO HANDLER: Photo received', {
+      telegramId: ctx.from?.id,
+      awaitingFluxKontextImage: ctx.session?.awaitingFluxKontextImage,
+    })
+
+    // Проверяем, ожидает ли пользователь загрузку изображения для FLUX Kontext
+    if (ctx.session?.awaitingFluxKontextImage) {
+      const { handleFluxKontextImageUpload } = await import(
+        './commands/fluxKontextCommand'
+      )
+      await handleFluxKontextImageUpload(ctx)
+      return
+    }
+
+    // Если не ожидаем FLUX Kontext изображение, передаем дальше
+    logger.info('GLOBAL PHOTO HANDLER: Photo not for FLUX Kontext, skipping', {
+      telegramId: ctx.from?.id,
+    })
+  })
 
   console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')
   console.log(
