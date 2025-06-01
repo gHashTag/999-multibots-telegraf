@@ -2,6 +2,7 @@ import { answerAi } from '../../core/openai/requests'
 import { getUserModel, getUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
+import { handleFluxKontextPrompt } from '../../commands/fluxKontextCommand'
 
 export async function handleTextMessage(
   ctx: MyContext,
@@ -22,6 +23,21 @@ export async function handleTextMessage(
     console.warn('[handleTextMessage] Missing essential context properties', {
       ctx,
     })
+    return
+  }
+
+  // === FLUX KONTEXT ОБРАБОТКА ===
+  // Проверяем, ожидает ли пользователь ввод промпта для FLUX Kontext
+  if (
+    ctx.session?.awaitingFluxKontextPrompt &&
+    ctx.message &&
+    'text' in ctx.message
+  ) {
+    console.log('[handleTextMessage] Processing FLUX Kontext prompt', {
+      telegramId: ctx.from?.id,
+      prompt: ctx.message.text.substring(0, 50) + '...',
+    })
+    await handleFluxKontextPrompt(ctx, ctx.message.text)
     return
   }
 
