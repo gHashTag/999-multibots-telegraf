@@ -52,6 +52,6 @@ message_for_ambassadors.txt
 *.txt
 
 # development files
-tsconfig.json
+
 .nvmrc
 .tool-versions
