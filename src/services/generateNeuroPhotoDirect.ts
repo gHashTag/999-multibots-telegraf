@@ -21,6 +21,7 @@ import { ApiResponse } from '@/interfaces/api.interface'
 import { BotName } from '@/interfaces/telegram-bot.interface'
 import crypto from 'crypto'
 import { supabase } from '@/core/supabase'
+import { Markup } from 'telegraf'
 
 // --- Локальный кэш для идемпотентности ---
 const idemCache = new Map<string, { result: any; expiresAt: number }>()
@@ -625,7 +626,20 @@ export async function generateNeuroPhotoDirect(
           // ОТПРАВЛЯЕМ ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЮ В ЛИЧНЫЕ СООБЩЕНИЯ
           try {
             if (!options?.disable_telegram_sending) {
-              await bot.telegram.sendPhoto(telegram_id, { url: imageUrl })
+              // Добавляем caption с информацией о нейрофото и кнопки
+              const caption = is_ru
+                ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость: ${costPerImage} ⭐`
+                : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost: ${costPerImage} ⭐`
+
+              await bot.telegram.sendPhoto(
+                telegram_id,
+                { url: imageUrl },
+                {
+                  caption,
+                  reply_markup:
+                    createNeuroPhotoResultKeyboard(is_ru).reply_markup,
+                }
+              )
 
               logger.info({
                 message: '📸 [DIRECT] Изображение отправлено пользователю',
@@ -963,4 +977,32 @@ export async function generateNeuroPhotoDirect(
 
     return null
   }
+}
+
+// Создание клавиатуры для результатов нейрофотографий
+const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback(
+        is_ru ? '🆕 Новый промпт' : '🆕 New prompt',
+        'new_neurophoto_prompt'
+      ),
+      Markup.button.callback(
+        is_ru ? '📐 Изменить размер' : '📐 Change size',
+        'change_size'
+      ),
+    ],
+    [
+      Markup.button.callback(
+        is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
+        'improve_prompt'
+      ),
+    ],
+    [
+      Markup.button.callback(
+        is_ru ? '🏠 Главное меню' : '🏠 Main menu',
+        'go_main_menu'
+      ),
+    ],
+  ])
 }
