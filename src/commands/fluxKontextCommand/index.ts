@@ -5,6 +5,10 @@ import {
 } from '@/services/generateFluxKontext'
 import { Markup } from 'telegraf'
 import { logger } from '@/utils/logger'
+import { cancelMenu } from '@/menu/cancelMenu'
+import { cancelHelpArray } from '@/menu/cancelHelpArray'
+import { ModeEnum } from '@/interfaces'
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
 // Создание клавиатуры выбора модели
 const createModelSelectionKeyboard = (is_ru: boolean) => {
@@ -13,7 +17,7 @@ const createModelSelectionKeyboard = (is_ru: boolean) => {
       { text: is_ru ? '💼 FLUX Kontext Pro' : '💼 FLUX Kontext Pro' },
       { text: is_ru ? '🚀 FLUX Kontext Max' : '🚀 FLUX Kontext Max' },
     ],
-    [{ text: is_ru ? '❌ Отмена' : '❌ Cancel' }],
+    ...cancelHelpArray(is_ru),
   ])
     .resize()
     .oneTime(true)
@@ -92,15 +96,14 @@ export const handleFluxKontextCommand = async (ctx: MyContext) => {
         ? '📷 Отправьте изображение, которое хотите отредактировать:'
         : '📷 Send an image you want to edit:',
       {
-        reply_markup: {
-          remove_keyboard: true,
-        },
+        reply_markup: cancelMenu(is_ru).reply_markup,
       }
     )
 
     // Устанавливаем сессию для ожидания изображения
     if (ctx.session) {
       ctx.session.awaitingFluxKontextImage = true
+      ctx.session.mode = ModeEnum.FluxKontext // Устанавливаем режим для справки
     }
   } catch (error) {
     logger.error('Error in FLUX Kontext command', {
@@ -168,12 +171,11 @@ export const handleFluxKontextImageUpload = async (ctx: MyContext) => {
 
         await ctx.reply(
           is_ru
-            ? `✅ Выбрана модель: ${modelName}\n\n📝 Теперь опишите, что вы хотите изменить в изображении:\n\n💡 Примеры:\n• "добавь золотое ожерелье"\n• "сделай фон в виде пляжа"\n• "измени цвет волос на рыжий"\n• "сделай в стиле винтажной фотографии"`
-            : `✅ Selected model: ${modelName}\n\n📝 Now describe what you want to change in the image:\n\n💡 Examples:\n• "add a gold necklace"\n• "change background to a beach"\n• "change hair color to red"\n• "make it vintage photography style"`,
+            ? `✅ Выбрана модель: ${modelName}\n\n📝 Теперь опишите, что вы хотите изменить в изображении:\n\n💡 Примеры:\n• "добавь золотое ожерелье"\n• "сделай фон в виде пляжа"\n• "измени цвет волос на рыжий"\n• "сделай в стиле винтажной фотографии"\n\n🌐 *Совет: Для лучших результатов пишите промпт на английском языке*`
+            : `✅ Selected model: ${modelName}\n\n📝 Now describe what you want to change in the image:\n\n💡 Examples:\n• "add a gold necklace"\n• "change background to a beach"\n• "change hair color to red"\n• "make it vintage photography style"\n\n🌐 *Tip: For best results, write your prompt in English*`,
           {
-            reply_markup: {
-              remove_keyboard: true,
-            },
+            reply_markup: cancelMenu(is_ru).reply_markup,
+            parse_mode: 'Markdown',
           }
         )
       } else {
@@ -237,12 +239,11 @@ export const handleFluxKontextModelSelection = async (
 
     await ctx.reply(
       is_ru
-        ? `✅ Выбрана модель: ${modelName}\n\n📝 Теперь опишите, что вы хотите изменить в изображении:\n\n💡 Примеры:\n• "добавь золотое ожерелье"\n• "сделай фон в виде пляжа"\n• "измени цвет волос на рыжий"\n• "сделай в стиле винтажной фотографии"`
-        : `✅ Selected model: ${modelName}\n\n📝 Now describe what you want to change in the image:\n\n💡 Examples:\n• "add a gold necklace"\n• "change background to a beach"\n• "change hair color to red"\n• "make it vintage photography style"`,
+        ? `✅ Выбрана модель: ${modelName}\n\n📝 Теперь опишите, что вы хотите изменить в изображении:\n\n💡 Примеры:\n• "добавь золотое ожерелье"\n• "сделай фон в виде пляжа"\n• "измени цвет волос на рыжий"\n• "сделай в стиле винтажной фотографии"\n\n🌐 *Совет: Для лучших результатов пишите промпт на английском языке*`
+        : `✅ Selected model: ${modelName}\n\n📝 Now describe what you want to change in the image:\n\n💡 Examples:\n• "add a gold necklace"\n• "change background to a beach"\n• "change hair color to red"\n• "make it vintage photography style"\n\n🌐 *Tip: For best results, write your prompt in English*`,
       {
-        reply_markup: {
-          remove_keyboard: true,
-        },
+        reply_markup: cancelMenu(is_ru).reply_markup,
+        parse_mode: 'Markdown',
       }
     )
   } catch (error) {

@@ -21,8 +21,94 @@ import {
   handleFluxKontextPrompt,
 } from './commands/fluxKontextCommand'
 
+// Импортируем функцию upscaling
+import { upscaleFluxKontextImage } from './services/generateFluxKontext'
+
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
+
+  // Добавляем глобальный логгер для всех текстовых сообщений
+  bot.on('text', (ctx, next) => {
+    console.log('📨 ALL TEXT MESSAGES:', {
+      telegramId: ctx.from?.id,
+      text: ctx.message?.text,
+      hasSession: !!ctx.session,
+      sessionKeys: ctx.session ? Object.keys(ctx.session) : 'no session',
+    })
+    return next()
+  })
+
+  // ПЕРЕНОСИМ UPSCALE ОБРАБОТЧИК В САМОЕ НАЧАЛО ДЛЯ ТЕСТИРОВАНИЯ
+  console.log('🔧 DEBUG: Registering Upscale hears handler AT THE TOP...')
+  bot.hears(
+    ['⬆️ Увеличить качество', '⬆️ Upscale', /Увеличить качество/, /Upscale/],
+    async ctx => {
+      console.log('🚨 DEBUG: Upscale hears handler triggered!', {
+        messageText: ctx.message?.text,
+      })
+      logger.info('GLOBAL HEARS: Upscale requested', {
+        telegramId: ctx.from?.id,
+      })
+
+      console.log('🔍 DEBUG: Upscale button pressed!', {
+        from: ctx.from?.id,
+        text: ctx.message?.text || 'no text',
+        session: {
+          lastImageUrl: ctx.session?.lastGeneratedImageUrl || 'none',
+          lastPrompt: ctx.session?.lastGeneratedPrompt || 'none',
+        },
+      })
+
+      try {
+        const telegram_id = ctx.from?.id?.toString()
+        const username = ctx.from?.username || ''
+        const is_ru = isRussian(ctx)
+
+        if (!telegram_id) {
+          await ctx.reply(
+            is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
+          )
+          return
+        }
+
+        // Проверяем, есть ли сохраненное изображение для upscaling
+        if (!ctx.session?.lastGeneratedImageUrl) {
+          await ctx.reply(
+            is_ru
+              ? '❌ Нет изображения для увеличения качества. Сначала сгенерируйте изображение с помощью FLUX Kontext.'
+              : '❌ No image to upscale. Please generate an image with FLUX Kontext first.',
+            {
+              reply_markup: {
+                remove_keyboard: true,
+              },
+            }
+          )
+          return
+        }
+
+        // Запускаем upscaling
+        await upscaleFluxKontextImage({
+          imageUrl: ctx.session.lastGeneratedImageUrl,
+          telegram_id,
+          username,
+          is_ru,
+          ctx,
+          originalPrompt: ctx.session.lastGeneratedPrompt,
+        })
+      } catch (error) {
+        logger.error('Error in Upscale hears handler:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+
+        await ctx.reply(
+          isRussian(ctx)
+            ? '❌ Произошла ошибка при увеличении качества изображения.'
+            : '❌ An error occurred while upscaling the image.'
+        )
+      }
+    }
+  )
 
   // === НАВИГАЦИОННЫЕ ОБРАБОТЧИКИ ===
   bot.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
@@ -717,6 +803,12 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     logger.info('GLOBAL HEARS: FLUX Kontext Pro selected', {
       telegramId: ctx.from?.id,
     })
+
+    // Устанавливаем режим для справки
+    if (ctx.session) {
+      ctx.session.mode = ModeEnum.FluxKontext
+    }
+
     await handleFluxKontextModelSelection(ctx, 'pro')
   })
 
@@ -724,6 +816,12 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     logger.info('GLOBAL HEARS: FLUX Kontext Max selected', {
       telegramId: ctx.from?.id,
     })
+
+    // Устанавливаем режим для справки
+    if (ctx.session) {
+      ctx.session.mode = ModeEnum.FluxKontext
+    }
+
     await handleFluxKontextModelSelection(ctx, 'max')
   })
 
@@ -749,25 +847,15 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   })
 
-  bot.hears(['🔙 Назад к оригиналу', '🔙 Back to original'], async ctx => {
-    logger.info('GLOBAL HEARS: Back to original requested', {
+  // Новые обработчики для продвинутого FLUX Kontext
+  bot.hears(['🔄 Другой режим', '🔄 Different mode'], async ctx => {
+    logger.info('GLOBAL HEARS: Different mode requested', {
       telegramId: ctx.from?.id,
     })
 
-    await ctx.reply(
-      isRussian(ctx)
-        ? '📷 Отправьте оригинальное изображение заново:'
-        : '📷 Send the original image again:',
-      {
-        reply_markup: {
-          remove_keyboard: true,
-        },
-      }
-    )
-
-    if (ctx.session) {
-      ctx.session.awaitingFluxKontextImage = true
-    }
+    // Возвращаемся к продвинутой сцене FLUX Kontext
+    await ctx.scene.leave()
+    await ctx.scene.enter('flux_kontext_scene')
   })
 }
 //
