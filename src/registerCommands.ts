@@ -439,6 +439,37 @@ If not, continue on your own and click the "I myself" button`
     }
   })
 
+  // Обработчик для текстовой кнопки "🆕 Новый промпт"
+  bot.hears(['🆕 Новый промпт', '🆕 New prompt'], async ctx => {
+    logger.info('HEARS: new_neurophoto_prompt', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      const is_ru = ctx.from?.language_code === 'ru'
+
+      // Переходим в сцену нейрофото
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.NeuroPhoto
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+
+      await ctx.reply(
+        is_ru
+          ? '🆕 Начинаем создание нового нейрофото! Опишите, какую фотографию вы хотите сгенерировать.'
+          : '🆕 Starting creation of a new neurophoto! Describe what kind of photo you want to generate.'
+      )
+    } catch (error) {
+      logger.error('Error in new_neurophoto_prompt hears:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply(
+        ctx.from?.language_code === 'ru'
+          ? '❌ Произошла ошибка при создании нового промпта.'
+          : '❌ An error occurred while creating a new prompt.'
+      )
+    }
+  })
+
   // ВСЕ ОСТАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ПЕРЕНЕСЕНЫ В hearsHandlers.ts
 
   // 6. ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ НАВИГАЦИИ (ACTION) (теперь ПОСЛЕ stage)
@@ -657,6 +688,86 @@ If not, continue on your own and click the "I myself" button`
         error,
         telegramId: ctx.from?.id,
       })
+    }
+  })
+
+  // НОВЫЕ ОБРАБОТЧИКИ ДЛЯ INLINE КНОПОК НЕЙРОФОТО
+  bot.action('new_neurophoto_prompt', async ctx => {
+    logger.info('GLOBAL ACTION: new_neurophoto_prompt', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+      const is_ru = ctx.from?.language_code === 'ru'
+
+      // Переходим в сцену нейрофото
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.NeuroPhoto
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+
+      await ctx.reply(
+        is_ru
+          ? '🆕 Начинаем создание нового нейрофото! Опишите, какую фотографию вы хотите сгенерировать.'
+          : '🆕 Starting creation of a new neurophoto! Describe what kind of photo you want to generate.'
+      )
+    } catch (error) {
+      logger.error('Error in new_neurophoto_prompt action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply(
+        ctx.from?.language_code === 'ru'
+          ? '❌ Произошла ошибка при создании нового промпта.'
+          : '❌ An error occurred while creating a new prompt.'
+      )
+    }
+  })
+
+  bot.action('change_size', async ctx => {
+    logger.info('GLOBAL ACTION: change_size', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+      const is_ru = ctx.from?.language_code === 'ru'
+
+      // Переходим в сцену изменения размера
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.SizeWizard)
+    } catch (error) {
+      logger.error('Error in change_size action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply(
+        ctx.from?.language_code === 'ru'
+          ? '❌ Произошла ошибка при изменении размера.'
+          : '❌ An error occurred while changing size.'
+      )
+    }
+  })
+
+  bot.action('improve_prompt', async ctx => {
+    logger.info('GLOBAL ACTION: improve_prompt', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+      const is_ru = ctx.from?.language_code === 'ru'
+
+      // Переходим в сцену улучшения промпта
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
+    } catch (error) {
+      logger.error('Error in improve_prompt action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply(
+        ctx.from?.language_code === 'ru'
+          ? '❌ Произошла ошибка при улучшении промпта.'
+          : '❌ An error occurred while improving prompt.'
+      )
     }
   })
 
