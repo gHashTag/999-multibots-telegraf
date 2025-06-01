@@ -147,3 +147,77 @@ export const setPayments = async ({
     })
   }
 }
+
+/**
+ * Функция для обновления subscription_type пользователя в последней записи
+ * Используется для исправления данных пользователей
+ */
+export const updateUserSubscriptionType = async (
+  telegram_id: string,
+  newSubscriptionType: SubscriptionType
+) => {
+  try {
+    const normalizedId = normalizeTelegramId(telegram_id).toString()
+
+    logger.info('🔧 Обновление subscription_type пользователя:', {
+      telegram_id: normalizedId,
+      newSubscriptionType,
+    })
+
+    // Находим последнюю запись пользователя с оплатой
+    const { data: latestPayment, error: findError } = await supabase
+      .from('payments_v2')
+      .select('id, subscription_type, payment_date')
+      .eq('telegram_id', normalizedId)
+      .eq('status', PaymentStatus.COMPLETED)
+      .eq('type', PaymentType.MONEY_INCOME)
+      .order('payment_date', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (findError || !latestPayment) {
+      logger.error('❌ Не найдена запись для обновления:', {
+        telegram_id: normalizedId,
+        error: findError,
+      })
+      return false
+    }
+
+    logger.info('📋 Найдена запись для обновления:', {
+      telegram_id: normalizedId,
+      paymentId: latestPayment.id,
+      currentSubscriptionType: latestPayment.subscription_type,
+      paymentDate: latestPayment.payment_date,
+    })
+
+    // Обновляем subscription_type
+    const { error: updateError } = await supabase
+      .from('payments_v2')
+      .update({ subscription_type: newSubscriptionType })
+      .eq('id', latestPayment.id)
+
+    if (updateError) {
+      logger.error('❌ Ошибка обновления subscription_type:', {
+        telegram_id: normalizedId,
+        error: updateError,
+      })
+      return false
+    }
+
+    logger.info('✅ subscription_type успешно обновлен:', {
+      telegram_id: normalizedId,
+      paymentId: latestPayment.id,
+      oldSubscriptionType: latestPayment.subscription_type,
+      newSubscriptionType,
+    })
+
+    return true
+  } catch (error) {
+    logger.error('❌ Критическая ошибка в updateUserSubscriptionType:', {
+      telegram_id,
+      newSubscriptionType,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return false
+  }
+}

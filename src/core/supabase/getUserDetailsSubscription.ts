@@ -172,7 +172,7 @@ export const getUserDetailsSubscription = async (
         ) {
           foundSubType = SubscriptionType.NEUROTESTER
         }
-        // Добавить другие типы если нужно
+        // STARS не обрабатываем как активную подписку - это только маркер оплаты
 
         if (!foundSubType) {
           logger.warn(
@@ -189,6 +189,7 @@ export const getUserDetailsSubscription = async (
               isActive = true
               finalSubscriptionType = foundSubType
             } else {
+              // NEUROPHOTO, NEUROVIDEO - временные подписки (30 дней)
               const paymentDate = new Date(startDateDb)
               const now = new Date()
               expirationDate = new Date(paymentDate)
