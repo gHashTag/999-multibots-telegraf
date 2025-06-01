@@ -468,3 +468,50 @@ expect(ctx.botInfo?.username).toBe('MyTestBot')
 By passing the data during creation, you ensure the mock context is set up correctly and avoid TypeScript errors.
 
 _(This README will be updated as the project progresses)_
+
+# Telegram Bot with FLUX Kontext and Upscaling
+
+## 🆕 New Features
+
+### FLUX Kontext Advanced Editing
+- **6 specialized modes**: Single editing, Multi-image combination, Portrait series, Haircut changes, Iconic locations, Professional headshots
+- **Two model tiers**: Pro (9⭐) and Max (12⭐)
+- **Smart pricing**: 50% markup for complex modes (multi, portrait_series)
+- **Intelligent prompts**: Mode-specific prompt enhancement
+
+### ⬆️ Image Upscaling
+- **Real-ESRGAN 4x upscaling**: Industry-leading AI upscaler with 67.5M+ runs
+- **Face enhancement**: Automatic face improvement using GFPGAN
+- **Cost-effective**: Premium quality at 6⭐ per upscale
+- **High quality**: 4x resolution increase with artifact removal
+- **One-click access**: Available after any FLUX Kontext generation
+
+## How to Use Upscaling
+
+1. Generate an image using FLUX Kontext (any mode)
+2. Click "⬆️ Увеличить качество" / "⬆️ Upscale" button
+3. Wait for processing (~7 seconds on T4 GPU)
+4. Receive 4x larger, enhanced image with improved faces
+
+## Technical Details
+
+### Upscaling Features:
+- **Model**: nightmareai/real-esrgan (most popular on Replicate)
+- **Scale**: 4x upscale for maximum quality
+- **Face enhance**: Enabled by default using GFPGAN
+- **Processing time**: ~7 seconds on T4, ~2 seconds on A100
+- **Supported formats**: JPEG, PNG with alpha channel support
+- **Artifact removal**: Removes JPEG compression artifacts
+
+### Benefits:
+- ✅ Removes compression artifacts
+- ✅ Sharpens edges and details
+- ✅ Improves facial features
+- ✅ Maintains image likeness
+- ✅ Cost-effective pricing (6⭐ vs $0.00385 API cost)
+
+### Use Cases:
+- Print-ready images from web-quality outputs
+- Professional presentation materials
+- High-resolution social media content
+- Enhanced detail for artistic works
