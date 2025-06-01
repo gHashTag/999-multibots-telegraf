@@ -2,6 +2,22 @@
 .vscode
 /node_modules
 
+# git files
+.git
+.gitignore
+
+# environment files
+.env*
+!.env.example
+
+# logs
+*.log
+logs/
+
+# temporary files
+*.tmp
+*.temp
+
 # code formatter
 .eslintrc
 .eslintignore
@@ -22,3 +38,16 @@ src/modules/videoGenerator/__tests__
 # docker
 Dockerfile
 docker-compose.yml
+
+# documentation and reports
+*.md
+TRANSACTION_LIMIT_FIX_REPORT.md
+FINAL_ANALYTICS_REPORT.md
+QUICK_START_GUIDE.md
+message_for_ambassadors.txt
+*.txt
+
+# development files
+tsconfig.json
+.nvmrc
+.tool-versions
