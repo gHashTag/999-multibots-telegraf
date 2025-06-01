@@ -20,6 +20,8 @@ import {
   handleAddBalanceCommand,
   handleCheckBalanceCommand,
 } from './handlers/adminCommands'
+// Импортируем команду анализа расходов
+import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -287,6 +289,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   // 👑 АДМИНСКИЕ КОМАНДЫ
   bot.command('addbalance', handleAddBalanceCommand)
   bot.command('checkbalance', handleCheckBalanceCommand)
+
+  // 📊 КОМАНДА АНАЛИЗА РАСХОДОВ
+  bot.use(expenseAnalysisCommand)
 
   // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ СООБЩЕНИЯ ПОСЛЕ ОПЛАТЫ
   bot.command('test_payment_message', async ctx => {
