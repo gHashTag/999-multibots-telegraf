@@ -184,7 +184,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       console.log('CASE: Новый промпт - возврат к началу сцены')
       ctx.session.prompt = undefined
       ctx.wizard.selectStep(0)
-      return
+      return neuroPhotoConversationStep(ctx)
     }
 
     if (text === '⬆️ Улучшить промпт' || text === '⬆️ Improve prompt') {
