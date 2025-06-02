@@ -141,7 +141,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       // Сбрасываем состояние и возвращаемся к первому шагу
       ctx.session.prompt = undefined
       ctx.wizard.selectStep(0) // Возвращаемся к neuroPhotoConversationStep
-      return
+      // Явно вызываем первый шаг
+      return neuroPhotoConversationStep(ctx)
     }
 
     // Обработка кнопок "Улучшить промпт" и "Изменить размер"
