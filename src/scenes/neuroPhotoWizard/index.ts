@@ -180,6 +180,13 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     console.log(`CASE: Нажата кнопка ${text}`)
     const isRu = ctx.from?.language_code === 'ru'
 
+    if (text === '🆕 Новый промпт' || text === '🆕 New prompt') {
+      console.log('CASE: Новый промпт - возврат к началу сцены')
+      ctx.session.prompt = undefined
+      ctx.wizard.selectStep(0)
+      return
+    }
+
     if (text === '⬆️ Улучшить промпт' || text === '⬆️ Improve prompt') {
       console.log('CASE: Улучшить промпт')
       await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
