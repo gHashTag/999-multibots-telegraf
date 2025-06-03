@@ -5,7 +5,15 @@ import {
   sendBalanceMessage,
   // sendInsufficientStarsMessage, // Больше не используется здесь напрямую, т.к. проверка баланса выше
 } from '@/price/helpers'
-import { createAudioFileFromText } from '@/core/elevenlabs/createAudioFileFromText'
+import {
+  createAudioFileFromText,
+  VoiceNotFoundError,
+} from '@/core/elevenlabs/createAudioFileFromText'
+import {
+  validateAndCleanVoiceId,
+  getVoiceAvatarErrorMessage,
+  getCreateVoiceAvatarMessage,
+} from '@/helpers/voiceValidation'
 import { isRussian } from '@/helpers'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
@@ -54,11 +62,18 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         const voice_id = await getVoiceId(ctx.from.id.toString())
 
         if (!voice_id) {
-          await ctx.reply(
-            isRu
-              ? '🎯 Для корректной работы обучите аватар используя 🎤 Голос для аватара в главном меню'
-              : '🎯 For correct operation, train the avatar using 🎤 Voice for avatar in the main menu'
-          )
+          await ctx.reply(getCreateVoiceAvatarMessage(isRu))
+          ctx.scene.leave()
+          return
+        }
+
+        // Check if the voice still exists before attempting to generate audio
+        const voiceIsValid = await validateAndCleanVoiceId(
+          voice_id,
+          ctx.from.id.toString()
+        )
+        if (!voiceIsValid) {
+          await ctx.reply(getVoiceAvatarErrorMessage(isRu))
           ctx.scene.leave()
           return
         }
@@ -70,6 +85,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         audioPath = await createAudioFileFromText({
           text: message.text,
           voice_id,
+          telegram_id: ctx.from.id.toString(),
         })
         logger.info('[textToSpeechWizard] createAudioFileFromText finished', {
           audioPath,
@@ -110,11 +126,16 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         // --- Конец блока отправки сообщения о балансе ---
       } catch (error) {
         console.error('Error processing text_to_speech in wizard:', error)
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла ошибка при преобразовании текста в речь'
-            : '❌ Error occurred while converting text to speech'
-        )
+
+        if (error instanceof VoiceNotFoundError) {
+          await ctx.reply(getVoiceAvatarErrorMessage(isRu))
+        } else {
+          await ctx.reply(
+            isRu
+              ? '❌ Произошла ошибка при преобразовании текста в речь'
+              : '❌ Error occurred while converting text to speech'
+          )
+        }
       } finally {
         if (audioPath && fs.existsSync(audioPath)) {
           try {
