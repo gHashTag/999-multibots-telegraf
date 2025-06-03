@@ -71,6 +71,7 @@ export const BOT_URLS: Partial<Record<BotName, string>> = {
   neuro_blogger_bot: 'https://t.me/neuro_coder_ai/1212',
   ai_koshey_bot: 'https://t.me/neuro_coder_ai/1212',
   Kaya_easy_art_bot: 'https://t.me/kaya_easy_art/13',
+  Gaia_Kamskaia_bot: 'https://t.me/neuromeets/1876',
 }
 
 export const BOT_TOKENS =
