@@ -3,12 +3,27 @@ import os from 'os'
 import fs, { createWriteStream } from 'fs'
 import { elevenlabs } from '.'
 
+// Import supabase to clear invalid voice IDs
+import { supabase } from '@/core/supabase'
+
+// Custom error class for voice not found
+export class VoiceNotFoundError extends Error {
+  constructor(voiceId: string) {
+    super(
+      `Voice ID '${voiceId}' not found. The voice may have been deleted or doesn't exist.`
+    )
+    this.name = 'VoiceNotFoundError'
+  }
+}
+
 export const createAudioFileFromText = async ({
   text,
   voice_id,
+  telegram_id,
 }: {
   text: string
   voice_id: string
+  telegram_id?: string
 }): Promise<string> => {
   // Логируем входные данные
   console.log('[TTS_BOT] Attempting to create audio with:', {
@@ -94,6 +109,34 @@ export const createAudioFileFromText = async ({
         stack: error.stack,
       }
     )
+
+    // Check if it's a 404 error specifically for voice not found
+    if (error.statusCode === 404 || error.status === 404) {
+      console.error(
+        `[TTS_BOT] Voice ID ${voice_id} not found (404). Voice may have been deleted.`
+      )
+
+      // Clear the invalid voice ID from database if telegram_id is provided
+      if (telegram_id) {
+        try {
+          await supabase
+            .from('users')
+            .update({ voice_id_elevenlabs: null })
+            .eq('telegram_id', telegram_id)
+          console.log(
+            `[TTS_BOT] Cleared invalid voice ID ${voice_id} for user ${telegram_id}`
+          )
+        } catch (dbError) {
+          console.error(
+            '[TTS_BOT] Error clearing invalid voice ID from database:',
+            dbError
+          )
+        }
+      }
+
+      throw new VoiceNotFoundError(voice_id)
+    }
+
     throw new Error(
       `[TTS_BOT] Failed to generate audio (manual stream processing): ${error.message || 'Unknown error'}`
     )
