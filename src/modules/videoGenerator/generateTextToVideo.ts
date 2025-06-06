@@ -6,6 +6,9 @@ import {
   VIDEO_MODELS_CONFIG,
   type VideoModelConfig,
 } from './config/models.config'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import { calculateFinalPrice } from '@/price/helpers'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 interface TextToVideoResponse {
   success: boolean
@@ -29,16 +32,17 @@ export async function generateTextToVideo(
     promptLength: prompt.length,
   })
 
-  try {
-    const modelConfig = VIDEO_MODELS_CONFIG[modelId]
-    if (!modelConfig || !modelConfig.api?.model) {
-      logger.error(
-        '[generateTextToVideo] Invalid modelId or modelConfig, or api.model missing:',
-        { modelId, modelConfig }
-      )
-      return null
-    }
+  // Получаем конфигурацию модели вне try-catch для доступа в обработчике ошибок
+  const modelConfig = VIDEO_MODELS_CONFIG[modelId]
+  if (!modelConfig || !modelConfig.api?.model) {
+    logger.error(
+      '[generateTextToVideo] Invalid modelId or modelConfig, or api.model missing:',
+      { modelId, modelConfig }
+    )
+    return null
+  }
 
+  try {
     if (!modelConfig.inputType.includes('text')) {
       logger.error(
         `[generateTextToVideo] Model "${modelId}" does not support text input.`,
@@ -48,14 +52,32 @@ export async function generateTextToVideo(
     }
 
     const replicateModelId: string = modelConfig.api.model
-    const modelInput: any = {
-      ...(modelConfig.api.input || {}),
-      prompt,
+
+    // Специальная обработка для Google Veo 3
+    let modelInput: any
+    if (modelConfig.id === 'veo-3') {
+      modelInput = {
+        prompt,
+        duration_seconds: modelConfig.api.input.duration_seconds || 8,
+        aspect_ratio: modelConfig.api.input.aspect_ratio || '16:9',
+        enable_audio: modelConfig.api.input.enable_audio || true,
+      }
+      // Добавляем prompt_optimizer только если он есть в конфиге
+      if (modelConfig.api.input.prompt_optimizer) {
+        modelInput.prompt_optimizer = true
+      }
+    } else {
+      // Стандартная обработка для других моделей
+      modelInput = {
+        ...(modelConfig.api.input || {}),
+        prompt,
+      }
     }
 
     logger.info('[generateTextToVideo] Calling replicate.run with input:', {
       replicateModelId,
       modelInput,
+      isVeo3: modelConfig.id === 'veo-3',
     })
 
     const replicateResult = await replicate.run(replicateModelId as any, {
@@ -113,6 +135,52 @@ export async function generateTextToVideo(
       errorMessage = `Replicate error: ${error.response.data.detail}`
     } else if (error.message) {
       errorMessage = error.message
+    }
+
+    // Универсальный возврат средств для всех моделей при ошибке
+    logger.warn(
+      '[generateTextToVideo] Video generation failed, attempting refund',
+      {
+        telegram_id,
+        model: modelConfig.id,
+        error: error.message,
+      }
+    )
+
+    try {
+      // Вычисляем стоимость модели для возврата
+      const modelCost = calculateFinalPrice(modelConfig.id)
+
+      // Возвращаем средства обратно
+      const refundResult = await updateUserBalance(
+        telegram_id,
+        modelCost,
+        PaymentType.MONEY_INCOME,
+        `Refund for failed ${modelConfig.title} generation`,
+        {
+          bot_name: bot_name,
+          service_type: 'video-generation-refund',
+          model_name: modelConfig.id,
+          original_error: error.message,
+          refund_amount: modelCost,
+        }
+      )
+
+      logger.info(
+        '[generateTextToVideo] Refund processed for video generation failure',
+        {
+          telegram_id,
+          model: modelConfig.id,
+          refund_amount: modelCost,
+          refund_result: refundResult,
+        }
+      )
+    } catch (refundError) {
+      logger.error('[generateTextToVideo] Failed to process refund', {
+        telegram_id,
+        model: modelConfig.id,
+        refund_error: refundError.message,
+      })
     }
 
     return null
