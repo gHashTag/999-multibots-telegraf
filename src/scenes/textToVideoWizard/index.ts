@@ -160,11 +160,16 @@ async function processVideoGeneration(
         { telegram_id: telegramId }
       )
     } else {
+      // Средства автоматически возвращаются при любой ошибке генерации
+      const refundMessage = isRu
+        ? ' Средства возвращены на ваш баланс.'
+        : ' Funds have been refunded to your balance.'
+
       await ctx.telegram.sendMessage(
         ctx.chat.id,
         isRu
-          ? 'Не удалось сгенерировать видео. Попробуйте другой промпт или модель.'
-          : 'Failed to generate video. Try a different prompt or model.'
+          ? `Не удалось сгенерировать видео. Попробуйте другой промпт или модель.${refundMessage}`
+          : `Failed to generate video. Try a different prompt or model.${refundMessage}`
       )
     }
   } catch (error) {
