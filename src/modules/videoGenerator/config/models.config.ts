@@ -171,7 +171,6 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       input: {
         prompt_optimizer: true,
         duration_seconds: 8,
-        aspect_ratio: '16:9',
         enable_audio: true,
       },
     },
