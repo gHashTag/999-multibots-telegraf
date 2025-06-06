@@ -159,6 +159,25 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       },
     },
   },
+  'veo-3': {
+    id: 'veo-3',
+    title: 'Google Veo 3',
+    inputType: ['text', 'image'],
+    description:
+      'Флагманская модель Google для создания видео с аудио в 4K качестве',
+    basePrice: 0.75,
+    api: {
+      model: 'google/veo-3',
+      input: {
+        prompt_optimizer: true,
+        duration_seconds: 8,
+        aspect_ratio: '16:9',
+        enable_audio: true,
+      },
+    },
+    imageKey: 'image',
+    canMorph: false,
+  },
 }
 
 // Определяем тип ключей конфига
