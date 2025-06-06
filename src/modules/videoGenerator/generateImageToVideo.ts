@@ -123,7 +123,7 @@ export const generateImageToVideo = async (
         })
       }
     }
-    const userAspectRatio = userExists.aspect_ratio ?? '16:9'
+    const userAspectRatio = userExists.aspect_ratio ?? '9:16'
 
     const balanceResult = await processBalanceVideoOperationHelper(
       telegramId,
@@ -200,7 +200,7 @@ export const generateImageToVideo = async (
           prompt,
           image: imageUrl,
           duration_seconds: modelConfig.api.input.duration_seconds || 8,
-          aspect_ratio: userAspectRatio || '16:9',
+          aspect_ratio: userAspectRatio || '9:16',
           enable_audio: modelConfig.api.input.enable_audio || true,
         }
         // Добавляем prompt_optimizer только если он есть в конфиге

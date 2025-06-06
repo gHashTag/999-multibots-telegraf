@@ -9,6 +9,7 @@ import {
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { calculateFinalPrice } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { getUserHelper } from './helpers'
 
 interface TextToVideoResponse {
   success: boolean
@@ -51,6 +52,16 @@ export async function generateTextToVideo(
       return null
     }
 
+    // Получаем пользовательские настройки для aspect_ratio
+    const userExists = await getUserHelper(telegram_id)
+    const userAspectRatio = userExists?.aspect_ratio ?? '9:16'
+
+    logger.info('[generateTextToVideo] User aspect ratio retrieved:', {
+      telegram_id,
+      userAspectRatio,
+      hasUserData: !!userExists,
+    })
+
     const replicateModelId: string = modelConfig.api.model
 
     // Специальная обработка для Google Veo 3
@@ -59,7 +70,7 @@ export async function generateTextToVideo(
       modelInput = {
         prompt,
         duration_seconds: modelConfig.api.input.duration_seconds || 8,
-        aspect_ratio: modelConfig.api.input.aspect_ratio || '16:9',
+        aspect_ratio: userAspectRatio, // Используем пользовательские настройки
         enable_audio: modelConfig.api.input.enable_audio || true,
       }
       // Добавляем prompt_optimizer только если он есть в конфиге
