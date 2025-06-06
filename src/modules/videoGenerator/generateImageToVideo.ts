@@ -15,6 +15,9 @@ import {
   saveVideoUrlHelper,
   updateUserLevelHelper,
 } from './helpers'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import { calculateFinalPrice } from '@/price/helpers'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 export const generateImageToVideo = async (
   telegramId: string,
@@ -190,15 +193,34 @@ export const generateImageToVideo = async (
           'Internal validation failed (standard mode) after balance check'
         )
       }
-      modelInput = {
-        ...modelConfig.api.input,
-        prompt,
-        aspect_ratio: userAspectRatio,
-        [modelConfig.imageKey]: imageUrl,
+
+      // Специальная обработка для Google Veo 3
+      if (modelConfig.id === 'veo-3') {
+        modelInput = {
+          prompt,
+          image: imageUrl,
+          duration_seconds: modelConfig.api.input.duration_seconds || 8,
+          aspect_ratio: userAspectRatio || '16:9',
+          enable_audio: modelConfig.api.input.enable_audio || true,
+        }
+        // Добавляем prompt_optimizer только если он есть в конфиге
+        if (modelConfig.api.input.prompt_optimizer) {
+          modelInput.prompt_optimizer = true
+        }
+      } else {
+        // Стандартная обработка для других моделей
+        modelInput = {
+          ...modelConfig.api.input,
+          prompt,
+          aspect_ratio: userAspectRatio,
+          [modelConfig.imageKey]: imageUrl,
+        }
       }
+
       logger.info('[I2V BG] Prepared Replicate input for standard', {
         telegramId,
         inputKeys: Object.keys(modelInput),
+        isVeo3: modelConfig.id === 'veo-3',
       })
     }
 
@@ -281,15 +303,68 @@ export const generateImageToVideo = async (
       telegramId,
     })
 
+    // Универсальный возврат средств для всех моделей при ошибке
+    const modelConfig = VIDEO_MODELS_CONFIG[modelId]
+    if (modelConfig && paymentAmountForNotification) {
+      logger.warn(
+        '[I2V BG] Image-to-video generation failed, attempting refund',
+        {
+          telegramId,
+          model: modelConfig.id,
+          error: error.message,
+          refundAmount: paymentAmountForNotification,
+        }
+      )
+
+      try {
+        // Возвращаем средства обратно
+        const refundResult = await updateUserBalance(
+          telegramId,
+          paymentAmountForNotification,
+          PaymentType.MONEY_INCOME,
+          `Refund for failed ${modelConfig.title} generation (I2V)`,
+          {
+            bot_name: botName,
+            service_type: 'image-to-video-refund',
+            model_name: modelConfig.id,
+            original_error: error.message,
+            refund_amount: paymentAmountForNotification,
+          }
+        )
+
+        logger.info(
+          '[I2V BG] Refund processed for image-to-video generation failure',
+          {
+            telegramId,
+            model: modelConfig.id,
+            refund_amount: paymentAmountForNotification,
+            refund_result: refundResult,
+          }
+        )
+      } catch (refundError) {
+        logger.error('[I2V BG] Failed to process refund', {
+          telegramId,
+          model: modelConfig.id,
+          refund_error: refundError.message,
+        })
+      }
+    }
+
     const errorMessage =
       error?.message ||
       (isRu ? 'Произошла неизвестная ошибка' : 'An unknown error occurred')
+
+    // Уведомляем пользователя об ошибке и возврате средств
+    const refundMessage = isRu
+      ? ' Средства возвращены на ваш баланс.'
+      : ' Funds have been refunded to your balance.'
+
     try {
       await telegramInstance.sendMessage(
         chatId,
         isRu
-          ? `❌ Ошибка генерации видео: ${errorMessage}`
-          : `❌ Video generation error: ${errorMessage}`
+          ? `❌ Ошибка генерации видео: ${errorMessage}${refundMessage}`
+          : `❌ Video generation error: ${errorMessage}${refundMessage}`
       )
     } catch (sendError: any) {
       logger.error('[I2V BG] Failed to send error message to user', {
