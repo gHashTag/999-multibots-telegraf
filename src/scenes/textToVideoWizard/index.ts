@@ -46,19 +46,16 @@ async function processVideoGeneration(
 
     // ===== ДОБАВЛЯЕМ СПИСАНИЕ БАЛАНСА =====
     logger.info(
-      '[processVideoGeneration] Processing balance for text-to-video',
-      {
-        telegramId,
-        videoModelKey,
-      }
+      '[processVideoGeneration] Processing balance for text_to_video',
+      { telegramId: ctx.from.id, modelId: videoModelKey }
     )
 
     const balanceResult = await processBalanceVideoOperationHelper(
-      telegramId,
+      String(ctx.from.id),
       videoModelKey,
       isRu,
-      botName,
-      'text-to-video'
+      ctx.botInfo.username,
+      'text_to_video'
     )
 
     if (!balanceResult.success || balanceResult.newBalance === undefined) {

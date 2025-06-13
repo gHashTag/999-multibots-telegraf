@@ -15,7 +15,7 @@ export const processBalanceVideoOperationHelper = async (
   modelId: string, // Changed configKey to modelId for clarity
   isRu: boolean,
   botName: string, // Added botName
-  serviceType: string = 'image-to-video' // Добавляем параметр для типа сервиса
+  serviceType: string = 'image_to_video' // Исправляем дефис на подчеркивание
 ): Promise<BalanceOperationResult> => {
   let currentBalanceAtStart = 0
 
@@ -114,7 +114,7 @@ export const processBalanceVideoOperationHelper = async (
       `Video generation (${selectedModelConfig.title})`,
       {
         bot_name: botName, // Use passed botName
-        service_type: 'image-to-video', // Use a generic service type or make it dynamic if needed
+        service_type: serviceType, // Используем переданный serviceType вместо хардкода
         model_name: modelId, // Исправляем на model_name для соответствия схеме БД
         modePrice,
         currentBalance: currentBalanceAtStart,

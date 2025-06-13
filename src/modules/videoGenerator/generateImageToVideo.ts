@@ -130,7 +130,7 @@ export const generateImageToVideo = async (
       modelId,
       isRu,
       botName,
-      'image-to-video'
+      'image_to_video'
     )
 
     if (
