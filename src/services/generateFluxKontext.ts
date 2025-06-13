@@ -13,6 +13,8 @@ import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { processBalanceOperation } from '@/price/helpers'
+import { refundUser } from '@/price/helpers/refundUser'
+import { calculateFinalPriceInStars } from '@/interfaces/paidServices'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
@@ -537,14 +539,16 @@ export const upscaleFluxKontextImage = async (params: {
   ctx: MyContext
   originalPrompt?: string
 }): Promise<GenerationResult> => {
+  const { imageUrl, telegram_id, username, is_ru, ctx, originalPrompt } = params
+
+  // Стоимость upscaling - Clarity Upscaler стоит $0.012 с наценкой 50%
+  const clarityUpscalerCostUSD = 0.012 // Себестоимость Clarity Upscaler
+  const upscaleCost = calculateFinalPriceInStars(clarityUpscalerCostUSD) // Автоматический расчет с наценкой 50%
+
+  // Объявляем переменную для проверки баланса в области видимости функции
+  let balanceCheck: any = null
+
   try {
-    const { imageUrl, telegram_id, username, is_ru, ctx, originalPrompt } =
-      params
-
-    // Стоимость upscaling - используем премиум-наценку для профессионального сервиса
-    // Recraft Crisp Upscale - официальная модель, как премиум-сервис берем 6⭐
-    const upscaleCost = 6 // Премиум-цена за высококачественный upscaling
-
     // Проверка существования пользователя
     const userExists = await getUserByTelegramIdString(telegram_id)
     if (!userExists) {
@@ -552,7 +556,7 @@ export const upscaleFluxKontextImage = async (params: {
     }
 
     // Проверка баланса
-    const balanceCheck = await processBalanceOperation({
+    balanceCheck = await processBalanceOperation({
       ctx,
       telegram_id: Number(telegram_id),
       paymentAmount: upscaleCost,
@@ -567,28 +571,29 @@ export const upscaleFluxKontextImage = async (params: {
     await ctx.telegram.sendMessage(
       telegram_id,
       is_ru
-        ? `⬆️ Увеличиваю качество изображения...\n\n💎 Стоимость: ${upscaleCost} ⭐`
-        : `⬆️ Upscaling image quality...\n\n💎 Cost: ${upscaleCost} ⭐`,
+        ? `⬆️ Увеличиваю качество изображения с помощью Clarity Upscaler...\n\n🎯 Режим: Максимальное сохранение оригинала\n💎 Стоимость: ${upscaleCost} ⭐`
+        : `⬆️ Upscaling image quality with Clarity Upscaler...\n\n🎯 Mode: Maximum original preservation\n💎 Cost: ${upscaleCost} ⭐`,
       {
         reply_markup: { remove_keyboard: true },
       }
     )
 
     logger.info(`Image upscaling started`, {
-      model: 'recraft-ai/recraft-crisp-upscale',
+      model: 'philz1337x/clarity-upscaler',
       telegram_id,
       originalPrompt,
     })
 
-    // Параметры для recraft-ai/recraft-crisp-upscale
+    // Параметры для philz1337x/clarity-upscaler - используем только базовое изображение
+    // Модель автоматически применит оптимальные настройки для качественного апскейлинга без креативных изменений
     const inputParams = {
       image: imageUrl,
-      upscale_factor: 2, // 2x upscale для баланса качества и скорости
+      creativity: 0.1,
     }
 
     // Генерация upscaled изображения
     const output: ApiResponse = (await replicate.run(
-      'recraft-ai/recraft-crisp-upscale',
+      'philz1337x/clarity-upscaler:dfad41707589d68ecdccd1dfa600d55a208f9310748e44bfe35b4a6291453d5e',
       {
         input: inputParams,
       }
@@ -611,7 +616,7 @@ export const upscaleFluxKontextImage = async (params: {
     // Сохранение промпта
     const prompt_id = await savePrompt(
       `FLUX KONTEXT UPSCALED: ${originalPrompt || 'Image upscaling'}`,
-      'recraft-ai/recraft-crisp-upscale',
+      'philz1337x/clarity-upscaler',
       imageLocalUrl,
       Number(telegram_id)
     )
@@ -631,8 +636,8 @@ export const upscaleFluxKontextImage = async (params: {
       },
       {
         caption: is_ru
-          ? `⬆️ Качество изображения увеличено в 2 раза!\n\n🔧 Модель: Recraft Crisp Upscale\n✨ Качество: Профессиональное\n💎 Стоимость: ${upscaleCost} ⭐${originalPrompt ? `\n📝 Исходный запрос: ${originalPrompt}` : ''}`
-          : `⬆️ Image quality enhanced 2x!\n\n🔧 Model: Recraft Crisp Upscale\n✨ Quality: Professional\n💎 Cost: ${upscaleCost} ⭐${originalPrompt ? `\n📝 Original prompt: ${originalPrompt}` : ''}`,
+          ? `⬆️ Качество изображения увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n🎯 Режим: Сохранение оригинала\n✨ Качество: Высокое без искажений\n💎 Стоимость: ${upscaleCost} ⭐${originalPrompt ? `\n📝 Исходный запрос: ${originalPrompt}` : ''}`
+          : `⬆️ Image quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n🎯 Mode: Original preservation\n✨ Quality: High without distortion\n💎 Cost: ${upscaleCost} ⭐${originalPrompt ? `\n📝 Original prompt: ${originalPrompt}` : ''}`,
         reply_markup: createEditResultKeyboard(is_ru).reply_markup,
       }
     )
@@ -651,7 +656,7 @@ export const upscaleFluxKontextImage = async (params: {
     logger.info(`Image upscaling completed successfully`, {
       prompt_id,
       telegram_id,
-      model: 'recraft-ai/recraft-crisp-upscale',
+      model: 'philz1337x/clarity-upscaler',
     })
 
     return { image, prompt_id }
@@ -661,6 +666,25 @@ export const upscaleFluxKontextImage = async (params: {
       telegram_id: params.telegram_id,
       originalPrompt: params.originalPrompt,
     })
+
+    // Возврат средств при ошибке (если деньги уже списались)
+    if (balanceCheck?.success) {
+      logger.info('Refunding user due to upscaling failure', {
+        telegram_id: params.telegram_id,
+        amount: upscaleCost,
+      })
+      try {
+        await refundUser(params.ctx, upscaleCost)
+      } catch (refundError) {
+        logger.error('Failed to refund user after upscaling failure', {
+          telegram_id: params.telegram_id,
+          refundError:
+            refundError instanceof Error
+              ? refundError.message
+              : 'Unknown refund error',
+        })
+      }
+    }
 
     let errorMessageToUser = '❌ Произошла ошибка при увеличении качества.'
     if (error instanceof Error) {
@@ -673,6 +697,11 @@ export const upscaleFluxKontextImage = async (params: {
         if (match) {
           errorMessageToUser = `❌ ${match[1]}`
         }
+      } else {
+        // Добавляем информацию о возврате средств при ошибке
+        errorMessageToUser = params.is_ru
+          ? '❌ Произошла ошибка при увеличении качества. Средства возвращены на баланс.'
+          : '❌ Error occurred during upscaling. Funds have been refunded.'
       }
     }
 
