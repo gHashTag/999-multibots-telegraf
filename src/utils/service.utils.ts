@@ -25,7 +25,6 @@ export const validateServiceType = (type: string): type is ServiceType => {
     'TopUpBalance',
     'Subscription',
     'Other',
-    'AdminSubscriptionRenewal',
   ]
   return validTypes.includes(type as ServiceType)
 }

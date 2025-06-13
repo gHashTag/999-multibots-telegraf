@@ -335,6 +335,35 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
+      [isRu ? levels[107].title_ru : levels[107].title_en]: async () => {
+        logger.info({
+          message: '⬆️ [handleMenu] Переход к увеличению качества фото',
+          telegramId,
+          function: 'handleMenu',
+          action: 'image_upscaler',
+          nextScene: ModeEnum.CheckBalanceScene,
+        })
+        console.log('CASE: ⬆️ Увеличить качество')
+
+        // ✅ ЗАЩИТА: Проверяем подписку перед входом в upscaler
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          '⬆️ Увеличить качество'
+        )
+        if (!hasSubscription) {
+          return // Пользователь перенаправлен в subscriptionScene
+        }
+
+        // Устанавливаем режим ImageUpscaler и идем через checkBalanceScene
+        ctx.session.mode = ModeEnum.ImageUpscaler
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
+      },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
       //   ctx.session.mode = 'video_in_url'
