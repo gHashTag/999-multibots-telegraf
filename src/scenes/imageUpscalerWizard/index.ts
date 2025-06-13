@@ -1,0 +1,98 @@
+import { Scenes } from 'telegraf'
+import { MyContext } from '@/interfaces'
+import { upscaleImage } from '@/services/imageUpscaler'
+import { createHelpCancelKeyboard } from '@/menu'
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { ModeEnum } from '@/interfaces/modes'
+import { logger } from '@/utils/logger'
+
+export const imageUpscalerWizard = new Scenes.WizardScene<MyContext>(
+  ModeEnum.ImageUpscaler,
+  async ctx => {
+    console.log('CASE 0: image_upscaler')
+    const isRu = ctx.from?.language_code === 'ru'
+    console.log('CASE: imageUpscalerCommand')
+
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
+
+    await ctx.reply(
+      isRu
+        ? '⬆️ Отправьте фото для увеличения качества\n\n🎯 Clarity Upscaler увеличит разрешение в 2 раза и улучшит детализацию\n💎 Стоимость: 3 ⭐'
+        : '⬆️ Send a photo to upscale quality\n\n🎯 Clarity Upscaler will increase resolution 2x and improve details\n💎 Cost: 3 ⭐'
+    )
+    ctx.scene.session.state = { step: 0 }
+    return ctx.wizard.next()
+  },
+  async ctx => {
+    console.log('CASE 1: image_upscaler')
+    const isRu = ctx.from?.language_code === 'ru'
+
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
+
+    if (!ctx.message) {
+      await ctx.reply(
+        isRu ? 'Пожалуйста, отправьте изображение' : 'Please send an image',
+        {
+          reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+        }
+      )
+      return
+    }
+
+    if ('photo' in ctx.message) {
+      // Если отправлено фото, обрабатываем его
+      const photo = ctx.message.photo
+      const fileId = photo[photo.length - 1].file_id
+      const file = await ctx.telegram.getFileLink(fileId)
+      const imageUrl = file.href
+
+      logger.info('Image upscaler started', {
+        telegramId: ctx.from?.id,
+        imageUrl,
+      })
+
+      try {
+        // Вызываем отдельный сервис upscaler'а (не связанный с FLUX Kontext)
+        await upscaleImage({
+          imageUrl,
+          telegram_id: String(ctx.from?.id),
+          username: ctx.from?.username || 'unknown_user',
+          is_ru: isRu,
+          ctx,
+          originalPrompt: 'Manual upscale request',
+        })
+
+        return ctx.scene.leave()
+      } catch (error) {
+        logger.error('Error in imageUpscalerWizard:', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          telegramId: ctx.from?.id,
+        })
+
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка при увеличении качества изображения. Пожалуйста, попробуйте позже.'
+            : 'An error occurred while upscaling the image. Please try again later.'
+        )
+        return ctx.scene.leave()
+      }
+    } else {
+      // Если отправлено не фото, просим отправить фото
+      await ctx.reply(
+        isRu ? 'Пожалуйста, отправьте изображение' : 'Please send an image',
+        {
+          reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+        }
+      )
+      return
+    }
+  }
+)
+
+export default imageUpscalerWizard

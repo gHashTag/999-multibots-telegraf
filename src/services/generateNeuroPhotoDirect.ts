@@ -641,6 +641,12 @@ export async function generateNeuroPhotoDirect(
                 }
               )
 
+              // Сохраняем URL последнего нейрофото в сессии для upscaler'а
+              if (ctx.session) {
+                ctx.session.lastNeuroPhotoImageUrl = imageUrl
+                ctx.session.lastNeuroPhotoPrompt = prompt
+              }
+
               logger.info({
                 message: '📸 [DIRECT] Изображение отправлено пользователю',
                 description: 'Image sent to user in private messages',
@@ -996,6 +1002,10 @@ const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
       Markup.button.callback(
         is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
         'improve_prompt'
+      ),
+      Markup.button.callback(
+        is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale Quality',
+        'upscale_neurophoto_image'
       ),
     ],
     [

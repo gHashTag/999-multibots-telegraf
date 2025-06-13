@@ -22,6 +22,7 @@ export const BASE_COSTS: BaseCosts = {
   // 💰 ПЛАТНЫЕ СЕРВИСЫ (простой расчет - фиксированная цена)
   [ModeEnum.NeuroPhoto]: 0.08,
   [ModeEnum.ImageToPrompt]: 0.03,
+  [ModeEnum.ImageUpscaler]: 0.04,
   [ModeEnum.TextToSpeech]: 0.12,
 
   // 💰 ПЛАТНЫЕ СЕРВИСЫ (сложный расчет - базовые цены для видео)
@@ -118,6 +119,8 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.NeuroAudio]: calculateModeCost({ mode: ModeEnum.NeuroAudio }).stars,
   neuro_photo_2: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 }).stars,
   [ModeEnum.ImageToPrompt]: calculateModeCost({ mode: ModeEnum.ImageToPrompt })
+    .stars,
+  [ModeEnum.ImageUpscaler]: calculateModeCost({ mode: ModeEnum.ImageUpscaler })
     .stars,
   [ModeEnum.Avatar]: calculateModeCost({ mode: ModeEnum.Avatar }).stars,
   [ModeEnum.ChatWithAvatar]: calculateModeCost({

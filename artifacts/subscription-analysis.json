@@ -1,0 +1,3653 @@
+{
+  "timestamp": "2025-06-13T04:19:42.781Z",
+  "stats": {
+    "total": 519,
+    "byType": {
+      "NEUROVIDEO": 97,
+      "NEUROPHOTO": 16,
+      "NEUROTESTER": 39,
+      "stars": 346,
+      "neurobase": 16,
+      "neurophoto": 5
+    },
+    "active": 109,
+    "expired": 410
+  },
+  "activeSubscriptions": [
+    {
+      "telegram_id": 205563889,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-10T14:07:04.218275+00:00",
+      "status": "active",
+      "days_remaining": 28
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-08T08:19:27.431418+00:00",
+      "status": "active",
+      "days_remaining": 26
+    },
+    {
+      "telegram_id": 591822743,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-06-06T15:53:46.953138+00:00",
+      "status": "active",
+      "days_remaining": 24
+    },
+    {
+      "telegram_id": 5439920152,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-05T19:19:32.776071+00:00",
+      "status": "active",
+      "days_remaining": 23
+    },
+    {
+      "telegram_id": 231054807,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-06-04T07:35:23.443725+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 322270975,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-06-04T07:35:23.443725+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 522934157,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-06-04T07:35:23.443725+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 236846440,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-06-04T07:35:23.443725+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 274569041,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 238415691,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 175604304,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 853206802,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1064902106,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1086429357,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1374279961,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1495156606,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 36431194,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1540905621,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 345310621,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1852726961,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 6419070693,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 7587496613,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 375555839619,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 671068551521,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1744063214260,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1744063464932,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1744063648789,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1744064524923,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1744063782065,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 389109666,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1018174166,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 336631218,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 417895266,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 750275943,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 810049345,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:35:01.446621+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-06-04T07:33:55.496898+00:00",
+      "status": "active",
+      "days_remaining": 22
+    },
+    {
+      "telegram_id": 306058143,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-05-31T17:38:44.881931+00:00",
+      "status": "active",
+      "days_remaining": 18
+    },
+    {
+      "telegram_id": 386875143,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-05-31T17:38:44.881931+00:00",
+      "status": "active",
+      "days_remaining": 18
+    },
+    {
+      "telegram_id": 1447270145,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-31T08:25:41.791214+00:00",
+      "status": "active",
+      "days_remaining": 18
+    },
+    {
+      "telegram_id": 7127044790,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-31T04:41:44.417275+00:00",
+      "status": "active",
+      "days_remaining": 18
+    },
+    {
+      "telegram_id": 7624994535,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T22:05:32.444696+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 1384404427,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T12:12:25.937245+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 1018174166,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T12:02:34.190966+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 475542099,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T11:14:38.584537+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 6319538834,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T11:06:57.015468+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 7631002280,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T09:49:14.992756+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 1661997664,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T09:48:17.686841+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 5580849111,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T08:56:06.324693+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 5975453865,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T08:54:28.20965+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 428714907,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T08:51:44.031882+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 1133739212,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T08:49:46.861729+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 7154531462,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T07:43:25.501565+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 5150792846,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T07:42:24.952936+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 1549124104,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T07:40:08.698925+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 7801282562,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T07:37:20.422204+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 8145775592,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T07:29:25.875265+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 1491501541,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T07:29:20.058391+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 1770117992,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T07:07:38.336195+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 1450416778,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-30T07:05:20.956609+00:00",
+      "status": "active",
+      "days_remaining": 17
+    },
+    {
+      "telegram_id": 999999998,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-05-28T17:38:19.150177+00:00",
+      "status": "active",
+      "days_remaining": 15
+    },
+    {
+      "telegram_id": 999999998,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-05-28T17:38:18.163389+00:00",
+      "status": "active",
+      "days_remaining": 15
+    },
+    {
+      "telegram_id": 999999999,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-05-28T17:38:17.166388+00:00",
+      "status": "active",
+      "days_remaining": 15
+    },
+    {
+      "telegram_id": 999999999,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-05-28T17:38:16.173781+00:00",
+      "status": "active",
+      "days_remaining": 15
+    },
+    {
+      "telegram_id": 336631218,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-27T22:43:22.371618+00:00",
+      "status": "active",
+      "days_remaining": 14
+    },
+    {
+      "telegram_id": 1775095424,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-25T10:51:28.552084+00:00",
+      "status": "active",
+      "days_remaining": 12
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-23T19:18:44.150801+00:00",
+      "status": "active",
+      "days_remaining": 10
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-20T14:13:03.300688+00:00",
+      "status": "active",
+      "days_remaining": 7
+    },
+    {
+      "telegram_id": 484954118,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-20T11:47:52+00:00",
+      "status": "active",
+      "days_remaining": 7
+    },
+    {
+      "telegram_id": 793916476,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-18T15:49:37.583306+00:00",
+      "status": "active",
+      "days_remaining": 5
+    },
+    {
+      "telegram_id": 858032711,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-16T06:59:48.079998+00:00",
+      "status": "active",
+      "days_remaining": 3
+    },
+    {
+      "telegram_id": 512959709,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-14T20:57:49.9051+00:00",
+      "status": "active",
+      "days_remaining": 1
+    },
+    {
+      "telegram_id": 364205002,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-13T10:16:59.178827+00:00",
+      "status": "active",
+      "days_remaining": 0
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-08T10:20:38.651527+00:00",
+      "status": "active",
+      "days_remaining": -5
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-08T10:19:16.731256+00:00",
+      "status": "active",
+      "days_remaining": -5
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-08T10:12:06.518516+00:00",
+      "status": "active",
+      "days_remaining": -5
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-08T10:08:03.635345+00:00",
+      "status": "active",
+      "days_remaining": -5
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-08T10:07:52.25235+00:00",
+      "status": "active",
+      "days_remaining": -5
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-08T10:06:10.535927+00:00",
+      "status": "active",
+      "days_remaining": -5
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-08T09:59:35.512696+00:00",
+      "status": "active",
+      "days_remaining": -5
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-08T09:47:37.781243+00:00",
+      "status": "active",
+      "days_remaining": -5
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-06T14:25:46.189873+00:00",
+      "status": "active",
+      "days_remaining": -7
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-06T11:43:11.434753+00:00",
+      "status": "active",
+      "days_remaining": -7
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-06T10:23:52.359786+00:00",
+      "status": "active",
+      "days_remaining": -7
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-05T12:40:36.673376+00:00",
+      "status": "active",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-05T12:23:01.902271+00:00",
+      "status": "active",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-05T12:11:41.222899+00:00",
+      "status": "active",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-05T12:10:01.274976+00:00",
+      "status": "active",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-05T10:56:31.303969+00:00",
+      "status": "active",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-05T07:57:19.147421+00:00",
+      "status": "active",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-05T07:53:44.623314+00:00",
+      "status": "active",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-05T07:45:25.750242+00:00",
+      "status": "active",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-05T07:43:00.668607+00:00",
+      "status": "active",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-05-05T07:38:25.814802+00:00",
+      "status": "active",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 1483886716,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-26T18:29:29.168403+00:00",
+      "status": "active",
+      "days_remaining": -17
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-24T15:06:36.248136+00:00",
+      "status": "active",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 2086031075,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-23T15:50:11.656176+00:00",
+      "status": "active",
+      "days_remaining": -20
+    },
+    {
+      "telegram_id": 1254048880,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-23T15:49:58.793705+00:00",
+      "status": "active",
+      "days_remaining": -20
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-23T15:43:23.203975+00:00",
+      "status": "active",
+      "days_remaining": -20
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-23T15:42:44.14989+00:00",
+      "status": "active",
+      "days_remaining": -20
+    },
+    {
+      "telegram_id": 409972991,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-23T15:42:12.771942+00:00",
+      "status": "active",
+      "days_remaining": -20
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-23T15:41:43.351873+00:00",
+      "status": "active",
+      "days_remaining": -20
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-23T15:41:17.066495+00:00",
+      "status": "active",
+      "days_remaining": -20
+    },
+    {
+      "telegram_id": 171606410,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-23T15:41:04.431871+00:00",
+      "status": "active",
+      "days_remaining": -20
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-23T15:40:52.491056+00:00",
+      "status": "active",
+      "days_remaining": -20
+    },
+    {
+      "telegram_id": 6419070693,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-04-23T15:40:23.280647+00:00",
+      "status": "active",
+      "days_remaining": -20
+    },
+    {
+      "telegram_id": 320577108,
+      "subscription_type": "NEUROTESTER",
+      "payment_date": "2025-03-07T13:30:59.206356+00:00",
+      "status": "active",
+      "days_remaining": -67
+    }
+  ],
+  "expiredSubscriptions": [
+    {
+      "telegram_id": 793916476,
+      "subscription_type": "stars",
+      "payment_date": "2025-05-08T06:45:39.561583+00:00",
+      "status": "expired",
+      "days_remaining": -5
+    },
+    {
+      "telegram_id": 425824587,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-08T04:27:41.74048+00:00",
+      "status": "expired",
+      "days_remaining": -5
+    },
+    {
+      "telegram_id": 210924975,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-05-07T11:20:04.994798+00:00",
+      "status": "expired",
+      "days_remaining": -6
+    },
+    {
+      "telegram_id": 324420051,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-07T10:54:04.52274+00:00",
+      "status": "expired",
+      "days_remaining": -6
+    },
+    {
+      "telegram_id": 793916476,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-07T10:47:25.93416+00:00",
+      "status": "expired",
+      "days_remaining": -6
+    },
+    {
+      "telegram_id": 89962285,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-07T10:37:17.135614+00:00",
+      "status": "expired",
+      "days_remaining": -6
+    },
+    {
+      "telegram_id": 336631218,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-05-05T05:54:10.163505+00:00",
+      "status": "expired",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 522934157,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-05-05T05:05:52.375996+00:00",
+      "status": "expired",
+      "days_remaining": -8
+    },
+    {
+      "telegram_id": 853206802,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-30T09:10:51.077643+00:00",
+      "status": "expired",
+      "days_remaining": -13
+    },
+    {
+      "telegram_id": 322270975,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-04-28T09:22:20.531489+00:00",
+      "status": "expired",
+      "days_remaining": -15
+    },
+    {
+      "telegram_id": 238415691,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-25T20:55:21.63023+00:00",
+      "status": "expired",
+      "days_remaining": -18
+    },
+    {
+      "telegram_id": 175604304,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1744063782065,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1540905621,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1744063214260,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 7587496613,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 671068551521,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1744063464932,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 274569041,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1374279961,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 36431194,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 389109666,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 810049345,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 345310621,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1852726961,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1495156606,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1064902106,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1744063648789,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1744064524923,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 375555839619,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1086429357,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T19:09:19.496719+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 231054807,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-04-24T16:34:55.447472+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 236846440,
+      "subscription_type": "NEUROPHOTO",
+      "payment_date": "2025-04-24T16:34:55.447472+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T16:34:41.094506+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 1018174166,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T16:34:41.094506+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 417895266,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-24T16:34:41.094506+00:00",
+      "status": "expired",
+      "days_remaining": -19
+    },
+    {
+      "telegram_id": 409972991,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-23T15:00:50.980211+00:00",
+      "status": "expired",
+      "days_remaining": -20
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-21T10:56:39.836731+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "neurophoto",
+      "payment_date": "2025-04-21T10:55:45.908294+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-21T10:52:22.280992+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-21T10:43:57.48206+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-21T10:43:16.268875+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-21T10:41:05.576761+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-21T10:37:10.70352+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-21T10:33:00.306512+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-21T10:30:51.260429+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-21T10:29:32.707019+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-21T09:36:04.059067+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 171606410,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-21T07:51:06.978531+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 6419070693,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-21T07:38:53.648758+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 6419070693,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-21T07:38:44.554983+00:00",
+      "status": "expired",
+      "days_remaining": -22
+    },
+    {
+      "telegram_id": 417895266,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-21T01:13:44.76774+00:00",
+      "status": "expired",
+      "days_remaining": -23
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-20T06:19:22.340521+00:00",
+      "status": "expired",
+      "days_remaining": -23
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-20T06:17:36.570795+00:00",
+      "status": "expired",
+      "days_remaining": -23
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-20T06:14:17.894954+00:00",
+      "status": "expired",
+      "days_remaining": -23
+    },
+    {
+      "telegram_id": 171606410,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-19T13:03:31.190524+00:00",
+      "status": "expired",
+      "days_remaining": -24
+    },
+    {
+      "telegram_id": 6419070693,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-19T13:03:23.667422+00:00",
+      "status": "expired",
+      "days_remaining": -24
+    },
+    {
+      "telegram_id": 2086031075,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-19T13:03:17.481454+00:00",
+      "status": "expired",
+      "days_remaining": -24
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-19T13:03:08.259805+00:00",
+      "status": "expired",
+      "days_remaining": -24
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-19T13:02:58.19915+00:00",
+      "status": "expired",
+      "days_remaining": -24
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-19T13:02:49.198429+00:00",
+      "status": "expired",
+      "days_remaining": -24
+    },
+    {
+      "telegram_id": 1254048880,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-19T13:02:39.39909+00:00",
+      "status": "expired",
+      "days_remaining": -24
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-19T13:02:21.119129+00:00",
+      "status": "expired",
+      "days_remaining": -24
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-04-19T13:01:14.437818+00:00",
+      "status": "expired",
+      "days_remaining": -24
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-19T02:10:03.201293+00:00",
+      "status": "expired",
+      "days_remaining": -25
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-19T02:08:13.205757+00:00",
+      "status": "expired",
+      "days_remaining": -25
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-19T02:07:32.386931+00:00",
+      "status": "expired",
+      "days_remaining": -25
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-19T02:05:37.325112+00:00",
+      "status": "expired",
+      "days_remaining": -25
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-15T10:43:04.613117+00:00",
+      "status": "expired",
+      "days_remaining": -28
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-15T10:40:17.092346+00:00",
+      "status": "expired",
+      "days_remaining": -28
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-15T10:40:10.31222+00:00",
+      "status": "expired",
+      "days_remaining": -28
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T04:12:46.680011+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T04:11:58.538586+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T01:35:17.619372+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T01:31:47.680312+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T01:24:20.608947+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T01:20:55.265226+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T01:18:21.589591+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T01:10:59.402135+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T01:03:00.489937+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T01:00:53.933248+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:58:55.169845+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:56:07.434283+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:53:01.843834+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:50:25.482828+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:46:21.01539+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:18:39.436482+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:18:09.474767+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:13:40.556271+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:13:21.287774+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:13:01.185776+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:12:36.147339+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:09:07.207428+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:08:40.837172+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:02:24.299962+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-14T00:00:38.594121+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:58:37.509053+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:58:19.368814+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:57:59.042611+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:57:35.905578+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:57:12.369552+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:37:43.867207+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:36:25.836694+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:34:34.085865+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:33:56.759+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:33:36.652064+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:33:09.115127+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:26:58.807185+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:26:35.647419+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:26:10.486446+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:25:50.482486+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:25:24.249262+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:24:56.726208+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T23:23:53.009335+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T20:39:03.578565+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T20:39:01.491198+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T20:38:57.694164+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-13T20:38:54.195222+00:00",
+      "status": "expired",
+      "days_remaining": -30
+    },
+    {
+      "telegram_id": 750275943,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-12T08:27:43.828+00:00",
+      "status": "expired",
+      "days_remaining": -31
+    },
+    {
+      "telegram_id": 750275943,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-04-12T08:05:19.884+00:00",
+      "status": "expired",
+      "days_remaining": -31
+    },
+    {
+      "telegram_id": 144022504,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-12T07:56:46.435306+00:00",
+      "status": "expired",
+      "days_remaining": -31
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T03:24:25.197562+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T03:23:47.155575+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T03:20:40.142013+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T03:14:24.676749+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T03:07:17.419688+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T03:06:43.165356+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T03:04:14.394149+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T02:39:50.191207+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T02:37:58.158229+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T02:36:24.294624+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T02:35:40.750712+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T02:34:29.550636+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:58:31.638657+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:58:31.101473+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:58:04.097777+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:58:04.07138+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:57:38.929933+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:53:48.218274+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:53:41.826736+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:53:37.482158+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:53:21.001516+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:53:20.977133+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:53:19.074916+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:52:39.322802+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:51:46.401707+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:51:38.173914+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:51:25.341855+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:50:41.55787+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:50:40.670758+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:50:38.354218+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:50:38.339418+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:50:20.040322+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:49:36.233229+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:49:34.896291+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:49:34.078472+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:48:59.437181+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:47:35.007381+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:46:35.016314+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:46:34.983827+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:46:24.425035+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:45:54.387945+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:45:53.176219+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-06T01:44:42.108516+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 671068551521,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-05T21:45:05.316147+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 671068551521,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-05T21:45:04.709242+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 375555839619,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-05T21:44:42.241948+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 375555839619,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-05T21:44:41.763204+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 671068551521,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-05T21:44:40.400894+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 671068551521,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-05T21:44:40.162525+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 671068551521,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-05T21:44:19.872427+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 375555839619,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-05T21:44:17.017725+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 375555839619,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-05T21:44:16.879943+00:00",
+      "status": "expired",
+      "days_remaining": -38
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T22:09:13.88656+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T22:04:15.956639+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T22:00:13.084287+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T21:53:27.820883+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T21:47:17.407938+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T21:42:59.694815+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T21:29:30.408543+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T21:23:01.269953+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T21:06:12.888444+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T18:36:31.346465+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T13:31:03.358258+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T13:11:52.424748+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T13:01:31.838691+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 1064902106,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T12:11:20.850121+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 7587496613,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T07:30:44.762139+00:00",
+      "status": "expired",
+      "days_remaining": -39
+    },
+    {
+      "telegram_id": 791618451,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-04T02:54:05.943067+00:00",
+      "status": "expired",
+      "days_remaining": -40
+    },
+    {
+      "telegram_id": 409972991,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-03T17:09:27.672207+00:00",
+      "status": "expired",
+      "days_remaining": -40
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-03T04:27:17.678629+00:00",
+      "status": "expired",
+      "days_remaining": -40
+    },
+    {
+      "telegram_id": 1018174166,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-02T15:56:12.364405+00:00",
+      "status": "expired",
+      "days_remaining": -41
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-02T11:50:55.397358+00:00",
+      "status": "expired",
+      "days_remaining": -41
+    },
+    {
+      "telegram_id": 409972991,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-02T11:28:40.466272+00:00",
+      "status": "expired",
+      "days_remaining": -41
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-02T08:39:17.170484+00:00",
+      "status": "expired",
+      "days_remaining": -41
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-02T07:02:32.015344+00:00",
+      "status": "expired",
+      "days_remaining": -41
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-02T07:00:12.913124+00:00",
+      "status": "expired",
+      "days_remaining": -41
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-02T06:58:59.686216+00:00",
+      "status": "expired",
+      "days_remaining": -41
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-02T06:53:40.785172+00:00",
+      "status": "expired",
+      "days_remaining": -41
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-01T19:26:03.36282+00:00",
+      "status": "expired",
+      "days_remaining": -42
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-01T19:19:02.545984+00:00",
+      "status": "expired",
+      "days_remaining": -42
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-01T19:18:11.894106+00:00",
+      "status": "expired",
+      "days_remaining": -42
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-01T19:17:00.736223+00:00",
+      "status": "expired",
+      "days_remaining": -42
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-01T19:10:27.578947+00:00",
+      "status": "expired",
+      "days_remaining": -42
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-01T19:07:51.497339+00:00",
+      "status": "expired",
+      "days_remaining": -42
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-04-01T18:57:18.657669+00:00",
+      "status": "expired",
+      "days_remaining": -42
+    },
+    {
+      "telegram_id": 175604304,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-31T20:33:41.496913+00:00",
+      "status": "expired",
+      "days_remaining": -43
+    },
+    {
+      "telegram_id": 274569041,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-31T19:52:17.954675+00:00",
+      "status": "expired",
+      "days_remaining": -43
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-31T18:45:53.494725+00:00",
+      "status": "expired",
+      "days_remaining": -43
+    },
+    {
+      "telegram_id": 6419070693,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-31T17:06:16.203852+00:00",
+      "status": "expired",
+      "days_remaining": -43
+    },
+    {
+      "telegram_id": 1254048880,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-31T17:03:46.251815+00:00",
+      "status": "expired",
+      "days_remaining": -43
+    },
+    {
+      "telegram_id": 1254048880,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-31T12:33:29.788098+00:00",
+      "status": "expired",
+      "days_remaining": -43
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-31T04:57:11.827974+00:00",
+      "status": "expired",
+      "days_remaining": -43
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-30T16:51:59.347838+00:00",
+      "status": "expired",
+      "days_remaining": -44
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-30T16:43:59.408681+00:00",
+      "status": "expired",
+      "days_remaining": -44
+    },
+    {
+      "telegram_id": 1852726961,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-30T16:39:53.408262+00:00",
+      "status": "expired",
+      "days_remaining": -44
+    },
+    {
+      "telegram_id": 1852726961,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-30T16:34:42.538978+00:00",
+      "status": "expired",
+      "days_remaining": -44
+    },
+    {
+      "telegram_id": 1852726961,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-30T16:27:32.722786+00:00",
+      "status": "expired",
+      "days_remaining": -44
+    },
+    {
+      "telegram_id": 1852726961,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-30T14:54:28.832437+00:00",
+      "status": "expired",
+      "days_remaining": -44
+    },
+    {
+      "telegram_id": 1852726961,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-30T14:49:33.757345+00:00",
+      "status": "expired",
+      "days_remaining": -44
+    },
+    {
+      "telegram_id": 1852726961,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-30T14:44:12.113815+00:00",
+      "status": "expired",
+      "days_remaining": -44
+    },
+    {
+      "telegram_id": 175604304,
+      "subscription_type": "neurophoto",
+      "payment_date": "2025-03-30T06:48:23.917762+00:00",
+      "status": "expired",
+      "days_remaining": -44
+    },
+    {
+      "telegram_id": 1254048880,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-29T19:26:22.050185+00:00",
+      "status": "expired",
+      "days_remaining": -45
+    },
+    {
+      "telegram_id": 1254048880,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-29T19:19:17.003488+00:00",
+      "status": "expired",
+      "days_remaining": -45
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-28T13:21:50.731519+00:00",
+      "status": "expired",
+      "days_remaining": -46
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-28T12:56:35.955633+00:00",
+      "status": "expired",
+      "days_remaining": -46
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-28T12:44:36.979971+00:00",
+      "status": "expired",
+      "days_remaining": -46
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-28T12:38:28.363827+00:00",
+      "status": "expired",
+      "days_remaining": -46
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-28T08:59:48.589137+00:00",
+      "status": "expired",
+      "days_remaining": -46
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-28T07:20:22.824901+00:00",
+      "status": "expired",
+      "days_remaining": -46
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-28T07:19:09.571888+00:00",
+      "status": "expired",
+      "days_remaining": -46
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-28T04:47:41.859501+00:00",
+      "status": "expired",
+      "days_remaining": -46
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T15:37:16.796684+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T12:51:18.734086+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T12:50:41.312938+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T12:02:12.10898+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T08:52:09.283865+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T06:37:04.371988+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T06:36:21.062332+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T06:18:08.640062+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T06:10:10.176355+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T05:55:41.282913+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T05:54:23.244781+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 6419070693,
+      "subscription_type": "NEUROVIDEO",
+      "payment_date": "2025-03-27T04:20:01.089423+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T04:20:01.089423+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 2086031075,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-27T04:20:01.089423+00:00",
+      "status": "expired",
+      "days_remaining": -47
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T21:25:44.104+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T18:26:31.71+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T18:22:31.25+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T18:21:50.514+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T18:19:13.536+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T18:18:29.58+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T17:33:48.795+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T17:31:00.782+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T17:25:44.422+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T17:24:48.338+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T17:19:33.706+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T17:02:29.836+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T16:51:12.293+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T16:32:46.356+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T16:29:31.654+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T16:28:11.68+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T16:25:19.732+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T16:18:20.799+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T16:16:01.237+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T16:14:17.372+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 1483886716,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T16:02:01.827+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 1483886716,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T15:45:48.504+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 1483886716,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T15:44:31.341+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T13:21:22.97+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 411128512,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T13:16:13.039+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 236846440,
+      "subscription_type": "neurophoto",
+      "payment_date": "2025-03-26T08:55:51.916367+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 2086031075,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T08:25:52.675+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T06:46:25.586+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T06:42:07.515+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T06:41:40.117+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T06:40:37.314+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T06:39:43.785+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T06:34:10.664+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T06:33:09.282+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T06:28:30.927+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T06:21:28.524+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T06:03:50.033+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T05:11:36.003+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T05:09:06.562+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T05:06:26.501+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 374300205,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T05:05:08.192+00:00",
+      "status": "expired",
+      "days_remaining": -48
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T02:10:44.958+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T02:10:01.448+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T02:07:47.85+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T02:07:22.487+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T02:06:57.444+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T02:04:58.022+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T02:04:22.131+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T02:00:24.783+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:59:38.28+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:56:37.784+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:56:04.711+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:52:19.258+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:51:36.256+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:51:11.13+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:49:19.665+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:48:55.191+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:48:00.355+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:45:37.584+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:44:39.097+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:43:10.089+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:42:28.35+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:42:00.508+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:40:34.645+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:39:21.673+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:37:52.149+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:37:22.598+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:36:54.565+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:35:22.556+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:34:50.264+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:33:59.189+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:32:02.545+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:31:04.248+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:30:30.315+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:28:06.873+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:26:54.17+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:26:26.105+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:25:36.578+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:06:13.07+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:05:39.13+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:03:12.234+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:01:58.738+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T01:01:13.228+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T00:55:16.936+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T00:53:37.064+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T00:52:37.868+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T00:52:06.548+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T00:32:40.558+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T00:16:02.268+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T00:15:12.984+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-26T00:14:45.436+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T19:54:08.067+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 435572800,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T15:55:33.597461+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T15:49:44.483091+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 345310621,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T12:32:48.180969+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 345310621,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T12:31:11.473236+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 345310621,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T12:29:32.992987+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 345310621,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T12:24:13.051962+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 345310621,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T12:22:37.701931+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T11:58:50.091007+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T11:57:48.922611+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T11:47:12.795594+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T11:44:27.530284+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T11:42:13.647704+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T11:41:14.998523+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T11:36:23.950864+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 171606410,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T10:58:44.656986+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 171606410,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T10:58:06.693296+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 171606410,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T10:56:54.155072+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 171606410,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T10:50:06.953264+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 171606410,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T10:49:54.172771+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 171606410,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T10:49:15.752261+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1374279961,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T06:35:22.67198+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T06:13:00.695302+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T05:55:49.025223+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T05:45:19.818503+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T05:36:01.193499+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T05:12:54.279967+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T05:04:22.195049+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T04:53:11.951629+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T04:50:42.074303+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T04:49:38.304837+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T04:46:48.872127+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T04:45:39.775577+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T04:45:35.348912+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T04:44:48.232663+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T04:43:33.812722+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T04:34:00.34908+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T04:26:29.965851+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-25T04:25:08.372899+00:00",
+      "status": "expired",
+      "days_remaining": -49
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T21:57:39.311944+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T21:53:41.028123+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T21:49:26.790859+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T21:45:13.182724+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T21:43:14.866616+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T21:35:01.370613+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T21:28:54.234288+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T21:28:19.244785+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T21:25:24.753095+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T21:24:39.982323+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T19:56:13.563771+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T19:54:12.727229+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T19:52:05.512853+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 6419070693,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T08:11:00.990952+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 6419070693,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T08:10:06.301736+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 6419070693,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T08:09:02.795355+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 6419070693,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-24T08:07:29.79705+00:00",
+      "status": "expired",
+      "days_remaining": -50
+    },
+    {
+      "telegram_id": 1018174166,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-22T14:26:08.575613+00:00",
+      "status": "expired",
+      "days_remaining": -52
+    },
+    {
+      "telegram_id": 7587496613,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-20T18:06:35.115239+00:00",
+      "status": "expired",
+      "days_remaining": -54
+    },
+    {
+      "telegram_id": 2086031075,
+      "subscription_type": "neurobase",
+      "payment_date": "2025-03-17T10:38:54.263281+00:00",
+      "status": "expired",
+      "days_remaining": -57
+    },
+    {
+      "telegram_id": 231054807,
+      "subscription_type": "neurophoto",
+      "payment_date": "2025-03-13T07:02:52.530264+00:00",
+      "status": "expired",
+      "days_remaining": -61
+    },
+    {
+      "telegram_id": 1374279961,
+      "subscription_type": "neurophoto",
+      "payment_date": "2025-03-13T05:34:54.640785+00:00",
+      "status": "expired",
+      "days_remaining": -61
+    },
+    {
+      "telegram_id": 345310621,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-02T03:56:51.791348+00:00",
+      "status": "expired",
+      "days_remaining": -73
+    },
+    {
+      "telegram_id": 810049345,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-01T12:52:04.295075+00:00",
+      "status": "expired",
+      "days_remaining": -73
+    },
+    {
+      "telegram_id": 1667189592,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-01T12:21:23.59851+00:00",
+      "status": "expired",
+      "days_remaining": -73
+    },
+    {
+      "telegram_id": 389109666,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-01T12:14:03.811624+00:00",
+      "status": "expired",
+      "days_remaining": -73
+    },
+    {
+      "telegram_id": 1086429357,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-01T12:12:35.346308+00:00",
+      "status": "expired",
+      "days_remaining": -73
+    },
+    {
+      "telegram_id": 36431194,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-01T12:11:48.490303+00:00",
+      "status": "expired",
+      "days_remaining": -73
+    },
+    {
+      "telegram_id": 389109666,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-01T12:11:46.689963+00:00",
+      "status": "expired",
+      "days_remaining": -73
+    },
+    {
+      "telegram_id": 352374518,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-01T11:57:05.006857+00:00",
+      "status": "expired",
+      "days_remaining": -73
+    },
+    {
+      "telegram_id": 1540905621,
+      "subscription_type": "stars",
+      "payment_date": "2025-03-01T03:00:14.583951+00:00",
+      "status": "expired",
+      "days_remaining": -74
+    },
+    {
+      "telegram_id": 1495156606,
+      "subscription_type": "stars",
+      "payment_date": "2025-02-22T09:32:27.820888+00:00",
+      "status": "expired",
+      "days_remaining": -80
+    }
+  ]
+}
