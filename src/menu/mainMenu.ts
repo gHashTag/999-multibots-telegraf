@@ -108,6 +108,14 @@ export const levels: Record<number, Level> = {
     title_ru: '💫 Оформить подписку',
     title_en: '💫 Subscribe',
   },
+  106: {
+    title_ru: '🧪 Тест апскейлера',
+    title_en: '🧪 Test Upscaler',
+  },
+  107: {
+    title_ru: '⬆️ Увеличить качество фото',
+    title_en: '⬆️ Upscale Photo Quality',
+  },
 }
 
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
@@ -134,7 +142,12 @@ export async function mainMenu({
 
   const subscriptionLevelsMap: Record<SubscriptionType, Level[]> = {
     [SubscriptionType.STARS]: [],
-    [SubscriptionType.NEUROPHOTO]: [levels[1], levels[2], levels[3]],
+    [SubscriptionType.NEUROPHOTO]: [
+      levels[1],
+      levels[2],
+      levels[3],
+      levels[107],
+    ],
     [SubscriptionType.NEUROVIDEO]: Object.values(levels), // Все
     [SubscriptionType.NEUROTESTER]: Object.values(levels), // Все возможности для тестера
   }
@@ -177,7 +190,8 @@ export async function mainMenu({
   if (userId && adminIds.includes(userId)) {
     adminSpecificButtons.push(
       Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
-      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
+      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2'),
+      Markup.button.text(isRu ? levels[106].title_ru : levels[106].title_en) // Тест апскейлера
     )
     console.log('[mainMenu LOG] Added admin buttons.')
   }
