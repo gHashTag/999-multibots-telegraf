@@ -752,7 +752,14 @@ If not, continue on your own and click the "I myself" button`
         return
       }
 
-      // Импортируем и запускаем наш отдельный upscaler
+      // Отправляем сообщение о начале обработки
+      await ctx.reply(
+        is_ru
+          ? '⌛ Увеличиваем качество нейрофото... Пожалуйста, подождите'
+          : '⌛ Upscaling neurophoto quality... Please wait'
+      )
+
+      // Импортируем и запускаем локальный upscaler (тот же что и для отдельного upscaler'а)
       const { upscaleImage } = await import('./services/imageUpscaler')
       await upscaleImage({
         imageUrl: ctx.session.lastNeuroPhotoImageUrl,
