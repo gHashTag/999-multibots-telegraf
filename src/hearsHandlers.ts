@@ -38,77 +38,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     return next()
   })
 
-  // ПЕРЕНОСИМ UPSCALE ОБРАБОТЧИК В САМОЕ НАЧАЛО ДЛЯ ТЕСТИРОВАНИЯ
-  console.log('🔧 DEBUG: Registering Upscale hears handler AT THE TOP...')
-  bot.hears(
-    ['⬆️ Увеличить качество', '⬆️ Upscale', /Увеличить качество/, /Upscale/],
-    async ctx => {
-      console.log('🚨 DEBUG: Upscale hears handler triggered!', {
-        messageText: ctx.message?.text,
-      })
-      logger.info('GLOBAL HEARS: Upscale requested', {
-        telegramId: ctx.from?.id,
-      })
-
-      console.log('🔍 DEBUG: Upscale button pressed!', {
-        from: ctx.from?.id,
-        text: ctx.message?.text || 'no text',
-        session: {
-          lastImageUrl: ctx.session?.lastGeneratedImageUrl || 'none',
-          lastPrompt: ctx.session?.lastGeneratedPrompt || 'none',
-        },
-      })
-
-      try {
-        const telegram_id = ctx.from?.id?.toString()
-        const username = ctx.from?.username || ''
-        const is_ru = isRussian(ctx)
-
-        if (!telegram_id) {
-          await ctx.reply(
-            is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
-          )
-          return
-        }
-
-        // Проверяем, есть ли сохраненное изображение для upscaling
-        if (!ctx.session?.lastGeneratedImageUrl) {
-          await ctx.reply(
-            is_ru
-              ? '❌ Нет изображения для увеличения качества. Сначала сгенерируйте изображение с помощью FLUX Kontext.'
-              : '❌ No image to upscale. Please generate an image with FLUX Kontext first.',
-            {
-              reply_markup: {
-                remove_keyboard: true,
-              },
-            }
-          )
-          return
-        }
-
-        // Запускаем upscaling
-        await upscaleFluxKontextImage({
-          imageUrl: ctx.session.lastGeneratedImageUrl,
-          telegram_id,
-          username,
-          is_ru,
-          ctx,
-          originalPrompt: ctx.session.lastGeneratedPrompt,
-        })
-      } catch (error) {
-        logger.error('Error in Upscale hears handler:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-
-        await ctx.reply(
-          isRussian(ctx)
-            ? '❌ Произошла ошибка при увеличении качества изображения.'
-            : '❌ An error occurred while upscaling the image.'
-        )
-      }
-    }
-  )
+  // УБИРАЕМ КОНФЛИКТУЮЩИЙ HEARS ОБРАБОТЧИК
+  // Этот обработчик конфликтовал с menu handler для отдельного upscaler'а
+  // Теперь используется только menu handler + imageUpscalerWizard
 
   // === НАВИГАЦИОННЫЕ ОБРАБОТЧИКИ ===
   bot.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
@@ -210,6 +142,42 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     ctx.session.mode = ModeEnum.NeuroPhoto
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
+
+  // 🧪 ТЕСТОВАЯ КНОПКА ДЛЯ АПСКЕЙЛЕРА (ТОЛЬКО ДЛЯ АДМИНОВ)
+  bot.hears(
+    ['🧪 Тест апскейлера', '🧪 Test Upscaler'],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Тест апскейлера от ${ctx.from?.id}`)
+
+      const isRu = isRussian(ctx)
+
+      try {
+        // Используем тестовое изображение
+        const testImageUrl =
+          'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/280px-PNG_transparency_demonstration_1.png'
+
+        await upscaleFluxKontextImage({
+          imageUrl: testImageUrl,
+          telegram_id: ctx.from?.id?.toString() || '',
+          username: ctx.from?.username || 'test_user',
+          is_ru: isRu,
+          ctx: ctx,
+          originalPrompt: 'Test upscale',
+        })
+      } catch (error) {
+        logger.error('Error in test upscaler button:', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          telegramId: ctx.from?.id,
+        })
+
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка при тестировании апскейлера.'
+            : '❌ Error testing upscaler.'
+        )
+      }
+    }
+  )
 
   bot.hears(
     [levels[3].title_ru, levels[3].title_en],

@@ -8,6 +8,7 @@ export enum PaidServiceEnum {
   NeuroPhoto = 'neuro_photo', // 10,688⭐ выручки, 747 операций
   NeuroPhotoV2 = 'neuro_photo_v2', // 0⭐ выручки, 0 операций (доступен, но не используется)
   ImageToPrompt = 'image_to_prompt', // 171⭐ выручки, 86 операций
+  ImageUpscaler = 'image_upscaler', // Увеличение качества изображений
 
   // 🎬 ГЕНЕРАЦИЯ ВИДЕО (сложный расчет - зависит от модели)
   KlingVideo = 'kling_video', // 5,397⭐ выручки, 78 операций
@@ -81,6 +82,14 @@ export const PAID_SERVICES_CONFIG: Record<PaidServiceEnum, PaidServiceConfig> =
       pricingType: PricingType.SIMPLE,
       baseCostUSD: 0.03, // Себестоимость провайдера
       description: 'Анализ изображения и создание текстового описания',
+      category: 'image',
+    },
+
+    [PaidServiceEnum.ImageUpscaler]: {
+      name: 'Увеличение качества',
+      pricingType: PricingType.SIMPLE,
+      baseCostUSD: 0.04, // Увеличено для разумной наценки - аналогично ImageToPrompt
+      description: 'Увеличение качества изображений с помощью ИИ',
       category: 'image',
     },
 
