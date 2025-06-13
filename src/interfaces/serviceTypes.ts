@@ -25,6 +25,7 @@ export enum ServiceType {
   // Системные операции
   TopUpBalance = 'top_up_balance',
   Subscribe = 'subscribe',
+  AdminSubscriptionRenewal = 'admin_subscription_renewal',
 }
 
 /**
