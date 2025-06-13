@@ -230,6 +230,13 @@ fluxKontextScene.action('flux_model_pro', async ctx => {
     await ctx.answerCbQuery()
     if (ctx.session) {
       ctx.session.kontextModelType = 'pro'
+      logger.info('FLUX Kontext Pro model selected - session updated', {
+        telegramId: ctx.from?.id,
+        modelType: ctx.session.kontextModelType,
+        mode: ctx.session.fluxKontextMode,
+        hasImageA: !!ctx.session.fluxKontextImageA,
+        sessionExists: !!ctx.session,
+      })
     }
     await handleModelSelection(ctx, 'pro')
   } catch (error) {
@@ -245,6 +252,13 @@ fluxKontextScene.action('flux_model_max', async ctx => {
     await ctx.answerCbQuery()
     if (ctx.session) {
       ctx.session.kontextModelType = 'max'
+      logger.info('FLUX Kontext Max model selected - session updated', {
+        telegramId: ctx.from?.id,
+        modelType: ctx.session.kontextModelType,
+        mode: ctx.session.fluxKontextMode,
+        hasImageA: !!ctx.session.fluxKontextImageA,
+        sessionExists: !!ctx.session,
+      })
     }
     await handleModelSelection(ctx, 'max')
   } catch (error) {
@@ -435,6 +449,19 @@ fluxKontextScene.on('text', async ctx => {
   try {
     const isRu = isRussian(ctx)
 
+    // Логируем состояние сессии при получении промпта
+    logger.info('FLUX Kontext text handler - session state', {
+      telegramId: ctx.from?.id,
+      awaitingPrompt: ctx.session?.awaitingFluxKontextPrompt,
+      mode: ctx.session?.fluxKontextMode,
+      hasImageA: !!ctx.session?.fluxKontextImageA,
+      hasImageB: !!ctx.session?.fluxKontextImageB,
+      modelType: ctx.session?.kontextModelType,
+      step: ctx.session?.fluxKontextStep,
+      sessionExists: !!ctx.session,
+      sessionKeys: ctx.session ? Object.keys(ctx.session) : [],
+    })
+
     if (!ctx.session?.awaitingFluxKontextPrompt) {
       await ctx.reply(
         isRu
@@ -501,7 +528,11 @@ const processFluxKontextRequest = async (ctx: MyContext, prompt: string) => {
       telegramId: ctx.from?.id,
       mode: fluxKontextMode,
       hasImageA: !!fluxKontextImageA,
+      hasImageB: !!fluxKontextImageB,
       modelType: kontextModelType,
+      sessionExists: !!ctx.session,
+      sessionKeys: ctx.session ? Object.keys(ctx.session) : [],
+      fullSession: ctx.session,
     })
 
     await ctx.reply(
