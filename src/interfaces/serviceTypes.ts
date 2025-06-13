@@ -10,6 +10,7 @@ export enum ServiceType {
   ImageToVideo = 'image_to_video',
   TextToVideo = 'text_to_video',
   VoiceToText = 'voice_to_text',
+  ImageUpscaler = 'image_upscaler',
 
   // Аватары
   DigitalAvatarBody = 'digital_avatar_body',
@@ -40,6 +41,7 @@ export const ServiceGroups = {
     ServiceType.ImageToVideo,
     ServiceType.TextToVideo,
     ServiceType.VoiceToText,
+    ServiceType.ImageUpscaler,
   ],
 
   Avatars: [

@@ -541,8 +541,8 @@ export const upscaleFluxKontextImage = async (params: {
 }): Promise<GenerationResult> => {
   const { imageUrl, telegram_id, username, is_ru, ctx, originalPrompt } = params
 
-  // Стоимость upscaling - Clarity Upscaler стоит $0.012 с наценкой 50%
-  const clarityUpscalerCostUSD = 0.012 // Себестоимость Clarity Upscaler
+  // Стоимость upscaling - Clarity Upscaler с обновленной ценой $0.04 и наценкой 50%
+  const clarityUpscalerCostUSD = 0.04 // Обновленная себестоимость Clarity Upscaler для разумной наценки
   const upscaleCost = calculateFinalPriceInStars(clarityUpscalerCostUSD) // Автоматический расчет с наценкой 50%
 
   // Объявляем переменную для проверки баланса в области видимости функции
@@ -625,10 +625,7 @@ export const upscaleFluxKontextImage = async (params: {
       throw new Error('prompt_id is null')
     }
 
-    // Скачивание для отправки
-    const image = await downloadFile(upscaledImageUrl)
-
-    // Отправка upscaled изображения
+    // Отправка upscaled изображения (используем уже сохраненный локальный файл)
     await ctx.telegram.sendPhoto(
       telegram_id,
       {
@@ -659,7 +656,7 @@ export const upscaleFluxKontextImage = async (params: {
       model: 'philz1337x/clarity-upscaler',
     })
 
-    return { image, prompt_id }
+    return { image: Buffer.alloc(0), prompt_id } // Возвращаем пустой буфер, т.к. файл уже отправлен
   } catch (error) {
     logger.error('Image upscaling failed', {
       error: error instanceof Error ? error.message : 'Unknown error',

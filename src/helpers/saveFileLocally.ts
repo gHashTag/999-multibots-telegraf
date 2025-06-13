@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { promisify } from 'util'
-import { downloadFile } from '@/core/replicate/generateVideo'
+import { downloadFile } from '@/helpers/downloadFile'
 
 const mkdir = promisify(fs.mkdir)
 const writeFile = promisify(fs.writeFile)

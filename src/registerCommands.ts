@@ -32,6 +32,7 @@ import {
   neuroPhotoWizard,
   neuroPhotoWizardV2,
   imageToPromptWizard,
+  imageUpscalerWizard,
   improvePromptWizard,
   sizeWizard,
   textToImageWizard,
@@ -94,6 +95,7 @@ export const stage = new Scenes.Stage<MyContext>([
   textToVideoWizard,
   imageToVideoWizard,
   imageToPromptWizard,
+  imageUpscalerWizard,
   improvePromptWizard,
   trainFluxModelWizard,
   uploadTrainFluxModelScene,
@@ -408,6 +410,48 @@ If not, continue on your own and click the "I myself" button`
     }
   })
 
+  // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ АПСКЕЙЛЕРА
+  bot.command('test_upscale', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+
+    const isRu = ctx.from?.language_code === 'ru'
+    logger.info('TEST COMMAND: test_upscale', {
+      telegramId: ctx.from?.id,
+    })
+
+    try {
+      // Используем тестовое изображение
+      const testImageUrl =
+        'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/280px-PNG_transparency_demonstration_1.png'
+
+      const { upscaleFluxKontextImage } = await import(
+        '@/services/generateFluxKontext'
+      )
+
+      await upscaleFluxKontextImage({
+        imageUrl: testImageUrl,
+        telegram_id: ctx.from?.id?.toString() || '',
+        username: ctx.from?.username || 'test_user',
+        is_ru: isRu,
+        ctx: ctx,
+        originalPrompt: 'Test upscale',
+      })
+    } catch (error) {
+      logger.error('Error in test_upscale command:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        telegramId: ctx.from?.id,
+      })
+
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка при тестировании апскейлера.'
+          : '❌ Error testing upscaler.'
+      )
+    }
+  })
+
   // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
   bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
     console.log('CASE bot.hears: 💬 Техподдержка / Support')
@@ -487,6 +531,34 @@ If not, continue on your own and click the "I myself" button`
       // Попытка уведомить пользователя об ошибке
       try {
         await ctx.reply('Ошибка при переходе в меню.')
+      } catch {
+        /* ignore */
+      }
+    }
+  })
+
+  // Обработчик кнопки "Ещё одно фото" для upscaler'а
+  bot.action('upscale_another_photo', async ctx => {
+    const isRu = ctx.from?.language_code === 'ru'
+    logger.info('GLOBAL ACTION: upscale_another_photo', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.ImageUpscaler)
+    } catch (error) {
+      logger.error('Error in upscale_another_photo action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      // Попытка уведомить пользователя об ошибке
+      try {
+        await ctx.reply(
+          isRu
+            ? 'Ошибка при переходе к upscaler.'
+            : 'Error switching to upscaler.'
+        )
       } catch {
         /* ignore */
       }
@@ -647,6 +719,59 @@ If not, continue on your own and click the "I myself" button`
         ctx.from?.language_code === 'ru'
           ? '❌ Произошла ошибка при увеличении качества изображения.'
           : '❌ An error occurred while upscaling the image.'
+      )
+    }
+  })
+
+  // ОБРАБОТЧИК ДЛЯ УВЕЛИЧЕНИЯ КАЧЕСТВА НЕЙРОФОТО
+  bot.action('upscale_neurophoto_image', async ctx => {
+    logger.info('GLOBAL ACTION: upscale_neurophoto_image', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+
+      const telegram_id = ctx.from?.id?.toString()
+      const username = ctx.from?.username || ''
+      const is_ru = ctx.from?.language_code === 'ru'
+
+      if (!telegram_id) {
+        await ctx.reply(
+          is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
+        )
+        return
+      }
+
+      // Проверяем, есть ли сохраненное изображение для upscaling
+      if (!ctx.session?.lastNeuroPhotoImageUrl) {
+        await ctx.reply(
+          is_ru
+            ? '❌ Нет изображения для увеличения качества. Сначала сгенерируйте нейрофото.'
+            : '❌ No image to upscale. Please generate a neurophoto first.'
+        )
+        return
+      }
+
+      // Импортируем и запускаем наш отдельный upscaler
+      const { upscaleImage } = await import('./services/imageUpscaler')
+      await upscaleImage({
+        imageUrl: ctx.session.lastNeuroPhotoImageUrl,
+        telegram_id,
+        username,
+        is_ru,
+        ctx,
+        originalPrompt:
+          ctx.session.lastNeuroPhotoPrompt || 'Neurophoto upscale',
+      })
+    } catch (error) {
+      logger.error('Error in upscale_neurophoto_image action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply(
+        ctx.from?.language_code === 'ru'
+          ? '❌ Произошла ошибка при увеличении качества нейрофото.'
+          : '❌ An error occurred while upscaling the neurophoto.'
       )
     }
   })

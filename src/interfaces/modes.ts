@@ -5,6 +5,7 @@ export enum ModeEnum {
   NeuroPhoto = PaidServiceEnum.NeuroPhoto,
   NeuroPhotoV2 = PaidServiceEnum.NeuroPhotoV2,
   ImageToPrompt = PaidServiceEnum.ImageToPrompt,
+  ImageUpscaler = PaidServiceEnum.ImageUpscaler,
   KlingVideo = PaidServiceEnum.KlingVideo,
   HaiperVideo = PaidServiceEnum.HaiperVideo,
   VideoGenerationOther = PaidServiceEnum.VideoGenerationOther,

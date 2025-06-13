@@ -262,6 +262,10 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // Upscaling fields
   lastGeneratedImageUrl?: string // URL последнего сгенерированного изображения
   lastGeneratedPrompt?: string // Промпт последнего сгенерированного изображения
+
+  // Neurophoto upscaling fields
+  lastNeuroPhotoImageUrl?: string // URL последнего нейрофото
+  lastNeuroPhotoPrompt?: string // Промпт последнего нейрофото
 }
 
 export interface MyContext extends Context {

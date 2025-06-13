@@ -108,13 +108,11 @@ export function calculateCost(
   }
 }
 
-// НОВАЯ ФУНКЦИЯ: Расчет конечной стоимости в звездах из базовой в долларах
+// НОВАЯ ФУНКЦИЯ: Расчет конечной стоимости в звездах из базовой в долларах (согласовано с calculateFinalPriceInStars)
 function calculateFinalStarCostFromDollars(baseDollarCost: number): number {
-  //// Предполагаем, что interestRate - это множитель наценки (например, 1.2 для 20%)
-  // Если interestRate - это процент (например, 20), то формула будет (baseDollarCost / starCost) * (1 + SYSTEM_CONFIG.interestRate / 100)
-  // Используем текущую логику расчета рублей как пример: умножаем на interestRate
+  // Используем ту же логику что и в calculateFinalPriceInStars для согласованности
   const finalCost = (baseDollarCost / starCost) * SYSTEM_CONFIG.interestRate
-  return parseFloat(finalCost.toFixed(2))
+  return Math.floor(finalCost) // Округляем вниз для согласованности с другими функциями
 }
 
 export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
@@ -124,6 +122,7 @@ export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
   [ModeEnum.NeuroPhotoV2]: calculateFinalStarCostFromDollars(0.14),
   [ModeEnum.NeuroAudio]: calculateFinalStarCostFromDollars(0.12),
   [ModeEnum.ImageToPrompt]: calculateFinalStarCostFromDollars(0.03),
+  [ModeEnum.ImageUpscaler]: calculateFinalStarCostFromDollars(0.04),
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: 0,
   [ModeEnum.SelectModel]: 0,
@@ -231,9 +230,9 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.NeuroPhoto]: calculateModeCost({ mode: ModeEnum.NeuroPhoto }).stars,
   [ModeEnum.NeuroPhotoV2]: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 })
     .stars,
-  [ModeEnum.NeuroAudio]: calculateModeCost({ mode: ModeEnum.NeuroAudio }).stars,
-  neuro_photo_2: calculateModeCost({ mode: ModeEnum.NeuroPhotoV2 }).stars,
   [ModeEnum.ImageToPrompt]: calculateModeCost({ mode: ModeEnum.ImageToPrompt })
+    .stars,
+  [ModeEnum.ImageUpscaler]: calculateModeCost({ mode: ModeEnum.ImageUpscaler })
     .stars,
   [ModeEnum.Avatar]: calculateModeCost({ mode: ModeEnum.Avatar }).stars,
   [ModeEnum.ChatWithAvatar]: calculateModeCost({
@@ -618,6 +617,18 @@ export const enterTargetScene = async (
         function: 'enterTargetSceneWrapper',
       })
       await ctx.scene.enter('flux_kontext_scene')
+      return
+    }
+
+    // Специальная логика для ImageUpscaler - направляем в imageUpscalerWizard сцену
+    if (mode === ModeEnum.ImageUpscaler) {
+      logger.info({
+        message: `[EnterTargetSceneWrapper] ImageUpscaler режим - переход в imageUpscalerWizard`,
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      })
+      await ctx.scene.enter(ModeEnum.ImageUpscaler)
       return
     }
 
