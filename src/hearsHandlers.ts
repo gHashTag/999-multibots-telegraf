@@ -42,6 +42,65 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   // Этот обработчик конфликтовал с menu handler для отдельного upscaler'а
   // Теперь используется только menu handler + imageUpscalerWizard
 
+  // ОБРАБОТЧИК ДЛЯ УВЕЛИЧЕНИЯ КАЧЕСТВА НЕЙРОФОТО (keyboard кнопка с бэкенда)
+  bot.hears(['⬆️ Увеличить качество', '⬆️ Upscale Quality'], async ctx => {
+    logger.info('GLOBAL HEARS: Neurophoto upscale quality requested', {
+      telegramId: ctx.from?.id,
+    })
+
+    try {
+      const telegram_id = ctx.from?.id?.toString()
+      const username = ctx.from?.username || ''
+      const is_ru = isRussian(ctx)
+
+      if (!telegram_id) {
+        await ctx.reply(
+          is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
+        )
+        return
+      }
+
+      // Проверяем, есть ли сохраненное изображение для upscaling
+      if (!ctx.session?.lastNeuroPhotoImageUrl) {
+        await ctx.reply(
+          is_ru
+            ? '❌ Нет изображения для увеличения качества. Сначала сгенерируйте нейрофото.'
+            : '❌ No image to upscale. Please generate a neurophoto first.'
+        )
+        return
+      }
+
+      // Отправляем сообщение о начале обработки
+      await ctx.reply(
+        is_ru
+          ? '⌛ Увеличиваем качество нейрофото... Пожалуйста, подождите'
+          : '⌛ Upscaling neurophoto quality... Please wait'
+      )
+
+      // Импортируем и запускаем локальный upscaler (тот же что и для отдельного upscaler'а)
+      const { upscaleImage } = await import('./services/imageUpscaler')
+      await upscaleImage({
+        imageUrl: ctx.session.lastNeuroPhotoImageUrl,
+        telegram_id,
+        username,
+        is_ru,
+        ctx,
+        originalPrompt:
+          ctx.session.lastNeuroPhotoPrompt || 'Neurophoto upscale',
+      })
+    } catch (error) {
+      logger.error('Error in neurophoto upscale hears handler:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply(
+        isRussian(ctx)
+          ? '❌ Произошла ошибка при увеличении качества нейрофото.'
+          : '❌ An error occurred while upscaling the neurophoto.'
+      )
+    }
+  })
+
   // === НАВИГАЦИОННЫЕ ОБРАБОТЧИКИ ===
   bot.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
     logger.info('GLOBAL HEARS: Главное меню', {
