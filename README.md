@@ -479,7 +479,15 @@ _(This README will be updated as the project progresses)_
 - **Smart pricing**: 50% markup for complex modes (multi, portrait_series)
 - **Intelligent prompts**: Mode-specific prompt enhancement
 
-### ⬆️ Image Upscaling
+### ⬆️ Image Upscaling (New!)
+- **Clarity Upscaler**: Stand-alone command for image quality enhancement
+- **2x resolution increase**: Doubles image resolution with AI enhancement
+- **Cost-effective**: Only 1⭐ per upscale (based on $0.012 API cost)
+- **Easy access**: Available as separate menu item "⬆️ Увеличить качество" / "⬆️ Upscale Image"
+- **Smart enhancement**: Preserves original image content while improving details
+- **Menu location**: Available for NEUROPHOTO, NEUROVIDEO, and NEUROTESTER subscriptions
+
+### ⬆️ Image Upscaling (Legacy)
 - **Real-ESRGAN 4x upscaling**: Industry-leading AI upscaler with 67.5M+ runs
 - **Face enhancement**: Automatic face improvement using GFPGAN
 - **Cost-effective**: Premium quality at 6⭐ per upscale
