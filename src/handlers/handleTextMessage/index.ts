@@ -201,13 +201,13 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
 
       console.log(
         `[handleTextMessage] Preparing to call answerAi for user ${userId}. Model: ${userModel || 'default_model'}. Text: "${textForAi.substring(0, 50)}..."`,
-        { userId, model: userModel || 'deepseek-chat' }
+        { userId, model: userModel || 'gpt-4o' }
       )
       console.log(
         `[handleTextMessage] Using System Prompt with: ${genderInstruction}`
       )
 
-      const modelToUse = userModel || 'deepseek-chat'
+      const modelToUse = userModel || 'gpt-4o'
 
       const response = await answerAi(
         modelToUse,
