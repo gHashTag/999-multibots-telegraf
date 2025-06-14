@@ -202,42 +202,6 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
-  // 🧪 ТЕСТОВАЯ КНОПКА ДЛЯ АПСКЕЙЛЕРА (ТОЛЬКО ДЛЯ АДМИНОВ)
-  bot.hears(
-    ['🧪 Тест апскейлера', '🧪 Test Upscaler'],
-    async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Тест апскейлера от ${ctx.from?.id}`)
-
-      const isRu = isRussian(ctx)
-
-      try {
-        // Используем тестовое изображение
-        const testImageUrl =
-          'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/280px-PNG_transparency_demonstration_1.png'
-
-        await upscaleFluxKontextImage({
-          imageUrl: testImageUrl,
-          telegram_id: ctx.from?.id?.toString() || '',
-          username: ctx.from?.username || 'test_user',
-          is_ru: isRu,
-          ctx: ctx,
-          originalPrompt: 'Test upscale',
-        })
-      } catch (error) {
-        logger.error('Error in test upscaler button:', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          telegramId: ctx.from?.id,
-        })
-
-        await ctx.reply(
-          isRu
-            ? '❌ Ошибка при тестировании апскейлера.'
-            : '❌ Error testing upscaler.'
-        )
-      }
-    }
-  )
-
   bot.hears(
     [levels[3].title_ru, levels[3].title_en],
     async (ctx: MyContext) => {
@@ -348,6 +312,25 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       }
 
       ctx.session.mode = ModeEnum.TextToSpeech
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    }
+  )
+
+  bot.hears(
+    [levels[108].title_ru, levels[108].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Транскрибация Reels от ${ctx.from?.id}`)
+
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в транскрибацию
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        '📺 Транскрибация Reels'
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      ctx.session.mode = ModeEnum.VideoTranscription
       await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )

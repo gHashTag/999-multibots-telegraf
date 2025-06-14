@@ -55,6 +55,7 @@
     "uuid": "^9.0.1",
     "winston": "^3.11.0",
     "xlsx": "^0.18.5",
+    "yt-dlp-wrap": "^2.3.12",
     "zod": "^3.25.30"
   },
   "devDependencies": {
