@@ -13,6 +13,9 @@ export const imageUpscalerWizard = new Scenes.WizardScene<MyContext>(
     const isRu = ctx.from?.language_code === 'ru'
     console.log('CASE: imageUpscalerCommand')
 
+    // Устанавливаем режим для правильной работы справки
+    ctx.session.mode = ModeEnum.ImageUpscaler
+
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
       return ctx.scene.leave()
@@ -94,5 +97,9 @@ export const imageUpscalerWizard = new Scenes.WizardScene<MyContext>(
     }
   }
 )
+
+// Добавляем обработчики HELP и CANCEL как в других wizard'ах
+imageUpscalerWizard.help(handleHelpCancel)
+imageUpscalerWizard.command('cancel', handleHelpCancel)
 
 export default imageUpscalerWizard
