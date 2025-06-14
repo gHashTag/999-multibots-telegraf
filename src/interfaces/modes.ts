@@ -14,6 +14,7 @@ export enum ModeEnum {
   Voice = PaidServiceEnum.Voice,
   VoiceToText = PaidServiceEnum.VoiceToText,
   LipSync = PaidServiceEnum.LipSync,
+  VideoTranscription = PaidServiceEnum.VideoTranscription,
   ImageToVideo = PaidServiceEnum.ImageToVideo,
   TextToVideo = PaidServiceEnum.TextToVideo,
   DigitalAvatarBody = PaidServiceEnum.DigitalAvatarBody,
