@@ -16,6 +16,7 @@ import {
   handleLevel13,
   handleFluxKontextHelp,
   handleVideoTranscriptionHelp,
+  handleImageUpscalerHelp,
 } from '../../scenes/levelQuestWizard/handlers'
 import { mainMenu } from '@/menu'
 
@@ -122,6 +123,12 @@ helpScene.enter(async ctx => {
         ? 'Справка по Транскрибации Reels...'
         : 'Help for Reels Transcription...'
       await handleVideoTranscriptionHelp(ctx)
+      break
+    case ModeEnum.ImageUpscaler:
+      helpText = isRu
+        ? 'Справка по Увеличению качества...'
+        : 'Help for Image Upscaling...'
+      await handleImageUpscalerHelp(ctx)
       break
     case ModeEnum.Help:
     default:
