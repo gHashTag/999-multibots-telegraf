@@ -15,6 +15,7 @@ import {
   handleLevel12,
   handleLevel13,
   handleFluxKontextHelp,
+  handleVideoTranscriptionHelp,
 } from '../../scenes/levelQuestWizard/handlers'
 import { mainMenu } from '@/menu'
 
@@ -115,6 +116,12 @@ helpScene.enter(async ctx => {
         ? 'Справка по FLUX Kontext...'
         : 'Help for FLUX Kontext...'
       await handleFluxKontextHelp(ctx)
+      break
+    case ModeEnum.VideoTranscription:
+      helpText = isRu
+        ? 'Справка по Транскрибации Reels...'
+        : 'Help for Reels Transcription...'
+      await handleVideoTranscriptionHelp(ctx)
       break
     case ModeEnum.Help:
     default:

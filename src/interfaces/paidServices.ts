@@ -21,6 +21,7 @@ export enum PaidServiceEnum {
   Voice = 'voice', // 0⭐ выручки, 0 операций (голосовой аватар)
   VoiceToText = 'voice_to_text', // 0⭐ выручки, 0 операций (голос в текст)
   LipSync = 'lip_sync', // 0⭐ выручки, 0 операций (синхронизация губ)
+  VideoTranscription = 'video_transcription', // Транскрибация видео в текст
 
   // 🎬 ДОПОЛНИТЕЛЬНЫЕ ВИДЕО СЕРВИСЫ (сложный расчет)
   ImageToVideo = 'image_to_video', // 0⭐ выручки, 0 операций (изображение в видео)
@@ -171,6 +172,14 @@ export const PAID_SERVICES_CONFIG: Record<PaidServiceEnum, PaidServiceConfig> =
       pricingType: PricingType.SIMPLE,
       baseCostUSD: 0.9, // Себестоимость провайдера
       description: 'Синхронизация губ с аудио',
+      category: 'audio',
+    },
+
+    [PaidServiceEnum.VideoTranscription]: {
+      name: 'Транскрибация видео в текст',
+      pricingType: PricingType.SIMPLE,
+      baseCostUSD: 0.03, // Себестоимость провайдера
+      description: 'Транскрибация видео в текст',
       category: 'audio',
     },
 

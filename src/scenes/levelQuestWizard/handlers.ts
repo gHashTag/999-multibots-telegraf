@@ -798,6 +798,94 @@ export async function handleQuestComplete(ctx: MyContext) {
   console.log('Quest completed')
 }
 
+export async function handleVideoTranscriptionHelp(ctx: MyContext) {
+  try {
+    const isRu = ctx.from?.language_code === 'ru'
+    const message = isRu
+      ? `📺 <b>Команда: Транскрибация Reels</b> 🌟\n\n
+Превратите любое видео в текст с помощью передовой технологии OpenAI Whisper! Идеально подходит для создания субтитров, анализа контента и извлечения информации из видео. 🚀\n\n
+<b>🔥 Главные возможности:</b>\n
+• <b>Высокая точность</b> — распознавание речи на уровне человека\n
+• <b>Поддержка русского и английского</b> — автоматическое определение языка\n
+• <b>Работа с любыми видео</b> — файлы и ссылки на популярные платформы\n
+• <b>Быстрая обработка</b> — результат за несколько минут\n
+• <b>Удобное копирование</b> — текст в специальном формате для копирования\n\n
+<b>💎 Стоимость:</b>\n
+💼 <b>3⭐ за транскрибацию</b> — доступно с подпиской NEUROVIDEO\n\n
+<b>✨ Поддерживаемые источники:</b>\n
+• <b>Загрузка файлов</b> — видео до 50MB\n
+• <b>Instagram Reels</b> — просто отправьте ссылку\n
+• <b>TikTok видео</b> — поддержка всех форматов\n
+• <b>YouTube Shorts</b> — короткие видео\n
+• <b>Другие платформы</b> — большинство видео-ссылок\n\n
+<b>🎯 Примеры использования:</b>\n
+• Создание субтитров для видео\n
+• Анализ контента конкурентов\n
+• Извлечение цитат и ключевых фраз\n
+• Создание текстовых версий видео-уроков\n
+• Анализ выступлений и презентаций\n\n
+<b>💡 Советы для лучших результатов:</b>\n
+• Используйте видео с четкой речью\n
+• Избегайте фонового шума\n
+• Максимальный размер файла: 50MB\n
+• Поддерживаются форматы: MP4, MOV, AVI и другие\n\n
+<b>🔄 Как использовать:</b>\n
+1️⃣ Выберите "📺 Транскрибация Reels" в меню\n
+2️⃣ Отправьте видеофайл или ссылку на видео\n
+3️⃣ Дождитесь обработки (обычно 1-3 минуты)\n
+4️⃣ Получите видео и текст для копирования!\n\n
+Превратите любое видео в полезный текст за считанные минуты! 🎬✨`
+      : `📺 <b>Command: Reels Transcription</b> 🌟\n\n
+Turn any video into text using advanced OpenAI Whisper technology! Perfect for creating subtitles, analyzing content, and extracting information from videos. 🚀\n\n
+<b>🔥 Key Features:</b>\n
+• <b>High accuracy</b> — human-level speech recognition\n
+• <b>Russian and English support</b> — automatic language detection\n
+• <b>Works with any video</b> — files and links to popular platforms\n
+• <b>Fast processing</b> — results in minutes\n
+• <b>Easy copying</b> — text in special format for copying\n\n
+<b>💎 Cost:</b>\n
+💼 <b>3⭐ per transcription</b> — available with NEUROVIDEO subscription\n\n
+<b>✨ Supported sources:</b>\n
+• <b>File uploads</b> — videos up to 50MB\n
+• <b>Instagram Reels</b> — just send the link\n
+• <b>TikTok videos</b> — all formats supported\n
+• <b>YouTube Shorts</b> — short videos\n
+• <b>Other platforms</b> — most video links\n\n
+<b>🎯 Use cases:</b>\n
+• Creating subtitles for videos\n
+• Analyzing competitor content\n
+• Extracting quotes and key phrases\n
+• Creating text versions of video tutorials\n
+• Analyzing speeches and presentations\n\n
+<b>💡 Tips for best results:</b>\n
+• Use videos with clear speech\n
+• Avoid background noise\n
+• Maximum file size: 50MB\n
+• Supported formats: MP4, MOV, AVI and others\n\n
+<b>🔄 How to use:</b>\n
+1️⃣ Select "📺 Reels Transcription" from menu\n
+2️⃣ Send a video file or video link\n
+3️⃣ Wait for processing (usually 1-3 minutes)\n
+4️⃣ Get your video and text for copying!\n\n
+Turn any video into useful text in minutes! 🎬✨`
+
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
+  } catch (error) {
+    console.error('Error in handleVideoTranscriptionHelp:', error)
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    throw error
+  }
+}
+
 export async function handleFluxKontextHelp(ctx: MyContext) {
   try {
     const isRu = ctx.from?.language_code === 'ru'

@@ -129,6 +129,7 @@ export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
   [ModeEnum.SelectAiTextModel]: 0,
   [ModeEnum.Voice]: calculateFinalStarCostFromDollars(0.9),
   [ModeEnum.TextToSpeech]: calculateFinalStarCostFromDollars(0.12),
+  [ModeEnum.VideoTranscription]: calculateFinalStarCostFromDollars(0.03),
   [ModeEnum.ImageToVideo]: 0,
   [ModeEnum.TextToVideo]: 0,
   [ModeEnum.TextToImage]: 0,
@@ -246,6 +247,9 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.Voice]: calculateModeCost({ mode: ModeEnum.Voice }).stars,
   [ModeEnum.TextToSpeech]: calculateModeCost({ mode: ModeEnum.TextToSpeech })
     .stars,
+  [ModeEnum.VideoTranscription]: calculateModeCost({
+    mode: ModeEnum.VideoTranscription,
+  }).stars,
   [ModeEnum.ImageToVideo]: calculateModeCost({ mode: ModeEnum.ImageToVideo })
     .stars,
   [ModeEnum.TextToVideo]: calculateModeCost({ mode: ModeEnum.TextToVideo })
@@ -629,6 +633,18 @@ export const enterTargetScene = async (
         function: 'enterTargetSceneWrapper',
       })
       await ctx.scene.enter(ModeEnum.ImageUpscaler)
+      return
+    }
+
+    // Специальная логика для VideoTranscription - направляем в videoTranscriptionWizard сцену
+    if (mode === ModeEnum.VideoTranscription) {
+      logger.info({
+        message: `[EnterTargetSceneWrapper] VideoTranscription режим - переход в videoTranscriptionWizard`,
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      })
+      await ctx.scene.enter(ModeEnum.VideoTranscription)
       return
     }
 
