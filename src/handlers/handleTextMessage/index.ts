@@ -176,7 +176,7 @@ export async function handleTextMessage(
           language_code: userLanguage,
           gender: null,
         }
-        userModel = 'gpt-4o'
+        userModel = 'deepseek-chat'
         console.log(
           `[handleTextMessage] User ${userId} not in DB. Using default gender (male).`
         )
@@ -201,13 +201,13 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
 
       console.log(
         `[handleTextMessage] Preparing to call answerAi for user ${userId}. Model: ${userModel || 'default_model'}. Text: "${textForAi.substring(0, 50)}..."`,
-        { userId, model: userModel || 'gpt-4o' }
+        { userId, model: userModel || 'deepseek-chat' }
       )
       console.log(
         `[handleTextMessage] Using System Prompt with: ${genderInstruction}`
       )
 
-      const modelToUse = userModel || 'gpt-4o'
+      const modelToUse = userModel || 'deepseek-chat'
 
       const response = await answerAi(
         modelToUse,
