@@ -798,6 +798,92 @@ export async function handleQuestComplete(ctx: MyContext) {
   console.log('Quest completed')
 }
 
+export async function handleImageUpscalerHelp(ctx: MyContext) {
+  try {
+    const isRu = ctx.from?.language_code === 'ru'
+    const message = isRu
+      ? `⬆️ <b>Команда: Увеличение качества изображений</b> 🌟\n\n
+Улучшите качество любого изображения с помощью передовой технологии Clarity Upscaler! Увеличьте разрешение в 2 раза с сохранением всех деталей и без искажений. 🚀\n\n
+<b>🔥 Главные возможности:</b>\n
+• <b>Увеличение в 2 раза</b> — удваивает разрешение изображения\n
+• <b>Сохранение деталей</b> — максимальная точность без потери качества\n
+• <b>Убирает размытость</b> — делает изображения четкими и резкими\n
+• <b>Быстрая обработка</b> — результат за 1-2 минуты\n
+• <b>Без искажений</b> — сохраняет оригинальный стиль и цвета\n\n
+<b>💎 Стоимость:</b>\n
+💼 <b>3⭐ за увеличение</b> — доступно всем пользователям\n\n
+<b>✨ Поддерживаемые форматы:</b>\n
+• <b>JPG/JPEG</b> — стандартные фотографии\n
+• <b>PNG</b> — изображения с прозрачностью\n
+• <b>WebP</b> — современный формат\n
+• <b>Любые размеры</b> — от маленьких иконок до больших фото\n\n
+<b>🎯 Примеры использования:</b>\n
+• Улучшение старых фотографий\n
+• Подготовка изображений для печати\n
+• Увеличение аватарок и логотипов\n
+• Улучшение скриншотов и картинок\n
+• Подготовка изображений для соцсетей\n\n
+<b>💡 Советы для лучших результатов:</b>\n
+• Используйте изображения хорошего качества\n
+• Избегайте сильно сжатых файлов\n
+• Лучше работает с фотографиями людей и объектов\n
+• Результат сохраняется в высоком качестве WebP\n\n
+<b>🔄 Как использовать:</b>\n
+1️⃣ Выберите "⬆️ Увеличить качество" в меню\n
+2️⃣ Отправьте изображение боту\n
+3️⃣ Дождитесь обработки (1-2 минуты)\n
+4️⃣ Получите улучшенное изображение в 2 раза больше!\n\n
+Превратите любое изображение в высококачественное за минуты! 📸✨`
+      : `⬆️ <b>Command: Image Quality Enhancement</b> 🌟\n\n
+Improve the quality of any image using advanced Clarity Upscaler technology! Increase resolution by 2x while preserving all details without distortion. 🚀\n\n
+<b>🔥 Key Features:</b>\n
+• <b>2x enlargement</b> — doubles image resolution\n
+• <b>Detail preservation</b> — maximum accuracy without quality loss\n
+• <b>Removes blur</b> — makes images sharp and clear\n
+• <b>Fast processing</b> — results in 1-2 minutes\n
+• <b>No distortion</b> — preserves original style and colors\n\n
+<b>💎 Cost:</b>\n
+💼 <b>3⭐ per enhancement</b> — available to all users\n\n
+<b>✨ Supported formats:</b>\n
+• <b>JPG/JPEG</b> — standard photographs\n
+• <b>PNG</b> — images with transparency\n
+• <b>WebP</b> — modern format\n
+• <b>Any sizes</b> — from small icons to large photos\n\n
+<b>🎯 Use cases:</b>\n
+• Improving old photographs\n
+• Preparing images for printing\n
+• Enlarging avatars and logos\n
+• Improving screenshots and pictures\n
+• Preparing images for social media\n\n
+<b>💡 Tips for best results:</b>\n
+• Use good quality images\n
+• Avoid heavily compressed files\n
+• Works better with photos of people and objects\n
+• Result is saved in high-quality WebP format\n\n
+<b>🔄 How to use:</b>\n
+1️⃣ Select "⬆️ Upscale Quality" from menu\n
+2️⃣ Send an image to the bot\n
+3️⃣ Wait for processing (1-2 minutes)\n
+4️⃣ Get your enhanced image 2x larger!\n\n
+Turn any image into high-quality in minutes! 📸✨`
+
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? levels[104].title_ru : levels[104].title_en
+          ),
+        ],
+      ]).resize().reply_markup,
+    })
+  } catch (error) {
+    console.error('Error in handleImageUpscalerHelp:', error)
+    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    throw error
+  }
+}
+
 export async function handleVideoTranscriptionHelp(ctx: MyContext) {
   try {
     const isRu = ctx.from?.language_code === 'ru'
