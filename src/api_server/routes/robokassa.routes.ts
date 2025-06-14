@@ -1,4 +1,5 @@
 import express from 'express'
+import { Router } from 'express'
 import { validateRobokassaSignature } from '@/core/robokassa'
 import { getPaymentByInvId } from '@/core/supabase/payments'
 import { supabaseAdmin } from '@/core/supabase'
@@ -6,7 +7,7 @@ import { PaymentStatus } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 import { ROBOKASSA_PASSWORD_2 } from '@/config'
 
-const router = express.Router()
+const router: Router = express.Router()
 
 /**
  * Обработчик webhook от Robokassa
