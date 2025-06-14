@@ -364,6 +364,35 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
+      [isRu ? levels[108].title_ru : levels[108].title_en]: async () => {
+        logger.info({
+          message: '📺 [handleMenu] Переход к транскрибации видео',
+          telegramId,
+          function: 'handleMenu',
+          action: 'video_transcription',
+          nextScene: ModeEnum.CheckBalanceScene,
+        })
+        console.log('CASE: 📺 Транскрибация Reels')
+
+        // ✅ ЗАЩИТА: Проверяем подписку перед входом в транскрибацию
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          '📺 Транскрибация Reels'
+        )
+        if (!hasSubscription) {
+          return // Пользователь перенаправлен в subscriptionScene
+        }
+
+        // Устанавливаем режим VideoTranscription и идем через checkBalanceScene
+        ctx.session.mode = ModeEnum.VideoTranscription
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
+      },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
       //   ctx.session.mode = 'video_in_url'
