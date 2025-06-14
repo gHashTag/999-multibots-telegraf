@@ -25,15 +25,22 @@ async function downloadVideoFromUrl(
     // Создаем шаблон для имени файла
     const outputTemplate = path.join(outputDir, `${filePrefix}.%(ext)s`)
 
-    // Настройки для скачивания
+    // Настройки для скачивания с сохранением оригинального соотношения сторон
     const options = [
       '--format',
-      'best[ext=mp4]/best', // Предпочитаем mp4, но берем лучшее качество
+      'best[ext=mp4][height<=1080]/best[height<=1080]/best', // Предпочитаем mp4, ограничиваем высоту
       '--output',
       outputTemplate,
       '--no-playlist', // Скачиваем только одно видео
       '--max-filesize',
       '50M', // Максимальный размер файла
+      '--merge-output-format',
+      'mp4', // Принудительно конвертируем в mp4
+      '--postprocessor-args',
+      'ffmpeg:-avoid_negative_ts make_zero -fflags +genpts -vf scale=-2:min(1080\\,ih)', // Сохраняем соотношение сторон
+      '--no-check-certificate', // Игнорируем проблемы с сертификатами
+      '--user-agent',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', // Имитируем браузер
       url,
     ]
 
