@@ -63,6 +63,7 @@ import {
   createUserScene,
   checkBalanceScene,
   uploadVideoScene,
+  videoTranscriptionWizard,
   fluxKontextScene,
 } from './scenes'
 
@@ -71,7 +72,7 @@ import { defaultSession } from './store'
 import { get100Command } from './commands/get100Command'
 import { handleTechSupport } from './commands/handleTechSupport'
 import { handleBuy } from './handlers/handleBuy'
-import { isRussian } from '@/helpers'
+import { isRussian } from '@/helpers/language'
 import { registerPaymentActions } from './handlers/paymentActions'
 import { handleTextMessage } from './handlers/handleTextMessage'
 // Убираем импорт handleMenu, так как он не используется здесь напрямую
@@ -106,6 +107,10 @@ export const stage = new Scenes.Stage<MyContext>([
   new Scenes.WizardScene(
     ModeEnum.TextToSpeech,
     ...(textToSpeechWizard.steps as any)
+  ),
+  new Scenes.WizardScene(
+    ModeEnum.VideoTranscription,
+    ...(videoTranscriptionWizard.steps as any)
   ),
   lipSyncWizard,
   new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
