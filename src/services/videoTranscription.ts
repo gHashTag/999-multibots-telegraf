@@ -170,7 +170,8 @@ export async function transcribeVideo({
       tempVideoPath,
     })
 
-    await downloadFile(videoUrl, tempVideoPath)
+    const videoBuffer = await downloadFile(videoUrl)
+    fs.writeFileSync(tempVideoPath, videoBuffer)
 
     // Проверяем, что видео файл создался
     if (!fs.existsSync(tempVideoPath)) {
