@@ -176,7 +176,7 @@ export async function handleTextMessage(
           language_code: userLanguage,
           gender: null,
         }
-        userModel = 'gpt-4o'
+        userModel = 'deepseek-chat'
         console.log(
           `[handleTextMessage] User ${userId} not in DB. Using default gender (male).`
         )
