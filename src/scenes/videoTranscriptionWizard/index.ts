@@ -161,6 +161,7 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
                   shortCaption.length > 1024
                     ? shortCaption.substring(0, 1021) + '...'
                     : shortCaption,
+                supports_streaming: true, // Поддержка стриминга для лучшего качества
               }
             )
 
@@ -196,6 +197,7 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
 
         await ctx.replyWithVideo(videoUrl, {
           caption: shortCaption,
+          supports_streaming: true, // Поддержка стриминга для лучшего качества
         })
 
         // Отправляем красиво отформатированный текст для копирования
