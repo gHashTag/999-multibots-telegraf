@@ -37,7 +37,13 @@ WORKDIR /app
 # Устанавливаем только необходимые системные зависимости
 RUN apk add --no-cache \
     openssh-client \
-    sshpass
+    sshpass \
+    python3 \
+    py3-pip \
+    ffmpeg
+
+# Устанавливаем yt-dlp для скачивания видео
+RUN pip3 install --break-system-packages yt-dlp
 
 # Создаем нужные каталоги внутри рабочей директории и устанавливаем права
 RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
