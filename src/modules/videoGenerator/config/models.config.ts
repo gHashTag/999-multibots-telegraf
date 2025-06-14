@@ -162,7 +162,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'veo-3': {
     id: 'veo-3',
     title: 'Google Veo 3',
-    inputType: ['text', 'image'],
+    inputType: ['text'],
     description:
       'Флагманская модель Google для создания видео с аудио в 4K качестве',
     basePrice: 0.75,
@@ -174,7 +174,6 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
         enable_audio: true,
       },
     },
-    imageKey: 'image',
     canMorph: false,
   },
 }
