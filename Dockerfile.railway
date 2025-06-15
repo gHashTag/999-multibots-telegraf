@@ -1,0 +1,58 @@
+# Railway-optimized Dockerfile for single bot deployment
+FROM node:20-alpine as builder
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Install tsc-alias globally
+RUN npm install -g tsc-alias
+
+# Copy source code
+COPY . .
+
+# Remove tests before build
+RUN find src -name "__tests__" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find src -name "*.test.ts" -type f -delete 2>/dev/null || true && \
+    find src -name "*.spec.ts" -type f -delete 2>/dev/null || true
+
+# Build TypeScript
+RUN npx tsc --skipLibCheck --skipDefaultLibCheck && npx tsc-alias
+
+# Copy Railway-specific bot file after build
+RUN cp dist/bot.railway.js dist/bot.js
+
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    ffmpeg \
+    python3 \
+    py3-pip
+
+# Install yt-dlp
+RUN pip3 install --break-system-packages yt-dlp
+
+# Copy package files
+COPY package*.json ./
+
+# Install production dependencies
+RUN npm install --omit=dev --ignore-scripts
+
+# Copy built files
+COPY --from=builder /app/dist ./dist/
+
+# Railway provides PORT environment variable
+EXPOSE ${PORT}
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:' + process.env.PORT + '/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"
+
+# Start the bot
+CMD ["node", "dist/bot.js"]
