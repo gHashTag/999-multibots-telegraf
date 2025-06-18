@@ -242,18 +242,9 @@ export async function mainMenu({
   // Собираем все ряды, КРОМЕ последнего (Подписка)
   const finalKeyboard = [...buttonRows, ...bottomRowButtons]
 
-  // Добавляем кнопку "Оформить подписку" ТОЛЬКО для пользователей с полным доступом
-  // Для STARS пользователей inline кнопки подписки уже есть в сообщении
-  if (currentSubscription !== SubscriptionType.STARS) {
-    console.log(
-      `[mainMenu LOG] Adding subscribe button: ${subscribeButton.text}`
-    )
-    finalKeyboard.push([subscribeButton])
-  } else {
-    console.log(
-      `[mainMenu LOG] Skipping subscribe button for STARS (inline buttons available)`
-    )
-  }
+  // Добавляем кнопку "Оформить подписку" для ВСЕХ пользователей (включая STARS)
+  console.log(`[mainMenu LOG] Adding subscribe button: ${subscribeButton.text}`)
+  finalKeyboard.push([subscribeButton])
 
   console.log(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)
   console.log(
