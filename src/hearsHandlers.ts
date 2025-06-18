@@ -416,7 +416,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   bot.hears(
     [levels[107].title_ru, levels[107].title_en],
     async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Увеличить качество фото от ${ctx.from?.id}`)
+      logger.debug(
+        `Получен hears для Увеличить качество фото от ${ctx.from?.id}`
+      )
 
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в upscaler
       const hasSubscription = await checkSubscriptionGuard(

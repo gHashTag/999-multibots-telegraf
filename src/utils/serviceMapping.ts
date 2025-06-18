@@ -188,7 +188,6 @@ export function getServiceEmoji(serviceName: string): string {
     video_standard: UserService.TextToVideo,
     video_wan: UserService.TextToVideo,
     neurovideo: UserService.TextToVideo,
-    neurobase: UserService.TextToVideo,
 
     // Старые сервисы изображений
     image_generation: UserService.NeuroPhoto,
