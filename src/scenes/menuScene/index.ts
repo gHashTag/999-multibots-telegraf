@@ -49,6 +49,13 @@ const menuCommandStep = async (ctx: MyContext) => {
     let translationKey = '' // Initialize key
 
     // --- Determine translation key based ONLY on Subscription Type ---
+    // ВРЕМЕННАЯ ОТЛАДКА: Всегда используем digitalAvatar для тестирования кнопки подписки
+    translationKey = 'digitalAvatar'
+    logger.info(
+      `[menuCommandStep] [DEBUG MODE] Forcing digitalAvatar key for subscription button testing. Original subscription: ${newSubscription}`
+    )
+
+    /* ОРИГИНАЛЬНАЯ ЛОГИКА (ЗАКОММЕНТИРОВАНО ДЛЯ ОТЛАДКИ):
     if (
       newSubscription === SubscriptionType.NEUROVIDEO ||
       newSubscription === SubscriptionType.NEUROPHOTO ||
@@ -65,6 +72,7 @@ const menuCommandStep = async (ctx: MyContext) => {
         `[menuCommandStep] Subscription: ${newSubscription || 'None'}. Using translation key: '${translationKey}'`
       )
     }
+    */
 
     // --- Get Translation using the determined key ---
     logger.info(
@@ -117,9 +125,9 @@ const menuCommandStep = async (ctx: MyContext) => {
     } else {
       // Send fallback without parse_mode, or send translation (also without parse_mode FOR MENU KEY)
       if (translation && translationKey !== 'menu') {
-        // Если есть перевод И это НЕ ключ 'menu'
+        // Если есть перевод И это НЕ ключ 'menu' - используем HTML вместо MarkdownV2
         await ctx.reply(message, {
-          parse_mode: 'MarkdownV2', // Используем MarkdownV2 для других ключей
+          parse_mode: 'HTML', // HTML проще чем MarkdownV2 - не требует экранирования !
           reply_markup: keyboard.reply_markup,
         })
       } else {
@@ -139,7 +147,11 @@ const menuCommandStep = async (ctx: MyContext) => {
     }
 
     // Ensure the wizard progresses to handle button clicks
+    logger.info(
+      '[menuCommandStep] Calling ctx.wizard.next() to enable button handling'
+    )
     ctx.wizard.next()
+    logger.info(`[menuCommandStep] Current wizard cursor: ${ctx.wizard.cursor}`)
   } catch (error) {
     console.error('Error in menu command:', error)
     await sendGenericErrorMessage(ctx, isRu, error as Error)
