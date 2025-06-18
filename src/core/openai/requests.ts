@@ -8,6 +8,7 @@ type UserData = {
   position: string
   designation: string
 }
+
 export const answerAi = async (
   model: string,
   userData: UserData,

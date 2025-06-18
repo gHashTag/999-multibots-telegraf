@@ -1001,4 +1001,6 @@ If not, continue on your own and click the "I myself" button`
       }
     }
   })
+  // ВАЖНО: Этот обработчик должен быть последним, чтобы не перехватывать команды и кнопки
+  bot.on(message('text'), handleTextMessage)
 }

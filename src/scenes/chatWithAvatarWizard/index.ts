@@ -52,7 +52,8 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       await updateUserLevelPlusOne(telegram_id.toString(), level)
     }
 
-    return
+    // Остаемся на текущем шаге для обработки следующих сообщений
+    return ctx.wizard.selectStep(1) // Возвращаемся на второй шаг (индекс 1)
   }
 )
 
