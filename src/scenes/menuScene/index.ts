@@ -125,9 +125,9 @@ const menuCommandStep = async (ctx: MyContext) => {
     } else {
       // Send fallback without parse_mode, or send translation (also without parse_mode FOR MENU KEY)
       if (translation && translationKey !== 'menu') {
-        // Если есть перевод И это НЕ ключ 'menu' - используем HTML вместо MarkdownV2
+        // Текст в базе теперь готов для HTML parse_mode (без экранирования MarkdownV2)
         await ctx.reply(message, {
-          parse_mode: 'HTML', // HTML проще чем MarkdownV2 - не требует экранирования !
+          parse_mode: 'HTML', // База исправлена - теперь можно использовать HTML
           reply_markup: keyboard.reply_markup,
         })
       } else {
