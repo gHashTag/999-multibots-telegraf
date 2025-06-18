@@ -146,6 +146,12 @@ export async function getTranslation({
       logger.warn(`Поле buttons отсутствует или пусто для ключа "${key}"`)
     }
 
+    // Добавляем дефолтные кнопки для ключа digitalAvatar, если buttons отсутствуют
+    if (key === 'digitalAvatar' && buttons.length === 0) {
+      buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
+      logger.info(`Использованы дефолтные кнопки для ключа "${key}"`)
+    }
+
     return {
       translation: data?.translation || '',
       url: data?.url || '',
