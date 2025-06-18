@@ -153,7 +153,7 @@ async function initializeBots() {
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
     bot.on('successful_payment', handleSuccessfulPayment as any)
     // Инициализация обработчиков hears из отдельного файла
-    setupHearsHandlers(bot) // 4. Hears (Возвращаем)
+    // setupHearsHandlers(bot) // 4. Hears (ВРЕМЕННО ЗАКОММЕНТИРОВАНО ДЛЯ ОТЛАДКИ)
 
     // Обработчик текстовых сообщений по умолчанию - должен быть последним
     bot.on(message('text'), handleTextMessage)

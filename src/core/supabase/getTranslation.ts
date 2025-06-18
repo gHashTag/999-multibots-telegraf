@@ -15,7 +15,7 @@ const DEFAULT_BUTTONS_RU: TranslationButton[] = [
     en_price: 15,
     ru_price: 1110,
     description: 'Опис тарифу НейроФото...',
-    callback_data: 'neurophoto',
+    callback_data: 'neurophoto', // SubscriptionType.NEUROPHOTO.toLowerCase()
     subscription: SubscriptionType.NEUROPHOTO,
   },
   {
@@ -26,7 +26,7 @@ const DEFAULT_BUTTONS_RU: TranslationButton[] = [
     ru_price: 2999,
     description: 'Опис тарифу НейроВидео...',
     subscription: SubscriptionType.NEUROVIDEO,
-    callback_data: 'neurovideo',
+    callback_data: 'neurovideo', // SubscriptionType.NEUROVIDEO.toLowerCase()
   },
 ]
 const DEFAULT_BUTTONS_EN: TranslationButton[] = [
