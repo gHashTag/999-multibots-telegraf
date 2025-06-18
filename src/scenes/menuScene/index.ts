@@ -49,13 +49,6 @@ const menuCommandStep = async (ctx: MyContext) => {
     let translationKey = '' // Initialize key
 
     // --- Determine translation key based ONLY on Subscription Type ---
-    // ВРЕМЕННАЯ ОТЛАДКА: Всегда используем digitalAvatar для тестирования кнопки подписки
-    translationKey = 'digitalAvatar'
-    logger.info(
-      `[menuCommandStep] [DEBUG MODE] Forcing digitalAvatar key for subscription button testing. Original subscription: ${newSubscription}`
-    )
-
-    /* ОРИГИНАЛЬНАЯ ЛОГИКА (ЗАКОММЕНТИРОВАНО ДЛЯ ОТЛАДКИ):
     if (
       newSubscription === SubscriptionType.NEUROVIDEO ||
       newSubscription === SubscriptionType.NEUROPHOTO ||
@@ -72,7 +65,6 @@ const menuCommandStep = async (ctx: MyContext) => {
         `[menuCommandStep] Subscription: ${newSubscription || 'None'}. Using translation key: '${translationKey}'`
       )
     }
-    */
 
     // --- Get Translation using the determined key ---
     logger.info(
@@ -192,6 +184,13 @@ const menuNextStep = async (ctx: MyContext) => {
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
     logger.info(`[menuNextStep] Text Message Received: ${text}`)
+
+    // КРИТИЧЕСКИ ВАЖНО: Обрабатываем кнопку подписки СРАЗУ
+    if (text === '💫 Оформить подписку' || text === '💫 Subscribe') {
+      logger.info(`[menuNextStep] DIRECT SUBSCRIPTION BUTTON HANDLING: ${text}`)
+      await ctx.scene.enter('subscription_scene')
+      return // Explicitly handled
+    }
 
     // Specific text button handling (example: "Generate new video?")
     if (
