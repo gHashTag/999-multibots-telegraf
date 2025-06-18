@@ -1,0 +1,167 @@
+name: Deploy PR to Test Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, develop]
+
+env:
+  SERVER_HOST: 999-multibots-u14194.vm.elestio.app
+  SERVER_USER: root
+  SERVER_PATH: /opt/app/999-multibots-telegraf
+
+jobs:
+  deploy-pr:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Set PR environment variables
+      run: |
+        echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+        echo "PR_PORT_BASE=4${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+        echo "DOMAIN=${{ secrets.DOMAIN }}" >> $GITHUB_ENV
+        echo "WEBHOOK_BASE_URL=https://${{ secrets.DOMAIN }}" >> $GITHUB_ENV
+        
+    - name: Create .env.pr file
+      run: |
+        cat > .env.pr << EOF
+        # PR Test Environment Variables
+        PR_NUMBER=${{ github.event.pull_request.number }}
+        PR_PORT_BASE=4${{ github.event.pull_request.number }}
+        DOMAIN=${{ secrets.DOMAIN }}
+        WEBHOOK_BASE_URL=https://${{ secrets.DOMAIN }}
+        
+        # Test Bot Tokens (нужно создать отдельные боты для тестирования)
+        PR_BOT_TOKEN_1=${{ secrets.PR_BOT_TOKEN_1 }}
+        PR_BOT_TOKEN_2=${{ secrets.PR_BOT_TOKEN_2 }}
+        PR_BOT_TOKEN_3=${{ secrets.PR_BOT_TOKEN_3 }}
+        PR_BOT_TOKEN_4=${{ secrets.PR_BOT_TOKEN_4 }}
+        PR_BOT_TOKEN_5=${{ secrets.PR_BOT_TOKEN_5 }}
+        PR_BOT_TOKEN_6=${{ secrets.PR_BOT_TOKEN_6 }}
+        PR_BOT_TOKEN_7=${{ secrets.PR_BOT_TOKEN_7 }}
+        PR_BOT_TOKEN_8=${{ secrets.PR_BOT_TOKEN_8 }}
+        
+        # Copy other secrets
+        INNGEST_EVENT_KEY=${{ secrets.INNGEST_EVENT_KEY }}
+        INNGEST_SIGNING_KEY=${{ secrets.INNGEST_SIGNING_KEY }}
+        INNGEST_URL=${{ secrets.INNGEST_URL }}
+        INNGEST_BASE_URL=${{ secrets.INNGEST_BASE_URL }}
+        SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}
+        SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        ORIGIN=${{ secrets.ORIGIN }}
+        ADMIN_IDS=${{ secrets.ADMIN_IDS }}
+        SECRET_KEY=${{ secrets.SECRET_KEY }}
+        LOG_FORMAT=${{ secrets.LOG_FORMAT }}
+        ELEVENLABS_API_KEY=${{ secrets.ELEVENLABS_API_KEY }}
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        REPLICATE_API_TOKEN=${{ secrets.REPLICATE_API_TOKEN }}
+        EOF
+        
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        
+    - name: Add server to known hosts
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
+        
+    - name: Deploy to server
+      run: |
+        # Создаем директорию для PR если не существует
+        ssh ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} "mkdir -p ${{ env.SERVER_PATH }}/pr-${{ env.PR_NUMBER }}"
+        
+        # Копируем файлы
+        rsync -avz --exclude='.git' --exclude='node_modules' --exclude='dist' \
+          ./ ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.SERVER_PATH }}/pr-${{ env.PR_NUMBER }}/
+        
+        # Копируем .env.pr файл
+        scp .env.pr ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.SERVER_PATH }}/pr-${{ env.PR_NUMBER }}/.env.pr
+        
+        # Запускаем контейнеры
+        ssh ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} "
+          cd ${{ env.SERVER_PATH }}/pr-${{ env.PR_NUMBER }}
+          
+          # Останавливаем старые контейнеры если есть
+          docker-compose -f docker-compose.pr.yml -p pr-${{ env.PR_NUMBER }} down || true
+          
+          # Собираем и запускаем новые
+          PR_NUMBER=${{ env.PR_NUMBER }} PR_PORT_BASE=${{ env.PR_PORT_BASE }} \
+          docker-compose -f docker-compose.pr.yml -p pr-${{ env.PR_NUMBER }} up -d --build
+        "
+        
+    - name: Wait for services to start
+      run: sleep 30
+      
+    - name: Check deployment status
+      run: |
+        ssh ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} "
+          docker ps | grep pr-${{ env.PR_NUMBER }} || echo 'No containers found'
+          docker-compose -f ${{ env.SERVER_PATH }}/pr-${{ env.PR_NUMBER }}/docker-compose.pr.yml -p pr-${{ env.PR_NUMBER }} logs --tail=50
+        "
+        
+    - name: Comment on PR
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const prNumber = context.payload.pull_request.number;
+          const comment = `
+          🚀 **PR #${prNumber} успешно задеплоен!**
+          
+          **Тестовые боты доступны:**
+          - Bot 1: [@pr${prNumber}_neuroblogger_bot](https://t.me/pr${prNumber}_neuroblogger_bot)
+          - Bot 2: [@pr${prNumber}_ai_koshey_bot](https://t.me/pr${prNumber}_ai_koshey_bot)
+          - Bot 3: [@pr${prNumber}_neuro_koder_bot](https://t.me/pr${prNumber}_neuro_koder_bot)
+          - И другие...
+          
+          **API доступно по адресу:**
+          - https://pr${prNumber}.${{ secrets.DOMAIN }}
+          
+          **Логи:**
+          \`\`\`
+          ssh ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} "docker-compose -f /opt/app/999-multibots-telegraf/pr-${prNumber}/docker-compose.pr.yml -p pr-${prNumber} logs -f"
+          \`\`\`
+          
+          ⚠️ **Не забудь протестировать изменения перед мержем!**
+          `;
+          
+          github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+            body: comment
+          });
+
+  cleanup-pr:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed'
+    
+    steps:
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        
+    - name: Add server to known hosts
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
+        
+    - name: Stop and remove PR containers
+      run: |
+        PR_NUMBER=${{ github.event.pull_request.number }}
+        ssh ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} "
+          cd ${{ env.SERVER_PATH }}/pr-${PR_NUMBER} || exit 0
+          
+          # Останавливаем и удаляем контейнеры
+          docker-compose -f docker-compose.pr.yml -p pr-${PR_NUMBER} down -v || true
+          
+          # Удаляем директорию
+          cd ..
+          rm -rf pr-${PR_NUMBER}
+        "
