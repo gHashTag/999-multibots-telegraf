@@ -168,6 +168,11 @@ const menuCommandStep = async (ctx: MyContext) => {
  */
 const menuNextStep = async (ctx: MyContext) => {
   logger.info('CASE 1: menuScene.next')
+  logger.info(`[menuNextStep] Current wizard cursor: ${ctx.wizard.cursor}`)
+  logger.info(
+    `[menuNextStep] Update keys: ${Object.keys(ctx.update).join(', ')}`
+  )
+  logger.info(`[menuNextStep] Raw update:`, JSON.stringify(ctx.update, null, 2))
   if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
     const text = ctx.update.callback_query.data
     logger.info(`[menuNextStep] Callback Query Data: ${text}`)
