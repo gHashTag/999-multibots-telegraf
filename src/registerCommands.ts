@@ -464,7 +464,9 @@ If not, continue on your own and click the "I myself" button`
     await handleTechSupport(ctx)
   })
 
-  // Добавляем глобальный обработчик для кнопки "Оформить подписку"
+  // ОТКЛЮЧЕН: Global hears для кнопки подписки конфликтует с wizard menuScene
+  // Теперь кнопка подписки обрабатывается напрямую в menuScene wizard
+  /*
   bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
     logger.info('🚀 GLOBAL HEARS (POST-STAGE): Оформить подписку / Subscribe', {
       telegramId: ctx.from?.id,
@@ -501,6 +503,7 @@ If not, continue on your own and click the "I myself" button`
       }
     }
   })
+  */
 
   // Обработчик для текстовой кнопки "🆕 Новый промпт"
   bot.hears(['🆕 Новый промпт', '🆕 New prompt'], async ctx => {
