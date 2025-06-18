@@ -6,7 +6,7 @@ import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
 import { getText } from './getText'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { ModeEnum } from '@/interfaces/modes'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
@@ -37,34 +37,27 @@ const menuCommandStep = async (ctx: MyContext) => {
       isDev
     )
 
-    // Pass only necessary data to mainMenu (assuming it adapts or uses defaults for level/count)
-    const keyboard = await mainMenu({
-      isRu,
-      subscription: newSubscription,
-      ctx,
-    })
+    // УБИРАЕМ АВТОМАТИЧЕСКИЙ ПЕРЕХОД В subscriptionScene
+    // Пользователи должны сначала увидеть приветственное сообщение
+    // и САМИ нажать кнопку подписки для перехода в subscriptionScene
 
     let message = ''
     let photo_url: string | null = null
     let translationKey = '' // Initialize key
 
-    // --- Determine translation key based ONLY on Subscription Type ---
+    // --- Определяем ключ для приветственного сообщения ---
     if (
       newSubscription === SubscriptionType.NEUROVIDEO ||
       newSubscription === SubscriptionType.NEUROPHOTO ||
       newSubscription === SubscriptionType.NEUROTESTER
     ) {
-      translationKey = 'menu' // Use 'menu' key for full access users
-      logger.info(
-        `[menuCommandStep] Subscription: ${newSubscription}. Using translation key: '${translationKey}'`
-      )
+      translationKey = 'menu' // Для пользователей с полным доступом
     } else {
-      // For STARS, or any other case (including null/undefined newSubscription)
-      translationKey = 'digitalAvatar' // Use 'digitalAvatar' for limited access / prompt to subscribe
-      logger.info(
-        `[menuCommandStep] Subscription: ${newSubscription || 'None'}. Using translation key: '${translationKey}'`
-      )
+      translationKey = 'digitalAvatar' // Для STARS и остальных
     }
+    logger.info(
+      `[menuCommandStep] Subscription: ${newSubscription || 'None'}. Using translation key: '${translationKey}'`
+    )
 
     // --- Get Translation using the determined key ---
     logger.info(
@@ -80,6 +73,40 @@ const menuCommandStep = async (ctx: MyContext) => {
     logger.info(
       `[menuCommandStep] Got ${buttons.length} buttons from translation for key: ${translationKey}`
     )
+
+    // Создаем клавиатуру
+    let keyboard = await mainMenu({
+      isRu,
+      subscription: newSubscription, // Pass simulated subscription
+      ctx,
+    })
+
+    // ДОБАВЛЯЕМ КНОПКИ ПОДПИСКИ для STARS пользователей
+    if (translationKey === 'digitalAvatar' && buttons.length > 0) {
+      logger.info(
+        `[menuCommandStep] Adding ${buttons.length} subscription buttons to keyboard`
+      )
+
+      // Получаем текущую клавиатуру
+      const currentKeyboard = keyboard.reply_markup.keyboard
+
+      // Добавляем кнопки подписки
+      for (const button of buttons) {
+        const subscriptionButton = Markup.button.text(
+          `${button.text} - ${button.ru_price} ₽`
+        )
+        currentKeyboard.push([subscriptionButton])
+        logger.info(
+          `[menuCommandStep] Added subscription button: ${subscriptionButton.text}`
+        )
+      }
+
+      // Пересоздаем клавиатуру с новыми кнопками
+      keyboard = Markup.keyboard(currentKeyboard).resize()
+      logger.info(
+        `[menuCommandStep] Updated keyboard with subscription buttons`
+      )
+    }
 
     // --- Set message and photo using translation results or fallbacks ---
     if (translation) {
@@ -117,9 +144,9 @@ const menuCommandStep = async (ctx: MyContext) => {
     } else {
       // Send fallback without parse_mode, or send translation (also without parse_mode FOR MENU KEY)
       if (translation && translationKey !== 'menu') {
-        // Текст в базе теперь готов для HTML parse_mode (без экранирования MarkdownV2)
+        // Если есть перевод И это НЕ ключ 'menu'
         await ctx.reply(message, {
-          parse_mode: 'HTML', // База исправлена - теперь можно использовать HTML
+          parse_mode: 'HTML', // Изменено с MarkdownV2 на HTML
           reply_markup: keyboard.reply_markup,
         })
       } else {

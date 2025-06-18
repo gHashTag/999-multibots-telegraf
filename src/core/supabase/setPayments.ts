@@ -110,15 +110,7 @@ export const setPayments = async ({
       metadata: metadata || {},
     })
 
-    if (subscription_type) {
-      await notifyBotOwners(bot_name, {
-        username: normalizedId,
-        telegram_id: telegram_id.toString(),
-        amount: parseFloat(OutSum),
-        stars,
-        subscription: subscription_type,
-      })
-    }
+    // Уведомление владельца отправляется из robokassa.routes.ts после реальной оплаты
 
     if (error) {
       logger.error('❌ Error inserting payment', {

@@ -40,7 +40,7 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
       amount = 1110 // Правильная сумма для НейроФото
       stars = 476
     } else if (subscription === SubscriptionType.NEUROVIDEO.toLowerCase()) {
-      amount = 2999 // Правильная сумма для НейроБаза
+      amount = 2999 // Правильная сумма для НейроВидео
       stars = 1303
     } else {
       await ctx.reply(

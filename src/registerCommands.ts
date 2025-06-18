@@ -928,7 +928,43 @@ If not, continue on your own and click the "I myself" button`
     stage.scenes.size
   )
 
-  // ДУБЛИРОВАНИЕ GLOBAL HEARS В КОНЦЕ ФАЙЛА ДЛЯ ГАРАНТИИ КОМПИЛЯЦИИ
+  // INLINE CALLBACK ОБРАБОТЧИКИ ДЛЯ КНОПОК ПОДПИСКИ
+  bot.action(/^subscribe_(.+)$/, async ctx => {
+    const subscriptionType = ctx.match[1] // neurophoto или neurovideo
+    logger.info('🚀 INLINE CALLBACK: Subscribe button pressed', {
+      telegramId: ctx.from?.id,
+      subscriptionType: subscriptionType,
+    })
+
+    try {
+      await ctx.answerCbQuery()
+      await ctx.scene.leave() // Выходим из любой текущей сцены
+      ctx.session.mode = ModeEnum.SubscriptionScene // Устанавливаем режим
+      logger.info('About to enter subscription scene via inline callback')
+      await ctx.scene.enter(ModeEnum.SubscriptionScene) // Входим в сцену подписки
+      logger.info('Successfully entered subscription scene via inline callback')
+    } catch (error) {
+      console.error('❌ Error in subscription inline callback handler:', error)
+      logger.error('Error in subscribe inline callback:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        telegramId: ctx.from?.id,
+        subscriptionType: subscriptionType,
+      })
+      const isRu = ctx.from?.language_code === 'ru'
+      try {
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка при переходе к оформлению подписки.'
+            : '❌ Error entering subscription.'
+        )
+      } catch (replyError) {
+        console.error('❌ Failed to send error message:', replyError)
+      }
+    }
+  })
+
+  // ДУБЛИРОВАНИЕ GLOBAL HEARS В КОНЦЕ ФАЙЛА ДЛЯ ГАРАНТИИ КОМПИЛЯЦИИ (BACKUP)
   bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
     logger.info('🚀 GLOBAL HEARS (DUPLICATE): Оформить подписку / Subscribe', {
       telegramId: ctx.from?.id,
