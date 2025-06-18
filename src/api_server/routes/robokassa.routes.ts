@@ -93,6 +93,9 @@ router.post('/robokassa-result', async (req: any, res: any) => {
       subscription_type: payment.subscription,
     })
 
+    // Уведомление владельца для рублевых платежей приходит с отдельного сервера
+    // Здесь только уведомляем пользователя
+
     // Отправляем уведомление пользователю через бота
     await sendPaymentSuccessNotification(payment)
 
