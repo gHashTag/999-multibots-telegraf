@@ -70,11 +70,16 @@ const menuCommandStep = async (ctx: MyContext) => {
     logger.info(
       `[menuCommandStep] Getting translation for key: ${translationKey}, Bot: ${ctx.botInfo?.username}`
     )
-    const { translation, url } = await getTranslation({
+    const { translation, url, buttons } = await getTranslation({
       key: translationKey,
       ctx,
       bot_name: ctx.botInfo?.username,
     })
+
+    // Логируем полученные кнопки
+    logger.info(
+      `[menuCommandStep] Got ${buttons.length} buttons from translation for key: ${translationKey}`
+    )
 
     // --- Set message and photo using translation results or fallbacks ---
     if (translation) {
