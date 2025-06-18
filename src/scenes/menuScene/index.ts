@@ -75,38 +75,13 @@ const menuCommandStep = async (ctx: MyContext) => {
     )
 
     // Создаем клавиатуру
-    let keyboard = await mainMenu({
+    const keyboard = await mainMenu({
       isRu,
       subscription: newSubscription, // Pass simulated subscription
       ctx,
     })
 
-    // ДОБАВЛЯЕМ КНОПКИ ПОДПИСКИ для STARS пользователей
-    if (translationKey === 'digitalAvatar' && buttons.length > 0) {
-      logger.info(
-        `[menuCommandStep] Adding ${buttons.length} subscription buttons to keyboard`
-      )
-
-      // Получаем текущую клавиатуру
-      const currentKeyboard = keyboard.reply_markup.keyboard
-
-      // Добавляем кнопки подписки
-      for (const button of buttons) {
-        const subscriptionButton = Markup.button.text(
-          `${button.text} - ${button.ru_price} ₽`
-        )
-        currentKeyboard.push([subscriptionButton])
-        logger.info(
-          `[menuCommandStep] Added subscription button: ${subscriptionButton.text}`
-        )
-      }
-
-      // Пересоздаем клавиатуру с новыми кнопками
-      keyboard = Markup.keyboard(currentKeyboard).resize()
-      logger.info(
-        `[menuCommandStep] Updated keyboard with subscription buttons`
-      )
-    }
+    // Кнопки подписки теперь добавляются через mainMenu.ts как единая кнопка "💫 Оформить подписку"
 
     // --- Set message and photo using translation results or fallbacks ---
     if (translation) {
