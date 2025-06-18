@@ -190,12 +190,12 @@ const menuNextStep = async (ctx: MyContext) => {
     const text = ctx.update.message.text
     logger.info(`[menuNextStep] Text Message Received: ${text}`)
 
-    // КРИТИЧЕСКИ ВАЖНО: Обрабатываем кнопку подписки СРАЗУ
-    if (text === '💫 Оформить подписку' || text === '💫 Subscribe') {
-      logger.info(`[menuNextStep] DIRECT SUBSCRIPTION BUTTON HANDLING: ${text}`)
-      await ctx.scene.enter('subscription_scene')
-      return // Explicitly handled
-    }
+    // УБРАНО: Кнопка подписки теперь обрабатывается только global hears
+    // if (text === '💫 Оформить подписку' || text === '💫 Subscribe') {
+    //   logger.info(`[menuNextStep] DIRECT SUBSCRIPTION BUTTON HANDLING: ${text}`)
+    //   await ctx.scene.enter('subscription_scene')
+    //   return // Explicitly handled
+    // }
 
     // Specific text button handling (example: "Generate new video?")
     if (
