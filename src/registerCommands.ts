@@ -464,11 +464,9 @@ If not, continue on your own and click the "I myself" button`
     await handleTechSupport(ctx)
   })
 
-  // ОТКЛЮЧЕН: Global hears для кнопки подписки конфликтует с wizard menuScene
-  // Теперь кнопка подписки обрабатывается напрямую в menuScene wizard
-  /*
+  // ПРОСТОЙ GLOBAL HEARS для кнопки подписки - ВСЕГДА работает!
   bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
-    logger.info('🚀 GLOBAL HEARS (POST-STAGE): Оформить подписку / Subscribe', {
+    logger.info('🚀 GLOBAL HEARS: Оформить подписку / Subscribe', {
       telegramId: ctx.from?.id,
       messageText: ctx.message?.text,
       currentScene: ctx.scene?.current?.id,
@@ -479,14 +477,14 @@ If not, continue on your own and click the "I myself" button`
       logger.info(
         'Attempting to leave current scene and enter subscription scene'
       )
-      await ctx.scene.leave() // На всякий случай выходим из текущей сцены, если она есть
+      await ctx.scene.leave() // Выходим из любой текущей сцены
       ctx.session.mode = ModeEnum.SubscriptionScene // Устанавливаем режим
       logger.info('About to enter subscription scene')
       await ctx.scene.enter(ModeEnum.SubscriptionScene) // Входим в сцену подписки
       logger.info('Successfully entered subscription scene')
     } catch (error) {
       console.error('❌ Error in subscription hears handler:', error)
-      logger.error('Error in Оформить подписку hears (POST-STAGE):', {
+      logger.error('Error in Оформить подписку hears:', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         telegramId: ctx.from?.id,
@@ -503,7 +501,6 @@ If not, continue on your own and click the "I myself" button`
       }
     }
   })
-  */
 
   // Обработчик для текстовой кнопки "🆕 Новый промпт"
   bot.hears(['🆕 Новый промпт', '🆕 New prompt'], async ctx => {
