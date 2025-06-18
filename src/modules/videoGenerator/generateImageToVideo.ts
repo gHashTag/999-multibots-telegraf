@@ -194,33 +194,17 @@ export const generateImageToVideo = async (
         )
       }
 
-      // Специальная обработка для Google Veo 3
-      if (modelConfig.id === 'veo-3') {
-        modelInput = {
-          prompt,
-          image: imageUrl,
-          duration_seconds: modelConfig.api.input.duration_seconds || 8,
-          aspect_ratio: userAspectRatio || '9:16',
-          enable_audio: modelConfig.api.input.enable_audio || true,
-        }
-        // Добавляем prompt_optimizer только если он есть в конфиге
-        if (modelConfig.api.input.prompt_optimizer) {
-          modelInput.prompt_optimizer = true
-        }
-      } else {
-        // Стандартная обработка для других моделей
-        modelInput = {
-          ...modelConfig.api.input,
-          prompt,
-          aspect_ratio: userAspectRatio,
-          [modelConfig.imageKey]: imageUrl,
-        }
+      // Стандартная обработка для всех моделей
+      modelInput = {
+        ...modelConfig.api.input,
+        prompt,
+        aspect_ratio: userAspectRatio,
+        [modelConfig.imageKey]: imageUrl,
       }
 
       logger.info('[I2V BG] Prepared Replicate input for standard', {
         telegramId,
         inputKeys: Object.keys(modelInput),
-        isVeo3: modelConfig.id === 'veo-3',
       })
     }
 
