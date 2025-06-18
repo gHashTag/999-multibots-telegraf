@@ -55,55 +55,7 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SubscriptionScene}`
         )
       },
-      // Обработчики для кнопок подписки из translation
-      '📸 НейроФото - 1110 ₽': async () => {
-        logger.info({
-          message: '📸 [handleMenu] НейроФото подписка',
-          telegramId,
-          function: 'handleMenu',
-          action: 'neurophoto_subscription',
-          nextScene: ModeEnum.SubscriptionScene,
-        })
-        console.log('CASE: 📸 НейроФото подписка')
-        ctx.session.mode = ModeEnum.SubscriptionScene
-        await ctx.scene.enter(ModeEnum.SubscriptionScene)
-      },
-      '📚 НейроВидео - 2999 ₽': async () => {
-        logger.info({
-          message: '📚 [handleMenu] НейроВидео подписка',
-          telegramId,
-          function: 'handleMenu',
-          action: 'neurovideo_subscription',
-          nextScene: ModeEnum.SubscriptionScene,
-        })
-        console.log('CASE: 📚 НейроВидео подписка')
-        ctx.session.mode = ModeEnum.SubscriptionScene
-        await ctx.scene.enter(ModeEnum.SubscriptionScene)
-      },
-      '📸 NeuroPhoto - $15': async () => {
-        logger.info({
-          message: '📸 [handleMenu] NeuroPhoto subscription',
-          telegramId,
-          function: 'handleMenu',
-          action: 'neurophoto_subscription_en',
-          nextScene: ModeEnum.SubscriptionScene,
-        })
-        console.log('CASE: 📸 NeuroPhoto subscription')
-        ctx.session.mode = ModeEnum.SubscriptionScene
-        await ctx.scene.enter(ModeEnum.SubscriptionScene)
-      },
-      '📚 NeuroVideo - $35': async () => {
-        logger.info({
-          message: '📚 [handleMenu] NeuroVideo subscription',
-          telegramId,
-          function: 'handleMenu',
-          action: 'neurovideo_subscription_en',
-          nextScene: ModeEnum.SubscriptionScene,
-        })
-        console.log('CASE: 📚 NeuroVideo subscription')
-        ctx.session.mode = ModeEnum.SubscriptionScene
-        await ctx.scene.enter(ModeEnum.SubscriptionScene)
-      },
+      // Обработчики для отдельных кнопок подписки убраны - теперь используется единая кнопка "💫 Оформить подписку"
       [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
         logger.info({
           message: '🤖 [handleMenu] Переход к цифровому телу',
