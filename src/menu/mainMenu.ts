@@ -243,9 +243,14 @@ export async function mainMenu({
   const finalKeyboard = [...buttonRows, ...bottomRowButtons]
 
   // Добавляем кнопку "Оформить подписку" ВСЕГДА в самый низ
+  console.log(`[mainMenu LOG] Adding subscribe button: ${subscribeButton.text}`)
   finalKeyboard.push([subscribeButton])
 
   console.log(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)
+  console.log(
+    `[mainMenu LOG] Final keyboard structure:`,
+    JSON.stringify(finalKeyboard.map(row => row.map(btn => btn.text)))
+  )
 
   return Markup.keyboard(finalKeyboard).resize()
 }

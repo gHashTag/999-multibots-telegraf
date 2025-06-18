@@ -114,9 +114,13 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       let buttonText = ''
 
       // Получаем текст кнопки из перевода, если он есть, иначе используем тип подписки
-      const translatedButton = buttons?.find(
-        b => b.callback_data === plan.subscription?.toString().toLowerCase()
+      const planKey = plan.subscription?.toString().toLowerCase()
+      const translatedButton = buttons?.find(b => b.callback_data === planKey)
+      console.log(
+        `[SUBSCRIPTION DEBUG] Plan: ${plan.subscription}, Key: ${planKey}, Found button:`,
+        translatedButton?.text || 'NOT FOUND'
       )
+
       buttonText =
         translatedButton?.text ||
         plan.subscription?.toString() ||
