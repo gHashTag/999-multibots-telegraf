@@ -412,6 +412,26 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
+  // Обработчик для кнопки "Увеличить качество фото"
+  bot.hears(
+    [levels[107].title_ru, levels[107].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Увеличить качество фото от ${ctx.from?.id}`)
+
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в upscaler
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        '⬆️ Увеличить качество'
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      ctx.session.mode = ModeEnum.ImageUpscaler
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    }
+  )
+
   // bot.hears(
   //   ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
   //   async (ctx: MyContext) => {
