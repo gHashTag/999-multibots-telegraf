@@ -928,7 +928,6 @@ If not, continue on your own and click the "I myself" button`
     stage.scenes.size
   )
 
-  // ДУБЛИРОВАНИЕ GLOBAL HEARS В КОНЦЕ ФАЙЛА ДЛЯ ГАРАНТИИ КОМПИЛЯЦИИ
   bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
     logger.info('🚀 GLOBAL HEARS (DUPLICATE): Оформить подписку / Subscribe', {
       telegramId: ctx.from?.id,
@@ -965,4 +964,7 @@ If not, continue on your own and click the "I myself" button`
       }
     }
   })
+  // ВАЖНО: Этот обработчик должен быть последним, чтобы не перехватывать команды и кнопки
+  bot.on(message('text'), handleTextMessage)
+
 }

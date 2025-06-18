@@ -9,6 +9,7 @@ export const openai = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
   timeout: 60 * 1000, // 60 seconds in milliseconds
 })
+
 //
 export * from './getSubtitles'
 export * from './getTriggerReel'

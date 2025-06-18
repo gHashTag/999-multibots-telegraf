@@ -1,0 +1,95 @@
+# Docker Compose для тестирования Pull Requests
+# Использует отдельные порты и префиксы для изоляции
+
+services:
+  app-pr:
+    container_name: 999-multibots-pr-${PR_NUMBER}
+    build:
+      context: ./
+      dockerfile: Dockerfile
+      args:
+        - BUILD_ENV=test
+    ports:
+      # Используем динамические порты на основе номера PR
+      - '${PR_PORT_BASE}99:2999'
+      - '${PR_PORT_BASE}00:3000'
+      - '${PR_PORT_BASE}01:3001'
+      - '${PR_PORT_BASE}02:3002'
+      - '${PR_PORT_BASE}03:3003'
+      - '${PR_PORT_BASE}04:3004'
+      - '${PR_PORT_BASE}05:3005'
+      - '${PR_PORT_BASE}06:3006'
+      - '${PR_PORT_BASE}07:3007'
+      - '${PR_PORT_BASE}08:3008'
+    env_file:
+      - .env.pr
+    environment:
+      - NODE_ENV=test
+      - BOT_NAME_PREFIX=pr${PR_NUMBER}_
+      - WEBHOOK_BASE_URL=${WEBHOOK_BASE_URL}/pr${PR_NUMBER}
+      # Тестовые токены для PR (нужно будет создать отдельные боты)
+      - BOT_TOKEN_1=${PR_BOT_TOKEN_1}
+      - BOT_TOKEN_2=${PR_BOT_TOKEN_2}
+      - BOT_TOKEN_3=${PR_BOT_TOKEN_3}
+      - BOT_TOKEN_4=${PR_BOT_TOKEN_4}
+      - BOT_TOKEN_5=${PR_BOT_TOKEN_5}
+      - BOT_TOKEN_6=${PR_BOT_TOKEN_6}
+      - BOT_TOKEN_7=${PR_BOT_TOKEN_7}
+      - BOT_TOKEN_8=${PR_BOT_TOKEN_8}
+      # Остальные переменные
+      - INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
+      - INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
+      - INNGEST_URL=${INNGEST_URL}
+      - INNGEST_BASE_URL=${INNGEST_BASE_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - ORIGIN=${ORIGIN}
+      - ADMIN_IDS=${ADMIN_IDS}
+      - SECRET_KEY=${SECRET_KEY}
+      - LOG_FORMAT=${LOG_FORMAT}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
+      - DOCKER_ENVIRONMENT=true
+      - DEBUG=true
+      - TS_NODE_PROJECT=tsconfig.prod.json
+      - SERVER_FILES_DIR=/etc/nginx/html/files/pr${PR_NUMBER}/
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./playbook.yml:/app/playbook.yml:ro
+      - ./inventory:/app/inventory:ro
+      - ./roles:/app/roles:ro
+      - pr-files:/etc/nginx/html/files/pr${PR_NUMBER}
+    networks:
+      - pr-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pr${PR_NUMBER}.rule=Host(`pr${PR_NUMBER}.${DOMAIN}`)"
+      - "traefik.http.routers.pr${PR_NUMBER}.tls=true"
+      - "traefik.http.routers.pr${PR_NUMBER}.tls.certresolver=letsencrypt"
+
+  nginx-pr:
+    image: nginx:latest
+    container_name: bot-proxy-pr-${PR_NUMBER}
+    volumes:
+      - ./nginx-config:/etc/nginx/conf.d:ro
+      - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
+      - /etc/pki/key.pem:/etc/pki/key.pem:ro
+      - pr-files:/etc/nginx/html/files/pr${PR_NUMBER}:ro
+    depends_on:
+      - app-pr
+    networks:
+      - pr-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.nginx-pr${PR_NUMBER}.loadbalancer.server.port=80"
+
+networks:
+  pr-network:
+    driver: bridge
+
+volumes:
+  pr-files:
