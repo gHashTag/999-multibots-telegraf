@@ -1,5 +1,6 @@
 import { Context, Markup } from 'telegraf'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
+import { ADMIN_IDS_ARRAY } from '@/config'
 
 interface SelectRubParams {
   ctx: Context
@@ -15,6 +16,18 @@ export async function handleSelectRubAmount({ ctx, isRu }: SelectRubParams) {
         `top_up_rub_${option.amountRub}`
       ),
     ])
+
+    // Добавляем тестовую кнопку "1 рубль" для админов
+    const userId = ctx.from?.id
+    if (userId && ADMIN_IDS_ARRAY.includes(userId)) {
+      // Добавляем кнопку в самый верх для админов
+      inlineKeyboardRows.unshift([
+        Markup.button.callback(
+          isRu ? '🧪 1 ₽ (Админ-тест)' : '🧪 1 RUB (Admin Test)',
+          'top_up_rub_1'
+        ),
+      ])
+    }
 
     await ctx.reply(
       isRu
