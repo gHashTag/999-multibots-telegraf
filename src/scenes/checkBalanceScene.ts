@@ -644,7 +644,7 @@ export const enterTargetScene = async (
         mode,
         function: 'enterTargetSceneWrapper',
       })
-      await ctx.scene.enter(ModeEnum.VideoTranscription)
+      await ctx.scene.enter('video_transcription')
       return
     }
 

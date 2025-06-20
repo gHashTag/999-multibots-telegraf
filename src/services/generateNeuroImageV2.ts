@@ -8,6 +8,7 @@ import {
 } from '@/config'
 import { isRussian } from '@/helpers/language'
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/logger'
 
 export async function generateNeuroImageV2(
   prompt: string,
@@ -56,7 +57,14 @@ export async function generateNeuroImageV2(
         },
       }
     )
-    console.log(response.data, 'response.data')
+    logger.info('Neuro image generation response received', {
+      hasData: !!response.data,
+      dataType: typeof response.data,
+      dataKeys:
+        response.data && typeof response.data === 'object'
+          ? Object.keys(response.data)
+          : 'not an object',
+    })
     return response.data
   } catch (error) {
     if (isAxiosError(error)) {
