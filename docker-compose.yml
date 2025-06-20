@@ -41,6 +41,7 @@ services:
       - '3006:3006'
       - '3007:3007'
       - '3008:3008'
+      - '3009:3009'
     env_file:
       - .env
     environment:
@@ -53,6 +54,7 @@ services:
       - BOT_TOKEN_6=${BOT_TOKEN_6}
       - BOT_TOKEN_7=${BOT_TOKEN_7}
       - BOT_TOKEN_8=${BOT_TOKEN_8}
+      - BOT_TOKEN_9=${BOT_TOKEN_9}
       - INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
       - INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
       - INNGEST_URL=${INNGEST_URL}
