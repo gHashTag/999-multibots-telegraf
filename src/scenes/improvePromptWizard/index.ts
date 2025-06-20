@@ -9,7 +9,7 @@ import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovemen
 import { sendGenericErrorMessage } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'
 import { getUserProfileAndSettings } from '@/db/userSettings'
-import { logger } from '@/utils/logger'
+import { logger, logSessionSafely } from '@/utils/logger'
 import { getUserBalance, getUserData } from '@/core/supabase'
 const MAX_ATTEMPTS = 10
 
@@ -17,7 +17,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImprovePromptWizard,
   async ctx => {
     const isRu = ctx.from?.language_code === 'ru'
-    console.log(ctx.session, 'ctx.session')
+    logSessionSafely(ctx.session, 'ctx.session')
 
     // Проверяем, был ли промпт передан через state
     if (
