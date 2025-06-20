@@ -161,6 +161,21 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       row => row && row.length > 0
     )
 
+    // Добавляем админскую тестовую кнопку только для админов
+    if (isAdmin) {
+      const adminTestButtonText = isRu
+        ? '🧪 1 ₽ (Админ-тест)'
+        : '🧪 1 ₽ (Admin-test)'
+
+      cleanedKeyboardRows.push([
+        Markup.button.callback(adminTestButtonText, 'admin_test_1rub'),
+      ])
+
+      logger.info(
+        `[${ModeEnum.SubscriptionScene}] Added admin test button for user: ${telegramId}`
+      )
+    }
+
     if (cleanedKeyboardRows.length === 0) {
       logger.warn(
         `[${ModeEnum.SubscriptionScene}] No valid buttons generated.`,
@@ -212,6 +227,45 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
         }
         // Добавляем флаг isAdminTest в сессию, если выбран тестовый план
         ctx.session.isAdminTest = false
+        return ctx.scene.enter(ModeEnum.PaymentScene)
+      } else if (text === 'admin_test_1rub') {
+        // Обработка админской тестовой кнопки
+        console.log('CASE: Admin test 1 rub button pressed')
+
+        // Проверяем, что пользователь действительно админ
+        const adminIds = process.env.ADMIN_IDS
+          ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim(), 10))
+          : []
+        const telegramId = ctx.from?.id
+        const isAdmin = telegramId ? adminIds.includes(telegramId) : false
+
+        if (!isAdmin) {
+          const isRu = isRussian(ctx)
+          await ctx.reply(
+            isRu
+              ? '❌ У вас нет доступа к этой функции.'
+              : '❌ You do not have access to this function.'
+          )
+          return
+        }
+
+        // Настраиваем сессию для админского теста ПОДПИСКИ
+        ctx.session.subscription = SubscriptionType.NEUROPHOTO // Тестируем подписку НейроФото
+        ctx.session.selectedPayment = {
+          amount: 1, // 1 рубль для теста
+          stars: 1, // 1 звезда для теста
+          subscription: SubscriptionType.NEUROPHOTO as SubscriptionType, // ✅ ЭТО тест подписки
+          type: PaymentType.MONEY_INCOME, // Тип операции остается тот же
+        }
+        ctx.session.isAdminTest = true
+
+        logger.info(
+          `[${ModeEnum.SubscriptionScene}] Admin test payment initiated by user: ${telegramId}`,
+          {
+            selectedPayment: ctx.session.selectedPayment,
+          }
+        )
+
         return ctx.scene.enter(ModeEnum.PaymentScene)
         /* } else {
           // ЭТОТ БЛОК БОЛЬШЕ НЕ НУЖЕН, так как find гарантирует валидность

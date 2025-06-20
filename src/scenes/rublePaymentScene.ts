@@ -139,6 +139,24 @@ rublePaymentScene.enter(async ctx => {
         ],
       ]
 
+      // Добавляем админскую тестовую кнопку "1 рубль" для подписок
+      // НО только если мы НЕ пришли сюда уже через админский тест
+      const { ADMIN_IDS_ARRAY } = await import('@/config')
+      if (
+        userId &&
+        ADMIN_IDS_ARRAY.includes(userId) &&
+        !ctx.session.isAdminTest
+      ) {
+        inlineKeyboard.push([
+          {
+            text: isRu
+              ? '🧪 1 ₽ (Админ-тест подписки)'
+              : '🧪 1 RUB (Admin Test Subscription)',
+            callback_data: `test_subscription_1rub:${subscriptionType}:${stars}`,
+          },
+        ])
+      }
+
       await ctx.reply(
         isRu
           ? `✅ <b>Счет на оплату подписки ${subscriptionType} создан</b>\nСумма: ${amountRub} ₽\n\nНажмите кнопку ниже для перехода к оплате через Robokassa.`
@@ -207,7 +225,26 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       }
     )
 
-    const selectedOption = rubTopUpOptions.find(o => o.amountRub === amountRub)
+    // Специальная обработка для админской тестовой кнопки "1 рубль"
+    let selectedOption = rubTopUpOptions.find(o => o.amountRub === amountRub)
+
+    // Если это админский тест на 1 рубль, создаем специальный объект
+    if (!selectedOption && amountRub === 1) {
+      const userId = ctx.from?.id
+      const { ADMIN_IDS_ARRAY } = await import('@/config')
+
+      if (userId && ADMIN_IDS_ARRAY.includes(userId)) {
+        logger.info(
+          `[${ModeEnum.RublePaymentScene}] Admin test payment: 1 RUB`,
+          {
+            telegram_id: userId,
+            isAdmin: true,
+          }
+        )
+        selectedOption = { amountRub: 1, stars: 1 } // Админский тест: 1 рубль = 1 звезда
+      }
+    }
+
     if (!selectedOption) {
       logger.error(
         `❌ [${ModeEnum.RublePaymentScene}] Invalid top-up option selected: ${amountRub} RUB`,
@@ -240,16 +277,17 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
 
     const invId = Math.floor(Math.random() * 1000000)
     const description = isRu
-      ? `Пополнение баланса на ${stars} звезд`
-      : `Balance top-up for ${stars} stars`
+      ? `Пополнение баланса на ${stars} звезд${amountRub === 1 ? ' (Админ-тест)' : ''}`
+      : `Balance top-up for ${stars} stars${amountRub === 1 ? ' (Admin Test)' : ''}`
 
     logger.info(
-      `[${ModeEnum.RublePaymentScene}] Generating Robokassa URL for ${amountRub} RUB (${stars} stars)`,
+      `[${ModeEnum.RublePaymentScene}] Generating Robokassa URL for ${amountRub} RUB (${stars} stars)${amountRub === 1 ? ' [ADMIN TEST]' : ''}`,
       {
         telegram_id: userId,
         amount: amountRub,
         stars: stars,
         invId: invId,
+        isAdminTest: amountRub === 1,
       }
     )
 
@@ -278,17 +316,20 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
     })
 
     logger.info(
-      `[${ModeEnum.RublePaymentScene}] PENDING BALANCE top-up payment saved for InvId: ${invId}`,
+      `[${ModeEnum.RublePaymentScene}] PENDING BALANCE top-up payment saved for InvId: ${invId}${amountRub === 1 ? ' [ADMIN TEST]' : ''}`,
       {
         telegram_id: userId,
         invId: invId,
+        isAdminTest: amountRub === 1,
       }
     )
 
     const inlineKeyboard = [
       [
         {
-          text: isRu ? `Оплатить ${amountRub} ₽` : `Pay ${amountRub} RUB`,
+          text: isRu
+            ? `Оплатить ${amountRub} ₽${amountRub === 1 ? ' (Тест)' : ''}`
+            : `Pay ${amountRub} RUB${amountRub === 1 ? ' (Test)' : ''}`,
           url: invoiceURL,
         },
       ],
@@ -296,8 +337,8 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
 
     await ctx.reply(
       isRu
-        ? `✅ <b>Счет создан</b>\nСумма: ${amountRub} ₽ (${stars} ⭐️)\n\nНажмите кнопку ниже для перехода к оплате через Robokassa.`
-        : `✅ <b>Invoice created</b>\nAmount: ${amountRub} RUB (${stars} ⭐️)\n\nClick the button below to proceed with payment via Robokassa.`,
+        ? `✅ <b>Счет создан${amountRub === 1 ? ' (Админ-тест)' : ''}</b>\nСумма: ${amountRub} ₽ (${stars} ⭐️)\n\nНажмите кнопку ниже для перехода к оплате через Robokassa.`
+        : `✅ <b>Invoice created${amountRub === 1 ? ' (Admin Test)' : ''}</b>\nAmount: ${amountRub} RUB (${stars} ⭐️)\n\nClick the button below to proceed with payment via Robokassa.`,
       {
         reply_markup: {
           inline_keyboard: inlineKeyboard,
@@ -306,7 +347,7 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       }
     )
     logger.info(
-      `[${ModeEnum.RublePaymentScene}] Robokassa invoice message sent to user ${userId}`
+      `[${ModeEnum.RublePaymentScene}] Robokassa invoice message sent to user ${userId}${amountRub === 1 ? ' [ADMIN TEST]' : ''}`
     )
   } catch (error: any) {
     logger.error(
@@ -324,6 +365,133 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
         : 'An error occurred while creating the Robokassa invoice.'
     )
     return ctx.scene.leave()
+  }
+})
+
+// Обработка админской тестовой кнопки "1 рубль" для подписок
+rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
+  const isRu = isRussian(ctx)
+  const userId = ctx.from?.id
+
+  if (!userId) {
+    await ctx.answerCbQuery()
+    return
+  }
+
+  // Проверяем права админа
+  const { ADMIN_IDS_ARRAY } = await import('@/config')
+  if (!ADMIN_IDS_ARRAY.includes(userId)) {
+    await ctx.answerCbQuery(
+      isRu
+        ? 'У вас нет прав для этого действия'
+        : 'You do not have permission for this action'
+    )
+    return
+  }
+
+  try {
+    await ctx.answerCbQuery()
+
+    const subscriptionType = ctx.match[1]
+    const originalStars = parseInt(ctx.match[2], 10)
+    const testAmount = 1 // 1 рубль для теста
+    const testStars = 1 // 1 звезда для теста
+
+    logger.info(
+      `[${ModeEnum.RublePaymentScene}] Admin test subscription payment: 1 RUB for ${subscriptionType}`,
+      {
+        telegram_id: userId,
+        subscription: subscriptionType,
+        originalStars: originalStars,
+        testAmount: testAmount,
+        testStars: testStars,
+        isAdmin: true,
+      }
+    )
+
+    const invId = Math.floor(Math.random() * 1000000)
+    const description = isRu
+      ? `Тест подписки ${subscriptionType} (Админ)`
+      : `Test subscription ${subscriptionType} (Admin)`
+
+    const invoiceURL = await getInvoiceId(
+      MERCHANT_LOGIN,
+      testAmount,
+      invId,
+      description,
+      ROBOKASSA_PASSWORD_1
+    )
+
+    const { bot_name } = getBotNameByToken(ctx.telegram.token)
+
+    await setPayments({
+      telegram_id: userId.toString(),
+      OutSum: testAmount.toString(),
+      InvId: invId.toString(),
+      currency: Currency.RUB,
+      stars: testStars,
+      status: PaymentStatus.PENDING,
+      payment_method: 'Robokassa',
+      type: PaymentType.MONEY_INCOME,
+      subscription_type: subscriptionType,
+      bot_name,
+      language: ctx.from?.language_code ?? 'en',
+      metadata: {
+        admin_test: true,
+        original_amount: originalStars,
+        test_amount: testAmount,
+      },
+    })
+
+    logger.info(
+      `[${ModeEnum.RublePaymentScene}] PENDING ADMIN TEST SUBSCRIPTION payment saved for InvId: ${invId}, Sub: ${subscriptionType}`,
+      {
+        telegram_id: userId,
+        invId: invId,
+        isAdminTest: true,
+      }
+    )
+
+    const inlineKeyboard = [
+      [
+        {
+          text: isRu
+            ? `Оплатить тест ${testAmount} ₽ (${subscriptionType})`
+            : `Pay test ${testAmount} RUB (${subscriptionType})`,
+          url: invoiceURL,
+        },
+      ],
+    ]
+
+    await ctx.reply(
+      isRu
+        ? `✅ <b>Админ-тест: Счет на подписку ${subscriptionType} создан</b>\nТестовая сумма: ${testAmount} ₽ (вместо обычных ${Math.floor(originalStars * 2.3)} ₽)\n\n🧪 Это тестовый платеж для проверки системы.\n\nНажмите кнопку ниже для перехода к оплате.`
+        : `✅ <b>Admin Test: Invoice for subscription ${subscriptionType} created</b>\nTest amount: ${testAmount} RUB (instead of usual ${Math.floor(originalStars * 2.3)} RUB)\n\n🧪 This is a test payment for system verification.\n\nClick the button below to proceed with payment.`,
+      {
+        reply_markup: {
+          inline_keyboard: inlineKeyboard,
+        },
+        parse_mode: 'HTML',
+      }
+    )
+
+    logger.info(
+      `[${ModeEnum.RublePaymentScene}] Admin test subscription invoice message sent to user ${userId}`
+    )
+  } catch (error: any) {
+    logger.error(
+      `❌ [${ModeEnum.RublePaymentScene}] Error in admin test subscription:`,
+      {
+        error: error.message,
+        telegram_id: userId,
+        subscription: ctx.match[1],
+      }
+    )
+    await ctx.reply(
+      isRu
+        ? 'Произошла ошибка при создании тестового счета.'
+        : 'An error occurred while creating the test invoice.'
+    )
   }
 })
 
