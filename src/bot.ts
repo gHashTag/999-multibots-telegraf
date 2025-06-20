@@ -193,7 +193,7 @@ async function initializeBots() {
       process.env.BOT_TOKEN_6,
       process.env.BOT_TOKEN_7,
       process.env.BOT_TOKEN_8,
-      process.env.BOT_TOKEN_9, // AI_STARS_bot
+      process.env.BOT_TOKEN_9,
     ].filter((token): token is string => Boolean(token))
 
     let currentPort = 3001
