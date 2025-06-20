@@ -73,7 +73,7 @@ COPY docker-entrypoint.sh ./
 RUN chmod +x /app/docker-entrypoint.sh
 
 # Экспортируем порт для API и боты
-EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 3008 2999
+EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 2999
 
 # Используем наш entrypoint скрипт для подготовки окружения
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
