@@ -237,11 +237,32 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         stack: error.stack,
       })
 
-      await ctx.reply(
-        isRu
-          ? '❌ Произошла ошибка при транскрибации видео. Пожалуйста, попробуйте позже.'
-          : '❌ An error occurred while transcribing the video. Please try again later.'
-      )
+      // Определяем тип ошибки для более информативного сообщения
+      let errorMessage = ''
+
+      if (error.message.includes('Instagram may require login')) {
+        errorMessage = isRu
+          ? '❌ Не удалось скачать видео из Instagram. Возможно, видео приватное или требует авторизации. Попробуйте другое видео или загрузите файл напрямую.'
+          : '❌ Failed to download Instagram video. The video might be private or require authentication. Try another video or upload the file directly.'
+      } else if (error.message.includes('rate-limit reached')) {
+        errorMessage = isRu
+          ? '❌ Instagram временно ограничил доступ. Попробуйте позже или загрузите видео файлом.'
+          : '❌ Instagram has temporarily limited access. Please try again later or upload the video as a file.'
+      } else if (error.message.includes('File too large')) {
+        errorMessage = isRu
+          ? '❌ Видео слишком большое для обработки (максимум 25MB). Попробуйте более короткое видео.'
+          : '❌ Video is too large for processing (25MB max). Please try a shorter video.'
+      } else if (error.message.includes('OPENAI_API_KEY')) {
+        errorMessage = isRu
+          ? '❌ Сервис транскрибации временно недоступен. Попробуйте позже.'
+          : '❌ Transcription service is temporarily unavailable. Please try again later.'
+      } else {
+        errorMessage = isRu
+          ? '❌ Произошла ошибка при обработке видео. Убедитесь, что ссылка корректная и видео доступно.'
+          : '❌ An error occurred while processing the video. Make sure the link is correct and the video is accessible.'
+      }
+
+      await ctx.reply(errorMessage)
     }
 
     return ctx.scene.leave()
