@@ -151,7 +151,7 @@ export const logSessionSafely = (session: any, label?: string) => {
 }
 
 // Функция для очистки объектов от Buffer данных перед логированием
-const sanitizeForLogging = (obj: any): any => {
+const sanitizeForLogging = (obj: any, seen = new WeakSet()): any => {
   if (obj === null || obj === undefined) return obj
 
   if (Buffer.isBuffer(obj)) {
@@ -163,14 +163,26 @@ const sanitizeForLogging = (obj: any): any => {
   }
 
   if (Array.isArray(obj)) {
+    // Защита от циклических ссылок
+    if (seen.has(obj)) {
+      return '<Circular Array Reference>'
+    }
+    seen.add(obj)
+
     // Проверяем, есть ли в массиве Buffer или большие данные
     if (obj.length > 100) {
       return `<Array ${obj.length} items (truncated for logging)>`
     }
-    return obj.map(sanitizeForLogging)
+    return obj.map(item => sanitizeForLogging(item, seen))
   }
 
   if (typeof obj === 'object') {
+    // Защита от циклических ссылок
+    if (seen.has(obj)) {
+      return '<Circular Object Reference>'
+    }
+    seen.add(obj)
+
     const sanitized: any = {}
     for (const [key, value] of Object.entries(obj)) {
       if (key === 'images' && Array.isArray(value)) {
@@ -180,7 +192,7 @@ const sanitizeForLogging = (obj: any): any => {
           hasBuffer: !!img.buffer,
         }))
       } else {
-        sanitized[key] = sanitizeForLogging(value)
+        sanitized[key] = sanitizeForLogging(value, seen)
       }
     }
     return sanitized
@@ -191,7 +203,7 @@ const sanitizeForLogging = (obj: any): any => {
 
 // Безопасная версия console.log
 export const safeConsoleLog = (...args: any[]) => {
-  const sanitizedArgs = args.map(sanitizeForLogging)
+  const sanitizedArgs = args.map(arg => sanitizeForLogging(arg))
   console.log(...sanitizedArgs)
 }
 
@@ -200,7 +212,7 @@ export const setupSafeConsoleLogging = () => {
   const originalConsoleLog = console.log
 
   console.log = (...args: any[]) => {
-    const sanitizedArgs = args.map(sanitizeForLogging)
+    const sanitizedArgs = args.map(arg => sanitizeForLogging(arg))
     originalConsoleLog(...sanitizedArgs)
   }
 
