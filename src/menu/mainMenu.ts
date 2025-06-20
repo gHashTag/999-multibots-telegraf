@@ -3,6 +3,7 @@ import type { ReplyKeyboardMarkup } from 'telegraf/types'
 import { checkFullAccess } from '../handlers/checkFullAccess'
 import { MyContext } from '../interfaces/telegram-bot.interface'
 import { SubscriptionType } from '../interfaces/subscription.interface'
+import { ADMIN_IDS_ARRAY } from '@/config'
 
 interface Level {
   title_ru: string
@@ -115,6 +116,10 @@ export const levels: Record<number, Level> = {
   108: {
     title_ru: '📺 Транскрибация Reels',
     title_en: '📺 Transcribe Reels',
+  },
+  109: {
+    title_ru: '🧪 1 ₽ (Админ-тест)',
+    title_en: '🧪 1 ₽ (Admin-test)',
   },
 }
 
