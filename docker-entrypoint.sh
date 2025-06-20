@@ -81,6 +81,18 @@ else
   echo "✅ Файл /app/dist/bot.js найден."
 fi
 
+# Проверяем наличие токенов ботов
+echo "Bot tokens check in ENV:"
+echo "BOT_TOKEN_1 exists: $([ ! -z "$BOT_TOKEN_1" ] && echo "true" || echo "false")"
+echo "BOT_TOKEN_2 exists: $([ ! -z "$BOT_TOKEN_2" ] && echo "true" || echo "false")"
+echo "BOT_TOKEN_3 exists: $([ ! -z "$BOT_TOKEN_3" ] && echo "true" || echo "false")"
+echo "BOT_TOKEN_4 exists: $([ ! -z "$BOT_TOKEN_4" ] && echo "true" || echo "false")"
+echo "BOT_TOKEN_5 exists: $([ ! -z "$BOT_TOKEN_5" ] && echo "true" || echo "false")"
+echo "BOT_TOKEN_6 exists: $([ ! -z "$BOT_TOKEN_6" ] && echo "true" || echo "false")"
+echo "BOT_TOKEN_7 exists: $([ ! -z "$BOT_TOKEN_7" ] && echo "true" || echo "false")"
+echo "BOT_TOKEN_8 exists: $([ ! -z "$BOT_TOKEN_8" ] && echo "true" || echo "false")"
+echo "BOT_TOKEN_9 exists: $([ ! -z "$BOT_TOKEN_9" ] && echo "true" || echo "false")"
+
 # Выводим переменные окружения (без значений, только имена) для диагностики
 echo "🔧 Проверка настроенных переменных окружения:"
 env | grep -v "TOKEN\|KEY\|SECRET" | cut -d= -f1 | sort
