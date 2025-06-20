@@ -52,6 +52,9 @@ const DEFAULT_BUTTONS_EN: TranslationButton[] = [
   },
 ]
 
+// Константа для общих переводов
+const COMMON_BOT_NAME = 'common'
+
 // Обновленный тип возвращаемого значения
 export async function getTranslation({
   key,
@@ -102,8 +105,30 @@ export async function getTranslation({
         error: error.message,
       })
 
+      // Пробуем найти для DEFAULT_BOT_NAME
       const defaultBot = DEFAULT_BOT_NAME
       ;({ data, error } = await fetchTranslation(defaultBot))
+
+      // Если и для DEFAULT_BOT_NAME не найдено, пробуем общие переводы
+      if (error) {
+        logger.warn({
+          message: `Ошибка получения перевода/кнопок с DEFAULT_BOT_NAME для ключа "${key}"`,
+          bot_name: defaultBot,
+          language_code,
+          key,
+          error: error.message,
+        })
+        ;({ data, error } = await fetchTranslation(COMMON_BOT_NAME))
+
+        if (!error) {
+          logger.info({
+            message: `Использован общий перевод для ключа "${key}"`,
+            bot_name: COMMON_BOT_NAME,
+            language_code,
+            key,
+          })
+        }
+      }
     }
 
     // Парсим buttons_config, если он есть
