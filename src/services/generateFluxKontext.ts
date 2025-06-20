@@ -10,7 +10,7 @@ import {
 } from '@/core/supabase'
 import { FLUX_KONTEXT_MODELS } from '@/price/models'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
-import { logger } from '@/utils/logger'
+import { logger, logSessionSafely } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { processBalanceOperation } from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
@@ -194,12 +194,15 @@ export const generateFluxKontext = async (
     if (ctx.session) {
       ctx.session.lastGeneratedImageUrl = editedImageUrl
       ctx.session.lastGeneratedPrompt = prompt
-      console.log('🔍 SAVE SESSION: Standard FLUX Kontext', {
-        telegram_id,
-        lastImageUrl: editedImageUrl,
-        lastPrompt: prompt,
-        sessionExists: !!ctx.session,
-      })
+      logSessionSafely(
+        {
+          telegram_id,
+          lastImageUrl: editedImageUrl,
+          lastPrompt: prompt,
+          sessionExists: !!ctx.session,
+        },
+        '🔍 SAVE SESSION: Standard FLUX Kontext'
+      )
     } else {
       console.log(
         '❌ SAVE SESSION: ctx.session is null for standard FLUX Kontext',
@@ -447,12 +450,15 @@ export const generateAdvancedFluxKontext = async (
     if (ctx.session) {
       ctx.session.lastGeneratedImageUrl = editedImageUrl
       ctx.session.lastGeneratedPrompt = prompt
-      console.log('🔍 SAVE SESSION: Advanced FLUX Kontext', {
-        telegram_id,
-        lastImageUrl: editedImageUrl,
-        lastPrompt: prompt,
-        sessionExists: !!ctx.session,
-      })
+      logSessionSafely(
+        {
+          telegram_id,
+          lastImageUrl: editedImageUrl,
+          lastPrompt: prompt,
+          sessionExists: !!ctx.session,
+        },
+        '🔍 SAVE SESSION: Advanced FLUX Kontext'
+      )
     } else {
       console.log(
         '❌ SAVE SESSION: ctx.session is null for advanced FLUX Kontext',
