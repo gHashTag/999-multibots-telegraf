@@ -1,4 +1,8 @@
 import { isDev } from './config'
+import { setupSafeConsoleLogging } from './utils/logger'
+
+// Активируем безопасное логирование для предотвращения вывода Buffer данных
+setupSafeConsoleLogging()
 
 console.log(`--- Bot Logic ---`)
 console.log(
