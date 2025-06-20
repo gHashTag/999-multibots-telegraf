@@ -166,6 +166,7 @@ export type BotName =
   | 'ai_koshey_bot'
   | 'clip_maker_neuro_bot'
   | 'Kaya_easy_art_bot'
+  | 'AI_STARS_bot'
   | 'TestNeurocoder_bot'
 
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
