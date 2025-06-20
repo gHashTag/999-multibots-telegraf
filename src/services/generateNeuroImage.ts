@@ -3,6 +3,7 @@ import axios from 'axios'
 import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
 import { isRussian } from '@/helpers/language'
 import { MyContext, ModelUrl } from '@/interfaces'
+import { logger } from '@/utils/logger'
 
 // Используем заглушку, если переменная не установлена
 const API_URL =
@@ -59,7 +60,14 @@ export async function generateNeuroImage(
         },
       }
     )
-    console.log(response.data, 'response.data')
+    logger.info('Neuro image generation response received', {
+      hasData: !!response.data,
+      dataType: typeof response.data,
+      dataKeys:
+        response.data && typeof response.data === 'object'
+          ? Object.keys(response.data)
+          : 'not an object',
+    })
     return response.data
   } catch (error) {
     console.error('Ошибка при генерации нейроизображения:', error)

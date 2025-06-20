@@ -123,4 +123,88 @@ export const logSecurityEvent = (
   })
 }
 
+// Функция для безопасного логирования session без Buffer данных
+export const logSessionSafely = (session: any, label?: string) => {
+  const safeCopy = { ...session }
+
+  // Удаляем или заменяем Buffer объекты безопасными представлениями
+  if (safeCopy.images && Array.isArray(safeCopy.images)) {
+    safeCopy.images = safeCopy.images.map((img: any, index: number) => ({
+      filename: img.filename || `image_${index}`,
+      bufferSize: img.buffer?.length || 0,
+      hasBuffer: !!img.buffer,
+    }))
+  }
+
+  // Удаляем другие потенциально большие объекты
+  if (safeCopy.userModel && typeof safeCopy.userModel === 'object') {
+    safeCopy.userModel = {
+      ...safeCopy.userModel,
+      // Сохраняем только основные поля, исключая потенциально большие данные
+      model_url: safeCopy.userModel.model_url,
+      trigger_word: safeCopy.userModel.trigger_word,
+      model_id: safeCopy.userModel.model_id,
+    }
+  }
+
+  logger.info(label || 'Session data', safeCopy)
+}
+
+// Функция для очистки объектов от Buffer данных перед логированием
+const sanitizeForLogging = (obj: any): any => {
+  if (obj === null || obj === undefined) return obj
+
+  if (Buffer.isBuffer(obj)) {
+    return `<Buffer ${obj.length} bytes>`
+  }
+
+  if (obj instanceof Uint8Array) {
+    return `<Uint8Array ${obj.length} bytes>`
+  }
+
+  if (Array.isArray(obj)) {
+    // Проверяем, есть ли в массиве Buffer или большие данные
+    if (obj.length > 100) {
+      return `<Array ${obj.length} items (truncated for logging)>`
+    }
+    return obj.map(sanitizeForLogging)
+  }
+
+  if (typeof obj === 'object') {
+    const sanitized: any = {}
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === 'images' && Array.isArray(value)) {
+        sanitized[key] = value.map((img: any, index: number) => ({
+          filename: img.filename || `image_${index}`,
+          bufferSize: img.buffer?.length || 0,
+          hasBuffer: !!img.buffer,
+        }))
+      } else {
+        sanitized[key] = sanitizeForLogging(value)
+      }
+    }
+    return sanitized
+  }
+
+  return obj
+}
+
+// Безопасная версия console.log
+export const safeConsoleLog = (...args: any[]) => {
+  const sanitizedArgs = args.map(sanitizeForLogging)
+  console.log(...sanitizedArgs)
+}
+
+// Настройка безопасного логирования консоли (опционально)
+export const setupSafeConsoleLogging = () => {
+  const originalConsoleLog = console.log
+
+  console.log = (...args: any[]) => {
+    const sanitizedArgs = args.map(sanitizeForLogging)
+    originalConsoleLog(...sanitizedArgs)
+  }
+
+  logger.info('Safe console logging enabled - Buffer data will be sanitized')
+}
+
 export default logger
