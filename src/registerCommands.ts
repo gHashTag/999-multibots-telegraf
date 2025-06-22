@@ -108,10 +108,7 @@ export const stage = new Scenes.Stage<MyContext>([
     ModeEnum.TextToSpeech,
     ...(textToSpeechWizard.steps as any)
   ),
-  new Scenes.WizardScene(
-    ModeEnum.VideoTranscription,
-    ...(videoTranscriptionWizard.steps as any)
-  ),
+  videoTranscriptionWizard,
   lipSyncWizard,
   new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
   new Scenes.WizardScene(
