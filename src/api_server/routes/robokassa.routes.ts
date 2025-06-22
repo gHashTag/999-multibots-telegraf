@@ -183,7 +183,9 @@ If not, continue on your own and click the "I myself" button`
                   text: isRu ? '👋 ☺️ Я с вами' : "👋 ☺️ I'm with you",
                   url: channelId.startsWith('@')
                     ? `https://t.me/${channelId.slice(1)}`
-                    : channelId,
+                    : channelId.startsWith('http')
+                      ? channelId
+                      : `https://t.me/${channelId}`,
                 },
               ],
               [
