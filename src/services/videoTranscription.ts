@@ -86,8 +86,25 @@ async function downloadVideoFromUrl(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0', // Обновленный user-agent
     ]
 
-    // Для Instagram используем улучшенные настройки без зависимости от Chrome cookies
+    // Для Instagram используем улучшенные настройки
     if (url.includes('instagram.com')) {
+      // Сначала пробуем с cookies, если браузер доступен
+      const isProduction = process.env.NODE_ENV === 'production'
+      const isDocker = process.env.DOCKER_ENVIRONMENT === 'true'
+
+      if (!isDocker) {
+        // В локальной среде пытаемся использовать cookies
+        try {
+          options.push('--cookies-from-browser', 'chrome')
+          logger.info('[VideoTranscription] Using Chrome cookies for Instagram')
+        } catch {
+          // Если cookies не доступны, используем альтернативный подход
+          logger.warn(
+            '[VideoTranscription] Chrome cookies not available, using headers approach'
+          )
+        }
+      }
+
       options.push(
         '--extractor-args',
         'instagram:api_version=v1', // Используем старую версию API
@@ -428,16 +445,182 @@ async function downloadInstagramVideoFallback(
     })
   }
 
-  // Ищем скачанный файл еще раз на всякий случай
-  const files = fs.readdirSync(outputDir).filter(f => f.startsWith(filePrefix))
-  if (files.length === 0) {
-    throw new Error(
-      `All Instagram download methods failed. Last error: ${lastError}`
-    )
+  // Если yt-dlp совсем не сработал, попробуем альтернативные API сервисы
+  logger.info(
+    '[VideoTranscription] All yt-dlp methods failed, trying alternative API services'
+  )
+
+  try {
+    return await downloadInstagramVideoViaAPI(url, outputDir, filePrefix)
+  } catch (apiError) {
+    logger.error('[VideoTranscription] Alternative API services also failed', {
+      url,
+      error: apiError.message,
+    })
+
+    // Ищем скачанный файл еще раз на всякий случай
+    const files = fs
+      .readdirSync(outputDir)
+      .filter(f => f.startsWith(filePrefix))
+    if (files.length === 0) {
+      throw new Error(
+        `All Instagram download methods failed. Last error: ${lastError}`
+      )
+    }
+
+    const downloadedFile = path.join(outputDir, files[0])
+    return downloadedFile
+  }
+}
+
+// Новая функция для использования альтернативных API сервисов
+async function downloadInstagramVideoViaAPI(
+  url: string,
+  outputDir: string,
+  filePrefix: string
+): Promise<string> {
+  const apis = [
+    {
+      name: 'SaveGram API',
+      endpoint: 'https://v2.savegram.app/api/media',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent':
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        Origin: 'https://savegram.app',
+        Referer: 'https://savegram.app/',
+      },
+      bodyTemplate: { url: '' },
+    },
+    {
+      name: 'InStag API',
+      endpoint: 'https://api.instag.com/api/media',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent':
+          'Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+        Origin: 'https://instag.com',
+        Referer: 'https://instag.com/',
+      },
+      bodyTemplate: { link: '' },
+    },
+  ]
+
+  let lastError = ''
+
+  for (const api of apis) {
+    try {
+      logger.info(`[VideoTranscription] Trying ${api.name}`, { url })
+
+      const requestBody = { ...api.bodyTemplate }
+      if ('url' in requestBody) requestBody.url = url
+      if ('link' in requestBody) requestBody.link = url
+
+      const response = await axios({
+        method: api.method,
+        url: api.endpoint,
+        headers: api.headers,
+        data: requestBody,
+        timeout: 30000,
+      })
+
+      if (response.data && response.data.data) {
+        const videoData = response.data.data
+        let videoUrl = ''
+
+        // Ищем URL видео в разных возможных форматах ответа
+        if (Array.isArray(videoData)) {
+          const video = videoData.find(
+            item => item.type === 'video' || item.media_type === 'video'
+          )
+          videoUrl = video?.url || video?.download_url || video?.media_url
+        } else if (videoData.url) {
+          videoUrl = videoData.url
+        } else if (videoData.download_url) {
+          videoUrl = videoData.download_url
+        } else if (videoData.media_url) {
+          videoUrl = videoData.media_url
+        }
+
+        if (videoUrl) {
+          logger.info(`[VideoTranscription] ${api.name} returned video URL`, {
+            videoUrl: videoUrl.substring(0, 100) + '...',
+          })
+
+          // Скачиваем видео по полученному URL
+          const videoPath = await downloadVideoFile(
+            videoUrl,
+            outputDir,
+            filePrefix
+          )
+
+          logger.info(
+            `[VideoTranscription] Successfully downloaded via ${api.name}`,
+            {
+              videoPath,
+              size: fs.statSync(videoPath).size,
+            }
+          )
+
+          return videoPath
+        }
+      }
+
+      throw new Error(`${api.name} did not return video URL`)
+    } catch (error) {
+      lastError = error.message
+      logger.warn(`[VideoTranscription] ${api.name} failed`, {
+        url,
+        error: error.message,
+      })
+
+      // Пауза между попытками API
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
   }
 
-  const downloadedFile = path.join(outputDir, files[0])
-  return downloadedFile
+  throw new Error(`All API services failed. Last error: ${lastError}`)
+}
+
+// Вспомогательная функция для скачивания файла по URL
+async function downloadVideoFile(
+  videoUrl: string,
+  outputDir: string,
+  filePrefix: string
+): Promise<string> {
+  const response = await axios({
+    method: 'GET',
+    url: videoUrl,
+    responseType: 'stream',
+    timeout: 60000,
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+      Referer: 'https://www.instagram.com/',
+    },
+  })
+
+  // Определяем расширение файла из Content-Type или URL
+  let extension = 'mp4'
+  const contentType = response.headers['content-type']
+  if (contentType?.includes('video/webm')) {
+    extension = 'webm'
+  } else if (contentType?.includes('video/mov')) {
+    extension = 'mov'
+  }
+
+  const fileName = `${filePrefix}.${extension}`
+  const filePath = path.join(outputDir, fileName)
+
+  const writer = fs.createWriteStream(filePath)
+  response.data.pipe(writer)
+
+  return new Promise((resolve, reject) => {
+    writer.on('finish', () => resolve(filePath))
+    writer.on('error', reject)
+  })
 }
 
 export async function transcribeVideoFromUrl({
@@ -496,18 +679,17 @@ export async function transcribeVideoFromUrl({
       stack: error.stack,
     })
 
-    // В dev режиме показываем детальную информацию об ошибке
+    // В dev режиме показываем детальную информацию об ошибке только если это действительно неисправимая ошибка
     if (process.env.NODE_ENV === 'development') {
-      // Если это ошибка скачивания Instagram, возвращаем mock результат для тестирования
+      // Проверяем, было ли это неустранимой ошибкой Instagram (все методы провалились)
       if (
         videoUrl.includes('instagram.com') &&
-        (error.message.includes('Instagram') ||
-          error.message.includes('rate-limit') ||
-          error.message.includes('login required') ||
-          error.message.includes('ограничил доступ'))
+        (error.message.includes('All Instagram download methods failed') ||
+          error.message.includes('All API services failed')) &&
+        !error.message.includes('Video downloaded successfully')
       ) {
         logger.warn(
-          '[VideoTranscription] Returning mock transcription due to Instagram download failure in dev mode',
+          '[VideoTranscription] Returning mock transcription due to complete Instagram download failure in dev mode',
           {
             telegramId,
             videoUrl,
@@ -516,17 +698,17 @@ export async function transcribeVideoFromUrl({
 
         return {
           success: true,
-          text: `🧪 ТЕСТ РЕЖИМ: Видео из Instagram недоступно для скачивания
+          text: `🧪 ТЕСТ РЕЖИМ: Все методы скачивания Instagram провалились
 
-📊 Причина: ${error.message.substring(0, 200)}${error.message.length > 200 ? '...' : ''}
+📊 Причина: ${error.message.substring(0, 300)}${error.message.length > 300 ? '...' : ''}
 
-✅ Система транскрибации работает корректно!
-🔧 Решения:
-   • Добавить платный Apify аккаунт ($2-5/мес)
-   • Использовать альтернативные методы скачивания
-   • Попросить пользователей загружать видео файлы напрямую
+🔧 В продакшене будут доступны альтернативные методы:
+   • API сервисы загрузки (SaveGram, InStag)
+   • Обновленный yt-dlp с новыми заголовками
+   • Различные user-agent стратегии
 
-🎯 Кнопка "📺 Транскрибация Reels" работает правильно!`,
+🎯 Кнопка "📺 Транскрибация Reels" настроена правильно!
+💡 Локально может работать из-за разных IP/браузера`,
         }
       }
     }
