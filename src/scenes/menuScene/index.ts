@@ -115,7 +115,37 @@ const menuCommandStep = async (ctx: MyContext) => {
     }
 
     if (photo_url) {
-      await sendReplyWithKeyboard(ctx, message, [], keyboard, photo_url)
+      // Специальная обработка для digitalAvatar - добавляем inline кнопки даже с фото
+      if (translationKey === 'digitalAvatar') {
+        const inlineKeyboard = {
+          inline_keyboard: [
+            [
+              {
+                text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+                callback_data: 'go_to_subscription_scene',
+              },
+            ],
+          ],
+        }
+
+        // Отправляем фото с сообщением и inline кнопками
+        await ctx.replyWithPhoto(photo_url, {
+          caption: message,
+          parse_mode: 'HTML',
+          reply_markup: inlineKeyboard,
+        })
+
+        // Отправляем обычную клавиатуру отдельным сообщением
+        await ctx.reply(
+          isRu ? '👇 Выберите действие:' : '👇 Choose an action:',
+          {
+            reply_markup: keyboard.reply_markup,
+          }
+        )
+      } else {
+        // Для всех остальных случаев используем стандартную функцию
+        await sendReplyWithKeyboard(ctx, message, [], keyboard, photo_url)
+      }
     } else {
       // Send fallback without parse_mode, or send translation (also without parse_mode FOR MENU KEY)
       if (translation && translationKey !== 'menu') {
@@ -210,13 +240,13 @@ const menuNextStep = async (ctx: MyContext) => {
     // Handle callback query buttons as before
     if (text === 'unlock_features') {
       logger.info('[menuNextStep] Handling callback: unlock_features')
-      await ctx.scene.enter('subscriptionScene')
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
     } else if (text === 'go_to_subscription_scene') {
       logger.info('[menuNextStep] Handling callback: go_to_subscription_scene')
       await ctx.answerCbQuery()
       await ctx.scene.leave()
       ctx.session.mode = ModeEnum.SubscriptionScene
-      await ctx.scene.enter('subscription_scene')
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
     } else {
       // Assuming other callbacks might be handled by handleMenu if they represent scene entries
       // or specific actions defined as callbacks
@@ -227,12 +257,26 @@ const menuNextStep = async (ctx: MyContext) => {
     const text = ctx.update.message.text
     logger.info(`[menuNextStep] Text Message Received: ${text}`)
 
-    // УБРАНО: Кнопка подписки теперь обрабатывается только global hears
-    // if (text === '💫 Оформить подписку' || text === '💫 Subscribe') {
-    //   logger.info(`[menuNextStep] DIRECT SUBSCRIPTION BUTTON HANDLING: ${text}`)
-    //   await ctx.scene.enter('subscription_scene')
-    //   return // Explicitly handled
-    // }
+    // ВАЖНО: Обработка кнопки подписки напрямую в menuScene (все варианты)
+    if (
+      text === '💫 Оформить подписку' ||
+      text === '💫 Subscribe' ||
+      text === '💳 Оформить подписку' ||
+      text === '💳 Subscribe'
+    ) {
+      logger.info(`[menuNextStep] DIRECT SUBSCRIPTION BUTTON HANDLING: ${text}`)
+      try {
+        await ctx.scene.leave()
+        ctx.session.mode = ModeEnum.SubscriptionScene
+        await ctx.scene.enter(ModeEnum.SubscriptionScene)
+        return // Explicitly handled
+      } catch (error) {
+        logger.error('Error in direct subscription button handling:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+      }
+    }
 
     // Specific text button handling (example: "Generate new video?")
     if (
@@ -288,7 +332,7 @@ menuScene.action('go_to_subscription_scene', async ctx => {
     await ctx.answerCbQuery()
     await ctx.scene.leave()
     ctx.session.mode = ModeEnum.SubscriptionScene
-    await ctx.scene.enter('subscription_scene')
+    await ctx.scene.enter(ModeEnum.SubscriptionScene)
   } catch (error) {
     logger.error('Error in menuScene go_to_subscription_scene action:', {
       error,
