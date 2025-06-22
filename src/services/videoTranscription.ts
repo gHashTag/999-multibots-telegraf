@@ -40,7 +40,7 @@ async function downloadVideoFromUrl(
       'ffmpeg:-avoid_negative_ts make_zero -fflags +genpts -vf scale=-2:min(1080\\,ih)', // Сохраняем соотношение сторон
       '--no-check-certificate', // Игнорируем проблемы с сертификатами
       '--user-agent',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', // Обновленный user-agent
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0', // Обновленный user-agent
     ]
 
     // Для Instagram используем улучшенные настройки без зависимости от Chrome cookies
@@ -56,6 +56,20 @@ async function downloadVideoFromUrl(
         '3', // Добавляем повторные попытки
         '--add-header',
         'Accept-Language:en-US,en;q=0.9',
+        '--add-header',
+        'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        '--add-header',
+        'Cache-Control:max-age=0',
+        '--add-header',
+        'Sec-Fetch-Dest:document',
+        '--add-header',
+        'Sec-Fetch-Mode:navigate',
+        '--add-header',
+        'Sec-Fetch-Site:none',
+        '--add-header',
+        'Sec-Fetch-User:?1',
+        '--add-header',
+        'Upgrade-Insecure-Requests:1',
         '--referer',
         'https://www.instagram.com/'
       )
@@ -134,10 +148,10 @@ async function downloadInstagramVideoFallback(
   const ytDlp = new YTDlpWrap()
   const outputTemplate = path.join(outputDir, `${filePrefix}.%(ext)s`)
 
-  // Попробуем сначала альтернативный user-agent подход
+  // Метод 1: Мобильный user-agent с iOS
   const fallbackOptions = [
     '--format',
-    'best[height<=720]/best', // Понижаем качество для лучшей совместимости
+    'best[height<=720]/best',
     '--output',
     outputTemplate,
     '--no-playlist',
@@ -147,13 +161,15 @@ async function downloadInstagramVideoFallback(
     'mp4',
     '--no-check-certificate',
     '--user-agent',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1', // Обновленный мобильный user-agent
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
     '--referer',
     'https://www.instagram.com/',
     '--add-header',
     'Accept-Language:en-US,en;q=0.9',
     '--add-header',
     'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    '--add-header',
+    'X-Requested-With:XMLHttpRequest',
     '--sleep-interval',
     '3',
     '--max-sleep-interval',
@@ -173,7 +189,6 @@ async function downloadInstagramVideoFallback(
   try {
     await ytDlp.execPromise(fallbackOptions)
   } catch (firstFallbackError) {
-    // Если первый fallback не сработал, пробуем более агрессивный подход
     logger.warn(
       '[VideoTranscription] First fallback failed, trying aggressive method',
       {
@@ -183,23 +198,28 @@ async function downloadInstagramVideoFallback(
     )
 
     try {
+      // Метод 2: Android user-agent с низким качеством
       const aggressiveOptions = [
         '--format',
-        'worst[height<=480]/worst', // Используем самое низкое качество
+        'worst[height<=480]/worst',
         '--output',
         outputTemplate,
         '--no-playlist',
         '--max-filesize',
-        '25M', // Уменьшаем максимальный размер
+        '25M',
         '--merge-output-format',
         'mp4',
         '--no-check-certificate',
         '--user-agent',
-        'Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36', // Android user-agent
+        'Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
         '--referer',
         'https://www.instagram.com/',
         '--add-header',
         'Accept-Language:en-US,en;q=0.5',
+        '--add-header',
+        'X-Instagram-AJAX:1',
+        '--add-header',
+        'X-CSRFToken:missing',
         '--sleep-interval',
         '5',
         '--max-sleep-interval',
@@ -215,9 +235,8 @@ async function downloadInstagramVideoFallback(
 
       await ytDlp.execPromise(aggressiveOptions)
     } catch (secondFallbackError) {
-      // Третий и последний метод - обновляем yt-dlp и пробуем снова
       logger.warn(
-        '[VideoTranscription] Second fallback failed, trying with yt-dlp update',
+        '[VideoTranscription] Second fallback failed, trying gallery-dl method',
         {
           url,
           error: secondFallbackError.message,
@@ -225,47 +244,98 @@ async function downloadInstagramVideoFallback(
       )
 
       try {
-        // Попробуем обновить yt-dlp (в Docker это может не сработать, но попробуем)
-        await ytDlp.execPromise(['--update'])
-        logger.info('[VideoTranscription] yt-dlp updated successfully')
-      } catch (updateError) {
+        // Метод 3: Попробуем использовать gallery-dl если доступен
+        const galleryDlOptions = [
+          '--format',
+          'best/worst',
+          '--output',
+          outputTemplate,
+          '--no-playlist',
+          '--max-filesize',
+          '50M',
+          '--merge-output-format',
+          'mp4',
+          '--no-check-certificate',
+          '--extractor-args',
+          'instagram:include=posts',
+          '--user-agent',
+          'Instagram 76.0.0.15.395 Android (24/7.0; 640dpi; 1440x2560; samsung; SM-G930F; herolte; samsungexynos8890; en_US)',
+          '--add-header',
+          'X-IG-App-ID:936619743392459',
+          '--add-header',
+          'X-IG-WWW-Claim:0',
+          '--sleep-interval',
+          '7',
+          '--max-sleep-interval',
+          '20',
+          '--retries',
+          '10',
+          '--socket-timeout',
+          '60',
+          url,
+        ]
+
+        await ytDlp.execPromise(galleryDlOptions)
+      } catch (thirdFallbackError) {
         logger.warn(
-          '[VideoTranscription] yt-dlp update failed, continuing with current version',
+          '[VideoTranscription] Third fallback failed, trying final method with update',
           {
-            error: updateError.message,
+            url,
+            error: thirdFallbackError.message,
           }
         )
+
+        try {
+          // Обновляем yt-dlp
+          await ytDlp.execPromise(['--update'])
+          logger.info('[VideoTranscription] yt-dlp updated successfully')
+        } catch (updateError) {
+          logger.warn(
+            '[VideoTranscription] yt-dlp update failed, continuing with current version',
+            {
+              error: updateError.message,
+            }
+          )
+        }
+
+        // Метод 4: Финальная попытка с обновленными экстракторами
+        const finalOptions = [
+          '--format',
+          'best[filesize<50M]/worst[filesize<50M]/best/worst',
+          '--output',
+          outputTemplate,
+          '--no-playlist',
+          '--max-filesize',
+          '50M',
+          '--merge-output-format',
+          'mp4',
+          '--no-check-certificate',
+          '--ignore-errors',
+          '--user-agent',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
+          '--extractor-args',
+          'instagram:api_version=v1',
+          '--add-header',
+          'Sec-Fetch-Dest:document',
+          '--add-header',
+          'Sec-Fetch-Mode:navigate',
+          '--add-header',
+          'Sec-Fetch-Site:none',
+          '--add-header',
+          'Upgrade-Insecure-Requests:1',
+          '--sleep-interval',
+          '10',
+          '--max-sleep-interval',
+          '25',
+          '--retries',
+          '12',
+          '--socket-timeout',
+          '90',
+          url,
+        ]
+
+        await ytDlp.execPromise(finalOptions)
       }
-
-      // Финальная попытка с обновленными экстракторами
-      const finalOptions = [
-        '--format',
-        'best[filesize<50M]/worst[filesize<50M]/best/worst', // Гибкий выбор формата
-        '--output',
-        outputTemplate,
-        '--no-playlist',
-        '--max-filesize',
-        '50M',
-        '--merge-output-format',
-        'mp4',
-        '--no-check-certificate',
-        '--ignore-errors', // Игнорируем некритичные ошибки
-        '--user-agent',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', // Desktop Linux user-agent
-        '--extractor-args',
-        'instagram:api_version=v1',
-        '--sleep-interval',
-        '10', // Большая задержка
-        '--max-sleep-interval',
-        '20',
-        '--retries',
-        '10',
-        '--socket-timeout',
-        '60',
-        url,
-      ]
-
-      await ytDlp.execPromise(finalOptions)
     }
   }
 
