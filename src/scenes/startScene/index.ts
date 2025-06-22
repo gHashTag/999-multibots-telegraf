@@ -458,7 +458,7 @@ Click "Training" and dive with us.
             ],
             [
               Markup.button.callback(
-                isRu ? '💳 Оформить подписку' : '💳 Subscribe',
+                isRu ? '💫 Оформить подписку' : '💫 Subscribe',
                 'go_to_subscription_scene'
               ),
             ],
@@ -550,8 +550,13 @@ Click "Training" and dive with us.
         return ctx.scene.enter(ModeEnum.CreateUserScene)
       }
 
-      // Обработка кнопки "Оформить подписку"
-      if (text === levels[105].title_ru || text === levels[105].title_en) {
+      // Обработка кнопки "Оформить подписку" (все варианты: новые 💫 и старые 💳)
+      if (
+        text === levels[105].title_ru ||
+        text === levels[105].title_en ||
+        text === '💳 Оформить подписку' ||
+        text === '💳 Subscribe'
+      ) {
         logger.info({
           message: `💫 [StartScene] Пользователь нажал текстовую кнопку "Оформить подписку". Переход в SubscriptionScene.`,
           telegramId,
@@ -595,7 +600,7 @@ startScene.action('go_to_subscription_scene', async ctx => {
   try {
     await ctx.answerCbQuery()
     logger.info({
-      message: `💳 [StartScene] Пользователь нажал "Оформить подписку". Переход в SubscriptionScene.`,
+      message: `💫 [StartScene] Пользователь нажал "Оформить подписку". Переход в SubscriptionScene.`,
       telegramId: ctx.from?.id?.toString() || 'unknown',
       function: 'startScene.action.go_to_subscription_scene',
     })
