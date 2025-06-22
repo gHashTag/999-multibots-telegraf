@@ -43,17 +43,21 @@ async function downloadVideoFromUrl(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', // Обновленный user-agent
     ]
 
-    // Для Instagram добавляем специальные настройки для обхода блокировок
+    // Для Instagram используем улучшенные настройки без зависимости от Chrome cookies
     if (url.includes('instagram.com')) {
       options.push(
-        '--cookies-from-browser',
-        'chrome', // Используем cookies из Chrome
         '--extractor-args',
         'instagram:api_version=v1', // Используем старую версию API
         '--sleep-interval',
-        '1', // Пауза между запросами
+        '2', // Увеличиваем пауза между запросами
         '--max-sleep-interval',
-        '3'
+        '5',
+        '--retries',
+        '3', // Добавляем повторные попытки
+        '--add-header',
+        'Accept-Language:en-US,en;q=0.9',
+        '--referer',
+        'https://www.instagram.com/'
       )
     }
 
@@ -130,7 +134,7 @@ async function downloadInstagramVideoFallback(
   const ytDlp = new YTDlpWrap()
   const outputTemplate = path.join(outputDir, `${filePrefix}.%(ext)s`)
 
-  // Пробуем более агрессивные настройки для Instagram
+  // Попробуем сначала альтернативный user-agent подход
   const fallbackOptions = [
     '--format',
     'best[height<=720]/best', // Понижаем качество для лучшей совместимости
@@ -143,17 +147,21 @@ async function downloadInstagramVideoFallback(
     'mp4',
     '--no-check-certificate',
     '--user-agent',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1', // Мобильный user-agent
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1', // Обновленный мобильный user-agent
     '--referer',
     'https://www.instagram.com/',
     '--add-header',
     'Accept-Language:en-US,en;q=0.9',
+    '--add-header',
+    'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
     '--sleep-interval',
-    '2',
-    '--max-sleep-interval',
-    '5',
-    '--retries',
     '3',
+    '--max-sleep-interval',
+    '8',
+    '--retries',
+    '5',
+    '--socket-timeout',
+    '30',
     url,
   ]
 
@@ -162,7 +170,104 @@ async function downloadInstagramVideoFallback(
     outputTemplate,
   })
 
-  await ytDlp.execPromise(fallbackOptions)
+  try {
+    await ytDlp.execPromise(fallbackOptions)
+  } catch (firstFallbackError) {
+    // Если первый fallback не сработал, пробуем более агрессивный подход
+    logger.warn(
+      '[VideoTranscription] First fallback failed, trying aggressive method',
+      {
+        url,
+        error: firstFallbackError.message,
+      }
+    )
+
+    try {
+      const aggressiveOptions = [
+        '--format',
+        'worst[height<=480]/worst', // Используем самое низкое качество
+        '--output',
+        outputTemplate,
+        '--no-playlist',
+        '--max-filesize',
+        '25M', // Уменьшаем максимальный размер
+        '--merge-output-format',
+        'mp4',
+        '--no-check-certificate',
+        '--user-agent',
+        'Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36', // Android user-agent
+        '--referer',
+        'https://www.instagram.com/',
+        '--add-header',
+        'Accept-Language:en-US,en;q=0.5',
+        '--sleep-interval',
+        '5',
+        '--max-sleep-interval',
+        '15',
+        '--retries',
+        '8',
+        '--fragment-retries',
+        '10',
+        '--skip-unavailable-fragments',
+        '--abort-on-unavailable-fragment',
+        url,
+      ]
+
+      await ytDlp.execPromise(aggressiveOptions)
+    } catch (secondFallbackError) {
+      // Третий и последний метод - обновляем yt-dlp и пробуем снова
+      logger.warn(
+        '[VideoTranscription] Second fallback failed, trying with yt-dlp update',
+        {
+          url,
+          error: secondFallbackError.message,
+        }
+      )
+
+      try {
+        // Попробуем обновить yt-dlp (в Docker это может не сработать, но попробуем)
+        await ytDlp.execPromise(['--update'])
+        logger.info('[VideoTranscription] yt-dlp updated successfully')
+      } catch (updateError) {
+        logger.warn(
+          '[VideoTranscription] yt-dlp update failed, continuing with current version',
+          {
+            error: updateError.message,
+          }
+        )
+      }
+
+      // Финальная попытка с обновленными экстракторами
+      const finalOptions = [
+        '--format',
+        'best[filesize<50M]/worst[filesize<50M]/best/worst', // Гибкий выбор формата
+        '--output',
+        outputTemplate,
+        '--no-playlist',
+        '--max-filesize',
+        '50M',
+        '--merge-output-format',
+        'mp4',
+        '--no-check-certificate',
+        '--ignore-errors', // Игнорируем некритичные ошибки
+        '--user-agent',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', // Desktop Linux user-agent
+        '--extractor-args',
+        'instagram:api_version=v1',
+        '--sleep-interval',
+        '10', // Большая задержка
+        '--max-sleep-interval',
+        '20',
+        '--retries',
+        '10',
+        '--socket-timeout',
+        '60',
+        url,
+      ]
+
+      await ytDlp.execPromise(finalOptions)
+    }
+  }
 
   // Ищем скачанный файл
   const files = fs.readdirSync(outputDir).filter(f => f.startsWith(filePrefix))
@@ -237,11 +342,29 @@ export async function transcribeVideoFromUrl({
       stack: error.stack,
     })
 
+    // Более детальные сообщения об ошибках
+    let errorMessage = ''
+    if (error.message.includes('timeout')) {
+      errorMessage = isRu
+        ? 'Превышен лимит времени обработки видео. Попробуйте более короткое видео или повторите позже.'
+        : 'Video processing timeout exceeded. Try a shorter video or retry later.'
+    } else if (error.message.includes('File too large')) {
+      errorMessage = isRu
+        ? 'Видео слишком большое для обработки (максимум 25MB). Попробуйте более короткое видео.'
+        : 'Video is too large for processing (25MB max). Try a shorter video.'
+    } else if (error.message.includes('Whisper API failed')) {
+      errorMessage = isRu
+        ? 'Сервис транскрибации временно недоступен. Попробуйте позже.'
+        : 'Transcription service is temporarily unavailable. Please try again later.'
+    } else {
+      errorMessage = isRu
+        ? 'Ошибка при скачивании или транскрибации видео'
+        : 'Error downloading or transcribing video'
+    }
+
     return {
       success: false,
-      error: isRu
-        ? 'Ошибка при скачивании или транскрибации видео'
-        : 'Error downloading or transcribing video',
+      error: errorMessage,
     }
   } finally {
     // НЕ удаляем файл здесь для URL - он будет удален после отправки пользователю
@@ -352,6 +475,23 @@ async function transcribeWithWhisper(
     throw new Error('OPENAI_API_KEY not configured')
   }
 
+  // Временная заглушка для dev режима если ключ не валидный
+  if (
+    process.env.NODE_ENV === 'development' &&
+    (!openaiApiKey.startsWith('sk-') || openaiApiKey.includes('ollama'))
+  ) {
+    logger.warn(
+      '[VideoTranscription] Using mock transcription in dev mode (invalid OpenAI key)',
+      {
+        filePath,
+        apiKeyPrefix: openaiApiKey.substring(0, 10),
+      }
+    )
+    return isRu
+      ? 'Тестовая транскрибация для разработки. Видео успешно скачано и обработано! 🎉'
+      : 'Test transcription for development. Video successfully downloaded and processed! 🎉'
+  }
+
   // Проверяем размер файла (Whisper API имеет лимит 25MB)
   const stats = fs.statSync(filePath)
   const fileSizeInMB = stats.size / (1024 * 1024)
@@ -368,23 +508,66 @@ async function transcribeWithWhisper(
   formData.append('language', isRu ? 'ru' : 'en') // Указываем язык для лучшего качества
   formData.append('response_format', 'text')
 
-  const response = await axios.post(
-    'https://api.openai.com/v1/audio/transcriptions',
-    formData,
-    {
-      headers: {
-        ...formData.getHeaders(),
-        Authorization: `Bearer ${openaiApiKey}`,
-      },
-      timeout: 120000, // 2 минуты timeout для больших файлов
-    }
-  )
+  // Retry логика для OpenAI API
+  let lastError: any
+  const maxRetries = 3
 
-  if (response.data && typeof response.data === 'string') {
-    return response.data.trim()
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      logger.info('[VideoTranscription] Whisper API attempt', {
+        attempt,
+        maxRetries,
+        fileSizeInMB: fileSizeInMB.toFixed(2),
+      })
+
+      const response = await axios.post(
+        'https://api.openai.com/v1/audio/transcriptions',
+        formData,
+        {
+          headers: {
+            ...formData.getHeaders(),
+            Authorization: `Bearer ${openaiApiKey}`,
+          },
+          timeout: 300000, // 5 минут timeout для больших файлов
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+        }
+      )
+
+      if (response.data && typeof response.data === 'string') {
+        logger.info('[VideoTranscription] Whisper API success', {
+          attempt,
+          responseLength: response.data.length,
+        })
+        return response.data.trim()
+      }
+
+      throw new Error('Invalid response from Whisper API')
+    } catch (error) {
+      lastError = error
+      logger.warn('[VideoTranscription] Whisper API attempt failed', {
+        attempt,
+        maxRetries,
+        error: error.message,
+        isTimeout: error.message.includes('timeout'),
+      })
+
+      // Если это не последняя попытка и ошибка timeout, ждем перед повтором
+      if (attempt < maxRetries && error.message.includes('timeout')) {
+        const waitTime = attempt * 10000 // 10, 20, 30 секунд
+        logger.info('[VideoTranscription] Waiting before retry', {
+          attempt,
+          waitTimeMs: waitTime,
+        })
+        await new Promise(resolve => setTimeout(resolve, waitTime))
+      }
+    }
   }
 
-  throw new Error('Invalid response from Whisper API')
+  // Если все попытки неудачны
+  throw new Error(
+    `Whisper API failed after ${maxRetries} attempts: ${lastError.message}`
+  )
 }
 
 export function cleanupVideoFile(filePath: string): void {
