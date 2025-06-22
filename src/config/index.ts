@@ -1,4 +1,4 @@
-// import { config } from 'dotenv' // Removed dotenv import
+import { config } from 'dotenv' // Restored dotenv import
 import fs from 'fs' // Импортируем модуль fs
 import path from 'path' // Импортируем модуль path
 
@@ -6,34 +6,39 @@ console.log('--- Debugging .env loading --- ')
 const cwd = process.cwd()
 console.log(`[CONFIG] Current Working Directory: ${cwd}`)
 
-// // Determine the primary .env file path
-// const envPath = path.join(cwd, '.env')
-// console.log(`[CONFIG] Assuming primary env file path: ${envPath}`)
+// Determine the primary .env file path
+const envPath = path.join(cwd, '.env')
+console.log(`[CONFIG] Assuming primary env file path: ${envPath}`)
 
-// // Attempt to load .env (REMOVED THIS LOGIC)
-// const loadResult = config({ path: envPath })
-//
-// if (loadResult.error) {
-//   console.error(
-//     `[CONFIG] CRITICAL ERROR: Failed to load primary .env file from ${envPath}. Error: ${loadResult.error.message}`
-//   )
-//   if (process.env.NODE_ENV === 'production') {
-//     process.exit(1)
-//   } else {
-//     throw new Error(`Failed to load .env file at ${envPath}`)
-//   }
-// } else if (!loadResult.parsed || Object.keys(loadResult.parsed).length === 0) {
-//   console.error(
-//     `[CONFIG] CRITICAL ERROR: Primary .env file loaded from ${envPath}, but it is empty or parsing failed.`
-//   )
-//   if (process.env.NODE_ENV === 'production') {
-//     process.exit(1)
-//   }
-// } else {
-//   console.log(
-//     `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}`
-//   )
-// }
+// Attempt to load .env - RESTORED THIS LOGIC
+const loadResult = config({ path: envPath })
+
+if (loadResult.error) {
+  console.error(
+    `[CONFIG] CRITICAL ERROR: Failed to load primary .env file from ${envPath}. Error: ${loadResult.error.message}`
+  )
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1)
+  } else {
+    console.warn(
+      `[CONFIG] WARNING: Failed to load .env file at ${envPath}, continuing with system env vars`
+    )
+  }
+} else if (!loadResult.parsed || Object.keys(loadResult.parsed).length === 0) {
+  console.error(
+    `[CONFIG] CRITICAL ERROR: Primary .env file loaded from ${envPath}, but it is empty or parsing failed.`
+  )
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1)
+  }
+} else {
+  console.log(
+    `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}. Keys count: ${Object.keys(loadResult.parsed).length}`
+  )
+  console.log(
+    `[CONFIG] DEV_SIMULATE_SUBSCRIPTION from file: ${loadResult.parsed.DEV_SIMULATE_SUBSCRIPTION || 'NOT FOUND'}`
+  )
+}
 
 // Set NODE_ENV default if not provided
 if (!process.env.NODE_ENV) {
@@ -57,6 +62,7 @@ if (process.env.NODE_ENV === 'production') {
   console.log('BOT_TOKEN_6 exists:', !!process.env.BOT_TOKEN_6)
   console.log('BOT_TOKEN_7 exists:', !!process.env.BOT_TOKEN_7)
   console.log('BOT_TOKEN_8 exists:', !!process.env.BOT_TOKEN_8)
+  console.log('BOT_TOKEN_9 exists:', !!process.env.BOT_TOKEN_9)
   console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL)
   console.log(
     'SUPABASE_SERVICE_KEY exists:',
