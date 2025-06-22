@@ -117,10 +117,6 @@ export const levels: Record<number, Level> = {
     title_ru: '📺 Транскрибация Reels',
     title_en: '📺 Transcribe Reels',
   },
-  109: {
-    title_ru: '🧪 1 ₽ (Админ-тест)',
-    title_en: '🧪 1 ₽ (Admin-test)',
-  },
 }
 
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
