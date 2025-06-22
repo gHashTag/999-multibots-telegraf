@@ -1,5 +1,6 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext, SessionData, SelectedPayment } from '@/interfaces'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { isRussian } from '@/helpers'
 import { handleSelectRubAmount } from '@/handlers'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
@@ -115,7 +116,7 @@ rublePaymentScene.enter(async ctx => {
         status: PaymentStatus.PENDING,
         payment_method: 'Robokassa',
         type: PaymentType.MONEY_INCOME,
-        subscription_type: subscriptionType,
+        subscription_type: subscriptionType as SubscriptionType,
         bot_name,
         language: ctx.from?.language_code ?? 'en',
       })
@@ -128,7 +129,9 @@ rublePaymentScene.enter(async ctx => {
         }
       )
 
-      const inlineKeyboard = [
+      const inlineKeyboard: Array<
+        Array<{ text: string; url?: string; callback_data?: string }>
+      > = [
         [
           {
             text: isRu
@@ -433,7 +436,7 @@ rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
       status: PaymentStatus.PENDING,
       payment_method: 'Robokassa',
       type: PaymentType.MONEY_INCOME,
-      subscription_type: subscriptionType,
+      subscription_type: subscriptionType as SubscriptionType,
       bot_name,
       language: ctx.from?.language_code ?? 'en',
       metadata: {
