@@ -27,13 +27,36 @@ import { upscaleFluxKontextImage } from './services/generateFluxKontext'
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
 
+  // 🚨 ЭКСТРЕННЫЙ ОБРАБОТЧИК ПОДПИСКИ - САМЫЙ ПЕРВЫЙ!
+  // Перехватывает ЛЮБОЙ текст содержащий "подписк" или "Subscribe"
+  bot.hears(/подписк|Subscribe/i, async ctx => {
+    console.log(
+      '🚨 EMERGENCY SUBSCRIPTION HANDLER TRIGGERED!',
+      ctx.message?.text
+    )
+    try {
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.SubscriptionScene
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+      console.log(
+        '✅ Successfully entered subscription scene via emergency handler'
+      )
+      return // Важно! Не продолжаем обработку
+    } catch (error) {
+      console.error('❌ Emergency subscription handler error:', error)
+      await ctx.reply('Переходим к оформлению подписки...')
+    }
+  })
+
   // Добавляем глобальный логгер для всех текстовых сообщений
   bot.on('text', (ctx, next) => {
-    console.log('📨 ALL TEXT MESSAGES:', {
+    console.log('🎯 URGENT DEBUG: TEXT MESSAGE INTERCEPTED!', {
       telegramId: ctx.from?.id,
       text: ctx.message?.text,
       hasSession: !!ctx.session,
       sessionKeys: ctx.session ? Object.keys(ctx.session) : 'no session',
+      sceneId: ctx.scene?.current?.id,
+      wizardCursor: ctx.wizard?.cursor,
     })
     return next()
   })
