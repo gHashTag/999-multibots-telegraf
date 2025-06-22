@@ -120,10 +120,39 @@ const menuCommandStep = async (ctx: MyContext) => {
       // Send fallback without parse_mode, or send translation (also without parse_mode FOR MENU KEY)
       if (translation && translationKey !== 'menu') {
         // Если есть перевод И это НЕ ключ 'menu'
-        await ctx.reply(message, {
-          parse_mode: 'HTML', // Изменено с MarkdownV2 на HTML
-          reply_markup: keyboard.reply_markup,
-        })
+
+        // Специальная обработка для digitalAvatar - добавляем inline кнопки
+        if (translationKey === 'digitalAvatar') {
+          const inlineKeyboard = {
+            inline_keyboard: [
+              [
+                {
+                  text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+                  callback_data: 'go_to_subscription_scene',
+                },
+              ],
+            ],
+          }
+
+          // Отправляем сообщение с inline кнопками
+          await ctx.reply(message, {
+            parse_mode: 'HTML',
+            reply_markup: inlineKeyboard,
+          })
+
+          // Отправляем обычную клавиатуру отдельным сообщением
+          await ctx.reply(
+            isRu ? '👇 Выберите действие:' : '👇 Choose an action:',
+            {
+              reply_markup: keyboard.reply_markup,
+            }
+          )
+        } else {
+          await ctx.reply(message, {
+            parse_mode: 'HTML', // Изменено с MarkdownV2 на HTML
+            reply_markup: keyboard.reply_markup,
+          })
+        }
       } else {
         // Во всех остальных случаях (fallback ИЛИ ключ 'menu' из базы)
         let messageToSend = message // Берем сообщение (fallback или из базы)
@@ -182,6 +211,12 @@ const menuNextStep = async (ctx: MyContext) => {
     if (text === 'unlock_features') {
       logger.info('[menuNextStep] Handling callback: unlock_features')
       await ctx.scene.enter('subscriptionScene')
+    } else if (text === 'go_to_subscription_scene') {
+      logger.info('[menuNextStep] Handling callback: go_to_subscription_scene')
+      await ctx.answerCbQuery()
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.SubscriptionScene
+      await ctx.scene.enter('subscription_scene')
     } else {
       // Assuming other callbacks might be handled by handleMenu if they represent scene entries
       // or specific actions defined as callbacks
@@ -242,3 +277,27 @@ export const menuScene = new Scenes.WizardScene(
   menuCommandStep,
   menuNextStep
 )
+
+// Обработчик для inline кнопки "Оформить подписку"
+menuScene.action('go_to_subscription_scene', async ctx => {
+  const isRu = ctx.from?.language_code === 'ru'
+  logger.info('MENU SCENE ACTION: go_to_subscription_scene', {
+    telegramId: ctx.from?.id,
+  })
+  try {
+    await ctx.answerCbQuery()
+    await ctx.scene.leave()
+    ctx.session.mode = ModeEnum.SubscriptionScene
+    await ctx.scene.enter('subscription_scene')
+  } catch (error) {
+    logger.error('Error in menuScene go_to_subscription_scene action:', {
+      error,
+      telegramId: ctx.from?.id,
+    })
+    await ctx.reply(
+      isRu
+        ? 'Произошла ошибка. Попробуйте позже.'
+        : 'An error occurred. Please try again later.'
+    )
+  }
+})
