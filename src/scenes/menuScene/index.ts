@@ -203,7 +203,15 @@ const menuCommandStep = async (ctx: MyContext) => {
     logger.info(
       '[menuCommandStep] Calling ctx.wizard.next() to enable button handling'
     )
+    console.log('🎯 URGENT DEBUG: About to call ctx.wizard.next()', {
+      currentCursor: ctx.wizard.cursor,
+      sessionExists: !!ctx.session,
+    })
     ctx.wizard.next()
+    console.log('🎯 URGENT DEBUG: After ctx.wizard.next()', {
+      newCursor: ctx.wizard.cursor,
+      sessionExists: !!ctx.session,
+    })
     logger.info(`[menuCommandStep] Current wizard cursor: ${ctx.wizard.cursor}`)
   } catch (error) {
     console.error('Error in menu command:', error)
@@ -228,6 +236,7 @@ const menuCommandStep = async (ctx: MyContext) => {
  * когда обработать сообщение другим способом невозможно.
  */
 const menuNextStep = async (ctx: MyContext) => {
+  console.log('🎯 URGENT DEBUG: menuNextStep called!')
   logger.info('CASE 1: menuScene.next')
   logger.info(`[menuNextStep] Current wizard cursor: ${ctx.wizard.cursor}`)
   logger.info(
