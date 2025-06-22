@@ -464,42 +464,51 @@ If not, continue on your own and click the "I myself" button`
   })
 
   // ПРОСТОЙ GLOBAL HEARS для кнопки подписки - ВСЕГДА работает!
-  bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
-    logger.info('🚀 GLOBAL HEARS: Оформить подписку / Subscribe', {
-      telegramId: ctx.from?.id,
-      messageText: ctx.message?.text,
-      currentScene: ctx.scene?.current?.id,
-    })
-    console.log('🚀 GLOBAL HEARS: Оформить подписку triggered!')
-
-    try {
-      logger.info(
-        'Attempting to leave current scene and enter subscription scene'
-      )
-      await ctx.scene.leave() // Выходим из любой текущей сцены
-      ctx.session.mode = ModeEnum.SubscriptionScene // Устанавливаем режим
-      logger.info('About to enter subscription scene')
-      await ctx.scene.enter(ModeEnum.SubscriptionScene) // Входим в сцену подписки
-      logger.info('Successfully entered subscription scene')
-    } catch (error) {
-      console.error('❌ Error in subscription hears handler:', error)
-      logger.error('Error in Оформить подписку hears:', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
+  // Ловим все варианты кнопок подписки (и старые с 💳, и новые с 💫)
+  bot.hears(
+    [
+      levels[105].title_ru,
+      levels[105].title_en,
+      '💳 Оформить подписку',
+      '💳 Subscribe',
+    ],
+    async ctx => {
+      logger.info('🚀 GLOBAL HEARS: Оформить подписку / Subscribe', {
         telegramId: ctx.from?.id,
+        messageText: ctx.message?.text,
+        currentScene: ctx.scene?.current?.id,
       })
-      const isRu = ctx.from?.language_code === 'ru'
+      console.log('🚀 GLOBAL HEARS: Оформить подписку triggered!')
+
       try {
-        await ctx.reply(
-          isRu
-            ? '❌ Ошибка при переходе к оформлению подписки.'
-            : '❌ Error entering subscription.'
+        logger.info(
+          'Attempting to leave current scene and enter subscription scene'
         )
-      } catch (replyError) {
-        console.error('❌ Failed to send error message:', replyError)
+        await ctx.scene.leave() // Выходим из любой текущей сцены
+        ctx.session.mode = ModeEnum.SubscriptionScene // Устанавливаем режим
+        logger.info('About to enter subscription scene')
+        await ctx.scene.enter(ModeEnum.SubscriptionScene) // Входим в сцену подписки
+        logger.info('Successfully entered subscription scene')
+      } catch (error) {
+        console.error('❌ Error in subscription hears handler:', error)
+        logger.error('Error in Оформить подписку hears:', {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          telegramId: ctx.from?.id,
+        })
+        const isRu = ctx.from?.language_code === 'ru'
+        try {
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка при переходе к оформлению подписки.'
+              : '❌ Error entering subscription.'
+          )
+        } catch (replyError) {
+          console.error('❌ Failed to send error message:', replyError)
+        }
       }
     }
-  })
+  )
 
   // Обработчик для текстовой кнопки "🆕 Новый промпт"
   bot.hears(['🆕 Новый промпт', '🆕 New prompt'], async ctx => {
@@ -620,29 +629,8 @@ If not, continue on your own and click the "I myself" button`
     }
   })
 
-  // Добавляем глобальный обработчик для кнопки "Оформить подписку"
-  bot.action('go_to_subscription_scene', async ctx => {
-    const isRu = ctx.from?.language_code === 'ru'
-    logger.info('GLOBAL ACTION: go_to_subscription_scene', {
-      telegramId: ctx.from?.id,
-    })
-    try {
-      await ctx.answerCbQuery()
-      await ctx.scene.leave()
-      ctx.session.mode = ModeEnum.SubscriptionScene
-      await ctx.scene.enter(ModeEnum.SubscriptionScene)
-    } catch (error) {
-      logger.error('Error in go_to_subscription_scene action:', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-      await ctx.reply(
-        isRu
-          ? 'Произошла ошибка. Попробуйте позже.'
-          : 'An error occurred. Please try again later.'
-      )
-    }
-  })
+  // Обработчик для кнопки "Оформить подписку" перенесен в StartScene для лучшей организации кода
+  // (удален дублирующийся GLOBAL обработчик)
 
   // Добавляем обработчик для кнопки "Я сам"
   bot.action('continue_solo', async ctx => {
@@ -963,43 +951,6 @@ If not, continue on your own and click the "I myself" button`
     }
   })
 
-  // ДУБЛИРОВАНИЕ GLOBAL HEARS В КОНЦЕ ФАЙЛА ДЛЯ ГАРАНТИИ КОМПИЛЯЦИИ (BACKUP)
-  bot.hears([levels[105].title_ru, levels[105].title_en], async ctx => {
-    logger.info('🚀 GLOBAL HEARS (DUPLICATE): Оформить подписку / Subscribe', {
-      telegramId: ctx.from?.id,
-      messageText: ctx.message?.text,
-      currentScene: ctx.scene?.current?.id,
-    })
-    console.log('🚀 GLOBAL HEARS (DUPLICATE): Оформить подписку triggered!')
-
-    try {
-      logger.info(
-        'Attempting to leave current scene and enter subscription scene'
-      )
-      await ctx.scene.leave() // Выходим из любой текущей сцены
-      ctx.session.mode = ModeEnum.SubscriptionScene // Устанавливаем режим
-      logger.info('About to enter subscription scene')
-      await ctx.scene.enter(ModeEnum.SubscriptionScene) // Входим в сцену подписки
-      logger.info('Successfully entered subscription scene')
-    } catch (error) {
-      console.error('❌ Error in subscription hears handler:', error)
-      logger.error('Error in Оформить подписку hears:', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        telegramId: ctx.from?.id,
-      })
-      const isRu = ctx.from?.language_code === 'ru'
-      try {
-        await ctx.reply(
-          isRu
-            ? '❌ Ошибка при переходе к оформлению подписки.'
-            : '❌ Error entering subscription.'
-        )
-      } catch (replyError) {
-        console.error('❌ Failed to send error message:', replyError)
-      }
-    }
-  })
   // ВАЖНО: Этот обработчик должен быть последним, чтобы не перехватывать команды и кнопки
   bot.on(message('text'), handleTextMessage)
 }
