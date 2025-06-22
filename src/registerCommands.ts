@@ -473,6 +473,7 @@ If not, continue on your own and click the "I myself" button`
       '💳 Subscribe',
     ],
     async ctx => {
+      console.log('🎯 URGENT DEBUG: GLOBAL SUBSCRIPTION HEARS TRIGGERED!')
       logger.info('🚀 GLOBAL HEARS: Оформить подписку / Subscribe', {
         telegramId: ctx.from?.id,
         messageText: ctx.message?.text,

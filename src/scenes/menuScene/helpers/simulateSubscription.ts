@@ -24,9 +24,9 @@ export function simulateSubscriptionForDev(
   const devSimulateSubscription = process.env
     .DEV_SIMULATE_SUBSCRIPTION as SubscriptionType
 
-  // В dev режиме симулируем полный доступ для тестирования
+  // В dev режиме симулируем неоплаченного пользователя по умолчанию
   const simulatedSubscriptionTypeToUse: SubscriptionType | null =
-    devSimulateSubscription || SubscriptionType.NEUROVIDEO // ✅ ДАЕТ ПОЛНЫЙ ДОСТУП для тестирования всех функций
+    devSimulateSubscription || null // ❌ НЕТ ПОДПИСКИ - для тестирования поведения неоплаченного пользователя
   if (simulatedSubscriptionTypeToUse !== originalSubscription) {
     logger.warn('[DEV SIMULATION] Subscription type is being simulated!', {
       original: originalSubscription,
