@@ -42,8 +42,9 @@ RUN apk add --no-cache \
     py3-pip \
     ffmpeg
 
-# Устанавливаем yt-dlp для скачивания видео
-RUN pip3 install --break-system-packages yt-dlp
+# Устанавливаем yt-dlp для скачивания видео с дополнительными зависимостями
+RUN pip3 install --break-system-packages yt-dlp[default] && \
+    yt-dlp --version
 
 # Создаем нужные каталоги внутри рабочей директории и устанавливаем права
 RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
