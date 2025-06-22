@@ -50,8 +50,8 @@ export async function handleSubscriptionMessage(
       [
         Markup.button.callback(
           language_code === 'ru'
-            ? '💳 Оформить подписку'
-            : '💳 Get Subscription',
+            ? '💫 Оформить подписку'
+            : '💫 Get Subscription',
           'go_to_subscription_scene'
         ),
       ],
