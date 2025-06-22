@@ -6,6 +6,8 @@ import { logger } from '@/utils/logger'
 import { downloadFile } from '@/helpers'
 import { ensureDirectoryExistence } from '@/helpers'
 import YTDlpWrap from 'yt-dlp-wrap'
+import OpenAI from 'openai'
+import { ApifyInstagramDownloader } from './apifyInstagramDownloader'
 
 interface TranscriptionResult {
   success: boolean
@@ -20,6 +22,47 @@ async function downloadVideoFromUrl(
   filePrefix: string
 ): Promise<string> {
   try {
+    // Для Instagram сначала пробуем Apify
+    if (url.includes('instagram.com')) {
+      try {
+        const apifyDownloader = new ApifyInstagramDownloader()
+        const result = await apifyDownloader.downloadInstagramVideo(
+          url,
+          outputDir,
+          filePrefix
+        )
+
+        if (result.success && result.videoPath) {
+          logger.info(
+            '[VideoTranscription] Instagram video downloaded via Apify',
+            {
+              url,
+              videoPath: result.videoPath,
+              size: fs.statSync(result.videoPath).size,
+            }
+          )
+          return result.videoPath
+        } else {
+          logger.warn(
+            '[VideoTranscription] Apify download failed, falling back to yt-dlp',
+            {
+              url,
+              error: result.error,
+            }
+          )
+        }
+      } catch (apifyError) {
+        logger.warn(
+          '[VideoTranscription] Apify downloader error, falling back to yt-dlp',
+          {
+            url,
+            error: apifyError.message,
+          }
+        )
+      }
+    }
+
+    // Fallback to yt-dlp для всех остальных случаев и если Apify не сработал
     const ytDlp = new YTDlpWrap()
 
     // Создаем шаблон для имени файла
@@ -77,7 +120,7 @@ async function downloadVideoFromUrl(
 
     options.push(url)
 
-    logger.info('[VideoTranscription] Downloading video from URL', {
+    logger.info('[VideoTranscription] Downloading video from URL via yt-dlp', {
       url,
       outputTemplate,
       isInstagram: url.includes('instagram.com'),
@@ -95,11 +138,14 @@ async function downloadVideoFromUrl(
 
     const downloadedFile = path.join(outputDir, files[0])
 
-    logger.info('[VideoTranscription] Video downloaded successfully', {
-      url,
-      downloadedFile,
-      size: fs.statSync(downloadedFile).size,
-    })
+    logger.info(
+      '[VideoTranscription] Video downloaded successfully via yt-dlp',
+      {
+        url,
+        downloadedFile,
+        size: fs.statSync(downloadedFile).size,
+      }
+    )
 
     return downloadedFile
   } catch (error) {
