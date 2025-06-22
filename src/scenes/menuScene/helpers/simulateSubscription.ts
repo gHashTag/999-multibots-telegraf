@@ -21,27 +21,44 @@ export function simulateSubscriptionForDev(
 
   // --- !!! РЕЖИМ РАЗРАБОТКИ: СИМУЛЯЦИЯ ПОДПИСКИ !!! ---
   // Проверяем переменную окружения для конкретной симуляции
-  const devSimulateSubscription = process.env
-    .DEV_SIMULATE_SUBSCRIPTION as SubscriptionType
+  const devSimulateSubscription = process.env.DEV_SIMULATE_SUBSCRIPTION
 
-  // В dev режиме симулируем неоплаченного пользователя по умолчанию
-  const simulatedSubscriptionTypeToUse: SubscriptionType | null =
-    devSimulateSubscription || null // ❌ НЕТ ПОДПИСКИ - для тестирования поведения неоплаченного пользователя
-  if (simulatedSubscriptionTypeToUse !== originalSubscription) {
+  logger.info('[DEV SIMULATION] Debug env variable', {
+    DEV_SIMULATE_SUBSCRIPTION: devSimulateSubscription,
+    originalSubscription,
+  })
+
+  // Если переменная установлена, используем её значение
+  if (devSimulateSubscription) {
+    const simulatedType = devSimulateSubscription as SubscriptionType
+
+    // Проверяем что это валидный тип подписки
+    const validTypes = ['NEUROPHOTO', 'NEUROVIDEO', 'NEUROTESTER', 'STARS']
+    if (!validTypes.includes(simulatedType)) {
+      logger.warn(
+        '[DEV SIMULATION] Invalid subscription type in env, using null',
+        {
+          invalid: simulatedType,
+          valid: validTypes,
+        }
+      )
+      return null
+    }
+
     logger.warn('[DEV SIMULATION] Subscription type is being simulated!', {
       original: originalSubscription,
-      simulated: simulatedSubscriptionTypeToUse,
+      simulated: simulatedType,
       function: 'simulateSubscriptionForDev',
     })
-    return simulatedSubscriptionTypeToUse
-  } else {
-    logger.info(
-      '[DEV SIMULATION] Simulation requested, but simulated type matches original. Using original.',
-      {
-        original: originalSubscription,
-        function: 'simulateSubscriptionForDev',
-      }
-    )
-    return originalSubscription
+    return simulatedType
   }
+
+  // Если переменная не установлена, возвращаем оригинальную подписку
+  logger.info(
+    '[DEV SIMULATION] No simulation variable set, using original subscription',
+    {
+      original: originalSubscription,
+    }
+  )
+  return originalSubscription
 }
