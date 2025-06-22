@@ -132,10 +132,26 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
           })
 
       if (!transcriptionResult.success || !transcriptionResult.text) {
+        logger.error('[VideoTranscription] Transcription failed', {
+          telegramId: ctx.from.id,
+          success: transcriptionResult.success,
+          hasText: !!transcriptionResult.text,
+          error: transcriptionResult.error,
+        })
         throw new Error(
           transcriptionResult.error || 'Failed to transcribe video'
         )
       }
+
+      logger.info(
+        '[VideoTranscription] Transcription successful, preparing to send results',
+        {
+          telegramId: ctx.from.id,
+          textLength: transcriptionResult.text.length,
+          hasVideoPath: !!transcriptionResult.videoPath,
+          isFromUrl,
+        }
+      )
 
       // Отправляем результат
       const caption = isRu
@@ -143,6 +159,14 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         : `📺 Transcription completed!\n\n📝 Text from video:\n\n${transcriptionResult.text}`
 
       if (isFromUrl) {
+        logger.info('[VideoTranscription] Processing URL result', {
+          telegramId: ctx.from.id,
+          hasVideoPath: !!transcriptionResult.videoPath,
+          videoExists: transcriptionResult.videoPath
+            ? fs.existsSync(transcriptionResult.videoPath)
+            : false,
+        })
+
         // Для URL отправляем скачанное видео с кратким описанием
         const shortCaption = isRu
           ? `📺 Транскрибация завершена!\n\n🔗 Оригинал: ${videoUrl}`
@@ -154,6 +178,23 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
           fs.existsSync(transcriptionResult.videoPath)
         ) {
           try {
+            // Проверяем размер файла перед отправкой
+            const stats = fs.statSync(transcriptionResult.videoPath)
+            const fileSizeMB = stats.size / (1024 * 1024)
+
+            logger.info('[VideoTranscription] Sending video file', {
+              telegramId: ctx.from.id,
+              videoPath: transcriptionResult.videoPath,
+              fileSizeMB: fileSizeMB.toFixed(2),
+            })
+
+            // Telegram лимит для видео - 50MB, но лучше использовать 45MB для безопасности
+            if (fileSizeMB > 45) {
+              throw new Error(
+                `File too large: ${fileSizeMB.toFixed(2)}MB (max 45MB)`
+              )
+            }
+
             await ctx.replyWithVideo(
               { source: transcriptionResult.videoPath },
               {
@@ -165,30 +206,71 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
               }
             )
 
+            logger.info('[VideoTranscription] Video sent successfully', {
+              telegramId: ctx.from.id,
+            })
+
             // Очищаем файл после отправки
             cleanupVideoFile(transcriptionResult.videoPath)
           } catch (videoError) {
             logger.error('[VideoTranscription] Error sending video', {
               telegramId: ctx.from.id,
               error: videoError.message,
+              stack: videoError.stack,
             })
-            // Если не удалось отправить видео, отправляем просто текст
-            await ctx.reply(shortCaption)
+
+            // Отправляем сообщение об ошибке с видео
+            const videoErrorMsg = isRu
+              ? `⚠️ Не удалось отправить видео (${videoError.message}). Отправляем только текст.`
+              : `⚠️ Failed to send video (${videoError.message}). Sending text only.`
+
+            await ctx.reply(videoErrorMsg)
+
             // Все равно очищаем файл
             cleanupVideoFile(transcriptionResult.videoPath)
           }
         } else {
+          logger.info('[VideoTranscription] No video file, sending text only', {
+            telegramId: ctx.from.id,
+          })
           // Если видео файла нет, отправляем просто описание
           await ctx.reply(shortCaption)
         }
 
-        // Отправляем красиво отформатированный текст для копирования
-        await ctx.reply(
-          isRu
-            ? `📝 *Текст для копирования:*\n\n\`\`\`\n${transcriptionResult.text}\n\`\`\``
-            : `📝 *Text for copying:*\n\n\`\`\`\n${transcriptionResult.text}\n\`\`\``,
-          { parse_mode: 'Markdown' }
-        )
+        // Отправляем красиво отформатированный текст для копирования с рекламой бота
+        try {
+          logger.info('[VideoTranscription] Sending transcribed text', {
+            telegramId: ctx.from.id,
+            textLength: transcriptionResult.text.length,
+          })
+
+          const botPromoText = isRu
+            ? `\n\n---\n🤖 Транскрибация сделана в боте @${ctx.botInfo.username}\n✨ Попробуйте и вы - быстро и точно!`
+            : `\n\n---\n🤖 Transcription made by @${ctx.botInfo.username}\n✨ Try it yourself - fast and accurate!`
+
+          await ctx.reply(
+            isRu
+              ? `📝 *Текст для копирования:*\n\n\`\`\`\n${transcriptionResult.text}${botPromoText}\n\`\`\``
+              : `📝 *Text for copying:*\n\n\`\`\`\n${transcriptionResult.text}${botPromoText}\n\`\`\``,
+            { parse_mode: 'Markdown' }
+          )
+
+          logger.info('[VideoTranscription] Text sent successfully', {
+            telegramId: ctx.from.id,
+          })
+        } catch (textError) {
+          logger.error('[VideoTranscription] Error sending text', {
+            telegramId: ctx.from.id,
+            error: textError.message,
+          })
+
+          // Fallback: отправляем простой текст без форматирования
+          await ctx.reply(
+            isRu
+              ? `📝 Текст из видео:\n\n${transcriptionResult.text}\n\n🤖 Сделано в боте @${ctx.botInfo.username}`
+              : `📝 Text from video:\n\n${transcriptionResult.text}\n\n🤖 Made by @${ctx.botInfo.username}`
+          )
+        }
       } else {
         // Для загруженного файла отправляем оригинальное видео с кратким описанием
         const shortCaption = isRu
@@ -200,36 +282,59 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
           supports_streaming: true, // Поддержка стриминга для лучшего качества
         })
 
-        // Отправляем красиво отформатированный текст для копирования
+        // Отправляем красиво отформатированный текст для копирования с рекламой бота
+        const botPromoText2 = isRu
+          ? `\n\n---\n🤖 Транскрибация сделана в боте @${ctx.botInfo.username}\n✨ Попробуйте и вы - быстро и точно!`
+          : `\n\n---\n🤖 Transcription made by @${ctx.botInfo.username}\n✨ Try it yourself - fast and accurate!`
+
         await ctx.reply(
           isRu
-            ? `📝 *Текст для копирования:*\n\n\`\`\`\n${transcriptionResult.text}\n\`\`\``
-            : `📝 *Text for copying:*\n\n\`\`\`\n${transcriptionResult.text}\n\`\`\``,
+            ? `📝 *Текст для копирования:*\n\n\`\`\`\n${transcriptionResult.text}${botPromoText2}\n\`\`\``
+            : `📝 *Text for copying:*\n\n\`\`\`\n${transcriptionResult.text}${botPromoText2}\n\`\`\``,
           { parse_mode: 'Markdown' }
         )
       }
 
       // Показываем кнопки для продолжения
-      const keyboard = Markup.keyboard([
-        [Markup.button.text(isRu ? '📺 Еще одно видео' : '📺 Another video')],
-        [
-          Markup.button.text(
-            isRu ? levels[104].title_ru : levels[104].title_en
-          ),
-        ], // Главное меню
-      ]).resize()
+      try {
+        logger.info('[VideoTranscription] Sending completion message', {
+          telegramId: ctx.from.id,
+        })
 
-      await ctx.reply(
-        isRu
-          ? '✅ Готово! Хотите транскрибировать еще одно видео?'
-          : '✅ Done! Would you like to transcribe another video?',
-        keyboard
-      )
+        const keyboard = Markup.keyboard([
+          [Markup.button.text(isRu ? '📺 Еще одно видео' : '📺 Another video')],
+          [
+            Markup.button.text(
+              isRu ? levels[104].title_ru : levels[104].title_en
+            ),
+          ], // Главное меню
+        ]).resize()
 
-      logger.info('[VideoTranscription] Transcription completed successfully', {
-        telegramId: ctx.from.id,
-        textLength: transcriptionResult.text.length,
-      })
+        await ctx.reply(
+          isRu
+            ? '✅ Готово! Хотите транскрибировать еще одно видео?'
+            : '✅ Done! Would you like to transcribe another video?',
+          keyboard
+        )
+
+        logger.info(
+          '[VideoTranscription] Transcription completed successfully',
+          {
+            telegramId: ctx.from.id,
+            textLength: transcriptionResult.text.length,
+          }
+        )
+      } catch (finalError) {
+        logger.error('[VideoTranscription] Error sending final message', {
+          telegramId: ctx.from.id,
+          error: finalError.message,
+        })
+
+        // Минимальное финальное сообщение
+        await ctx.reply(
+          isRu ? '✅ Транскрибация завершена!' : '✅ Transcription completed!'
+        )
+      }
     } catch (error) {
       logger.error('[VideoTranscription] Error during transcription', {
         telegramId: ctx.from.id,

@@ -20,10 +20,13 @@ export function simulateSubscriptionForDev(
   }
 
   // --- !!! РЕЖИМ РАЗРАБОТКИ: СИМУЛЯЦИЯ ПОДПИСКИ !!! ---
-  // ЕСЛИ ПОНАДОБИТСЯ АКТИВНАЯ СИМУЛЯЦИЯ, РАСКОММЕНТИРУЙТЕ И НАСТРОЙТЕ БЛОК НИЖЕ
-  // А ТАКЖЕ ЗАКОММЕНТИРУЙТЕ БЛОК if(isDev) ВЫШЕ (строки 23-32)
+  // Проверяем переменную окружения для конкретной симуляции
+  const devSimulateSubscription = process.env
+    .DEV_SIMULATE_SUBSCRIPTION as SubscriptionType
+
+  // В dev режиме симулируем полный доступ для тестирования
   const simulatedSubscriptionTypeToUse: SubscriptionType | null =
-    SubscriptionType.STARS // ✅ ТЕСТИРУЕМ КНОПКУ ПОДПИСКИ: симулируем пользователя без полной подписки
+    devSimulateSubscription || SubscriptionType.NEUROVIDEO // ✅ ДАЕТ ПОЛНЫЙ ДОСТУП для тестирования всех функций
   if (simulatedSubscriptionTypeToUse !== originalSubscription) {
     logger.warn('[DEV SIMULATION] Subscription type is being simulated!', {
       original: originalSubscription,
