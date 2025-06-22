@@ -25,8 +25,8 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(
       isRu
-        ? '📺 Отправьте видео (Reels) для транскрибации в текст\n\n💡 Вы можете:\n• Загрузить видеофайл\n• Отправить ссылку на Instagram Reel, TikTok, YouTube Shorts'
-        : '📺 Send a video (Reels) for transcription to text\n\n💡 You can:\n• Upload a video file\n• Send a link to Instagram Reel, TikTok, YouTube Shorts',
+        ? '📺 Отправьте видео (Reels) для транскрибации в текст\n\n💡 Способы загрузки:\n• 📎 Загрузить видеофайл (до 50MB) - РЕКОМЕНДУЕТСЯ!\n• 🔗 Отправить ссылку на Instagram Reel, TikTok, YouTube Shorts\n\n⚠️ Из-за ограничений Instagram, загрузка файлом работает стабильнее!'
+        : '📺 Send a video (Reels) for transcription to text\n\n💡 Upload methods:\n• 📎 Upload a video file (up to 50MB) - RECOMMENDED!\n• 🔗 Send a link to Instagram Reel, TikTok, YouTube Shorts\n\n⚠️ Due to Instagram restrictions, file upload works more reliably!',
       createHelpCancelKeyboard(isRu)
     )
     return ctx.wizard.next()
@@ -349,10 +349,14 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         errorMessage = isRu
           ? '❌ Не удалось скачать видео из Instagram. Возможно, видео приватное или требует авторизации. Попробуйте другое видео или загрузите файл напрямую.'
           : '❌ Failed to download Instagram video. The video might be private or require authentication. Try another video or upload the file directly.'
-      } else if (error.message.includes('rate-limit reached')) {
+      } else if (
+        error.message.includes('rate-limit reached') ||
+        error.message.includes('exceeded your hard limit') ||
+        error.message.includes('rent a paid Actor')
+      ) {
         errorMessage = isRu
-          ? '❌ Instagram временно ограничил доступ. Попробуйте позже или загрузите видео файлом.'
-          : '❌ Instagram has temporarily limited access. Please try again later or upload the video as a file.'
+          ? '❌ Сервис скачивания Instagram временно недоступен.\n\n💡 Попробуйте:\n• Скачать видео самостоятельно и загрузить файлом\n• Использовать другие платформы (TikTok, YouTube)\n• Повторить позже'
+          : '❌ Instagram download service is temporarily unavailable.\n\n💡 Try:\n• Download the video yourself and upload as file\n• Use other platforms (TikTok, YouTube)\n• Try again later'
       } else if (error.message.includes('File too large')) {
         errorMessage = isRu
           ? '❌ Видео слишком большое для обработки (максимум 25MB). Попробуйте более короткое видео.'
