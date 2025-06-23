@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 
 export const sendReplyWithKeyboard = async (
   ctx: MyContext,
@@ -8,22 +9,17 @@ export const sendReplyWithKeyboard = async (
   photo_url?: string
 ) => {
   if (photo_url) {
-    try {
-      // Если есть URL фото, отправляем фото с текстом
-      await ctx.replyWithPhoto(photo_url, {
-        caption: message,
-        reply_markup: {
-          inline_keyboard: inlineKeyboard,
-        },
-        parse_mode: 'HTML',
-        ...menu,
-      })
-    } catch (photoError) {
-      // Если не удалось отправить фото, отправляем только текст
-      console.warn(
-        `[sendReplyWithKeyboard] Failed to send photo: ${photo_url}. Error: ${photoError instanceof Error ? photoError.message : 'Unknown error'}. Sending text only.`
-      )
+    const photoSent = await sendPhotoWithFallback(ctx, photo_url, {
+      caption: message,
+      reply_markup: {
+        inline_keyboard: inlineKeyboard,
+      },
+      parse_mode: 'HTML',
+      ...menu,
+    })
 
+    if (!photoSent) {
+      // Если не удалось отправить фото даже с fallback, отправляем только текст
       await ctx.reply(message, {
         reply_markup: {
           inline_keyboard: inlineKeyboard,
