@@ -15,6 +15,7 @@ import { isRussian } from '@/helpers/language'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { defaultSession } from '@/store'
 import { handleMenu } from '@/handlers/handleMenu'
+import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 
 interface StartSceneState {
   initialDisplayDone?: boolean
@@ -396,24 +397,40 @@ export const startScene = new Scenes.WizardScene<MyContext>(
       if (isValidImageUrl(url)) {
         logger.info({
           message:
-            '🖼️ [StartScene] Отправка приветственного изображения с подписью',
+            '🖼️ [StartScene] Попытка отправки приветственного изображения с fallback',
           telegramId,
           function: 'startScene',
           url,
-          step: 'sending_welcome_image',
+          step: 'sending_welcome_image_with_fallback',
         })
-        await ctx.replyWithPhoto(url, {
+
+        const photoSent = await sendPhotoWithFallback(ctx, url, {
           caption:
             translation.length > 1024
               ? translation.substring(0, 1021) + '...'
               : translation,
         })
+
+        if (!photoSent) {
+          // Если не удалось отправить фото даже с fallback, отправляем текст
+          logger.info({
+            message:
+              '📝 [StartScene] Отправка текстового приветствия (fallback не сработал)',
+            telegramId,
+            function: 'startScene',
+            step: 'sending_welcome_text_fallback_failed',
+          })
+          await ctx.reply(translation, {
+            parse_mode: 'HTML',
+          })
+        }
       } else {
         logger.info({
-          message: '📝 [StartScene] Отправка текстового приветствия',
+          message:
+            '📝 [StartScene] Отправка текстового приветствия (неверный URL изображения)',
           telegramId,
           function: 'startScene',
-          step: 'sending_welcome_text',
+          step: 'sending_welcome_text_invalid_url',
         })
         await ctx.reply(translation, {
           parse_mode: 'HTML',

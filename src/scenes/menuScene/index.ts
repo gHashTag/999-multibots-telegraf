@@ -12,7 +12,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
 import { handleMenu } from '@/handlers/handleMenu'
-import { validateImageUrl } from '@/helpers/validateImageUrl'
+import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
@@ -116,91 +116,44 @@ const menuCommandStep = async (ctx: MyContext) => {
     }
 
     if (photo_url) {
-      // Валидируем изображение перед отправкой
-      const validation = await validateImageUrl(photo_url)
-      if (!validation.isValid) {
-        logger.warn(
-          `[menuCommandStep] Image validation failed for URL: ${photo_url}. Reason: ${validation.reason}. Sending text only.`
-        )
-        photo_url = null // Отключаем фото и отправляем только текст
-      } else {
-        logger.info(
-          `[menuCommandStep] Image validation passed for URL: ${photo_url}. Size: ${validation.size ? (validation.size / 1024 / 1024).toFixed(2) + 'MB' : 'unknown'}, Type: ${validation.contentType}`
-        )
-      }
-    }
-
-    if (photo_url) {
-      try {
-        // Специальная обработка для digitalAvatar - добавляем inline кнопки даже с фото
-        if (translationKey === 'digitalAvatar') {
-          const inlineKeyboard = {
-            inline_keyboard: [
-              [
-                {
-                  text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
-                  callback_data: 'go_to_subscription_scene',
-                },
-              ],
+      // Специальная обработка для digitalAvatar - добавляем inline кнопки даже с фото
+      if (translationKey === 'digitalAvatar') {
+        const inlineKeyboard = {
+          inline_keyboard: [
+            [
+              {
+                text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+                callback_data: 'go_to_subscription_scene',
+              },
             ],
-          }
-
-          // Отправляем фото с сообщением и inline кнопками
-          await ctx.replyWithPhoto(photo_url, {
-            caption: message,
-            parse_mode: 'HTML',
-            reply_markup: inlineKeyboard,
-          })
-
-          // Отправляем обычную клавиатуру отдельным сообщением
-          await ctx.reply(
-            isRu ? '👇 Выберите действие:' : '👇 Choose an action:',
-            {
-              reply_markup: keyboard.reply_markup,
-            }
-          )
-        } else {
-          // Для всех остальных случаев используем стандартную функцию
-          await sendReplyWithKeyboard(ctx, message, [], keyboard, photo_url)
+          ],
         }
-      } catch (photoError) {
-        // Если не удалось отправить фото, отправляем только текст
-        logger.warn(
-          `[menuCommandStep] Failed to send photo: ${photo_url}. Error: ${photoError instanceof Error ? photoError.message : 'Unknown error'}. Sending text only.`
-        )
 
-        // Отправляем без фото
-        if (translationKey === 'digitalAvatar') {
-          const inlineKeyboard = {
-            inline_keyboard: [
-              [
-                {
-                  text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
-                  callback_data: 'go_to_subscription_scene',
-                },
-              ],
-            ],
-          }
+        // Пробуем отправить фото с fallback
+        const photoSent = await sendPhotoWithFallback(ctx, photo_url, {
+          caption: message,
+          parse_mode: 'HTML',
+          reply_markup: inlineKeyboard,
+        })
 
-          // Отправляем сообщение с inline кнопками
+        if (!photoSent) {
+          // Если фото не отправилось, отправляем только текст с inline кнопками
           await ctx.reply(message, {
             parse_mode: 'HTML',
             reply_markup: inlineKeyboard,
           })
+        }
 
-          // Отправляем обычную клавиатуру отдельным сообщением
-          await ctx.reply(
-            isRu ? '👇 Выберите действие:' : '👇 Choose an action:',
-            {
-              reply_markup: keyboard.reply_markup,
-            }
-          )
-        } else {
-          await ctx.reply(message, {
-            parse_mode: 'HTML',
+        // Отправляем обычную клавиатуру отдельным сообщением
+        await ctx.reply(
+          isRu ? '👇 Выберите действие:' : '👇 Choose an action:',
+          {
             reply_markup: keyboard.reply_markup,
-          })
-        }
+          }
+        )
+      } else {
+        // Для всех остальных случаев используем стандартную функцию с fallback
+        await sendReplyWithKeyboard(ctx, message, [], keyboard, photo_url)
       }
     } else {
       // Send fallback without parse_mode, or send translation (also without parse_mode FOR MENU KEY)
