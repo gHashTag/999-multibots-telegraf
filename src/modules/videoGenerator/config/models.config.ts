@@ -164,7 +164,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     title: 'Google Veo 3',
     inputType: ['text'],
     description:
-      'Флагманская модель Google для создания видео с аудио в 4K качестве',
+      '🔥 ПРЕМИУМ: Флагманская модель Google для создания видео с аудио в 4K качестве (высокая стоимость)',
     basePrice: 0.75,
     api: {
       model: 'google/veo-3',
