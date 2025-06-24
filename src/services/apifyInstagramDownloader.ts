@@ -4,179 +4,243 @@ import fs from 'fs'
 import path from 'path'
 import axios from 'axios'
 
-interface ApifyInstagramResult {
-  url: string
-  source: string
-  author: string
-  title: string
-  thumbnail: string
-  duration: number
-  medias: Array<{
-    url: string
-    quality: string
-    type: string
-    extension: string
+console.log('🔧 Initializing Official Apify Instagram Scraper...')
+
+const client = new ApifyClient({
+  token: process.env.APIFY_TOKEN,
+})
+
+interface InstagramPostResult {
+  id?: string
+  type?: string
+  shortCode?: string
+  caption?: string
+  url?: string
+  displayUrl?: string
+  videoUrl?: string
+  images?: string[]
+  videos?: Array<{
+    videoUrl: string
+    width?: number
+    height?: number
   }>
-  type: string
-  error: boolean
+  videoDuration?: number
+  timestamp?: string
 }
 
 interface DownloadResult {
   success: boolean
-  videoPath?: string
+  videoUrl?: string
   error?: string
+  metadata?: {
+    duration?: number
+    quality?: string
+    format?: string
+  }
 }
 
-export class ApifyInstagramDownloader {
-  private client: ApifyClient
-  private actorId = 'easyapi/instagram-reels-downloader'
+export async function downloadInstagramVideoViaApify(
+  instagramUrl: string
+): Promise<DownloadResult> {
+  console.log(
+    `📥 Starting official Apify Instagram scraper for: ${instagramUrl}`
+  )
 
-  constructor() {
-    const apifyToken = process.env.APIFY_TOKEN
-    if (!apifyToken) {
-      throw new Error('APIFY_TOKEN environment variable is required')
+  try {
+    const input = {
+      directUrls: [instagramUrl],
+      resultsType: 'posts',
+      resultsLimit: 1,
+      includeComments: false,
+      proxy: {
+        useApifyProxy: true,
+        apifyProxyGroups: ['RESIDENTIAL'],
+      },
     }
 
-    this.client = new ApifyClient({
-      token: apifyToken,
+    console.log('🚀 Launching official Instagram Scraper actor...')
+
+    const run = await client.actor('apify/instagram-scraper').call(input, {
+      timeout: 300, // 5 minutes timeout
+      memory: 2048,
     })
-  }
 
-  async downloadInstagramVideo(
-    url: string,
-    outputDir: string,
-    filePrefix: string
-  ): Promise<DownloadResult> {
-    try {
-      logger.info(
-        '[ApifyInstagramDownloader] Starting Instagram video download',
-        {
-          url,
-          outputDir,
-          filePrefix,
-        }
-      )
+    console.log(`✅ Actor run completed with status: ${run.status}`)
 
-      // Запускаем Apify актор
-      const run = await this.client.actor(this.actorId).call({
-        links: [url],
-      })
-
-      logger.info('[ApifyInstagramDownloader] Apify run completed', {
-        runId: run.id,
-        status: run.status,
-      })
-
-      // Получаем результаты
-      const { items } = await this.client
-        .dataset(run.defaultDatasetId)
-        .listItems()
-
-      if (!items || items.length === 0) {
-        throw new Error('No results returned from Apify actor')
-      }
-
-      const result = items[0] as unknown as ApifyInstagramResult
-
-      if (result.error) {
-        throw new Error('Apify actor returned an error')
-      }
-
-      if (!result.medias || result.medias.length === 0) {
-        throw new Error('No video media found in Apify result')
-      }
-
-      // Находим лучшее качество видео
-      const videoMedia = result.medias
-        .filter(media => media.type === 'video')
-        .sort((a, b) => {
-          // Сортируем по качеству (предпочитаем более высокое)
-          const qualityA = this.extractQuality(a.quality)
-          const qualityB = this.extractQuality(b.quality)
-          return qualityB - qualityA
-        })[0]
-
-      if (!videoMedia) {
-        throw new Error('No video media found in results')
-      }
-
-      logger.info('[ApifyInstagramDownloader] Found video media', {
-        quality: videoMedia.quality,
-        extension: videoMedia.extension,
-        url: videoMedia.url.substring(0, 100) + '...',
-      })
-
-      // Скачиваем видео файл
-      const videoPath = await this.downloadVideoFile(
-        videoMedia.url,
-        outputDir,
-        filePrefix,
-        videoMedia.extension
-      )
-
-      logger.info('[ApifyInstagramDownloader] Video downloaded successfully', {
-        videoPath,
-        size: fs.statSync(videoPath).size,
-      })
-
-      return {
-        success: true,
-        videoPath,
-      }
-    } catch (error) {
-      logger.error(
-        '[ApifyInstagramDownloader] Error downloading Instagram video',
-        {
-          url,
-          error: error.message,
-          stack: error.stack,
-        }
-      )
-
+    if (run.status !== 'SUCCEEDED') {
+      console.error(`❌ Actor failed with status: ${run.status}`)
       return {
         success: false,
-        error: error.message,
+        error: `Actor failed with status: ${run.status}`,
       }
     }
-  }
 
-  private extractQuality(qualityString: string): number {
-    // Извлекаем числовое значение качества из строки типа "640-1136p"
-    const match = qualityString.match(/(\d+)/)
-    return match ? parseInt(match[1], 10) : 0
-  }
+    // Get the results from the dataset
+    const dataset = await client.dataset(run.defaultDatasetId)
+    const results = await dataset.listItems()
 
-  private async downloadVideoFile(
-    videoUrl: string,
-    outputDir: string,
-    filePrefix: string,
-    extension: string
-  ): Promise<string> {
-    const fileName = `${filePrefix}.${extension}`
-    const filePath = path.join(outputDir, fileName)
+    console.log(`📊 Retrieved ${results.items.length} results from dataset`)
 
-    logger.info('[ApifyInstagramDownloader] Downloading video file', {
-      videoUrl: videoUrl.substring(0, 100) + '...',
-      filePath,
+    if (results.items.length === 0) {
+      console.error('❌ No results found in dataset')
+      return {
+        success: false,
+        error: 'No video found for the provided URL',
+      }
+    }
+
+    const postResult = results.items[0] as unknown as InstagramPostResult
+
+    console.log(`📋 Post type: ${postResult.type}`)
+    console.log(`📊 Available fields:`, Object.keys(postResult))
+    console.log(`📊 Data structure:`, {
+      hasDisplayUrl: !!postResult.displayUrl,
+      hasVideos: !!(postResult.videos && postResult.videos.length > 0),
+      hasImages: !!(postResult.images && postResult.images.length > 0),
+      videoCount: postResult.videos?.length || 0,
+      imageCount: postResult.images?.length || 0,
     })
 
-    const response = await axios({
-      method: 'GET',
-      url: videoUrl,
-      responseType: 'stream',
-      timeout: 60000, // 60 секунд таймаут
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    // Log the full result for debugging
+    console.log(`📋 Full result:`, JSON.stringify(postResult, null, 2))
+
+    // Look for video URL in the response
+    let videoUrl: string | null = null
+
+    if (postResult.videoUrl) {
+      console.log('✅ Found videoUrl field:', postResult.videoUrl)
+      videoUrl = postResult.videoUrl
+    } else if (postResult.videos && postResult.videos.length > 0) {
+      console.log(
+        '✅ Found videos array, using first video:',
+        postResult.videos[0]
+      )
+      videoUrl = postResult.videos[0].videoUrl
+    } else if (postResult.images && postResult.images.length > 0) {
+      // Check if any images are actually video files
+      for (const image of postResult.images) {
+        if (
+          typeof image === 'string' &&
+          (image.includes('.mp4') || image.includes('video'))
+        ) {
+          console.log('✅ Found video in images array:', image)
+          videoUrl = image
+          break
+        }
+      }
+    } else if (postResult.displayUrl) {
+      console.log(
+        '⚠️ Using displayUrl as fallback (might be preview image):',
+        postResult.displayUrl.substring(0, 100) + '...'
+      )
+      videoUrl = postResult.displayUrl
+    }
+
+    if (!videoUrl) {
+      console.error('❌ No video URL found in result')
+      console.log('📋 Available data:', JSON.stringify(postResult, null, 2))
+      return {
+        success: false,
+        error: 'No video URL available in the scraped data',
+      }
+    }
+
+    console.log(`✅ Video URL obtained: ${videoUrl.substring(0, 100)}...`)
+
+    return {
+      success: true,
+      videoUrl: videoUrl,
+      metadata: {
+        quality: 'original',
+        format: 'mp4',
       },
+    }
+  } catch (error) {
+    console.error('❌ Official Instagram scraper failed:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    }
+  }
+}
+
+// Alternative method using Instagram Reel Scraper
+export async function downloadInstagramVideoViaApifyFallback(
+  instagramUrl: string
+): Promise<DownloadResult> {
+  console.log(`📥 Starting Instagram Reel Scraper for: ${instagramUrl}`)
+
+  try {
+    const input = {
+      directUrls: [instagramUrl],
+      resultsLimit: 1,
+      proxy: {
+        useApifyProxy: true,
+        apifyProxyGroups: ['RESIDENTIAL'],
+      },
+    }
+
+    console.log('🚀 Launching Instagram Reel Scraper actor...')
+
+    const run = await client.actor('apify/instagram-reel-scraper').call(input, {
+      timeout: 300,
+      memory: 2048,
     })
 
-    const writer = fs.createWriteStream(filePath)
-    response.data.pipe(writer)
+    console.log(`✅ Reel scraper run completed with status: ${run.status}`)
 
-    return new Promise((resolve, reject) => {
-      writer.on('finish', () => resolve(filePath))
-      writer.on('error', reject)
-    })
+    if (run.status !== 'SUCCEEDED') {
+      return {
+        success: false,
+        error: `Reel scraper failed with status: ${run.status}`,
+      }
+    }
+
+    const dataset = await client.dataset(run.defaultDatasetId)
+    const results = await dataset.listItems()
+
+    if (results.items.length === 0) {
+      return {
+        success: false,
+        error: 'No reel found in scraper results',
+      }
+    }
+
+    const reelResult = results.items[0] as any
+
+    // Check different possible field names for the video URL
+    const videoUrl =
+      reelResult.videoUrl ||
+      reelResult.displayUrl ||
+      reelResult.url ||
+      (reelResult.videos && reelResult.videos[0]?.videoUrl)
+
+    if (!videoUrl) {
+      console.log(
+        '📋 Reel result structure:',
+        JSON.stringify(reelResult, null, 2)
+      )
+      return {
+        success: false,
+        error: 'No video URL found in reel scraper result',
+      }
+    }
+
+    console.log(`✅ Reel video URL obtained`)
+
+    return {
+      success: true,
+      videoUrl: videoUrl,
+      metadata: {
+        quality: 'original',
+        format: 'mp4',
+      },
+    }
+  } catch (error) {
+    console.error('❌ Instagram Reel Scraper failed:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Reel scraper failed',
+    }
   }
 }
