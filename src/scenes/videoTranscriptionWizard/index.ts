@@ -7,9 +7,8 @@ import { createHelpCancelKeyboard } from '@/menu'
 import { sendGenericErrorMessage } from '@/menu'
 import { logger } from '@/utils/logger'
 import {
-  transcribeVideo,
-  transcribeVideoFromUrl,
-  cleanupVideoFile,
+  transcribeInstagramReel,
+  transcribeVideoFromDirectUrl,
 } from '@/services/videoTranscription'
 import { levels } from '@/menu/mainMenu'
 import path from 'path'
@@ -25,8 +24,8 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(
       isRu
-        ? '📺 Отправьте видео (Reels) для транскрибации в текст\n\n💡 Способы загрузки:\n• 📎 Загрузить видеофайл (до 50MB) - РЕКОМЕНДУЕТСЯ!\n• 🔗 Отправить ссылку на Instagram Reel, TikTok, YouTube Shorts\n\n⚠️ Из-за ограничений Instagram, загрузка файлом работает стабильнее!'
-        : '📺 Send a video (Reels) for transcription to text\n\n💡 Upload methods:\n• 📎 Upload a video file (up to 50MB) - RECOMMENDED!\n• 🔗 Send a link to Instagram Reel, TikTok, YouTube Shorts\n\n⚠️ Due to Instagram restrictions, file upload works more reliably!',
+        ? '📺 Отправьте видео для транскрибации в текст\n\n💡 Способы загрузки:\n• 📎 Загрузить видеофайл (до 50MB) - РЕКОМЕНДУЕТСЯ!\n• 🔗 Отправить ссылку на Instagram Reel\n\n⚠️ Для ссылок поддерживаются только Instagram Reels. Для других платформ загружайте файл.'
+        : '📺 Send a video for transcription to text\n\n💡 Upload methods:\n• 📎 Upload a video file (up to 50MB) - RECOMMENDED!\n• 🔗 Send Instagram Reel link\n\n⚠️ Only Instagram Reels are supported for links. For other platforms, upload the file.',
       createHelpCancelKeyboard(isRu)
     )
     return ctx.wizard.next()
@@ -46,16 +45,13 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
       message &&
       'text' in message &&
       message.text &&
-      (message.text.includes('instagram.com') ||
-        message.text.includes('tiktok.com') ||
-        message.text.includes('youtube.com') ||
-        message.text.includes('youtu.be'))
+      message.text.includes('instagram.com')
 
     if (!isVideoFile && !isTextWithUrl) {
       await ctx.reply(
         isRu
-          ? '❌ Пожалуйста, отправьте видеофайл или ссылку на видео (Instagram, TikTok, YouTube)'
-          : '❌ Please send a video file or video link (Instagram, TikTok, YouTube)'
+          ? '❌ Пожалуйста, отправьте видеофайл или ссылку на Instagram Reel'
+          : '❌ Please send a video file or Instagram Reel link'
       )
       return // Остаемся на том же шаге
     }
@@ -116,20 +112,8 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
       })
 
       const transcriptionResult = isFromUrl
-        ? await transcribeVideoFromUrl({
-            videoUrl,
-            telegramId: ctx.from.id.toString(),
-            username: ctx.from.username || 'unknown_user',
-            isRu,
-            botName: ctx.botInfo.username,
-          })
-        : await transcribeVideo({
-            videoUrl,
-            telegramId: ctx.from.id.toString(),
-            username: ctx.from.username || 'unknown_user',
-            isRu,
-            botName: ctx.botInfo.username,
-          })
+        ? await transcribeInstagramReel(videoUrl)
+        : await transcribeVideoFromDirectUrl(videoUrl)
 
       if (!transcriptionResult.success || !transcriptionResult.text) {
         logger.error('[VideoTranscription] Transcription failed', {
@@ -211,7 +195,13 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
             })
 
             // Очищаем файл после отправки
-            cleanupVideoFile(transcriptionResult.videoPath)
+            try {
+              fs.unlinkSync(transcriptionResult.videoPath)
+            } catch (cleanupError) {
+              logger.warn('Failed to cleanup video file', {
+                error: cleanupError,
+              })
+            }
           } catch (videoError) {
             logger.error('[VideoTranscription] Error sending video', {
               telegramId: ctx.from.id,
@@ -227,7 +217,13 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
             await ctx.reply(videoErrorMsg)
 
             // Все равно очищаем файл
-            cleanupVideoFile(transcriptionResult.videoPath)
+            try {
+              fs.unlinkSync(transcriptionResult.videoPath)
+            } catch (cleanupError) {
+              logger.warn('Failed to cleanup video file', {
+                error: cleanupError,
+              })
+            }
           }
         } else {
           logger.info('[VideoTranscription] No video file, sending text only', {
