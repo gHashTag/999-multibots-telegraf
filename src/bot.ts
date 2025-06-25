@@ -31,7 +31,6 @@ import { message } from 'telegraf/filters'
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
 import { setupHearsHandlers } from './hearsHandlers'
-import { handleTextMessage } from './handlers/handleTextMessage'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
