@@ -74,7 +74,7 @@ import { handleTechSupport } from './commands/handleTechSupport'
 import { handleBuy } from './handlers/handleBuy'
 import { isRussian } from '@/helpers/language'
 import { registerPaymentActions } from './handlers/paymentActions'
-import { handleTextMessage } from './handlers/handleTextMessage'
+// handleTextMessage и setupHearsHandlers теперь импортируются в bot.ts
 // Убираем импорт handleMenu, так как он не используется здесь напрямую
 // import { handleMenu } from './handlers/handleMenu'
 //https://github.com/telegraf/telegraf/issues/705
@@ -656,9 +656,14 @@ If not, continue on your own and click the "I myself" button`
 
   // Обработчик фото для FLUX Kontext
   bot.on(message('photo'), async ctx => {
-    logger.info('GLOBAL PHOTO HANDLER: Photo received', {
+    logger.info('🎯 GLOBAL PHOTO HANDLER: Photo received', {
       telegramId: ctx.from?.id,
+      currentScene: ctx.scene?.current?.id,
       awaitingFluxKontextImage: ctx.session?.awaitingFluxKontextImage,
+      awaitingFluxKontextImageA: ctx.session?.awaitingFluxKontextImageA,
+      awaitingFluxKontextImageB: ctx.session?.awaitingFluxKontextImageB,
+      sessionExists: !!ctx.session,
+      sessionKeys: ctx.session ? Object.keys(ctx.session) : [],
     })
 
     // Проверяем, ожидает ли пользователь загрузку изображения для FLUX Kontext
@@ -671,9 +676,14 @@ If not, continue on your own and click the "I myself" button`
     }
 
     // Если не ожидаем FLUX Kontext изображение, передаем дальше
-    logger.info('GLOBAL PHOTO HANDLER: Photo not for FLUX Kontext, skipping', {
-      telegramId: ctx.from?.id,
-    })
+    logger.info(
+      '🎯 GLOBAL PHOTO HANDLER: Photo not for FLUX Kontext, skipping',
+      {
+        telegramId: ctx.from?.id,
+        currentScene: ctx.scene?.current?.id,
+        reason: 'not_awaiting_flux_image',
+      }
+    )
   })
 
   // НОВЫЕ ОБРАБОТЧИКИ ДЛЯ INLINE КНОПОК FLUX KONTEXT
@@ -952,6 +962,6 @@ If not, continue on your own and click the "I myself" button`
     }
   })
 
-  // ВАЖНО: Этот обработчик должен быть последним, чтобы не перехватывать команды и кнопки
-  bot.on(message('text'), handleTextMessage)
+  // ВАЖНО: setupHearsHandlers и handleTextMessage теперь регистрируются в bot.ts
+  // чтобы hears обработчики срабатывали до общего текстового обработчика
 }

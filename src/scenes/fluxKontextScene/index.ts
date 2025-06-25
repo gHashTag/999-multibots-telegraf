@@ -301,10 +301,25 @@ fluxKontextScene.on('photo', async ctx => {
   try {
     const isRu = isRussian(ctx)
 
+    logger.info('🎯 FLUX Kontext: Photo received', {
+      telegramId: ctx.from?.id,
+      awaitingImageA: ctx.session?.awaitingFluxKontextImageA,
+      awaitingImageB: ctx.session?.awaitingFluxKontextImageB,
+      step: ctx.session?.fluxKontextStep,
+      mode: ctx.session?.fluxKontextMode,
+      sessionExists: !!ctx.session,
+      currentScene: ctx.scene?.current?.id,
+    })
+
     if (
       !ctx.session?.awaitingFluxKontextImageA &&
       !ctx.session?.awaitingFluxKontextImageB
     ) {
+      logger.info('🎯 FLUX Kontext: Photo received but not awaiting images', {
+        telegramId: ctx.from?.id,
+        step: ctx.session?.fluxKontextStep,
+        mode: ctx.session?.fluxKontextMode,
+      })
       await ctx.reply(
         isRu
           ? '❌ Сначала выберите режим редактирования.'
@@ -448,6 +463,18 @@ const requestPrompt = async (ctx: MyContext) => {
 fluxKontextScene.on('text', async ctx => {
   try {
     const isRu = isRussian(ctx)
+    const messageText = ctx.message.text
+
+    // 🚨 ВАЖНО: Проверяем, не является ли это командой
+    if (messageText.startsWith('/')) {
+      logger.info('🎯 FLUX Kontext: Command detected, ignoring in scene', {
+        telegramId: ctx.from?.id,
+        command: messageText,
+        scene: 'flux_kontext_scene',
+      })
+      // Не обрабатываем команды в этой сцене - пропускаем дальше
+      return
+    }
 
     // Логируем состояние сессии при получении промпта
     logger.info('FLUX Kontext text handler - session state', {
@@ -463,6 +490,10 @@ fluxKontextScene.on('text', async ctx => {
     })
 
     if (!ctx.session?.awaitingFluxKontextPrompt) {
+      logger.info('🎯 FLUX Kontext: Not awaiting prompt, asking for image', {
+        telegramId: ctx.from?.id,
+        messageText: messageText.substring(0, 50),
+      })
       await ctx.reply(
         isRu
           ? '❌ Сначала отправьте изображение.'
@@ -583,6 +614,13 @@ const processFluxKontextRequest = async (ctx: MyContext, prompt: string) => {
       ctx.session.fluxKontextStep = undefined
       ctx.session.kontextModelType = undefined
     }
+
+    // 🚨 ВАЖНО: Выходим из сцены после успешной обработки
+    logger.info('🎯 FLUX Kontext: Leaving scene after successful processing', {
+      telegramId: ctx.from.id,
+      currentScene: ctx.scene?.current?.id,
+    })
+    await ctx.scene.leave()
   } catch (error) {
     logger.error('Error in FLUX Kontext processing', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -597,8 +635,42 @@ const processFluxKontextRequest = async (ctx: MyContext, prompt: string) => {
       ctx.session.fluxKontextStep = undefined
       ctx.session.kontextModelType = undefined
     }
+
+    // 🚨 ВАЖНО: Выходим из сцены при ошибке
+    logger.info('🎯 FLUX Kontext: Leaving scene after error', {
+      telegramId: ctx.from?.id,
+      currentScene: ctx.scene?.current?.id,
+    })
+    await ctx.scene.leave()
   }
 }
+
+// Обработка кнопки "Попробовать снова"
+fluxKontextScene.action('flux_kontext_retry', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussian(ctx)
+
+    await ctx.reply(
+      isRu
+        ? '🔄 Попробуем снова! Отправьте изображение для редактирования.'
+        : "🔄 Let's try again! Send an image for editing.",
+      {
+        reply_markup: {
+          remove_keyboard: true,
+        },
+      }
+    )
+
+    // Перезапускаем сцену с самого начала
+    await ctx.scene.reenter()
+  } catch (error) {
+    logger.error('Error handling FLUX Kontext retry', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
 
 // Обработка кнопки "Ещё редактирование"
 fluxKontextScene.action('flux_more_editing', async ctx => {
