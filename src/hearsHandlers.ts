@@ -48,23 +48,6 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   })
 
-  // Добавляем глобальный логгер для всех текстовых сообщений
-  bot.on('text', (ctx, next) => {
-    console.log('🎯 URGENT DEBUG: TEXT MESSAGE INTERCEPTED!', {
-      telegramId: ctx.from?.id,
-      text: ctx.message?.text,
-      hasSession: !!ctx.session,
-      sessionKeys: ctx.session ? Object.keys(ctx.session) : 'no session',
-      sceneId: ctx.scene?.current?.id,
-      wizardCursor: ctx.wizard?.cursor,
-    })
-    return next()
-  })
-
-  // УБИРАЕМ КОНФЛИКТУЮЩИЙ HEARS ОБРАБОТЧИК
-  // Этот обработчик конфликтовал с menu handler для отдельного upscaler'а
-  // Теперь используется только menu handler + imageUpscalerWizard
-
   // ОБРАБОТЧИК ДЛЯ УВЕЛИЧЕНИЯ КАЧЕСТВА НЕЙРОФОТО (keyboard кнопка с бэкенда)
   bot.hears(['⬆️ Увеличить качество', '⬆️ Upscale Quality'], async ctx => {
     logger.info('GLOBAL HEARS: Neurophoto upscale quality requested', {
