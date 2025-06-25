@@ -503,6 +503,47 @@ export const generateAdvancedFluxKontext = async (
         errorMessageToUser = params.is_ru
           ? '❌ Недостаточно звёзд для обработки изображения.'
           : '❌ Not enough stars for image processing.'
+      } else if (
+        error.message &&
+        error.message.includes('flagged as sensitive')
+      ) {
+        errorMessageToUser = params.is_ru
+          ? '🚫 Изображение или промпт содержат чувствительный контент.\n\n💡 Попробуйте:\n• Изменить описание\n• Использовать другое изображение\n• Упростить запрос\n\n🔄 Можете попробовать еще раз!'
+          : '🚫 The image or prompt contains sensitive content.\n\n💡 Try:\n• Change the description\n• Use a different image\n• Simplify the request\n\n🔄 You can try again!'
+      } else if (
+        (error.message && error.message.includes('Prediction interrupted')) ||
+        (error.message && error.message.includes('code: PA'))
+      ) {
+        errorMessageToUser = params.is_ru
+          ? '⏸️ Обработка была прервана сервером.\n\n🔄 Это временная проблема - можете попробовать еще раз!\n\n💡 Совет: попробуйте через несколько секунд.'
+          : '⏸️ Processing was interrupted by the server.\n\n🔄 This is a temporary issue - you can try again!\n\n💡 Tip: try again in a few seconds.'
+      }
+    }
+
+    // Создаем клавиатуру с кнопкой "Попробовать снова" для определенных ошибок
+    let replyMarkup: any = { remove_keyboard: true }
+
+    if (
+      error instanceof Error &&
+      (error.message.includes('flagged as sensitive') ||
+        error.message.includes('Prediction interrupted') ||
+        error.message.includes('code: PA'))
+    ) {
+      replyMarkup = {
+        inline_keyboard: [
+          [
+            {
+              text: params.is_ru ? '🔄 Попробовать снова' : '🔄 Try Again',
+              callback_data: 'flux_kontext_retry',
+            },
+          ],
+          [
+            {
+              text: params.is_ru ? '🏠 Главное меню' : '🏠 Main Menu',
+              callback_data: 'go_main_menu',
+            },
+          ],
+        ],
       }
     }
 
@@ -510,7 +551,7 @@ export const generateAdvancedFluxKontext = async (
       params.telegram_id,
       errorMessageToUser,
       {
-        reply_markup: { remove_keyboard: true },
+        reply_markup: replyMarkup,
       }
     )
 
