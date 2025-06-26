@@ -31,7 +31,8 @@ export const generateImageToVideo = async (
   imageAUrl: string | null,
   imageBUrl: string | null,
   telegramInstance: Telegraf<MyContext>['telegram'],
-  chatId: number
+  chatId: number,
+  selectedResolution?: string // Добавлен параметр для разрешения Seedance
 ): Promise<void> => {
   let localVideoPath: string | undefined
   const notificationMessage = isRu
@@ -200,6 +201,24 @@ export const generateImageToVideo = async (
         prompt,
         aspect_ratio: userAspectRatio,
         [modelConfig.imageKey]: imageUrl,
+      }
+
+      // Специальная обработка для Seedance-1-Pro моделей
+      if (modelConfig.id === 'seedance-1-pro' && selectedResolution) {
+        modelInput = {
+          ...modelConfig.api.input, // ИСПРАВЛЕНИЕ: Включаем базовые параметры API
+          prompt,
+          resolution: selectedResolution, // ИСПРАВЛЕНО: используем 'resolution' вместо 'target_resolution'
+          [modelConfig.imageKey]: imageUrl,
+        }
+        logger.info('[I2V BG] Seedance model input prepared:', {
+          telegramId,
+          resolution: selectedResolution, // ИСПРАВЛЕНО: логируем 'resolution'
+          hasImage: !!imageUrl,
+          imageKey: modelConfig.imageKey,
+          imageUrl: imageUrl, // Логируем URL изображения для отладки
+          fullInput: modelInput, // Логируем полный input для отладки
+        })
       }
 
       logger.info('[I2V BG] Prepared Replicate input for standard', {
