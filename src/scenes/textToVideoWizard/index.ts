@@ -84,7 +84,8 @@ async function processVideoGeneration(
       username,
       isRu,
       botName,
-      videoModelKey
+      videoModelKey,
+      ctx.session.selectedResolution // Передаём выбранное разрешение для Seedance
     )
 
     if (videoUrl) {
@@ -319,19 +320,123 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     logger.info(
       `[TextToVideoWizard Step 1] Sufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs: ${cost}. Proceeding.`
     )
-    ctx.session.videoModel = foundModelKey
-    await ctx.reply(
-      isRu
-        ? 'Пожалуйста, отправьте текстовое описание для видео:'
-        : 'Please send a text description for the video:',
-      Markup.removeKeyboard() // Убираем клавиатуру выбора модели
-    )
-    return ctx.wizard.next()
+
+    // Проверяем, выбрана ли модель Seedance
+    if (foundModelKey === 'seedance-1-pro') {
+      logger.info('[T2V Wizard] Seedance model selected', {
+        telegramId: ctx.from?.id,
+        model: foundModelKey,
+      })
+      ctx.session.videoModel = foundModelKey
+
+      // Ask for resolution: 480p or 1080p
+      const buttons = [
+        Markup.button.callback(
+          isRu ? '📺 480p (23 ⭐)' : '📺 480p (23 ⭐)',
+          'seedance_t2v_480p'
+        ),
+        Markup.button.callback(
+          isRu ? '🔥 1080p (117 ⭐)' : '🔥 1080p (117 ⭐)',
+          'seedance_t2v_1080p'
+        ),
+      ]
+
+      const inlineKeyboard = Markup.inlineKeyboard(buttons)
+      const text = isRu
+        ? '🎬 Выберите разрешение для Seedance Pro:'
+        : '🎬 Select resolution for Seedance Pro:'
+      await ctx.reply(text, inlineKeyboard)
+      return ctx.wizard.next() // Go to seedance resolution selection step
+    } else {
+      // Standard flow for other models
+      ctx.session.videoModel = foundModelKey
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, отправьте текстовое описание для видео:'
+          : 'Please send a text description for the video:',
+        Markup.removeKeyboard() // Убираем клавиатуру выбора модели
+      )
+      return ctx.wizard.selectStep(2) // Skip resolution selection, go directly to prompt step
+    }
   },
 
-  // Шаг 2: Обработка промпта и запуск генерации
+  // Шаг 2: Обработка выбора разрешения для Seedance (callback query)
   async ctx => {
-    logger.info(`[TextToVideoWizard Step 2] Entered for user ${ctx.from?.id}`)
+    const isRu = isRussian(ctx)
+
+    // Проверяем callback query для выбора разрешения
+    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
+      const callbackData = ctx.callbackQuery.data
+
+      if (
+        callbackData === 'seedance_t2v_480p' ||
+        callbackData === 'seedance_t2v_1080p'
+      ) {
+        await ctx.answerCbQuery()
+        await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
+
+        const resolution =
+          callbackData === 'seedance_t2v_480p' ? '480p' : '1080p'
+        const finalPriceInStars = resolution === '480p' ? 23 : 117
+
+        // Double-check balance with the new price
+        if (!ctx.from?.id || !ctx.botInfo?.username) {
+          await sendGenericErrorMessage(ctx, isRu)
+          return ctx.scene.leave()
+        }
+
+        const telegram_id = ctx.from.id.toString()
+        const bot_name = ctx.botInfo.username
+        const currentBalance = await getUserBalance(telegram_id, bot_name)
+
+        if (currentBalance < finalPriceInStars) {
+          const textInsufficient = isRu
+            ? `😕 Недостаточно звезд (${finalPriceInStars} ⭐). Баланс: ${Math.floor(currentBalance)} ⭐.`
+            : `😕 Insufficient stars (${finalPriceInStars} ⭐). Balance: ${Math.floor(currentBalance)} ⭐.`
+          await ctx.reply(textInsufficient)
+
+          // Reshow model selection
+          const keyboardMarkup = videoModelKeyboard(isRu, 'text')
+          const textSelectAnother = isRu
+            ? '🤔 Выберите другую модель:'
+            : '🤔 Choose another model:'
+          await ctx.reply(textSelectAnother, {
+            reply_markup: keyboardMarkup.reply_markup,
+          })
+          return ctx.wizard.selectStep(0)
+        }
+
+        // Store the selected resolution
+        ctx.session.selectedResolution = resolution
+
+        const textResolutionChosen = isRu
+          ? `✅ Выбрано: Seedance Pro ${resolution} (${finalPriceInStars} ⭐).`
+          : `✅ Selected: Seedance Pro ${resolution} (${finalPriceInStars} ⭐).`
+        await ctx.reply(textResolutionChosen)
+
+        await ctx.reply(
+          isRu
+            ? 'Пожалуйста, отправьте текстовое описание для видео:'
+            : 'Please send a text description for the video:',
+          Markup.removeKeyboard()
+        )
+        return ctx.wizard.next() // Go to prompt step
+      }
+    }
+
+    // If we reach here, it's probably not a callback query or wrong data
+    // Handle regular text messages (not expected in this step)
+    await ctx.reply(
+      isRu
+        ? '👆 Пожалуйста, выберите разрешение, нажав кнопку выше.'
+        : '👆 Please select resolution by pressing a button above.'
+    )
+    return // Stay on this step
+  },
+
+  // Шаг 3: Обработка промпта и запуск генерации
+  async ctx => {
+    logger.info(`[TextToVideoWizard Step 3] Entered for user ${ctx.from?.id}`)
     const isRu = isRussian(ctx)
 
     // Проверяем, не является ли сам текст промпта командой отмены или помощи
@@ -357,7 +462,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         | undefined
       if (!videoModelKey) {
         logger.error(
-          '[TextToVideoWizard Step 2] Video model key not found in session',
+          '[TextToVideoWizard Step 3] Video model key not found in session',
           { telegramId: ctx.from?.id }
         )
         await sendGenericErrorMessage(ctx, isRu)
@@ -366,7 +471,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       if (!ctx.from?.id || !ctx.botInfo?.username) {
         logger.error(
-          '[TextToVideoWizard Step 2] Critical user or bot info missing for generation',
+          '[TextToVideoWizard Step 3] Critical user or bot info missing for generation',
           { from: ctx.from, botInfo: ctx.botInfo }
         )
         await sendGenericErrorMessage(ctx, isRu)
@@ -382,12 +487,12 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       processVideoGeneration(ctx, prompt, videoModelKey, isRu)
         .then(() => {
           logger.info(
-            `[TextToVideoWizard Step 2] Async video processing initiated for ${ctx.from?.id}`
+            `[TextToVideoWizard Step 3] Async video processing initiated for ${ctx.from?.id}`
           )
         })
         .catch(async error => {
           logger.error(
-            `[TextToVideoWizard Step 2] Critical error initiating async video processing for ${ctx.from?.id}:`,
+            `[TextToVideoWizard Step 3] Critical error initiating async video processing for ${ctx.from?.id}:`,
             { error }
           )
           try {
@@ -401,7 +506,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
             }
           } catch (e) {
             logger.error(
-              '[TextToVideoWizard Step 2] Failed to send critical error message to user',
+              '[TextToVideoWizard Step 3] Failed to send critical error message to user',
               { error: e }
             )
           }

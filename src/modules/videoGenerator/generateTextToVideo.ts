@@ -24,7 +24,8 @@ export async function generateTextToVideo(
   username: string,
   is_ru: boolean,
   bot_name: string,
-  modelId: string
+  modelId: string,
+  selectedResolution?: string // Добавлен параметр для разрешения Seedance
 ): Promise<string | null> {
   logger.info('[generateTextToVideo] Starting local generation with modelId:', {
     telegram_id,
@@ -77,6 +78,18 @@ export async function generateTextToVideo(
       if (modelConfig.api.input.prompt_optimizer) {
         modelInput.prompt_optimizer = true
       }
+    } else if (modelConfig.id === 'seedance-1-pro' && selectedResolution) {
+      // Специальная обработка для Seedance-1-Pro моделей
+      modelInput = {
+        ...(modelConfig.api.input || {}), // ИСПРАВЛЕНИЕ: Включаем базовые параметры API
+        prompt,
+        resolution: selectedResolution, // ИСПРАВЛЕНО: используем 'resolution' вместо 'target_resolution'
+      }
+      logger.info('[generateTextToVideo] Seedance model input prepared:', {
+        telegram_id,
+        resolution: selectedResolution, // ИСПРАВЛЕНО: логируем 'resolution'
+        fullInput: modelInput, // Логируем полный input для отладки
+      })
     } else {
       // Стандартная обработка для других моделей
       modelInput = {
