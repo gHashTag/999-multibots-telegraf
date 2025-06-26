@@ -18,6 +18,8 @@ export type VideoModelConfig = {
   }
   imageKey?: string
   canMorph?: boolean
+  resolutionOptions?: string[]
+  priceByResolution?: Record<string, number>
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
@@ -175,6 +177,29 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       },
     },
     canMorph: false,
+  },
+  'seedance-1-pro': {
+    id: 'seedance-1-pro',
+    title: 'Seedance Pro',
+    inputType: ['text', 'image'],
+    description:
+      'ByteDance Seedance Pro модель для создания видео 5-10 секунд с выбором разрешения',
+    basePrice: 0.03, // базовая цена за 480p, будет пересчитана при выборе разрешения
+    api: {
+      model: 'bytedance/seedance-1-pro',
+      input: {
+        duration: 5, // стандартная длительность 5 секунд
+        fps: 24, // стандартная частота кадров
+        // resolution будет добавлено динамически
+      },
+    },
+    imageKey: 'image', // ИСПРАВЛЕНО: по документации должно быть 'image', а не 'first_frame_image'
+    canMorph: false,
+    resolutionOptions: ['480p', '1080p'], // новое поле для поддержки выбора разрешения
+    priceByResolution: {
+      '480p': 0.03,
+      '1080p': 0.15,
+    },
   },
 }
 
