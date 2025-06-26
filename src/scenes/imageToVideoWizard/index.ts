@@ -160,7 +160,34 @@ handleModelSelection.on('text', async ctx => {
       : '🎬 Select mode for the Kling model:'
     // Send ONLY the inline keyboard for now to ensure it appears
     await ctx.replyWithHTML(text, inlineKeyboard)
-    return ctx.wizard.next() // Go to handleKlingModeSelection (step index 2) - Restore this transition
+    return ctx.wizard.selectStep(3) // Go to handleKlingModeSelection (step index 3)
+  } else if (foundModelKey === 'seedance-1-pro') {
+    // --- Check if Seedance model is selected ---
+    logger.info('[I2V Wizard] Seedance model selected', {
+      telegramId: ctx.from?.id,
+      model: foundModelKey,
+    })
+    ctx.session.videoModel = foundModelKey // Store the selected Seedance model key
+
+    // Ask for resolution: 480p or 1080p
+    const buttons = [
+      Markup.button.callback(
+        isRu ? '📺 480p (23 ⭐)' : '📺 480p (23 ⭐)',
+        'seedance_480p'
+      ),
+      Markup.button.callback(
+        isRu ? '🔥 1080p (117 ⭐)' : '🔥 1080p (117 ⭐)',
+        'seedance_1080p'
+      ),
+    ]
+
+    const inlineKeyboard = Markup.inlineKeyboard(buttons)
+
+    const text = isRu
+      ? '🎬 Выберите разрешение для Seedance Pro:'
+      : '🎬 Select resolution for Seedance Pro:'
+    await ctx.replyWithHTML(text, inlineKeyboard)
+    return ctx.wizard.next() // Go to handleSeedanceResolutionSelection
   } else {
     // --- Logic for NON-Kling models (Standard Flow) ---
     logger.info('[I2V Wizard] Non-Kling model selected', {
@@ -224,8 +251,8 @@ handleModelSelection.on('text', async ctx => {
     await ctx.reply(textRequestImage, {
       reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
     })
-    // Jump to handleStandardImage (step index 4)
-    return ctx.wizard.selectStep(ctx.wizard.cursor + 3) // Adjust step index if needed (should be 4)
+    // Jump to handleStandardImage (step index 5)
+    return ctx.wizard.selectStep(ctx.wizard.cursor + 4) // Adjust step index if needed (should be 5)
   }
 })
 // Fallback for non-text messages in this step
@@ -300,8 +327,8 @@ handleKlingModeSelection.action('kling_standard', async ctx => {
   await ctx.reply(textRequestImage, {
     reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
   })
-  // Jump to handleStandardImage (step index 4)
-  return ctx.wizard.selectStep(4) // Explicitly set step index 4
+  // Jump to handleStandardImage (step index 5)
+  return ctx.wizard.selectStep(5) // Explicitly set step index 5
 })
 
 handleKlingModeSelection.action('kling_morphing', async ctx => {
@@ -355,25 +382,159 @@ handleKlingModeSelection.action('kling_morphing', async ctx => {
 
   // HARDCODED TEXT
   const textRequestImageA = isRu
-    ? '🖼️ Теперь отправьте ПЕРВОЕ изображение для морфинга (Image A)'
-    : '🖼️ Now send the FIRST image for morphing (Image A)'
+    ? '🖼️ Отправьте ПЕРВОЕ изображение для морфинга'
+    : '🖼️ Send the FIRST image for morphing'
   await ctx.reply(textRequestImageA, {
-    reply_markup: createHelpCancelKeyboard(isRu).reply_markup, // Show cancel on first image request
+    reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
   })
-  // Jump to handleMorphImageA (step index 3)
-  return ctx.wizard.selectStep(3) // Explicitly set step index 3
+  // Jump to handleMorphingImageA (step index 4)
+  return ctx.wizard.selectStep(4) // Explicitly set step index 4
 })
-// Fallback for unexpected actions/text in this step
+
+// Error handler for unhandled callback queries
 handleKlingModeSelection.use(async ctx => {
   const isRu = isRussian(ctx)
-  logger.warn('[I2V Wizard] Unexpected input on Kling mode selection step', {
-    input: ctx.message || ctx.callbackQuery,
+  logger.warn(
+    '[I2V Wizard] Unexpected action in handleKlingModeSelection:',
+    ctx.callbackQuery
+  )
+  await ctx.answerCbQuery()
+  await sendGenericErrorMessage(ctx, isRu)
+  return ctx.scene.leave()
+})
+
+// Step 2.5: Handle Seedance Resolution Selection (Callback Query)
+const handleSeedanceResolutionSelection = new Composer<MyContext>()
+handleSeedanceResolutionSelection.action('seedance_480p', async ctx => {
+  const isRu = isRussian(ctx)
+  await ctx.answerCbQuery()
+  await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
+
+  const modelKey = ctx.session.videoModel as VideoModelKey
+  if (!modelKey || modelKey !== 'seedance-1-pro') {
+    logger.error('[I2V Wizard] Invalid/missing Seedance model key in session', {
+      modelKey,
+    })
+    await sendGenericErrorMessage(ctx, isRu)
+    return ctx.scene.leave()
+  }
+
+  // Set resolution and calculate price
+  ctx.session.selectedResolution = '480p'
+  const finalPriceInStars = 23 // 0.03 * 5 seconds * 150 multiplier (approximately)
+
+  const userDetails: UserDetailsResult = await getUserDetailsSubscription(
+    String(ctx.from?.id)
+  )
+  const currentBalance = userDetails?.stars || 0
+
+  if (!(currentBalance >= finalPriceInStars)) {
+    logger.info(
+      `Insufficient balance for ${ctx.from?.id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
+    )
+    const textInsufficient = isRu
+      ? `😕 Недостаточно звезд (${finalPriceInStars} ⭐). Баланс: ${Math.floor(currentBalance)} ⭐.`
+      : `😕 Insufficient stars (${finalPriceInStars} ⭐). Balance: ${Math.floor(currentBalance)} ⭐.`
+    await ctx.reply(textInsufficient)
+
+    // Reshow model selection
+    const keyboardMarkup = videoModelKeyboard(isRu, 'image')
+    const textSelectAnother = isRu
+      ? '🤔 Выберите другую модель:'
+      : '🤔 Choose another model:'
+    await ctx.reply(textSelectAnother, {
+      reply_markup: keyboardMarkup.reply_markup,
+    })
+    return ctx.wizard.selectStep(0)
+  }
+
+  ctx.session.paymentAmount = finalPriceInStars
+  ctx.session.is_morphing = false
+
+  const textResolutionChosen = isRu
+    ? `✅ Выбрано: Seedance Pro 480p (${finalPriceInStars} ⭐).`
+    : `✅ Selected: Seedance Pro 480p (${finalPriceInStars} ⭐).`
+  await ctx.reply(textResolutionChosen)
+
+  const textRequestImage = isRu
+    ? '🖼️ Теперь отправьте изображение для генерации видео'
+    : '🖼️ Now send an image for video generation'
+  await ctx.reply(textRequestImage, {
+    reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
   })
-  // HARDCODED TEXT
-  const text = isRu
-    ? '👇 Пожалуйста, выберите режим (Стандарт/Морфинг), нажав кнопку выше.'
-    : '👇 Please select a mode (Standard/Morphing) using the buttons above.'
-  await ctx.reply(text)
+  return ctx.wizard.selectStep(5) // Jump to handleStandardImage
+})
+
+handleSeedanceResolutionSelection.action('seedance_1080p', async ctx => {
+  const isRu = isRussian(ctx)
+  await ctx.answerCbQuery()
+  await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
+
+  const modelKey = ctx.session.videoModel as VideoModelKey
+  if (!modelKey || modelKey !== 'seedance-1-pro') {
+    logger.error('[I2V Wizard] Invalid/missing Seedance model key in session', {
+      modelKey,
+    })
+    await sendGenericErrorMessage(ctx, isRu)
+    return ctx.scene.leave()
+  }
+
+  // Set resolution and calculate price
+  ctx.session.selectedResolution = '1080p'
+  const finalPriceInStars = 117 // 0.15 * 5 seconds * 150 multiplier (approximately)
+
+  const userDetails: UserDetailsResult = await getUserDetailsSubscription(
+    String(ctx.from?.id)
+  )
+  const currentBalance = userDetails?.stars || 0
+
+  if (!(currentBalance >= finalPriceInStars)) {
+    logger.info(
+      `Insufficient balance for ${ctx.from?.id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
+    )
+    const textInsufficient = isRu
+      ? `😕 Недостаточно звезд (${finalPriceInStars} ⭐). Баланс: ${Math.floor(currentBalance)} ⭐.`
+      : `😕 Insufficient stars (${finalPriceInStars} ⭐). Balance: ${Math.floor(currentBalance)} ⭐.`
+    await ctx.reply(textInsufficient)
+
+    // Reshow model selection
+    const keyboardMarkup = videoModelKeyboard(isRu, 'image')
+    const textSelectAnother = isRu
+      ? '🤔 Выберите другую модель:'
+      : '🤔 Choose another model:'
+    await ctx.reply(textSelectAnother, {
+      reply_markup: keyboardMarkup.reply_markup,
+    })
+    return ctx.wizard.selectStep(0)
+  }
+
+  ctx.session.paymentAmount = finalPriceInStars
+  ctx.session.is_morphing = false
+
+  const textResolutionChosen = isRu
+    ? `✅ Выбрано: Seedance Pro 1080p (${finalPriceInStars} ⭐).`
+    : `✅ Selected: Seedance Pro 1080p (${finalPriceInStars} ⭐).`
+  await ctx.reply(textResolutionChosen)
+
+  const textRequestImage = isRu
+    ? '🖼️ Теперь отправьте изображение для генерации видео'
+    : '🖼️ Now send an image for video generation'
+  await ctx.reply(textRequestImage, {
+    reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+  })
+  return ctx.wizard.selectStep(5) // Jump to handleStandardImage
+})
+
+// Error handler for unhandled callback queries in Seedance resolution selection
+handleSeedanceResolutionSelection.use(async ctx => {
+  const isRu = isRussian(ctx)
+  logger.warn(
+    '[I2V Wizard] Unexpected action in handleSeedanceResolutionSelection:',
+    ctx.callbackQuery
+  )
+  await ctx.answerCbQuery()
+  await sendGenericErrorMessage(ctx, isRu)
+  return ctx.scene.leave()
 })
 
 // Step 3: Handle Morph Image A
@@ -423,7 +584,7 @@ handleMorphImageA.on('photo', async ctx => {
     : '🖼️ Great! Now send the SECOND image for morphing (Image B)'
   // Remove cancel keyboard for the second image to avoid clutter
   await ctx.reply(textRequestImageB, Markup.removeKeyboard()) // Remove keyboard here
-  return ctx.wizard.next() // Go to handleMorphImageB (step index 4) - Check this index!
+  return ctx.wizard.next() // Go to handleMorphImageB (step index 5) - Check this index!
 })
 // Fallback for non-photo messages in this step
 handleMorphImageA.use(async ctx => {
@@ -674,7 +835,8 @@ async function startGenerateImageToVideoInBackground(ctx: MyContext) {
       imageAUrl, // Pass imageAUrl directly
       imageBUrl, // Pass imageBUrl directly
       ctx.telegram, // Pass telegram instance
-      ctx.from.id // Pass chat id (which is the user id for private chat)
+      ctx.from.id, // Pass chat id (which is the user id for private chat)
+      ctx.session.selectedResolution // Pass selected resolution for Seedance
     ).catch(bgError => {
       // Catch errors specifically from the background execution of generateImageToVideo
       logger.error(
@@ -729,12 +891,13 @@ async function startGenerateImageToVideoInBackground(ctx: MyContext) {
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToVideo, // Scene ID
   askModelStep, // Step 0: Ask Model (or jump if morphing)
-  handleModelSelection, // Step 1: Handle standard model selection / Kling choice
-  handleKlingModeSelection, // Step 2: Handle Kling mode (standard/morphing) action
-  handleMorphImageA, // Step 3: Handle Image A for morphing
-  handleMorphImageBOrStandardImage, // Step 4: Handle Image B (morph) OR Standard Image
-  handlePrompt // Step 5: Handle Prompt (now starts background task and leaves)
-  // Step 6 is now handled by the background task initiated in Step 5
+  handleModelSelection, // Step 1: Handle standard model selection / Kling choice / Seedance choice
+  handleSeedanceResolutionSelection, // Step 2: Handle Seedance resolution selection (480p/1080p)
+  handleKlingModeSelection, // Step 3: Handle Kling mode (standard/morphing) action
+  handleMorphImageA, // Step 4: Handle Image A for morphing
+  handleMorphImageBOrStandardImage, // Step 5: Handle Image B (morph) OR Standard Image
+  handlePrompt // Step 6: Handle Prompt (now starts background task and leaves)
+  // Step 7 is now handled by the background task initiated in Step 6
 )
 
 // Add HELP and CANCEL handlers to the scene
