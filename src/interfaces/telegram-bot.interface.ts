@@ -232,6 +232,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   gender?: string
   isAdminTest?: boolean
   isSizeFresh?: boolean
+  selectedResolution?: string // Добавлено для выбора разрешения Seedance (480p/1080p)
 
   // FLUX Kontext fields
   awaitingFluxKontextImage?: boolean
