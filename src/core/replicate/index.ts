@@ -32,6 +32,7 @@ export const modelPricing: Record<string, string> = {
   'stability-ai/stable-diffusion-3.5-large': '$0.065 / image',
   'stability-ai/stable-diffusion-3.5-large-turbo': '$0.040 / image',
   'stability-ai/stable-diffusion-3.5-medium': '$0.035 / image',
+  'bytedance/seedance-1-pro': '$0.03 / second (480p), $0.15 / second (1080p)',
 }
 
 interface ModelConfig {
