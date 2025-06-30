@@ -78,24 +78,36 @@ export async function generateTextToVideo(
       if (modelConfig.api.input.prompt_optimizer) {
         modelInput.prompt_optimizer = true
       }
-    } else if (modelConfig.id === 'seedance-1-pro' && selectedResolution) {
+      logger.info('[generateTextToVideo] Veo 3 model input prepared:', {
+        telegram_id,
+        fullInput: modelInput,
+      })
+    }
+    // ✅ ИСПРАВЛЕНО: Добавлен `else if` для корректной обработки Seedance
+    else if (modelConfig.id === 'seedance-1-pro') {
       // Специальная обработка для Seedance-1-Pro моделей
       modelInput = {
-        ...(modelConfig.api.input || {}), // ИСПРАВЛЕНИЕ: Включаем базовые параметры API
+        ...(modelConfig.api.input || {}), // Включаем базовые параметры API
         prompt,
-        resolution: selectedResolution, // ИСПРАВЛЕНО: используем 'resolution' вместо 'target_resolution'
+        resolution: selectedResolution, // Используем 'resolution'
       }
       logger.info('[generateTextToVideo] Seedance model input prepared:', {
         telegram_id,
-        resolution: selectedResolution, // ИСПРАВЛЕНО: логируем 'resolution'
-        fullInput: modelInput, // Логируем полный input для отладки
+        resolution: selectedResolution,
+        fullInput: modelInput,
       })
     } else {
       // Стандартная обработка для других моделей
       modelInput = {
         ...(modelConfig.api.input || {}),
         prompt,
+        aspect_ratio: userAspectRatio, // Добавляем aspect_ratio и для других моделей
       }
+      logger.info('[generateTextToVideo] Standard model input prepared:', {
+        telegram_id,
+        modelId: modelConfig.id,
+        fullInput: modelInput,
+      })
     }
 
     logger.info('[generateTextToVideo] Calling replicate.run with input:', {
@@ -142,10 +154,12 @@ export async function generateTextToVideo(
       videoUrl,
     })
 
+    // Возвращаем URL, чтобы он мог быть обработан вызывающей функцией
     return videoUrl
   } catch (error: any) {
     logger.error('[generateTextToVideo] Error during local generation:', {
       telegram_id,
+      modelId: modelConfig.id, // Добавлено для ясности
       error: error.message,
       stack: error.stack,
       axiosError: isAxiosError(error) ? error.toJSON() : undefined,
@@ -207,6 +221,7 @@ export async function generateTextToVideo(
       })
     }
 
+    // В любом случае возвращаем null, чтобы вызывающая функция знала об ошибке
     return null
   }
 }
