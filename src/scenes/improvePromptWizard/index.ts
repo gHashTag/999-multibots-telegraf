@@ -226,7 +226,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                   ctx.from.username || 'unknown',
                   isRu,
                   ctx.botInfo?.username || 'unknown_bot',
-                  ctx.session.videoModel
+                  ctx.session.videoModel,
+                  ctx.session.selectedResolution // Добавляем недостающий параметр
                 )
 
                 break
