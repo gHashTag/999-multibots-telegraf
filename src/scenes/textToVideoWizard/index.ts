@@ -197,38 +197,21 @@ async function processVideoGeneration(
   }
 }
 
+// Определяем наш Wizard
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   'text_to_video',
-  // Шаг 0: Запрос выбора модели
+
+  // Шаг 0: Вход и выбор модели
   async ctx => {
     logger.info(`[TextToVideoWizard Step 0] Entered for user ${ctx.from?.id}`)
     const isRu = isRussian(ctx)
-
-    // Сначала проверяем, не отменил ли пользователь или не запросил ли помощь
-    if (await handleHelpCancel(ctx)) {
-      return ctx.scene.leave() // handleHelpCancel сам обработает выход или переход в helpScene
-    }
-
-    try {
-      await ctx.reply(
-        isRu ? 'Выберите модель для генерации:' : 'Choose generation model:',
-        {
-          reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
-        }
-      )
-      return ctx.wizard.next()
-    } catch (error: unknown) {
-      logger.error('[TextToVideoWizard Step 0] Error:', { error })
-      await sendGenericErrorMessage(
-        ctx,
-        isRu,
-        error instanceof Error ? error : undefined
-      )
-      return ctx.scene.leave()
-    }
+    await ctx.reply(isRu ? 'Выберите модель:' : 'Select a model:', {
+      reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
+    })
+    return ctx.wizard.next()
   },
 
-  // Шаг 1: Обработка выбора модели, проверка баланса, запрос промпта
+  // Шаг 1: Обработка выбора модели, проверка баланса и запрос промпта
   async ctx => {
     logger.info(`[TextToVideoWizard Step 1] Entered for user ${ctx.from?.id}`)
     const isRu = isRussian(ctx)
@@ -237,22 +220,21 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    const message = ctx.message as { text?: string }
-    const selectedButtonText = message?.text?.trim()
-
-    if (!selectedButtonText) {
+    const message = ctx.message
+    if (!message || !('text' in message)) {
       await ctx.reply(
         isRu
-          ? 'Пожалуйста, выберите модель кнопкой.'
-          : 'Please select a model using the buttons.'
+          ? 'Пожалуйста, выберите модель, нажав на одну из кнопок.'
+          : 'Please select a model by clicking one of the buttons.'
       )
-      // Остаемся на этом же шаге, чтобы пользователь выбрал снова
       return ctx.wizard.selectStep(ctx.wizard.cursor)
     }
 
+    const selectedButtonText = message.text
     let foundModelKey: VideoModelConfigKey | null = null
+
     for (const [key, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
-      const finalPriceInStars = calculateFinalPrice(key)
+      const finalPriceInStars = calculateFinalPrice(key as VideoModelConfigKey)
       const expectedButtonText = `${config.title} (${finalPriceInStars} ⭐)`
       if (expectedButtonText === selectedButtonText) {
         foundModelKey = key as VideoModelConfigKey
@@ -262,278 +244,137 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     if (!foundModelKey) {
       logger.warn(
-        '[TextToVideoWizard Step 1] Could not map button text to model key:',
+        '[TextToVideoWizard Step 1] Could not map button text to model key',
         { selectedButtonText, telegramId: ctx.from?.id }
       )
       await ctx.reply(
         isRu
           ? 'Пожалуйста, выберите модель из предложенных кнопок.'
-          : 'Please select a model using the provided buttons.',
-        {
-          reply_markup: videoModelKeyboard(isRu, 'text').reply_markup, // Показываем клавиатуру снова
-        }
+          : 'Please select a model using the provided buttons.'
       )
       return ctx.wizard.selectStep(ctx.wizard.cursor)
     }
 
-    if (!ctx.from?.id || !ctx.botInfo?.username) {
+    const cost = calculateFinalPrice(foundModelKey)
+    if (cost === null || cost === 0) {
       logger.error(
-        '[TextToVideoWizard Step 1] Critical user or bot info missing',
-        { from: ctx.from, botInfo: ctx.botInfo }
+        '[TextToVideoWizard Step 1] Could not calculate price for model',
+        { foundModelKey, telegramId: ctx.from?.id }
       )
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
 
-    const telegram_id = ctx.from.id.toString()
-    const bot_name = ctx.botInfo.username
-    const cost = calculateFinalPrice(foundModelKey)
-
-    if (cost === null) {
-      logger.error(
-        '[TextToVideoWizard Step 1] Could not calculate price for model key:',
-        { foundModelKey, telegramId: ctx.from?.id }
-      )
+    if (!ctx.from?.id || !ctx.botInfo?.username) {
       await sendGenericErrorMessage(ctx, isRu)
-      await ctx.reply(isRu ? 'Выберите модель:' : 'Select a model:', {
-        reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
-      })
-      return ctx.wizard.selectStep(ctx.wizard.cursor)
+      return ctx.scene.leave()
     }
 
-    const currentBalance = await getUserBalance(telegram_id, bot_name)
-    if (currentBalance < cost) {
-      logger.info(
-        `[TextToVideoWizard Step 1] Insufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs: ${cost}`
-      )
-      await ctx.reply(
-        isRu
-          ? `😕 Недостаточно звезд для генерации (${cost}). Ваш баланс: ${currentBalance} ★. Пожалуйста, выберите другую модель или пополните баланс.`
-          : `😕 Insufficient stars for generation (${cost}). Your balance: ${currentBalance} ★. Please select another model or top up your balance.`,
-        {
-          reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
-        }
-      )
-      return ctx.wizard.selectStep(ctx.wizard.cursor)
-    }
-
-    logger.info(
-      `[TextToVideoWizard Step 1] Sufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs: ${cost}. Proceeding.`
+    const userBalance = await getUserBalance(
+      ctx.from.id.toString(),
+      ctx.botInfo.username
     )
 
-    // Проверяем, выбрана ли модель Seedance
-    if (foundModelKey === 'seedance-1-pro') {
-      logger.info('[T2V Wizard] Seedance model selected', {
-        telegramId: ctx.from?.id,
-        model: foundModelKey,
-      })
-      ctx.session.videoModel = foundModelKey
-
-      // Ask for resolution: 480p or 1080p
-      const buttons = [
-        Markup.button.callback(
-          isRu ? '📺 480p (23 ⭐)' : '📺 480p (23 ⭐)',
-          'seedance_t2v_480p'
-        ),
-        Markup.button.callback(
-          isRu ? '🔥 1080p (117 ⭐)' : '🔥 1080p (117 ⭐)',
-          'seedance_t2v_1080p'
-        ),
-      ]
-
-      const inlineKeyboard = Markup.inlineKeyboard(buttons)
-      const text = isRu
-        ? '🎬 Выберите разрешение для Seedance Pro:'
-        : '🎬 Select resolution for Seedance Pro:'
-      await ctx.reply(text, inlineKeyboard)
-      return ctx.wizard.next() // Go to seedance resolution selection step
-    } else {
-      // Standard flow for other models
-      ctx.session.videoModel = foundModelKey
+    if (userBalance < cost) {
       await ctx.reply(
         isRu
-          ? 'Пожалуйста, отправьте текстовое описание для видео:'
-          : 'Please send a text description for the video:',
-        Markup.removeKeyboard() // Убираем клавиатуру выбора модели
+          ? `😕 Недостаточно звезд (${cost} ⭐). Ваш баланс: ${Math.floor(
+              userBalance
+            )} ⭐.`
+          : `😕 Insufficient stars (${cost} ⭐). Your balance: ${Math.floor(
+              userBalance
+            )} ⭐.`
       )
-      return ctx.wizard.selectStep(2) // Skip resolution selection, go directly to prompt step
-    }
-  },
-
-  // Шаг 2: Обработка выбора разрешения для Seedance (callback query)
-  async ctx => {
-    const isRu = isRussian(ctx)
-
-    // Проверяем callback query для выбора разрешения
-    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      const callbackData = ctx.callbackQuery.data
-
-      if (
-        callbackData === 'seedance_t2v_480p' ||
-        callbackData === 'seedance_t2v_1080p'
-      ) {
-        await ctx.answerCbQuery()
-        await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
-
-        const resolution =
-          callbackData === 'seedance_t2v_480p' ? '480p' : '1080p'
-        const finalPriceInStars = resolution === '480p' ? 23 : 117
-
-        // Double-check balance with the new price
-        if (!ctx.from?.id || !ctx.botInfo?.username) {
-          await sendGenericErrorMessage(ctx, isRu)
-          return ctx.scene.leave()
-        }
-
-        const telegram_id = ctx.from.id.toString()
-        const bot_name = ctx.botInfo.username
-        const currentBalance = await getUserBalance(telegram_id, bot_name)
-
-        if (currentBalance < finalPriceInStars) {
-          const textInsufficient = isRu
-            ? `😕 Недостаточно звезд (${finalPriceInStars} ⭐). Баланс: ${Math.floor(currentBalance)} ⭐.`
-            : `😕 Insufficient stars (${finalPriceInStars} ⭐). Balance: ${Math.floor(currentBalance)} ⭐.`
-          await ctx.reply(textInsufficient)
-
-          // Reshow model selection
-          const keyboardMarkup = videoModelKeyboard(isRu, 'text')
-          const textSelectAnother = isRu
-            ? '🤔 Выберите другую модель:'
-            : '🤔 Choose another model:'
-          await ctx.reply(textSelectAnother, {
-            reply_markup: keyboardMarkup.reply_markup,
-          })
-          return ctx.wizard.selectStep(0)
-        }
-
-        // Store the selected resolution
-        ctx.session.selectedResolution = resolution
-
-        const textResolutionChosen = isRu
-          ? `✅ Выбрано: Seedance Pro ${resolution} (${finalPriceInStars} ⭐).`
-          : `✅ Selected: Seedance Pro ${resolution} (${finalPriceInStars} ⭐).`
-        await ctx.reply(textResolutionChosen)
-
-        await ctx.reply(
-          isRu
-            ? 'Пожалуйста, отправьте текстовое описание для видео:'
-            : 'Please send a text description for the video:',
-          Markup.removeKeyboard()
-        )
-        return ctx.wizard.next() // Go to prompt step
-      }
+      return ctx.scene.leave()
     }
 
-    // If we reach here, it's probably not a callback query or wrong data
-    // Handle regular text messages (not expected in this step)
+    ctx.session.videoModel = foundModelKey
+    logger.info(
+      `[TextToVideoWizard Step 1] Model ${foundModelKey} selected and balance checked for ${ctx.from.id}.`
+    )
+
     await ctx.reply(
       isRu
-        ? '👆 Пожалуйста, выберите разрешение, нажав кнопку выше.'
-        : '👆 Please select resolution by pressing a button above.'
+        ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
+        : 'Great! Now enter your prompt (a description of what you want to see in the video):',
+      Markup.removeKeyboard()
     )
-    return // Stay on this step
+    return ctx.wizard.next()
   },
 
-  // Шаг 3: Обработка промпта и запуск генерации
+  // Шаг 2: Получение промпта и запуск генерации
   async ctx => {
-    logger.info(`[TextToVideoWizard Step 3] Entered for user ${ctx.from?.id}`)
+    logger.info(`[TextToVideoWizard Step 2] Entered for user ${ctx.from?.id}`)
     const isRu = isRussian(ctx)
 
-    // Проверяем, не является ли сам текст промпта командой отмены или помощи
     if (await handleHelpCancel(ctx)) {
       return ctx.scene.leave()
     }
 
-    const message = ctx.message
-    if (message && 'text' in message) {
-      const prompt = message.text.trim()
-
-      if (!prompt) {
-        await ctx.reply(
-          isRu
-            ? 'Промпт не может быть пустым. Пожалуйста, введите описание.'
-            : 'Prompt cannot be empty. Please enter a description.'
-        )
-        return ctx.wizard.selectStep(ctx.wizard.cursor) // Остаемся на этом шаге для повторного ввода
-      }
-
-      const videoModelKey = ctx.session.videoModel as
-        | VideoModelConfigKey
-        | undefined
-      if (!videoModelKey) {
-        logger.error(
-          '[TextToVideoWizard Step 3] Video model key not found in session',
-          { telegramId: ctx.from?.id }
-        )
-        await sendGenericErrorMessage(ctx, isRu)
-        return ctx.scene.leave()
-      }
-
-      if (!ctx.from?.id || !ctx.botInfo?.username) {
-        logger.error(
-          '[TextToVideoWizard Step 3] Critical user or bot info missing for generation',
-          { from: ctx.from, botInfo: ctx.botInfo }
-        )
-        await sendGenericErrorMessage(ctx, isRu)
-        return ctx.scene.leave()
-      }
-
-      const textStart = isRu
-        ? '⏳ Запрос принят! Начинаю генерацию видео... Это может занять некоторое время. О результате сообщу отдельно.'
-        : '⏳ Request accepted! Starting video generation... This might take a while. I will notify you separately about the result.'
-
-      await ctx.reply(textStart, Markup.removeKeyboard())
-
-      processVideoGeneration(ctx, prompt, videoModelKey, isRu)
-        .then(() => {
-          logger.info(
-            `[TextToVideoWizard Step 3] Async video processing initiated for ${ctx.from?.id}`
-          )
-        })
-        .catch(async error => {
-          logger.error(
-            `[TextToVideoWizard Step 3] Critical error initiating async video processing for ${ctx.from?.id}:`,
-            { error }
-          )
-          try {
-            if (ctx.chat?.id) {
-              await ctx.telegram.sendMessage(
-                ctx.chat.id,
-                isRu
-                  ? 'Не удалось запустить генерацию видео. Пожалуйста, попробуйте позже.'
-                  : 'Failed to start video generation. Please try again later.'
-              )
-            }
-          } catch (e) {
-            logger.error(
-              '[TextToVideoWizard Step 3] Failed to send critical error message to user',
-              { error: e }
-            )
-          }
-        })
-
-      ctx.session.prompt = prompt // Сохраняем промпт на всякий случай, если понадобится
-
-      // Важно: НЕ выходим из сцены здесь (return ctx.scene.leave()),
-      // так как processVideoGeneration отправит финальные кнопки,
-      // которые должны обрабатываться глобальными hears-обработчиками.
-      // Ожидание ввода пользователя здесь также не требуется.
-      // Сцена завершится неявно, когда Telegram получит ответ от reply (textStart).
-      // Если пользователь что-то напишет ДО того, как придет видео с кнопками,
-      // это сообщение обработается как новый апдейт (возможно, handleTextMessage).
-
-      // =====> НОВОЕ ИСПРАВЛЕНИЕ: ЯВНЫЙ ВЫХОД ИЗ СЦЕНЫ <=====
-      return ctx.scene.leave() // Выходим из сцены, чтобы глобальные hears могли обработать кнопки
-      // =======================================================
-    } else {
-      // Если пришло не текстовое сообщение (например, стикер, фото и т.д.)
+    if (!('text' in ctx.message)) {
       await ctx.reply(
         isRu
-          ? 'Пожалуйста, отправьте текстовое описание.'
-          : 'Please send a text description.'
+          ? 'Пожалуйста, отправьте текстовое описание для видео.'
+          : 'Please send a text description for the video.'
       )
-      return ctx.wizard.selectStep(ctx.wizard.cursor) // Остаемся на этом шаге для повторного ввода
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
     }
+
+    // Очищаем промпт от возможного "мусора" (текста кнопок, инструкций)
+    const videoModelKey = ctx.session.videoModel as VideoModelConfigKey
+    const modelConfig = VIDEO_MODELS_CONFIG[videoModelKey]
+    const finalPriceInStars = calculateFinalPrice(videoModelKey)
+    const buttonText = `${modelConfig.title} (${finalPriceInStars} ⭐)`
+    const requestTextRu =
+      'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
+    const requestTextEn =
+      'Great! Now enter your prompt (a description of what you want to see in the video):'
+    const fallbackRequestRu =
+      'Пожалуйста, отправьте текстовое описание для видео.'
+    const fallbackRequestEn = 'Please send a text description for the video.'
+
+    const cleanPrompt = ctx.message.text
+      .replace(buttonText, '')
+      .replace(requestTextRu, '')
+      .replace(requestTextEn, '')
+      .replace(fallbackRequestRu, '')
+      .replace(fallbackRequestEn, '')
+      .trim()
+
+    logger.info('[TextToVideoWizard Step 2] Cleaned prompt:', {
+      original: ctx.message.text,
+      cleaned: cleanPrompt,
+      telegramId: ctx.from?.id,
+    })
+
+    const prompt = cleanPrompt
+    if (!prompt) {
+      await ctx.reply(
+        isRu
+          ? 'Вы отправили пустой промпт. Пожалуйста, введите описание для видео.'
+          : 'You sent an empty prompt. Please enter a description for the video.'
+      )
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    }
+
+    ctx.session.prompt = prompt
+
+    // ЗАПУСК ГЕНЕРАЦИИ В ФОНЕ
+    // Мы уже получили videoModelKey ранее для очистки промпта
+    logger.info(
+      `[TextToVideoWizard Step 2] Starting background generation for user ${ctx.from?.id}`
+    )
+    // `videoModelKey` уже определена выше
+    processVideoGeneration(ctx, prompt, videoModelKey, isRu)
+
+    // Немедленно отвечаем пользователю и выходим из сцены
+    await ctx.reply(
+      isRu
+        ? '⏳ Запрос принят! Начинаю генерацию видео... Это может занять некоторое время. О результате сообщу отдельно.'
+        : '⏳ Request accepted! Starting video generation... This might take a while. I will notify you separately about the result.'
+    )
+
+    return ctx.scene.leave()
   }
 )
 
