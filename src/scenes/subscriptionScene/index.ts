@@ -57,6 +57,20 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       ctx,
       bot_name: ctx.botInfo?.username,
     })
+
+    // ✅ ИСПРАВЛЕНИЕ: Добавляем подробное логирование результатов getTranslation
+    logger.info(`[${ModeEnum.SubscriptionScene}] getTranslation results:`, {
+      telegram_id: ctx.from?.id,
+      bot_name: ctx.botInfo?.username,
+      translation_found: !!translation && translation.trim() !== '',
+      translation_length: translation?.length || 0,
+      buttons_count: buttons?.length || 0,
+      buttons_preview:
+        buttons
+          ?.slice(0, 2)
+          .map(b => ({ text: b.text, callback_data: b.callback_data })) || [],
+    })
+
     console.log('buttons fetched from DB or static!!!', buttons)
 
     // Получаем ID админов
@@ -181,11 +195,40 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
         `[${ModeEnum.SubscriptionScene}] No valid buttons generated.`,
         { telegram_id: ctx.from?.id }
       )
+
+      // ✅ ИСПРАВЛЕНИЕ: Отправляем сообщение пользователю, даже если нет кнопок
+      const fallbackMessage = isRu
+        ? `❌ К сожалению, в данный момент планы подписки недоступны. Попробуйте позже или обратитесь в поддержку.`
+        : `❌ Unfortunately, subscription plans are currently unavailable. Please try again later or contact support.`
+
+      await ctx.reply(fallbackMessage)
+
+      // Возвращаемся в главное меню
+      return ctx.scene.enter(ModeEnum.MainMenu)
     } else {
       const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
 
+      // ✅ ИСПРАВЛЕНИЕ: Добавляем fallback текст, если перевод не найден
+      let messageText = translation
+
+      // Если перевод пустой или отсутствует, используем fallback
+      if (!messageText || messageText.trim() === '') {
+        messageText = isRu
+          ? `💫 **Выберите подписку**
+
+Получите доступ ко всем функциям нейро-бота! Выберите подходящий тарифный план:`
+          : `💫 **Choose Subscription**
+
+Get access to all neuro-bot features! Choose a suitable tariff plan:`
+
+        logger.warn(
+          `[${ModeEnum.SubscriptionScene}] Translation not found for key 'subscriptionScene'. Using fallback text.`,
+          { telegram_id: ctx.from?.id, bot_name: ctx.botInfo?.username }
+        )
+      }
+
       // Сначала экранируем весь текст для MarkdownV2
-      let textForTelegram = escapeMarkdownV2(translation)
+      let textForTelegram = escapeMarkdownV2(messageText)
       // Затем заменяем экранированные двойные звездочки на одинарные для MarkdownV2 bold
       // Это превратит \*\*текст\*\* в *текст*
       textForTelegram = textForTelegram.replace(
@@ -193,10 +236,44 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
         '*$1*'
       )
 
-      await ctx.reply(textForTelegram, {
-        reply_markup: inlineKeyboard.reply_markup,
-        parse_mode: 'MarkdownV2',
-      })
+      // ✅ ИСПРАВЛЕНИЕ: Добавляем try-catch для безопасной отправки сообщения
+      try {
+        await ctx.reply(textForTelegram, {
+          reply_markup: inlineKeyboard.reply_markup,
+          parse_mode: 'MarkdownV2',
+        })
+      } catch (error) {
+        logger.error(`❌ Error sending subscription message:`, {
+          error: error instanceof Error ? error.message : String(error),
+          telegram_id: ctx.from?.id,
+          textLength: textForTelegram.length,
+          messagePreview: textForTelegram.substring(0, 100),
+        })
+
+        // Fallback: отправляем простое сообщение без markdown
+        try {
+          await ctx.reply(messageText, {
+            reply_markup: inlineKeyboard.reply_markup,
+          })
+        } catch (fallbackError) {
+          logger.error(`❌ Error sending fallback subscription message:`, {
+            error:
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : String(fallbackError),
+            telegram_id: ctx.from?.id,
+          })
+
+          // Последний fallback: простое текстовое сообщение
+          const simpleMessage = isRu
+            ? 'Выберите план подписки из кнопок ниже.'
+            : 'Choose a subscription plan from the buttons below.'
+
+          await ctx.reply(simpleMessage, {
+            reply_markup: inlineKeyboard.reply_markup,
+          })
+        }
+      }
     }
 
     return ctx.wizard.next()
