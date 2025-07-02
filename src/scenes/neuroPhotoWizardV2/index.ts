@@ -19,8 +19,12 @@ import { WizardScene } from 'telegraf/scenes'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
+// ✅ ЗАМЕНЯЕМ НА НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
+
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
-  const isRu = ctx.from?.language_code === 'ru'
+  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+  const isRu = isRussianFromState(ctx)
   try {
     console.log('CASE 1: neuroPhotoConversationV2')
 
@@ -71,7 +75,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
 const neuroPhotoPromptStep = async (ctx: MyContext) => {
   console.log('CASE 2: neuroPhotoPromptStep')
-  const isRu = ctx.from?.language_code === 'ru'
+  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+  const isRu = isRussianFromState(ctx)
   const promptMsg = ctx.message
   console.log(promptMsg, 'promptMsg')
 
@@ -133,7 +138,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text
     console.log(`CASE: Нажата кнопка ${text}`)
-    const isRu = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
 
     // НОВАЯ ОБРАБОТКА: кнопка "🆕 Новый промпт"
     if (text === '🆕 Новый промпт' || text === '🆕 New prompt') {

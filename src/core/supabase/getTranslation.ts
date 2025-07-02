@@ -2,7 +2,7 @@ import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
 import { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
 import logger from '@/utils/logger'
-import { isRussian } from '@/helpers/language'
+import { getUserLanguageFromState } from '@/helpers/centralizedLanguage'
 import { TranslationButton } from '@/interfaces/supabase.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
@@ -79,7 +79,22 @@ export async function getTranslation({
       buttons: [],
     }
   }
-  const { language_code } = ctx.from
+
+  // ✅ ИСПРАВЛЯЕМ: используем новую централизованную систему (STATE ONLY!)
+  const userLanguage = getUserLanguageFromState(ctx)
+  const language_code = userLanguage // 'ru' | 'en'
+
+  // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В getTranslation
+  const telegramId = ctx.from?.id?.toString()
+  logger.info(`[getTranslation] 🌍 LANGUAGE CHECK:`, {
+    telegramId,
+    key,
+    userLanguage,
+    language_code,
+    telegramLanguage: ctx.from?.language_code,
+    source: 'getUserLanguage_DB_ONLY',
+  })
+
   const token = ctx.telegram.token
 
   const botName = bot_name ? bot_name : getBotNameByToken(token).bot_name
@@ -171,23 +186,52 @@ export async function getTranslation({
       logger.warn(`Поле buttons отсутствует или пусто для ключа "${key}"`)
     }
 
-    // Добавляем дефолтные кнопки для ключа digitalAvatar, если buttons отсутствуют
+    // ✅ ИСПРАВЛЯЕМ: Добавляем дефолтные кнопки для ключа digitalAvatar, если buttons отсутствуют
     if (key === 'digitalAvatar' && buttons.length === 0) {
       buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
-      logger.info(`Использованы дефолтные кнопки для ключа "${key}"`)
+      logger.info(
+        `[getTranslation] Использованы дефолтные кнопки для ключа "${key}", язык: ${language_code}`,
+        {
+          telegramId,
+          key,
+          language_code,
+          buttonsCount: buttons.length,
+        }
+      )
     }
 
     // ✅ ИСПРАВЛЕНИЕ: Добавляем дефолтные кнопки для ключа subscriptionScene
     if (key === 'subscriptionScene' && buttons.length === 0) {
       buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
-      logger.info(`Использованы дефолтные кнопки для ключа "${key}"`)
+      logger.info(
+        `[getTranslation] Использованы дефолтные кнопки для ключа "${key}", язык: ${language_code}`,
+        {
+          telegramId,
+          key,
+          language_code,
+          buttonsCount: buttons.length,
+        }
+      )
     }
 
-    return {
+    // ✅ ФИНАЛЬНОЕ ЛОГИРОВАНИЕ РЕЗУЛЬТАТА
+    const result = {
       translation: data?.translation || '',
       url: data?.url || '',
       buttons: buttons, // Возвращаем распарсенные кнопки или пустой массив
     }
+
+    logger.info(`[getTranslation] 🏁 RESULT:`, {
+      telegramId,
+      key,
+      language_code,
+      translationFound: !!data?.translation,
+      translationLength: result.translation.length,
+      buttonsCount: result.buttons.length,
+      urlExists: !!result.url,
+    })
+
+    return result
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : String(e)
     logger.error({
@@ -196,7 +240,19 @@ export async function getTranslation({
       bot_name: botName,
       language_code,
       key,
+      telegramId,
     })
+
+    // ✅ ЛОГИРОВАНИЕ FALLBACK РЕЗУЛЬТАТА
+    logger.info(`[getTranslation] 🚨 FALLBACK RESULT (ERROR):`, {
+      telegramId,
+      key,
+      language_code,
+      translation: '',
+      buttons: [],
+      error: errorMessage,
+    })
+
     return {
       translation: '',
       url: '',
