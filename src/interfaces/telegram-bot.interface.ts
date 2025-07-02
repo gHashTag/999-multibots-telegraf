@@ -280,6 +280,10 @@ export interface MyContext extends Context {
   reply: (text: string, extra?: any) => Promise<any>
   chat: any
   from: any
+  state: {
+    userLanguage?: 'ru' | 'en'
+    [key: string]: any
+  }
 }
 
 export type MyWizardContext = MyContext & Scenes.WizardContext<MyWizardSession>

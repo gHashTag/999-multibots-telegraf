@@ -15,6 +15,8 @@ import { starCost, SYSTEM_CONFIG } from '@/price/constants'
 import { logger } from '@/utils/logger'
 import { getUserDetailsSubscription } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
+// ✅ ДОБАВЛЯЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 // Интерфейс для возвращаемого значения
 export interface UserStatus {
   stars: number // Баланс
@@ -319,7 +321,8 @@ checkBalanceScene.enter(async ctx => {
   // Шаг 1: Получаем ID и режим
   const { telegramId: userId } = getUserInfo(ctx)
   const mode = ctx.session.mode as ModeEnum
-  const isRu = ctx.from?.language_code === 'ru'
+  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+  const isRu = isRussianFromState(ctx)
 
   logger.info({
     message: `[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`,
@@ -555,7 +558,8 @@ export const enterTargetScene = async (
         cost,
         function: 'enterTargetSceneWrapper',
       })
-      const isRu = ctx.from?.language_code === 'ru'
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRu = isRussianFromState(ctx)
       await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
       return
     }

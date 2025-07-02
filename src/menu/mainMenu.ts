@@ -4,7 +4,8 @@ import { checkFullAccess } from '../handlers/checkFullAccess'
 import { MyContext } from '../interfaces/telegram-bot.interface'
 import { SubscriptionType } from '../interfaces/subscription.interface'
 import { ADMIN_IDS_ARRAY } from '@/config'
-import { isRussianWithUserChoiceSync } from '@/helpers/language'
+import { getUserLanguage, isRussianWithUserChoice } from '@/helpers/language'
+import { logger } from '@/utils/logger'
 
 interface Level {
   title_ru: string
@@ -137,11 +138,34 @@ export async function mainMenu({
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   console.log('💻 CASE: mainMenu - Entering function')
 
+  // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В MAINMENU
+  const telegramId = ctx.from?.id?.toString()
+  logger.info(`[mainMenu] 🎹 MENU CREATION STARTED:`, {
+    telegramId,
+    inputIsRu: isRu,
+    subscription,
+    sessionLanguage: ctx.session?.userLanguage,
+    telegramLanguage: ctx.from?.language_code,
+  })
+
   const currentSubscription =
     subscription === null ? SubscriptionType.STARS : subscription
   console.log(
     `[mainMenu LOG] Input subscription: ${subscription}, Effective subscription: ${currentSubscription}`
   )
+
+  // ✅ ПРОВЕРЯЕМ АСИНХРОННУЮ ФУНКЦИЮ ЯЗЫКА (БД ONLY!)
+  const dbLanguage = await getUserLanguage(ctx)
+  const isRussianFromDB = await isRussianWithUserChoice(ctx)
+
+  logger.info(`[mainMenu] Language consistency check:`, {
+    telegramId,
+    inputIsRu: isRu,
+    dbLanguage,
+    isRussianFromDB,
+    areConsistent: isRu === isRussianFromDB,
+    sessionExists: !!ctx.session,
+  })
 
   let hasFullAccess = checkFullAccess(currentSubscription)
   console.log(`[mainMenu LOG] hasFullAccess: ${hasFullAccess}`)
@@ -168,7 +192,8 @@ export async function mainMenu({
     lvl !== levels[102] &&
     lvl !== levels[103] &&
     lvl !== levels[104] &&
-    lvl !== levels[105]
+    lvl !== levels[105] &&
+    lvl !== levels[106] // ✅ ИСКЛЮЧАЕМ кнопку языка из основных кнопок
 
   if (
     currentSubscription === SubscriptionType.NEUROVIDEO ||
