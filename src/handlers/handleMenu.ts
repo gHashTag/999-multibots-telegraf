@@ -10,7 +10,7 @@ import { handleTechSupport } from '@/commands/handleTechSupport'
 import { handleRestartVideoGeneration } from './handleVideoRestart'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
-// ✅ Добавляем импорт новых функций языка
+// ✅ Обновляем импорты для новых функций языка
 import {
   isRussianWithUserChoice,
   toggleUserLanguage,
@@ -32,11 +32,11 @@ export const handleMenu = async (ctx: MyContext) => {
   })
 
   console.log('CASE: handleMenuCommand')
-  // ✅ Используем функцию с учетом пользовательского выбора языка
-  const isRu = isRussianWithUserChoice(ctx)
+  // ✅ Используем новую асинхронную функцию с учетом БД
+  const isRu = await isRussianWithUserChoice(ctx)
 
   // Логируем текущий язык
-  const currentLanguage = getUserLanguage(ctx)
+  const currentLanguage = await getUserLanguage(ctx)
   logger.info('[handleMenu] Current user language:', {
     telegramId,
     currentLanguage,
@@ -636,12 +636,12 @@ export const handleMenu = async (ctx: MyContext) => {
           telegramId,
           function: 'handleMenu',
           action: 'language_toggle',
-          currentLanguage: getUserLanguage(ctx),
+          currentLanguage: await getUserLanguage(ctx),
         })
         console.log('CASE: 🌐 Переключение языка')
 
-        // Переключаем язык
-        const newLanguage = toggleUserLanguage(ctx)
+        // Переключаем язык (асинхронная операция с сохранением в БД)
+        const newLanguage = await toggleUserLanguage(ctx)
 
         // Уведомляем пользователя о смене языка
         const message =
