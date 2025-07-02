@@ -3,6 +3,7 @@ import { MyContext } from '@/interfaces'
 import { updateUserLanguage } from '@/core/supabase/updateUserLanguage'
 import { getUserLanguageFromDB } from '@/core/supabase/getUserLanguage'
 import { logger } from '@/utils/logger'
+import { defaultSession } from '@/store'
 
 // Оригинальная функция - используется как fallback
 export const isRussian = (ctx: Context) => ctx.from?.language_code === 'ru'
@@ -10,65 +11,77 @@ export const isRussian = (ctx: Context) => ctx.from?.language_code === 'ru'
 // ✅ НОВАЯ СИСТЕМА ЯЗЫКОВ: БД → Сессия → Telegram
 
 /**
- * Получает язык пользователя с учетом приоритета: БД → сессия → Telegram
+ * ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ИСТИНЫ - БАЗА ДАННЫХ
+ * Получает язык пользователя ТОЛЬКО из БД (без кэша!)
  * @param ctx - Контекст Telegram
  * @returns Promise<'ru' | 'en'> - язык пользователя
  */
 export const getUserLanguage = async (ctx: MyContext): Promise<'ru' | 'en'> => {
   const telegramId = ctx.from?.id?.toString()
+  const telegramLanguage = ctx.from?.language_code
+
+  // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
+  logger.info(`[getUserLanguage] 🌍 LANGUAGE CHECK (DB ONLY):`, {
+    telegramId,
+    telegramLanguage,
+    sessionExists: !!ctx.session,
+  })
 
   if (!telegramId) {
-    logger.warn('[getUserLanguage] No telegram ID found, using fallback')
-    return ctx.from?.language_code === 'ru' ? 'ru' : 'en'
+    logger.warn(
+      '[getUserLanguage] No telegram ID found, using Telegram fallback'
+    )
+    const fallback = ctx.from?.language_code === 'ru' ? 'ru' : 'en'
+    logger.info(`[getUserLanguage] NO_ID fallback result: ${fallback}`)
+    return fallback
   }
 
   try {
-    // 1. ПРИОРИТЕТ: Проверяем БД
+    // ✅ ВСЕГДА ЗАПРАШИВАЕМ ИЗ БД (БЕЗ КЭША!)
+    logger.info(
+      `[getUserLanguage] 🔍 Checking DATABASE for telegram_id: ${telegramId}`
+    )
     const dbLanguage = await getUserLanguageFromDB(telegramId)
+
     if (dbLanguage) {
-      logger.info(`[getUserLanguage] Using language from DB: ${dbLanguage}`, {
+      logger.info(`[getUserLanguage] ✅ DATABASE FOUND: ${dbLanguage}`, {
         telegramId,
         source: 'database',
+        dbLanguage,
       })
-
-      // Синхронизируем с сессией для быстрого доступа
-      if (!ctx.session) ctx.session = {}
-      ctx.session.userLanguage = dbLanguage
-
       return dbLanguage
     }
 
-    // 2. РЕЗЕРВ: Проверяем сессию
-    if (ctx.session?.userLanguage) {
-      logger.info(
-        `[getUserLanguage] Using language from session: ${ctx.session.userLanguage}`,
-        {
-          telegramId,
-          source: 'session',
-        }
-      )
-      return ctx.session.userLanguage
-    }
-
-    // 3. FALLBACK: Используем Telegram язык
-    const telegramLanguage = ctx.from?.language_code === 'ru' ? 'ru' : 'en'
+    // ✅ Если в БД нет записи - создаем на основе Telegram
     logger.info(
-      `[getUserLanguage] Using language from Telegram: ${telegramLanguage}`,
+      `[getUserLanguage] ⚠️ Not found in DB, creating from Telegram: ${telegramLanguage}`,
       {
         telegramId,
-        source: 'telegram',
+        telegramLanguage,
       }
     )
 
-    return telegramLanguage
-  } catch (error) {
-    logger.error('[getUserLanguage] Error getting user language:', {
-      error: error instanceof Error ? error.message : String(error),
+    const newLanguage = telegramLanguage === 'ru' ? 'ru' : 'en'
+    await updateUserLanguage(telegramId, newLanguage)
+
+    logger.info(`[getUserLanguage] ✅ CREATED in DB: ${newLanguage}`, {
       telegramId,
+      newLanguage,
+      source: 'created_from_telegram',
     })
 
-    // Fallback в случае ошибки
-    return ctx.from?.language_code === 'ru' ? 'ru' : 'en'
+    return newLanguage
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error(`[getUserLanguage] ❌ DB Error, using Telegram fallback`, {
+      telegramId,
+      error: errorMessage,
+      telegramLanguage,
+    })
+
+    const fallback = telegramLanguage === 'ru' ? 'ru' : 'en'
+    logger.info(`[getUserLanguage] 🚨 ERROR fallback result: ${fallback}`)
+    return fallback
   }
 }
 
@@ -78,42 +91,115 @@ export const getUserLanguage = async (ctx: MyContext): Promise<'ru' | 'en'> => {
  * @returns 'ru' | 'en' - язык пользователя
  */
 export const getUserLanguageSync = (ctx: MyContext): 'ru' | 'en' => {
+  const telegramId = ctx.from?.id?.toString()
+  const telegramLanguage = ctx.from?.language_code
+  const sessionLanguage = ctx.session?.userLanguage
+
+  // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
+  logger.info(`[getUserLanguageSync] SYNC language check:`, {
+    telegramId,
+    telegramLanguage,
+    sessionLanguage,
+    source: sessionLanguage ? 'session' : 'telegram',
+  })
+
+  // ✅ ПРАВИЛЬНАЯ ИНИЦИАЛИЗАЦИЯ СЕССИИ
+  if (!ctx.session) ctx.session = { ...defaultSession }
+
   // Сначала проверяем сессию
   if (ctx.session?.userLanguage) {
+    logger.info(
+      `[getUserLanguageSync] Using SESSION language: ${ctx.session.userLanguage}`,
+      {
+        telegramId,
+      }
+    )
     return ctx.session.userLanguage
   }
 
-  // Fallback на Telegram
-  return ctx.from?.language_code === 'ru' ? 'ru' : 'en'
+  // Фоллбэк на Telegram язык
+  const result = ctx.from?.language_code === 'ru' ? 'ru' : 'en'
+  logger.info(`[getUserLanguageSync] Using TELEGRAM fallback: ${result}`, {
+    telegramId,
+    telegramLanguage,
+  })
+
+  return result
 }
 
 /**
- * Проверяет, является ли текущий язык русским (асинхронная версия)
+ * ✅ ПЕРЕКЛЮЧАЕТ ЯЗЫК НА ПРОТИВОПОЛОЖНЫЙ
+ * @param ctx - Контекст Telegram
+ * @returns Promise<'ru' | 'en'> - новый язык
+ */
+export const toggleUserLanguage = async (
+  ctx: MyContext
+): Promise<'ru' | 'en'> => {
+  const telegramId = ctx.from?.id?.toString()
+
+  logger.info(`[toggleUserLanguage] 🔄 LANGUAGE TOGGLE STARTED:`, {
+    telegramId,
+  })
+
+  const currentLanguage = await getUserLanguage(ctx)
+  const newLanguage = currentLanguage === 'ru' ? 'en' : 'ru'
+
+  logger.info(`[toggleUserLanguage] Language toggle plan:`, {
+    telegramId,
+    currentLanguage,
+    newLanguage,
+  })
+
+  const success = await setUserLanguage(ctx, newLanguage)
+
+  if (success) {
+    logger.info(
+      `[toggleUserLanguage] ✅ TOGGLE SUCCESS: ${currentLanguage} → ${newLanguage}`,
+      {
+        telegramId,
+        from: currentLanguage,
+        to: newLanguage,
+      }
+    )
+    return newLanguage
+  } else {
+    logger.error(
+      `[toggleUserLanguage] ❌ TOGGLE FAILED, keeping: ${currentLanguage}`,
+      {
+        telegramId,
+        currentLanguage,
+      }
+    )
+    return currentLanguage
+  }
+}
+
+/**
+ * ✅ ПРОВЕРЯЕТ - РУССКИЙ ЛИ ЯЗЫК ПОЛЬЗОВАТЕЛЯ
  * @param ctx - Контекст Telegram
  * @returns Promise<boolean> - true если русский
  */
 export const isRussianWithUserChoice = async (
   ctx: MyContext
 ): Promise<boolean> => {
-  const language = await getUserLanguage(ctx)
-  return language === 'ru'
+  const telegramId = ctx.from?.id?.toString()
+  const detectedLanguage = await getUserLanguage(ctx)
+  const isRussian = detectedLanguage === 'ru'
+
+  logger.info(`[isRussianWithUserChoice] ASYNC Russian check:`, {
+    telegramId,
+    detectedLanguage,
+    isRussian,
+  })
+
+  return isRussian
 }
 
 /**
- * Синхронная версия проверки русского языка (для обратной совместимости)
+ * ✅ УСТАНАВЛИВАЕТ ЯЗЫК В БД (БЕЗ КЭША!)
  * @param ctx - Контекст Telegram
- * @returns boolean - true если русский
- */
-export const isRussianWithUserChoiceSync = (ctx: MyContext): boolean => {
-  const language = getUserLanguageSync(ctx)
-  return language === 'ru'
-}
-
-/**
- * Сохраняет выбор языка пользователя в БД и сессии
- * @param ctx - Контекст Telegram
- * @param language - Язык ('ru' или 'en')
- * @returns Promise<boolean> - true если сохранение успешно
+ * @param language - Язык для установки
+ * @returns Promise<boolean> - успешность операции
  */
 export const setUserLanguage = async (
   ctx: MyContext,
@@ -126,68 +212,28 @@ export const setUserLanguage = async (
     return false
   }
 
+  logger.info(`[setUserLanguage] 💾 Saving to DATABASE: ${language}`, {
+    telegramId,
+    language,
+  })
+
   try {
-    // Сохраняем в БД
-    const dbSuccess = await updateUserLanguage(telegramId, language)
+    await updateUserLanguage(telegramId, language)
 
-    if (dbSuccess) {
-      // Синхронизируем с сессией
-      if (!ctx.session) ctx.session = {}
-      ctx.session.userLanguage = language
-
-      logger.info(
-        `[setUserLanguage] Successfully updated language to ${language}`,
-        {
-          telegramId,
-          language,
-        }
-      )
-
-      return true
-    } else {
-      logger.error(`[setUserLanguage] Failed to update language in DB`, {
-        telegramId,
-        language,
-      })
-      return false
-    }
-  } catch (error) {
-    logger.error('[setUserLanguage] Error setting user language:', {
-      error: error instanceof Error ? error.message : String(error),
+    logger.info(`[setUserLanguage] ✅ Successfully saved to DB: ${language}`, {
       telegramId,
       language,
     })
-    return false
-  }
-}
 
-/**
- * Переключает язык пользователя на противоположный
- * @param ctx - Контекст Telegram
- * @returns Promise<'ru' | 'en'> - новый язык
- */
-export const toggleUserLanguage = async (
-  ctx: MyContext
-): Promise<'ru' | 'en'> => {
-  const currentLanguage = await getUserLanguage(ctx)
-  const newLanguage = currentLanguage === 'ru' ? 'en' : 'ru'
-
-  const success = await setUserLanguage(ctx, newLanguage)
-
-  if (success) {
-    logger.info(
-      `[toggleUserLanguage] Language toggled from ${currentLanguage} to ${newLanguage}`,
-      {
-        telegramId: ctx.from?.id?.toString(),
-      }
-    )
-    return newLanguage
-  } else {
-    logger.error(`[toggleUserLanguage] Failed to toggle language`, {
-      telegramId: ctx.from?.id?.toString(),
-      currentLanguage,
-      attemptedNewLanguage: newLanguage,
+    return true
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error('[setUserLanguage] ❌ Failed to save language to DB', {
+      telegramId,
+      language,
+      error: errorMessage,
     })
-    return currentLanguage // Возвращаем текущий язык если не удалось переключить
+
+    return false
   }
 }
