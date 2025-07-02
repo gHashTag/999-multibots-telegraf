@@ -10,6 +10,16 @@ import { handleTechSupport } from '@/commands/handleTechSupport'
 import { handleRestartVideoGeneration } from './handleVideoRestart'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
+// ✅ Добавляем импорт новых функций языка
+import {
+  isRussianWithUserChoice,
+  toggleUserLanguage,
+  getUserLanguage,
+} from '@/helpers/language'
+
+// Получаем ID администраторов из переменных окружения
+const adminIds = process.env.ADMIN_IDS?.split(',') || []
+logger.info('[handleMenu] adminIds from env:', adminIds)
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
@@ -22,7 +32,17 @@ export const handleMenu = async (ctx: MyContext) => {
   })
 
   console.log('CASE: handleMenuCommand')
-  const isRu = isRussian(ctx)
+  // ✅ Используем функцию с учетом пользовательского выбора языка
+  const isRu = isRussianWithUserChoice(ctx)
+
+  // Логируем текущий язык
+  const currentLanguage = getUserLanguage(ctx)
+  logger.info('[handleMenu] Current user language:', {
+    telegramId,
+    currentLanguage,
+    telegramLanguage: ctx.from?.language_code,
+  })
+
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text || ''
     const normalizedText = text.replace(/\s+/g, ' ').trim()
@@ -608,6 +628,44 @@ export const handleMenu = async (ctx: MyContext) => {
         await ctx.reply('❌ Process cancelled.', Markup.removeKeyboard())
         await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.MainMenu)
+      },
+      // ✅ Добавляем обработчик для кнопки смены языка
+      [isRu ? levels[106].title_ru : levels[106].title_en]: async () => {
+        logger.info({
+          message: '🌐 [handleMenu] Переключение языка',
+          telegramId,
+          function: 'handleMenu',
+          action: 'language_toggle',
+          currentLanguage: getUserLanguage(ctx),
+        })
+        console.log('CASE: 🌐 Переключение языка')
+
+        // Переключаем язык
+        const newLanguage = toggleUserLanguage(ctx)
+
+        // Уведомляем пользователя о смене языка
+        const message =
+          newLanguage === 'ru'
+            ? '🌐 Язык изменен на русский'
+            : '🌐 Language changed to English'
+
+        await ctx.reply(message)
+
+        logger.info({
+          message: '✅ [handleMenu] Язык успешно переключен',
+          telegramId,
+          function: 'handleMenu',
+          newLanguage,
+          oldLanguage: newLanguage === 'ru' ? 'en' : 'ru',
+        })
+
+        // Перезагружаем главное меню с новым языком
+        ctx.session.mode = ModeEnum.MainMenu
+        console.log(`🔄 [handleMenu] Перезагрузка меню с новым языком`)
+        await ctx.scene.enter(ModeEnum.MainMenu)
+        console.log(
+          `✅ [handleMenu] Меню перезагружено с языком: ${newLanguage}`
+        )
       },
     }
 
