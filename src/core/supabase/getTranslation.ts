@@ -177,6 +177,12 @@ export async function getTranslation({
       logger.info(`Использованы дефолтные кнопки для ключа "${key}"`)
     }
 
+    // ✅ ИСПРАВЛЕНИЕ: Добавляем дефолтные кнопки для ключа subscriptionScene
+    if (key === 'subscriptionScene' && buttons.length === 0) {
+      buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
+      logger.info(`Использованы дефолтные кнопки для ключа "${key}"`)
+    }
+
     return {
       translation: data?.translation || '',
       url: data?.url || '',
