@@ -17,10 +17,11 @@ import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 import { simulateSubscriptionForDev } from './helpers/simulateSubscription'
+import { isRussianWithUserChoice } from '@/helpers/language'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
-  const isRu = isRussian(ctx)
+  const isRu = isRussianWithUserChoice(ctx)
   try {
     const telegram_id = ctx.from?.id?.toString() || ''
 

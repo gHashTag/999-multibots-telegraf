@@ -4,6 +4,7 @@ import { checkFullAccess } from '../handlers/checkFullAccess'
 import { MyContext } from '../interfaces/telegram-bot.interface'
 import { SubscriptionType } from '../interfaces/subscription.interface'
 import { ADMIN_IDS_ARRAY } from '@/config'
+import { isRussianWithUserChoice } from '@/helpers/language'
 
 interface Level {
   title_ru: string
@@ -109,6 +110,10 @@ export const levels: Record<number, Level> = {
     title_ru: '💫 Оформить подписку',
     title_en: '💫 Subscribe',
   },
+  106: {
+    title_ru: '🌐 EN',
+    title_en: '🌐 RU',
+  },
   107: {
     title_ru: '⬆️ Увеличить качество фото',
     title_en: '⬆️ Upscale Photo Quality',
@@ -204,6 +209,10 @@ export async function mainMenu({
   const subscribeButton = Markup.button.text(
     isRu ? levels[105].title_ru : levels[105].title_en // "💫 Оформить подписку"
   )
+  // ✅ Добавляем кнопку смены языка
+  const languageButton = Markup.button.text(
+    isRu ? levels[106].title_ru : levels[106].title_en // "🌐 EN" или "🌐 RU"
+  )
   // --- ---
 
   const allFunctionalButtons = [...levelButtons, ...adminSpecificButtons]
@@ -216,8 +225,8 @@ export async function mainMenu({
 
   if (currentSubscription === SubscriptionType.STARS) {
     console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
-    // Для STARS только поддержка (Подписка будет ниже)
-    bottomRowButtons.push([supportButton])
+    // Для STARS только поддержка и язык (Подписка будет ниже)
+    bottomRowButtons.push([supportButton, languageButton])
   } else {
     console.log(
       `[mainMenu LOG] Generating bottom row for ${currentSubscription} subscription`
@@ -233,8 +242,8 @@ export async function mainMenu({
     )
     // Баланс и Пополнить идут в основные ряды
     buttonRows.push([balanceButton, topUpButton])
-    // Пригласить и Поддержка идут в предпоследний ряд
-    bottomRowButtons.push([inviteButton, supportButton])
+    // Пригласить, Поддержка и Язык идут в предпоследний ряд
+    bottomRowButtons.push([inviteButton, supportButton], [languageButton])
   }
   console.log(
     `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
