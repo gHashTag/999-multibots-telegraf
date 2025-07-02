@@ -17,11 +17,11 @@ import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 import { simulateSubscriptionForDev } from './helpers/simulateSubscription'
-import { isRussianWithUserChoice } from '@/helpers/language'
+import { isRussianWithUserChoiceSync } from '@/helpers/language'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
-  const isRu = isRussianWithUserChoice(ctx)
+  const isRu = isRussianWithUserChoiceSync(ctx)
   try {
     const telegram_id = ctx.from?.id?.toString() || ''
 
@@ -283,84 +283,4 @@ const menuNextStep = async (ctx: MyContext) => {
       text === '💳 Оформить подписку' ||
       text === '💳 Subscribe'
     ) {
-      logger.info(`[menuNextStep] DIRECT SUBSCRIPTION BUTTON HANDLING: ${text}`)
-      try {
-        await ctx.scene.leave()
-        ctx.session.mode = ModeEnum.SubscriptionScene
-        await ctx.scene.enter(ModeEnum.SubscriptionScene)
-        return // Explicitly handled
-      } catch (error) {
-        logger.error('Error in direct subscription button handling:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-      }
-    }
-
-    // Specific text button handling (example: "Generate new video?")
-    if (
-      text === '🎥 Сгенерировать новое видео?' ||
-      text === '🎥 Generate new video?'
-    ) {
-      logger.info(
-        `[menuNextStep] Detected 'Generate new video' button. Calling handleRestartVideoGeneration...`
-      )
-      await handleRestartVideoGeneration(ctx)
-      return // Explicitly handled
-    }
-
-    // If the text is not a specific button handled above,
-    // and not a command (which should be handled globally),
-    // we can consider it an unhandled text message within the menu scene.
-    // For now, we can log it and do nothing, or re-send the menu.
-    // Let's re-send the menu if it's an unexpected text.
-    // However, handleMenu is designed to map button texts to actions.
-    // If the text matches a known menu button text, handleMenu will process it.
-    // This means regular menu button presses (not commands, not callbacks) will still work.
-    logger.info(
-      `[menuNextStep] Forwarding text message to handleMenu for potential button match: ${text}`
-    )
-    await handleMenu(ctx)
-  } else {
-    // Handle other update types or leave if unhandled
-    logger.warn(
-      '[menuNextStep] Unhandled update type or message format in menuScene.',
-      ctx.update
-    )
-    // Consider replying to the user that the action is not understood in the current context.
-    // For example:
-    // await ctx.reply(isRussian(ctx) ? 'Не совсем понимаю вас в этом меню. Пожалуйста, используйте кнопки.' : 'I don't quite understand you in this menu. Please use the buttons.');
-    // Leaving the scene might be too abrupt if it's just an unhandled message type.
-    // It's often better to guide the user or repeat the menu.
-  }
-}
-
-export const menuScene = new Scenes.WizardScene(
-  ModeEnum.MainMenu,
-  menuCommandStep,
-  menuNextStep
-)
-
-// Обработчик для inline кнопки "Оформить подписку"
-menuScene.action('go_to_subscription_scene', async ctx => {
-  const isRu = ctx.from?.language_code === 'ru'
-  logger.info('MENU SCENE ACTION: go_to_subscription_scene', {
-    telegramId: ctx.from?.id,
-  })
-  try {
-    await ctx.answerCbQuery()
-    await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.SubscriptionScene
-    await ctx.scene.enter(ModeEnum.SubscriptionScene)
-  } catch (error) {
-    logger.error('Error in menuScene go_to_subscription_scene action:', {
-      error,
-      telegramId: ctx.from?.id,
-    })
-    await ctx.reply(
-      isRu
-        ? 'Произошла ошибка. Попробуйте позже.'
-        : 'An error occurred. Please try again later.'
-    )
-  }
-})
+      logger.info(`
