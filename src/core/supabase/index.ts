@@ -66,3 +66,7 @@ export * from './getUserBalanceStats'
 // export * from './getUserReferralCode'; // Assuming this was intentionally commented
 export * from './getUserDetailsSubscription'
 export { getUserBalanceStats } from './getUserBalanceStats'
+
+// ✅ Добавляем экспорт новых функций для работы с языком
+export { updateUserLanguage } from './updateUserLanguage'
+export { getUserLanguageFromDB } from './getUserLanguage'

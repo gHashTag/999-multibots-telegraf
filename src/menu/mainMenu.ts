@@ -4,7 +4,7 @@ import { checkFullAccess } from '../handlers/checkFullAccess'
 import { MyContext } from '../interfaces/telegram-bot.interface'
 import { SubscriptionType } from '../interfaces/subscription.interface'
 import { ADMIN_IDS_ARRAY } from '@/config'
-import { isRussianWithUserChoice } from '@/helpers/language'
+import { isRussianWithUserChoiceSync } from '@/helpers/language'
 
 interface Level {
   title_ru: string
@@ -225,8 +225,8 @@ export async function mainMenu({
 
   if (currentSubscription === SubscriptionType.STARS) {
     console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
-    // Для STARS только поддержка и язык (Подписка будет ниже)
-    bottomRowButtons.push([supportButton, languageButton])
+    // Для STARS только поддержка (язык будет добавлен ниже отдельно)
+    bottomRowButtons.push([supportButton])
   } else {
     console.log(
       `[mainMenu LOG] Generating bottom row for ${currentSubscription} subscription`
@@ -242,9 +242,12 @@ export async function mainMenu({
     )
     // Баланс и Пополнить идут в основные ряды
     buttonRows.push([balanceButton, topUpButton])
-    // Пригласить, Поддержка и Язык идут в предпоследний ряд
-    bottomRowButtons.push([inviteButton, supportButton], [languageButton])
+    // Пригласить и Поддержка идут в предпоследний ряд
+    bottomRowButtons.push([inviteButton, supportButton])
   }
+
+  // ✅ Кнопка языка добавляется для ВСЕХ типов подписок в отдельном ряду
+  bottomRowButtons.push([languageButton])
   console.log(
     `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
   )
